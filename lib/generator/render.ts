@@ -31,6 +31,8 @@ import { EMPTY_GIF } from "./templates";
 
 export interface JsxContext {
   doc: SiteDoc;
+  /** Component root receiving per-instance visibility without an extra DOM wrapper. */
+  componentRootId?: string;
   classNames: Map<string, string>;
   /** コンポーネントID → 出力コンポーネント名（PascalCase） */
   componentNames: Map<string, string>;
@@ -108,10 +110,17 @@ function renderNodeInner(
     const name = ctx.componentNames.get(node.componentId ?? "");
     if (!name) return "";
     ctx.usedComponents.add(node.componentId!);
-    return `${indent}<${name} />`;
+    const visibilityClass = node.hiddenOn?.length ? ctx.classNames.get(id)! : "";
+    const visibility = id === ctx.componentRootId
+      ? ` hiddenClassName={[${JSON.stringify(visibilityClass)}, hiddenClassName].filter(Boolean).join(" ")}`
+      : visibilityClass ? ` hiddenClassName=${jsxString(visibilityClass)}` : "";
+    return `${indent}<${name}${visibility} />`;
   }
 
   const cls = ctx.classNames.get(id)!;
+  const instanceVisibilityAttr = id === ctx.componentRootId
+    ? " data-instance-hidden={hiddenClassName || undefined}"
+    : "";
 
   // スクリプト: 実行側は data-scripts、表示される側は表示に戻すdisplay値を出力
   const toggleAttrs =
@@ -129,7 +138,7 @@ function renderNodeInner(
     const { ivar } = lv;
     const base = ctx.varsExpr ?? "vars";
     const filterFields = [...(ctx.listFilterFields.get(lv.from) ?? [])];
-    const listIdAttr =
+    const listIdAttr = instanceVisibilityAttr +
       (node.attrId ? ` id=${jsxString(node.attrId)}` : "") +
       toggleAttrs +
       inViewAttr +
@@ -191,7 +200,7 @@ ${indent}  })}
 ${indent}</div>`;
   }
 
-  const idAttr =
+  const idAttr = instanceVisibilityAttr +
     (node.attrId ? ` id=${jsxString(node.attrId)}` : "") +
     toggleAttrs +
     inViewAttr;

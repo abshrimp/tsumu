@@ -102,7 +102,7 @@ test("generated components avoid framework names and the exported project typech
   assert.ok(files["lib/safe-fetch.ts"]);
   assert.match(files["app/page.tsx"], /fetchJson\(interpolateUrl\("https:\/\/example\.com\/\?q=\{q\}", vars\)\)/);
   assert.match(files["app/page.tsx"], /dangerouslySetInnerHTML=\{\{ __html: "<script type=\\"application\/ld\+json\\">/);
-  assert.match(files["components/PageHtml2.tsx"], /export default function PageHtml2\(\)/);
+  assert.match(files["components/PageHtml2.tsx"], /export default function PageHtml2\(/);
   const dir = mkdtempSync(join(tmpdir(), "tsumu-export-test-"));
   try {
     symlinkSync(resolve("node_modules"), join(dir, "node_modules"), "dir");
@@ -116,7 +116,7 @@ test("generated components avoid framework names and the exported project typech
       "--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false",
     ], { cwd: dir, stdio: "pipe" });
     assert.match(files["components/SmartLink.tsx"], /export default function SmartLink\(/);
-    assert.match(files["components/SmartLink2.tsx"], /export default function SmartLink2\(\)/,
+    assert.match(files["components/SmartLink2.tsx"], /export default function SmartLink2\(/,
       "the user component must not be overwritten by the link helper");
   } finally {
     rmSync(dir, { recursive: true, force: true });

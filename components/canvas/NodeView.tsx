@@ -39,10 +39,12 @@ function GhostView({
   id,
   isTop,
   itemVars,
+  instanceIds = [],
 }: {
   id: string;
   isTop: boolean;
   itemVars?: Record<string, unknown>;
+  instanceIds?: string[];
 }): ReactNode {
   const doc = useEditor((s) => s.doc);
   const setActivePage = useEditor((s) => s.setActivePage);
@@ -54,6 +56,7 @@ function GhostView({
   const scopedVars = itemVars;
   const vars = { ...ctx.pageVars, ...scopedVars };
   const common: Record<string, unknown> = { "data-ghost": id };
+  if (instanceIds.length) common["data-instance-node"] = instanceIds.join(" ");
   if (node.attrId) common.id = node.attrId;
   if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars);
 
@@ -89,7 +92,7 @@ function GhostView({
     if (chain.includes(comp.id)) return recursiveInstance(common);
     return (
       <InstanceChainCtx.Provider value={[...chain, comp.id]}>
-        <GhostView key={id} id={comp.rootId} isTop={isTop} itemVars={scopedVars} />
+        <GhostView key={id} id={comp.rootId} isTop={isTop} itemVars={scopedVars} instanceIds={[...instanceIds, id]} />
       </InstanceChainCtx.Provider>
     );
   }

@@ -234,7 +234,9 @@ export function GET() {
     ctx.listVars = undefined;
     ctx.listOps = undefined;
     ctx.liveNames = new Set(siteLiveNames);
+    ctx.componentRootId = comp.rootId;
     const body = renderNode(ctx, comp.rootId, "    ", false);
+    ctx.componentRootId = undefined;
     ctx.varsExpr = "vars";
     const imports: string[] = [];
     if (ctx.usesFragment) imports.push('import { Fragment } from "react";');
@@ -259,7 +261,7 @@ export function GET() {
     }
     files[`components/${name}.tsx`] = `${
       imports.length ? imports.join("\n") + "\n\n" : ""
-    }export default function ${name}() {
+    }export default function ${name}({ hiddenClassName = "" }: { hiddenClassName?: string } = {}) {
   return (
 ${body || "    null"}
   );
