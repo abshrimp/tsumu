@@ -445,6 +445,8 @@ const en: Dict = {
     "Overwrite and publish",
   "ログインが設定されていません":
     "Sign-in is not configured",
+  "公開先のファイル一覧をすべて取得できなかったため、公開を中止しました":
+    "Publishing stopped because the complete file list could not be retrieved from the destination",
   "公開できないファイルの場所が含まれています":
     "The publish includes a file path that isn't allowed",
   "{site}に公開":

@@ -121,3 +121,15 @@ export function serializeGeneratedManifest(files: Record<string, string>): strin
   const sorted = Object.fromEntries(Object.entries(files).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   return JSON.stringify({ version: 1, files: sorted }, null, 2) + "\n";
 }
+
+/** 手で追加したファイル・シンボリックリンク・サブモジュールを、Git の属性ごと引き継ぐ。 */
+export function keptTreeEntries(entries: TreeEntry[], paths: string[]): TreeEntry[] | null {
+  const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+  const kept: TreeEntry[] = [];
+  for (const path of new Set(paths)) {
+    const entry = byPath.get(path);
+    if (!entry?.sha || (entry.type !== "blob" && entry.type !== "commit")) return null;
+    kept.push({ path: entry.path, mode: entry.mode, type: entry.type, sha: entry.sha });
+  }
+  return kept;
+}
