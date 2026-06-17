@@ -4,6 +4,7 @@ import { isEnterKey } from "../lib/keys";
 import { useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import JSZip from "jszip";
+import { resolveZipReference } from "../lib/zip-references";
 import { useEditor } from "../lib/store";
 import { showConfirm } from "../lib/dialog";
 import { assetSrc, uploadStaticAsset } from "../lib/assets";
@@ -45,15 +46,7 @@ const cleanZipPath = (value: string) =>
   value.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 
 function rewriteZipReferences(html: string, htmlPath: string, urls: Map<string, string>) {
-  const baseDir = htmlPath.includes("/") ? htmlPath.slice(0, htmlPath.lastIndexOf("/") + 1) : "";
-  const resolve = (value: string, fromDir = baseDir) => {
-    if (!value || /^(?:[a-z]+:|#|\/\/)/i.test(value)) return value;
-    const [path, suffix = ""] = value.split(/(?=[?#])/);
-    const parts = cleanZipPath(`${fromDir}${path}`).split("/");
-    const normalized: string[] = [];
-    for (const part of parts) part === ".." ? normalized.pop() : part !== "." && normalized.push(part);
-    return (urls.get(normalized.join("/")) ?? value) + suffix;
-  };
+  const resolve = (value: string) => resolveZipReference(value, htmlPath, urls);
   const doc = new DOMParser().parseFromString(html, "text/html");
   for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[src],[href],[poster]"))) {
     for (const attr of ["src", "href", "poster"]) {
