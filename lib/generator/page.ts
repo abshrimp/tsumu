@@ -19,7 +19,7 @@ import {
   setVarSource,
 } from "../data";
 import { resolveTag } from "../tags";
-import { walkSteps } from "../script";
+import { compileScripts, walkSteps } from "../script";
 import { DEFAULT_DATA_REVALIDATE } from "../types";
 import {
   dynamicOrigin,
@@ -708,12 +708,27 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     else if (n.attrId) known.add(n.attrId);
   }
 
-  const unknown = (str: string | undefined, inList: boolean) =>
+  const unknown = (str: string | undefined, inList: boolean, keepClient = false) =>
     !!str &&
     extractVars(str).some((name) => {
       const root = name.split(".")[0];
-      return !known.has(root) && !(inList && itemKeys.has(root));
+      return !known.has(root) && !(inList && itemKeys.has(root)) && !(keepClient && plan.clientVars.has(root));
     });
+
+  // ブラウザで実行するスクリプトも、属性を作るときに変数を解決する。
+  // コンパイラと同じ値を調べ、条件分岐やくり返しの中のクエリも見落とさない。
+  const scriptsReadQuery = (node: Pick<DocNode, "scripts">, inList: boolean, skip?: Set<string>) => {
+    let reads = false;
+    compileScripts(node, () => "", (value) => {
+      if (unknown(value, inList, true)) reads = true;
+      return value;
+    }, false, skip, (name) => {
+      if (unknown(`{${name}}`, inList, true)) reads = true;
+      return undefined;
+    });
+    return reads;
+  };
+  if (scriptsReadQuery({ scripts: page.pageScripts }, false, plan.serverIds)) return true;
 
   // サーバー側で動くデータのブロック・リストの絞り込み
   for (const st of plan.steps) {
@@ -749,6 +764,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     if (!n || seen.has(id)) return false;
     seen.add(id);
     const f = n.field;
+    if (scriptsReadQuery(n, inList)) return true;
     if (
       unknown(n.text?.content, inList) ||
       unknown(n.image?.src, inList) ||
