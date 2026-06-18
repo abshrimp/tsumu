@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { auth, authConfigured } from "../../auth";
 import { Globe, MousePointerClick, Smartphone } from "lucide-react";
 import GoogleSignIn from "../../components/GoogleSignIn";
 import BrandMark from "../../components/BrandMark";
@@ -68,6 +70,9 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
+  // Edge の Cookie 検証と異なり、auth() は現在の許可リストも確認する。
+  if (authConfigured() && await auth()) redirect("/");
+
   const { error } = await searchParams;
   const tr = await serverTr();
   return (
