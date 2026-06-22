@@ -599,9 +599,9 @@ export const useEditor = create<EditorStore>((set, get) => {
     }));
   };
 
-  /** リモートの変更（current → next）を履歴の各スナップショットにも反映する */
+  /** リモートの変更（current → next）を履歴にも反映し、同じ項目の競合は最新の変更を優先する */
   const rebaseHistory = (list: SiteDoc[], current: SiteDoc, next: SiteDoc) =>
-    list.map((snap) => mergeDocs(current, snap, next));
+    list.map((snap) => mergeDocs(current, next, snap));
 
   return {
     doc: initialDoc,
