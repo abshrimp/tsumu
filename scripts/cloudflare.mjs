@@ -38,7 +38,7 @@ function parseJsonc(src) {
       i++;
     } else out += c;
   }
-  return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1"));
+  return JSON.parse(out.replace(/"(?:\\.|[^"\\])*"|,(\s*[}\]])/g, (match, closing) => closing ?? match));
 }
 
 export function wranglerConfigPath() {
