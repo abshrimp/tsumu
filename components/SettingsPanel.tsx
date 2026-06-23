@@ -129,6 +129,9 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
     doc.pages[activePageId]?.children.forEach(walk);
   }
 
+  const master = node.type === "instance" ? doc.components?.[node.componentId ?? ""] : undefined;
+  const masterRoot = master ? doc.nodes[master.rootId] : undefined;
+  const masterId = masterRoot?.type !== "instance" ? masterRoot?.attrId : undefined;
   const scripts = scriptsOf(node);
 
   return (
@@ -171,6 +174,11 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               }}
             />
           </div>
+          {masterId && node.attrId && masterId !== node.attrId && (
+            <p className="hint" style={{ margin: "-4px 0 0", color: "var(--warn)" }}>
+              {tr("マスターのID「{id}」が優先されます。この使用箇所のIDは公開されません。", { id: masterId })}
+            </p>
+          )}
           {node.attrId === "slug" && isSlugPg && (
             <p
               className="hint"

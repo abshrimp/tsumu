@@ -114,10 +114,17 @@ function renderNodeInner(
     const visibility = id === ctx.componentRootId
       ? ` hiddenClassName={[${JSON.stringify(visibilityClass)}, hiddenClassName].filter(Boolean).join(" ")}`
       : visibilityClass ? ` hiddenClassName=${jsxString(visibilityClass)}` : "";
-    return `${indent}<${name}${visibility} />`;
+    const master = ctx.doc.components?.[node.componentId ?? ""];
+    const root = master ? ctx.doc.nodes[master.rootId] : undefined;
+    // ページ上の使用箇所のアンカー。マスター自身のID・入れ子の参照は変えない。
+    const anchor = !ctx.componentRootId && node.attrId && root && root.type !== "instance" && !root.attrId
+      ? ` instanceId=${jsxString(node.attrId)}` : "";
+    return `${indent}<${name}${visibility}${anchor} />`;
   }
 
   const cls = ctx.classNames.get(id)!;
+  const anchorAttr = node.attrId ? ` id=${jsxString(node.attrId)}`
+    : id === ctx.componentRootId ? " id={instanceId || undefined}" : "";
   const instanceVisibilityAttr = id === ctx.componentRootId
     ? " data-instance-hidden={hiddenClassName || undefined}"
     : "";
@@ -127,7 +134,9 @@ function renderNodeInner(
     scriptsAttr(ctx, node) +
     ((node.attrId && ctx.toggleTargets.has(node.attrId)) || showsSelf(node)
       ? ` data-toggle-show=${jsxString(toggleShowDisplay(node))}`
-      : "");
+      : id === ctx.componentRootId && !node.attrId
+        ? ` data-toggle-show={instanceId ? ${JSON.stringify(toggleShowDisplay(node))} : undefined}`
+        : "");
 
   // 「画面に入ったとき」は data-inview を見張って .is-inview で再生する（リストにも付ける）
   const inViewAttr = node.motions?.some((m) => m.trigger === "in-view") ? " data-inview" : "";
@@ -139,7 +148,7 @@ function renderNodeInner(
     const base = ctx.varsExpr ?? "vars";
     const filterFields = [...(ctx.listFilterFields.get(lv.from) ?? [])];
     const listIdAttr = instanceVisibilityAttr +
-      (node.attrId ? ` id=${jsxString(node.attrId)}` : "") +
+      anchorAttr +
       toggleAttrs +
       inViewAttr +
       (filterFields.length || lv.client ? ` data-array=${jsxString(lv.from)}` : "");
@@ -201,7 +210,7 @@ ${indent}</div>`;
   }
 
   const idAttr = instanceVisibilityAttr +
-    (node.attrId ? ` id=${jsxString(node.attrId)}` : "") +
+    anchorAttr +
     toggleAttrs +
     inViewAttr;
 

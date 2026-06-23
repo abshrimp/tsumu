@@ -5,6 +5,7 @@ import help from "./en-help";
 
 const en: Dict = {
   ...help,
+  "マスターのID「{id}」が優先されます。この使用箇所のIDは公開されません。": "The master ID “{id}” takes priority. This instance’s ID will not be published.",
   "ページ情報を送信しています…": "Sending page information\u2026",
   "変更内容を検討しています…": "Planning the changes\u2026",
   "変更案を作成しています…": "Preparing edits\u2026",

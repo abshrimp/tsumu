@@ -261,7 +261,7 @@ export function GET() {
     }
     files[`components/${name}.tsx`] = `${
       imports.length ? imports.join("\n") + "\n\n" : ""
-    }export default function ${name}({ hiddenClassName = "" }: { hiddenClassName?: string } = {}) {
+    }export default function ${name}({ hiddenClassName = "", instanceId }: { hiddenClassName?: string; instanceId?: string } = {}) {
   return (
 ${body || "    null"}
   );
