@@ -16,7 +16,7 @@ import {
 import { useEditor } from "../lib/store";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { assetSrc } from "../lib/assets";
-import { SITE_LANGS, siteLangOf } from "../lib/site-lang";
+import { siteLangOf } from "../lib/site-lang";
 import { genId, makeBox, makeText } from "../lib/presets";
 import {
   DEFAULT_DATA_REVALIDATE,
@@ -25,6 +25,7 @@ import {
   type PwaSetting,
 } from "../lib/types";
 import ImagePicker from "./ImagePicker";
+import SiteLanguageSelect from "./SiteLanguageSelect";
 import { BpIcon, CommitTextarea, FillControl, InfoTip, NumField, Section, Seg } from "./controls";
 import {
   MAX_BREAKPOINTS,
@@ -640,24 +641,10 @@ export default function SitePanel() {
             {tr("言語")}
             <InfoTip text={tr("ページの文章の言語です。ブラウザの読み上げ・翻訳や検索エンジンが、この言語として扱います。")} />
           </label>
-          <select
-            className="select"
+          <SiteLanguageSelect
             value={siteLangOf(doc)}
-            onChange={(e) => {
-              const lang = e.target.value;
-              updateDoc((d) => void (d.lang = lang));
-            }}
-          >
-            {SITE_LANGS.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-            {/* 一覧に無いコード（AI などで設定したもの）もそのまま選べるようにする */}
-            {!SITE_LANGS.some((l) => l.value === siteLangOf(doc)) && (
-              <option value={siteLangOf(doc)}>{siteLangOf(doc)}</option>
-            )}
-          </select>
+            onChange={(lang) => updateDoc((d) => void (d.lang = lang))}
+          />
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info">

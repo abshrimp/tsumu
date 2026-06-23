@@ -10,6 +10,7 @@ import { showConfirm } from "../lib/dialog";
 import { assetSrc, uploadStaticAsset } from "../lib/assets";
 import type { Asset } from "../lib/types";
 import ImagePicker from "./ImagePicker";
+import SiteLanguageSelect from "./SiteLanguageSelect";
 import { LoadingScreenSettings } from "./SitePanel";
 import { CommitInput, CommitTextarea, FillControl, Grp, InfoTip, Section, Seg } from "./controls";
 import { ScriptSummary } from "./ScriptEditor";
@@ -266,25 +267,14 @@ export default function PagePanel() {
               {tr("言語")}
               <InfoTip text={tr("このページの文章の言語です。「サイトと同じ」のときは、サイト設定の言語になります。")} />
             </label>
-            <select
-              className="select"
+            <SiteLanguageSelect
+              key={page.id}
               value={isSiteLang(page.lang) ? page.lang : ""}
-              onChange={(e) => updatePage(page.id, { lang: e.target.value || undefined })}
-            >
-              <option value="">
-                {tr("サイトと同じ（{lang}）", {
-                  lang: SITE_LANGS.find((l) => l.value === siteLangOf(doc))?.label ?? siteLangOf(doc),
-                })}
-              </option>
-              {SITE_LANGS.map((l) => (
-                <option key={l.value} value={l.value}>
-                  {l.label}
-                </option>
-              ))}
-              {isSiteLang(page.lang) && !SITE_LANGS.some((l) => l.value === page.lang) && (
-                <option value={page.lang}>{page.lang}</option>
-              )}
-            </select>
+              onChange={(lang) => updatePage(page.id, { lang: lang || undefined })}
+              inheritLabel={tr("サイトと同じ（{lang}）", {
+                lang: SITE_LANGS.find((l) => l.value === siteLangOf(doc))?.label ?? siteLangOf(doc),
+              })}
+            />
           </div>
         )}
         {isSlugPg && (
