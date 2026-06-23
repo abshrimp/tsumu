@@ -252,6 +252,17 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
       }
     }
   }
+  if (!data) return;
+  // 背景パネルが保存する形式だけを扱い、カスタムCSSの値は書き換えない。
+  for (const page of Object.values(doc.pages)) {
+    for (const bp of Object.values(page.bodyStyles ?? {})) {
+      for (const styles of Object.values(bp ?? {})) {
+        if (styles?.backgroundImage === `url("${data}")`) {
+          styles.backgroundImage = `url("${src}")`;
+        }
+      }
+    }
+  }
 }
 
 /** 埋め込みアセットをサーバーへアップロードする（サーバーに保存できなければ null） */
