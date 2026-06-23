@@ -17,5 +17,22 @@ export function resolveZipReference(value: string, htmlPath: string, urls: Map<s
   if (!mapped) return value;
   // Asset proxy URLs already have a path query. Keep archive query parameters
   // separate from that path, and preserve the complete query and fragment.
-  return mapped + (suffix.startsWith("?") && mapped.includes("?") ? `&${suffix.slice(1)}` : suffix);
+  return appendAssetSuffix(mapped, suffix);
+}
+
+/** The asset identity and suffix are kept separate, including when a dependency is deduplicated. */
+export function zipDependency(value: string, path: string, ids: Map<string, string>) {
+  const mapped = resolveZipReference(value, path, ids);
+  if (mapped === value) return undefined;
+  const suffixAt = mapped.search(/[?#]/);
+  return { assetId: suffixAt < 0 ? mapped : mapped.slice(0, suffixAt), suffix: suffixAt < 0 ? "" : mapped.slice(suffixAt) };
+}
+
+/** Queries on data URLs would become CSS/image bytes; cache-busting queries have no role there. */
+export function appendAssetSuffix(url: string, suffix: string): string {
+  if (url.startsWith("data:")) {
+    const hash = suffix.indexOf("#");
+    return url + (hash < 0 ? "" : suffix.slice(hash));
+  }
+  return url + (suffix.startsWith("?") && url.includes("?") ? `&${suffix.slice(1)}` : suffix);
 }

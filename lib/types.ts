@@ -569,6 +569,17 @@ export interface ListContent {
   limit?: number;
 }
 
+/** Original archive provenance and CSS dependency edges. Uploaded bytes are never rewritten. */
+export interface ZipAssetMetadata {
+  version: 1;
+  group: string;
+  path: string;
+  stylesheet?: {
+    source: string;
+    references: { url: string; assetId: string; suffix: string }[];
+  };
+}
+
 export interface Asset {
   id: string;
   name: string;
@@ -584,6 +595,7 @@ export interface Asset {
   height: number;
   /** SVGが <filter>（シャドウ等）を含むか。未判定なら undefined */
   svgFilter?: boolean;
+  zip?: ZipAssetMetadata;
 }
 
 export interface LoadingScreenSetting {

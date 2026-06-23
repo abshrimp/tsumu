@@ -5,6 +5,13 @@ import help from "./en-help";
 
 const en: Dict = {
   ...help,
+  "プレビューのアセットURLの有効期限が近づいています。更新すると入力内容やページ内の状態がリセットされます。": "The preview asset URLs will expire soon. Refreshing resets form entries and the page's current state.",
+  "プレビューを更新": "Refresh preview",
+  "ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。": "The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP.",
+  "ZIPのCSSデータを読み込めません。ZIPを再読み込みしてください。": "The ZIP stylesheet data could not be read. Reimport the ZIP.",
+  "ZIP内のCSSは合計2MBまでです": "ZIP stylesheets must total 2 MB or less.",
+  "ZIP内のCSSはUTF-8に対応しています。文字コードをUTF-8に変換して再読み込みしてください。": "ZIP stylesheets must use UTF-8. Convert the CSS files to UTF-8 and reimport the ZIP.",
+  "HTMLプレビューのアセットを読み込めませんでした": "The HTML preview assets could not be loaded.",
   "マスターのID「{id}」が優先されます。この使用箇所のIDは公開されません。": "The master ID “{id}” takes priority. This instance’s ID will not be published.",
   "ページ情報を送信しています…": "Sending page information\u2026",
   "変更内容を検討しています…": "Planning the changes\u2026",

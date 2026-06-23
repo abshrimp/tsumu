@@ -1,3 +1,4 @@
+import { exportZipStylesheet } from "./zip-css";
 import type { SiteDoc } from "./types";
 import { applyBreakpoints } from "./style";
 import { siteLangOf, siteText } from "./site-lang";
@@ -691,7 +692,10 @@ a {
   const remoteAssets: Record<string, string> = {};
   for (const asset of Object.values(doc.assets)) {
     const path = `public/assets/${assetNames.get(asset.id)}`;
-    if (asset.path) {
+    const stylesheet = exportZipStylesheet(asset, assetNames);
+    if (stylesheet !== undefined) {
+      files[path] = stylesheet;
+    } else if (asset.path) {
       remoteAssets[path] = asset.path;
     } else if (asset.dataUrl) {
       // data:image/svg+xml;charset=utf-8;base64,… や base64でない形式も受け付ける

@@ -9,6 +9,7 @@
 
 import type { Asset, Component, CustomFont, DocNode, SiteDoc } from "./types";
 import { assetSrc } from "./assets";
+import { zipAssetClosure, zipStylesheet } from "./zip-css";
 import { genId } from "./presets";
 import { cloneSteps, scriptUid } from "./script";
 import { currentSiteId } from "./site";
@@ -64,9 +65,10 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
   const text = JSON.stringify([clip.nodes, componentNodes]);
   const assets: Record<string, Asset> = {};
   for (const a of Object.values(doc.assets)) {
-    const src = a.path ? assetSrc(a) : "";
+    const src = assetSrc(a);
     if (text.includes(a.id) || (src && text.includes(src))) assets[a.id] = structuredClone(a);
   }
+  for (const id of zipAssetClosure(doc.assets, Object.keys(assets))) assets[id] = structuredClone(doc.assets[id]);
   const customFonts = (doc.customFonts ?? []).filter((f) => text.includes(f.family));
   return {
     v: 1,
@@ -202,14 +204,29 @@ export function mergeClipDeps(d: SiteDoc, p: ClipPayload): {
   componentNodes: DocNode[];
 } {
   const remap = new Map<string, string>();
+  const added: Asset[] = [];
   for (const a of Object.values(p.assets)) {
     if (!a || typeof a.id !== "string" || !a.id || !isSafeClipAsset(a)) continue;
-    if (d.assets[a.id]) continue;
-    const same = Object.values(d.assets).find(
-      (b) => (a.path && b.path === a.path) || (a.dataUrl && b.dataUrl === a.dataUrl)
-    );
+    const existing = d.assets[a.id];
+    // Identical stylesheet bytes may resolve differently in different archives.
+    const sameFile = (b: Asset) => Boolean((a.path && b.path === a.path) || (a.dataUrl && b.dataUrl === a.dataUrl));
+    const sameSheet = (b: Asset) => JSON.stringify(a.zip) === JSON.stringify(b.zip);
+    if (existing && sameFile(existing) && ((!zipStylesheet(a) && !zipStylesheet(existing)) || sameSheet(existing))) continue;
+    const same = !zipStylesheet(a) && Object.values(d.assets).find((b) => !zipStylesheet(b) && sameFile(b));
     if (same) remap.set(a.id, same.id);
-    else d.assets[a.id] = structuredClone(a);
+    else {
+      const copy = structuredClone(a);
+      if (existing) {
+        do { copy.id = genId("asset"); } while (d.assets[copy.id] || p.assets[copy.id]);
+        remap.set(a.id, copy.id);
+      }
+      d.assets[copy.id] = copy;
+      added.push(copy);
+    }
+  }
+  // Remap only dependency identities, never arbitrary CSS source text containing an ID.
+  for (const asset of added) {
+    for (const ref of zipStylesheet(asset)?.references ?? []) ref.assetId = remap.get(ref.assetId) ?? ref.assetId;
   }
   const components = Object.values(p.components).filter((c) => !d.components?.[c.id]);
   const sourceNodes = new Map(p.componentNodes.map((n) => [n.id, n]));
@@ -279,7 +296,8 @@ function isSafeClipAsset(a: Asset): boolean {
     }
   }
   if (a.dataUrl !== undefined) {
-    if (typeof a.dataUrl !== "string" || !/^data:(?:image|video|audio|font)\//i.test(a.dataUrl)) {
+    if (typeof a.dataUrl !== "string" || (!/^data:(?:image|video|audio|font)\//i.test(a.dataUrl) &&
+        !(zipStylesheet(a) && /\.css$/i.test(a.name) && /^data:text\/css(?:;charset=utf-8)?(?:;base64)?,/i.test(a.dataUrl)))) {
       return false;
     }
   }
@@ -289,7 +307,11 @@ function isSafeClipAsset(a: Asset): boolean {
 /** 要素の中のアセットIDを付け替える（IDは一意な文字列なので、文字列として置き換える） */
 export function remapAssetIds<T>(value: T, remap: Map<string, string>): T {
   if (!remap.size) return value;
-  let json = JSON.stringify(value);
-  for (const [from, to] of remap) json = json.split(from).join(to);
+  // Replace original identities once: a dedupe target can itself be a conflicting
+  // source ID that has a different mapping. Sequential replacements would cascade.
+  const pattern = [...remap.keys()].filter(Boolean).sort((a, b) => b.length - a.length)
+    .map((id) => id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  if (!pattern) return value;
+  const json = JSON.stringify(value).replace(new RegExp(pattern, "g"), (id) => remap.get(id)!);
   return JSON.parse(json) as T;
 }

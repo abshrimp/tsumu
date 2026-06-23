@@ -1,5 +1,7 @@
 "use client";
 
+import { zipAssetClosure } from "../../lib/zip-css";
+
 import { cssUsesAssetUrl } from "@/lib/css-assets";
 
 /**
@@ -148,7 +150,7 @@ function StorageUsageMeter() {
  * スクリプトや HTML などに URL・ID が書かれているものも「使用中」として数える
  * （未使用の一括削除で消してしまわないよう、判定は控えめにする）。
  */
-function assetUsage(doc: SiteDoc): Map<string, number> {
+export function assetUsage(doc: SiteDoc): Map<string, number> {
   const usage = new Map<string, number>();
   const add = (id: string | undefined | null) => {
     if (id && doc.assets[id]) usage.set(id, (usage.get(id) ?? 0) + 1);
@@ -184,6 +186,7 @@ function assetUsage(doc: SiteDoc): Map<string, number> {
     const src = assetSrc(a);
     if (text.includes(a.id) || (src && text.includes(src))) usage.set(a.id, 1);
   }
+  for (const id of zipAssetClosure(doc.assets, usage.keys())) if (!usage.has(id)) usage.set(id, 1);
   return usage;
 }
 

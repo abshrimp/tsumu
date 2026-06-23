@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authConfigured } from "../../../../auth";
 import { storeUnavailable } from "../../../../lib/unavailable";
 import { serverTr } from "../../../../lib/i18n-server";
 import { requireAuth } from "../../../../lib/server";
@@ -38,8 +39,9 @@ export async function GET(req: Request) {
         // エディタと同じオリジンから配信するため、SVGなどを直接開いてもスクリプトが動かないようにする
         "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; media-src 'self'; sandbox",
         "X-Content-Type-Options": "nosniff",
-        // 署名URLは、別オリジンのプレビューからフォント・モジュールとしても読めるようにする
-        ...(signed ? { "Access-Control-Allow-Origin": "*", "Cross-Origin-Resource-Policy": "cross-origin" } : {}),
+        // 署名URLと、認証不要で公開済みのアセットは、別オリジンのプレビューでも読めるようにする。
+        // 認証未設定でも匿名利用が許可されていなければ、上の requireAuth で拒否される。
+        ...(signed || !authConfigured() ? { "Access-Control-Allow-Origin": "*", "Cross-Origin-Resource-Policy": "cross-origin" } : {}),
       },
     });
   } catch (e) {

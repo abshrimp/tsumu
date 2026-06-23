@@ -1,3 +1,8 @@
+import { tr } from "./i18n";
+
+/** HTML style and SVG presentation attributes whose values can contain CSS resource URLs. */
+export const CSS_ASSET_ATTRIBUTES = ["style", "fill", "stroke", "filter", "clip-path", "mask", "marker", "marker-start", "marker-mid", "marker-end", "cursor"];
+
 /** CSSのURLだけを扱い、コメントや通常の文字列、別URLの一部分は変更しない。 */
 type Reference = { start: number; end: number; url: string; quote: string };
 const space = (c: string) => /[\t\n\f\r ]/.test(c);
@@ -27,8 +32,9 @@ function decode(css: string): string {
   });
 }
 
-function references(css: string): Reference[] {
+export function cssAssetReferences(css: string): Reference[] {
   const out: Reference[] = [];
+  let atRuleTarget: "import" | "namespace" | undefined;
   const stack: { name: string; candidate: boolean }[] = [];
   const skipTrivia = (from: number): number => {
     let i = from;
@@ -56,12 +62,22 @@ function references(css: string): Reference[] {
     if (next !== i) { i = next; continue; }
     const c = css[i];
     const parent = stack.at(-1);
+    if (c === "@") {
+      const start = ++i;
+      while (i < css.length && (nameChar(css[i]) || css[i] === "\\")) {
+        i = css[i] === "\\" ? escapeEnd(css, i) : i + 1;
+      }
+      const name = decode(css.slice(start, i)).toLowerCase();
+      atRuleTarget = name === "import" || name === "namespace" ? name : undefined;
+      continue;
+    }
     if (c === '"' || c === "'") {
       const end = stringEnd(i);
       if (end < 0) break;
-      if (parent?.candidate && /^(?:-webkit-)?image-set$/.test(parent.name)) {
+      if (atRuleTarget === "import" || (parent?.candidate && /^(?:-webkit-)?image-set$/.test(parent.name))) {
         out.push({ start: i + 1, end, url: decode(css.slice(i + 1, end)), quote: c });
       }
+      atRuleTarget = undefined;
       if (parent) parent.candidate = false;
       i = end + 1;
     } else if (nameChar(c) || c === "\\") {
@@ -71,8 +87,13 @@ function references(css: string): Reference[] {
       }
       const name = decode(css.slice(start, i)).toLowerCase();
       if (parent) parent.candidate = false;
-      if (css[i] !== "(") continue;
+      if (css[i] !== "(") {
+        // @namespace may have an identifier prefix before its URI.
+        if (atRuleTarget !== "namespace") atRuleTarget = undefined;
+        continue;
+      }
       if (name !== "url") {
+        atRuleTarget = undefined;
         stack.push({ name, candidate: true }); i++; continue;
       }
       let from = skipTrivia(i + 1);
@@ -94,14 +115,16 @@ function references(css: string): Reference[] {
         close = skipTrivia(end);
       }
       if (css[close] === ")") {
-        out.push({ start: from, end, url: decode(css.slice(from, end)), quote });
+        if (atRuleTarget !== "namespace") out.push({ start: from, end, url: decode(css.slice(from, end)), quote });
         i = close + 1;
       } else {
         // 不正なurl()の内部を別の参照として解釈しない。
         const close = css.indexOf(")", end);
         i = close < 0 ? css.length : close + 1;
       }
+      atRuleTarget = undefined;
     } else {
+      atRuleTarget = undefined;
       if (c === "(") stack.push({ name: "", candidate: false });
       else if (c === ")") stack.pop();
       else if (c === "," && parent) parent.candidate = true;
@@ -145,7 +168,7 @@ export function replaceCssAssetUrls(
 ): string {
   let result = "";
   let from = 0;
-  for (const ref of references(css)) {
+  for (const ref of cssAssetReferences(css)) {
     const target = replacement(ref.url, sources, options.proxyQueries);
     if (target === undefined || target === ref.url) continue;
     result += css.slice(from, ref.start) + encode(target, ref.quote);
@@ -157,5 +180,32 @@ export function replaceCssAssetUrls(
 export function cssUsesAssetUrl(css: string, source: string): boolean {
   if (!source) return false;
   const sources = new Map([[source, source]]);
-  return references(css).some((ref) => replacement(ref.url, sources) !== undefined);
+  return cssAssetReferences(css).some((ref) => replacement(ref.url, sources) !== undefined);
+}
+
+/** Rewrite only actual CSS resource tokens; imported rules retain their syntax and conditions. */
+export function rewriteCssAssetUrls(
+  css: string, resolve: (url: string) => string | undefined, maxLength = Infinity
+): string {
+  const parts: string[] = [];
+  let from = 0;
+  let length = 0;
+  const append = (part: string) => {
+    length += part.length;
+    if (length > maxLength) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+    parts.push(part);
+  };
+  for (const ref of cssAssetReferences(css)) {
+    const target = resolve(ref.url);
+    if (target === undefined || target === ref.url) continue;
+    // Check before CSS-escaping, which can allocate up to several times the URL length.
+    if (length + ref.start - from + target.length > maxLength) {
+      throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+    }
+    append(css.slice(from, ref.start));
+    append(encode(target, ref.quote));
+    from = ref.end;
+  }
+  append(css.slice(from));
+  return parts.join("");
 }

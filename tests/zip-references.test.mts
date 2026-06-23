@@ -44,3 +44,11 @@ test("archive directory names are literal, not URL-encoded", () => {
     assert.equal(resolveZipReference("logo.svg", `${directory}/index.html`, paths), proxy);
   }
 });
+
+
+test("local data assets drop cache queries without corrupting their bytes, even without a CSS root", () => {
+  const data = "data:image/svg+xml;base64,PHN2Zy8+";
+  const urls = new Map([["image.svg", data]]);
+  assert.equal(resolveZipReference("image.svg?v=1", "index.html", urls), data);
+  assert.equal(resolveZipReference("image.svg?v=1#icon", "index.html", urls), data + "#icon");
+});

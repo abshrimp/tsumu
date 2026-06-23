@@ -7,7 +7,7 @@ import NodeContextMenu, { type CtxMenuState } from "./NodeContextMenu";
 import FrameStage from "./FrameStage";
 import { CommentLayer } from "./Comments";
 import { useEditor, type ParentRef } from "../lib/store";
-import { withSignedAssetUrls } from "../lib/assets";
+import { useHtmlPreview } from "./canvas/useHtmlPreview";
 import { keyOfItem, sameKey, setVarPath, varNamesAt, varSamplesAt } from "../lib/data";
 import { findVarQuery, varQueryEnd, isSlugPage, isVarListShortcut, matchVarNames } from "../lib/vars";
 import { editableText, selectionOffsets, setEditable } from "../lib/editable";
@@ -138,20 +138,7 @@ export default function Canvas() {
    * アセットは期限付きの署名URLに置き換えて読ませる（Cookie が送られないので）
    */
   const rawHtmlSrc = !editingComp ? (page?.rawHtml ?? "") : "";
-  const [signedRawHtml, setSignedRawHtml] = useState<{ src: string; html: string } | null>(null);
-  useEffect(() => {
-    if (!rawHtmlSrc.trim()) return;
-    let cancelled = false;
-    withSignedAssetUrls(rawHtmlSrc)
-      .then((html) => {
-        if (!cancelled) setSignedRawHtml({ src: rawHtmlSrc, html });
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [rawHtmlSrc]);
-  const rawHtmlForPreview = signedRawHtml?.src === rawHtmlSrc ? signedRawHtml.html : rawHtmlSrc;
+  const { html: rawHtmlForPreview, error: rawHtmlError, needsRefresh, refreshing: refreshingHtml, refresh } = useHtmlPreview(rawHtmlSrc, doc.assets);
 
   const {
     fieldValues,
@@ -678,7 +665,14 @@ export default function Canvas() {
             className="canvas-frame is-preview"
             style={{ width: frameWidth, zoom: scale } as React.CSSProperties}
           >
-            {page.rawHtml.trim() ? (
+            {needsRefresh && <div role="status" className="cv-placeholder">
+              {tr("プレビューのアセットURLの有効期限が近づいています。更新すると入力内容やページ内の状態がリセットされます。")}
+              <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("プレビューを更新")}</button>
+            </div>}
+            {rawHtmlError ? <div role="alert" className="cv-placeholder">
+              {rawHtmlError}
+              <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("プレビューを更新")}</button>
+            </div> : page.rawHtml.trim() ? (
               <iframe
                 className="rawhtml-frame"
                 srcDoc={previewHtmlWithBodyStyles(
