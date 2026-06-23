@@ -9,6 +9,8 @@
 
 import type { Asset, Component, CustomFont, DocNode, SiteDoc } from "./types";
 import { assetSrc } from "./assets";
+import { genId } from "./presets";
+import { cloneSteps, scriptUid } from "./script";
 import { currentSiteId } from "./site";
 import { storageKey } from "./storage-keys";
 
@@ -193,9 +195,12 @@ export function readClipMirror(): ClipPayload | null {
 /**
  * 貼り付け先のドキュメントに、コピー元のアセット・コンポーネント・フォントを足す（updateDoc の中で呼ぶ）。
  * 同じファイルのアセットが既にあればそれを使い、要素の参照をそちらへ付け替える。
- * 戻り値は、付け替えたアセットIDの対応（古いID → 貼り付け先のID）
+ * 戻り値はアセットIDの対応と、新しく取り込んだマスターの要素。
  */
-export function mergeClipDeps(d: SiteDoc, p: ClipPayload): Map<string, string> {
+export function mergeClipDeps(d: SiteDoc, p: ClipPayload): {
+  assetIds: Map<string, string>;
+  componentNodes: DocNode[];
+} {
   const remap = new Map<string, string>();
   for (const a of Object.values(p.assets)) {
     if (!a || typeof a.id !== "string" || !a.id || !isSafeClipAsset(a)) continue;
@@ -206,12 +211,44 @@ export function mergeClipDeps(d: SiteDoc, p: ClipPayload): Map<string, string> {
     if (same) remap.set(a.id, same.id);
     else d.assets[a.id] = structuredClone(a);
   }
-  for (const c of Object.values(p.components)) {
-    if (d.components?.[c.id]) continue;
-    d.components = { ...(d.components ?? {}), [c.id]: structuredClone(c) };
+  const components = Object.values(p.components).filter((c) => !d.components?.[c.id]);
+  const sourceNodes = new Map(p.componentNodes.map((n) => [n.id, n]));
+  const needed = new Set<string>();
+  const pending = components.map((c) => c.rootId);
+  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+    const node = sourceNodes.get(id);
+    if (!node || needed.has(id)) continue;
+    needed.add(id);
+    pending.push(...node.children);
   }
-  for (const n of p.componentNodes) {
-    if (!d.nodes[n.id]) d.nodes[n.id] = remapAssetIds(structuredClone(n), remap);
+  // 複製したサイトでは、同じIDの要素が別々に編集されていることがある。
+  // 新しいマスターに既存の要素を流用すると、そのマスターの編集・削除で元の要素まで壊れる。
+  const used = new Set([...Object.keys(d.nodes), ...needed]);
+  const nodeIds = new Map<string, string>();
+  for (const id of needed) {
+    let target = id;
+    if (d.nodes[id]) {
+      do { target = genId("node"); } while (used.has(target));
+    }
+    used.add(target);
+    nodeIds.set(id, target);
+  }
+  for (const c of components) {
+    const copy = structuredClone(c);
+    copy.rootId = nodeIds.get(c.rootId) ?? c.rootId;
+    d.components = { ...(d.components ?? {}), [c.id]: copy };
+  }
+  const componentNodes: DocNode[] = [];
+  for (const id of needed) {
+    const node = remapAssetIds(structuredClone(sourceNodes.get(id)!), remap);
+    node.id = nodeIds.get(id)!;
+    node.children = node.children.map((child) => nodeIds.get(child) ?? child);
+    // スクリプト画面もIDで編集・削除するため、コピー元と別のIDにする。
+    if (node.scripts) {
+      node.scripts = node.scripts.map((s) => ({ ...s, id: scriptUid(), steps: cloneSteps(s.steps) }));
+    }
+    d.nodes[node.id] = node;
+    componentNodes.push(node);
   }
   for (const f of p.customFonts) {
     // 名前は公開するサイトのコードに入るので、Google Fonts の名前の形だけ受け取る
@@ -222,7 +259,7 @@ export function mergeClipDeps(d: SiteDoc, p: ClipPayload): Map<string, string> {
       d.customFonts = [...(d.customFonts ?? []), structuredClone(f)];
     }
   }
-  return remap;
+  return { assetIds: remap, componentNodes };
 }
 
 /** クリップボードのアセットが安全か（HTML や不正なパス・スキームは受け取らない） */
