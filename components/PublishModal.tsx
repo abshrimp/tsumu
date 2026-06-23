@@ -605,9 +605,32 @@ async function restoreFrom(url: string, label: string): Promise<boolean> {
 
 function PublishHistory({ conf, onDone }: { conf: PublishConfig; onDone: () => void }) {
   const [target, setTarget] = useState<PublishTarget>("production");
+  // 実行中の復元・ロールバックは、公開先を切り替えても重ねて実行させない。
+  const [busy, setBusy] = useState<string | null>(null);
+  return (
+    <>
+      {conf.previewEnabled && (
+        <Seg
+          value={target}
+          options={SITE_ORDER.map((t) => ({ value: t, label: SITE[t].label() }))}
+          onChange={(v) => setTarget(v as PublishTarget)}
+        />
+      )}
+      {/* 公開先が変わったら履歴の状態を作り直し、前の通信結果を別の公開先に表示しない。 */}
+      <TargetHistory key={target} conf={conf} target={target} onDone={onDone} busy={busy} setBusy={setBusy} />
+    </>
+  );
+}
+
+function TargetHistory({ conf, target, onDone, busy, setBusy }: {
+  conf: PublishConfig;
+  target: PublishTarget;
+  onDone: () => void;
+  busy: string | null;
+  setBusy: (value: string | null) => void;
+}) {
   const [state, setState] = useState<{ head: string | null; commits: PublishCommit[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const info = conf[target];
 
   const load = useCallback(async () => {
@@ -661,13 +684,6 @@ function PublishHistory({ conf, onDone }: { conf: PublishConfig; onDone: () => v
 
   return (
     <>
-      {conf.previewEnabled && (
-        <Seg
-          value={target}
-          options={SITE_ORDER.map((t) => ({ value: t, label: SITE[t].label() }))}
-          onChange={(v) => setTarget(v as PublishTarget)}
-        />
-      )}
       <TargetMeta info={info} />
       {info.error ? null : error ? (
         <ul className="check-list">
