@@ -368,6 +368,36 @@ export const SCRIPT_RUNTIME = `function (env) {
   return {
     install: function (root) {
       var alive = true;
+      var pageGeneration = 0;
+      var pageBody = null;
+      var pageId = null;
+      // DOM の入れ替え直後（監視の走査前）に始まるスクリプトも、新しいページとして扱う。
+      function syncPage() {
+        var body = root.querySelector("[data-page-body]");
+        var pid = body ? body.getAttribute("data-page-body") : null;
+        if (body !== pageBody || pid !== pageId) {
+          pageGeneration++;
+          pageBody = body;
+        }
+        if (pid !== pageId) {
+          if (pageId !== null) {
+            vars = {};
+            /*#filter*/
+            filters.clear();
+            sorts.clear();
+            /*/filter*/
+          }
+          pageId = pid;
+        }
+        return pageGeneration;
+      }
+      // 待機・くり返しは、開始したページを離れたら続けない。
+      function activeRun() {
+        var generation = syncPage();
+        return function () {
+          return alive && generation === syncPage();
+        };
+      }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
       var vars = {};
       function getVar(name) {
@@ -1204,38 +1234,39 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*#repeat*/
       // times 回（0 = ずっと）中のブロックをくり返す。ずっとのときは止まらないよう少し間をあける
-      function loop(st, self, cx, n) {
+      function loop(st, self, cx, n, active) {
         var times = Number(st.times) || 0;
-        if (!alive || (times > 0 && n >= times)) return Promise.resolve();
-        return runSteps(st.then, self, cx)
+        if (!active() || (times > 0 && n >= times)) return Promise.resolve();
+        return runSteps(st.then, self, cx, active)
           .then(function () {
-            return times > 0 ? null : sleep(0.05);
+            return !active() || times > 0 ? null : sleep(0.05);
           })
           .then(function () {
-            return loop(st, self, cx, n + 1);
+            return loop(st, self, cx, n + 1, active);
           });
       }
       /*/repeat*/
       /*#each*/
       // 配列の要素ごとに中のブロックを動かす（くり返しの途中で格納した項目は次の要素から見える）
-      function each(st, self, up, run, i) {
+      function each(st, self, up, run, i, active) {
+        if (!active()) return Promise.resolve();
         var arr = getVar(st.array);
-        if (!alive || !Array.isArray(arr) || i >= arr.length) {
+        if (!Array.isArray(arr) || i >= arr.length) {
           if (run.dirty) setVar(st.array, getVar(st.array));
           return Promise.resolve();
         }
         var x = arr[i];
-        if (x == null || Array.isArray(x)) return each(st, self, up, run, i + 1);
+        if (x == null || Array.isArray(x)) return each(st, self, up, run, i + 1, active);
         var cx = { array: st.array, index: i, item: typeof x === "object" ? x : { "値": x }, up: up, run: run };
-        return runSteps(st.then, self, cx).then(function () {
-          return each(st, self, up, run, i + 1);
+        return runSteps(st.then, self, cx, active).then(function () {
+          return each(st, self, up, run, i + 1, active);
         });
       }
       /*/each*/
-      function runSteps(steps, self, cx) {
+      function runSteps(steps, self, cx, active) {
         var i = 0;
         function next() {
-          while (alive && i < steps.length) {
+          while (active() && i < steps.length) {
             var st = steps[i++];
             /*#wait*/
             if (st.kind === "wait") return sleep(st.seconds).then(next);
@@ -1244,7 +1275,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (st.kind === "if") {
               var branch = test(st.cond, self, scopeOf(cx)) ? st.then : st.else;
               if (branch && branch.length) {
-                return runSteps(branch, self, cx).then(next);
+                return runSteps(branch, self, cx, active).then(next);
               }
               continue;
             }
@@ -1252,13 +1283,13 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*#repeat*/
             if (st.kind === "repeat") {
               if (!st.then || !st.then.length) continue;
-              return loop(st, self, cx, 0).then(next);
+              return loop(st, self, cx, 0, active).then(next);
             }
             /*/repeat*/
             /*#each*/
             if (st.kind === "for-each") {
               if (!st.then || !st.then.length) continue;
-              return each(st, self, cx, { dirty: false }, 0).then(next);
+              return each(st, self, cx, { dirty: false }, 0, active).then(next);
             }
             /*/each*/
             exec(st, self, cx);
@@ -1274,7 +1305,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*#keep*/
           if (keep !== undefined && !!s.keep !== keep) return;
           /*/keep*/
-          runSteps(s.steps || [], el);
+          runSteps(s.steps || [], el, undefined, activeRun());
         });
       }
       function chain(t) {
@@ -1424,24 +1455,10 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*/inview*/
       /*#scan*/
       var seen = new WeakSet();
-      // いま表示しているページ（公開サイトのページの目印 data-page-body）
-      var pageId = null;
       function scan() {
         if (!alive) return;
-        // Next.js のページ遷移でページが替わったら、前のページの変数・絞り込み・並べ替えを捨てる
-        //（配列の名前はサイト全体で共通なので、残すと別のページのリストまで絞り込まれる）
-        var body = root.querySelector("[data-page-body]");
-        var pid = body ? body.getAttribute("data-page-body") : null;
-        if (pid !== pageId) {
-          if (pageId !== null) {
-            vars = {};
-            /*#filter*/
-            filters.clear();
-            sorts.clear();
-            /*/filter*/
-          }
-          pageId = pid;
-        }
+        // 前のページの変数・絞り込み・並べ替えと、待機中のスクリプトを引き継がない。
+        syncPage();
         /*#live*/
         // Next.js のページ遷移で追加された入力欄・文字も初期化する
         refreshLive();
@@ -1480,6 +1497,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       var queued = false;
       var mo = new MutationObserver(function () {
+        syncPage();
         if (queued) return;
         queued = true;
         requestAnimationFrame(function () {
@@ -1491,7 +1509,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["data-scripts"],
+        attributeFilter: ["data-scripts", "data-page-body"],
       });
       scan();
       /*/scan*/
@@ -1701,7 +1719,7 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
     if (hasClientList) out.add("clist");
   }
   // 要素の追加を見張り、スクリプト・リスト・入力欄に連動する表示を初期化する
-  if (out.has("load") || out.has("inview") || out.has("filter") || out.has("clist") || out.has("live")) {
+  if (out.has("load") || out.has("inview") || out.has("filter") || out.has("clist") || out.has("live") || out.has("wait") || out.has("repeat") || out.has("each")) {
     out.add("scan");
   }
   return out;
