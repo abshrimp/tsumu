@@ -412,6 +412,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           <div className="sec-body">
             <Dropdown
               value={node.semantic}
+              truncateDescriptions
               options={SEMANTIC_OPTIONS.map((o) => ({
                 value: o.value,
                 label:

@@ -438,6 +438,14 @@ textarea {
   white-space: normal;
 }
 
+.dd-truncate-desc .dd-item {
+  flex-shrink: 0;
+}
+
+.dd-truncate-desc .dd-desc {
+  white-space: nowrap;
+}
+
 /* 右クリックメニュー（dd-menuを流用） */
 .ctx-menu {
   padding: 4px;
