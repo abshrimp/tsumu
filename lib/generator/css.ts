@@ -2,6 +2,7 @@
  * サイト全体のCSS（要素のスタイル・画面幅・状態・フォント）の書き出し
  */
 
+import { replaceCssAssetUrls } from "../css-assets";
 import type { Breakpoint, Page, SiteDoc, StyleMap } from "../types";
 import {
   allFonts,
@@ -62,22 +63,27 @@ export function cssValue(
   assetNames: Map<string, string>
 ): string {
   if (prop === "fontFamily") return fontFamilyCss(doc, value);
-  let output = value;
+  const sources = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
     const name = assetNames.get(asset.id);
     if (!name) continue;
     const source = asset.path
       ? `/api/assets/file?path=${encodeURIComponent(asset.path)}`
       : asset.dataUrl;
-    if (source && output.includes(source)) {
-      // The editor proxy already has ?path=, so imported asset queries use
-      // & (or &amp; in serialized HTML). Published files need their first ?.
-      output = output.split(source).map((part, index) =>
-        index && asset.path ? part.replace(/^&(?:amp;)?/, "?") : part
-      ).join(`/assets/${name}`);
-    }
+    if (source) sources.set(source, `/assets/${name}`);
   }
-  return output;
+  if (prop === "rawHtml") {
+    // HTML ZIPの参照はCSSトークンではないため、既存のHTML書き出し処理を保つ。
+    let output = value;
+    for (const [source, target] of sources) {
+      output = output.split(source).map((part, index) =>
+        index && source.startsWith("/api/assets/file?path=")
+          ? part.replace(/^&(?:amp;)?/, "?") : part
+      ).join(target);
+    }
+    return output;
+  }
+  return replaceCssAssetUrls(value, sources, { proxyQueries: true });
 }
 
 function ruleFor(
