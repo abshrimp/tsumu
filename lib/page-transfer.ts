@@ -13,6 +13,7 @@ import { copySlug, uniquePageNaming } from "./store";
 import { DOC_STORAGE_KEY, siteKey } from "./site";
 import { tr } from "./i18n";
 import { isSiteLang, siteLangOf } from "./site-lang";
+import { normalizeQuery } from "./vars";
 
 export interface PagePayload {
   pages: Page[];
@@ -22,6 +23,8 @@ export interface PagePayload {
   folders: Record<string, string>;
   /** コピー元の全ページのURL（ページID → slug。コピーしなかったページへのリンクを付け替えるため） */
   slugs: Record<string, string>;
+  /** 同じslugのページを区別するクエリ。古いペイロードではクエリなしとして扱う */
+  queries?: Record<string, string>;
   deps: ClipPayload;
   /** コピー元のサイトの言語（ページで言語を選んでいなければ、こちらの言語で書かれている） */
   lang?: string;
@@ -46,11 +49,15 @@ export function buildPagePayload(doc: SiteDoc, pageIds: string[]): PagePayload {
     if (f) folders[p.id] = f.name;
   }
   const slugs: Record<string, string> = {};
-  for (const p of Object.values(doc.pages)) slugs[p.id] = p.slug;
+  const queries: Record<string, string> = {};
+  for (const p of Object.values(doc.pages)) {
+    slugs[p.id] = p.slug;
+    queries[p.id] = p.query ?? "";
+  }
   // ページの設定（OGP画像・背景・ページのスクリプト）で使うアセットも拾うため、ページごと渡す
   const deps = buildClipPayload(doc, { nodes: [...nodes, ...(pages as unknown as DocNode[])], rootIds: [] });
   deps.nodes = [];
-  return { pages, nodes, folders, slugs, deps, lang: siteLangOf(doc) };
+  return { pages, nodes, folders, slugs, queries, deps, lang: siteLangOf(doc) };
 }
 
 function mapSteps(steps: ScriptStep[] | undefined, fn: (pageId: string) => string) {
@@ -74,12 +81,13 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
   const assetMap = mergeClipDeps(d, p.deps);
   const pageMap = new Map<string, string>();
   for (const page of p.pages) pageMap.set(page.id, genId("page"));
-  const bySlug = new Map(Object.values(d.pages).map((x) => [x.slug, x.id]));
+  const urlKey = (slug: string, query?: string) => JSON.stringify([slug, normalizeQuery(query)]);
+  const byUrl = new Map(Object.values(d.pages).map((x) => [urlKey(x.slug, x.query), x.id]));
   const toPage = (id: string) => {
     const copied = pageMap.get(id);
     if (copied) return copied;
     const slug = p.slugs[id];
-    return (slug !== undefined && bySlug.get(slug)) || id;
+    return (slug !== undefined && byUrl.get(urlKey(slug, p.queries?.[id]))) || id;
   };
 
   // 新しく取り込んだマスター内のリンクも付け替える。既存のマスターは変更しない。

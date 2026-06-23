@@ -33,12 +33,7 @@ import {
 import { renderNode, type JsxContext } from "./render";
 import { RUNNABLE_SCRIPT } from "./templates";
 
-/** クエリを比較用にそろえる（キー順に並べ替え） */
-export function normalizeQuery(query: string | undefined): string {
-  const params = new URLSearchParams(query ?? "");
-  params.sort();
-  return params.toString();
-}
+export { normalizeQuery } from "../vars";
 
 /**
  * 同じURLをクエリで分けたページの振り分け（page.tsx）。
