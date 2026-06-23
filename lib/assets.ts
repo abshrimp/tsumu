@@ -340,3 +340,20 @@ export async function deleteAssetRemote(asset: Asset): Promise<void> {
     // 削除失敗はドキュメント側から消えれば実害がないため無視
   });
 }
+
+/**
+ * アセット削除時に、背景パネルが設定したページ背景を外す（doc を書き換える）。
+ * URL の部分一致で、別のファイルや手書きの複合背景まで削除しない。
+ */
+export function removePageAssetBackgrounds(doc: SiteDoc, asset: Asset): void {
+  const src = assetSrc(asset);
+  if (!src) return;
+  const backgroundImage = `url("${src}")`;
+  for (const page of Object.values(doc.pages)) {
+    for (const bp of Object.values(page.bodyStyles ?? {})) {
+      for (const styles of Object.values(bp ?? {})) {
+        if (styles?.backgroundImage === backgroundImage) delete styles.backgroundImage;
+      }
+    }
+  }
+}
