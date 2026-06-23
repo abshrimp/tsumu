@@ -153,11 +153,15 @@ export interface PageScript extends Script {
   nodeId: string | null;
 }
 
-/** ページ内の要素ID（インスタンスはコンポーネントのマスターを辿る） */
+/**
+ * ページ内の要素ID（インスタンスはコンポーネントのマスターを辿る）。
+ * ID属性の重複を調べるときは、使用箇所自身のIDも含める。
+ */
 export function pageNodeIds(
   doc: SiteDoc,
   pageId: string,
-  extraRootIds: string[] = []
+  extraRootIds: string[] = [],
+  includeInstances = false
 ): string[] {
   const out: string[] = [];
   const walked = new Set<string>();
@@ -167,6 +171,7 @@ export function pageNodeIds(
     const n = doc.nodes[id];
     if (!n) return;
     if (n.type === "instance") {
+      if (includeInstances) out.push(id);
       const comp = doc.components?.[n.componentId ?? ""];
       if (comp) walk(comp.rootId);
       return;
