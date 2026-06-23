@@ -43,7 +43,8 @@ export function refreshClonedIds(
   doc: SiteDoc,
   pageId: string,
   clones: DocNode[],
-  extraRootIds: string[] = []
+  extraRootIds: string[] = [],
+  replacing?: { rootId: string; attrId?: string }
 ) {
   const used = new Set<string>();
   for (const id of pageNodeIds(doc, pageId, extraRootIds)) {
@@ -59,7 +60,16 @@ export function refreshClonedIds(
     }
   }
   const renamed = new Map<string, string>();
+  // 解除するインスタンスのIDは引き継ぎ、マスター内の参照も合わせる。
+  const replacement = clones.find((c) => c.id === replacing?.rootId);
+  const inheritedId = replacing?.attrId;
+  if (replacement && inheritedId) used.add(inheritedId);
   for (const c of clones) {
+    if (c === replacement && inheritedId) {
+      if (c.attrId && c.attrId !== inheritedId) renamed.set(c.attrId, inheritedId);
+      c.attrId = inheritedId;
+      continue;
+    }
     if (!c.attrId) continue;
     const prev = renamed.get(c.attrId);
     if (prev) {

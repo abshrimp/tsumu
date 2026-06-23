@@ -583,10 +583,12 @@ export const useEditor = create<EditorStore>((set, get) => {
   let pendingBase: SiteDoc | null = null;
 
   // 開いているページに置かれていないマスターも、複製先のID重複チェックに含める。
-  const refreshEditorClones = (doc: SiteDoc, clones: DocNode[]) => {
+  const refreshEditorClones = (
+    doc: SiteDoc, clones: DocNode[], replacing?: { rootId: string; attrId?: string }
+  ) => {
     const { activePageId, editingComponentId } = get();
     const rootId = editingComponentId ? doc.components?.[editingComponentId]?.rootId : undefined;
-    refreshClonedIds(doc, activePageId, clones, rootId ? [rootId] : []);
+    refreshClonedIds(doc, activePageId, clones, rootId ? [rootId] : [], replacing);
   };
 
   /** beginGesture 〜 endGesture の間か */
@@ -1027,8 +1029,16 @@ export const useEditor = create<EditorStore>((set, get) => {
         return copy.id;
       };
       const newRootId = cloneTree(comp.rootId);
-      // 同じページの他のインスタンスとID属性が重ならないようにする
-      refreshEditorClones(doc, clones);
+      // マスターの見た目と、使用箇所で設定した名前・ロック・非表示を残す。
+      const root = clones.find((n) => n.id === newRootId)!;
+      root.name = inst.name;
+      root.locked = inst.locked;
+      const hiddenOn = [...new Set([...(root.hiddenOn ?? []), ...(inst.hiddenOn ?? [])])];
+      root.hiddenOn = hiddenOn.length ? hiddenOn : undefined;
+      // 使用箇所のIDはそのまま引き継ぎ、複製したマスター内の参照も合わせる。
+      refreshEditorClones(doc, clones, {
+        rootId: newRootId, attrId: inst.attrId,
+      });
       get().updateDoc((d) => {
         for (const c of clones) d.nodes[c.id] = c;
         const list =
