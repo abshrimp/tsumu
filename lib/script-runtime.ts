@@ -1442,6 +1442,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           }
           pageId = pid;
         }
+        /*#live*/
+        // Next.js のページ遷移で追加された入力欄・文字も初期化する
+        refreshLive();
+        /*/live*/
         /*#clist*/
         // 描き直された（まだ並べていない）リストを並べる
         root.querySelectorAll("[data-client-list]").forEach(function (list) {
@@ -1696,8 +1700,8 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
     });
     if (hasClientList) out.add("clist");
   }
-  // 要素の追加を見張るのは「開いたとき」「画面に入ったとき」・絞り込みの掛け直し・リストの描画だけ
-  if (out.has("load") || out.has("inview") || out.has("filter") || out.has("clist")) {
+  // 要素の追加を見張り、スクリプト・リスト・入力欄に連動する表示を初期化する
+  if (out.has("load") || out.has("inview") || out.has("filter") || out.has("clist") || out.has("live")) {
     out.add("scan");
   }
   return out;
