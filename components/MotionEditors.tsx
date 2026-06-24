@@ -17,6 +17,7 @@ import { KEYFRAMES } from "../lib/motion";
 import { parseNumeric } from "../lib/style";
 import { CommitInput, CommitTextarea, Dropdown, NumField, Seg } from "./controls";
 import { isEnterKey } from "../lib/keys";
+import { trackMotionPointer } from "../lib/motion-pointer-drag";
 
 /* ---------- 共通 ---------- */
 
@@ -97,6 +98,10 @@ interface History<T> {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  /** 編集を受け付けたポインターを、履歴のドラッグ操作として明示的に所有する */
+  beginGesture: (pointerId: number) => void;
+  /** キャンセルやキャプチャ喪失で終わった操作を、次の操作と別の履歴にする */
+  endGesture: () => void;
 }
 
 /**
@@ -111,33 +116,47 @@ function useHistory<T>(init: () => T): History<T> {
     future: T[];
     mergeKey: string | null;
     pressed: boolean;
+    pointerId: number | null;
+    gestureOwned: boolean;
     moved: boolean;
     dragPushed: boolean;
   } | null>(null);
-  ref.current ??= { past: [], value: init(), future: [], mergeKey: null, pressed: false, moved: false, dragPushed: false };
+  ref.current ??= { past: [], value: init(), future: [], mergeKey: null, pressed: false, pointerId: null, gestureOwned: false, moved: false, dragPushed: false };
   const [, render] = useReducer((n: number) => n + 1, 0);
 
   useEffect(() => {
     const h = ref.current!;
-    const down = () => {
+    let releaseTimer: ReturnType<typeof setTimeout> | undefined;
+    const down = (event: PointerEvent) => {
+      if (h.gestureOwned) return;
+      clearTimeout(releaseTimer);
+      h.pointerId = event.pointerId;
       h.pressed = true;
       h.moved = false;
       h.dragPushed = false;
     };
-    const move = () => {
-      if (h.pressed) h.moved = true;
+    const move = (event: PointerEvent) => {
+      if (h.pressed && (!h.gestureOwned || event.pointerId === h.pointerId)) h.moved = true;
     };
     // 離したときの後始末（重なった位置を戻すなど）も同じドラッグに含めるため、少し遅らせて終える
-    const up = () => setTimeout(() => (h.pressed = false));
+    const up = (event: Event) => {
+      if (h.gestureOwned && "pointerId" in event && event.pointerId !== h.pointerId) return;
+      h.pointerId = null;
+      clearTimeout(releaseTimer);
+      releaseTimer = setTimeout(() => (h.pressed = false));
+    };
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("pointerup", up, true);
     window.addEventListener("pointercancel", up, true);
+    window.addEventListener("blur", up);
     return () => {
+      clearTimeout(releaseTimer);
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", up, true);
       window.removeEventListener("pointercancel", up, true);
+      window.removeEventListener("blur", up);
     };
   }, []);
 
@@ -179,8 +198,24 @@ function useHistory<T>(init: () => T): History<T> {
     render();
   }, []);
 
+  const beginGesture = useCallback((pointerId: number) => {
+    const h = ref.current!;
+    h.pointerId = pointerId;
+    h.gestureOwned = true;
+    h.pressed = true;
+    h.moved = false;
+    h.dragPushed = false;
+  }, []);
+
+  const endGesture = useCallback(() => {
+    const h = ref.current!;
+    h.pointerId = null;
+    h.gestureOwned = false;
+    h.pressed = false;
+  }, []);
+
   const h = ref.current;
-  return { value: h.value, set, undo, redo, canUndo: h.past.length > 0, canRedo: h.future.length > 0 };
+  return { value: h.value, set, undo, redo, beginGesture, endGesture, canUndo: h.past.length > 0, canRedo: h.future.length > 0 };
 }
 
 /** ⌘Z / ⇧⌘Z（Ctrl+Z / Ctrl+Y）で編集画面の中の履歴を戻す。入力欄の中では、文字の取り消しに任せる */
@@ -681,49 +716,61 @@ export function KeyframeEditorModal({
   };
 
   const laneRef = useRef<HTMLDivElement>(null);
+  const dragCleanup = useRef<(() => void) | null>(null);
+  const cssMode = cssText !== null;
+  const endGesture = history.endGesture;
+  useEffect(() => () => {
+    dragCleanup.current?.();
+    dragCleanup.current = null;
+    endGesture();
+  }, [cssMode, endGesture]);
+
   const pct = (clientX: number) => {
     const r = laneRef.current!.getBoundingClientRect();
     return Math.min(100, Math.max(0, ((clientX - r.left) / r.width) * 100));
   };
 
   const dragMarker = (kf: Keyframe) => (e: React.PointerEvent) => {
+    if (e.button !== 0 || dragCleanup.current || !laneRef.current) return;
     e.preventDefault();
     e.stopPropagation();
+    history.beginGesture(e.pointerId);
     select(kf);
     const from = kf.offset;
+    let offset = from;
     let moved = false;
     const move = (ev: PointerEvent) => {
-      const o = Math.round(pct(ev.clientX));
-      if (o === from && !moved) return;
+      offset = Math.round(pct(ev.clientX));
+      if (offset === from && !moved) return;
       moved = true;
-      update(kf.id, { offset: o });
-      seek((o / 100) * dur);
+      update(kf.id, { offset });
+      seek((offset / 100) * dur);
     };
-    const up = (ev: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      if (!moved) return;
-      const o = Math.round(pct(ev.clientX));
-      // 重なったら元の位置に戻す
-      setList((l) =>
-        l.map((k) => (k.id === kf.id ? { ...k, offset: l.some((x) => x.id !== kf.id && x.offset === o) ? from : o } : k))
-      );
+    const finish = (ev: PointerEvent | null) => {
+      dragCleanup.current = null;
+      if (moved) {
+        // キャンセルには有効な座標がないので、最後に動かした位置で終える。
+        const o = ev ? Math.round(pct(ev.clientX)) : offset;
+        // 重なったら元の位置に戻す（この後始末も同じドラッグの履歴に含める）
+        setList((l) =>
+          l.map((k) => (k.id === kf.id ? { ...k, offset: l.some((x) => x.id !== kf.id && x.offset === o) ? from : o } : k))
+        );
+      }
+      endGesture();
     };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    dragCleanup.current = trackMotionPointer(e, laneRef.current, move, finish);
   };
 
   const scrub = (e: React.PointerEvent) => {
+    if (e.button !== 0 || dragCleanup.current) return;
     e.preventDefault();
+    history.beginGesture(e.pointerId);
     const set = (x: number) => seek((pct(x) / 100) * dur);
     set(e.clientX);
-    const move = (ev: PointerEvent) => set(ev.clientX);
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+    dragCleanup.current = trackMotionPointer(e, e.currentTarget, (ev) => set(ev.clientX), () => {
+      dragCleanup.current = null;
+      endGesture();
+    });
   };
 
   const sample = (at: number, ghost: boolean, key?: string) => (
@@ -823,7 +870,7 @@ export function KeyframeEditorModal({
               className="kfe-lane"
               ref={laneRef}
               onPointerDown={(e) => {
-                if (e.target === e.currentTarget) addAt(pct(e.clientX));
+                if (e.button === 0 && !dragCleanup.current && e.target === e.currentTarget) addAt(pct(e.clientX));
               }}
             >
               {sorted.map((kf) => (
