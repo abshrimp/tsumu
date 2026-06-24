@@ -78,13 +78,14 @@ export function BodyStylePanel() {
 
   const insp: Inspector = useMemo(
     () => ({
+      editTarget: JSON.stringify(["body", activePageId, breakpoint]),
       get: (prop) => getProp(bodyNode, breakpoint, "default", prop),
       set: (props) => setBodyProps(props),
       cleared: (prop) => clearedValue(bodyNode, breakpoint, "default", prop),
       setTransient: (props) => setBodyProps(props, true),
       checkpoint,
     }),
-    [bodyNode, breakpoint, checkpoint]
+    [bodyNode, activePageId, breakpoint, checkpoint]
   );
 
   return (
@@ -112,6 +113,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
   const doc = useEditor((s) => s.doc);
   const breakpoint = useEditor((s) => s.breakpoint);
   const styleState = useEditor((s) => s.styleState);
+  const selectedIds = useEditor((s) => s.selectedIds);
   const setStyleState = useEditor((s) => s.setStyleState);
   const setStyleProps = useEditor((s) => s.setStyleProps);
   const checkpoint = useEditor((s) => s.checkpoint);
@@ -120,6 +122,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
 
   const insp: Inspector = useMemo(
     () => ({
+      editTarget: JSON.stringify([nodeId, breakpoint, styleState, selectedIds]),
       get: (prop) =>
         getProp(node, breakpoint, styleState, prop, (p) => inheritedPropValue(doc, nodeId, breakpoint, styleState, p)),
       cleared: (prop) => clearedValue(node, breakpoint, styleState, prop),
@@ -148,7 +151,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
       setTransient: (props) => setStyleProps(nodeId, props, { transient: true }),
       checkpoint,
     }),
-    [doc, node, breakpoint, styleState, nodeId, setStyleProps, checkpoint]
+    [doc, node, breakpoint, styleState, selectedIds, nodeId, setStyleProps, checkpoint]
   );
 
   if (!node) return null;

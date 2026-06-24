@@ -196,6 +196,8 @@ export function Section({
 /* ---------- インスペクタコンテキスト ---------- */
 
 export interface Inspector {
+  /** 要素・画面幅・状態など、書き込み先が変わったら未確定の入力を持ち越さない。 */
+  editTarget: string;
   get: (prop: string) => PropInfo;
   /** null で現在の (bp, state) から削除 */
   set: (props: Record<string, string | null>) => void;
@@ -408,8 +410,14 @@ export function NumField({
 }) {
   const parsed = parseNumeric(value);
   const [unit, setUnit] = useState(parsed?.unit ?? units[0]);
-  /** 空欄で確定したら、値が変わらなくても欄を作り直して戻った値（大きい画面の値など）を見せる */
-  const [resetKey, setResetKey] = useState(0);
+  const editTarget = useContext(InspectorCtx)?.editTarget;
+  // 確定のたびに input を作り直さず、矢印キーを続けて押してもフォーカスを保つ。
+  // blur 後は整形された値や、空欄を取り消して戻った値を表示し直す。
+  const editing = useRef(false);
+  const { ref, afterCommit } = useCommitSync<HTMLInputElement>(String(parsed?.num ?? ""), editing);
+  useLayoutEffect(() => {
+    editing.current = false;
+  }, [editTarget]);
   const activeUnit = parsed ? parsed.unit : unit;
   const canCycle = units.length > 1;
   const scrubbable = true;
@@ -431,7 +439,6 @@ export function NumField({
     if (t === String(parsed?.num ?? "")) return;
     if (t === "") {
       onChange(null);
-      setResetKey((k) => k + 1);
       return;
     }
     const n = parseFloat(t);
@@ -490,19 +497,29 @@ export function NumField({
         </span>
       )}
       <input
-        key={`${value ?? "_empty"}:${resetKey}`}
+        key={editTarget}
+        ref={ref}
         defaultValue={parsed?.num ?? ""}
         placeholder={placeholder ?? "—"}
         inputMode="decimal"
-        onBlur={(e) => commit(e.target.value)}
+        onInput={() => { editing.current = true; }}
+        onBlur={(e) => {
+          editing.current = false;
+          commit(e.target.value);
+          afterCommit();
+        }}
         onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
           if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
           if (e.key === "ArrowUp" || e.key === "ArrowDown") {
             e.preventDefault();
             const cur = parseFloat((e.target as HTMLInputElement).value) || 0;
             const d = (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 10 : 1);
-            (e.target as HTMLInputElement).value = String(cur + d);
-            commit(String(cur + d));
+            const next = String(clampNum(cur + d));
+            editing.current = false;
+            (e.target as HTMLInputElement).value = next;
+            commit(next);
+            afterCommit();
           }
         }}
       />
@@ -625,13 +642,15 @@ export function TextField({
  * 合わせて表示し直す。入力中（フォーカス中）は書き換えない。
  * 確定した値が整形された・空欄を取り消したときも、書き込まれた値を表示し直す
  */
-function useCommitSync<T extends HTMLInputElement | HTMLTextAreaElement>(value: string) {
+function useCommitSync<T extends HTMLInputElement | HTMLTextAreaElement>(value: string, editing?: { current: boolean }) {
   const ref = useRef<T>(null);
   const latest = useRef(value);
   latest.current = value;
   const sync = () => {
     const el = ref.current;
-    if (el && document.activeElement !== el && el.value !== latest.current) {
+    // 数値欄は矢印キーでフォーカス中にも確定するため、未確定の入力がある間だけ保護する。
+    const busy = editing?.current ?? document.activeElement === el;
+    if (el && !busy && el.value !== latest.current) {
       el.value = latest.current;
     }
   };
