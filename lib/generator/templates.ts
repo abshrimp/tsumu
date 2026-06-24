@@ -132,8 +132,8 @@ export default function PageHtml({ html }: { html: string }) {
 /** 検索フォーム: ページ全体を再読み込みせず、URLの検索パラメータだけ更新する */
 export const SEARCH_FORM_COMPONENT = `"use client";
 
-import { useRouter } from "next/navigation";
-import { type ComponentPropsWithoutRef, useEffect, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { type ComponentPropsWithoutRef, type RefObject, Suspense, useEffect, useRef } from "react";
 
 /** フォームの項目の名前（送信するときのクエリの名前） */
 function fieldNames(form: HTMLFormElement): string[] {
@@ -142,49 +142,51 @@ function fieldNames(form: HTMLFormElement): string[] {
     .filter(Boolean);
 }
 
+// URLを読む部分だけを Suspense に入れ、静的なページでもフォーム本体は配信時に描く。
+function RestoreFields({ formRef }: { formRef: RefObject<HTMLFormElement | null> }) {
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+
+  // ソフトナビゲーション・戻る/進むの後、新しいフォームの内容へURLの値を復元する。
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const params = new URLSearchParams(search);
+    // 送信した後か（ページ自身のクエリ ?tab=… だけなら、最初の状態のまま）
+    const hasQuery = fieldNames(form).some((name) => params.has(name));
+    for (const el of Array.from(form.elements)) {
+      const input = el as HTMLInputElement;
+      // ファイルの欄は値を入れられない（空以外を入れると例外になる）
+      if (!input.name || input.type === "file") continue;
+      const v = params.get(input.name);
+      if (el instanceof HTMLSelectElement) {
+        // select には defaultValue が無い。URLの値の選択肢が無ければ最初に選んでいたものに戻す
+        const options = Array.from(el.options);
+        const pick =
+          (v === null ? undefined : options.find((o) => o.value === v)) ??
+          options.find((o) => o.defaultSelected) ??
+          options[0];
+        if (pick) pick.selected = true;
+      } else if (input.type === "checkbox" || input.type === "radio") {
+        input.checked = hasQuery
+          ? v !== null && (input.value === v || v === "on")
+          : input.defaultChecked;
+      } else {
+        input.value = v ?? input.defaultValue;
+      }
+    }
+    // スクリプトの「値が変わったとき」へ復元した値を伝える
+    form.dispatchEvent(new Event("input", { bubbles: true }));
+  }, [formRef, pathname, search]);
+  return null;
+}
+
 export default function SearchForm({
   children,
   ...rest
 }: ComponentPropsWithoutRef<"form">) {
   const router = useRouter();
   const ref = useRef<HTMLFormElement>(null);
-
-  // URLの検索パラメータをフォームへ復元（直接アクセス・戻る/進む対応）
-  useEffect(() => {
-    const form = ref.current;
-    if (!form) return;
-    const restore = () => {
-      const params = new URLSearchParams(window.location.search);
-      // 送信した後か（ページ自身のクエリ ?tab=… だけなら、最初の状態のまま）
-      const hasQuery = fieldNames(form).some((name) => params.has(name));
-      for (const el of Array.from(form.elements)) {
-        const input = el as HTMLInputElement;
-        // ファイルの欄は値を入れられない（空以外を入れると例外になる）
-        if (!input.name || input.type === "file") continue;
-        const v = params.get(input.name);
-        if (el instanceof HTMLSelectElement) {
-          // select には defaultValue が無い。URLの値の選択肢が無ければ最初に選んでいたものに戻す
-          const options = Array.from(el.options);
-          const pick =
-            (v === null ? undefined : options.find((o) => o.value === v)) ??
-            options.find((o) => o.defaultSelected) ??
-            options[0];
-          if (pick) pick.selected = true;
-        } else if (input.type === "checkbox" || input.type === "radio") {
-          input.checked = hasQuery
-            ? v !== null && (input.value === v || v === "on")
-            : input.defaultChecked;
-        } else {
-          input.value = v ?? input.defaultValue;
-        }
-      }
-      // スクリプトの「値が変わったとき」へ復元した値を伝える
-      form.dispatchEvent(new Event("input", { bubbles: true }));
-    };
-    restore();
-    window.addEventListener("popstate", restore);
-    return () => window.removeEventListener("popstate", restore);
-  }, []);
 
   return (
     <form
@@ -208,6 +210,7 @@ export default function SearchForm({
       }}
     >
       {children}
+      <Suspense fallback={null}><RestoreFields formRef={ref} /></Suspense>
     </form>
   );
 }
