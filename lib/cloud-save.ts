@@ -132,6 +132,8 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
   if (s.cloudState === "local") return;
   a.cloudDirty.current = true;
   a.setUnsyncedFlag(true);
+  // デバウンス待ちも未保存。直前の版の「保存済み」を残すと、保存前に閉じてしまう。
+  if (doc !== a.lastSyncedDoc.current && s.cloudState === "synced") s.setCloud("saving");
   if (a.cloudTimer.current) clearTimeout(a.cloudTimer.current);
   a.cloudTimer.current = setTimeout(() => {
     if (!a.cloudReady.current) return;
@@ -153,7 +155,7 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
         a.cloudDirty.current = false;
         a.setUnsyncedFlag(false);
         // 保存に失敗したあと、元に戻すなどで同期済みの内容へ戻ったときは表示も戻す
-        if (st.cloudState === "error") st.setCloud("synced");
+        if (st.cloudState === "error" || st.cloudState === "saving") st.setCloud("synced");
         return;
       }
       st.setCloud("saving");

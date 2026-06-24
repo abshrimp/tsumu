@@ -33,6 +33,46 @@ function harness() {
   return { state, scope, effect, tick, requests, retries: () => retries, later: () => later, unsynced: () => unsynced };
 }
 
+test("pending debounce is already shown as unsaved, before the network request starts", async () => {
+  const h = harness();
+  h.effect();
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.state.cloudState, "saving", "saved must describe the current document, not the previous one");
+  assert.equal(h.unsynced(), true);
+  h.tick();
+  assert.equal(h.state.cloudState, "saving");
+  h.requests[0].resolve({ ok: true, data: { rev: "2" } });
+  await h.scope.activeCloudSave.current;
+  assert.equal(h.state.cloudState, "synced");
+});
+
+test("undo to the acknowledged snapshot during debounce clears pending status without a write", async () => {
+  const h = harness();
+  const cleanup = h.effect();
+  assert.equal(h.state.cloudState, "saving");
+  cleanup?.();
+  h.state.doc = h.scope.lastSyncedDoc.current as any;
+  h.effect(); h.tick();
+  await h.scope.activeCloudSave.current;
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.state.cloudState, "synced");
+  assert.equal(h.unsynced(), false);
+});
+
+test("remote echoes and local-only documents do not enter pending cloud save", () => {
+  const h = harness();
+  h.scope.skipNextCloudSave.current = true;
+  h.effect(); h.tick();
+  assert.equal(h.state.cloudState, "synced");
+  assert.equal(h.unsynced(), false);
+  h.state.cloudState = "local";
+  h.state.doc = { title: "local edit" };
+  h.effect(); h.tick();
+  assert.equal(h.state.cloudState, "local");
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.unsynced(), false);
+});
+
 test("edits during a slow save are coalesced and use the acknowledged revision", async () => {
   const h = harness();
   h.effect(); h.tick();

@@ -26,6 +26,7 @@ import { makeImage } from "../lib/presets";
 import { clipboardArtworkFile, hasClipboardArtwork } from "../lib/clipboard";
 import { activeContentNames, CLIP_MIME, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
 import { showConfirm } from "../lib/dialog";
+import EditorLoading from "./EditorLoading";
 import Header from "./Header";
 import Footer from "./Footer";
 import LeftPanel from "./LeftPanel";
@@ -168,6 +169,9 @@ function PanelResizer({
 }
 
 export default function Editor() {
+  // モジュール内の仮の初期データを見せず、最初の読み込み結果が決まるまで準備画面を保つ。
+  // 再接続や保存中には戻さない（入力欄やキャンバスをアンマウントしない）。
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const doc = useEditor((s) => s.doc);
   const markSaved = useEditor((s) => s.markSaved);
   const mode = useEditor((s) => s.mode);
@@ -296,6 +300,7 @@ export default function Editor() {
 
   // はじめてエディタを開いたときは、使い方を探せるヘルプを開いておく
   useEffect(() => {
+    if (!initialLoadComplete) return;
     try {
       if (window.localStorage.getItem(HELP_SEEN_KEY)) return;
     } catch {
@@ -311,10 +316,11 @@ export default function Editor() {
       openHelp();
     }, 600);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [initialLoadComplete]);
 
   // ⌘[ / ⌘] で左右のパネルを開閉
   useEffect(() => {
+    if (!initialLoadComplete) return;
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
       if (e.key !== "[" && e.key !== "]") return;
@@ -324,7 +330,7 @@ export default function Editor() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePanel]);
+  }, [togglePanel, initialLoadComplete]);
 
   useEffect(() => {
     const ownClipboard = () => {
@@ -353,6 +359,7 @@ export default function Editor() {
   }, [pasteNotice]);
 
   useEffect(() => {
+    if (!initialLoadComplete) return;
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target as HTMLElement;
       if (
@@ -416,7 +423,7 @@ export default function Editor() {
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, []);
+  }, [initialLoadComplete]);
 
   // カスタムGoogle Fontsをエディタのプレビュー用に読み込む
   useEffect(() => {
@@ -441,6 +448,7 @@ export default function Editor() {
 
   // 自動保存（500msデバウンス、localStorage = 高速キャッシュ）
   useEffect(() => {
+    if (!initialLoadComplete) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       if (persistDoc(doc)) markSaved();
@@ -448,7 +456,7 @@ export default function Editor() {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [doc, markSaved]);
+  }, [doc, markSaved, initialLoadComplete]);
 
   const requestViaWebSocket = useCallback(
     (input: CollabRequestInput): Promise<CollabServerMessage> => {
@@ -601,6 +609,9 @@ export default function Editor() {
             : "error"
         );
       // 読み込み失敗後は版が不明なため、自動保存を許可しない。
+    } finally {
+      // オフライン・取得失敗・競合でも、手元の内容と既存の復旧操作は使えるようにする。
+      setInitialLoadComplete(true);
     }
   }, [loadCloudDoc, saveCloudDoc]);
 
@@ -1025,6 +1036,7 @@ export default function Editor() {
 
   // キーボードショートカット
   useEffect(() => {
+    if (!initialLoadComplete) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (
@@ -1131,7 +1143,7 @@ export default function Editor() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [initialLoadComplete]);
 
   const startTutorial = useCallback(() => {
     closeHelp();
@@ -1145,6 +1157,8 @@ export default function Editor() {
     state.select(null);
     setTutorialOpen(true);
   }, [togglePanel]);
+
+  if (!initialLoadComplete) return <EditorLoading />;
 
   return (
     <div className="app">

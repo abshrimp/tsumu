@@ -14,7 +14,13 @@ const errorPath = resolve("app/sites/[id]/error.tsx");
 const hasScopedError = existsSync(errorPath);
 const rootErrorSource = readFileSync(resolve("app/error.tsx"), "utf8");
 const errorSource = hasScopedError ? readFileSync(errorPath, "utf8") : rootErrorSource;
-const pageSource = readFileSync(resolve("app/sites/[id]/page.tsx"), "utf8");
+// Keep exercising the real loading UI after it was extracted for the document-loading phase.
+const loadingPath = resolve("components/EditorLoading.tsx");
+const loadingSource = existsSync(loadingPath) ? readFileSync(loadingPath, "utf8") : null;
+const pageSource = readFileSync(resolve("app/sites/[id]/page.tsx"), "utf8").replace(
+  /import EditorLoading from "\.\.\/\.\.\/\.\.\/components\/EditorLoading";/,
+  loadingSource ? 'import { glyphs } from "../../../components/Glyph";\n' + loadingSource.replace(/^import .*;$/gm, "").replace(/export default function/, "function") : "",
+);
 
 function evaluate(source: string, mocks: Record<string, unknown>) {
   const module = { exports: {} as any };
