@@ -193,6 +193,7 @@ export default function PagePanel() {
               updatePage(page.id, {
                 slug: path
                   .replace(/^\/+|\/+$/g, "")
+                  .replace(/\/{2,}/g, "/")
                   .replace(/[^a-zA-Z0-9\-/_\[\]]/g, "-"),
                 query: query || undefined,
               });
