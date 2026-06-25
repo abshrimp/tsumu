@@ -65,6 +65,12 @@ export function commentId(): string {
   return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// POST は返却された一覧をそのまま反映するため、同じブラウザの操作は順に確定する。
+// 読み込みは待たせず、より新しい読み込みや保存が始まったら古い応答を捨てる。
+let readRequest = 0;
+let pendingWrites = 0;
+let writeQueue: Promise<void> = Promise.resolve();
+
 export const useComments = create<CommentsState>((set, get) => ({
   active: false,
   threads: [],
@@ -82,47 +88,63 @@ export const useComments = create<CommentsState>((set, get) => ({
   setDraft: (d) => set({ draft: d, openId: null }),
   setShowResolved: (v) => set({ showResolved: v }),
   load: async () => {
+    if (pendingWrites) return;
+    const request = ++readRequest;
     if (get().store === "local") {
-      set({ threads: readLocal() });
+      set({ threads: readLocal(), loading: false });
       return;
     }
     set({ loading: true });
     try {
       const res = await fetch(siteApi("/api/comments"));
+      if (request !== readRequest) return;
       if (res.status === 503) {
         set({ store: "local", threads: readLocal(), error: null });
         return;
       }
       const data = await res.json().catch(() => null);
+      if (request !== readRequest) return;
       if (!res.ok || !Array.isArray(data?.threads)) throw new Error(data?.error ?? tr("読み込めませんでした"));
       set({ store: "server", threads: data.threads, error: null });
     } catch (e) {
-      set({ error: userMessage(e, tr("コメントを読み込めませんでした")) });
+      if (request === readRequest) set({ error: userMessage(e, tr("コメントを読み込めませんでした")) });
     } finally {
-      set({ loading: false });
+      if (request === readRequest) set({ loading: false });
     }
   },
-  run: async (a) => {
-    if (get().store === "local") {
-      const next = applyCommentAction(readLocal(), a, null);
-      writeLocal(next);
-      set({ threads: next });
-      return true;
-    }
-    try {
-      const res = await fetch(siteApi("/api/comments"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(a),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !Array.isArray(data?.threads)) throw new Error(data?.error ?? tr("保存できませんでした"));
-      set({ threads: data.threads, error: null });
-      return true;
-    } catch (e) {
-      set({ error: userMessage(e, tr("コメントを保存できませんでした")) });
-      return false;
-    }
+  run: (a) => {
+    ++readRequest;
+    ++pendingWrites;
+    set({ loading: false });
+    const result = writeQueue.then(async () => {
+      const local = () => {
+        const next = applyCommentAction(readLocal(), a, null);
+        writeLocal(next);
+        set({ store: "local", threads: next, error: null });
+        return true;
+      };
+      try {
+        if (get().store === "local") return local();
+        const res = await fetch(siteApi("/api/comments"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(a),
+        });
+        // 初回の一覧より先に投稿した場合も、保存先が無ければ同じブラウザ保存へ切り替える。
+        if (res.status === 503) return local();
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !Array.isArray(data?.threads)) throw new Error(data?.error ?? tr("保存できませんでした"));
+        set({ store: "server", threads: data.threads, error: null });
+        return true;
+      } catch (e) {
+        set({ error: userMessage(e, tr("コメントを保存できませんでした")) });
+        return false;
+      } finally {
+        --pendingWrites;
+      }
+    });
+    writeQueue = result.then(() => undefined, () => undefined);
+    return result;
   },
 }));
 
