@@ -95,11 +95,13 @@ export function loadLocalSites(): SiteRecord[] {
   }
 }
 
-export function saveLocalSites(list: SiteRecord[]): void {
+/** 一覧を保存し、容量不足などで保存できなければ false を返す。 */
+export function saveLocalSites(list: SiteRecord[]): boolean {
   try {
     window.localStorage.setItem(LOCAL_SITES_KEY, JSON.stringify(list));
+    return true;
   } catch {
-    // 保存できなくても一覧の表示は続ける
+    return false;
   }
 }
 

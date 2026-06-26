@@ -72,16 +72,15 @@ function seedDoc(id: string, name: string) {
 
 /** サイトの編集データ（ブラウザ保存）を、新しいサイトへ写す。元に無ければ新しいサイトと同じく作る */
 function copyLocalDoc(from: string, to: string, name: string) {
-  try {
-    const raw = window.localStorage.getItem(siteKey(DOC_STORAGE_KEY, from));
-    if (raw) {
-      window.localStorage.setItem(siteKey(DOC_STORAGE_KEY, to), raw);
-      return;
-    }
-  } catch {
-    // 写せなければ、空のサイトとして始める
+  const raw = window.localStorage.getItem(siteKey(DOC_STORAGE_KEY, from));
+  if (raw) {
+    window.localStorage.setItem(siteKey(DOC_STORAGE_KEY, to), raw);
+    return;
   }
-  seedDoc(to, name);
+  // 一度も開いていないサイトだけ初期データを作る。読み書きの失敗を空の複製として扱わない。
+  const doc = createInitialDoc();
+  doc.siteName = name;
+  window.localStorage.setItem(siteKey(DOC_STORAGE_KEY, to), JSON.stringify(doc));
 }
 
 /** サイトを消したときに、このブラウザに残っている保存も消す */
@@ -520,8 +519,14 @@ export default function Home() {
     } else {
       const now = Date.now();
       site = { ...emptyDest(), ...input, name: input.name ?? "", id: newSiteId(), createdAt: now, updatedAt: now } as SiteRecord;
-      copyLocalDoc(src.id, site.id, site.name);
-      saveLocalSites([site, ...loadLocalSites()]);
+      try {
+        copyLocalDoc(src.id, site.id, site.name);
+        if (!saveLocalSites([site, ...loadLocalSites()])) throw new Error("Site list write failed");
+      } catch {
+        // 一覧への登録に失敗したときも、孤立した複製の編集データを残さない。
+        forgetLocal(site.id);
+        throw new Error(tr("サイトを複製できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。"));
+      }
     }
     setSites((list) => [site, ...(list ?? [])]);
     setDialog(null);
