@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type {
+  Asset,
   Breakpoint,
   DocNode,
   Page,
@@ -326,6 +327,8 @@ export interface EditorStore {
   doc: SiteDoc;
   past: SiteDoc[];
   future: SiteDoc[];
+  /** Undo/Redo・文書の置き換えで進む。通常の編集・共同編集では変えない。 */
+  historyRevision: number;
   activePageId: string;
   selection: string | null;
   /** 選択中の全要素。selection はこの配列内の主選択（最後に選んだ要素） */
@@ -452,6 +455,8 @@ export interface EditorStore {
 
   /** history: 省略時 true。transient操作は checkpoint() を先に呼び history:false で更新する */
   updateDoc: (fn: (doc: SiteDoc) => void, opts?: { history?: boolean }) => void;
+  /** 中断した読み込みのファイルだけを、Undo/Redoを壊さず全履歴にも残す。 */
+  retainUploadedAssets: (assets: Asset[]) => void;
 
   setStyleProps: (
     nodeId: string,
@@ -609,6 +614,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     doc: initialDoc,
     past: [],
     future: [],
+    historyRevision: 0,
     activePageId: loadActivePageId(initialDoc),
     selection: null,
     selectedIds: [],
@@ -811,6 +817,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         doc,
         past: [],
         future: [],
+        historyRevision: get().historyRevision + 1,
         activePageId: doc.pages[currentPageId]
           ? currentPageId
           : loadActivePageId(doc),
@@ -832,6 +839,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const selectedIds = validSelectedIds(doc, get().selectedIds);
       set({
         doc,
+        historyRevision: get().historyRevision + 1,
         activePageId: doc.pages[get().activePageId] ? get().activePageId : doc.pageOrder[0],
         selection: validSelection(doc, get().selection) ?? selectedIds[selectedIds.length - 1] ?? null,
         selectedIds,
@@ -1204,6 +1212,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         doc: prev,
         past,
         future: [doc, ...get().future],
+        historyRevision: get().historyRevision + 1,
         editingText: null,
         selection:
           validSelection(prev, get().selection) ??
@@ -1243,6 +1252,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         doc: next,
         past: [...get().past.slice(-HISTORY_LIMIT + 1), doc],
         future,
+        historyRevision: get().historyRevision + 1,
         editingText: null,
         selection:
           validSelection(next, get().selection) ??
@@ -1274,6 +1284,30 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (sameDoc(next, current)) return;
       pushHistory(current);
       set({ doc: next });
+    },
+
+    retainUploadedAssets: (assets) => {
+      const current = get().doc;
+      const fresh = new Map<string, Asset>();
+      for (const asset of assets) {
+        if (!Object.hasOwn(current.assets, asset.id) && !fresh.has(asset.id)) {
+          fresh.set(asset.id, structuredClone(asset));
+        }
+      }
+      if (!fresh.size) return;
+      const retain = (doc: SiteDoc): SiteDoc => {
+        const missing = [...fresh].filter(([id]) => !Object.hasOwn(doc.assets, id));
+        return missing.length
+          ? { ...doc, assets: { ...doc.assets, ...Object.fromEntries(missing) } }
+          : doc;
+      };
+      // checkpointを消費せず、その後のジェスチャーをUndoしてもファイルは残す。
+      if (pendingBase) pendingBase = retain(pendingBase);
+      set((s) => ({
+        doc: retain(s.doc),
+        past: s.past.map(retain),
+        future: s.future.map(retain),
+      }));
     },
 
     setStyleProps: (nodeId, props, opts) => {
@@ -1736,6 +1770,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const doc = createInitialDoc();
       set({
         doc,
+        historyRevision: get().historyRevision + 1,
         activePageId: doc.pageOrder[0],
         selection: null,
         selectedIds: [],

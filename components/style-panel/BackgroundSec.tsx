@@ -187,6 +187,7 @@ export function BackgroundSec() {
             onReset={() => insp.set({ backgroundImage: null })}
           >
             <ImagePicker
+              editTarget={insp.editTarget}
               value={(() => {
                 const src = um?.[1];
                 if (!src) return null;
