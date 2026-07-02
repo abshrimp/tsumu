@@ -70,6 +70,8 @@ export function useCanvasData({
   const [fullData, setFullData] = useState<Record<string, unknown>>({});
   const [previewSlug, setPreviewSlug] = useState("1");
   const [refreshing, setRefreshing] = useState(false);
+  /** 再取得・ページ切替・プレビューの開始/終了で、以前の応答を無効にする。 */
+  const refreshRequest = useRef(0);
 
   /** [slug]のプレビュー値・プレビューバーの基準になるデータ（スクリプトで取得するもの） */
   const primary = page ? primaryDataStep(doc, page.id) : null;
@@ -166,6 +168,7 @@ export function useCanvasData({
   /** 送信ボタン / 再取得: ページのJSONを取り直す */
   const refreshData = useCallback(async () => {
     if (!page) return;
+    const request = ++refreshRequest.current;
     setRefreshing(true);
     try {
       const vars = { ...pageVars, slug: slugVal };
@@ -192,11 +195,12 @@ export function useCanvasData({
           }
         })
       );
+      if (request !== refreshRequest.current) return;
       setLiveSamples((prev) => ({ ...prev, ...results }));
       setLiveTotals((prev) => ({ ...prev, ...totals }));
       setFullData((prev) => ({ ...prev, ...full }));
     } finally {
-      setRefreshing(false);
+      if (request === refreshRequest.current) setRefreshing(false);
     }
   }, [page, doc, slugVal, pageVars]);
 
@@ -204,7 +208,9 @@ export function useCanvasData({
   const refreshRef = useRef(refreshData);
   refreshRef.current = refreshData;
   useEffect(() => {
+    setRefreshing(false);
     if (mode === "preview" && page) void refreshRef.current();
+    return () => { refreshRequest.current++; };
   }, [mode, page?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setActivePage = useEditor((s) => s.setActivePage);
