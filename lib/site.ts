@@ -86,11 +86,16 @@ export function otherLocalDocs(): string[] {
 
 const LOCAL_SITES_KEY = storageKey("sites-v1");
 
-export function loadLocalSites(): SiteRecord[] {
+/** 表示時は読めない一覧を空として扱う。変更時は既存の一覧を壊さないよう失敗を通知する。 */
+export function loadLocalSites({ strict = false }: { strict?: boolean } = {}): SiteRecord[] {
   try {
     const list = JSON.parse(window.localStorage.getItem(LOCAL_SITES_KEY) ?? "[]") as SiteRecord[];
-    return Array.isArray(list) ? list.filter((s) => s && isSiteId(s.id)) : [];
-  } catch {
+    if (!Array.isArray(list)) throw new Error("Invalid local site list");
+    const valid = list.filter((s) => s && isSiteId(s.id));
+    if (strict && valid.length !== list.length) throw new Error("Invalid local site record");
+    return valid;
+  } catch (error) {
+    if (strict) throw error;
     return [];
   }
 }
@@ -108,9 +113,13 @@ export function saveLocalSites(list: SiteRecord[]): boolean {
 /** いま開いているサイトの最終編集時刻を、ブラウザ内のサイト一覧に記録する */
 export function touchLocalSite(at = Date.now()): void {
   const id = currentSiteId();
-  const list = loadLocalSites();
-  if (!list.some((s) => s.id === id)) return;
-  saveLocalSites(list.map((s) => (s.id === id ? { ...s, updatedAt: at, savedAt: at } : s)));
+  try {
+    const list = loadLocalSites({ strict: true });
+    if (!list.some((s) => s.id === id)) return;
+    saveLocalSites(list.map((s) => (s.id === id ? { ...s, updatedAt: at, savedAt: at } : s)));
+  } catch {
+    // 最終編集時刻だけの更新なので、一覧を読めないときは編集データの保存を妨げずに見送る。
+  }
 }
 
 /** ブラウザ内に保存した、いま開いているサイトの公開先（無ければ null） */
