@@ -443,7 +443,8 @@ export function StackView({ script }: { script: PageScript }) {
 
 /** 取得したデータを表で見る小窓 */
 export function PeekModal({ step, onClose }: { step: FetchStep; onClose: () => void }) {
-  const { busy, error, run } = useRefetch(step);
+  // 閉じた小窓の取得が、開き直して取得した新しい見本を上書きしないようにする。
+  const { busy, error, run } = useRefetch(step, true);
   // 見本は配列を先頭だけに切り詰めているため、開いたら全件を取り直して見せる
   const key = wholeKey(step);
   const [whole, setWhole] = useState<{ key: string; value: unknown } | null>(() =>

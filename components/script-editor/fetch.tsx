@@ -60,33 +60,66 @@ export async function fetchWhole(url: string, options: FetchOptions = {}): Promi
 export const wholeCache = new Map<string, unknown>();
 export const wholeKey = (st: FetchStep) => JSON.stringify([st.url, st.method, st.headers, st.body, st.fetchedAt]);
 
+/** 見本を取得したリクエストと、保存先の現在の設定を比べる（見本の更新時刻は除く） */
+const requestKey = (url: string, options: FetchOptions) =>
+  JSON.stringify([url.trim(), options.method ?? "GET", options.headers ?? [], options.body ?? ""]);
+
+/** 画面や小窓を開き直しても、同じブロックの最新の取得だけを保存する。完了時に取り除く。 */
+const activeRefetches = new Map<string, symbol>();
+
 /** 「取得する」ブロックの見本を取り直す（成功するとブロックに保存する） */
-export function useRefetch(step: FetchStep) {
+export function useRefetch(step: FetchStep, cancelOnUnmount = false) {
   const { updateStep } = useContext(Ctx);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [error, setError] = useState<{ key: string; message: string } | null>(null);
+  const request = useRef<symbol | null>(null);
+  useEffect(() => {
+    if (cancelOnUnmount) return () => {
+      if (activeRefetches.get(step.id) === request.current) activeRefetches.delete(step.id);
+      request.current = null;
+    };
+  }, [cancelOnUnmount, step.id]);
+  const currentKey = requestKey(step.url, step);
   const run = async (url = step.url, options: FetchOptions = step) => {
-    if (!url.trim()) return;
-    setBusy(true);
+    const token = Symbol();
+    request.current = token;
+    activeRefetches.set(step.id, token);
+    const isCurrent = () => request.current === token && activeRefetches.get(step.id) === token;
     setError(null);
+    if (!url.trim()) {
+      activeRefetches.delete(step.id);
+      setBusyKey(null);
+      return;
+    }
+    const key = requestKey(url, options);
+    setBusyKey(key);
     try {
       const { sample, totals } = await fetchSample(url.trim(), options);
+      // 後から始めた取得の結果・エラー・読み込み表示を、古い応答で戻さない。
+      if (!isCurrent()) return;
       updateStep(
         step.id,
-        (s) => ({ ...s, sample, sampleTotals: totals, fetchedAt: Date.now() }) as ScriptStep
+        // 取得中の Undo や別の場所での設定変更にも、取得元の違う見本を保存しない。
+        (s) => s.kind === "fetch" && requestKey(s.url, s) === key
+          ? { ...s, sample, sampleTotals: totals, fetchedAt: Date.now() }
+          : s
       );
     } catch (e) {
+      if (!isCurrent()) return;
       const msg = userMessage(e, tr("読み込めませんでした"));
-      setError(
-        msg.includes(tr("JSONとして読み取れませんでした"))
+      setError({
+        key,
+        message: msg.includes(tr("JSONとして読み取れませんでした"))
           ? tr("データを読み取れませんでした。WebページではなくJSONを返すURLか確認してください")
-          : msg
-      );
+          : msg,
+      });
     } finally {
-      setBusy(false);
+      if (request.current === token) setBusyKey(null);
+      if (activeRefetches.get(step.id) === token) activeRefetches.delete(step.id);
     }
   };
-  return { busy, error, run };
+  // Undo など再取得を始めない設定変更でも、別の取得元の状態を表示しない。
+  return { busy: busyKey === currentKey, error: error?.key === currentKey ? error.message : null, run };
 }
 
 /** 取得ブロックの「リクエストの設定」（メソッド・ヘッダー・送る本文） */
