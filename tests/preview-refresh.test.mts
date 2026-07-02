@@ -6,11 +6,12 @@ import { test } from "node:test";
 import { transformSync } from "esbuild";
 import * as React from "react";
 import { useEditor, type EditorMode } from "../lib/store";
+import { makeSample } from "../lib/data";
 import { previewRefreshDoc, previewRows } from "./helpers/preview-refresh";
 
 // 実フックの状態と依存配列を保持する。実際の Canvas/DOM の操作は e2e でも検証する。
-function mount(initialMode: EditorMode = "preview") {
-  useEditor.getState().replaceDoc(previewRefreshDoc());
+function mount(initialMode: EditorMode = "preview", doc = previewRefreshDoc()) {
+  useEditor.getState().replaceDoc(doc);
   let mode = initialMode;
   let pageId = "home";
   let cursor = 0;
@@ -205,5 +206,91 @@ test("a successful obsolete request cannot replace the newest request's failure 
   void m.render().refreshData();
   await m.finish(2, previewRows("retry", 32));
   assert.equal(m.render().pageVars.response.label, "retry");
+  m.unmount();
+});
+
+// 件数の補正は、切り詰めた見本と同じ取得結果にだけ適用する。
+for (const length of [0, 1, 2, 20, 21, 50]) {
+  test(`a successful ${length}-row response replaces the previous sample total`, async () => {
+    const m = mount();
+    await m.finish(0, previewRows("large", 35));
+    void m.render().refreshData();
+    await m.finish(1, previewRows("latest", length));
+    assert.equal(m.render().pageVars.response.rows.length, length, "preview uses the full response");
+    assert.equal(m.render().pageVars.total, length);
+    m.mode("design");
+    assert.equal(m.render().pageVars.response.rows.length, Math.min(length, 20));
+    assert.equal(m.render().pageVars.total, length, "design uses the latest response's total");
+    m.unmount();
+  });
+}
+
+test("design refreshes replace nested and aliased totals, including removed or changed array paths", async () => {
+  const doc = previewRefreshDoc();
+  doc.pages.home.pageScripts![0].steps.push(
+    { id: "nested-alias", kind: "set-var", value: "{response.nested}", into: "nested" },
+    { id: "nested-count", kind: "count", array: "nested.rows", into: "nestedTotal" },
+  );
+  const m = mount("design", doc);
+  const responses = [
+    { rows: previewRows("a", 35).rows, nested: { rows: previewRows("a", 43).rows } },
+    { rows: previewRows("b", 2).rows, nested: { rows: [] } },
+    { rows: previewRows("c", 22).rows, nested: { rows: previewRows("c", 31).rows } },
+    { rows: [], nested: { rows: previewRows("d", 24).rows } },
+    { rows: "not an array", nested: { replacement: [1, 2] } },
+    { rows: [1], nested: { rows: [1, 2, 3] } },
+  ];
+  for (const [index, response] of responses.entries()) {
+    void m.render().refreshData();
+    await m.finish(index, response);
+    assert.equal(m.render().pageVars.total, Array.isArray(response.rows) ? response.rows.length : 0);
+    assert.equal(m.render().pageVars.nestedTotal, response.nested.rows?.length ?? 0);
+  }
+  m.unmount();
+});
+
+test("a root array response clears its previous root sample total", async () => {
+  const doc = previewRefreshDoc();
+  const count = doc.pages.home.pageScripts![0].steps.find((step) => step.kind === "count")!;
+  if (count.kind === "count") count.array = "response";
+  const m = mount("design", doc);
+  for (const [index, length] of [32, 3, 0, 23].entries()) {
+    void m.render().refreshData();
+    await m.finish(index, Array.from({ length }, (_, id) => ({ id })));
+    assert.equal(m.render().pageVars.total, length);
+    assert.equal(m.render().pageVars.response.length, Math.min(length, 20));
+  }
+  m.unmount();
+});
+
+test("successful blocks clear only their own totals while failed blocks retain live or saved fallbacks", async () => {
+  const doc = previewRefreshDoc();
+  const main = doc.pages.home.pageScripts![0].steps[0];
+  if (main.kind === "fetch") {
+    const made = makeSample(previewRows("saved main", 61));
+    main.sample = made.sample; main.sampleTotals = made.totals;
+  }
+  const savedAux = makeSample(previewRows("saved aux", 67));
+  doc.pages.home.pageScripts![0].steps.push(
+    { id: "auxiliary", kind: "fetch", url: "https://example.test/aux", as: "aux", sample: savedAux.sample, sampleTotals: savedAux.totals },
+    { id: "aux-count", kind: "count", array: "aux.rows", into: "auxTotal" },
+  );
+  const m = mount("design", doc);
+  void m.render().refreshData();
+  await m.fail(0); await m.finish(1, null, 502);
+  assert.equal(m.render().pageVars.total, 61, "initial failure retains saved sample totals");
+  assert.equal(m.render().pageVars.auxTotal, 67);
+  void m.render().refreshData();
+  await m.finish(2, previewRows("main", 35)); await m.finish(3, previewRows("aux", 41));
+  void m.render().refreshData();
+  await m.finish(4, previewRows("small main", 2)); await m.fail(5);
+  assert.equal(m.render().pageVars.total, 2);
+  assert.equal(m.render().pageVars.auxTotal, 41, "unrelated network failure retains its live total");
+  void m.render().refreshData();
+  await m.finish(6, null, 502); await m.finish(7, previewRows("empty aux", 0));
+  assert.equal(m.render().pageVars.total, 2, "HTTP failure retains the last successful small response");
+  assert.equal(m.render().pageVars.auxTotal, 0);
+  assert.equal(m.render().pageVars.response.label, "small main");
+  assert.equal(m.render().pageVars.aux.label, "empty aux");
   m.unmount();
 });
