@@ -35,7 +35,6 @@ export default function PagePanel() {
   const activePageId = useEditor((s) => s.activePageId);
   const updatePage = useEditor((s) => s.updatePage);
   const updateDoc = useEditor((s) => s.updateDoc);
-  const checkpoint = useEditor((s) => s.checkpoint);
   const htmlFileRef = useRef<HTMLInputElement>(null);
   const htmlZipRef = useRef<HTMLInputElement>(null);
   const [zipBusy, setZipBusy] = useState(false);
@@ -241,7 +240,7 @@ export default function PagePanel() {
               onChange={(v) =>
                 updatePage(page.id, { htmlBackground: v ?? undefined })
               }
-              onChangeStart={checkpoint}
+              onChangeStart={() => useEditor.getState().beginGesture()}
               onChangeTransient={(v) =>
                 updateDoc(
                   (draft) => {

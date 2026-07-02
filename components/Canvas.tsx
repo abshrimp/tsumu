@@ -87,11 +87,9 @@ export default function Canvas() {
   const select = useEditor((s) => s.select);
   const toggleSelection = useEditor((s) => s.toggleSelection);
   const setEditingText = useEditor((s) => s.setEditingText);
-  const checkpoint = useEditor((s) => s.checkpoint);
   const setStyleProps = useEditor((s) => s.setStyleProps);
   const insertNodes = useEditor((s) => s.insertNodes);
-  const updateDoc = useEditor((s) => s.updateDoc);
-  const [dropState, setDropState] = useState<"none" | "over" | "uploading">(
+  const [dropState, setDropState] = useState<"none" | "over">(
     "none"
   );
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
@@ -602,7 +600,7 @@ export default function Canvas() {
     }
   };
 
-  const { resizing, onCvPointerDown, startResize, dropHandlers } = useCanvasDrag({
+  const { resizing, onCvPointerDown, startResize, dropHandlers, uploading } = useCanvasDrag({
     innerRef,
     doc,
     editingComp,
@@ -617,10 +615,8 @@ export default function Canvas() {
     selection,
     frameRef,
     scale,
-    checkpoint,
     setStyleProps,
     setDropState,
-    updateDoc,
     insertNodes,
     elemDropTarget,
     setElemDropTarget,
@@ -722,9 +718,9 @@ export default function Canvas() {
       {...dropHandlers}
     >
       <VarsCtx.Provider value={varsCtxValue}>
-      {dropState !== "none" && (
+      {(uploading || dropState !== "none") && (
         <div className="canvas-drop-overlay">
-          {dropState === "uploading"
+          {uploading
             ? tr("アップロード中…")
             : tr("ドロップして画像を追加")}
         </div>

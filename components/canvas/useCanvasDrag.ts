@@ -3,16 +3,14 @@
 /**
  * キャンバス上のドラッグ操作（要素の移動・大きさの変更）と、ファイル・追加パネルからのドロップ
  */
-import { useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useLayoutEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { collectDescendants, findParentOf, useEditor, type EditorMode, type ParentRef } from "../../lib/store";
 import { canvasFallbackDrop } from "../../lib/canvas-drop";
 import { ELEMENT_DRAG_TYPE, makeElementByKey, normalizeMade } from "../../lib/elements";
-import { ASSET_DRAG_TYPE, assetKind, nodeAssetSrc, uploadAsset } from "../../lib/assets";
+import { ASSET_DRAG_TYPE, assetKind, nodeAssetSrc } from "../../lib/assets";
+import { useImageDrop } from "../../lib/image-drop";
 import { makeImage } from "../../lib/presets";
 import { canContainElements } from "../../lib/tags";
-import { userMessage } from "../../lib/errors";
-import { showAlert } from "../../lib/dialog";
-import { tr } from "../../lib/i18n";
 import type { Component, DocNode, SiteDoc } from "../../lib/types";
 
 /** Canvas から受け取る値 */
@@ -31,14 +29,12 @@ export interface UseCanvasDragDeps {
   selection: string | null;
   frameRef: RefObject<HTMLDivElement | null>;
   scale: number;
-  checkpoint: () => void;
   setStyleProps: (nodeId: string, props: Record<string, string | null>, opts?: { transient?: boolean }) => void;
-  setDropState: Dispatch<SetStateAction<"none" | "over" | "uploading">>;
-  updateDoc: (fn: (doc: SiteDoc) => void, opts?: { history?: boolean }) => void;
+  setDropState: Dispatch<SetStateAction<"none" | "over">>;
   insertNodes: (nodes: DocNode[], rootId: string, parent: ParentRef, index?: number) => void;
   elemDropTarget: string | null;
   setElemDropTarget: Dispatch<SetStateAction<string | null>>;
-  dropState: "none" | "over" | "uploading";
+  dropState: "none" | "over";
 }
 
 export function useCanvasDrag({
@@ -56,10 +52,8 @@ export function useCanvasDrag({
   selection,
   frameRef,
   scale,
-  checkpoint,
   setStyleProps,
   setDropState,
-  updateDoc,
   insertNodes,
   elemDropTarget,
   setElemDropTarget,
@@ -67,6 +61,8 @@ export function useCanvasDrag({
 }: UseCanvasDragDeps) {
   // リサイズハンドル
   const resizing = useRef(false);
+  const resizeCleanup = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => () => resizeCleanup.current?.(), []);
 
   /** キャンバス内ドラッグ移動: ドロップ先（前/後/中）を解決 */
   const resolveMoveDrop = (x: number, y: number, dragIds: string[]) => {
@@ -197,6 +193,7 @@ export function useCanvasDrag({
   };
 
   const startResize = (e: React.PointerEvent, dir: string) => {
+    resizeCleanup.current?.();
     if (!selection) return;
     e.preventDefault();
     e.stopPropagation();
@@ -205,6 +202,9 @@ export function useCanvasDrag({
     ) as HTMLElement | null;
     if (!el) return;
     resizing.current = true;
+    const initial = useEditor.getState();
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
     const startX = e.clientX;
     const startY = e.clientY;
     const startW = el.offsetWidth;
@@ -213,7 +213,9 @@ export function useCanvasDrag({
     const xSign = dir.includes("w") ? -1 : dir.includes("e") ? 1 : 0;
     const ySign = dir.includes("n") ? -1 : dir.includes("s") ? 1 : 0;
     let started = false;
+    let finishGesture: (() => void) | undefined;
     const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return;
       // ウィンドウの外でボタンを離すと pointerup が届かないので、押していなければ終える
       if (!(ev.buttons & 1)) {
         onUp();
@@ -232,58 +234,42 @@ export function useCanvasDrag({
       }
       if (!started) {
         started = true;
-        checkpoint();
+        finishGesture = useEditor.getState().beginGesture();
       }
       setStyleProps(selection, props, { transient: true });
     };
-    const onUp = () => {
+    const onUp = (ev?: Event) => {
+      if (ev && "pointerId" in ev && ev.pointerId !== e.pointerId) return;
+      if (resizeCleanup.current !== onUp) return;
+      resizeCleanup.current = null;
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("blur", onUp);
+      target.removeEventListener("lostpointercapture", onUp);
+      unsubscribe();
+      if (target.hasPointerCapture?.(e.pointerId)) target.releasePointerCapture(e.pointerId);
+      finishGesture?.();
       // ドラッグ終端の合成クリック（選択解除判定）が済んでから解除
       setTimeout(() => {
-        resizing.current = false;
+        if (!resizeCleanup.current) resizing.current = false;
       }, 0);
     };
+    const unsubscribe = useEditor.subscribe((next) => {
+      if (next.selection !== initial.selection || next.selectedIds !== initial.selectedIds ||
+          next.activePageId !== initial.activePageId || next.editingComponentId !== initial.editingComponentId ||
+          next.breakpoint !== initial.breakpoint || next.styleState !== initial.styleState ||
+          next.mode !== initial.mode || next.historyRevision !== initial.historyRevision) onUp();
+    });
+    resizeCleanup.current = onUp;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
+    window.addEventListener("blur", onUp);
+    target.addEventListener("lostpointercapture", onUp);
   };
 
-  // 画像ファイルのドロップ → アップロードして、落とした位置へ画像要素として追加
-  const onFileDrop = async (files: FileList, point: { parent: ParentRef; index?: number }) => {
-    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (!images.length) {
-      setDropState("none");
-      return;
-    }
-    setDropState("uploading");
-    try {
-      let lastId: string | null = null;
-      let index = point.index;
-      for (const file of images) {
-        const asset = await uploadAsset(file);
-        updateDoc((d) => void (d.assets[asset.id] = asset));
-        const node = makeImage();
-        node.name = asset.name;
-        node.image = {
-          src: nodeAssetSrc(asset),
-          alt: "",
-          width: asset.width,
-          height: asset.height,
-          assetId: asset.id,
-        };
-        insertNodes([node], node.id, point.parent, index);
-        if (index !== undefined) index++;
-        lastId = node.id;
-      }
-      if (lastId) select(lastId);
-    } catch (e) {
-      void showAlert(userMessage(e, tr("アップロードできませんでした")), { title: tr("アップロードできませんでした") });
-    } finally {
-      setDropState("none");
-    }
-  };
+  const { uploading, dropFiles } = useImageDrop();
 
   /** 要素D&D: ドロップ先（中に入れられるbox / 兄弟挿入の基準）を解決 */
   const resolveElementDrop = (
@@ -376,7 +362,8 @@ export function useCanvasDrag({
               setElemDropTarget(null);
               // 落とした要素の中（入れられないなら後ろ）。何もない所ならページ・編集中のコンポーネントの末尾
               const { parent, index } = resolveElementDrop(e.target as Element);
-              void onFileDrop(e.dataTransfer.files, { parent, index });
+              setDropState("none");
+              void dropFiles(e.dataTransfer.files, { parent, index });
             } else {
               setDropState("none");
             }
@@ -384,5 +371,5 @@ export function useCanvasDrag({
         }
       : {};
 
-  return { resizing, onCvPointerDown, startResize, dropHandlers };
+  return { resizing, onCvPointerDown, startResize, dropHandlers, uploading };
 }

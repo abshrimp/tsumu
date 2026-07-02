@@ -384,7 +384,7 @@ export function MainSizeField({
           const val = v === null ? clear(prop) : v;
           insp.set({ [prop]: val, ...flexFor(v) });
         }}
-        onScrubStart={() => insp.checkpoint()}
+        onScrubStart={() => useEditor.getState().beginGesture()}
         onScrub={(v) => insp.setTransient({ [prop]: v, ...flexFor(v) })}
         convert={unitConverter(prop)}
       />

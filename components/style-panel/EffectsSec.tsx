@@ -5,6 +5,7 @@
  */
 
 import { useState } from "react";
+import { useEditor } from "../../lib/store";
 import {
   Blend,
   Droplet,
@@ -91,7 +92,7 @@ function ShadowCard({
   onChange: (patch: Partial<Shadow>, transient?: boolean) => void;
   onDelete: () => void;
   onToggleInset?: () => void;
-  onChangeStart: () => void;
+  onChangeStart: () => void | (() => void);
 }) {
   const fields = kind === "drop" ? (["x", "y", "blur", "spread"] as const) : (["x", "y", "blur"] as const);
   return (
@@ -456,7 +457,7 @@ export function EffectsSec() {
             if (transient) commitDropTransient(next);
             else commitDrop(next);
           }}
-          onChangeStart={insp.checkpoint}
+          onChangeStart={() => useEditor.getState().beginGesture()}
         />
       ))}
       {textShadows.map((shadow, index) => (
@@ -471,7 +472,7 @@ export function EffectsSec() {
             if (transient) commitTextTransient(next);
             else commitText(next);
           }}
-          onChangeStart={insp.checkpoint}
+          onChangeStart={() => useEditor.getState().beginGesture()}
         />
       ))}
       {(tfSet || tfAdded) && (

@@ -3,6 +3,7 @@
 import { isEnterKey } from "../lib/keys";
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -403,7 +404,7 @@ export function NumField({
    * ドラッグ増減（左端の文字・アイコンを左右にドラッグ）。
    * 省略時は onChange で反映し、1回のドラッグを1つの「元に戻す」にまとめる
    */
-  onScrubStart?: () => void;
+  onScrubStart?: () => void | (() => void);
   onScrub?: (v: string) => void;
   /** 値が数値でない（空・auto・none）ときにドラッグを始める値（px） */
   scrubFrom?: () => number | undefined;
@@ -414,10 +415,13 @@ export function NumField({
   // 確定のたびに input を作り直さず、矢印キーを続けて押してもフォーカスを保つ。
   // blur 後は整形された値や、空欄を取り消して戻った値を表示し直す。
   const editing = useRef(false);
+  const stopScrub = useRef<(() => void) | null>(null);
   const { ref, afterCommit } = useCommitSync<HTMLInputElement>(String(parsed?.num ?? ""), editing);
   useLayoutEffect(() => {
     editing.current = false;
+    stopScrub.current?.();
   }, [editTarget]);
+  useLayoutEffect(() => () => stopScrub.current?.(), []);
   const activeUnit = parsed ? parsed.unit : unit;
   const canCycle = units.length > 1;
   const scrubbable = true;
@@ -448,19 +452,23 @@ export function NumField({
 
   const startScrub = (e: React.PointerEvent) => {
     if (!scrubbable) return;
+    stopScrub.current?.();
     const startX = e.clientX;
     const from = parsed ? undefined : scrubFrom?.();
     const startVal = parsed?.num ?? from ?? 0;
     const u = parsed?.unit ?? (from !== undefined ? "px" : units[0]);
     let started = false;
+    let finishGesture: (() => void) | undefined;
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
     let last = "";
     const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== e.pointerId) return;
+      if (!(ev.buttons & 1)) { finish(); return; }
       if (!started && ev.clientX !== startX) {
         started = true;
-        if (onScrub) onScrubStart?.();
-        else useEditor.getState().beginGesture();
+        const finish = onScrub ? onScrubStart?.() : useEditor.getState().beginGesture();
+        if (typeof finish === "function") finishGesture = finish;
         document.body.classList.add("is-scrubbing");
       }
       if (!started) return;
@@ -474,16 +482,27 @@ export function NumField({
       if (onScrub) onScrub(next);
       else onChange(next);
     };
-    const onUp = () => {
+    const finish = () => {
+      if (stopScrub.current !== finish) return;
+      stopScrub.current = null;
       target.removeEventListener("pointermove", onMove);
-      target.removeEventListener("pointerup", onUp);
-      target.removeEventListener("pointercancel", onUp);
+      target.removeEventListener("pointerup", onEnd);
+      target.removeEventListener("pointercancel", onEnd);
+      target.removeEventListener("lostpointercapture", onEnd);
+      window.removeEventListener("blur", finish);
       document.body.classList.remove("is-scrubbing");
-      if (started && !onScrub) useEditor.getState().endGesture();
+      if (target.hasPointerCapture?.(e.pointerId)) target.releasePointerCapture(e.pointerId);
+      finishGesture?.();
     };
+    const onEnd = (ev: PointerEvent) => {
+      if (ev.pointerId === e.pointerId) finish();
+    };
+    stopScrub.current = finish;
     target.addEventListener("pointermove", onMove);
-    target.addEventListener("pointerup", onUp);
-    target.addEventListener("pointercancel", onUp);
+    target.addEventListener("pointerup", onEnd);
+    target.addEventListener("pointercancel", onEnd);
+    target.addEventListener("lostpointercapture", onEnd);
+    window.addEventListener("blur", finish);
   };
 
   return (
@@ -596,7 +615,7 @@ export function PropNum({
         title={title}
         pre={pre}
         onChange={(v) => insp.set({ [prop]: v === null ? cleared : v })}
-        onScrubStart={() => insp.checkpoint()}
+        onScrubStart={() => useEditor.getState().beginGesture()}
         onScrub={(v) => insp.setTransient({ [prop]: v })}
         scrubFrom={scrubFrom}
         convert={units.length > 1 ? unitConverter(prop) : undefined}
@@ -1371,7 +1390,7 @@ export function FillControl({
   value: string | undefined;
   onChange: (v: string | null) => void;
   /** ピッカー・不透明度スライダーの連続変更を1回の履歴にまとめる */
-  onChangeStart?: () => void;
+  onChangeStart?: () => void | (() => void);
   onChangeTransient?: (v: string | null) => void;
   allowClear?: boolean;
 }) {
@@ -1386,19 +1405,50 @@ export function FillControl({
   // ピッカーを閉じたとき、その時点の色を「最近使った色」に記録する
   const latest = useRef<string | undefined>(value);
   const changing = useRef(false);
+  const endChange = useRef<(() => void) | undefined>(undefined);
+  const editTarget = useContext(InspectorCtx)?.editTarget;
+  const activePageId = useEditor((s) => s.activePageId);
   latest.current = value;
 
   const changeContinuously = (next: string) => {
     if (!changing.current) {
       changing.current = true;
-      onChangeStart?.();
+      const finish = onChangeStart?.();
+      endChange.current = typeof finish === "function" ? finish : undefined;
     }
     (onChangeTransient ?? onChange)(next);
   };
 
-  const finishContinuousChange = () => {
+  const finishContinuousChange = useCallback(() => {
+    if (!changing.current) return;
     changing.current = false;
-  };
+    const finish = endChange.current;
+    endChange.current = undefined;
+    finish?.();
+  }, []);
+
+  useLayoutEffect(() => {
+    finishContinuousChange();
+    if (!open) return;
+    const element = ref.current;
+    let commitTimer: ReturnType<typeof setTimeout> | undefined;
+    // 最後のnative changeが同値だとReactのonChangeは省かれる。通常のinput変更と別に確定を受け取る。
+    const onCommit = (event: Event) => {
+      const input = event.target as HTMLInputElement;
+      if (input.type !== "color") return;
+      clearTimeout(commitTimer);
+      // changeだけを送るブラウザでも、Reactの変更処理より後で終了させる。
+      commitTimer = setTimeout(finishContinuousChange, 0);
+    };
+    element?.addEventListener("change", onCommit);
+    window.addEventListener("blur", finishContinuousChange);
+    return () => {
+      clearTimeout(commitTimer);
+      element?.removeEventListener("change", onCommit);
+      window.removeEventListener("blur", finishContinuousChange);
+      finishContinuousChange();
+    };
+  }, [open, editTarget, activePageId, finishContinuousChange]);
 
   const addToPalette = () => {
     if (!value) return;
@@ -1497,6 +1547,9 @@ export function FillControl({
               changeContinuously(composeColor(hex, +e.target.value / 100))
             }
             onPointerUp={finishContinuousChange}
+            onPointerCancel={finishContinuousChange}
+            onLostPointerCapture={finishContinuousChange}
+            onKeyUp={finishContinuousChange}
             onBlur={finishContinuousChange}
           />
           <div className="saved-colors">
@@ -1616,7 +1669,7 @@ export function PropFill({
         value={info.value}
         allowClear={allowClear}
         onChange={(v) => insp.set({ [prop]: v ?? insp.cleared(prop) })}
-        onChangeStart={insp.checkpoint}
+        onChangeStart={() => useEditor.getState().beginGesture()}
         onChangeTransient={(v) => insp.setTransient({ [prop]: v })}
       />
     </Grp>
