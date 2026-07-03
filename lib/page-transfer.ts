@@ -161,16 +161,21 @@ export async function copyPagesToSite(
 ): Promise<void> {
   if (store === "local") {
     const key = siteKey(DOC_STORAGE_KEY, target.id);
-    let doc: SiteDoc | null = null;
+    let doc: SiteDoc;
     try {
       const raw = window.localStorage.getItem(key);
-      if (raw) doc = JSON.parse(raw) as SiteDoc;
+      // 未保存と読み込み失敗を区別し、読めない既存データを初期状態で上書きしない。
+      if (raw === null) {
+        doc = createInitialDoc();
+        doc.siteName = target.name;
+      } else {
+        doc = JSON.parse(raw) as SiteDoc;
+        if (!doc?.pages || !doc.nodes || !doc.assets || !Array.isArray(doc.pageOrder) || !doc.pageOrder.length) {
+          throw new Error("Invalid destination document");
+        }
+      }
     } catch {
-      doc = null;
-    }
-    if (!doc?.pages || !doc.pageOrder?.length) {
-      doc = createInitialDoc();
-      doc.siteName = target.name;
+      throw new Error(tr("コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。"));
     }
     applyPagePayload(doc, payload);
     try {
