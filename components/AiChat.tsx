@@ -115,6 +115,29 @@ const SUGGESTIONS = () => [
   tr("ボタンにホバーしたとき少し暗くなるようにして"),
 ];
 
+/** 連続編集を分断せず、AIだけのUndoを作る。中止・履歴移動でも購読を解放する。 */
+async function waitForAiGesture(signal: AbortSignal) {
+  const revision = useEditor.getState().historyRevision;
+  while (useEditor.getState().gestureActive) {
+    signal.throwIfAborted();
+    await new Promise<void>((resolve, reject) => {
+      const finish = () => {
+        unsubscribe();
+        signal.removeEventListener("abort", finish);
+        if (signal.aborted) reject(signal.reason);
+        else if (useEditor.getState().historyRevision !== revision) reject(new AiEditConflict("History changed"));
+        else resolve();
+      };
+      const unsubscribe = useEditor.subscribe((state) => {
+        if (!state.gestureActive || state.historyRevision !== revision) finish();
+      });
+      signal.addEventListener("abort", finish, { once: true });
+    });
+  }
+  signal.throwIfAborted();
+  if (useEditor.getState().historyRevision !== revision) throw new AiEditConflict("History changed");
+}
+
 async function ask(text: string) {
   if (useAi.getState().busy) return;
   const s = useEditor.getState();
@@ -147,6 +170,12 @@ async function ask(text: string) {
     });
     controller.signal.throwIfAborted();
     const ops = data.operations;
+    const beforeWaitRevision = useEditor.getState().historyRevision;
+    while (ops.length && useEditor.getState().gestureActive) await waitForAiGesture(controller.signal);
+    controller.signal.throwIfAborted();
+    if (useEditor.getState().historyRevision !== beforeWaitRevision) throw new AiEditConflict("History changed");
+    // 待機中の別ページの編集を、AI自身の変更として取り消さない。
+    const beforeApply = useEditor.getState().doc;
     let appliedDoc: SiteDoc | undefined;
     let applied = 0;
     if (ops.length) {
@@ -154,7 +183,7 @@ async function ask(text: string) {
       useEditor.getState().updateDoc((d) => {
         applied = applyAiEdits(d, context, ops);
       });
-      if (useEditor.getState().doc !== s.doc) appliedDoc = useEditor.getState().doc;
+      if (useEditor.getState().doc !== beforeApply) appliedDoc = useEditor.getState().doc;
     }
     const changes = applied ? summarizeChanges(ops, s.doc, useEditor.getState().doc) : undefined;
     useAi.setState((st) => ({
