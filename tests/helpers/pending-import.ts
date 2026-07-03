@@ -3,12 +3,13 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { build, transformSync } from "esbuild";
 import { useEditor } from "../../lib/store";
+import { readHtmlZip } from "../../lib/html-zip";
 import * as assets from "../../lib/assets";
 
 const require = createRequire(resolve("package.json"));
 
 /** 実際のコールバックを、完了順と再描画を制御して実行する。DOMでの同じ操作はE2Eでも確認する。 */
-export function importCallbacks(kind: "image" | "font", upload = assets.uploadAsset) {
+export function importCallbacks(kind: "image" | "font" | "html", upload = assets.uploadAsset, readZip = readHtmlZip) {
   let cursor = 0;
   let effects: (() => void)[] = [];
   const cells: any[] = [];
@@ -52,7 +53,8 @@ export function importCallbacks(kind: "image" | "font", upload = assets.uploadAs
     new Function("require", "module", "exports", code)((name: string) => {
       if (name === "react") return hooks;
       if (name.endsWith("/use-pending-import")) return evaluate("lib/use-pending-import.ts");
-      if (name.endsWith("/store")) return { useEditor: Object.assign((select: (s: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState }) };
+      if (name.endsWith("/store")) return { useEditor: Object.assign((select: (s: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState, subscribe: useEditor.subscribe }) };
+      if (name.endsWith("/html-zip")) return { readHtmlZip: readZip };
       if (name.endsWith("/assets")) return { ...assets, uploadAsset: upload };
       if (name.endsWith("/controls")) return { useInspector: inspector };
       if (name.endsWith("/dialog")) return { showAlert: (...args: unknown[]) => { alerts.push(args); } };
@@ -63,6 +65,7 @@ export function importCallbacks(kind: "image" | "font", upload = assets.uploadAs
   }
   const component = kind === "image"
     ? evaluate("components/ImagePicker.tsx").default
+    : kind === "html" ? evaluate("components/PagePanel.tsx").default
     : evaluate("components/style-panel/TypographySec.tsx", "\nexport { FontPicker };").FontPicker;
   return {
     alerts,

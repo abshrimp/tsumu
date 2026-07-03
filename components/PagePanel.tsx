@@ -1,10 +1,11 @@
 "use client";
 
 import { isEnterKey } from "../lib/keys";
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { readHtmlZip } from "../lib/html-zip";
 import { useEditor } from "../lib/store";
+import { usePendingImport } from "../lib/use-pending-import";
 import { showConfirm } from "../lib/dialog";
 import ImagePicker from "./ImagePicker";
 import SiteLanguageSelect from "./SiteLanguageSelect";
@@ -16,6 +17,11 @@ import { PAGE_TARGET } from "../lib/types";
 import { userMessage } from "../lib/errors";
 import { tr } from "../lib/i18n";
 import { isSiteLang, SITE_LANGS, siteLangOf } from "../lib/site-lang";
+
+const htmlImportScope = (state: ReturnType<typeof useEditor.getState>) => {
+  const target = state.doc.pages[state.activePageId];
+  return JSON.stringify([state.activePageId, target?.rawHtml, target?.redirectTo, target?.rewriteTo]);
+};
 
 const Sec = Section;
 
@@ -37,11 +43,39 @@ export default function PagePanel() {
   const updateDoc = useEditor((s) => s.updateDoc);
   const htmlFileRef = useRef<HTMLInputElement>(null);
   const htmlZipRef = useRef<HTMLInputElement>(null);
-  const [zipBusy, setZipBusy] = useState(false);
   const [zipMessage, setZipMessage] = useState<string | null>(null);
   const openScriptEditor = useEditor((s) => s.openScriptEditor);
 
   const page = doc.pages[activePageId];
+  const scope = htmlImportScope(useEditor.getState());
+  const pending = usePendingImport(scope);
+  const gestureWaiters = useRef(new Set<() => void>());
+  const wakeImports = () => { for (const wake of gestureWaiters.current) wake(); };
+  useLayoutEffect(() => {
+    const unsubscribe = useEditor.subscribe(wakeImports);
+    return () => { unsubscribe(); wakeImports(); };
+  }, []);
+  const [importKind, setImportKind] = useState<"html" | "zip">("html");
+  const zipBusy = pending.busy && importKind === "zip";
+  const historyRevision = useEditor((s) => s.historyRevision);
+  useLayoutEffect(() => { setZipMessage(null); }, [activePageId, historyRevision]);
+  useLayoutEffect(wakeImports, [scope, historyRevision, pending.busy]);
+  const waitForGesture = async (request: { current: () => boolean }) => {
+    // 色などの連続編集を確定するまで待ち、読み込みを別のUndoにする。
+    while (request.current() && useEditor.getState().gestureActive) {
+      await new Promise<void>((resolve) => {
+        const wake = () => { gestureWaiters.current.delete(wake); resolve(); };
+        gestureWaiters.current.add(wake);
+      });
+    }
+  };
+  // ストア変更直後（再描画前）にも、古いページやコードへ書き戻さない。
+  const beginImport = (kind: "html" | "zip") => {
+    setImportKind(kind);
+    const request = pending.begin();
+    const scope = htmlImportScope(useEditor.getState());
+    return { ...request, current: () => request.current() && htmlImportScope(useEditor.getState()) === scope };
+  };
   if (!page) return null;
 
   /** ページ内の全要素のスクリプト（要素名つき） */
@@ -79,10 +113,18 @@ export default function PagePanel() {
   }
 
   const importHtmlZip = async (file: File) => {
-    setZipBusy(true);
+    const request = beginImport("zip");
     setZipMessage(null);
     try {
-      const { assets, html: rewritten, name } = await readHtmlZip(file, setZipMessage);
+      const { assets, html: rewritten, name } = await readHtmlZip(file, (message) => {
+        if (request.current()) setZipMessage(message);
+      });
+      await waitForGesture(request);
+      if (!request.current()) {
+        // アップロード済みの一式は残すが、Undo/Redoや手動編集を上書きしない。
+        useEditor.getState().retainUploadedAssets(assets);
+        return;
+      }
       updateDoc((draft) => {
         for (const asset of assets) draft.assets[asset.id] = asset;
         const target = draft.pages[page.id];
@@ -92,14 +134,16 @@ export default function PagePanel() {
         tr("{name} と {length}個のアセットを読み込みました", { name, length: assets.length })
       );
     } catch (error) {
-      setZipMessage(userMessage(error, tr("ZIPを読み込めませんでした")));
+      if (request.current()) setZipMessage(userMessage(error, tr("ZIPを読み込めませんでした")));
     } finally {
-      setZipBusy(false);
+      request.finish();
     }
   };
 
   const setPageKind = async (kind: string) => {
     if (kind === pageKind) return;
+    pending.cancel();
+    setZipMessage(null);
     if (kind === "html" || kind === "redirect") {
       if (
         page.children.length &&
@@ -436,11 +480,17 @@ export default function PagePanel() {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                const request = beginImport("html");
+                setZipMessage(null);
                 const reader = new FileReader();
-                reader.onload = () =>
-                  updatePage(page.id, {
+                reader.onload = async () => {
+                  await waitForGesture(request);
+                  if (request.current()) updatePage(page.id, {
                     rawHtml: String(reader.result ?? ""),
                   });
+                  request.finish();
+                };
+                reader.onerror = reader.onabort = () => request.finish();
                 reader.readAsText(file);
                 e.target.value = "";
               }}
@@ -475,7 +525,8 @@ export default function PagePanel() {
               "<!DOCTYPE html>\n<html>\n  <head>…</head>\n  <body>…</body>\n</html>"
             }
             spellCheck={false}
-            onCommit={(v) => updatePage(page.id, { rawHtml: v })}
+            onChange={() => { pending.cancel(); setZipMessage(null); }}
+            onCommit={(v) => { pending.cancel(); updatePage(page.id, { rawHtml: v }); }}
           />
         </>
       )}
