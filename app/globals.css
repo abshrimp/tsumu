@@ -12211,3 +12211,40 @@ a.btn {
 .align-grid.origin-grid button.is-on:hover::after {
   background: var(--accent-hover);
 }
+
+/* 多いアセットは表示領域の前後だけ描画する。高さはasset-window.tsと揃える。 */
+.asset-grid.is-windowed {
+  position: relative;
+  display: block;
+}
+.asset-grid.is-windowed .asset-card {
+  position: absolute;
+  width: calc((100% - 34px) / 2);
+}
+.asset-grid.is-windowed .asset-meta {
+  height: 35px;
+}
+.asset-grid.is-windowed .asset-name {
+  height: 20px;
+  line-height: 20px;
+}
+.asset-grid.is-windowed .asset-dim {
+  height: 14px;
+  line-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-panel .panel-body {
+  position: relative;
+}
+.asset-focus-edge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
