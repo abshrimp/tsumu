@@ -47,6 +47,7 @@ export function importCallbacks(kind: "image" | "font" | "html", upload = assets
     };
   };
   const alerts: unknown[] = [];
+  const confirmations: { resolve: (value: boolean) => void }[] = [];
   function evaluate(path: string, append = "") {
     const code = transformSync(readFileSync(resolve(path), "utf8") + append, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
     const module = { exports: {} as any };
@@ -57,7 +58,10 @@ export function importCallbacks(kind: "image" | "font" | "html", upload = assets
       if (name.endsWith("/html-zip")) return { readHtmlZip: readZip };
       if (name.endsWith("/assets")) return { ...assets, uploadAsset: upload };
       if (name.endsWith("/controls")) return { useInspector: inspector };
-      if (name.endsWith("/dialog")) return { showAlert: (...args: unknown[]) => { alerts.push(args); } };
+      if (name.endsWith("/dialog")) return {
+        showAlert: (...args: unknown[]) => { alerts.push(args); },
+        showConfirm: () => new Promise<boolean>(resolve => { confirmations.push({ resolve }); }),
+      };
       if (name.endsWith("/BackgroundSec") || name.endsWith("/shared")) return {};
       return name.startsWith(".") ? require(resolve(path, "..", name)) : require(name);
     }, module, module.exports);
@@ -69,6 +73,7 @@ export function importCallbacks(kind: "image" | "font" | "html", upload = assets
     : evaluate("components/style-panel/TypographySec.tsx", "\nexport { FontPicker };").FontPicker;
   return {
     alerts,
+    confirmations,
     render(props: Record<string, unknown> = {}) {
       cursor = 0;
       effects = [];
