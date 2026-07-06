@@ -44,20 +44,15 @@ interface CommentsState {
 }
 
 function readLocal(): CommentThread[] {
-  try {
-    const v = JSON.parse(window.localStorage.getItem(siteKey(LOCAL_KEY)) ?? "[]");
-    return Array.isArray(v) ? v : [];
-  } catch {
-    return [];
-  }
+  // 読めなかった一覧を空扱いすると、次の投稿で以前のコメントを上書きしてしまう。
+  const v = JSON.parse(window.localStorage.getItem(siteKey(LOCAL_KEY)) ?? "[]");
+  if (!Array.isArray(v)) throw new Error("Invalid local comment list");
+  return v;
 }
 
 function writeLocal(threads: CommentThread[]) {
-  try {
-    window.localStorage.setItem(siteKey(LOCAL_KEY), JSON.stringify(threads));
-  } catch {
-    // 保存できなくても、開いている間は見える
-  }
+  // 保存できたときだけ成功を返し、失敗時は投稿・返信・編集の入力を残す。
+  window.localStorage.setItem(siteKey(LOCAL_KEY), JSON.stringify(threads));
 }
 
 /** スレッド・コメントのID */
@@ -90,12 +85,12 @@ export const useComments = create<CommentsState>((set, get) => ({
   load: async () => {
     if (pendingWrites) return;
     const request = ++readRequest;
-    if (get().store === "local") {
-      set({ threads: readLocal(), loading: false });
-      return;
-    }
     set({ loading: true });
     try {
+      if (get().store === "local") {
+        set({ threads: readLocal(), error: null });
+        return;
+      }
       const res = await fetch(siteApi("/api/comments"));
       if (request !== readRequest) return;
       if (res.status === 503) {
