@@ -1,7 +1,7 @@
 "use client";
 
 import { isEnterKey } from "../lib/keys";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toggleCommentMode } from "../lib/comment-store";
 import { insertPointFor, persistDoc, useEditor } from "../lib/store";
 import type { SiteDoc } from "../lib/types";
@@ -123,10 +123,16 @@ function PanelResizer({
   );
 }
 
-export default function Editor() {
+export type EditorProps = { onReady?: () => void };
+
+export default function Editor({ onReady }: EditorProps = {}) {
   // モジュール内の仮の初期データを見せず、最初の読み込み結果が決まるまで準備画面を保つ。
   // 再接続や保存中には戻さない（入力欄やキャンバスをアンマウントしない）。
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  // ページが準備画面を持つ場合は、描画前に完了を伝えて同じ画面を一度だけ閉じる。
+  useLayoutEffect(() => {
+    if (initialLoadComplete) onReady?.();
+  }, [initialLoadComplete, onReady]);
   const doc = useEditor((s) => s.doc);
   const markSaved = useEditor((s) => s.markSaved);
   const mode = useEditor((s) => s.mode);
@@ -1133,7 +1139,7 @@ export default function Editor() {
     setTutorialOpen(true);
   }, [togglePanel]);
 
-  if (!initialLoadComplete) return <EditorLoading />;
+  if (!initialLoadComplete) return onReady ? null : <EditorLoading />;
 
   return (
     <div className="app">

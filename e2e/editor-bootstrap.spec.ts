@@ -54,6 +54,45 @@ async function expectPending(page: Page, pending: { requested: Promise<void> }) 
   await expect(page.getByText("見出しをここに", { exact: false })).toHaveCount(0);
 }
 
+test("site validation and the first document read keep one continuous loading screen", async ({ page }) => {
+  const id = await createSite(page, fixture("Continuous loading heading"));
+  await prepare(page, id);
+  let releaseSite!: () => void;
+  let requestedSite!: () => void;
+  const siteGate = new Promise<void>((resolve) => { releaseSite = resolve; });
+  const siteRequested = new Promise<void>((resolve) => { requestedSite = resolve; });
+  await page.route(`**/api/sites/${id}`, async (route) => {
+    requestedSite();
+    await siteGate;
+    await route.continue();
+  });
+  const pending = await holdInitialRead(page, id);
+  try {
+    await page.goto(`/sites/${id}`);
+    await siteRequested;
+    await expect(page.getByText("エディタを準備しています", { exact: true })).toBeVisible();
+    await page.evaluate(() => {
+      const w = window as any;
+      w.initialBoot = document.querySelector(".boot");
+      w.initialBootCard = document.querySelector(".boot-card");
+      w.initialBootTip = document.querySelector(".boot-tip")!.textContent;
+    });
+    releaseSite();
+    await expectPending(page, pending);
+    expect(await page.evaluate(() => {
+      const w = window as any;
+      return document.querySelector(".boot") === w.initialBoot &&
+        document.querySelector(".boot-card") === w.initialBootCard &&
+        document.querySelector(".boot-tip")!.textContent === w.initialBootTip;
+    })).toBe(true);
+    await expect(page.locator('.boot[role="status"]')).toHaveCount(1);
+    pending.release();
+    await expect(canvas(page).getByText("Continuous loading heading", { exact: true })).toBeVisible();
+    await saved(page);
+    await expect(page.locator(".boot")).toHaveCount(0);
+  } finally { releaseSite(); pending.release(); }
+});
+
 for (const cached of [false, true]) {
   test(`first HTTP load keeps placeholder ${cached ? "and stale cache" : "content"} hidden until the saved document arrives`, async ({ page }) => {
     const remote = fixture("Saved server heading");
