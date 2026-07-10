@@ -2,8 +2,9 @@
 
 import { useMemo } from "react";
 import { Focus, MousePointer2, MousePointerClick, Pointer } from "lucide-react";
-import { useEditor } from "../lib/store";
+import { useEditor, type EditorStore } from "../lib/store";
 import { showConfirm } from "../lib/dialog";
+import { usePendingImport } from "../lib/use-pending-import";
 import type { DocNode, StyleState } from "../lib/types";
 import { BP_INFO, getProp, clearedValue, STATE_INFO, STATE_ORDER } from "../lib/style";
 import { Dropdown, InspectorCtx, type Inspector } from "./controls";
@@ -17,6 +18,16 @@ import { MotionSec } from "./style-panel/MotionSec";
 import { PositionSec } from "./style-panel/PositionSec";
 import { TypographySec, inheritedPropValue } from "./style-panel/TypographySec";
 import { CustomCssSec, TEXT_SPLIT_PROPS, VisibilitySec } from "./style-panel/VisibilitySec";
+
+/** 部分書式の確認が対象とする編集位置と本文。名前・余白などの無関係な変更は含めない。 */
+function textStyleScope(s: EditorStore, nodeId: string): string {
+  const node = s.doc.nodes[nodeId];
+  return JSON.stringify([
+    s.activePageId, s.editingComponentId, s.mode, s.rightTab,
+    nodeId, s.selection, s.selectedIds, s.breakpoint, s.styleState,
+    node?.type, node?.text?.content, node?.children,
+  ]);
+}
 
 /** いま編集しているスタイルがどのデバイスに反映されるかを示す */
 function BpScopeChip({ style }: { style?: React.CSSProperties }) {
@@ -119,6 +130,8 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
   const checkpoint = useEditor((s) => s.checkpoint);
 
   const node = doc.nodes[nodeId];
+  const scope = useEditor((s) => textStyleScope(s, nodeId));
+  const pending = usePendingImport(scope);
 
   const insp: Inspector = useMemo(
     () => ({
@@ -135,14 +148,29 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
           sel.nodeId === nodeId &&
           Object.keys(props).some((p) => TEXT_SPLIT_PROPS.has(p))
         ) {
+          const request = pending.begin();
           void showConfirm(
             tr("選んだ部分だけのスタイルを変えるには、その部分を別のテキストとして分割します。分割しますか？\n（分割しない場合は、テキスト全体に適用します）"),
             { title: tr("選んだ部分だけに適用"), okLabel: tr("分割して適用"), cancelLabel: tr("全体に適用") }
           ).then((ok) => {
-            const st = useEditor.getState();
-            if (ok && st.splitTextSpan(sel.nodeId, sel.start, sel.end, sel.text, props)) return;
-            st.setTextSel(null);
-            setStyleProps(nodeId, props);
+            try {
+              const st = useEditor.getState();
+              const currentSel = st.textSel;
+              // 再描画前の更新も検出する。失効した部分選択を別の文字や全文へ適用しない。
+              if (
+                !request.current() || textStyleScope(st, nodeId) !== scope ||
+                !currentSel || currentSel.nodeId !== sel.nodeId ||
+                currentSel.start !== sel.start || currentSel.end !== sel.end || currentSel.text !== sel.text
+              ) return;
+              if (ok) {
+                st.splitTextSpan(sel.nodeId, sel.start, sel.end, sel.text, props);
+              } else {
+                st.setTextSel(null);
+                setStyleProps(nodeId, props);
+              }
+            } finally {
+              request.finish();
+            }
           });
           return;
         }
@@ -151,7 +179,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
       setTransient: (props) => setStyleProps(nodeId, props, { transient: true }),
       checkpoint,
     }),
-    [doc, node, breakpoint, styleState, selectedIds, nodeId, setStyleProps, checkpoint]
+    [doc, node, breakpoint, styleState, selectedIds, nodeId, setStyleProps, checkpoint, scope, pending]
   );
 
   if (!node) return null;

@@ -739,15 +739,13 @@ export const useEditor = create<EditorStore>((set, get) => {
     splitTextSpan: (nodeId, start, end, text, props) => {
       const doc = get().doc;
       const node = doc.nodes[nodeId];
-      if (!node?.text) return null;
+      if (!node?.text || node.children.length) return null;
       const content = node.text.content;
-      // 編集確定時の整形などでズレていたら、選択文字列で探し直す
-      if (content.slice(start, end) !== text) {
-        const at = text ? content.indexOf(text) : -1;
-        if (at < 0) return null;
-        start = at;
-        end = at + text.length;
-      }
+      // 古い範囲を同じ文字列の別の出現位置へ移さない。
+      if (
+        !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > content.length ||
+        content.slice(start, end) !== text
+      ) return null;
       if (start <= 0 && end >= content.length) return null; // 全選択は分割不要
       if (start >= end) return null;
 
