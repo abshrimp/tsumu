@@ -842,6 +842,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         var els = find(self, id);
         if (!els.length) els = groupOf(id);
         var first = els.length ? inputOf(els[0]) : null;
+        // ファイルへの非空代入は、プレビューの状態や変更通知も含めて何もしない
+        if (first && first.type === "file" && v !== "") return;
         // チェックボックス・グループのラジオボタン1つは、オン・オフを「true」/「false」にそろえる
         var toggle = !!first && (first.type === "checkbox" || isRadioItem(els[0], first));
         if (toggle) v = truthy(v) ? "true" : "false";
