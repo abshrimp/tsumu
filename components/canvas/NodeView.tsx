@@ -511,7 +511,8 @@ export function NodeView({
       // 「変数を探す」を開いている間は編集を続ける（選んだ変数をカーソル位置に入れる）
       if (holdEditing.current) return;
       const content = richEdit
-        ? editableText(e.currentTarget).replace(/\n$/, "")
+        // editableTextは末尾のプレースホルダーbrを除外済み。本物の改行はそのまま残す。
+        ? editableText(e.currentTarget)
         : e.currentTarget.innerText.replace(/\n$/, "");
       updateDoc((d) => {
         const n = d.nodes[id];
