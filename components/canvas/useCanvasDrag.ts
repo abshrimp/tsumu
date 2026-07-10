@@ -21,7 +21,7 @@ export interface UseCanvasDragDeps {
   activePageId: string;
   mode: EditorMode;
   editingText: string | null;
-  moveState: RefObject<{ startX: number; startY: number; id: string; ids: string[]; active: boolean } | null>;
+  moveState: RefObject<{ pointerId: number; startX: number; startY: number; id: string; ids: string[]; active: boolean } | null>;
   select: (id: string | null) => void;
   moveDropRef: RefObject<{ parent: ParentRef; index: number } | null>;
   setMoveDrag: Dispatch<SetStateAction<{ dragIds: string[]; line: { left: number; top: number; width: number; height: number } | null; insideId: string | null } | null>>;
@@ -62,7 +62,11 @@ export function useCanvasDrag({
   // リサイズハンドル
   const resizing = useRef(false);
   const resizeCleanup = useRef<(() => void) | null>(null);
-  useLayoutEffect(() => () => resizeCleanup.current?.(), []);
+  const moveCleanup = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => () => {
+    resizeCleanup.current?.();
+    moveCleanup.current?.();
+  }, []);
 
   /** キャンバス内ドラッグ移動: ドロップ先（前/後/中）を解決 */
   const resolveMoveDrop = (x: number, y: number, dragIds: string[]) => {
@@ -129,6 +133,9 @@ export function useCanvasDrag({
   /** キャンバス内の要素をドラッグで移動（6px動いたらドラッグ開始） */
   const onCvPointerDown = (e: React.PointerEvent) => {
     if (mode !== "design" || editingText || e.button !== 0) return;
+    // 別の指では進行中の移動を奪わない。同じポインターの新しい操作なら前の操作を片付ける。
+    if (moveState.current && moveState.current.pointerId !== e.pointerId) return;
+    moveCleanup.current?.();
     const el = (e.target as Element).closest("[data-node]");
     if (!el) return;
     const id = el.getAttribute("data-node")!;
@@ -140,14 +147,19 @@ export function useCanvasDrag({
       selected.length > 1 && selected.includes(id) && !e.shiftKey
         ? selected.filter((x) => doc.nodes[x] && !doc.nodes[x].locked)
         : [id];
-    moveState.current = { startX: e.clientX, startY: e.clientY, id, ids, active: false };
+    moveState.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, id, ids, active: false };
+    const initial = useEditor.getState();
+    let expectedSelection = initial.selectedIds;
+    let expectedPrimary = initial.selection;
+    let expectedStyleState = initial.styleState;
+    let selecting = false;
 
     const onMove = (ev: PointerEvent) => {
       const st = moveState.current;
-      if (!st) return;
+      if (!st || ev.pointerId !== st.pointerId) return;
       // ウィンドウの外でボタンを離した（pointerup が届かない）ときは、移動せずに終える
       if (!(ev.buttons & 1)) {
-        onUp(ev);
+        finish();
         return;
       }
       if (!st.active) {
@@ -155,7 +167,12 @@ export function useCanvasDrag({
           return;
         }
         st.active = true;
-        if (st.ids.length === 1) select(st.id);
+        if (st.ids.length === 1) {
+          selecting = true;
+          select(st.id);
+          selecting = false;
+          if (moveState.current !== st) return;
+        }
       }
       ev.preventDefault();
       const res = resolveMoveDrop(ev.clientX, ev.clientY, st.ids);
@@ -168,28 +185,58 @@ export function useCanvasDrag({
         insideId: res?.insideId ?? null,
       });
     };
-    const onUp = (ev: PointerEvent) => {
+    const finish = (ev?: PointerEvent) => {
+      if (ev && ev.pointerId !== e.pointerId) return;
+      if (moveCleanup.current !== finish) return;
+      moveCleanup.current = null;
       window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", finish);
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("visibilitychange", onVisibility);
+      unsubscribe();
       const st = moveState.current;
       moveState.current = null;
-      if (st?.active) {
-        movedJustNow.current = true;
-        setTimeout(() => {
-          movedJustNow.current = false;
-        }, 0);
-        const drop = moveDropRef.current;
-        if (drop && ev.type === "pointerup") {
-          useEditor.getState().moveNodes(st.ids, drop.parent, drop.index);
-        }
-      }
+      const drop = st?.active && ev?.type === "pointerup"
+        ? resolveMoveDrop(ev.clientX, ev.clientY, st.ids) : null;
       moveDropRef.current = null;
       setMoveDrag(null);
+      if (st?.active) {
+        movedJustNow.current = true;
+        setTimeout(() => { movedJustNow.current = false; }, 0);
+        if (drop) useEditor.getState().moveNodes(st.ids, drop.parent, drop.index);
+      }
     };
+    const cancel = () => finish();
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== "Escape") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      finish();
+    };
+    const onVisibility = () => { if (document.visibilityState === "hidden") finish(); };
+    const unsubscribe = useEditor.subscribe((next) => {
+      if (selecting) {
+        // ドラッグ開始時の select は選択と表示状態を初期化するため、自分の変更だけ受け入れる。
+        expectedSelection = next.selectedIds;
+        expectedPrimary = next.selection;
+        expectedStyleState = next.styleState;
+      }
+      // 確定前の移動は文書を書き換えない。Undo・共同編集・画面変更後の古いdropは捨てる。
+      if (next.doc !== initial.doc || next.historyRevision !== initial.historyRevision ||
+          next.activePageId !== initial.activePageId || next.editingComponentId !== initial.editingComponentId ||
+          next.mode !== initial.mode || next.breakpoint !== initial.breakpoint || next.styleState !== expectedStyleState ||
+          next.editingText !== initial.editingText || next.selection !== expectedPrimary ||
+          next.selectedIds !== expectedSelection) finish();
+    });
+    moveCleanup.current = finish;
     window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", finish);
+    window.addEventListener("blur", cancel);
+    window.addEventListener("keydown", onKey, true);
+    document.addEventListener("visibilitychange", onVisibility);
   };
 
   const startResize = (e: React.PointerEvent, dir: string) => {

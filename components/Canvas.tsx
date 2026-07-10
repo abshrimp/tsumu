@@ -103,6 +103,7 @@ export default function Canvas() {
   } | null>(null);
   const moveDropRef = useRef<{ parent: ParentRef; index: number } | null>(null);
   const moveState = useRef<{
+    pointerId: number;
     startX: number;
     startY: number;
     id: string;
