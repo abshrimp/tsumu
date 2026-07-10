@@ -412,9 +412,14 @@ export default function Canvas() {
     // フォーム部品の値はReactの状態で持つ
     setValue: (id, v) => {
       // ID属性・ラジオのグループ名で入力欄を探す（グループのボタン1つには true / false）
-      const patch = fieldValuePatch(fieldVarNodes, id, v, { ...fieldDefaults(fieldVarNodes), ...fieldValues });
-      if (patch) setFieldValues((prev) => ({ ...prev, ...patch }));
-      return !!patch;
+      const defaults = fieldDefaults(fieldVarNodes, pageVars);
+      if (!fieldValuePatch(fieldVarNodes, id, v, defaults, pageVars)) return false;
+      // 同じスクリプトの連続設定も、直前の更新を含む値から選ぶ・外す。
+      setFieldValues((prev) => ({
+        ...prev,
+        ...fieldValuePatch(fieldVarNodes, id, v, { ...defaults, ...prev }, pageVars),
+      }));
+      return true;
     },
   };
   useEffect(() => {

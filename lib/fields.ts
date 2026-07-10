@@ -135,13 +135,14 @@ export function fieldValuePatch(
   fields: DocNode[],
   name: string,
   v: string,
-  values: Record<string, string>
+  values: Record<string, string>,
+  vars?: Record<string, unknown>
 ): Record<string, string> | null {
   const item = fields.find((n) => n.type === "field" && isRadioItem(n) && n.attrId === name);
   if (item) {
     const group = fieldVarName(item);
     if (!group) return null;
-    const label = item.field!.label ?? "";
+    const label = fill(item.field!.label, vars);
     if (truthy(v)) return { [group]: label };
     return values[group] === label ? { [group]: "" } : {};
   }
