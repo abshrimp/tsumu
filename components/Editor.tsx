@@ -135,6 +135,13 @@ export default function Editor({ onReady }: EditorProps = {}) {
   }, [initialLoadComplete, onReady]);
   const doc = useEditor((s) => s.doc);
   const markSaved = useEditor((s) => s.markSaved);
+  // 保存した版を覚え、次の編集を前の「保存済み」と取り違えない。
+  const [localSave, setLocalSave] = useState<{ doc: SiteDoc; ok: boolean } | null>(null);
+  const saveLocalDoc = useCallback((snapshot: SiteDoc) => {
+    const ok = persistDoc(snapshot);
+    if (ok) markSaved();
+    setLocalSave({ doc: snapshot, ok });
+  }, [markSaved]);
   const mode = useEditor((s) => s.mode);
   const activePageId = useEditor((s) => s.activePageId);
   const scriptEditor = useEditor((s) => s.scriptEditor);
@@ -432,12 +439,12 @@ export default function Editor({ onReady }: EditorProps = {}) {
     if (!initialLoadComplete) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      if (persistDoc(doc)) markSaved();
+      saveLocalDoc(doc);
     }, 500);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [doc, markSaved, initialLoadComplete]);
+  }, [doc, saveLocalDoc, initialLoadComplete]);
 
   const requestViaWebSocket = useCallback(
     (input: CollabRequestInput): Promise<CollabServerMessage> => {
@@ -1192,7 +1199,13 @@ export default function Editor({ onReady }: EditorProps = {}) {
           </>
         )}
       </div>
-      <Footer />
+      <Footer
+        localSaveState={localSave?.doc !== doc ? "pending" : localSave.ok ? "saved" : "error"}
+        onRetryLocalSave={() => {
+          if (saveTimer.current) clearTimeout(saveTimer.current);
+          saveLocalDoc(useEditor.getState().doc);
+        }}
+      />
       <TooltipLayer />
       <LeaveAnimator />
       <DialogHost />

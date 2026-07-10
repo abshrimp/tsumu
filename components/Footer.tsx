@@ -122,7 +122,10 @@ function PopSection({ title, children }: { title: string; children: ReactNode })
   );
 }
 
-export default function Footer() {
+export default function Footer({ localSaveState, onRetryLocalSave }: {
+  localSaveState: "pending" | "saved" | "error";
+  onRetryLocalSave: () => void;
+}) {
   const savedAt = useEditor((s) => s.savedAt);
   const cloudState = useEditor((s) => s.cloudState);
   const cloudSavedAt = useEditor((s) => s.cloudSavedAt);
@@ -208,7 +211,11 @@ export default function Footer() {
               <PopSection title={tr("保存")}>
                 <p className="ftr-pop-empty">
                   {cloudState === "local"
-                    ? tr("サーバー保存が設定されていないため、このブラウザにだけ保存しています。クリックで再接続します。")
+                    ? localSaveState === "error"
+                      ? tr("ブラウザに保存できません。容量や設定を確認して、クリックで再試行してください。")
+                      : localSaveState === "pending"
+                        ? tr("サーバー保存が設定されていません。ブラウザへの保存を待っています。")
+                        : tr("サーバー保存が設定されていないため、このブラウザにだけ保存しています。クリックで再接続します。")
                     : tr("編集した人の記録は、サーバーの保存先（D1）があるときに表示されます。")}
                 </p>
               </PopSection>
@@ -237,6 +244,9 @@ export default function Footer() {
             )}
             {cloudState === "error" && cloudError && <p className="ftr-pop-note">{cloudError}</p>}
             {cloudState === "error" && <p className="ftr-pop-note">{tr("クリックで再接続します")}</p>}
+            {localSaveState === "error" && cloudState !== "local" && (
+              <p className="ftr-pop-note">{tr("ブラウザに保存できません。容量や設定を確認して、クリックで再試行してください。")}</p>
+            )}
           </>
         }
       >
@@ -245,6 +255,7 @@ export default function Footer() {
           data-tutorial="save-status"
           style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
           onClick={() => {
+            if (localSaveState === "error") onRetryLocalSave();
             if (cloudState === "local" || cloudState === "error") {
               window.dispatchEvent(new Event("cloud-sync-retry"));
             }
@@ -272,15 +283,21 @@ export default function Footer() {
           )}
           {cloudState === "local" && (
             <>
-              <CloudOff size={13} />
-              {tr("このブラウザにのみ保存")}
-              {savedAt && ` ${new Date(savedAt).toLocaleTimeString(getLang())}`}
+              {localSaveState === "error" ? <CloudAlert size={13} style={{ color: "var(--warn)" }} /> : <CloudOff size={13} />}
+              {localSaveState === "error"
+                ? tr("このブラウザに保存できません")
+                : localSaveState === "pending" ? tr("このブラウザへ保存中…") : tr("このブラウザにのみ保存")}
+              {localSaveState === "saved" && savedAt && ` ${new Date(savedAt).toLocaleTimeString(getLang())}`}
             </>
           )}
           {cloudState === "error" && (
             <>
               <CloudAlert size={13} style={{ color: "var(--warn)" }} />
-              {tr("サーバーに保存できません（このブラウザには保存済み）")}
+              {localSaveState === "error"
+                ? tr("サーバーにもこのブラウザにも保存できません")
+                : localSaveState === "pending"
+                  ? tr("サーバーに保存できません（ブラウザへの保存を確認中…）")
+                  : tr("サーバーに保存できません（このブラウザには保存済み）")}
             </>
           )}
         </button>

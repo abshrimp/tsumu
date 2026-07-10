@@ -387,6 +387,18 @@ const en: Dict = {
     "Saved to server",
   "このブラウザにのみ保存":
     "Saved in this browser only",
+  "このブラウザへ保存中…":
+    "Saving in this browser…",
+  "このブラウザに保存できません":
+    "Couldn't save in this browser",
+  "サーバーにもこのブラウザにも保存できません":
+    "Couldn't save to the server or in this browser",
+  "サーバーに保存できません（ブラウザへの保存を確認中…）":
+    "Couldn't save to server (checking browser save…)",
+  "ブラウザに保存できません。容量や設定を確認して、クリックで再試行してください。":
+    "Couldn't save in this browser. Check its storage space and settings, then click to retry.",
+  "サーバー保存が設定されていません。ブラウザへの保存を待っています。":
+    "Server storage is not configured. Waiting for the browser save.",
   "サーバーに保存できません（このブラウザには保存済み）":
     "Couldn't save to server (saved in this browser)",
   "初期状態に戻す":

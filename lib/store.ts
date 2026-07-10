@@ -1858,7 +1858,7 @@ export function persistDoc(doc: SiteDoc) {
     // 開いただけでは変わらず、中身が変わったときだけホームの「最終編集」を進める
     touchLocalSite();
   } catch {
-    // 容量超過などは黙って無視（フッターの保存表示が更新されないことで気付ける）
+    // 容量超過などは呼び出し元に知らせ、保存済みと表示しない。
     return false;
   }
   return true;
