@@ -60,6 +60,8 @@ export interface JsxContext {
   assetNames: Map<string, string>;
   /** 変数解決に使うオブジェクト式（ページ = "vars"、リスト内 = "iv"） */
   varsExpr?: string;
+  /** 配信前に確定した項目だけのスコープ（ページ変数は含めない）。 */
+  serverItemScope?: { expr: string; used: boolean };
   /** interpolate ランタイムを使ったか */
   usesInterpolate: boolean;
   /** スクリプトの値に lookupVar を使ったか */
@@ -190,13 +192,18 @@ function renderNodeInner(
       const itemsExpr = listItemsExpr(node.list!, base, lv.from, ctx.listOps?.get(lv.from) ?? []);
       const prevVars = ctx.varsExpr;
       const prevTemplate = ctx.inTemplate;
+      const prevItem = ctx.serverItemScope;
+      const itemScope = { expr: `${ivar}Item`, used: false };
       ctx.varsExpr = ivar;
+      ctx.serverItemScope = itemScope;
       ctx.inTemplate = false;
       const inner = node.children
         .map((cid) => renderNode(ctx, cid, indent + "        ", false))
         .join("\n");
       ctx.varsExpr = prevVars;
+      ctx.serverItemScope = prevItem;
       ctx.inTemplate = prevTemplate;
+      if (itemScope.used && prevItem) prevItem.used = true;
       // スクリプトの絞り込みで使う項目だけを、各項目の data-item に持たせる
       const itemAttr = filterFields.length
         ? ` data-item={JSON.stringify({ ${filterFields
@@ -206,7 +213,7 @@ function renderNodeInner(
       // 項目の中にスクリプトがあれば、項目ごとに包む（IDの指す要素を同じ項目の中から探すため）
       const wrap = forceWrap || !!itemAttr || node.children.some((cid) => hasScriptsInside(ctx.doc, cid, ctx.inlineComponents));
       return `${indent}  {${itemsExpr}.map((item, i) => {
-${indent}    const ${ivar} = { ...${base}, ...item };
+${indent}    const ${ivar} = { ...${base}, ...item };${itemScope.used ? `\n${indent}    const ${itemScope.expr} = { ${prevItem ? `...${prevItem.expr}, ` : ""}...item };` : ""}
 ${indent}    return (
 ${indent}      ${wrap ? `<div key={i} style={{ display: "contents" }} data-row${itemAttr}>` : ((ctx.usesFragment = true), "<Fragment key={i}>")}
 ${inner}
@@ -215,6 +222,12 @@ ${indent}    );
 ${indent}  })}`;
     };
     if (client) {
+      // ページではブラウザの配列でも、配信済みの親項目が同じ根を持つときは項目を優先する。
+      // 行そのものを配信し、生の配列・未使用の項目をブラウザへ渡さない。
+      const itemScope = !ctx.inTemplate ? ctx.serverItemScope : undefined;
+      const owned = itemScope ? `Object.prototype.hasOwnProperty.call(${itemScope.expr}, ${JSON.stringify(lv.from)}) || Object.prototype.hasOwnProperty.call(${itemScope.expr}, ${JSON.stringify(lv.from.split(".")[0])})` : "";
+      if (itemScope) itemScope.used = true;
+      const ownedRows = owned ? serverItems() : "";
       // ブラウザで並べる: お手本を {名前} を残したまま出力し、項目ごとに複製して置き換える
       const l = node.list;
       // 項目に配列が無いときは、従来の配信済み表示を使う。
@@ -251,15 +264,18 @@ ${indent}  })}`;
       ].join("");
       const prevVars = ctx.varsExpr;
       const prevTemplate = ctx.inTemplate;
+      const prevItem = ctx.serverItemScope;
       ctx.varsExpr = ivar;
+      ctx.serverItemScope = undefined;
       ctx.inTemplate = true;
       const inner = node.children
         .map((cid) => renderNode(ctx, cid, indent + "      ", false))
         .join("\n");
       ctx.varsExpr = prevVars;
+      ctx.serverItemScope = prevItem;
       ctx.inTemplate = prevTemplate;
       ctx.usesTemplate = true;
-      return `${indent}<div${listIdAttr}${listAttrs} className="${cls}">
+      const template = `${indent}<div${listIdAttr}${listAttrs} className="${cls}">
 ${indent}  <div data-tpl hidden style={{ display: "none" }}>
 ${indent}    {((${ivar}: Vars) => (
 ${indent}      <>
@@ -268,6 +284,13 @@ ${indent}      </>
 ${indent}    ))(templateVars(${base}))}
 ${indent}  </div>${fallback ? `\n${indent}  <div data-tpl data-list-fallback hidden style={{ display: "none" }}>\n${fallback}\n${indent}  </div>` : ""}
 ${indent}</div>`;
+      return owned ? `${indent}{${owned} ? (
+${indent}<div${listIdAttr} className="${cls}">
+${ownedRows}
+${indent}</div>
+${indent}) : (
+${template}
+${indent})}` : template;
     }
     return `${indent}<div${listIdAttr} className="${cls}">
 ${serverItems()}
