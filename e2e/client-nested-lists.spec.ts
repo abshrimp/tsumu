@@ -135,3 +135,47 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   await page.evaluate(content => { document.body.innerHTML = content; }, html);
   await check(page); expect(errors).toEqual([]);
 });
+
+for (const component of [false, true]) test(`${component ? 'component' : 'plain'} generated client links retain row URLs after reload and navigation`, async ({ page }) => {
+  const { clientLinkDoc, linkItems } = await import('../tests/helpers/client-link-scope');
+  let doc = clientLinkDoc(component, "/before");
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: linkItems } }));
+  await page.goto('/robots.txt');
+  await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
+  await page.addScriptTag({ content: await clientNestedBundle(component, doc) });
+  const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^並べる配列$/ }) }).locator('button');
+  await source.click();
+  await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
+  await page.getByRole('button', { name: 'Edit loading', exact: true }).click();
+  const value = page.locator('.se-ws [data-sel-key="step:reload-step"] input').first();
+  await value.fill('{response}'); await value.press('Tab');
+  await page.getByRole('button', { name: '閉じる', exact: true }).click();
+  // 選択だけを補助し、URL の編集・履歴・保存は実際の設定画面を通す。
+  await page.evaluate(() => (window as any).clientNestedStore.getState().select('detail'));
+  const before = await snapshot(page);
+  const url = page.getByPlaceholder('https://…・#ID・{変数}', { exact: true });
+  await url.fill('/products/{name}'); await url.press('Tab');
+  const edited = await snapshot(page);
+  expect(edited.doc.nodes.detail.link.url).toBe('/products/{name}');
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  expect((await snapshot(page)).doc).toEqual(before.doc);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  expect((await snapshot(page)).doc).toEqual(edited.doc);
+  await page.getByRole('button', { name: 'Reload saved', exact: true }).click();
+  doc = (await snapshot(page)).doc;
+  const html = await publishedClientNested(doc, 'app/page.tsx', linkItems);
+  await page.setContent(html); await page.addScriptTag({ content: scriptsFile(doc) });
+  const hrefs = () => details(page).evaluateAll(links => links.map(link => link.getAttribute('href')));
+  const expected = ['/products/First', '/products/Second%20%26%20space', '/products/', '/products/', '/products/First', '/products/Data%20%7Blabel%7D%257Bname%257D'];
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole('button', { name: 'Load items', exact: true }).click();
+    await expect.poll(hrefs).toEqual(expected);
+  }
+  await page.evaluate(() => { document.body.innerHTML = '<span data-page-body="other"></span>'; });
+  await expect(details(page)).toHaveCount(0);
+  await page.evaluate(content => { document.body.innerHTML = content; }, html);
+  await page.getByRole('button', { name: 'Load items', exact: true }).click();
+  await expect.poll(hrefs).toEqual(expected);
+  expect(errors).toEqual([]);
+});

@@ -779,7 +779,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (n.nodeType !== 1 || n.hasAttribute("data-tpl")) return;
         Array.prototype.slice.call(n.attributes).forEach(function (a) {
           // 操作の値は親項目を使い、並べるときに解決する。
-          if (a.name === "data-list-ops" || a.name === "data-text-parts" || a.name === "data-image-src-parts" ||
+          if (a.name === "data-list-ops" || a.name === "data-text-parts" || a.name === "data-href-parts" || a.name === "data-image-src-parts" ||
+              (a.name === "href" && n.hasAttribute("data-href-parts")) ||
               (a.name === "src" && n.hasAttribute("data-image-src-parts"))) return;
           var v = a.value;
           if (v.indexOf("{") < 0 && !/%7B/i.test(v)) return;
@@ -794,6 +795,19 @@ export const SCRIPT_RUNTIME = `function (env) {
                   : resolve(v, null, item)
           );
         });
+        if (n.hasAttribute("data-href-parts")) {
+          var href = listJson(n, "data-href-parts", []).map(function (part) {
+            if (typeof part === "string") return part;
+            // 根があれば null・空文字・存在しない子も項目の値を優先する。
+            var v = has(item, part.name) || has(item, part.name.split(".")[0])
+              ? text(has(item, part.name) ? item[part.name] : dig(item, part.name))
+              : has(part, "fallback") ? part.fallback : text(lookup(part.name, null, item));
+            // interpolateUrl と同じく、元の先頭の変数だけは URL 全体を受け取れる。
+            if (part.at === 0 && (/^(?:https?:|mailto:|tel:|data:image\\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\\.microsoft\\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")) return v;
+            return encodeURIComponent(v);
+          }).join("");
+          n.setAttribute("href", safeNavigationUrl(href));
+        }
         if (n.hasAttribute("data-image-src-parts")) {
           var src = listJson(n, "data-image-src-parts", []).map(function (part) {
             if (typeof part === "string") return part;

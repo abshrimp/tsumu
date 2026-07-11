@@ -28,7 +28,7 @@ import {
 import { EMPTY_GIF } from "./templates";
 
 /** 文字列で参照する値だけを代替値として残す。項目の値はブラウザで優先する。 */
-function textParts(value: string, base: string): string {
+function textParts(value: string, base: string, url = false): string {
   const parts: string[] = [];
   let end = 0;
   for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g)) {
@@ -37,7 +37,7 @@ function textParts(value: string, base: string): string {
     else {
       const token = m[1] ?? "slug";
       const name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
-      parts.push(`{ name: ${name}, ...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: interpolate(${JSON.stringify(m[0])}, { ...${base} }) } : {}) }`);
+      parts.push(`{ name: ${name}, ${url ? `at: ${m.index}, ` : ""}...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: interpolate(${JSON.stringify(m[0])}, { ...${base} }) } : {}) }`);
     }
     end = m.index + m[0].length;
   }
@@ -517,11 +517,15 @@ ${indent}</div>`;
   const target = node.link?.newTab ? ` target="_blank" rel="noopener noreferrer"` : "";
   if (
     node.link?.kind === "url" &&
-    hasVars(node.link.url ?? "") &&
-    safeNavigationUrl(node.link.url ?? "") !== "#"
+    hasVars(node.link.url ?? "")
   ) {
     ctx.usesInterpolate = true;
-    const href = `{safeNavigationUrl(interpolateUrl(${JSON.stringify(node.link.url)}, ${ctx.varsExpr ?? "vars"}))}`;
+    const base = ctx.varsExpr ?? "vars";
+    const href = `{safeNavigationUrl(interpolateUrl(${JSON.stringify(node.link.url)}, ${base}))}`;
+    if (ctx.inTemplate) {
+      // URL の元の境界と参照した値だけを残し、行の値で一度だけ解決する。
+      attrs += ` data-href-parts={JSON.stringify(${textParts(node.link.url!, base, true)})}`;
+    }
     if (!node.link.newTab) {
       // 行き先は値が入るまで分からない（{link} が外部URLのこともある）ため、
       // 表示するときの値でサイト内のページなら Link、それ以外は a にする
@@ -538,6 +542,7 @@ ${indent}</div>`;
         ? pageHref(ctx, node.link.pageId)
         : (node.link.url || "#");
     const href = safeNavigationUrl(rawHref);
+    if (ctx.inTemplate) attrs += ` data-href-parts={JSON.stringify([${JSON.stringify(href)}])}`;
     // サイト内の Next.js のページ（/〜）は Link にしてページ遷移を速くする。リダイレクト・中継・
     // HTMLページは Next.js のページではなく、先読みが別ドメインへ転送されて失敗するため a にする
     if (!node.link.newTab && isNextPageUrl(ctx, href)) {
