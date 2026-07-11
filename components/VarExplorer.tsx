@@ -87,6 +87,8 @@ function Row({
         style={{ paddingLeft: 8 + depth * 18 }}
         onClick={() => onPick(path)}
         onKeyDown={(e) => {
+          // 開閉ボタンの Enter は、親の変数を選ばずボタン自身に任せる。
+          if (e.target !== e.currentTarget) return;
           if (isEnterKey(e)) onPick(path);
           if (nested && e.key === "ArrowRight") setOpen(true);
           if (nested && e.key === "ArrowLeft") setOpen(false);
@@ -183,11 +185,14 @@ export default function VarExplorer({
       .slice(0, 100);
   }, [groups, q]);
 
+  // 詳細の切り替えやデータの更新で候補が減っても、表示中の候補を選ぶ。
+  const activeIndex = Math.min(index, Math.max(0, results.length - 1));
+
   useEffect(() => setIndex(0), [q]);
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>(".vx-row.is-key");
     el?.scrollIntoView({ block: "nearest" });
-  }, [index]);
+  }, [activeIndex, results]);
 
   return createPortal(
     <div
@@ -223,10 +228,10 @@ export default function VarExplorer({
               if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 e.preventDefault();
                 const n = results.length;
-                setIndex((i) => (i + (e.key === "ArrowDown" ? 1 : -1) + n) % n);
+                setIndex((activeIndex + (e.key === "ArrowDown" ? 1 : -1) + n) % n);
               } else if (isEnterKey(e)) {
                 e.preventDefault();
-                onPick(results[index].path);
+                onPick(results[activeIndex].path);
               }
             }}
           />
@@ -241,7 +246,7 @@ export default function VarExplorer({
               results.map((r, i) => (
                 <div
                   key={r.path}
-                  className={`vx-row${i === index ? " is-key" : ""}`}
+                  className={`vx-row${i === activeIndex ? " is-key" : ""}`}
                   role="button"
                   tabIndex={-1}
                   onMouseEnter={() => setIndex(i)}
