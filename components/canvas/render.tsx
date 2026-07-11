@@ -16,6 +16,7 @@ import {
 } from "../../lib/vars";
 import { embedSrc, YOUTUBE_ALLOW } from "../../lib/embed";
 import {
+  type FieldValues,
   fieldInitialValue,
   fieldVarName,
   truthy,
@@ -34,7 +35,7 @@ import { mediaSrc } from "../../lib/assets";
 export interface CanvasVars {
   /** ページ変数（slug / フォーム値） */
   pageVars: Record<string, unknown>;
-  fieldValues: Record<string, string>;
+  fieldValues: FieldValues;
   setFieldValue: (name: string, v: string) => void;
   /** 送信ボタン: ページのJSONを取り直す */
   refresh: () => void;
@@ -167,7 +168,7 @@ interface LeafOpts {
   interactive?: boolean;
   /** プレビュー時: 案内文・初期値などの {変数} を置き換える値 */
   vars?: Record<string, unknown>;
-  fieldValues?: Record<string, string>;
+  fieldValues?: FieldValues;
   onField?: (name: string, v: string) => void;
   onSubmit?: () => void;
 }
@@ -193,7 +194,8 @@ export function renderLeafNode(
     const disabled = f.disabled || undefined;
     // デザイン画面では {名前} をそのまま見せ、プレビューで値を差し込む（テキストと同じ）
     const fill = (v: string | undefined) => (v && opts.vars && hasVars(v) ? interpolate(v, opts.vars) : (v ?? ""));
-    const value = opts.fieldValues?.[name] ?? fieldInitialValue(f, opts.vars);
+    const stored = opts.fieldValues?.[name];
+    const value = stored === undefined ? fieldInitialValue(f, opts.vars) : (stored ?? "");
     const required = f.required || undefined;
     if (f.kind === "textarea") {
       return createElement("textarea", {
@@ -214,6 +216,7 @@ export function renderLeafNode(
     }
     if (f.kind === "select") {
       const options = (f.options ?? []).map(fill);
+      const unselected = live && stored === null;
       return createElement(
         "select",
         {
@@ -222,7 +225,11 @@ export function renderLeafNode(
           disabled,
           ...(live
             ? {
-                value,
+                value: unselected ? "" : value,
+                // Reactは一致しない値を先頭へ戻すため、選択解除をcommit後にも保つ。
+                ref: (el: HTMLSelectElement | null) => {
+                  if (el && unselected) el.selectedIndex = -1;
+                },
                 onChange: (e: React.ChangeEvent<HTMLSelectElement>) =>
                   opts.onField?.(name, e.target.value),
               }
