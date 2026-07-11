@@ -208,6 +208,9 @@ export function renderLeafNode(
         ...(live
           ? {
               value,
+              // ネイティブの変更スクリプトが再描画する前に、入力した値をReactへ渡す。
+              onInputCapture: (e: React.FormEvent<HTMLTextAreaElement>) =>
+                opts.onField?.(name, e.currentTarget.value),
               onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) =>
                 opts.onField?.(name, e.target.value),
             }
@@ -304,6 +307,9 @@ export function renderLeafNode(
       ...(live
         ? {
             value,
+            // Canvasのネイティブinputリスナーより先に記録し、古い値への巻き戻しを防ぐ。
+            onInputCapture: (e: React.FormEvent<HTMLInputElement>) =>
+              opts.onField?.(name, e.currentTarget.value),
             onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
               opts.onField?.(name, e.target.value),
           }
