@@ -111,16 +111,20 @@ function GhostView({
       "div",
       common,
       items.length
-        ? items.flatMap((item, i) =>
-            node.children.map((cid) => (
+        ? items.map((item, i) => {
+            const children = node.children.map((cid) => (
               <GhostView
                 key={`${i}-${cid}`}
                 id={cid}
                 isTop={false}
                 itemVars={{ ...scopedVars, ...item }}
               />
-            ))
-          )
+            ));
+            // 後続の外側項目・インスタンス内でも、スクリプトの対象を同じ内側項目に限定する。
+            return ctx.preview ? createElement("div", {
+              key: `item-${i}`, style: { display: "contents" }, "data-item": JSON.stringify(item),
+            }, children) : children;
+          })
         : ctx.preview ? [] : node.children.map((cid) => (
             <GhostView key={cid} id={cid} isTop={false} itemVars={scopedVars} />
           ))
