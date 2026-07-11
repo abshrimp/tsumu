@@ -341,6 +341,12 @@ export default function Editor({ onReady }: EditorProps = {}) {
       ) {
         return;
       }
+      // ネイティブの貼り付けも、ショートカットと同じく編集中の画面だけを対象にする。
+      // Ctrl+Vを横取りしないプレビュー・モーダルで、背後の文書を変更しない。
+      if (
+        useEditor.getState().mode !== "design" ||
+        document.querySelector(".se-backdrop, .modal-backdrop:not(.is-leaving)")
+      ) return;
       const data = event.clipboardData;
       if (!data) return;
       const own = ++latestPaste;
