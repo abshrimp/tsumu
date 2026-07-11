@@ -28,7 +28,7 @@ import {
 import { EMPTY_GIF } from "./templates";
 
 /** 文字列で参照する値だけを代替値として残す。項目の値はブラウザで優先する。 */
-function textParts(value: string, base: string, url = false): string {
+function textParts(value: string, base: string, url = false, liveNames?: Set<string>): string {
   const parts: string[] = [];
   let end = 0;
   for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g)) {
@@ -37,7 +37,7 @@ function textParts(value: string, base: string, url = false): string {
     else {
       const token = m[1] ?? "slug";
       const name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
-      parts.push(`{ name: ${name}, ${url ? `at: ${m.index}, ` : ""}...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: interpolate(${JSON.stringify(m[0])}, { ...${base} }) } : {}) }`);
+      parts.push(`{ name: ${name}, ${url ? `at: ${m.index}, ` : ""}${liveNames?.has(token.split(".")[0]) ? "live: true, " : ""}...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: interpolate(${JSON.stringify(m[0])}, { ...${base} }) } : {}) }`);
     }
     end = m.index + m[0].length;
   }
@@ -374,22 +374,32 @@ ${indent}</div>`;
     };
     /** 画面上で値が決まる {変数}（入力欄の値など）を含むなら、ブラウザで書き直すための属性 */
     const liveOf = (name: string, v: string | undefined): string => {
-      if (!v || !livesHere(ctx) || !hasVars(v)) return "";
+      if (ctx.inTemplate || !v || !livesHere(ctx) || !hasVars(v)) return "";
       const keep = keepTokens(v, ctx.liveNames);
       if (!Object.keys(keep).length) return "";
       ctx.usesInterpolate = true;
       return ` ${name}={interpolate(${JSON.stringify(v)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
     };
+    // お手本には元の区切りを残し、値・案内文・選択肢を項目の値で一度だけ解決する。
+    const partsOf = (name: string, v: string | undefined, force = false): string => {
+      if (!ctx.inTemplate || v == null || (!force && !hasVars(v))) return "";
+      ctx.usesInterpolate = true;
+      return ` data-field-${name}-parts={JSON.stringify(${textParts(v, base, false, ctx.liveNames)})}`;
+    };
     const attr = (name: string, v: string | undefined): string => {
       if (!v) return "";
-      return hasVars(v) ? ` ${name}={${textExpr(v)}}` : ` ${name}=${jsxString(v)}`;
+      return hasVars(v) ? ` ${name}={${textExpr(v)}}` + partsOf(name === "defaultValue" ? "value" : name, v) : ` ${name}=${jsxString(v)}`;
     };
     // ID属性（ラジオはグループ名）がフォーム送信時の項目名（= {変数} 名）を兼ねる
     const fieldName = fieldVarName(node);
     const nameAttr = fieldName ? ` name=${jsxString(fieldName)}` : "";
     const reqAttr = (f.required ? " required" : "") + (f.disabled ? " disabled" : "");
     const phAttr = attr("placeholder", f.placeholder) + liveOf("data-live-placeholder", f.placeholder);
-    const defaultValueAttr = attr("defaultValue", f.defaultValue) + liveOf("data-live-value", f.defaultValue);
+    const defaultValueAttr = attr("defaultValue", f.defaultValue) + liveOf("data-live-value", f.defaultValue) +
+      (!hasVars(f.defaultValue) && (
+        (f.kind === "select" && f.defaultValue && (f.options ?? []).some(hasVars)) ||
+        (f.kind === "input" && RANGED_INPUTS.has(f.inputType ?? "text") && [f.min, f.max, f.step].some(hasVars))
+      ) ? partsOf("value", f.defaultValue ?? "", true) : "");
     const lenAttr = f.maxLength && f.maxLength > 0 ? ` maxLength={${Math.round(f.maxLength)}}` : "";
     if (f.kind === "textarea") {
       const rowsAttr = f.rows && f.rows > 0 ? ` rows={${Math.round(f.rows)}}` : "";
@@ -397,7 +407,7 @@ ${indent}</div>`;
     }
     if (f.kind === "select") {
       const opts = (f.options ?? [])
-        .map((o) => `${indent}  <option${liveOf("data-live", o)}>{${textExpr(o)}}</option>`)
+        .map((o) => `${indent}  <option${liveOf("data-live", o)}${partsOf("text", o)}>{${textExpr(o)}}</option>`)
         .join("\n");
       return `${indent}<select${idAttr} className="${cls}"${nameAttr}${defaultValueAttr}${reqAttr}>\n${opts}\n${indent}</select>`;
     }
@@ -409,7 +419,7 @@ ${indent}</div>`;
           ? (attr("value", f.label ?? "") || ` value=""`) + liveOf("data-live-value", f.label)
           : ` value="true"`;
       const checkedAttr = f.checked ? " defaultChecked" : "";
-      const liveLbl = liveOf("data-live", f.label);
+      const liveLbl = liveOf("data-live", f.label) + partsOf("text", f.label);
       const lblBody = liveLbl
         ? `<span${liveLbl}>{${textExpr(f.label ?? "")}}</span>`
         : `{${textExpr(f.label ?? "")}}`;
@@ -417,7 +427,7 @@ ${indent}</div>`;
     }
     if (f.kind === "submit") {
       const label = f.label ?? "送信";
-      return `${indent}<button${idAttr} type="submit" className="${cls}"${liveOf("data-live", label)}>\n${indent}  {${textExpr(label)}}\n${indent}</button>`;
+      return `${indent}<button${idAttr} type="submit" className="${cls}"${liveOf("data-live", label)}${partsOf("text", label)}>\n${indent}  {${textExpr(label)}}\n${indent}</button>`;
     }
     if (f.kind === "file") {
       const acceptAttr = attr("accept", f.accept);

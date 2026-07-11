@@ -552,6 +552,16 @@ export const SCRIPT_RUNTIME = `function (env) {
           var nv = resolve(el.getAttribute("data-live-value"), el);
           if (el.value !== nv) el.value = nv;
         });
+        /*#clist*/
+        // 選択肢の文字を先に直してから select の値を選ぶ。同じスクリプトの次の行も新しい値を読む。
+        ["text", "placeholder", "value"].forEach(function (name) {
+          root.querySelectorAll("[data-field-" + name + "-parts]").forEach(function (el) {
+            if (inTpl(el)) return;
+            var row = el.closest("[data-row]");
+            fillFieldParts(el, row && rowScopes.get(row) || {}, false, name);
+          });
+        });
+        /*/clist*/
       }
       /*#live*/
       function onLiveInput(e) {
@@ -771,6 +781,34 @@ export const SCRIPT_RUNTIME = `function (env) {
             }
           });
       }
+      // 入力欄は属性だけでなく、ネイティブの値・初期値も同じ項目で初期化する。
+      function fillFieldParts(n, item, initial, only) {
+        ["min", "max", "step", "accept", "placeholder", "text", "value"].forEach(function (name) {
+          if (only && name !== only) return;
+          var attr = "data-field-" + name + "-parts";
+          if (!n.hasAttribute(attr)) return;
+          var parts = listJson(n, attr, []);
+          if (!initial && (!parts.some(function (p) { return p && p.live; }) || (name === "value" && n.hasAttribute("data-edited")))) return;
+          var value = parts.map(function (p) {
+            if (typeof p === "string") return p;
+            if (has(item, p.name) || has(item, p.name.split(".")[0])) return text(has(item, p.name) ? item[p.name] : dig(item, p.name));
+            return p.live || !has(p, "fallback") ? text(lookup(p.name, n, item)) : p.fallback;
+          }).join("");
+          if (name === "text") {
+            if (n.textContent !== value) n.textContent = value;
+          } else if (name === "value") {
+            if (initial && n.tagName === "SELECT") {
+              var options = Array.prototype.slice.call(n.options), found = options.findIndex(function (o) { return o.value === value; });
+              var selected = found < 0 ? (options.length ? 0 : -1) : found;
+              options.forEach(function (o, i) { o.defaultSelected = i === selected; });
+              n.selectedIndex = selected;
+            } else {
+              if (initial) n.defaultValue = value;
+              if (n.value !== value) n.value = value;
+            }
+          } else if (n.getAttribute(name) !== value) n.setAttribute(name, value);
+        });
+      }
       function fill(n, item) {
         if (n.nodeType === 3) {
           if (n.nodeValue.indexOf("{") >= 0) n.nodeValue = resolve(n.nodeValue, null, item);
@@ -779,7 +817,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (n.nodeType !== 1 || n.hasAttribute("data-tpl")) return;
         Array.prototype.slice.call(n.attributes).forEach(function (a) {
           // 操作の値は親項目を使い、並べるときに解決する。
-          if (a.name === "data-list-ops" || a.name === "data-text-parts" || a.name === "data-href-parts" || a.name === "data-image-src-parts" ||
+          if (a.name.indexOf("data-field-") === 0 || n.hasAttribute("data-field-" + a.name + "-parts") ||
+              a.name === "data-list-ops" || a.name === "data-text-parts" || a.name === "data-href-parts" || a.name === "data-image-src-parts" ||
               (a.name === "href" && n.hasAttribute("data-href-parts")) ||
               (a.name === "src" && n.hasAttribute("data-image-src-parts"))) return;
           var v = a.value;
@@ -839,7 +878,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           }
           ownText.nodeValue = value;
         }
-        for (var c = n.firstChild; c; c = c.nextSibling) if (c !== ownText) fill(c, item);
+        if (!n.hasAttribute("data-field-text-parts") && !(n.tagName === "TEXTAREA" && n.hasAttribute("data-field-value-parts"))) {
+          for (var c = n.firstChild; c; c = c.nextSibling) if (c !== ownText) fill(c, item);
+        }
+        fillFieldParts(n, item, true);
       }
       function renderList(list) {
         // お手本や、外側の再描画で外れた古い一覧は触らない。
