@@ -66,12 +66,9 @@ for (const component of [false, true]) test(`${component ? "component-contained"
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
   expect(await runOperations(page)).toEqual(previewResults);
   expect(await snapshot(page)).toEqual(before);
-  // コンポーネントのデータリスト出力は未対応。通常の入れ子リストでは、
-  // スクリプト画面で保存した文書をそのまま生成し、同じ操作を確かめる。
-  if (!component) {
-    await page.setContent(await publishedNestedOperations(before.doc));
-    await page.addScriptTag({ content: scriptsFile(before.doc) });
-    expect(await runOperations(page)).toEqual(previewResults);
-  }
+  // 部品内も含め、スクリプト画面で保存した文書を生成して同じ操作を確かめる。
+  await page.setContent(await publishedNestedOperations(before.doc));
+  await page.addScriptTag({ content: scriptsFile(before.doc) });
+  expect(await runOperations(page)).toEqual(previewResults);
   expect(errors).toEqual([]);
 });

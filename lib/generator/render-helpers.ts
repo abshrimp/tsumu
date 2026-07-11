@@ -13,7 +13,7 @@ import type {
 } from "../types";
 import { needsJsonType, sendsBody } from "../fetch-request";
 import { hardNavPatterns, hasVars, KEEP_ESCAPES, matchesHardNav, pageHrefOf } from "../vars";
-import { condGroups, type ListOp } from "../data";
+import { condGroups, listFromOf, type ListOp } from "../data";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, keepTokens, walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
@@ -350,12 +350,30 @@ export function listItemsExpr(
   return code;
 }
 
-/** 要素かその中に、画面上で動くスクリプトがあるか */
-export function hasScriptsInside(doc: SiteDoc, id: string, seen = new Set<string>()): boolean {
+/** 部品の参照もたどり、リストを含む木か調べる（循環する参照は打ち切る）。 */
+export function hasListsInside(doc: SiteDoc, id: string, seen = new Set<string>()): boolean {
   const n = doc.nodes[id];
   if (!n || seen.has(id)) return false;
   seen.add(id);
-  return hasRunnableScripts(n) || n.children.some((cid) => hasScriptsInside(doc, cid, seen));
+  if (n.type === "list" && n.list && listFromOf(n)) return true;
+  if (n.type === "instance") {
+    const comp = doc.components?.[n.componentId ?? ""];
+    return !!comp && hasListsInside(doc, comp.rootId, seen);
+  }
+  return n.children.some((cid) => hasListsInside(doc, cid, seen));
+}
+
+/** 要素かその中に、画面上で動くスクリプトがあるか */
+export function hasScriptsInside(doc: SiteDoc, id: string, inlineComponents?: Set<string>, seen = new Set<string>()): boolean {
+  const n = doc.nodes[id];
+  if (!n || seen.has(id)) return false;
+  seen.add(id);
+  if (hasRunnableScripts(n) || n.children.some((cid) => hasScriptsInside(doc, cid, inlineComponents, seen))) return true;
+  if (n.type === "instance") {
+    const comp = doc.components?.[n.componentId ?? ""];
+    return !!comp && !!inlineComponents?.has(comp.id) && hasScriptsInside(doc, comp.rootId, inlineComponents, seen);
+  }
+  return false;
 }
 
 /**

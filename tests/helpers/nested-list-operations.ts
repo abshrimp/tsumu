@@ -2,7 +2,8 @@ import { build } from "esbuild";
 import { resolve } from "node:path";
 import { makeBox, makeText } from "../../lib/presets";
 import type { ScriptStep } from "../../lib/types";
-import { nestedScopeDoc, publishedNestedScope } from "./nested-script-scope";
+import { nestedScopeDoc } from "./nested-script-scope";
+import { publishedComponentList } from "./component-list-export";
 
 export const listActions = ["descending", "ascending", "filter", "empty", "clear"] as const;
 export function nestedOperationsDoc(component = false, selected = true) {
@@ -65,4 +66,4 @@ createRoot(document.getElementById("app")).render(<Example />);
   })).outputFiles[0].text;
 }
 
-export const publishedNestedOperations = publishedNestedScope;
+export const publishedNestedOperations = publishedComponentList;

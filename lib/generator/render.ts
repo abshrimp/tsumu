@@ -33,6 +33,10 @@ export interface JsxContext {
   doc: SiteDoc;
   /** Component root receiving per-instance visibility without an extra DOM wrapper. */
   componentRootId?: string;
+  /** リストを含む部品はページのデータスコープで展開する。 */
+  inlineComponents?: Set<string>;
+  /** 展開中の使用箇所。通常の部品ファイルは従来どおり props を使う。 */
+  inlineInstance?: { visibilityClass: string; anchor?: string };
   classNames: Map<string, string>;
   /** コンポーネントID → 出力コンポーネント名（PascalCase） */
   componentNames: Map<string, string>;
@@ -109,7 +113,6 @@ function renderNodeInner(
   if (node.type === "instance") {
     const name = ctx.componentNames.get(node.componentId ?? "");
     if (!name) return "";
-    ctx.usedComponents.add(node.componentId!);
     const visibilityClass = node.hiddenOn?.length ? ctx.classNames.get(id)! : "";
     const visibility = id === ctx.componentRootId
       ? ` hiddenClassName={[${JSON.stringify(visibilityClass)}, hiddenClassName].filter(Boolean).join(" ")}`
@@ -119,14 +122,41 @@ function renderNodeInner(
     // ページ上の使用箇所のアンカー。マスター自身のID・入れ子の参照は変えない。
     const anchor = !ctx.componentRootId && node.attrId && root && root.type !== "instance" && !root.attrId
       ? ` instanceId=${jsxString(node.attrId)}` : "";
+    // 部品内のリストも、置かれたページ・外側の項目の変数と実行計画を使う。
+    // 新しいデータ props を作らず、通常の部品の出力とローディング画面は変えない。
+    if (root && ctx.listVars && ctx.inlineComponents?.has(node.componentId!)) {
+      const previousRoot = ctx.componentRootId;
+      const previousInstance = ctx.inlineInstance;
+      const previousForm = ctx.inForm;
+      ctx.inForm = false;
+      ctx.inlineInstance = {
+        visibilityClass: [visibilityClass, id === previousRoot ? previousInstance?.visibilityClass : ""].filter(Boolean).join(" "),
+        anchor: anchor ? node.attrId : undefined,
+      };
+      ctx.componentRootId = root.id;
+      try {
+        return renderNode(ctx, root.id, indent, false);
+      } finally {
+        ctx.componentRootId = previousRoot;
+        ctx.inlineInstance = previousInstance;
+        ctx.inForm = previousForm;
+      }
+    }
+    ctx.usedComponents.add(node.componentId!);
     return `${indent}<${name}${visibility}${anchor} />`;
   }
 
   const cls = ctx.classNames.get(id)!;
   const anchorAttr = node.attrId ? ` id=${jsxString(node.attrId)}`
-    : id === ctx.componentRootId ? " id={instanceId || undefined}" : "";
+    : id === ctx.componentRootId
+      ? ctx.inlineInstance
+        ? ctx.inlineInstance.anchor ? ` id=${jsxString(ctx.inlineInstance.anchor)}` : ""
+        : " id={instanceId || undefined}"
+      : "";
   const instanceVisibilityAttr = id === ctx.componentRootId
-    ? " data-instance-hidden={hiddenClassName || undefined}"
+    ? ctx.inlineInstance
+      ? ctx.inlineInstance.visibilityClass ? ` data-instance-hidden=${jsxString(ctx.inlineInstance.visibilityClass)}` : ""
+      : " data-instance-hidden={hiddenClassName || undefined}"
     : "";
 
   // スクリプト: 実行側は data-scripts、表示される側は表示に戻すdisplay値を出力
@@ -135,7 +165,9 @@ function renderNodeInner(
     ((node.attrId && ctx.toggleTargets.has(node.attrId)) || showsSelf(node)
       ? ` data-toggle-show=${jsxString(toggleShowDisplay(node))}`
       : id === ctx.componentRootId && !node.attrId
-        ? ` data-toggle-show={instanceId ? ${JSON.stringify(toggleShowDisplay(node))} : undefined}`
+        ? ctx.inlineInstance
+          ? ctx.inlineInstance.anchor ? ` data-toggle-show=${jsxString(toggleShowDisplay(node))}` : ""
+          : ` data-toggle-show={instanceId ? ${JSON.stringify(toggleShowDisplay(node))} : undefined}`
         : "");
 
   // 「画面に入ったとき」は data-inview を見張って .is-inview で再生する（リストにも付ける）
@@ -196,7 +228,7 @@ ${indent}</div>`;
           .join(", ")} })}`
       : "";
     // 項目の中にスクリプトがあれば、項目ごとに包む（IDの指す要素を同じ項目の中から探すため）
-    const wrap = !!itemAttr || node.children.some((cid) => hasScriptsInside(ctx.doc, cid));
+    const wrap = !!itemAttr || node.children.some((cid) => hasScriptsInside(ctx.doc, cid, ctx.inlineComponents));
     return `${indent}<div${listIdAttr} className="${cls}">
 ${indent}  {${itemsExpr}.map((item, i) => {
 ${indent}    const ${ivar} = { ...${base}, ...item };

@@ -99,9 +99,7 @@ test("the nested source is a real named page array offered by ScriptEditor's Arr
 
 for (const component of [false, true]) test(`${component ? "component" : "nested"} lists: runtime sort, filter and clear affect every rendered list`, async () => {
   const doc = nestedOperationsDoc(component), before = structuredClone(doc);
-  // コンポーネントのデータリスト出力は未対応なので別の問題として扱う。
-  // 対応している通常の入れ子リストは、実際の生成出力と比較する。
-  const exported = component ? null : runtime(await publishedNestedOperations(doc), scriptsFile(doc));
+  const exported = runtime(await publishedNestedOperations(doc), scriptsFile(doc));
   const canvas = runtime(canvasMarkup(doc), `(${SCRIPT_RUNTIME})({}).install(document)`);
   const expected: Array<[string, string[][]]> = [
     ["descending", [["red", "blue"], ["yellow", "green"]]],
@@ -115,9 +113,9 @@ for (const component of [false, true]) test(`${component ? "component" : "nested
     ["clear", [["blue", "red"], ["green", "yellow"]]],
   ];
   assert.deepEqual(canvas.rows(), [["red", "blue"], ["green", "yellow"]]);
-  if (exported) assert.deepEqual(canvas.rows(), exported.rows());
+  assert.deepEqual(canvas.rows(), exported.rows());
   for (const [action, rows] of expected) {
-    if (exported) { await exported.click(action); assert.deepEqual(exported.rows(), rows, `generated ${action}`); }
+    await exported.click(action); assert.deepEqual(exported.rows(), rows, `generated ${action}`);
     await canvas.click(action);
     assert.deepEqual(canvas.rows(), rows, `Canvas ${action}`);
   }
