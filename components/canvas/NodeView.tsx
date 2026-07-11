@@ -100,6 +100,7 @@ function GhostView({
   if (node.type === "list") {
     // リストの中のリスト: 項目ごとに並べる（空のテンプレートはデザイン画面だけ）
     const from = listFromOf(node) ?? "";
+    if (ctx.preview && from) common["data-array"] = from;
     const items = node.list
       ? applyList(
           toListItems(lookupVar(vars, from)),
