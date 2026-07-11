@@ -1,4 +1,4 @@
-import type { SiteDoc } from "./types";
+import type { PageFolder, SiteDoc } from "./types";
 
 /**
  * ドキュメントの三方向マージ（同時編集の競合解決）。
@@ -84,7 +84,32 @@ function mergeContainers<T extends { children: string[] }>(
 }
 
 /** ID単位でマージするコレクション（設定の値としては扱わない） */
-const COLLECTION_KEYS = new Set(["pages", "pageOrder", "nodes", "assets", "components"]);
+const COLLECTION_KEYS = new Set(["pages", "pageOrder", "pageFolders", "nodes", "assets", "components"]);
+
+/** フォルダの名前・存在と並び順を分け、別々のフォルダへの同時編集を残す。 */
+function mergePageFolders(
+  base: PageFolder[] | undefined,
+  local: PageFolder[] | undefined,
+  remote: PageFolder[] | undefined,
+): PageFolder[] | undefined {
+  const record = (folders: PageFolder[] | undefined) =>
+    Object.fromEntries((folders ?? []).map((folder) => [folder.id, folder]));
+  const folders = mergeRecord(record(base), record(local), record(remote));
+  const ids = (list: PageFolder[] | undefined) => (list ?? []).map((folder) => folder.id);
+  const b = ids(base), l = ids(local), r = ids(remote);
+  const order = [...new Set(pick(b, l, r) ?? [])].filter((id) => folders[id]);
+  // 両方で追加したフォルダを、元の次のフォルダの手前へ補う。
+  for (const list of [l, r]) {
+    for (let i = 0; i < list.length; i++) {
+      const id = list[i];
+      if (!folders[id] || order.includes(id)) continue;
+      const next = list.slice(i + 1).find((sibling) => order.includes(sibling));
+      order.splice(next === undefined ? order.length : order.indexOf(next), 0, id);
+    }
+  }
+  if (!order.length && pick(base, local, remote) === undefined) return undefined;
+  return order.map((id) => folders[id]);
+}
 
 /** 親子関係は要素の見た目とは独立してマージする。同時追加や移動で要素を失わないため。 */
 function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteDoc) {
@@ -328,7 +353,14 @@ function mergeOnce(
     assets: mergeRecord(base.assets, local.assets, remote.assets),
     components: mergeRecord(base.components, local.components, remote.components),
   };
+  const pageFolders = mergePageFolders(base.pageFolders, local.pageFolders, remote.pageFolders);
+  if (pageFolders !== undefined) merged.pageFolders = pageFolders;
   restoreEditedTreePaths(base, local, remote, merged);
   mergeTree(base, local, remote, merged);
+  // 移動とフォルダ削除が重なっても、存在しないフォルダへの所属を残さない。
+  const folderIds = new Set((pageFolders ?? []).map((folder) => folder.id));
+  for (const page of Object.values(merged.pages)) {
+    if (page.folderId && !folderIds.has(page.folderId)) delete page.folderId;
+  }
   return merged;
 }
