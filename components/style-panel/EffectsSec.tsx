@@ -221,8 +221,8 @@ function OriginGrid() {
           aria-checked={cur === o.value}
           className={cur === o.value ? "is-on" : ""}
           data-tip={o.label}
-          // 中央は既定なので、選ぶと設定を外す
-          onClick={() => insp.set({ transformOrigin: o.value === "center" ? null : o.value })}
+          // 中央も明示する（設定を消すと、大きい画面・通常時の基準点が再び効いてしまう）。
+          onClick={() => insp.set({ transformOrigin: o.value })}
         />
       ))}
     </div>
