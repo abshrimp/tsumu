@@ -722,7 +722,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         try {
           return Array.prototype.slice.call(
             root.querySelectorAll('[data-array="' + CSS.escape(name) + '"]')
-          );
+          ).filter(function (list) { return !inTpl(list); });
         } catch (e) {
           return [];
         }
@@ -743,6 +743,11 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*#clist*/
       // 画面上で値が決まる配列のリスト: お手本（data-tpl）を項目ごとに複製して並べる
       var rendered = new WeakSet();
+      // 項目の値だけを覚える。画面の変数は描き直すたびに読むので古い値を閉じ込めない。
+      var rowScopes = new WeakMap();
+      function listJson(list, name, fallback) {
+        try { return JSON.parse(list.getAttribute(name)) || fallback; } catch (e) { return fallback; }
+      }
       function fillJson(v, item) {
         return v
           // JSON の中の「\\{」（文字としての「{」）は「\\\\{」になっているので、そのまま残す
@@ -771,8 +776,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (n.nodeValue.indexOf("{") >= 0) n.nodeValue = resolve(n.nodeValue, null, item);
           return;
         }
-        if (n.nodeType !== 1) return;
+        if (n.nodeType !== 1 || n.hasAttribute("data-tpl")) return;
         Array.prototype.slice.call(n.attributes).forEach(function (a) {
+          // 操作の値は親項目を使い、並べるときに解決する。
+          if (a.name === "data-list-ops") return;
           var v = a.value;
           if (v.indexOf("{") < 0 && !/%7B/i.test(v)) return;
           n.setAttribute(
@@ -791,17 +798,53 @@ export const SCRIPT_RUNTIME = `function (env) {
         for (var c = n.firstChild; c; c = c.nextSibling) fill(c, item);
       }
       function renderList(list) {
+        // お手本や、外側の再描画で外れた古い一覧は触らない。
+        if (inTpl(list) || !root.contains(list)) return;
         rendered.add(list);
-        var tpl = null;
+        var tpl = null, fallback = null;
         Array.prototype.slice.call(list.children).forEach(function (c) {
           if (c.hasAttribute("data-row")) list.removeChild(c);
+          else if (c.hasAttribute("data-list-fallback")) fallback = c;
           else if (c.hasAttribute("data-tpl")) tpl = c;
         });
         if (!tpl) return;
-        var items = itemsOf(getVar(list.getAttribute("data-array") || ""));
-        /*#filter*/
-        // 並べ替え・絞り込みは表示件数で切る前に
+        var parentRow = list.parentElement && list.parentElement.closest("[data-row]");
+        var parentScope = parentRow && rowScopes.get(parentRow) || {};
+        var scope = merged(vars, parentScope);
         var name = list.getAttribute("data-array") || "";
+        // null・空・配列以外も、外側の項目が持つ値を優先する（ページの配列を混ぜない）。
+        var value = has(scope, name) ? scope[name] : dig(scope, name);
+        if (!has(scope, name) && !has(scope, name.split(".")[0]) && fallback) {
+          // 配信済みの表示は解決し直さない（データ中の {文字} を変数として消費しない）。
+          Array.prototype.forEach.call(fallback.children, function (row) { list.appendChild(row.cloneNode(true)); });
+          /*#filter*/
+          applySort(list);
+          applyFilters(list);
+          /*/filter*/
+          return;
+        }
+        var items = itemsOf(value);
+        /*#filter*/
+        // 配信前の操作は項目ごとに解決し、画面上の一時的な操作と分けて適用する。
+        var ops = listJson(list, "data-list-ops", []);
+        var baseFilters = ops.filter(function (op) { return op.kind === "filter"; }).map(function (op) {
+          return { join: op.join, conds: op.conds.map(function (c) {
+            return { field: c.field, op: c.op, and: c.and, value: c.parts.map(function (part) {
+              if (typeof part === "string") return part;
+              // 空・null・存在しない子も、親項目の根があればページ値で補わない。
+              if (has(parentScope, part.name) || has(parentScope, part.name.split(".")[0])) {
+                return text(has(parentScope, part.name) ? parentScope[part.name] : dig(parentScope, part.name));
+              }
+              return has(part, "fallback") ? part.fallback : text(lookup(part.name, null, parentScope));
+            }).join("") };
+          }) };
+        });
+        items = items.filter(function (x) { return passes(baseFilters, x); });
+        ops.forEach(function (op) {
+          if (op.kind !== "sort") return;
+          items.sort(function (a, b) { return order(fieldOf(a, op.field), fieldOf(b, op.field)) * (op.dir === "desc" ? -1 : 1); });
+        });
+        // 並べ替え・絞り込みは表示件数で切る前に
         var fs = filters.get(name) || [];
         items = items.filter(function (x) {
           return passes(fs, x);
@@ -828,12 +871,18 @@ export const SCRIPT_RUNTIME = `function (env) {
           row.setAttribute("data-row", "");
           row.setAttribute("data-item", JSON.stringify(item));
           row.style.display = "contents";
+          var itemScope = merged(parentScope, item);
+          rowScopes.set(row, itemScope);
           Array.prototype.forEach.call(tpl.childNodes, function (c) {
             var copy = c.cloneNode(true);
-            fill(copy, item);
+            fill(copy, itemScope);
             row.appendChild(copy);
           });
           list.appendChild(row);
+          // 内側の複製元は fill で消費せず、親の項目が付いてから独立して並べる。
+          row.querySelectorAll("[data-client-list]").forEach(function (child) {
+            if (!inTpl(child) && !rendered.has(child)) renderList(child);
+          });
         });
       }
       /*/clist*/
@@ -1175,7 +1224,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             var cn = Array.isArray(ca) ? ca.length : 0;
             if (!Array.isArray(ca)) {
               try {
-                var cl0 = root.querySelector('[data-array="' + CSS.escape(st.array) + '"]:not([data-client-list])');
+                var cl0 = Array.prototype.find.call(root.querySelectorAll('[data-array="' + CSS.escape(st.array) + '"]'), function (l) { return !inTpl(l); });
                 if (cl0) {
                   cn = Array.prototype.filter.call(cl0.children, function (w) {
                     return w.hasAttribute("data-item");
@@ -1192,9 +1241,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               }).length;
             } else {
               // 配信前に決まった配列は画面上に値が無いので、並べているリストの項目から数える
-              var cl = listsOf(st.array).filter(function (l) {
-                return !l.hasAttribute("data-client-list");
-              })[0];
+              var cl = listsOf(st.array)[0];
               if (cl) {
                 cn = Array.prototype.filter.call(cl.children, function (w) {
                   return w.hasAttribute("data-item") && passes(cf, itemOf(w));
@@ -1491,7 +1538,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         // 描き直されたリストにも並べ替え・絞り込みをかけ直す
         if (sorts.size || filters.size) {
           root.querySelectorAll("[data-array]").forEach(function (list) {
-            if (list.hasAttribute("data-client-list")) return;
+            if (list.hasAttribute("data-client-list") || inTpl(list)) return;
             applySort(list);
             applyFilters(list);
           });
