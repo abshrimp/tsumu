@@ -330,7 +330,12 @@ ${indent}</div>`;
     let srcAttr = `src=${jsxString(src)}`;
     if (hasVars(src)) {
       ctx.usesInterpolate = true;
-      srcAttr = `src={interpolate(${JSON.stringify(src)}, ${ctx.varsExpr ?? "vars"}) || "${EMPTY_GIF}"}`;
+      const base = ctx.varsExpr ?? "vars";
+      srcAttr = `src={interpolate(${JSON.stringify(src)}, ${base}) || "${EMPTY_GIF}"}`;
+      if (ctx.inTemplate) {
+        // 項目が届いてから一度だけ解決する。代替値に含まれる波括弧は文字として残す。
+        srcAttr += ` data-image-src-parts={JSON.stringify(${textParts(src, base)})}`;
+      }
     }
     // Next.js 16 では priority が非推奨なので preload を使い、取得の優先度も上げる
     const priority = (pad: string) =>
