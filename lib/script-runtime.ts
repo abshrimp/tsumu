@@ -779,7 +779,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (n.nodeType !== 1 || n.hasAttribute("data-tpl")) return;
         Array.prototype.slice.call(n.attributes).forEach(function (a) {
           // 操作の値は親項目を使い、並べるときに解決する。
-          if (a.name === "data-list-ops") return;
+          if (a.name === "data-list-ops" || a.name === "data-text-parts") return;
           var v = a.value;
           if (v.indexOf("{") < 0 && !/%7B/i.test(v)) return;
           n.setAttribute(
@@ -795,7 +795,25 @@ export const SCRIPT_RUNTIME = `function (env) {
         });
         // カスタムコード・アイコン（data-raw）の中身は書いたまま（配信前に並べるリスト・エディタと同じ）
         if (n.hasAttribute("data-raw")) return;
-        for (var c = n.firstChild; c; c = c.nextSibling) fill(c, item);
+        var ownText = null;
+        if (n.hasAttribute("data-text-parts")) {
+          var value = listJson(n, "data-text-parts", []).map(function (part) {
+            if (typeof part === "string") return part;
+            // 根を持つ項目は null・空・存在しない子もページ値で補わない。
+            if (has(item, part.name) || has(item, part.name.split(".")[0])) {
+              return text(has(item, part.name) ? item[part.name] : dig(item, part.name));
+            }
+            return has(part, "fallback") ? part.fallback : text(lookup(part.name, null, item));
+          }).join("");
+          ownText = n.firstChild;
+          if (!ownText || ownText.nodeType !== 3) {
+            ownText = document.createTextNode("");
+            if (n.firstChild) n.insertBefore(ownText, n.firstChild);
+            else n.appendChild(ownText);
+          }
+          ownText.nodeValue = value;
+        }
+        for (var c = n.firstChild; c; c = c.nextSibling) if (c !== ownText) fill(c, item);
       }
       function renderList(list) {
         // お手本や、外側の再描画で外れた古い一覧は触らない。

@@ -51,8 +51,8 @@ export function clientNestedCanvas(doc: SiteDoc, items: unknown[] = nestedScopeI
 }
 
 /** 設定画面で内側の配列を選び、スクリプト画面で外側をブラウザで読み込む設定にする。 */
-export async function clientNestedBundle(component = false) {
-  const doc = clientNestedDoc(component);
+export async function clientNestedBundle(component = false, source?: SiteDoc) {
+  const doc = source ? structuredClone(source) : clientNestedDoc(component);
   doc.nodes.tags.list!.from = "";
   (doc.nodes.reload.scripts![0].steps[0] as { value: string }).value = "";
   return (await build({ stdin: { contents: `
