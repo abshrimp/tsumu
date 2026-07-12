@@ -98,7 +98,8 @@ export function buildCanvasCss(
       const state = id === selection ? styleState : "default";
       const map = { ...resolveStyles(node, bp, state) };
       map.width ??= "auto";
-      map.height ??= "auto";
+      // 音声はブラウザ標準の操作部の高さを保つ（auto で上書きすると潰れる）。
+      if (node.type !== "media" || node.media?.kind !== "audio") map.height ??= "auto";
       const selMap = extractSelectionStyles(map);
       const parts = extractPartStyles(map);
       if (hasAbsChild && !map.position) map.position = "relative";
@@ -113,7 +114,7 @@ export function buildCanvasCss(
     } else {
       const base = { ...resolveStyles(node, bp, "default") };
       base.width ??= "auto";
-      base.height ??= "auto";
+      if (node.type !== "media" || node.media?.kind !== "audio") base.height ??= "auto";
       const selMap = extractSelectionStyles(base);
       const parts = extractPartStyles(base);
       if (hasAbsChild && !base.position) base.position = "relative";
