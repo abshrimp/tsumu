@@ -84,3 +84,34 @@ test("pages copied to a site in another language keep their language", () => {
   applyPagePayload(same, buildPagePayload(src, ["home"]));
   assert.equal(same.pages[same.pageOrder[2]].lang, undefined);
 });
+
+test("copied component masters relink copied pages and matching destination slugs", () => {
+  const src = source();
+  src.nodes.a.type = "instance";
+  src.nodes.a.componentId = "header";
+  src.nodes.a.children = [];
+  src.nodes.master = {
+    ...makeBox(), id: "master", children: [],
+    link: { kind: "page", pageId: "about" },
+    scripts: [{ id: "master-script", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+      { id: "loop", kind: "repeat", times: 1, then: [
+        { id: "open", kind: "open-page", pageId: "news" },
+      ] },
+    ] }],
+  };
+  src.components = { header: { id: "header", name: "Header", rootId: "master" } };
+  const original = structuredClone(src);
+  const dst = target();
+  applyPagePayload(dst, buildPagePayload(src, ["home", "about"]));
+  const about = dst.pages[dst.pageOrder[3]];
+  assert.equal(dst.nodes.master.link?.pageId, about.id);
+  const loop = dst.nodes.master.scripts?.[0].steps[0];
+  assert.equal(loop?.kind === "repeat" && loop.then[0].kind === "open-page" ? loop.then[0].pageId : null, "tn");
+  assert.deepEqual(src, original);
+
+  // 同じコンポーネントが既にあるときはコピー先の編集内容を保つ。
+  dst.nodes.master.link = { kind: "page", pageId: "t" };
+  const existing = structuredClone(dst.nodes.master);
+  applyPagePayload(dst, buildPagePayload(src, ["home", "about"]));
+  assert.deepEqual(dst.nodes.master, existing);
+});
