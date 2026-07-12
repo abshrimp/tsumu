@@ -488,9 +488,41 @@ export const SCRIPT_RUNTIME = `function (env) {
         } catch (e) {}
         return "";
       }
+      /*#clist*/
+      // スクリプトの参照は実行時に解決する。値の中の波かっこは再解釈しない。
+      function scriptReference(ref, self, item) {
+        var name = ref.name, head = name.split(".")[0];
+        if (item && (has(item, name) || has(item, head))) {
+          return has(item, name) ? item[name] : dig(item, name);
+        }
+        var row = self && self.closest && self.closest("[data-row]");
+        var scope = row && rowScopes.get(row);
+        if (scope && (has(scope, name) || has(scope, head))) {
+          return has(scope, name) ? scope[name] : dig(scope, name);
+        }
+        return has(ref, "fallback") ? ref.fallback : lookup(name, self, item);
+      }
+      function scriptExpression(s, self, item, mode) {
+        var offset = 0;
+        return s.scriptParts.map(function (part) {
+          if (typeof part === "string") { offset += part.length; return part; }
+          var v = text(scriptReference(part, self, item)), at = offset++;
+          if (mode === "number") {
+            var n = Number(v.replace(/,/g, ""));
+            return "(" + (isFinite(n) ? n : 0) + ")";
+          }
+          if (mode !== "url") return v;
+          return at === 0 && (/^(?:https?:|mailto:|tel:|data:image\\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\\.microsoft\\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")
+            ? v : encodeURIComponent(v);
+        }).join("");
+      }
+      /*/clist*/
       // {名前} を値に置き換える（「\\{」は文字の「{」）。名前に使える文字は配信時の置き換え（lib/vars.ts）と同じで、
       // 空白・引用符を含む { … }（CSS や JSON、「{ 期間限定 }」のような文字）は変数ではない
       function resolve(s, self, item) {
+        /*#clist*/
+        if (s && Array.isArray(s.scriptParts)) return scriptExpression(s, self, item, "text");
+        /*/clist*/
         return String(s == null ? "" : s).replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
           if (k == null) return "{";
           return text(lookup(k.trim(), self, item));
@@ -499,6 +531,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*#calc*/
       // 式の {名前} を数に置き換える（数でなければ 0。「1,000」の区切りは除く）
       function resolveNum(s, self, item) {
+        /*#clist*/
+        if (s && Array.isArray(s.scriptParts)) return scriptExpression(s, self, item, "number");
+        /*/clist*/
         return String(s == null ? "" : s).replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
           if (k == null) return "{";
           var n = Number(text(lookup(k.trim(), self, item)).replace(/,/g, ""));
@@ -509,6 +544,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       // URL用（値をエンコードする。配信時に残した %7B名前%7D も置き換える）。
       // 先頭の変数がURLそのもの（https:// や / で始まる）なら、そのまま使う
       function resolveUrl(s, self, item) {
+        /*#clist*/
+        if (s && Array.isArray(s.scriptParts)) return scriptExpression(s, self, item, "url");
+        /*/clist*/
         return String(s == null ? "" : s).replace(
           /\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}|%7B(.*?)%7D/gi,
           function (m, a, b, at) {
@@ -758,6 +796,20 @@ export const SCRIPT_RUNTIME = `function (env) {
       function listJson(list, name, fallback) {
         try { return JSON.parse(list.getAttribute(name)) || fallback; } catch (e) { return fallback; }
       }
+      function fillScriptJson(v, item) {
+        function fillValue(value) {
+          if (typeof value === "string") return JSON.parse(fillJson(JSON.stringify(value), item));
+          if (!value || typeof value !== "object") return value;
+          if (Array.isArray(value.scriptParts)) return value;
+          if (Array.isArray(value)) return value.map(fillValue);
+          var out = Object.create(null);
+          Object.keys(value).forEach(function (key) {
+            out[key] = key === "rawRef" ? value[key] : fillValue(value[key]);
+          });
+          return out;
+        }
+        try { return JSON.stringify(fillValue(JSON.parse(v))); } catch (e) { return v; }
+      }
       function fillJson(v, item) {
         return v
           // JSON の中の「\\{」（文字としての「{」）は「\\\\{」になっているので、そのまま残す
@@ -826,7 +878,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           n.setAttribute(
             a.name,
             a.name === "data-scripts"
-              ? fillJson(v, item)
+              ? fillScriptJson(v, item)
               : a.name === "href"
                 ? safeNavigationUrl(resolveUrl(v, null, item))
                 : a.name === "src"
@@ -1174,6 +1226,12 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/store*/
           /*#setvar*/
           case "set-var": {
+            /*#clist*/
+            if (st.rawRef) {
+              setVar(st.into, scriptReference(st.rawRef, self, sc));
+              break;
+            }
+            /*/clist*/
             // 配信前に値が決まる {名前} だけの値は、配信時にそのまま入っている
             if ("raw" in st) {
               setVar(st.into, st.raw);

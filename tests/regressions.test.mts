@@ -180,8 +180,8 @@ test("scripts in a browser-rendered list template keep the item's {names}", () =
   const make: DocNode = { ...makeBox(), id: "make", scripts: click([{ id: "sp", kind: "split", source: "a,b", sep: ",", into: "tags" }]) };
   const page = generateProject(site([make, list], [button])).files["app/page.tsx"];
   assert.match(page, /data-client-list/);
-  // テンプレートの Proxy を展開すると {値} が空文字になる
-  assert.match(page, /"value":interpolate\("\{値\}", iv\d+\)/);
+  // 項目がまだない段階では空文字にせず、実行時に読む参照名を残す。
+  assert.match(page, /"value":\{ scriptParts: \["", \{ name: "値"/);
 });
 
 test("[slug] pages answer 404 when the API has no item, and metadata reads the same query", () => {
