@@ -6,6 +6,7 @@ import {
   isSafeCommitPath,
   parseGeneratedManifest,
   planPublish,
+  keptTreeEntries,
   protectedTreeEdits,
   serializeGeneratedManifest,
 } from "../lib/publish-files";
@@ -85,4 +86,21 @@ test("ロールバックは .github/ を戻さず、いまの先端のものを�
   assert.deepEqual(protectedTreeEdits([app, dir(".GitHub", "evil")], []), [{ ...dir(".GitHub", "evil"), sha: null }]);
   // ロールバック先に無ければ、先端のものを足す
   assert.deepEqual(protectedTreeEdits([app], [dir(".github", "g1")]), [dir(".github", "g1")]);
+});
+
+
+test("手で追加した実行ファイル・リンク・サブモジュールの種類とモードを保持する", () => {
+  const entries = [
+    { path: "script.sh", mode: "100755", type: "blob", sha: "exec" },
+    { path: "link", mode: "120000", type: "blob", sha: "link" },
+    { path: "vendor", mode: "160000", type: "commit", sha: "submodule" },
+    { path: ".github/workflows/ci.yml", mode: "100644", type: "blob", sha: "workflow" },
+  ];
+  const blobs = Object.fromEntries(entries.map((entry) => [entry.path, entry.sha]));
+  const plan = planPublish(blobs, null, ["app/page.tsx"]);
+  assert.deepEqual(keptTreeEntries(entries, Object.keys(plan.kept)), entries);
+  assert.deepEqual(keptTreeEntries(entries, ["script.sh", "script.sh"]), [entries[0]]);
+  assert.deepEqual(keptTreeEntries(entries, []), []);
+  assert.equal(keptTreeEntries(entries, ["missing"]), null);
+  assert.equal(keptTreeEntries([{ path: "dir", mode: "040000", type: "tree", sha: "dir" }], ["dir"]), null);
 });
