@@ -723,11 +723,11 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
   // コンパイラと同じ値を調べ、条件分岐やくり返しの中のクエリも見落とさない。
   const scriptsReadQuery = (node: Pick<DocNode, "scripts">, inList: boolean, skip?: Set<string>) => {
     let reads = false;
-    compileScripts(node, () => "", (value) => {
-      if (unknown(value, inList, true)) reads = true;
+    compileScripts(node, () => "", (value, _kind, item) => {
+      if (!item && unknown(value, inList, true)) reads = true;
       return value;
-    }, false, skip, (name) => {
-      if (unknown(`{${name}}`, inList, true)) reads = true;
+    }, false, skip, (name, item) => {
+      if (!item && unknown(`{${name}}`, inList, true)) reads = true;
       return undefined;
     });
     return reads;

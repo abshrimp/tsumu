@@ -311,15 +311,17 @@ export interface RuntimeScript {
 export function compileScripts(
   node: Pick<DocNode, "scripts">,
   pageHref: (pageId: string) => string,
-  str: (s: string, kind: "url" | "value") => string = (s) => s,
+  /** item は対象配列の項目を実行時に読む式。項目なしで値を確定しない。 */
+  str: (s: string, kind: "url" | "value", item?: boolean) => string = (s) => s,
   withPageId = true,
   /** 配信する前に済ませるため除くブロックのID（ページを開いたときの分解・配列の〜） */
   skip?: Set<string>,
   /**
    * 「［{名前}］を変数［］とする」で、配信前に値が決まる変数の値をそのまま渡す
    * （配列を文字にしない）。画面上で値が決まる変数なら undefined
+   * item が true のときは配列の各項目が優先されるため、参照を残す。
    */
-  raw?: (name: string) => unknown
+  raw?: (name: string, item?: boolean) => unknown
 ): RuntimeScript[] {
   const conv = (steps: ScriptStep[]): RuntimeStep[] =>
     steps.filter((st) => !isDataStep(st) && !skip?.has(st.id)).map((st) => {
@@ -354,6 +356,13 @@ export function compileScripts(
         case "split": {
           const { id: _id, ...rest } = st;
           return { ...rest, source: str(st.source, "value") };
+        }
+        case "array-field": {
+          const { id: _id, value: _value, ...rest } = st;
+          // 対象配列の項目は実行時まで分からないので、通常の変数とは別に扱う。
+          const one = /^\{([^{}]+)\}$/.exec(st.value.trim());
+          const v = one && raw ? raw(one[1].trim(), true) : undefined;
+          return v !== undefined ? { ...rest, raw: v } : { ...rest, value: str(st.value, "value", true) };
         }
         case "set-var": {
           const { id: _id, value: _value, ...rest } = st;
