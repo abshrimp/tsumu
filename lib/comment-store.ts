@@ -5,7 +5,7 @@
  */
 
 import { create } from "zustand";
-import { applyCommentAction, MAX_COMMENT_LENGTH, type CommentAction, type CommentPage, type CommentThread } from "./comments";
+import { applyCommentAction, hasCommentIdConflict, MAX_COMMENT_LENGTH, type CommentAction, type CommentPage, type CommentThread } from "./comments";
 import { siteApi, siteKey } from "./site";
 import { tr } from "./i18n";
 import { userMessage } from "./errors";
@@ -184,6 +184,9 @@ export const useComments = create<CommentsState>((set, get) => ({
         if (a.action === "reply" && !existing.some(t => t.id === a.threadId)) {
           set(localSnapshot(existing, get()));
           throw new Error(tr("返信先のスレッドは削除されています"));
+        }
+        if (hasCommentIdConflict(existing, a, null)) {
+          throw new Error(tr("コメントのIDが重複しています。もう一度送信してください"));
         }
         const next = applyCommentAction(existing, a, null);
         writeLocal(next);
