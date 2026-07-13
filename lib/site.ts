@@ -86,6 +86,22 @@ export function otherLocalDocs(): string[] {
 
 const LOCAL_SITES_KEY = storageKey("sites-v1");
 
+/** 明示的なローカルサイト削除の記録。古いタブの一覧保存や掃除で消さない。 */
+const LOCAL_SITE_DELETED_KEY = storageKey("site-deleted-v1");
+
+/** 一覧の不在とは区別する。読めない場合は削除と決めつけず、呼び出し元へ失敗を返す。 */
+export function isLocalSiteDeleted(id: string = currentSiteId()): boolean {
+  return window.localStorage.getItem(siteKey(LOCAL_SITE_DELETED_KEY, id)) !== null;
+}
+
+/** 確認済みの削除だけで呼ぶ。記録の保存を確定点とし、以降の一覧の圧縮はベストエフォート。 */
+export function deleteLocalSite(id: string): void {
+  const list = loadLocalSites({ strict: true });
+  if (!list.some(s => s.id === id) && !isLocalSiteDeleted(id)) throw new Error("Local site missing");
+  window.localStorage.setItem(siteKey(LOCAL_SITE_DELETED_KEY, id), "1");
+  saveLocalSites(list.filter(s => s.id !== id));
+}
+
 /** 表示時は読めない一覧を空として扱う。変更時は既存の一覧を壊さないよう失敗を通知する。 */
 export function loadLocalSites({ strict = false }: { strict?: boolean } = {}): SiteRecord[] {
   try {
@@ -93,7 +109,7 @@ export function loadLocalSites({ strict = false }: { strict?: boolean } = {}): S
     if (!Array.isArray(list)) throw new Error("Invalid local site list");
     const valid = list.filter((s) => s && isSiteId(s.id));
     if (strict && valid.length !== list.length) throw new Error("Invalid local site record");
-    return valid;
+    return valid.filter(s => !isLocalSiteDeleted(s.id));
   } catch (error) {
     if (strict) throw error;
     return [];

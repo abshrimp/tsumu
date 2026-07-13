@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialDoc } from "../lib/presets";
-import { DOC_STORAGE_KEY, emptyDest, siteKey, touchLocalSite } from "../lib/site";
+import { DOC_STORAGE_KEY, emptyDest, isLocalSiteDeleted, siteKey, touchLocalSite } from "../lib/site";
 import { storageKey } from "../lib/storage-keys";
 import { homeSiteFixture } from "./helpers/home-site-storage";
 
@@ -14,7 +14,7 @@ function storageFixture() {
   doc.customHeadHtml = "<style>/* Original authored content */</style>";
   const raw = JSON.stringify(doc);
   const values = new Map<string, string>([[listKey, JSON.stringify([source])], [sourceDocKey, raw]]);
-  let failure: "list" | "document" | "read" | null = null;
+  let failure: "list" | "document" | "read" | "marker" | null = null;
   const removals: string[] = [];
   const storage: Storage = {
     get length() { return values.size; },
@@ -25,7 +25,7 @@ function storageFixture() {
       return values.get(key) ?? null;
     },
     setItem(key, value) {
-      if ((failure === "list" && key === listKey) || (failure === "document" && key.startsWith(`${DOC_STORAGE_KEY}:`))) {
+      if ((failure === "marker" && key.startsWith("tsumu-site-deleted-v1:")) || (failure === "list" && key === listKey) || (failure === "document" && key.startsWith(`${DOC_STORAGE_KEY}:`))) {
         throw new DOMException("Storage full", "QuotaExceededError");
       }
       values.set(key, value);
@@ -82,20 +82,20 @@ test("local settings do not show an unsaved rename or discard the retry dialog",
   } finally { home.dispose(); }
 });
 
-test("a failed local deletion leaves its listed document intact and can be retried", async () => {
+test("a failed deletion marker leaves its listed document intact and can be retried", async () => {
   const f = storageFixture();
   const before = [...f.values];
   const home = await homeSiteFixture(f.storage);
   try {
-    f.fail("list");
+    f.fail("marker");
     home.remove(source.id);
     assert.equal(home.prompt().kind, "prompt");
     home.answer(source.name);
     await home.flush();
     assert.equal(home.prompt()?.kind, "alert", "report the failed deletion");
     assert.match(home.prompt().message, error);
-    assert.deepEqual([...f.values], before, "never erase the document when its list entry could not be removed");
-    assert.deepEqual(f.removals, [], "no destructive cleanup after a failed list write");
+    assert.deepEqual([...f.values], before, "never erase the document before the deletion marker is committed");
+    assert.deepEqual(f.removals, [], "no destructive cleanup after a failed marker write");
     assert.equal(home.cards().length, 1);
     home.answer();
     await home.flush();
@@ -202,7 +202,7 @@ for (const raw of ["", "{corrupt document", "null"]) {
     const before = [...f.values];
     const home = await homeSiteFixture(f.storage);
     try {
-      f.fail("list");
+      f.fail("marker");
       home.remove(source.id);
       home.answer(source.name);
       await home.flush();
@@ -213,3 +213,20 @@ for (const raw of ["", "{corrupt document", "null"]) {
     } finally { home.dispose(); }
   });
 }
+
+
+test("a committed deletion remains hidden when list compaction fails", async () => {
+  const f = storageFixture();
+  const list = f.values.get(listKey);
+  const home = await homeSiteFixture(f.storage);
+  try {
+    f.fail("list");
+    home.remove(source.id); home.answer(source.name); await home.flush();
+    assert.equal(home.prompt(), undefined, "list compaction is cleanup after the durable deletion commit");
+    assert.equal(home.cards().length, 0);
+    assert.deepEqual(home.sites(), [], "readers must filter the durable marker, not trust the stale list");
+    assert.equal(f.values.get(listKey), list);
+    assert.equal(isLocalSiteDeleted(source.id), true);
+    assert.equal(f.values.has(sourceDocKey), false);
+  } finally { home.dispose(); }
+});
