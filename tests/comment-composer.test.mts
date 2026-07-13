@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { transformSync } from "esbuild";
+import { useComments, openPostedComment } from "../lib/comment-store";
 
 // 実際の内部コンポーネントの処理を、状態を再現できるフックで検証する。
 // DOMのreadOnlyとReactの実際のマウントは、別途ブラウザテストで確かめる。
@@ -56,6 +57,25 @@ for (const ok of [true, false]) test(`pending submission is read-only and ${ok ?
   response.resolve(ok); await tick();
   assert.equal(textarea(composer.render()).props.readOnly, false);
   assert.equal(textarea(composer.render()).props.value, ok ? "" : "First reply");
+});
+
+test("a new comment rejected for a deleted site keeps its text and draft open", async (t) => {
+  const h = harness();
+  const draft = { pageId: "page", nodeId: null, x: .5, y: .5, bp: "base" };
+  useComments.setState({ active: true, store: "server", threads: [], error: null });
+  useComments.getState().setDraft(draft);
+  t.mock.method(globalThis, "fetch", async () => Response.json({ error: "サイトが見つかりません", code: "comment_site_missing" }, { status: 404 }));
+  const composer = h.instance(h.Composer, { initial: "Unsent new comment", placeholder: "", submitLabel: "", onSubmit: async (body: string) => {
+    const ok = await useComments.getState().run({ action: "create", id: "new", ...draft, body });
+    if (ok) openPostedComment(draft, "new");
+    return ok;
+  } });
+  submit(composer.render()).props.onClick(); await tick();
+  assert.equal(textarea(composer.render()).props.value, "Unsent new comment");
+  assert.equal(textarea(composer.render()).props.readOnly, false);
+  assert.equal(useComments.getState().draft, draft);
+  assert.equal(useComments.getState().openId, null);
+  assert.equal(useComments.getState().error, "サイトが見つかりません");
 });
 
 test("an old edit completion cannot close a cancelled and reopened edit session", async () => {

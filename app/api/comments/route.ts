@@ -49,6 +49,9 @@ export async function POST(req: Request) {
   try {
     const db = await getDb();
     const ok = await runCommentAction(db, siteId, action, await sessionUser().catch(() => null));
+    if (ok === "site-missing") {
+      return NextResponse.json({ error: tr("サイトが見つかりません"), code: "comment_site_missing" }, { status: 404 });
+    }
     if (ok === "missing") {
       return NextResponse.json({ error: tr("返信先のスレッドは削除されています"), code: "comment_thread_missing" }, { status: 404 });
     }

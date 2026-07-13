@@ -255,14 +255,14 @@ export async function listComments(db: Db, siteId: string): Promise<CommentThrea
   return (await listCommentPage(db, siteId)).threads;
 }
 
-/** 操作を D1 に当てはめる。他人の変更は false、削除済みの返信先は missing、返信IDの衝突は conflict。 */
+/** 操作を D1 に当てはめる。他人の変更は false、削除済みのサイトは site-missing、返信先は missing、返信IDの衝突は conflict。 */
 export async function runCommentAction(
   db: Db,
   siteId: string,
   a: CommentAction,
   user: ActivityUser | null,
   now = Date.now()
-): Promise<boolean | "missing" | "conflict"> {
+): Promise<boolean | "site-missing" | "missing" | "conflict"> {
   const me = user ?? ANON;
   const authorOf = async (messageId: string): Promise<{ thread: string; author: ActivityUser } | null> => {
     const rs = await db.execute({
@@ -277,8 +277,8 @@ export async function runCommentAction(
     args: [now, threadId, siteId],
   });
   switch (a.action) {
-    case "create":
-      await db.batch([
+    case "create": {
+      const [thread] = await db.batch([
         {
           sql: `INSERT INTO comment_threads (id, site_id, page_id, node_id, x, y, bp, created_at, updated_at)
             SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?)`,
@@ -290,7 +290,9 @@ export async function runCommentAction(
           args: [`${a.id}-0`, a.id, siteId, me.email, me.name, me.image, a.body, now, a.id, siteId],
         },
       ]);
-      return true;
+      // 削除と競合して作成されなかった場合は、成功扱いで入力を消さない。
+      return thread.rowsAffected > 0 ? true : "site-missing";
+    }
     case "reply": {
       // 存在確認と書き込みを同じSQLで行い、削除と競合しても返信だけを残さない。
       const results = await db.batch([
