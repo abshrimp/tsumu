@@ -33,8 +33,8 @@ test("an old initial comment response cannot remove a posted thread or its unfin
     await page.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
     await page.getByPlaceholder("コメントを書く", { exact: true }).fill("Newly saved comment");
     await page.getByRole("button", { name: "投稿", exact: true }).click();
-    await expect(page.locator(".cm-pop .cm-msg-body")).toHaveText("Newly saved comment");
-    const reply = page.locator(".cm-pop").getByPlaceholder("返信", { exact: true });
+    await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText("Newly saved comment");
+    const reply = page.locator(".cm-detail").getByPlaceholder("返信", { exact: true });
     await reply.fill("Unsent reply draft");
     release.resolve();
     await delivered.promise;
@@ -43,8 +43,8 @@ test("an old initial comment response cannot remove a posted thread or its unfin
     const stored = await (await page.request.get(`/api/comments?site=${id}`)).json();
     expect(stored.threads).toHaveLength(1);
     expect(stored.threads[0].messages).toHaveLength(1);
-    await page.locator(".cm-pop").getByRole("button", { name: "返信", exact: true }).click();
-    await expect(page.locator(".cm-pop .cm-msg-body")).toHaveText(["Newly saved comment", "Unsent reply draft"]);
+    await page.locator(".cm-detail").getByRole("button", { name: "返信", exact: true }).click();
+    await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText(["Newly saved comment", "Unsent reply draft"]);
     expect(errors).toEqual([]);
   } finally { release.resolve(); }
 });

@@ -343,6 +343,7 @@ Put them in `.env.local` for local development and Node.js, in the `--env-file` 
 ### Collaboration
 
 - Comments are stored separately from the editing data: they aren't published, aren't part of undo, and only their authors can edit or delete them.
+- Deleting an element or page retains its comments. Open their full discussion, reply or resolve them from the comment list, and use **Deleted targets only** to filter them. Undo reconnects comments to the same restored element ID. Deleting or hiding the target keeps an open reply or new-comment draft intact.
 - Who edited and published is recorded per person (the latest time for each). Without Google sign-in, everyone appears as one guest.
 - Merging works per property. Edits to different elements, or to different properties of the same element (say, its text and its color), are both kept; for the same property, the later save wins. Lists such as a script's steps count as a single property.
 - While you have unsaved changes or are typing, other people's changes are applied once you're done.
