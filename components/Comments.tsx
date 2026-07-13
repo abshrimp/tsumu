@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Check, CornerDownLeft, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useEditor } from "../lib/store";
 import { commentId, openPostedComment, closeCommentIfOpen, useComments, type CommentDraft } from "../lib/comment-store";
-import { isAuthor, type CommentMessage, type CommentThread } from "../lib/comments";
+import { isAuthor, MAX_COMMENT_LENGTH, type CommentMessage, type CommentThread } from "../lib/comments";
 import { useServerStatus } from "../lib/status";
 import { BP_INFO } from "../lib/style";
 import { commentTargetResolver, isDeletedCommentTarget, type CommentTarget } from "../lib/comment-targets";
@@ -58,29 +58,39 @@ function Composer({
 }) {
   const [body, setBody] = useState(initial);
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const tooLong = body.trim().length > MAX_COMMENT_LENGTH;
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (autoFocus) ref.current?.focus();
   }, [autoFocus]);
   const submit = async () => {
     const text = body.trim();
-    if (!text || busy) return;
+    if (!text || text.length > MAX_COMMENT_LENGTH || submitting.current) return;
+    submitting.current = true;
     setBusy(true);
-    const ok = await onSubmit(text);
-    setBusy(false);
-    if (ok) setBody("");
+    try {
+      const ok = await onSubmit(text);
+      if (ok) setBody("");
+    } finally {
+      submitting.current = false;
+      setBusy(false);
+    }
   };
   return (
     <div className="cm-compose">
       <textarea
         ref={ref}
         value={body}
+        // 保存中の本文はコピーできるが変更させず、成功時に新しい入力を消さない。
+        readOnly={busy}
         rows={Math.min(6, Math.max(2, body.split("\n").length))}
         placeholder={placeholder}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
-          // ⌘Enter / Ctrl+Enter で送る（日本語の変換中は除く）
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !e.nativeEvent.isComposing) {
+          // 変換の確定・取り消しを、送信や下書きのキャンセルとして扱わない。
+          if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             void submit();
           } else if (e.key === "Escape") {
@@ -89,6 +99,7 @@ function Composer({
           }
         }}
       />
+      {tooLong && <p className="hint is-error" role="alert">{tr("コメントは{max}文字以内で入力してください", { max: MAX_COMMENT_LENGTH })}</p>}
       <div className="cm-compose-acts">
         {onCancel && (
           <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>
@@ -98,7 +109,7 @@ function Composer({
         <button
           type="button"
           className="btn btn-sm btn-primary"
-          disabled={!body.trim() || busy}
+          disabled={!body.trim() || busy || tooLong}
           data-tip={tr("送信（⌘Enter）")}
           onClick={() => void submit()}
         >
@@ -116,6 +127,7 @@ function Message({ m, thread }: { m: CommentMessage; thread: CommentThread }) {
   const user = useServerStatus()?.user ?? null;
   const run = useComments((s) => s.run);
   const [editing, setEditing] = useState(false);
+  const editSession = useRef(0);
   /** 「…」メニューの位置（スクロールする一覧に隠れないよう、画面に固定して出す） */
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const mine = isAuthor(m.author, user);
@@ -154,6 +166,7 @@ function Message({ m, thread }: { m: CommentMessage; thread: CommentThread }) {
                     icon: <Pencil size={14} />,
                     onClick: () => {
                       setMenu(null);
+                      editSession.current++;
                       setEditing(true);
                     },
                   },
@@ -188,10 +201,11 @@ function Message({ m, thread }: { m: CommentMessage; thread: CommentThread }) {
           placeholder={tr("コメント")}
           submitLabel={tr("保存")}
           autoFocus
-          onCancel={() => setEditing(false)}
+          onCancel={() => { editSession.current++; setEditing(false); }}
           onSubmit={async (body) => {
+            const session = editSession.current;
             const ok = await run({ action: "edit", messageId: m.id, body });
-            if (ok) setEditing(false);
+            if (ok && editSession.current === session) setEditing(false);
             return ok;
           }}
         />
@@ -313,7 +327,7 @@ export function CommentLayer({
   useEffect(() => {
     if (!on) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || document.querySelector(".modal-backdrop")) return;
+      if (e.key !== "Escape" || e.isComposing || e.keyCode === 229 || document.querySelector(".modal-backdrop")) return;
       const s = useComments.getState();
       if (s.draft || s.openId) s.open(null);
       else s.setActive(false);

@@ -3443,6 +3443,7 @@ const en: Dict = {
   "古い一覧": "Older comments",
   "最新の一覧": "Latest comments",
   "この一覧に条件に合うコメントはありません。ほかの一覧も確認できます。": "No matching comments in this batch. You can check other batches.",
+  "コメントは{max}文字以内で入力してください": "Comments must be {max} characters or fewer.",
 };
 
 export default en;
