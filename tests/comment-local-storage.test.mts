@@ -44,7 +44,7 @@ function setup(store: "local" | null, failure: "read" | "write" | null, raw = JS
     return Response.json({}, { status: 503 });
   });
   mock.method(console, "error", () => {});
-  useComments.setState({ store, threads: structuredClone(initial), loading: false, error: null, openId: "existing", draft: null });
+  useComments.setState({ focusedThread: structuredClone(initial[0]), threadUnavailable: false, store, threads: structuredClone(initial), loading: false, error: null, openId: "existing", draft: null });
   return { memory, writes: () => writes, posts: () => posts, recover: () => { failure = null; } };
 }
 
@@ -119,3 +119,14 @@ for (const action of [create("long"), { action: "reply", threadId: "existing", i
     assert.deepEqual(useComments.getState().threads, initial); assert.ok(useComments.getState().error);
   });
 }
+
+
+test("a local reply to a thread removed in another tab fails without writing or losing its open detail", async () => {
+  const storage = setup("local", null); storage.memory.set(key, "[]");
+  assert.equal(await useComments.getState().run({ action: "reply", threadId: "existing", id: "late", body: "Keep this text" }), false);
+  assert.equal(storage.writes(), 0); assert.equal(storage.memory.get(key), "[]");
+  assert.deepEqual(useComments.getState().threads, []); assert.equal(useComments.getState().threadUnavailable, true);
+  assert.equal(useComments.getState().focusedThread?.id, "existing"); assert.ok(useComments.getState().error);
+  await useComments.getState().load(); assert.equal(useComments.getState().focusedThread?.id, "existing");
+  assert.equal(useComments.getState().threadUnavailable, true);
+});

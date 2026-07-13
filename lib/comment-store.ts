@@ -28,6 +28,7 @@ interface CommentsState {
   active: boolean;
   threads: CommentThread[];
   focusedThread: CommentThread | null;
+  threadUnavailable: boolean;
   cursor: string | null;
   previousCursors: (string | null)[];
   nextCursor: string | null;
@@ -75,17 +76,21 @@ function serverSnapshot(data: Partial<CommentPage> & { threads: CommentThread[] 
     total: data.total ?? data.threads.length,
     unresolvedCount: data.unresolvedCount ?? data.threads.filter(t => !t.resolvedAt).length };
 }
-function focusedFrom(data: Partial<CommentPage> & { threads: CommentThread[] }, id: string | null, previous: CommentThread | null) {
-  if (!id) return null;
-  const found = data.focusedThread?.id === id ? data.focusedThread : data.threads.find(t => t.id === id);
-  if (found) return found;
-  // focusedThread を返さない旧サーバーでは、一覧に無いことだけで削除済みと判断しない。
-  return !("focusedThread" in data) && previous?.id === id ? previous : null;
+function focusOf(state: Pick<CommentsState, "threads" | "focusedThread" | "openId">) {
+  return state.focusedThread?.id === state.openId ? state.focusedThread : state.threads.find(t => t.id === state.openId) ?? null;
 }
-function localSnapshot(threads: CommentThread[], openId: string | null) {
+function focusSnapshot(data: Partial<CommentPage> & { threads: CommentThread[] }, id: string | null, previous: CommentThread | null, unavailable: boolean) {
+  if (!id) return { focusedThread: null, threadUnavailable: false };
+  const found = data.focusedThread?.id === id ? data.focusedThread : data.threads.find(t => t.id === id);
+  if (found) return { focusedThread: found, threadUnavailable: false };
+  // 閲覧中のスレッドが削除されても、入力をコピーできるよう詳細だけを閉じるまで残す。
+  const focusedThread = previous?.id === id ? previous : null;
+  return { focusedThread, threadUnavailable: !!focusedThread && ("focusedThread" in data ? true : unavailable) };
+}
+function localSnapshot(threads: CommentThread[], state: CommentsState) {
   return { store: "local" as const, threads, error: null, cursor: null, previousCursors: [], nextCursor: null,
     total: threads.length, unresolvedCount: threads.filter(t => !t.resolvedAt).length,
-    focusedThread: threads.find(t => t.id === openId) ?? null };
+    ...focusSnapshot({ threads, focusedThread: threads.find(t => t.id === state.openId) ?? null }, state.openId, focusOf(state), state.threadUnavailable) };
 }
 
 // POST は返却された一覧をそのまま反映するため、同じブラウザの操作は順に確定する。
@@ -99,6 +104,7 @@ export const useComments = create<CommentsState>((set, get) => ({
   active: false,
   threads: [],
   focusedThread: null,
+  threadUnavailable: false,
   cursor: null,
   previousCursors: [],
   nextCursor: null,
@@ -112,15 +118,15 @@ export const useComments = create<CommentsState>((set, get) => ({
   draft: null,
   showResolved: false,
   setActive: (v) => {
-    set({ active: v, ...(v ? {} : { openId: null, draft: null }) });
+    set({ active: v, ...(v ? {} : { openId: null, draft: null, focusedThread: null, threadUnavailable: false }) });
     if (v) void get().load();
   },
   open: (id) => {
     const state = get();
-    set({ openId: id, draft: null, focusedThread: id ? state.threads.find(t => t.id === id) ?? (state.focusedThread?.id === id ? state.focusedThread : null) : null });
+    set({ openId: id, draft: null, threadUnavailable: !!id && state.threadUnavailable && state.focusedThread?.id === id, focusedThread: id ? state.threads.find(t => t.id === id) ?? (state.focusedThread?.id === id ? state.focusedThread : null) : null });
     // 次のポーリングは、この一覧ページから外れた詳細も独立して更新する。
   },
-  setDraft: (d) => set({ draft: d, openId: null, focusedThread: null }),
+  setDraft: (d) => set({ draft: d, openId: null, focusedThread: null, threadUnavailable: false }),
   setShowResolved: (v) => set({ showResolved: v }),
   navigate: async (direction) => {
     if (pendingWrites) return;
@@ -140,13 +146,13 @@ export const useComments = create<CommentsState>((set, get) => ({
     set({ loading: true });
     try {
       if (get().store === "local") {
-        set(localSnapshot(readLocal(), get().openId));
+        set(localSnapshot(readLocal(), get()));
         return;
       }
       const res = await fetch(siteApi("/api/comments", { ...(cursor ? { before: cursor } : {}), ...(openId ? { focus: openId } : {}) }));
       if (request !== readRequest) return;
       if (res.status === 503) {
-        set(localSnapshot(readLocal(), get().openId));
+        set(localSnapshot(readLocal(), get()));
         return;
       }
       const data = await res.json().catch(() => null);
@@ -154,7 +160,7 @@ export const useComments = create<CommentsState>((set, get) => ({
       if (!res.ok || !Array.isArray(data?.threads)) throw new Error(data?.error ?? tr("読み込めませんでした"));
       const state = get();
       set({ ...serverSnapshot(data), cursor, previousCursors,
-        focusedThread: state.openId === openId ? focusedFrom(data, openId, state.focusedThread) : state.focusedThread });
+        ...(state.openId === openId ? focusSnapshot(data, openId, focusOf(state), state.threadUnavailable) : {}) });
     } catch (e) {
       if (request === readRequest) set({ error: userMessage(e, tr("コメントを読み込めませんでした")) });
     } finally {
@@ -174,9 +180,14 @@ export const useComments = create<CommentsState>((set, get) => ({
     set({ loading: false, saving: true });
     const result = writeQueue.then(async () => {
       const local = () => {
-        const next = applyCommentAction(readLocal(), a, null);
+        const existing = readLocal();
+        if (a.action === "reply" && !existing.some(t => t.id === a.threadId)) {
+          set(localSnapshot(existing, get()));
+          throw new Error(tr("返信先のスレッドは削除されています"));
+        }
+        const next = applyCommentAction(existing, a, null);
         writeLocal(next);
-        set(localSnapshot(next, get().openId));
+        set(localSnapshot(next, get()));
         return true;
       };
       try {
@@ -190,13 +201,22 @@ export const useComments = create<CommentsState>((set, get) => ({
         // 初回の一覧より先に投稿した場合も、保存先が無ければ同じブラウザ保存へ切り替える。
         if (res.status === 503) return local();
         const data = await res.json().catch(() => null);
+        if (res.status === 404 && data?.code === "comment_thread_missing" && a.action === "reply") {
+          const state = get();
+          // 詳細キャッシュは件数より古い場合があるため、同じ一覧にある行だけを差し引く。
+          const removed = state.threads.find(t => t.id === a.threadId);
+          // 削除確定の項目を一覧・ピンからも除き、次の定期更新が失敗しても再操作させない。
+          set({ threads: state.threads.filter(t => t.id !== a.threadId),
+            total: Math.max(0, state.total - (removed ? 1 : 0)),
+            unresolvedCount: Math.max(0, state.unresolvedCount - (removed && !removed.resolvedAt ? 1 : 0)),
+            ...(state.openId === a.threadId ? { focusedThread: focusOf(state), threadUnavailable: true } : {}),
+          });
+        }
         if (!res.ok || !Array.isArray(data?.threads)) throw new Error(data?.error ?? tr("保存できませんでした"));
         const state = get();
         set({ ...serverSnapshot(data),
           ...(a.action === "create" ? { cursor: null, previousCursors: [] } : {}),
-          focusedThread: state.openId === openId
-            ? focusedFrom(data, a.action === "create" ? a.id : openId, a.action === "delete-thread" && a.threadId === openId ? null : state.focusedThread)
-            : state.focusedThread,
+          ...(state.openId === openId ? focusSnapshot(data, a.action === "create" ? a.id : openId, focusOf(state), state.threadUnavailable) : {}),
         });
         return true;
       } catch (e) {

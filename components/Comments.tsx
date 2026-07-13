@@ -46,6 +46,7 @@ function Composer({
   initial = "",
   submitLabel,
   autoFocus,
+  disabled = false,
   onSubmit,
   onCancel,
 }: {
@@ -53,6 +54,7 @@ function Composer({
   initial?: string;
   submitLabel: string;
   autoFocus?: boolean;
+  disabled?: boolean;
   onSubmit: (body: string) => Promise<boolean> | boolean;
   onCancel?: () => void;
 }) {
@@ -66,7 +68,7 @@ function Composer({
   }, [autoFocus]);
   const submit = async () => {
     const text = body.trim();
-    if (!text || text.length > MAX_COMMENT_LENGTH || submitting.current) return;
+    if (disabled || !text || text.length > MAX_COMMENT_LENGTH || submitting.current) return;
     submitting.current = true;
     setBusy(true);
     try {
@@ -109,7 +111,7 @@ function Composer({
         <button
           type="button"
           className="btn btn-sm btn-primary"
-          disabled={!body.trim() || busy || tooLong}
+          disabled={disabled || !body.trim() || busy || tooLong}
           data-tip={tr("送信（⌘Enter）")}
           onClick={() => void submit()}
         >
@@ -123,7 +125,7 @@ function Composer({
 
 /* ---------- スレッド ---------- */
 
-function Message({ m, thread }: { m: CommentMessage; thread: CommentThread }) {
+function Message({ m, thread, unavailable }: { m: CommentMessage; thread: CommentThread; unavailable?: boolean }) {
   const user = useServerStatus()?.user ?? null;
   const run = useComments((s) => s.run);
   const [editing, setEditing] = useState(false);
@@ -141,7 +143,7 @@ function Message({ m, thread }: { m: CommentMessage; thread: CommentThread }) {
           {relativeTime(m.at)}
           {m.editedAt ? tr("（編集済み）") : ""}
         </time>
-        {mine && !editing && (
+        {mine && !editing && !unavailable && (
           <span className="cm-msg-menu">
             <button
               type="button"
@@ -185,7 +187,8 @@ function Message({ m, thread }: { m: CommentMessage; thread: CommentThread }) {
                           danger: true,
                         })
                       ) {
-                        await run({ action: "delete-message", messageId: m.id });
+                        const ok = await run({ action: "delete-message", messageId: m.id });
+                        if (ok && useComments.getState().threadUnavailable) closeCommentIfOpen(thread.id);
                       }
                     },
                   },
@@ -198,6 +201,7 @@ function Message({ m, thread }: { m: CommentMessage; thread: CommentThread }) {
       {editing ? (
         <Composer
           initial={m.body}
+          disabled={unavailable}
           placeholder={tr("コメント")}
           submitLabel={tr("保存")}
           autoFocus
@@ -216,7 +220,7 @@ function Message({ m, thread }: { m: CommentMessage; thread: CommentThread }) {
   );
 }
 
-function ThreadView({ thread, onClose }: { thread: CommentThread; onClose: () => void }) {
+function ThreadView({ thread, onClose, unavailable }: { thread: CommentThread; onClose: () => void; unavailable: boolean }) {
   const run = useComments((s) => s.run);
   const user = useServerStatus()?.user ?? null;
   const owner = thread.messages[0] ? isAuthor(thread.messages[0].author, user) : true;
@@ -229,6 +233,7 @@ function ThreadView({ thread, onClose }: { thread: CommentThread; onClose: () =>
           className={`icon-btn sm${thread.resolvedAt ? " is-on" : ""}`}
           data-tip={thread.resolvedAt ? tr("未解決に戻す") : tr("解決済みにする")}
           aria-label={thread.resolvedAt ? tr("未解決に戻す") : tr("解決済みにする")}
+          disabled={unavailable}
           onClick={() => void run({ action: "resolve", threadId: thread.id, resolved: !thread.resolvedAt })}
         >
           {thread.resolvedAt ? <RotateCcw size={13} /> : <Check size={14} />}
@@ -239,6 +244,7 @@ function ThreadView({ thread, onClose }: { thread: CommentThread; onClose: () =>
             className="icon-btn sm"
             data-tip={tr("スレッドを削除")}
             aria-label={tr("スレッドを削除")}
+            disabled={unavailable}
             onClick={async () => {
               if (
                 await showConfirm(tr("返信も含めて、このスレッドを削除します。"), {
@@ -268,11 +274,12 @@ function ThreadView({ thread, onClose }: { thread: CommentThread; onClose: () =>
       )}
       <div className="cm-msgs">
         {thread.messages.map((m) => (
-          <Message key={m.id} m={m} thread={thread} />
+          <Message key={m.id} m={m} thread={thread} unavailable={unavailable} />
         ))}
       </div>
       <Composer
         placeholder={tr("返信")}
+        disabled={unavailable}
         submitLabel={tr("返信")}
         autoFocus
         onSubmit={(body) => run({ action: "reply", threadId: thread.id, id: commentId(), body })}
@@ -469,6 +476,7 @@ export function CommentLayer({
 export function CommentsPanel() {
   const threads = useComments((s) => s.threads);
   const focusedThread = useComments((s) => s.focusedThread);
+  const threadUnavailable = useComments((s) => s.threadUnavailable);
   const cursor = useComments((s) => s.cursor);
   const previousCursors = useComments((s) => s.previousCursors);
   const nextCursor = useComments((s) => s.nextCursor);
@@ -591,6 +599,7 @@ export function CommentsPanel() {
       </div>
       {(draft || openThread) && (
         <section className="cm-detail" aria-label={tr("コメントの詳細")}>
+          {threadUnavailable && openThread && <p className="cm-target-notice" role="alert">{tr("このスレッドは削除されています。入力中の文章は閉じるまで残るので、必要ならコピーしてください。")}</p>}
           <TargetNotice target={targetOf(draft ?? openThread!)} draft={!!draft} />
           {draft ? (
             <>
@@ -613,7 +622,7 @@ export function CommentsPanel() {
               />
             </>
           ) : (
-            openThread && <ThreadView key={openThread.id} thread={openThread} onClose={() => closeCommentIfOpen(openThread.id)} />
+            openThread && <ThreadView key={openThread.id} thread={openThread} unavailable={threadUnavailable} onClose={() => closeCommentIfOpen(openThread.id)} />
           )}
         </section>
       )}
