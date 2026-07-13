@@ -236,7 +236,7 @@ export default function Header({
   const helpOpen = useHelp((s) => s.open);
   const commenting = useComments((s) => s.active);
   /** まだ解決していないコメントの数（ボタンに添える） */
-  const openComments = useComments((s) => s.threads.filter((t) => !t.resolvedAt).length);
+  const openComments = useComments((s) => s.unresolvedCount);
   useEffect(() => {
     void useComments.getState().load();
   }, []);

@@ -3438,6 +3438,11 @@ const en: Dict = {
     "Delete comment",
   "公開ファイル一覧が壊れているため、公開を中止しました":
     "Publishing stopped because the generated file manifest is invalid.",
+  "全{total}件中{loaded}件の一覧です。絞り込みとピンは、この一覧の範囲に適用されます。": "Showing {loaded} of {total} comments. Filters and pins apply to this batch.",
+  "新しい一覧": "Newer comments",
+  "古い一覧": "Older comments",
+  "最新の一覧": "Latest comments",
+  "この一覧に条件に合うコメントはありません。ほかの一覧も確認できます。": "No matching comments in this batch. You can check other batches.",
 };
 
 export default en;

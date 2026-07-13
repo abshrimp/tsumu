@@ -123,6 +123,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             resolved_image TEXT
           )`,
           `CREATE INDEX IF NOT EXISTS comment_threads_site ON comment_threads (site_id)`,
+          `CREATE INDEX IF NOT EXISTS comment_threads_page ON comment_threads (site_id, created_at, id)`,
           `CREATE TABLE IF NOT EXISTS comment_messages (
             id TEXT PRIMARY KEY,
             thread_id TEXT NOT NULL,
@@ -135,6 +136,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             edited_at INTEGER
           )`,
           `CREATE INDEX IF NOT EXISTS comment_messages_site ON comment_messages (site_id)`,
+          `CREATE INDEX IF NOT EXISTS comment_messages_thread ON comment_messages (site_id, thread_id, at, id)`,
           // サイトごとの日次バックアップ（曜日ごとに7世代）
           `CREATE TABLE IF NOT EXISTS site_backups (
             site_id TEXT NOT NULL,
