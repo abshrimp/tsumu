@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { toggleCommentMode } from "../lib/comment-store";
 import { insertPointFor, persistDoc, useEditor } from "../lib/store";
 import type { SiteDoc } from "../lib/types";
+import { localSaveState, watchLocalSaveBlock, warnForDeletedLocalSave, type LocalSaveSnapshot } from "../lib/local-save";
 import type {
   CollabClientMessage,
   CollabServerMessage,
@@ -136,12 +137,22 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const doc = useEditor((s) => s.doc);
   const markSaved = useEditor((s) => s.markSaved);
   // 保存した版を覚え、次の編集を前の「保存済み」と取り違えない。
-  const [localSave, setLocalSave] = useState<{ doc: SiteDoc; ok: boolean } | null>(null);
+  const [localSave, setLocalSave] = useState<LocalSaveSnapshot | null>(null);
+  const localSiteDeleted = useRef(false);
+  const browserSaveState = localSaveState(localSave, doc);
+  const cloudState = useEditor((s) => s.cloudState);
   const saveLocalDoc = useCallback((snapshot: SiteDoc) => {
-    const ok = persistDoc(snapshot);
-    if (ok) markSaved();
-    setLocalSave({ doc: snapshot, ok });
+    const result = localSiteDeleted.current ? "deleted" : persistDoc(snapshot);
+    if (result === "deleted") localSiteDeleted.current = true;
+    if (result === "saved") markSaved();
+    else useEditor.setState({ savedAt: null });
+    setLocalSave({ doc: snapshot, result });
   }, [markSaved]);
+  useEffect(() => watchLocalSaveBlock((result) => {
+    if (result === "deleted") localSiteDeleted.current = true;
+    useEditor.setState({ savedAt: null });
+    setLocalSave((previous) => previous?.result === "deleted" ? previous : { doc: useEditor.getState().doc, result });
+  }), []);
   const mode = useEditor((s) => s.mode);
   const activePageId = useEditor((s) => s.activePageId);
   const scriptEditor = useEditor((s) => s.scriptEditor);
@@ -1015,10 +1026,11 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
   }, [requestViaWebSocket]);
 
-  // サーバー未保存の変更がある間はページ離脱時に警告する
+  // 未同期の変更・削除されたブラウザ保存先にしかない内容を、離脱前に知らせる
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (cloudDirty.current || useEditor.getState().cloudState === "saving") {
+      const state = useEditor.getState();
+      if (cloudDirty.current || state.cloudState === "saving" || warnForDeletedLocalSave(browserSaveState, state.cloudState)) {
         e.preventDefault();
         // Chrome向け（preventDefaultだけでは無効なバージョンがある）
         e.returnValue = "";
@@ -1026,7 +1038,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, []);
+  }, [browserSaveState]);
 
   // キーボードショートカット
   useEffect(() => {
@@ -1160,6 +1172,11 @@ export default function Editor({ onReady }: EditorProps = {}) {
         panels={{ l: !closedL, r: !closedR }}
         onTogglePanel={togglePanel}
       />
+      {browserSaveState === "deleted" && cloudState !== "synced" && (
+        <div className="local-save-notice" role="alert">
+          {tr("このブラウザの保存先は削除されています。画面の内容は残っています。必要な内容は、閉じる前にコピーするかZIPに書き出してください。")}
+        </div>
+      )}
       <div
         className={`app-main${closedL ? " is-l-closed" : ""}${closedR ? " is-r-closed" : ""}${panelAnim ? " is-panel-anim" : ""}`}
         style={
@@ -1206,7 +1223,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
         )}
       </div>
       <Footer
-        localSaveState={localSave?.doc !== doc ? "pending" : localSave.ok ? "saved" : "error"}
+        localSaveState={browserSaveState}
         onRetryLocalSave={() => {
           if (saveTimer.current) clearTimeout(saveTimer.current);
           saveLocalDoc(useEditor.getState().doc);

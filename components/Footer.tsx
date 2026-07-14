@@ -1,5 +1,7 @@
 "use client";
 
+import type { LocalSaveState } from "../lib/local-save";
+
 import {
   CloudAlert,
   CloudCheck,
@@ -123,7 +125,7 @@ function PopSection({ title, children }: { title: string; children: ReactNode })
 }
 
 export default function Footer({ localSaveState, onRetryLocalSave }: {
-  localSaveState: "pending" | "saved" | "error";
+  localSaveState: LocalSaveState;
   onRetryLocalSave: () => void;
 }) {
   const savedAt = useEditor((s) => s.savedAt);
@@ -211,11 +213,13 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
               <PopSection title={tr("保存")}>
                 <p className="ftr-pop-empty">
                   {cloudState === "local"
-                    ? localSaveState === "error"
-                      ? tr("ブラウザに保存できません。容量や設定を確認して、クリックで再試行してください。")
-                      : localSaveState === "pending"
-                        ? tr("サーバー保存が設定されていません。ブラウザへの保存を待っています。")
-                        : tr("サーバー保存が設定されていないため、このブラウザにだけ保存しています。クリックで再接続します。")
+                    ? localSaveState === "deleted"
+                      ? tr("このブラウザの保存先は削除されています。画面の内容は残っています。必要な内容は、閉じる前にコピーするかZIPに書き出してください。")
+                      : localSaveState === "error"
+                        ? tr("ブラウザに保存できません。容量や設定を確認して、クリックで再試行してください。")
+                        : localSaveState === "pending"
+                          ? tr("サーバー保存が設定されていません。ブラウザへの保存を待っています。")
+                          : tr("サーバー保存が設定されていないため、このブラウザにだけ保存しています。クリックで再接続します。")
                     : tr("編集した人の記録は、サーバーの保存先（D1）があるときに表示されます。")}
                 </p>
               </PopSection>
@@ -244,6 +248,9 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
             )}
             {cloudState === "error" && cloudError && <p className="ftr-pop-note">{cloudError}</p>}
             {cloudState === "error" && <p className="ftr-pop-note">{tr("クリックで再接続します")}</p>}
+            {localSaveState === "deleted" && cloudState !== "local" && (
+              <p className="ftr-pop-note">{tr("このブラウザの保存先は削除されています。サーバーへの保存状態は上の表示を確認してください。")}</p>
+            )}
             {localSaveState === "error" && cloudState !== "local" && (
               <p className="ftr-pop-note">{tr("ブラウザに保存できません。容量や設定を確認して、クリックで再試行してください。")}</p>
             )}
@@ -283,21 +290,25 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
           )}
           {cloudState === "local" && (
             <>
-              {localSaveState === "error" ? <CloudAlert size={13} style={{ color: "var(--warn)" }} /> : <CloudOff size={13} />}
-              {localSaveState === "error"
-                ? tr("このブラウザに保存できません")
-                : localSaveState === "pending" ? tr("このブラウザへ保存中…") : tr("このブラウザにのみ保存")}
+              {localSaveState === "error" || localSaveState === "deleted" ? <CloudAlert size={13} style={{ color: "var(--warn)" }} /> : <CloudOff size={13} />}
+              {localSaveState === "deleted"
+                ? tr("このブラウザの保存先は削除済み")
+                : localSaveState === "error"
+                  ? tr("このブラウザに保存できません")
+                  : localSaveState === "pending" ? tr("このブラウザへ保存中…") : tr("このブラウザにのみ保存")}
               {localSaveState === "saved" && savedAt && ` ${new Date(savedAt).toLocaleTimeString(getLang())}`}
             </>
           )}
           {cloudState === "error" && (
             <>
               <CloudAlert size={13} style={{ color: "var(--warn)" }} />
-              {localSaveState === "error"
-                ? tr("サーバーにもこのブラウザにも保存できません")
-                : localSaveState === "pending"
-                  ? tr("サーバーに保存できません（ブラウザへの保存を確認中…）")
-                  : tr("サーバーに保存できません（このブラウザには保存済み）")}
+              {localSaveState === "deleted"
+                ? tr("サーバーに保存できません（ブラウザの保存先は削除済み）")
+                : localSaveState === "error"
+                  ? tr("サーバーにもこのブラウザにも保存できません")
+                  : localSaveState === "pending"
+                    ? tr("サーバーに保存できません（ブラウザへの保存を確認中…）")
+                    : tr("サーバーに保存できません（このブラウザには保存済み）")}
             </>
           )}
         </button>
