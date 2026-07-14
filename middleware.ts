@@ -24,12 +24,11 @@ export default async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const session = await middlewareAuth();
+  // Cookie が有効でも、現在の許可リストから削除されていることがある。
+  // ログイン画面のサーバー処理で現在の権限を確かめてからリダイレクトする。
+  if (pathname === "/login") return NextResponse.next();
 
-  if (pathname === "/login") {
-    if (session) return NextResponse.redirect(new URL("/", req.nextUrl));
-    return NextResponse.next();
-  }
+  const session = await middlewareAuth();
 
   if (!session) {
     // APIにはリダイレクトではなくJSONで401を返す
