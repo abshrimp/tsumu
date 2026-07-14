@@ -399,20 +399,25 @@ export async function withSignedAssetUrls(
 export async function downloadAsset(asset: Asset): Promise<void> {
   const src = assetSrc(asset);
   if (!src) return;
+  let response: Response;
   try {
-    const blob = await (await fetch(src)).blob();
-    const objectUrl = URL.createObjectURL(blob);
-    try {
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = asset.name;
-      a.click();
-    } finally {
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-    }
+    response = await fetch(src);
   } catch {
-    // CORS等で取得できない場合は新しいタブで開く
+    // CORS等でレスポンスを取得できない場合だけ、新しいタブで開く。
     window.open(src, "_blank", "noopener");
+    return;
+  }
+  // エラー本文を元のファイルとして保存したり、失敗を別タブで隠したりしない。
+  if (!response.ok) throw new Error(tr("アセットをダウンロードできませんでした"));
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = asset.name;
+    a.click();
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   }
 }
 

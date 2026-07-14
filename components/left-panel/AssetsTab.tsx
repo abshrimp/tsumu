@@ -190,7 +190,7 @@ export function AssetsTab() {
   const setLeftTab = useEditor((s) => s.setLeftTab);
   const [uploadCount, setUploadCount] = useState(0);
   const busy = uploadCount > 0;
-  const uploadRevision = useRef(0);
+  const errorRevision = useRef(0);
   const uploadMounted = useRef(false);
   useLayoutEffect(() => {
     uploadMounted.current = true;
@@ -266,16 +266,32 @@ export function AssetsTab() {
 
   // タブを閉じても追加・移行は続ける。古い処理で新しい処理の表示を上書きしない。
   const beginUpload = () => {
-    const revision = ++uploadRevision.current;
+    const revision = ++errorRevision.current;
     const history = useEditor.getState().historyRevision;
     setUploadCount((count) => count + 1);
     setError(null);
     const historyChanged = () => useEditor.getState().historyRevision !== history;
     return {
       historyChanged,
-      current: () => uploadMounted.current && uploadRevision.current === revision && !historyChanged(),
+      current: () => uploadMounted.current && errorRevision.current === revision && !historyChanged(),
       finish: () => { if (uploadMounted.current) setUploadCount((count) => count - 1); },
     };
+  };
+
+  const download = async (asset: Asset) => {
+    const revision = ++errorRevision.current;
+    const inScope = removalScope();
+    const src = assetSrc(asset);
+    setError(null);
+    try {
+      await downloadAsset(asset);
+    } catch {
+      const latest = useEditor.getState().doc.assets[asset.id];
+      // 新しい操作、文書・ファイルの差し替え、パネルを閉じた後に古い失敗を表示しない。
+      if (inScope() && errorRevision.current === revision && latest && assetSrc(latest) === src) {
+        setError(tr("アセットをダウンロードできませんでした"));
+      }
+    }
   };
 
   const assets = useMemo(() => Object.values(doc.assets), [doc.assets]);
@@ -781,7 +797,7 @@ export function AssetsTab() {
                   style={{ right: 30 }}
                   data-tip={tr("ダウンロード")}
                   aria-label={tr("ダウンロード")}
-                  onClick={() => void downloadAsset(asset)}
+                  onClick={() => void download(asset)}
                 >
                   <Download size={12} />
                 </button>
