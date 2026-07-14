@@ -106,3 +106,76 @@ test("every built-in keyframe preset parses and keeps its meaning", () => {
     assert.deepEqual(strip(again), strip(list), kf.key);
   }
 });
+
+test("keyframes preserve case-sensitive custom property names and quoted comment text", () => {
+  const source = 'from { --fadeLevel: 0.25; --label: "a/*keep*/b"; opacity: var(--fadeLevel); }';
+  const parsed = parseKeyframes(source)!;
+  assert.ok(parsed);
+  assert.equal(serializeKeyframes(parsed), source);
+});
+
+for (const declaration of [
+  'opacity: var(--fadeLevel, 0.2); opacity: 0.8;',
+  'transform: translate3d(4px, 5px, 6px); transform: translateX(12px);',
+  'opacity: 0.8; opacity: var(--fadeLevel, 0.2);',
+]) {
+  test(`keyframes preserve the cascade of repeated declarations: ${declaration}`, () => {
+    const source = `from { ${declaration} }`;
+    const parsed = parseKeyframes(source)!;
+    assert.ok(parsed);
+    assert.equal(serializeKeyframes(parsed), source);
+    assert.equal(parsed[0].opacity, undefined);
+    assert.equal(parsed[0].x, undefined);
+  });
+}
+
+test("keyframe rules sharing an offset preserve declaration order at that offset", () => {
+  const parsed = parseKeyframes('from, to { opacity: var(--fadeLevel, 0.2); } to { opacity: 0.8; transform: translateX(12px); }')!;
+  assert.ok(parsed);
+  assert.equal(parsed[1].opacity, undefined);
+  assert.equal(parsed[1].x, 12);
+  assert.match(serializeKeyframes(parsed), /to \{ transform: translateX\(12px\); opacity: var\(--fadeLevel, 0.2\); opacity: 0.8; \}/);
+});
+
+test("escaped quotes do not turn CSS string contents into declarations or comments", () => {
+  const source = String.raw`from { --label: "a\";/*keep*/b"; opacity: 0.5; }`;
+  const parsed = parseKeyframes(source)!;
+  assert.ok(parsed);
+  assert.equal(parsed[0].extra, String.raw`--label: "a\";/*keep*/b";`);
+  assert.equal(parsed[0].opacity, 0.5);
+  assert.equal(serializeKeyframes(parseKeyframes(serializeKeyframes(parsed))!), serializeKeyframes(parsed));
+});
+
+test("CSS comments outside strings do not join separate tokens", () => {
+  const parsed = parseKeyframes('/* start */ from { opacity: 0.5; --label: a/**/b; } /* end */')!;
+  assert.ok(parsed);
+  assert.equal(parsed[0].opacity, 0.5);
+  assert.equal(parsed[0].extra, '--label: a b;');
+  assert.equal(parseKeyframes('from { opacity: 0.5; } /* unfinished'), null);
+  assert.equal(parseKeyframes('from { --label: "unfinished; }'), null);
+});
+
+for (const declaration of [
+  'all: initial; opacity: 0.8; transform: translateX(12px);',
+  '-webkit-transform: translateX(4px); transform: translateX(12px);',
+]) {
+  test(`keyframes keep CSS resets and aliases in order: ${declaration}`, () => {
+    const source = `from { ${declaration} }`;
+    const parsed = parseKeyframes(source)!;
+    assert.ok(parsed);
+    assert.equal(serializeKeyframes(parsed), source);
+  });
+}
+
+for (const declaration of [
+  String.raw`\6f pacity: 0.2; opacity: 0.8;`,
+  String.raw`\2d \2d fadeLevel: 0.25; opacity: var(--fadeLevel);`,
+]) {
+  test(`escaped CSS property names preserve their case and cascade: ${declaration}`, () => {
+    const source = `from { ${declaration} }`;
+    const parsed = parseKeyframes(source)!;
+    assert.ok(parsed);
+    assert.equal(parsed[0].opacity, undefined);
+    assert.equal(serializeKeyframes(parsed), source);
+  });
+}

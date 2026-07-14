@@ -132,10 +132,13 @@ function splitDecls(body: string): string[] {
   const out: string[] = [];
   let depth = 0;
   let quote = "";
+  let escaped = false;
   let cur = "";
   for (const ch of body) {
     if (quote) {
-      if (ch === quote) quote = "";
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === quote) quote = "";
     } else if (ch === '"' || ch === "'") quote = ch;
     else if (ch === "(") depth++;
     else if (ch === ")") depth = Math.max(0, depth - 1);
@@ -150,13 +153,40 @@ function splitDecls(body: string): string[] {
   return out.map((d) => d.trim()).filter(Boolean);
 }
 
+/** コメントだけを除き、文字列内の /* やエスケープした引用符はそのまま残す。 */
+function stripComments(css: string): string | null {
+  let out = "";
+  let quote = "";
+  let escaped = false;
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === quote) quote = "";
+    } else if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === "/" && css[i + 1] === "*") {
+      const end = css.indexOf("*/", i + 2);
+      if (end < 0) return null;
+      // コメントの両側を連結して別の識別子や数値にしない。
+      out += " ";
+      i = end + 1;
+      continue;
+    }
+    out += ch;
+  }
+  return quote ? null : out;
+}
+
 /**
  * @keyframes の中身を読む。読めない書き方（入れ子・セレクタの誤りなど）なら null。
  * 「0%, 50% { ... }」のようにまとめて書いたものは1つずつに分け、同じ位置は1つにまとめる
  */
 export function parseKeyframes(css: string): Keyframe[] | null {
-  const src = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const src = stripComments(css);
+  if (src === null) return null;
   const byOffset = new Map<number, Keyframe>();
+  const declarations = new Map<number, { prop: string; value: string }[]>();
   /** transform: none と書かれたキーフレーム（ほかで使っている変形だけを初期値にする） */
   const nones = new Set<Keyframe>();
   const re = /([^{}]+)\{([^{}]*)\}/g;
@@ -164,13 +194,34 @@ export function parseKeyframes(css: string): Keyframe[] | null {
     const offsets = m[1].split(",").map(parseOffset);
     if (!offsets.length || offsets.some((o) => o === null)) return null;
     for (const offset of offsets as number[]) {
-      const kf = byOffset.get(offset) ?? emptyKeyframe(offset);
-      const extras = kf.extra ? [kf.extra] : [];
+      const items = declarations.get(offset) ?? [];
       for (const decl of splitDecls(m[2])) {
         const i = decl.indexOf(":");
         if (i <= 0) return null;
-        const prop = decl.slice(0, i).trim().toLowerCase();
+        const name = decl.slice(0, i).trim();
+        // カスタムプロパティ名は大文字・小文字を区別する。
+        const prop = name.startsWith("--") || name.includes("\\") ? name : name.toLowerCase();
         const value = decl.slice(i + 1).trim();
+        items.push({ prop, value });
+      }
+      declarations.set(offset, items);
+    }
+  }
+  // 規則として読めなかった文字が残っていれば、書き方の誤り
+  if (src.replace(re, "").trim()) return null;
+  for (const [offset, items] of declarations) {
+    const kf = emptyKeyframe(offset);
+    const extras: string[] = [];
+    const counts = new Map<string, number>();
+    for (const { prop } of items) counts.set(prop, (counts.get(prop) ?? 0) + 1);
+    // エスケープされた名前は opacity や --customName と同じ名前を表すことがある。
+    // CSSの識別子を不完全に解釈せず、この位置の宣言はすべて順番どおり保持する。
+    const escapedName = items.some(({ prop }) => prop.includes("\\"));
+    for (const { prop, value } of items) {
+      // 同じ宣言の代替指定は順番も意味を持つ。項目と raw CSS に分けて並べ替えず、
+      // 同じ位置の別ルールにあるものも含めて「そのほかのCSS」にそのまま残す。
+      const hasAlias = items.some((item) => item.prop.endsWith(`-${prop}`) && item.prop.startsWith("-"));
+      if (counts.get(prop) === 1 && !counts.has("all") && !hasAlias && !escapedName) {
         if (prop === "opacity" && !/!important/i.test(value)) {
           const n = parseNumber(value);
           if (n !== null) {
@@ -188,14 +239,12 @@ export function parseKeyframes(css: string): Keyframe[] | null {
             continue;
           }
         }
-        extras.push(`${prop}: ${value};`);
       }
-      kf.extra = extras.join(" ");
-      byOffset.set(offset, kf);
+      extras.push(`${prop}: ${value};`);
     }
+    kf.extra = extras.join(" ");
+    byOffset.set(offset, kf);
   }
-  // 規則として読めなかった文字が残っていれば、書き方の誤り
-  if (src.replace(re, "").trim()) return null;
   const list = [...byOffset.values()].sort((a, b) => a.offset - b.offset);
   const used = new Set(list.filter((kf) => !nones.has(kf)).flatMap((kf) => TRANSFORM_KEYS.filter((k) => kf[k] !== undefined)));
   if (!used.size) used.add("x");
