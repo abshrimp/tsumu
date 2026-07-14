@@ -114,6 +114,36 @@ test("ページOGP画像の読み込み中にページを変えても完了し�
   expect(Object.values(completed.assets)).toContainEqual(expect.objectContaining({ path: "assets/new.svg" }));
 });
 
+for (const initial of [undefined, "https://example.test/original.png"]) {
+  test(`OGP画像のアップロード中に入力したURLをフォーカスが外れるまで保持する（${initial ? "既存URL" : "未設定"}）`, async ({ page }) => {
+    await page.evaluate((initial) => {
+      const s = (window as any).importEditor.getState();
+      if (initial) s.updatePage("p", { ogImage: { url: initial } });
+      s.select(null);
+    }, initial);
+    await page.locator('[data-tutorial="page-seo"] .sec-head').click();
+    const picker = page.locator('[data-tutorial="page-settings"] .img-pick');
+    const pending = await startImage(page, picker);
+    const url = picker.locator("input.input");
+    const draft = "https://example.test/newer.png";
+    await url.fill(draft);
+    await expect(url).toBeFocused();
+    const before = await doc(page);
+    expect(before.pages.p.ogImage).toEqual(initial ? { url: initial } : undefined);
+    await pending.finish();
+    await expect.poll(async () => Object.values((await doc(page)).assets).some((a: any) => a.path === "assets/new.svg")).toBe(true);
+    await settle(page);
+    await expect(url).toBeVisible();
+    await expect(url).toBeFocused();
+    await expect(url).toHaveValue(draft);
+    const completed = await doc(page);
+    expect({ ...completed, assets: before.assets }).toEqual(before);
+    await url.press("Tab");
+    await expect.poll(async () => (await doc(page)).pages.p.ogImage).toEqual({ url: draft });
+    expect((await doc(page)).assets).toEqual(completed.assets);
+  });
+}
+
 test("閉じたフォント追加の結果は反映せず、その後の追加は成功する", async ({ page }) => {
   const pending = await startFont(page);
   await page.locator('[data-tip="Google Fontsから追加"]').click();
