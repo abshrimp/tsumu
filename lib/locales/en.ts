@@ -858,8 +858,8 @@ const en: Dict = {
     "/new-page or https://example.com/...",
   "外部サイトを表示（リバースプロキシ）":
     "Show an external site (reverse proxy)",
-  "ブラウザのURLは変えず、指定した外部サイトの内容をこのURLで中継して表示します。このページ以下のパスも転送先の同じパスへ中継されます。301リダイレクトとは同時に設定できません。":
-    "Shows the external site's content at this URL without changing the address bar. Paths under this page are forwarded to the same paths on the target. Can't be combined with a 301 redirect.",
+  "ブラウザのURLは変えず、指定した外部サイトの内容をこのURLで中継して表示します。トップページ（/）の配下では、このサイトのページ・ファイルを優先し、見つからないパスを中継します。転送先URLに ? または # がある場合は、このページのURLに一致するパスだけを中継します。301リダイレクトとは同時に設定できません。":
+    "Shows the external site's content at this URL without changing the address bar. Under the home page (/), this site's pages and files take priority. Only unmatched paths are forwarded. If the destination URL contains ? or #, only paths matching this page's URL are forwarded. Can't be combined with a 301 redirect.",
   "HTMLファイルを読み込む":
     "Load an HTML file",
   "index.html を優先して読み込みます。同梱のファイルはアセットにアップロードし、HTML内のパスを自動で書き換えます":

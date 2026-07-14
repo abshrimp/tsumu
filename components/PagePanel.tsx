@@ -443,7 +443,7 @@ export default function PagePanel() {
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info">
             {tr("外部サイトを表示（リバースプロキシ）")}
-            <InfoTip text={tr("ブラウザのURLは変えず、指定した外部サイトの内容をこのURLで中継して表示します。このページ以下のパスも転送先の同じパスへ中継されます。301リダイレクトとは同時に設定できません。")} />
+            <InfoTip text={tr("ブラウザのURLは変えず、指定した外部サイトの内容をこのURLで中継して表示します。トップページ（/）の配下では、このサイトのページ・ファイルを優先し、見つからないパスを中継します。転送先URLに ? または # がある場合は、このページのURLに一致するパスだけを中継します。301リダイレクトとは同時に設定できません。")} />
           </label>
           <input
             key={`${page.id}-rewrite-${page.rewriteTo ?? "empty"}`}
