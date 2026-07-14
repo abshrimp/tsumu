@@ -166,8 +166,10 @@ push のたびに Cloudflare Workers Builds で自動デプロイする場合は
 
 - Build command: `node scripts/cloudflare.mjs build`
 - Deploy command: `node scripts/cloudflare.mjs deploy`
-- Non-production branch deploy command: `node scripts/cloudflare.mjs upload`
+- Preview command（Worker Previews 設定後）: `node scripts/cloudflare-preview.mjs`
 - ビルド変数（Settings → Build → Variables and secrets。任意）: `D1_DATABASE_ID`・`KV_NAMESPACE_ID`
+
+エディタは Durable Object を実装するため、従来の `opennextjs-cloudflare upload` / `wrangler versions upload` の Version URL では表示できません。既存の Workers Builds には一度限りの **元に戻せない** Worker Previews への切替が必要です。[プレビューの分離と設定手順](docs/worker-previews.md)を確認してください。`npm run preview` は引き続きローカル用、`npm run preview:deploy` はクラウド上の Preview 作成用です。
 
 ビルド時にスクリプトが `wrangler.jsonc` からデプロイ用の設定（`wrangler.generated.jsonc`）を生成し、ビルド変数のIDを埋め込みます。IDのないバインディングは除外されるため、IDをコミットする必要はありません。
 
