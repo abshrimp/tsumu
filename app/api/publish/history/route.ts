@@ -14,6 +14,8 @@ import { userMessage } from "../../../../lib/errors";
 import { destParam, siteDestOf, siteIdOf } from "../../../../lib/site-server";
 import { DOC_PATH, protectedTreeEdits, type TreeEntry } from "../../../../lib/publish-files";
 
+import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
+
 export const maxDuration = 30;
 
 const isSha = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{7,40}$/i.test(s);
@@ -36,6 +38,12 @@ export async function GET(req: Request) {
   if (siteId instanceof NextResponse) return siteId;
   const dest = await siteDestOf(siteId, destParam(params));
   if (dest instanceof NextResponse) return dest;
+  let expected: unknown;
+  try { expected = JSON.parse(params.get("expected") ?? "null"); } catch { /* invalid contract */ }
+  if (!expected) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
+  if (!matchesPublishTarget(expected, siteId, target, targetConfig(dest, target), targetConfig(dest, "production").branch)) {
+    return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
+  }
   const confError = configError(dest, target, tr);
   if (confError) return NextResponse.json({ error: confError }, { status: 503 });
   const conf = targetConfig(dest, target) as Required<TargetConfig>;
@@ -65,7 +73,7 @@ export async function GET(req: Request) {
 
     const current = await head();
     if (!current) return NextResponse.json({ head: null, commits: [] });
-    const res = await gh(`/commits?sha=${branchPath(conf.branch)}&per_page=30`);
+    const res = await gh(`/commits?sha=${current}&per_page=30`);
     if (!res.ok) await fail(tr("履歴の取得"), res);
     const list = (await res.json()) as {
       sha: string;
@@ -95,7 +103,7 @@ export async function POST(req: Request) {
   const tr = await serverTr();
   const denied = await requireAuth();
   if (denied) return denied;
-  let body: { target?: unknown; sha?: unknown; site?: string; dest?: unknown };
+  let body: { target?: unknown; sha?: unknown; site?: string; dest?: unknown; expected?: unknown; expectedHead?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -110,6 +118,12 @@ export async function POST(req: Request) {
   if (siteId instanceof NextResponse) return siteId;
   const dest = await siteDestOf(siteId, body.dest);
   if (dest instanceof NextResponse) return dest;
+  if (!body.expected || typeof body.expectedHead !== "string" || !body.expectedHead) {
+    return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
+  }
+  if (!matchesPublishTarget(body.expected, siteId, target, targetConfig(dest, target), targetConfig(dest, "production").branch)) {
+    return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
+  }
   const confError = configError(dest, target, tr);
   if (confError) return NextResponse.json({ error: confError }, { status: 503 });
   const conf = targetConfig(dest, target) as Required<TargetConfig>;
@@ -120,6 +134,7 @@ export async function POST(req: Request) {
     if (!current) {
       return NextResponse.json({ error: tr("まだ公開されていません") }, { status: 404 });
     }
+    if (current !== body.expectedHead) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
     const srcRes = await gh(`/git/commits/${sha}`);
     if (!srcRes.ok) await fail(tr("指定した版の取得"), srcRes);
     const src = (await srcRes.json()) as { tree: { sha: string }; message: string };
@@ -153,7 +168,7 @@ export async function POST(req: Request) {
       method: "PATCH",
       body: JSON.stringify({ sha: commitSha, force: false }),
     });
-    if (upRes.status === 422) {
+    if (upRes.status === 422 || upRes.status === 409) {
       return NextResponse.json(
         { error: tr("ほかの公開と重なりました。履歴を読み込み直してから、もう一度お試しください") },
         { status: 409 }

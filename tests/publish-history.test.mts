@@ -9,7 +9,7 @@ const require = createRequire(new URL("../components/PublishModal.tsx", import.m
 const source = readFileSync(new URL("../components/PublishModal.tsx", import.meta.url), "utf8") + "\nexport { PublishHistory };";
 const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
 const conf = {
-  configured: true, previewEnabled: true,
+  site: "example", configured: true, previewEnabled: true,
   production: { repo: "example/site", branch: "main", url: null, error: null },
   test: { repo: "example/site", branch: "preview", url: null, error: null },
 };
@@ -21,7 +21,10 @@ type Instance = { type: unknown; values: any[]; deps: unknown[][]; cleanups: (()
 
 // 実際のコンポーネントを実行し、フックの状態を型・位置・key ごとに保持する。
 // 通信を保留して、応答が届く順とタブ操作を決める（外部通信・ブラウザは使わない）。
-function fixture(holdWrites = false) {
+function fixture(holdWrites = false, holdConfirmation = false) {
+  let branch = "main";
+  let confirm: ((yes: boolean) => void) | undefined;
+  const alerts: any[] = [];
   const instances = new Map<string, Instance>();
   let current: Instance;
   let cursor = 0;
@@ -61,27 +64,28 @@ function fixture(holdWrites = false) {
       }
     },
   };
-  const reads: { target: string; resolve: (data: unknown, status?: number) => void; reject: (error: Error) => void }[] = [];
+  const reads: { url: string; target: string; resolve: (data: unknown, status?: number) => void; reject: (error: Error) => void }[] = [];
   const writes: any[] = [];
   const pendingWrites: (() => void)[] = [];
   const request = (url: string, init?: RequestInit) => {
     if (init?.method === "POST") {
       writes.push(JSON.parse(String(init.body)));
+      if (branch !== "main") return Promise.resolve(Response.json({ error: "Destination changed. Close and reopen." }, { status: 409 }));
       return holdWrites ? new Promise<Response>((resolve) => pendingWrites.push(() => resolve(Response.json({ ok: true }))))
         : Promise.resolve(Response.json({ ok: true }));
     }
     return new Promise<Response>((resolve, reject) => reads.push({
-      target: new URL(url, "https://example.com").searchParams.get("target")!,
+      url, target: new URL(url, "https://example.com").searchParams.get("target")!,
       resolve: (data, status = 200) => resolve(Response.json(data, { status })), reject,
     }));
   };
   const mocks: Record<string, unknown> = {
     react: hooks,
     "./controls": { Seg: (props: any) => React.createElement("tabs", props) },
-    "../lib/dialog": { showConfirm: async () => true, showAlert: async () => {} },
+    "../lib/dialog": { showConfirm: () => holdConfirmation ? new Promise<boolean>(resolve => { confirm = resolve; }) : Promise.resolve(true), showAlert: async (...args: any[]) => { alerts.push(args); } },
     "../lib/site": {
       siteApi: (path: string, params: Record<string, string>) => `${path}?${new URLSearchParams(params)}`,
-      sitePublishFields: () => ({ site: "example" }),
+      sitePublishFields: () => ({ site: "example", ...(holdConfirmation ? { dest: { repo: "example/site", branch, previewBranch: "preview" } } : {}) }),
     },
     "../lib/i18n": { tr: (text: string) => text, getLang: () => "en" },
   };
@@ -139,7 +143,9 @@ function fixture(holdWrites = false) {
   const settle = async () => { await new Promise((resolve) => setImmediate(resolve)); flush(); };
   flush();
   return {
-    reads, writes, pendingWrites, settle,
+    reads, writes, pendingWrites, settle, alerts,
+    changeBranch() { branch = "release"; },
+    confirm() { assert.ok(confirm); confirm(true); },
     rollbackDisabled: () => elements(tree).find((e) => e.type === "button" && text(e) === "サイトを戻す")?.props.disabled,
     text: () => text(tree),
     select(target: string) { elements(tree).find((e) => e.type === "tabs").props.onChange(target); flush(); },
@@ -162,7 +168,7 @@ test("history tabs ignore older responses and roll back only a commit from the d
   f.reads[0].resolve(history("production"));
   await f.settle();
   await f.rollback();
-  assert.deepEqual(f.writes, [{ site: "example", target: "test", sha: "test-old" }]);
+  assert.deepEqual(f.writes, [{ site: "example", target: "test", sha: "test-old", expectedHead: "test-head", expected: { site: "example", target: "test", repo: "example/site", branch: "preview", productionBranch: "main" } }]);
   assert.equal(f.reads[2].target, "test", "a successful rollback refreshes its own history");
   f.reads[2].resolve(history("updated-test"));
   await f.settle();
@@ -218,4 +224,21 @@ test("switching targets during rollback keeps every target disabled until the op
   assert.equal(f.rollbackDisabled(), false);
   assert.match(f.text(), /new-production commit/);
   assert.doesNotMatch(f.text(), /old-operation-refresh commit/);
+});
+
+
+test("rollback confirmation keeps the displayed identity and head when Home settings change", async () => {
+  const f = fixture(false, true);
+  const query = new URL(f.reads[0].url, "https://example.com").searchParams;
+  assert.deepEqual(JSON.parse(query.get("expected")!), { site: "example", target: "production", repo: "example/site", branch: "main", productionBranch: "main" });
+  f.reads[0].resolve(history("production")); await f.settle();
+  await f.rollback(); assert.equal(f.writes.length, 0);
+  f.changeBranch(); f.confirm(); await f.settle();
+  assert.equal(f.writes.length, 1);
+  assert.equal(f.writes[0].dest.branch, "release");
+  assert.equal(f.writes[0].expected.branch, "main");
+  assert.equal(f.writes[0].expectedHead, "production-head");
+  assert.equal(f.reads.length, 1, "a conflicted rollback is not automatically retried or refreshed into another destination");
+  assert.match(f.text(), /Destination changed/);
+  assert.ok(f.alerts.every(args => args[1].title !== "ロールバックしました"));
 });

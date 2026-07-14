@@ -23,6 +23,8 @@ import {
   type TreeEntry,
 } from "../../../lib/publish-files";
 
+import { matchesPublishTarget, publishConflictMessage } from "../../../lib/publish-preconditions";
+
 export const maxDuration = 60;
 
 /** ツリー作成1リクエストあたりの上限（項目数・インライン本文の文字数） */
@@ -30,6 +32,7 @@ const TREE_CHUNK_ITEMS = 200;
 const TREE_CHUNK_BYTES = 512 * 1024;
 
 interface TargetField {
+  expected: unknown;
   target: PublishTarget;
   /** 公開するサイト */
   site: string;
@@ -40,6 +43,7 @@ interface TargetField {
 /** 公開する内容をコミットする（アセットは先に upload で送った blob を sha で指す） */
 interface CommitBody extends TargetField {
   action: "commit";
+  expectedHead: string | null;
   files: Record<string, string>;
   assetShas?: Record<string, string>;
   /** 手で追加した項目は、先端のモード・種類・内容をそのまま保持する */
@@ -121,6 +125,10 @@ export async function POST(req: Request) {
   if (siteId instanceof NextResponse) return siteId;
   const dest = await siteDestOf(siteId, body.dest);
   if (dest instanceof NextResponse) return dest;
+  if (!body.expected) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
+  if (!matchesPublishTarget(body.expected, siteId, target, targetConfig(dest, target), targetConfig(dest, "production").branch)) {
+    return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
+  }
   const confError = configError(dest, target, tr);
   if (confError) {
     return NextResponse.json({ error: confError }, { status: 503 });
@@ -130,7 +138,7 @@ export async function POST(req: Request) {
   const { gh, fail } = githubClient(conf, tr);
 
   // 空リポジトリでは Git Data API が使えないため、Contents API で初期コミットを作る
-  //（この .gitkeep は公開時の完全置換ツリーで消える）。
+  //（.gitkeep もスナップショットに含め、ほかの手動ファイルと同様に保持する）。
   // 最初のコミットのブランチがリポジトリの既定ブランチになるため、テスト公開が最初でも
   // 本番のブランチで初期化する（preview が既定になると、ホスティング側で本番として扱われる）
   const initBranch =
@@ -151,12 +159,7 @@ export async function POST(req: Request) {
         method: "POST",
         body: JSON.stringify({ content: base64, encoding: "base64" }),
       });
-    let blobRes = await createBlob();
-    if (blobRes.status === 409) {
-      // 並列アップロードの別リクエストが先に初期化した場合は失敗するが、再試行すれば通る
-      await initRepository();
-      blobRes = await createBlob();
-    }
+    const blobRes = await createBlob();
     if (!blobRes.ok) await fail(tr("アセット（{path}）のアップロード", { path }), blobRes);
     return (await blobRes.json()).sha;
   };
@@ -179,9 +182,21 @@ export async function POST(req: Request) {
     // 既存ツリーの path → sha と、アセット対応表・書き出したファイルの一覧を返す
     //（ブランチが無ければ空。一覧が無ければ generated: null）
     if (body.action === "tree") {
-      const refRes = await gh(`/git/ref/heads/${branchPath}`);
-      if (refRes.status === 404 || refRes.status === 409) {
-        return NextResponse.json({ ok: true, blobs: {}, manifest: {}, generated: null });
+      let refRes = await gh(`/git/ref/heads/${branchPath}`);
+      if (refRes.status === 409) {
+        // Initialize once, before taking the snapshot. Uploads must never move its head.
+        const bootRes = await initRepository();
+        // A concurrent preflight may have initialized first. Re-read, but do not
+        // treat an unsuccessful initialization as an empty snapshot.
+        refRes = await gh(`/git/ref/heads/${branchPath}`);
+        if (!bootRes.ok && !refRes.ok && refRes.status !== 404) await fail(tr("リポジトリの初期化"), bootRes);
+        if (!bootRes.ok && refRes.status === 404) {
+          const prodRef = await gh(`/git/ref/heads/${toBranchPath(initBranch)}`);
+          if (!prodRef.ok) await fail(tr("リポジトリの初期化"), bootRes);
+        }
+      }
+      if (refRes.status === 404) {
+        return NextResponse.json({ ok: true, head: null, blobs: {}, manifest: {}, generated: null });
       }
       if (!refRes.ok) await fail(tr("ブランチの取得"), refRes);
       const commitSha = (await refRes.json()).object.sha as string;
@@ -226,7 +241,7 @@ export async function POST(req: Request) {
       if (generatedText !== null && generated === null) {
         throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
       }
-      return NextResponse.json({ ok: true, blobs, manifest, generated });
+      return NextResponse.json({ ok: true, head: commitSha, blobs, manifest, generated });
     }
 
     // アセットごとに別のWorker呼び出しへ分け、無料枠のサブリクエスト上限を回避する。
@@ -283,13 +298,13 @@ export async function POST(req: Request) {
       await fail(tr("ブランチの取得"), refRes);
     }
 
-    // 空リポジトリ（409）は初期コミットを作ってから積み上げる。
-    // ブランチだけが無い場合（404）は親なしコミットを作り、後段でブランチを作成する。
-    if (refRes.status === 409) {
-      const bootRes = await initRepository();
-      if (!bootRes.ok) await fail(tr("リポジトリの初期化"), bootRes);
-      parentSha = (await bootRes.json()).commit.sha;
-      branchExists = initBranch === branch;
+    // A mandatory snapshot prevents an old keep/delete plan being rebased onto
+    // a newer head. null means the branch was absent, not "skip the check".
+    if (!(body.expectedHead === null || (typeof body.expectedHead === "string" && body.expectedHead.length > 0))) {
+      return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
+    }
+    if (refRes.status === 409 || parentSha !== body.expectedHead) {
+      return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
     }
 
     // 2. ツリーを構築（テキストはそのまま、バイナリはblobを作成してsha参照）
@@ -382,18 +397,20 @@ export async function POST(req: Request) {
     if (!commitRes.ok) await fail(tr("コミットの作成"), commitRes);
     const commitSha = (await commitRes.json()).sha;
 
-    // 4. ブランチを更新（エディタが常に正なので force）
+    // 4. Reject concurrent updates instead of overwriting a newer branch head.
     if (branchExists) {
       const upRes = await gh(`/git/refs/heads/${branchPath}`, {
         method: "PATCH",
-        body: JSON.stringify({ sha: commitSha, force: true }),
+        body: JSON.stringify({ sha: commitSha, force: false }),
       });
+      if (upRes.status === 422 || upRes.status === 409) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
       if (!upRes.ok) await fail(tr("ブランチの更新"), upRes);
     } else {
       const createRes = await gh(`/git/refs`, {
         method: "POST",
         body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commitSha }),
       });
+      if (createRes.status === 422 || createRes.status === 409) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
       if (!createRes.ok) await fail(tr("ブランチの作成"), createRes);
     }
 
