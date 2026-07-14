@@ -31,6 +31,51 @@ function autoSlug(slug: string): boolean {
     .some((seg) => /^page-\d+$/.test(seg) || /(^|-)copy(-\d+)?$/.test(seg));
 }
 
+/** エディタで使える通常のURLと [slug]。未知の形式は判定しない。 */
+function redirectSourceParts(slug: string): string[] | null {
+  // generator の configSource と同じく、転送元の外側の / だけを取り除く。
+  const source = slug.replace(/^\/+|\/+$/g, "");
+  const parts = source ? source.split("/") : [];
+  if (
+    parts.some((part) => part !== "[slug]" && !/^[a-zA-Z0-9_-]+$/.test(part)) ||
+    parts.filter((part) => part === "[slug]").length > 1
+  ) return null;
+  return parts;
+}
+
+/** 先行する転送に遮られず、転送先が同じ転送ルールに戻る場合だけ検出する。 */
+function hasSelfRedirect(page: Page, earlierRedirects: Page[]): boolean {
+  const destination = page.redirectTo?.trim();
+  if (!destination || !/^\/(?!\/)/.test(destination)) return false;
+  const sourceParts = redirectSourceParts(page.slug);
+  if (!sourceParts) return false;
+  // Next の転送判定は pathname のみ。転送先の重複した / は応答時にまとめられる。
+  // /_next で始まるパスは Next がカスタム転送の対象から除外する。
+  const path = destination.split(/[?#]/, 1)[0].replace(/\/{2,}/g, "/");
+  if (/^\/_next/i.test(path)) return false;
+  const target = path.slice(1).replace(/\/$/, "");
+  const targetParts = target ? target.split("/") : [];
+  const matchesSelf = sourceParts.length === targetParts.length && sourceParts.every((part, i) => {
+    const to = targetParts[i];
+    // 固定の転送先、または同じ位置の :slug なら何度転送しても一致し続ける。
+    // 変数の移動・複雑な式・外部URLや複数ルールの循環はここでは判定しない。
+    return part === "[slug]"
+      ? to === ":slug" || /^[a-zA-Z0-9_-]+$/.test(to)
+      : /^[a-zA-Z0-9_-]+$/.test(to) && part.toLowerCase() === to.toLowerCase();
+  });
+  if (!matchesSelf) return false;
+  // Next は先頭の一致を使う。先行ルールが転送先を受け取る可能性があれば、
+  // このルールだけでループすると断定しない（転送先の :slug は保守的に扱う）。
+  return !earlierRedirects.some((earlier) => {
+    const parts = redirectSourceParts(earlier.slug);
+    if (!parts) return true;
+    if (parts[0]?.toLowerCase().startsWith("_next")) return false;
+    return parts.length === targetParts.length && parts.every((part, i) =>
+      part === "[slug]" || targetParts[i] === ":slug" || part.toLowerCase() === targetParts[i].toLowerCase()
+    );
+  });
+}
+
 export function runChecks(doc: SiteDoc): CheckResult[] {
   const results: CheckResult[] = [];
   const routes = new Map<string, { name: string; query: string; shareable: boolean }[]>();
@@ -172,6 +217,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     }
   }
 
+  const earlierRedirects: Page[] = [];
   for (const pageId of published) {
     const page = doc.pages[pageId];
     if (page.redirectTo !== undefined || page.rewriteTo !== undefined) {
@@ -192,6 +238,12 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
           level: "error",
           message: tr("リダイレクトページ「{name}」の301転送先は / から始まるサイト内URLか http(s) URLにしてください", { name: page.name }),
         });
+      } else if (hasSelfRedirect(page, earlierRedirects)) {
+        results.push({
+          help: "page-redirect",
+          level: "error",
+          message: tr("リダイレクトページ「{name}」の301転送先「{destination}」は転送元と同じURLに一致します（転送が繰り返されるため、別のパスに変更してください）", { name: page.name, destination: page.redirectTo!.trim() }),
+        });
       } else if (
         page.rewriteTo?.trim() &&
         !/^https?:\/\/[^/?#]+/i.test(page.rewriteTo.trim())
@@ -202,6 +254,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
           message: tr("リダイレクトページ「{name}」の表示する外部サイトは http(s):// から始まるURLにしてください", { name: page.name }),
         });
       }
+      if (page.redirectTo?.trim()) earlierRedirects.push(page);
       continue;
     }
     if (page.rawHtml?.trim()) {
