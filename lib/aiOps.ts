@@ -7,11 +7,13 @@
  * ブラウザは同じ関数で今の編集データへ1回の「元に戻す」で戻せる変更として適用する。
  */
 
-import type { DocNode, NodeStyles, Page, SiteDoc, StyleMap, StyleState } from "./types";
+import type { DocNode, NodeStyles, Page, SiteDoc, StyleMap, StyleState, Script } from "./types";
 import { BODY_NODE_ID } from "./types";
 import { renamePage, setPageTitle } from "./pageTitle";
 import { normalizeBreakpoints } from "./style";
 import { pageLangOf, siteLangOf } from "./site-lang";
+import { refreshClonedIds } from "./cloneIds";
+import { walkSteps } from "./script";
 
 /** AIが作る要素 */
 export interface AiNodeSpec {
@@ -321,6 +323,34 @@ function descendants(doc: SiteDoc, id: string, seen = new Set<string>()): string
   return out;
 }
 
+/** 部分コピーと文書全体で同じIDを作る。省略された要素と衝突した場合は再生を中止する。 */
+function duplicateIdFactory(doc: SiteDoc, copyId: string) {
+  const used = new Set<string>();
+  const collectScripts = (scripts: Script[] = []) => {
+    for (const script of scripts) {
+      used.add(script.id);
+      walkSteps(script.steps, (step) => { used.add(step.id); });
+    }
+  };
+  for (const node of Object.values(doc.nodes)) {
+    if (node.attrId) used.add(node.attrId);
+    if (node.type === "field" && node.field?.kind === "radio" && node.field.group?.trim()) used.add(node.field.group.trim());
+    collectScripts(node.scripts);
+  }
+  for (const page of Object.values(doc.pages)) {
+    collectScripts(page.scripts);
+    collectScripts(page.pageScripts);
+  }
+  let n = 0;
+  return (prefix: "attr" | "sc" | "st") => {
+    const id = `${prefix}_${copyId}_${++n}`;
+    // 空き番号を探すと、サーバーにないページやマスターの内容によって再生結果が変わってしまう。
+    if (used.has(id)) throw new Error("duplicate identity already exists");
+    used.add(id);
+    return id;
+  };
+}
+
 /**
  * 操作を順に適用する（doc を直接書き換える）。
  * 1つの操作が失敗しても、ほかの操作は続ける
@@ -498,20 +528,22 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
           if (node.id === target.rootId) throw new Error("the component root cannot be duplicated");
           if (op.ref && refs.has(op.ref)) throw new Error(`ref "${op.ref}" already exists`);
           const copyId = op.newId || newId();
-          if (!validNodeId(copyId)) throw new Error("invalid node id");
+          if (typeof copyId !== "string" || !validNodeId(copyId)) throw new Error("invalid node id");
+          const makeId = duplicateIdFactory(doc, copyId);
+          const clones: DocNode[] = [];
           let n = 0;
           const clone = (id: string, as?: string): string => {
             const src = doc.nodes[id];
             const c = structuredClone(src);
             c.id = as ?? `${copyId}_${(n += 1)}`;
             if (Object.hasOwn(doc.nodes, c.id)) throw new Error("duplicate node id already exists");
-            // ID属性は重ならないように外す
-            delete c.attrId;
+            clones.push(c);
             c.children = src.children.map((k) => clone(k));
-            doc.nodes[c.id] = c;
             return c.id;
           };
           const made = clone(node.id, copyId);
+          refreshClonedIds(doc, target.pageId, clones, target.rootId ? [target.rootId] : [], undefined, makeId);
+          for (const c of clones) doc.nodes[c.id] = c;
           parent.list.splice(parent.list.indexOf(node.id) + 1, 0, made);
           if (op.ref) refs.set(op.ref, made);
           applied.push({ op: "duplicate", id: node.id, newId: made });
