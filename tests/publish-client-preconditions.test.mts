@@ -4,17 +4,24 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
 import * as React from "react";
+import { generateProject } from "../lib/generator";
+import { GENERATED_MANIFEST_PATH, parseGeneratedManifest } from "../lib/publish-files";
+import type { SiteDoc } from "../lib/types";
 
 const require = createRequire(new URL("../components/PublishModal.tsx", import.meta.url));
 const source = readFileSync(new URL("../components/PublishModal.tsx", import.meta.url), "utf8");
 const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
 const old = "a".repeat(40);
-function fixture({ conflict = false, legacy = false, asset = false } = {}) {
+function fixture({ conflict = false, legacy = false, asset = false, document, snapshot }: {
+  conflict?: boolean; legacy?: boolean; asset?: boolean; document?: SiteDoc;
+  snapshot?: { blobs: Record<string, string>; generated: Record<string, string> | null };
+} = {}) {
   let branch = "main", site = "example";
   let confirm: (yes: boolean) => void = () => { throw new Error("Confirmation not shown"); };
   let waiting = false;
   const writes: any[] = [], published: string[] = [], updates: { index: number; value: any }[] = [];
-  const doc = { siteName: "Example", assets: {} };
+  const confirmations: string[] = [];
+  const doc = document ?? { siteName: "Example", assets: {} };
   const store = { doc, markPublished: (fingerprint: string) => published.push(fingerprint) };
   const useEditor = Object.assign((fn: any) => fn(store), { getState: () => store });
   const conf = {
@@ -31,17 +38,17 @@ function fixture({ conflict = false, legacy = false, asset = false } = {}) {
     react: hooks,
     "../lib/store": { useEditor, docFingerprint: () => "published" },
     "./HelpCenter": {}, "./controls": {},
-    "../lib/dialog": { showConfirm: () => new Promise<boolean>(resolve => { confirm = resolve; waiting = true; }) },
+    "../lib/dialog": { showConfirm: (message: string) => new Promise<boolean>(resolve => { confirmations.push(message); confirm = resolve; waiting = true; }) },
     "../lib/assets": { detectSvgFilters: async () => ({}) },
-    "../lib/generator": { generateProject: () => ({ files: { "app/page.tsx": "NEW" }, binaries: asset ? { "public/p.png": "eA==" } : {}, remoteAssets: {} }) },
+    "../lib/generator": { generateProject: document ? generateProject : () => ({ files: { "app/page.tsx": "NEW" }, binaries: asset ? { "public/p.png": "eA==" } : {}, remoteAssets: {} }) },
     "../lib/generator/checks": { runChecks: () => [] },
     "../lib/errors": { userMessage: (e: Error) => e.message },
     "../lib/site": { sitePublishFields: () => ({ site, dest: { repo: "owner/site", branch, previewBranch: "preview" } }) },
-    "../lib/i18n": { tr: (s: string) => s, getLang: () => "en" },
+    "../lib/i18n": { tr: (s: string, values: Record<string, string> = {}) => s.replace(/\{(\w+)\}/g, (match, key) => values[key] ?? match), getLang: () => "en" },
   };
   const request = async (_url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body)); writes.push(body);
-    if (body.action === "tree") return Response.json({ ...(legacy ? {} : { head: old }), blobs: { "app/page.tsx": "manual" }, manifest: {}, generated: {} });
+    if (body.action === "tree") return Response.json({ ...(legacy ? {} : { head: old }), blobs: { "app/page.tsx": "manual" }, manifest: {}, generated: {}, ...snapshot });
     if (body.dest.branch !== body.expected.productionBranch || conflict) return Response.json({ error: "Destination or head changed; reopen and review." }, { status: 409 });
     return Response.json({ sha: "asset", commitUrl: "https://example.com/commit" });
   };
@@ -52,7 +59,7 @@ function fixture({ conflict = false, legacy = false, asset = false } = {}) {
   const button = elements(tree).find(e => e.type === "button" && e.props.className === "btn btn-primary");
   const run = () => button.props.onClick() as Promise<void>;
   const settle = () => new Promise(resolve => setImmediate(resolve));
-  return { run, settle, writes, updates, published, get waiting() { return waiting; }, confirm: (yes = true) => confirm(yes), changeBranch: () => { branch = "release"; }, navigate: () => { site = "other"; } };
+  return { run, settle, writes, updates, published, confirmations, get waiting() { return waiting; }, confirm: (yes = true) => confirm(yes), changeBranch: () => { branch = "release"; }, navigate: () => { site = "other"; } };
 }
 
 test("confirmation cannot retarget a publish after another Home tab changes local settings", async () => {
@@ -91,4 +98,76 @@ test("unchanged destination publishes with the approved identity and snapshot he
   assert.deepEqual(f.writes.map(w => w.action), ["tree", "upload", "commit"]);
   assert.ok(f.writes.every(w => w.expected.site === "example" && w.expected.branch === "main"));
   assert.equal(f.writes.at(-1).expectedHead, old); assert.deepEqual(f.published, ["published"]);
+});
+
+const pwaDoc: SiteDoc = {
+  siteName: "PWA", nodes: {}, assets: {}, pageOrder: ["home"], pwa: { enabled: false },
+  pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [] } },
+};
+
+test("PWA retirement is included before edited-worker confirmation, and cancel prevents all writes", async () => {
+  for (const accepted of [false, true]) {
+    const f = fixture({ document: pwaDoc, snapshot: {
+      blobs: { "public/sw.js": "edited", "manual.txt": "mine" }, generated: { "public/sw.js": "original" },
+    } });
+    const run = f.run(); await f.settle();
+    assert.equal(f.waiting, true);
+    assert.match(f.confirmations[0], /public\/sw\.js/);
+    assert.deepEqual(f.writes.map(w => w.action), ["tree"]);
+    f.confirm(accepted); await run;
+    if (!accepted) {
+      assert.deepEqual(f.writes.map(w => w.action), ["tree"]);
+      assert.deepEqual(f.published, []);
+      assert.ok(f.updates.some(u => u.value === "check"));
+      continue;
+    }
+    const commit = f.writes.at(-1);
+    assert.equal(commit.action, "commit");
+    assert.equal(commit.expectedHead, old);
+    assert.deepEqual(commit.expected, f.writes[0].expected);
+    assert.match(commit.files["public/sw.js"], /registration\.unregister\(\)/);
+    assert.deepEqual(commit.keptPaths, ["manual.txt"]);
+    assert.ok(parseGeneratedManifest(commit.files[GENERATED_MANIFEST_PATH])!["public/sw.js"]);
+    assert.deepEqual(f.published, ["published"]);
+  }
+});
+
+test("actual publication retains retirement ownership across repeated off, absent settings, and reenable", async () => {
+  let snapshot: { blobs: Record<string, string>; generated: Record<string, string> } = {
+    blobs: { "public/sw.js": "original" }, generated: { "public/sw.js": "original" },
+  };
+  let retirement = "";
+  for (const pwa of [{ enabled: false }, undefined, { enabled: true }]) {
+    const f = fixture({ document: { ...pwaDoc, pwa }, snapshot });
+    await f.run();
+    assert.equal(f.waiting, false);
+    const commit = f.writes.at(-1);
+    assert.equal(commit.action, "commit");
+    const next = parseGeneratedManifest(commit.files[GENERATED_MANIFEST_PATH])!;
+    assert.ok(next["public/sw.js"]);
+    if (pwa?.enabled) {
+      assert.equal(commit.files["public/sw.js"], generateProject({ ...pwaDoc, pwa }).files["public/sw.js"]);
+      assert.ok(commit.files["public/pwa.js"]);
+    } else {
+      assert.match(commit.files["public/sw.js"], /registration\.unregister\(\)/);
+      if (retirement) assert.equal(commit.files["public/sw.js"], retirement);
+      retirement = commit.files["public/sw.js"];
+      assert.equal(commit.files["public/pwa.js"], undefined);
+      assert.equal(commit.files["app/manifest.ts"], undefined);
+    }
+    snapshot = { blobs: next, generated: next };
+  }
+});
+
+test("publication without destination ownership preserves a manual worker and does not claim it", async () => {
+  for (const generated of [null, {}]) {
+    const f = fixture({ document: pwaDoc, snapshot: { blobs: { "public/sw.js": "manual" }, generated } });
+    await f.run();
+    assert.equal(f.waiting, false);
+    const commit = f.writes.at(-1);
+    assert.equal(commit.action, "commit");
+    assert.equal(commit.files["public/sw.js"], undefined);
+    assert.deepEqual(commit.keptPaths, ["public/sw.js"]);
+    assert.equal(parseGeneratedManifest(commit.files[GENERATED_MANIFEST_PATH])!["public/sw.js"], undefined);
+  }
 });
