@@ -378,3 +378,64 @@ test("embedded images are kept once in the asset and moved to the server with ev
   assert.equal(doc.nodes.bg.styles.base!.default!.backgroundImage, `url(${src})`);
   assert.equal(JSON.stringify(doc).includes("base64"), false);
 });
+
+test("embedded asset migration includes page backgrounds created by the background panel", () => {
+  const data = "data:image/png;base64,AAAA";
+  const doc = docWith([]);
+  doc.assets.s = { id: "s", name: "s.png", width: 10, height: 10, dataUrl: data };
+  doc.pages.p.bodyStyles = {
+    base: {
+      default: { backgroundImage: `url("${data}")`, color: "red" },
+      hover: { backgroundImage: `url("${data}")` },
+    },
+    md: { focus: { backgroundImage: `url("${data}")` } },
+  };
+  doc.pages.other = {
+    ...doc.pages.p, id: "other", slug: "other",
+    bodyStyles: { base: { default: { backgroundImage: `url("${data}")` } } },
+  };
+  doc.pages.plain = { ...doc.pages.p, id: "plain", slug: "plain", bodyStyles: undefined };
+  replaceEmbeddedAsset(doc, "s", "assets/s.png");
+  const expected = 'url("/api/assets/file?path=assets%2Fs.png")';
+  assert.equal(doc.pages.p.bodyStyles.base.default!.backgroundImage, expected);
+  assert.equal(doc.pages.p.bodyStyles.base.hover!.backgroundImage, expected);
+  assert.equal(doc.pages.p.bodyStyles.md.focus!.backgroundImage, expected);
+  assert.equal(doc.pages.other.bodyStyles!.base.default!.backgroundImage, expected);
+  assert.equal(doc.pages.p.bodyStyles.base.default!.color, "red");
+  assert.equal(doc.pages.plain.bodyStyles, undefined);
+  const generated = Object.values(generateProject(doc).files).join("\n");
+  assert.ok(!generated.includes(data), "the generated page no longer embeds the background");
+  assert.match(generated, /url\([^)]*\/assets\//);
+});
+
+test("page background migration preserves prefix collisions and non-panel CSS or authored code", () => {
+  const data = "data:image/png;base64,AAAA";
+  const values = [
+    `url("${data}BBBB")`,
+    `url("${data}#icon")`,
+    `url(${data})`,
+    `url('${data}')`,
+    `url( "${data}" )`,
+    `url("${data}"), url("${data}")`,
+    `linear-gradient(red, blue), url("${data}")`,
+    `image-set("${data}" 1x)`,
+  ];
+  for (const value of values) {
+    const doc = docWith([]);
+    doc.assets.s = { id: "s", name: "s.png", width: 10, height: 10, dataUrl: data };
+    doc.assets.other = { ...doc.assets.s, id: "other" };
+    doc.pages.p.bodyStyles = { base: { default: {
+      backgroundImage: value,
+      content: `"${data}"`,
+      "--asset-url": data,
+    } } };
+    doc.pages.p.rawHtml = `<img src="${data}">`;
+    doc.pages.p.customTopHtml = data;
+    doc.customHeadHtml = data;
+    const before = structuredClone(doc);
+    replaceEmbeddedAsset(doc, "s", "assets/s.png");
+    assert.deepEqual(doc.pages, before.pages, value);
+    assert.equal(doc.customHeadHtml, before.customHeadHtml);
+    assert.deepEqual(doc.assets.other, before.assets.other);
+  }
+});
