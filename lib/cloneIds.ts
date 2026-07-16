@@ -47,7 +47,7 @@ export function refreshClonedIds(
   replacing?: { rootId: string; attrId?: string }
 ) {
   const used = new Set<string>();
-  for (const id of pageNodeIds(doc, pageId, extraRootIds)) {
+  for (const id of pageNodeIds(doc, pageId, extraRootIds, true)) {
     const n = doc.nodes[id];
     if (n?.attrId) used.add(n.attrId);
     if (n?.type === "field" && n.field?.kind === "radio" && n.field.group?.trim()) {
