@@ -1,14 +1,16 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
+import type { SiteDoc } from "../../lib/types";
 
 /** 実際のダイアログ・ストア・コピー処理を、合成データだけで動かす。 */
-export async function copySiteStorageBundle() {
+export async function copySiteStorageBundle(doc?: SiteDoc) {
   return (await build({
     stdin: { contents: `
       import React from "react";
       import { createRoot } from "react-dom/client";
       import CopyToSite from "./components/CopyToSite";
       import { useEditor } from "./lib/store";
+      ${doc ? `useEditor.getState().replaceDoc(${JSON.stringify(doc)});` : ""}
       const root = createRoot(document.getElementById("app"));
       window.closeCopy = () => root.unmount();
       root.render(<CopyToSite pageIds={useEditor.getState().doc.pageOrder} onClose={window.closeCopy} />);

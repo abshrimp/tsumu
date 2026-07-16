@@ -55,7 +55,7 @@ export function buildPagePayload(doc: SiteDoc, pageIds: string[]): PagePayload {
     queries[p.id] = p.query ?? "";
   }
   // ページの設定（OGP画像・背景・ページのスクリプト）で使うアセットも拾うため、ページごと渡す
-  const deps = buildClipPayload(doc, { nodes: [...nodes, ...(pages as unknown as DocNode[])], rootIds: [] });
+  const deps = buildClipPayload(doc, { nodes, rootIds: [], pages });
   deps.nodes = [];
   return { pages, nodes, folders, slugs, queries, deps, lang: siteLangOf(doc) };
 }

@@ -7,8 +7,9 @@
  * 別のタブ・ウィンドウで開いた別のサイトでも、⌘V で同じものを貼り付けられる
  */
 
-import type { Asset, Component, CustomFont, DocNode, SiteDoc } from "./types";
+import type { Asset, Component, CustomFont, DocNode, Page, SiteDoc } from "./types";
 import { assetSrc } from "./assets";
+import { createCssAssetFinder } from "./css-asset-dependencies";
 import { zipAssetClosure, zipStylesheet } from "./zip-css";
 import { genId } from "./presets";
 import { cloneSteps, scriptUid } from "./script";
@@ -44,7 +45,7 @@ function descendants(doc: SiteDoc, id: string, out: DocNode[] = []): DocNode[] {
 }
 
 /** コピーした要素に、貼り付け先で必要になるもの（アセット・コンポーネント・フォント）を添える */
-export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds: string[] }): ClipPayload {
+export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds: string[]; pages?: Page[] }): ClipPayload {
   // 中で使っているコンポーネントを、入れ子の分までたどる
   const components: Record<string, Component> = {};
   const componentNodes: DocNode[] = [];
@@ -62,11 +63,17 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
   visit(clip.nodes);
 
   // ID・URL が書かれているアセット（画像要素・背景・スクリプトなど、使い方を問わない）
-  const text = JSON.stringify([clip.nodes, componentNodes]);
+  const text = JSON.stringify([clip.nodes, componentNodes, clip.pages ?? []]);
+  const findCssAssets = createCssAssetFinder(doc.assets);
+  const cssIds = new Set<string>();
+  for (const node of [...clip.nodes, ...componentNodes]) {
+    findCssAssets(node.styles, node.customCss).forEach((id) => cssIds.add(id));
+  }
+  for (const page of clip.pages ?? []) findCssAssets(page.bodyStyles).forEach((id) => cssIds.add(id));
   const assets: Record<string, Asset> = {};
   for (const a of Object.values(doc.assets)) {
     const src = assetSrc(a);
-    if (text.includes(a.id) || (src && text.includes(src))) assets[a.id] = structuredClone(a);
+    if (cssIds.has(a.id) || text.includes(a.id) || (src && text.includes(src))) assets[a.id] = structuredClone(a);
   }
   for (const id of zipAssetClosure(doc.assets, Object.keys(assets))) assets[id] = structuredClone(doc.assets[id]);
   const customFonts = (doc.customFonts ?? []).filter((f) => text.includes(f.family));

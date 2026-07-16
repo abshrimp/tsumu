@@ -159,3 +159,31 @@ test("同じファイルの全IDを確認して削除した場合、実体への
   await expect.poll(() => deleted).toEqual([candidate.path]);
   expect((await doc(page)).assets).toEqual({});
 });
+
+for (const location of ["node.styles", "node.customCss", "page.bodyStyles"] as const) {
+  test(`${location} のCSSエスケープで使う画像を未使用の一括削除から守る`, async ({ page }) => {
+    await page.evaluate(({ location, path }) => {
+      (window as any).assetEditor.getState().updateDoc((d: any) => {
+        const css = `url("\\2f api/assets/file?path=${encodeURIComponent(path)}")`;
+        if (location === "node.styles") d.nodes.image.styles = { base: { hover: { backgroundImage: css } } };
+        if (location === "node.customCss") d.nodes.image.customCss = `background-image: ${css};`;
+        if (location === "page.bodyStyles") d.pages.p.bodyStyles = { sm: { default: { backgroundImage: css } } };
+      });
+    }, { location, path: candidate.path! });
+    const before = await doc(page);
+    await expect(page.locator(".asset-count")).toContainText("未使用 1件");
+    await begin(page);
+    await expect(page.getByRole("dialog")).toContainText("使用していないアセット 1件");
+    await finish(page);
+    await expect.poll(() => deleted).toEqual([spare.path]);
+    await expect(page.locator(`[data-asset-id="${candidate.id}"]`)).toBeVisible();
+    await expect(page.locator(".asset-clean")).toHaveCount(0);
+    const after = await doc(page);
+    expect(after.nodes).toEqual(before.nodes);
+    expect(after.pages).toEqual(before.pages);
+    await page.evaluate(() => (window as any).assetEditor.getState().undo());
+    expect(await doc(page)).toEqual(before);
+    await page.evaluate(() => (window as any).assetEditor.getState().redo());
+    expect(await doc(page)).toEqual(after);
+  });
+}
