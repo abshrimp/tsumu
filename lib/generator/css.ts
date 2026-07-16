@@ -58,6 +58,21 @@ function fontFamilyCss(doc: SiteDoc, value: string): string {
 
 /* ---------- CSS生成 ---------- */
 
+/** ZIPのHTML直列化で生じる区切り文字を保ち、追加クエリの & だけを変換する。 */
+function htmlAssetQuerySuffix(suffix: string): string {
+  // 任意の &name; を文字参照扱いすると、未知の名前のクエリを壊す。
+  // 名前付き参照は引用符・空白・山括弧・& を扱い、HTML全体は再パースしない。
+  const entity = /^&(?:#(?:[xX][\da-fA-F]+|\d+);?|(?:apos|Tab|NewLine);|(?:amp|AMP|quot|QUOT|lt|LT|gt|GT)(?:;|(?![A-Za-z\d=])))/.exec(suffix)?.[0];
+  if (!entity) return suffix.replace(/^&/, "?");
+  const name = entity.slice(1).replace(/;$/, "");
+  const point = /^#[xX]/.test(name) ? parseInt(name.slice(2), 16)
+    : name.startsWith("#") ? parseInt(name.slice(1), 10) : undefined;
+  // &quot; 等の引用符・空白や数値文字参照をクエリと誤認しない。
+  // &amp;quot; は二重にデコードせず、実際の区切りの1文字分だけを取り除く。
+  return name === "amp" || name === "AMP" || point === 38
+    ? "?" + suffix.slice(entity.length) : suffix;
+}
+
 export function cssValue(
   doc: SiteDoc,
   prop: string,
@@ -77,21 +92,39 @@ export function cssValue(
   }
   if (prop === "rawHtml") {
     // HTML ZIPの参照はCSSトークンではないため、既存のHTML書き出し処理を保つ。
-    let output = value.replace(/tsumu-zip-css:([A-Za-z0-9%._~-]+)/g, (_token, encoded: string) => {
+    const output = value.replace(/tsumu-zip-css:([A-Za-z0-9%._~-]+)/g, (_token, encoded: string) => {
       let id = "";
       try { id = decodeURIComponent(encoded); } catch { /* explicit error below */ }
       const name = assetNames.get(id);
       if (!name || !zipStylesheet(doc.assets[id])) throw new Error(tr("ZIPのCSSデータを読み込めません。ZIPを再読み込みしてください。"));
       return `/assets/${name}`;
     });
-    for (const [source, target] of sources) {
-      if (source.startsWith("tsumu-zip-css:")) continue;
-      output = output.split(source).map((part, index) =>
-        index && source.startsWith("/api/assets/file?path=")
-          ? part.replace(/^&(?:amp;)?/, "?") : part
-      ).join(target);
+    const rewrite = (text: string, entities = true) => {
+      for (const [source, target] of sources) {
+        if (source.startsWith("tsumu-zip-css:")) continue;
+        text = text.split(source).map((part, index) =>
+          index && source.startsWith("/api/assets/file?path=")
+            ? entities ? htmlAssetQuerySuffix(part) : part.replace(/^&(?:amp;)?/, "?")
+            : part
+        ).join(target);
+      }
+      return text;
+    };
+    // script/style等の本文では &quot; も文字通りのクエリになり得る。
+    // 属性内の引用符や > を保ったまま本文を分け、文字参照の扱いだけを切り替える。
+    // title/textarea内のタグ風文字列も、独立したタグとして解釈しない。
+    // <style-card> 等のカスタム要素を誤認しないよう、単語境界でなくタグ名の終端を使う。
+    const tokens = /<!--[\s\S]*?(?:-->|$)|(<(script|style|xmp|iframe|noembed|noframes|title|textarea)(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>|$)|<[A-Za-z][\w:-]*\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+    let result = "";
+    let from = 0;
+    for (const match of output.matchAll(tokens)) {
+      result += rewrite(output.slice(from, match.index));
+      result += match[1]
+        ? rewrite(match[1]) + rewrite(match[3], /^(?:title|textarea)$/i.test(match[2])) + match[4]
+        : rewrite(match[0], !match[0].startsWith("<!--"));
+      from = match.index + match[0].length;
     }
-    return output;
+    return result + rewrite(output.slice(from));
   }
   return replaceCssAssetUrls(value, sources, { proxyQueries: true });
 }

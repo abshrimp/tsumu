@@ -1,5 +1,6 @@
 import { expect, test, type Frame, type Page } from "@playwright/test";
 import { fixtureAsset, zipCssBrowser } from "../tests/helpers/zip-css-browser";
+import { assetSrc } from "../lib/assets";
 
 async function previewFrame(page: Page) {
   await expect(page.locator("#preview")).toHaveAttribute("sandbox", "allow-scripts allow-forms allow-popups");
@@ -74,6 +75,49 @@ async function expectLinkSemantics(page: Page, target: Page | Frame) {
 }
 
 for (const storage of ["local", "remote"] as const) {
+  test(`ZIP inline CSS ${storage}: quoted assets survive native import, preview and route export`, async ({ page }) => {
+    const fixture = await zipCssBrowser(page, storage);
+    const source = assetSrc(fixtureAsset(fixture.doc, "site/images/background.svg"));
+    // ブラウザ自身のHTML直列化で生じる &quot; が、修正対象の入力になる。
+    expect(fixture.doc.pages.p.rawHtml).toContain(`id="inline-double" style="background-image:url(&quot;${source}&quot;)"`);
+    expect(fixture.doc.pages.p.rawHtml).toContain(`id="inline-numeric" style="background-image:url(&quot;${source}&quot;)"`);
+
+    async function checkImages(target: Page | Frame, exported: boolean) {
+      for (const id of ["custom", "double", "single", "unquoted", "query", "fragment", "numeric", "image-set", "raw-query"]) {
+        const image = await target.locator(`#inline-${id}`).evaluate(async (element) => {
+          const css = getComputedStyle(element).backgroundImage;
+          const url = /url\("([^"]+)"\)/.exec(css)?.[1];
+          if (!url) throw new Error(`Missing background image: ${element.id}: ${css}`);
+          const image = new Image();
+          image.src = url;
+          await image.decode();
+          return { url, width: image.naturalWidth, height: image.naturalHeight };
+        });
+        expect([image.width, image.height]).toEqual([7, 5]);
+        const url = new URL(image.url);
+        expect(url.hash).toBe(id === "query" || id === "fragment" ? "#paint" : "");
+        if (exported) {
+          expect(url.pathname).toBe("/assets/site-images-background.svg");
+          const query = id === "query" ? "?v=1&theme=dark" : id === "raw-query" ? "?quot;" : "";
+          expect(url.search).toBe(storage === "remote" ? query : "");
+        } else if (storage === "remote") {
+          expect(url.searchParams.get("sig")).toMatch(/^fixture-/);
+          expect(url.searchParams.get("v")).toBe(id === "query" ? "1" : null);
+        } else expect(url.protocol).toBe("data:");
+      }
+    }
+
+    await fixture.mount();
+    await checkImages(await previewFrame(page), false);
+    const stored = structuredClone(fixture.doc);
+    const output = await fixture.openExport();
+    await checkImages(page, true);
+    expect(output.html).toContain('id="inline-double" style="background-image:url(&quot;/assets/site-images-background.svg&quot;)"');
+    expect(fixture.doc).toEqual(stored);
+    expect(fixture.unexpected).toEqual([]);
+    expect(fixture.errors).toEqual([]);
+  });
+
   test(`ZIP CSS ${storage}: nested styles, images and a real font load in the opaque preview`, async ({ page }) => {
     const fixture = await zipCssBrowser(page, storage);
     await fixture.mount();
