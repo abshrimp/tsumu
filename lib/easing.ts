@@ -32,14 +32,15 @@ const STEP_ALIASES: Record<string, StepPosition> = {
 const num = (s: string): number | null => {
   const t = s.trim();
   if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
-  return Number(t);
+  const value = Number(t);
+  return Number.isFinite(value) ? value : null;
 };
 
 /** 値を読む。グラフで表せない値（linear() など）は null */
 export function parseEasing(value: string | undefined): Easing | null {
   const v = (value ?? "").trim().toLowerCase();
   if (!v) return { kind: "bezier", b: [...KEYWORDS.ease] };
-  if (KEYWORDS[v]) return { kind: "bezier", b: [...KEYWORDS[v]] };
+  if (Object.hasOwn(KEYWORDS, v)) return { kind: "bezier", b: [...KEYWORDS[v]] };
   if (v === "step-start") return { kind: "steps", n: 1, pos: "jump-start" };
   if (v === "step-end") return { kind: "steps", n: 1, pos: "jump-end" };
   const bez = /^cubic-bezier\(([^)]*)\)$/.exec(v);
@@ -53,9 +54,12 @@ export function parseEasing(value: string | undefined): Easing | null {
   }
   const steps = /^steps\(([^)]*)\)$/.exec(v);
   if (steps) {
-    const [countRaw, posRaw] = steps[1].split(",");
+    const parts = steps[1].split(",");
+    if (parts.length > 2) return null;
+    const [countRaw, posRaw] = parts;
     const n = num(countRaw ?? "");
-    const pos = posRaw === undefined ? "jump-end" : STEP_ALIASES[posRaw.trim()];
+    const name = posRaw?.trim();
+    const pos = name === undefined ? "jump-end" : Object.hasOwn(STEP_ALIASES, name) ? STEP_ALIASES[name] : null;
     if (n === null || !Number.isInteger(n) || !pos) return null;
     if (n < (pos === "jump-none" ? 2 : 1)) return null;
     return { kind: "steps", n, pos };

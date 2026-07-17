@@ -179,3 +179,19 @@ for (const declaration of [
     assert.equal(serializeKeyframes(parsed), source);
   });
 }
+
+test("easing parsing treats prototype names and malformed steps as raw values", () => {
+  for (const value of ["constructor", "__proto__", "steps(3, constructor)", "steps(3, __proto__)", "steps(3, jump-end, ignored)", "steps(3, jump-end,)"]) {
+    assert.equal(parseEasing(value), null, value);
+  }
+});
+
+test("easing parsing never produces infinite control points", () => {
+  const huge = "9".repeat(400);
+  assert.equal(parseEasing(`cubic-bezier(0, ${huge}, 1, 1)`), null);
+  assert.equal(parseEasing(`cubic-bezier(0, 0, 1, -${huge})`), null);
+  assert.equal(parseEasing(`steps(${huge})`), null);
+  for (const value of ["EASE", "steps(3, START)", "steps(3, end)", "steps(3, jump-both)"]) {
+    assert.ok(parseEasing(value), value);
+  }
+});
