@@ -39,7 +39,7 @@ function parseLength(v: string): number | null {
   if (!m) return null;
   const n = Number(m[1]);
   // 単位なしは 0 だけ許される
-  if (!m[2] && n !== 0) return null;
+  if (!Number.isFinite(n) || (!m[2] && n !== 0)) return null;
   return n;
 }
 
@@ -49,16 +49,15 @@ function parseAngle(v: string): number | null {
   const n = Number(m[1]);
   const unit = (m[2] ?? "").toLowerCase();
   if (!unit) return n === 0 ? 0 : null;
-  if (unit === "turn") return n * 360;
-  if (unit === "rad") return (n * 180) / Math.PI;
-  if (unit === "grad") return n * 0.9;
-  return n;
+  const degrees = unit === "turn" ? n * 360 : unit === "rad" ? (n * 180) / Math.PI : unit === "grad" ? n * 0.9 : n;
+  return Number.isFinite(degrees) ? degrees : null;
 }
 
 function parseNumber(v: string): number | null {
   const m = new RegExp(`^(${NUM})(%)?$`).exec(v.trim());
   if (!m) return null;
-  return m[2] ? Number(m[1]) / 100 : Number(m[1]);
+  const n = m[2] ? Number(m[1]) / 100 : Number(m[1]);
+  return Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -85,7 +84,7 @@ function parseTransform(value: string): Partial<Record<TransformKey, number>> | 
     rest = rest.replace(m[0], "");
     const fn = m[1].toLowerCase();
     const args = m[2].split(",").map((a) => a.trim());
-    const kind = KINDS[fn];
+    const kind = Object.hasOwn(KINDS, fn) ? KINDS[fn] : undefined;
     if (!kind || rankOf[kind] < rank) return null;
     rank = rankOf[kind];
     if (fn === "translatex" || fn === "translatey") {

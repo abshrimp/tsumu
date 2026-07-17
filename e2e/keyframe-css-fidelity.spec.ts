@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { motionEditorBundle } from "../tests/helpers/motion-editor-browser";
 
 const cases = [
+  { name: "unsupported constructor transform", declarations: "transform: constructor(2);", property: "transform", expected: "none" },
   { name: "small opacity values", declarations: "opacity: 0.0001;", property: "opacity", expected: "0.0001" },
   { name: "escaped property aliases", declarations: String.raw`\6f pacity: 0.2; opacity: 0.8;`, property: "opacity", expected: "0.8" },
   { name: "case-sensitive custom properties", declarations: "--fadeLevel: 0.25; opacity: var(--fadeLevel);", property: "opacity", expected: "0.25" },
@@ -55,6 +56,26 @@ test("opening and applying nearby keyframes preserves the animated position", as
     await expect(page.locator(".kfe-modal")).toHaveCount(0);
     await expect(page.locator("#saved")).toContainText("49.9999%");
     await expect.poll(position).toBeCloseTo(50, 2);
+    if (pass === 0) await page.locator("#reopen").click();
+  }
+  expect(errors).toEqual([]);
+});
+
+test("overflowing values remain raw through applying and reopening keyframes", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const source = "from { opacity: 1e309; transform: translateX(1e309px); } to { transform: rotate(1e308turn); }";
+  await page.setContent('<div id="app"></div>');
+  await page.addStyleTag({ path: "app/globals.css" });
+  await page.addScriptTag({ content: await motionEditorBundle(source) });
+  for (let pass = 0; pass < 2; pass++) {
+    await expect(page.locator(".kfe-modal")).toBeVisible();
+    await page.getByRole("button", { name: "適用", exact: true }).click();
+    await expect(page.locator(".kfe-modal")).toHaveCount(0);
+    await expect(page.locator("#saved")).toContainText("opacity: 1e309;");
+    await expect(page.locator("#saved")).toContainText("translateX(1e309px)");
+    await expect(page.locator("#saved")).toContainText("rotate(1e308turn)");
+    await expect(page.locator("#saved")).not.toContainText("Infinity");
     if (pass === 0) await page.locator("#reopen").click();
   }
   expect(errors).toEqual([]);

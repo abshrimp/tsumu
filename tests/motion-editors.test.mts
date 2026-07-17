@@ -215,3 +215,29 @@ test("keyframe serialization retains small and high-precision property values", 
   assert.deepEqual(values(saved), values(source));
   assert.equal(serializeKeyframes(parseKeyframes(saved)!), saved);
 });
+
+test("unsupported inherited transform names stay raw instead of becoming scale", () => {
+  const css = "from { transform: constructor(2); }";
+  const frames = parseKeyframes(css)!;
+  assert.equal(frames[0].scale, undefined);
+  assert.equal(frames[0].extra, "transform: constructor(2);");
+  assert.equal(serializeKeyframes(frames), css);
+});
+
+test("overflowing keyframe values remain raw and never enter numeric editor fields", () => {
+  for (const declaration of [
+    "opacity: 1e309;",
+    "transform: translateX(1e309px);",
+    "transform: translate(1px, -1e309px);",
+    "transform: scale(1e309);",
+    "transform: rotate(1e309deg);",
+    "transform: rotate(1e308turn);",
+    "transform: rotate(1e308rad);",
+  ]) {
+    const css = `from { ${declaration} }`;
+    const frames = parseKeyframes(css)!;
+    assert.equal(frames[0].extra, declaration);
+    for (const key of ["opacity", "x", "y", "scale", "rotate"] as const) assert.equal(frames[0][key], undefined);
+    assert.equal(serializeKeyframes(frames), css);
+  }
+});
