@@ -1319,7 +1319,9 @@ export const SCRIPT_RUNTIME = `function (env) {
             var hit = null;
             if (Array.isArray(list) && st.field) {
               for (var fi = 0; fi < list.length; fi++) {
-                var fv = dig(list[fi], st.field);
+                // 見本と同じく、ドットを含む実際の項目名をパスより優先する。
+                var fv = list[fi] != null && typeof list[fi] === "object" && has(list[fi], st.field)
+                  ? list[fi][st.field] : dig(list[fi], st.field);
                 var fs = fv == null ? "" : String(fv);
                 if (fs === key || encodeURIComponent(fs) === key) {
                   hit = list[fi];
