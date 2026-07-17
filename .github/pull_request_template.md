@@ -1,7 +1,7 @@
 ## What changes?
 
-<!-- Explain the problem and the resulting behavior. English and Japanese are welcome. Link a related issue if applicable. -->
+<!-- What problem does this solve, and how does the behavior change? Link a related issue if there is one. English and Japanese are both welcome. -->
 
 ## Validation
 
-<!-- Describe the tests you ran and their results. Include screenshots for visible changes. -->
+<!-- Which tests did you run, and what were the results? For visible changes, add screenshots. -->
