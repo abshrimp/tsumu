@@ -11,6 +11,7 @@ import { autoNamed, NEW_PAGE_NAME } from "../pageTitle";
 import { walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
 import { normalizeQuery, routeDir } from "./page";
+import { pageQueryConditions } from "../page-query";
 
 /* ---------- 公開前チェック ---------- */
 
@@ -78,13 +79,14 @@ function hasSelfRedirect(page: Page, earlierRedirects: Page[]): boolean {
 
 export function runChecks(doc: SiteDoc): CheckResult[] {
   const results: CheckResult[] = [];
-  const routes = new Map<string, { name: string; query: string; shareable: boolean }[]>();
+  const routes = new Map<string, { name: string; conditions: string; shareable: boolean }[]>();
   const published = doc.pageOrder.filter((pid) => !doc.pages[pid].unpublished);
   /** shareable = 通常のページ（クエリが違えば同じURLを共有できる） */
   const registerRoute = (page: Page, shareable = false) => {
     // [slug] を含むURLは固有ルートとして扱う（/events と /events/[slug] は共存可）
     const route = page.slug.replace(/^\/+|\/+$/g, "");
     const query = normalizeQuery(page.query);
+    const conditions = normalizeQuery(new URLSearchParams(pageQueryConditions(page.query)).toString());
     // The generator collapses empty segments and escapes filesystem-special names.
     // Compare the actual output route so two editor URLs cannot overwrite one file.
     // The special normal 404 page is not a /404 route: it writes not-found.tsx.
@@ -92,7 +94,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     const same = routes.get(key) ?? [];
     const clash = same.find(
       (o) =>
-        !shareable || !o.shareable || route === "404" || o.query === query
+        !shareable || !o.shareable || route === "404" || o.conditions === conditions
     );
     if (clash) {
       results.push({
@@ -104,7 +106,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
             : tr("URL「/{route}」が「{name}」と「{name2}」で重複しています", { route, name: clash.name, name2: page.name }),
       });
     }
-    routes.set(key, [...same, { name: page.name, query, shareable }]);
+    routes.set(key, [...same, { name: page.name, conditions, shareable }]);
     const slugErr = validateSlugUsage(route);
     if (slugErr) {
       results.push({
