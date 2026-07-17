@@ -322,8 +322,8 @@ export function compileScripts(
    * item が true のときは配列の各項目が優先されるため、参照を残す。
    */
   raw?: (name: string, item?: boolean) => unknown,
-  /** join だけに必要な文字列。元の配列はブラウザへ渡さない。 */
-  joined?: (step: Extract<ScriptStep, { kind: "join" }>) => unknown
+  /** join・count に必要な値だけを渡す。元の配列はブラウザへ渡さない。 */
+  joined?: (step: Extract<ScriptStep, { kind: "join" | "count" }>) => unknown
 ): RuntimeScript[] {
   const conv = (steps: ScriptStep[]): RuntimeStep[] =>
     steps.filter((st) => !isDataStep(st) && !skip?.has(st.id)).map((st) => {
@@ -359,12 +359,13 @@ export function compileScripts(
           const { id: _id, ...rest } = st;
           return { ...rest, source: str(st.source, "value") };
         }
+        case "count":
         case "join": {
           const { id: _id, ...rest } = st;
           const fallback = joined?.(st);
           const itemArray = joinItemSource(st);
           return { ...rest, ...(itemArray !== st.array ? { itemArray } : {}),
-            ...(fallback === undefined ? {} : { joinFallback: fallback }) };
+            ...(fallback === undefined ? {} : { [st.kind === "count" ? "countFallback" : "joinFallback"]: fallback }) };
         }
         case "array-field": {
           const { id: _id, value: _value, ...rest } = st;
