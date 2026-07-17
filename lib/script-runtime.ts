@@ -804,7 +804,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (Array.isArray(value)) return value.map(fillValue);
           var out = Object.create(null);
           Object.keys(value).forEach(function (key) {
-            out[key] = key === "rawRef" ? value[key] : fillValue(value[key]);
+            out[key] = (key === "rawRef" || key === "joinFallback") ? value[key] : fillValue(value[key]);
           });
           return out;
         }
@@ -1408,7 +1408,39 @@ export const SCRIPT_RUNTIME = `function (env) {
             break;
           }
           case "join": {
-            var src = getVar(st.array);
+            var name = st.array, itemName = st.itemArray || name, itemHead = itemName.split(".")[0];
+            var source = vars, useFallback = false;
+            // ループ項目が最優先。その後は行を近い順に読み、所有するサーバー行で止まる。
+            if (sc && (has(sc, itemName) || has(sc, itemHead))) {
+              source = sc;
+              name = itemName;
+            } else {
+              var row = self && self.closest && self.closest("[data-row]"), offset = 0;
+              while (row) {
+                if (st.joinFallback && st.joinFallback.owned && st.joinFallback.rowOffset === offset) {
+                  useFallback = true;
+                  break;
+                }
+                /*#clist*/
+                var rowScope = rowScopes.get(row);
+                if (rowScope && (has(rowScope, itemName) || has(rowScope, itemHead))) {
+                  source = rowScope;
+                  name = itemName;
+                  break;
+                }
+                /*/clist*/
+                row = row.parentElement && row.parentElement.closest("[data-row]");
+                offset++;
+              }
+            }
+            var owns = has(source, name) || has(source, name.split(".")[0]);
+            var src = has(source, name) ? source[name] : dig(source, name);
+            // Canvas の項目は React が描画し、実行側の data-row を持たない。
+            if (st.joinFallback && (useFallback || !owns ||
+                (source === vars && st.joinFallback.owned && !has(st.joinFallback, "rowOffset")))) {
+              setVar(st.into, st.joinFallback.value);
+              break;
+            }
             setVar(
               st.into,
               Array.isArray(src)
