@@ -30,10 +30,10 @@ function fixture() {
   state().replaceDoc(nestedListSourcesDoc()); state().setActivePage("p"); state().select("tag");
   const { default: SettingsPanel } = load("components/SettingsPanel.tsx", true);
   const render = () => SettingsPanel({ nodeId: state().selection });
-  nodes(render()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("リスト化"))!.props.onClick();
+  nodes(render()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("リスト表示にする"))!.props.onClick();
   const id = state().selection!;
   const dropdown = () => {
-    const row = nodes(render()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "label" && x.props.children === "並べる配列"));
+    const row = nodes(render()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "label" && x.props.children === "表示するリスト"));
     return nodes(row).find(n => n.props?.options && n.props?.placeholder === "選択してください").props;
   };
   const { NodeView } = load("components/canvas/NodeView.tsx");

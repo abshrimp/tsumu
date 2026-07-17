@@ -5,24 +5,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
 import { useEditor } from "../lib/store";
-import { fieldLabel, looksLikeImage, varGroupsAt, type VarGroup } from "../lib/data";
+import { fieldLabel, looksLikeImage, scriptInputDoc, varGroupsAt, type VarGroup } from "../lib/data";
 import { readableValue } from "./DataView";
 import { tr } from "../lib/i18n";
+import { canPickVariable, localVariableNames, type ValueContext } from "../lib/variable-choice";
 
 /** 中を開ける値か（まとまり・まとまりの一覧） */
-const isNested = (v: unknown) =>
-  v != null &&
-  typeof v === "object" &&
-  !(Array.isArray(v) && v.every((x) => x == null || typeof x !== "object"));
+const isNested = (v: unknown) => v != null && typeof v === "object";
 
 /** 値の種類（一覧 3件 / 4項目 / 文字 など） */
 function kindOf(v: unknown, note?: string): string {
   if (v === undefined) return note ? "" : tr("見本なし");
-  if (Array.isArray(v)) return tr("一覧・{length}件", { length: v.length });
-  if (v && typeof v === "object") return tr("{length}項目", { length: Object.keys(v).length });
+  if (Array.isArray(v)) return tr("リスト・{length}件", { length: v.length });
+  if (v && typeof v === "object") return tr("項目付きデータ・{length}項目", { length: Object.keys(v).length });
   if (typeof v === "number") return tr("数値");
   if (typeof v === "boolean") return tr("はい／いいえ");
-  return "";
+  return tr("文字列");
 }
 
 /** 中の子要素（配列は先頭5件まで） */
@@ -68,6 +66,7 @@ function Row({
   note,
   depth,
   onPick,
+  context = "value",
 }: {
   label: string;
   path: string;
@@ -75,8 +74,10 @@ function Row({
   note?: string;
   depth: number;
   onPick: (path: string) => void;
+  context?: ValueContext;
 }) {
   const nested = isNested(value);
+  const pickable = canPickVariable(value, context);
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -85,11 +86,15 @@ function Row({
         role="button"
         tabIndex={0}
         style={{ paddingLeft: 8 + depth * 18 }}
-        onClick={() => onPick(path)}
+        aria-disabled={!pickable && !nested || undefined}
+        onClick={() => pickable ? onPick(path) : nested && setOpen(!open)}
         onKeyDown={(e) => {
           // 開閉ボタンの Enter は、親の変数を選ばずボタン自身に任せる。
           if (e.target !== e.currentTarget) return;
-          if (isEnterKey(e)) onPick(path);
+          if (isEnterKey(e)) {
+            if (pickable) onPick(path);
+            else if (nested) setOpen(!open);
+          }
           if (nested && e.key === "ArrowRight") setOpen(true);
           if (nested && e.key === "ArrowLeft") setOpen(false);
         }}
@@ -124,6 +129,7 @@ function Row({
             value={v}
             depth={depth + 1}
             onPick={onPick}
+            context={context}
           />
         ))}
     </>
@@ -137,6 +143,9 @@ function Row({
 export default function VarExplorer({
   nodeId,
   extraNames,
+  localNames,
+  sourceStepId,
+  context = "value",
   onPick,
   onClose,
 }: {
@@ -144,18 +153,33 @@ export default function VarExplorer({
   nodeId: string;
   /** 見本の無い変数（スクリプトで画面上に作る変数など） */
   extraNames?: string[];
+  /** 型が不明でも、くり返し中の名前をページの見本より優先する。 */
+  localNames?: string[];
+  sourceStepId?: string;
+  context?: ValueContext;
   onPick: (name: string) => void;
   onClose: () => void;
 }) {
   const doc = useEditor((s) => s.doc);
   const activePageId = useEditor((s) => s.activePageId);
   const extraKey = (extraNames ?? []).join("\n");
+  const localKey = (localNames ?? []).join("\n");
   /** 詳細（入力欄の状態など）も出す */
   const [advanced, setAdvanced] = useState(false);
   const allGroups = useMemo(() => {
-    const gs = varGroupsAt(doc, activePageId, nodeId);
+    const local = localVariableNames(localKey ? localKey.split("\n") : []);
+    const roots = new Set(local.map((name) => name.split(".")[0]));
+    const at = varGroupsAt(scriptInputDoc(doc, sourceStepId), activePageId, nodeId);
+    const itemRoots = new Set(at.filter((g) => g.key === "item").flatMap((g) => Object.keys(g.vars).map((name) => name.split(".")[0])));
+    const gs = at.map((g) => ({
+      ...g, vars: Object.fromEntries(Object.entries(g.vars).filter(([name]) => {
+        const root = name.split(".")[0];
+        return !roots.has(root) && (g.key === "item" || !itemRoots.has(root));
+      })),
+    }));
+    if (local.length) gs.unshift({ key: "item", label: tr("くり返し中の項目"), vars: Object.fromEntries(local.map((name) => [name, undefined])) });
     const known = new Set(gs.flatMap((g) => Object.keys(g.vars)));
-    const extra = (extraKey ? extraKey.split("\n") : []).filter((n) => !known.has(n));
+    const extra = (extraKey ? extraKey.split("\n") : []).filter((n) => !known.has(n) && !roots.has(n.split(".")[0]) && !itemRoots.has(n.split(".")[0]));
     if (extra.length) {
       gs.push({
         key: "script",
@@ -165,7 +189,7 @@ export default function VarExplorer({
       });
     }
     return gs;
-  }, [doc, activePageId, nodeId, extraKey]);
+  }, [doc, activePageId, nodeId, extraKey, localKey, sourceStepId]);
   const hasAdvanced = allGroups.some((g) => g.advanced);
   const groups = useMemo(() => allGroups.filter((g) => advanced || !g.advanced), [allGroups, advanced]);
   const [query, setQuery] = useState("");
@@ -176,6 +200,7 @@ export default function VarExplorer({
   const results = useMemo(() => {
     if (!q) return [];
     return flatten(groups)
+      .filter(({ value }) => canPickVariable(value, context))
       .filter(
         ({ path, value }) =>
           path.toLowerCase().includes(q) ||
@@ -183,7 +208,7 @@ export default function VarExplorer({
           (value != null && typeof value !== "object" && String(value).toLowerCase().includes(q))
       )
       .slice(0, 100);
-  }, [groups, q]);
+  }, [groups, q, context]);
 
   // 詳細の切り替えやデータの更新で候補が減っても、表示中の候補を選ぶ。
   const activeIndex = Math.min(index, Math.max(0, results.length - 1));
@@ -262,8 +287,8 @@ export default function VarExplorer({
               <p className="vx-empty">{tr("「{q}」に一致する変数はありません", { q: query.trim() })}</p>
             )
           ) : (
-            groups.map((g) => (
-              <section key={g.key} className="vx-group">
+            groups.map((g, groupIndex) => (
+              <section key={`${g.key}-${groupIndex}`} className="vx-group">
                 <h3>{g.label}</h3>
                 {Object.entries(g.vars).map(([k, v]) => (
                   <Row
@@ -274,6 +299,7 @@ export default function VarExplorer({
                     note={g.notes?.[k]}
                     depth={0}
                     onPick={onPick}
+                    context={context}
                   />
                 ))}
               </section>
@@ -281,7 +307,7 @@ export default function VarExplorer({
           )}
         </div>
         <div className="vx-foot">
-          <span>{tr("クリックで挿入します。まとまりは左の矢印で中の項目を開けます。")}</span>
+          {context === "value" && <span>{tr("クリックで挿入します。リストや項目付きデータは左の矢印で中身を開けます。")}</span>}
           {hasAdvanced && (
             <button
               type="button"

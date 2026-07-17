@@ -4,24 +4,24 @@
  * ワークスペースに並ぶブロックの見た目（きっかけ・動作・繰り返し・差し込み位置）
  */
 
-import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Plus, Repeat, IterationCw, RefreshCw, Split, X } from "lucide-react";
-import { JsonPeek, readableValue } from "../DataView";
+import { useContext, useMemo, type ReactNode } from "react";
+import { Plus, Repeat, IterationCw, Split, X } from "lucide-react";
+import { readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
 import { isDataStep, keyOfItem, pagePlan, toListItems, type FetchStep } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/types";
-import { getLang, tr } from "../../lib/i18n";
+import { tr } from "../../lib/i18n";
 import { AnyArraySelect, itemFieldsOf } from "./arrays";
-import { Ctx, LoopCtx, ScriptNodeCtx } from "./context";
-import { fetchWhole, useRefetch, wholeCache, wholeKey } from "./fetch";
+import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, ScriptStepCtx, type FetchPreviewScope } from "./context";
+import { FetchResult } from "./fetch";
 import { CondEditor, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";
 import { NodePicker } from "./targets";
 
-/** 「配列［］の要素ごとにくり返す」。中では要素の項目を {項目} で使える */
+/** 「リスト［］の要素ごとにくり返す」。中では要素の項目を {項目} で使える */
 function ForEachView({
   step,
   loc,
@@ -43,9 +43,9 @@ function ForEachView({
     const samples = Object.fromEntries(
       fields.map((f) => [f, readableValue(item ? keyOfItem(item, f) : undefined)])
     );
-    return [{ array: step.array, fields, samples }, ...outer];
+    return [{ array: step.array, fields, roots: Object.keys(item ?? {}), samples }, ...outer];
   }, [sample, step.array, outer]);
-  // 配信前に値が決まる配列（見本がある）は、配信前に動く形でないと何もしない
+  // 配信前に値が決まるリスト（見本がある）は、配信前に動く形でないと何もしない
   const { doc, pageId } = ctx;
   const stuck = useMemo(
     () => sample !== undefined && !pagePlan(doc, pageId).serverIds.has(step.id),
@@ -56,7 +56,7 @@ function ForEachView({
       <div className="se-blk se-c-head" data-sel-key={key}>
         <Ico icon={IterationCw} cat={CAT_OF[step.kind]} />
         <Phrase
-          text="配列{array}の要素ごとにくり返す"
+          text="リスト{array}の要素ごとにくり返す"
           parts={{
             array: (
               <AnyArraySelect
@@ -69,7 +69,7 @@ function ForEachView({
         {step.array && <span className="se-blk-note">{tr("中では要素の項目を {項目} で使えます")}</span>}
         {stuck && !ctx.readOnly && (
           <span className="se-badge is-warn">
-            {tr("取得したデータの配列は、ページを開いたときのスクリプトの直下で、中を「項目として格納」と変数の「もし」だけにすると動きます")}
+            {tr("取得したデータのリストは、ページを開いたときのスクリプトの直下で、中を「項目として格納」と変数の「もし」だけにすると動きます")}
           </span>
         )}
       </div>
@@ -213,7 +213,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
       {...handlers}
     >
       <Ico icon={STEP_ICON[step.kind]} cat={cat} />
-      <StepBody step={step} />
+      <ScriptStepCtx.Provider value={step.id}><StepBody step={step} /></ScriptStepCtx.Provider>
       {isDataStep(step) && !ctx.readOnly && !ctx.isPageLoadRoot(loc) && (
         <span className="se-badge is-warn">
           {tr("ページを開いたときのスクリプトの下に置くと動きます")}
@@ -363,6 +363,7 @@ export function StackView({ script }: { script: PageScript }) {
   const scriptKey = `script:${script.id}`;
   const runnable = !!script.trigger && !!script.nodeId;
   return (
+    <ScriptOwnerCtx.Provider value={{ scriptId: script.id, nodeId: script.nodeId }}>
     <ScriptNodeCtx.Provider value={script.nodeId && script.nodeId !== PAGE_TARGET ? script.nodeId : ""}>
     <div
       className={`se-stack${runnable ? "" : " is-idle"}${
@@ -438,71 +439,13 @@ export function StackView({ script }: { script: PageScript }) {
       <StepList scriptId={script.id} list="root" steps={script.steps} />
     </div>
     </ScriptNodeCtx.Provider>
+    </ScriptOwnerCtx.Provider>
   );
 }
 
 /** 取得したデータを表で見る小窓 */
-export function PeekModal({ step, onClose }: { step: FetchStep; onClose: () => void }) {
-  // 閉じた小窓の取得が、開き直して取得した新しい見本を上書きしないようにする。
-  const { busy, error, run } = useRefetch(step, true);
-  // 見本は配列を先頭だけに切り詰めているため、開いたら全件を取り直して見せる
-  const key = wholeKey(step);
-  const [whole, setWhole] = useState<{ key: string; value: unknown } | null>(() =>
-    wholeCache.has(key) ? { key, value: wholeCache.get(key) } : null
-  );
-  const [wholeError, setWholeError] = useState(false);
-  const stepRef = useRef(step);
-  stepRef.current = step;
-  useEffect(() => {
-    const st = stepRef.current;
-    if (wholeCache.has(key) || !st.url.trim()) return;
-    let alive = true;
-    setWholeError(false);
-    fetchWhole(st.url.trim(), st)
-      .then((value) => {
-        wholeCache.set(key, value);
-        if (alive) setWhole({ key, value });
-      })
-      .catch(() => {
-        if (alive) setWholeError(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [key]);
-  const full = whole?.key === key;
-  return (
-    <div className="se-modal" role="dialog" aria-label={tr("取得したデータ")}>
-      <div className="se-modal-head">
-        <h3>{tr("取得したデータ")}</h3>
-        <button
-          className="se-close"
-          onClick={() => void run()}
-          disabled={busy}
-          aria-label={tr("取得し直す")}
-          data-tip={tr("取得し直す")}
-        >
-          <RefreshCw size={15} className={busy ? "spin" : undefined} />
-        </button>
-        <button className="se-close" onClick={onClose} aria-label={tr("閉じる")}>
-          <X size={16} />
-        </button>
-      </div>
-      <p className="hint" style={{ margin: 0, wordBreak: "break-all" }}>
-        {step.method && step.method !== "GET" ? `${step.method} ` : ""}
-        {step.url}
-        {full
-          ? ""
-          : wholeError
-            ? tr("（全件を取得できなかったため、{p1} に取得した見本を表示しています。一覧は先頭20件まで）", {
-                p1: new Date(step.fetchedAt ?? Date.now()).toLocaleString(getLang()),
-              })
-            : tr("（全件を読み込み中… いまは見本の先頭20件を表示しています）")}
-      </p>
-      {error && <p className="hint is-error" style={{ margin: 0 }}>{error}</p>}
-      <JsonPeek value={full ? whole!.value : step.sample} />
-    </div>
-  );
+export function PeekModal({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
+  return <FetchResult step={step} scope={scope} onClose={onClose} />;
 }
 
 export function PaletteLabel({ label }: { label: string }) {

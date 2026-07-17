@@ -5,10 +5,10 @@
  */
 
 import { isEnterKey } from "../../lib/keys";
-import { useContext, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Plus, SlidersHorizontal, Table2, X } from "lucide-react";
-import { readableValue } from "../DataView";
+import { ChevronLeft, ChevronRight, Play, Plus, RefreshCw, SlidersHorizontal, Table2, X } from "lucide-react";
+import { JsonPeek, readableValue } from "../DataView";
 import { anchoredMenuPos } from "../controls";
 import {
   cleanVarName,
@@ -18,9 +18,12 @@ import {
   ITEM_VALUE,
   makeSample,
   uniqueVarName,
+  varGroupsAt,
   type FetchStep,
 } from "../../lib/data";
-import { hasVars, interpolateUrl } from "../../lib/vars";
+import { interpolateUrl, type Vars } from "../../lib/vars";
+import { fetchPreviewInputs } from "../../lib/fetch-preview";
+import { localVariableNames, variableChoiceSamples } from "../../lib/variable-choice";
 import {
   bodyJsonError,
   FETCH_METHODS,
@@ -28,24 +31,20 @@ import {
   sendsBody,
   type FetchOptions,
 } from "../../lib/fetch-request";
-import { type FetchHeader, type FetchMethod, type ScriptStep } from "../../lib/types";
+import { type FetchHeader, type FetchMethod, type ScriptStep, type SiteDoc, PAGE_TARGET } from "../../lib/types";
+import { useEditor } from "../../lib/store";
+import { pageNodeIds, walkSteps } from "../../lib/script";
 import { userMessage } from "../../lib/errors";
 import { getLang, tr, trc } from "../../lib/i18n";
-import { Ctx } from "./context";
+import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, type FetchPreviewScope } from "./context";
 import { Phrase, TextIn } from "./inputs";
 
-/** 取得してエディタ用の見本にする（{slug} は 1、ほかの {変数} は空で試す） */
-async function fetchSample(
-  url: string,
-  options: FetchOptions = {}
-): Promise<{ sample: unknown; totals?: Record<string, number> }> {
-  return makeSample(await fetchWhole(url, options));
-}
-
-/** 取得ブロックのデータを、切り詰めずに取得する（{slug} は 1、ほかの {変数} は空で試す） */
-export async function fetchWhole(url: string, options: FetchOptions = {}): Promise<unknown> {
-  const vars = { slug: "1" };
-  const resolved = hasVars(url) ? interpolateUrl(url, vars) : url;
+/** テスト実行で明示的に送る。未解決の値を空文字や仮の slug に置き換えない。 */
+export async function fetchWhole(url: string, options: FetchOptions = {}, vars: Vars = {}): Promise<unknown> {
+  if (fetchPreviewInputs(url, options, vars).some((input) => input.missing)) {
+    throw new Error(tr("テスト用の値を入力してください"));
+  }
+  const resolved = interpolateUrl(url, vars);
   const res = await fetch("/api/fetch-json", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -58,68 +57,253 @@ export async function fetchWhole(url: string, options: FetchOptions = {}): Promi
 
 /** 「データを見る」で取得した全件（取得ブロックの設定ごと。エディタを開いている間だけ覚えておく） */
 export const wholeCache = new Map<string, unknown>();
-export const wholeKey = (st: FetchStep) => JSON.stringify([st.url, st.method, st.headers, st.body, st.fetchedAt]);
+const sourceKey = (scope?: FetchPreviewScope) => scope?.owner ?? { nodeId: scope?.nodeId ?? "" };
+export const wholeKey = (st: FetchStep, pageId = useEditor.getState().activePageId, session = useEditor.getState().documentSession, scope?: FetchPreviewScope) =>
+  JSON.stringify([session, pageId, sourceKey(scope), st.id, st.url, st.method, st.headers, st.body, st.fetchedAt]);
+const ownerKey = (stepId: string, pageId: string, scope?: FetchPreviewScope) => JSON.stringify([useEditor.getState().documentSession, pageId, sourceKey(scope), stepId]);
 
 /** 見本を取得したリクエストと、保存先の現在の設定を比べる（見本の更新時刻は除く） */
-const requestKey = (url: string, options: FetchOptions) =>
+export const requestKey = (url: string, options: FetchOptions) =>
   JSON.stringify([url.trim(), options.method ?? "GET", options.headers ?? [], options.body ?? ""]);
+export const fetchTestKey = (step: FetchStep, scope: FetchPreviewScope) =>
+  JSON.stringify([requestKey(step.url, step), scope.nodeId, scope.localNames]);
 
-/** 画面や小窓を開き直しても、同じブロックの最新の取得だけを保存する。完了時に取り除く。 */
+/** 時刻のある見本だけが現在の設定で確認済み。未確認の見本もフォールバックには残す。 */
+export const hasCurrentSample = (step: FetchStep) => step.sample !== undefined &&
+  typeof step.fetchedAt === "number" && Number.isFinite(step.fetchedAt) && step.fetchedAt > 0;
+
+/** 設定変更は取得済みの印だけを外し、見本のフォールバックは保持する。 */
+export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?: string }, pageId = useEditor.getState().activePageId, scope?: FetchPreviewScope): FetchStep {
+  const next = { ...step, ...patch };
+  if (requestKey(step.url, step) !== requestKey(next.url, next)) {
+    delete next.fetchedAt;
+    const owner = ownerKey(step.id, pageId, scope);
+    attemptedRequests.delete(owner); requestErrors.delete(owner); submittedRequests.delete(owner); temporaryValues.delete(owner);
+  }
+  return next;
+}
+
+/** 葉のパスだけでなく、空のまとまり・リストを含むローカルな名前全体を保つ。 */
+export function fetchPreviewScope(nodeId: string, loops: readonly { fields: string[]; roots?: string[] }[]): FetchPreviewScope {
+  return { nodeId, localNames: localVariableNames(loops.flatMap((loop) => [...(loop.roots ?? []), ...loop.fields])) };
+}
+
+/** 画面を閉じても、送信済みの同じ要求を重ねて送らない。別設定の応答は最新だけを採用する。 */
 const activeRefetches = new Map<string, symbol>();
+const pendingRefetches = new Map<string, Map<string, symbol>>();
+const attemptedRequests = new Map<string, string>();
+const requestErrors = new Map<string, { key: string; message: string }>();
+const submittedRequests = new Map<string, { key: string; method: string; url: string }>();
+const resultRequests = new Map<string, { method: string; url: string; fetchedAt: number }>();
+interface TemporaryValues { key: string; values: Record<string, string> }
+const temporaryValues = new Map<string, TemporaryValues>();
+const EMPTY_VALUES: Record<string, string> = {};
+const requestListeners = new Set<() => void>();
+const subscribeRequests = (listener: () => void) => {
+  requestListeners.add(listener);
+  return () => { requestListeners.delete(listener); };
+};
+const notifyRequests = () => requestListeners.forEach((listener) => listener());
 
-/** 「取得する」ブロックの見本を取り直す（成功するとブロックに保存する） */
-export function useRefetch(step: FetchStep, cancelOnUnmount = false) {
-  const { updateStep } = useContext(Ctx);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [error, setError] = useState<{ key: string; message: string } | null>(null);
-  const request = useRef<symbol | null>(null);
-  useEffect(() => {
-    if (cancelOnUnmount) return () => {
-      if (activeRefetches.get(step.id) === request.current) activeRefetches.delete(step.id);
-      request.current = null;
-    };
-  }, [cancelOnUnmount, step.id]);
+/** 実文書から探す。ドラッグ表示の一時的な除外は含まれない。 */
+function currentFetch(doc: SiteDoc, pageId: string, id: string, scope: FetchPreviewScope, roots: string[]): FetchStep | undefined {
+  const page = doc.pages[pageId];
+  if (!page) return undefined;
+  const nodeId = scope.owner?.nodeId ?? (scope.owner ? null : scope.nodeId);
+  const eligible = pageNodeIds(doc, pageId, roots);
+  const scripts = nodeId && nodeId !== PAGE_TARGET
+    ? eligible.includes(nodeId) ? doc.nodes[nodeId]?.scripts ?? [] : []
+    : scope.owner ? nodeId === PAGE_TARGET ? page.pageScripts ?? [] : page.scripts ?? []
+      : [...(page.pageScripts ?? []), ...(page.scripts ?? [])];
+  const matches: FetchStep[] = [];
+  for (const script of scripts) {
+    if (scope.owner && script.id !== scope.owner.scriptId) continue;
+    walkSteps(script.steps, (step) => { if (step.id === id && step.kind === "fetch") matches.push(step); });
+  }
+  // 同じ所有範囲にも壊れた重複IDがあれば、別ブロックを推測で更新しない。
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+/** 送信の所有者は文書セッション。ブロック・小窓のmount状態には依存しない。 */
+export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
+  const { pageId, scriptRootIds = [] } = useContext(Ctx);
+  const nodeId = useContext(ScriptNodeCtx);
+  const scriptOwner = useContext(ScriptOwnerCtx);
+  const scope = suppliedScope ?? { nodeId, localNames: [], ...(scriptOwner ? { owner: scriptOwner } : {}) };
+  const session = useEditor.getState().documentSession;
+  const owner = ownerKey(step.id, pageId, scope);
+  const error = useSyncExternalStore(subscribeRequests, () => requestErrors.get(owner), () => undefined);
+  const submitted = useSyncExternalStore(subscribeRequests, () => submittedRequests.get(owner), () => undefined);
+  const resultSource = useSyncExternalStore(subscribeRequests, () => resultRequests.get(owner), () => undefined);
   const currentKey = requestKey(step.url, step);
-  const run = async (url = step.url, options: FetchOptions = step) => {
-    const token = Symbol();
-    request.current = token;
-    activeRefetches.set(step.id, token);
-    const isCurrent = () => request.current === token && activeRefetches.get(step.id) === token;
-    setError(null);
-    if (!url.trim()) {
-      activeRefetches.delete(step.id);
-      setBusyKey(null);
-      return;
-    }
+  const attempted = useSyncExternalStore(subscribeRequests,
+    () => attemptedRequests.get(owner) === currentKey, () => false);
+  const busy = useSyncExternalStore(subscribeRequests,
+    () => pendingRefetches.get(owner)?.has(currentKey) ?? false, () => false);
+  const run = async (url = step.url, options: FetchOptions = step, vars: Vars = {}) => {
     const key = requestKey(url, options);
-    setBusyKey(key);
+    const source = currentFetch(useEditor.getState().doc, pageId, step.id, scope, scriptRootIds);
+    if (!url.trim() || pendingRefetches.get(owner)?.has(key) || useEditor.getState().documentSession !== session ||
+      !source || requestKey(source.url, source) !== key) return false;
+    const token = Symbol();
+    activeRefetches.set(owner, token);
+    const pending = pendingRefetches.get(owner) ?? new Map<string, symbol>();
+    pending.set(key, token);
+    pendingRefetches.set(owner, pending);
+    attemptedRequests.set(owner, key);
+    submittedRequests.set(owner, { key, method: options.method ?? "GET", url: interpolateUrl(url, vars) });
+    requestErrors.delete(owner);
+    notifyRequests();
+    let valid = !!currentFetch(useEditor.getState().doc, pageId, step.id, scope, scriptRootIds);
+    const unsubscribe = useEditor.subscribe((state) => {
+      if (state.documentSession !== session || !currentFetch(state.doc, pageId, step.id, scope, scriptRootIds)) valid = false;
+    });
+    const isCurrent = () => valid && useEditor.getState().documentSession === session && activeRefetches.get(owner) === token;
     try {
-      const { sample, totals } = await fetchSample(url.trim(), options);
-      // 後から始めた取得の結果・エラー・読み込み表示を、古い応答で戻さない。
-      if (!isCurrent()) return;
-      updateStep(
-        step.id,
-        // 取得中の Undo や別の場所での設定変更にも、取得元の違う見本を保存しない。
-        (s) => s.kind === "fetch" && requestKey(s.url, s) === key
-          ? { ...s, sample, sampleTotals: totals, fetchedAt: Date.now() }
-          : s
-      );
-    } catch (e) {
-      if (!isCurrent()) return;
-      const msg = userMessage(e, tr("読み込めませんでした"));
-      setError({
-        key,
-        message: msg.includes(tr("JSONとして読み取れませんでした"))
-          ? tr("データを読み取れませんでした。WebページではなくJSONを返すURLか確認してください")
-          : msg,
+      const whole = await fetchWhole(url.trim(), options, vars);
+      const { sample, totals } = makeSample(whole);
+      if (!isCurrent()) return false;
+      let saved = false;
+      useEditor.getState().updateDoc((doc) => {
+        const current = currentFetch(doc, pageId, step.id, scope, scriptRootIds);
+        if (!isCurrent() || !current || requestKey(current.url, current) !== key) return;
+        Object.assign(current, { sample, sampleTotals: totals, fetchedAt: Math.max(Date.now(), (current.fetchedAt ?? 0) + 1) });
+        wholeCache.set(wholeKey(current, pageId, session, scope), whole);
+        resultRequests.set(owner, { method: options.method ?? "GET", url: interpolateUrl(url, vars), fetchedAt: current.fetchedAt! });
+        saved = true;
       });
+      return saved;
+    } catch (e) {
+      if (!isCurrent()) return false;
+      const msg = userMessage(e, tr("読み込めませんでした"));
+      requestErrors.set(owner, { key, message: msg.includes(tr("JSONとして読み取れませんでした"))
+        ? tr("データを読み取れませんでした。WebページではなくJSONを返すURLか確認してください") : msg });
+      return false;
     } finally {
-      if (request.current === token) setBusyKey(null);
-      if (activeRefetches.get(step.id) === token) activeRefetches.delete(step.id);
+      unsubscribe();
+      if (!valid && useEditor.getState().documentSession === session && activeRefetches.get(owner) === token) {
+        requestErrors.set(owner, { key, message: tr("送信済みですが、文書の変更により結果を反映していません") });
+      }
+      if (pending.get(key) === token) pending.delete(key);
+      if (!pending.size) pendingRefetches.delete(owner);
+      if (activeRefetches.get(owner) === token) activeRefetches.delete(owner);
+      notifyRequests();
     }
   };
-  // Undo など再取得を始めない設定変更でも、別の取得元の状態を表示しない。
-  return { busy: busyKey === currentKey, error: error?.key === currentKey ? error.message : null, run };
+  return { busy, attempted, resultSource: resultSource?.fetchedAt === step.fetchedAt ? resultSource : undefined, submitted: submitted?.key === currentKey ? submitted : undefined,
+    error: error?.key === currentKey ? error.message : null, run };
+}
+
+/** 一時入力と送信に使う見本を、文書・ブロック・リクエスト・文脈ごとに共有する。 */
+function useFetchValues(step: FetchStep, scope: FetchPreviewScope) {
+  const { doc, pageId, readOnly } = useContext(Ctx);
+  const owner = ownerKey(step.id, pageId, scope);
+  const key = fetchTestKey(step, scope);
+  const snapshot = useSyncExternalStore(subscribeRequests,
+    () => temporaryValues.get(owner)?.key === key ? temporaryValues.get(owner) : undefined, () => undefined);
+  useEffect(() => {
+    if (!readOnly && temporaryValues.has(owner) && temporaryValues.get(owner)?.key !== key) {
+      temporaryValues.delete(owner); notifyRequests();
+    }
+  }, [owner, key, readOnly]);
+  const values = snapshot?.values ?? EMPTY_VALUES;
+  const samples = variableChoiceSamples(varGroupsAt(doc, pageId, scope.nodeId), scope.localNames);
+  const inputs = fetchPreviewInputs(step.url, step, samples);
+  const vars: Vars = { ...samples };
+  // 一時入力は今も未解決の項目だけに使う。入力欄が消えた値は最新の見本に従う。
+  for (const input of inputs) {
+    if (input.missing && Object.hasOwn(values, input.name)) vars[input.name] = values[input.name];
+  }
+  const missing = fetchPreviewInputs(step.url, step, vars).some((input) => input.missing);
+  const invalid = sendsBody(step.method) && bodyJsonError(step.body);
+  return { inputs, values, samples, vars, missing, invalid,
+    prepare: () => vars,
+    setValue: (name: string, value: string) => {
+      if (readOnly) return;
+      temporaryValues.set(owner, { key, values: { ...values, [name]: value } }); notifyRequests();
+    } };
+}
+
+function FetchValues({ state, busy }: { state: ReturnType<typeof useFetchValues>; busy: boolean }) {
+  const { inputs, values, setValue } = state;
+  return <>
+    {inputs.filter((input) => input.missing).map((input) => <label key={input.name} className="se-fetch-test-value">
+      <code>{`{${input.name}}`}</code>
+      <input className="se-in" aria-label={tr("{name} のテスト用の値", { name: input.name })}
+        placeholder={tr("テスト用の値")} disabled={busy} value={values[input.name] ?? ""}
+        onChange={(e) => setValue(input.name, e.target.value)} />
+      {!Object.hasOwn(values, input.name) && <button type="button" className="se-mini se-mini-text"
+        onClick={() => setValue(input.name, "")}>{tr("空の値を使う")}</button>}
+    </label>)}
+    {inputs.some((input) => input.missing) && <p className="hint">{tr("テスト用の値は保存されません")}</p>}
+    {state.invalid && <p className="se-badge is-warn">{tr("JSONとして読み取れません")}</p>}
+  </>;
+}
+
+/** 開くだけでは送らない。右上の更新ボタンだけが明示的な送信操作。 */
+export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
+  const { busy, error, submitted, resultSource, run } = useRefetch(step, scope);
+  const state = useFetchValues(step, scope);
+  const composing = useRef(false);
+  const blockedClick = useRef(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLElement>("input, button:not(:disabled)")?.focus();
+    return () => { if (previous?.isConnected) previous.focus(); };
+  }, []);
+  const key = wholeKey(step, useContext(Ctx).pageId, undefined, scope);
+  const full = wholeCache.has(key);
+  const truncatedSample = Object.keys(step.sampleTotals ?? {}).length > 0;
+  const method = step.method ?? "GET";
+  const destination = state.missing ? step.url : interpolateUrl(step.url, state.vars);
+  return <div ref={dialogRef} className="se-modal se-fetch-test" role="dialog" aria-modal="true"
+    aria-label={tr("取得したデータ")} data-se-popover=""
+    onCompositionStartCapture={() => { composing.current = true; }}
+    onCompositionEndCapture={() => { composing.current = false; }}
+    onKeyDown={(e) => {
+      e.stopPropagation();
+      if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+      if (e.key === "Escape") onClose();
+      if (e.key === "Tab") {
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), summary") ?? []);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
+    }}>
+    <div className="se-modal-head">
+      <h3>{tr("取得したデータ")}</h3>
+      <button type="button" className="se-close" aria-label={tr("取得し直す")}
+        title={`${method} ${destination}`} disabled={busy || state.missing || state.invalid || !step.url.trim()}
+        onPointerDown={(e) => {
+          blockedClick.current = composing.current;
+          if (blockedClick.current) e.preventDefault();
+        }}
+        onClick={() => {
+          if (composing.current || blockedClick.current) { blockedClick.current = false; return; }
+          void run(step.url, step, state.prepare());
+        }}><RefreshCw size={15} /></button>
+      <button type="button" className="se-close" onClick={onClose} aria-label={tr("閉じる")}><X size={16} /></button>
+    </div>
+    <div className="se-fetch-destination"><b>{method}</b><span>{destination}</span><small>{tr("現在の設定の送信先")}</small></div>
+    {submitted && (submitted.url !== destination || submitted.method !== method) && (!resultSource || submitted.url !== resultSource.url || submitted.method !== resultSource.method) && <p className="hint se-fetch-submitted">{tr("最後に送信")}: {submitted.method} {submitted.url}</p>}
+    <FetchValues state={state} busy={busy} />
+    {!state.missing && (step.headers?.length || sendsBody(step.method) && step.body) ? <details className="se-fetch-payload">
+      <summary>{tr("送る内容")}</summary><pre>{JSON.stringify(fetchRequestOf(step, state.vars), null, 2)}</pre>
+    </details> : null}
+    {method !== "GET" && <p className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</p>}
+    {busy && <p role="status">{tr("送信中…")}</p>}
+    {error && <p className="se-badge is-warn" role="alert">{error}</p>}
+    {step.sample !== undefined && <>
+      {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("この結果の送信先")}: {resultSource.method} {resultSource.url}</p>}
+      {!hasCurrentSample(step) && <p className="se-badge is-warn">{tr("現在の設定で未確認の見本です")}</p>}
+      {!full && <p className="hint">{truncatedSample
+        ? tr("見本にはリストの先頭20件のみ保存されています。全件を見るには右上の「取得し直す」で再取得してください。")
+        : tr("保存された見本を表示しています。")}</p>}
+      <JsonPeek value={full ? wholeCache.get(key) : step.sample} />
+    </>}
+  </div>;
 }
 
 /** 取得ブロックの「リクエストの設定」（メソッド・ヘッダー・送る本文） */
@@ -212,16 +396,22 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
 /** 「［URL］のデータを取得して［名前］とする」 */
 export function FetchBody({ step }: { step: FetchStep }) {
   const { doc, pageId, updateStep, renameVar, openPeek } = useContext(Ctx);
-  const { busy, error, run } = useRefetch(step);
+  const scriptOwner = useContext(ScriptOwnerCtx);
+  const scope = { ...fetchPreviewScope(useContext(ScriptNodeCtx), useContext(LoopCtx)), ...(scriptOwner ? { owner: scriptOwner } : {}) };
+  const { busy, attempted, run } = useRefetch(step, scope);
+  const hasResult = hasCurrentSample(step) || attempted;
+  const values = useFetchValues(step, scope);
+  const composing = useRef(false);
+  const blockedClick = useRef(false);
   const customized = !!(step.method && step.method !== "GET") || !!step.headers?.length;
   const [open, setOpen] = useState(false);
   const setOptions = (patch: FetchOptions) => {
-    const next = { ...step, ...patch } as FetchStep;
-    updateStep(step.id, () => next);
-    void run(next.url, next);
+    updateStep(step.id, (s) => s.kind === "fetch" ? changeFetchRequest(s, patch, pageId, scope) : s);
   };
   return (
-    <>
+    <span className="se-fetch-controls" style={{ display: "contents" }}
+      onCompositionStartCapture={() => { composing.current = true; }}
+      onCompositionEndCapture={() => { composing.current = false; }}>
       <Phrase
         text="{url}のデータを取得して{as}とする"
         parts={{
@@ -233,28 +423,32 @@ export function FetchBody({ step }: { step: FetchStep }) {
               width={240}
               onCommit={(v) => {
                 const url = v.trim();
-                updateStep(step.id, (s) => ({ ...s, url }) as ScriptStep);
+                updateStep(step.id, (s) => s.kind === "fetch" ? changeFetchRequest(s, { url }, pageId, scope) : s);
                 // 名前が空なら付けておく
                 if (url && !step.as) renameVar(step.id, "", uniqueVarName(doc, pageId, trc("変数名", "データ"), step.id));
-                void run(url);
               }}
             />
           ),
           as: <VarNameIn stepId={step.id} value={step.as ?? ""} placeholder={tr("名前（例: 商品データ）")} />,
         }}
       />
-      {busy ? (
-        <span className="se-blk-note">{tr("読み込み中…")}</span>
-      ) : step.sample !== undefined ? (
-        <button
-          type="button"
-          className="se-mini se-mini-text"
-          onClick={() => openPeek(step.id)}
-        >
-          <Table2 size={12} />
-          {tr("データを見る")}
-        </button>
-      ) : null}
+      <button type="button" className="se-mini se-mini-text"
+        title={`${step.method ?? "GET"} ${values.missing ? step.url : interpolateUrl(step.url, values.vars)}`}
+        disabled={!step.url.trim() || (!hasResult && !busy && (values.missing || values.invalid))}
+        onPointerDown={(e) => {
+          blockedClick.current = composing.current;
+          // blur で設定が変わっても、「見る」を押し始めた操作を無効化・送信に変えない。
+          if (blockedClick.current || ((hasResult || busy) && e.button === 0)) e.preventDefault();
+        }}
+        onClick={() => {
+          if (composing.current || blockedClick.current) { blockedClick.current = false; return; }
+          if (hasResult || busy) (document.activeElement as HTMLElement | null)?.blur?.();
+          openPeek(step.id, scope);
+          if (!hasResult && !busy) void run(step.url, step, values.prepare());
+        }}>
+        {hasResult ? <Table2 size={12} /> : <Play size={12} />}
+        {busy ? tr("送信中…") : hasResult ? tr("データを見る") : tr("データ取得")}
+      </button>
       <button
         type="button"
         className={`se-mini se-mini-text${open ? " is-on" : ""}`}
@@ -264,14 +458,15 @@ export function FetchBody({ step }: { step: FetchStep }) {
         <SlidersHorizontal size={12} />
         {customized ? tr("リクエストの設定（{method}）", { method: step.method ?? "GET" }) : tr("リクエストの設定")}
       </button>
-      {error && <span className="se-badge is-warn">{error}</span>}
+      {!hasResult && <FetchValues state={values} busy={busy} />}
+      {step.method && step.method !== "GET" && <span className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</span>}
       {open && (
         <>
           <span className="se-br" />
           <FetchOptionsPanel step={step} onChange={setOptions} />
         </>
       )}
-    </>
+    </span>
   );
 }
 
@@ -281,7 +476,7 @@ interface PathOption {
   value: unknown;
 }
 
-/** 位置の1段分の選択肢（オブジェクトは項目名、配列は「〇番目」と「最後」） */
+/** 位置の1段分の選択肢（オブジェクトは項目名、リストは「〇番目」と「最後」） */
 function childOptions(value: unknown): PathOption[] {
   if (Array.isArray(value)) {
     const out: PathOption[] = value
@@ -298,7 +493,7 @@ function childOptions(value: unknown): PathOption[] {
   return [];
 }
 
-/** 中身の分からない配列（画面を開いてから値が決まるもの）の位置の選択肢 */
+/** 中身の分からないリスト（画面を開いてから値が決まるもの）の位置の選択肢 */
 const UNKNOWN_ITEMS: PathOption[] = [
   ...[0, 1, 2, 3, 4].map((i) => ({ key: String(i), label: tr("{p1}番目", { p1: i + 1 }), value: undefined })),
   { key: "-1", label: tr("最後"), value: undefined },
@@ -307,10 +502,10 @@ const UNKNOWN_ITEMS: PathOption[] = [
 export const isNested = (v: unknown) => v != null && typeof v === "object";
 
 /**
- * 「取得したデータの［…］」「配列の［…］」の位置を選ぶメニュー。
+ * 「取得したデータの［…］」「リストの［…］」の位置を選ぶメニュー。
  * 項目を選ぶと決まり、「›」で中の項目へ進む。
- * mode: any = どこでも / list = 一覧（配列）だけ / item = 配列の何番目か（とその中）/
- *       field = 1件の中の項目（入れ子も可。比べられる値＝文字・数値と、文字や数値の一覧だけ選べる）
+ * mode: any = どこでも / list = リスト（リスト）だけ / item = リストの何番目か（とその中）/
+ *       field = 1件の中の項目（入れ子も可。比べられる値＝文字・数値と、文字や数値のリストだけ選べる）
  */
 export function PathMenu({
   root,
@@ -353,14 +548,14 @@ export function PathMenu({
     };
   }, [open]);
 
-  // 見本が無ければ位置を文字で入力する（配列の何番目かは選べる）
+  // 見本が無ければ位置を文字で入力する（リストの何番目かは選べる）
   if (root === undefined && mode !== "item") {
     return (
       <TextIn
         value={path}
         placeholder={
           mode === "list"
-            ? tr("一覧の位置（例: products）")
+            ? tr("リストの位置（例: products）")
             : mode === "field"
               ? tr("項目（例: name）")
               : tr("位置（例: data.title）")
@@ -375,7 +570,7 @@ export function PathMenu({
   const levelValue = at ? digPath(root, at) : root;
   const rows = !known ? (at ? [] : UNKNOWN_ITEMS) : childOptions(levelValue);
   const join = (key: string) => (at ? `${at}.${key}` : key);
-  /** 文字・数値だけの一覧（比べるときは「,」でつないだ文字になる） */
+  /** 文字・数値だけのリスト（比べるときは「,」でつないだ文字になる） */
   const primitiveList = (v: unknown) =>
     Array.isArray(v) && v.every((x) => x == null || typeof x !== "object");
   const canPick = (v: unknown) =>
@@ -388,7 +583,7 @@ export function PathMenu({
   const label = path
     ? fieldLabel(path)
     : mode === "list"
-      ? tr("一覧を選択")
+      ? tr("リストを選択")
       : mode === "item"
         ? tr("位置を選択")
         : mode === "field"
@@ -483,7 +678,7 @@ export function PathMenu({
             })}
             {known && !rows.length && <div className="se-pm-none">{tr("中に項目がありません")}</div>}
             {mode === "list" && known && !at && !findsList(root) && (
-              <div className="se-pm-none">{tr("一覧（配列）が見つかりません")}</div>
+              <div className="se-pm-none">{tr("リストが見つかりません")}</div>
             )}
           </div>,
           document.body
@@ -492,14 +687,14 @@ export function PathMenu({
   );
 }
 
-/** 中に一覧（配列）があるか */
+/** 中にリスト（リスト）があるか */
 function findsList(value: unknown, depth = 0): boolean {
   if (Array.isArray(value)) return true;
   if (!isNested(value) || depth > 4) return false;
   return Object.values(value as object).some((v) => findsList(v, depth + 1));
 }
 
-/** 上書きできない変数名（ページのURLの slug、配列の各要素の 値） */
+/** 上書きできない変数名（ページのURLの slug、リストの各要素の 値） */
 export const RESERVED_VARS = new Set(["slug", ITEM_VALUE]);
 
 /** 変数名の入力（同じ名前ならその変数を上書きする。名前を変えると、使っている箇所も書き換える） */
@@ -595,7 +790,7 @@ export function VarNameIn({
         matches.length > 0 &&
         createPortal(
           <div className="dd-menu var-comp" style={pos} data-se-popover="" onMouseDown={(e) => e.preventDefault()}>
-            <div className="var-comp-head">{tr("ほかのブロックで作る変数")}</div>
+            <div className="var-comp-head">{tr("既存の変数を上書き")}</div>
             <div className="var-comp-list">
               {matches.map((name, i) => (
                 <button

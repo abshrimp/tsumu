@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { expectVariableMenuLayout } from "./helpers/variable-menu-layout";
 import { varExplorerBundle } from "../tests/helpers/var-explorer";
 
 let bundle: string;
@@ -99,3 +100,21 @@ test("検索中のデータ更新で候補が減っても、空の検索・キ�
   expect(after.doc.nodes.target).toEqual(before.doc.nodes.target);
   expect(errors).toEqual([]);
 });
+
+for (const width of [1440, 375, 320]) {
+  test(`設定欄の変数候補の2つの操作案内は折り返さず、幅 ${width}px の画面内に収まる`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await source(page).focus();
+    await source(page).press("Control+/");
+    const menu = page.locator(".var-comp");
+    await expect(menu).toBeVisible();
+    await expectVariableMenuLayout(page, width, 2);
+    await source(page).press("Escape");
+    await expect(menu).toHaveCount(0);
+    await source(page).press("Control+/");
+    await page.locator(".var-comp-explore").click();
+    await expect(page.getByRole("dialog", { name: "変数を探す" })).toBeVisible();
+    await page.getByPlaceholder("変数名・値で検索").press("Escape");
+    await expect(page.getByRole("dialog", { name: "変数を探す" })).toHaveCount(0);
+  });
+}

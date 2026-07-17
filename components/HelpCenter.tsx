@@ -67,7 +67,7 @@ const CONTEXT_LABEL: Record<string, string> = {
   text: tr("選んでいる文字"),
   image: tr("選んでいる画像"),
   box: tr("選んでいるボックス"),
-  list: tr("選んでいるリスト"),
+  list: tr("選んでいるリスト表示"),
   instance: tr("選んでいるコンポーネント"),
   field: tr("選んでいるフォーム部品"),
   media: tr("選んでいる動画・埋め込み"),

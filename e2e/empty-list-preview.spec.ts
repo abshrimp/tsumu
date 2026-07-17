@@ -12,9 +12,9 @@ async function setup(page: Page, items: readonly unknown[]) {
   await page.setContent('<html><body><div id="app"></div></body></html>');
   await page.addStyleTag({ content: readFileSync("app/globals.css", "utf8") });
   await page.addScriptTag({ content: await emptyListBundle(items) });
-  await page.getByRole("button", { name: "リスト化", exact: true }).click();
+  await page.getByRole("button", { name: "リスト表示にする", exact: true }).click();
   const before = await snapshot(page);
-  const row = page.locator("aside .row").filter({ has: page.locator("label", { hasText: /^並べる配列$/ }) });
+  const row = page.locator("aside .row").filter({ has: page.locator("label", { hasText: /^表示するリスト$/ }) });
   await row.locator("button").click();
   await page.locator(".dd-item").filter({ has: page.locator(".dd-col > span:first-child", { hasText: /^tags$/ }) }).click();
   return { errors, before };

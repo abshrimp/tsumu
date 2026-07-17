@@ -22,7 +22,7 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   doc.nodes.tags.list!.from = '';
   useEditor.getState().replaceDoc(doc); useEditor.getState().setActivePage('p');
   const panel = loadNestedUi('components/SettingsPanel.tsx', true).default({ nodeId: 'tags' });
-  const row = nodes(panel).find(n => n.props?.className === 'row' && nodes(n).some(x => x.type === 'label' && x.props.children === '並べる配列'));
+  const row = nodes(panel).find(n => n.props?.className === 'row' && nodes(n).some(x => x.type === 'label' && x.props.children === '表示するリスト'));
   const drop = nodes(row).find(n => n.props?.options).props;
   assert.ok(drop.options.some((o: any) => o.value === 'tags')); drop.onChange('tags');
   doc = structuredClone(useEditor.getState().doc);
@@ -31,7 +31,8 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
     const html = renderToStaticMarkup(React.createElement(Ctx.Provider, { value: {
       doc, pageId: 'p', samples: previewDataVars(doc, 'p'), arrays: pageArrays(doc, 'p'), updateStep() {}, renameVar() {},
     } as unknown as EdCtx }, React.createElement(StepBody, { step })));
-    assert.ok(html.includes(`value="${(step as any).value}"`)); assert.ok(html.includes(`value="${(step as any).into}"`));
+    assert.equal(parse(html).querySelector(".se-value-choice input")?.getAttribute("value"), (step as any).value);
+    assert.ok(html.includes(`value="${(step as any).into}"`));
   }
   const saved = JSON.stringify(doc), html = await publishedClientNested(doc, 'app/page.tsx', items);
   const canvas = parse(clientNestedCanvas(doc, items)).querySelectorAll('#detail').map((n: any) => n.textContent);

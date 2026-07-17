@@ -16,7 +16,7 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   await page.getByRole('button', { name: 'Edit action', exact: true }).click();
   const block = page.locator('.se-ws [data-sel-key="step:field"]');
   await expect(block.locator('select').first()).toHaveValue('targets');
-  const input = block.locator('input').first();
+  const input = block.locator('.se-value-choice input');
   await input.fill('{name}|{counter}|{entry}|\\{name}'); await input.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();
   const saved = await snapshot();

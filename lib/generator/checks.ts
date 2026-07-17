@@ -273,14 +273,14 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
           results.push({
             help: "data-detail",
             level: "error",
-            message: tr("「{name}」のスクリプトで、配列の要素を探す項目が選ばれていません", { name: page.name }),
+            message: tr("「{name}」のスクリプトで、リストの要素を探す項目が選ばれていません", { name: page.name }),
           });
         }
         if (st.kind === "array-field" && st.array && !st.field) {
           results.push({
             help: "data-list",
             level: "error",
-            message: tr("「{name}」のスクリプトで、配列の要素に格納する項目名が空です", { name: page.name }),
+            message: tr("「{name}」のスクリプトで、リストの要素に格納する項目名が空です", { name: page.name }),
           });
         }
         if ("into" in st && st.into) loadVars.add(st.into);
@@ -353,7 +353,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "data-list",
           level: "warn",
-          message: tr("「{name}」のリスト「{name2}」に並べる配列が選ばれていません（出力されません）", { name: page.name, name2: node.name }),
+          message: tr("「{name}」のリスト表示「{name2}」に表示するリストが選ばれていません（出力されません）", { name: page.name, name2: node.name }),
         });
       }
       if (node.type === "image" && node.image && !node.image.alt) {

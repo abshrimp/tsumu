@@ -90,16 +90,16 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
         )
         .join("");
       const head = `${st.no !== undefined ? tr("絞り込み{no}: ", { no: st.no }) : ""}${st.join === "or" ? tr("（ほかの絞り込みと「または」）") : ""}`;
-      return tr("{head}配列{p2}を {conds} ものに絞り込む", { head, p2: arrayText(st.array), conds });
+      return tr("{head}リスト{p2}を {conds} ものに絞り込む", { head, p2: arrayText(st.array), conds });
     }
     case "unfilter-array":
       return st.no !== undefined
-        ? tr("配列{p1}の絞り込み{no}を解除する", { p1: arrayText(st.array), no: st.no })
-        : tr("配列{p1}のすべての絞り込みを解除する", { p1: arrayText(st.array) });
+        ? tr("リスト{p1}の絞り込み{no}を解除する", { p1: arrayText(st.array), no: st.no })
+        : tr("リスト{p1}のすべての絞り込みを解除する", { p1: arrayText(st.array) });
     case "sort-array":
       return st.dir === "desc"
-        ? tr("配列{array}を {field} の大きい順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") })
-        : tr("配列{array}を {field} の小さい順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") });
+        ? tr("リスト{array}を {field} の大きい順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") })
+        : tr("リスト{array}を {field} の小さい順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") });
     case "store-save":
       return st.shared
         ? tr("共有ストレージの「{key}」に「{value}」を保存する", { key: st.key || tr("キー未入力"), value: st.value })
@@ -109,13 +109,13 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
         ? tr("共有ストレージの「{key}」を読み込んで変数 {{into}} とする", { key: st.key || tr("キー未入力"), into: st.into || "?" })
         : tr("ストレージの「{key}」を読み込んで変数 {{into}} とする", { key: st.key || tr("キー未入力"), into: st.into || "?" });
     case "split":
-      return tr("「{source}」を「{p2}」で分解して配列{p3}とする", { source: st.source, p2: st.sep || ",", p3: arrayText(st.into) });
+      return tr("「{source}」を「{p2}」で分解してリスト{p3}とする", { source: st.source, p2: st.sep || ",", p3: arrayText(st.into) });
     case "array-find":
-      return tr("配列{p1}の要素のうち、{p2} が「{value}」のものを変数 {{p4}} とする", { p1: arrayText(st.array), p2: st.field ? fieldLabel(st.field) : tr("（項目未選択）"), value: st.value, p4: st.into || "?" });
+      return tr("リスト{p1}の要素のうち、{p2} が「{value}」のものを変数 {{p4}} とする", { p1: arrayText(st.array), p2: st.field ? fieldLabel(st.field) : tr("（項目未選択）"), value: st.value, p4: st.into || "?" });
     case "array-field":
-      return tr("配列{p1}の「{value}」を項目 {p3} として格納する", { p1: arrayText(st.array), value: st.value, p3: st.field || tr("（項目名未入力）") });
+      return tr("リスト{p1}の「{value}」を項目 {p3} として格納する", { p1: arrayText(st.array), value: st.value, p3: st.field || tr("（項目名未入力）") });
     case "count":
-      return tr("配列{p1}の件数を変数 {{p2}} とする", { p1: arrayText(st.array), p2: st.into || "?" });
+      return tr("リスト{p1}の件数を変数 {{p2}} とする", { p1: arrayText(st.array), p2: st.into || "?" });
     case "copy":
       return tr("「{value}」をコピーする", { value: st.value });
     case "set-var":
@@ -132,11 +132,11 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
     case "repeat":
       return st.times > 0 ? tr("{times}回くり返す…", { times: st.times }) : tr("ずっとくり返す…");
     case "for-each":
-      return tr("配列{p1}の要素ごとにくり返す…", { p1: arrayText(st.array) });
+      return tr("リスト{p1}の要素ごとにくり返す…", { p1: arrayText(st.array) });
     case "join":
       return st.field
-        ? tr("配列{array}の {field} を「{sep}」でつないで変数 {{into}} とする", { array: arrayText(st.array), field: fieldLabel(st.field), sep: st.sep, into: st.into || "?" })
-        : tr("配列{array}を「{sep}」でつないで変数 {{into}} とする", { array: arrayText(st.array), sep: st.sep, into: st.into || "?" });
+        ? tr("リスト{array}の {field} を「{sep}」でつないで変数 {{into}} とする", { array: arrayText(st.array), field: fieldLabel(st.field), sep: st.sep, into: st.into || "?" })
+        : tr("リスト{array}を「{sep}」でつないで変数 {{into}} とする", { array: arrayText(st.array), sep: st.sep, into: st.into || "?" });
     case "wait":
       return tr("{seconds}秒待つ", { seconds: st.seconds });
     case "fetch":

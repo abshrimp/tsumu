@@ -265,7 +265,7 @@ export function varGroupsAt(doc: SiteDoc, pageId: string, nodeId: string): VarGr
   const { item, pageVars } = scopeAt(doc, pageId, nodeId);
   const groups: VarGroup[] = [];
   if (item && Object.keys(item).length) {
-    groups.push({ key: "item", label: tr("リストの項目（1件ずつ変わる）"), vars: item });
+    groups.push({ key: "item", label: tr("リスト表示の項目（1件ずつ変わる）"), vars: item });
   }
   const data = namedVars(pageVars);
   if (Object.keys(data).length) {
@@ -336,7 +336,7 @@ export function varSamplesAt(
 ): Record<string, string> {
   const describe = (v: unknown): string => {
     if (Array.isArray(v)) return tr("{length}件のリスト", { length: v.length });
-    if (v && typeof v === "object") return tr("項目のまとまり");
+    if (v && typeof v === "object") return tr("項目付きデータ");
     const t = varText(v).replace(/\s+/g, " ");
     return t.length > 28 ? `${t.slice(0, 28)}…` : t;
   };
@@ -678,6 +678,35 @@ export function dataVarNames(doc: SiteDoc, pageId: string, exceptStepId?: string
     });
   }
   return out;
+}
+
+/** 候補用の文書。編集中のブロック自身を実行・列挙せず、同名の別producerやフォームは保つ。 */
+export function scriptInputDoc(doc: SiteDoc, stepId?: string): SiteDoc {
+  if (!stepId) return doc;
+  const steps = (list: ScriptStep[]): ScriptStep[] => {
+    let changed = false;
+    const next = list.flatMap((step): ScriptStep[] => {
+      if (step.id === stepId) { changed = true; return []; }
+      if (step.kind === "if" || step.kind === "repeat" || step.kind === "for-each") {
+        const then = steps(step.then);
+        const other = step.kind === "if" && step.else ? steps(step.else) : undefined;
+        if (then !== step.then || (step.kind === "if" && other !== step.else)) {
+          changed = true;
+          return [{ ...step, then, ...(step.kind === "if" ? { else: other } : {}) }];
+        }
+      }
+      return [step];
+    });
+    return changed ? next : list;
+  };
+  const scripts = <T extends { steps: ScriptStep[] }>(list: T[] | undefined) =>
+    list?.map((script) => { const next = steps(script.steps); return next === script.steps ? script : { ...script, steps: next }; });
+  return { ...doc,
+    pages: Object.fromEntries(Object.entries(doc.pages).map(([id, page]) => [id, { ...page,
+      pageScripts: scripts(page.pageScripts), scripts: scripts(page.scripts),
+    }])),
+    nodes: Object.fromEntries(Object.entries(doc.nodes).map(([id, node]) => [id, { ...node, scripts: scripts(node.scripts) }])),
+  };
 }
 
 /** 名前の候補を、ページ内の既存の変数と重ならないようにする */
@@ -1350,7 +1379,7 @@ export function renameVarInPage(doc: SiteDoc, pageId: string, from: string, to: 
   }
 }
 
-// 書き出し専用の join・count 項目参照。保存する文書には名前・メタデータを足さない。
+// 書き出し専用のjoin・count項目参照。保存する文書には名前・メタデータを足さない。
 const joinItemSources = new WeakMap<ScriptStep, string>();
 export function joinItemSource(step: Extract<ScriptStep, { kind: "join" | "count" }>): string {
   return joinItemSources.get(step) ?? step.array;

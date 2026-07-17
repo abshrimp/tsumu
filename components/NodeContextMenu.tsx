@@ -117,7 +117,7 @@ export default function NodeContextMenu({
         },
         {
           key: "make-list",
-          label: tr("リスト化"),
+          label: tr("リスト表示にする"),
           icon: <LayoutList size={14} />,
           onClick: run(() => s().createList(node.id)),
         },

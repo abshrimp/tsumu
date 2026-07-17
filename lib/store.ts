@@ -326,6 +326,8 @@ function loadActivePageId(doc: SiteDoc): string {
 
 export interface EditorStore {
   doc: SiteDoc;
+  /** 文書の読み替えで更新する非永続ID。非同期処理を別文書へ持ち越さない。 */
+  documentSession: number;
   past: SiteDoc[];
   future: SiteDoc[];
   /** Undo/Redo・文書の置き換えで進む。通常の編集・共同編集では変えない。 */
@@ -615,6 +617,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
   return {
     doc: initialDoc,
+    documentSession: 0,
     past: [],
     future: [],
     historyRevision: 0,
@@ -816,6 +819,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const currentPageId = get().activePageId;
       set({
         doc,
+        documentSession: get().documentSession + 1,
         past: [],
         future: [],
         historyRevision: get().historyRevision + 1,
@@ -840,6 +844,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       const selectedIds = validSelectedIds(doc, get().selectedIds);
       set({
         doc,
+        // 履歴は残しつつ、復元前の非同期処理や一時入力は引き継がない。
+        documentSession: get().documentSession + 1,
         historyRevision: get().historyRevision + 1,
         activePageId: doc.pages[get().activePageId] ? get().activePageId : doc.pageOrder[0],
         selection: validSelection(doc, get().selection) ?? selectedIds[selectedIds.length - 1] ?? null,
@@ -1780,6 +1786,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const doc = createInitialDoc();
       set({
         doc,
+        documentSession: get().documentSession + 1,
         historyRevision: get().historyRevision + 1,
         activePageId: doc.pageOrder[0],
         selection: null,

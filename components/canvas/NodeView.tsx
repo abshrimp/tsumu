@@ -254,7 +254,7 @@ export function NodeView({
         createElement(
           "div",
           { key: "ph", className: "cv-placeholder" },
-          tr("リストの設定で、並べる配列を選んでください")
+          tr("リスト表示の設定で、表示するリストを選んでください")
         )
       );
     } else if (!items.length && live) {

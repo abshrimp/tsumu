@@ -453,7 +453,7 @@ export function makeList(from?: string): PresetResult {
   const root: DocNode = {
     id: genId("node"),
     type: "list",
-    name: tr("リスト"),
+    name: tr("リスト表示"),
     semantic: "auto",
     text: null,
     link: null,

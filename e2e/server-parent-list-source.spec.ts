@@ -35,7 +35,7 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.addScriptTag({ content: await serverSourceBundle(component) });
-  const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^並べる配列$/ }) }).locator('button');
+  const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^表示するリスト$/ }) }).locator('button');
   await source.click();
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
   await expect(source).toHaveText('tags');
