@@ -38,7 +38,10 @@ test("an old initial comment response cannot remove a posted thread or its unfin
     await reply.fill("Unsent reply draft");
     release.resolve();
     await delivered.promise;
+    await expect(reply).toHaveValue("Unsent reply draft");
+    await page.locator(".cm-detail").getByRole("button", { name: "一覧に戻る", exact: true }).click();
     await expect(page.locator(".cm-item-body")).toHaveText("Newly saved comment");
+    await page.locator(".cm-item").click();
     await expect(reply).toHaveValue("Unsent reply draft");
     const stored = await (await page.request.get(`/api/comments?site=${id}`)).json();
     expect(stored.threads).toHaveLength(1);

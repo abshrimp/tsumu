@@ -104,11 +104,11 @@ for (const operation of ["delete", "resolve"]) {
     };
     await perform();
     await expect(error(page)).toHaveText("コメントを保存できませんでした");
-    await expect(page.locator(".cm-item-body")).toHaveText("Saved comment");
     await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText("Saved comment");
     expect(await saved(page, key)).toBe(before);
     await setFailure(page, "none");
     await perform();
+    if (operation === "resolve") await page.getByRole("button", { name: "一覧に戻る", exact: true }).click();
     await expect(page.locator(".cm-item")).toHaveCount(0);
     const stored = JSON.parse(await saved(page, key));
     if (operation === "delete") expect(stored).toEqual([]);
@@ -124,7 +124,7 @@ test("定期読み込みが失敗しても既存コメントと返信の下書�
   await reply.fill("Unsent draft during refresh");
   await setFailure(page, "read");
   await expect(error(page)).toHaveText("コメントを読み込めませんでした", { timeout: 20_000 });
-  await expect(page.locator(".cm-item-body")).toHaveText("Saved comment");
+  await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText("Saved comment");
   await expect(reply).toHaveValue("Unsent draft during refresh");
   expect(await saved(page, key)).toBe(before);
 });

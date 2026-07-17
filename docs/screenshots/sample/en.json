@@ -1,0 +1,1392 @@
+{
+  "site": {
+    "name": "Forest Bakery",
+    "repo": "example/forest-bakery"
+  },
+  "comments": [
+    {
+      "node": null,
+      "x": 0.93,
+      "y": 0.1,
+      "body": "Please check the opening hours and closing days before we publish."
+    },
+    {
+      "node": "node_mw6257c7jdsk3",
+      "x": 0.92,
+      "y": 0.15,
+      "body": "The tart description wraps to three lines on phones. Can we shorten it?"
+    },
+    {
+      "node": "node_mw6257c6c5x58",
+      "x": 1.0,
+      "y": 0.75,
+      "body": "The button brown could be a little darker.",
+      "replies": [
+        "Made it a deeper brown."
+      ]
+    },
+    {
+      "node": "node_mw6257c6awn50",
+      "x": 0.97,
+      "y": 0.1,
+      "body": "Could the headline feel a little warmer? A serif might work.",
+      "replies": [
+        "Good idea, I'll try a serif.",
+        "Much better! Let's match the tone in the intro text too."
+      ]
+    }
+  ],
+  "replyDraft": "Updated the intro to match.",
+  "aiPrompt": "Add a bit more space under the headline and give the cards a soft shadow. Make the card text a little smaller on phones.",
+  "help": {
+    "category": "Mobile",
+    "article": "How do I check and adjust the phone layout?"
+  },
+  "labels": {
+    "editScripts": "Edit scripts"
+  },
+  "doc": {
+    "siteName": "Forest Bakery",
+    "lang": "en",
+    "colorPalette": [],
+    "pages": {
+      "page_mw6257c7qp1jj": {
+        "id": "page_mw6257c7qp1jj",
+        "name": "Home",
+        "slug": "",
+        "title": "Home",
+        "description": "",
+        "children": [
+          "node_mw6257c69elrx",
+          "node_mw6257c6daxqy",
+          "node_mw6257c7nf4qa",
+          "node_mw6257c7pgtnd"
+        ]
+      },
+      "page_mw6257c71ijbit": {
+        "id": "page_mw6257c71ijbit",
+        "name": "Products (demo)",
+        "slug": "catalog",
+        "title": "Products",
+        "description": "A sample page powered by dummyjson.com data",
+        "children": [
+          "node_mw6257c71hsaa4"
+        ],
+        "pageScripts": [
+          {
+            "id": "sc_mw6257c71k9k04",
+            "trigger": "load",
+            "pos": {
+              "x": 32,
+              "y": 32
+            },
+            "steps": [
+              {
+                "id": "st_mw6257c71ltdo0",
+                "kind": "fetch",
+                "url": "https://dummyjson.com/products/search?q={q}",
+                "as": "data",
+                "sample": {
+                  "products": [
+                    {
+                      "id": 1,
+                      "title": "Essence Mascara Lash Princess",
+                      "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing …",
+                      "price": 9.99,
+                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+                      "category": "beauty",
+                      "brand": "Essence",
+                      "rating": 2.56
+                    },
+                    {
+                      "id": 2,
+                      "title": "Eyeshadow Palette with Mirror",
+                      "description": "The Eyeshadow Palette with Mirror offers a versatile range of eyeshadow shades f…",
+                      "price": 19.99,
+                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/thumbnail.webp",
+                      "category": "beauty",
+                      "brand": "Glamour Beauty",
+                      "rating": 2.86
+                    },
+                    {
+                      "id": 3,
+                      "title": "Powder Canister",
+                      "description": "The Powder Canister is a finely milled setting powder designed to set makeup and…",
+                      "price": 14.99,
+                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/powder-canister/thumbnail.webp",
+                      "category": "beauty",
+                      "brand": "Velvet Touch",
+                      "rating": 4.64
+                    },
+                    {
+                      "id": 4,
+                      "title": "Red Lipstick",
+                      "description": "The Red Lipstick is a classic and bold choice for adding a pop of color to your …",
+                      "price": 12.99,
+                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/red-lipstick/thumbnail.webp",
+                      "category": "beauty",
+                      "brand": "Chic Cosmetics",
+                      "rating": 4.36
+                    }
+                  ]
+                },
+                "fetchedAt": 1794035043943
+              },
+              {
+                "id": "st_mw6257c71jyav2",
+                "kind": "set-var",
+                "value": "{data.products}",
+                "into": "products"
+              }
+            ]
+          }
+        ]
+      },
+      "page_mw6257c713ilju": {
+        "id": "page_mw6257c713ilju",
+        "name": "Product detail (demo)",
+        "slug": "products/[slug]",
+        "title": "Product detail",
+        "description": "",
+        "children": [
+          "node_mw6257c7128lik"
+        ],
+        "pageScripts": [
+          {
+            "id": "sc_mw6257c7158de3",
+            "trigger": "load",
+            "pos": {
+              "x": 32,
+              "y": 32
+            },
+            "steps": [
+              {
+                "id": "st_mw6257c716ajbx",
+                "kind": "fetch",
+                "url": "https://dummyjson.com/products/{slug}",
+                "as": "data",
+                "sample": {
+                  "id": 1,
+                  "title": "Essence Mascara Lash Princess",
+                  "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing …",
+                  "price": 9.99,
+                  "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+                  "category": "beauty",
+                  "brand": "Essence",
+                  "rating": 2.56
+                },
+                "fetchedAt": 1794035043943
+              },
+              {
+                "id": "st_mw6257c714q3m6",
+                "kind": "set-var",
+                "value": "{data}",
+                "into": "product"
+              }
+            ]
+          }
+        ]
+      },
+      "page_mw6257c7vnvrw": {
+        "id": "page_mw6257c7vnvrw",
+        "name": "404 (not found)",
+        "slug": "404",
+        "title": "Page not found",
+        "description": "",
+        "children": [
+          "node_mw6257c7un9go"
+        ]
+      }
+    },
+    "pageOrder": [
+      "page_mw6257c7qp1jj",
+      "page_mw6257c71ijbit",
+      "page_mw6257c713ilju",
+      "page_mw6257c7vnvrw"
+    ],
+    "nodes": {
+      "node_mw6257c69elrx": {
+        "id": "node_mw6257c69elrx",
+        "type": "box",
+        "name": "Navbar",
+        "semantic": "header",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c61vlsk",
+          "node_mw6257c65rva4",
+          "node_mw6257c66vx5o"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "row",
+              "padding": "16px 40px",
+              "gap": "24px",
+              "alignItems": "center",
+              "justifyContent": "space-between",
+              "backgroundColor": "#fffaf3",
+              "borderBottom": "1px solid #ecdcc4"
+            }
+          }
+        },
+        "attrId": "navbar"
+      },
+      "node_mw6257c61vlsk": {
+        "id": "node_mw6257c61vlsk",
+        "type": "box",
+        "name": "Logo",
+        "semantic": "auto",
+        "text": {
+          "content": "Forest Bakery",
+          "heading": 6
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "18px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#3b2a1a",
+              "letterSpacing": "0.04em",
+              "fontFamily": "'Noto Serif JP', 'Noto Serif CJK JP', serif"
+            }
+          }
+        }
+      },
+      "node_mw6257c65rva4": {
+        "id": "node_mw6257c65rva4",
+        "type": "box",
+        "name": "Nav links",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c6290vk",
+          "node_mw6257c6313f7",
+          "node_mw6257c644qq6"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "row",
+              "padding": "0px",
+              "gap": "28px",
+              "alignItems": "center"
+            }
+          },
+          "sm": {
+            "default": {
+              "display": "none",
+              "position": "absolute",
+              "top": "100%",
+              "left": "0",
+              "right": "0",
+              "zIndex": "50",
+              "flexDirection": "column",
+              "alignItems": "stretch",
+              "gap": "0px",
+              "padding": "8px 0",
+              "backgroundColor": "#ffffff",
+              "borderBottom": "1px solid #e4e4e7"
+            }
+          }
+        },
+        "attrId": "nav-links"
+      },
+      "node_mw6257c66vx5o": {
+        "id": "node_mw6257c66vx5o",
+        "type": "icon",
+        "name": "Menu toggle",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "icon": {
+          "name": "menu",
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-menu\" aria-hidden=\"true\"><path d=\"M4 5h16\"></path><path d=\"M4 12h16\"></path><path d=\"M4 19h16\"></path></svg>"
+        },
+        "scripts": [
+          {
+            "id": "sc_mw6257c674lmj",
+            "trigger": "click",
+            "pos": {
+              "x": 32,
+              "y": 32
+            },
+            "steps": [
+              {
+                "id": "st_mw6257c68fi3e",
+                "kind": "toggle",
+                "target": "nav-links"
+              }
+            ]
+          }
+        ],
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "none",
+              "width": "24px",
+              "height": "24px",
+              "color": "#3b2a1a",
+              "cursor": "pointer"
+            }
+          },
+          "sm": {
+            "default": {
+              "display": "inline-flex"
+            }
+          }
+        }
+      },
+      "node_mw6257c6290vk": {
+        "id": "node_mw6257c6290vk",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "Menu",
+          "heading": 0
+        },
+        "link": {
+          "kind": "url",
+          "url": "#",
+          "newTab": false
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "textDecoration": "none",
+              "color": "#3b2a1a"
+            }
+          },
+          "sm": {
+            "default": {
+              "padding": "12px 24px"
+            }
+          }
+        }
+      },
+      "node_mw6257c6313f7": {
+        "id": "node_mw6257c6313f7",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "About",
+          "heading": 0
+        },
+        "link": {
+          "kind": "url",
+          "url": "#",
+          "newTab": false
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "textDecoration": "none",
+              "color": "#3b2a1a"
+            }
+          },
+          "sm": {
+            "default": {
+              "padding": "12px 24px"
+            }
+          }
+        }
+      },
+      "node_mw6257c644qq6": {
+        "id": "node_mw6257c644qq6",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "Visit",
+          "heading": 0
+        },
+        "link": {
+          "kind": "url",
+          "url": "#",
+          "newTab": false
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "textDecoration": "none",
+              "color": "#3b2a1a"
+            }
+          },
+          "sm": {
+            "default": {
+              "padding": "12px 24px"
+            }
+          }
+        }
+      },
+      "node_mw6257c6daxqy": {
+        "id": "node_mw6257c6daxqy",
+        "type": "box",
+        "name": "Hero",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c6awn50",
+          "node_mw6257c6b3qbu",
+          "node_mw6257c6c5x58"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "110px 40px",
+              "gap": "24px",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "backgroundColor": "#fbf1e3",
+              "backgroundImage": "linear-gradient(180deg, #fbf1e3 0%, #f2e0c6 100%)"
+            }
+          }
+        }
+      },
+      "node_mw6257c6awn50": {
+        "id": "node_mw6257c6awn50",
+        "type": "box",
+        "name": "Headline",
+        "semantic": "auto",
+        "text": {
+          "content": "Slow-baked bread,\none loaf at a time.",
+          "heading": 1
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "44px",
+              "fontWeight": "600",
+              "lineHeight": "1.4",
+              "textAlign": "center",
+              "letterSpacing": "-0.02em",
+              "color": "#3b2a1a",
+              "fontFamily": "'Noto Serif JP', 'Noto Serif CJK JP', serif"
+            }
+          }
+        }
+      },
+      "node_mw6257c6b3qbu": {
+        "id": "node_mw6257c6b3qbu",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "A small neighborhood bakery. Sourdough bread, seasonal tarts and good coffee, made by hand since 2014.",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "17px",
+              "lineHeight": "1.7",
+              "color": "#7a6553",
+              "textAlign": "center",
+              "maxWidth": "560px"
+            }
+          }
+        }
+      },
+      "node_mw6257c6c5x58": {
+        "id": "node_mw6257c6c5x58",
+        "type": "box",
+        "name": "Button",
+        "semantic": "button",
+        "text": {
+          "content": "See today's menu",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "inline-flex",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": "12px 28px",
+              "backgroundColor": "#8a5a2e",
+              "color": "#ffffff",
+              "fontSize": "14px",
+              "fontWeight": "600",
+              "borderRadius": "999px",
+              "border": "none",
+              "textDecoration": "none",
+              "transition": "all 200ms ease",
+              "cursor": "pointer"
+            },
+            "hover": {
+              "backgroundColor": "#3f3f46"
+            }
+          }
+        }
+      },
+      "node_mw6257c7nf4qa": {
+        "id": "node_mw6257c7nf4qa",
+        "type": "box",
+        "name": "Card grid",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7gmdvw",
+          "node_mw6257c7jdsk3",
+          "node_mw6257c7mbcal"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "grid",
+              "flexDirection": "column",
+              "padding": "64px 40px",
+              "gap": "20px",
+              "gridTemplateColumns": "repeat(3, 1fr)",
+              "backgroundColor": "#fffaf3"
+            }
+          },
+          "md": {
+            "default": {
+              "gridTemplateColumns": "repeat(1, 1fr)"
+            }
+          }
+        }
+      },
+      "node_mw6257c7gmdvw": {
+        "id": "node_mw6257c7gmdvw",
+        "type": "box",
+        "name": "Card 1",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7ef5n9",
+          "node_mw6257c7fvxrq"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "28px",
+              "gap": "10px",
+              "backgroundColor": "#ffffff",
+              "borderRadius": "12px",
+              "border": "1px solid #ecdcc4"
+            }
+          }
+        }
+      },
+      "node_mw6257c7ef5n9": {
+        "id": "node_mw6257c7ef5n9",
+        "type": "box",
+        "name": "Card 1",
+        "semantic": "auto",
+        "text": {
+          "content": "Sourdough bread",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "18px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#3b2a1a"
+            }
+          }
+        }
+      },
+      "node_mw6257c7fvxrq": {
+        "id": "node_mw6257c7fvxrq",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "Our own starter, fermented for 36 hours. Crisp crust, soft crumb.",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "color": "#7a6553"
+            }
+          }
+        }
+      },
+      "node_mw6257c7jdsk3": {
+        "id": "node_mw6257c7jdsk3",
+        "type": "box",
+        "name": "Card 2",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7hblnp",
+          "node_mw6257c7i7r5p"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "28px",
+              "gap": "10px",
+              "backgroundColor": "#ffffff",
+              "borderRadius": "12px",
+              "border": "1px solid #ecdcc4"
+            }
+          }
+        }
+      },
+      "node_mw6257c7hblnp": {
+        "id": "node_mw6257c7hblnp",
+        "type": "box",
+        "name": "Card 2",
+        "semantic": "auto",
+        "text": {
+          "content": "Seasonal tarts",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "18px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#3b2a1a"
+            }
+          }
+        }
+      },
+      "node_mw6257c7i7r5p": {
+        "id": "node_mw6257c7i7r5p",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "Fruit from nearby farms on a buttery crust. New every month.",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "color": "#7a6553"
+            }
+          }
+        }
+      },
+      "node_mw6257c7mbcal": {
+        "id": "node_mw6257c7mbcal",
+        "type": "box",
+        "name": "Card 3",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7krtiw",
+          "node_mw6257c7ldk0a"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "28px",
+              "gap": "10px",
+              "backgroundColor": "#ffffff",
+              "borderRadius": "12px",
+              "border": "1px solid #ecdcc4"
+            }
+          }
+        }
+      },
+      "node_mw6257c7krtiw": {
+        "id": "node_mw6257c7krtiw",
+        "type": "box",
+        "name": "Card 3",
+        "semantic": "auto",
+        "text": {
+          "content": "Morning coffee",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "18px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#3b2a1a"
+            }
+          }
+        }
+      },
+      "node_mw6257c7ldk0a": {
+        "id": "node_mw6257c7ldk0a",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "Single origin from a local roaster, brewed from 7 a.m.",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "color": "#7a6553"
+            }
+          }
+        }
+      },
+      "node_mw6257c7pgtnd": {
+        "id": "node_mw6257c7pgtnd",
+        "type": "box",
+        "name": "Footer",
+        "semantic": "footer",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7oebax"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "40px",
+              "gap": "0px",
+              "alignItems": "center",
+              "backgroundColor": "#fffaf3",
+              "borderTop": "1px solid #ecdcc4"
+            }
+          }
+        }
+      },
+      "node_mw6257c7oebax": {
+        "id": "node_mw6257c7oebax",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "© 2026 Forest Bakery",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "13px",
+              "lineHeight": "1.7",
+              "color": "#71717a"
+            }
+          }
+        }
+      },
+      "node_mw6257c7un9go": {
+        "id": "node_mw6257c7un9go",
+        "type": "box",
+        "name": "404 section",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7rs7hg",
+          "node_mw6257c7s5ttf",
+          "node_mw6257c7tthdc"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "140px 40px",
+              "gap": "18px",
+              "alignItems": "center",
+              "justifyContent": "center"
+            }
+          }
+        }
+      },
+      "node_mw6257c7rs7hg": {
+        "id": "node_mw6257c7rs7hg",
+        "type": "box",
+        "name": "404 heading",
+        "semantic": "auto",
+        "text": {
+          "content": "404",
+          "heading": 1
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "64px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "letterSpacing": "0.04em",
+              "textAlign": "center"
+            }
+          }
+        }
+      },
+      "node_mw6257c7s5ttf": {
+        "id": "node_mw6257c7s5ttf",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "We couldn't find the page you're looking for.",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "15px",
+              "lineHeight": "1.7",
+              "color": "#71717a",
+              "textAlign": "center"
+            }
+          }
+        }
+      },
+      "node_mw6257c7tthdc": {
+        "id": "node_mw6257c7tthdc",
+        "type": "box",
+        "name": "Button",
+        "semantic": "button",
+        "text": {
+          "content": "Back to home",
+          "heading": 0
+        },
+        "link": {
+          "kind": "page",
+          "pageId": "page_mw6257c7qp1jj"
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "inline-flex",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": "12px 28px",
+              "backgroundColor": "#18181b",
+              "color": "#ffffff",
+              "fontSize": "14px",
+              "fontWeight": "600",
+              "borderRadius": "8px",
+              "border": "none",
+              "textDecoration": "none",
+              "transition": "all 200ms ease",
+              "cursor": "pointer"
+            },
+            "hover": {
+              "backgroundColor": "#3f3f46"
+            }
+          }
+        }
+      },
+      "node_mw6257c7worje": {
+        "id": "node_mw6257c7worje",
+        "type": "image",
+        "name": "Product image",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "image": {
+          "src": "{product.thumbnail}",
+          "alt": "Product image",
+          "width": 400,
+          "height": 400
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "width": "320px",
+              "borderRadius": "16px",
+              "backgroundColor": "#fafafa"
+            }
+          }
+        }
+      },
+      "node_mw6257c7x07b9": {
+        "id": "node_mw6257c7x07b9",
+        "type": "box",
+        "name": "Product name",
+        "semantic": "auto",
+        "text": {
+          "content": "{product.title}",
+          "heading": 1
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "34px",
+              "fontWeight": "700",
+              "lineHeight": "1.4"
+            }
+          }
+        }
+      },
+      "node_mw6257c7y6uht": {
+        "id": "node_mw6257c7y6uht",
+        "type": "box",
+        "name": "Brand",
+        "semantic": "auto",
+        "text": {
+          "content": "{product.brand}",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "13px",
+              "lineHeight": "1.7",
+              "color": "#a1a1aa"
+            }
+          }
+        }
+      },
+      "node_mw6257c7zhgs5": {
+        "id": "node_mw6257c7zhgs5",
+        "type": "box",
+        "name": "Description",
+        "semantic": "auto",
+        "text": {
+          "content": "{product.description}",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "15px",
+              "lineHeight": "1.7",
+              "color": "#52525b"
+            }
+          }
+        }
+      },
+      "node_mw6257c710lz8q": {
+        "id": "node_mw6257c710lz8q",
+        "type": "box",
+        "name": "Price",
+        "semantic": "auto",
+        "text": {
+          "content": "${product.price}",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "26px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#0d99ff"
+            }
+          }
+        }
+      },
+      "node_mw6257c711kl4i": {
+        "id": "node_mw6257c711kl4i",
+        "type": "box",
+        "name": "Product info",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7y6uht",
+          "node_mw6257c7x07b9",
+          "node_mw6257c710lz8q",
+          "node_mw6257c7zhgs5"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "0px",
+              "gap": "12px",
+              "alignItems": "flex-start",
+              "flex": "1"
+            }
+          }
+        }
+      },
+      "node_mw6257c7128lik": {
+        "id": "node_mw6257c7128lik",
+        "type": "box",
+        "name": "Detail layout",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7worje",
+          "node_mw6257c711kl4i"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "row",
+              "padding": "64px 40px",
+              "gap": "40px",
+              "maxWidth": "900px",
+              "margin": "0 auto",
+              "width": "100%"
+            }
+          },
+          "md": {
+            "default": {
+              "flexDirection": "column"
+            }
+          }
+        }
+      },
+      "node_mw6257c717lkm2": {
+        "id": "node_mw6257c717lkm2",
+        "type": "box",
+        "name": "Product catalog",
+        "semantic": "auto",
+        "text": {
+          "content": "Product catalog",
+          "heading": 1
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "44px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "textAlign": "center",
+              "color": "#3b2a1a"
+            }
+          }
+        }
+      },
+      "node_mw6257c718c8oo": {
+        "id": "node_mw6257c718c8oo",
+        "type": "box",
+        "name": "Text",
+        "semantic": "auto",
+        "text": {
+          "content": "A sample list, search and detail page powered by data from dummyjson.com.",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "color": "#71717a",
+              "textAlign": "center"
+            }
+          }
+        }
+      },
+      "node_mw6257c7193umt": {
+        "id": "node_mw6257c7193umt",
+        "type": "field",
+        "name": "Input",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "field": {
+          "kind": "input",
+          "placeholder": "Search products…"
+        },
+        "attrId": "q",
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "width": "100%",
+              "padding": "10px 14px",
+              "fontSize": "14px",
+              "borderWidth": "1px",
+              "borderStyle": "solid",
+              "borderColor": "#d4d4d8",
+              "borderRadius": "8px",
+              "backgroundColor": "#ffffff"
+            }
+          }
+        }
+      },
+      "node_mw6257c71avi38": {
+        "id": "node_mw6257c71avi38",
+        "type": "box",
+        "name": "Button",
+        "semantic": "button",
+        "text": {
+          "content": "Search",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "inline-flex",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": "10px 24px",
+              "backgroundColor": "#8a5a2e",
+              "color": "#ffffff",
+              "fontSize": "14px",
+              "fontWeight": "600",
+              "borderRadius": "8px",
+              "border": "none",
+              "textDecoration": "none",
+              "transition": "all 200ms ease",
+              "cursor": "pointer",
+              "flexShrink": "0",
+              "whiteSpace": "nowrap"
+            },
+            "hover": {
+              "backgroundColor": "#3f3f46"
+            }
+          }
+        }
+      },
+      "node_mw6257c71bnwpt": {
+        "id": "node_mw6257c71bnwpt",
+        "type": "box",
+        "name": "Search form",
+        "semantic": "form",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c7193umt",
+          "node_mw6257c71avi38"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "row",
+              "padding": "0px",
+              "gap": "10px",
+              "justifyContent": "center",
+              "width": "100%"
+            }
+          }
+        }
+      },
+      "node_mw6257c71cmbsm": {
+        "id": "node_mw6257c71cmbsm",
+        "type": "image",
+        "name": "Thumbnail",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "image": {
+          "src": "{thumbnail}",
+          "alt": "Product thumbnail",
+          "width": 400,
+          "height": 400
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "width": "100%",
+              "aspectRatio": "1 / 1",
+              "objectFit": "cover",
+              "borderRadius": "10px",
+              "backgroundColor": "#fafafa"
+            }
+          }
+        }
+      },
+      "node_mw6257c71dm3gl": {
+        "id": "node_mw6257c71dm3gl",
+        "type": "box",
+        "name": "Product name",
+        "semantic": "auto",
+        "text": {
+          "content": "{title}",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "15px",
+              "fontWeight": "700",
+              "lineHeight": "1.4"
+            }
+          }
+        }
+      },
+      "node_mw6257c71eojcd": {
+        "id": "node_mw6257c71eojcd",
+        "type": "box",
+        "name": "Price",
+        "semantic": "auto",
+        "text": {
+          "content": "¥{price}",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "fontWeight": "600",
+              "color": "#0d99ff"
+            }
+          }
+        }
+      },
+      "node_mw6257c71ffy5l": {
+        "id": "node_mw6257c71ffy5l",
+        "type": "box",
+        "name": "Product card",
+        "semantic": "auto",
+        "text": null,
+        "link": {
+          "kind": "url",
+          "url": "/products/{id}"
+        },
+        "children": [
+          "node_mw6257c71cmbsm",
+          "node_mw6257c71dm3gl",
+          "node_mw6257c71eojcd"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "0px",
+              "gap": "10px",
+              "cursor": "pointer"
+            }
+          }
+        }
+      },
+      "node_mw6257c71gwgod": {
+        "id": "node_mw6257c71gwgod",
+        "type": "list",
+        "name": "Product list",
+        "attrId": "product-list",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "list": {
+          "from": "products",
+          "limit": 12
+        },
+        "children": [
+          "node_mw6257c71ffy5l"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "grid",
+              "gridTemplateColumns": "repeat(4, 1fr)",
+              "gap": "24px",
+              "padding": "0px",
+              "width": "100%"
+            }
+          },
+          "md": {
+            "default": {
+              "gridTemplateColumns": "repeat(2, 1fr)"
+            }
+          }
+        }
+      },
+      "node_mw6257c71hsaa4": {
+        "id": "node_mw6257c71hsaa4",
+        "type": "box",
+        "name": "Product list section",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6257c717lkm2",
+          "node_mw6257c718c8oo",
+          "node_mw6257c71bnwpt",
+          "node_mw6257c71gwgod"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "64px 40px",
+              "gap": "28px",
+              "alignItems": "center",
+              "maxWidth": "1080px",
+              "margin": "0 auto",
+              "width": "100%"
+            }
+          }
+        }
+      }
+    },
+    "assets": {}
+  }
+}

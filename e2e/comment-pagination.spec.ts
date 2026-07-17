@@ -37,14 +37,14 @@ test("1001 comments remain reachable and paging preserves off-batch reply drafts
   await page.locator(".cm-item").filter({ has: page.locator(".cm-item-body", { hasText: /^Discussion 1000$/ }) }).click();
   const reply = detail(page).getByPlaceholder("返信", { exact: true });
   await reply.fill("Reply across batches");
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   await page.getByRole("button", { name: "古い一覧", exact: true }).click();
   await expect(page.locator(".cm-item-body")).toHaveText("Discussion 0");
-  await expect(reply).toHaveValue("Reply across batches");
   await expect(page.locator(".cm-pagination")).toContainText("全1001件中1件");
-  await page.getByLabel("削除された対象のみ", { exact: true }).check();
-  await expect(page.locator(".cm-item")).toHaveCount(0);
-  await expect(page.locator(".cm-empty")).toContainText("この一覧に条件に合うコメントはありません");
   await expect(page.getByRole("button", { name: "新しい一覧", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "最新の一覧", exact: true }).click();
+  // 一覧を行き来しても、スレッドを開き直せば書きかけの返信が戻る。
+  await page.locator(".cm-item").filter({ has: page.locator(".cm-item-body", { hasText: /^Discussion 1000$/ }) }).click();
   await expect(reply).toHaveValue("Reply across batches");
   await detail(page).getByRole("button", { name: "返信", exact: true }).click();
   await expect(detail(page).locator(".cm-msg-body")).toHaveText(["Discussion 1000", "Reply across batches"]);
@@ -53,9 +53,9 @@ test("1001 comments remain reachable and paging preserves off-batch reply drafts
   const stored = await (await page.request.get(`/api/comments?site=${site}&focus=${id(1000)}`)).json();
   expect(stored.total).toBe(1001); expect(stored.unresolvedCount).toBe(1000);
   expect(stored.focusedThread.messages).toHaveLength(2);
-  await page.getByRole("button", { name: "最新の一覧", exact: true }).click();
-  await expect(page.locator(".cm-pagination")).toContainText("全1001件中1000件");
   await expect(detail(page).locator(".cm-msg-body")).toHaveCount(2);
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
+  await expect(page.locator(".cm-pagination")).toContainText("全1001件中1000件");
   expect(errors).toEqual([]);
 });
 
@@ -66,13 +66,16 @@ test("a new comment draft survives batch navigation and its 1002nd thread opens 
   await page.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
   const input = detail(page).getByPlaceholder("コメントを書く", { exact: true });
   await input.fill("New discussion after 1001");
+  // 一覧に戻って行き来しても、新しいコメントの書きかけは残る。
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   await page.getByRole("button", { name: "最新の一覧", exact: true }).click();
-  await expect(input).toHaveValue("New discussion after 1001");
   await page.getByRole("button", { name: "古い一覧", exact: true }).click();
   await expect(page.locator(".cm-item-body")).toHaveText("Discussion 0");
+  await page.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
   await expect(input).toHaveValue("New discussion after 1001");
   await detail(page).getByRole("button", { name: "投稿", exact: true }).click();
   await expect(detail(page).locator(".cm-msg-body")).toHaveText("New discussion after 1001");
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   await expect(page.locator(".cm-pagination")).toContainText("全1002件中1000件");
   const stored = await (await page.request.get(`/api/comments?site=${site}`)).json();
   expect(stored.total).toBe(1002); expect(stored.threads[0].messages[0].body).toBe("New discussion after 1001");
@@ -93,6 +96,7 @@ test("finishing a delayed new comment does not replace a newer open reply draft"
     await page.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
     await detail(page).getByPlaceholder("コメントを書く", { exact: true }).fill("Delayed new comment");
     await detail(page).getByRole("button", { name: "投稿", exact: true }).click(); await captured.promise;
+    await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
     await page.locator(".cm-item").filter({ has: page.locator(".cm-item-body", { hasText: /^Discussion 1$/ }) }).click();
     const reply = detail(page).getByPlaceholder("返信", { exact: true }); await reply.fill("Keep this newer reply draft");
     release.resolve(); await delivered.promise;

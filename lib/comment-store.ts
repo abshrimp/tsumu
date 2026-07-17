@@ -43,10 +43,13 @@ interface CommentsState {
   openId: string | null;
   draft: CommentDraft | null;
   showResolved: boolean;
+  /** キャンバスのピンを隠す（下のデザインを確かめるため） */
+  pinsHidden: boolean;
   setActive: (v: boolean) => void;
   open: (id: string | null) => void;
   setDraft: (d: CommentDraft | null) => void;
   setShowResolved: (v: boolean) => void;
+  setPinsHidden: (v: boolean) => void;
   load: (page?: { cursor: string | null; previousCursors: (string | null)[] }) => Promise<void>;
   navigate: (direction: "older" | "newer" | "newest") => Promise<void>;
   run: (a: CommentAction) => Promise<boolean>;
@@ -136,6 +139,7 @@ export const useComments = create<CommentsState>((set, get) => ({
   openId: null,
   draft: null,
   showResolved: false,
+  pinsHidden: false,
   setActive: (v) => {
     set({ active: v, ...(v ? {} : { openId: null, draft: null, focusedThread: null, threadUnavailable: false }) });
     if (v) void get().load();
@@ -147,6 +151,7 @@ export const useComments = create<CommentsState>((set, get) => ({
   },
   setDraft: (d) => set({ draft: d, openId: null, focusedThread: null, threadUnavailable: false }),
   setShowResolved: (v) => set({ showResolved: v }),
+  setPinsHidden: (v) => set({ pinsHidden: v }),
   navigate: async (direction) => {
     if (pendingWrites) return;
     const state = get();
