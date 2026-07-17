@@ -55,6 +55,27 @@ test("custom head attributes preserve HTML entities and embedded quotes", () => 
   assert.equal(tree.props.content, 'Say "hello" & goodbye');
 });
 
+test("custom head duplicate attributes keep the first HTML value, ignoring case", () => {
+  const jsx = headHtmlToJsx(`<meta NAME="description" name="robots" content='First &amp; value' CONTENT="Second" data-id="one" DATA-ID="two" scheme="first" SCHEME="second"><script SRC="/first.js" src="/second.js" async="false" ASYNC="true"></script><link REL="stylesheet" rel="preload" disabled DISABLED="false"><meta CHARSET="utf-8" charset="shift_jis">`, "");
+  const [meta, script, link, charset] = evaluate(`export default function Head() { return (<>${jsx}</>); }`).props.children;
+  assert.deepEqual(meta.props, { name: "description", content: "First & value", "data-id": "one", scheme: "first" });
+  assert.deepEqual(script.props, { src: "/first.js", async: true });
+  assert.deepEqual(link.props, { rel: "stylesheet", disabled: true });
+  assert.deepEqual(charset.props, { charSet: "utf-8" });
+  assert.equal((jsx.match(/\basync\b/g) ?? []).length, 1);
+  assert.equal((jsx.match(/\bdisabled\b/g) ?? []).length, 1);
+});
+
+test("custom head duplicate tracking is per element and preserves empty first values", () => {
+  const jsx = headHtmlToJsx(`<meta name NAME="ignored" content="" CONTENT="ignored"><meta name="second" content="other"><meta name=third NAME=fourth content='last'>`, "");
+  const children = evaluate(`export default function Head() { return (<>${jsx}</>); }`).props.children;
+  assert.deepEqual(children.map((child: any) => child.props), [
+    { name: "", content: "" },
+    { name: "second", content: "other" },
+    { name: "third", content: "last" },
+  ]);
+});
+
 test("custom head HTML boolean attributes use presence rather than string values", () => {
   for (const value of ["", "true", "false", "async", "0"]) {
     const jsx = headHtmlToJsx(`<script ASYNC="${value}" defer='${value}' nomodule=${value || 'nomodule'} src="/tag.js"></script><link disabled="${value}" rel="stylesheet" href="/theme.css"><meta itemscope="${value}" name="scope">`, "");
@@ -136,7 +157,7 @@ test("generated components avoid framework names and the exported project typech
   // 計測タグなどのスクリプトを含むページ専用コード（ページ遷移で開いたときにも動かす）
   doc.pages.p.customEndHtml = `<script src="/tag.js"></script><script>window.tagged = true;</script>`;
   doc.pages.p.customTopHtml = `<script type="application/ld+json">{"@type":"Thing"}</script>`;
-  doc.customHeadHtml = `<script language="javascript" async="" defer="defer" nomodule="false" src="/x.js" data-label="a > b"></script><meta name="a" content="Revenue > cost" scheme="c" style="x"><link disabled="" rel="stylesheet" href="/style.css"><meta itemscope="" name content>`;
+  doc.customHeadHtml = `<script language="javascript" async="" ASYNC="false" defer="defer" nomodule="false" src="/x.js" SRC="/ignored.js" data-label="a > b"></script><meta name="a" NAME="ignored" content="Revenue > cost" scheme="c" style="x"><link disabled="" DISABLED="false" rel="stylesheet" href="/style.css"><meta itemscope="" name content>`;
   const { files } = generateProject(doc);
   assert.match(files["app/page.tsx"], /<PageHtml html=\{"<script src=/);
   // 取得先のホストが {変数} で決まるときも、接続時に宛先を確かめる fetchPublic で取得する
