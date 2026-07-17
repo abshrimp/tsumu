@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { easeAt, easingValue, parseEasing } from "../lib/easing";
 import { parseKeyframes, serializeKeyframes } from "../lib/keyframes";
-import { KEYFRAMES } from "../lib/motion";
+import { KEYFRAMES, motionCss, keyframesCss } from "../lib/motion";
 
 const close = (a: number, b: number, eps = 1e-3) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
 
@@ -194,4 +194,24 @@ test("easing parsing never produces infinite control points", () => {
   for (const value of ["EASE", "steps(3, START)", "steps(3, end)", "steps(3, jump-both)"]) {
     assert.ok(parseEasing(value), value);
   }
+});
+
+test("keyframe serialization preserves nearby offsets and exported jump timing", () => {
+  const source = "from { transform: translateX(0px); } 49.9999% { transform: translateX(100px); } 50% { transform: translateX(0px); } to { transform: translateX(100px); }";
+  const saved = serializeKeyframes(parseKeyframes(source)!);
+  const points = (css: string) => parseKeyframes(css)!.map(({ offset, x }) => [offset, x]);
+  assert.deepEqual(points(saved), points(source));
+  assert.equal(serializeKeyframes(parseKeyframes(saved)!), saved);
+  const generated = motionCss([{ id: "jump", trigger: "load", keyframes: "custom", customKeyframes: saved, duration: 1, delay: 0, easing: "linear" }], "run", "box");
+  assert.equal(generated.customKeyframes.length, 1);
+  assert.deepEqual(points(generated.customKeyframes[0].css), points(source));
+  assert.ok(keyframesCss(generated.usedKeyframes, generated.customKeyframes).includes("49.9999%"));
+});
+
+test("keyframe serialization retains small and high-precision property values", () => {
+  const source = "0.0000001% { opacity: 0.0001; transform: translate(0.0000001px, -12.123456789px) rotate(0.0001deg) scale(0.0001); }";
+  const values = (css: string) => parseKeyframes(css)!.map(({ id, ...value }) => value);
+  const saved = serializeKeyframes(parseKeyframes(source)!);
+  assert.deepEqual(values(saved), values(source));
+  assert.equal(serializeKeyframes(parseKeyframes(saved)!), saved);
 });
