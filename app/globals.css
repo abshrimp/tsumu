@@ -1030,6 +1030,13 @@ textarea {
   min-height: 28px;
 }
 
+.site-language-select {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .row > label:first-child,
 .row > .lbl {
   color: var(--text-2);
