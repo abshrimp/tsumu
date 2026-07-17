@@ -439,3 +439,31 @@ test("page background migration preserves prefix collisions and non-panel CSS or
     assert.deepEqual(doc.assets.other, before.assets.other);
   }
 });
+
+test("editing rotation preserves percentage scales from existing CSS", () => {
+  for (const [source, x, y] of [
+    ["scale(50%)", 0.5, 0.5],
+    ["scale(50%, 125%)", 0.5, 1.25],
+    ["scaleX(50%) scaleY(125%)", 0.5, 1.25],
+    ["scale(5e1%, +1.25)", 0.5, 1.25],
+    ["scale(-50%, 0%)", -0.5, 0],
+  ] as const) {
+    const parts = parseTransform(source);
+    assert.equal(parts.scaleX, x);
+    assert.equal(parts.scaleY, y);
+    const edited = parseTransform(serializeTransform({ ...parts, rotate: 30 })!);
+    assert.equal(edited.rotate, 30);
+    assert.equal(edited.scaleX, x);
+    assert.equal(edited.scaleY, y);
+  }
+});
+
+test("unsupported scale values are retained instead of reading a numeric prefix", () => {
+  for (const source of ["scale(2px)", "scaleX(2foo)", "scaleY(1e309)", "scale(1, 2, 3)", "scaleX(1, 2)"]) {
+    const parts = parseTransform(source);
+    assert.equal(parts.scaleX, 1);
+    assert.equal(parts.scaleY, 1);
+    assert.equal(parts.rest, source);
+    assert.equal(serializeTransform(parts), source);
+  }
+});
