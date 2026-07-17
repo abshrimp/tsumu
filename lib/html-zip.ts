@@ -25,8 +25,8 @@ const cleanZipPath = (value: string) =>
 export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<string, string>) {
   const resolve = (value: string) => resolveZipReference(value, htmlPath, urls);
   const doc = new DOMParser().parseFromString(html, "text/html");
-  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[src],[href],[poster]"))) {
-    for (const attr of ["src", "href", "poster"]) {
+  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[src],[href],[poster],[xlink\\:href]"))) {
+    for (const attr of ["src", "href", "poster", "xlink:href"]) {
       const value = el.getAttribute(attr);
       if (value) {
         const target = resolve(value);
