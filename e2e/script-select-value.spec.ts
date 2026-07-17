@@ -49,21 +49,21 @@ for (const edited of ["{missing}", ""]) test(`ScriptEditor free value ${JSON.str
   await click(page, "assign-choice");
   await selection(page, "", 0, 1);
   expect(await snapshot(page)).toEqual(saved);
-  // 実スクリプト編集をUndo/Redoし、プレビュー中の入力は履歴へ保存しない。
+  // Undo/Redo a real script edit; preview-only input must not be added to history.
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
   await page.evaluate(() => (window as any).selectScriptEditor.getState().undo());
   expect((await snapshot(page))!.doc).toEqual(before!.doc);
   await page.evaluate(() => (window as any).selectScriptEditor.getState().redo());
   expect(await snapshot(page)).toEqual(saved);
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
-  // 同じページの入力値はプレビュー切替でも保持される。スクリプト変数だけが初期化される。
+  // Switching preview retains user-selected input on the same page; only script variables reset.
   await selection(page, "", 0, 0);
   await click(page, "valid-choice");
   await selection(page, "A", 1, 1);
   await click(page, "assign-choice");
   await selection(page, "", 0, 2);
   expect(await snapshot(page)).toEqual(saved);
-  // 編集した同じ保存文書を公開用コードにして比較する。
+  // Compare the same saved document against generated publishing code.
   await setup(page, false, saved!.doc);
   await selection(page, "B", 2, 0);
   await click(page, "assign-choice");
@@ -104,7 +104,7 @@ for (const preview of [true, false]) for (const options of [["A", "B"], ["A", "{
     if (hasOptions) changes++;
     await selection(page, "", 0, changes);
     if (hasOptions) {
-      // 選択解除後に通常のユーザー選択が動き、余分な選択肢も増えていない。
+      // After clearing selection, native choices still work and no extra options are introduced.
       await page.locator("#choice").selectOption("B");
       changes++;
       await selection(page, "B", options.length, changes);

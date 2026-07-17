@@ -54,7 +54,7 @@ async function drop(page: Page, surface: string, names = ["new.svg"], node?: str
 }
 
 for (const surface of ["canvas", "layers"]) {
-  test(`${surface}: ページを移動しても元の配置先へ追加し、新しい選択を奪わない`, async ({ page }) => {
+  test(`${surface}: moving to another page preserves the original drop target without stealing selection`, async ({ page }) => {
     const uploads = await holdUploads(page);
     await drop(page, surface); await uploads.wait(1);
     await page.evaluate(() => { const s = (window as any).dropEditor.getState(); s.setActivePage("q"); s.select("c"); });
@@ -66,7 +66,7 @@ for (const surface of ["canvas", "layers"]) {
     expect(after.doc.pages.q.children).toEqual(["c"]);
   });
 
-  test(`${surface}: 複数画像のdropとアセットを1回の元に戻す・やり直すで扱う`, async ({ page }) => {
+  test(`${surface}: multi-image drops and assets undo and redo as one action`, async ({ page }) => {
     const before = await snapshot(page);
     const uploads = await holdUploads(page);
     await drop(page, surface, ["one.svg", "two.svg"]); await uploads.wait(1);
@@ -83,7 +83,7 @@ for (const surface of ["canvas", "layers"]) {
     expect((await snapshot(page)).doc).toEqual(after.doc);
   });
 
-  test(`${surface}: 待機中の元に戻すを上書きせず、成功したファイルとやり直すを残す`, async ({ page }) => {
+  test(`${surface}: an in-flight Undo is not overwritten; completed files and Redo remain available`, async ({ page }) => {
     await page.evaluate(() => (window as any).dropEditor.getState().updateNode("b", { name: "Edited" }));
     const uploads = await holdUploads(page);
     await drop(page, surface, ["one.svg", "two.svg"]); await uploads.wait(1);
@@ -97,7 +97,7 @@ for (const surface of ["canvas", "layers"]) {
     expect(Object.keys((await snapshot(page)).doc.assets)).toHaveLength(1);
   });
 
-  test(`${surface}: 配置先を削除しても古いノードやエラーダイアログを作らない`, async ({ page }) => {
+  test(`${surface}: deleting the drop target does not create stale nodes or error dialogs`, async ({ page }) => {
     const uploads = await holdUploads(page);
     await drop(page, surface); await uploads.wait(1);
     await page.evaluate(() => (window as any).dropEditor.getState().deletePage("p"));
@@ -109,7 +109,7 @@ for (const surface of ["canvas", "layers"]) {
     expect(await page.evaluate(() => (window as any).dropDialogs.getState().queue)).toEqual([]);
   });
 
-  test(`${surface}: 別の通常編集を保ちながらdropは完了する`, async ({ page }) => {
+  test(`${surface}: a drop completes while preserving unrelated edits`, async ({ page }) => {
     const uploads = await holdUploads(page);
     await drop(page, surface); await uploads.wait(1);
     await page.evaluate(() => {
@@ -124,7 +124,7 @@ for (const surface of ["canvas", "layers"]) {
     expect((await snapshot(page)).doc).toEqual(edited.doc);
   });
 
-  test(`${surface}: 重なったdropの古い完了は新しい選択や読み込み表示を消さない`, async ({ page }) => {
+  test(`${surface}: an older overlapping drop does not overwrite newer selection or loading state`, async ({ page }) => {
     const uploads = await holdUploads(page);
     await drop(page, surface, ["old.svg"]); await uploads.wait(1);
     await drop(page, surface, ["new.svg"]); await uploads.wait(2);
@@ -138,7 +138,7 @@ for (const surface of ["canvas", "layers"]) {
     expect(after.doc.pages.p.children).toHaveLength(4);
   });
 
-  test(`${surface}: 途中失敗の成功分はAssetsに残し、次のdropはやり直せる`, async ({ page }) => {
+  test(`${surface}: partial failures keep successful images in Assets and allow another drop`, async ({ page }) => {
     const uploads = await holdUploads(page);
     await drop(page, surface, ["one.svg", "two.svg"]); await uploads.wait(1);
     await uploads.release(0); await uploads.wait(2); await uploads.release(1, false);
@@ -154,7 +154,7 @@ for (const surface of ["canvas", "layers"]) {
 }
 
 for (const surface of ["canvas", "layers"]) {
-  test(`${surface}: コンポーネント編集中のdropはページに戻ってもマスターへ配置する`, async ({ page }) => {
+  test(`${surface}: an upload started in component editing still targets the master after returning to the page`, async ({ page }) => {
     await page.evaluate(() => (window as any).dropEditor.getState().setEditingComponent("comp"));
     const uploads = await holdUploads(page);
     await drop(page, surface); await uploads.wait(1);
@@ -165,7 +165,7 @@ for (const surface of ["canvas", "layers"]) {
     expect(after.doc.pages.q.children).toEqual(["c"]); expect(after.selection).toBe("c");
   });
 
-  test(`${surface}: 削除したボックスへ遅れて追加しない`, async ({ page }) => {
+  test(`${surface}: a late upload never inserts into a deleted box`, async ({ page }) => {
     const uploads = await holdUploads(page);
     await drop(page, surface, ["nested.svg"], "a"); await uploads.wait(1);
     await page.evaluate(() => (window as any).dropEditor.getState().deleteNode("a"));
@@ -176,7 +176,7 @@ for (const surface of ["canvas", "layers"]) {
     expect(Object.values(after.doc.nodes).some((node: any) => node.type === "image")).toBe(false);
   });
 
-  test(`${surface}: 画面を閉じたdropは成功したファイルだけを残す`, async ({ page }) => {
+  test(`${surface}: closing the surface keeps only successfully uploaded assets`, async ({ page }) => {
     const uploads = await holdUploads(page);
     await drop(page, surface); await uploads.wait(1);
     await page.evaluate(() => (window as any).unmountDropEditor());
@@ -199,7 +199,7 @@ async function openColorPicker(page: Page) {
 }
 async function colorInput(page: Page, kind: "range" | "color", value: string, event = "input") {
   await page.locator(`[data-tutorial="style-background"] .color-pop input[type="${kind}"]`).evaluate((element, args) => {
-    // ネイティブ入力と同じ値更新。Reactのvalue tracker自体を呼ばず、通常のinput/changeを送る。
+    // Mirror native input updates via input/change events without calling React's value tracker directly.
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(element, args.value);
     element.dispatchEvent(new Event(args.event, { bubbles: true }));
   }, { value, event });
@@ -236,7 +236,7 @@ async function startControl(page: Page, control: GestureControl) {
 
 for (const surface of ["canvas", "layers"]) {
   for (const control of ["padding", "radius", "size", "resize", "range", "color"] as const) {
-    test(`${surface}: ${control}の調整中はdropの配置を待ち、調整と画像を別々にUndoできる`, async ({ page }) => {
+    test(`${surface}: dropping during a ${control} adjustment waits and preserves separate adjustment and image Undo steps`, async ({ page }) => {
       const before = await snapshot(page);
       const uploads = await holdUploads(page);
       await drop(page, surface); await uploads.wait(1);
@@ -262,9 +262,9 @@ for (const surface of ["canvas", "layers"]) {
 for (const control of ["padding", "resize", "range", "color"] as const) {
   for (const ending of ["cancel", "lost", "blur", "target", "unmount"] as const) {
     if (control === "color" && (ending === "cancel" || ending === "lost")) continue;
-    test(`${control}: ${ending}でも連続編集が解放され、待機中dropが停止しない`, async ({ page }) => {
+    test(`${control}: ${ending} releases continuous editing and unblocks pending drops`, async ({ page }) => {
       const uploads = await holdUploads(page);
-      // キャンバスだけを閉じるケースでも、レイヤーのdropは残して完了を確かめる。
+      // Also verify that layer drops finish if only the canvas is closed.
       await drop(page, "layers"); await uploads.wait(1);
       const gesture = await startControl(page, control);
       await expect.poll(() => gestureActive(page)).toBe(true);
@@ -284,7 +284,7 @@ for (const control of ["padding", "resize", "range", "color"] as const) {
   }
 }
 
-test("色ピッカーの同値native changeとchangeだけの確定でもdropの待機を解放する", async ({ page }) => {
+test("An unchanged native color change and a change-only commit both unblock pending drops", async ({ page }) => {
   const uploads = await holdUploads(page);
   await drop(page, "canvas"); await uploads.wait(1);
   await openColorPicker(page);
@@ -292,7 +292,7 @@ test("色ピッカーの同値native changeとchangeだけの確定でもdropの
   await expect.poll(() => gestureActive(page)).toBe(true);
   await uploads.release(0); await settleGesture(page);
   expect((await snapshot(page)).doc.pages.p.children).toHaveLength(2);
-  // 値は変えないのでReactのonChangeは省かれる。ネイティブ確定イベントだけで終了できる。
+  // React skips onChange when the value is unchanged; the native commit event must still finish the gesture.
   await page.locator('[data-tutorial="style-background"] input[type="color"]').dispatchEvent("change", { bubbles: true });
   await expect.poll(async () => (await snapshot(page)).doc.pages.p.children.length).toBe(3);
   await page.evaluate(() => (window as any).dropEditor.getState().select("a"));
@@ -306,7 +306,7 @@ test("色ピッカーの同値native changeとchangeだけの確定でもdropの
   expect((await snapshot(page)).doc.nodes.a.styles.base.default.backgroundColor).toBe("#0000ff");
 });
 
-test("不透明度rangeの矢印キーを押し続ける間はnative changeごとにdropを割り込ませない", async ({ page }) => {
+test("Repeated range arrow-key changes do not interrupt an active drag with a drop", async ({ page }) => {
   const uploads = await holdUploads(page);
   await drop(page, "layers"); await uploads.wait(1);
   await openColorPicker(page);
@@ -324,13 +324,13 @@ test("不透明度rangeの矢印キーを押し続ける間はnative changeご�
   expect((await snapshot(page)).doc).toEqual(edited.doc);
 });
 
-test("2つの実コントロールを同時操作しても最後の所有者が終了するまでdropは待つ", async ({ page }) => {
+test("Two real controls keep pending drops blocked until the last gesture owner finishes", async ({ page }) => {
   const before = await snapshot(page);
   const uploads = await holdUploads(page);
   await drop(page, "canvas"); await uploads.wait(1);
   const handles = [page.locator('[data-tutorial="style-spacing"] .field-pre.scrub').first(), page.locator('[data-tutorial="style-appearance"] .field-pre.scrub').nth(1)];
   for (let i = 0; i < handles.length; i++) {
-    // 2ポインタを確実に再現する。captureだけを代替し、実Reactのpointer handlerとDOM listenerを通す。
+    // Reproduce two pointers by substituting only capture, while using real React pointer handlers and DOM listeners.
     await handles[i].evaluate((element, pointerId) => {
       (element as HTMLElement).setPointerCapture = () => {};
       element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId, clientX: 0, buttons: 1 }));

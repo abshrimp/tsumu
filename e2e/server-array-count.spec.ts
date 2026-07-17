@@ -4,7 +4,14 @@ import { publishedClientNested } from '../tests/helpers/client-nested-lists';
 import { nestedScopeBundle } from '../tests/helpers/nested-script-scope';
 import { serverArrayJoinDoc, serverArrayJoinItems } from '../tests/helpers/server-array-join';
 
-for (const mode of ['server', 'client', 'filtered', 'owned-filtered', 'inherited-filtered', 'limited'] as const) for (const preview of [true, false]) test(`${mode}: ${preview ? 'Canvas' : 'export'} counts a fetched array on repeated clicks without exposing unused fields`, async ({ page }) => {
+const browserCases = [
+  ['server', true], ['server', false],
+  ['client', true], ['filtered', false],
+  ['owned-filtered', true], ['inherited-filtered', false],
+  ['limited', true],
+] as const;
+// The full mode/surface matrix and edge cases stay in tests/server-array-count.test.mts.
+for (const [mode, preview] of browserCases) test(`${mode}: ${preview ? 'Canvas' : 'export'} counts a fetched array on repeated clicks without exposing unused fields`, async ({ page }) => {
  const doc = serverArrayJoinDoc(), errors: string[] = [];
  const owned = mode === 'owned-filtered' || mode === 'inherited-filtered' || mode === 'limited';
  const data = owned ? [{ tags: [{ name: 'Alpha' }, { name: 'Beta' }] }, { tags: [{ name: 'Alpha' }, { name: 'Alpha' }, { name: 'Beta' }] }] : serverArrayJoinItems;

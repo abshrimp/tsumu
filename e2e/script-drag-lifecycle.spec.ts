@@ -12,7 +12,7 @@ const snapshot = (page: Page) => page.evaluate(() => {
   const s = (window as any).scriptDragEditor.getState();
   return { doc: s.doc, past: s.past.length, future: s.future.length };
 });
-// スクリプト全体のゴーストは絶対配置のカードを持つため、寸法0の親ではなくカードを確認する。
+// A whole-script drag ghost contains absolutely positioned cards; inspect a card, not the zero-sized parent.
 const visibleGhost = (page: Page) => page.locator(".se-ghost .se-stack").first();
 const transient = (page: Page) => page.locator(".se-ghost, .se-marquee, .se-slot.is-active, .se-hat-slot.is-active");
 const owner = (kind: string) => kind === "marquee" ? ".se-ws" : kind === "palette" ? '[data-tutorial="se-block-wait"]' :
@@ -73,7 +73,7 @@ for (const action of ["undo", "redo", "page", "replace"]) test(`an active step d
   }, action);
   await start(page, "step");
   if (action === "undo" || action === "redo") {
-    // 二本目の指・支援技術からのボタン操作でも、元のドラッグを確定させず履歴だけ動かす。
+    // A second finger or an accessibility button action must not complete the original drag while changing history.
     await page.getByRole("button", { name: action === "undo" ? "取り消す" : "やり直す", exact: true }).dispatchEvent("click");
   } else await page.evaluate((action) => {
     const s = (window as any).scriptDragEditor.getState();

@@ -49,13 +49,13 @@ test("editing away the default option keeps preview, bindings and generated form
   await page.evaluate(() => (window as any).selectEditor.getState().redo());
   await selection(page, "A", 1);
   expect(await snapshot()).toEqual(edited);
-  // 操作済みの値を初期値で上書きしない。
+  // Do not overwrite an edited value with the default.
   await page.locator("#choice").selectOption("C");
   await selection(page, "C", 2);
   expect(await snapshot()).toEqual(edited);
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
-  // 同じページのプレビューへ戻ると、利用者が選んだ値は維持される。
+  // Returning to preview on the same page preserves the user's selection.
   await selection(page, "C", 2);
   expect(await snapshot()).toEqual(edited);
   await published(page, edited.doc, "A", 1);

@@ -5,7 +5,7 @@ let bundle: string;
 test.beforeAll(async () => { bundle = await editorTitleBundle(); });
 
 for (const source of ["server", "local"] as const) {
-  test(`遅れて届く共通メタデータが${source === "server" ? "サーバー" : "ブラウザ保存"}のサイト名を上書きしない`, async ({ page }) => {
+  test(`Late shared metadata does not overwrite the ${source === "server" ? "server" : "local-storage"} site title`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.setContent('<html><head></head><body><div id="app"></div></body></html>');
@@ -21,7 +21,7 @@ for (const source of ["server", "local"] as const) {
     const title = `${source === "server" ? "Server" : "Local"} title | Tsumu`;
     await expect(page.locator("[data-editor-ready]")).toBeVisible();
     await expect(page).toHaveTitle(title);
-    // Next と同じく、メタデータを別の Suspense 境界で遅れて確定させる。
+    // Resolve the metadata later in a separate Suspense boundary, as Next.js does.
     await page.evaluate(() => (window as any).finishMetadata());
     await expect.poll(() => page.evaluate(() => (window as any).metadataReady)).toBe(true);
     await expect(page).toHaveTitle(title);
@@ -30,7 +30,7 @@ for (const source of ["server", "local"] as const) {
   });
 }
 
-test("エディタのエラーと再試行でもサイト名のタイトルを保つ", async ({ page }) => {
+test("Editor errors and retries preserve the site name in the page title", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setContent('<html><head></head><body><div id="app"></div></body></html>');
@@ -61,7 +61,7 @@ test("エディタのエラーと再試行でもサイト名のタイトルを�
   expect(errors).toEqual([]);
 });
 
-test("SSR の既定タイトルを重複や hydration エラーなしでサイト名に更新する", async ({ page }) => {
+test("SSR's default title changes to the site name without duplicates or hydration errors", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setContent(await editorTitleHydrationHtml());

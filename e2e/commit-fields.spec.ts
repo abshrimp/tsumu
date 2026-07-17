@@ -5,7 +5,7 @@ const seoField = (page: Page, field: "title" | "description") => page.locator(`[
 
 for (const field of ["title", "description"] as const) {
   for (const editing of ["fresh", "previously-committed", "pending"] as const) {
-    test(`${field}: 共同編集の受信後、${editing} の欄は利用者が入力したときだけ確定する`, async ({ page }) => {
+    test(`${field}: after a remote edit, a ${editing} field commits only if the user types`, async ({ page }) => {
       await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
       const response = await page.request.post("/api/sites", { data: { name: "Idle field collaboration" } });
       expect(response.ok()).toBeTruthy();
@@ -18,7 +18,7 @@ for (const field of ["title", "description"] as const) {
       const input = seoField(page, field);
       await expect(input).toHaveValue(`Original ${field}`);
       if (editing === "previously-committed") {
-        // native の dirty-value flag が立った欄を再利用し、再フォーカスでは何も入力しない。
+        // Reuse a native input whose dirty-value flag is set, then refocus without typing.
         await input.fill("Earlier local edit");
         await input.blur();
         await expect.poll(async () => (await (await page.request.get(endpoint)).json()).doc.pages.p[field]).toBe("Earlier local edit");
@@ -32,7 +32,7 @@ for (const field of ["title", "description"] as const) {
       remote.pages.p[field] = "Collaborator value";
       remote.pages.p.name = "Collaborator page";
       expect((await page.request.put(`${endpoint}&base=${current.rev}`, { data: remote })).ok()).toBeTruthy();
-      // 実際の Editor が共同編集を受信した証拠。テストからストアを書き換えない。
+      // Prove that the real editor received the remote change without mutating the store from the test.
       await expect(page.locator('[data-tutorial="tutorial-page-name"]')).toHaveValue("Collaborator page");
       await expect(input).toBeFocused();
       expect(await input.evaluate(el => el === (window as any).focusedCommitField)).toBe(true);
@@ -51,7 +51,7 @@ for (const field of ["title", "description"] as const) {
         await expect(input).toHaveValue("Deliberate local draft");
         await expect.poll(async () => (await (await page.request.get(endpoint)).json()).doc).toEqual(expected);
       }
-      // blur の後に遅れて保存される旧値も検出してから、保存内容を読み直す。
+      // Re-read the saved document after blur to catch older values written by a delayed save.
       await page.waitForTimeout(1200);
       expect((await (await page.request.get(endpoint)).json()).doc).toEqual(expected);
       await page.reload();
@@ -63,7 +63,7 @@ for (const field of ["title", "description"] as const) {
   }
 }
 
-test.describe("確定入力欄のイベントと正規化", () => {
+test.describe("Committed field events and normalization", () => {
   let bundle: string;
   test.beforeAll(async () => { bundle = await commitFieldsBundle(); });
   test.beforeEach(async ({ page }) => {
@@ -72,7 +72,7 @@ test.describe("確定入力欄のイベントと正規化", () => {
     await expect(page.locator("#single")).toHaveValue("Original value");
   });
   for (const selector of ["#single", "#multi"]) {
-    test(`${selector}: 外部変更は未入力の欄だけに反映し、正規化と空欄取消し後も使える`, async ({ page }) => {
+    test(`${selector}: external changes update only untouched fields, including after normalization and clearing`, async ({ page }) => {
       const input = page.locator(selector);
       await input.focus();
       await page.evaluate(() => (window as any).commitFields.setValue("Remote value"));
@@ -97,7 +97,7 @@ test.describe("確定入力欄のイベントと正規化", () => {
       expect(events).toContain("change");
     });
 
-    test(`${selector}: IMEとEnterの振る舞いと呼び出し側ハンドラーを保つ`, async ({ page }) => {
+    test(`${selector}: IME, Enter, and consumer event handlers keep working`, async ({ page }) => {
       const input = page.locator(selector);
       await input.focus();
       await input.dispatchEvent("compositionstart");
@@ -124,7 +124,7 @@ test.describe("確定入力欄のイベントと正規化", () => {
       expect(await page.evaluate(() => (window as any).commitFields.writes)).toHaveLength(1);
     });
 
-    for (const flag of ["disabled", "readOnly"]) test(`${selector}: ${flag} を保ち、利用者の入力なしに確定しない`, async ({ page }) => {
+    for (const flag of ["disabled", "readOnly"]) test(`${selector}: ${flag} is respected without committing untouched input`, async ({ page }) => {
       const input = page.locator(selector);
       await page.evaluate(flag => (window as any).commitFields.setFlags({ [flag]: true }), flag);
       if (flag === "disabled") await expect(input).toBeDisabled();
@@ -137,7 +137,7 @@ test.describe("確定入力欄のイベントと正規化", () => {
   }
 });
 
-test.describe("ページ設定のフォーカス中の履歴", () => {
+test.describe("History while page settings are focused", () => {
   let bundle: string;
   test.beforeAll(async () => { bundle = await commitPageFieldsBundle(); });
   test.beforeEach(async ({ page }) => {
@@ -153,7 +153,7 @@ test.describe("ページ設定のフォーカス中の履歴", () => {
   });
   for (const field of ["title", "description"] as const) {
     for (const operation of ["undo", "redo", "remote"] as const) {
-      test(`${field}: 再フォーカス後の ${operation} をblurで上書きせず、履歴も変えない`, async ({ page }) => {
+      test(`${field}: ${operation} after refocusing is not overwritten by blur and does not alter history`, async ({ page }) => {
         const input = seoField(page, field);
         await input.fill("Earlier local edit"); await input.blur();
         if (operation === "redo") {

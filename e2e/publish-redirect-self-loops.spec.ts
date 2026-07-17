@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import JSZip from "jszip";
 import { createInitialDoc } from "../lib/presets";
 
-// 公開先の読み取りだけを模擬する。GitHub への公開は一度も行わない。
-test("大文字だけ違う転送を公開・書き出し前に止め、別のパスへの修正後は書き出せる", async ({ page }) => {
+// Mock only reading the publishing target; never deploy to GitHub.
+test("Case-only redirects are rejected before publish/export, and correcting the path permits export", async ({ page }) => {
   const errors: string[] = [];
   const publishWrites: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -57,7 +57,7 @@ test("大文字だけ違う転送を公開・書き出し前に止め、別の�
   await expect(page.getByRole("button", { name: "zipをダウンロード", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "キャンセル", exact: true }).click();
 
-  // 大文字の通常ページを禁止せず、転送元だけを別のパスへ直せば解除される。
+  // Keep case-sensitive normal pages valid; changing only the redirect source path clears the error.
   await slug.fill("old-about");
   await slug.press("Enter");
   await expect(slug).toHaveValue("old-about");

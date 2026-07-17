@@ -6,9 +6,9 @@ import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import { parseGeneratedManifest, planPublish, serializeGeneratedManifest } from "../lib/publish-files";
 import type { SiteDoc } from "../lib/types";
 
-// CI の使い捨てブラウザとループバック配信だけで、実際に生成した Worker を更新する。
-// route.fulfill では Worker の取得を検証できないため、小さな HTTP サーバーを使う。
-// 実サイトへの公開や、既存のブラウザプロファイルには触れない。
+// Update the actually generated service worker in a disposable CI browser served from loopback only.
+// A small HTTP server is needed because route.fulfill cannot verify service worker requests.
+// Never deploy to a real site or touch an existing browser profile.
 async function startSite() {
   const doc: SiteDoc = {
     siteName: "PWA fixture", nodes: {}, assets: {}, pageOrder: ["home"],
@@ -102,7 +102,7 @@ async function cacheProbe(page: Page) {
 }
 
 async function updateAndExpectRetired(page: Page) {
-  // 更新の時刻だけを明示する。登録・インストール・切り替え・終了処理は実際のブラウザに任せる。
+  // Control only the update time; let the browser handle registration, installation, activation, and retirement.
   await page.evaluate(async () => {
     const registration = await navigator.serviceWorker.getRegistration("/");
     if (!registration) throw new Error("Expected the previously installed worker");
@@ -122,7 +122,7 @@ test("on → off retires the active worker, stops caching, and can be reenabled"
   pwaSite.publish({ enabled: false });
   await updateAndExpectRetired(page);
   expect(pwaSite.workerResponses).toContainEqual({ revision: 2, status: 200 });
-  // 既存タブを開いたままでも、終了用 Worker に fetch ハンドラは残らない。
+  // Even with an existing tab open, the retirement worker must have no fetch handler.
   expect(await page.evaluate(async () => (await fetch("/assets/after-off.txt", { cache: "no-store" })).text())).toBe("asset-2");
   expect(await page.evaluate(() => caches.has("site-pwa-v2"))).toBe(false);
   await context.setOffline(true);
@@ -144,7 +144,7 @@ test("repeated off publications keep a retirement endpoint for a delayed visitor
   const repeated = pwaSite.publish(undefined);
   expect(repeated.files["public/sw.js"]).toBe(first.files["public/sw.js"]);
   expect(repeated.generated["public/sw.js"]).toBe(first.generated["public/sw.js"]);
-  // 更新できなかった訪問者には元の Worker が残り、終了は成功した更新まで遅れる。
+  // A visitor who cannot update keeps the old worker until a successful retirement update.
   expect(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration("/")))).toBe(true);
   expect(await page.evaluate(async () => (await fetch("/assets/probe.txt", { cache: "no-store" })).text())).toBe("asset-1");
   await context.setOffline(false);

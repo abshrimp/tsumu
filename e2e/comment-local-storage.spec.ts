@@ -42,7 +42,7 @@ async function seedComment(page: Page) {
 }
 
 for (const failure of ["write", "read", "invalid"]) {
-  test(`ブラウザ保存の${failure}失敗で投稿の入力を消さず、復旧後に保存できる`, async ({ page }) => {
+  test(`An ${failure} browser-storage failure preserves the post draft and allows saving after recovery`, async ({ page }) => {
     const key = await openSite(page);
     if (failure === "invalid") await page.evaluate(k => localStorage.setItem(k, "{broken"), key);
     else await setFailure(page, failure);
@@ -68,7 +68,7 @@ for (const failure of ["write", "read", "invalid"]) {
 }
 
 for (const operation of ["reply", "edit"]) {
-  test(`保存失敗で${operation}の入力と既存コメントを保ち、同じ入力で再試行できる`, async ({ page }) => {
+  test(`An ${operation} save failure preserves the draft and existing comments and allows retrying with the same input`, async ({ page }) => {
     const key = await openSite(page);
     await seedComment(page);
     const before = await saved(page, key);
@@ -93,7 +93,7 @@ for (const operation of ["reply", "edit"]) {
 }
 
 for (const operation of ["delete", "resolve"]) {
-  test(`保存失敗でスレッドの${operation}を成功扱いしない`, async ({ page }) => {
+  test(`A failed thread ${operation} operation is not reported as successful`, async ({ page }) => {
     const key = await openSite(page);
     await seedComment(page);
     const before = await saved(page, key);
@@ -116,7 +116,7 @@ for (const operation of ["delete", "resolve"]) {
   });
 }
 
-test("定期読み込みが失敗しても既存コメントと返信の下書きを消さない", async ({ page }) => {
+test("Failed polling keeps existing comments and unsent reply drafts", async ({ page }) => {
   const key = await openSite(page);
   await seedComment(page);
   const before = await saved(page, key);

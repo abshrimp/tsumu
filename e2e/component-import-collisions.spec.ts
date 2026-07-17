@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { buildSync } from "esbuild";
 import { resolve } from "node:path";
 
-// 実際のストアとキャンバスを使い、複製したサイトへの貼り付けを通信なしで確かめる。
+// Exercise paste into a duplicated site with the real store and canvas, without external requests.
 const bundle = buildSync({
   stdin: {
     contents: `
@@ -71,11 +71,11 @@ createRoot(document.getElementById("app")).render(createElement(Harness));
   define: { "process.env.NODE_ENV": '"development"' },
 }).outputFiles[0].text;
 
-test("複製したサイトに貼り付けたコンポーネントの編集・削除・取り消しが元の要素を壊さない", async ({ page }) => {
+test("Editing, deleting, and undoing components pasted into a copied site does not corrupt original nodes", async ({ page }) => {
   const errors: string[] = [];
   const requests: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  // エディタのサーバーや外部サービスは呼ばず、予期しない通信もテストの外へ出さない。
+  // Do not contact the editor server or outside services; intercept unexpected network traffic as well.
   await page.route("**/*", async (route) => {
     requests.push(route.request().url());
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });

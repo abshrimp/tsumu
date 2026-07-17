@@ -2,9 +2,9 @@ import { expect, test } from "@playwright/test";
 import { scriptsFile } from "../lib/script-runtime";
 import type { SiteDoc } from "../lib/types";
 
-// 公開サイトのランタイムは Next.js のページ遷移後も残る。
-// 古いページの待機が、新しいページの同じIDを操作しないことを実DOMで確かめる。
-test("ページを離れると、前のページで待機中のスクリプトは続かない", async ({ page }) => {
+// The published site's runtime persists across Next.js page transitions.
+// Verify in the actual DOM that a pending task from the old page cannot affect the same ID on the new page.
+test("Pending scripts from a previous page do not continue after navigating away", async ({ page }) => {
   const steps = [
     { id: "wait", kind: "wait" as const, seconds: 1 },
     { id: "hide", kind: "hide" as const, target: "banner" },

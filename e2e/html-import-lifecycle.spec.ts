@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const zip of [false, true]) for (const interruption of ["edit", "kind", "undo", "page", "unmount", "success", "gesture"]) {
-  test(`${zip ? "ZIP" : "HTML"} の遅い読み込み: ${interruption}`, async ({ page }) => {
+  test(`Slow ${zip ? "ZIP" : "HTML"} import handles ${interruption}`, async ({ page }) => {
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     let uploading = false;

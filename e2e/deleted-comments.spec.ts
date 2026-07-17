@@ -44,7 +44,7 @@ for (const target of ["element", "page"] as const) test(`remote ${target} deleti
   await expect(input).toHaveValue("Reply typed before deletion");
   await expect(detail(page).locator(".cm-msg-body")).toHaveText("Original discussion");
   await expect(page.locator(".cm-pin:not(.is-draft)")).toHaveCount(0);
-  // 一覧に戻っても、削除された対象のコメントは見つけられ、書きかけの返信も残る。
+  // Returning to the list still finds deleted-target comments and retains unfinished replies.
   await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   if (target === "page") {
     await expect(page.locator(".cm-item")).toHaveCount(0);
@@ -94,7 +94,7 @@ test("local subtree delete, undo and redo retain comment identity and do not mis
   await page.locator('[data-tutorial="breakpoint-sm"]').click();
   await expect(detail(page).getByRole("status")).toHaveText("対象の要素はこの画面幅では非表示です。", { timeout: 20_000 });
   await expect(page.locator(".cm-pin:not(.is-draft)")).toHaveCount(0);
-  // 画面幅で非表示なだけの対象は、削除されたものとして扱わない。
+  // A target hidden only at a breakpoint must not be treated as deleted.
   await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   await expect(page.locator(".cm-item-meta")).toContainText("この画面幅では非表示");
   await expect(page.locator(".cm-item-place.is-deleted")).toHaveCount(0);

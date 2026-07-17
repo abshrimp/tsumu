@@ -48,7 +48,7 @@ for (const length of [0, 2, 20]) {
     await canvas.getByRole("button", { name: "読み込み直す", exact: true }).click();
     await expect.poll(() => requests.length).toBe(2);
     await finish(1, countedRows("small", length));
-    // デザイン本文は変数のまま。解決するリンクとリスト条件は新しい件数を使う。
+    // Design content retains its variable placeholders; resolved links and list conditions use the refreshed count.
     await expect(result).toHaveText("{response.label}: {total}");
     await expect(result).toHaveAttribute("href", `/count/${length}`);
     await expect(canvas.locator('[data-node="nested"]')).toHaveAttribute("href", `/nested/${length}`);

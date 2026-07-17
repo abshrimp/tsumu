@@ -11,8 +11,8 @@ async function renameFolder(page: Page, from: string, to: string) {
 }
 const saved = (page: Page) => expect(page.locator('[data-tutorial="save-status"]')).toContainText("サーバー保存済み");
 
-// 実Next Editorと保存APIを使い、409からの再保存・相手への配信まで確認する。
-test("2人の別フォルダ改名は保存競合を解決し、Undo・Redo後も相手の名前を残す", async ({ browser, request, baseURL }) => {
+// Exercise the real Next.js editor and save API, including retry after 409 and delivery to the other user.
+test("Two users renaming different folders resolve save conflicts and preserve remote names after Undo/Redo", async ({ browser, request, baseURL }) => {
   const created = await request.post("/api/sites", { data: { name: "Concurrent page folders" } });
   expect(created.ok()).toBeTruthy();
   const { site } = await created.json();
@@ -34,7 +34,7 @@ test("2人の別フォルダ改名は保存競合を解決し、Undo・Redo後�
     }
 
     let held = false;
-    // next startのHTTP保存（通常はPATCH）を、サーバーへ送る前に1回だけ止める。
+    // Pause the HTTP save from next start (normally PATCH) once before it reaches the server.
     await a.route("**/api/doc?**", async (route) => {
       if (!held && ["PATCH", "PUT"].includes(route.request().method())) {
         held = true;

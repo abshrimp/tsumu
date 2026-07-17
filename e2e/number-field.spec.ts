@@ -10,7 +10,7 @@ async function openSite(page: Page) {
   await expect(page.locator('[data-tutorial="canvas-width"] input')).toBeVisible();
 }
 
-test("画面幅の矢印キーを続けて押せて、上限・下限でも表示値と幅が一致する", async ({ page }) => {
+test("Repeated breakpoint arrow-key input stays in sync with width at both limits", async ({ page }) => {
   await openSite(page);
   const input = page.locator('[data-tutorial="canvas-width"] input');
   const frame = page.locator(".canvas-frame");
@@ -26,7 +26,7 @@ test("画面幅の矢印キーを続けて押せて、上限・下限でも表�
   await page.keyboard.press("Shift+ArrowDown");
   await expect(input).toHaveValue("792");
   await expect(input).toBeFocused();
-  // 画面幅は整数に丸められる。フォーカスを保ったまま、その確定値を表示する。
+  // Breakpoint widths are rounded to integers; show the committed value without losing focus.
   await input.fill("800.5");
   await page.keyboard.press("ArrowUp");
   await expect(input).toHaveValue("802");
@@ -51,7 +51,7 @@ test("画面幅の矢印キーを続けて押せて、上限・下限でも表�
   }
 });
 
-test("数値スタイルの表示が元に戻す・やり直す・要素と画面幅の切り替えに追従する", async ({ page }) => {
+test("Numeric style inputs follow Undo, Redo, and node/breakpoint target changes", async ({ page }) => {
   await openSite(page);
   const layers = page.locator('[data-tutorial="layers-panel"]');
   const heading = layers.locator(".layer-name").filter({ hasText: "見出しをここに" });
@@ -72,7 +72,7 @@ test("数値スタイルの表示が元に戻す・やり直す・要素と画�
   await expect(font).toHaveValue("41");
   await page.getByRole("button", { name: "やり直す", exact: true }).click();
   await expect(font).toHaveValue("42");
-  // キャンバスの通常クリックは、書き込み先を変える前に入力を確定する。
+  // A normal canvas click commits the pending input before switching its edit target.
   await font.fill("43");
   await page.locator('[data-tutorial="canvas"]').getByText("はじめる", { exact: true }).click();
   await expect(font).not.toHaveValue("43");
@@ -89,7 +89,7 @@ test("数値スタイルの表示が元に戻す・やり直す・要素と画�
   await expect(font).toHaveValue("80");
 });
 
-test.describe("数値欄の確定と外部更新", () => {
+test.describe("Numeric field commits and external updates", () => {
   let bundle: string;
   test.beforeAll(async () => { bundle = await numberFieldBundle(); });
   test.beforeEach(async ({ page }) => {
@@ -98,7 +98,7 @@ test.describe("数値欄の確定と外部更新", () => {
     await expect(page.locator("input")).toHaveValue("100");
   });
 
-  test("Enter・blur・空欄・単位の換算後も確定値を表示する", async ({ page }) => {
+  test("Committed values remain visible after Enter, blur, clearing, and unit conversions", async ({ page }) => {
     const input = page.locator("input");
     const stored = page.locator("#stored");
     await input.fill("0012.50");
@@ -110,7 +110,7 @@ test.describe("数値欄の確定と外部更新", () => {
     await page.keyboard.press("Enter");
     await expect(input).toHaveValue("100");
     await expect(stored).toHaveText("100px");
-    // 空欄の取り消しで保存値が変わらなくても表示を戻す。
+    // Restore the display after clearing even if the stored value remains unchanged.
     await input.fill("");
     await page.locator("#outside").click();
     await expect(input).toHaveValue("100");
@@ -127,7 +127,7 @@ test.describe("数値欄の確定と外部更新", () => {
     await expect(input).toBeFocused();
   });
 
-  test("外部更新で入力中の文字を消さず、IME の矢印・Enterを数値操作に使わない", async ({ page }) => {
+  test("External changes preserve draft text, and IME arrow/Enter keys do not edit numbers", async ({ page }) => {
     const input = page.locator("input");
     const stored = page.locator("#stored");
     await input.focus();
@@ -153,11 +153,11 @@ test.describe("数値欄の確定と外部更新", () => {
 });
 
 
-test.describe("数値欄の編集先の切り替え", () => {
+test.describe("Numeric field target changes", () => {
   let bundle: string;
   test.beforeAll(async () => { bundle = await inspectorNumberBundle(); });
   for (const target of ["node", "same-value-node", "breakpoint", "state", "selection"] as const) {
-    test(`blur 前に ${target} が変わっても未確定の数値を別の編集先へ書き込まない`, async ({ page }) => {
+    test(`Changing ${target} before blur never commits an unfinished number to a different target`, async ({ page }) => {
       await page.setContent('<html><body><div id="app"></div></body></html>');
       await page.addScriptTag({ content: bundle });
       const font = page.locator('[data-tutorial="style-typography"] .grp')
@@ -169,7 +169,7 @@ test.describe("数値欄の編集先の切り替え", () => {
       const before = await page.evaluate(() => (window as any).numericInspector.getState().doc.nodes);
       await font.fill("77");
       await font.evaluate((input) => { (window as any).oldNumericInput = input; });
-      // 通常の pointerdown/blur を通らない状態更新でも、入力の寿命を編集先に合わせる。
+      // Keep the draft tied to its target even when the state changes without pointerdown/blur.
       await page.evaluate((target) => {
         const state = (window as any).numericInspector.getState();
         if (target === "node" || target === "same-value-node") state.select("b");
@@ -183,7 +183,7 @@ test.describe("数値欄の編集先の切り替え", () => {
       await font.focus();
       await page.keyboard.press("Enter");
       expect(await page.evaluate(() => (window as any).numericInspector.getState().doc.nodes)).toEqual(before);
-      // 切り替え後も、数値の連続入力は同じ欄で続けられる。
+      // After switching targets, continuous numeric input still works in the same field.
       await font.focus();
       await page.keyboard.press("ArrowUp");
       await expect(font).toHaveValue(String(Number(shown) + 1));

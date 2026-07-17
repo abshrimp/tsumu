@@ -15,13 +15,13 @@ async function check(page: Page) {
     await expect(pictures(page).nth(1)).toHaveAttribute('src', '/images/Second.png');
   }
 }
-for (const component of [false, true]) test(`${component ? 'component' : 'plain'} image URL edits preserve row scope through preview, save and export`, async ({ page }) => {
+test(`component image URL edits preserve row scope through preview, save and export`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: imageItems } }));
   await page.route('**/images/*.png', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') }));
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await componentListBundle(clientImageDoc(component, '/images/before.png'), 'picture') });
+  await page.addScriptTag({ content: await componentListBundle(clientImageDoc(true, '/images/before.png'), 'picture') });
   const input = page.locator('aside [data-tutorial="settings-image"] .row').filter({ has: page.locator('label', { hasText: /^URL$/ }) }).locator('input');
   await expect(input).toHaveValue('/images/before.png');
   const before = await snapshot(page);

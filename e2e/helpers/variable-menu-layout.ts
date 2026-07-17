@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-/** 実際の候補メニューを、出現時の拡大アニメーションが終わってから測る。 */
+/** Measure the actual suggestion menu after its entrance scaling animation has finished. */
 export async function expectVariableMenuLayout(page: Page, width: number, actions: 2 | 3) {
   const menu = page.locator(".var-comp");
   await expect(menu).toBeVisible();
@@ -24,7 +24,7 @@ export async function expectVariableMenuLayout(page: Page, width: number, action
   }));
   for (const rect of bounds) {
     expect(rect.height).toBeLessThan(22);
-    // 幅はどちらも変形前のレイアウト寸法、行は高さの違いを許容する中心線で比較する。
+    // Compare pre-transform layout widths and align rows by their centers to allow different heights.
     expect(rect.scrollWidth).toBeLessThanOrEqual(rect.clientWidth);
     expect(Math.abs(rect.center - bounds[0].center)).toBeLessThan(1);
   }

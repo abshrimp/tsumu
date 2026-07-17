@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import { scriptsFile } from "../lib/script-runtime";
 import { anchorFixture, renderAnchorExport } from "../tests/helpers/instance-anchor";
 
-// 書き出した実DOMで、アンカーと表示スクリプトが同じコンポーネントを指すことを確認する。
-test("公開した使用箇所のアンカーと表示切替がマスターのレイアウトを保つ", async ({ page }) => {
+// Use exported DOM to verify that anchor navigation and visibility scripts target the same component.
+test("Published instance anchors and visibility toggles preserve the master's layout", async ({ page }) => {
   const doc = anchorFixture();
   const { html, css } = renderAnchorExport(doc);
   await page.setContent(html);

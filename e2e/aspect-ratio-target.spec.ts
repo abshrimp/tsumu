@@ -29,14 +29,14 @@ async function expectDiscarded(page: Page, before: unknown, past: number) {
   expect(await history(page)).toBe(past);
 }
 
-test("共同編集で編集中の画面幅が消えても、未確定の縦横比をパソコン幅へ書き込まない", async ({ page }) => {
+test("Removing the edited breakpoint remotely does not commit an unfinished aspect ratio to the desktop breakpoint", async ({ page }) => {
   await draft(page);
-  // 共同編集の受信経路では pointerdown/blur を通らず、無くなった幅を base へ切り替える。
+  // Remote collaboration switches to the base breakpoint without pointerdown or blur when the edited breakpoint disappears.
   await page.evaluate(() => (window as any).removeRemoteBreakpoint());
   expect(await page.evaluate(() => (window as any).ratioEditor.getState().breakpoint)).toBe("base");
   await expectDiscarded(page, await doc(page), await history(page));
   await expect(renderedRatio(page)).toHaveCSS("aspect-ratio", "16 / 9");
-  // 中断後も新しい入力とその履歴は正常に使える。
+  // New input and its undo history remain usable after the interrupted edit.
   const before = await doc(page);
   await ratio(page).fill("3 / 2");
   await page.keyboard.press("Enter");
@@ -51,7 +51,7 @@ test("共同編集で編集中の画面幅が消えても、未確定の縦横�
 });
 
 for (const target of ["node", "breakpoint", "state", "selection", "page"] as const) {
-  test(`${target} の変更で、同じ値の縦横比に未確定の文字を持ち越さない`, async ({ page }) => {
+  test(`Changing the ${target} does not carry uncommitted text to an aspect ratio with the same value`, async ({ page }) => {
     const before = await doc(page);
     const past = await history(page);
     await draft(page);
@@ -71,7 +71,7 @@ for (const target of ["node", "breakpoint", "state", "selection", "page"] as con
   });
 }
 
-test("同じ編集先では無関係な共同編集を受けても入力を保ち、Enter・blur・空欄を確定できる", async ({ page }) => {
+test("Unrelated remote edits preserve an input on the same target, which can still commit via Enter, blur, or clearing", async ({ page }) => {
   await draft(page);
   await page.evaluate(() => {
     const s = (window as any).ratioEditor.getState();
@@ -88,7 +88,7 @@ test("同じ編集先では無関係な共同編集を受けても入力を保�
   await ratio(page).fill("");
   await page.keyboard.press("Enter");
   await expect(renderedRatio(page)).toHaveCSS("aspect-ratio", "auto");
-  // 右クリックによる継承へのリセットもそのまま使える。
+  // Right-click reset to inherited values remains available.
   await page.locator('.grp-label').filter({ hasText: /^縦横比$/ }).click({ button: "right" });
   await expect(ratio(page)).toHaveValue("16 / 9");
   await expect(renderedRatio(page)).toHaveCSS("aspect-ratio", "16 / 9");

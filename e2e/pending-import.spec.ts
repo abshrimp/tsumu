@@ -34,7 +34,7 @@ async function hold(page: Page, pattern: string, body: string, contentType: stri
 }
 async function doc(page: Page) { return page.evaluate(() => (window as any).importEditor.getState().doc); }
 async function settle(page: Page) {
-  // 待機させたfetchとReactの更新が終わってから、遅れて書き換わらないことを確認する。
+  // Wait for the delayed fetch and React update, then verify nothing changes later.
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 async function startFont(page: Page) {
@@ -54,7 +54,7 @@ async function startImage(page: Page, picker = page.locator('[data-tutorial="sty
 }
 
 for (const change of ["breakpoint", "state", "selection", "multiselection"] as const) {
-  test(`フォントの読み込み中に${change}を変えても別の編集先へ反映しない`, async ({ page }) => {
+  test(`Changing ${change} during font loading does not apply it to another editing target`, async ({ page }) => {
     const pending = await startFont(page);
     await page.evaluate((change) => {
       const s = (window as any).importEditor.getState();
@@ -71,7 +71,7 @@ for (const change of ["breakpoint", "state", "selection", "multiselection"] as c
   });
 }
 
-test("画像のアップロード待ちで別のアセットを選ぶと、その選択と元に戻す・やり直すを保つ", async ({ page }) => {
+test("Selecting another asset while an image uploads preserves the selection and Undo/Redo", async ({ page }) => {
   const pending = await startImage(page);
   await page.locator('.img-pick-cell[data-tip="old.svg"]').click();
   const chosen = await doc(page);
@@ -88,7 +88,7 @@ test("画像のアップロード待ちで別のアセットを選ぶと、そ�
   expect((await doc(page)).nodes.a.styles.base.default.backgroundImage).toBe('url("https://example.test/a.png")');
 });
 
-test("画像のアップロード中に画面幅を変えても背景を別の画面幅へ書き込まない", async ({ page }) => {
+test("Changing breakpoint during image upload does not set a background on the wrong breakpoint", async ({ page }) => {
   const pending = await startImage(page);
   await page.evaluate(() => (window as any).importEditor.getState().setBreakpoint("sm"));
   await settle(page);
@@ -99,7 +99,7 @@ test("画像のアップロード中に画面幅を変えても背景を別の�
   expect(Object.values(completed.assets)).toContainEqual(expect.objectContaining({ path: "assets/new.svg" }));
 });
 
-test("ページOGP画像の読み込み中にページを変えても完了した画像だけをアセットに残す", async ({ page }) => {
+test("Switching pages during OGP image upload retains only completed assets", async ({ page }) => {
   await page.evaluate(() => (window as any).importEditor.getState().select(null));
   await page.locator('[data-tutorial="page-seo"] .sec-head').click();
   const picker = page.locator('[data-tutorial="page-settings"] .img-pick');
@@ -115,7 +115,7 @@ test("ページOGP画像の読み込み中にページを変えても完了し�
 });
 
 for (const initial of [undefined, "https://example.test/original.png"]) {
-  test(`OGP画像のアップロード中に入力したURLをフォーカスが外れるまで保持する（${initial ? "既存URL" : "未設定"}）`, async ({ page }) => {
+  test(`OGP image URL input survives upload until blur (${initial ? "existing URL" : "unset"})`, async ({ page }) => {
     await page.evaluate((initial) => {
       const s = (window as any).importEditor.getState();
       if (initial) s.updatePage("p", { ogImage: { url: initial } });
@@ -144,7 +144,7 @@ for (const initial of [undefined, "https://example.test/original.png"]) {
   });
 }
 
-test("閉じたフォント追加の結果は反映せず、その後の追加は成功する", async ({ page }) => {
+test("Closing a font addition ignores its result and allows a subsequent successful import", async ({ page }) => {
   const pending = await startFont(page);
   await page.locator('[data-tip="Google Fontsから追加"]').click();
   const before = await doc(page);
@@ -158,7 +158,7 @@ test("閉じたフォント追加の結果は反映せず、その後の追加�
   expect((await doc(page)).customFonts).toEqual([{ family: "New Font", weights: "variable" }]);
 });
 
-test("画像ピッカーを閉じると遅いアップロードで背景を変更しない", async ({ page }) => {
+test("Closing the image picker prevents a late upload from changing the background", async ({ page }) => {
   const pending = await startImage(page);
   await page.locator('[data-tutorial="style-background"] .img-pick-thumb').click();
   const before = await doc(page);
@@ -169,7 +169,7 @@ test("画像ピッカーを閉じると遅いアップロードで背景を変�
 });
 
 for (const boundary of ["undo", "undo-redo", "replace", "restore"] as const) {
-  test(`画像読み込み中の${boundary}後は編集履歴と完了ファイルを保ち、古い割り当てをしない`, async ({ page }) => {
+  test(`${boundary} during image loading preserves history and completed files without stale assignment`, async ({ page }) => {
     await page.evaluate(() => (window as any).importEditor.getState().updateNode("b", { name: "Edit to redo" }));
     const pending = await startImage(page);
     await page.evaluate((boundary) => {
@@ -208,7 +208,7 @@ for (const boundary of ["undo", "undo-redo", "replace", "restore"] as const) {
   });
 }
 
-test("フォント読み込み中の無関係なUndo後もRedoを残し、古いフォントを登録しない", async ({ page }) => {
+test("Unrelated Undo during font loading preserves Redo without registering a stale font", async ({ page }) => {
   await page.evaluate(() => (window as any).importEditor.getState().updateNode("b", { name: "Edit to redo" }));
   const pending = await startFont(page);
   await page.evaluate(() => (window as any).importEditor.getState().undo());

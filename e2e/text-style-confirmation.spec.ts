@@ -28,7 +28,7 @@ async function selectSecondOccurrence(page: Page, replacement?: string, start = 
   await expect(page.getByRole("dialog")).toBeVisible();
 }
 
-for (const split of [true, false]) test(`共同編集で本文が変わった後は古い部分選択の${split ? "分割" : "全体適用"}を取り消す`, async ({ page }) => {
+for (const split of [true, false]) test(`After remote text changes, stale partial-range ${split ? "split" : "whole-style"} confirmation is cancelled`, async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const response = await page.request.post("/api/sites", { data: { name: "Text selection collaboration" } });
   expect(response.ok()).toBeTruthy();
@@ -45,7 +45,7 @@ for (const split of [true, false]) test(`共同編集で本文が変わった後
   remote.nodes.a.text.content = "echo gone";
   remote.nodes.b.name = "Collaborator kept this";
   expect((await page.request.put(`${endpoint}&base=${current.rev}`, { data: remote })).ok()).toBeTruthy();
-  // 実際の共同編集受信がCanvasへ反映されるのを待ってから、古いダイアログを確定する。
+  // Wait for remote collaboration to reach the real Canvas before accepting the stale dialog.
   await expect.poll(() => page.locator('[data-node="a"]').textContent()).toBe("echo gone");
   await page.getByRole("dialog").getByRole("button", { name: split ? "分割して適用" : "全体に適用", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -57,7 +57,7 @@ for (const split of [true, false]) test(`共同編集で本文が変わった後
   await expect(page.locator('[data-node="a"]')).toHaveCSS("font-style", "normal");
 });
 
-test.describe("部分書式確認の編集先と寿命", () => {
+test.describe("Partial text styling confirmation target and lifetime", () => {
   let bundle: string;
   test.beforeAll(async () => { bundle = await textStyleConfirmationBundle(); });
   test.beforeEach(async ({ page }) => {
@@ -73,7 +73,7 @@ test.describe("部分書式確認の編集先と寿命", () => {
   });
 
   for (const interruption of ["undo-redo", "breakpoint-return", "state-return", "page-return", "selection-return", "new-range", "unmount"]) {
-    test(`${interruption} の後に元の範囲へ書き戻さない`, async ({ page }) => {
+    test(`After ${interruption}, a stale confirmation never writes into the original range`, async ({ page }) => {
       await page.evaluate(() => (window as any).textStyleEditor.getState().updateNode("a", { name: "Undo this" }));
       await selectSecondOccurrence(page);
       await page.evaluate(interruption => {
@@ -87,7 +87,7 @@ test.describe("部分書式確認の編集先と寿命", () => {
         if (interruption === "unmount") (window as any).hideTextStylePanel();
       }, interruption);
       if (interruption.endsWith("return")) {
-        // 途中の画面を描画してから同じ編集先に戻す。元の要求を復活させてはいけない。
+        // Render an intermediate screen before returning to the same target; the original request must not revive.
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
         await page.evaluate(interruption => {
           const s = (window as any).textStyleEditor.getState();
@@ -105,7 +105,7 @@ test.describe("部分書式確認の編集先と寿命", () => {
     });
   }
 
-  for (const action of ["split", "whole", "escape"]) test(`有効な${action}操作は無関係な編集を保ち、Undo・Redoできる`, async ({ page }) => {
+  for (const action of ["split", "whole", "escape"]) test(`Valid ${action} actions preserve unrelated edits and support Undo/Redo`, async ({ page }) => {
     await selectSecondOccurrence(page);
     await page.evaluate(() => (window as any).textStyleEditor.getState().updateDoc((d: any) => {
       d.nodes.a.name = "Renamed while waiting";
@@ -136,10 +136,10 @@ test.describe("部分書式確認の編集先と寿命", () => {
     expect((await snapshot(page)).doc).toEqual(after.doc);
   });
 
-  for (const content of ["new echo echo", "Hello {name} world"]) test(`入力直後の${content}を確定してから選択範囲だけを書式設定する`, async ({ page }) => {
+  for (const content of ["new echo echo", "Hello {name} world"]) test(`Commit freshly entered ${content} before styling only the selected range`, async ({ page }) => {
     const start = content.startsWith("Hello") ? 6 : 9;
     await selectSecondOccurrence(page, content, start, content.length);
-    // blurで入力を保存した後、選択が同値で通知し直されても承認を無効にしない。
+    // Re-notifying an unchanged selection after blur saves text must not invalidate its confirmation.
     await page.evaluate(() => {
       const s = (window as any).textStyleEditor.getState();
       s.setTextSel({ ...s.textSel });

@@ -183,7 +183,7 @@ test("inline dropdown selection replaces an existing raw object reference with a
 });
 
 for (const width of [1440, 375, 320]) {
-  test(`スクリプトの変数候補の3つの操作案内は幅 ${width}px でも一行に収まる`, async ({ page }) => {
+  test(`All three variable hint actions in the script editor remain on one line at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const input = block(page, "value").locator("input").first();
     await input.focus();

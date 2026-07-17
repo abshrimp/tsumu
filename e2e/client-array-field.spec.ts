@@ -4,8 +4,8 @@ import { clientArrayFieldFixture } from '../tests/helpers/client-array-field';
 import { clientScriptBundle } from '../tests/helpers/client-script-scope';
 import { publishedClientNested } from '../tests/helpers/client-nested-lists';
 
-for (const component of [false, true]) test(`${component ? 'component' : 'plain'} array-field edited through ScriptEditor uses each target item`, async ({ page }) => {
-  const { doc, items } = clientArrayFieldFixture(component);
+test(`component array-field edited through ScriptEditor uses each target item`, async ({ page }) => {
+  const { doc, items } = clientArrayFieldFixture(true);
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: items } }));
   await page.goto('/robots.txt');

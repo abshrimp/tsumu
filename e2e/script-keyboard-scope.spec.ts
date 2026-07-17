@@ -19,7 +19,7 @@ const selected = (page: Page, kind: "step" | "script") => kind === "step" ? bloc
 
 for (const kind of ["step", "script"] as const) for (const key of ["Backspace", "Delete"]) {
   test(`${kind}: a closed focused native select does not delete its selected block with ${key}`, async ({ page }) => {
-    // 実ポインターでブロックを選び、ネイティブの選択肢ポップアップを開かずにフォーカスする。
+    // Select a block with the real pointer, then focus the native select without opening its popup.
     await block(page, kind).locator(".se-ico").first().click();
     await expect(selected(page, kind)).toHaveClass(/is-selected/);
     await select(page, kind).focus();
@@ -32,7 +32,7 @@ for (const kind of ["step", "script"] as const) for (const key of ["Backspace", 
 }
 
 test("clicking a native select and accepting its option keeps Delete inside the select", async ({ page }) => {
-  // 選択欄そのもののpointerdownも、親のブロックを選択する。
+  // Pointerdown on the select also selects its parent block.
   await select(page, "step").click();
   await page.keyboard.press("Enter");
   await expect(select(page, "step")).toBeFocused();

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { aspectRatioDoc } from "../tests/helpers/aspect-ratio";
 
-test("別のエディタで画面幅を削除しても、入力途中の縦横比で共通スタイルを上書きしない", async ({ page: a, browser }, testInfo) => {
+test("Removing a breakpoint in another editor does not let an in-progress aspect ratio overwrite shared styles", async ({ page: a, browser }, testInfo) => {
   const other = await browser.newContext({
     baseURL: String(testInfo.project.use.baseURL), locale: "ja-JP", viewport: { width: 1440, height: 900 },
   });
@@ -43,7 +43,7 @@ test("別のエディタで画面幅を削除しても、入力途中の縦横�
     await a.keyboard.press("Enter");
     const canvas = a.locator('.cv-root [data-node="a"]');
     await expect(canvas).toHaveCSS("aspect-ratio", "16 / 9");
-    // API に保存されている全要素のスタイルも、幅の削除前と同じ。
+    // All node styles stored by the API remain identical to their values before the breakpoint was removed.
     expect((await (await a.request.get(api)).json()).doc.nodes).toEqual(fixture.nodes);
 
     await ratio.fill("3 / 2");

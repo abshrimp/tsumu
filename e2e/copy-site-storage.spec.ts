@@ -10,7 +10,7 @@ for (const failure of ["read", "json", "shape"] as const) {
   test(`copy dialog preserves an unreadable ${failure} destination and allows retry`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    // ネットワーク・保存先はすべて使い捨ての合成データ。
+    // All network responses and storage destinations use disposable synthetic data.
     await page.route("http://tsumu-copy.test/**", (route) => {
       if (new URL(route.request().url()).pathname === "/api/sites") return route.fulfill({ status: 503, json: {} });
       return route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' });

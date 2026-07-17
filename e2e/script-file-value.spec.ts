@@ -31,7 +31,7 @@ for (const preview of [true, false]) {
       await expect(page.locator("#upload")).toHaveValue("");
       await expect(page.locator("#result")).toHaveText("file=; changes=0; name=; agree=false");
     }
-    // 通常の入力・チェックは引き続き変更できる。
+    // Ordinary text fields and checkboxes remain editable.
     await page.getByRole("button", { name: "fill-controls", exact: true }).click();
     await expect(page.locator("#name")).toHaveValue("Ada");
     await expect(page.locator("#agree input")).toBeChecked();

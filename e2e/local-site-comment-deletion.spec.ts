@@ -7,7 +7,7 @@ for (const draft of ["create", "reply", "edit"] as const) test(`deleting a local
   const site = { ...emptyDest(), id: "local-deletion", name: "Local deletion", createdAt: 1, updatedAt: 1 };
   const key = `tsumu-comments-v1:${site.id}`;
   const marker = `tsumu-site-deleted-v1:${site.id}`;
-  // 実際のホームとエディタを使い、サーバー保存だけを未設定にする。
+  // Use the real Home and editor while leaving server persistence unconfigured.
   await context.route("**/api/**", route => {
     const path = new URL(route.request().url()).pathname;
     if (/^\/api\/(sites(?:\/.*)?|doc|comments|collab\/.*)$/.test(path)) return route.fulfill({ status: 503, json: {} });
@@ -66,7 +66,7 @@ for (const draft of ["create", "reply", "edit"] as const) test(`deleting a local
   await expect(editor.locator(".cm-item")).toHaveCount(0);
   await expect(editor.locator(".cm-pin:not(.is-draft)")).toHaveCount(0);
   expect(await editor.evaluate(key => localStorage.getItem(key), key)).toBeNull();
-  // 削除されたサイトへの再投稿が失敗しても、読み取り・コピーのための入力欄は残す。
+  // Keep the input available for reading and copying even if posting again to a deleted site fails.
   await input.selectText();
   expect(await input.evaluate(el => (el as HTMLTextAreaElement).selectionEnd - (el as HTMLTextAreaElement).selectionStart)).toBe("Keep this unsent text for copying".length);
 });

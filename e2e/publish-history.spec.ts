@@ -1,8 +1,8 @@
 import { expect, test, type Route } from "@playwright/test";
 
-// 公開 API はすべてモックし、実際の画面で通信の完了順だけを入れ替える。
-// GitHub への公開・ロールバックは行わない。
-test("テスト公開の遅い履歴応答が本番の履歴とロールバック先に混ざらない", async ({ page }) => {
+// Mock all publishing APIs and change only the order in which requests complete in the real UI.
+// Never deploy or roll back anything on GitHub.
+test("A delayed test-publish history response does not contaminate production history or rollback targets", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const production: Route[] = [];
@@ -48,7 +48,7 @@ test("テスト公開の遅い履歴応答が本番の履歴とロールバッ�
   const staleResponse = page.waitForResponse((res) => res.url().includes("/api/publish/history") && new URL(res.url()).searchParams.get("target") === "test");
   await respond(preview[0], commits("preview"));
   await (await staleResponse).finished();
-  // fetch の完了後の React 描画まで待つ。
+  // Wait for React to render after fetch completes.
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await expect(page.getByText("latest-production commit", { exact: false })).toBeVisible();
   await expect(page.getByText("preview commit", { exact: false })).toHaveCount(0);

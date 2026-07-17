@@ -26,10 +26,10 @@ async function expectCleared(page: Page) {
 
 for (const [label, button] of [
   ["false", "clear-item-0"], ["0", "clear-item-1"], ["off", "clear-item-2"],
-  ["no", "clear-item-3"], ["空文字", "clear-item-4"],
-  ["グループを空にする", "clear-group"], ["グループに未知の値", "unknown-group"],
+  ["no", "clear-item-3"], ["empty string", "clear-item-4"],
+  ["clear group", "clear-group"], ["unknown group value", "unknown-group"],
 ]) {
-  test(`公開ページのラジオを解除すると表示も変わる: ${label}`, async ({ page }) => {
+  test(`Clearing a radio on a published page also updates visible output: ${label}`, async ({ page }) => {
     await install(page);
     await expect(page.locator("#result")).toHaveText("size=S; small=true; medium=false; index=1; color=red");
     await page.locator(`#${button}`).click();
@@ -42,7 +42,7 @@ for (const [label, button] of [
   });
 }
 
-test("別のラジオを選ぶときだけ、選ばれた側のchangeが一度動く", async ({ page }) => {
+test("Selecting another radio fires change exactly once on the selected option", async ({ page }) => {
   await install(page);
   await page.locator("#select-medium").click();
   await expect(page.locator("#counts")).toHaveText("|1|");
@@ -59,7 +59,7 @@ test("別のラジオを選ぶときだけ、選ばれた側のchangeが一度�
   ]);
 });
 
-test("changeスクリプトで自分を解除しても再帰せず表示が同期する", async ({ page }) => {
+test("A change script clearing its own radio remains synchronized without recursion", async ({ page }) => {
   await install(page, true);
   await page.locator("#select-medium").click();
   await page.locator("#select-small").click();
@@ -70,7 +70,7 @@ test("changeスクリプトで自分を解除しても再帰せず表示が同�
   ]);
 });
 
-test("手動の選択も一度だけ通知し、入力済みの欄はラジオ解除で上書きしない", async ({ page }) => {
+test("Manual selection emits one notification and clearing a radio preserves edited fields", async ({ page }) => {
   await install(page);
   await page.locator("#clear-group").click();
   await page.locator("#medium input").check();

@@ -24,7 +24,7 @@ async function setup(page: Page) {
       const settled = page.waitForEvent("requestfinished", (request) => request === requests[index].request());
       await requests[index].fulfill({ status, contentType: "application/json", body: JSON.stringify({ json: previewRows(label, length) }) });
       await settled;
-      // 古い応答を返した直後の、まだ更新前の画面を成功と誤判定しない。
+      // Do not mistake the still-stale screen for success immediately after an old response arrives.
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     },
     async unchanged() {

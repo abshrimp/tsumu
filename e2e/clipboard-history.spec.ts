@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("コンポーネント化を取り消しても、コピーした要素をキーボードで貼り付けられる", async ({ page }) => {
+test("Pasting a copied node via keyboard still works after undoing component creation", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
@@ -11,7 +11,7 @@ test("コンポーネント化を取り消しても、コピーした要素を�
   await expect(page.getByText("サーバー保存済み")).toBeVisible();
 
   const canvas = page.locator('[data-tutorial="canvas"]');
-  // プリセットの見出しには、この文字列に続いて二行目の案内も入っている。
+  // The preset heading includes another line of instructions after this string.
   const content = canvas.getByText("見出しをここに");
   await expect(content).toHaveCount(1);
   await page.locator('[data-tutorial="layers-panel"]').getByText("ヒーロー", { exact: true }).click({ button: "right" });
@@ -25,7 +25,7 @@ test("コンポーネント化を取り消しても、コピーした要素を�
   await expect(content).toHaveCount(2);
   await expect(canvas.getByText("（コンポーネントが見つかりません）", { exact: true })).toHaveCount(0);
 
-  // 依存を含めて貼り付け全体が一回で戻り、やり直しと保存後の再読み込みでも表示される。
+  // The whole paste, including dependencies, undoes in one step and survives redo and reload after saving.
   await page.keyboard.press("ControlOrMeta+z");
   await expect(content).toHaveCount(1);
   await expect(canvas.locator("[data-instance]")).toHaveCount(0);
