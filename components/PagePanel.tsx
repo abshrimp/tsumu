@@ -3,12 +3,9 @@
 import { isEnterKey } from "../lib/keys";
 import { useRef, useState } from "react";
 import { FileUp } from "lucide-react";
-import JSZip from "jszip";
-import { resolveZipReference } from "../lib/zip-references";
+import { readHtmlZip } from "../lib/html-zip";
 import { useEditor } from "../lib/store";
 import { showConfirm } from "../lib/dialog";
-import { assetSrc, uploadStaticAsset } from "../lib/assets";
-import type { Asset } from "../lib/types";
 import ImagePicker from "./ImagePicker";
 import SiteLanguageSelect from "./SiteLanguageSelect";
 import { LoadingScreenSettings } from "./SitePanel";
@@ -31,39 +28,6 @@ const blurOnEnter = (e: React.KeyboardEvent) => {
     (e.target as HTMLInputElement).blur();
   }
 };
-
-const ZIP_MIME: Record<string, string> = {
-  css: "text/css", js: "text/javascript", mjs: "text/javascript",
-  json: "application/json", svg: "image/svg+xml", png: "image/png",
-  jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp",
-  avif: "image/avif", ico: "image/x-icon", mp4: "video/mp4", webm: "video/webm",
-  mp3: "audio/mpeg", wav: "audio/wav", woff: "font/woff", woff2: "font/woff2",
-  ttf: "font/ttf", otf: "font/otf", pdf: "application/pdf",
-};
-
-const zipMime = (name: string) =>
-  ZIP_MIME[name.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
-const cleanZipPath = (value: string) =>
-  value.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
-
-function rewriteZipReferences(html: string, htmlPath: string, urls: Map<string, string>) {
-  const resolve = (value: string) => resolveZipReference(value, htmlPath, urls);
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[src],[href],[poster]"))) {
-    for (const attr of ["src", "href", "poster"]) {
-      const value = el.getAttribute(attr);
-      if (value) el.setAttribute(attr, resolve(value));
-    }
-  }
-  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[srcset]"))) {
-    el.setAttribute("srcset", (el.getAttribute("srcset") ?? "").split(",").map((part) => {
-      const [url, descriptor] = part.trim().split(/\s+/, 2);
-      return `${resolve(url)}${descriptor ? ` ${descriptor}` : ""}`;
-    }).join(", "));
-  }
-  const output = `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`;
-  return output.replace(/url\((['"]?)([^)'"\s]+)\1\)/g, (_, q, url) => `url(${q}${resolve(url)}${q})`);
-}
 
 /** 要素が未選択のときに右パネルへ表示するページ設定 */
 export default function PagePanel() {
@@ -119,39 +83,14 @@ export default function PagePanel() {
     setZipBusy(true);
     setZipMessage(null);
     try {
-      const zip = await JSZip.loadAsync(file);
-      const entries = Object.values(zip.files).filter(
-        (entry) => !entry.dir && !entry.name.startsWith("__MACOSX/") && !entry.name.endsWith(".DS_Store")
-      );
-      if (entries.length > 200) throw new Error(tr("ZIPに入れられるファイルは200個までです"));
-      const htmlEntries = entries.filter((entry) => /\.html?$/i.test(entry.name));
-      if (!htmlEntries.length) throw new Error(tr("ZIP内にHTMLファイルが見つかりません"));
-      const htmlEntry =
-        htmlEntries.find((entry) => /(^|\/)index\.html?$/i.test(entry.name)) ?? htmlEntries[0];
-      const assets: Asset[] = [];
-      const urls = new Map<string, string>();
-      const assetEntries = entries.filter((entry) => !/\.html?$/i.test(entry.name));
-      for (let index = 0; index < assetEntries.length; index++) {
-        const entry = assetEntries[index];
-        setZipMessage(tr("アセットをアップロード中… {p1} / {length}", { p1: index + 1, length: assetEntries.length }));
-        const blob = await entry.async("blob");
-        const path = cleanZipPath(entry.name);
-        const upload = new File([blob], path.replace(/\//g, "-"), {
-          type: zipMime(path),
-        });
-        const asset = await uploadStaticAsset(upload);
-        assets.push(asset);
-        urls.set(path, assetSrc(asset));
-      }
-      const html = await htmlEntry.async("text");
-      const rewritten = rewriteZipReferences(html, cleanZipPath(htmlEntry.name), urls);
+      const { assets, html: rewritten, name } = await readHtmlZip(file, setZipMessage);
       updateDoc((draft) => {
         for (const asset of assets) draft.assets[asset.id] = asset;
         const target = draft.pages[page.id];
         if (target) target.rawHtml = rewritten;
       });
       setZipMessage(
-        tr("{name} と {length}個のアセットを読み込みました", { name: htmlEntry.name, length: assets.length })
+        tr("{name} と {length}個のアセットを読み込みました", { name, length: assets.length })
       );
     } catch (error) {
       setZipMessage(userMessage(error, tr("ZIPを読み込めませんでした")));
