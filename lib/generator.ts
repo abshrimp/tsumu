@@ -141,7 +141,8 @@ export function generateProject(
           p.redirectTo === undefined &&
           p.rewriteTo === undefined &&
           !p.rawHtml?.trim() &&
-          p.slug.replace(/^\/+|\/+$/g, "") === slug
+          p.slug.replace(/^\/+|\/+$/g, "") !== "404" &&
+          routeDir(p.slug) === routeDir(slug)
       )
       .map((p) => p.id);
     return ids.length > 1 ? ids : [];
