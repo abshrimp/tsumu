@@ -6,7 +6,7 @@
  * コピー先のサイトの編集データ（D1 / このブラウザの保存）へ書き足す
  */
 
-import type { DocNode, Page, ScriptStep, SiteDoc } from "./types";
+import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } from "./types";
 import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from "./clip-transfer";
 import { createInitialDoc, genId } from "./presets";
 import { copySlug, uniquePageNaming } from "./store";
@@ -14,8 +14,11 @@ import { DOC_STORAGE_KEY, siteKey } from "./site";
 import { tr } from "./i18n";
 import { isSiteLang, siteLangOf } from "./site-lang";
 import { normalizeQuery } from "./vars";
+import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 
 export interface PagePayload {
+  /** Missing in older payloads, which used the default screen widths. */
+  breakpoints?: BreakpointDef[];
   pages: Page[];
   /** ページの中の要素（入れ子も含む） */
   nodes: DocNode[];
@@ -57,7 +60,7 @@ export function buildPagePayload(doc: SiteDoc, pageIds: string[]): PagePayload {
   // ページの設定（OGP画像・背景・ページのスクリプト）で使うアセットも拾うため、ページごと渡す
   const deps = buildClipPayload(doc, { nodes, rootIds: [], pages });
   deps.nodes = [];
-  return { pages, nodes, folders, slugs, queries, deps, lang: siteLangOf(doc) };
+  return { pages, nodes, folders, slugs, queries, deps, lang: siteLangOf(doc), breakpoints: structuredClone(doc.breakpoints ?? DEFAULT_BREAKPOINTS) };
 }
 
 function mapSteps(steps: ScriptStep[] | undefined, fn: (pageId: string) => string) {
@@ -76,7 +79,48 @@ function mapSteps(steps: ScriptStep[] | undefined, fn: (pageId: string) => strin
  * ページへのリンクは、一緒にコピーしたページ → コピー先の同じURLのページの順に付け替える。
  * 戻り値は足したページの数
  */
+/** Validate before importing any assets or components. Never change destination breakpoints. */
+function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload {
+  const fail = (): never => {
+    throw new Error(tr("コピー元とコピー先の画面幅設定が一致しないか、参照できない設定があります。表示を保持するためコピーを中止しました。画面幅設定を揃えてから再試行してください。"));
+  };
+  const checked = (raw: BreakpointDef[] | undefined) => {
+    const input = raw ?? DEFAULT_BREAKPOINTS;
+    if (!Array.isArray(input) || input.length > MAX_BREAKPOINTS) return fail();
+    const normalized = normalizeBreakpoints(input);
+    if (normalized.length !== input.length || input.some((b) =>
+      !b || !Number.isInteger(b.maxWidth) || b.maxWidth < 240 || b.maxWidth > 2999
+    )) return fail();
+    return normalized;
+  };
+  const source = checked(payload.breakpoints);
+  const target = checked(d.breakpoints);
+  if (source.length !== target.length || source.some((b, i) => b.maxWidth !== target[i].maxWidth)) fail();
+  const ids = new Map([["base", "base"], ...source.map((b, i) => [b.id, target[i].id] as [string, string])]);
+  const id = (key: string): string => ids.get(key) ?? fail();
+  const styles = (value: NodeStyles | undefined): NodeStyles | undefined =>
+    value && Object.fromEntries(Object.entries(value).map(([key, style]) => [id(key), style]));
+  const p = structuredClone(payload);
+  for (const page of p.pages) page.bodyStyles = styles(page.bodyStyles);
+  // Existing component masters are reused, not imported or modified.
+  const componentNodes = new Map(p.deps.componentNodes.map(n => [n.id, n]));
+  const needed = new Set<string>();
+  const pending = Object.values(p.deps.components).filter(c => !d.components?.[c.id]).map(c => c.rootId);
+  for (let key = pending.pop(); key !== undefined; key = pending.pop()) {
+    const node = componentNodes.get(key);
+    if (!node || needed.has(key)) continue;
+    needed.add(key);
+    pending.push(...node.children);
+  }
+  for (const node of [...p.nodes, ...p.deps.componentNodes.filter(n => needed.has(n.id))]) {
+    node.styles = styles(node.styles)!;
+    if (node.hiddenOn) node.hiddenOn = node.hiddenOn.map(id);
+  }
+  return p;
+}
+
 export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
+  p = prepareResponsivePayload(d, p);
   const { assetIds: assetMap, componentNodes } = mergeClipDeps(d, p.deps);
   const pageMap = new Map<string, string>();
   for (const page of p.pages) pageMap.set(page.id, genId("page"));

@@ -115,3 +115,83 @@ test("copied component masters relink copied pages and matching destination slug
   applyPagePayload(dst, buildPagePayload(src, ["home", "about"]));
   assert.deepEqual(dst.nodes.master, existing);
 });
+
+test("page copy remaps equal-width breakpoint IDs without changing the destination", () => {
+  const src = source(), dst = target();
+  src.breakpoints = [{ id: "narrow", label: "Small", maxWidth: 600 }, { id: "wide", label: "Large", maxWidth: 900 }];
+  // IDs deliberately swap, so in-place key renaming would overwrite a style.
+  dst.breakpoints = [{ id: "wide", label: "Small target", maxWidth: 600 }, { id: "narrow", label: "Large target", maxWidth: 900 }];
+  src.nodes.a.styles = { base: { default: { color: "red" } }, narrow: { default: { color: "blue" } }, wide: { default: { color: "green" } } };
+  src.nodes.a.hiddenOn = ["narrow"];
+  src.pages.home.bodyStyles = { wide: { default: { backgroundColor: "yellow" } } };
+  src.nodes.a.children = ["instance"];
+  src.nodes.instance = { ...makeBox(), id: "instance", type: "instance", componentId: "widget" };
+  src.nodes.master = { ...makeBox(), id: "master", styles: { narrow: { default: { color: "purple" } } }, hiddenOn: ["wide"] };
+  src.components = { widget: { id: "widget", name: "Widget", rootId: "master" } };
+  const before = structuredClone(dst), original = structuredClone(src);
+  const payload = buildPagePayload(src, ["home"]);
+  const payloadBefore = structuredClone(payload);
+  applyPagePayload(dst, payload);
+  const page = dst.pages[dst.pageOrder.at(-1)!], node = dst.nodes[page.children[0]];
+  assert.equal(node.styles.wide?.default?.color, "blue");
+  assert.equal(node.styles.narrow?.default?.color, "green");
+  assert.deepEqual(node.hiddenOn, ["wide"]);
+  assert.equal(page.bodyStyles?.narrow?.default?.backgroundColor, "yellow");
+  assert.equal(dst.nodes.master.styles.wide?.default?.color, "purple");
+  assert.deepEqual(dst.nodes.master.hiddenOn, ["narrow"]);
+  assert.deepEqual(dst.breakpoints, before.breakpoints);
+  for (const id of before.pageOrder) assert.deepEqual(dst.pages[id], before.pages[id]);
+  assert.deepEqual(src, original);
+  assert.deepEqual(payload, payloadBefore);
+});
+
+test("incompatible or unknown responsive settings stop before importing any dependencies", () => {
+  for (const change of ["width", "node", "page", "component", "limit"] as const) {
+    const src = source(), dst = target();
+    if (change === "width") src.breakpoints = [{ id: "custom", label: "Custom", maxWidth: 800 }];
+    if (change === "node") src.nodes.a.hiddenOn = ["unknown"];
+    if (change === "page") src.pages.home.bodyStyles = { unknown: { default: { color: "red" } } };
+    if (change === "component") {
+      src.nodes.a.type = "instance"; src.nodes.a.componentId = "widget";
+      src.nodes.master = { ...makeBox(), id: "master", styles: { unknown: { default: { color: "red" } } } };
+      src.components = { widget: { id: "widget", name: "Widget", rootId: "master" } };
+    }
+    if (change === "limit") src.breakpoints = Array.from({ length: 7 }, (_, i) => ({ id: `bp${i}`, label: `BP${i}`, maxWidth: 400 + i * 100 }));
+    const before = structuredClone(dst);
+    assert.throws(() => applyPagePayload(dst, buildPagePayload(src, ["home"])), /画面幅|screen-width/);
+    assert.deepEqual(dst, before, change);
+  }
+});
+
+test("legacy default payloads and six matching screen widths remain usable", () => {
+  const legacy = buildPagePayload(source(), ["home"]);
+  delete legacy.breakpoints;
+  assert.equal(applyPagePayload(target(), legacy), 1);
+  const src = source(), dst = target();
+  src.breakpoints = Array.from({ length: 6 }, (_, i) => ({ id: `a${i}`, label: "Source", maxWidth: 400 + i * 100 }));
+  dst.breakpoints = src.breakpoints.map(b => ({ ...b, id: b.id.replace("a", "b") }));
+  src.nodes.a.styles = { a5: { default: { color: "blue" } } };
+  applyPagePayload(dst, buildPagePayload(src, ["home"]));
+  assert.equal(dst.nodes[dst.pages[dst.pageOrder.at(-1)!].children[0]].styles.b5?.default?.color, "blue");
+});
+
+test("reused destination component masters are neither rewritten nor checked as new dependencies", () => {
+  const src = source(), dst = target();
+  src.nodes.a.type = "instance"; src.nodes.a.componentId = "widget";
+  src.nodes.master = { ...makeBox(), id: "master", styles: { obsolete: { default: { color: "red" } } } };
+  src.components = { widget: { id: "widget", name: "Widget", rootId: "master" } };
+  dst.nodes.existing = { ...makeBox(), id: "existing" };
+  dst.components = { widget: { id: "widget", name: "Existing widget", rootId: "existing" } };
+  const existing = structuredClone(dst.nodes.existing);
+  applyPagePayload(dst, buildPagePayload(src, ["home"]));
+  assert.deepEqual(dst.nodes.existing, existing);
+  assert.equal(dst.nodes.master, undefined);
+});
+
+test("over-limit destination breakpoints cannot be silently truncated during copy", () => {
+  const src = source(), dst = target();
+  dst.breakpoints = Array.from({ length: 7 }, (_, i) => ({ id: `bp${i}`, label: "BP", maxWidth: 400 + i * 100 }));
+  const before = structuredClone(dst);
+  assert.throws(() => applyPagePayload(dst, buildPagePayload(src, ["home"])), /画面幅|screen-width/);
+  assert.deepEqual(dst, before);
+});

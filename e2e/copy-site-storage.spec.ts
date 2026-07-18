@@ -6,7 +6,7 @@ import { copySiteStorageBundle } from "../tests/helpers/copy-site-storage";
 
 let bundle: string;
 test.beforeAll(async () => { bundle = await copySiteStorageBundle(); });
-for (const failure of ["read", "json", "shape"] as const) {
+for (const failure of ["read", "json", "shape", "breakpoints"] as const) {
   test(`copy dialog preserves an unreadable ${failure} destination and allows retry`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -20,7 +20,7 @@ for (const failure of ["read", "json", "shape"] as const) {
     doc.siteName = "Keep this title";
     doc.customHeadHtml = "<!-- Destination content -->";
     const good = JSON.stringify(doc);
-    const bad = failure === "json" ? '{"siteName":"recoverable"' : failure === "shape" ? JSON.stringify({ ...doc, pageOrder: [] }) : good;
+    const bad = failure === "breakpoints" ? JSON.stringify({ ...doc, breakpoints: [{ id: "custom", label: "Custom", maxWidth: 800 }] }) : failure === "json" ? '{"siteName":"recoverable"' : failure === "shape" ? JSON.stringify({ ...doc, pageOrder: [] }) : good;
     const key = siteKey(DOC_STORAGE_KEY, "destination");
     await page.evaluate(({ key, listKey, site, bad, failure }) => {
       localStorage.setItem("tsumu-lang", "ja");
@@ -38,7 +38,7 @@ for (const failure of ["read", "json", "shape"] as const) {
     const button = page.locator(".copy-site-item");
     await expect(button.locator(".copy-site-name")).toHaveText("Destination");
     await button.click();
-    await expect(page.locator(".copy-site-error")).toContainText("コピー先の編集データを読み込めませんでした");
+    await expect(page.locator(".copy-site-error")).toContainText(failure === "breakpoints" ? "画面幅設定が一致しない" : "コピー先の編集データを読み込めませんでした");
     await expect(page.locator(".copy-site-done")).toHaveCount(0);
     await expect(button).toBeEnabled();
     expect(await page.evaluate((key) => (window as any).originalGetItem.call(localStorage, key), key)).toBe(bad);
