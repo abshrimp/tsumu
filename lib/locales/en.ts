@@ -4,6 +4,10 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "操作を探す": "Find an action",
+  "例：数える、保存、表示": "e.g. count, save, show",
+  "検索をクリア": "Clear search",
+  "一致する操作がありません": "No matching actions",
   "コピー元とコピー先の画面幅設定が一致しないか、参照できない設定があります。表示を保持するためコピーを中止しました。画面幅設定を揃えてから再試行してください。": "The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to preserve the appearance. Match the screen-width settings and try again.",
   "アセットをダウンロードできませんでした": "Could not download the asset.",
   "現在の設定の送信先": "Destination for current settings",

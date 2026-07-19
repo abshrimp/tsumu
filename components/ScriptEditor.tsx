@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Undo2, X, Zap } from "lucide-react";
+import { Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Search, Undo2, X, Zap } from "lucide-react";
 import { componentOf, useEditor } from "../lib/store";
 import SafeBoundary from "./SafeBoundary";
 import { glyphs } from "./Glyph";
@@ -19,7 +19,7 @@ import {
   CAT_OF,
   CAT_ORDER,
   Ico,
-  PALETTE,
+  findPaletteItems,
   STEP_ICON,
   TRIGGER_ICON,
   type Payload,
@@ -205,6 +205,8 @@ function ScriptEditorInner({
 
   const wsRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const visiblePalette = useMemo(() => findPaletteItems(paletteQuery), [paletteQuery]);
   /** ワークスペースの表示倍率（ブラウザに覚えておく） */
   const [zoom, setZoomState] = useState(() => {
     try {
@@ -734,22 +736,56 @@ function ScriptEditorInner({
             className={`se-pal-wrap${drag && isFromWorkspace(drag.payload) ? " is-trash-ready" : ""}${drag && isFromWorkspace(drag.payload) && inPaletteHint(drag, paletteRef.current) ? " is-trash" : ""}`}
           >
             <div className="se-palette" data-tutorial="se-palette">
-              {CAT_ORDER.map((cat) => (
-                <div key={cat} className="se-pal-group">
-                  <div className="se-pal-title">{CAT_INFO[cat].label}</div>
-                  {PALETTE.filter((i) => i.cat === cat).map((item) => (
-                    <div
-                      key={item.key}
-                      className="se-blk se-pal-item"
-                      data-tutorial={`se-block-${item.key}`}
-                      onPointerDown={(e) => begin(e, item.make)}
-                    >
-                      <Ico icon={item.icon} cat={cat} />
-                      <PaletteLabel label={item.label} />
-                    </div>
-                  ))}
-                </div>
-              ))}
+              <div className="se-pal-search">
+                <Search size={14} aria-hidden="true" />
+                <input
+                  type="search"
+                  className="se-pal-search-input"
+                  aria-label={tr("操作を探す")}
+                  placeholder={tr("例：数える、保存、表示")}
+                  value={paletteQuery}
+                  onChange={(e) => setPaletteQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.stopPropagation();
+                      setPaletteQuery("");
+                    }
+                  }}
+                />
+                {paletteQuery && (
+                  <button
+                    type="button"
+                    className="se-pal-search-clear"
+                    aria-label={tr("検索をクリア")}
+                    onClick={() => setPaletteQuery("")}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+              {CAT_ORDER.map((cat) => {
+                const items = visiblePalette.filter((item) => item.cat === cat);
+                if (!items.length) return null;
+                return (
+                  <div key={cat} className="se-pal-group">
+                    <div className="se-pal-title">{CAT_INFO[cat].label}</div>
+                    {items.map((item) => (
+                      <div
+                        key={item.key}
+                        className="se-blk se-pal-item"
+                        data-tutorial={`se-block-${item.key}`}
+                        onPointerDown={(e) => begin(e, item.make)}
+                      >
+                        <Ico icon={item.icon} cat={cat} />
+                        <PaletteLabel label={item.label} />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {visiblePalette.length === 0 && (
+                <p className="se-pal-empty" role="status">{tr("一致する操作がありません")}</p>
+              )}
             </div>
             <div className="se-trash">{tr("ここで離すと削除")}</div>
           </div>
