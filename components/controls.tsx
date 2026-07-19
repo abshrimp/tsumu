@@ -1367,12 +1367,12 @@ export function PropSeg({
 
 export function parseColor(v: string | undefined): { hex: string; alpha: number } {
   if (!v) return { hex: "#000000", alpha: 1 };
-  const hexm = /^#([0-9a-f]{6})$/i.exec(v.trim());
-  if (hexm) return { hex: `#${hexm[1]}`, alpha: 1 };
-  const short = /^#([0-9a-f]{3})$/i.exec(v.trim());
+  const hexm = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(v.trim());
+  if (hexm) return { hex: `#${hexm[1]}`, alpha: hexm[2] ? parseInt(hexm[2], 16) / 255 : 1 };
+  const short = /^#([0-9a-f]{3})([0-9a-f])?$/i.exec(v.trim());
   if (short) {
     const [r, g, b] = short[1].split("");
-    return { hex: `#${r}${r}${g}${g}${b}${b}`, alpha: 1 };
+    return { hex: `#${r}${r}${g}${g}${b}${b}`, alpha: short[2] ? parseInt(short[2].repeat(2), 16) / 255 : 1 };
   }
   const rgba = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)$/.exec(
     v.trim()
