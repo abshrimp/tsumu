@@ -642,10 +642,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           <div className="sec-body">
             <div className="row">
               <label>{tr("ファイルURL")}</label>
-              <input
+              <CommitInput
                 key={`${nodeId}-msrc-${node.media.assetId ?? node.media.src}`}
                 className="input"
-                defaultValue={node.media.assetId ? "" : node.media.src}
+                value={node.media.assetId ? "" : node.media.src}
                 placeholder={
                   node.media.assetId
                     ? node.media.kind === "video"
@@ -655,11 +655,11 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                     ? "https://…/movie.mp4"
                     : "https://…/sound.mp3"
                 }
-                onBlur={(e) =>
+                onCommit={(value) =>
                   updateNode(nodeId, {
                     media: {
                       ...node.media!,
-                      src: e.target.value.trim(),
+                      src: value.trim(),
                       assetId: undefined,
                     },
                   })
