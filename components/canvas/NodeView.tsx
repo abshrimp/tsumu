@@ -21,6 +21,7 @@ import {
   undoEditable,
 } from "../../lib/editable";
 import { resolveTag } from "../../lib/tags";
+import { importedAttributes, importedClass } from "../../lib/imported-html-attrs";
 import { tr } from "../../lib/i18n";
 import {
   InstanceChainCtx,
@@ -55,7 +56,8 @@ function GhostView({
 
   const scopedVars = itemVars;
   const vars = { ...ctx.pageVars, ...scopedVars };
-  const common: Record<string, unknown> = { "data-ghost": id };
+  const common: Record<string, unknown> = { "data-ghost": id, ...importedAttributes(node.htmlAttrs) };
+  if (importedClass(node.htmlClass)) common.className = importedClass(node.htmlClass);
   if (instanceIds.length) common["data-instance-node"] = instanceIds.join(" ");
   if (node.attrId) common.id = node.attrId;
   if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars, undefined, scopedVars);
@@ -217,7 +219,9 @@ export function NodeView({
   const common: Record<string, unknown> = {
     "data-node": id,
     key: id,
+    ...importedAttributes(node.htmlAttrs),
   };
+  if (importedClass(node.htmlClass)) common.className = importedClass(node.htmlClass);
   if (node.attrId) common.id = node.attrId;
   if (mode === "design" && selectedIds.includes(id)) {
     common["data-sel"] = "true";

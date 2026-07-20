@@ -31,6 +31,7 @@ import {
   hasListsInside,
 } from "./render-helpers";
 import { renderNode, type JsxContext } from "./render";
+import { cssValue } from "./css";
 import { RUNNABLE_SCRIPT } from "./templates";
 
 export { normalizeQuery } from "../vars";
@@ -172,8 +173,12 @@ export function generatePageFile(
     ctx.usesPageHtml = true;
     return `      <PageHtml html={${JSON.stringify(html)}} />`;
   };
-  const topHtml = page.customTopHtml?.trim();
-  const endHtml = page.customEndHtml?.trim();
+  // Imported HTML snippets may refer to assets in Tsumu's temporary storage.
+  // Rewrite their paths to the bundled export so they work after deployment.
+  const topHtml = page.customTopHtml?.trim()
+    ? cssValue(doc, "rawHtml", page.customTopHtml.trim(), ctx.assetNames) : "";
+  const endHtml = page.customEndHtml?.trim()
+    ? cssValue(doc, "rawHtml", page.customEndHtml.trim(), ctx.assetNames) : "";
   const parts = [
     // 「このページ」のスクリプト（データの取得以外）はページの目印に載せて動かす
     `      <span hidden data-page-body=${jsxString(page.id)}${nf ? "" : scriptsAttr(ctx, { scripts: page.pageScripts }, plan.serverIds)} />`,

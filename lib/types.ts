@@ -406,6 +406,10 @@ export interface DocNode {
   styles: NodeStyles;
   /** この要素に常に適用される生CSS宣言（プロパティ: 値; の並び） */
   customCss?: string;
+  /** Original HTML classes retained for imported selectors and scripts. */
+  htmlClass?: string;
+  /** Safe, non-event HTML attributes retained during HTML conversion. */
+  htmlAttrs?: Record<string, string>;
   motions?: Motion[];
   /** 非表示にするデバイス。含まれないデバイスでは表示される */
   hiddenOn?: Breakpoint[];

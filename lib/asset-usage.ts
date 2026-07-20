@@ -1,6 +1,7 @@
 import { createCssAssetFinder } from "./css-asset-dependencies";
 import { assetSrc } from "./assets";
 import { zipAssetClosure } from "./zip-css";
+import { isZipJavascript } from "./generator/imported-assets";
 import type { SiteDoc } from "./types";
 
 /**
@@ -38,5 +39,18 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
     if (text.includes(a.id) || (src && text.includes(src))) usage.set(a.id, 1);
   }
   for (const id of zipAssetClosure(doc.assets, usage.keys())) if (!usage.has(id)) usage.set(id, 1);
+  // A ZIP JavaScript module can refer to sibling files by relative paths:
+  // import("./chunk.js"), new URL("./image.png", import.meta.url), etc.
+  // These references are in binary JS assets and cannot be inspected here.
+  // Keep the original ZIP group together when one of its scripts is used,
+  // rather than reporting dependencies as "unused" and deleting them.
+  const activeGroups = new Set(Object.values(doc.assets)
+    .filter((asset) => isZipJavascript(asset) && usage.has(asset.id))
+    .map((asset) => asset.zip!.group));
+  for (const asset of Object.values(doc.assets)) {
+    if (asset.zip && activeGroups.has(asset.zip.group) && !usage.has(asset.id)) {
+      usage.set(asset.id, 1);
+    }
+  }
   return usage;
 }

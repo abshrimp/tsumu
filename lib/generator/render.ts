@@ -10,6 +10,7 @@ import { fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { hasVars, KEEP_ESCAPES } from "../vars";
 import { type ListOp } from "../data";
 import { resolveTag } from "../tags";
+import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { keepTokens } from "../script";
 import {
   assetPath,
@@ -166,7 +167,9 @@ function renderNodeInner(
     return `${indent}<${name}${visibility}${anchor} />`;
   }
 
-  const cls = ctx.classNames.get(id)!;
+  const cls = [ctx.classNames.get(id)!, importedClass(node.htmlClass)].filter(Boolean).join(" ");
+  const preserved = importedAttributes(node.htmlAttrs);
+  const importedAttrs = Object.keys(preserved).length ? ` {...${JSON.stringify(preserved)}}` : "";
   const anchorAttr = node.attrId ? ` id=${jsxString(node.attrId)}`
     : id === ctx.componentRootId
       ? ctx.inlineInstance
@@ -205,7 +208,7 @@ function renderNodeInner(
     const listIdAttr = instanceVisibilityAttr +
       anchorAttr +
       toggleAttrs +
-      inViewAttr +
+      inViewAttr + importedAttrs +
       (hasListDisplayControl || client ? ` data-array=${jsxString(lv.from)}` : "");
     const serverItems = (forceWrap = false) => {
       const wrap = forceWrap || hasListDisplayControl || node.children.some((cid) => hasScriptsInside(ctx.doc, cid, ctx.inlineComponents));
@@ -294,7 +297,7 @@ ${indent}  })}`;
       ctx.serverItemScope = prevItem;
       ctx.inTemplate = prevTemplate;
       ctx.usesTemplate = true;
-      const template = `${indent}<div${listIdAttr}${listAttrs} className="${cls}">
+      const template = `${indent}<div${listIdAttr}${listAttrs} className=${jsxString(cls)}>
 ${indent}  <div data-tpl hidden style={{ display: "none" }}>
 ${indent}    {((${ivar}: Vars) => (
 ${indent}      <>
@@ -304,14 +307,14 @@ ${indent}    ))(templateVars(${base}))}
 ${indent}  </div>${fallback ? `\n${indent}  <div data-tpl data-list-fallback hidden style={{ display: "none" }}>\n${fallback}\n${indent}  </div>` : ""}
 ${indent}</div>`;
       return owned ? `${indent}{${owned} ? (
-${indent}<div${listIdAttr} className="${cls}">
+${indent}<div${listIdAttr} className=${jsxString(cls)}>
 ${ownedRows}
 ${indent}</div>
 ${indent}) : (
 ${template}
 ${indent})}` : template;
     }
-    return `${indent}<div${listIdAttr} className="${cls}">
+    return `${indent}<div${listIdAttr} className=${jsxString(cls)}>
 ${serverItems()}
 ${indent}</div>`;
   }
@@ -319,7 +322,7 @@ ${indent}</div>`;
   const idAttr = instanceVisibilityAttr +
     anchorAttr +
     toggleAttrs +
-    inViewAttr;
+    inViewAttr + importedAttrs;
 
   if (node.type === "image" && node.image) {
     const width = Number.isFinite(node.image.width) && node.image.width > 0 ? node.image.width : 800;
@@ -347,21 +350,21 @@ ${indent}</div>`;
       // 元画像と同じ実寸・縦横比を持つ透明なsvgで箱の大きさを決め、レイアウトは変えない
       //（前後の位置指定の要素との重なりは raiseOverCrispSvg で合わせてある）
       const { width: w, height: h } = crisp;
-      return `${indent}<span${idAttr}\n${indent}  className="crisp-svg ${cls}"\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
+      return `${indent}<span${idAttr}\n${indent}  className=${jsxString("crisp-svg " + cls)}\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
     }
     // 実寸が分からない画像（読み込み前など）でも next/image の width・height は必須
-    return `${indent}<Image${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className="${cls}"${priority(indent + "  ")}\n${indent}/>`;
+    return `${indent}<Image${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className=${jsxString(cls)}${priority(indent + "  ")}\n${indent}/>`;
   }
 
   if (node.type === "divider") {
-    return `${indent}<hr${idAttr} className="${cls}" />`;
+    return `${indent}<hr${idAttr} className=${jsxString(cls)} />`;
   }
 
   // ブラウザで並べるリストのお手本では、HTMLの中身を {名前} の置き換えから外す（data-raw）
   const rawAttr = ctx.inTemplate ? " data-raw" : "";
 
   if (node.type === "icon" && node.icon) {
-    return `${indent}<span${idAttr}${rawAttr}\n${indent}  className="${cls}"\n${indent}  aria-hidden="true"\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(node.icon.svg)} }}\n${indent}/>`;
+    return `${indent}<span${idAttr}${rawAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  aria-hidden="true"\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(node.icon.svg)} }}\n${indent}/>`;
   }
 
   if (node.type === "field" && node.field) {
@@ -404,13 +407,13 @@ ${indent}</div>`;
     const lenAttr = f.maxLength && f.maxLength > 0 ? ` maxLength={${Math.round(f.maxLength)}}` : "";
     if (f.kind === "textarea") {
       const rowsAttr = f.rows && f.rows > 0 ? ` rows={${Math.round(f.rows)}}` : "";
-      return `${indent}<textarea${idAttr} className="${cls}"${nameAttr}${phAttr}${defaultValueAttr}${rowsAttr}${lenAttr}${reqAttr} />`;
+      return `${indent}<textarea${idAttr} className=${jsxString(cls)}${nameAttr}${phAttr}${defaultValueAttr}${rowsAttr}${lenAttr}${reqAttr} />`;
     }
     if (f.kind === "select") {
       const opts = (f.options ?? [])
         .map((o) => `${indent}  <option${liveOf("data-live", o)}${partsOf("text", o)}>{${textExpr(o)}}</option>`)
         .join("\n");
-      return `${indent}<select${idAttr} className="${cls}"${nameAttr}${defaultValueAttr}${reqAttr}>\n${opts}\n${indent}</select>`;
+      return `${indent}<select${idAttr} className=${jsxString(cls)}${nameAttr}${defaultValueAttr}${reqAttr}>\n${opts}\n${indent}</select>`;
     }
     if (f.kind === "checkbox" || f.kind === "radio") {
       // ラジオは表示テキストを値にする（プレビューの {変数} と揃える）
@@ -424,15 +427,15 @@ ${indent}</div>`;
       const lblBody = liveLbl
         ? `<span${liveLbl}>{${textExpr(f.label ?? "")}}</span>`
         : `{${textExpr(f.label ?? "")}}`;
-      return `${indent}<label${idAttr} className="${cls}">\n${indent}  <input type="${f.kind}"${nameAttr}${valueAttr}${checkedAttr}${reqAttr} />\n${indent}  ${lblBody}\n${indent}</label>`;
+      return `${indent}<label${idAttr} className=${jsxString(cls)}>\n${indent}  <input type="${f.kind}"${nameAttr}${valueAttr}${checkedAttr}${reqAttr} />\n${indent}  ${lblBody}\n${indent}</label>`;
     }
     if (f.kind === "submit") {
       const label = f.label ?? "送信";
-      return `${indent}<button${idAttr} type="submit" className="${cls}"${liveOf("data-live", label)}${partsOf("text", label)}>\n${indent}  {${textExpr(label)}}\n${indent}</button>`;
+      return `${indent}<button${idAttr} type="submit" className=${jsxString(cls)}${liveOf("data-live", label)}${partsOf("text", label)}>\n${indent}  {${textExpr(label)}}\n${indent}</button>`;
     }
     if (f.kind === "file") {
       const acceptAttr = attr("accept", f.accept);
-      return `${indent}<input${idAttr} type="file" className="${cls}"${nameAttr}${acceptAttr}${f.multiple ? " multiple" : ""}${reqAttr} />`;
+      return `${indent}<input${idAttr} type="file" className=${jsxString(cls)}${nameAttr}${acceptAttr}${f.multiple ? " multiple" : ""}${reqAttr} />`;
     }
     const type = f.inputType ?? "text";
     const ranged = RANGED_INPUTS.has(type);
@@ -440,7 +443,7 @@ ${indent}</div>`;
     const textLen = TEXT_INPUTS.has(type) ? lenAttr : "";
     // 色・範囲は空の値を持てないため、案内文は出さない
     const ph = type === "color" || type === "range" ? "" : phAttr;
-    return `${indent}<input${idAttr} type=${jsxString(type)} className="${cls}"${nameAttr}${ph}${defaultValueAttr}${rangeAttr}${textLen}${reqAttr} />`;
+    return `${indent}<input${idAttr} type=${jsxString(type)} className=${jsxString(cls)}${nameAttr}${ph}${defaultValueAttr}${rangeAttr}${textLen}${reqAttr} />`;
   }
 
   if (node.type === "media" && node.media) {
@@ -453,7 +456,7 @@ ${indent}</div>`;
       m.muted || m.autoplay ? " muted" : "",
       m.kind === "video" ? " playsInline" : "",
     ].join("");
-    return `${indent}<${m.kind === "audio" ? "audio" : "video"}${idAttr}\n${indent}  className="${cls}"\n${indent}  src=${jsxString(src)}\n${indent}  controls${extra}\n${indent}/>`;
+    return `${indent}<${m.kind === "audio" ? "audio" : "video"}${idAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  src=${jsxString(src)}\n${indent}  controls${extra}\n${indent}/>`;
   }
 
   if (node.type === "embed" && node.embed) {
@@ -465,11 +468,11 @@ ${indent}</div>`;
         : node.embed.kind === "url"
           ? `\n${indent}    allowFullScreen`
           : "";
-    return `${indent}<div${idAttr} className="${cls}">\n${indent}  <iframe\n${indent}    src=${jsxString(src)}\n${indent}    loading="lazy"\n${indent}    referrerPolicy="strict-origin-when-cross-origin"${allow}\n${indent}    style={{ width: "100%", height: "100%", border: 0, display: "block" }}\n${indent}  />\n${indent}</div>`;
+    return `${indent}<div${idAttr} className=${jsxString(cls)}>\n${indent}  <iframe\n${indent}    src=${jsxString(src)}\n${indent}    loading="lazy"\n${indent}    referrerPolicy="strict-origin-when-cross-origin"${allow}\n${indent}    style={{ width: "100%", height: "100%", border: 0, display: "block" }}\n${indent}  />\n${indent}</div>`;
   }
 
   if (node.type === "code" && node.code) {
-    return `${indent}<div${idAttr}${rawAttr}\n${indent}  className="${cls}"\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(node.code.html)} }}\n${indent}/>`;
+    return `${indent}<div${idAttr}${rawAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(node.code.html)} }}\n${indent}/>`;
   }
 
   let tag = resolveTag(node, isTop);
@@ -512,7 +515,7 @@ ${indent}</div>`;
   }
   ctx.inForm = prevInForm;
 
-  let attrs = `${idAttr} className="${cls}"${liveAttr}${pAttr}`;
+  let attrs = `${idAttr} className=${jsxString(cls)}${liveAttr}${pAttr}`;
   if (tag === "button") {
     // 「クリックしたとき」のスクリプトがあるボタンは、フォームの中でも送信しない
     const submit = ctx.inForm && !node.scripts?.some((s) => s.trigger === "click");

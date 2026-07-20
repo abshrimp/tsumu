@@ -1,4 +1,5 @@
 import { zipCssUrl, zipStylesheet } from "../zip-css";
+import { importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { tr } from "../i18n";
 /**
  * サイト全体のCSS（要素のスタイル・画面幅・状態・フォント）の書き出し
@@ -88,7 +89,11 @@ export function cssValue(
     const source = asset.path
       ? `/api/assets/file?path=${encodeURIComponent(asset.path)}`
       : asset.dataUrl;
-    if (source) sources.set(source, `/assets/${name}`);
+    // Use the original ZIP directory for external script files so relative
+    // ESM imports continue to resolve after the site is exported.
+    const target = prop === "rawHtml" && isZipJavascript(asset)
+      ? importedAssetUrl(asset) || `/assets/${name}` : `/assets/${name}`;
+    if (source) sources.set(source, target);
     if (zipStylesheet(asset)) sources.set(zipCssUrl(asset.id), `/assets/${name}`);
   }
   if (prop === "rawHtml") {

@@ -1,0 +1,117 @@
+{
+  "siteName": "Portfolio",
+  "lang": "ja",
+  "pages": {
+    "page_home": {
+      "id": "page_home",
+      "name": "ホーム",
+      "slug": "",
+      "title": "Portfolio",
+      "description": "サンプルのポートフォリオ",
+      "children": [
+        "node_hero"
+      ]
+    }
+  },
+  "pageOrder": [
+    "page_home"
+  ],
+  "nodes": {
+    "node_hero": {
+      "id": "node_hero",
+      "type": "box",
+      "name": "ヒーロー",
+      "semantic": "section",
+      "text": null,
+      "link": null,
+      "children": [
+        "node_heading",
+        "node_description",
+        "node_link"
+      ],
+      "styles": {
+        "base": {
+          "default": {
+            "display": "flex",
+            "flexDirection": "column",
+            "alignItems": "flex-start",
+            "gap": "16px",
+            "padding": "64px 32px",
+            "backgroundColor": "#f8fafc"
+          }
+        }
+      }
+    },
+    "node_heading": {
+      "id": "node_heading",
+      "type": "box",
+      "name": "見出し",
+      "semantic": "auto",
+      "text": {
+        "content": "私のポートフォリオ",
+        "heading": 1
+      },
+      "link": null,
+      "children": [],
+      "styles": {
+        "base": {
+          "default": {
+            "fontSize": "42px",
+            "fontWeight": "700",
+            "lineHeight": "1.3",
+            "color": "#0f172a"
+          }
+        }
+      }
+    },
+    "node_description": {
+      "id": "node_description",
+      "type": "box",
+      "name": "説明",
+      "semantic": "auto",
+      "text": {
+        "content": "Tsumu上で直接編集できます。",
+        "heading": 0
+      },
+      "link": null,
+      "children": [],
+      "styles": {
+        "base": {
+          "default": {
+            "fontSize": "16px",
+            "lineHeight": "1.7",
+            "color": "#475569"
+          }
+        }
+      }
+    },
+    "node_link": {
+      "id": "node_link",
+      "type": "box",
+      "name": "リンク",
+      "semantic": "auto",
+      "text": {
+        "content": "詳細を見る",
+        "heading": 0
+      },
+      "link": {
+        "kind": "url",
+        "url": "https://example.com"
+      },
+      "children": [],
+      "styles": {
+        "base": {
+          "default": {
+            "display": "inline-block",
+            "padding": "12px 20px",
+            "backgroundColor": "#2563eb",
+            "borderRadius": "8px",
+            "color": "#ffffff",
+            "textDecoration": "none"
+          }
+        }
+      }
+    }
+  },
+  "assets": {}
+}

@@ -2280,6 +2280,32 @@ textarea {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
+/* Static imports are files, not broken image thumbnails. */
+.asset-thumb.is-static {
+  background: var(--panel);
+}
+.asset-static-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-2);
+  pointer-events: none;
+}
+.asset-static-extension {
+  max-width: 94px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
 /* 右クリックの「アセットを表示」で開いたアセット */
 .asset-card.is-revealed .asset-thumb {
   border-color: var(--accent);
@@ -10728,9 +10754,14 @@ a.btn {
 }
 
 .home-notice.is-error {
+  align-items: center;
   background: #fef2f2;
   box-shadow: none;
   color: #991b1b;
+}
+
+.home-notice.is-error svg {
+  margin-top: 0;
 }
 
 .home-grid {
@@ -12504,6 +12535,42 @@ a.btn {
 .se-value-info { display: inline-flex; align-items: center; gap: 6px; }
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
 .se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }
+ 
+/* ファイルをドラッグしている間だけ表示する。通常のホーム画面には場所を取らない。 */
+.home-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  pointer-events: none;
+  background: rgba(245, 248, 253, 0.67);
+  backdrop-filter: blur(2px);
+}
+.home-drop-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 2px dashed var(--accent-border);
+  border-radius: 18px;
+}
+.home-drop-overlay-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 26px 32px;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+.home-drop-overlay-content svg { color: var(--accent); }
 
 .se-quantity { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
 .se-quantity > .se-fixed-select { flex: none; width: max-content; min-width: max-content; }

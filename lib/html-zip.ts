@@ -53,7 +53,7 @@ export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<s
 
 
 /** Prepare a complete import before committing anything to the document/history. JS dependencies are not resolved. */
-export async function readHtmlZip(file: File | Uint8Array, progress: (message: string) => void = () => {}) {
+async function prepareHtmlZip(file: File | Uint8Array, progress: (message: string) => void = () => {}) {
   const zip = await JSZip.loadAsync(file);
   const entries = Object.values(zip.files).filter(
     (entry) => !entry.dir && !entry.name.startsWith("__MACOSX/") && !entry.name.endsWith(".DS_Store")
@@ -90,6 +90,23 @@ export async function readHtmlZip(file: File | Uint8Array, progress: (message: s
     urls.set(path, zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
   }
   attachZipDependencies(assets);
+  return { assets, htmlEntries, htmlEntry, urls };
+}
+
+/** Existing raw-HTML page import: keep its single index.html behavior unchanged. */
+export async function readHtmlZip(file: File | Uint8Array, progress: (message: string) => void = () => {}) {
+  const { assets, htmlEntry, urls } = await prepareHtmlZip(file, progress);
   const html = rewriteZipReferences(await htmlEntry.async("text"), cleanZipPath(htmlEntry.name), urls);
   return { assets, html, name: htmlEntry.name };
+}
+
+/** Editable site import: import every HTML page while uploading assets only once. */
+export async function readHtmlZipPages(file: File | Uint8Array, progress: (message: string) => void = () => {}) {
+  const { assets, htmlEntries, htmlEntry, urls } = await prepareHtmlZip(file, progress);
+  const entries = [htmlEntry, ...htmlEntries.filter((entry) => entry !== htmlEntry)];
+  const pages = await Promise.all(entries.map(async (entry) => ({
+    name: cleanZipPath(entry.name),
+    html: rewriteZipReferences(await entry.async("text"), cleanZipPath(entry.name), urls),
+  })));
+  return { assets, pages };
 }

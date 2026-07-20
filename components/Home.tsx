@@ -8,6 +8,7 @@ import {
   ExternalLink,
   GitBranch,
   HardDrive,
+  FileUp,
   LayoutGrid,
   LoaderCircle,
   LogOut,
@@ -27,6 +28,7 @@ import AllowedAccounts from "./AllowedAccounts";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
+import { createSiteFromFile } from "../lib/import-site-file";
 import {
   DOC_STORAGE_KEY,
   SITE_SCOPED_KEYS,
@@ -461,6 +463,12 @@ export default function Home() {
   /** 開いているダイアログ（"new" = 新しいサイト / サイト = その設定 / copy = そのサイトの複製） */
   const [dialog, setDialog] = useState<"new" | SiteRecord | { copy: SiteRecord } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const importFileInput = useRef<HTMLInputElement>(null);
+  const importActive = useRef(false);
+  const [draggingFile, setDraggingFile] = useState(false);
+  const [importStatus, setImportStatus] = useState<
+    { kind: "loading"; message: string } | { kind: "error"; message: string } | null
+  >(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -490,6 +498,73 @@ export default function Home() {
   }, [load]);
 
   useEffect(() => installNoDblClickSelect(), []);
+
+  const runFileImport = useCallback(async (file: File) => {
+    if (!store || importActive.current) return;
+    importActive.current = true;
+    setImportStatus({ kind: "loading", message: tr("編集データを読み込み中…") });
+    try {
+      const { id } = await createSiteFromFile(file, store,
+        (message) => setImportStatus({ kind: "loading", message: tr(message) }));
+      window.location.assign(sitePath(id));
+    } catch (error) {
+      setImportStatus({ kind: "error", message: error instanceof Error
+        ? tr(error.message) : tr("サイトを復元できませんでした。") });
+    } finally {
+      importActive.current = false;
+    }
+  }, [store]);
+
+  // ホーム画面のどこに落としても受け取る。通常のテキスト/リンクのドラッグは妨げない。
+  useEffect(() => {
+    // Browser-only drag-and-drop; lightweight test window shims may not implement EventTarget.
+    if (typeof window.addEventListener !== "function" || typeof window.removeEventListener !== "function") return;
+    let depth = 0;
+    const hasFiles = (event: DragEvent) =>
+      !!event.dataTransfer && Array.from(event.dataTransfer.types).includes("Files");
+    const clear = () => {
+      depth = 0;
+      setDraggingFile(false);
+    };
+    const onEnter = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      depth++;
+      if (store && !importActive.current) setDraggingFile(true);
+    };
+    const onOver = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      const canImport = !!store && !importActive.current;
+      if (event.dataTransfer) event.dataTransfer.dropEffect = canImport ? "copy" : "none";
+      if (depth === 0) depth = 1;
+      if (canImport) setDraggingFile(true);
+    };
+    const onLeave = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDraggingFile(false);
+    };
+    const onDrop = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); // 未対応ファイルでもブラウザのファイル表示への遷移を防ぐ
+      const file = event.dataTransfer?.files[0];
+      clear();
+      if (file && store && !importActive.current) void runFileImport(file);
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onDrop, true);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onDrop, true);
+      window.removeEventListener("blur", clear);
+    };
+  }, [store, runFileImport]);
 
   // エディタの「サイトの設定を開く」から来たときは、そのサイトの設定を開く
   useEffect(() => {
@@ -661,12 +736,43 @@ export default function Home() {
                 />
               </label>
             )}
+            <button type="button" className="btn home-new" onClick={() => importFileInput.current?.click()} disabled={!store || importActive.current}>
+              <FileUp size={14} />
+              {tr("インポート")}
+            </button>
+            <input
+              ref={importFileInput}
+              type="file"
+              accept=".zip,.json,.html,.htm,application/zip,application/json,text/html"
+              aria-label={tr("ZIP・doc.json・HTMLファイルを選択")}
+              style={{ display: "none" }}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void runFileImport(file);
+              }}
+            />
             <button type="button" className="btn btn-primary home-new" onClick={() => setDialog("new")} disabled={!store}>
               <Plus size={14} />
               {tr("新しいサイト")}
             </button>
           </div>
         </div>
+
+        {importStatus && (
+          <div className={`home-notice${importStatus.kind === "error" ? " is-error" : ""}`}
+            role={importStatus.kind === "error" ? "alert" : "status"}>
+            {importStatus.kind === "error"
+              ? <TriangleAlert size={14} />
+              : <LoaderCircle size={14} className="spin" />}
+            <p>{importStatus.message}</p>
+            {importStatus.kind === "error" && (
+              <button type="button" className="btn btn-sm" onClick={() => importFileInput.current?.click()}>
+                {tr("別のファイルを選択")}
+              </button>
+            )}
+          </div>
+        )}
 
         {store === "local" && (
           <div className="home-notice">
@@ -734,6 +840,14 @@ export default function Home() {
       )}
       {settingsOpen && <AppSettings auth={!!status?.auth} onClose={() => setSettingsOpen(false)} />}
       <DialogHost />
+      {draggingFile && (
+        <div className="home-drop-overlay" aria-hidden="true">
+          <div className="home-drop-overlay-content">
+            <FileUp size={24} />
+            <span>{tr("ZIP・doc.json・HTMLをドロップしてインポート")}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
