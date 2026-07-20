@@ -158,6 +158,34 @@ test("generated SSR request policy blocks reserved hosts, sensitive headers and 
 });
 
 
+test("generated SSR limits same-origin data responses even without Content-Length", async () => {
+  const project = generateExportProject(doc(), "sveltekit");
+  const source = project.files["src/lib/server-request.js"];
+  const { requestPublic } = await import("data:text/javascript;base64," +
+    Buffer.from(source).toString("base64")) as {
+    requestPublic: (uri: string, init: RequestInit, base: string,
+      local: (uri: string, init: RequestInit) => Promise<Response>) => Promise<Response>;
+  };
+  const accepted = await requestPublic("/api/okay", {}, "https://site.example",
+    async () => new Response('{"ready":true}'));
+  assert.deepEqual(await accepted.json(), { ready: true });
+
+  let pulls = 0, cancellations = 0;
+  await assert.rejects(
+    requestPublic("/api/large", {}, "https://site.example", async () =>
+      new Response(new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulls++;
+          controller.enqueue(new Uint8Array(1024 * 1024));
+        },
+        cancel() { cancellations++; },
+      }))),
+    /SSR response exceeds 5 MB/,
+  );
+  assert.equal(cancellations, 1);
+  assert.ok(pulls <= 8);
+});
+
 test("partial export and generated JS reject inherited object properties", () => {
   const vars: Record<string, unknown> = {};
   setVarPath(vars, "__proto__.polluted", true);

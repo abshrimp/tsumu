@@ -3,8 +3,6 @@ import type { GeneratedProject } from "../generator";
 import type { ExportLanguage } from "../export-formats";
 import { obfuscateVarNames } from "../data";
 import { scriptsFile } from "../script-runtime";
-import { PAGE_DATA_RUNTIME } from "./browser-data";
-import { reactClientPageFragment } from "./html-export";
 import { usedGoogleFonts } from "./css";
 import { applyNativeFramework } from "./native-scaffold";
 
@@ -21,58 +19,6 @@ const escapeTemplateHtml = (value: string): string =>
 
 function json(value: unknown): string {
   return JSON.stringify(value);
-}
-
-function generatedRoutes(doc: SiteDoc, language: ExportLanguage): string {
-  const pages = doc.pageOrder.map((id) => doc.pages[id])
-    .filter((page) => page && !page.unpublished && page.slug.replace(/^\/+|\/+$/g, "") !== "404");
-  const entries = pages.map((page) => ({
-    path: "/" + page.slug.replace(/^\/+|\/+$/g, ""),
-    query: Object.fromEntries(new URLSearchParams(page.query || "")),
-    title: page.title || page.name,
-    description: page.description,
-    lang: page.lang || doc.lang || "ja",
-    html: reactClientPageFragment(doc, page),
-  }));
-  return [
-    "// Pages are data-driven DOM fragments with native browser event scripts.",
-    ...(language === "typescript" ? [
-      "export type SiteRoute = { path: string; query: Record<string, string>; title: string; description: string; lang: string; html: string };",
-    ] : []),
-    "export const routes" + (language === "typescript" ? ": SiteRoute[]" : "") + " = " + json(entries) + ";",
-    "export function currentPage() {",
-    '  const path = (() => { try { return decodeURI(window.location.pathname); }',
-    '    catch { return window.location.pathname; } })().replace(/\\/+$/, "") || "/";',
-    "  const search = new URLSearchParams(window.location.search);",
-    "  const candidates = routes.filter((route) => route.path === path);",
-    "  const matched = candidates.filter((route) =>",
-    "    Object.entries(route.query).every(([key, value]) => search.get(key) === value));",
-    "  matched.sort((a, b) => Object.keys(b.query).length - Object.keys(a.query).length);",
-    "  return matched[0] || candidates[0] || null;",
-    "}",
-    "export function pageTitle(route" + (language === "typescript" ? ": SiteRoute | null" : "") + ") {",
-    "  return route ? route.title + ' | ' + " + json(doc.siteName) + " : " + json(doc.siteName) + ";",
-    "}",
-    "",
-  ].join("\n");
-}
-
-function startup(scripts: string[]): string {
-  return [
-    "/** Load optional browser behaviors after the framework mounts the page. */",
-    "export async function startPage() {",
-    "  for (const src of " + json(scripts) + ") {",
-    "    await new Promise((resolve) => {",
-    '      const script = document.createElement("script");',
-    "      script.src = src;",
-    "      script.onload = () => resolve();",
-    "      script.onerror = () => resolve();",
-    "      document.body.appendChild(script);",
-    "    });",
-    "  }",
-    "}",
-    "",
-  ].join("\n");
 }
 
 function fonts(doc: SiteDoc): string {
@@ -104,22 +50,9 @@ function commonFiles(doc: SiteDoc, next: GeneratedProject, framework: Additional
     [path.startsWith("public/") ? assetPrefix + path.slice(7) : path, b64]));
   const remoteAssets = Object.fromEntries(Object.entries(next.remoteAssets).map(([path, source]) =>
     [path.startsWith("public/") ? assetPrefix + path.slice(7) : path, source]));
-  files[assetPrefix + "data-loader.js"] = PAGE_DATA_RUNTIME;
   files[assetPrefix + "scripts.js"] = scriptsFile(normalized, true);
-  const scriptPaths = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"]
-    .filter((file) => !!files[assetPrefix + file]).map((name) => "/" + name);
-  files[assetPrefix + "browser-start.js"] = startup(scriptPaths);
   const baseCss = fonts(doc) + "\n" + next.files["app/globals.css"];
   const siteCss = next.files["styles/site.css"];
-  files["README.md"] = [
-    "# " + (framework === "vue" ? "Vue 3 + Vite" : framework === "nuxt" ? "Nuxt 4" : "SvelteKit") + " export",
-    "", "Generated website project.", "",
-    "Run npm install and npm run dev to start; npm run build creates production files.",
-    "Pages use a browser-side data runner: public APIs must permit CORS.",
-    "The generated app uses client-side routing. Configure your host to fall back",
-    "to the application entry point for deep links. It does not provide SSR.",
-    "",
-  ].join("\n");
   return { files, binaries, remoteAssets, baseCss, siteCss };
 }
 
@@ -133,37 +66,9 @@ export function buildAdditionalFramework(
   const files = common.files;
   const ts = language === "typescript";
   const ext = ts ? "ts" : "js";
-  const root = framework === "nuxt" ? "app/" : "src/";
-  const routesPath = root + "site-routes." + ext;
-  files[routesPath] = generatedRoutes(doc, language);
-  files[root + "browser-start." + ext] = files[(framework === "sveltekit" ? "static/" : "public/") +
-    "browser-start.js"].replace("new Promise((resolve)", ts ? "new Promise<void>((resolve)" : "new Promise((resolve)");
-  delete files[(framework === "sveltekit" ? "static/" : "public/") + "browser-start.js"];
-
   if (framework === "vue") {
     files["src/globals.css"] = common.baseCss;
     files["src/site.css"] = common.siteCss;
-    files["src/App.vue"] = [
-      '<script setup' + (ts ? ' lang="ts"' : "") + '>',
-      'import { onMounted, nextTick, ref } from "vue";',
-      'import { currentPage, pageTitle } from "./site-routes";',
-      'import { startPage } from "./browser-start";',
-      ts ? 'const current = ref<ReturnType<typeof currentPage> | null>(null);' : 'const current = ref(null);',
-      'onMounted(async () => {',
-      '  current.value = currentPage();',
-      '  document.title = pageTitle(current.value);',
-      '  document.documentElement.lang = current.value?.lang || ' + json(doc.lang || "ja") + ";",
-      '  const meta = document.querySelector(\'meta[name="description"]\');',
-      '  if (meta) meta.setAttribute("content", current.value?.description || "");',
-      '  await nextTick();',
-      '  await startPage();',
-      '});',
-      '</script>',
-      '<template>',
-      '  <main v-if="current" style="display:contents" v-html="current.html"></main>',
-      '  <main v-else><h1>Not Found</h1></main>',
-      '</template>', "",
-    ].join("\n");
     files["src/main." + ext] = [
       'import { createApp } from "vue";',
       'import App from "./App.vue";',
@@ -200,30 +105,9 @@ export function buildAdditionalFramework(
   } else if (framework === "nuxt") {
     files["app/assets/globals.css"] = common.baseCss;
     files["app/assets/site.css"] = common.siteCss;
-    files["app/app.vue"] = [
-      '<script setup' + (ts ? ' lang="ts"' : "") + '>',
-      'import { ref, onMounted, nextTick } from "vue";',
-      'import { currentPage, pageTitle } from "./site-routes";',
-      'import { startPage } from "./browser-start";',
-      'const current = ref(null);',
-      'onMounted(async () => {',
-      '  current.value = currentPage();',
-      '  document.title = pageTitle(current.value);',
-      '  document.documentElement.lang = current.value?.lang || ' + json(doc.lang || "ja") + ";",
-      '  const meta = document.querySelector(\'meta[name="description"]\');',
-      '  if (meta) meta.setAttribute("content", current.value?.description || "");',
-      '  await nextTick();',
-      '  await startPage();',
-      '});',
-      '</script>',
-      '<template>',
-      '  <main v-if="current" style="display:contents" v-html="current.html"></main>',
-      '  <main v-else><h1>Not Found</h1></main>',
-      '</template>', "",
-    ].join("\n");
     files["nuxt.config." + ext] = [
       'export default defineNuxtConfig({',
-      '  ssr: false,',
+      '  ssr: true,',
       '  css: ["~/assets/globals.css", "~/assets/site.css"],',
       '  app: { head: { title: ' + json(doc.siteName) + ', meta: [{ name: "description", content: "" }] } },',
       '});', "",
@@ -247,52 +131,28 @@ export function buildAdditionalFramework(
       '%sveltekit.head%</head><body data-sveltekit-preload-data="hover">',
       '<div style="display:contents">%sveltekit.body%</div></body></html>', "",
     ].join("\n");
-    files["src/routes/+layout." + ext] = 'export const ssr = false;\nexport const prerender = false;\n';
-    files["src/routes/+page.svelte"] = [
-      '<script' + (ts ? ' lang="ts"' : "") + '>',
-      'import { onMount, tick } from "svelte";',
-      'import "../globals.css";',
-      'import "../site.css";',
-      'import { currentPage, pageTitle } from "../site-routes";',
-      'import { startPage } from "../browser-start";',
-      'let html = "";',
-      'onMount(async () => {',
-      '  const current = currentPage();',
-      '  html = current?.html || "<h1>Not Found</h1>";',
-      '  document.title = pageTitle(current);',
-      '  document.documentElement.lang = current?.lang || ' + json(doc.lang || "ja") + ";",
-      '  const meta = document.querySelector(\'meta[name="description"]\');',
-      '  if (meta) meta.setAttribute("content", current?.description || "");',
-      '  await tick();',
-      '  await startPage();',
-      '});',
-      '</script>',
-      '{@html html}', "",
-    ].join("\n");
-    files["svelte.config.js"] = [
-      'import adapter from "@sveltejs/adapter-static";',
-      'import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";',
-      'export default { preprocess: vitePreprocess(), kit: {',
-      '  adapter: adapter({ fallback: "200.html" }),',
-      '  prerender: { entries: [] },',
-      '} };', "",
-    ].join("\n");
+    files["src/routes/+layout." + ext] = 'export const ssr = true;\nexport const prerender = false;\n';
     files["vite.config." + ext] = [
-      'import { defineConfig } from "vite";',
+      'import adapter from "@sveltejs/adapter-node";',
       'import { sveltekit } from "@sveltejs/kit/vite";',
-      'export default defineConfig({ plugins: [sveltekit()] });', "",
+      'import { defineConfig } from "vite";',
+      'export default defineConfig({ plugins: [sveltekit({ adapter: adapter() })] });', "",
     ].join("\n");
     files["package.json"] = jsonIndent({
       name: packageName(doc), private: true, version: "0.1.0", type: "module",
       scripts: { dev: "vite dev", build: "vite build", preview: "vite preview",
         ...(ts ? { check: "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json" } : {}) },
-      dependencies: { "@sveltejs/kit": "^2.48.0", svelte: "^5.43.0" },
-      devDependencies: { "@sveltejs/adapter-static": "^3.0.10",
-        "@sveltejs/vite-plugin-svelte": "^6.2.1", vite: "^7.3.1",
-        ...(ts ? { typescript: "^5.9.3", "svelte-check": "^4.3.0" } : {}) },
+      dependencies: { "@sveltejs/kit": "^3.1.1", svelte: "^5.57.1" },
+      devDependencies: {
+        "@sveltejs/adapter-node": "^6.0.0",
+        "@sveltejs/vite-plugin-svelte": "^7.3.1", vite: "^8.0.12",
+        typescript: "^6.0.0",
+        ...(ts ? { "svelte-check": "^4.3.0" } : {}),
+      },
+      imports: { "#lib": "./src/lib/index.js", "#lib/*": "./src/lib/*" },
     });
     if (ts) files["tsconfig.json"] = jsonIndent({
-      extends: "./.svelte-kit/tsconfig.json",
+      extends: "$app/tsconfig",
       compilerOptions: { allowJs: true, checkJs: false, esModuleInterop: true,
         skipLibCheck: true, resolveJsonModule: true, strict: true, moduleResolution: "bundler" },
     });

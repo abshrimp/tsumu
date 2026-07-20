@@ -1157,8 +1157,8 @@ export const SCRIPT_RUNTIME = `function (env) {
                 ["hover", "active", "focus"].indexOf(state) < 0);
             if (!valid) break;
             find(self, st.target).forEach(function (el) {
-              if (!state || state === "default") el.removeAttribute("data-tsumu-state");
-              else el.setAttribute("data-tsumu-state", state);
+              if (!state || state === "default") el.removeAttribute("data-site-state");
+              else el.setAttribute("data-site-state", state);
             });
             break;
           }

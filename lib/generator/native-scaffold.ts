@@ -76,7 +76,28 @@ function serverRequestSource(pages: ReturnType<typeof generateNativeFiles>["page
     '      throw new Error("Absolute same-origin server fetches are not supported");',
     '    const pagePath = target.pathname.replace(/\\/+$/, "") || "/";',
     '    if (pageRoutes.has(pagePath)) throw new Error("Recursive generated page fetch is forbidden");',
-    '    return localFetch(target.pathname + target.search, options);',
+    '    const response = await localFetch(target.pathname + target.search, options);',
+    '    const limit = 5 * 1024 * 1024;',
+    '    if (Number(response.headers?.get("content-length") || 0) > limit) {',
+    '      await response.body?.cancel().catch(() => {});',
+    '      throw new Error("SSR response exceeds 5 MB");',
+    '    }',
+    '    if (!response.body) return response;',
+    '    const reader = response.body.getReader();',
+    '    const chunks = []; let bytes = 0;',
+    '    try {',
+    '      for (;;) {',
+    '        const { done, value } = await reader.read();',
+    '        if (done) break;',
+    '        bytes += value.byteLength;',
+    '        if (bytes > limit) {',
+    '          await reader.cancel().catch(() => {});',
+    '          throw new Error("SSR response exceeds 5 MB");',
+    '        }',
+    '        chunks.push(Buffer.from(value));',
+    '      }',
+    '    } finally { reader.releaseLock(); }',
+    '    return new Response(Buffer.concat(chunks), { status: response.status, headers: response.headers });',
     '  }',
     '  if (!allowed.has(target.origin) || !publicHost(target.hostname))',
     '    throw new Error("Server data origin is not allowed: " + target.origin);',
@@ -279,23 +300,9 @@ export function applyNativeFramework(
   files[root + "site-data.js"] = nativeDataModule();
   const assetRoot = framework === "sveltekit" ? "static/" : "public/";
   delete files[assetRoot + "data-loader.js"];
-  delete files[assetRoot + "scripts.js"];
   const scriptFiles = ["inview.js", "scripts.js", "pwa.js"].filter((file) =>
     file === "scripts.js" || Boolean(files[assetRoot + file])).map((file) => "/" + file);
   files[root + "browser-start.js"] = browserStarter(scriptFiles);
-  // Use the already-generated event runtime, but seed it from framework state
-  // rather than running a second browser-only data fetch.
-  const previous = project.files[assetRoot + "scripts.js"];
-  if (previous) files[assetRoot + "scripts.js"] = previous;
-  // Old browser-start imports and serialized markup routing are no longer used.
-  for (const path of [
-    framework === "nuxt" ? "app/browser-start.js" : "src/browser-start.js",
-    framework === "nuxt" ? "app/browser-start.ts" : "src/browser-start.ts",
-    framework === "nuxt" ? "app/site-routes.js" : "src/site-routes.js",
-    framework === "nuxt" ? "app/site-routes.ts" : "src/site-routes.ts",
-  ]) {
-    if (path !== root + "site-routes.js" && path !== root + "browser-start.js") delete files[path];
-  }
   if (framework === "vue") {
     files["src/App.vue"] = vueApp(native.pages, "vue", language, doc.siteName);
     files["src/server-request.js"] = serverRequestSource(native.pages);
@@ -305,46 +312,8 @@ export function applyNativeFramework(
     files["app/generated/server-request.js"] = serverRequestSource(native.pages);
     files["app/pages/index.vue"] = vueApp(native.pages, "nuxt", language, doc.siteName);
     files["app/pages/[...slug].vue"] = files["app/pages/index.vue"];
-    const ext = Object.hasOwn(files, "nuxt.config.ts") ? "ts" : "js";
-    files["nuxt.config." + ext] = files["nuxt.config." + ext].replace("ssr: false", "ssr: true");
   } else {
     files["src/lib/server-request.js"] = serverRequestSource(native.pages);
-    const pkg = JSON.parse(files["package.json"]) as {
-      dependencies: Record<string, string>; devDependencies: Record<string, string>;
-    };
-    // SvelteKit 3 fixes the known advisories affecting the older v2 scaffold.
-    // Its configuration lives in the Vite plugin rather than svelte.config.js.
-    pkg.dependencies["@sveltejs/kit"] = "^3.1.1";
-    pkg.dependencies.svelte = "^5.57.1";
-    pkg.devDependencies["@sveltejs/adapter-node"] = "^6.0.0";
-    pkg.devDependencies["@sveltejs/vite-plugin-svelte"] = "^7.3.1";
-    pkg.devDependencies.vite = "^8.0.12";
-    pkg.devDependencies.typescript = "^6.0.0";
-    delete pkg.devDependencies["@sveltejs/adapter-static"];
-    (pkg as typeof pkg & { imports: Record<string, string> }).imports = {
-      "#lib": "./src/lib/index.js",
-      "#lib/*": "./src/lib/*",
-    };
-    files["package.json"] = JSON.stringify(pkg, null, 2) + "\n";
-    delete files["svelte.config.js"];
-    const vite = Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js";
-    files[vite] = [
-      'import adapter from "@sveltejs/adapter-node";',
-      'import { sveltekit } from "@sveltejs/kit/vite";',
-      'import { defineConfig } from "vite";',
-      'export default defineConfig({ plugins: [sveltekit({ adapter: adapter() })] });',
-      "",
-    ].join("\n");
-    for (const [name, source] of Object.entries(files)) {
-      if (/\.(?:svelte|js|ts)$/.test(name) && source.includes("$lib/")) {
-        files[name] = source.replaceAll("$lib/", "#lib/");
-      }
-    }
-    if (files["tsconfig.json"]) {
-      const config = JSON.parse(files["tsconfig.json"]) as Record<string, unknown>;
-      config.extends = "$app/tsconfig";
-      files["tsconfig.json"] = JSON.stringify(config, null, 2) + "\n";
-    }
     const script = [
       'import { error } from "@sveltejs/kit";',
       'import { selectPage } from "$lib/site-routes.js";',
@@ -363,8 +332,6 @@ export function applyNativeFramework(
     files["src/routes/[...path]/+page.server.js"] = script;
     files["src/routes/+page.svelte"] = sveltePage(native.pages, language, doc.siteName);
     files["src/routes/[...path]/+page.svelte"] = files["src/routes/+page.svelte"];
-    files["src/routes/+layout." + (Object.hasOwn(files, "src/routes/+layout.ts") ? "ts" : "js")] =
-      "export const ssr = true;\nexport const prerender = false;\n";
     files["src/routes/+layout.svelte"] = [
       '<script>',
       'import "../globals.css";',
@@ -375,8 +342,7 @@ export function applyNativeFramework(
     ].join("\n");
   }
   if (framework === "sveltekit") {
-    // Rewrite the final generated Svelte files as well as the preliminary
-    // component tree. Kit 3 no longer provides the old $lib alias.
+    // Kit 3 uses the package import map instead of the removed $lib alias.
     for (const [path, source] of Object.entries(files)) {
       if (/\.(?:js|ts|svelte)$/.test(path) && source.includes("$lib/")) {
         files[path] = source.replaceAll("$lib/", "#lib/");
