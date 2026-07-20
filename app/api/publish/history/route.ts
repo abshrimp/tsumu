@@ -12,7 +12,7 @@ import {
 import type { PublishTarget } from "../../../../lib/generator";
 import { userMessage } from "../../../../lib/errors";
 import { destParam, siteDestOf, siteIdOf } from "../../../../lib/site-server";
-import { DOC_PATH, protectedTreeEdits, type TreeEntry } from "../../../../lib/publish-files";
+import { DOC_PATH, LEGACY_DOC_PATH, protectedTreeEdits, type TreeEntry } from "../../../../lib/publish-files";
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
 
@@ -26,7 +26,7 @@ function parseTarget(v: unknown): PublishTarget {
 
 /**
  * 公開の履歴（公開先ブランチのコミット）。
- * ?target=production|test で一覧、&doc=<sha> でその版の編集データ（_tsumu/doc.json）を返す
+ * ?target=production|test で一覧、&doc=<sha> でその版の編集データを返す
  */
 export async function GET(req: Request) {
   const tr = await serverTr();
@@ -56,9 +56,15 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
       }
       // raw で受け取り、パースせずにそのまま返す（大きな編集データでもCPU時間を使わない）
-      const res = await gh(`/contents/${DOC_PATH}?ref=${docSha}`, {
+      let res = await gh(`/contents/${DOC_PATH}?ref=${docSha}`, {
         accept: "application/vnd.github.raw+json",
       });
+      // Old commits still contain their edit data under the historical path.
+      if (res.status === 404) {
+        res = await gh(`/contents/${LEGACY_DOC_PATH}?ref=${docSha}`, {
+          accept: "application/vnd.github.raw+json",
+        });
+      }
       if (res.status === 404) {
         return NextResponse.json(
           { error: tr("この版には編集データが含まれていません") },

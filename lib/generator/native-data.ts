@@ -1,0 +1,71 @@
+import { PAGE_DATA_RUNTIME } from "./browser-data";
+
+/**
+ * Extract the proven browser data evaluator into an environment-neutral ESM
+ * module. The same interpreter runs in Vue and in Nuxt/SvelteKit SSR loads.
+ * The generated module contains no window, document, or HTML DOM dependency.
+ */
+export function nativeDataModule(): string {
+  const start = PAGE_DATA_RUNTIME.indexOf("  // #136 shared pure page-data helpers");
+  const end = PAGE_DATA_RUNTIME.indexOf("  window.__pageDataReady = ");
+  if (start < 0 || end < 0 || end <= start) {
+    throw new Error("The page data evaluator no longer exposes the expected functions");
+  }
+  let source = PAGE_DATA_RUNTIME.slice(start, end);
+  const replace = (original: string, change: string) => {
+    if (!source.includes(original)) throw new Error("Missing evaluator section: " + original);
+    source = source.replace(original, change);
+  };
+  replace("  async function request(st, vars) {", "  async function request(st, vars, fetcher) {");
+  replace("await fetch(url, init)", "await fetcher(url, init)");
+  replace("  async function load(plan) {", "  async function load(plan, search, fetcher) {");
+  replace("new URLSearchParams(location.search)", "new URLSearchParams(search)");
+  replace("await request(st, vars)", "await request(st, vars, fetcher)");
+  return source + [
+    "",
+    "export async function loadPageData(plan, search, fetcher = fetch) {",
+    "  return load(plan, search, fetcher);",
+    "}",
+    "export function scopeOf(vars, ...items) {",
+    "  return Object.assign(Object.create(null), vars || {}, ...items.filter((x) => x && typeof x === 'object'));",
+    "}",
+    "export function resolveText(value, vars, ...items) {",
+    "  return interpolate(value, scopeOf(vars, ...items));",
+    "}",
+    "function safeLink(value) {",
+    "  const url = String(value || \"\").trim();",
+    "  const prefix = url.split(/[?#]/, 1)[0];",
+    "  if (!url || /[\\u0000-\\u001f\\u007f\\\\]/.test(prefix) || url.startsWith(\"//\")) return \"#\";",
+    "  const match = /^([a-z][a-z0-9+.-]*):/i.exec(url);",
+    "  const scheme = match?.[1].toLowerCase();",
+    "  if (scheme && ![\"http\", \"https\", \"mailto\", \"tel\"].includes(scheme)) return \"#\";",
+    "  if ((scheme === \"http\" || scheme === \"https\") && !/^https?:\\/\\//i.test(url)) return \"#\";",
+    "  return url;",
+    "}",
+    "export function resolveUrl(value, vars, ...items) {",
+    "  return safeLink(resolveText(value, vars, ...items));",
+    "}",
+    "export function resolveResourceUrl(value, vars, ...items) {",
+    "  const url = String(resolveText(value, vars, ...items) || '').trim();",
+    "  if (/^data:(?:image|video|audio)\\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+$/i.test(url)) return url;",
+    "  if (/^blob:/i.test(url)) return url;",
+    "  return safeLink(url);",
+    "}",
+    "export function setField(scope, name, event) {",
+    "  if (!name || !scope || typeof scope !== 'object') return;",
+    "  const element = event?.target;",
+    "  if (!element) return;",
+    "  const value = element.type === 'checkbox' ? String(element.checked) : element.value;",
+    "  if (name === '__proto__') Object.defineProperty(scope, name, { value, configurable: true, enumerable: true, writable: true });",
+    "  else scope[name] = value;",
+    "}",
+    "export function listItems(vars, name, limit, ...items) {",
+    "  const value = read(scopeOf(vars, ...items), name);",
+    "  if (!Array.isArray(value)) return [];",
+    "  const rows = value.filter((v) => v != null && !Array.isArray(v))",
+    "    .map((v) => v && typeof v === 'object' ? v : { '値': v });",
+    "  return Number(limit) > 0 ? rows.slice(0, limit) : rows;",
+    "}",
+    "",
+  ].join("\n");
+}

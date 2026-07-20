@@ -41,7 +41,8 @@ export async function homeSiteFixture(storage: Storage) {
   const previousFetch = globalThis.fetch;
   const location = { pathname: "/", search: "", href: "/" };
   Object.defineProperty(globalThis, "window", {
-    value: { localStorage: storage, location, history: { replaceState() {} } }, configurable: true,
+    value: { localStorage: storage, location, history: { replaceState() {} },
+      addEventListener() {}, removeEventListener() {}, }, configurable: true,
   });
   globalThis.fetch = async () => Response.json({}, { status: 503 });
   let cursor = 0;

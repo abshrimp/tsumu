@@ -1,4 +1,5 @@
 import type { SiteDoc } from "./types";
+import type { ExportFormat } from "./export-formats";
 
 /**
  * 公開先で管理していた Worker だけを終了用に置き換える。
@@ -10,10 +11,13 @@ export function addPwaRetirementWorker(
   doc: Pick<SiteDoc, "pwa">,
   generated: Record<string, string> | null,
   files: Record<string, string>,
-  outputPaths: string[]
+  outputPaths: string[],
+  format: ExportFormat = "nextjs",
 ): void {
-  if (doc.pwa?.enabled || !Object.hasOwn(generated ?? {}, "public/sw.js")) return;
-  files["public/sw.js"] = `self.addEventListener("install", function (e) {
+  const swPath = format === "html" ? "sw.js" : "public/sw.js";
+  if (doc.pwa?.enabled ||
+      (!Object.hasOwn(generated ?? {}, "public/sw.js") && !Object.hasOwn(generated ?? {}, "sw.js"))) return;
+  files[swPath] = `self.addEventListener("install", function (e) {
   e.waitUntil(self.skipWaiting());
 });
 self.addEventListener("activate", function (e) {
@@ -24,5 +28,5 @@ self.addEventListener("activate", function (e) {
   );
 });
 `;
-  outputPaths.push("public/sw.js");
+  outputPaths.push(swPath);
 }
