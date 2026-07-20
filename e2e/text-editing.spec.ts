@@ -68,6 +68,32 @@ test("Trailing newlines entered with Enter survive blur, unchanged re-editing, a
   await roundTrip(page, siteId, content);
 });
 
+test("Canvas variable suggestions stay open for menu actions but dismiss on outside clicks", async ({ page }) => {
+  await openSite(page);
+  await textNode(page).dblclick();
+  await expect(editing(page)).toBeFocused();
+  await editing(page).press("Control+/");
+  const menu = page.locator(".var-comp");
+  await expect(menu).toBeVisible();
+
+  await menu.locator(".var-comp-list").evaluate((list) => {
+    list.scrollTop += 10;
+    list.dispatchEvent(new Event("scroll"));
+  });
+  await expect(menu).toBeVisible();
+  await page.locator(".canvas-area").click({ position: { x: 8, y: 8 } });
+  await expect(menu).toHaveCount(0);
+
+  // Clicking outside may end the canvas text edit session; start a new edit
+  // before testing Escape instead of expecting the old editor to remain mounted.
+  await textNode(page).dblclick();
+  await expect(editing(page)).toBeFocused();
+  await editing(page).press("Control+/");
+  await expect(menu).toBeVisible();
+  await editing(page).press("Escape");
+  await expect(menu).toHaveCount(0);
+});
+
 test("Pasted variable chips and trailing newlines survive local Undo/Redo and saving", async ({ page }) => {
   const siteId = await openSite(page);
   await textNode(page).dblclick();

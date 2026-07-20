@@ -9,7 +9,7 @@ import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSS
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Play, Plus, RefreshCw, SlidersHorizontal, Table2, X } from "lucide-react";
 import { JsonPeek, readableValue } from "../DataView";
-import { anchoredMenuPos } from "../controls";
+import { anchoredMenuPos, varSuggestionAnchorVisible } from "../controls";
 import {
   cleanVarName,
   dataVarNames,
@@ -735,6 +735,7 @@ export function VarNameIn({
   const [index, setIndex] = useState(0);
   const [pos, setPos] = useState<CSSProperties>({});
   const ref = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => setText(value), [value]);
   const q = text.trim().toLowerCase();
   const matches = names.filter((n) => n !== text.trim() && (!q || n.toLowerCase().includes(q))).slice(0, 8);
@@ -754,6 +755,35 @@ export function VarNameIn({
     const r = ref.current?.getBoundingClientRect();
     if (r) setPos(anchoredMenuPos(r, 220, 260));
   };
+
+  useEffect(() => {
+    if (!open || !matches.length) return;
+    const dismissOutside = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const reposition = (e: Event) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      const input = ref.current;
+      if (!input || document.activeElement !== input || !varSuggestionAnchorVisible(input)) {
+        setOpen(false);
+        return;
+      }
+      setPos(anchoredMenuPos(input.getBoundingClientRect(), 220, 260));
+    };
+    const loseWindowFocus = () => setOpen(false);
+    window.addEventListener("pointerdown", dismissOutside, true);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    window.addEventListener("blur", loseWindowFocus);
+    return () => {
+      window.removeEventListener("pointerdown", dismissOutside, true);
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("blur", loseWindowFocus);
+    };
+  }, [open, matches.length]);
 
   if (readOnly) {
     return (
@@ -806,7 +836,7 @@ export function VarNameIn({
       {open &&
         matches.length > 0 &&
         createPortal(
-          <div className="dd-menu var-comp" style={pos} data-se-popover="" onMouseDown={(e) => e.preventDefault()}>
+          <div ref={menuRef} className="dd-menu var-comp" style={pos} data-se-popover="" onMouseDown={(e) => e.preventDefault()}>
             <div className="var-comp-head">{tr("既存の変数を上書き")}</div>
             <div className="var-comp-list">
               {matches.map((name, i) => (

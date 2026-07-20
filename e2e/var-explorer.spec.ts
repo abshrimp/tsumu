@@ -101,6 +101,50 @@ test("Search updates that remove candidates do not modify another target after c
   expect(errors).toEqual([]);
 });
 
+test("Inspector suggestions dismiss outside but not on scrolling inside the menu", async ({ page }) => {
+  const menu = page.locator(".var-comp");
+  await source(page).focus();
+  await source(page).press("Control+/");
+  await expect(menu).toBeVisible();
+
+  await menu.locator(".var-comp-list").evaluate((list) => {
+    list.scrollTop += 30;
+    list.dispatchEvent(new Event("scroll"));
+  });
+  await expect(menu).toBeVisible();
+  await page.locator("#outside").click();
+  await expect(menu).toHaveCount(0);
+
+  // The user's edit is not modified by dismissing completion.
+  await expect(source(page)).toHaveValue("");
+  await source(page).focus();
+  await source(page).press("Control+/");
+  await expect(menu).toBeVisible();
+  await source(page).press("Escape");
+  await expect(menu).toHaveCount(0);
+});
+
+test("Suggestions close when the focused inspector field leaves its scroll viewport", async ({ page }) => {
+  await page.evaluate(() => {
+    const app = document.getElementById("app")!;
+    app.style.height = "150px";
+    app.style.overflowY = "auto";
+    const spacer = document.createElement("div");
+    spacer.style.height = "1800px";
+    app.appendChild(spacer);
+  });
+  await source(page).scrollIntoViewIfNeeded();
+  await source(page).focus();
+  await source(page).press("Control+/");
+  await expect(page.locator(".var-comp")).toBeVisible();
+
+  await page.evaluate(() => {
+    const app = document.getElementById("app")!;
+    app.scrollTop = app.scrollHeight;
+  });
+  await expect(page.locator(".var-comp")).toHaveCount(0);
+});
+
 for (const width of [1440, 375, 320]) {
   test(`Both variable hint actions in Settings fit without wrapping at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
