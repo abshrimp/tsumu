@@ -5,8 +5,6 @@ import { authConfigured } from "../../../../auth";
 import { siteIdOf } from "../../../../lib/site-server";
 import { subscribeDocUpdates } from "../../../../lib/collab-events";
 import { collabRoomAvailable } from "../../../../lib/collab";
-import { getDb } from "../../../../lib/db";
-import { readCurrentDoc } from "../../../../lib/doc-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +13,7 @@ const HEARTBEAT_MS = 25_000;
 
 /**
  * WebSocket（Durable Object）が使えないときの、保存の通知の受け取り口（Server-Sent Events）。
- * ほかの人が保存すると、WebSocket と同じ doc-updated のメッセージを送る。
+ * ほかの人が保存すると、WebSocket と同じ変更通知を送る。
  * 自分の保存（?clientId= と同じ送り主）は送らない
  */
 export async function GET(req: Request) {
@@ -28,7 +26,6 @@ export async function GET(req: Request) {
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
   const clientId = params.get("clientId") ?? "";
-  const delta = params.get("delta") === "1";
   const user = await sessionUser();
   if (authConfigured() && !user) return new Response(null, { status: 401 });
 
@@ -53,13 +50,6 @@ export async function GET(req: Request) {
       };
       const unsubscribe = subscribeDocUpdates(siteId, (message, raw) => {
         if (clientId && message.senderId === clientId) return;
-        if (!delta && message.type === "doc-patched") {
-          send(async () => {
-            const current = await readCurrentDoc(await getDb(), siteId);
-            return current ? `data: {"type":"doc-updated","rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}\n\n` : null;
-          });
-          return;
-        }
         send(`data: ${raw}\n\n`);
       });
       const heartbeat = setInterval(() => send(": ping\n\n"), HEARTBEAT_MS);

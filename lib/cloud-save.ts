@@ -21,7 +21,6 @@ export interface CloudRequestResult {
 }
 
 export interface CloudSaveTransport {
-  deltaSupported: Ref<boolean>;
   collabSocket: Ref<Pick<WebSocket, "readyState"> | null>;
   clientId: string;
   requestViaWebSocket: (input: CollabRequestInput) => Promise<CollabServerMessage>;
@@ -36,7 +35,7 @@ export async function sendCloudDoc(
   base: string | null,
   baseDoc?: SiteDoc
 ): Promise<CloudRequestResult> {
-  const patch = t.deltaSupported.current && base && baseDoc ? createDocPatch(baseDoc, snapshot) : null;
+  const patch = base && baseDoc ? createDocPatch(baseDoc, snapshot) : null;
   if (patch?.length === 0) {
     return { ok: true, status: 200, data: { rev: base, savedAt: t.savedAt() } };
   }
@@ -57,7 +56,7 @@ export async function sendCloudDoc(
     }
   }
 
-  let response = await fetch(
+  const response = await fetch(
     siteApi("/api/doc", base ? { base } : {}),
     {
       method: patch ? "PATCH" : "PUT",
@@ -68,15 +67,6 @@ export async function sendCloudDoc(
       body: JSON.stringify(patch ?? snapshot),
     }
   );
-  // 段階的なデプロイ中、HTTP側が旧版なら版照合付きの全体保存に戻す。
-  if (patch && response.status === 405) {
-    t.deltaSupported.current = false;
-    response = await fetch(siteApi("/api/doc", base ? { base } : {}), {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Collab-Client-Id": t.clientId },
-      body: JSON.stringify(snapshot),
-    });
-  }
   return {
     ok: response.ok,
     status: response.status,

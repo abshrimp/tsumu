@@ -39,8 +39,6 @@ function fixture(truncated?: boolean) {
     publishConflictMessage: preconditions.publishConflictMessage,
     GENERATED_MANIFEST_PATH: helpers.GENERATED_MANIFEST_PATH,
     ASSET_MANIFEST_PATH: helpers.ASSET_MANIFEST_PATH,
-    LEGACY_GENERATED_MANIFEST_PATH: helpers.LEGACY_GENERATED_MANIFEST_PATH,
-    LEGACY_ASSET_MANIFEST_PATH: helpers.LEGACY_ASSET_MANIFEST_PATH,
     isSafeCommitPath: helpers.isSafeCommitPath,
     isProtectedPath: helpers.isProtectedPath,
     parseGeneratedManifest: helpers.parseGeneratedManifest,

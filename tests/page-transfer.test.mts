@@ -163,10 +163,7 @@ test("incompatible or unknown responsive settings stop before importing any depe
   }
 });
 
-test("legacy default payloads and six matching screen widths remain usable", () => {
-  const legacy = buildPagePayload(source(), ["home"]);
-  delete legacy.breakpoints;
-  assert.equal(applyPagePayload(target(), legacy), 1);
+test("six matching custom screen widths remain usable", () => {
   const src = source(), dst = target();
   src.breakpoints = Array.from({ length: 6 }, (_, i) => ({ id: `a${i}`, label: "Source", maxWidth: 400 + i * 100 }));
   dst.breakpoints = src.breakpoints.map(b => ({ ...b, id: b.id.replace("a", "b") }));

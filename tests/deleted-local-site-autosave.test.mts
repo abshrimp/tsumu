@@ -246,7 +246,7 @@ test('an authoritative server save is not blocked by a deleted browser copy', as
     mock.method(globalThis, 'fetch', async (url: string, init: RequestInit) => {
       requests.push({ url, init }); return Response.json({ rev: '2', savedAt: 10 });
     });
-    const result = await f.sendCloudDoc({ deltaSupported: { current: false }, collabSocket: { current: null }, clientId: 'test', savedAt: () => null }, f.useEditor.getState().doc, '1');
+    const result = await f.sendCloudDoc({ collabSocket: { current: null }, clientId: 'test', savedAt: () => null }, f.useEditor.getState().doc, '1');
     assert.equal(result.ok, true); assert.equal(requests.length, 1);
     assert.equal(requests[0].init.method, 'PUT');
     assert.ok(requests[0].url.includes('site=autosave-test'));

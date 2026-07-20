@@ -8,17 +8,12 @@
 
 /** エディタが管理するファイルの置き場所（手で追加したファイルとしては扱わない） */
 const MANAGED_DIR = "_site-data/";
-/** Prior releases used this directory; read it for migration but do not write it. */
-const LEGACY_MANAGED_DIR = "_tsumu/";
 /** 復元用の編集データ */
 export const DOC_PATH = `${MANAGED_DIR}doc.json`;
-export const LEGACY_DOC_PATH = `${LEGACY_MANAGED_DIR}doc.json`;
 /** アセットの取得元（KV キー）→ blob SHA の対応表 */
 export const ASSET_MANIFEST_PATH = `${MANAGED_DIR}assets.json`;
-export const LEGACY_ASSET_MANIFEST_PATH = `${LEGACY_MANAGED_DIR}assets.json`;
 /** 書き出したファイルのパス → blob SHA の一覧 */
 export const GENERATED_MANIFEST_PATH = `${MANAGED_DIR}generated.json`;
-export const LEGACY_GENERATED_MANIFEST_PATH = `${LEGACY_MANAGED_DIR}generated.json`;
 
 export interface PublishPlan {
   /** 前回の公開のあとに直接編集された、書き出したファイル（今回の公開で上書きされる） */
@@ -43,12 +38,12 @@ export function planPublish(
   const plan: PublishPlan = { edited: [], clashing: [], kept: {} };
   const outputs = new Set(output);
   for (const [path, sha] of Object.entries(blobs)) {
-    if (path === GENERATED_MANIFEST_PATH || path === LEGACY_GENERATED_MANIFEST_PATH) continue;
+    if (path === GENERATED_MANIFEST_PATH) continue;
     if (generated && Object.hasOwn(generated, path)) {
       if (generated[path] !== sha) plan.edited.push(path);
     } else if (outputs.has(path)) {
       plan.clashing.push(path);
-    } else if (!path.startsWith(MANAGED_DIR) && !path.startsWith(LEGACY_MANAGED_DIR)) {
+    } else if (!path.startsWith(MANAGED_DIR)) {
       plan.kept[path] = sha;
     }
   }

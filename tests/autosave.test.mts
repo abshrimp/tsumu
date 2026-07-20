@@ -157,11 +157,11 @@ test("initial sync failure continues to block autosave", () => {
   assert.equal(h.unsynced(), true);
 });
 
-function transport(connected: boolean, supported = true, httpStatus = 200) {
+function transport(connected: boolean, httpStatus = 200) {
   const messages: any[] = [];
   const requests: { url: string; method: string; body: any }[] = [];
   const scope = {
-    deltaSupported: ref(supported), collabSocket: ref(connected ? { readyState: WebSocket.OPEN } : null),
+    collabSocket: ref(connected ? { readyState: WebSocket.OPEN } : null),
     clientId: "client1", savedAt: () => 10,
     requestViaWebSocket: async (message: any) => { messages.push(message); return { type: "saved", rev: "2", savedAt: 20 } as any; },
   };
@@ -193,19 +193,18 @@ test("the client sends deltas on WebSocket and HTTP and skips semantically uncha
   }
 });
 
-test("new sites and old servers continue using revision-protected full saves", async () => {
+test("new sites use full saves and an HTTP patch failure cannot silently downgrade to PUT", async () => {
   const base = createInitialDoc();
   const next = { ...base, siteName: "New name" };
-  const old = transport(true, false);
-  await old.save(next, "1", base);
-  assert.deepEqual(old.messages[0], { type: "save", base: "1", doc: next });
   const fresh = transport(true);
   await fresh.save(base, null);
   assert.deepEqual(fresh.messages[0], { type: "save", base: null, doc: base });
-  const mixed = transport(false, true, 405);
-  await mixed.save(next, "1", base);
-  assert.deepEqual(mixed.requests.map((r) => r.method), ["PATCH", "PUT"]);
-  assert.deepEqual(mixed.requests[1].body, next);
-  assert.ok(mixed.requests[1].url.includes("base=1"));
-  assert.equal(mixed.scope.deltaSupported.current, false);
+
+  const rejected = transport(false, 405);
+  const result = await rejected.save(next, "1", base);
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 405);
+  assert.deepEqual(rejected.requests.map((request) => request.method), ["PATCH"]);
+  assert.deepEqual(rejected.requests[0].body, createDocPatch(base, next));
+  assert.ok(rejected.requests[0].url.includes("base=1"));
 });

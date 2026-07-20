@@ -40,6 +40,7 @@ function serverRequestSource(pages: ReturnType<typeof generateNativeFiles>["page
   }
   return [
     "const allowed = new Set(" + json([...origins]) + ");",
+    "const pageRoutes = new Set(" + json(pages.map((page) => "/" + page.slug.replace(/^\/+|\/+$/g, ""))) + ");",
     "function publicHost(host) {",
     "  const name = String(host).toLowerCase().replace(/\\.$/, '');",
     "  if (!name.includes('.') || name.includes('..') ||",
@@ -73,6 +74,8 @@ function serverRequestSource(pages: ReturnType<typeof generateNativeFiles>["page
     '    // Use only a relative path for internal requests; never trust a supplied Host.',
     '    if (typeof uri !== "string" || !uri.startsWith("/") || uri.startsWith("//"))',
     '      throw new Error("Absolute same-origin server fetches are not supported");',
+    '    const pagePath = target.pathname.replace(/\\/+$/, "") || "/";',
+    '    if (pageRoutes.has(pagePath)) throw new Error("Recursive generated page fetch is forbidden");',
     '    return localFetch(target.pathname + target.search, options);',
     '  }',
     '  if (!allowed.has(target.origin) || !publicHost(target.hostname))',

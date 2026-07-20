@@ -43,7 +43,6 @@ export type CollabServerMessage =
       type: "snapshot";
       requestId: string;
       exists: boolean;
-      deltaVersion?: 1;
       rev?: string;
       savedAt?: number;
       doc?: SiteDoc;

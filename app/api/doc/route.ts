@@ -56,11 +56,11 @@ export async function GET(req: Request) {
     }
 
     const cur = await readCurrentDoc(db, siteId);
-    if (!cur) return NextResponse.json({ exists: false, deltaVersion: 1 });
+    if (!cur) return NextResponse.json({ exists: false });
     // body は保存済みJSONなので、パースし直さず文字列結合で返す
     //（Workers無料プランのCPU時間制限対策）
     return new NextResponse(
-      `{"exists":true,"deltaVersion":1,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
+      `{"exists":true,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
       { headers: { "Content-Type": "application/json" } }
     );
   } catch (e) {

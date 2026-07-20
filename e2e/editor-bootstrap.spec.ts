@@ -199,7 +199,7 @@ test("a delayed WebSocket snapshot uses the same initial loading gate", async ({
       entered();
       await gate;
       socket.send(JSON.stringify({ type: "snapshot", requestId: request.requestId, exists: true,
-        doc: remote, rev: "1", savedAt: Date.now(), deltaVersion: 1 }));
+        doc: remote, rev: "1", savedAt: Date.now() }));
     });
   });
   try {

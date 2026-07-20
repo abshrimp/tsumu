@@ -10,10 +10,6 @@
       2,
       2806
     ],
-    "e2e/array-find-fields.spec.ts": [
-      3,
-      1915
-    ],
     "e2e/aspect-ratio-collab.spec.ts": [
       1,
       13013
@@ -41,10 +37,6 @@
     "e2e/canvas-move-lifecycle.spec.ts": [
       20,
       15807
-    ],
-    "e2e/client-array-field.spec.ts": [
-      1,
-      1829
     ],
     "e2e/client-field-scope.spec.ts": [
       3,
@@ -246,10 +238,6 @@
       16,
       16838
     ],
-    "e2e/preview-count-refresh.spec.ts": [
-      4,
-      11669
-    ],
     "e2e/preview-dynamic-radio.spec.ts": [
       5,
       6242
@@ -325,18 +313,6 @@
     "e2e/select-default.spec.ts": [
       8,
       7467
-    ],
-    "e2e/server-array-count.spec.ts": [
-      7,
-      3521
-    ],
-    "e2e/server-array-join.spec.ts": [
-      5,
-      1878
-    ],
-    "e2e/server-parent-list-source.spec.ts": [
-      1,
-      4084
     ],
     "e2e/shadow-zero.spec.ts": [
       1,
