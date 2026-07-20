@@ -742,7 +742,7 @@ function ScriptEditorInner({
                   type="search"
                   className="se-pal-search-input"
                   aria-label={tr("操作を探す")}
-                  placeholder={tr("例：数える、保存、表示")}
+                  placeholder={tr("操作を探す")}
                   value={paletteQuery}
                   onChange={(e) => setPaletteQuery(e.target.value)}
                   onKeyDown={(e) => {

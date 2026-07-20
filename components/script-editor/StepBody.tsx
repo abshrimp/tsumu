@@ -7,28 +7,22 @@
 import { useContext } from "react";
 import { readableValue } from "../DataView";
 import { sharedCookieDomain } from "../../lib/script-runtime";
-import { setVarSource, uniqueVarName } from "../../lib/data";
+import { dataVarNames, setVarSource, uniqueVarName } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { type ScriptStep } from "../../lib/types";
+import { filterNumbersOf } from "./step-tree";
+import { defaultTransform, type ValueTransformKind } from "../../lib/script-model/compose";
+import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
 import { tr } from "../../lib/i18n";
-import {
-  AnyArraySelect,
-  ArrayFieldBody,
-  ArrayFindBody,
-  ArraySelect,
-  FilterArrayBody,
-  JoinBody,
-  SortArrayBody,
-  UnfilterSelect,
-  VarSelect,
-} from "./arrays";
+import { ArraySelect, FilterArrayBody, SortArrayBody } from "./arrays";
 import { Ctx } from "./context";
-import { FetchBody, VarNameIn, isNested, nameFromPath } from "./fetch";
-import { FieldValueIn, NewTabCheck, Phrase, TextIn, ValueIn, regexError } from "./inputs";
+import { FetchBody, PathMenu, VarNameIn, isNested, nameFromPath } from "./fetch";
+import { FieldValueIn, NewTabCheck, NumericVariableIn, Phrase, TextIn, ValueIn } from "./inputs";
+import { ValueTransformSettings, VALUE_TRANSFORM_GROUPS, VALUE_TRANSFORM_LABELS } from "./ValueTransformSettings";
 import { TargetSelect } from "./targets";
 
 export function StepBody({ step }: { step: ScriptStep }) {
-  const { doc, pageId, updateStep, renameVar } = useContext(Ctx);
+  const { doc, pageId, updateStep, renameVar, scripts } = useContext(Ctx);
   const set = (fn: (s: ScriptStep) => ScriptStep) => updateStep(step.id, fn);
   switch (step.kind) {
     case "show":
@@ -144,6 +138,25 @@ export function StepBody({ step }: { step: ScriptStep }) {
           }}
         />
       );
+    case "set-state":
+      return (
+        <Phrase
+          text="{target}を{state}にする"
+          parts={{
+            target: (
+              <TargetSelect value={step.target}
+                onChange={(target) => set((s) => ({ ...s, target }) as ScriptStep)} />
+            ),
+            state: (
+              <TextIn value={step.state} width={120}
+                placeholder={tr("状態名（既定で戻す）")}
+                onCommit={(state) => set((s) => ({
+                  ...s, state: state.trim().slice(0, 40),
+                }) as ScriptStep)} />
+            ),
+          }}
+        />
+      );
     case "set-enabled":
       return (
         <Phrase
@@ -194,57 +207,35 @@ export function StepBody({ step }: { step: ScriptStep }) {
       );
     case "fetch":
       return <FetchBody step={step} />;
-    case "split":
+    case "list-display": {
+      const changeMode = (mode: "filter" | "sort" | "clear") =>
+        set((s) => s.kind === "list-display" ? { ...s, mode } : s);
       return (
-        <Phrase
-          text="文字列{source}を{sep}で分解してリスト{into}とする"
-          parts={{
-            source: (
-              <TextIn
-                value={step.source}
-                placeholder={tr("{変数}")}
-                vars
-                width={110}
-                onCommit={(v) => set((s) => ({ ...s, source: v }) as ScriptStep)}
-              />
-            ),
-            sep: (
-              <TextIn
-                value={step.sep}
-                placeholder=","
-                width={40}
-                onCommit={(v) => set((s) => ({ ...s, sep: v }) as ScriptStep)}
-              />
-            ),
-            into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 商品）")} />,
-          }}
-        />
+        <>
+          <select className="se-in" aria-label={tr("リスト表示の操作")}
+            value={step.mode} onChange={(event) =>
+              changeMode(event.target.value as "filter" | "sort" | "clear")}>
+            <option value="filter">{tr("絞り込む")}</option>
+            <option value="sort">{tr("並べ替える")}</option>
+            <option value="clear">{tr("絞り込みを解除")}</option>
+          </select>
+          {step.mode === "filter" ? <FilterArrayBody step={step} /> :
+            step.mode === "sort" ? <SortArrayBody step={step} /> :
+            <Phrase text="リスト{array}の{which}を解除する" parts={{
+              array: <ArraySelect value={step.array}
+                onChange={(array) => set((s) => s.kind === "list-display" ? { ...s, array } : s)} />,
+              which: <select className="se-in" aria-label={tr("解除する絞り込み")}
+                value={step.no === undefined ? "all" : String(step.no)}
+                onChange={(event) => set((s) => s.kind === "list-display" ?
+                  { ...s, no: event.target.value === "all" ? undefined : Number(event.target.value) } : s)}>
+                <option value="all">{tr("すべての絞り込み")}</option>
+                {filterNumbersOf(scripts, step.array).map((n) =>
+                  <option key={n} value={n}>{tr("絞り込み{n}", { n })}</option>)}
+              </select>,
+            }} />}
+        </>
       );
-    case "array-find":
-      return <ArrayFindBody step={step} />;
-    case "array-field":
-      return <ArrayFieldBody step={step} />;
-    case "join":
-      return <JoinBody step={step} />;
-    case "filter-array":
-      return <FilterArrayBody step={step} />;
-    case "sort-array":
-      return <SortArrayBody step={step} />;
-    case "unfilter-array":
-      return (
-        <Phrase
-          text="リスト{array}の{which}を解除する"
-          parts={{
-            array: (
-              <ArraySelect
-                value={step.array}
-                onChange={(v) => set((s) => ({ ...s, array: v, no: undefined }) as ScriptStep)}
-              />
-            ),
-            which: <UnfilterSelect step={step} />,
-          }}
-        />
-      );
+    }
     case "store-save":
       return (
         <>
@@ -306,161 +297,16 @@ export function StepBody({ step }: { step: ScriptStep }) {
           text="{seconds}秒待つ"
           parts={{
             seconds: (
-              <TextIn
-                type="number"
-                value={String(step.seconds)}
-                width={56}
-                onCommit={(v) =>
-                  set((s) => ({ ...s, seconds: Math.max(0, Number(v) || 0) }) as ScriptStep)
-                }
-              />
+              <NumericVariableIn value={step.seconds} width={56}
+                min={0} onCommit={(seconds) => set((s) => ({ ...s, seconds }) as ScriptStep)} />
             ),
-          }}
-        />
-      );
-    case "count":
-      return (
-        <Phrase
-          text="リスト{array}の件数を変数{into}とする"
-          parts={{
-            array: (
-              <AnyArraySelect
-                value={step.array}
-                onChange={(array) =>
-                  set(
-                    (s) =>
-                      ({
-                        ...s,
-                        array,
-                        ...(!step.into
-                          ? { into: uniqueVarName(doc, pageId, tr("{p1}の件数", { p1: nameFromPath(array) }), step.id) }
-                          : {}),
-                      }) as ScriptStep
-                  )
-                }
-              />
-            ),
-            into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 件数）")} />,
           }}
         />
       );
     case "set-var":
       return <SetVarBody step={step} />;
-    case "calc":
-      return (
-        <Phrase
-          text="{expr}を計算して変数{into}とする"
-          parts={{
-            expr: (
-              <TextIn
-                value={step.expr}
-                valueContext="number"
-                placeholder={tr("{数} + 1")}
-                vars
-                width={130}
-                onCommit={(v) => set((s) => ({ ...s, expr: v }) as ScriptStep)}
-              />
-            ),
-            into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 合計）")} />,
-          }}
-        />
-      );
-    case "replace":
-      return (
-        <>
-          <Phrase
-            text="{source}の{find}を{to}に置き換えて変数{into}とする"
-            parts={{
-              source: (
-                <TextIn
-                  value={step.source}
-                  placeholder={tr("{文字列}")}
-                  vars
-                  width={110}
-                  onCommit={(v) => set((s) => ({ ...s, source: v }) as ScriptStep)}
-                />
-              ),
-              find: (
-                <TextIn
-                  value={step.find}
-                  placeholder={step.regex ? "\\d+" : tr("探す文字列")}
-                  vars
-                  width={100}
-                  onCommit={(v) => set((s) => ({ ...s, find: v }) as ScriptStep)}
-                />
-              ),
-              to: (
-                <TextIn
-                  value={step.to}
-                  placeholder={step.regex ? tr("空なら取り除く / $1") : tr("空なら取り除く")}
-                  vars
-                  width={100}
-                  onCommit={(v) => set((s) => ({ ...s, to: v }) as ScriptStep)}
-                />
-              ),
-              into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 整形後）")} />,
-            }}
-          />
-          <label className="se-check">
-            <input
-              type="checkbox"
-              checked={!!step.regex}
-              onChange={(e) =>
-                set((s) => ({ ...s, regex: e.target.checked || undefined }) as ScriptStep)
-              }
-            />
-            {tr("正規表現")}
-          </label>
-          {step.regex && regexError(step.find) && (
-            <span className="se-blk-note">{tr("正規表現の書き方が正しくないため、置き換えません")}</span>
-          )}
-        </>
-      );
-    case "list-edit":
-      return (
-        <Phrase
-          text="変数{into}の{sep}区切りに{value}を{op}"
-          parts={{
-            into: (
-              <VarSelect
-                stepId={step.id}
-                value={step.into}
-                onChange={(v) => set((s) => ({ ...s, into: v }) as ScriptStep)}
-              />
-            ),
-            sep: (
-              <TextIn
-                value={step.sep}
-                placeholder=","
-                width={36}
-                onCommit={(v) => set((s) => ({ ...s, sep: v }) as ScriptStep)}
-              />
-            ),
-            value: (
-              <TextIn
-                value={step.value}
-                placeholder={tr("値 / {変数}")}
-                vars
-                width={96}
-                onCommit={(v) => set((s) => ({ ...s, value: v }) as ScriptStep)}
-              />
-            ),
-            op: (
-              <select
-                className="se-in"
-                value={step.op}
-                onChange={(e) =>
-                  set((s) => ({ ...s, op: e.target.value as "add" | "remove" | "toggle" }) as ScriptStep)
-                }
-              >
-                <option value="toggle">{tr("切り替える")}</option>
-                <option value="add">{tr("足す")}</option>
-                <option value="remove">{tr("取り除く")}</option>
-              </select>
-            ),
-          }}
-        />
-      );
+    case "transform":
+      return <TransformBody step={step} />;
     case "copy":
       return (
         <Phrase
@@ -507,42 +353,90 @@ function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page
   );
 }
 
-/** 「［値］を変数［］とする」（{名前} 1つだけならリスト・まとまりもそのまま入る） */
+/** Store a literal, interpolated text or a raw variable value. */
 function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }) {
   const { doc, pageId, updateStep, samples, renameVar } = useContext(Ctx);
   const src = setVarSource(step);
   const value = src ? lookupVar(samples, src) : undefined;
   return (
     <>
+      <Phrase text="{value}を変数{into}とする" parts={{
+        value: <ValueIn value={step.value} width={150}
+          onCommit={(v) => {
+            updateStep(step.id, (s) => ({ ...s, value: v }) as ScriptStep);
+            const match = /^\{([^{}]+)\}$/.exec(v.trim());
+            if (match && !step.into) {
+              renameVar(step.id, "", uniqueVarName(doc, pageId, nameFromPath(match[1].trim()), step.id));
+            }
+          }} />,
+        into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前")} />,
+      }} />
+      {step.into && value !== undefined && value !== null && (
+        <span className="se-blk-note">{Array.isArray(value)
+          ? tr("リスト・{length}件（リスト表示で並べられます）", { length: value.length })
+          : isNested(value)
+            ? tr("要素では {{into}.項目名} のように使えます", { into: step.into })
+            : tr("見本: {p1}", { p1: readableValue(value) })}</span>
+      )}
+    </>
+  );
+}
+
+/** One native block applies one pure operation. Stacking blocks composes them. */
+function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform" }> }) {
+  const { doc, pageId, updateStep, samples } = useContext(Ctx);
+  const set = (patch: Partial<typeof step>) => updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
+  const available = new Set([...dataVarNames(doc, pageId, step.id), ...Object.keys(samples).filter((key) => !key.startsWith("#"))]);
+  const sourceValues = Object.fromEntries([
+    ...Object.entries(samples).filter(([name]) => !name.startsWith("#")),
+    ...[...available].filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined]),
+  ]);
+  const sample = step.source ? lookupVar(samples, step.source) : undefined;
+  const first = Array.isArray(sample)
+    ? sample.find((item) => item !== null && typeof item === "object" && !Array.isArray(item))
+    : undefined;
+  const candidate = step.transform.kind === "field" || step.transform.kind === "has" ? sample : first;
+  const options = candidate && typeof candidate === "object" && !Array.isArray(candidate)
+    ? Object.keys(candidate) : [];
+  const preview = evaluateValueRecipe(sample, [step.transform], sourceValues);
+
+  return (
+    <>
       <Phrase
-        text="{value}を変数{into}とする"
+        text="変数{source}に{operation}を行い、変数{into}に入れる"
         parts={{
-          value: (
-            <ValueIn
-              value={step.value}
-              width={150}
-              onCommit={(v) => {
-                updateStep(step.id, (s) => ({ ...s, value: v }) as ScriptStep);
-                // 名前が空なら、入れる位置の最後の項目名から付ける
-                const m = /^\{([^{}]+)\}$/.exec(v.trim());
-                if (m && !step.into) {
-                  renameVar(step.id, "", uniqueVarName(doc, pageId, nameFromPath(m[1].trim()), step.id));
-                }
-              }}
-            />
-          ),
-          into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 合計）")} />,
+          source: <PathMenu root={sourceValues} path={step.source}
+            ariaLabel={tr("加工する元の変数")} placeholder={tr("変数を選択")}
+            mode="any" allowRoot={false} portalZIndex={550}
+            onChange={(source) => updateStep(step.id, (s) => {
+              if (s.kind !== "transform") return s;
+              // Reuse the source variable by default; blocks can share one name.
+              return { ...s, source,
+                into: !s.into || s.into === s.source ? source : s.into };
+            })} />,
+          operation: <select className="se-in" aria-label={tr("加工の種類")}
+            value={step.transform.kind}
+            onChange={(e) => set({ transform: defaultTransform(e.target.value as ValueTransformKind) })}>
+            {VALUE_TRANSFORM_GROUPS.map((group) =>
+              <optgroup key={group.label} label={tr(group.label)}>
+                {group.kinds.map((kind) =>
+                  <option key={kind} value={kind}>{tr(VALUE_TRANSFORM_LABELS[kind])}</option>)}
+              </optgroup>)}
+          </select>,
+          into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("変数名")} />,
         }}
       />
-      {step.into && value !== undefined && value !== null && (
+      <div className="se-transform-settings">
+        <ValueTransformSettings transform={step.transform} options={options} samples={sourceValues}
+          onChange={(transform) => set({ transform })} />
+      </div>
+      {preview?.kind === "value" && (
         <span className="se-blk-note">
-          {Array.isArray(value)
-            ? tr("リスト・{length}件（リスト表示で並べられます）", { length: value.length })
-            : isNested(value)
-              ? tr("要素では {{into}.項目名} のように使えます", { into: step.into })
-              : tr("見本: {p1}", { p1: readableValue(value) })}
+          {tr("見本: {p1}", { p1: typeof preview.value === "object"
+            ? JSON.stringify(preview.value).slice(0, 90) : String(preview.value) })}
         </span>
       )}
+      {preview?.kind === "error" && <span className="se-blk-note">{tr("見本を加工できません（{code}）", { code: preview.code })}</span>}
     </>
   );
 }

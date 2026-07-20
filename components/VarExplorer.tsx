@@ -19,7 +19,7 @@ function kindOf(v: unknown, note?: string): string {
   if (Array.isArray(v)) return tr("リスト・{length}件", { length: v.length });
   if (v && typeof v === "object") return tr("項目付きデータ・{length}項目", { length: Object.keys(v).length });
   if (typeof v === "number") return tr("数値");
-  if (typeof v === "boolean") return tr("はい／いいえ");
+  if (typeof v === "boolean") return "true/false";
   return tr("文字列");
 }
 

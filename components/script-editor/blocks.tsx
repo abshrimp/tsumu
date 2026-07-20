@@ -15,7 +15,7 @@ import { tr } from "../../lib/i18n";
 import { AnyArraySelect, itemFieldsOf } from "./arrays";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, ScriptStepCtx, type FetchPreviewScope } from "./context";
 import { FetchResult } from "./fetch";
-import { CondEditor, Phrase, TextIn } from "./inputs";
+import { CondEditor, NumericVariableIn, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";
@@ -45,12 +45,11 @@ function ForEachView({
     );
     return [{ array: step.array, fields, roots: Object.keys(item ?? {}), samples }, ...outer];
   }, [sample, step.array, outer]);
-  // 配信前に値が決まるリスト（見本がある）は、配信前に動く形でないと何もしない
-  const { doc, pageId } = ctx;
-  const stuck = useMemo(
-    () => sample !== undefined && !pagePlan(doc, pageId).serverIds.has(step.id),
-    [doc, pageId, sample, step.id]
-  );
+  // The pre-rendering plan does not run for-each. Warn only for a page-load script,
+  // not for click/change handlers that can iterate client-side lists.
+  const pageLoad = ctx.scripts.some((s) => s.id === loc.scriptId &&
+    s.nodeId === PAGE_TARGET && s.trigger === "load");
+  const stuck = pageLoad && !pagePlan(ctx.doc, ctx.pageId).serverIds.has(step.id);
   return (
     <div className={`se-c${sel}`} {...handlers}>
       <div className="se-blk se-c-head" data-sel-key={key}>
@@ -69,7 +68,7 @@ function ForEachView({
         {step.array && <span className="se-blk-note">{tr("中では要素の項目を {項目} で使えます")}</span>}
         {stuck && !ctx.readOnly && (
           <span className="se-badge is-warn">
-            {tr("取得したデータのリストは、ページを開いたときのスクリプトの直下で、中を「項目として格納」と変数の「もし」だけにすると動きます")}
+            {tr("この繰り返しには、ページの配信前に実行できない操作または変数参照があります。中のブロックを確認してください。")}
           </span>
         )}
       </div>
@@ -96,8 +95,8 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
           ctx.openMenu(e, { type: "step", loc }, key),
       };
   if (step.kind === "repeat") {
-    const forever = step.times <= 0;
-    const setTimes = (times: number) =>
+    const forever = typeof step.times === "number" && step.times <= 0;
+    const setTimes = (times: number | string) =>
       ctx.updateStep(step.id, (s) => ({ ...s, times }) as ScriptStep);
     return (
       <div className={`se-c${sel}`} {...handlers}>
@@ -107,12 +106,8 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
             text="{times}{mode}"
             parts={{
               times: !forever && (
-                <TextIn
-                  type="number"
-                  value={String(step.times)}
-                  width={52}
-                  onCommit={(v) => setTimes(Math.max(1, Math.min(1000, Math.round(Number(v) || 1))))}
-                />
+                <NumericVariableIn value={step.times} onCommit={setTimes}
+                  integer min={1} max={1000} width={52} />
               ),
               mode: (
                 <select
@@ -140,31 +135,82 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
     return <ForEachView step={step} loc={loc} sel={sel} handlers={handlers} />;
   }
   if (step.kind === "if") {
+    const conditions = step.conditions ?? [];
+    const changeCondition = (index: number, patch: Partial<(typeof conditions)[number]>) =>
+      ctx.updateStep(step.id, (current) => current.kind !== "if" ? current : {
+        ...current, conditions: (current.conditions ?? []).map((condition, i) =>
+          i === index ? { ...condition, ...patch } : condition),
+      });
+    const removeCondition = (index: number) =>
+      ctx.updateStep(step.id, (current) => current.kind !== "if" ? current : {
+        ...current, conditions: (current.conditions ?? []).filter((_, i) => i !== index),
+      });
+    const addCondition = (and: boolean) =>
+      ctx.updateStep(step.id, (current) => current.kind !== "if" ? current : {
+        ...current, conditions: [...(current.conditions ?? []), {
+          subject: "var" as const, target: "", left: "", op: "eq" as const, value: "", and,
+        }],
+      });
     return (
       <div className={`se-c${sel}`} {...handlers}>
         <div className="se-blk se-c-head" data-sel-key={key}>
           <Ico icon={Split} cat={cat} />
-          <Phrase
-            text="もし{cond}なら"
-            parts={{
-              cond: (
-                <CondEditor
-                  cond={step.cond}
-                  onChange={(c) => ctx.updateStep(step.id, (s) => ({ ...s, cond: c }) as ScriptStep)}
+          <div className="se-if-conditions">
+            <div className="se-if-condition-line">
+              <Phrase text={conditions.length ? "もし{cond}" : "もし{cond}なら"} parts={{
+                cond: <CondEditor cond={step.cond}
+                  onChange={(cond) => ctx.updateStep(step.id, (current) =>
+                    current.kind === "if" ? { ...current, cond } : current)} />,
+              }} />
+            </div>
+            {conditions.map((condition, index) => (
+              <div key={index} className="se-if-condition-line">
+                <Phrase
+                  text={index === conditions.length - 1 ? "{join}{cond}なら" : "{join}{cond}"}
+                  parts={{
+                    join: (
+                      <select className="se-in se-fixed-select"
+                        aria-label={tr("条件のつなぎ方")}
+                        value={condition.and ? "and" : "or"}
+                        disabled={ctx.readOnly}
+                        onChange={(event) => changeCondition(index, { and: event.target.value === "and" })}>
+                        <option value="and">{tr("かつ")}</option>
+                        <option value="or">{tr("または")}</option>
+                      </select>
+                    ),
+                    cond: <CondEditor cond={condition}
+                      onChange={(next) => changeCondition(index, next)} />,
+                  }}
                 />
-              ),
-            }}
-          />
-          {!ctx.readOnly && !step.else && (
-            <button
-              type="button"
-              className="se-mini se-mini-text"
-              onClick={() => ctx.updateStep(step.id, (s) => ({ ...s, else: [] }) as ScriptStep)}
-            >
-              <Plus size={12} />
-              {tr("でなければ")}
-            </button>
-          )}
+                {!ctx.readOnly && (
+                  <button type="button" className="se-mini"
+                    aria-label={tr("この条件を削除")}
+                    onClick={() => removeCondition(index)}>
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+            {!ctx.readOnly && (
+              <div className="se-composer-condition-actions">
+                <button type="button" className="se-mini se-mini-text"
+                  disabled={conditions.length >= 32} onClick={() => addCondition(true)}>
+                  <Plus size={12} />{tr("かつ")}
+                </button>
+                <button type="button" className="se-mini se-mini-text"
+                  disabled={conditions.length >= 32} onClick={() => addCondition(false)}>
+                  <Plus size={12} />{tr("または")}
+                </button>
+                {!step.else && (
+                  <button type="button" className="se-mini se-mini-text"
+                    onClick={() => ctx.updateStep(step.id, (current) =>
+                      current.kind === "if" ? { ...current, else: [] } : current)}>
+                    <Plus size={12} />{tr("でなければ")}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="se-c-body">
           <StepList
@@ -208,7 +254,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
   }
   return (
     <div
-      className={`se-blk${sel}${step.kind === "filter-array" && step.or?.length ? " has-lines" : ""}`}
+      className={`se-blk${sel}${step.kind === "list-display" && step.mode === "filter" ? " has-lines" : ""}`}
       data-sel-key={key}
       {...handlers}
     >

@@ -9,7 +9,7 @@ import { scriptUid, type PageScript } from "../../lib/script";
 import { isDataStep } from "../../lib/data";
 import { PAGE_TARGET } from "../../lib/types";
 import { type Payload } from "./palette";
-import { insertAt, parseSlot, takeAt } from "./step-tree";
+import { connectNewTransform, insertAt, parseSlot, takeAt } from "./step-tree";
 import type { Drag, Marquee, Menu, ScriptEditorLatest } from "../ScriptEditor";
 
 /** ScriptEditorInner から受け取る値 */
@@ -173,7 +173,12 @@ export function useScriptDrag({
       }
       if (slot) {
         const loc = parseSlot(slot);
-        if (p.type === "steps") return commit(insertAt(base, loc, p.steps));
+        if (p.type === "steps") {
+          // Only newly inserted blocks inherit the previous output automatically.
+          // Moving an existing chain preserves all explicit variable references.
+          const nextSteps = p.from ? p.steps : connectNewTransform(base, loc, p.steps);
+          return commit(insertAt(base, loc, nextSteps));
+        }
         if (p.type === "trigger") {
           return commit(
             base.map((s) =>

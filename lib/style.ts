@@ -138,14 +138,20 @@ export function breakpointForWidth(width: number): Breakpoint {
   return "base";
 }
 
-export const STATE_INFO: Record<StyleState, { label: string; pseudo: string }> = {
+export const STATE_INFO: Record<"default" | "hover" | "active" | "focus", { label: string; pseudo: string }> = {
   default: { label: tr("既定"), pseudo: "" },
   hover: { label: tr("ホバー"), pseudo: ":hover" },
   active: { label: tr("押したとき"), pseudo: ":active" },
   focus: { label: tr("フォーカス"), pseudo: ":focus" },
 };
 
-export const STATE_ORDER: StyleState[] = ["default", "hover", "active", "focus"];
+export const STATE_ORDER = ["default", "hover", "active", "focus"] as const;
+
+export function styleStateLabel(state: StyleState): string {
+  if (state.startsWith("custom:")) return state.slice("custom:".length);
+  return STATE_INFO[state as keyof typeof STATE_INFO].label;
+}
+
 
 /** 指定ブレークポイントまでのカスケードチェーン（base → bp） */
 export function bpChain(bp: Breakpoint): Breakpoint[] {

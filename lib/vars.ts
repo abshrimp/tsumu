@@ -25,11 +25,15 @@ export type Vars = Record<string, unknown>;
  * 「.」で配列の何番目・入れ子の項目をたどれる（配列の "-1" は最後の要素）
  */
 export function lookupVar(vars: Vars, name: string): unknown {
-  if (name in vars) return vars[name];
+  const owns = (value: object, key: string | number) =>
+    Object.prototype.hasOwnProperty.call(value, key);
+  if (owns(vars, name)) return vars[name];
   let cur: unknown = vars;
   for (const key of name.split(".")) {
     if (cur == null || typeof cur !== "object") return undefined;
-    cur = Array.isArray(cur) && key === "-1" ? cur[cur.length - 1] : (cur as Record<string, unknown>)[key];
+    const part = Array.isArray(cur) && key === "-1" ? cur.length - 1 : key;
+    if (!owns(cur, part)) return undefined;
+    cur = (cur as Record<string | number, unknown>)[part];
   }
   return cur;
 }
@@ -387,11 +391,15 @@ export type Vars = Record<string, unknown>;
  * 「.」で配列の何番目・入れ子の項目をたどれる（配列の "-1" は最後の要素）
  */
 export function lookupVar(vars: Vars, name: string): unknown {
-  if (name in vars) return vars[name];
+  const owns = (value: object, key: string | number) =>
+    Object.prototype.hasOwnProperty.call(value, key);
+  if (owns(vars, name)) return vars[name];
   let cur: unknown = vars;
   for (const key of name.split(".")) {
     if (cur == null || typeof cur !== "object") return undefined;
-    cur = Array.isArray(cur) && key === "-1" ? cur[cur.length - 1] : (cur as Record<string, unknown>)[key];
+    const part = Array.isArray(cur) && key === "-1" ? cur.length - 1 : key;
+    if (!owns(cur, part)) return undefined;
+    cur = (cur as Record<string | number, unknown>)[part];
   }
   return cur;
 }

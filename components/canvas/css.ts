@@ -4,6 +4,7 @@
 
 import { keyframesCss, motionCss } from "../../lib/motion";
 import type { Breakpoint, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
+import { customStateSelector } from "../../lib/custom-states";
 import {
   bpChain,
   isHiddenAt,
@@ -126,19 +127,23 @@ export function buildCanvasCss(
         );
       }
       for (const p of parts) rules.push(`${p.selector(sel)} { ${cssBody(p.map)} }`);
-      for (const st of ["hover", "active", "focus"] as const) {
+      const customStates = [...new Set(Object.values(node.styles)
+        .flatMap((states) => Object.keys(states))
+        .filter((state) => customStateSelector(state) !== null))];
+      for (const st of [...["hover", "active", "focus"], ...customStates] as StyleState[]) {
         const merged: Record<string, string> = {};
         for (const b of bpChain(bp)) Object.assign(merged, node.styles[b]?.[st]);
+        const suffix = customStateSelector(st) ?? `:${st}`;
         const stSel = extractSelectionStyles(merged);
         for (const p of extractPartStyles(merged)) {
-          rules.push(`${p.selector(`${sel}:${st}`)} { ${cssBody(p.map)} }`);
+          rules.push(`${p.selector(`${sel}${suffix}`)} { ${cssBody(p.map)} }`);
         }
         if (Object.keys(merged).length) {
-          rules.push(`${sel}:${st} { ${cssBody(merged)} }`);
+          rules.push(`${sel}${suffix} { ${cssBody(merged)} }`);
         }
         if (stSel) {
           rules.push(
-            `${sel}:${st}::selection, ${sel}:${st} *::selection { ${cssBody(stSel)} }`
+            `${sel}${suffix}::selection, ${sel}${suffix} *::selection { ${cssBody(stSel)} }`
           );
         }
       }

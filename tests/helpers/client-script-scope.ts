@@ -9,7 +9,7 @@ export function clientScriptFixture(component = false, items: any[] = [
   (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
   doc.pages.p.pageScripts![0].steps.push(
     { id: 'name', kind: 'set-var', value: '{response.0.name}', into: 'name' },
-    { id: 'private', kind: 'split', source: 'UNUSED_SERVER_PRIVATE', sep: ',', into: 'private' },
+    { id: 'private', kind: 'set-var', value: 'UNUSED_SERVER_PRIVATE', into: 'private' },
   );
   doc.nodes.act = { ...makeText('Act'), id: 'act', attrId: 'act', semantic: 'button', scripts: [{
     id: 'act-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [

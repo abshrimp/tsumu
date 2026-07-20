@@ -136,7 +136,8 @@ test("waits nested in if and repeat blocks cannot continue on another page", asy
 
 test("for-each continuations and their following steps stop after navigation", async () => {
   const h = harness([
-    { id: "split", kind: "split", source: "a,b", sep: ",", into: "items" },
+    { id: "items-input", kind: "set-var", value: "a,b", into: "items" },
+    { id: "split", kind: "transform", source: "items", into: "items", transform: { kind: "split", separator: "," } },
     { id: "each", kind: "for-each", array: "items", then: [wait, hide] },
     hide,
   ], { trigger: "click" });

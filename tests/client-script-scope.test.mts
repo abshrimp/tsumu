@@ -31,7 +31,8 @@ test('script values read live browser variables and fields at execution and enco
   doc.nodes.act.scripts![0].steps.push(
     { id: 'live', kind: 'set-var', value: '{name}|{counter}|{entry}|\\{name}', into: 'chosen' },
     { id: 'url', kind: 'open-url', url: '/products/{name}?q={entry}', newTab: true },
-    { id: 'calc', kind: 'calc', expr: '{counter}+2', into: 'computed' },
+    { id: 'parse', kind: 'transform', source: 'counter', into: 'computed', transform: { kind: 'parse' } },
+    { id: 'calc', kind: 'transform', source: 'computed', into: 'computed', transform: { kind: 'math', operation: 'add', operand: 2 } },
   );
   doc.nodes.change = { ...makeText('Change'), id: 'change', attrId: 'change', semantic: 'button', scripts: [{
     id: 'change-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: 'change-step', kind: 'set-var', value: '7', into: 'counter' }],

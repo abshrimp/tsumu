@@ -80,10 +80,6 @@ export interface JsxContext {
   varsExpr?: string;
   /** 配信前に確定した項目だけのスコープ（ページ変数は含めない）。 */
   serverItemScope?: { expr: string; used: boolean };
-  /** join・count の代替値用。ブラウザの子リストでも配信済みの祖先スコープを保つ。 */
-  joinItemScopes?: { expr: string; used: boolean; depth: number }[];
-  /** この位置までに実際に出力する data-row の数（お手本の行も1つ）。 */
-  joinRowDepth?: number;
   /** interpolate ランタイムを使ったか */
   usesInterpolate: boolean;
   /** スクリプトの値に lookupVar を使ったか */
@@ -205,23 +201,19 @@ function renderNodeInner(
     const client = lv.client || !!ctx.inTemplate;
     const base = ctx.varsExpr ?? "vars";
     const filterFields = [...(ctx.listFilterFields.get(lv.from) ?? [])];
-    const countOrFilter = ctx.listFilterFields.has(lv.from);
+    const hasListDisplayControl = ctx.listFilterFields.has(lv.from);
     const listIdAttr = instanceVisibilityAttr +
       anchorAttr +
       toggleAttrs +
       inViewAttr +
-      (countOrFilter || client ? ` data-array=${jsxString(lv.from)}` : "");
+      (hasListDisplayControl || client ? ` data-array=${jsxString(lv.from)}` : "");
     const serverItems = (forceWrap = false) => {
-      const wrap = forceWrap || countOrFilter || node.children.some((cid) => hasScriptsInside(ctx.doc, cid, ctx.inlineComponents));
+      const wrap = forceWrap || hasListDisplayControl || node.children.some((cid) => hasScriptsInside(ctx.doc, cid, ctx.inlineComponents));
       const itemsExpr = listItemsExpr(node.list!, base, lv.from, ctx.listOps?.get(lv.from) ?? []);
       const prevVars = ctx.varsExpr;
       const prevTemplate = ctx.inTemplate;
       const prevItem = ctx.serverItemScope;
       const itemScope = { expr: `${ivar}Item`, used: false };
-      const prevJoinItems = ctx.joinItemScopes, prevJoinDepth = ctx.joinRowDepth ?? 0;
-      ctx.joinRowDepth = prevJoinDepth + (wrap ? 1 : 0);
-      const joinScope = { expr: `${ivar}JoinItem`, used: false, depth: ctx.joinRowDepth };
-      ctx.joinItemScopes = [...(prevJoinItems ?? []), joinScope];
       ctx.varsExpr = ivar;
       ctx.serverItemScope = itemScope;
       ctx.inTemplate = false;
@@ -230,12 +222,10 @@ function renderNodeInner(
         .join("\n");
       ctx.varsExpr = prevVars;
       ctx.serverItemScope = prevItem;
-      ctx.joinItemScopes = prevJoinItems;
-      ctx.joinRowDepth = prevJoinDepth;
       ctx.inTemplate = prevTemplate;
       if (itemScope.used && prevItem) prevItem.used = true;
       // スクリプトの絞り込みで使う項目だけを、各項目の data-item に持たせる
-      const itemAttr = countOrFilter
+      const itemAttr = hasListDisplayControl
         ? ` data-item={JSON.stringify({ ${filterFields
             .map((f) => `${JSON.stringify(f)}: ${fieldExpr("item", f)}`)
             .join(", ")} })}`
@@ -243,7 +233,7 @@ function renderNodeInner(
       // 項目の中にスクリプトがあれば、項目ごとに包む（IDの指す要素を同じ項目の中から探すため）
       return `${indent}  {${itemsExpr}.map((item, i) => {
 ${indent}    const ${ivar} = { ...${base}, ...item };${itemScope.used ? `\n${indent}    const ${itemScope.expr} = { ${prevItem ? `...${prevItem.expr}, ` : ""}...item };` : ""}
-${joinScope.used ? `${indent}    const ${joinScope.expr} = item;\n` : ""}${indent}    return (
+${indent}    return (
 ${indent}      ${wrap ? `<div key={i} style={{ display: "contents" }} data-row${itemAttr}>` : ((ctx.usesFragment = true), "<Fragment key={i}>")}
 ${inner}
 ${indent}      ${wrap ? "</div>" : "</Fragment>"}
@@ -294,8 +284,6 @@ ${indent}  })}`;
       const prevVars = ctx.varsExpr;
       const prevTemplate = ctx.inTemplate;
       const prevItem = ctx.serverItemScope;
-      const prevJoinDepth = ctx.joinRowDepth ?? 0;
-      ctx.joinRowDepth = prevJoinDepth + 1;
       ctx.varsExpr = ivar;
       ctx.serverItemScope = undefined;
       ctx.inTemplate = true;
@@ -304,7 +292,6 @@ ${indent}  })}`;
         .join("\n");
       ctx.varsExpr = prevVars;
       ctx.serverItemScope = prevItem;
-      ctx.joinRowDepth = prevJoinDepth;
       ctx.inTemplate = prevTemplate;
       ctx.usesTemplate = true;
       const template = `${indent}<div${listIdAttr}${listAttrs} className="${cls}">

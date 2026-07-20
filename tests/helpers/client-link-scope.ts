@@ -13,8 +13,8 @@ export function clientLinkDoc(component = false, url = '/products/{name}', items
   (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
   for (const key of ['name', 'profile', 'slug']) doc.pages.p.pageScripts![0].steps.push({ id: `global-${key}`, kind: 'set-var', value: `{response.0.${key}}`, into: key });
   doc.pages.p.pageScripts![0].steps.push(
-    { id: 'fallback', kind: 'split', source: 'Server \\{name}', sep: ',', into: 'fallback' },
-    { id: 'private', kind: 'split', source: 'UNUSED_SERVER_PRIVATE', sep: ',', into: 'private' },
+    { id: 'fallback', kind: 'set-var', value: 'Server \\{name}', into: 'fallback' },
+    { id: 'private', kind: 'set-var', value: 'UNUSED_SERVER_PRIVATE', into: 'private' },
   );
   doc.nodes.detail.link = { kind: 'url', url };
   return doc;

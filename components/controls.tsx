@@ -30,7 +30,7 @@ import {
   X,
 } from "lucide-react";
 import type { PropInfo } from "../lib/style";
-import { BP_INFO, STATE_INFO, bpIconKind, parseNumeric, sameValue } from "../lib/style";
+import { BP_INFO, styleStateLabel, bpIconKind, parseNumeric, sameValue } from "../lib/style";
 import { useEditor } from "../lib/store";
 import { openHelp } from "../lib/help";
 import {
@@ -251,7 +251,7 @@ export function Grp({
     s.breakpoint === "base" ? null : BP_INFO[s.breakpoint].label
   );
   const stateLabel = useEditor((s) =>
-    s.styleState === "default" ? null : STATE_INFO[s.styleState].label
+    s.styleState === "default" ? null : styleStateLabel(s.styleState)
   );
   return (
     <div className={`grp${setHere ? " is-set" : ""}`}>

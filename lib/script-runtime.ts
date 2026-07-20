@@ -8,6 +8,7 @@ import { isDataStep, listFromOf, pagePlan } from "./data";
 import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
+import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 
 /* ---------- 実行ランタイム ---------- */
 
@@ -22,6 +23,11 @@ import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
  */
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
+  /*#setvar*/
+  // esbuild may annotate named inner functions with __name when serializing .toString().
+  var __name = function (fn) { return fn; };
+  var evalRecipe = (${evaluateValueRecipe.toString()});
+  /*/setvar*/
   /*#env*/
   env = env || {};
   function touch(el) {
@@ -51,7 +57,9 @@ export const SCRIPT_RUNTIME = `function (env) {
     for (var i = 0; i < keys.length; i++) {
       if (v == null || typeof v !== "object") return undefined;
       var k = keys[i];
-      v = Array.isArray(v) && k === "-1" ? v[v.length - 1] : v[k];
+      var part = Array.isArray(v) && k === "-1" ? v.length - 1 : k;
+      if (!has(v, part)) return undefined;
+      v = v[part];
     }
     return v;
   }
@@ -62,67 +70,6 @@ export const SCRIPT_RUNTIME = `function (env) {
     if (typeof v === "object") return "";
     return String(v);
   }
-  /*#calc*/
-  // + - * / % とかっこだけの式を計算する（読めなければ空）
-  function calc(s) {
-    var src = String(s).replace(/,/g, "").replace(/×/g, "*").replace(/÷/g, "/");
-    var i = 0;
-    function sp() {
-      while (/\\s/.test(src.charAt(i))) i++;
-    }
-    function num() {
-      sp();
-      var c = src.charAt(i);
-      if (c === "(") {
-        i++;
-        var v = add();
-        sp();
-        if (src.charAt(i) !== ")") throw 0;
-        i++;
-        return v;
-      }
-      if (c === "-" || c === "+") {
-        i++;
-        return c === "-" ? -num() : num();
-      }
-      var m = /^\\d*\\.?\\d+(?:e[+-]?\\d+)?/i.exec(src.slice(i));
-      if (!m) throw 0;
-      i += m[0].length;
-      return Number(m[0]);
-    }
-    function mul() {
-      var v = num();
-      for (;;) {
-        sp();
-        var c = src.charAt(i);
-        if (c !== "*" && c !== "/" && c !== "%") return v;
-        i++;
-        var r = num();
-        v = c === "*" ? v * r : c === "/" ? v / r : v % r;
-      }
-    }
-    function add() {
-      var v = mul();
-      for (;;) {
-        sp();
-        var c = src.charAt(i);
-        if (c !== "+" && c !== "-") return v;
-        i++;
-        var r = mul();
-        v = c === "+" ? v + r : v - r;
-      }
-    }
-    try {
-      var v = add();
-      sp();
-      if (i < src.length || !isFinite(v)) return "";
-      // 0.1 + 0.2 のような小数の誤差を丸める
-      return Math.round(v * 1e10) / 1e10;
-    } catch (e) {
-      return "";
-    }
-  }
-  /*/calc*/
   /*#show|visible*/
   function isHidden(el) {
     return getComputedStyle(el).display === "none";
@@ -242,15 +189,14 @@ export const SCRIPT_RUNTIME = `function (env) {
   /*#value|var|filter*/
   function cmp(v, op, w) {
     switch (op) {
-      case "neq": return v !== w;
       case "contains": return v.indexOf(w) >= 0;
-      case "not-contains": return v.indexOf(w) < 0;
       case "starts-with": return v.lastIndexOf(w, 0) === 0;
       case "ends-with": return v.length >= w.length && v.indexOf(w, v.length - w.length) >= 0;
       case "gt": return parseFloat(v) > parseFloat(w);
+      case "gte": return parseFloat(v) >= parseFloat(w);
       case "lt": return parseFloat(v) < parseFloat(w);
+      case "lte": return parseFloat(v) <= parseFloat(w);
       case "empty": return v === "";
-      case "not-empty": return v !== "";
       case "in":
         return w.split(",").some(function (x) {
           return x.trim() === v;
@@ -260,9 +206,22 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   /*/value|var|filter*/
   /*#wait|repeat*/
+  // Numbers are literal unless the entire value is a {variable.path} reference.
+  function numericAmount(source, self, locals, resolveVar) {
+    var value = source;
+    if (typeof source === "string") {
+      var match = /^\\{([^{}\\s]+)\\}$/.exec(source.trim());
+      if (!match) return NaN;
+      value = resolveVar(match[1], self, locals);
+    }
+    if (value === null || value === undefined || typeof value === "boolean" ||
+        (typeof value === "string" && !value.trim())) return NaN;
+    var number = Number(value);
+    return Number.isFinite(number) ? number : NaN;
+  }
   function sleep(s) {
     return new Promise(function (res) {
-      setTimeout(res, Math.max(0, (Number(s) || 0) * 1000));
+      setTimeout(res, Math.min(86400, Math.max(0, s)) * 1000);
     });
   }
   /*/wait|repeat*/
@@ -381,7 +340,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         }
         if (pid !== pageId) {
           if (pageId !== null) {
-            vars = {};
+            vars = Object.create(null);
             /*#filter*/
             filters.clear();
             sorts.clear();
@@ -399,7 +358,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         };
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
-      var vars = {};
+      var vars = Object.create(null);
       function getVar(name) {
         return has(vars, name) ? vars[name] : dig(vars, name);
       }
@@ -413,12 +372,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         var cur = vars;
         for (var i = 0; i < ks.length - 1; i++) {
           var k = ks[i].trim();
-          var nx = cur[k];
+          var nx = has(cur, k) ? cur[k] : undefined;
           if (nx == null || typeof nx !== "object" || Array.isArray(nx)) {
             vars[name] = v;
             return;
           }
-          var cp = {};
+          var cp = Object.create(null);
           for (var ok in nx) if (has(nx, ok)) cp[ok] = nx[ok];
           cur[k] = cp;
           cur = cp;
@@ -466,14 +425,14 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       // {名前} の値: リストの項目 → 画面上の変数 → 同じIDの要素の値 → URLの検索パラメータ
       function lookup(name, self, item) {
-        if (item) {
-          var iv = has(item, name) ? item[name] : dig(item, name);
-          if (iv !== undefined) return iv;
-        }
-        var v = getVar(name);
-        if (v !== undefined) return v;
         var dot = name.indexOf(".");
         var head = dot < 0 ? name : name.slice(0, dot);
+        // Presence (including undefined) takes precedence. Otherwise a missing
+        // transform result can accidentally read an unrelated form element or
+        // URL parameter with the same name.
+        if (item && (has(item, name) || has(item, head)))
+          return has(item, name) ? item[name] : dig(item, name);
+        if (has(vars, name) || has(vars, head)) return getVar(name);
         var prop = dot < 0 ? "" : name.slice(dot + 1);
         var els = find(self, head);
         // ラジオボタンのグループ名
@@ -507,10 +466,6 @@ export const SCRIPT_RUNTIME = `function (env) {
         return s.scriptParts.map(function (part) {
           if (typeof part === "string") { offset += part.length; return part; }
           var v = text(scriptReference(part, self, item)), at = offset++;
-          if (mode === "number") {
-            var n = Number(v.replace(/,/g, ""));
-            return "(" + (isFinite(n) ? n : 0) + ")";
-          }
           if (mode !== "url") return v;
           return at === 0 && (/^(?:https?:|mailto:|tel:|data:image\\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\\.microsoft\\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")
             ? v : encodeURIComponent(v);
@@ -528,19 +483,6 @@ export const SCRIPT_RUNTIME = `function (env) {
           return text(lookup(k.trim(), self, item));
         });
       }
-      /*#calc*/
-      // 式の {名前} を数に置き換える（数でなければ 0。「1,000」の区切りは除く）
-      function resolveNum(s, self, item) {
-        /*#clist*/
-        if (s && Array.isArray(s.scriptParts)) return scriptExpression(s, self, item, "number");
-        /*/clist*/
-        return String(s == null ? "" : s).replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
-          if (k == null) return "{";
-          var n = Number(text(lookup(k.trim(), self, item)).replace(/,/g, ""));
-          return "(" + (isFinite(n) ? n : 0) + ")";
-        });
-      }
-      /*/calc*/
       // URL用（値をエンコードする。配信時に残した %7B名前%7D も置き換える）。
       // 先頭の変数がURLそのもの（https:// や / で始まる）なら、そのまま使う
       function resolveUrl(s, self, item) {
@@ -626,10 +568,16 @@ export const SCRIPT_RUNTIME = `function (env) {
       function test(c, self, sc) {
         /*#var*/
         if (c.subject === "var") {
-          return cmp(resolve(c.left, self, sc), c.op, resolve(c.value, self, sc));
+          if (!c.left || !String(c.left).trim()) return false;
+          var matched = cmp(resolve(c.left, self, sc), c.op, resolve(c.value, self, sc));
+          return c.not ? !matched : matched;
         }
         /*/var*/
+        // An unconfigured or deleted element target is not a valid predicate,
+        // including when the condition is negated.
+        if (!c.target || !String(c.target).trim()) return false;
         var els = find(self, c.target);
+        if (!els.length) return false;
         var r = false;
         /*#value*/
         if (c.subject === "value") {
@@ -638,14 +586,14 @@ export const SCRIPT_RUNTIME = `function (env) {
           var box = els.length ? inputOf(els[0]) : null;
           if (box && (box.type === "checkbox" || isRadioItem(els[0], box))) {
             var on = !!box.checked;
-            if (c.op === "empty") return !on;
-            if (c.op === "not-empty") return on;
-            if (!c.op || c.op === "eq" || c.op === "neq") {
+            if (c.op === "empty") return c.not ? on : !on;
+            if (!c.op || c.op === "eq") {
               var same = truthy(w) === on;
-              return c.op === "neq" ? !same : same;
+              return c.not ? !same : same;
             }
           }
-          return cmp(valueOf(els), c.op, w);
+          var matches = cmp(valueOf(els), c.op, w);
+          return c.not ? !matches : matches;
         }
         /*/value*/
         /*#checked*/
@@ -668,6 +616,26 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/hovered*/
         return c.not ? !r : r;
       }
+      // Same grouping as list filtering: AND conditions bind within OR groups.
+      function testConditions(step, self, scope) {
+        var extras = Array.isArray(step.conditions) ? step.conditions : [];
+        if (extras.length > 32) return false;
+        // Preserve OR group boundaries even if their first clause has not been
+        // configured yet. A OR [blank] AND C must behave like A OR C, not A AND C.
+        var groups = [[step.cond]];
+        extras.forEach(function (condition) {
+          if (!condition || typeof condition !== "object") return;
+          if (!condition.and) groups.push([]);
+          if (condition.subject !== "var" ||
+              (typeof condition.left === "string" && !!condition.left.trim()))
+            groups[groups.length - 1].push(condition);
+        });
+        return groups.some(function (group) {
+          return group.length > 0 && group.every(function (condition) {
+            return test(condition, self, scope);
+          });
+        });
+      }
       /*/if*/
       /*#filter*/
       // 配列の絞り込み: 配列の名前 → [{ no, join, conds: [{ field, op, value, and }] }]。
@@ -679,6 +647,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (item == null) return undefined;
         return has(item, f) ? item[f] : dig(item, f);
       }
+      function filterText(v) {
+        if (v == null) return "";
+        if (Array.isArray(v)) return v.map(filterText).join(",");
+        if (typeof v === "object") return "[object Object]";
+        return String(v);
+      }
       function passOne(conds, item) {
         var ok = false;
         var grp = true;
@@ -688,7 +662,8 @@ export const SCRIPT_RUNTIME = `function (env) {
             grp = true;
           }
           var fv = fieldOf(item, c.field);
-          grp = grp && cmp(fv == null ? "" : String(fv), c.op, c.value);
+          var matches = cmp(filterText(fv), c.op, c.value);
+          grp = grp && (c.not ? !matches : matches);
         });
         return ok || grp;
       }
@@ -713,7 +688,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       function order(x, y) {
         return typeof x === "number" && typeof y === "number"
           ? x - y
-          : String(x == null ? "" : x).localeCompare(String(y == null ? "" : y), "ja", {
+          : filterText(x).localeCompare(filterText(y), "ja", {
               numeric: true,
             });
       }
@@ -804,7 +779,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (Array.isArray(value)) return value.map(fillValue);
           var out = Object.create(null);
           Object.keys(value).forEach(function (key) {
-            out[key] = (key === "rawRef" || key === "joinFallback" || key === "countFallback") ? value[key] : fillValue(value[key]);
+            out[key] = (key === "rawRef" || key === "transform" || key === "raw") ? value[key] : fillValue(value[key]);
           });
           return out;
         }
@@ -1093,17 +1068,62 @@ export const SCRIPT_RUNTIME = `function (env) {
       // くり返し中の要素（cx: { array, index, item, up, run }）の項目を、外側から順に重ねた値
       function scopeOf(cx) {
         if (!cx) return undefined;
-        var o = scopeOf(cx.up) || {};
+        var o = scopeOf(cx.up) || Object.create(null);
         for (var k in cx.item) if (has(cx.item, k)) o[k] = cx.item[k];
         return o;
       }
       function merged(a, b) {
-        var o = {};
+        var o = Object.create(null);
         var k;
         for (k in a || {}) if (has(a, k)) o[k] = a[k];
         for (k in b || {}) if (has(b, k)) o[k] = b[k];
         return o;
       }
+      /*#setvar*/
+      // Runtime data transforms also accept form values and URL parameters.
+      // Collect only actual variable tokens; do not turn unknown names into empty
+      // strings, since a missing whole-value reference must remain missing.
+      function transformScope(transform, self, local) {
+        var scope = merged(vars, local);
+        var count = 0;
+        function include(name) {
+          if (!name || count++ >= 64) return;
+          var rootName = name.split(".")[0];
+          if (has(scope, name) || has(scope, rootName)) return;
+          var exists = !!find(self, rootName).length || !!groupOf(rootName).length;
+          if (!exists) {
+            try { exists = new URLSearchParams(location.search).has(name); } catch (e) {}
+          }
+          if (exists) scope[name] = lookup(name, self, local);
+        }
+        function scan(value, depth) {
+          if (depth > 4) return;
+          if (typeof value === "string") {
+            var pos = 0;
+            while ((pos = value.indexOf("{", pos)) >= 0) {
+              var end = value.indexOf("}", pos + 1);
+              if (end < 0) break;
+              var name = value.slice(pos + 1, end);
+              var escaped = pos > 0 && value.charCodeAt(pos - 1) === 92;
+              if (!escaped && name && !Array.from(name).some(function (char) {
+                return char <= " " || char === "{" || char === "}" ||
+                  char === '"' || char === "'" || char === "<" || char === ">" ||
+                  char.charCodeAt(0) === 96;
+              })) include(name);
+              pos = end + 1;
+            }
+          } else if (Array.isArray(value)) {
+            value.forEach(function (entry) { scan(entry, depth + 1); });
+          } else if (value && typeof value === "object") {
+            Object.keys(value).forEach(function (key) { scan(value[key], depth + 1); });
+          }
+        }
+        scan(transform, 0);
+        if (transform.operandType === "variable" && typeof transform.operand === "string")
+          include(transform.operand);
+        return scope;
+      }
+      /*/setvar*/
       function exec(st, self, cx) {
         var sc = scopeOf(cx);
         switch (st.kind) {
@@ -1120,6 +1140,19 @@ export const SCRIPT_RUNTIME = `function (env) {
               else hide(el);
             });
             break;
+          case "set-state": {
+            var state = typeof st.state === "string" ? st.state.trim() : "";
+            var valid = state === "default" || state === "" ||
+              (state.length <= 40 && /^[\\p{L}\\p{N}_][\\p{L}\\p{N}_ -]*$/u.test(state) &&
+                ["hover", "active", "focus"].indexOf(state) < 0);
+            if (!valid) break;
+            find(self, st.target).forEach(function (el) {
+              if (!state || state === "default") el.removeAttribute("data-tsumu-state");
+              else el.setAttribute("data-tsumu-state", state);
+            });
+            break;
+          }
+
           /*/show*/
           /*#scroll*/
           case "scroll-to": {
@@ -1168,56 +1201,37 @@ export const SCRIPT_RUNTIME = `function (env) {
             break;
           /*/set*/
           /*#filter*/
-          case "filter-array": {
-            if (!st.array || !st.conds || !st.conds.length) break;
-            var fs = (filters.get(st.array) || []).slice();
-            // 番号の無い絞り込みは、項目の組で同じものを見分ける
-            var key =
-              st.no != null
-                ? "n" + st.no
-                : "f" +
-                  st.conds
-                    .map(function (c) {
-                      return c.field;
-                    })
-                    .sort()
-                    .join("|");
-            var entry = {
-              key: key,
-              no: st.no,
-              join: st.join,
-              conds: st.conds.map(function (c) {
-                return { field: c.field, op: c.op, value: resolve(c.value, self, sc), and: c.and };
-              }),
-            };
-            // 同じ番号の絞り込みはもう一度動かすと置き換わる（かかった順は保つ）
-            var at = -1;
-            fs.forEach(function (f, i) {
-              if (f.key === key) at = i;
-            });
-            if (at >= 0) fs[at] = entry;
-            else fs.push(entry);
-            filters.set(st.array, fs);
+          case "list-display": {
+            if (!st.array) break;
+            if (st.mode === "filter") {
+              if (!st.conds || !st.conds.length) break;
+              var fs = (filters.get(st.array) || []).slice();
+              var key = st.no != null ? "n" + st.no : "f" +
+                st.conds.map(function (c) { return c.field; }).sort().join("|");
+              var entry = {
+                key: key, no: st.no, join: st.join,
+                conds: st.conds.map(function (c) {
+                  return { field: c.field, op: c.op, value: resolve(c.value, self, sc), not: c.not, and: c.and };
+                }),
+              };
+              var at = -1;
+              fs.forEach(function (f, i) { if (f.key === key) at = i; });
+              if (at >= 0) fs[at] = entry;
+              else fs.push(entry);
+              filters.set(st.array, fs);
+            } else if (st.mode === "sort") {
+              if (!st.field) break;
+              sorts.set(st.array, { field: st.field, dir: st.dir });
+            } else if (st.mode === "clear") {
+              if (st.no != null) {
+                filters.set(st.array, (filters.get(st.array) || []).filter(function (f) { return f.no !== st.no; }));
+              } else {
+                filters.delete(st.array);
+              }
+            } else break;
             relist(st.array);
             break;
           }
-          case "unfilter-array":
-            // 番号を指定すればその絞り込みだけ、なければすべて解除
-            if (st.no != null) {
-              filters.set(
-                st.array,
-                (filters.get(st.array) || []).filter(function (f) {
-                  return f.no !== st.no;
-                })
-              );
-            } else filters.delete(st.array);
-            relist(st.array);
-            break;
-          case "sort-array":
-            if (!st.array || !st.field) break;
-            sorts.set(st.array, { field: st.field, dir: st.dir });
-            relist(st.array);
-            break;
           /*/filter*/
           /*#store*/
           case "store-save":
@@ -1228,6 +1242,33 @@ export const SCRIPT_RUNTIME = `function (env) {
             break;
           /*/store*/
           /*#setvar*/
+          case "transform": {
+            if (!st.source || !st.into) break;
+            var inputValue = sc && (has(sc, st.source) ? sc[st.source] : dig(sc, st.source));
+            var sourceRoot = st.source.split(".")[0];
+            var localShadows = !!(sc && (has(sc, st.source) || has(sc, sourceRoot)));
+            var shadowed = has(vars, st.source) || has(vars, sourceRoot) || localShadows;
+            if (inputValue === undefined && !localShadows) inputValue = getVar(st.source);
+            /*#clist*/
+            if (inputValue === undefined && !shadowed && st.rawRef) inputValue = scriptReference(st.rawRef, self, sc);
+            /*/clist*/
+            if (inputValue === undefined && !shadowed && "serverValue" in st) {
+              setVar(st.into, st.serverValue);
+              break;
+            }
+            if (inputValue === undefined && !shadowed && "raw" in st) inputValue = st.raw;
+            // An explicitly missing local variable must not fall back to stale server data
+            // or a similarly named element. This keeps connected fallback blocks reliable.
+            if (inputValue === undefined && !shadowed &&
+                st.transform.kind !== "fallback" && st.transform.kind !== "fallback-nullish")
+              inputValue = lookup(st.source, self, sc);
+            var transformed = evalRecipe(inputValue, [st.transform], transformScope(st.transform, self, sc));
+            if (transformed.kind === "value") setVar(st.into, transformed.value);
+            else if (transformed.kind === "missing") setVar(st.into, undefined);
+            else if (transformed.kind === "error")
+              console.warn("Value transform failed:", transformed.code, st.transform.kind, st.source, st.into);
+            break;
+          }
           case "set-var": {
             /*#clist*/
             if (st.rawRef) {
@@ -1241,278 +1282,11 @@ export const SCRIPT_RUNTIME = `function (env) {
               break;
             }
             // {名前} だけなら値をそのまま入れる（配列はリストで並べられる配列のまま）
-            var sv = /^\\{([^{}]+)\\}$/.exec(String(st.value || "").trim());
+            var sv = /^\\{([^{}\\s"'<>]+)\\}$/.exec(String(st.value || "").trim());
             setVar(st.into, sv ? lookup(sv[1].trim(), self, sc) : resolve(st.value, self, sc));
             break;
           }
           /*/setvar*/
-          /*#calc*/
-          case "calc":
-            setVar(st.into, calc(resolveNum(st.expr, self, sc)));
-            break;
-          /*/calc*/
-          /*#replace*/
-          case "replace": {
-            var rsrc = resolve(st.source, self, sc);
-            var rto = resolve(st.to, self, sc);
-            if (st.regex) {
-              var rpat = (Array.isArray(st.find) ? st.find : [st.find || ""])
-                .map(function (p) {
-                  return typeof p === "string"
-                    ? p
-                    : resolve(p.v, self, sc).replace(/[.*+?^$()|{}[\\]\\\\]/g, "\\\\$&");
-                })
-                .join("");
-              var rre = null;
-              try {
-                rre = rpat ? new RegExp(rpat, "g") : null;
-              } catch (e) {}
-              // 書き方の誤った正規表現なら置き換えない
-              setVar(st.into, rre ? rsrc.replace(rre, rto) : rsrc);
-            } else {
-              var rfind = resolve(st.find, self, sc);
-              setVar(st.into, rfind ? rsrc.split(rfind).join(rto) : rsrc);
-            }
-            break;
-          }
-          /*/replace*/
-          /*#ledit*/
-          case "list-edit": {
-            if (!st.into) break;
-            var lsep = st.sep || ",";
-            var lcur = getVar(st.into);
-            var parts = (Array.isArray(lcur) ? lcur.map(text) : text(lcur).split(lsep))
-              .map(function (x) {
-                return x.trim();
-              })
-              .filter(Boolean);
-            var lv = resolve(st.value, self, sc).trim();
-            if (lv) {
-              var lat = parts.indexOf(lv);
-              if (st.op === "remove" || (st.op === "toggle" && lat >= 0)) {
-                parts = parts.filter(function (x) {
-                  return x !== lv;
-                });
-              } else if (lat < 0) parts.push(lv);
-            }
-            setVar(st.into, parts.join(lsep));
-            break;
-          }
-          /*/ledit*/
-          /*#split*/
-          case "split":
-            setVar(
-              st.into,
-              resolve(st.source, self, sc)
-                .split(st.sep || ",")
-                .map(function (x) {
-                  return x.trim();
-                })
-                .filter(Boolean)
-            );
-            break;
-          /*/split*/
-          /*#item*/
-          case "array-find": {
-            var list = getVar(st.array);
-            var key = resolve(st.value, self, sc);
-            var hit = null;
-            if (Array.isArray(list) && st.field) {
-              for (var fi = 0; fi < list.length; fi++) {
-                // 見本と同じく、ドットを含む実際の項目名をパスより優先する。
-                var fv = list[fi] != null && typeof list[fi] === "object" && has(list[fi], st.field)
-                  ? list[fi][st.field] : dig(list[fi], st.field);
-                var fs = fv == null ? "" : String(fv);
-                if (fs === key || encodeURIComponent(fs) === key) {
-                  hit = list[fi];
-                  break;
-                }
-              }
-            }
-            setVar(st.into, hit);
-            break;
-          }
-          case "array-field": {
-            // 各要素に項目を足す（{項目} だけなら値をそのまま、ほかは文字にして入れる）
-            var av = getVar(st.array);
-            if (!Array.isArray(av) || !st.field) break;
-            var one = /^\\{([^{}]+)\\}$/.exec(String(st.value || "").trim());
-            /*#each*/
-            // 同じ配列の要素ごとのくり返しの中では、くり返し中の要素だけに入れる
-            var lp = cx;
-            while (lp && lp.array !== st.array) lp = lp.up;
-            if (lp) {
-              var lo = {};
-              for (var lk in lp.item) if (has(lp.item, lk)) lo[lk] = lp.item[lk];
-              lo[st.field] =
-                /*#clist*/
-                st.rawRef ? scriptReference(st.rawRef, self, sc) :
-                /*/clist*/
-                one ? lookup(one[1].trim(), self, sc) : resolve(st.value, self, sc);
-              lp.item = lo;
-              var lv2 = av.slice();
-              lv2[lp.index] = lo;
-              // リストの描き直しは、くり返しが終わったときに1回だけ
-              writeVar(st.array, lv2);
-              lp.run.dirty = true;
-              break;
-            }
-            /*/each*/
-            setVar(
-              st.array,
-              av.map(function (x) {
-                if (x == null || Array.isArray(x)) return x;
-                var it = typeof x === "object" ? x : { "値": x };
-                var ao = {};
-                for (var ak in it) if (has(it, ak)) ao[ak] = it[ak];
-                var am = merged(sc, it);
-                ao[st.field] =
-                  /*#clist*/
-                  st.rawRef ? scriptReference(st.rawRef, self, am) :
-                  /*/clist*/
-                  one ? lookup(one[1].trim(), self, am) : resolve(st.value, self, am);
-                return ao;
-              })
-            );
-            break;
-          }
-          case "count": {
-            var name = st.array, itemName = st.itemArray || name, itemHead = itemName.split(".")[0];
-            var source = vars, useFallback = false;
-            // ループ項目が最優先。その後は行を近い順に読み、所有するサーバー行で止まる。
-            if (sc && (has(sc, itemName) || has(sc, itemHead))) {
-              source = sc;
-              name = itemName;
-            } else {
-              var row = self && self.closest && self.closest("[data-row]"), offset = 0;
-              while (row) {
-                if (st.countFallback && st.countFallback.owned && st.countFallback.rowOffset === offset) {
-                  useFallback = true;
-                  break;
-                }
-                /*#clist*/
-                var rowScope = rowScopes.get(row);
-                if (rowScope && (has(rowScope, itemName) || has(rowScope, itemHead))) {
-                  source = rowScope;
-                  name = itemName;
-                  break;
-                }
-                /*/clist*/
-                row = row.parentElement && row.parentElement.closest("[data-row]");
-                offset++;
-              }
-            }
-            var owns = has(source, name) || has(source, name.split(".")[0]);
-            var src = has(source, name) ? source[name] : dig(source, name);
-            // Canvas の項目は React が描画し、実行側の data-row を持たない。
-            if (st.countFallback && (useFallback || !owns ||
-                (source === vars && st.countFallback.owned && !has(st.countFallback, "rowOffset")))) {
-              src = undefined;
-              useFallback = true;
-            }
-            var ca = src;
-            var cn = useFallback ? st.countFallback.value : Array.isArray(ca) ? ca.length : 0;
-            // 明示された配列・空の値よりリストを優先しない。
-            var countList = source === vars && !owns && !(st.countFallback && st.countFallback.owned);
-            var cl0 = null;
-            if (!Array.isArray(ca)) {
-              try {
-                var candidates = Array.prototype.filter.call(root.querySelectorAll('[data-array="' + CSS.escape(st.array) + '"]'), function (l) { return !inTpl(l); });
-                if (countList) cl0 = candidates[0];
-                if (useFallback && st.countFallback.owned && st.countFallback.value > 0) {
-                  var owner = row, rowSelector = "[data-row]";
-                  if (!has(st.countFallback, "rowOffset")) {
-                    // Canvas は項目の data-item を持つが data-row は持たない。
-                    rowSelector = "[data-item]";
-                    owner = self && self.closest && self.closest(rowSelector);
-                    while (owner) {
-                      var ownerItem = JSON.parse(owner.getAttribute("data-item") || "{}") || {};
-                      if (has(ownerItem, itemName) || has(ownerItem, itemHead)) break;
-                      owner = owner.parentElement && owner.parentElement.closest(rowSelector);
-                    }
-                  }
-                  // 所有しない中間行も同じ配列を継承する。操作位置から所有者まで、
-                  // 近い行のリストを優先し、兄弟行や所有者より外側へは出ない。
-                  var countRow = self && self.closest && self.closest(rowSelector);
-                  while (owner && countRow) {
-                    cl0 = candidates.find(function (list) { return list.closest(rowSelector) === countRow; });
-                    if (cl0 || countRow === owner) break;
-                    countRow = countRow.parentElement && countRow.parentElement.closest(rowSelector);
-                  }
-                }
-                if (cl0) cn = Array.prototype.filter.call(cl0.children, function (w) { return w.hasAttribute("data-item"); }).length;
-              } catch (e) {}
-            }
-            /*#filter*/
-            // 件数は、いまかかっている絞り込みの後の数
-            var cf = filters.get(st.array) || [];
-            if (Array.isArray(ca)) {
-              cn = itemsOf(ca).filter(function (x) {
-                return passes(cf, x);
-              }).length;
-            } else {
-              var cl = cl0;
-              if (cl) {
-                cn = Array.prototype.filter.call(cl.children, function (w) {
-                  return w.hasAttribute("data-item") && passes(cf, itemOf(w));
-                }).length;
-              }
-            }
-            /*/filter*/
-            setVar(st.into, cn);
-            break;
-          }
-          case "join": {
-            var name = st.array, itemName = st.itemArray || name, itemHead = itemName.split(".")[0];
-            var source = vars, useFallback = false;
-            // ループ項目が最優先。その後は行を近い順に読み、所有するサーバー行で止まる。
-            if (sc && (has(sc, itemName) || has(sc, itemHead))) {
-              source = sc;
-              name = itemName;
-            } else {
-              var row = self && self.closest && self.closest("[data-row]"), offset = 0;
-              while (row) {
-                if (st.joinFallback && st.joinFallback.owned && st.joinFallback.rowOffset === offset) {
-                  useFallback = true;
-                  break;
-                }
-                /*#clist*/
-                var rowScope = rowScopes.get(row);
-                if (rowScope && (has(rowScope, itemName) || has(rowScope, itemHead))) {
-                  source = rowScope;
-                  name = itemName;
-                  break;
-                }
-                /*/clist*/
-                row = row.parentElement && row.parentElement.closest("[data-row]");
-                offset++;
-              }
-            }
-            var owns = has(source, name) || has(source, name.split(".")[0]);
-            var src = has(source, name) ? source[name] : dig(source, name);
-            // Canvas の項目は React が描画し、実行側の data-row を持たない。
-            if (st.joinFallback && (useFallback || !owns ||
-                (source === vars && st.joinFallback.owned && !has(st.joinFallback, "rowOffset")))) {
-              setVar(st.into, st.joinFallback.value);
-              break;
-            }
-            setVar(
-              st.into,
-              Array.isArray(src)
-                ? src
-                    .map(function (x) {
-                      var v = st.field && x && typeof x === "object" ? dig(x, st.field) : x;
-                      return v == null || typeof v === "object" ? "" : String(v);
-                    })
-                    .filter(function (x) {
-                      return x !== "";
-                    })
-                    .join(st.sep || "")
-                : text(src)
-            );
-            break;
-          }
-          /*/item*/
           /*#copy*/
           case "copy": {
             var tx = resolve(st.value, self, sc);
@@ -1541,15 +1315,14 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*#repeat*/
       // times 回（0 = ずっと）中のブロックをくり返す。ずっとのときは止まらないよう少し間をあける
-      function loop(st, self, cx, n, active) {
-        var times = Number(st.times) || 0;
-        if (!active() || (times > 0 && n >= times)) return Promise.resolve();
+      function loop(st, self, cx, n, active, times, forever) {
+        if (!active() || (!forever && n >= times)) return Promise.resolve();
         return runSteps(st.then, self, cx, active)
           .then(function () {
-            return !active() || times > 0 ? null : sleep(0.05);
+            return !active() || !forever ? null : sleep(0.05);
           })
           .then(function () {
-            return loop(st, self, cx, n + 1, active);
+            return loop(st, self, cx, n + 1, active, times, forever);
           });
       }
       /*/repeat*/
@@ -1576,11 +1349,15 @@ export const SCRIPT_RUNTIME = `function (env) {
           while (active() && i < steps.length) {
             var st = steps[i++];
             /*#wait*/
-            if (st.kind === "wait") return sleep(st.seconds).then(next);
+            if (st.kind === "wait") {
+              var seconds = numericAmount(st.seconds, self, scopeOf(cx), lookup);
+              if (!Number.isFinite(seconds) || seconds < 0) continue;
+              return sleep(seconds).then(next);
+            }
             /*/wait*/
             /*#if*/
             if (st.kind === "if") {
-              var branch = test(st.cond, self, scopeOf(cx)) ? st.then : st.else;
+              var branch = testConditions(st, self, scopeOf(cx)) ? st.then : st.else;
               if (branch && branch.length) {
                 return runSteps(branch, self, cx, active).then(next);
               }
@@ -1590,7 +1367,11 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*#repeat*/
             if (st.kind === "repeat") {
               if (!st.then || !st.then.length) continue;
-              return loop(st, self, cx, 0, active).then(next);
+              var count = numericAmount(st.times, self, scopeOf(cx), lookup);
+              if (!Number.isInteger(count) || count < 0 || count > 1000) continue;
+              var forever = typeof st.times === "number" && st.times === 0;
+              if (!forever && count === 0) continue;
+              return loop(st, self, cx, 0, active, count, forever).then(next);
             }
             /*/repeat*/
             /*#each*/
@@ -1918,12 +1699,7 @@ type RuntimeFeature =
   | "wait"
   | "if"
   | "store"
-  | "split"
-  | "ledit"
   | "setvar"
-  | "calc"
-  | "replace"
-  | "item"
   | "copy"
   | "repeat"
   | "each"
@@ -1935,6 +1711,7 @@ const STEP_FEATURE: Record<
   RuntimeFeature
 > = {
   show: "show",
+  "set-state": "show",
   hide: "show",
   toggle: "show",
   "scroll-to": "scroll",
@@ -1942,20 +1719,11 @@ const STEP_FEATURE: Record<
   "open-url": "go",
   "set-value": "set",
   "set-enabled": "set",
-  "filter-array": "filter",
-  "unfilter-array": "filter",
-  "sort-array": "filter",
+  "list-display": "filter",
   "store-save": "store",
   "store-load": "store",
-  split: "split",
-  "list-edit": "ledit",
   "set-var": "setvar",
-  calc: "calc",
-  replace: "replace",
-  "array-find": "item",
-  "array-field": "item",
-  join: "item",
-  count: "item",
+  transform: "setvar",
   copy: "copy",
   wait: "wait",
   if: "if",
@@ -2012,7 +1780,10 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
     walkSteps(s.steps, (st) => {
       if (isDataStep(st)) return;
       out.add(STEP_FEATURE[st.kind]);
-      if (st.kind === "if") out.add(st.cond.subject);
+      if (st.kind === "if") {
+        for (const condition of [st.cond, ...(st.conditions ?? [])])
+          out.add(condition.subject);
+      }
     });
   }
   // 画面上で値が決まる配列を並べるリスト

@@ -59,8 +59,8 @@ test('text tokens preserve own roots, fallback strings, escapes, slug and child 
   (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
   for (const key of ['name', 'profile', 'slug']) doc.pages.p.pageScripts![0].steps.push({ id: key, kind: 'set-var', value: `{response.0.${key}}`, into: key });
   doc.pages.p.pageScripts![0].steps.push(
-    { id: 'fallback', kind: 'split', source: 'Server \\{name}', sep: ',', into: 'fallback' },
-    { id: 'private', kind: 'split', source: 'UNUSED_SERVER_PRIVATE', sep: ',', into: 'private' },
+    { id: 'fallback', kind: 'set-var', value: 'Server \\{name}', into: 'fallback' },
+    { id: 'private', kind: 'set-var', value: 'UNUSED_SERVER_PRIVATE', into: 'private' },
   );
   doc.nodes.detail.text!.content = '{name}|{profile.label}|[slug]|\\{name}|{fallback}';
   doc.nodes.detail.children.push('child');
