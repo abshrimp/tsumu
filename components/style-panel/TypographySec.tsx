@@ -6,6 +6,7 @@
 
 import { isEnterKey } from "../../lib/keys";
 import { useState } from "react";
+import { usePendingImport } from "../../lib/use-pending-import";
 import {
   AlignCenter,
   AlignLeft,
@@ -50,7 +51,8 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const updateDoc = useEditor((s) => s.updateDoc);
   const [adding, setAdding] = useState(false);
   const [family, setFamily] = useState("");
-  const [busy, setBusy] = useState(false);
+  const pending = usePendingImport(JSON.stringify([insp.editTarget, insp.get("fontFamily").value]));
+  const { busy } = pending;
   const [error, setError] = useState<string | null>(null);
 
   const fonts = allFonts(doc.customFonts);
@@ -58,13 +60,14 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const addFont = async () => {
     const name = family.trim().replace(/\s+/g, " ");
     if (!name) return;
-    setBusy(true);
+    const request = pending.begin();
     setError(null);
     try {
       // 利用可能なウェイトを実際のcss2応答から解析する
       //（css2は存在しないウェイトを黙って間引くが、next/fontは厳格なため）
       const enc = encodeURIComponent(name).replace(/%20/g, "+");
       const tryFetch = async (axis: string): Promise<string | null> => {
+        if (!request.current()) return null;
         try {
           // css2のエラー応答はCORSヘッダーを持たず例外になる
           const res = await fetch(
@@ -94,6 +97,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
           };
         }
       }
+      if (!request.current()) return;
       if (!found) {
         setError(
           tr("Google Fontsに見つかりませんでした。fonts.google.com の表記どおりに入力してください")
@@ -110,9 +114,10 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
       setAdding(false);
       setFamily("");
     } catch {
+      if (!request.current()) return;
       setError(tr("確認できませんでした。ネットワークを確認してください"));
     } finally {
-      setBusy(false);
+      request.finish();
     }
   };
 
@@ -133,7 +138,10 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
         <button
           className={`icon-btn${adding ? " is-on" : ""}`}
           data-tip={tr("Google Fontsから追加")}
-          onClick={() => setAdding(!adding)}
+          onClick={() => {
+            pending.cancel();
+            setAdding(!adding);
+          }}
         >
           <Plus size={13} />
         </button>
@@ -145,7 +153,10 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
               className="input"
               value={family}
               placeholder={tr("fonts.google.com の名前（例: Shippori Mincho）")}
-              onChange={(e) => setFamily(e.target.value)}
+              onChange={(e) => {
+                pending.cancel();
+                setFamily(e.target.value);
+              }}
               onKeyDown={(e) => {
                 if (isEnterKey(e)) void addFont();
               }}
