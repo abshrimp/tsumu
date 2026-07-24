@@ -13,7 +13,7 @@ const homeMocks: Plugin = {
   setup(build) {
     build.onResolve({ filter: /.*/ }, (args) => {
       if (args.importer !== resolve("components/Home.tsx")) return;
-      if (args.path.startsWith("./") || ["../lib/status", "../lib/no-dblclick-select", "next-auth/react"].includes(args.path)) {
+      if ((args.path.startsWith("./") && args.path !== "./DialogHost") || ["../lib/status", "../lib/no-dblclick-select", "next-auth/react"].includes(args.path)) {
         return { path: args.path, namespace: "home-presentation" };
       }
     });
@@ -31,7 +31,7 @@ const homeMocks: Plugin = {
 export async function homeSiteFixture(storage: Storage) {
   const result = await build({
     stdin: {
-      contents: "export { default as Home } from './components/Home'; export { loadLocalSites } from './lib/site';",
+      contents: "export { default as Home } from './components/Home'; export { loadLocalSites } from './lib/site'; export { useDialogs, closeDialog } from './lib/dialog';",
       resolveDir: repo, loader: "tsx",
     },
     bundle: true, platform: "node", format: "cjs", packages: "external", write: false,
@@ -93,6 +93,23 @@ export async function homeSiteFixture(storage: Storage) {
       render();
       find((e) => e.props?.site?.id === id && e.props.onDuplicate).props.onDuplicate();
       render();
+    },
+    settings(id: string) {
+      render();
+      find((e) => e.props?.site?.id === id && e.props.onSettings).props.onSettings();
+      render();
+    },
+    remove(id: string) {
+      render();
+      find((e) => e.props?.site?.id === id && e.props.onDelete).props.onDelete();
+    },
+    flush: () => new Promise<void>((resolve) => setImmediate(resolve)),
+    prompt: () => module.exports.useDialogs.getState().queue[0],
+    answer(value?: string | null) {
+      const prompt = module.exports.useDialogs.getState().queue[0];
+      if (!prompt) throw new Error("No confirmation dialog");
+      module.exports.closeDialog(prompt.id);
+      prompt.resolve(value);
     },
     create() {
       render();
