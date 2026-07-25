@@ -19,7 +19,7 @@ import { EMPTY_GIF, pwaIconType } from "./templates";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME, pageDataPlan, pageDataServerIds } from "./browser-data";
 import { QUERY_VARIANT_RUNTIME } from "./query-route";
-import { safeNavigationUrl } from "../url-policy";
+import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
@@ -93,6 +93,15 @@ function href(ctx: Context, value: string): string {
   );
   if (page) return pageHref(ctx, page.id) + (match?.[2] ?? "");
   return ctx.prefix + safe.replace(/^\/+/, "");
+}
+
+/** A media source can be inline data or a site-local file, never an active URL scheme. */
+function sourceHref(ctx: Context, value: string): string {
+  const safe = safeResourceUrl(value);
+  // Media paths are file references, not page links. Never resolve a coincident
+  // page slug to index.html when the source actually points to an asset.
+  return !ctx.spa && /^\/(?!\/)/.test(safe)
+    ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
 }
 
 function pageHref(ctx: Context, id: string): string {
@@ -200,7 +209,7 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "divider") return "<hr" + commonAttrs + ">";
     if (n.type === "image" && n.image) {
       const im = n.image;
-      const src = im.assetId ? resource(ctx, im.assetId) : href(ctx, im.src);
+      const src = im.assetId ? resource(ctx, im.assetId) : sourceHref(ctx, im.src);
       const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
         (hasVars(src) ? attr("data-static-src", src) : "") +
         (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src)) : "") +
@@ -224,7 +233,7 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "media" && n.media) {
       const media = n.media;
       const tag = media.kind === "audio" ? "audio" : "video";
-      const src = media.assetId ? resource(ctx, media.assetId) : href(ctx, media.src);
+      const src = media.assetId ? resource(ctx, media.assetId) : sourceHref(ctx, media.src);
       if (!src) return "";
       return "<" + tag + commonAttrs + attr("src", src) + " controls" +
         flag("loop", media.loop) + flag("autoplay", media.autoplay) +

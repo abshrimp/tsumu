@@ -15,7 +15,7 @@ export interface Loc {
   index: number;
 }
 
-export function listIn(script: PageScript, list: string): ScriptStep[] | null {
+export function listIn(script: PageScript, list: string, createMissing = false): ScriptStep[] | null {
   if (list === "root") return script.steps;
   const [sid, branch] = list.split(":");
   let found: ScriptStep[] | null = null;
@@ -31,7 +31,7 @@ export function listIn(script: PageScript, list: string): ScriptStep[] | null {
       }
       if (s.kind !== "if") continue;
       if (s.id === sid) {
-        found = branch === "else" ? (s.else ??= []) : s.then;
+        found = branch === "else" ? (s.else ?? (createMissing ? (s.else = []) : null)) : s.then;
         return;
       }
       visit(s.then);
@@ -73,7 +73,7 @@ export function insertAt(
 ): PageScript[] {
   const next = structuredClone(scripts);
   const script = next.find((s) => s.id === loc.scriptId);
-  const list = script && listIn(script, loc.list);
+  const list = script && listIn(script, loc.list, true);
   if (!list) return scripts;
   list.splice(loc.index, 0, ...steps);
   return next;

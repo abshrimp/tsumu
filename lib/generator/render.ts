@@ -450,13 +450,16 @@ ${indent}</div>`;
     const m = node.media;
     const src = m.assetId ? assetPath(ctx, m.assetId) : m.src;
     if (!src.trim()) return "";
+    // Keep literal media URL syntax while denying executable browser schemes.
+    const normalized = src.replace(/[\u0000-\u0020\u007f]/g, "").toLowerCase();
+    const mediaSrc = /^(?:javascript:|vbscript:|data:text\/html(?:[;,]|$))/.test(normalized) ? "#" : src;
     const extra = [
       m.loop ? " loop" : "",
       m.autoplay ? " autoPlay" : "",
       m.muted || m.autoplay ? " muted" : "",
       m.kind === "video" ? " playsInline" : "",
     ].join("");
-    return `${indent}<${m.kind === "audio" ? "audio" : "video"}${idAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  src=${jsxString(src)}\n${indent}  controls${extra}\n${indent}/>`;
+    return `${indent}<${m.kind === "audio" ? "audio" : "video"}${idAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  src=${jsxString(mediaSrc)}\n${indent}  controls${extra}\n${indent}/>`;
   }
 
   if (node.type === "embed" && node.embed) {

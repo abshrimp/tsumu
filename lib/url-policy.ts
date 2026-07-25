@@ -11,6 +11,14 @@ export function safeNavigationUrl(value: string): string {
   return url;
 }
 
+/** Preserve supported inline image/audio/video resources while rejecting executable URL schemes. */
+export function safeResourceUrl(value: string): string {
+  const url = value.trim();
+  if (/^data:(?:image|video|audio)\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+$/i.test(url)) return url;
+  if (/^blob:/i.test(url)) return url;
+  return safeNavigationUrl(url);
+}
+
 /** ブラウザ用の素のJS。生成サイトとエディタの判定の一致はテストで確認する。 */
 export const NAVIGATION_RUNTIME = String.raw`function safeNavigationUrl(value) {
   var url = value.trim();
