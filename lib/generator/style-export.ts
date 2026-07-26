@@ -116,7 +116,6 @@ function addCssModules(files: Record<string, string>, framework: ExportFormat) {
         if (files[name]) files[name] = files[name].replace('"./site.css"', '"./site-global.css"');
       }
       files["src/App.vue"] = files["src/App.vue"]
-        .replace('<script setup', '<script setup')
         .replace(/(<script setup(?: lang="ts")?>)/,
           '$1\nimport siteStyles from "./site.module.css";')
         .replace("<template>", '<template>\n  <div :class="siteStyles.siteRoot" style="display:contents">')
@@ -164,10 +163,7 @@ function addTailwind(files: Record<string, string>, framework: ExportFormat) {
       ? Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js"
       : Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js";
     files[config] = 'import tailwindcss from "@tailwindcss/vite";\n' + files[config];
-    const plugin = framework === "react" ? "plugins: [tailwindcss()," : "plugins: [";
-    if (framework === "react") files[config] = files[config]
-      .replace("plugins: [tailwindcss(),", "plugins: [tailwindcss(),");
-    else if (framework === "vue") files[config] = files[config]
+    if (framework === "vue") files[config] = files[config]
       .replace("plugins: [vue()]", "plugins: [vue(), tailwindcss()]");
     else files[config] = files[config]
       .replace("plugins: [sveltekit()]", "plugins: [sveltekit(), tailwindcss()]");

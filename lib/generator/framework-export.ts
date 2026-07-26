@@ -21,6 +21,12 @@ function json(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** Quote a font name as a single CSS string token. */
+function cssQuoted(value: string): string {
+  return '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
+    "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
+}
+
 function fonts(doc: SiteDoc): string {
   const fonts = usedGoogleFonts(doc);
   const imports = fonts.map((font) =>
@@ -28,8 +34,8 @@ function fonts(doc: SiteDoc): string {
     encodeURIComponent(font.value).replace(/%20/g, "+") +
     ':wght@' + (font.google?.weights?.length ? font.google.weights.join(";") : "400") +
     '&display=swap");');
-  const declarations = fonts.map((font) =>
-    "  " + font.google!.cssVar + ': "' + font.value.replace(/"/g, '\\"') + '", sans-serif;');
+  const declarations = fonts.filter((font) => /^--[\w-]+$/.test(font.google!.cssVar)).map((font) =>
+    "  " + font.google!.cssVar + ": " + cssQuoted(font.value) + ", sans-serif;");
   return imports.join("\n") + (declarations.length ? "\n:root {\n" +
     declarations.join("\n") + "\n}\n" : "");
 }
