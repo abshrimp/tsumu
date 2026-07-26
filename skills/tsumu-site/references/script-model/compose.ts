@@ -1,4 +1,4 @@
-/** Recipes are pure transformations. Older set-var steps keep their value string. */
+/** Recipes are pure transformations; set-var remains a separate script action. */
 export type NumericOperation = "add" | "subtract" | "multiply" | "divide" | "remainder";
 export type CompareOperation = "eq" | "gt" | "gte" | "lt" | "lte" | "contains" | "starts-with" | "ends-with" | "in" | "empty";
 export interface ValueCondition {

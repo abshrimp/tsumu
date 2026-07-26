@@ -11,16 +11,17 @@
 - エディタの画面は、これを読んで書き換えます。
 - 同時編集は、これを同期します。
 - AI は、これへの編集を提案します。
-- 生成処理は、これを Next.js プロジェクトに変換します。
+- 生成処理は、これを Next.js プロジェクトに変換します。ほかの出力形式は、その結果から作ります。
+- インポートは、Tsumu の zip・`doc.json`・一般的な HTML から、これを作ります。
 
 `SiteDoc` さえ押さえておけば、ほかの部分もたどっていけます。
 
 ```
            ┌────────── edit (zustand store, undo) ────────────┐
            │                                                  │
- Canvas / panels ──▶ SiteDoc ──▶ generator ──▶ files ──▶ GitHub (main / preview)
+ Canvas / panels ──▶ SiteDoc ──▶ generator ──▶ files ──▶ GitHub (main / preview) or zip
            ▲            │  ▲                                  │
-           │            │  └─ AI ops (validated on a copy)    └─▶ any Next.js host
+           │            │  └─ AI ops (validated on a copy)    └─▶ any host
            │            ▼
            └── D1 + Durable Object (save, three-way merge, live updates)
 ```
@@ -37,7 +38,7 @@
 
 `DocNode` は必ず `type` と `semantic`（出力する HTML タグ）を持ち、必要に応じて中身（`text`・`image`・`field`・`media`・`list` など）、`styles`、`scripts`、`motions` を持ちます。
 
-- **スタイル**は `styles[breakpoint][state][cssProperty]` の形で持ちます。状態は `default`・`hover`・`active`・`focus` のどれかで、値はどれもふつうの CSS の文字列です。
+- **スタイル**は `styles[breakpoint][state][cssProperty]` の形で持ちます。状態は `default`・`hover`・`active`・`focus`、または名前付きの状態 `custom:<名前>` のどれかで、値はどれもふつうの CSS の文字列です。名前付きの状態は、要素の `data-site-state` 属性がその名前のときに適用され、スクリプトの `set-state` 手順で切り替えます（`lib/custom-states.ts`）。
 - **スクリプト**はコードではなくデータで、きっかけと、それに続く手順（`Script`・`ScriptStep`）でできています。データの形は `lib/script.ts` で定義しています。実行するのは `lib/script-runtime.ts` で、キャンバスのプレビューと書き出したサイトの両方がこれを使います。書き出すときは、そのサイトが実際に使う機能だけを残します。
 - **リスト**は、配列の項目ごとに、お手本の子要素を繰り返し表示します。配列はデータ取得の手順か、静的なデータから受け取ります。項目ごとに詳細ページ（`/news/[slug]` など）を作ることもできます。
 
@@ -51,8 +52,10 @@
 | エディタの状態、元に戻す・やり直す | `lib/store.ts`（zustand）。変更はすべてストアを通すので、元に戻す処理にも同期にも反映されます。 |
 | キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）<br>`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイル）<br>`ScriptEditor.tsx` と `script-editor/`（パレット、ブロック、手順の本体、入力欄、`useScriptDrag`、`useScriptEditorKeys`）<br>`SitePanel.tsx` |
 | スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts` |
-| 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が `{ files, binaries, remoteAssets }` を返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
-| 公開 | `components/PublishModal.tsx`（ブラウザ側）から `app/api/publish/route.ts`（GitHub Git Data API）へ。詳しくは [公開のしくみ](#公開のしくみ) を参照してください。 |
+| 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が Next.js プロジェクトを `{ files, binaries, remoteAssets }` として返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
+| 出力形式 | `lib/export-formats.ts` と、`lib/generator/` のそのほかのファイル。詳しくは [出力形式](#出力形式) を参照してください。 |
+| 公開と zip での書き出し | `components/PublishModal.tsx`（ブラウザ側）から `app/api/publish/route.ts`（GitHub Git Data API）へ。詳しくは [公開のしくみ](#公開のしくみ) を参照してください。<br>`components/Header.tsx` の `ExportModal` から `lib/exportZip.ts` へ |
+| インポート | `lib/import-site-file.ts`（ファイルから新しいサイトを作る）、`lib/site-import.ts`（Tsumu の zip と `doc.json`）、`lib/portable-doc.ts`（圧縮した `doc.json`）、`lib/html-to-site.ts` と `html-file-import.ts`・`html-zip.ts`（HTML）。詳しくは [インポート](#インポート) を参照してください。 |
 | 公開前チェック | `lib/generator/checks.ts` の `runChecks`。リンク切れ、代替テキスト、見出しの順序、小さすぎる文字、はみ出しを調べます。 |
 | 保存 | `lib/doc-storage.ts`：D1。サイトごとに1行で、`rev` を使った楽観的ロック<br>`lib/local-storage.ts`：D1 がないときの代わり<br>`lib/kv.ts`：アセット<br>`lib/node-storage.ts`：Cloudflare 以外で動かすときの SQLite とファイル |
 | 同時編集 | `custom-worker.ts`：サイトごとに1つの Durable Object（WebSocket）<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker での Server-Sent Events<br>`lib/collab.ts`：やり取りするメッセージ<br>`lib/merge.ts`：3方向マージ。まずノードの ID ごと、次に項目ごとに突き合わせます。配列は丸ごと1つの値として扱います。 |
@@ -101,7 +104,7 @@
 
 公開は4つの段階で進みます。
 
-1. ブラウザがプロジェクトを生成し、`_tsumu/doc.json` を加えます。これは文書のコピーで、編集内容の復元とロールバックに使います。
+1. ブラウザが、選ばれた形式でプロジェクトを生成し（`prepareExportProject`）、`_tsumu/doc.json` を加えます。これは文書のコピーで、編集内容の復元とロールバックに使います。
 2. 公開先のブランチに今あるファイルの一覧を、サーバーに問い合わせます（`action: "tree"`）。blob の SHA がすでにあるアセットは、アップロードし直しません。保存先のキーと SHA の対応は `_tsumu/assets.json` に記録しています。
 3. 大きなファイルとアセットは、1件ずつ別のリクエストでアップロードします（`action: "upload"`）。こうすることで、1回のリクエストを Workers 無料プランのサブリクエスト数の上限に収めています。
 4. ブラウザがコミットを依頼します（`action: "commit"`）。サーバーはファイルの一覧を分割して組み立て、ブランチを進めます。
@@ -119,7 +122,37 @@
 
 ロールバック（`app/api/publish/history/route.ts`）は、過去の時点のファイル一式を、ブランチの先頭に新しいコミットとして積み直します。履歴を書き換えることはありません。
 
-## HTML ZIP の読み込み
+## 出力形式
+
+`lib/export-formats.ts` の `prepareExportProject(doc, options, target)` は、公開と zip での書き出しに共通の処理です。そのため、どちらでも同じファイルができます。
+
+1. **出力範囲**：`exportScopeDoc` が、指定に応じて文書を現在のページか選択中の要素に絞ります。絞った文書には、その範囲で使うノード・コンポーネント・アセットだけを残すので、一部だけを書き出すときにほかのページの内容が入ることはありません。
+2. **制限**：`exportLimitations` が、選んだ形式で表現できない機能（動的パス、リダイレクト、HTMLページ、データ取得の認証情報など）を列挙します。画面はこれらをエラーとして表示し、解消するまで先へ進めません。
+3. **まず Next.js**：`generateProject` は必ず実行します。ほかの形式は、その出力と文書から作ります。
+
+| 形式 | ファイル |
+|---|---|
+| React + Vite | `react-export.ts`、`react-form.ts` |
+| Vue 3 + Vite・Nuxt・SvelteKit | `framework-export.ts`（プロジェクトのファイル）、`native-scaffold.ts` と `native-components.ts`（各ノードを Vue・Svelte の要素として出力し、サーバーで描画したあとブラウザ側で動作を引き継ぐ）、`native-data.ts`、`vue-ssr.ts` |
+| HTML / CSS / JavaScript | `html-export.ts`、`browser-data.ts`（ブラウザでのデータ読み込み）、`query-route.ts`（クエリ別ページを1つの静的ファイルで表示） |
+| 単一のHTML | `single-html.ts`。HTML 形式の CSS・スクリプト・アセットを埋め込みます。 |
+
+4. **言語とスタイル**：`javascript-export.ts` が、Next.js と React の TypeScript の出力を JavaScript に変換します。Vue・Nuxt・SvelteKit は、選ばれた言語で直接書き出します。`style-export.ts` が CSS Modules・Tailwind CSS を作ります。
+5. **テスト公開**：Next.js 以外の形式では、テスト公開のときに `noindex` の meta タグを加え、単一のHTML以外には `robots.txt` と `_headers` も加えます。
+
+外部のデータを取得する生成コードには、エディタ本体と同じ SSRF 対策を埋め込みます。`lib/generator/safe-fetch-source.ts` は `lib/safe-fetch.ts` の写しなので、手で編集せず、`node --import tsx scripts/sync-fetch-runtime.mts` で作り直してください（両者がずれるとテストが失敗します）。どの形式でも、メディアとリンクの URL は `lib/url-policy.ts` を通します。
+
+## インポート
+
+`lib/import-site-file.ts` の `createSiteFromFile` は、サイトを作る前にすべての準備を済ませ、それから文書をサーバーかブラウザに保存します。保存に失敗したときは、そのときアップロードしたアセットを削除します。
+
+- **Tsumu の zip・`doc.json`**（`lib/site-import.ts`）：zip には `_tsumu/doc.json` がちょうど1つ必要です。`_tsumu/assets.json` は、元のアセットの ID とアーカイブ内のファイルを対応付けます。`doc.json` は、ふつうの JSON か、`lib/portable-doc.ts` の gzip＋Base64 の圧縮形式です。文書を検証し、アセットを元の ID のままアップロードし直します。パスの推測はしないので、対応表になく data URL も持たないアセットは復元せず、注意事項として表示します。ルートの外を指すアーカイブ内の名前は拒否します。
+- **HTML ファイル・ウェブサイトの zip**（`lib/html-to-site.ts`）：すべてのページを編集できるノードに変換します。クラスと、安全な一部の属性は残します（`lib/imported-html-attrs.ts`）。イベント属性、URL を持つ属性、Tsumu 内部の `data-*` の目印は、決して引き継ぎません。
+- **上限**（`IMPORT_LIMITS`）：zip は100MB、`doc.json` と HTML ファイルは12MB、展開後は500ファイル・300MBまでです。
+
+エディタのページの設定からは、1つのページに HTML を読み込むこともできます。ノードに変換するか、HTMLページとしてそのまま使うかを選べます。後者については次の節で説明します。
+
+### HTML ZIP の読み込み
 
 `lib/html-zip.ts` は、ZIP にまとめたサイト（200ファイルまで）を読み込みます。元のファイルは手を加えずに保存し、それとは別に、CSS ファイルごとに依存しているファイルのアーカイブ内のパスを `lib/zip-css.ts` が記録します。記録するのは、相対パスの `url()`、`image-set()` の画像、`@import` で、いずれもそのスタイルシートが置かれたディレクトリを基準に解決します（`lib/zip-references.ts`）。この記録があるのは新しく読み込んだ ZIP だけで、以前に読み込んだものは移行していません。必要なら ZIP を読み込み直してください。
 
@@ -147,6 +180,7 @@ AI の作業中に利用者が同じページを編集していた場合、AI �
 - **テスト**：新しい動作には、テストが必要です。
   - 単体テストは `tests/` に置きます。`tsx` 経由で Node の組み込みのテストランナーを使い、`lib/` のモジュールを直接読み込みます。
   - 画面操作のテストは `e2e/`（Playwright）に置きます。ビルドしたエディタを Node.js で起動し、使い捨ての `TSUMU_DATA_DIR` と `ALLOW_ANONYMOUS=true` を指定して動かします。
+  - 出力形式は CI で実際にビルドしています。`scripts/smoke-export-build.mts` がサンプルのプロジェクトを `.generated-export-smoke/` に生成し、`check-generated-ssr.mts` と `check-generated-browser.mts` がその結果を動かします。
 
 ```bash
 npm run typecheck

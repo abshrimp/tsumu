@@ -39,6 +39,15 @@ npm run test:e2e
 
 If you change the Cloudflare integration, also run `npm run build:worker`. None of these checks deploy anything; deployment is a separate step.
 
+If you change an output format (`lib/export-formats.ts` or `lib/generator/`), generate and build a sample project for the affected frameworks. CI does this for every framework in TypeScript and JavaScript.
+
+```sh
+node --import tsx scripts/smoke-export-build.mts <nextjs|react|vue|nuxt|sveltekit> [typescript|javascript]
+(cd .generated-export-smoke && npm install && npm run build)
+```
+
+If you change `lib/safe-fetch.ts`, run `node --import tsx scripts/sync-fetch-runtime.mts` to regenerate the copy that exported sites embed (`lib/generator/safe-fetch-source.ts`).
+
 ## Reporting problems
 
 Use [Issues](https://github.com/abshrimp/tsumu/issues) for reproducible bugs and feature proposals. Please include:
