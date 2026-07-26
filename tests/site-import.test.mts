@@ -51,13 +51,51 @@ test("nested export ZIP includes editable source and exact original asset mappin
   assert.equal(new TextDecoder().decode(result.assets.get("original-image")), svg);
 });
 
-test("archives without assets remain importable and produce warnings", async () => {
+test("editable ZIPs without the current asset manifest are rejected", async () => {
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
+  await assert.rejects(parseSiteImport(
+    await zip.generateAsync({ type: "uint8array" }), "zip"), /_tsumu\/assets\.json/);
+});
+
+test("missing asset bytes in a current ZIP produce warnings without guessing paths", async () => {
+  const zip = new JSZip();
+  zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
+  zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
+    version: 1, assets: { "original-image": "public/assets/logo.svg" },
+  }));
   const result = await parseSiteImport(
     await zip.generateAsync({ type: "uint8array" }), "zip");
   assert.equal(result.assets.size, 0);
   assert.match(result.warnings.join("\n"), /logo.svg/);
+});
+
+test("legacy fallback paths cannot substitute for a missing mapped asset", async () => {
+  const doc = fixture();
+  const zip = new JSZip();
+  zip.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
+  zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
+    version: 1, assets: { "original-image": "public/assets/current-logo.svg" },
+  }));
+  zip.file("public/assets/logo.svg", "<svg/>");
+  zip.file("assets/logo.svg", "<svg/>");
+  const result = await parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip");
+  assert.equal(result.assets.size, 0);
+  assert.match(result.warnings.join("\n"), /logo.svg/);
+});
+
+test("malformed or incomplete ZIP asset manifests are rejected", async () => {
+  for (const manifest of [
+    { version: 2, assets: { "original-image": "public/assets/logo.svg" } },
+    { version: 1, assets: {} },
+    { version: 1, assets: { "original-image": "../escape.svg" } },
+  ]) {
+    const zip = new JSZip();
+    zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
+    zip.file(EDITABLE_ASSETS_PATH, JSON.stringify(manifest));
+    await assert.rejects(parseSiteImport(
+      await zip.generateAsync({ type: "uint8array" }), "zip"), /アセット対応表/);
+  }
 });
 
 test("embedded data URLs remain valid when ZIP asset bytes are missing", async () => {
@@ -65,6 +103,9 @@ test("embedded data URLs remain valid when ZIP asset bytes are missing", async (
   doc.assets["original-image"].dataUrl = "data:image/svg+xml;base64,PHN2Zy8+";
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
+  zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
+    version: 1, assets: { "original-image": "public/assets/logo.svg" },
+  }));
   const result = await parseSiteImport(
     await zip.generateAsync({ type: "uint8array" }), "zip");
   assert.deepEqual(result.warnings, []);

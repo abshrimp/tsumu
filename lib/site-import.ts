@@ -1,6 +1,5 @@
 import JSZip from "jszip";
 import type { Asset, SiteDoc } from "./types";
-import { buildAssetNames } from "./generator/names";
 import { uploadStaticAsset } from "./assets";
 import { decodePortableDoc } from "./portable-doc";
 
@@ -148,25 +147,29 @@ export async function parseSiteImport(
   const doc = validateImportedDoc(await decodePortableDoc(jsonText(docBytes), IMPORT_LIMITS.docBytes));
   const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
+  // Only the current editable archive contract is supported. Never infer
+  // asset locations from historical public/assets or assets directory layouts.
   const mapEntry = zip.file(parent + "assets.json");
-  let map: ArchiveAssetMap | null = null;
-  if (mapEntry) {
-    const value = jsonText(await mapEntry.async("uint8array"));
-    if (assertOrdinaryObject(value) && value.version === 1 && assertOrdinaryObject(value.assets)) {
-      map = value as unknown as ArchiveAssetMap;
-    }
+  if (!mapEntry) throw new Error("ZIPに_tsumu/assets.jsonがありません。");
+  const metadata = jsonText(await mapEntry.async("uint8array"));
+  if (!assertOrdinaryObject(metadata) || metadata.version !== 1 ||
+      !assertOrdinaryObject(metadata.assets)) {
+    throw new Error("ZIPのアセット対応表が不正です。");
   }
-  const assetNames = buildAssetNames(doc);
+  const mapped = metadata.assets;
+  if (Object.keys(mapped).length !== Object.keys(doc.assets).length ||
+      Object.keys(mapped).some((id) => !Object.hasOwn(doc.assets, id) ||
+        typeof mapped[id] !== "string" || !pathOK(mapped[id]))) {
+    throw new Error("ZIPのアセット対応表が不正です。");
+  }
   const assets = new Map<string, Uint8Array>();
   const warnings: string[] = [];
   for (const [id, original] of Object.entries(doc.assets)) {
-    const guesses = [
-      map?.assets[id],
-      assetNames.get(id) ? "public/assets/" + assetNames.get(id) : undefined,
-      assetNames.get(id) ? "assets/" + assetNames.get(id) : undefined,
-    ].filter((path): path is string => !!path && pathOK(path));
-    const candidates = guesses.map((path) => root + path);
-    const entry = candidates.map((path) => zip.file(path)).find(Boolean);
+    const location = mapped[id];
+    if (typeof location !== "string" || !pathOK(location)) {
+      throw new Error("ZIPのアセット対応表が不正です。");
+    }
+    const entry = zip.file(root + location);
     if (!entry) {
       if (!original.dataUrl) warnings.push("ZIPにアセットがありません: " + original.name);
       continue;
