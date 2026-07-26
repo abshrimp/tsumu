@@ -21,6 +21,7 @@ import { PAGE_DATA_RUNTIME, pageDataPlan, pageDataServerIds } from "./browser-da
 import { QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
+import { rewriteCssAssetUrls } from "../css-assets";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -43,10 +44,41 @@ function pagePrefix(path: string): string {
   return "../".repeat(path.split("/").length - 1) || "./";
 }
 
-/** Rewrite site-local links without touching remote URLs or data URLs. */
+/** Rewrite only root-relative CSS resource references. */
+function rewriteCssRootUrls(source: string, prefix: string): string {
+  return rewriteCssAssetUrls(source, (url) =>
+    url.startsWith("/") && !url.startsWith("//") ? prefix + url.slice(1) : undefined
+  );
+}
+
+/**
+ * Rewrite actual HTML attributes and inline CSS, never script text, comments,
+ * text nodes, or values of unrelated attributes that happen to contain markup.
+ */
 function rewriteRootUrls(source: string, prefix: string): string {
-  return source.replace(/(\b(?:src|href|poster)\s*=\s*["'])\/(?!\/)/gi, "$1" + prefix)
-    .replace(/(url\(\s*["']?)\/(?!\/)/gi, "$1" + prefix);
+  const rewriteTag = (tag: string) => tag.replace(
+    /(\s)([^\s=/>]+)(\s*=\s*)(["'])([\s\S]*?)\4/g,
+    (whole, space: string, name: string, eq: string, quote: string, value: string) => {
+      const attribute = name.toLowerCase();
+      const next = attribute === "style"
+        ? rewriteCssRootUrls(value, prefix)
+        : (attribute === "src" || attribute === "href" || attribute === "poster") &&
+          value.startsWith("/") && !value.startsWith("//")
+          ? prefix + value.slice(1)
+          : value;
+      return next === value ? whole : space + name + eq + quote + next + quote;
+    },
+  );
+  return source.replace(
+    /<!--[\s\S]*?-->|(<(script|style|textarea|title)\b(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>)|<[a-z][\w:-]*(?:"[^"]*"|'[^']*'|[^'">])*>/gi,
+    (whole, open: string | undefined, kind: string | undefined, body: string | undefined, close: string | undefined) => {
+      if (whole.startsWith("<!--")) return whole;
+      if (!open) return rewriteTag(whole);
+      return rewriteTag(open) +
+        (kind?.toLowerCase() === "style" ? rewriteCssRootUrls(body ?? "", prefix) : body ?? "") +
+        (close ?? "");
+    },
+  );
 }
 
 /** Preserve list item tokens until Tsumu's browser runtime clones each row. */
@@ -371,7 +403,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     const output = path.slice(7);
     // Service workers are not usable from file://. The rest is directly readable.
     files[output] = output.endsWith(".css")
-      ? rewriteRootUrls(source, output.startsWith("assets/") ? "./" : "../") : source;
+      ? rewriteCssRootUrls(source, output.startsWith("assets/") ? "./" : "../") : source;
   }
   for (const [path, binary] of Object.entries(next.binaries)) {
     if (path.startsWith("public/")) binaries[path.slice(7)] = binary;
@@ -403,7 +435,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       }] : [],
     }, null, 2) + "\n";
   }
-  files["styles/site.css"] = rewriteRootUrls(next.files["styles/site.css"], "../");
+  files["styles/site.css"] = rewriteCssRootUrls(next.files["styles/site.css"], "../");
   files["styles/globals.css"] = fontsCss(normalized) + "\n" + next.files["app/globals.css"];
   // The page plan runs before the shared DOM runtime installs listeners,
   // so its fetched variables are available for live text and client lists.

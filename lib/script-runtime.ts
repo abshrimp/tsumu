@@ -231,7 +231,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   /*#env*/
   prefix = env.storePrefix || "";
   /*/env*/
-  var mem = {};
+  var mem = Object.create(null);
   // 共有: 公開URLのドメイン（例: example.com）の全サブドメインで読み書きするクッキー。
   // ほかのサイトと同じクッキーを使えるよう、名前はキーそのまま・値はエンコードして書く
   var sharedDomain = (env && env.sharedDomain) || "";
