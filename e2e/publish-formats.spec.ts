@@ -59,6 +59,6 @@ test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", a
   expect(paths).toContain("src/App.vue");
   expect(paths).toContain("vite.config.ts");
   expect(paths).not.toContain("next.config.mjs");
-  expect(paths).toContain("_site-data/doc.json");
+  expect(paths).toContain("_tsumu/doc.json");
   expect(messages.map((m) => m.action)).toContain("commit");
 });
