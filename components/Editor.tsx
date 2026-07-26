@@ -17,12 +17,10 @@ import { css2FamilyToken } from "../lib/style";
 import {
   dropEmbeddedCopies,
   hasEmbeddedCopies,
-  nodeAssetSrc,
   replaceEmbeddedAsset,
-  uploadAsset,
   uploadEmbeddedAsset,
 } from "../lib/assets";
-import { makeImage } from "../lib/presets";
+import { startImageInsertion } from "../lib/image-drop";
 import { clipboardArtworkFile, hasClipboardArtwork } from "../lib/clipboard";
 import { activeContentNames, CLIP_MIME, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
 import { showConfirm } from "../lib/dialog";
@@ -80,49 +78,6 @@ function setUnsyncedFlag(on: boolean) {
   } catch {
     // 保存できなくても同期自体には影響しない
   }
-}
-
-async function insertClipboardArtwork(file: File) {
-  const asset = await uploadAsset(file);
-  const state = useEditor.getState();
-  const { doc, selection, activePageId, editingComponentId } = state;
-  const editingComp = editingComponentId
-    ? doc.components?.[editingComponentId]
-    : null;
-  const { parent, index } = insertPointFor(
-    doc,
-    selection,
-    editingComp ? { kind: "node", id: editingComp.rootId } : { kind: "page", id: activePageId },
-    state.insertMode
-  );
-
-  const node = makeImage();
-  node.name = file.type === "image/svg+xml" ? tr("貼り付けたSVG") : tr("貼り付けた画像");
-  node.image = {
-    src: nodeAssetSrc(asset),
-    alt: "",
-    width: asset.width,
-    height: asset.height,
-    assetId: asset.id,
-  };
-  const base = (node.styles.base ??= {});
-  base.default = {
-    ...base.default,
-    width: asset.width ? `${asset.width}px` : "100%",
-    maxWidth: "100%",
-    borderRadius: "0px",
-  };
-
-  state.updateDoc((draft) => {
-    draft.assets[asset.id] = asset;
-    draft.nodes[node.id] = node;
-    const children =
-      parent.kind === "page"
-        ? draft.pages[parent.id].children
-        : draft.nodes[parent.id].children;
-    children.splice(index ?? children.length, 0, node.id);
-  });
-  state.select(node.id);
 }
 
 /**
@@ -360,6 +315,9 @@ export default function Editor() {
 
   useEffect(() => {
     if (!initialLoadComplete) return;
+    const pending = new Set<ReturnType<typeof startImageInsertion>>();
+    let mounted = true;
+    let latestPaste = 0;
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target as HTMLElement;
       if (
@@ -372,6 +330,7 @@ export default function Editor() {
       }
       const data = event.clipboardData;
       if (!data) return;
+      const own = ++latestPaste;
       // エディタでコピーした要素（ほかのサイト・タブでコピーしたものも）
       const raw = data.getData(CLIP_MIME);
       const copied = parseClipPayload(raw);
@@ -407,22 +366,38 @@ export default function Editor() {
       }
       event.preventDefault();
       setPasteNotice(tr("デザインを貼り付けています…"));
-      void clipboardArtworkFile(data)
-        .then(async (file) => {
-          if (!file) throw new Error(tr("画像データを読み取れませんでした"));
-          await insertClipboardArtwork(file);
-          setPasteNotice(
-            file.type === "image/svg+xml"
-              ? tr("SVGをベクター画像として貼り付けました")
-              : tr("画像を貼り付けました")
-          );
-        })
-        .catch((error) => {
-          setPasteNotice(userMessage(error, tr("貼り付けできませんでした")));
-        });
+      // SVG・ファイル・data URLの読み取りを待つ前に、貼り付け先を確定する。
+      const state = useEditor.getState();
+      const { doc, selection, activePageId, editingComponentId } = state;
+      const component = editingComponentId ? doc.components?.[editingComponentId] : null;
+      const point = insertPointFor(doc, selection,
+        component ? { kind: "node", id: component.rootId } : { kind: "page", id: activePageId }, state.insertMode);
+      const task = startImageInsertion(async () => {
+        const file = await clipboardArtworkFile(data);
+        if (!file) throw new Error(tr("画像データを読み取れませんでした"));
+        return [file];
+      }, point, {
+        quiet: true,
+        prepareNode(node, asset, file) {
+          node.name = file.type === "image/svg+xml" ? tr("貼り付けたSVG") : tr("貼り付けた画像");
+          const base = (node.styles.base ??= {});
+          base.default = { ...base.default, width: asset.width ? `${asset.width}px` : "100%", maxWidth: "100%", borderRadius: "0px" };
+        },
+      });
+      pending.add(task);
+      void task.done.then(({ inserted, files, error }) => {
+        pending.delete(task);
+        if (!mounted || own !== latestPaste) return;
+        setPasteNotice(error ? userMessage(error, tr("貼り付けできませんでした")) : !inserted ? null :
+          files[0]?.type === "image/svg+xml" ? tr("SVGをベクター画像として貼り付けました") : tr("画像を貼り付けました"));
+      });
     };
     window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
+    return () => {
+      mounted = false;
+      window.removeEventListener("paste", onPaste);
+      for (const task of pending) task.cancel();
+    };
   }, [initialLoadComplete]);
 
   // カスタムGoogle Fontsをエディタのプレビュー用に読み込む

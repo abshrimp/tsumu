@@ -3,14 +3,22 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
 /** Run the real Editor/store/sync lifecycle; only unrelated presentation panels are omitted. */
-export async function editorBootstrapFixture() {
+export async function editorBootstrapBundle(browser = false) {
   const repo = resolve(".");
   const result = await build({
     stdin: {
-      contents: `export { default as Editor } from './components/Editor'; export { useEditor } from './lib/store'; export { createInitialDoc } from './lib/presets';`,
+      contents: browser ? `
+        import React from 'react'; import { createRoot } from 'react-dom/client';
+        import Editor from './components/Editor'; import { useEditor } from './lib/store';
+        const root = createRoot(document.getElementById('app'));
+        window.pasteEditor = useEditor; window.unmountPasteEditor = () => root.unmount();
+        root.render(<React.StrictMode><Editor /></React.StrictMode>);
+      ` : `export { default as Editor } from './components/Editor'; export { useEditor } from './lib/store'; export { createInitialDoc } from './lib/presets';`,
       resolveDir: repo, loader: "tsx",
     },
-    bundle: true, platform: "node", format: "cjs", packages: "external", write: false,
+    bundle: true, platform: browser ? "browser" : "node", format: browser ? "iife" : "cjs",
+    packages: browser ? undefined : "external", write: false, jsx: "automatic",
+    define: browser ? { "process.env.NODE_ENV": '"development"' } : undefined,
     plugins: [{
       name: "bootstrap-presentation",
       setup(build) {
@@ -29,8 +37,13 @@ export async function editorBootstrapFixture() {
       },
     }],
   });
+  return result.outputFiles[0].text;
+}
+
+export async function editorBootstrapFixture() {
+  const source = await editorBootstrapBundle();
   const module = { exports: {} as any };
-  new Function("require", "module", "exports", result.outputFiles[0].text)(
+  new Function("require", "module", "exports", source)(
     createRequire(resolve("package.json")), module, module.exports,
   );
   return module.exports;

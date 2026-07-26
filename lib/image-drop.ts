@@ -8,7 +8,7 @@ import { tr } from "./i18n";
 import { makeImage } from "./presets";
 import { collectDescendants, useEditor, type ParentRef } from "./store";
 import { canContainElements } from "./tags";
-import type { Asset, SiteDoc } from "./types";
+import type { Asset, SiteDoc, DocNode } from "./types";
 
 export interface ImageDropPoint { parent: ParentRef; index?: number }
 let latestDrop = 0;
@@ -17,6 +17,15 @@ let latestDrop = 0;
 export function startImageDrop(files: Iterable<File>, point: ImageDropPoint) {
   const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
   if (!images.length) return { done: Promise.resolve(), cancel: () => {} };
+  return startImageInsertion(() => images, point);
+}
+
+/** クリップボードのデコードや画像アップロードの前に、配置先と履歴を確定する。 */
+export function startImageInsertion(
+  loadFiles: () => Iterable<File> | Promise<Iterable<File>>,
+  point: ImageDropPoint,
+  options: { prepareNode?: (node: DocNode, asset: Asset, file: File) => void; quiet?: boolean } = {},
+) {
   const { doc: initialDoc, activePageId, editingComponentId: componentId, historyRevision } = useEditor.getState();
   const rootId = componentId ? initialDoc.components?.[componentId]?.rootId : undefined;
   const children = (doc: SiteDoc) => point.parent.kind === "page"
@@ -34,7 +43,7 @@ export function startImageDrop(files: Iterable<File>, point: ImageDropPoint) {
   const beforeId = point.index === undefined ? undefined : original[point.index];
   const afterId = point.index === undefined ? undefined : original[point.index - 1];
   let place = validTarget(initialDoc);
-  if (!place) return { done: Promise.resolve(), cancel: () => {} };
+  if (!place) return { done: Promise.resolve({ inserted: false, files: [] as File[], error: undefined as unknown }), cancel: () => {} };
   const own = ++latestDrop;
   let select = true;
   let cancelled = false;
@@ -59,8 +68,12 @@ export function startImageDrop(files: Iterable<File>, point: ImageDropPoint) {
   const done = (async () => {
     const assets: Asset[] = [];
     let failure: unknown;
+    let images: File[] = [];
+    let inserted = false;
     try {
+      images = Array.from(await loadFiles());
       for (const file of images) {
+        if (cancelled || !place) break;
         assets.push(await uploadAsset(file));
         if (cancelled || !place) break;
       }
@@ -75,10 +88,11 @@ export function startImageDrop(files: Iterable<File>, point: ImageDropPoint) {
       unsubscribe();
       const state = useEditor.getState();
       if (assets.length) {
-        const nodes = !failure && !cancelled && place && validTarget(state.doc) ? assets.map((asset) => {
+        const nodes = !failure && !cancelled && place && validTarget(state.doc) ? assets.map((asset, index) => {
           const node = makeImage();
           node.name = asset.name;
           node.image = { src: nodeAssetSrc(asset), alt: "", width: asset.width, height: asset.height, assetId: asset.id };
+          options.prepareNode?.(node, asset, images[index]);
           return node;
         }) : [];
         if (!nodes.length) state.retainUploadedAssets(assets);
@@ -92,12 +106,14 @@ export function startImageDrop(files: Iterable<File>, point: ImageDropPoint) {
           const index = point.index === undefined ? list.length : before >= 0 ? before : after >= 0 ? after + 1 : Math.min(point.index, list.length);
           list.splice(index, 0, ...nodes.map((node) => node.id));
         });
+        inserted = nodes.length > 0;
         if (nodes.length && select && own === latestDrop) state.select(nodes[nodes.length - 1].id);
       }
-      if (failure && mounted) {
+      if (failure && mounted && !options.quiet) {
         void showAlert(userMessage(failure, tr("アップロードできませんでした")), { title: tr("アップロードできませんでした") });
       }
     }
+    return { inserted, files: images, error: !cancelled && place ? failure : undefined };
   })();
   return { done, cancel };
 }
