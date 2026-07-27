@@ -165,7 +165,7 @@ export default function NodeContextMenu({
         disabled: !!node.locked,
         onClick: run(() => {
           const st = s();
-          st.copyNode(node.id);
+          st.copyNode(node.id, { unlockedOnly: true });
           st.deleteNodes(
             st.selectedIds.length > 1 && st.selectedIds.includes(node.id) ? st.selectedIds : [node.id]
           );
@@ -211,14 +211,14 @@ export default function NodeContextMenu({
           key: "up",
           label: tr("前へ移動"),
           icon: <ArrowUp size={14} />,
-          disabled: idx <= 0,
+          disabled: !!node.locked || idx <= 0,
           onClick: run(() => s().moveNode(node.id, parent, idx - 1)),
         },
         {
           key: "down",
           label: tr("後ろへ移動"),
           icon: <ArrowDown size={14} />,
-          disabled: idx < 0 || idx >= siblings.length - 1,
+          disabled: !!node.locked || idx < 0 || idx >= siblings.length - 1,
           // moveNode の index は移動前の並びでの位置
           onClick: run(() => s().moveNode(node.id, parent, idx + 2)),
         }

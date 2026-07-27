@@ -15,6 +15,7 @@ import { genId } from "./presets";
 import { cloneSteps, scriptUid } from "./script";
 import { currentSiteId } from "./site";
 import { storageKey } from "./storage-keys";
+import { validNodeForest } from "./doc-tree";
 
 /** クリップボードに書くエディタ専用の形式 */
 export const CLIP_MIME = "application/x-tsumu+json";
@@ -96,7 +97,7 @@ function validNodes(nodes: unknown, roots?: unknown): nodes is DocNode[] {
   for (const n of nodes as DocNode[]) {
     if (
       !n || typeof n !== "object" || typeof n.id !== "string" || typeof n.type !== "string" ||
-      !n.styles || typeof n.styles !== "object" || !Array.isArray(n.children) ||
+      !n.styles || typeof n.styles !== "object" || Array.isArray(n.styles) || !Array.isArray(n.children) ||
       n.children.some((c) => typeof c !== "string") || ids.has(n.id)
     ) {
       return false;
@@ -104,16 +105,24 @@ function validNodes(nodes: unknown, roots?: unknown): nodes is DocNode[] {
     ids.add(n.id);
   }
   if ((nodes as DocNode[]).some((n) => n.children.some((c) => !ids.has(c)))) return false;
-  return roots === undefined || (Array.isArray(roots) && roots.length > 0 && roots.every((r) => ids.has(r)));
+  if (roots !== undefined && (!Array.isArray(roots) || roots.length === 0 ||
+      roots.some((r) => typeof r !== "string" || !ids.has(r)))) return false;
+  // 子の存在だけでは循環・二重所有・深すぎるツリーを防げない。保存時と同じ境界を適用する。
+  const pages = roots === undefined ? {} : { clip: { id: "clip", slug: "", children: roots } };
+  return validNodeForest(pages, Object.fromEntries(nodes.map((node: DocNode) => [node.id, node])));
 }
 
 function isPayload(v: unknown): v is ClipPayload {
   const p = v as ClipPayload | null;
   return (
-    !!p && p.v === 1 && validNodes(p.nodes, p.rootIds) &&
+    !!p && p.v === 1 && typeof p.site === "string" && Array.isArray(p.rootIds) &&
+    validNodes(p.nodes, p.rootIds) &&
     !!p.assets && typeof p.assets === "object" &&
     !!p.components && typeof p.components === "object" && !Array.isArray(p.components) &&
-    validNodes(p.componentNodes) && Array.isArray(p.customFonts)
+    validNodes(p.componentNodes, Object.keys(p.components).length
+      ? Object.values(p.components).map(c => c.rootId) : undefined) &&
+    validNodeForest({}, Object.fromEntries(p.componentNodes.map(n => [n.id, n])), p.components) &&
+    Array.isArray(p.customFonts)
   );
 }
 
