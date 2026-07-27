@@ -24,6 +24,8 @@ wrangler.generated.jsonc
 /.e2e-data/
 /test-results/
 /playwright-report/
+# 出力形式のビルド確認（scripts/smoke-export-build.mts）
+/.generated-export-smoke/
 
 # D1 の書き出し（wrangler d1 export）。編集データが丸ごと入るのでコミットしない
 /*.sql

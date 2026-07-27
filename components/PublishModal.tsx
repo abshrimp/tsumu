@@ -494,8 +494,10 @@ export default function PublishModal({
                 ? format === "single-html"
                   ? tr("1つのHTMLファイルにCSS・JavaScript・画像などを埋め込んでGitHubへPushします。静的ホスティングではリポジトリのルートを配信してください。")
                   : tr("HTML・CSS・JavaScript・画像を、ビルド不要のファイルとしてGitHubへPushします。静的サイトとして公開する場合は、リポジトリのルートを配信するようホスティングを設定してください。")
-                : format === "react" || format === "vue"
+                : format === "react"
                   ? tr("{framework}のソースをGitHubへPushします。ホスティング側でビルドし、distフォルダを配信してください。", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
+                  : format === "vue"
+                    ? tr("Vue 3 + ViteのプロジェクトをGitHubへPushします。サーバー側で描画するため、ホスティング側でビルドした後、npm start でNode.jsサーバーを起動してください。")
                   : format === "sveltekit"
                     ? tr("SvelteKitプロジェクトをGitHubへPushします。ビルド後の公開ディレクトリはbuildです。")
                     : format === "nuxt"
@@ -507,7 +509,7 @@ export default function PublishModal({
                 <div className="export-option-label">{tr("フレームワーク")}</div>
                 <Dropdown
                   value={format}
-                  options={EXPORT_FRAMEWORK_OPTIONS}
+                  options={EXPORT_FRAMEWORK_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))}
                   onChange={(value) => {
                     setFormat(value as ExportFormat);
                     if (value === "html" || value === "single-html") {

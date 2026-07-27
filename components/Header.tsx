@@ -182,7 +182,9 @@ function ExportModal({ onClose }: { onClose: () => void }) {
         )}
         {format !== "single-html" && (
           <p className="hint export-note">
-            {tr("ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。")}
+            {scope === "project"
+              ? tr("ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。")
+              : tr("ZIPには書き出した範囲の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。")}
           </p>
         )}
         <CheckList checks={checks} onClose={onClose} />
