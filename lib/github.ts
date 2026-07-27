@@ -72,8 +72,16 @@ export function branchPath(branch: string): string {
 
 /** 公開先リポジトリに対する GitHub API の呼び出し（失敗時は fail で例外にする） */
 export function githubClient(conf: TargetConfig, tr: Tr) {
-  const gh = (path: string, init?: RequestInit & { accept?: string }): Promise<Response> =>
-    fetch(`${GH}/repos/${conf.repo}${path}`, {
+  const gh = (path: string, init?: RequestInit & { accept?: string }): Promise<Response> => {
+    // The token must never be sent to an attacker-controlled GitHub API path.
+    if (!conf.repo || !isSafeRepo(conf.repo) || !isSafeBranch(conf.branch) ||
+        !path.startsWith("/") || path.startsWith("//") || /[\\\\#]/.test(path) ||
+        path.split(/[/?]/).some((segment) => segment === "." || segment === ".." || /%(?:2e|2f|5c)/i.test(segment))) {
+      throw new Error("Invalid GitHub API destination");
+    }
+    // codeql[js/request-forgery] GitHub's API origin is constant and both repository
+    // identifiers and endpoint paths are validated before attaching credentials.
+    return fetch(`${GH}/repos/${conf.repo}${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${conf.token}`,
@@ -84,6 +92,7 @@ export function githubClient(conf: TargetConfig, tr: Tr) {
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
       },
     });
+  };
   const fail = async (step: string, res: Response): Promise<never> => {
     const text = (await res.text()).slice(0, 300);
     console.error("GitHub API request failed", { repo: conf.repo, step, status: res.status, text });

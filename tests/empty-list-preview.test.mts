@@ -1,3 +1,4 @@
+import { stripMarkup } from "./helpers/strip-markup";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
@@ -24,7 +25,7 @@ function load(filename: string, hooks = false) {
     id === "react" && hooks ? { ...React, useState: () => [false, () => {}] } : require(id), mod, mod.exports);
   return mod.exports;
 }
-const plain = (html: string) => html.replace(/<[^>]+>/g, "");
+const plain = stripMarkup;
 function fixture(sample: readonly unknown[]) {
   const doc = emptyListDoc(sample);
   state().replaceDoc(doc); state().setActivePage("p"); state().select("tag");

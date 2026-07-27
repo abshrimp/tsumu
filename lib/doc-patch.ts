@@ -76,8 +76,13 @@ export function applyDocPatch(base: SiteDoc, patch: DocPatch): SiteDoc {
       target = out[parent] as Record<string, unknown>;
     }
     const key = op.path[op.path.length - 1];
-    if ("remove" in op) delete target[key];
-    else target[key] = op.value;
+    // Even if an untrusted patch bypasses an upstream validation layer,
+    // define own properties without invoking legacy prototype setters.
+    if (!safeKey(key)) throw new Error("Invalid patch key");
+    if ("remove" in op) Reflect.deleteProperty(target, key);
+    else Object.defineProperty(target, key, {
+      value: op.value, configurable: true, enumerable: true, writable: true,
+    });
   }
   return out as unknown as SiteDoc;
 }

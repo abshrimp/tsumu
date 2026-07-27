@@ -160,13 +160,13 @@ test("generated components avoid framework names and the exported project typech
   doc.pages.p.customTopHtml = `<script type="application/ld+json">{"@type":"Thing"}</script>`;
   doc.customHeadHtml = `<script language="javascript" async="" ASYNC="false" defer="defer" nomodule="false" src="/x.js" SRC="/ignored.js" data-label="a > b"></script><meta name="a" NAME="ignored" content="Revenue > cost" scheme="c" style="x"><link disabled="" DISABLED="false" rel="stylesheet" href="/style.css"><meta itemscope="" name content>`;
   const { files } = generateProject(doc);
-  assert.match(files["app/page.tsx"], /<PageHtml html=\{"<script src=/);
+  assert.match(files["app/page.tsx"], /<PageHtml html=\{"\\u003cscript src=/);
   // 取得先のホストが {変数} で決まるときも、接続時に宛先を確かめる fetchPublic で取得する
   assert.match(files["app/page.tsx"], /fetchJson\(interpolateUrl\("\{[^"]*\}\/items", vars\)\)/);
   assert.match(files["app/page.tsx"], /import \{ fetchPublic, readTextLimited \} from "@\/lib\/safe-fetch";/);
   assert.ok(files["lib/safe-fetch.ts"]);
   assert.match(files["app/page.tsx"], /fetchJson\(interpolateUrl\("https:\/\/example\.com\/\?q=\{q\}", vars\)\)/);
-  assert.match(files["app/page.tsx"], /dangerouslySetInnerHTML=\{\{ __html: "<script type=\\"application\/ld\+json\\">/);
+  assert.match(files["app/page.tsx"], /dangerouslySetInnerHTML=\{\{ __html: "\\u003cscript type=/);
   assert.match(files["components/PageHtml2.tsx"], /export default function PageHtml2\(/);
   const dir = mkdtempSync(join(tmpdir(), "tsumu-export-test-"));
   try {

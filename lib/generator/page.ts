@@ -33,6 +33,7 @@ import {
 import { renderNode, type JsxContext } from "./render";
 import { cssValue } from "./css";
 import { RUNNABLE_SCRIPT } from "./templates";
+import { codeLiteral } from "./code-literal";
 
 export { normalizeQuery } from "../vars";
 
@@ -46,7 +47,7 @@ export function queryDispatcherFile(queries: (string | undefined)[]): string {
     .map((_, i) => `import * as p${i} from "./_q/p${i}";`)
     .join("\n");
   const entries = queries
-    .map((q, i) => `  { query: ${JSON.stringify(pageQueryConditions(q))}, mod: p${i} as unknown as Variant["mod"] },`)
+    .map((q, i) => `  { query: ${codeLiteral(pageQueryConditions(q))}, mod: p${i} as unknown as Variant["mod"] },`)
     .join("\n");
   return `import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -168,10 +169,10 @@ export function generatePageFile(
   // 計測タグなど動くスクリプトがあれば、ページ遷移で表示したときにも動かす（PageHtml）
   const htmlFrag = (html: string) => {
     if (!RUNNABLE_SCRIPT.test(html)) {
-      return `      <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: ${JSON.stringify(html)} }} />`;
+      return `      <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: ${codeLiteral(html)} }} />`;
     }
     ctx.usesPageHtml = true;
-    return `      <PageHtml html={${JSON.stringify(html)}} />`;
+    return `      <PageHtml html={${codeLiteral(html)}} />`;
   };
   // Imported HTML snippets may refer to assets in Tsumu's temporary storage.
   // Rewrite their paths to the bundled export so they work after deployment.
@@ -233,10 +234,10 @@ export function generatePageFile(
   }
 
   const metadata: string[] = [
-    `  title: ${JSON.stringify(page.title || page.name)},`,
+    `  title: ${codeLiteral(page.title || page.name)},`,
   ];
   if (page.description)
-    metadata.push(`  description: ${JSON.stringify(page.description)},`);
+    metadata.push(`  description: ${codeLiteral(page.description)},`);
   if (page.noindex) metadata.push(`  robots: { index: false, follow: false },`);
 
   const ogSrc =
@@ -244,11 +245,11 @@ export function generatePageFile(
     imageRefSrc(ctx.assetNames, doc.ogImage);
   if (ogSrc) {
     const ogParts = [
-      `    title: ${JSON.stringify(page.title || page.name)},`,
+      `    title: ${codeLiteral(page.title || page.name)},`,
       page.description
-        ? `    description: ${JSON.stringify(page.description)},`
+        ? `    description: ${codeLiteral(page.description)},`
         : null,
-      `    images: [${JSON.stringify(ogSrc)}],`,
+      `    images: [${codeLiteral(ogSrc)}],`,
     ].filter(Boolean);
     metadata.push(`  openGraph: {\n${ogParts.join("\n")}\n  },`);
     metadata.push(`  twitter: { card: "summary_large_image" },`);
@@ -341,7 +342,7 @@ ${loads
         if (!st.as) return "";
         // メソッド・ヘッダー・本文（キャッシュのキーにするため、文字にして渡す）
         const init = fetchInitExpr(st);
-        const url = `interpolateUrl(${JSON.stringify(st.url.trim())}, vars)`;
+        const url = `interpolateUrl(${codeLiteral(st.url.trim())}, vars)`;
         // すべての取得先を接続時・転送時にも検査する。資格情報は変数で決まるホストへ送らない。
         // 読めないURL（ホストに空白があるなど）は書き出しを止めず、資格情報を送らない側に倒す
         let origin: string | undefined;
@@ -350,25 +351,25 @@ ${loads
         } catch {
           origin = undefined;
         }
-        return `  vars[${JSON.stringify(st.as)}] = await fetchJson(${url}${init ? `, JSON.stringify(${init}), ${JSON.stringify(origin) ?? "undefined"}` : ""});`;
+        return `  vars[${codeLiteral(st.as)}] = await fetchJson(${url}${init ? `, JSON.stringify(${init}), ${origin === undefined ? "undefined" : codeLiteral(origin)}` : ""});`;
       }
       case "for-each":
       case "if":
       case "repeat":
-        return `  if (!__runPurePageSteps(${JSON.stringify([st])}, vars, lookupVar, interpolate, __evalValueRecipe)) console.warn("Page-load script exceeded execution limits");`;
+        return `  if (!__runPurePageSteps(${codeLiteral([st])}, vars, lookupVar, interpolate, __evalValueRecipe)) console.warn("Page-load script exceeded execution limits");`;
       case "transform":
         if (!st.into || !st.source) return "";
         return `  {
-    const result = __evalValueRecipe(lookupVar(vars, ${JSON.stringify(st.source)}), [${JSON.stringify(st.transform)}], vars);
-    if (result.kind === "value") vars[${JSON.stringify(st.into)}] = result.value;
-    else if (result.kind === "missing") vars[${JSON.stringify(st.into)}] = undefined;
+    const result = __evalValueRecipe(lookupVar(vars, ${codeLiteral(st.source)}), [${codeLiteral(st.transform)}], vars);
+    if (result.kind === "value") vars[${codeLiteral(st.into)}] = result.value;
+    else if (result.kind === "missing") vars[${codeLiteral(st.into)}] = undefined;
   }`;
       case "set-var": {
         if (!st.into) return "";
         const from = setVarSource(st);
-        if (from) return `  vars[${JSON.stringify(st.into)}] = lookupVar(vars, ${JSON.stringify(from)}) ?? null;`;
+        if (from) return `  vars[${codeLiteral(st.into)}] = lookupVar(vars, ${codeLiteral(from)}) ?? null;`;
         if (!extractVars(st.value).length)
-          return `  vars[${JSON.stringify(st.into)}] = interpolate(${JSON.stringify(st.value)}, vars);`;
+          return `  vars[${codeLiteral(st.into)}] = interpolate(${codeLiteral(st.value)}, vars);`;
         return "";
       }
     }
@@ -382,7 +383,7 @@ ${loads
 function toItems(v: unknown): Item[] {
   if (!Array.isArray(v)) return [];
   return v.flatMap((x): Item[] =>
-    x == null || Array.isArray(x) ? [] : typeof x === "object" ? [x as Item] : [{ ${JSON.stringify(ITEM_VALUE)}: x }]
+    x == null || Array.isArray(x) ? [] : typeof x === "object" ? [x as Item] : [{ ${codeLiteral(ITEM_VALUE)}: x }]
   );
 }`);
   }
@@ -432,8 +433,8 @@ function templateVars(vars: Vars): Vars {
     .map((n) => {
       const tpl = nodeTextTemplate(doc, n);
       return hasVars(tpl)
-        ? `  vars[${JSON.stringify(n.attrId)}] = interpolate(${JSON.stringify(tpl)}, vars);`
-        : `  vars[${JSON.stringify(n.attrId)}] = ${JSON.stringify(tpl)};`;
+        ? `  vars[${codeLiteral(n.attrId)}] = interpolate(${codeLiteral(tpl)}, vars);`
+        : `  vars[${codeLiteral(n.attrId)}] = ${codeLiteral(tpl)};`;
     })
     .join("\n");
 
@@ -465,8 +466,8 @@ ${metadata.join("\n")}
       (sample && typeof sample === "object" && !Array.isArray(sample)
         ? Object.keys(sample).find((f) => /^(title|name|タイトル|名前)$/i.test(f))
         : null) ?? null;
-    const key = JSON.stringify(primary.into);
-    const fallbackTitle = JSON.stringify(page.title || page.name);
+    const key = codeLiteral(primary.into);
+    const fallbackTitle = codeLiteral(page.title || page.name);
     const hasExtraMeta = Boolean(page.description || page.noindex || ogSrc);
     if (!hasExtraMeta) {
       metaBlock = `export async function generateMetadata(${fnParams}): Promise<Metadata> {
@@ -474,16 +475,16 @@ ${varsPrep}  await loadData(vars);
   const data = vars[${key}] as Item | null;
   ${
     titleField
-      ? `if (data) return { title: String(data[${JSON.stringify(titleField)}] ?? "") };
+      ? `if (data) return { title: String(data[${codeLiteral(titleField)}] ?? "") };
   `
       : ""
   }return { title: ${fallbackTitle} };
 }`;
     } else {
       const titleExpr = titleField
-        ? `data ? String(data[${JSON.stringify(titleField)}] ?? "") : ${fallbackTitle}`
+        ? `data ? String(data[${codeLiteral(titleField)}] ?? "") : ${fallbackTitle}`
         : fallbackTitle;
-      const descVal = page.description ? JSON.stringify(page.description) : null;
+      const descVal = page.description ? codeLiteral(page.description) : null;
       const dynParts: string[] = [`    title,`];
       if (descVal) dynParts.push(`    description: ${descVal},`);
       if (page.noindex) dynParts.push(`    robots: { index: false, follow: false },`);
@@ -491,7 +492,7 @@ ${varsPrep}  await loadData(vars);
         const ogParts = [
           `      title,`,
           descVal ? `      description: ${descVal},` : null,
-          `      images: [${JSON.stringify(ogSrc)}],`,
+          `      images: [${codeLiteral(ogSrc)}],`,
         ].filter(Boolean);
         dynParts.push(`    openGraph: {\n${ogParts.join("\n")}\n    },`);
         dynParts.push(`    twitter: { card: "summary_large_image" },`);
@@ -512,7 +513,7 @@ ${dynParts.join("\n")}
   const dataPrep = loads.length
     ? [
         "  await loadData(vars);",
-        primary ? `  if (!vars[${JSON.stringify(primary.into)}]) notFound();` : "",
+        primary ? `  if (!vars[${codeLiteral(primary.into)}]) notFound();` : "",
         textVarsPrep,
       ]
         .filter(Boolean)

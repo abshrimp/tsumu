@@ -18,6 +18,39 @@ function evaluate(source: string, overrides: Record<string, unknown> = {}) {
 }
 const inline = (name: string) => `<script>${name}</script>`;
 
+/** Read only the script fixtures needed for the fake DOM, without treating a
+ * tag-matching regex as an HTML sanitizer. The real browser parses this markup. */
+function scriptFixtures(html: string): { src: string | null; text: string }[] {
+  const lower = html.toLowerCase();
+  const result: { src: string | null; text: string }[] = [];
+  let index = 0;
+  while (index < html.length) {
+    const open = lower.indexOf("<script", index);
+    if (open < 0) break;
+    const next = lower[open + 7];
+    if (next && !/\s|>/.test(next)) { index = open + 7; continue; }
+    let end = open + 7;
+    let quote = "";
+    for (; end < html.length; end++) {
+      const char = html[end];
+      if (quote) { if (char === quote) quote = ""; }
+      else if (char === "'" || char === '"') quote = char;
+      else if (char === ">") break;
+    }
+    if (end === html.length) break;
+    const close = lower.indexOf("</script", end + 1);
+    if (close < 0) break;
+    const closeEnd = lower.indexOf(">", close + 8);
+    if (closeEnd < 0) break;
+    const attributes = html.slice(open + 7, end);
+    const src = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attributes);
+    result.push({ src: src ? (src[1] ?? src[2] ?? "") : null, text: html.slice(end + 1, close) });
+    index = closeEnd + 1;
+  }
+  return result;
+}
+
+
 // ブラウザなしで、生成したコンポーネントのフックと DOM 操作を実行する。
 // React と同じく、型・キー・位置が同じコンポーネントの ref を描画間で保つ。
 function mount(fromServer: boolean) {
@@ -57,9 +90,9 @@ function mount(fromServer: boolean) {
     effect = undefined;
     const element = Component({ html });
     element.props.ref.current = {
-      querySelectorAll: () => [...html.matchAll(/<script(?: src="([^"]+)")?>([\s\S]*?)<\/script>/g)].map((match) => ({
-        attributes: match[1] ? [{ name: "src", value: match[1] }] : [],
-        text: match[2],
+      querySelectorAll: () => scriptFixtures(html).map((part) => ({
+        attributes: part.src ? [{ name: "src", value: part.src }] : [],
+        text: part.text,
         replaceWith(script: any) {
           if (script.src) pending.push(script);
           else executed.push(script.text);

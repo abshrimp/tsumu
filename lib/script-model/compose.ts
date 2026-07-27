@@ -32,7 +32,7 @@ export function parseValueOperandInput(input: string): { operand: string; operan
       if (typeof literal === "string") {
         // A JSON-quoted string is always literal. Escape opening braces so
         // quoted "{name}" cannot silently become a variable reference.
-        return { operand: literal.replace(/\{/g, "\\{"), operandType: "text" };
+        return { operand: Array.from(literal, (char) => char === "{" ? "\\{" : char).join(""), operandType: "text" };
       }
     } catch { /* Invalid JSON quotes remain literal text. */ }
   }
