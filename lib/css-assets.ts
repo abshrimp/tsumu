@@ -4,7 +4,7 @@ import { tr } from "./i18n";
 export const CSS_ASSET_ATTRIBUTES = ["style", "fill", "stroke", "filter", "clip-path", "mask", "marker", "marker-start", "marker-mid", "marker-end", "cursor"];
 
 /** CSSのURLだけを扱い、コメントや通常の文字列、別URLの一部分は変更しない。 */
-type Reference = { start: number; end: number; url: string; quote: string };
+type Reference = { start: number; end: number; url: string; quote: string; isImport: boolean };
 const space = (c: string) => /[\t\n\f\r ]/.test(c);
 const nameChar = (c: string) => /[\w\u0080-\uFFFF-]/.test(c);
 
@@ -33,9 +33,15 @@ function decode(css: string): string {
 }
 
 export function cssAssetReferences(css: string): Reference[] {
-  const out: Reference[] = [];
+  return Array.from(iterateCssAssetReferences(css));
+}
+
+export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Generator<Reference> {
   let atRuleTarget: "import" | "namespace" | undefined;
-  const stack: { name: string; candidate: boolean }[] = [];
+  // One byte per parenthesis. Deep or unbalanced CSS cannot allocate an object per token.
+  const other = 0, imageSet = 1, imageCandidate = 2;
+  let stack = new Uint8Array(16);
+  let depth = 0;
   const skipTrivia = (from: number): number => {
     let i = from;
     while (i < css.length) {
@@ -57,11 +63,20 @@ export function cssAssetReferences(css: string): Reference[] {
     }
     return -1;
   };
+  function open(state: number) {
+    if (depth >= maxDepth) throw new Error("CSS function nesting exceeds the single HTML limit.");
+    if (depth === stack.length) {
+      const larger = new Uint8Array(depth * 2);
+      larger.set(stack);
+      stack = larger;
+    }
+    stack[depth++] = state;
+  }
   for (let i = 0; i < css.length;) {
     const next = skipTrivia(i);
     if (next !== i) { i = next; continue; }
     const c = css[i];
-    const parent = stack.at(-1);
+    const parent = stack[depth - 1];
     if (c === "@") {
       const start = ++i;
       while (i < css.length && (nameChar(css[i]) || css[i] === "\\")) {
@@ -74,11 +89,11 @@ export function cssAssetReferences(css: string): Reference[] {
     if (c === '"' || c === "'") {
       const end = stringEnd(i);
       if (end < 0) break;
-      if (atRuleTarget === "import" || (parent?.candidate && /^(?:-webkit-)?image-set$/.test(parent.name))) {
-        out.push({ start: i + 1, end, url: decode(css.slice(i + 1, end)), quote: c });
+      if (atRuleTarget === "import" || parent === imageCandidate) {
+        yield { start: i + 1, end, url: decode(css.slice(i + 1, end)), quote: c, isImport: atRuleTarget === "import" };
       }
       atRuleTarget = undefined;
-      if (parent) parent.candidate = false;
+      if (parent === imageCandidate) stack[depth - 1] = imageSet;
       i = end + 1;
     } else if (nameChar(c) || c === "\\") {
       const start = i;
@@ -86,7 +101,7 @@ export function cssAssetReferences(css: string): Reference[] {
         i = css[i] === "\\" ? escapeEnd(css, i) : i + 1;
       }
       const name = decode(css.slice(start, i)).toLowerCase();
-      if (parent) parent.candidate = false;
+      if (parent === imageCandidate) stack[depth - 1] = imageSet;
       if (css[i] !== "(") {
         // @namespace may have an identifier prefix before its URI.
         if (atRuleTarget !== "namespace") atRuleTarget = undefined;
@@ -94,7 +109,7 @@ export function cssAssetReferences(css: string): Reference[] {
       }
       if (name !== "url") {
         atRuleTarget = undefined;
-        stack.push({ name, candidate: true }); i++; continue;
+        open(name === "image-set" || name === "-webkit-image-set" ? imageCandidate : other); i++; continue;
       }
       let from = skipTrivia(i + 1);
       let end = from;
@@ -115,7 +130,7 @@ export function cssAssetReferences(css: string): Reference[] {
         close = skipTrivia(end);
       }
       if (css[close] === ")") {
-        if (atRuleTarget !== "namespace") out.push({ start: from, end, url: decode(css.slice(from, end)), quote });
+        if (atRuleTarget !== "namespace") yield { start: from, end, url: decode(css.slice(from, end)), quote, isImport: atRuleTarget === "import" };
         i = close + 1;
       } else {
         // 不正なurl()の内部を別の参照として解釈しない。
@@ -125,14 +140,13 @@ export function cssAssetReferences(css: string): Reference[] {
       atRuleTarget = undefined;
     } else {
       atRuleTarget = undefined;
-      if (c === "(") stack.push({ name: "", candidate: false });
-      else if (c === ")") stack.pop();
-      else if (c === "," && parent) parent.candidate = true;
-      else if (parent) parent.candidate = false;
+      if (c === "(") open(other);
+      else if (c === ")") depth = Math.max(0, depth - 1);
+      else if (c === "," && parent === imageSet) stack[depth - 1] = imageCandidate;
+      else if (c !== "," && parent === imageCandidate) stack[depth - 1] = imageSet;
       i++;
     }
   }
-  return out;
 }
 
 /** 完全一致を優先し、SVG等のフラグメントだけは元の参照から引き継ぐ。 */
@@ -155,7 +169,7 @@ function replacement(
   return target === undefined ? undefined : target + url.slice(hash);
 }
 
-function encode(url: string, quote: string): string {
+export function escapeCssAssetUrl(url: string, quote: string): string {
   return url.replace(/[\\"'()\s\u0000-\u001f\u007f]/g, (c) => {
     if (c === "\\" || c === quote || (!quote && /["'()]/.test(c))) return `\\${c}`;
     if (/[\s\u0000-\u001f\u007f]/.test(c)) return `\\${c.charCodeAt(0).toString(16)} `;
@@ -168,10 +182,10 @@ export function replaceCssAssetUrls(
 ): string {
   let result = "";
   let from = 0;
-  for (const ref of cssAssetReferences(css)) {
+  for (const ref of iterateCssAssetReferences(css)) {
     const target = replacement(ref.url, sources, options.proxyQueries);
     if (target === undefined || target === ref.url) continue;
-    result += css.slice(from, ref.start) + encode(target, ref.quote);
+    result += css.slice(from, ref.start) + escapeCssAssetUrl(target, ref.quote);
     from = ref.end;
   }
   return result + css.slice(from);
@@ -180,7 +194,10 @@ export function replaceCssAssetUrls(
 export function cssUsesAssetUrl(css: string, source: string): boolean {
   if (!source) return false;
   const sources = new Map([[source, source]]);
-  return cssAssetReferences(css).some((ref) => replacement(ref.url, sources) !== undefined);
+  for (const ref of iterateCssAssetReferences(css)) {
+    if (replacement(ref.url, sources) !== undefined) return true;
+  }
+  return false;
 }
 
 /** Rewrite only actual CSS resource tokens; imported rules retain their syntax and conditions. */
@@ -195,7 +212,7 @@ export function rewriteCssAssetUrls(
     if (length > maxLength) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
     parts.push(part);
   };
-  for (const ref of cssAssetReferences(css)) {
+  for (const ref of iterateCssAssetReferences(css)) {
     const target = resolve(ref.url);
     if (target === undefined || target === ref.url) continue;
     // Check before CSS-escaping, which can allocate up to several times the URL length.
@@ -203,7 +220,7 @@ export function rewriteCssAssetUrls(
       throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
     }
     append(css.slice(from, ref.start));
-    append(encode(target, ref.quote));
+    append(escapeCssAssetUrl(target, ref.quote));
     from = ref.end;
   }
   append(css.slice(from));

@@ -118,6 +118,8 @@ test("page-scoped ZIP round-trip does not include other pages, nodes or private 
     dataUrl: "data:image/svg+xml;base64," +
       Buffer.from("<svg>SECRET_ASSET_MARKER</svg>").toString("base64"),
   };
+  doc.pages[home].customEndHtml = '<img src="https://external.test/assets/secret.svg"><img src="//export.invalid/assets/secret.svg"><!-- <img src="/assets/secret.svg"> -->';
+  doc.pages[home].description = "Example local filename: /assets/secret.svg";
   const create = URL.createObjectURL;
   const previous = globalThis.document;
   let blob: Blob | null = null;

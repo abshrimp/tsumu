@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import type { SiteDoc } from "./types";
-import { exportScopeDoc, prepareExportProject, type ExportFormat, type ExportOptions } from "./export-formats";
+import { prepareExportScopeDoc, prepareExportProject, type ExportFormat, type ExportOptions } from "./export-formats";
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
 import { tr } from "./i18n";
 import { buildAssetNames } from "./generator/names";
@@ -11,7 +11,8 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   const options: ExportOptions = typeof request === "string"
     ? { framework: request, language: "typescript", style: "css", scope: "project" }
     : request;
-  const project = await prepareExportProject(doc, options);
+  const editableDoc = await prepareExportScopeDoc(doc, options);
+  const project = await prepareExportProject(editableDoc, { ...options, scope: "project" });
   const { files, binaries, remoteAssets } = project;
   const dirName =
     doc.siteName
@@ -35,7 +36,6 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
 
   const zip = new JSZip();
   const root = zip.folder(dirName)!;
-  const editableDoc = exportScopeDoc(doc, options);
   // Preserve the full editable document and its original asset IDs separately
   // from the generated framework code, for ZIP URL round-tripping.
   root.file(EDITABLE_DOC_PATH, JSON.stringify(editableDoc));

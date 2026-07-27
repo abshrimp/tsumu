@@ -279,3 +279,18 @@ test("generated Next.js projects include the editor's security overrides for sha
   assert.equal(generated.overrides.glob, root.overrides.glob);
   assert.equal(generated.overrides.next.postcss, root.overrides.next.postcss);
 });
+
+test("scoped files are selected by local URLs, CSS tokens and JavaScript literals", () => {
+  const doc = fixture();
+  for (const id of ["html", "css", "js", "snippet"]) doc.assets[id] = {
+    id, name: id + ".png", mimeType: "image/png", width: 1, height: 1, dataUrl: "data:image/png;base64,AQID",
+  };
+  doc.pages.home.customEndHtml = '<img src="../assets/html.png?v=1">' +
+    '<style>.x{background:url("./assets/css.png#mark");content:"url(/assets/snippet.png)"}</style>' +
+    '<script>/* "/assets/snippet.png" */ const image="/assets/js.png";</script>';
+  const options = { framework: "html", scope: "page", pageId: "home", style: "css", language: "javascript" } as const;
+  assert.deepEqual(Object.keys(generateExportProject(doc, options).binaries).sort(),
+    ["assets/css.png", "assets/html.png", "assets/js.png"]);
+  doc.customHeadHtml = '<base href="https://outside.example/">';
+  assert.deepEqual(Object.keys(generateExportProject(doc, options).binaries), []);
+});

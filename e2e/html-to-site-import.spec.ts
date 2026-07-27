@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import JSZip from "jszip";
+import { readFile } from "node:fs/promises";
 import { createInitialDoc } from "../lib/presets";
 import { generateProject } from "../lib/generator";
 import { importedAssetPath, importedAssetUrl } from "../lib/generator/imported-assets";
@@ -210,6 +211,38 @@ test("linked CSS @imports and external JS module files are preserved and resolve
   expect(exportedPage).toContain(importedAssetUrl(main));
   expect(generated.binaries[importedAssetPath(chunk)!]).toBeTruthy();
   expect(generated.binaries[importedAssetPath(main)!]).toBeTruthy();
+
+  // The URL changes before the editor loads the imported site and shows its notices.
+  await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
+  const notice = page.locator(".dialog-backdrop");
+  await expect(notice).toContainText("インポート時の注意事項");
+  await notice.getByRole("button", { name: "OK", exact: true }).click();
+  await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）" }).click();
+  await page.getByRole("button", { name: "zipでエクスポート" }).click();
+  const modal = page.locator(".export-modal");
+  await modal.getByRole("button", { name: "フレームワーク" }).click();
+  await page.getByRole("button", { name: "単一のHTML" }).click();
+  await modal.getByRole("button", { name: "出力範囲" }).click();
+  await page.getByRole("button", { name: "現在のページ" }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    modal.getByRole("button", { name: "HTMLをダウンロード" }).click(),
+  ]);
+  const html = await readFile((await download.path())!, "utf8");
+  const published = await page.context().newPage();
+  const requests: string[] = [];
+  await published.route("**/*", route => {
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: html });
+    requests.push(route.request().url());
+    return route.abort();
+  });
+  await published.goto("http://published.example.test/");
+  await expect.poll(() => published.evaluate(() => {
+    const result = window as Window & { vendorLoaded?: boolean; mainLoaded?: boolean; chunkLoaded?: boolean };
+    return [result.vendorLoaded, result.mainLoaded, result.chunkLoaded];
+  })).toEqual([true, true, true]);
+  expect(requests).toEqual([]);
+
 });
 
 test("multi-page HTML ZIP imports every page and converts internal page links", async ({ page }) => {

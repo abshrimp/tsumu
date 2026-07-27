@@ -34,6 +34,12 @@ test("CSS tokenizer supports quoted/escaped imports without changing namespace U
   assert.ok(out.includes('content:"@import'));
 });
 
+test("nested CSS functions retain only the current image-set candidates after the stack grows", () => {
+  const css = 'image-set(linear-gradient(' + "f(".repeat(80) + '"ignored.png"' + ")".repeat(80) +
+    '), "outer.png" 2x, -webkit-image-set("inner.png" 1x), "last.png" 4x)';
+  assert.deepEqual(cssAssetReferences(css).map(ref => ref.url), ["outer.png", "inner.png", "last.png"]);
+});
+
 test("separate preview sheets preserve conditions/order/repetition and prune only ancestor cycles", () => {
   const a = sheet("a", "css/a.css", `@import "b.css" layer(theme) supports(display: grid) screen;\n@import url('b.css') print;\n@namespace svg "http://www.w3.org/2000/svg";\n.x{background:url('../images/photo.svg?v=1#icon');filter:url(#local);content:"../images/photo.svg"}`);
   const b = sheet("b", "css/b.css", '@import "a.css"; @namespace svg "http://www.w3.org/2000/svg"; svg|rect{fill:red}');

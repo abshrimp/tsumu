@@ -2,7 +2,7 @@
  * URL tokens end at ASCII whitespace, not internal commas (including data: URLs).
  * Candidate boundaries follow HTML's parsing-a-srcset-attribute tokenizer.
  */
-export function rewriteSrcsetUrls(value: string, resolve: (url: string) => string): string {
+export function rewriteSrcsetUrls(value: string, resolve: (url: string) => string, maxLength = Infinity): string {
   const space = (ch: string) => /[\t\n\f\r ]/.test(ch);
   let position = 0;
   let copied = 0;
@@ -15,7 +15,9 @@ export function rewriteSrcsetUrls(value: string, resolve: (url: string) => strin
     // With no descriptors, trailing commas terminate the candidate, not its URL.
     while (end > start && value[end - 1] === ",") end--;
     if (end > start) {
-      output += value.slice(copied, start) + resolve(value.slice(start, end));
+      const url = resolve(value.slice(start, end));
+      if (output.length + start - copied + url.length > maxLength) throw new Error("Embedded srcset exceeds the size limit.");
+      output += value.slice(copied, start) + url;
       copied = end;
     }
     if (end < position) continue;
@@ -30,5 +32,6 @@ export function rewriteSrcsetUrls(value: string, resolve: (url: string) => strin
       else if (ch === ",") break;
     }
   }
+  if (output.length + value.length - copied > maxLength) throw new Error("Embedded srcset exceeds the size limit.");
   return output + value.slice(copied);
 }

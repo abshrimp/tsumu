@@ -1,5 +1,5 @@
 import { assetSrc } from "./assets";
-import { cssAssetReferences } from "./css-assets";
+import { iterateCssAssetReferences } from "./css-assets";
 import type { Asset, NodeStyles } from "./types";
 
 /** CSSをアセット数だけ読み直さず、各ノード・ページから使用中のIDを一度ずつ取り出す。 */
@@ -16,7 +16,7 @@ export function createCssAssetFinder(assets: Record<string, Asset>) {
   return (styles?: NodeStyles, customCss?: string): Set<string> => {
     const hits = new Set<string>();
     const scan = (css: string) => {
-      for (const { url } of cssAssetReferences(css)) {
+      for (const { url } of iterateCssAssetReferences(css)) {
         // 同じファイルを指す別IDと、SVG等のフラグメントを除いた元画像も残す。
         const exact = bySrc.get(url);
         for (const id of exact ?? []) hits.add(id);

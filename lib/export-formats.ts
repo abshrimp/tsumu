@@ -6,6 +6,8 @@ import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
 import { toSingleHtmlProject } from "./generator/single-html";
 import { applyExportStyle } from "./generator/style-export";
+import { zipAssetClosure } from "./zip-css";
+import { scopedAssetIds } from "./generator/scoped-assets";
 import { tr } from "./i18n";
 
 export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
@@ -73,46 +75,15 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
   for (const page of Object.values(doc.pages)) {
     for (const id of page.children ?? []) collectNode(id);
   }
-  const assetIds = new Set<string>();
-  const walkAssetRefs = (value: unknown, depth = 0) => {
-    if (depth > 50 || !value || typeof value !== "object") return;
-    if (Array.isArray(value)) {
-      for (const child of value) walkAssetRefs(child, depth + 1);
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) {
-      if (key === "assetId" && typeof child === "string" &&
-          Object.prototype.hasOwnProperty.call(doc.assets, child)) assetIds.add(child);
-      else if (key !== "assets") walkAssetRefs(child, depth + 1);
-    }
-  };
   const scoped: SiteDoc = {
     ...doc, nodes, components,
     assets: {},
     pageFolders: doc.pageFolders?.filter((folder) =>
       Object.values(doc.pages).some((page) => page.folderId === folder.id)),
   };
-  walkAssetRefs(scoped);
-  // Custom CSS and raw HTML may refer to a stored asset by its relative path.
-  const renderedSource = JSON.stringify(scoped);
-  for (const [id, asset] of Object.entries(doc.assets)) {
-    if ((asset.path && renderedSource.includes(asset.path)) ||
-        (asset.name && renderedSource.includes("assets/" + asset.name))) {
-      assetIds.add(id);
-    }
-  }
+  const assetIds = scopedAssetIds(scoped, doc.assets);
   const assets: SiteDoc["assets"] = Object.create(null);
-  const pending = [...assetIds];
-  while (pending.length) {
-    const id = pending.pop()!;
-    if (assets[id] || !doc.assets[id]) continue;
-    assets[id] = doc.assets[id];
-    const stylesheet = doc.assets[id].zip?.stylesheet;
-    for (const ref of stylesheet?.references ?? []) {
-      if (Object.prototype.hasOwnProperty.call(doc.assets, ref.assetId) && !assets[ref.assetId])
-        pending.push(ref.assetId);
-    }
-  }
+  for (const id of zipAssetClosure(doc.assets, assetIds)) assets[id] = doc.assets[id];
   return { ...scoped, assets };
 }
 
@@ -262,6 +233,16 @@ export function generateExportProject(
     : applyExportStyle(generated, options.framework, options.style);
 }
 
+/** Preserve only the ZIP dependencies reachable from the selected page or component. */
+export async function prepareExportScopeDoc(doc: SiteDoc, options: ExportOptions): Promise<SiteDoc> {
+  const scoped = exportScopeDoc(doc, options);
+  if (scoped !== doc && Object.keys(scoped.assets).length) {
+    const { retainImportedDependencies } = await import("./generator/imported-dependencies");
+    await retainImportedDependencies(scoped, doc.assets);
+  }
+  return scoped;
+}
+
 /**
  * Common ZIP / GitHub Push pipeline: identical output files for both actions.
  * The preview branch retains non-indexing protections even without Next.js.
@@ -272,7 +253,8 @@ export async function prepareExportProject(
   target: PublishTarget = "production",
 ): Promise<GeneratedProject> {
   const options = optionsOf(request);
-  let project = generateExportProject(doc, options, target);
+  const scoped = await prepareExportScopeDoc(doc, options);
+  let project = generateExportProject(scoped, { ...options, scope: "project" }, target);
   if (["nextjs", "react"].includes(options.framework) && options.language === "javascript") {
     const { toJavaScriptProject } = await import("./generator/javascript-export");
     project = await toJavaScriptProject(project, options.framework);
