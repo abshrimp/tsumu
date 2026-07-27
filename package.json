@@ -66,9 +66,7 @@
     "next": {
       "postcss": "^8.5.31"
     },
-    "@node-minify/core": {
-      "glob": "^13.0.6"
-    }
+    "glob": "^14.0.4"
   },
   "packageManager": "npm@12.2.1",
   "allowScripts": {

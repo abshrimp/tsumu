@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     return new NextResponse(value, {
       headers: {
         "Content-Type": metadata?.contentType ?? "application/octet-stream",
-        "Cache-Control": "private, max-age=31536000, immutable",
+        "Cache-Control": "private, no-store",
         // エディタと同じオリジンから配信するため、SVGなどを直接開いてもスクリプトが動かないようにする
         "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; media-src 'self'; sandbox",
         "X-Content-Type-Options": "nosniff",

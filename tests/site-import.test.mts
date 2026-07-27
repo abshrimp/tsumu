@@ -158,3 +158,33 @@ test("archives with multiple editable documents are rejected before restoring as
   await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
     "zip"), /複数の編集データ/);
 });
+
+test("document imports reject network references disguised as embedded assets before fetching", async () => {
+  const doc = fixture();
+  for (const url of ["/api/doc?site=private", "https://example.test/logo", "//example.test/logo"]) {
+    doc.assets["original-image"].dataUrl = url;
+    await assert.rejects(parseSiteImport(enc.encode(JSON.stringify(doc)), "doc"), /アセット/);
+  }
+});
+
+test("editable ZIP manifests cannot expand the same archive member once per asset ID", async () => {
+  const doc = fixture();
+  doc.assets.second = { ...doc.assets["original-image"], id: "second" };
+  const zip = new JSZip();
+  zip.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
+  zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
+    version: 1, assets: { "original-image": "assets/logo.svg", second: "assets/logo.svg" },
+  }));
+  zip.file("assets/logo.svg", "unique file");
+  await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip"), /アセット対応表/);
+});
+
+test("document imports reject dangling references, malformed nodes, and cycles in the flat node map", async () => {
+  const doc = fixture();
+  const root = doc.pages[doc.pageOrder[0]].children[0];
+  for (const node of [null, { ...doc.nodes[root], children: ["absent"] },
+    { ...doc.nodes[root], children: [root] }]) {
+    const value = { ...doc, nodes: { ...doc.nodes, [root]: node } };
+    await assert.rejects(parseSiteImport(enc.encode(JSON.stringify(value)), "doc"), /要素/);
+  }
+});

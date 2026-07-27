@@ -116,6 +116,7 @@ export async function POST(req: Request) {
   let body: PublishBody;
   try {
     body = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new TypeError();
   } catch {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
@@ -210,7 +211,10 @@ export async function POST(req: Request) {
       if (treeData.truncated) {
         throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
       }
-      const blobs: Record<string, string> = {};
+      if (treeData.tree.some(item => !isSafeCommitPath(item.path))) {
+        return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+      }
+      const blobs: Record<string, string> = Object.create(null);
       for (const item of treeData.tree) {
         if (item.type === "blob" || item.type === "commit") blobs[item.path] = item.sha;
       }
@@ -320,36 +324,38 @@ export async function POST(req: Request) {
       });
     };
 
-    // .github/ などは、ブランチにすでにある同じ内容を引き継ぐ場合だけ許す
-    const protectedShas = Object.entries(assetShas).filter(([path]) => isProtectedPath(path));
-    if (protectedShas.length || keptPaths.length) {
-      const current: Record<string, string> = {};
-      let entries: TreeEntry[] = [];
-      if (branchExists && parentSha) {
-        const treeRes = await gh(`/git/trees/${parentSha}?recursive=1`);
-        if (!treeRes.ok) await fail(tr("ツリーの取得"), treeRes);
-        const treeData = (await treeRes.json()) as { tree: TreeEntry[]; truncated?: boolean };
-        if (treeData.truncated) {
-          throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
-        }
-        entries = treeData.tree;
-        for (const item of treeData.tree) {
-          if (item.type === "blob" && item.sha) current[item.path] = item.sha;
-        }
+    // This API replaces the entire tree. Protected entries come from the
+    // pinned parent even when an incomplete client request omits them.
+    let entries: TreeEntry[] = [];
+    if (branchExists && parentSha) {
+      const treeRes = await gh(`/git/trees/${parentSha}?recursive=1`);
+      if (!treeRes.ok) await fail(tr("ツリーの取得"), treeRes);
+      const treeData = (await treeRes.json()) as { tree: TreeEntry[]; truncated?: boolean };
+      if (treeData.truncated) {
+        throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
       }
-      const kept = keptTreeEntries(entries, keptPaths);
-      if (!kept || keptPaths.some((path) => Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
-        return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
-      }
-      for (const entry of kept) tree.push({ ...entry, sha: entry.sha! });
-      if (protectedShas.some(([path, sha]) => current[path] !== sha)) {
+      entries = treeData.tree;
+      if (entries.some(item => !isSafeCommitPath(item.path))) {
         return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
       }
     }
-
+    const protectedEntries = new Map(entries.filter(e =>
+      isProtectedPath(e.path) && (e.type === "blob" || e.type === "commit")).map(e => [e.path, e]));
     for (const [path, sha] of Object.entries(assetShas)) {
-      pushSha(path, sha);
+      if (isProtectedPath(path)) {
+        if (!protectedEntries.has(path) || protectedEntries.get(path)!.sha !== sha) {
+          return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+        }
+      } else {
+        pushSha(path, sha);
+      }
     }
+    const preserved = [...new Set([...keptPaths, ...protectedEntries.keys()])];
+    const kept = keptTreeEntries(entries, preserved);
+    if (!kept || keptPaths.some(path => Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
+    for (const entry of kept) tree.push({ ...entry, sha: entry.sha! });
 
     // 一度に大きなツリーを送るとGitHub側でタイムアウトするため、分割して積み上げる。
     // 最初のチャンクは base_tree なし = リポジトリ内容を完全置換（削除も反映される）。

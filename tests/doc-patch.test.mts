@@ -223,3 +223,54 @@ test("database-side patching does not persist invalid page order or missing page
     assert.deepEqual(JSON.parse((await readCurrentDoc(db, "s1"))!.body).pages.home, fixed);
   });
 });
+
+test("snapshots and atomic patches reject broken node trees without advancing the revision", async () => {
+  await database(async (db) => {
+    const original = doc();
+    await saveCurrentDoc(db, "s1", JSON.stringify(original), null);
+    for (const changed of [
+      { ...original, nodes: {} },
+      { ...original, nodes: { "node-1": null } },
+      { ...original, nodes: { "node-1": { ...original.nodes["node-1"], children: ["node-1"] } } },
+      { ...original, nodes: { ...original.nodes,
+        a: { ...original.nodes["node-1"], id: "a", children: ["b"] },
+        b: { ...original.nodes["node-1"], id: "b", children: ["a"] } } },
+    ]) {
+      assert.equal(validateDocBody(JSON.stringify(changed)), "不正なリクエスト");
+      const patch = createDocPatch(original, changed as SiteDoc)!;
+      await assert.rejects(saveDocPatch(db, "s1", patch, "1"), /不正な/);
+      assert.equal((await readCurrentDoc(db, "s1"))?.body, JSON.stringify(original));
+      assert.equal((await readCurrentDoc(db, "s1"))?.rev, "1");
+    }
+  });
+});
+
+test("component roots and asset definitions stay valid across snapshots and revisions", async () => {
+  await database(async db => {
+    const original = { ...doc(), components: { card: { id: "card", name: "Card", rootId: "node-1" } } };
+    await saveCurrentDoc(db, "s1", JSON.stringify(original), null);
+    for (const patch of [
+      [{ path: ["assets", "bad"], value: null }],
+      [{ path: ["components", "card"], value: { id: "card", name: "Card", rootId: "missing" } }],
+      [{ path: ["pages", "home"], value: { ...original.pages.home, children: [] } },
+       { path: ["nodes", "node-1"], remove: true }],
+    ] as const) {
+      assert.equal(validateDocBody(JSON.stringify(applyDocPatch(original, patch as any))), "不正なリクエスト");
+      await assert.rejects(saveDocPatch(db, "s1", patch as any, "1"), /不正な/);
+      assert.equal((await readCurrentDoc(db, "s1"))?.rev, "1");
+    }
+  });
+});
+
+test("structural edits work when an optional component map is null", async () => {
+  await database(async db => {
+    const empty = { ...doc(), components: null };
+    assert.equal(validateDocBody(JSON.stringify(empty)), null);
+    await saveCurrentDoc(db, "s1", JSON.stringify(empty), null);
+    const result = await saveDocPatch(db, "s1", [
+      { path: ["nodes", "extra"], value: { ...empty.nodes["node-1"], id: "extra" } },
+      { path: ["pages", "home"], value: { ...empty.pages.home, children: ["node-1", "extra"] } },
+    ], "1");
+    assert.equal(result.kind, "saved");
+  });
+});

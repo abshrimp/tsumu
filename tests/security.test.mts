@@ -389,3 +389,13 @@ test("clipboard assets and exported asset names refuse HTML files and style tag 
   assert.doesNotMatch(previewOut, /<\/style><script>/);
 });
 
+
+test("fetch classifies full IPv6 prefixes and reserved v4 networks", () => {
+  for (const host of ["[2::1]", "[3::1]", "[2001:1ff::1]", "[2001:db8::1]", "[3fff:fff::1]",
+    "198.51.100.7", "203.0.113.8", "192.88.99.4"]) {
+    assert.equal(isPrivateHost(host), true, host);
+  }
+  for (const host of ["[2001:4860:4860::8888]", "[2606:4700::1111]"]) {
+    assert.equal(isPrivateHost(host), false, host);
+  }
+});

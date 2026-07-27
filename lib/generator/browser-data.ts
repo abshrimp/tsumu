@@ -1,7 +1,7 @@
 import type { SiteDoc, Page } from "../types";
 import { pagePlan } from "../data";
 import { evaluateValueRecipe } from "../script-model/recipe-runtime";
-import { runPurePageSteps } from "../page-load-steps";
+import { PAGE_STEP_RUNNER_SOURCE } from "../page-load-steps";
 import { matchesValueCondition, parseValueLiteral } from "../value-semantics";
 
 /** Emit the page data plan from the shared script execution model. */
@@ -31,7 +31,7 @@ const interpreter = [
   "  // Shared pure page-data helpers",
   "  const __name = (fn) => fn;",
   "  const evaluateValueRecipe = (" + evaluateValueRecipe.toString() + ");",
-  "  const runPurePageSteps = (" + runPurePageSteps.toString() + ");",
+  "  const runPurePageSteps = " + PAGE_STEP_RUNNER_SOURCE + ";",
   "  const matchesValueCondition = (" + matchesValueCondition.toString() + ");",
   "  const parseValueLiteral = (" + parseValueLiteral.toString() + ");",
 ].join("\n") + "\n";

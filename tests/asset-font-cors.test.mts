@@ -59,7 +59,7 @@ function readableFromPreview(response: Response) {
   assert.equal(response.headers.get("Content-Type"), "font/woff2");
   assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
   assert.match(response.headers.get("Content-Security-Policy") ?? "", /default-src 'none';.*sandbox/);
-  assert.match(response.headers.get("Cache-Control") ?? "", /^private,/);
+  assert.equal(response.headers.get("Cache-Control"), "private, no-store");
 }
 
 test("public anonymous assets can supply fonts to the opaque HTML preview", async () => {

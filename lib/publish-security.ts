@@ -10,26 +10,25 @@ import type { SiteDoc } from "./types";
 export function hasPublishCredentials(doc: SiteDoc): boolean {
   const seen = new WeakSet<object>();
   const header = /^(?:authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x-api[-_]?key|x-auth[-_]?token|x-client[-_]?secret|x[-_]?token|x[-_]?secret)$/i;
-  const queryKey = /[?&#](?:api[-_]?key|secret|access[-_]?token|auth[-_]?token|client[-_]?secret|password|passwd|token|key)=([^&#]+)/ig;
+  const sensitiveKey = /^(?:api[-_]?key|secret|access[-_]?token|auth[-_]?token|client[-_]?secret|password|passwd|token)$/i;
   const bodyKey = /"(?:api[-_]?key|secret|access[-_]?token|auth[-_]?token|client[-_]?secret|password|passwd|token)"\s*:\s*"([^"]+)"/ig;
   const reference = /^\{[^{}\s]+\}$/;
+  const literal = (value: string) => !!value.trim() && !reference.test(value.trim());
 
-  function containsLiteral(src: string, pattern: RegExp): boolean {
-    pattern.lastIndex = 0;
-    for (const match of src.matchAll(pattern)) {
-      const value = decodeURIComponentSafe(match[1]).trim();
-      if (value && !reference.test(value)) return true;
+  function containsParam(source: string, includeKey: boolean): boolean {
+    for (const [key, value] of new URLSearchParams(source)) {
+      if ((sensitiveKey.test(key) || (includeKey && key.toLowerCase() === "key")) && literal(value)) return true;
     }
     return false;
   }
   function decodeURIComponentSafe(value: string): string {
     try { return decodeURIComponent(value); } catch { return value; }
   }
-  function walk(value: unknown, depth: number): boolean {
-    if (depth > 80 || !value || typeof value !== "object") return false;
-    if (seen.has(value)) return false;
+  const pending: unknown[] = [doc];
+  while (pending.length) {
+    const value = pending.pop();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
     seen.add(value);
-    if (Array.isArray(value)) return value.some((item) => walk(item, depth + 1));
     const object = value as Record<string, unknown>;
     if (object.kind === "fetch") {
       const url = String(object.url ?? "");
@@ -39,16 +38,34 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
       } catch {
         if (/^https?:\/\/[^/\s@]+@/i.test(url)) return true;
       }
-      if (containsLiteral(url, queryKey)) return true;
+      if (url.split(/[?#]/).slice(1).some(part => containsParam(part, true))) return true;
       const headers = Array.isArray(object.headers) ? object.headers : [];
       if (headers.some((item) => {
         if (!item || typeof item !== "object") return false;
         const h = item as Record<string, unknown>;
         return header.test(String(h.name ?? "")) && !!String(h.value ?? "").trim();
       })) return true;
-      if (containsLiteral(String(object.body ?? ""), bodyKey)) return true;
+      const body = typeof object.body === "string" ? object.body : "";
+      if (containsParam(body, false)) return true;
+      // Keep inspecting templated or incomplete JSON that cannot yet be parsed.
+      for (const match of body.matchAll(bodyKey)) {
+        if (literal(decodeURIComponentSafe(match[1]))) return true;
+      }
+      if (/^\s*[\[{]/.test(body)) {
+        let parsed: unknown;
+        try { parsed = JSON.parse(body); } catch { /* Template is not JSON yet. */ }
+        const fields: unknown[] = [parsed];
+        while (fields.length) {
+          const current = fields.pop();
+          if (!current || typeof current !== "object") continue;
+          for (const [key, item] of Object.entries(current)) {
+            if (sensitiveKey.test(key) && typeof item === "string" && literal(item)) return true;
+            if (item && typeof item === "object") fields.push(item);
+          }
+        }
+      }
     }
-    return Object.values(object).some((item) => walk(item, depth + 1));
+    for (const item of Object.values(object)) if (item && typeof item === "object") pending.push(item);
   }
-  return walk(doc, 0);
+  return false;
 }

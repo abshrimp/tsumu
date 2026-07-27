@@ -5,6 +5,7 @@ import { requireAuth } from "../../../lib/server";
 import { assetStore, MAX_ASSET_BYTES } from "../../../lib/kv";
 import { userMessage } from "../../../lib/errors";
 import { dbConfigured, getDb } from "../../../lib/db";
+import { readAssetForm } from "../../../lib/asset-upload";
 import { siteIdOf } from "../../../lib/site-server";
 
 /** 画像・動画・音声アセットをアップロード */
@@ -15,7 +16,14 @@ export async function POST(req: Request) {
   const store = assetStore();
   if (!store) return await storeUnavailable();
 
-  const form = await req.formData().catch(() => null);
+  let form;
+  try {
+    // Leave space for multipart headers and fields in addition to the file.
+    form = await readAssetForm(req, MAX_ASSET_BYTES + 1024 * 1024);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return NextResponse.json({ error: tr("ファイルが大きすぎます（25MBまで）") }, { status: 413 });
+  }
   const file = form?.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json(

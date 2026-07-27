@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { matchesValueCondition, parseValueLiteral } from "../lib/value-semantics";
-import { runPurePageSteps } from "../lib/page-load-steps";
+import { PAGE_STEP_RUNNER_SOURCE, runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
 import { obfuscateVarNames } from "../lib/data";
@@ -26,6 +26,7 @@ test("list contains searches values, while has-key only checks own keys", () => 
   assert.equal(matchesValueCondition(list, "contains", "0"), false);
   assert.equal(matchesValueCondition(list, "has-key", "0"), true);
   assert.equal(matchesValueCondition(list, "has-key", "3"), false);
+  assert.equal(matchesValueCondition(list, "has-key", "length"), false);
 });
 
 test("value checks keep typed values distinct and lists structurally comparable", () => {
@@ -177,4 +178,47 @@ test("native exported list rendering accepts dictionary keys and preserves neste
     { title: "Apple" }, { "値": 2 }, { "値": null }, { "値": [1, 2] },
   ]);
   assert.deepEqual(listItems({ rows: ["a", "b"] }, "rows", 1), [{ "値": "a" }]);
+});
+
+test("at the size limit dictionaries still allow updates to existing keys", () => {
+  const list = Object.fromEntries(Array.from({ length: 10000 }, (_, i) => [String(i), i]));
+  const vars = { list };
+  const set = (key: string) => run([{ id: "write", kind: "set-list-item", list: "list", key, value: "true" }], vars);
+  assert.equal(set("0"), true);
+  assert.equal(vars.list["0"], true);
+  assert.equal(set("extra"), true);
+  assert.equal(Object.hasOwn(vars.list, "extra"), false);
+  assert.equal(list["0"], 0);
+});
+
+test("page scripts reject list values that would expand exponentially when published", () => {
+  const vars: Record<string, unknown> = {};
+  const steps: ScriptStep[] = [
+    { id: "seed", kind: "set-var", into: "value", value: "{}" },
+    { id: "double", kind: "repeat", times: 28, then: [
+      { id: "old", kind: "set-var", into: "old", value: "{value}" },
+      { id: "new", kind: "set-var", into: "value", value: "{}" },
+      { id: "left", kind: "set-list-item", list: "value", key: "a", value: "{old}" },
+      { id: "right", kind: "set-list-item", list: "value", key: "b", value: "{old}" },
+    ] },
+  ];
+  // Never serialize the hostile result in the test itself.
+  assert.equal(run(steps, vars), false);
+  assert.deepEqual(Object.keys(vars), []);
+  const emitted = new Function("const __name = fn => fn; return " + PAGE_STEP_RUNNER_SOURCE)() as typeof runPurePageSteps;
+  assert.equal(emitted(steps, vars, lookupVar, interpolate, evaluateValueRecipe), false);
+  assert.deepEqual(Object.keys(vars), []);
+});
+
+test("page script writes update nested data and preserve existing literal dotted keys", () => {
+  const before = { enabled: false };
+  const vars: Record<string, unknown> = { settings: before, "literal.key": 0 };
+  assert.equal(run([
+    { id: "set", kind: "set-var", into: "settings.enabled", value: "true" },
+    { id: "literal", kind: "set-var", into: "literal.key", value: "1" },
+  ], vars), true);
+  assert.deepEqual(vars.settings, { enabled: true });
+  assert.equal(before.enabled, false);
+  assert.equal(Object.hasOwn(vars, "settings.enabled"), false);
+  assert.equal(vars["literal.key"], 1);
 });

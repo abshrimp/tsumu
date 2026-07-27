@@ -23,7 +23,7 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
   };
   if (operator === "has-key") {
     if (!record(left) || record(right) || right === undefined || right === null) return false;
-    return owns(left, String(right));
+    return Object.prototype.propertyIsEnumerable.call(left, String(right));
   }
   if (operator === "empty") {
     if (left === undefined || left === null || left === "") return true;
@@ -68,4 +68,68 @@ export function parseValueLiteral(text: string): unknown {
     try { return JSON.parse(source); } catch { /* Ordinary text. */ }
   }
   return text;
+}
+
+/** Budget the expanded JSON shape without serializing shared subtrees. */
+export function withinScriptValueLimit(value: unknown): boolean {
+  // The fetch transports also cap JSON responses at 5 MiB. This counts string
+  // code units and container overhead, bounding expansion before serialization.
+  const limit = 5 * 1024 * 1024;
+  if (value == null || typeof value !== "object") return typeof value !== "string" || value.length <= limit;
+  const sizes = new WeakMap<object, { cost: number; height: number }>();
+  const measure = (item: unknown, depth: number): { cost: number; height: number } => {
+    if (depth > 64) return { cost: Infinity, height: 0 };
+    if (item === null || typeof item !== "object") {
+      return { cost: typeof item === "string" ? item.length + 2 : 8, height: 0 };
+    }
+    const cached = sizes.get(item);
+    if (cached) return depth + cached.height <= 64 ? cached : { cost: Infinity, height: 0 };
+    // A reference to an active ancestor is a cycle.
+    sizes.set(item, { cost: Infinity, height: 0 });
+    if (Array.isArray(item) && item.length > limit) return { cost: Infinity, height: 0 };
+    let cost = Array.isArray(item) ? 2 + item.length : 2;
+    let height = 0;
+    for (const key of Object.keys(item)) {
+      const child = measure((item as Record<string, unknown>)[key], depth + 1);
+      cost += key.length + 4 + child.cost;
+      height = Math.max(height, child.height + 1);
+      if (cost > limit) return { cost: Infinity, height: 0 };
+    }
+    const measured = { cost, height };
+    sizes.set(item, measured);
+    return measured;
+  };
+  return measure(value, 0).cost <= limit;
+}
+
+/** 変数に値を入れる（"記事.tags" のような入れ子は、元の値を変えずに途中を複製して入れる） */
+export function setVarPath(vars: Record<string, unknown>, name: string, value: unknown,
+  accept?: (candidate: unknown) => boolean): string | undefined {
+  const owns = (obj: object, key: string | number) =>
+    Object.prototype.hasOwnProperty.call(obj, key);
+  // Object.defineProperty writes __proto__ as a normal own key, not as a
+  // prototype mutation. Only own keys may shadow a path.
+  const write = (key: string, next: unknown) => {
+    if (accept && !accept(next)) return undefined;
+    Object.defineProperty(vars, key, { value: next, writable: true, enumerable: true, configurable: true });
+    return key;
+  };
+  if (owns(vars, name) || !name.includes(".")) {
+    return write(name, value);
+  }
+  const put = (cur: unknown, keys: string[]): unknown => {
+    if (!keys.length) return value;
+    const [k, ...rest] = keys;
+    if (Array.isArray(cur) && /^(0|[1-9][0-9]*)$/.test(k)) {
+      const index = Number(k), copy = cur.slice();
+      if (!Number.isSafeInteger(index) || index > 1000000) return copy;
+      copy[index] = put(owns(cur, index) ? cur[index] : undefined, rest);
+      return copy;
+    }
+    const obj = cur && typeof cur === "object" ? cur as Record<string, unknown> : {};
+    return { ...obj, [k]: put(owns(obj, k) ? obj[k] : undefined, rest) };
+  };
+  const [root, ...rest] = name.split(".");
+  if (rest.length > 64) return undefined;
+  return write(root, put(owns(vars, root) ? vars[root] : undefined, rest));
 }

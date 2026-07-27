@@ -106,6 +106,7 @@ export async function POST(req: Request) {
   let body: { target?: unknown; sha?: unknown; site?: string; dest?: unknown; expected?: unknown; expectedHead?: unknown };
   try {
     body = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new TypeError();
   } catch {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
