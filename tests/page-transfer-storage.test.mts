@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialDoc } from "../lib/presets";
 import { buildPagePayload, copyPagesToSite } from "../lib/page-transfer";
-import { DOC_STORAGE_KEY, siteKey } from "../lib/site";
+import { DOC_STORAGE_KEY, LOCAL_SITE_DELETED_KEY, siteKey } from "../lib/site";
 
 const target = { id: "destination", name: "Destination" };
 const key = siteKey(DOC_STORAGE_KEY, target.id);
@@ -17,7 +17,7 @@ for (const failure of ["read", "json", "empty", "shape"] as const) {
     let writes = 0;
     const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
     Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: {
-      getItem(k: string) { assert.equal(k, key); if (failure === "read") throw new Error("Read unavailable"); return raw; },
+      getItem(k: string) { if (k !== key) return null; assert.equal(k, key); if (failure === "read") throw new Error("Read unavailable"); return raw; },
       setItem(k: string, value: string) { assert.equal(k, key); writes++; raw = value; },
     } } });
     try {
@@ -39,7 +39,7 @@ test("local copy initializes only absent documents and preserves existing target
     let raw: string | null = exists ? JSON.stringify(destination) : null;
     const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
     Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: {
-      getItem() { return raw; }, setItem(_key: string, value: string) { raw = value; },
+      getItem(k: string) { return k === key ? raw : null; }, setItem(_key: string, value: string) { raw = value; },
     } } });
     try {
       await copyPagesToSite(target, payload, "local");
@@ -64,7 +64,7 @@ test("a quota failure preserves the existing destination and a retry appends onl
   let full = true;
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: {
-    getItem() { return raw; },
+    getItem(k: string) { return k === key ? raw : null; },
     setItem(_key: string, value: string) {
       if (full) throw new DOMException("Storage full", "QuotaExceededError");
       raw = value;
@@ -129,7 +129,7 @@ test("local incompatible copy leaves the saved destination byte-for-byte unchang
   let writes = 0;
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: {
-    getItem() { return original; }, setItem() { writes++; },
+    getItem(k: string) { return k === key ? original : null; }, setItem() { writes++; },
   } } });
   try {
     await assert.rejects(copyPagesToSite(target, payload, "local"), /画面幅|screen-width/);
@@ -137,5 +137,25 @@ test("local incompatible copy leaves the saved destination byte-for-byte unchang
   } finally {
     if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
     else Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
+
+test("local copy cannot recreate a destination deleted after opening the copy dialog", async () => {
+  const marker = siteKey(LOCAL_SITE_DELETED_KEY, target.id);
+  for (const original of [null, JSON.stringify(createInitialDoc())]) {
+    let writes = 0;
+    const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+    Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: {
+      getItem(k: string) { return k === marker ? "1" : k === key ? original : null; },
+      setItem() { writes++; },
+    } } });
+    try {
+      await assert.rejects(copyPagesToSite(target, payload, "local"));
+      assert.equal(writes, 0);
+    } finally {
+      if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+      else Reflect.deleteProperty(globalThis, "window");
+    }
   }
 });
