@@ -108,7 +108,7 @@ test("standalone HTML selects query-variant pages before loading their data", as
 });
 
 
-test("standalone HTML executes #136 transform and condition blocks in Chromium", async ({ page }) => {
+test("standalone HTML executes transform and condition blocks in Chromium", async ({ page }) => {
   const doc: SiteDoc = {
     siteName: "Composable HTML data",
     pageOrder: ["home"],
@@ -191,8 +191,8 @@ test("standalone HTML uses form and query operands and clears missing transform 
             transform: { kind: "math", operation: "add",
               operand: "extra", operandType: "variable" } },
           { id: "old", kind: "set-var", into: "chosen", value: "stale" },
-          { id: "missing", kind: "transform", source: "records", into: "chosen",
-            transform: { kind: "find", field: "name", operation: "eq", operand: "absent" } },
+          { id: "missing", kind: "transform", source: "records.0", into: "chosen",
+            transform: { kind: "field", key: "absent" } },
           { id: "fallback", kind: "transform", source: "chosen", into: "chosen",
             transform: { kind: "fallback", text: "not found" } },
           { id: "conditional", kind: "if",

@@ -40,7 +40,7 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 
 - **Styles** are stored as `styles[breakpoint][state][cssProperty]`. The state is `default`, `hover`, `active`, `focus` or a named state `custom:<name>`, and every value is a plain CSS string. A named state applies while the element's `data-site-state` attribute holds that name; the `set-state` script step sets it (`lib/custom-states.ts`).
 - **Scripts** are data, not code: a trigger followed by steps (`Script`, `ScriptStep`). `lib/script.ts` defines the model. `lib/script-runtime.ts` is the runtime, shared by the canvas preview and exported sites; the generator keeps only the runtime features a site actually uses.
-- **Lists** repeat a template child once for each item in an array. The array comes from a fetch step or from static data. A list can also generate a detail page per item (such as `/news/[slug]`).
+- **Lists** render a template child for each item in an array or dictionary. Data may come from a fetch step or a script, and each item can have its own detail page (such as `/news/[slug]`).
 
 > [!IMPORTANT]
 > Node IDs are stable and unique within a doc. Merging, undo, comments and AI ops all key on them, so never reuse or renumber an ID. `lib/cloneIds.ts` is the only safe way to copy a subtree.
@@ -168,7 +168,7 @@ If the user edited the same page while the AI was working, the AI's change is dr
 
 - **Language.** Comments and UI strings are in Japanese. Every new `tr()` string needs an English translation (`npm run i18n:check`).
 - **Readable output.** Generated code should look hand-written. Output a developer wouldn't write by hand is a bug.
-- **Formats.** Browser state uses `tsumu-` keys, and clipboard data uses the `application/x-tsumu+json` type. The initial public format has no migration layer for predecessor applications.
+- **Formats.** Browser state uses `tsumu-` keys, and clipboard data uses the `application/x-tsumu+json` type. The format is defined by the current document schema.
 - **Tests.** New behavior needs a test.
   - Unit tests live in `tests/`. They use Node's built-in test runner through `tsx` and import modules from `lib/` directly.
   - UI flows live in `e2e/` (Playwright). They start the built editor on Node.js with a throwaway `TSUMU_DATA_DIR` and `ALLOW_ANONYMOUS=true`.

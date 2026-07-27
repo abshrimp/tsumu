@@ -253,21 +253,21 @@ test("ZIP preview stays blank on signing failure and recovers after an explicit 
   expect(fixture.errors).toEqual([]);
 });
 
-for (const mode of ["local", "public", "legacy"] as const) {
+for (const mode of ["local", "public", "raw-html"] as const) {
   test(`${mode} preview has no expiry notice or automatic iframe reload`, async ({ page }) => {
     await page.clock.install();
     const fixture = await zipCssBrowser(page, mode === "local" ? "local" : "remote");
     fixture.control.publicAssets = mode === "public";
     const doc = structuredClone(fixture.doc);
-    if (mode === "legacy") {
-      // A legacy page still receives an expiring URL, but has no imported CSS graph.
+    if (mode === "raw-html") {
+      // Raw HTML uses signed asset links without requiring imported CSS.
       // Use an anchor so its initial unsigned URL cannot trigger an irrelevant image load.
       const path = fixtureAsset(doc, "site/images/background.svg").path!;
-      doc.pages.p.rawHtml = `<!doctype html><input id="draft"><div id="version">Legacy</div><a id="asset-link" href="/api/assets/file?path=${encodeURIComponent(path)}">Asset</a>`;
+      doc.pages.p.rawHtml = `<!doctype html><input id="draft"><div id="version">Raw HTML</div><a id="asset-link" href="/api/assets/file?path=${encodeURIComponent(path)}">Asset</a>`;
     }
     await fixture.mount(doc);
     const frame = await previewFrame(page);
-    if (mode === "legacy") await expect(frame.locator("#asset-link")).toHaveAttribute("href", /sig=fixture-1/);
+    if (mode === "raw-html") await expect(frame.locator("#asset-link")).toHaveAttribute("href", /sig=fixture-1/);
     else await expect(frame.locator("#nested-rule")).toHaveCSS("gap", "13px");
     await frame.locator("#draft").fill("Keep local state");
     await frame.evaluate(() => { (window as any).previewState = "unchanged"; });

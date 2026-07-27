@@ -59,7 +59,7 @@ Tsumu は、ウェブサイトを構築するためのビジュアルエディ�
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/ja/responsive.png" alt="スマホの見た目を編集"><br><sub><b>画面幅ごとの編集</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/ja/scripts.png" alt="スクリプト画面"><br><sub><b>コード不要のスクリプト</b></sub></td>
+    <td width="50%"><b>コード不要のスクリプト</b><p>「値」「リスト」を扱うブロックと、条件分岐・ループを組み合わせて処理を構築します。</p></td>
   </tr>
 </table>
 

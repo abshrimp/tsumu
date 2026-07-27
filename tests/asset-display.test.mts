@@ -18,7 +18,7 @@ test("CSS, scripts, JSON and fonts are not displayed or inserted as images", () 
   }
 });
 
-test("visual formats still have media previews, including legacy assets without MIME", () => {
+test("visual formats still have media previews, including assets without MIME metadata", () => {
   for (const [name, mimeType, expected] of [
     ["image.svg", "image/svg+xml", "image"],
     ["photo.png", undefined, "image"],

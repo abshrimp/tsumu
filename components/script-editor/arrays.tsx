@@ -47,12 +47,12 @@ export function ArraySelect({ value, onChange }: { value: string; onChange: (v: 
 function arrayPathsIn(samples: Record<string, unknown>): string[] {
   const out: string[] = [];
   const walk = (v: unknown, path: string, depth: number) => {
-    if (Array.isArray(v)) {
-      out.push(path);
-      return;
+    if (depth > 3 || !v || typeof v !== "object" || out.length >= 100) return;
+    out.push(path);
+    if (depth === 3) return;
+    for (const [k, c] of Object.entries(v).slice(0, 50)) {
+      if (!k.includes(".") && c && typeof c === "object") walk(c, `${path}.${k}`, depth + 1);
     }
-    if (depth >= 3 || !v || typeof v !== "object") return;
-    for (const [k, c] of Object.entries(v)) walk(c, `${path}.${k}`, depth + 1);
   };
   for (const [k, v] of Object.entries(samples)) {
     if (!k.startsWith("#")) walk(v, k, 0);

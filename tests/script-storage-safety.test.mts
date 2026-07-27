@@ -30,6 +30,35 @@ test("script storage fallback retains prototype-like keys when cookies and local
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
 });
 
+test("script storage round-trips primitive and structured JSON values", () => {
+  const start = SCRIPT_RUNTIME.indexOf('  var prefix = "";');
+  const end = SCRIPT_RUNTIME.indexOf("  /*/store*/", start);
+  const storageSource = SCRIPT_RUNTIME.slice(start, end);
+  const values = new Map<string, string>();
+  const localStorage = {
+    getItem(key: string) { return values.get(key) ?? null; },
+    setItem(key: string, value: string) { values.set(key, value); },
+    removeItem(key: string) { values.delete(key); },
+  };
+  const storage = new Function("env", "location", "document", "localStorage", "has",
+    storageSource + "\nreturn { storeGet, storeSet };")(
+      { storePrefix: "" }, { hostname: "example.com", protocol: "https:" },
+      { cookie: "" }, localStorage,
+      (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key),
+    ) as { storeGet(k: string, shared: boolean): unknown; storeSet(k: string, v: unknown, shared: boolean): void };
+  const cases: Array<[string, unknown]> = [
+    ["number", 12], ["string", "0012"], ["boolean", false], ["null", null],
+    ["array", [1, false, null, { city: "Kyoto" }]],
+    ["dictionary", { a: 1, b: [2] }], ["missing", undefined],
+  ];
+  for (const [key, value] of cases) {
+    storage.storeSet(key, value, false);
+    assert.deepEqual(storage.storeGet(key, false), value);
+  }
+  assert.equal(storage.storeGet("absent", false), undefined);
+  assert.equal(({} as Record<string, unknown>).polluted, undefined);
+});
+
 test("exported browser script includes prototype-free storage", () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];

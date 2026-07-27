@@ -147,8 +147,7 @@ export async function parseSiteImport(
   const doc = validateImportedDoc(await decodePortableDoc(jsonText(docBytes), IMPORT_LIMITS.docBytes));
   const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
-  // Only the current editable archive contract is supported. Never infer
-  // asset locations from historical public/assets or assets directory layouts.
+  // Asset paths are read from the archive's explicit mapping file.
   const mapEntry = zip.file(parent + "assets.json");
   if (!mapEntry) throw new Error("ZIPに_tsumu/assets.jsonがありません。");
   const metadata = jsonText(await readZipEntryLimited(mapEntry, IMPORT_LIMITS.docBytes));

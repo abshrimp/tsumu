@@ -26,12 +26,14 @@ test("search has one focus outline and unchanged height when text changes", asyn
   expect(await wrapper.evaluate(el => (el as HTMLElement).offsetHeight)).toBe(height);
 });
 
-test("all supported blocks are available directly, without a historical block menu", async ({ page }) => {
+test("all supported blocks are available in the palette", async ({ page }) => {
   const cards = palette(page).locator(".se-pal-item");
-  await expect(cards).toHaveCount(23);
-  await expect(palette(page).getByRole("button", { name: /以前のブロック/ })).toHaveCount(0);
+  await expect(cards).toHaveCount(26);
   await expect(palette(page).locator('[data-tutorial="se-block-transform"]')).toBeVisible();
   await expect(palette(page).locator('[data-tutorial="se-block-list-display"]')).toBeVisible();
+  await expect(palette(page).locator('[data-tutorial="se-block-make-list"]')).toBeVisible();
+  await expect(palette(page).locator('[data-tutorial="se-block-set-list-item"]')).toBeVisible();
+  await expect(palette(page).locator('[data-tutorial="se-block-break-loop"]')).toBeVisible();
 });
 
 test("search can find the new processing and list display blocks", async ({ page }) => {
@@ -50,6 +52,6 @@ test("search can find the new processing and list display blocks", async ({ page
   await search.fill("未実装の操作987654");
   await expect(palette(page).getByRole("status")).toHaveText("一致する操作がありません");
   await search.press("Escape");
-  await expect(palette(page).locator(".se-pal-item")).toHaveCount(23);
+  await expect(palette(page).locator(".se-pal-item")).toHaveCount(26);
   expect(await page.evaluate(() => JSON.stringify((window as any).dataPickerStore.getState().doc))).toBe(original);
 });

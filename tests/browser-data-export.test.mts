@@ -44,16 +44,28 @@ async function runBrowserData(
   return { values: JSON.parse(JSON.stringify(values)), warnings, steps: JSON.parse(raw).steps as ScriptStep[] };
 }
 
-test("native HTML fetches JSON and applies composable find, length, map and join transforms", async () => {
+test("native HTML fetches JSON and composes list loops, length, and join", async () => {
   const doc = fixture([
     { id: "request", kind: "fetch", url: "https://data.example.test/items?group={group}", as: "rows",
       sample: [{ id: 999, name: "editor-only" }] },
-    { id: "find", kind: "transform", source: "rows", into: "selected",
-      transform: { kind: "find", field: "id", operation: "eq", operand: "{id}" } },
+    { id: "requested-id", kind: "set-var", value: "{id}", into: "requestedId" },
+    { id: "selected-init", kind: "set-var", value: "null", into: "selected" },
+    { id: "find", kind: "for-each", array: "rows", then: [
+      { id: "id-as-text", kind: "transform", source: "ループ.値.id", into: "currentId",
+        transform: { kind: "format" } },
+      { id: "match", kind: "if", cond: { subject: "var", target: "",
+        left: "{currentId}", op: "eq", value: "{requestedId}" }, then: [
+        { id: "choose", kind: "set-var", into: "selected", value: "{ループ.値}" },
+        { id: "break", kind: "break-loop" },
+      ] },
+    ] },
     { id: "count", kind: "transform", source: "rows", into: "total",
       transform: { kind: "length" } },
-    { id: "field", kind: "transform", source: "rows", into: "labels",
-      transform: { kind: "map-field", field: "name" } },
+    { id: "labels-init", kind: "set-var", value: "[]", into: "labels" },
+    { id: "field", kind: "for-each", array: "rows", then: [
+      { id: "add-name", kind: "set-list-item", list: "labels",
+        key: "", value: "{ループ.値.name}" },
+    ] },
     { id: "join", kind: "transform", source: "labels", into: "names",
       transform: { kind: "join", separator: " / " } },
   ]);
@@ -77,7 +89,7 @@ test("native HTML fetches JSON and applies composable find, length, map and join
   };
   assert.equal(values[target("count")], 2);
   assert.equal(values[target("join")], "A / B");
-  assert.equal(values[target("find")].id, 2);
+  assert.equal(values[target("selected-init")].id, 2);
   const rows = steps.find((item) => item.id === "request");
   assert.ok(rows && rows.kind === "fetch");
   assert.equal(values[rows.as!][1].name, "B");

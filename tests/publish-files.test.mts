@@ -23,30 +23,28 @@ test("手で追加したファイルは残し、直接編集された書き出�
     "app/page.tsx": "edited",
     "app/layout.tsx": "same",
     "app/api/hello/route.ts": "mine",
+    "_next/static/build.js": "static",
     [DOC_PATH]: "doc",
-    "_tsumu/stray.json": "stray2",
-    "_site-data/doc.json": "obsolete-doc",
-    "_site-data/assets.json": "obsolete-assets",
-    "_site-data/generated.json": "obsolete-list",
+    "_tsumu/stray.json": "stray",
     [GENERATED_MANIFEST_PATH]: "list",
   };
   const generated = { "app/page.tsx": "original", "app/layout.tsx": "same", [DOC_PATH]: "doc" };
   const plan = planPublish(blobs, generated, ["app/page.tsx", "app/layout.tsx", DOC_PATH]);
   assert.deepEqual(plan.edited, ["app/page.tsx"]);
   assert.deepEqual(plan.clashing, []);
-  // 管理対象のメタデータは、手で追加したファイルとしては残さない
-  assert.deepEqual(plan.kept, { "app/api/hello/route.ts": "mine" });
+  assert.deepEqual(plan.kept, { "app/api/hello/route.ts": "mine", "_next/static/build.js": "static" });
 });
 
-test("legacy publish metadata is never preserved as manual files", () => {
+test("Tsumu managed metadata is never preserved as a manually authored file", () => {
   const blobs = {
-    "_site-data/doc.json": "old-doc",
-    "_site-data/assets.json": "old-assets",
-    "_site-data/generated.json": "old-list",
+    [DOC_PATH]: "document",
+    "_tsumu/assets.json": "assets",
+    [GENERATED_MANIFEST_PATH]: "generated",
+    "_next/static/app.js": "framework",
     "README.md": "manual",
   };
   const plan = planPublish(blobs, null, [DOC_PATH, GENERATED_MANIFEST_PATH]);
-  assert.deepEqual(plan.kept, { "README.md": "manual" });
+  assert.deepEqual(plan.kept, { "_next/static/app.js": "framework", "README.md": "manual" });
   assert.deepEqual(plan.clashing, []);
   assert.deepEqual(plan.edited, []);
 });
@@ -81,9 +79,11 @@ test("一覧は書き出して読み戻せ、壊れていれば null", () => {
 });
 
 test("コミットするパスは、リポジトリの外や別の場所を指せない", () => {
-  for (const ok of ["app/page.tsx", "public/a b.png", ".well-known/security.txt"]) assert.ok(isSafeCommitPath(ok), ok);
-  for (const ng of ["", "/etc/passwd", "a/../b", "./a", "a//b", "a/", "a\\b",
-    "_site-data", "_site-data/doc.json", "_SITE-DATA/generated.json"]) assert.ok(!isSafeCommitPath(ng), ng);
+  for (const ok of ["app/page.tsx", "public/a b.png", ".well-known/security.txt",
+    "_next/static/chunk.js", "_app/entry.js", "_headers", "_redirects"])
+    assert.ok(isSafeCommitPath(ok), ok);
+  for (const ng of ["", "/etc/passwd", "a/../b", "./a", "a//b", "a/", "a\\b"])
+    assert.ok(!isSafeCommitPath(ng), ng);
 });
 
 test(".github/ は書き出しに使わない場所として扱う", () => {

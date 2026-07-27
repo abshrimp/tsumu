@@ -147,7 +147,7 @@ test("deletion before comment initialization cannot expose residual browser comm
   } finally { f.home.dispose(); }
 });
 
-for (const absentComments of [false, true]) test(`503 fallback without a local site record preserves ${absentComments ? "first-comment" : "legacy"} behavior`, async () => {
+for (const absentComments of [false, true]) test(`503 fallback without a local site record preserves ${absentComments ? "first-comment" : "existing-comments"} behavior`, async () => {
   const f = await setup(null);
   try {
     f.values.delete(listKey); if (absentComments) f.values.delete(commentKey);
@@ -172,7 +172,7 @@ for (const operation of ["load", "write"] as const) test(`a marker read failure 
   } finally { f.home.dispose(); }
 });
 
-for (const stage of ["read", "write", "write-cleanup-failure"] as const) test(`deletion overlapping the comment ${stage} rejects success and hides the obsolete snapshot`, async () => {
+for (const stage of ["read", "write", "write-cleanup-failure"] as const) test(`deletion overlapping the comment ${stage} rejects success and hides the deleted record`, async () => {
   const f = await setup();
   try {
     useComments.getState().setDraft(draft);

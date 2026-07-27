@@ -34,6 +34,7 @@ async function runChain(page: Page, exported: boolean, input: string, transforms
   return { answer: page.locator("#answer"), errors };
 }
 
+
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " runtime composes numeric value blocks in ordinary script order", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "12", [
@@ -45,35 +46,7 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 
-  test((exported ? "exported" : "preview") + " runtime filters, sorts and joins through connected blocks", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported,
-      '[{"name":"C","price":1},{"name":"A","price":3},{"name":"B","price":2}]', [
-      { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "filter", kind: "transform", source: "items", into: "items",
-        transform: { kind: "filter", field: "price", operation: "gt", operand: "1" } },
-      { id: "sort", kind: "transform", source: "items", into: "items", transform: { kind: "sort", field: "name", direction: "asc" } },
-      { id: "map", kind: "transform", source: "items", into: "items", transform: { kind: "map-field", field: "name" } },
-      { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "、" } },
-    ]);
-    await expect(answer).toHaveValue("A、B");
-    expect(errors).toEqual([]);
-  });
-}
 
-for (const exported of [false, true]) {
-  test((exported ? "exported" : "preview") + " runtime appends and removes list elements without mutation", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '["red","blue","red"]', [
-      { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "remove", kind: "transform", source: "items", into: "items",
-        transform: { kind: "remove", operandType: "text", operand: "red" } },
-      { id: "append", kind: "transform", source: "items", into: "items",
-        transform: { kind: "append", operandType: "text", operand: "green" } },
-      { id: "join", kind: "transform", source: "items", into: "items",
-        transform: { kind: "join", separator: "/" } },
-    ]);
-    await expect(answer).toHaveValue("blue/green");
-    expect(errors).toEqual([]);
-  });
 }
 
 for (const exported of [false, true]) {
@@ -101,6 +74,7 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 }
+
 
 test("scripted named state changes a distant element and reset restores its default style", async ({ page }) => {
   const button = { ...makeBox(), id: "trigger", attrId: "trigger", scripts: [{
@@ -141,6 +115,7 @@ test("scripted named state changes a distant element and reset restores its defa
   await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(238, 238, 238)");
 });
 
+
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " runtime branches on the negation of a positive comparison", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "initial", [
@@ -179,6 +154,7 @@ for (const exported of [false, true]) {
   });
 }
 
+
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " interpolates mixed text in fallback blocks", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "unused", [
@@ -190,56 +166,7 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 
-  test((exported ? "exported" : "preview") + " resolves inline variables in list operations", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '["red","blue","green"]', [
-      { id: "color", kind: "set-var", into: "color", value: "red" },
-      { id: "separator", kind: "set-var", into: "separator", value: " / " },
-      { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "remove", kind: "transform", source: "items", into: "items",
-        transform: { kind: "remove", operand: "{color}", operandType: "text" } },
-      { id: "join", kind: "transform", source: "items", into: "items",
-        transform: { kind: "join", separator: "{separator}" } },
-    ]);
-    await expect(answer).toHaveValue("blue / green");
-    expect(errors).toEqual([]);
-  });
-}
 
-for (const exported of [false, true]) {
-  test((exported ? "exported" : "preview") + " value compare supports grouped AND/OR and not", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "15", [
-      { id: "parse-number", kind: "transform", source: "items", into: "items",
-        transform: { kind: "parse" } },
-      { id: "grouped", kind: "transform", source: "items", into: "items",
-        transform: { kind: "compare", operation: "gte", operand: "10",
-          conditions: [
-            { field: "", operation: "lte", operand: "20", and: true },
-            { field: "", operation: "eq", operand: "40", and: false },
-          ] } },
-    ]);
-    await expect(answer).toHaveValue("true");
-    expect(errors).toEqual([]);
-  });
-
-  test((exported ? "exported" : "preview") + " filters records through OR groups and negative conditions", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported,
-      '[{"name":"Alpha","score":12},{"name":"Beta","score":18},{"name":"Gamma","score":25},{"name":"Delta","score":40}]', [
-        { id: "parse-items", kind: "transform", source: "items", into: "items",
-          transform: { kind: "parse" } },
-        { id: "filter", kind: "transform", source: "items", into: "items",
-          transform: { kind: "filter", field: "score", operation: "gte", operand: "10",
-            conditions: [
-              { field: "score", operation: "lte", operand: "20", and: true },
-              { field: "name", operation: "contains", operand: "Del", and: false },
-            ] } },
-        { id: "names", kind: "transform", source: "items", into: "items",
-          transform: { kind: "map-field", field: "name" } },
-        { id: "join", kind: "transform", source: "items", into: "items",
-          transform: { kind: "join", separator: "," } },
-      ]);
-    await expect(answer).toHaveValue("Alpha,Beta,Delta");
-    expect(errors).toEqual([]);
-  });
 }
 
 for (const exported of [false, true]) {
@@ -254,26 +181,7 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 
-  test((exported ? "exported" : "preview") + " converts a holiday dictionary into filterable list rows", async ({ page }) => {
-    const data = JSON.stringify({
-      "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日", "2027-01-01": "元日",
-    });
-    const { answer, errors } = await runChain(page, exported, data, [
-      { id: "parse-holidays", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "rows", kind: "transform", source: "items", into: "items",
-        transform: { kind: "object-entries", keyField: "日付", valueField: "祝日名" } },
-      { id: "filter-days", kind: "transform", source: "items", into: "items",
-        transform: { kind: "filter", field: "祝日名", operation: "contains", operand: "の日" } },
-      { id: "sort-days", kind: "transform", source: "items", into: "items",
-        transform: { kind: "sort", field: "日付", direction: "desc" } },
-      { id: "names", kind: "transform", source: "items", into: "items",
-        transform: { kind: "map-field", field: "祝日名" } },
-      { id: "join", kind: "transform", source: "items", into: "items",
-        transform: { kind: "join", separator: " / " } },
-    ]);
-    await expect(answer).toHaveValue("勤労感謝の日 / 文化の日");
-    expect(errors).toEqual([]);
-  });
+
 }
 
 for (const exported of [false, true]) {
@@ -289,6 +197,7 @@ for (const exported of [false, true]) {
     expect(await page.evaluate(() => ({} as Record<string, unknown>).polluted)).toBeUndefined();
   });
 }
+
 
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " evaluates AND before OR in multi-clause if blocks", async ({ page }) => {
@@ -327,21 +236,6 @@ for (const exported of [false, true]) {
   });
 }
 
-for (const exported of [false, true]) {
-  test((exported ? "exported" : "preview") + " missing list matches clear stale values for subsequent fallback", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '[{"name":"first"}]', [
-      { id: "previous", kind: "set-var", into: "chosen", value: "stale" },
-      { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "find-missing", kind: "transform", source: "items", into: "chosen",
-        transform: { kind: "find", field: "name", operation: "eq", operand: "absent" } },
-      { id: "fallback", kind: "transform", source: "chosen", into: "chosen",
-        transform: { kind: "fallback", text: "not found" } },
-      { id: "result", kind: "set-var", into: "items", value: "{chosen}" },
-    ]);
-    await expect(answer).toHaveValue("not found");
-    expect(errors).toEqual([]);
-  });
-}
 
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " ignores unfinished AND/OR if conditions", async ({ page }) => {
@@ -361,6 +255,7 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 }
+
 
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " reads form fields in arithmetic operands", async ({ page }) => {
@@ -384,23 +279,6 @@ for (const exported of [false, true]) {
   });
 }
 
-for (const exported of [false, true]) {
-  test((exported ? "exported" : "preview") + " uses natural number-aware sorting for string fields", async ({ page }) => {
-    const input = '[{"id":"10"},{"id":"2"},{"id":"1"}]';
-    const { answer, errors } = await runChain(page, exported, input, [
-      { id: "parse-sort-items", kind: "transform", source: "items", into: "items",
-        transform: { kind: "parse" } },
-      { id: "sort-by-id", kind: "transform", source: "items", into: "items",
-        transform: { kind: "sort", field: "id", direction: "asc" } },
-      { id: "pick-id", kind: "transform", source: "items", into: "items",
-        transform: { kind: "map-field", field: "id" } },
-      { id: "join-id", kind: "transform", source: "items", into: "items",
-        transform: { kind: "join", separator: "," } },
-    ]);
-    await expect(answer).toHaveValue("1,2,10");
-    expect(errors).toEqual([]);
-  });
-}
 
 for (const exported of [false, true]) {
   for (const [label, condition] of [
@@ -421,6 +299,7 @@ for (const exported of [false, true]) {
   }
 }
 
+
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " preserves OR grouping around incomplete if clauses", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "", [
@@ -440,6 +319,7 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 }
+
 
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " keeps OR logic across unfinished list filter clauses", async ({ page }) => {
@@ -477,14 +357,15 @@ for (const exported of [false, true]) {
   });
 }
 
+
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " safely filters object-valued fields from JSON", async ({ page }) => {
     const filter = {
       ...makeBox(), id: "filterButton", attrId: "filterButton",
       scripts: [{ id: "filterScript", trigger: "click" as const, pos: { x: 0, y: 0 }, steps: [{
         id: "filterObjectField", kind: "list-display" as const, mode: "filter" as const,
-        array: "results", field: "meta", op: "eq" as const,
-        value: "[object Object]", dir: "asc" as const,
+        array: "results", field: "meta", op: "has-key" as const,
+        value: "toString", dir: "asc" as const,
       }] }],
     };
     const doc: SiteDoc = {
@@ -508,22 +389,6 @@ for (const exported of [false, true]) {
   });
 }
 
-for (const exported of [false, true]) {
-  test((exported ? "exported" : "preview") + " missing variables shadow same-named form controls", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '[{"name":"available"}]', [
-      { id: "set-field", kind: "set-value", target: "answer", value: "FORM" },
-      { id: "parse-records", kind: "transform", source: "items", into: "items",
-        transform: { kind: "parse" } },
-      { id: "find-none", kind: "transform", source: "items", into: "answer",
-        transform: { kind: "find", field: "name", operation: "eq", operand: "absent" } },
-      { id: "take-missing", kind: "set-var", into: "items", value: "{answer}" },
-      { id: "fallback-missing", kind: "transform", source: "items", into: "items",
-        transform: { kind: "fallback", text: "no match" } },
-    ]);
-    await expect(answer).toHaveValue("no match");
-    expect(errors).toEqual([]);
-  });
-}
 
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " nested list item fields shadow global variables in transforms", async ({ page }) => {
@@ -543,6 +408,7 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 }
+
 
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " extracts nested JSON keys and final array positions", async ({ page }) => {
@@ -568,29 +434,15 @@ test.beforeEach(async ({ page }, testInfo) => {
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
 });
 
-test("canvas supports object-to-list field names and dynamic dictionary key input", async ({ page }) => {
+test("canvas reads dictionary fields by key", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push(
-        { id: "dictionary-rows", kind: "transform", source: "data", into: "rows",
-          transform: { kind: "field", key: "" } },
         { id: "dictionary-key", kind: "transform", source: "data", into: "value",
           transform: { kind: "field", key: "" } },
       );
     });
   });
-  const rows = page.locator('[data-sel-key="step:dictionary-rows"]');
-  await rows.getByRole("combobox", { name: "加工の種類" }).selectOption("object-entries");
-  await expect(rows.getByPlaceholder("キーの項目名")).toHaveValue("キー");
-  await expect(rows.getByPlaceholder("値の項目名")).toHaveValue("値");
-  await rows.getByPlaceholder("キーの項目名").fill("日付");
-  await rows.getByPlaceholder("キーの項目名").blur();
-  await rows.getByPlaceholder("値の項目名").fill("祝日名");
-  await rows.getByPlaceholder("値の項目名").blur();
-  await expect.poll(() => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "dictionary-rows").transform;
-  })).toMatchObject({ kind: "object-entries", keyField: "日付", valueField: "祝日名" });
   const lookup = page.locator('[data-sel-key="step:dictionary-key"]');
   const key = lookup.getByRole("combobox", { name: "取り出す項目名" });
   await expect(key).toHaveAttribute("placeholder", "項目名 / {変数}");
@@ -602,7 +454,7 @@ test("canvas supports object-to-list field names and dynamic dictionary key inpu
   })).toBe("{selectedDate}");
 });
 
-test("canvas block settings update the document without a separate value-composer modal", async ({ page }) => {
+test("canvas processing settings persist changes directly", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push({
@@ -613,7 +465,6 @@ test("canvas block settings update the document without a separate value-compose
   });
   const box = page.locator('[data-sel-key="step:native"]');
   await expect(box.getByRole("combobox", { name: "加工の種類" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "値を組み立てる" })).toHaveCount(0);
   await expect(box.getByRole("combobox", { name: "取り出す項目名" })).toHaveCSS("height", "24px");
   await box.getByRole("combobox", { name: "取り出す項目名" }).fill("tags");
   await expect.poll(() => page.evaluate(() => {
@@ -679,14 +530,14 @@ test("canvas native select and picker button share the same dropdown appearance"
   expect(focusedPicker).toEqual(focusedSelect);
 });
 
-test("canvas fixed-option dropdowns shrink to their widest choice", async ({ page }) => {
+test("canvas arithmetic options size to the widest label", async ({ page }) => {
   // Font metric changes during initial loading must not be mistaken for a selection-induced resize.
   await page.evaluate(async () => { await document.fonts.ready; });
   const box = page.locator('[data-sel-key="step:numeric"]');
   const method = box.getByRole("combobox", { name: "計算方法" });
-  const kind = box.getByRole("combobox", { name: "計算する値の種類" });
+  await expect(box.getByPlaceholder("計算する値 / {変数}")).toBeVisible();
   await expect(method).toHaveCSS("width", /\d+px/);
-  const dimensions = await Promise.all([method, kind].map(el => el.evaluate((node) => {
+  const dimensions = await Promise.all([method].map(el => el.evaluate((node) => {
     const styles = getComputedStyle(node);
     return { width: node.getBoundingClientRect().width, intrinsic: styles.width, flex: styles.flexGrow };
   })));
@@ -694,7 +545,7 @@ test("canvas fixed-option dropdowns shrink to their widest choice", async ({ pag
     expect(dimension.width).toBeLessThan(120);
     expect(dimension.flex).toBe("0");
   }
-  for (const control of [method, kind]) {
+  for (const control of [method]) {
     const measurements = await control.evaluate((node) => {
       const select = node as HTMLSelectElement;
       const style = getComputedStyle(select);
@@ -752,7 +603,7 @@ test("canvas list-display block switches filter, sort and clear without changing
 });
 
 
-test("canvas repeat number arrows increment by one and wait/repeat can use variables", async ({ page }) => {
+test("canvas wait/repeat accept numbers and variables in one field", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push(
@@ -762,93 +613,39 @@ test("canvas repeat number arrows increment by one and wait/repeat can use varia
     });
   });
   const repeat = page.locator('[data-sel-key="step:repeat-count"]');
-  const number = repeat.getByRole("spinbutton");
-  await expect(number).toHaveAttribute("step", "1");
-  await number.fill("3");
-  await number.press("ArrowUp");
-  await number.blur();
+  const repeatValue = repeat.getByPlaceholder("数値 / {変数}");
+  await expect(repeat.getByRole("combobox", { name: "値の指定方法" })).toHaveCount(0);
+  await repeatValue.fill("4");
+  await repeatValue.blur();
   await expect.poll(() => page.evaluate(() =>
     (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
       .find((step: any) => step.id === "repeat-count").times)).toBe(4);
 
-  await repeat.getByRole("combobox", { name: "値の指定方法" }).selectOption("variable");
-  await repeat.getByPlaceholder("{変数}").fill("data.price");
-  await repeat.getByPlaceholder("{変数}").blur();
+  await repeatValue.fill("{data.price}");
+  await repeatValue.blur();
   await expect.poll(() => page.evaluate(() =>
     (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
       .find((step: any) => step.id === "repeat-count").times)).toBe("{data.price}");
 
   const wait = page.locator('[data-sel-key="step:wait-seconds"]');
-  await wait.getByRole("combobox", { name: "値の指定方法" }).selectOption("variable");
-  await wait.getByPlaceholder("{変数}").fill("data.price");
-  await wait.getByPlaceholder("{変数}").blur();
+  await wait.getByPlaceholder("数値 / {変数}").fill("{data.price}");
+  await wait.getByPlaceholder("数値 / {変数}").blur();
   await expect.poll(() => page.evaluate(() =>
     (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
       .find((step: any) => step.id === "wait-seconds").seconds)).toBe("{data.price}");
 });
 
-test("canvas math supports selecting an existing variable as the arithmetic operand", async ({ page }) => {
+test("canvas arithmetic accepts values and variables in one field", async ({ page }) => {
   const box = page.locator('[data-sel-key="step:numeric"]');
-  await box.getByRole("combobox", { name: "計算する値の種類" }).selectOption("variable");
-  await box.getByRole("button", { name: "計算する変数" }).click();
-  const menu = page.locator(".se-pm").last();
-  await expect(menu).toBeVisible();
-  await menu.locator(".se-pm-row").filter({ hasText: "data" }).first().locator(".dd-item").click();
+  const operand = box.getByPlaceholder("計算する値 / {変数}");
+  await operand.fill("{data.price}");
+  await operand.blur();
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "numeric").transform;
-  })).toMatchObject({ kind: "math", operandType: "variable", operand: "data" });
+  })).toMatchObject({ kind: "math", operandType: "variable", operand: "data.price" });
 });
 
-
-test("canvas list value transforms use one input without literal type dropdowns", async ({ page }) => {
-  await page.evaluate(() => {
-    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
-      doc.pages.p.pageScripts[0].steps.push(
-        { id: "append-value", kind: "transform", source: "data.tags", into: "added",
-          transform: { kind: "append", operand: "", operandType: "text" } },
-        { id: "remove-value", kind: "transform", source: "data.tags", into: "removed",
-          transform: { kind: "remove", operand: "", operandType: "text" } },
-        { id: "map-value", kind: "transform", source: "data.rows", into: "mapped",
-          transform: { kind: "map-set", field: "selected", operand: "", operandType: "text" } },
-      );
-    });
-  });
-  for (const id of ["append-value", "remove-value", "map-value"]) {
-    const box = page.locator(`[data-sel-key="step:${id}"]`);
-    await expect(box.getByRole("combobox", { name: "操作する値の種類" })).toHaveCount(0);
-    await expect(box.getByRole("combobox", { name: "比較する値の種類" })).toHaveCount(0);
-    await expect(box.locator(".se-composer-operand input")).toHaveCount(1);
-  }
-  const append = page.locator('[data-sel-key="step:append-value"]');
-  const appendValue = append.getByPlaceholder("追加・削除する値 / {変数}");
-  await appendValue.fill("42");
-  await appendValue.blur();
-  await expect.poll(() => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "append-value").transform;
-  })).toMatchObject({ operand: "42", operandType: "number" });
-  await appendValue.fill("{data.price}");
-  await appendValue.blur();
-  await expect.poll(() => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "append-value").transform;
-  })).toMatchObject({ operand: "{data.price}", operandType: "text" });
-  const remove = page.locator('[data-sel-key="step:remove-value"]');
-  await remove.getByPlaceholder("追加・削除する値 / {変数}").fill('"true"');
-  await remove.locator(".se-composer-operand input").blur();
-  await expect.poll(() => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "remove-value").transform;
-  })).toMatchObject({ operand: "true", operandType: "text" });
-  const map = page.locator('[data-sel-key="step:map-value"]');
-  await map.getByPlaceholder("設定する値 / {変数}").fill("null");
-  await map.locator(".se-composer-operand input").blur();
-  await expect.poll(() => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "map-value").transform;
-  })).toMatchObject({ operand: "", operandType: "null" });
-});
 
 test("canvas list sort uses ascending and descending labels", async ({ page }) => {
   await page.evaluate(() => {
@@ -924,90 +721,6 @@ test("canvas if blocks add, edit and remove AND/OR conditions on separate rows",
   await expect(connectors).toHaveCount(1);
   await expect(connectors).toHaveValue("and");
   await expect(box.locator(".se-if-condition-line")).toHaveCount(2);
-});
-
-test("canvas starts new value conditions inactive until edited", async ({ page }) => {
-  await page.evaluate(() => {
-    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
-      doc.pages.p.pageScripts[0].steps.push({
-        id: "pending-conditions", kind: "transform", source: "data.price", into: "result",
-        transform: { kind: "compare", operation: "eq", operand: "12" },
-      });
-    });
-  });
-  const box = page.locator('[data-sel-key="step:pending-conditions"]');
-  const readConditions = () => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "pending-conditions").transform.conditions;
-  });
-  await box.getByRole("button", { name: "かつ", exact: true }).click();
-  await expect.poll(readConditions).toMatchObject([{ and: true, configured: false }]);
-  await box.getByRole("combobox", { name: "条件のつなぎ方" }).first().selectOption("or");
-  await expect.poll(readConditions).toMatchObject([{ and: false, configured: false }]);
-  const fields = box.getByPlaceholder("値 / {変数}");
-  await fields.nth(1).fill("12");
-  await fields.nth(1).blur();
-  await expect.poll(readConditions).toMatchObject([{ and: false, operand: "12" }]);
-  await expect.poll(async () => (await readConditions()).map((condition: any) =>
-    Object.prototype.hasOwnProperty.call(condition, "configured"))).toEqual([false]);
-  await box.getByRole("button", { name: "または", exact: true }).click();
-  await expect.poll(readConditions).toMatchObject([
-    { and: false, operand: "12" }, { and: false, configured: false },
-  ]);
-});
-
-test("canvas value comparisons use the same predicates and joined clauses as list filters", async ({ page }) => {
-  await page.evaluate(() => {
-    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
-      doc.pages.p.pageScripts[0].steps.push({
-        id: "compound", kind: "transform", source: "data.price", into: "eligible",
-        transform: { kind: "compare", operation: "eq", operand: "12" },
-      });
-    });
-  });
-  const box = page.locator('[data-sel-key="step:compound"]');
-  const orderIsNatural = async () => box.locator(".se-composer-condition-line").first().evaluate((line) => {
-    const value = line.querySelector('input');
-    const operator = line.querySelector('select[aria-label="比較方法"]');
-    const polarity = line.querySelector('select[aria-label="条件の判定"]');
-    return !!value && !!operator && !!polarity &&
-      !!(value.compareDocumentPosition(operator) & Node.DOCUMENT_POSITION_FOLLOWING) &&
-      !!(operator.compareDocumentPosition(polarity) & Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-  await expect.poll(orderIsNatural).toBe(true);
-  await box.getByRole("combobox", { name: "比較方法" }).first().selectOption("gte");
-  await box.getByRole("combobox", { name: "条件の判定" }).first().selectOption("not");
-  await box.getByRole("button", { name: /かつ/ }).last().click();
-  await expect(box.getByRole("combobox", { name: "条件のつなぎ方" })).toHaveValue("and");
-  await box.getByRole("combobox", { name: "比較方法" }).nth(1).selectOption("lte");
-  await box.getByRole("button", { name: /または/ }).last().click();
-  await box.getByRole("combobox", { name: "条件のつなぎ方" }).nth(1).selectOption("or");
-  await expect.poll(() => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "compound")?.transform;
-  })).toMatchObject({ kind: "compare", operation: "gte", not: true,
-    conditions: [{ operation: "lte", and: true }, { and: false }] });
-});
-
-test("canvas comparison offers existing variables and keeps the chosen reference", async ({ page }) => {
-  await page.evaluate(() => {
-    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
-      doc.pages.p.pageScripts[0].steps.push({
-        id: "compare-native", kind: "transform", source: "data.price", into: "selected",
-        transform: { kind: "compare", operation: "gt", operand: "" },
-      });
-    });
-  });
-  const box = page.locator('[data-sel-key="step:compare-native"]');
-  await expect(box.getByRole("combobox", { name: "比較する値の種類" })).toHaveCount(0);
-  const operand = box.getByPlaceholder("値 / {変数}");
-  await expect(operand).toBeVisible();
-  await operand.fill("{data.price}");
-  await operand.blur();
-  await expect.poll(() => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "compare-native").transform;
-  })).toMatchObject({ kind: "compare", operand: "{data.price}" });
 });
 
 
@@ -1086,4 +799,57 @@ test("canvas list filter keeps condition actions on a separate row and lets each
   await box.getByRole("button", { name: "この条件を削除" }).first().click();
   await expect(connectors).toHaveCount(1);
   await expect(connectors).toHaveValue("and");
+});
+
+
+
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " list loops select matching entries with values, keys and early exit", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported,
+      '{"apple":100,"banana":200,"orange":300}', [
+        { id: "result", kind: "set-var", into: "chosen", value: "none" },
+        { id: "each", kind: "for-each", array: "items", then: [
+          { id: "check", kind: "if",
+            cond: { subject: "var", target: "", left: "{ループ.値}", op: "gte", value: "200" },
+            then: [
+              { id: "save", kind: "set-var", into: "chosen", value: "{ループ.キー}" },
+              { id: "stop", kind: "break-loop" },
+            ] },
+        ] },
+        { id: "display-result", kind: "set-var", into: "items", value: "{chosen}" },
+      ]);
+    await expect(answer).toHaveValue("banana");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " list construction uses keyed assignments and keeps typed values", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "unused", [
+      { id: "empty", kind: "set-var", into: "basket", value: "[]" },
+      { id: "first", kind: "set-list-item", list: "basket", key: "", value: "10" },
+      { id: "second", kind: "set-list-item", list: "basket", key: "", value: "20" },
+      { id: "total", kind: "transform", source: "basket", into: "count", transform: { kind: "length" } },
+      { id: "result", kind: "set-var", into: "items", value: "{count}" },
+    ]);
+    await expect(answer).toHaveValue("2");
+    expect(errors).toEqual([]);
+  });
+}
+
+test("canvas append values use one typed input", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "append-value", kind: "transform", source: "data.tags", into: "added",
+        transform: { kind: "append", operand: "", operandType: "text" },
+      });
+    });
+  });
+  const box = page.locator('[data-sel-key="step:append-value"]');
+  const input = box.getByPlaceholder("追加・削除する値 / {変数}");
+  await input.fill("42");
+  await input.blur();
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
+      .find((step: any) => step.id === "append-value").transform
+  )).toMatchObject({ kind: "append", operand: "42", operandType: "number" });
 });

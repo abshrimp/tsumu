@@ -120,7 +120,7 @@ export function DataTable({
         </div>
       ) : (
         <p className="hint" style={{ margin: 0 }}>
-          {tr("行をクリックすると、リストや項目付きデータの中身まで確認できます。")}
+          {tr("行をクリックすると、リストの中身まで確認できます。")}
         </p>
       )}
     </div>
@@ -134,8 +134,7 @@ const isRecordList = (v: unknown): v is Record<string, unknown>[] =>
 
 /** 中身の種類と数（「一覧 20件」「6項目」） */
 function containerMeta(value: unknown): string {
-  if (Array.isArray(value)) return tr("リスト・{length}件", { length: value.length });
-  return tr("項目付きデータ・{length}項目", { length: Object.keys(value as object).length });
+  return tr("リスト・{length}項目", { length: Object.keys(value as object).length });
 }
 
 /** 文字・数値などの値 */

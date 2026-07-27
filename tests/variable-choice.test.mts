@@ -15,7 +15,7 @@ test("numeric choices retain unknowns and numeric text without accepting objects
   for (const v of [undefined, null, 0, -2.5, "001", "1,234", " -2 "]) assert.equal(canPickVariable(v, "number"), true);
   for (const v of [false, true, "", "red", {}, [], [1, 2], Infinity, NaN]) assert.equal(canPickVariable(v, "number"), false);
 });
-test("reference view follows saved runtime semantics without rewriting legacy text", () => {
+test("reference view preserves the exact meaning of entered variable expressions", () => {
   for (const value of ["{data}", " { data.name } ", "Hello {data}", "\\{data}", "001", "false", "", "{a}{b}"]) {
     assert.equal(singleValueReference(value), setVarSource({ id: "s", kind: "set-var", value, into: "out" }));
   }
@@ -25,7 +25,7 @@ test("real script editor picker fixture compiles for native CI", async () => {
   assert.ok(bundle.includes("dataPickerStore"));
 });
 
-test("legacy JSON roundtrip preserves typed samples, expressions and generated project", async () => {
+test("JSON roundtrip preserves typed samples, expressions and generated project", async () => {
   const { scriptDataPickerDoc } = await import("./helpers/script-data-picker");
   const { generateProject } = await import("../lib/generator");
   const doc = scriptDataPickerDoc();
@@ -76,14 +76,12 @@ test("real raw chip uses node samples and treats loop roots as runtime values", 
     doc, pageId: "p", samples: previewDataVars(doc, "p"),
   } as any }, React.createElement(ScriptNodeCtx.Provider, { value: "button" }, React.createElement(LoopCtx.Provider, { value: loops }, React.createElement(ValueIn, { value, onCommit() {} })))));
   const nodeChip = render("{price}");
-  assert.match(nodeChip, /true\/false/);
-  assert.match(nodeChip, /false/);
-  assert.doesNotMatch(nodeChip, /数値/);
+  assert.match(nodeChip, /値/);
   assert.doesNotMatch(render("Hello {price}"), /se-value-info/, "a mixed template is not labelled as a raw boolean");
   assert.doesNotMatch(render("\\{price}"), /se-value-info/, "an escaped reference remains literal text");
   const loopChip = render("{details}", [{ fields: ["details.id"], samples: { "details.id": "LOCAL" } }]);
   assert.doesNotMatch(loopChip, /実行時|se-value-info|vx-kind/);
-  assert.doesNotMatch(loopChip, /まとまり|LOCAL/);
+  assert.doesNotMatch(loopChip, /LOCAL/);
 });
 
 

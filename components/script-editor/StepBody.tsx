@@ -14,7 +14,7 @@ import { filterNumbersOf } from "./step-tree";
 import { defaultTransform, type ValueTransformKind } from "../../lib/script-model/compose";
 import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
 import { tr } from "../../lib/i18n";
-import { ArraySelect, FilterArrayBody, SortArrayBody } from "./arrays";
+import { AnyArraySelect, ArraySelect, FilterArrayBody, SortArrayBody } from "./arrays";
 import { Ctx } from "./context";
 import { FetchBody, PathMenu, VarNameIn, isNested, nameFromPath } from "./fetch";
 import { FieldValueIn, NewTabCheck, NumericVariableIn, Phrase, TextIn, ValueIn } from "./inputs";
@@ -236,6 +236,20 @@ export function StepBody({ step }: { step: ScriptStep }) {
         </>
       );
     }
+    case "set-list-item":
+      return (
+        <Phrase text="リスト{list}のキー{key}に{value}を入れる" parts={{
+          list: <AnyArraySelect value={step.list} onChange={(list) =>
+            set((s) => s.kind === "set-list-item" ? { ...s, list } : s)} />,
+          key: <TextIn vars value={step.key} width={110}
+            placeholder={tr("キー（空欄なら末尾）")}
+            onCommit={(key) => set((s) => s.kind === "set-list-item" ? { ...s, key } : s)} />,
+          value: <ValueIn value={step.value} width={150}
+            onCommit={(value) => set((s) => s.kind === "set-list-item" ? { ...s, value } : s)} />,
+        }} />
+      );
+    case "break-loop":
+      return <span>{tr("ループを終了する")}</span>;
     case "store-save":
       return (
         <>
@@ -395,8 +409,8 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
   const first = Array.isArray(sample)
     ? sample.find((item) => item !== null && typeof item === "object" && !Array.isArray(item))
     : undefined;
-  const candidate = step.transform.kind === "field" || step.transform.kind === "has" ? sample : first;
-  const options = candidate && typeof candidate === "object" && !Array.isArray(candidate)
+  const candidate = step.transform.kind === "field" ? sample : first;
+  const options = candidate && typeof candidate === "object"
     ? Object.keys(candidate) : [];
   const preview = evaluateValueRecipe(sample, [step.transform], sourceValues);
 

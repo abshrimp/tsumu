@@ -83,7 +83,7 @@ export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?
   return next;
 }
 
-/** 葉のパスだけでなく、空のまとまり・リストを含むローカルな名前全体を保つ。 */
+/** 子項目がないリストも含め、参照可能な名前を保持する。 */
 export function fetchPreviewScope(nodeId: string, loops: readonly { fields: string[]; roots?: string[] }[]): FetchPreviewScope {
   return { nodeId, localNames: localVariableNames(loops.flatMap((loop) => [...(loop.roots ?? []), ...loop.fields])) };
 }
@@ -712,7 +712,7 @@ function findsList(value: unknown, depth = 0): boolean {
 }
 
 /** 上書きできない変数名（ページのURLの slug、リストの各要素の 値） */
-export const RESERVED_VARS = new Set(["slug", ITEM_VALUE]);
+export const RESERVED_VARS = new Set(["slug", ITEM_VALUE, "ループ"]);
 
 /** 変数名の入力（同じ名前ならその変数を上書きする。名前を変えると、使っている箇所も書き換える） */
 export function VarNameIn({

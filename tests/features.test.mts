@@ -231,7 +231,7 @@ test("pageReadsQuery detects POST body variables and preserves explicit list tra
       pos: { x: 0, y: 0 },
       steps: [
         { id: "f1", kind: "fetch", url: "https://api.example.com/items", as: "items", sample: [{ id: 1 }] },
-        { id: "af", kind: "transform", source: "items", into: "items", transform: { kind: "map-set", field: "badge", operand: "NEW", operandType: "text" } },
+        { id: "af", kind: "transform", source: "items", into: "count", transform: { kind: "length" } },
       ],
     },
   ]);
@@ -275,7 +275,14 @@ test("slug page generateMetadata preserves description, noindex and openGraph", 
             pos: { x: 0, y: 0 },
             steps: [
               { id: "f", kind: "fetch", url: "https://api.example.com/posts", as: "posts", sample: [{ slug: "a", title: "Hello" }] },
-              { id: "af", kind: "transform", source: "posts", into: "post", transform: { kind: "find", field: "slug", operation: "eq", operand: "{slug}" } },
+              { id: "post-init", kind: "set-var", into: "post", value: "null" },
+              { id: "select-post", kind: "for-each", array: "posts", then: [
+                { id: "match", kind: "if", cond: { subject: "var", target: "",
+                  left: "{ループ.値.slug}", op: "eq", value: "{slug}" }, then: [
+                  { id: "choose", kind: "set-var", into: "post", value: "{ループ.値}" },
+                  { id: "break", kind: "break-loop" },
+                ] },
+              ] },
             ],
           },
         ],
@@ -303,7 +310,7 @@ test("obfuscateVarNames renames variable tokens and cloning renames grouped radi
       pos: { x: 0, y: 0 },
       steps: [
         { id: "f1", kind: "fetch", url: "https://api.example.com/items", as: "items" },
-        { id: "af", kind: "transform", source: "items", into: "items", transform: { kind: "map-set", field: "label", operand: "x", operandType: "text" } },
+        { id: "af", kind: "transform", source: "items", into: "count", transform: { kind: "length" } },
         { id: "sv", kind: "set-var", value: "y", into: "label" },
       ],
     },

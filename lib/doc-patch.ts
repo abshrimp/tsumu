@@ -77,7 +77,7 @@ export function applyDocPatch(base: SiteDoc, patch: DocPatch): SiteDoc {
     }
     const key = op.path[op.path.length - 1];
     // Even if an untrusted patch bypasses an upstream validation layer,
-    // define own properties without invoking legacy prototype setters.
+    // define own properties without invoking prototype mutation.
     if (!safeKey(key)) throw new Error("Invalid patch key");
     if ("remove" in op) Reflect.deleteProperty(target, key);
     else Object.defineProperty(target, key, {

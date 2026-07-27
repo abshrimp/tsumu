@@ -74,7 +74,7 @@ function isWholeUrl(v: string): boolean {
 
 /**
  * JSON の本文用の置換。文字列（"…"）の中の {変数} は値を JSON 用にエスケープした文字に、
- * 文字列の外の {変数} は値そのものの JSON（数値・配列・まとまり。無ければ null）にする
+ * 文字列の外の {変数} はJSONに従って値またはリストとして挿入する（無ければ null）
  */
 export function interpolateJson(template: string, vars: Vars): string {
   let out = "";

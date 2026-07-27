@@ -381,9 +381,9 @@ ${loads
   if (listNodes.some((l) => !ctx.listVars?.get(l.node.id)?.client)) {
     helpers.push(`/** リストで並べる項目にする（オブジェクトはそのまま、文字や数値は {${ITEM_VALUE}} に入れる） */
 function toItems(v: unknown): Item[] {
-  if (!Array.isArray(v)) return [];
-  return v.flatMap((x): Item[] =>
-    x == null || Array.isArray(x) ? [] : typeof x === "object" ? [x as Item] : [{ ${codeLiteral(ITEM_VALUE)}: x }]
+  if (!v || typeof v !== "object") return [];
+  return Object.values(v).map((x): Item =>
+    x && typeof x === "object" && !Array.isArray(x) ? x as Item : { [${codeLiteral(ITEM_VALUE)}]: x }
   );
 }`);
   }

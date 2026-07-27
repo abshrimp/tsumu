@@ -29,7 +29,7 @@ test("ZIP SVG image and sprite references follow uploaded assets through export"
   });
   try {
     const html = `<html><body><svg xmlns:xlink="http://www.w3.org/1999/xlink">
-      <use id="legacy" xlink:href="icons/sprite.svg#check"></use>
+      <use id="namespaced" xlink:href="icons/sprite.svg#check"></use>
       <use id="modern" href="icons/sprite.svg#check"></use>
       <image id="photo" xlink:href="images/photo.svg?v=2#view"></image>
       <use id="local" xlink:href="#local-check"></use>
@@ -44,7 +44,7 @@ test("ZIP SVG image and sprite references follow uploaded assets through export"
     const spriteAsset = imported.assets.find(a => a.zip?.path === "site/icons/sprite.svg")!;
     const photoAsset = imported.assets.find(a => a.zip?.path === "site/images/photo.svg")!;
     const proxy = (path: string) => `/api/assets/file?path=${encodeURIComponent(path)}`;
-    assert.equal(dom.querySelector("#legacy").getAttribute("xlink:href"), proxy(spriteAsset.path!) + "#check");
+    assert.equal(dom.querySelector("#namespaced").getAttribute("xlink:href"), proxy(spriteAsset.path!) + "#check");
     assert.equal(dom.querySelector("#modern").getAttribute("href"), proxy(spriteAsset.path!) + "#check");
     assert.equal(dom.querySelector("#photo").getAttribute("xlink:href"), proxy(photoAsset.path!) + "&v=2#view");
     for (const [id, value] of [["local", "#local-check"], ["external", "https://example.test/icons.svg#check"], ["missing", "missing.svg#check"]]) {
@@ -58,7 +58,7 @@ test("ZIP SVG image and sprite references follow uploaded assets through export"
     const exported = parse(JSON.parse(/^const html = (.*);$/m.exec(route)![1]));
     const exportedPath = (source: string) => Object.entries(output.remoteAssets)
       .find(([, original]) => original === source)![0].replace(/^public/, "");
-    assert.equal(exported.querySelector("#legacy").getAttribute("xlink:href"), exportedPath(spriteAsset.path!) + "#check");
+    assert.equal(exported.querySelector("#namespaced").getAttribute("xlink:href"), exportedPath(spriteAsset.path!) + "#check");
     assert.equal(exported.querySelector("#modern").getAttribute("href"), exportedPath(spriteAsset.path!) + "#check");
     assert.equal(exported.querySelector("#photo").getAttribute("xlink:href"), exportedPath(photoAsset.path!) + "?v=2#view");
     assert.equal(exported.querySelector("#local").getAttribute("xlink:href"), "#local-check");

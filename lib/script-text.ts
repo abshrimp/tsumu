@@ -38,6 +38,8 @@ function opText(subject: string, op: ScriptOp | undefined, value: string): strin
       return tr("{subject}が {v} 以下", { subject, v });
     case "empty":
       return tr("{subject}が空", { subject });
+    case "has-key":
+      return tr("{subject}に項目 {v} が存在する", { subject, v });
     default:
       return tr("{subject}が {v} と同じ", { subject, v });
   }
@@ -114,6 +116,12 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
       return tr("「{value}」をコピーする", { value: st.value });
     case "set-var":
       return tr("「{value}」を変数 {{p2}} とする", { value: st.value, p2: st.into || "?" });
+    case "set-list-item":
+      return tr("リスト{list}のキー{key}に{value}を入れる", {
+        list: arrayText(st.list), key: st.key || tr("末尾"), value: st.value,
+      });
+    case "break-loop":
+      return tr("ループを終了する");
     case "transform":
       return tr("変数{source}を加工して変数{into}に入れる", {
         source: st.source || tr("（未選択）"), into: st.into || "?",

@@ -301,10 +301,10 @@ export default function PublishModal({
   const publish = async (site: PublishTarget) => {
     if (!targets || hasError) return;
     // A non-Next output changes the entire repository tree, and the current
-    // hosting build settings may still assume Next.js.
+    // Hosting build and output settings must match the selected project format.
     if (site === "production" && format !== "nextjs") {
       const accepted = await showConfirm(
-        tr("選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリの設定が以前の形式のままだとサイトが表示されなくなる場合があります。設定を確認したうえで続行しますか？"),
+        tr("選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリが選択した形式に対応しているか確認してください。続行しますか？"),
         { title: tr("公開先の設定を確認してください"), okLabel: tr("この形式でPushする"), danger: true }
       );
       if (!accepted) return;
