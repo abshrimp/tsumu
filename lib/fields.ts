@@ -88,6 +88,11 @@ export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown
   }
 }
 
+/** HTML IDs and radio group names may also match Object.prototype keys. */
+function setFieldValue(out: Record<string, string>, name: string, value: string) {
+  Object.defineProperty(out, name, { value, enumerable: true, writable: true, configurable: true });
+}
+
 /** ページの入力欄（ID付き）の最初の値（同じグループのラジオは、チェックしているボタンの値） */
 export function fieldDefaults(fields: DocNode[], vars?: Record<string, unknown>): Record<string, string> {
   const out: Record<string, string> = {};
@@ -98,10 +103,10 @@ export function fieldDefaults(fields: DocNode[], vars?: Record<string, unknown>)
     if (n.field.kind === "radio") {
       // HTML radio groups select the last checked item in document order.
       // A later unchecked item must not clear that initial selection.
-      if (!Object.hasOwn(out, name) || n.field.checked) out[name] = v;
-    } else if (!(name in out) || (!out[name] && v)) {
+      if (!Object.hasOwn(out, name) || n.field.checked) setFieldValue(out, name, v);
+    } else if (!Object.hasOwn(out, name) || (!out[name] && v)) {
       // 同じ名前のほかの部品は、値のあるものを優先する。
-      out[name] = v;
+      setFieldValue(out, name, v);
     }
   }
   return out;
@@ -136,7 +141,7 @@ export function fieldStateValues(
   vars?: Record<string, unknown>
 ): Record<string, string> {
   const out: Record<string, string> = {};
-  const text = (name: string) => String(values[name] ?? "");
+  const text = (name: string) => String(Object.hasOwn(values, name) ? (values[name] ?? "") : "");
   for (const n of fields) {
     const f = n.field;
     const name = fieldVarName(n);
@@ -145,7 +150,7 @@ export function fieldStateValues(
     if (f.kind === "radio") {
       // グループのボタン1つの {ID} は、そのボタンを選んでいるか
       if (isRadioItem(n)) {
-        out[n.attrId!] = String(name ? !!v && v === fill(f.label, vars) : !!f.checked);
+        setFieldValue(out, n.attrId!, String(name ? !!v && v === fill(f.label, vars) : !!f.checked));
         out[`${n.attrId!}.disabled`] = String(!!f.disabled);
       }
       if (!name) continue;
@@ -156,7 +161,7 @@ export function fieldStateValues(
     if (!name) continue;
     if (f.kind === "select") {
       const at = values[name] === null ? -1 : (f.options ?? []).map((o) => fill(o, vars)).indexOf(v);
-      out[name] = at < 0 ? "" : v;
+      setFieldValue(out, name, at < 0 ? "" : v);
       out[`${name}.index`] = String(at + 1);
     }
     out[`${name}.length`] = String(v.length);

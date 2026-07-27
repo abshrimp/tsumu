@@ -2,6 +2,40 @@
 // Detached nodes are valid, but every node must belong to a finite tree.
 export const MAX_NODE_DEPTH = 256;
 
+/** Height of the deepest root tree, counting a leaf as one node. Invalid input cannot fit. */
+export function maxSubtreeDepth(
+  nodes: Record<string, { children: string[] }>,
+  rootIds: readonly string[],
+): number {
+  const heights = new Map<string, number>();
+  const active = new Set<string>();
+  let maximum = 0;
+  for (const root of rootIds) {
+    const stack: { id: string; exit: boolean }[] = [{ id: root, exit: false }];
+    while (stack.length) {
+      const { id, exit } = stack.pop()!;
+      if (heights.has(id)) continue;
+      const node = Object.hasOwn(nodes, id) ? nodes[id] : undefined;
+      if (!node || !Array.isArray(node.children)) return Infinity;
+      if (exit) {
+        let height = 1;
+        for (const child of node.children) height = Math.max(height, 1 + heights.get(child)!);
+        heights.set(id, height);
+        active.delete(id);
+      } else {
+        if (active.has(id)) return Infinity;
+        active.add(id);
+        stack.push({ id, exit: true });
+        for (let i = node.children.length - 1; i >= 0; i--) {
+          stack.push({ id: node.children[i], exit: false });
+        }
+      }
+    }
+    maximum = Math.max(maximum, heights.get(root)!);
+  }
+  return maximum;
+}
+
 export function hasValidChildren(value: unknown): value is { children: string[] } {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const children = (value as { children?: unknown }).children;
