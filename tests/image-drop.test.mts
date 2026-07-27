@@ -416,3 +416,49 @@ test("a rejected clipboard decoder is returned without a drop alert or history e
   assert.equal(state().past.length, 0);
   assert.equal(useDialogs.getState().queue.length, 0);
 });
+
+function deepDropTarget(depth: number) {
+  const doc = fixture();
+  for (let i = 1; i <= depth; i++) {
+    const id = `deep-${i}`;
+    doc.nodes[id] = { ...makeBox(), id, children: i < depth ? [`deep-${i + 1}`] : [] };
+  }
+  doc.pages.p.children = ["deep-1"];
+  state().replaceDoc(doc);
+  return { parent: { kind: "node" as const, id: `deep-${depth}` } };
+}
+
+test("image drops reject an already maximal-depth destination before upload", async () => {
+  const target = deepDropTarget(256);
+  const before = state().doc;
+  const task = await begin(["too-deep.png"], target);
+  assert.equal(pending.length, 0);
+  await task.done;
+  assert.equal(state().doc, before);
+});
+
+test("image drops preserve exact-depth placement and undo", async () => {
+  const target = deepDropTarget(255);
+  const before = state().doc;
+  const task = await begin(["valid.png"], target);
+  pending[0]();
+  await task.done;
+  assert.equal(state().doc.nodes[target.parent.id].children.length, 1);
+  state().undo();
+  assert.deepEqual(state().doc, before);
+});
+
+test("a destination deepened during upload retains the asset without inserting an invalid tree", async () => {
+  const target = deepDropTarget(255);
+  const task = await begin(["pending.png"], target);
+  state().updateDoc(doc => {
+    doc.nodes.wrapper = { ...makeBox(), id: "wrapper", children: ["deep-1"] };
+    doc.pages.p.children = ["wrapper"];
+  });
+  const before = withoutAssets(state().doc);
+  pending[0]();
+  const result = await task.done;
+  assert.equal(result?.inserted, false);
+  assert.deepEqual(withoutAssets(state().doc), before);
+  assert.equal(Object.keys(state().doc.assets).length, 1);
+});

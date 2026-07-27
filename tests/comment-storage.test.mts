@@ -66,7 +66,7 @@ function api(db: Db) {
     dbConfigured: () => true, getDb: async () => db,
     dbUnavailable: () => { throw new Error("Unexpected fallback"); },
   }) as (req: Request) => Promise<Response>;
-  return (site = "site") => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", body: JSON.stringify(create) }));
+  return (site = "site", action: CommentAction = create) => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", body: JSON.stringify(action) }));
 }
 
 for (const timing of ["before request", "before write"] as const) {
@@ -138,3 +138,28 @@ test("comment creation and replies still persist, and retries cannot duplicate r
     assert.equal((await db.execute("SELECT COUNT(*) AS n FROM comment_messages")).rows[0].n, 2);
   });
 });
+
+for (const timing of ["before lookup", "before write"] as const) {
+  test(`editing a comment deleted ${timing} cannot falsely report success`, async () => database(async db => {
+    await runCommentAction(db, "site", create, author, 1);
+    await runCommentAction(db, "site", reply, author, 2);
+    if (timing === "before lookup") await runCommentAction(db, "site", { action: "delete-message", messageId: "reply" }, author, 3);
+    const wrapped: Db = { ...db, batch: async statements => {
+      if (timing === "before write") await runCommentAction(db, "site", { action: "delete-message", messageId: "reply" }, author, 3);
+      return db.batch(statements);
+    } };
+    const result = await runCommentAction(wrapped, "site", { action: "edit", messageId: "reply", body: "Unsaved edit" }, author, 4);
+    assert.equal(result, "message-missing");
+    const [thread] = await listComments(db, "site");
+    assert.equal(thread.messages.length, 1);
+    assert.equal(thread.messages[0].body, "Original");
+    assert.equal(thread.updatedAt, 3, "failed edit must not bump the surviving discussion");
+  }));
+}
+
+
+test("the API distinguishes a deleted edit target from an unauthorized author", async () => database(async db => {
+  const response = await api(db)("site", { action: "edit", messageId: "missing", body: "Keep this draft" });
+  assert.equal(response.status, 404);
+  assert.equal((await response.json()).code, "comment_message_missing");
+}));

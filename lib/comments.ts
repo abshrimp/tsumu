@@ -262,7 +262,7 @@ export async function runCommentAction(
   a: CommentAction,
   user: ActivityUser | null,
   now = Date.now()
-): Promise<boolean | "site-missing" | "missing" | "conflict"> {
+): Promise<boolean | "site-missing" | "missing" | "message-missing" | "conflict"> {
   const me = user ?? ANON;
   const authorOf = async (messageId: string): Promise<{ thread: string; author: ActivityUser } | null> => {
     const rs = await db.execute({
@@ -323,15 +323,21 @@ export async function runCommentAction(
     }
     case "edit": {
       const m = await authorOf(a.messageId);
-      if (!m || !isAuthor(m.author, user)) return false;
-      await db.batch([
+      if (!m) return "message-missing";
+      if (!isAuthor(m.author, user)) return false;
+      const [updated] = await db.batch([
         {
-          sql: "UPDATE comment_messages SET body = ?, edited_at = ? WHERE id = ? AND site_id = ?",
-          args: [a.body, now, a.messageId, siteId],
+          // 読み取り後に削除・別ID所有者への置換があっても、成功扱いで編集中の本文を捨てない。
+          sql: `UPDATE comment_messages SET body = ?, edited_at = ?
+            WHERE id = ? AND site_id = ? AND thread_id = ? AND (? OR email = '' OR email = ?)`,
+          args: [a.body, now, a.messageId, siteId, m.thread, user === null ? 1 : 0, me.email],
         },
-        bump(m.thread),
+        {
+          sql: "UPDATE comment_threads SET updated_at = ? WHERE id = ? AND site_id = ? AND changes() > 0",
+          args: [now, m.thread, siteId],
+        },
       ]);
-      return true;
+      return updated.rowsAffected > 0 ? true : "message-missing";
     }
     case "resolve":
       await db.execute({
