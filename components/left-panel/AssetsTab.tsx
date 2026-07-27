@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { insertPointFor, useEditor, type ParentRef } from "../../lib/store";
 import { type Asset, type SiteDoc } from "../../lib/types";
-import { otherLocalDocs, siteApi } from "../../lib/site";
+import { currentSiteId, otherLocalDocs, siteApi } from "../../lib/site";
 import {
   ASSET_DRAG_TYPE,
   assetKind,
@@ -193,6 +193,22 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
 /** アセット一覧のスクロール位置（他のタブを開いて戻ってきても保つ） */
 let assetScrollTop = 0;
 
+/** 同じIDでも、確認中にファイルやZIPの内容が差し替わったものは削除しない。 */
+function sameAssetFile(current: Asset | undefined, approved: Asset): boolean {
+  return !!current && current.id === approved.id && current.path === approved.path &&
+    current.dataUrl === approved.dataUrl && JSON.stringify(current.zip) === JSON.stringify(approved.zip);
+}
+
+/** 別IDで残るアセットの保存先を守り、同じファイルを二重に削除しない。 */
+function deleteRemovedAssetFiles(removed: Asset[]) {
+  const retained = new Set(Object.values(useEditor.getState().doc.assets).map((a) => a.path));
+  for (const asset of removed) {
+    if (!asset.path || retained.has(asset.path)) continue;
+    retained.add(asset.path);
+    void deleteAssetRemote(asset);
+  }
+}
+
 export function AssetsTab() {
   const doc = useEditor((s) => s.doc);
   const activePageId = useEditor((s) => s.activePageId);
@@ -207,9 +223,19 @@ export function AssetsTab() {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const mounted = useRef(false);
   useLayoutEffect(() => {
+    mounted.current = true;
     if (listRef.current) listRef.current.scrollTop = assetScrollTop;
+    return () => { mounted.current = false; };
   }, []);
+
+  /** 別サイト・文書への移動、履歴操作、パネルを閉じた後に古い確認を反映しない。 */
+  const removalScope = () => {
+    const site = currentSiteId();
+    const history = useEditor.getState().historyRevision;
+    return () => mounted.current && currentSiteId() === site && useEditor.getState().historyRevision === history;
+  };
 
   const [query, setQuery] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -255,6 +281,7 @@ export function AssetsTab() {
   /** どこからも使われていないアセットをまとめて削除する */
   const removeUnused = async () => {
     if (!unused.length) return;
+    const current = removalScope();
     if (
       !(await showConfirm(tr("サーバーに保存したファイルも削除され、元に戻せません。"), {
         title: tr("使用していないアセット {length}件を削除しますか？", { length: unused.length }),
@@ -264,10 +291,18 @@ export function AssetsTab() {
     ) {
       return;
     }
+    if (!current()) return;
+    const removed: Asset[] = [];
     updateDoc((d) => {
-      for (const a of unused) delete d.assets[a.id];
+      // 確認待ちの共同編集を含め、最新の文書で使用状況を調べ直す。対象は確認したものだけ。
+      const usage = assetUsage(d);
+      for (const a of unused) {
+        if (usage.has(a.id) || !sameAssetFile(d.assets[a.id], a)) continue;
+        delete d.assets[a.id];
+        removed.push(a);
+      }
     });
-    for (const a of unused) void deleteAssetRemote(a);
+    deleteRemovedAssetFiles(removed);
   };
 
   const upload = async (files: FileList | File[]) => {
@@ -367,6 +402,7 @@ export function AssetsTab() {
 
   const removeAsset = async (asset: Asset) => {
     const used = usedBy(asset);
+    const current = removalScope();
     if (
       !(await showConfirm(
         used
@@ -377,6 +413,9 @@ export function AssetsTab() {
     ) {
       return;
     }
+    if (!current() || !sameAssetFile(useEditor.getState().doc.assets[asset.id], asset)) return;
+    // 未使用として確認した後に使われ始めた場合、参照を外すことまでは承認されていない。
+    if (!used && assetUsage(useEditor.getState().doc).has(asset.id)) return;
     updateDoc((d) => {
       const src = assetSrc(asset);
       for (const node of Object.values(d.nodes)) {
@@ -409,7 +448,7 @@ export function AssetsTab() {
       removePageAssetBackgrounds(d, asset);
       delete d.assets[asset.id];
     });
-    void deleteAssetRemote(asset);
+    deleteRemovedAssetFiles([asset]);
   };
 
   return (
