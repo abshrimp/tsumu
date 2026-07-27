@@ -274,3 +274,21 @@ test("structural edits work when an optional component map is null", async () =>
     assert.equal(result.kind, "saved");
   });
 });
+
+
+test("page roots cannot share ownership with other pages or node children", async () => {
+  await database(async db => {
+    const original = doc();
+    await saveCurrentDoc(db, "s1", JSON.stringify(original), null);
+    for (const changed of [
+      { ...original, pages: { ...original.pages, other: { ...original.pages.home, id: "other", slug: "other" } }, pageOrder: ["home", "other"] },
+      { ...original, nodes: { ...original.nodes, parent: { ...original.nodes["node-1"], id: "parent", children: ["node-1"] } } },
+      { ...original, pages: { home: { ...original.pages.home, children: ["node-1", "node-1"] } } },
+    ]) {
+      assert.notEqual(validateDocBody(JSON.stringify(changed)), null);
+      await assert.rejects(saveDocPatch(db, "s1", createDocPatch(original, changed as SiteDoc)!, "1"), /不正な/);
+      assert.equal((await readCurrentDoc(db, "s1"))?.body, JSON.stringify(original));
+      assert.equal((await readCurrentDoc(db, "s1"))?.rev, "1");
+    }
+  });
+});

@@ -210,6 +210,10 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
         WHERE json_type(patched.body, '$.components') = 'object'),
       edges AS MATERIALIZED (SELECT n.id AS parent, c.value AS child, c.type
         FROM nodes n, json_each(CASE WHEN n.type = 'object' THEN n.value END, '$.children') c),
+      ownership AS (
+        SELECT child FROM edges
+        UNION ALL SELECT c.value FROM pages p, json_each(CASE WHEN p.type = 'object' THEN p.value END, '$.children') c
+      ),
       walk(id, depth) AS (
         SELECT id, 1 FROM nodes WHERE id NOT IN (SELECT child FROM edges WHERE type = 'text')
         UNION ALL SELECT e.child, w.depth + 1 FROM walk w JOIN edges e ON e.parent = w.id
@@ -220,7 +224,7 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
         json_extract(value, '$.id') IS NOT id OR json_type(value, '$.children') IS NOT 'array' END) THEN 0
       WHEN EXISTS (SELECT 1 FROM edges LEFT JOIN nodes ON nodes.id = edges.child
         WHERE edges.type != 'text' OR nodes.id IS NULL) THEN 0
-      WHEN EXISTS (SELECT 1 FROM edges GROUP BY child HAVING COUNT(*) > 1) THEN 0
+      WHEN EXISTS (SELECT 1 FROM ownership GROUP BY child HAVING COUNT(*) > 1) THEN 0
       WHEN EXISTS (SELECT 1 FROM pages WHERE CASE WHEN type != 'object' THEN 1 ELSE
         json_type(value, '$.children') IS NOT 'array' END) THEN 0
       WHEN EXISTS (SELECT 1 FROM pages p, json_each(p.value, '$.children') c
