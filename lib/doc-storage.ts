@@ -13,6 +13,11 @@ export class DocTooLargeError extends Error {
   }
 }
 
+/** A delta would make the document impossible to reopen. */
+export class InvalidDocPatchError extends Error {
+  constructor() { super("不正なリクエスト"); }
+}
+
 export interface CurrentDoc {
   rev: string;
   savedAt: number;
@@ -33,17 +38,21 @@ export function validateDocBody(raw: string): string | null {
   } catch {
     return "JSONが壊れています";
   }
-  if (
-    !parsed ||
-    typeof parsed !== "object" ||
-    !("pages" in parsed) ||
-    !("nodes" in parsed) ||
-    !("assets" in parsed) ||
-    !("pageOrder" in parsed) ||
-    !Array.isArray((parsed as { pageOrder?: unknown }).pageOrder) ||
-    // ページが1つも無いデータはエディタが読み込めず、開けなくなる（バックアップからも戻せない）
-    !(parsed as { pageOrder: unknown[] }).pageOrder.length
-  ) {
+  const record = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value);
+  if (!record(parsed) || typeof parsed.siteName !== "string" ||
+      !record(parsed.pages) || !record(parsed.nodes) || !record(parsed.assets) ||
+      !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) {
+    return "不正なリクエスト";
+  }
+  const order = parsed.pageOrder;
+  const pages = parsed.pages as Record<string, unknown>;
+  if (new Set(order).size !== order.length || !order.every((id) => {
+    if (typeof id !== "string" || !Object.hasOwn(pages, id)) return false;
+    const page = pages[id];
+    return record(page) && Array.isArray(page.children) &&
+      page.children.every((child: unknown) => typeof child === "string");
+  })) {
     return "不正なリクエスト";
   }
   return null;
@@ -137,6 +146,24 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   if (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)) || !isDocPatch(patch)) {
     throw new Error("不正なリクエスト");
   }
+  // Validate changed page definitions without reading the entire stored document.
+  // Ordinary element/style patches retain the existing SQL-only fast path.
+  const pageValid = (value: unknown): boolean => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    const children = (value as { children?: unknown }).children;
+    return Array.isArray(children) && children.every((id) => typeof id === "string");
+  };
+  for (const op of patch) {
+    if (op.path[0] !== "pages" || !("value" in op)) continue;
+    if (op.path.length === 2) {
+      if (!pageValid(op.value)) throw new InvalidDocPatchError();
+    } else if (!op.value || typeof op.value !== "object" || Array.isArray(op.value) ||
+               !Object.values(op.value).every(pageValid)) {
+      throw new InvalidDocPatchError();
+    }
+  }
+  const needsPageGuard = patch.some((op) =>
+    op.path[0] === "pages" || op.path[0] === "pageOrder");
   const args: (string | number | null)[] = [];
   let body = "body";
   // D1の関数引数数上限にも収める（1回のjson_setは本文 + 12組のパス・値）。
@@ -155,15 +182,31 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
     }
     if (removes.length) body = `json_remove(${body}, ${removes.join(", ")})`;
   }
+  const pageGuard = needsPageGuard ? `AND EXISTS (
+    SELECT 1 FROM patched
+    WHERE json_type(body, '$.pages') = 'object'
+      AND json_type(body, '$.pageOrder') = 'array'
+      AND json_array_length(body, '$.pageOrder') > 0
+      AND (SELECT COUNT(*) FROM json_each(body, '$.pageOrder')) =
+          (SELECT COUNT(DISTINCT value) FROM json_each(body, '$.pageOrder'))
+      AND NOT EXISTS (
+        SELECT 1 FROM json_each(body, '$.pageOrder') AS item
+        WHERE item.type != 'text' OR NOT EXISTS (
+          SELECT 1 FROM json_each(body, '$.pages') AS page
+          WHERE page.key = item.value AND page.type = 'object'
+        )
+      )
+  )` : "";
   const now = Date.now();
   await backupPreviousDay(db, siteId, now);
   const rs = await write(db, {
-    sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? RETURNING rev`,
+    sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? ${pageGuard} RETURNING rev`,
     args: [...args, siteId, Number(base), now, siteId, Number(base)],
   });
   if (rs.rows.length) {
     return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
   }
   const current = await readCurrentDoc(db, siteId);
+  if (needsPageGuard && current?.rev === base) throw new InvalidDocPatchError();
   return current ? { kind: "conflict", current } : { kind: "missing" };
 }
