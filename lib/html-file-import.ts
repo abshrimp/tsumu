@@ -26,21 +26,7 @@ export async function convertHtmlFile(
   if (!file.size) throw new Error("ファイルが空です。");
   if (file.name.toLowerCase().endsWith(".zip")) {
     if (file.size > IMPORT_LIMITS.zipBytes) throw new Error("インポートするファイルが大きすぎます。");
-    // Validate ZIP entry count and advertised expanded size before uploading assets.
-    const archiveHeader = await JSZip.loadAsync(file);
-    const entries = Object.values(archiveHeader.files).filter((entry) => !entry.dir);
-    if (entries.length > IMPORT_LIMITS.entries) throw new Error(tr("ZIP内のファイルが多すぎます。"));
-    let expanded = 0;
-    for (const entry of entries) {
-      const bytes = (entry as typeof entry & { _data?: { uncompressedSize?: number } })
-        ._data?.uncompressedSize;
-      if (typeof bytes === "number" && Number.isFinite(bytes)) {
-        expanded += bytes;
-        if (bytes > IMPORT_LIMITS.expandedBytes || expanded > IMPORT_LIMITS.expandedBytes) {
-          throw new Error(tr("ZIP展開後のデータが大きすぎます。"));
-        }
-      }
-    }
+    // readHtmlZip/readHtmlZipPages share strict path and expansion checks before uploads.
     options.progress?.("HTMLとアセットを読み込み中…");
     if (!options.allPages) {
       const converted = await readHtmlZip(file, options.progress);

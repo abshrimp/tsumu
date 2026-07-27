@@ -187,7 +187,7 @@ test("real ZIP import rejects unsupported CSS encodings and excessive CSS withou
       }, /UTF-8|CSS/);
       assert.deepEqual(doc, before);
     }
-    assert.equal(uploads, 3, "uploads before the error do not make a partial document commit");
+    assert.equal(uploads, 0, "preflight must reject invalid CSS before any asset upload");
   } finally { globalThis.fetch = originalFetch; }
 });
 
