@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Search, Undo2, X, Zap } from "lucide-react";
 import { componentOf, useEditor } from "../lib/store";
@@ -9,7 +9,7 @@ import { glyphs } from "./Glyph";
 import { InfoTip } from "./controls";
 import { applyPageScripts, cloneSteps, pageNodeIds, pageScriptsOf, scriptUid, walkSteps, TRIGGER_LABELS, type PageScript } from "../lib/script";
 import { stepText } from "../lib/script-text";
-import { pageArrays, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
+import { pageArrays, pagePlan, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
 import { PAGE_TARGET, type Script, type ScriptStep } from "../lib/types";
 import { tr, trNodes } from "../lib/i18n";
 import { HatView, PaletteLabel, PeekModal, StackView, StepList } from "./script-editor/blocks";
@@ -28,6 +28,10 @@ import { insertAt, listIn, mapStep, numberFilters, removeKeys, stepIn, takeAt } 
 import { buildTree, collectTargets, type MenuTarget } from "./script-editor/targets";
 import { useScriptDrag } from "./script-editor/useScriptDrag";
 import { useScriptEditorKeys } from "./script-editor/useScriptEditorKeys";
+
+// Keep the heavy block subtree mounted and unchanged when only the palette,
+// zoom controls, or other editor chrome updates.
+const MemoStackView = memo(StackView);
 
 /* ---------- 設定パネル用の一覧 ---------- */
 
@@ -190,6 +194,10 @@ function ScriptEditorInner({
     () => pageScriptsOf(doc, nodeIds, activePageId),
     [doc, nodeIds, activePageId]
   );
+  const pageLoadScriptIds = useMemo(() => new Set(
+    scripts.filter((s) => s.nodeId === PAGE_TARGET && s.trigger === "load").map((s) => s.id)
+  ), [scripts]);
+  const serverStepIds = useMemo(() => pagePlan(doc, activePageId).serverIds, [doc, activePageId]);
   const targets = useMemo(() => collectTargets(doc, nodeIds), [doc, nodeIds]);
   const tree = useMemo(() => buildTree(doc, nodeIds), [doc, nodeIds]);
   const arrays = useMemo(() => pageArrays(doc, activePageId), [doc, activePageId]);
@@ -304,9 +312,31 @@ function ScriptEditorInner({
   };
   const dragRef = useRef<Drag | null>(null);
   const marqueeRef = useRef<Marquee | null>(null);
+  const marqueeElRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
-  const [activeSlot, setActiveSlot] = useState<string | null>(null);
+  const ghostRef = useRef<HTMLDivElement>(null);
+  const highlightedSlotRef = useRef<HTMLElement | null>(null);
+  // A drag can cross hundreds of insertion slots. Highlight only the changed
+  // DOM node; never make the entire block editor render on pointer movement.
+  const setActiveSlot = useCallback((key: string | null) => {
+    const old = highlightedSlotRef.current;
+    if (old && (old.dataset.slot !== key || !old.isConnected)) {
+      old.classList.remove("is-active");
+      highlightedSlotRef.current = null;
+    }
+    if (!key) {
+      old?.classList.remove("is-active");
+      highlightedSlotRef.current = null;
+      return;
+    }
+    if (highlightedSlotRef.current?.classList.contains("is-active")) return;
+    const el = wsRef.current?.querySelector<HTMLElement>(
+      `[data-slot="${CSS.escape(key)}"]`
+    );
+    el?.classList.add("is-active");
+    highlightedSlotRef.current = el ?? null;
+  }, []);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [selectedList, setSelectedList] = useState<string[]>([]);
   const selected = useMemo(() => new Set(selectedList), [selectedList]);
@@ -348,9 +378,9 @@ function ScriptEditorInner({
     return null;
   }, [scripts, peekId, peekScope]);
 
-  const commit = (next: PageScript[]) => {
+  const commit = useCallback((next: PageScript[]) => {
     updateDoc((d) => applyPageScripts(d, activePageId, nodeIds, numberFilters(next)));
-  };
+  }, [updateDoc, activePageId, nodeIds]);
   const deleteSelected = () => {
     if (!selectedList.length) return;
     commit(removeKeys(scripts, selectedList));
@@ -423,16 +453,16 @@ function ScriptEditorInner({
     setDrag,
     latest,
     paletteRef,
+    ghostRef,
+    marqueeElRef,
   });
   useScriptEditorKeys({ dragRef, cancelGesture, latest, setPeekId, setSelectedList });
-
-  if (!page) return null;
 
   /**
    * ブロックを押したとき。key があれば選択も更新する
    * （Shift / ⌘ は選択の追加・解除だけ、選択済みのものはそのまま複数ドラッグ）
    */
-  const begin = (e: React.PointerEvent, make: () => Payload, key?: string) => {
+  const begin = useCallback((e: React.PointerEvent, make: () => Payload, key?: string) => {
     if (e.button !== 0 || dragRef.current || marqueeRef.current) return;
     const t = e.target as HTMLElement;
     e.stopPropagation();
@@ -452,7 +482,7 @@ function ScriptEditorInner({
     (document.activeElement as HTMLElement | null)?.blur?.();
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     // つかんだ位置は倍率 1 の大きさで持つ（ワークスペースの中は表示倍率がかかっている）
-    const z = wsRef.current?.contains(e.currentTarget as Node) ? zoom : 1;
+    const z = wsRef.current?.contains(e.currentTarget as Node) ? zoomRef.current : 1;
     dragRef.current = {
       pointerId: e.pointerId,
       make,
@@ -467,9 +497,9 @@ function ScriptEditorInner({
       h: r.height / z,
       clickKey: key && selected.has(key) && selected.size > 1 ? key : undefined,
     };
-  };
+  }, [selected]);
 
-  const view: PageScript[] = (() => {
+  const view = useMemo(() => {
     const p = drag?.payload;
     if (!p) return scripts;
     if (p.type === "steps" && p.from) return takeAt(scripts, p.from)[0];
@@ -478,19 +508,21 @@ function ScriptEditorInner({
       return scripts.filter((s) => !ids.has(s.id));
     }
     return scripts;
-  })();
+  }, [scripts, drag?.payload]);
 
-  const ctx: EdCtx = {
+  const ctx = useMemo<EdCtx>(() => ({
     doc,
     pageId: activePageId,
     scriptRootIds: extraRootsKey ? extraRootsKey.split(",") : [],
     targets,
     tree,
     scripts,
+    pageLoadScriptIds,
+    serverStepIds,
     elements,
     focusNodeId,
     readOnly: false,
-    activeSlot,
+    activeSlot: null,
     selected,
     zOrder,
     // 取得のように後から呼ばれることがあるため、描画時点ではなく最新の状態に適用する
@@ -556,7 +588,9 @@ function ScriptEditorInner({
       if (!selected.has(key)) setSelectedList([key]);
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
-  };
+  }), [doc, activePageId, extraRootsKey, targets, tree, scripts,
+    pageLoadScriptIds, serverStepIds, elements, focusNodeId, selected,
+    zOrder, commit, updateDoc, nodeIds, arrays, samples, begin]);
 
   const runMenu = (action: "delete" | "duplicate") => {
     if (!menu) return;
@@ -594,16 +628,17 @@ function ScriptEditorInner({
     setSelectedList([`step:${copy.id}`]);
   };
 
-  const wsSize = scripts.reduce(
+  const wsSize = useMemo(() => scripts.reduce(
     (acc, s) => ({
       w: Math.max(acc.w, s.pos.x + 900),
       h: Math.max(acc.h, s.pos.y + 700),
     }),
     { w: 1600, h: 1000 }
-  );
+  ), [scripts]);
 
   const ghost = drag?.payload ? (
     <div
+      ref={ghostRef}
       className="se-ghost"
       style={{ left: drag.x - drag.ox * zoom, top: drag.y - drag.oy * zoom }}
     >
@@ -616,19 +651,24 @@ function ScriptEditorInner({
         ) : drag.payload.type === "script" ? (
           (() => {
             const main = drag.payload.script;
-            return drag.payload.group.map((s) => (
+            return drag.payload.group.slice(0, 8).map((s) => (
               <div
                 key={s.id}
                 className="se-ghost-item"
                 style={{ left: s.pos.x - main.pos.x, top: s.pos.y - main.pos.y }}
               >
-                <StackView script={s} />
+                <StackView script={{ ...s, steps: ghostPreviewSteps(s.steps) }} />
               </div>
             ));
           })()
         ) : (
           <div className="se-stack">
-            <StepList scriptId="__ghost" list="root" steps={drag.payload.steps} />
+            <StepList scriptId="__ghost" list="root" steps={ghostPreviewSteps(drag.payload.steps)} />
+            {drag.payload.steps.length > 8 && (
+              <span className="se-ghost-more">
+                {tr("ほか{n}件の動作", { n: drag.payload.steps.length - 8 })}
+              </span>
+            )}
           </div>
         )}
       </Ctx.Provider>
@@ -637,6 +677,8 @@ function ScriptEditorInner({
   ) : null;
 
   const menuCount = menu && selected.has(menu.key) ? selectedList.length : 1;
+
+  if (!page) return null;
 
   return createPortal(
     <div
@@ -856,7 +898,7 @@ function ScriptEditorInner({
             >
               <Ctx.Provider value={ctx}>
                 {view.map((s) => (
-                  <StackView key={s.id} script={s} />
+                  <MemoStackView key={s.id} script={s} />
                 ))}
               </Ctx.Provider>
             </div>
@@ -911,6 +953,7 @@ function ScriptEditorInner({
         {ghost}
         {marquee && (
           <div
+            ref={marqueeElRef}
             className="se-marquee"
             style={{
               left: Math.min(marquee.x0, marquee.x),
@@ -964,4 +1007,20 @@ function clampPal(w: number): number {
 function inPaletteHint(d: Drag, el: HTMLElement | null): boolean {
   const r = el?.getBoundingClientRect();
   return !!r && d.x >= r.left && d.x <= r.right && d.y >= r.top && d.y <= r.bottom;
+}
+
+/** Drag previews never mount a second copy of a very long step tree. */
+function ghostPreviewSteps(steps: ScriptStep[], depth = 0): ScriptStep[] {
+  if (depth >= 3) return [];
+  return steps.slice(0, 8).map((step) => {
+    if (step.kind === "if") return {
+      ...step,
+      then: ghostPreviewSteps(step.then, depth + 1),
+      ...(step.else ? { else: ghostPreviewSteps(step.else, depth + 1) } : {}),
+    };
+    if (step.kind === "repeat" || step.kind === "for-each") {
+      return { ...step, then: ghostPreviewSteps(step.then, depth + 1) };
+    }
+    return step;
+  });
 }

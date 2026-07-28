@@ -196,14 +196,31 @@ export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): 
     out.push({ ...s, nodeId: PAGE_TARGET });
   }
   for (const s of doc.pages[pageId]?.scripts ?? []) out.push({ ...s, nodeId: null });
-  // 要素ごとに置いていた位置が重なる場合は下へずらして見せる
-  const placed: ScriptPos[] = [];
+  // Only examine nearby positions when avoiding overlaps. A full scan made
+  // opening a workspace with many separate script stacks quadratic.
+  const cellSize = 48;
+  const placed = new Map<string, ScriptPos[]>();
+  const key = (x: number, y: number) =>
+    `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}`;
+  const overlaps = (pos: ScriptPos) => {
+    const x = Math.floor(pos.x / cellSize);
+    const y = Math.floor(pos.y / cellSize);
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (const p of placed.get(`${x + dx}:${y + dy}`) ?? []) {
+          if (Math.abs(p.x - pos.x) < 48 && Math.abs(p.y - pos.y) < 48) return true;
+        }
+      }
+    }
+    return false;
+  };
   return out.map((s) => {
     const pos = { ...s.pos };
-    while (placed.some((p) => Math.abs(p.x - pos.x) < 48 && Math.abs(p.y - pos.y) < 48)) {
-      pos.y += 150;
-    }
-    placed.push(pos);
+    while (overlaps(pos)) pos.y += 150;
+    const cell = key(pos.x, pos.y);
+    const list = placed.get(cell) ?? [];
+    list.push(pos);
+    placed.set(cell, list);
     return pos.y === s.pos.y ? s : { ...s, pos };
   });
 }

@@ -17,7 +17,10 @@ import { isVarListShortcut } from "../lib/vars";
 function candidates(doc = scriptDataPickerDoc(), local: string[] = [], valueContext = "value") {
   const require = createRequire(resolve("components/script-editor/inputs.tsx"));
   const mod = { exports: {} as any };
-  const hooks = { ...React, useMemo: (fn: any) => fn(), useContext: (ctx: any) =>
+  const hooks = { ...React, useMemo: (fn: any) => fn(),
+    // Candidate tests model an activated input (production inputs load this lazily).
+    useState: () => [true, () => {}],
+    useContext: (ctx: any) =>
     ctx === Ctx ? { doc, pageId: "p" } : ctx === ScriptStepCtx ? "value" : ctx === ScriptNodeCtx ? "" :
     ctx === LoopCtx ? [{ fields: local, samples: {} }] : ctx._currentValue };
   new Function("require", "module", "exports", transformSync(readFileSync("components/script-editor/inputs.tsx", "utf8"), {

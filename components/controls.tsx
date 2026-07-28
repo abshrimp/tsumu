@@ -962,6 +962,7 @@ export function VarInput({
   valueContext,
   className,
   style,
+  onActivate,
 }: {
   value: string;
   /** blur時に確定（Enterでもblurする） */
@@ -982,6 +983,8 @@ export function VarInput({
   valueContext?: ValueContext;
   className?: string;
   style?: CSSProperties;
+  /** Optional lazy initialization of costly suggestion data on first focus. */
+  onActivate?: () => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1019,6 +1022,16 @@ export function VarInput({
       explore: explorable,
     });
   };
+
+  // If the parent loads candidates on focus, refresh the menu after that
+  // render. The first focus event still sees the previous (empty) list.
+  useEffect(() => {
+    if (eager && ref.current && document.activeElement === ref.current && !explore) {
+      update(true);
+    }
+    // Only candidate changes should re-open a focused suggestion.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [names]);
 
   const replace = (start: number, end: number, name: string) => {
     const el = ref.current;
@@ -1098,7 +1111,8 @@ export function VarInput({
         defaultValue={value}
         placeholder={placeholder}
         onFocus={() => {
-          // 入力・blur より後に候補を開き直さないよう、フォーカス時に同期して表示する。
+          onActivate?.();
+          // The parent may populate lazy candidates immediately after focus.
           if (eager && !explore) update(true);
         }}
         onInput={(e) => {

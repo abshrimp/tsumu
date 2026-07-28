@@ -32,8 +32,8 @@ function mount(targetSlot?: string) {
   const ui = { drag: null as Drag | null, marquee: null as Marquee | null, slot: null as string | null, selected: [] as string[], closed: false };
   const rect = (left: number, right: number) => ({ left, right, top: 0, bottom: 600 });
   const ws = { scrollLeft: 0, scrollTop: 0, getBoundingClientRect: () => rect(300, 1200),
-    querySelectorAll: (selector: string) => targetSlot && selector === '[data-slot-kind="step"]'
-      ? [{ dataset: { slot: targetSlot },
+    querySelectorAll: (selector: string) => targetSlot && selector === '[data-slot-kind]'
+      ? [{ dataset: { slot: targetSlot, slotKind: "step" },
         getBoundingClientRect: () => ({ left: 692, right: 740, top: 292, bottom: 315 }) }] : [],
   };
   const scripts = () => pageScriptsOf(useEditor.getState().doc, [], useEditor.getState().activePageId);

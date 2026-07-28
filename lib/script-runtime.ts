@@ -1634,6 +1634,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/keep*/
       function onOver(e) {
+        // Initialize the page before keeping a hover. The first run's
+        // syncPage() must not clear a newly registered hover owner.
+        syncPage();
         /*#keep*/
         // The shown menu may not have its own script listener.
         // Crossing into it must cancel the pending hover-end timeout.
