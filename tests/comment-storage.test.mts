@@ -163,3 +163,43 @@ test("the API distinguishes a deleted edit target from an unauthorized author", 
   assert.equal(response.status, 404);
   assert.equal((await response.json()).code, "comment_message_missing");
 }));
+
+test("thread deletion rechecks the current first author's authority inside the write transaction", async () => database(async db => {
+  const other = { email: "other@example.com", name: "Other", image: null };
+  await runCommentAction(db, "site", create, author, 100);
+  await runCommentAction(db, "site", reply, other, 200);
+  let raced = false;
+  const racingDb: Db = { ...db, batch: async statements => {
+    if (!raced) {
+      raced = true;
+      assert.equal(await runCommentAction(db, "site", { action: "delete-message", messageId: "thread-0" }, author, 300), true);
+    }
+    return db.batch(statements);
+  } };
+  assert.equal(await runCommentAction(racingDb, "site", { action: "delete-thread", threadId: "thread" }, author, 400), false);
+  const threads = await listComments(db, "site");
+  assert.equal(threads.length, 1); assert.deepEqual(threads[0].messages.map(m => m.id), ["reply"]);
+  assert.equal(await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, other, 500), true);
+  await assertEmpty(db);
+  assert.equal(await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, other, 600), true, "already removed threads remain idempotent");
+}));
+
+test("a delayed message deletion cannot delete a replacement message owned by another author", async () => database(async db => {
+  const other = { email: "other@example.com", name: "Other", image: null };
+  await runCommentAction(db, "site", create, author, 100);
+  let raced = false;
+  const racingDb: Db = { ...db, batch: async statements => {
+    if (!raced) {
+      raced = true;
+      await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, author, 200);
+      await runCommentAction(db, "site", { ...create, body: "Replacement" }, other, 300);
+    }
+    return db.batch(statements);
+  } };
+  assert.equal(await runCommentAction(racingDb, "site", { action: "delete-message", messageId: "thread-0" }, author, 400), false);
+  const threads = await listComments(db, "site");
+  assert.equal(threads.length, 1);
+  assert.equal(threads[0].updatedAt, 300, "a rejected delete must not bump the replacement thread");
+  assert.equal(threads[0].messages[0].body, "Replacement");
+  assert.equal(threads[0].messages[0].author.email, other.email);
+}));

@@ -395,13 +395,20 @@ export default function Editor({ onReady }: EditorProps = {}) {
           paste();
           return;
         }
+        const destination = useEditor.getState();
         void showConfirm(
           tr("貼り付ける要素に、HTMLとして動く内容（{names}）が含まれています。このエディタ以外でコピーされたデータです。信頼できるところでコピーしたものだけを貼り付けてください。", {
             names: active.slice(0, 3).join(tr("・")) + (active.length > 3 ? tr("ほか{count}件", { count: active.length - 3 }) : ""),
           }),
           { title: tr("この内容を貼り付けますか？"), okLabel: tr("貼り付ける"), danger: true }
         ).then((ok) => {
-          if (ok) paste();
+          const now = useEditor.getState();
+          if (ok && mounted && own === latestPaste &&
+              now.doc === destination.doc && now.historyRevision === destination.historyRevision &&
+              now.activePageId === destination.activePageId && now.selection === destination.selection &&
+              now.selectedIds === destination.selectedIds && now.editingComponentId === destination.editingComponentId &&
+              now.insertMode === destination.insertMode && now.mode === "design" &&
+              now.scriptEditor === destination.scriptEditor) paste();
         });
         return;
       }

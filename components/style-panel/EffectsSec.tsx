@@ -45,6 +45,12 @@ import { tr } from "../../lib/i18n";
 import { editFilterFunction, filterFunctions } from "../../lib/filter-edit";
 import { I, Sec } from "./shared";
 
+/** An explicit removal differs from reset: default/wider-screen effects must
+ * be disabled in this state, not revealed again by deleting the override. */
+function disabledEffect(insp: ReturnType<typeof useInspector>, prop: string): string | null {
+  return isInitialValue(prop, insp.get(prop).baseline) ? null : "none";
+}
+
 /* ---------- エフェクト ---------- */
 
 interface Shadow {
@@ -262,7 +268,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
   const tf = parseTransform(info.value);
   const ref = parseTransform(info.reference);
   const set = (patch: Partial<TransformParts>) =>
-    insp.set({ transform: serializeTransform({ ...tf, ...patch }) ?? insp.cleared("transform") });
+    insp.set({ transform: serializeTransform({ ...tf, ...patch }) ?? disabledEffect(insp, "transform") });
   const changed = (key: keyof TransformParts) => info.setHere && tf[key] !== ref[key];
   const len = (v: string) => (parseFloat(v) === 0 ? undefined : v);
   const pct = (n: number) => (n === 1 ? undefined : `${Math.round(n * 1000) / 10}%`);
@@ -359,19 +365,19 @@ export function EffectsSec() {
 
   const commitDrop = (list: Shadow[]) =>
     insp.set({
-      boxShadow: list.length ? list.map(serializeShadow).join(", ") : insp.cleared("boxShadow"),
+      boxShadow: list.length ? list.map(serializeShadow).join(", ") : disabledEffect(insp, "boxShadow"),
     });
   const commitDropTransient = (list: Shadow[]) =>
     insp.setTransient({
-      boxShadow: list.length ? list.map(serializeShadow).join(", ") : insp.cleared("boxShadow"),
+      boxShadow: list.length ? list.map(serializeShadow).join(", ") : disabledEffect(insp, "boxShadow"),
     });
   const commitText = (list: Shadow[]) =>
     insp.set({
-      textShadow: list.length ? list.map(serializeTextShadow).join(", ") : insp.cleared("textShadow"),
+      textShadow: list.length ? list.map(serializeTextShadow).join(", ") : disabledEffect(insp, "textShadow"),
     });
   const commitTextTransient = (list: Shadow[]) =>
     insp.setTransient({
-      textShadow: list.length ? list.map(serializeTextShadow).join(", ") : insp.cleared("textShadow"),
+      textShadow: list.length ? list.map(serializeTextShadow).join(", ") : disabledEffect(insp, "textShadow"),
     });
 
   const filterInfo = insp.get("filter");
@@ -386,7 +392,7 @@ export function EffectsSec() {
       const replacement = serializeFilter({ ...parseFilter(undefined), [key]: amount });
       value = editFilterFunction(value, name, replacement) ?? undefined;
     }
-    insp.set({ filter: value ?? insp.cleared("filter") });
+    insp.set({ filter: value ?? disabledEffect(insp, "filter") });
   };
 
   const bdVal = insp.get("backdropFilter").value;
@@ -512,7 +518,7 @@ export function EffectsSec() {
         <TransformCard
           onDelete={() => {
             setTfAdded(false);
-            insp.set({ transform: insp.cleared("transform"), transformOrigin: null });
+            insp.set({ transform: disabledEffect(insp, "transform"), transformOrigin: null });
           }}
         />
       )}
@@ -550,7 +556,7 @@ export function EffectsSec() {
                 backdropFilter:
                   editFilterFunction(bdVal, "blur",
                     v && (parseNumeric(v)?.num ?? 1) > 0 ? `blur(${v})` : null,
-                  ) ?? insp.cleared("backdropFilter"),
+                  ) ?? disabledEffect(insp, "backdropFilter"),
               })
             }
           />
