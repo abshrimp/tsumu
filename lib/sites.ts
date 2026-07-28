@@ -61,8 +61,7 @@ export function isSafeBranch(branch: string): boolean {
     !branch.includes("//") &&
     !branch.endsWith("/") &&
     !branch.endsWith(".") &&
-    !branch.endsWith(".lock") &&
-    !branch.split("/").some((s) => s.startsWith("."))
+    !branch.split("/").some((s) => s.startsWith(".") || s.endsWith(".lock"))
   );
 }
 
@@ -153,12 +152,18 @@ export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" 
   });
 }
 
-export async function updateSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>): Promise<void> {
-  await db.execute({
+/** Save only against the settings that were validated; callers retry a competing update. */
+export async function updateSite(
+  db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>,
+  expected: Pick<SiteRecord, "name" | keyof SiteDest>,
+): Promise<boolean> {
+  const result = await db.execute({
     sql: `UPDATE sites SET name = ?, repo = ?, branch = ?, preview_branch = ?, site_url = ?, preview_url = ?, updated_at = ?
-      WHERE id = ?`,
-    args: [v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, Date.now(), id],
+      WHERE id = ? AND name IS ? AND repo IS ? AND branch IS ? AND preview_branch IS ? AND site_url IS ? AND preview_url IS ?`,
+    args: [v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, Date.now(), id,
+      expected.name, expected.repo, expected.branch, expected.previewBranch, expected.siteUrl, expected.previewUrl],
   });
+  return result.rowsAffected > 0;
 }
 
 /** サイトと、その編集データ・バックアップを消す（画像は KV に残る） */

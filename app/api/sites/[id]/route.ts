@@ -50,13 +50,22 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
     const input = (await req.json().catch(() => null)) as SiteInput | null;
-    if (!input || typeof input !== "object") {
+    if (!input || typeof input !== "object" || Array.isArray(input)) {
       return NextResponse.json({ error: r.tr("リクエストが正しくありません") }, { status: 400 });
     }
-    const parsed = normalizeSiteInput(input, r.site);
-    if (!parsed.ok) return NextResponse.json({ error: r.tr(parsed.error) }, { status: 400 });
-    await updateSite(r.db, r.site.id, parsed.value);
-    return NextResponse.json({ site: await getSite(r.db, r.site.id) });
+    let current = r.site;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const parsed = normalizeSiteInput(input, current);
+      if (!parsed.ok) return NextResponse.json({ error: r.tr(parsed.error) }, { status: 400 });
+      const saved = await updateSite(r.db, current.id, parsed.value, current);
+      const latest = await getSite(r.db, current.id);
+      if (!latest) return NextResponse.json({ error: r.tr("サイトが見つかりません") }, { status: 404 });
+      if (saved) return NextResponse.json({ site: latest });
+      // Reapply only the submitted fields to the new settings. In particular,
+      // branch/previewBranch must be validated together after a competing edit.
+      current = latest;
+    }
+    return NextResponse.json({ error: r.tr("保存できませんでした") }, { status: 409 });
   } catch (e) {
     const tr = await serverTr();
     return NextResponse.json({ error: tr(userMessage(e, "保存できませんでした")) }, { status: 502 });

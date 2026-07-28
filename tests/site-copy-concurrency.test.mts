@@ -1,0 +1,61 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { getDbFromBinding, type Db } from "../lib/db";
+import { nodeDatabase } from "../lib/node-storage";
+import * as sites from "../lib/sites";
+import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
+import { userMessage } from "../lib/errors";
+
+async function database(run: (db: Db) => Promise<void>) {
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-copy-"));
+  const previous = process.env.TSUMU_DATA_DIR;
+  process.env.TSUMU_DATA_DIR = dir;
+  try {
+    const db = await getDbFromBinding(nodeDatabase()!);
+    await sites.insertSite(db, "source", { name: "Original", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    await run(db);
+  } finally {
+    if (previous === undefined) delete process.env.TSUMU_DATA_DIR; else process.env.TSUMU_DATA_DIR = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+function api(db: Db, read = readCurrentDoc, save = saveCurrentDoc) {
+  class NextResponse extends Response {
+    static json(data: unknown, init?: ResponseInit) { return new NextResponse(JSON.stringify(data), init); }
+  }
+  const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/sites/route.ts", import.meta.url), "utf8"))
+    .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
+  const injected = { DEFAULT_BRANCH: sites.DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH: sites.DEFAULT_PREVIEW_BRANCH, deleteSite: sites.deleteSite, getSite: sites.getSite, insertSite: sites.insertSite, isSiteId: sites.isSiteId, listSites: sites.listSites, normalizeSiteInput: sites.normalizeSiteInput, newSiteId: () => "copy", NextResponse, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
+    requireAuth: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
+    readCurrentDoc: read, saveCurrentDoc: save };
+  const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected));
+  return () => post(new Request("https://example.test/api/sites", { method: "POST", body: JSON.stringify({ name: "Copy", copyFrom: "source" }) })) as Promise<Response>;
+}
+
+test("copying a source deleted before its document is read does not create a blank copy", async () => database(async db => {
+  const response = await api(db, async (db, id) => { await sites.deleteSite(db, id); return readCurrentDoc(db, id); })();
+  assert.equal(response.status, 404);
+  assert.equal(await sites.getSite(db, "copy"), null);
+}));
+test("a source with no document can still be copied", async () => database(async db => {
+  const response = await api(db)();
+  assert.equal(response.status, 200);
+  assert.equal((await sites.getSite(db, "copy"))?.name, "Copy");
+  assert.equal(await readCurrentDoc(db, "copy"), null);
+}));
+test("a captured source document remains usable if the source is deleted afterwards", async () => database(async db => {
+  await saveCurrentDoc(db, "source", '{"content":"saved"}', null);
+  const response = await api(db, async (db, id) => { const snapshot = await readCurrentDoc(db, id); await sites.deleteSite(db, id); return snapshot; })();
+  assert.equal(response.status, 200);
+  assert.equal((await readCurrentDoc(db, "copy"))?.body, '{"content":"saved"}');
+}));
+test("an unsuccessful destination save is not reported as a completed copy", async () => database(async db => {
+  await saveCurrentDoc(db, "source", '{"content":"saved"}', null);
+  const response = await api(db, readCurrentDoc, async () => ({ kind: "missing" }))();
+  assert.equal(response.status, 502);
+  assert.equal(await sites.getSite(db, "copy"), null);
+}));

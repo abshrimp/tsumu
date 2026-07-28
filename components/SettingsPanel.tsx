@@ -511,7 +511,9 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 nodeId={nodeId}
                 onCommit={(v) => {
                   const src = v.trim();
-                  if (src)
+                  // VarInput also commits an untouched empty asset placeholder on blur.
+                  // Keep that asset, but allow an explicitly cleared external URL.
+                  if (src || !node.image!.assetId)
                     updateNode(nodeId, {
                       image: { ...node.image!, src, assetId: undefined },
                     });

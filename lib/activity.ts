@@ -56,9 +56,11 @@ export async function recordActivity(
   const u = user ?? { email: "", name: null, image: null };
   try {
     await db.execute({
-      sql: `INSERT INTO site_activity (site_id, kind, email, name, image, at) VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(site_id, kind, email) DO UPDATE SET name = excluded.name, image = excluded.image, at = excluded.at`,
-      args: [siteId, kind, u.email, u.name, u.image, at],
+      sql: `INSERT INTO site_activity (site_id, kind, email, name, image, at)
+        SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?)
+        ON CONFLICT(site_id, kind, email) DO UPDATE SET name = excluded.name, image = excluded.image, at = excluded.at
+        WHERE site_activity.at <= excluded.at`,
+      args: [siteId, kind, u.email, u.name, u.image, at, siteId],
     });
   } catch {
     // 記録は表示のためだけなので、失敗しても無視する
