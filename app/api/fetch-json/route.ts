@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { BlockedUrlError, fetchPublic, readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
+import { readJsonRequestLimited } from "../../../lib/read-json-request";
 
 export const maxDuration = 30;
 
 const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 
 /** エディタからのデータソース取得（CORS回避のためサーバー経由） */
 export async function POST(req: Request) {
@@ -18,9 +20,11 @@ export async function POST(req: Request) {
   let headers: unknown;
   let body: unknown;
   try {
-    ({ url, method, headers, body } = await req.json());
-  } catch {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    ({ url, method, headers, body } = await readJsonRequestLimited(req, MAX_REQUEST_BYTES) as {
+      url: string; method?: string; headers?: unknown; body?: unknown;
+    });
+  } catch (error) {
+    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: error instanceof RangeError ? 413 : 400 });
   }
   // メソッド・ヘッダー・本文（データの取得ブロックの「リクエストの設定」）
   const verb = typeof method === "string" ? method.toUpperCase() : method == null ? "GET" : "";

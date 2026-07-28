@@ -622,10 +622,14 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
   return { applied, errors };
 }
 
+/** Upper bound on element growth within one AI tool call. */
+export const MAX_AI_ADDED_NODES = 2_000;
+
 /** 操作は1つずつ確かめてから確定する。refs（仮の名前 → ID）は、同じリクエストのツール呼び出しをまたいで引き継ぐ */
 export function applyAiOps(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs = new Map<string, string>()): ApplyResult {
   const result: ApplyResult = { applied: [], errors: [] };
   if (!Array.isArray(ops) || ops.length > 200) return { applied: [], errors: ["Use at most 200 operations per call"] };
+  const initialNodeCount = Object.keys(doc.nodes).length;
   for (const op of ops) {
     const draft = structuredClone(doc);
     const nextRefs = new Map(refs);
@@ -634,6 +638,10 @@ export function applyAiOps(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs 
       const next = applyBatch(draft, [op], target, nextRefs);
       if (next.errors.length) result.errors.push(...next.errors);
       else if (next.applied.length) {
+        if (Object.keys(draft.nodes).length > initialNodeCount + MAX_AI_ADDED_NODES) {
+          result.errors.push("AI edit exceeds the element growth limit");
+          continue;
+        }
         Object.assign(doc, draft);
         refs.clear();
         nextRefs.forEach((value, key) => refs.set(key, value));
@@ -727,7 +735,9 @@ export function buildAiContext(
   for (const [id, p] of Object.entries(doc.pages)) {
     pages[id] = id === opts.pageId ? p : { ...p, children: [], scripts: undefined, pageScripts: undefined, rawHtml: undefined };
   }
-  const part: SiteDoc = {
+  // Keep the AI request snapshot independent from subsequent in-place editor edits.
+  // A shallow copy would share node/page/style objects and could mask a replay conflict.
+  const part: SiteDoc = structuredClone({
     siteName: doc.siteName,
     pages,
     pageOrder: doc.pageOrder,
@@ -738,7 +748,7 @@ export function buildAiContext(
     colorPalette: doc.colorPalette,
     customFonts: doc.customFonts,
     components: comp ? { [comp.id]: comp } : undefined,
-  };
+  });
   const bps = normalizeBreakpoints(doc.breakpoints);
   const summary = {
     site: doc.siteName,

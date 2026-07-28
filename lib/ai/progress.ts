@@ -8,6 +8,7 @@ export type AiProgress =
 export interface AiResult { reply: string; operations: AiOp[] }
 export type AiStreamEvent = AiProgress | { type: "result"; result: AiResult } | { type: "error"; error: string } | { type: "ping" };
 export const AI_STREAM_TYPE = "application/x-ndjson";
+export const MAX_AI_STREAM_BYTES = 8 * 1024 * 1024;
 
 /** ブラウザへ送るのは、画面に出す説明と実行の経過だけ（AIの思考や署名は送らない） */
 export function aiStreamResponse(
@@ -66,11 +67,16 @@ export async function* readLines(body: ReadableStream<Uint8Array>): AsyncGenerat
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let pending = "";
+  let receivedBytes = 0;
   try {
     for (;;) {
       const { value, done } = await reader.read();
+      if (!done) {
+        receivedBytes += value.byteLength;
+        if (receivedBytes > MAX_AI_STREAM_BYTES) throw new Error("AI response is too large");
+      }
       pending += done ? decoder.decode() : decoder.decode(value, { stream: true });
-      if (pending.length > 16 * 1024 * 1024) throw new Error("AI response is too large");
+      if (pending.length > MAX_AI_STREAM_BYTES) throw new Error("AI response line is too large");
       let newline: number;
       while ((newline = pending.indexOf("\n")) >= 0) {
         yield pending.slice(0, newline).replace(/\r$/, "");
