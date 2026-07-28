@@ -58,6 +58,9 @@ export default function PagePanel() {
   const [importKind, setImportKind] = useState<"html" | "zip">("html");
   const zipBusy = pending.busy && importKind === "zip";
   const historyRevision = useEditor((s) => s.historyRevision);
+  const kindRevision = useRef(0);
+  // 確認中に対象・履歴・パネルが変わったら、以前の切り替えを反映しない。
+  useLayoutEffect(() => () => { kindRevision.current++; }, [scope, historyRevision]);
   useLayoutEffect(() => { setZipMessage(null); }, [activePageId, historyRevision]);
   useLayoutEffect(wakeImports, [scope, historyRevision, pending.busy]);
   const waitForGesture = async (request: { current: () => boolean }) => {
@@ -142,6 +145,7 @@ export default function PagePanel() {
 
   const setPageKind = async (kind: string) => {
     if (kind === pageKind) return;
+    const request = ++kindRevision.current;
     pending.cancel();
     setZipMessage(null);
     if (kind === "html" || kind === "redirect") {
@@ -157,6 +161,12 @@ export default function PagePanel() {
       ) {
         return;
       }
+      const latest = useEditor.getState();
+      if (
+        request !== kindRevision.current ||
+        latest.historyRevision !== historyRevision ||
+        htmlImportScope(latest) !== scope
+      ) return;
       updatePage(
         page.id,
         kind === "html"
