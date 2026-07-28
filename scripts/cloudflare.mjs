@@ -34,17 +34,37 @@ export function parseJsonc(src) {
       while (i < src.length && src[i] !== "\n") i++;
       out += "\n";
     } else if (c === "/" && src[i + 1] === "*") {
-      i = src.indexOf("*/", i + 2);
-      if (i < 0) break;
-      i++;
+      const end = src.indexOf("*/", i + 2);
+      if (end < 0) throw new SyntaxError("Unterminated block comment in Wrangler configuration");
+      i = end + 1;
     } else out += c;
   }
   return JSON.parse(out.replace(/"(?:\\.|[^"\\])*"|,(\s*[}\]])/g, (match, closing) => closing ?? match));
 }
 
-export function wranglerConfigPath() {
-  if (process.env.WRANGLER_CONFIG) return process.env.WRANGLER_CONFIG;
-  if (existsSync("wrangler.local.jsonc")) return "wrangler.local.jsonc";
+/** Validate the actual deployment config, including WRANGLER_CONFIG and local files. */
+export function assertProductionStorage(config, env = process.env) {
+  if (env.TSUMU_ALLOW_BROWSER_ONLY_DEPLOY === "true") return;
+  const missing = [];
+  for (const [key, binding, idKey, label] of [
+    ["d1_databases", "DB", "database_id", "D1 (DB)"],
+    ["kv_namespaces", "ASSETS_KV", "id", "KV (ASSETS_KV)"],
+  ]) {
+    const entry = (config[key] ?? []).find((item) => item.binding === binding);
+    const id = entry?.[idKey];
+    if (typeof id !== "string" || !id.trim() || id !== id.trim() || /[<>]/.test(id)) missing.push(label);
+  }
+  if (missing.length) throw new Error(
+    `Refusing deployment without ${missing.join(", ")}. Configure D1/KV IDs ` +
+      "or explicitly set TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=true for browser-only deployment."
+  );
+}
+export function wranglerConfigPath({ deploy = false } = {}) {
+  const explicit = process.env.WRANGLER_CONFIG || (existsSync("wrangler.local.jsonc") ? "wrangler.local.jsonc" : null);
+  if (explicit) {
+    if (deploy) assertProductionStorage(parseJsonc(readFileSync(explicit, "utf8")));
+    return explicit;
+  }
 
   const config = parseJsonc(readFileSync("wrangler.jsonc", "utf8"));
   const d1 = process.env.D1_DATABASE_ID;
@@ -56,6 +76,9 @@ export function wranglerConfigPath() {
   config.kv_namespaces = (config.kv_namespaces ?? [])
     .map((ns) => (ns.id === KV_PLACEHOLDER && kv ? { ...ns, id: kv } : ns))
     .filter((ns) => ns.id !== KV_PLACEHOLDER || (missing.push(`KV (${ns.binding})`), false));
+  // Builds and previews may omit bindings, but production must not silently
+  // discard shared storage unless the operator explicitly opts in.
+  if (deploy) assertProductionStorage(config);
   if (!config.d1_databases.length) delete config.d1_databases;
   if (!config.kv_namespaces.length) delete config.kv_namespaces;
   if (missing.length) {
@@ -70,11 +93,22 @@ export function wranglerConfigPath() {
   return GENERATED;
 }
 
+/** Prevent command-line overrides from bypassing the production binding audit. */
+export function assertSafeDeployArgs(args) {
+  for (const arg of args) {
+    if (arg === "--" ||
+        /^--(?:config|cwd|env|env-file|environment|profile|name|var|define|secrets-file|ignore-base-config|route|routes|zone-id|zone-ids|assets|site|compatibility-date|compatibility-flag|compatibility-flags)(?:=|$)/.test(arg) ||
+        /^-[cen](?:=|$|[^-])/.test(arg)) {
+      throw new Error(`Unsupported production deploy override: ${arg}. Use WRANGLER_CONFIG with reviewed top-level bindings instead.`);
+    }
+  }
+}
 const [command, ...rest] = process.argv.slice(2);
 if (command && process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const config = wranglerConfigPath();
+  if (command === "deploy") assertSafeDeployArgs(rest);
+  const config = wranglerConfigPath({ deploy: command === "deploy" });
   const args = [command, ...(config ? ["--config", config] : []), ...rest];
   console.log(`Using ${config ?? "wrangler.jsonc"}`);
-  const r = spawnSync("npx", ["opennextjs-cloudflare", ...args], { stdio: "inherit", shell: process.platform === "win32" });
+  const r = spawnSync("npx", ["--no-install", "opennextjs-cloudflare", ...args], { stdio: "inherit", shell: process.platform === "win32" });
   process.exit(r.status ?? 1);
 }

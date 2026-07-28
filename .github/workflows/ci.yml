@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,10 +16,12 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -27,6 +30,35 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run i18n:check
+      - run: npm run build:worker
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Audit all dependencies
+        run: npm audit --audit-level=high
+      - name: Build and smoke-test the non-root Docker runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --tag tsumu:ci .
+          docker run --detach --name tsumu-ci --publish 127.0.0.1:3188:3000 \
+            --mount type=volume,source=tsumu-ci-data,target=/data tsumu:ci
+          cleanup() {
+            docker logs tsumu-ci || true
+            docker rm --force tsumu-ci || true
+            docker volume rm tsumu-ci-data || true
+          }
+          trap cleanup EXIT
+          test "$(docker exec tsumu-ci id -u)" = "1000"
+          zlib_version="$(docker exec tsumu-ci dpkg-query -W -f='${Version}' zlib1g)"
+          dpkg --compare-versions "$zlib_version" ge "1:1.3.dfsg+really1.3.1-1+deb13u1"
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:3188/robots.txt; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Docker runtime did not respond to HTTP requests" >&2
+          exit 1
 
   e2e-shard:
     runs-on: ubuntu-latest
@@ -36,17 +68,19 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
       - run: npm install --global npm@12.2.1
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx --no-install playwright install --with-deps chromium
       - run: npm run build
       - run: node scripts/run-e2e-shard.mjs ${{ matrix.shard }}/4
-      - uses: actions/upload-artifact@v7.0.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: playwright-report-shard-${{ matrix.shard }}
@@ -63,8 +97,10 @@ jobs:
       matrix:
         framework: [nextjs, react, vue, nuxt, sveltekit]
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -72,7 +108,7 @@ jobs:
       - run: npm ci
       - name: Install Chromium for framework browser checks
         if: matrix.framework != 'nextjs'
-        run: npx playwright install --with-deps chromium
+        run: npx --no-install playwright install --with-deps chromium
       - name: Verify TypeScript and JavaScript exports
         shell: bash
         run: |

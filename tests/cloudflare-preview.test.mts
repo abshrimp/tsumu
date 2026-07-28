@@ -130,3 +130,15 @@ test("repository review configuration is anonymous and browser-only without chan
   assert.deepEqual(preview.durable_objects, config.durable_objects);
   assert.deepEqual(preview.migrations, config.migrations);
 });
+
+test("public Worker Preview rejects credential-like plaintext variables", () => {
+  for (const name of ["AUTH_SECRET", "GITHUB_TOKEN", "ANTHROPIC_API_KEY", "DATABASE_PASSWORD", "PRIVATE_KEY"]) {
+    assert.throws(() => isolatedPreviewConfig({
+      ...production, previews: { vars: { [name]: "must-never-publish" } },
+    }), /must be configured as a secret/);
+  }
+  assert.deepEqual(
+    isolatedPreviewConfig({ ...production, previews: { vars: { ALLOW_ANONYMOUS: "true" } } }).previews.vars,
+    { ALLOW_ANONYMOUS: "true" },
+  );
+});
