@@ -8,6 +8,7 @@ import type {
   StyleState,
 } from "./types";
 import { tr } from "./i18n";
+import { filterFunctions } from "./filter-edit";
 import { EASING_PRESETS } from "./easing";
 
 export interface BpInfo {
@@ -767,14 +768,16 @@ export const FILTER_DEFAULTS: FilterParts = {
 export function parseFilter(value: string | undefined): FilterParts {
   const out = { ...FILTER_DEFAULTS };
   if (!value) return out;
-  const num = (re: RegExp): number | undefined => {
-    const m = re.exec(value);
+  const functions = filterFunctions(value);
+  const first = (name: string) => functions.find(fn => fn.name === name)?.text ?? "";
+  const num = (name: string, re: RegExp): number | undefined => {
+    const m = re.exec(first(name));
     return m ? parseFloat(m[1]) : undefined;
   };
-  out.blur = num(/blur\((-?\d*\.?\d+)px\)/) ?? out.blur;
+  out.blur = num("blur", /blur\(\s*(-?\d*\.?\d+)px\s*\)/i) ?? out.blur;
   // These CSS filters accept either a number (1 = 100%) or a percentage.
   const strength = (name: string): number | undefined => {
-    const m = new RegExp(`${name}\\(\\s*([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[-+]?\\d+)?)(%)?\\s*\\)`, "i").exec(value);
+    const m = new RegExp(`${name}\\(\\s*([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[-+]?\\d+)?)(%)?\\s*\\)`, "i").exec(first(name));
     if (!m) return undefined;
     const n = Number(m[1]) * (m[2] ? 1 : 100);
     return Number.isFinite(n) ? n : undefined;
@@ -784,7 +787,7 @@ export function parseFilter(value: string | undefined): FilterParts {
   out.saturate = strength("saturate") ?? out.saturate;
   out.grayscale = strength("grayscale") ?? out.grayscale;
   out.sepia = strength("sepia") ?? out.sepia;
-  out.hueRotate = num(/hue-rotate\((-?\d*\.?\d+)deg\)/) ?? out.hueRotate;
+  out.hueRotate = num("hue-rotate", /hue-rotate\(\s*(-?\d*\.?\d+)deg\s*\)/i) ?? out.hueRotate;
   return out;
 }
 

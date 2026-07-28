@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useEditor } from "../lib/store";
+import { usePendingImport } from "../lib/use-pending-import";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { assetSrc } from "../lib/assets";
 import { serializePortableDoc } from "../lib/portable-doc";
@@ -422,8 +423,10 @@ function BreakpointSettings() {
   const updateDoc = useEditor((s) => s.updateDoc);
   const list = normalizeBreakpoints(doc.breakpoints);
   const baseWidth = normalizeBaseWidth(doc.baseWidth, list);
+  const pending = usePendingImport("breakpoint-settings");
 
   const remove = async (id: string, label: string) => {
+    const request = pending.begin();
     const used = breakpointUsage(doc, id);
     if (
       used &&
@@ -432,11 +435,15 @@ function BreakpointSettings() {
         { title: tr("「{label}」を削除しますか？", { label }), okLabel: tr("削除"), danger: true }
       ))
     ) {
+      request.finish();
       return;
     }
-    updateDoc((d) => removeBreakpoint(d, id));
+    // A delayed confirmation must not remove newly edited styles or a replacement document.
+    if (request.current() && useEditor.getState().doc === doc) updateDoc((d) => removeBreakpoint(d, id));
+    request.finish();
   };
   const reset = async () => {
+    const request = pending.begin();
     const added = addedBreakpoints(doc);
     const used = added.reduce((n, b) => n + breakpointUsage(doc, b.id), 0);
     if (
@@ -449,9 +456,11 @@ function BreakpointSettings() {
         { title: tr("ブレークポイントを既定に戻しますか？"), okLabel: tr("既定に戻す"), danger: true }
       ))
     ) {
+      request.finish();
       return;
     }
-    updateDoc((d) => resetBreakpoints(d));
+    if (request.current() && useEditor.getState().doc === doc) updateDoc((d) => resetBreakpoints(d));
+    request.finish();
   };
 
   return (
@@ -556,6 +565,7 @@ export default function SitePanel() {
   const updateDoc = useEditor((s) => s.updateDoc);
   const restoreDoc = useEditor((s) => s.restoreDoc);
   const docFileRef = useRef<HTMLInputElement>(null);
+  const pendingBackup = usePendingImport("site-backup");
 
   const exportDocJson = async () => {
     let serialized: string;
@@ -578,19 +588,25 @@ export default function SitePanel() {
   };
 
   const importDocJson = async (file: File) => {
+    const request = pendingBackup.begin();
     let parsed;
     try {
+      if (file.size > IMPORT_LIMITS.docBytes) throw new RangeError();
       parsed = (await parseSiteImport(new Uint8Array(await file.arrayBuffer()), "doc")).doc;
     } catch {
+      if (!request.current()) return;
+      request.finish();
       void showAlert(tr("エディタで保存したバックアップファイルか確認してください。"), {
         title: tr("このファイルは読み込めませんでした"),
       });
       return;
     }
+    if (!request.current()) return;
     if (await showConfirm(
       tr("いまの編集内容は、このファイルの内容に置き換わります。「元に戻す」（⌘Z）で今の内容に戻せます。"),
       { title: tr("バックアップを読み込みますか？"), okLabel: tr("読み込む") },
-    )) restoreDoc(parsed);
+    ) && request.current()) restoreDoc(parsed);
+    request.finish();
   };
 
   return (
