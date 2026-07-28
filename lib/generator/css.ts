@@ -18,8 +18,9 @@ import {
   STATE_INFO,
   STATE_ORDER,
 } from "../style";
-import { keyframesCss, motionCss } from "../motion";
+import { KEYFRAMES, keyframesCss, motionCss } from "../motion";
 import { customStateSelector } from "../custom-states";
+import { safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName, safeCssKeyframesBody } from "../css-declaration";
 
 /* ---------- フォント ---------- */
 
@@ -143,10 +144,11 @@ function ruleFor(
   indent = ""
 ): string {
   const body = Object.entries(map)
-    .map(
-      ([k, v]) =>
-        `${indent}  ${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}: ${cssValue(doc, k, v, assetNames)};`
-    )
+    .flatMap(([key, value]) => {
+      if (!safeCssPropertyName(key) || !safeCssDeclarationValue(value)) return [];
+      const css = safeCssDeclaration(key, cssValue(doc, key, value, assetNames));
+      return css ? [`${indent}  ${css}`] : [];
+    })
     .join("\n");
   return `${indent}${selector} {\n${body}\n${indent}}`;
 }
@@ -191,11 +193,27 @@ export function generateSiteCss(
   for (const node of Object.values(doc.nodes)) {
     const cls = classNames.get(node.id)!;
     // モーション（transition + animation）
-    const mCss = motionCss(node.motions, "paused", node.id);
+    // Imported documents can carry malformed easing, custom keyframes or
+    // identifiers. Drop only the invalid motion; preserve other animations.
+    const safeMotions = node.motions?.filter((m) =>
+      ["state", "hover", "active", "load", "in-view"].includes(m.trigger) &&
+      Number.isFinite(m.duration) && Number.isFinite(m.delay) &&
+      (m.repeat === undefined || Number.isFinite(m.repeat)) &&
+      safeCssDeclarationValue(m.easing) &&
+      (!m.property || m.property.split(",").every((part) =>
+        safeCssPropertyName(part.trim()) !== null)) &&
+      (!m.direction || ["normal", "reverse", "alternate"].includes(m.direction)) &&
+      (!m.fillMode || ["both", "forwards", "backwards", "none"].includes(m.fillMode)) &&
+      (!m.keyframes || m.keyframes === "custom" && (!m.customKeyframes?.trim() ||
+          safeCssKeyframesBody(m.customKeyframes)) ||
+        KEYFRAMES.some((keyframe) => keyframe.key === m.keyframes))
+    );
+    const mCss = motionCss(safeMotions, "paused", node.id);
     usedKeyframes.push(...mCss.usedKeyframes);
     customKeyframes.push(...mCss.customKeyframes);
     const motionDecls = mCss.base;
     for (const p of mCss.pseudo) {
+      if (p.pseudo !== ":hover" && p.pseudo !== ":active") continue;
       blocks.push(`.${cls}${p.pseudo} {\n${p.decls.map((d) => `  ${d}`).join("\n")}\n}`);
     }
     if (mCss.hasInView) {
@@ -268,7 +286,15 @@ export function generateSiteCss(
           ? (node.customCss?.replace(/[{}]/g, " ").trim() ?? "")
           : "";
         const extraDecls = [
-          ...cssDecls(raw).map((d) => `${cssValue(doc, "customCss", d, assetNames)};`),
+          ...cssDecls(raw).flatMap((declaration) => {
+            const colon = declaration.indexOf(":");
+            if (colon < 1) return [];
+            const key = declaration.slice(0, colon).trim();
+            const value = declaration.slice(colon + 1).trim();
+            if (!safeCssPropertyName(key) || !safeCssDeclarationValue(value)) return [];
+            const css = safeCssDeclaration(key, cssValue(doc, "customCss", value, assetNames));
+            return css ? [css] : [];
+          }),
           ...(isBaseDefault ? motionDecls : []),
         ];
         if (!Object.keys(map).length && !extraDecls.length) continue;
@@ -361,7 +387,8 @@ function mergeIdenticalRules(rules: string[]): string[] {
 
 /** htmlに背景を置くとbodyの背景は画面全体に広がらないため、bodyを画面の高さまで伸ばす */
 function htmlBackgroundCss(color: string, htmlSel: string, bodySel: string): string {
-  return `${htmlSel} {\n  background: ${color};\n}\n\n${bodySel} {\n  min-height: 100vh;\n}`;
+  const background = safeCssDeclarationValue(color) ? color : "transparent";
+  return `${htmlSel} {\n  background: ${background};\n}\n\n${bodySel} {\n  min-height: 100vh;\n}`;
 }
 
 export function rawHtmlWithBodyStyles(

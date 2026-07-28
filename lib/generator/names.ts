@@ -104,7 +104,10 @@ function extFromMime(mimeType?: string, dataUrl?: string): string {
  * 同名ファイルをアップロードしても上書きされないよう一意化する
  */
 export function buildAssetNames(doc: SiteDoc): Map<string, string> {
+  // ZIPs are frequently extracted to case-insensitive filesystems. Keep the
+  // original spelling, but assign a suffix when names differ only by case.
   const used = new Set<string>();
+  const taken = (name: string) => used.has(name.toLowerCase());
   const map = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
     // 公開URL・CSSの url() でそのまま使えるよう、アップロード時と同じ規則で安全な名前にする
@@ -118,17 +121,26 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
         ? extMatch[0]
         : null;
     const ext = safeExt ?? extFromMime(asset.mimeType, asset.dataUrl);
-    const base =
+    const originalBase =
       (extMatch ? raw.slice(0, extMatch.index) : raw)
         .replace(/-{2,}/g, "-")
-        .replace(/^[.-]+/, "") || "image";
+        .replace(/^[.-]+/, "")
+        .replace(/\.+$/g, "")
+        // Keep exported asset paths usable on filesystems with 255-byte
+        // filename components, retaining room for extensions and suffixes.
+        .slice(0, 120)
+        .replace(/[.-]+$/g, "") || "image";
+    // Windows reserves these device names with or without an extension.
+    // Rename valid uploaded assets rather than failing the entire export.
+    const base = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(originalBase)
+      ? "_" + originalBase : originalBase;
     let name = `${base}${ext}`;
-    if (used.has(name)) {
+    if (taken(name)) {
       let i = 2;
-      while (used.has(`${base}-${i}${ext}`)) i++;
+      while (taken(`${base}-${i}${ext}`)) i++;
       name = `${base}-${i}${ext}`;
     }
-    used.add(name);
+    used.add(name.toLowerCase());
     map.set(asset.id, name);
   }
   return map;

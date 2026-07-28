@@ -8,6 +8,8 @@ import { toSingleHtmlProject } from "./generator/single-html";
 import { applyExportStyle } from "./generator/style-export";
 import { zipAssetClosure } from "./zip-css";
 import { scopedAssetIds } from "./generator/scoped-assets";
+import { assertGeneratedPaths } from "./generator/output-paths";
+import { hasPublishCredentials } from "./publish-security";
 import { tr } from "./i18n";
 
 export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
@@ -87,16 +89,48 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
   return { ...scoped, assets };
 }
 
+/** A selected node must actually be reachable from the selected page.
+ * Checking only that its ID exists can export content from an unrelated or
+ * unpublished page when the selection is stale (or supplied programmatically).
+ * Component instances are traversed because their masters are valid selections.
+ */
+function pageContainsNode(doc: SiteDoc, page: SiteDoc["pages"][string], target: string): boolean {
+  const pending = [...(page.children ?? [])];
+  const seen = new Set<string>();
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = Object.prototype.hasOwnProperty.call(doc.nodes, id) ? doc.nodes[id] : undefined;
+    if (!node) continue;
+    if (id === target) return true;
+    pending.push(...(node.children ?? []));
+    const component = node.componentId && doc.components &&
+      Object.prototype.hasOwnProperty.call(doc.components, node.componentId)
+      ? doc.components[node.componentId] : undefined;
+    if (component) pending.push(component.rootId);
+  }
+  return false;
+}
+
 /** Export a page or selection without editing the source site. */
 export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   if (options.scope === "project") return doc;
-  const page = options.pageId ? doc.pages[options.pageId] : undefined;
+  const page = options.pageId && Object.prototype.hasOwnProperty.call(doc.pages, options.pageId)
+    ? doc.pages[options.pageId] : undefined;
   if (!page) throw new Error(tr("書き出すページを選択してください。"));
   if (options.scope === "page") {
-    return prunePartialDoc({ ...doc, pages: { [page.id]: page }, pageOrder: [page.id] });
+    // An explicitly selected page can be exported even when it is excluded
+    // from whole-project publication. Otherwise the ZIP contains no page
+    // markup despite having a valid selected page.
+    return prunePartialDoc({ ...doc, pages: { [page.id]: { ...page, unpublished: false } },
+      pageOrder: [page.id] });
   }
-  const node = options.nodeId ? doc.nodes[options.nodeId] : undefined;
-  if (!node) throw new Error(tr("書き出すコンポーネントを選択してください。"));
+  const node = options.nodeId && Object.prototype.hasOwnProperty.call(doc.nodes, options.nodeId)
+    ? doc.nodes[options.nodeId] : undefined;
+  if (!node || !pageContainsNode(doc, page, node.id)) {
+    throw new Error(tr("書き出すコンポーネントを選択してください。"));
+  }
   let id = "__export_component__";
   while (doc.pages[id]) id += "_";
   const scopedPage = {
@@ -143,8 +177,37 @@ export function exportLimitations(
   } catch (e) {
     return [(e as Error).message];
   }
-  if (options.framework === "nextjs") return [];
+  // An SSR-only fetch does not make a hardcoded token private: generated
+  // source and the editable doc.json in ZIP archives both contain the value.
+  // Apply the same fail-closed policy to every export format, including direct
+  // generator calls and GitHub Push, without changing editor fetch behavior.
   const pages = publishedPages(doc);
+  const metadataHeaders = pages.some((page) => pagePlan(doc, page.id).steps.some(
+    (step) => step.kind === "fetch" && (step.headers ?? []).some((header) =>
+      /^(?:metadata-flavor|x-metadata-token)$/i.test(header.name.trim()))
+  ));
+  if (hasPublishCredentials(doc) || metadataHeaders) {
+    return [tr("データ取得に認証情報や秘密のAPIキー、または利用できない内部向けヘッダーが含まれています。Next.jsのサーバー側処理でも生成ソースや編集用ZIPに設定値が残ります。機密値を削除し、サーバー環境変数や安全なAPI中継を使用してください。")];
+  }
+  if (options.framework === "nextjs") {
+    // Route handlers for imported HTML cannot share a Next.js path with
+    // page.tsx. Multiple imported HTML pages also overwrite one another's
+    // route.ts silently; query parameters do not distinguish build routes.
+    const routeKinds = new Map<string, { imported: number; regular: number }>();
+    for (const page of publishedPages(doc)) {
+      if (page.redirectTo !== undefined || page.rewriteTo !== undefined) continue;
+      const slug = page.slug.replace(/^\/+|\/+$/g, "");
+      const existing = routeKinds.get(slug) ?? { imported: 0, regular: 0 };
+      if (page.rawHtml?.trim()) existing.imported++;
+      else if (slug !== "404") existing.regular++;
+      routeKinds.set(slug, existing);
+    }
+    if ([...routeKinds.values()].some(({ imported, regular }) =>
+      imported > 1 || (imported > 0 && regular > 0))) {
+      return [tr("同じパスに取り込んだHTMLページと通常ページ、または複数の取り込んだHTMLページがあります。Next.jsでは同じルートに両方を書き出せません。ページのURLを分けてください。")];
+    }
+    return [];
+  }
   const reasons: string[] = [];
   const add = (bad: boolean, message: string) => {
     if (bad) reasons.push(tr(message));
@@ -173,32 +236,28 @@ export function exportLimitations(
     add(pages.length !== 1,
       "単一HTMLは1ページだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。");
   }
-  // All non-Next.js formats execute public API requests in the browser.
-  // Refuse credentials that must not be shipped to every site visitor.
-  const fetched = pages.flatMap((page) => pagePlan(doc, page.id).steps)
-    .filter((step) => step.kind === "fetch");
-  const secret = fetched.some((step) => {
-    const credentialHeader = (step.headers ?? []).some((h) =>
-      /^(?:authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x-api[-_]?key|x-auth[-_]?token|x-client[-_]?secret|x[-_]?token|x[-_]?secret|metadata-flavor|x-metadata-token)$/i.test(h.name.trim())
-    );
-    const secretUrl = /[?&#](?:api[-_]?key|secret|access[-_]?token|auth[-_]?token|client[-_]?secret|password|passwd|token|key)=/i.test(step.url);
-    let embeddedCredentials = false;
-    try {
-      const url = new URL(step.url);
-      embeddedCredentials = !!(url.username || url.password);
-    } catch {
-      embeddedCredentials = /^https?:\/\/[^/\s@]+@/i.test(step.url);
-    }
-    // A literal credential inside an exported JSON POST body is browser-visible.
-    const secretBody = /"(?:(?:api|access|auth)[-_]?(?:key|token)|password|passwd|secret|client[-_]?secret)"\s*:\s*"(?!\{)[^"]+"/i.test(step.body ?? "");
-    return credentialHeader || secretUrl || embeddedCredentials || secretBody;
-  });
-  add(secret,
-    "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");
-
   if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework)) {
     add(!!doc.customBodyEndHtml?.match(/<script\b/i),
-      "body末尾のカスタムスクリプトは、Reactの画面更新時に実行タイミングが異なります。HTML形式で書き出すか、React用の処理へ移行してください。");
+      "body末尾のカスタムスクリプトは、画面更新時に実行タイミングが異なります。HTML形式で書き出すか、利用するフレームワーク用の処理へ移行してください。");
+  }
+  if (["vue", "nuxt", "sveltekit"].includes(options.framework)) {
+    // Native components currently render page nodes only. Dropping authored
+    // custom <head>, footer, or per-page markup would silently alter the site.
+    add(!!doc.customHeadHtml?.trim() || !!doc.customBodyEndHtml?.trim() ||
+      pages.some((page) => !!page.customTopHtml?.trim() || !!page.customEndHtml?.trim()),
+      "カスタムHTMLはこのフレームワーク形式の生成結果に含まれません。Next.js形式またはHTML形式を選択してください。");
+  }
+  if (options.framework === "react") {
+    // Data-driven React pages use dangerouslySetInnerHTML for their DOM
+    // runtime. Scripts inserted this way do not execute in browsers.
+    add(pages.some((page) => {
+      const plan = pagePlan(doc, page.id);
+      const needsClientRuntime = plan.steps.length > 0 || plan.listOps.size > 0 ||
+        plan.clientVars.size > 0;
+      return needsClientRuntime &&
+        /<script\b(?![^>]*\btype\s*=\s*["']?application\/(?:ld\+)?json)/i
+          .test((page.customTopHtml ?? "") + (page.customEndHtml ?? ""));
+    }), "動的データを使うページのカスタムスクリプトはReact形式では実行されません。Next.js形式またはHTML形式を選択してください。");
   }
   if (["html", "single-html"].includes(options.framework)) {
     add(options.style === "css-modules",
@@ -217,11 +276,12 @@ export function generateExportProject(
 ): GeneratedProject {
   const options = optionsOf(request);
   const scoped = exportScopeDoc(doc, options);
-  const next = generateProject(scoped, target);
-  const limitations = exportLimitations(scoped, { ...options, scope: "project" }, next);
+  // Reject unsafe output *before* rendering secret-bearing values into source.
+  const limitations = exportLimitations(scoped, { ...options, scope: "project" });
   if (limitations.length) {
     throw new Error(tr("選択した形式では次の機能を利用できません。") + "\n" + limitations.join("\n"));
   }
+  const next = generateProject(scoped, target);
   const generated = options.framework === "react"
     ? buildReactProject(scoped, next)
     : (options.framework === "html" || options.framework === "single-html")
@@ -229,8 +289,10 @@ export function generateExportProject(
       : (options.framework === "vue" || options.framework === "nuxt" || options.framework === "sveltekit")
         ? buildAdditionalFramework(scoped, next, options.framework, options.language)
         : next;
-  return options.style === "css" ? generated
+  const styled = options.style === "css" ? generated
     : applyExportStyle(generated, options.framework, options.style);
+  assertGeneratedPaths(styled);
+  return styled;
 }
 
 /** Preserve only the ZIP dependencies reachable from the selected page or component. */
@@ -280,6 +342,8 @@ export async function prepareExportProject(
     }
     project = { ...project, files };
   }
-  return options.framework === "single-html" ? toSingleHtmlProject(project) : project;
+  const ready = options.framework === "single-html" ? await toSingleHtmlProject(project) : project;
+  assertGeneratedPaths(ready);
+  return ready;
 
 }

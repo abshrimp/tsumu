@@ -108,6 +108,9 @@ export function buildAdditionalFramework(
         allowImportingTsExtensions: true, noEmit: true, lib: ["ES2022", "DOM"] },
       include: ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"],
     });
+    // Vite provides *.module.css ambient types. Without this reference,
+    // Vue TS projects fail vue-tsc when CSS Modules are selected.
+    if (ts) files["src/env.d.ts"] = '/// <reference types="vite/client" />\n';
   } else if (framework === "nuxt") {
     files["app/assets/globals.css"] = common.baseCss;
     files["app/assets/site.css"] = common.siteCss;

@@ -540,12 +540,17 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       '<link rel="stylesheet" href="' + prefix + 'styles/site.css">',
       normalized.customHeadHtml || "",
     ].filter(Boolean).join("\n");
-    const scripts = [
-      "inview.js",
-      ...(group.length > 1 ? ["query-router.js"] : []),
-      "data-loader.js", "scripts.js", "pwa.js",
-    ].filter((name) => name in files)
-      .map((name) => '<script defer src="' + prefix + name + '"></script>').join("\n");
+    const scriptNames = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"]
+      .filter((name) => name in files);
+    // Query variants insert authored page fragments at runtime. Their scripts
+    // are otherwise inert, so route selection must replay them first and then
+    // load the shared data/event runtimes in the usual order.
+    const scripts = group.length > 1
+      ? '<script defer src="' + prefix + 'query-router.js"' +
+        attr("data-runtime-sources", JSON.stringify(scriptNames.map((name) => prefix + name))) +
+        '></script>'
+      : scriptNames.map((name) =>
+          '<script defer src="' + prefix + name + '"></script>').join("\n");
     files[path] = [
       "<!doctype html>",
       '<html lang="' + escapeHtml(page.lang || normalized.lang || "ja") + '">',
