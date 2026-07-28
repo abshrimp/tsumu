@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
+import { createInitialDoc } from "../lib/presets";
 import * as sites from "../lib/sites";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { readTextLimited, TooLargeError } from "../lib/safe-fetch";
@@ -64,7 +65,9 @@ test("an unsuccessful destination save is not reported as a completed copy", asy
 }));
 
 test("importing atomically creates revision one and rejects invalid or colliding imports without changing existing data", async () => database(async db => {
-  const doc = { siteName: "Imported", nodes: {}, assets: {}, pages: { p: { id: "p", slug: "", children: [] } }, pageOrder: ["p"] };
+  // Use a complete current SiteDoc: the import boundary must reject incomplete page metadata.
+  const doc = createInitialDoc();
+  doc.siteName = "Imported";
   const input = { name: doc.siteName, initialDoc: doc, importId: "0123456789" };
   const post = api(db);
   assert.equal((await post({ ...input, initialDoc: { ...doc, pageOrder: ["absent"] } })).status, 400);

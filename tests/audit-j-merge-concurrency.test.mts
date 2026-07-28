@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mergeDocs } from "../lib/merge";
+import { makeBox } from "../lib/presets";
 import { validateImportedDoc } from "../lib/site-import";
 import { validNodeForest } from "../lib/doc-tree";
 import type { SiteDoc } from "../lib/types";
@@ -20,12 +21,12 @@ function fixture(): SiteDoc {
     siteName: "Concurrent Site",
     pageOrder: ["home", "about"],
     pages: {
-      home: { id: "home", name: "Home", slug: "", children: ["a"] },
-      about: { id: "about", name: "About", slug: "about", children: ["b"] },
+      home: { id: "home", name: "Home", slug: "", title: "", description: "", children: ["a"] },
+      about: { id: "about", name: "About", slug: "about", title: "", description: "", children: ["b"] },
     },
     nodes: {
-      a: { id: "a", type: "text", name: "A", children: [], text: "A", style: {} },
-      b: { id: "b", type: "text", name: "B", children: [], text: "B", style: {} },
+      a: { ...makeBox(), id: "a", name: "A", children: [], text: { content: "A", heading: 0 } },
+      b: { ...makeBox(), id: "b", name: "B", children: [], text: { content: "B", heading: 0 } },
     },
     assets: {},
   } as SiteDoc;
@@ -37,18 +38,18 @@ const changes: ((doc: SiteDoc) => void)[] = [
   // Opposing ancestor moves are individually valid but can form a cycle when merged.
   doc => { doc.pages.home.children = []; doc.nodes.b.children = ["a"]; },
   doc => { doc.pages.about.children = []; doc.nodes.a.children = ["b"]; },
-  doc => { doc.nodes.a.text = "local update"; },
-  doc => { doc.nodes.b.text = "remote update"; },
+  doc => { doc.nodes.a.text = { content: "local update", heading: 0 }; },
+  doc => { doc.nodes.b.text = { content: "remote update", heading: 0 }; },
   doc => { doc.pages.home.children = []; delete doc.nodes.a; },
   doc => { doc.pages.about.children = []; delete doc.nodes.b; },
   doc => { delete doc.pages.home; doc.pageOrder = ["about"]; },
   doc => { delete doc.pages.about; doc.pageOrder = ["home"]; },
   doc => {
-    doc.nodes.c = { ...doc.nodes.a, id: "c", children: [], text: "new node" };
+    doc.nodes.c = { ...doc.nodes.a, id: "c", children: [], text: { content: "new node", heading: 0 } };
     doc.pages.home.children.push("c");
   },
   doc => {
-    doc.nodes.d = { ...doc.nodes.b, id: "d", children: [], text: "new node" };
+    doc.nodes.d = { ...doc.nodes.b, id: "d", children: [], text: { content: "new node", heading: 0 } };
     doc.pages.about.children.push("d");
   },
 ];

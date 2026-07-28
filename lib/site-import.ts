@@ -1,4 +1,5 @@
 import { rebindImportedAssetUrls } from "./imported-asset-urls";
+import { sanitizeImportedSvg } from "./imported-svg";
 import { IMPORT_LIMITS, isImportObject, validateImportedDoc } from "./site-import-format";
 import type JSZip from "jszip";
 import { openImportZip, zipEntrySize } from "./zip-directory";
@@ -36,7 +37,8 @@ function jsonText(bytes: Uint8Array): unknown {
 
 function pathOK(path: string): boolean {
   return !!path && !path.includes("\\") && !path.startsWith("/") &&
-    !path.includes("\0") && path.split("/").every((part) => part && part !== "." && part !== "..");
+    !/[\u0000-\u001f\u007f]/.test(path) &&
+    path.split("/").every((part) => part && part !== "." && part !== "..");
 }
 function findEditDoc(entries: JSZip.JSZipObject[]) {
   return entries.find((entry) => /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name));
@@ -68,8 +70,13 @@ export async function parseSiteImport(
     throw new Error("ZIPに複数の編集データが見つかりました。");
   }
   let size = 0;
+  const canonicalPaths = new Set<string>();
   for (const entry of entries) {
     if (!pathOK(entry.name)) throw new Error("ZIPに安全でないファイルパスがあります。");
+    // ZIP members must be unambiguous on case-insensitive and Unicode-normalizing hosts.
+    const canonical = entry.name.normalize("NFC").toLowerCase();
+    if (canonicalPaths.has(canonical)) throw new Error("ZIPに重複したファイルパスがあります。");
+    canonicalPaths.add(canonical);
     const n = zipEntrySize(entry);
     if (n === null) throw new Error("ZIP内のファイルサイズが正しくありません。");
     if (n > IMPORT_LIMITS.expandedBytes || (size += n) > IMPORT_LIMITS.expandedBytes) {
@@ -181,6 +188,10 @@ export async function restoreImportAssets(
     if (!bytes) warnings.push("アセットを取得できませんでした: " + asset.name);
     // Do not point at an unrelated asset key in the destination installation.
     if (asset.path) delete asset.path;
+  }
+  // JSON/ZIP imports can contain active SVG even without going through HTML conversion.
+  for (const node of Object.values(doc.nodes)) {
+    if (node.type === "icon" && node.icon?.svg) node.icon.svg = sanitizeImportedSvg(node.icon.svg);
   }
   rebindImportedAssetUrls(imported.doc, doc);
   return { doc, warnings: [...new Set(warnings)], createdPaths };

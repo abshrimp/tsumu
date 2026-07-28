@@ -7,6 +7,8 @@ import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./st
 import { zipStylesheet } from "./zip-css";
 import { tr } from "./i18n";
 import { importedClass, readImportedAttributes } from "./imported-html-attrs";
+import { sanitizeImportedSvg } from "./imported-svg";
+import { safeNavigationUrl, safeResourceUrl } from "./url-policy";
 import { expandZipCss } from "./html-css-import";
 import { importedAssetPath, isZipJavascript } from "./generator/imported-assets";
 
@@ -40,7 +42,10 @@ function htmlText(el: Element): string {
   return (el.textContent || "").replace(/\s+/g, " ").trim();
 }
 function safeUrl(value: string): string {
-  return /^(?:javascript|vbscript):/i.test(value.trim()) ? "" : value;
+  // Browsers remove tab/newline characters before interpreting a scheme.
+  // Use the same URL policy as the editor and generated sites.
+  const safe = safeResourceUrl(value);
+  return safe === "#" && value !== "#" ? "" : safe;
 }
 function htmlName(tag: string): string {
   const names: Record<string, string> = {
@@ -184,9 +189,13 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     else if (tag !== "title" && tag !== "base") unusedHead.push(element.outerHTML);
   }
   for (const style of Array.from(parsed.body.querySelectorAll("style"))) {
+    // SVG styles belong to the sanitised icon, not to the whole page.
+    if (style.closest("svg")) continue;
     sheets.push(resolveCss(style.textContent || ""));
   }
   for (const script of Array.from(parsed.body.querySelectorAll("script"))) {
+    // Never promote an SVG child script into an executable page script.
+    if (script.closest("svg")) continue;
     scripts.push(script.outerHTML);
     scriptCount++;
   }
@@ -460,7 +469,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     if (tag === "hr") { common.type = "divider"; return add(common); }
     if (tag === "svg") {
       common.type = "icon";
-      common.icon = { name: "imported-svg", svg: element.outerHTML };
+      common.icon = { name: "imported-svg", svg: sanitizeImportedSvg(element.outerHTML) };
       return add(common);
     }
     if (tag === "input" || tag === "textarea" || tag === "select") {
@@ -513,7 +522,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       return add(common);
     }
     if (tag === "a") {
-      common.link = { kind: "url", url: safeUrl(element.getAttribute("href") || ""), newTab: element.getAttribute("target") === "_blank" };
+      common.link = { kind: "url", url: safeNavigationUrl(element.getAttribute("href") || ""), newTab: element.getAttribute("target") === "_blank" };
     } else if (!SEMANTICS.has(tag) && !/^h[1-6]$/.test(tag) && tag !== "p") {
       common.semantic = "custom";
       common.customTag = tag;
