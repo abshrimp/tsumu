@@ -156,3 +156,19 @@ test("preview without a page marker keeps working and disposal cancels pending w
   disposed.dispose(); await disposed.tick();
   assert.equal(disposed.target.style.display, "");
 });
+
+test("navigating away releases outstanding script timers without waiting for the delay", () => {
+  const h = harness([wait, hide], { trigger: "click" });
+  h.click();
+  assert.equal(h.pending(), 1);
+  h.navigate("b");
+  h.scan();
+  assert.equal(h.pending(), 0, "page transition should clear stale timers immediately");
+});
+
+test("disposing the script runtime releases outstanding script timers immediately", () => {
+  const h = harness([wait, hide], { preview: true });
+  assert.equal(h.pending(), 1);
+  h.dispose();
+  assert.equal(h.pending(), 0, "unmount should not keep a pending timeout alive");
+});

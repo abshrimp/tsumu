@@ -42,6 +42,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   var cache = new Map();
   function parse(el) {
     var raw = el.getAttribute("data-scripts") || "[]";
+    if (raw.length > 5 * 1024 * 1024) return [];
     var v = cache.get(raw);
     if (!v) {
       try {
@@ -49,6 +50,13 @@ export const SCRIPT_RUNTIME = `function (env) {
       } catch (e) {
         v = [];
       }
+      // Imported or manually edited documents must not crash all event
+      // listeners when data-scripts contains a non-array or invalid entries.
+      if (!Array.isArray(v)) v = [];
+      else v = v.filter(function (entry) {
+        return entry && typeof entry === "object" &&
+          typeof entry.trigger === "string" && Array.isArray(entry.steps);
+      });
       cache.set(raw, v);
     }
     return v;
@@ -191,25 +199,6 @@ export const SCRIPT_RUNTIME = `function (env) {
     else location.href = url;
   }
   /*/go*/
-  /*#value|var|filter*/
-  function cmp(v, op, w) {
-    switch (op) {
-      case "contains": return v.indexOf(w) >= 0;
-      case "starts-with": return v.lastIndexOf(w, 0) === 0;
-      case "ends-with": return v.length >= w.length && v.indexOf(w, v.length - w.length) >= 0;
-      case "gt": return parseFloat(v) > parseFloat(w);
-      case "gte": return parseFloat(v) >= parseFloat(w);
-      case "lt": return parseFloat(v) < parseFloat(w);
-      case "lte": return parseFloat(v) <= parseFloat(w);
-      case "empty": return v === "";
-      case "in":
-        return w.split(",").some(function (x) {
-          return x.trim() === v;
-        });
-      default: return v === w;
-    }
-  }
-  /*/value|var|filter*/
   /*#wait|repeat*/
   // Numbers are literal unless the entire value is a {variable.path} reference.
   function numericAmount(source, self, locals, resolveVar) {
@@ -221,13 +210,9 @@ export const SCRIPT_RUNTIME = `function (env) {
     }
     if (value === null || value === undefined || typeof value === "boolean" ||
         (typeof value === "string" && !value.trim())) return NaN;
-    var number = Number(value);
+    var number;
+    try { number = Number(value); } catch (e) { return NaN; }
     return Number.isFinite(number) ? number : NaN;
-  }
-  function sleep(s) {
-    return new Promise(function (res) {
-      setTimeout(res, Math.min(86400, Math.max(0, s)) * 1000);
-    });
   }
   /*/wait|repeat*/
   /*#store*/
@@ -356,11 +341,40 @@ export const SCRIPT_RUNTIME = `function (env) {
       var pageGeneration = 0;
       var pageBody = null;
       var pageId = null;
+      /*#wait|repeat*/
+      // Each install owns its outstanding delays. Navigating away or
+      // disposing resolves them immediately instead of retaining closures.
+      var pendingSleeps = new Set();
+      function cancelPendingSleeps() {
+        pendingSleeps.forEach(function (task) {
+          clearTimeout(task.timer);
+          task.resolve();
+        });
+        pendingSleeps.clear();
+      }
+      function sleep(s) {
+        return new Promise(function (resolve) {
+          var task = { timer: null, resolve: resolve };
+          task.timer = setTimeout(function () {
+            pendingSleeps.delete(task);
+            resolve();
+          }, Math.min(86400, Math.max(0, s)) * 1000);
+          pendingSleeps.add(task);
+        });
+      }
+      /*/wait|repeat*/
       // DOM の入れ替え直後（監視の走査前）に始まるスクリプトも、新しいページとして扱う。
       function syncPage() {
         var body = root.querySelector("[data-page-body]");
         var pid = body ? body.getAttribute("data-page-body") : null;
         if (body !== pageBody || pid !== pageId) {
+          /*#wait|repeat*/
+          cancelPendingSleeps();
+          /*/wait|repeat*/
+          /*#keep*/
+          hovering.forEach(function (timer) { clearTimeout(timer); });
+          hovering.clear();
+          /*/keep*/
           pageGeneration++;
           pageBody = body;
         }
@@ -379,9 +393,19 @@ export const SCRIPT_RUNTIME = `function (env) {
       // 待機・くり返しは、開始したページを離れたら続けない。
       function activeRun() {
         var generation = syncPage();
-        return function () {
-          return alive && generation === syncPage();
+        // One user event must not monopolize the browser through deeply
+        // nested finite loops. An actual wait yields and starts a new budget.
+        var stepsRun = 0;
+        function active() {
+          return alive && generation === syncPage() && stepsRun < 20000;
+        }
+        active.consume = function () {
+          if (!active()) return false;
+          stepsRun++;
+          return true;
         };
+        active.resetBudget = function () { stepsRun = 0; };
+        return active;
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
       var vars = initialVars && typeof initialVars === "object"
@@ -463,6 +487,8 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*#clist*/
       // スクリプトの参照は実行時に解決する。値の中の波かっこは再解釈しない。
       function scriptReference(ref, self, item) {
+        if (!ref || typeof ref !== "object" ||
+            typeof ref.name !== "string" || !ref.name) return undefined;
         var name = ref.name, head = name.split(".")[0];
         if (item && (has(item, name) || has(item, head))) {
           return has(item, name) ? item[name] : dig(item, name);
@@ -491,7 +517,9 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#clist*/
         if (s && Array.isArray(s.scriptParts)) return scriptExpression(s, self, item, "text");
         /*/clist*/
-        return String(s == null ? "" : s).replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
+        var source;
+        try { source = String(s == null ? "" : s); } catch (e) { return ""; }
+        return source.replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
           if (k == null) return "{";
           return text(lookup(k.trim(), self, item));
         });
@@ -502,7 +530,9 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#clist*/
         if (s && Array.isArray(s.scriptParts)) return scriptExpression(s, self, item, "url");
         /*/clist*/
-        return String(s == null ? "" : s).replace(
+        var source;
+        try { source = String(s == null ? "" : s); } catch (e) { return ""; }
+        return source.replace(
           /\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}|%7B(.*?)%7D/gi,
           function (m, a, b, at) {
             if (m === "\\\\{") return "{";
@@ -596,16 +626,17 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*#if*/
       function test(c, self, sc) {
+        if (!c || typeof c !== "object") return false;
         /*#var*/
         if (c.subject === "var") {
-          if (!c.left || !String(c.left).trim()) return false;
+          if (typeof c.left !== "string" || !c.left.trim()) return false;
           var matched = matchValueCondition(readInput(c.left, self, sc), c.op || "eq", readInput(c.value, self, sc));
           return c.not ? !matched : matched;
         }
         /*/var*/
         // An unconfigured or deleted element target is not a valid predicate,
         // including when the condition is negated.
-        if (!c.target || !String(c.target).trim()) return false;
+        if (typeof c.target !== "string" || !c.target.trim()) return false;
         var els = find(self, c.target);
         if (!els.length) return false;
         var r = false;
@@ -684,26 +715,31 @@ export const SCRIPT_RUNTIME = `function (env) {
         return String(v);
       }
       function passOne(conds, item) {
-        var ok = false;
-        var grp = true;
+        if (!conds.length) return true;
+        var groups = [[]];
         conds.forEach(function (c, i) {
-          if (i && !c.and) {
-            ok = ok || grp;
-            grp = true;
-          }
-          var fv = fieldOf(item, c.field);
-          var matches = matchValueCondition(fv, c.op, c.value);
-          grp = grp && (c.not ? !matches : matches);
+          if (i && !c.and) groups.push([]);
+          groups[groups.length - 1].push(c);
         });
-        return ok || grp;
+        // Keep the same AND-before-OR grouping as the if block and server
+        // renderer, and avoid inspecting values in an already-decided branch.
+        return groups.some(function (group) {
+          return group.every(function (c) {
+            var fv = fieldOf(item, c.field);
+            var matches = matchValueCondition(fv, c.op, c.value);
+            return c.not ? !matches : matches;
+          });
+        });
       }
       function passes(fs, item) {
-        var acc = true;
-        fs.forEach(function (f, i) {
-          var r = passOne(f.conds, item);
-          acc = i === 0 ? r : f.join === "or" ? acc || r : acc && r;
-        });
-        return acc;
+        // Evaluate only the filters that can still change the result; this
+        // matches the short-circuit behavior of the SSR filter interpreter.
+        return fs.reduce(function (acc, f, i) {
+          if (i === 0) return passOne(f.conds, item);
+          return f.join === "or"
+            ? acc || passOne(f.conds, item)
+            : acc && passOne(f.conds, item);
+        }, true);
       }
       // 配列の並べ替え: 配列の名前 → { field, dir }
       var sorts = new Map();
@@ -1078,8 +1114,11 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (scalar) v = first.value;
         /*#env*/
         if (env.setValue && env.setValue(id, v)) {
-          // 反映後に「値が変わったとき」を動かす
+          // The preview's delayed change event belongs to this page instance.
+          // Navigation can complete before the callback is delivered.
+          var changeGeneration = syncPage();
           setTimeout(function () {
+            if (!alive || changeGeneration !== syncPage()) return;
             els.forEach(function (el) {
               fire(el, "change");
             });
@@ -1241,7 +1280,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           case "list-display": {
             if (!st.array) break;
             if (st.mode === "filter") {
-              if (!st.conds || !st.conds.length) break;
+              if (!Array.isArray(st.conds) || !st.conds.length ||
+                  !st.conds.every(function (c) {
+                    return c && typeof c === "object" && typeof c.field === "string";
+                  })) break;
               var fs = (filters.get(st.array) || []).slice();
               var key = st.no != null ? "n" + st.no : "f" +
                 st.conds.map(function (c) { return c.field; }).sort().join("|");
@@ -1280,7 +1322,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/store*/
           /*#setvar*/
           case "transform": {
-            if (!st.source || !st.into) break;
+            if (!st.source || !st.into || !st.transform || typeof st.transform !== "object") break;
             var inputValue = sc && (has(sc, st.source) ? sc[st.source] : dig(sc, st.source));
             var sourceRoot = st.source.split(".")[0];
             var localShadows = !!(sc && (has(sc, st.source) || has(sc, sourceRoot)));
@@ -1345,7 +1387,8 @@ export const SCRIPT_RUNTIME = `function (env) {
               break;
             }
             // {名前} だけなら値をそのまま入れる（配列はリストで並べられる配列のまま）
-            var sv = /^\\{([^{}\\s"'<>]+)\\}$/.exec(String(st.value || "").trim());
+            var sv = typeof st.value === "string"
+              ? /^\\{([^{}\\s"'<>]+)\\}$/.exec(st.value.trim()) : null;
             setVar(st.into, sv ? lookup(sv[1].trim(), self, sc) : readInput(st.value, self, sc));
             break;
           }
@@ -1379,20 +1422,20 @@ export const SCRIPT_RUNTIME = `function (env) {
       var LOOP_BREAK = {};
       /*#repeat*/
       // Each nested loop catches its own break; the enclosing script continues.
-      function loop(st, self, cx, n, active, times, forever, depth) {
+      function loop(st, self, cx, n, active, times, forever, depth, nesting) {
         if (!active() || (!forever && n >= times)) return Promise.resolve();
         var local = { item: {}, array: "", index: n, key: String(n), raw: n, up: cx };
-        return runSteps(st.then, self, local, active, depth + 1).then(function (flow) {
+        return runSteps(st.then, self, local, active, depth + 1, nesting + 1).then(function (flow) {
           if (flow === LOOP_BREAK || !active()) return;
-          return (forever ? sleep(0.05) : Promise.resolve()).then(function () {
-            return loop(st, self, cx, n + 1, active, times, forever, depth);
+          return (forever ? sleep(0.05).then(function () { active.resetBudget(); }) : Promise.resolve()).then(function () {
+            return loop(st, self, cx, n + 1, active, times, forever, depth, nesting);
           });
         });
       }
             /*/repeat*/
       /*#each*/
       // Use a stable snapshot of own keys and values; do not skip null/nested lists.
-      function each(st, self, up, i, active, entries, depth) {
+      function each(st, self, up, i, active, entries, depth, nesting) {
         if (!active()) return Promise.resolve();
         if (!entries) {
           var source = lookup(st.array, self, scopeOf(up));
@@ -1405,18 +1448,22 @@ export const SCRIPT_RUNTIME = `function (env) {
         var entry = entries[i], value = entry.value;
         var item = value && typeof value === "object" && !Array.isArray(value) ? value : { "値": value };
         var cx = { array: st.array, index: i, key: entry.key, raw: value, item: item, up: up };
-        return runSteps(st.then, self, cx, active, depth + 1).then(function (flow) {
+        return runSteps(st.then, self, cx, active, depth + 1, nesting + 1).then(function (flow) {
           if (flow === LOOP_BREAK) return;
-          return each(st, self, up, i + 1, active, entries, depth);
+          return each(st, self, up, i + 1, active, entries, depth, nesting);
         });
       }
             /*/each*/
-      function runSteps(steps, self, cx, active, loopDepth) {
+      function runSteps(steps, self, cx, active, loopDepth, nesting) {
+        // Nesting and loop depth differ: an if does not make break-loop legal.
+        if ((nesting || 0) > 16) return Promise.resolve();
         var depth = loopDepth || 0;
         var i = 0;
         function next() {
           while (active() && i < steps.length) {
+            if (!active.consume()) return Promise.resolve();
             var st = steps[i++];
+            if (!st || typeof st !== "object" || typeof st.kind !== "string") continue;
             if (st.kind === "break-loop") {
               if (depth > 0) return Promise.resolve(LOOP_BREAK);
               continue;
@@ -1425,14 +1472,14 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (st.kind === "wait") {
               var seconds = numericAmount(st.seconds, self, scopeOf(cx), lookup);
               if (!Number.isFinite(seconds) || seconds < 0) continue;
-              return sleep(seconds).then(next);
+              return sleep(seconds).then(function () { active.resetBudget(); return next(); });
             }
             /*/wait*/
             /*#if*/
             if (st.kind === "if") {
               var branch = testConditions(st, self, scopeOf(cx)) ? st.then : st.else;
-              if (branch && branch.length) {
-                return runSteps(branch, self, cx, active, depth).then(function (flow) {
+              if (Array.isArray(branch) && branch.length) {
+                return runSteps(branch, self, cx, active, depth, (nesting || 0) + 1).then(function (flow) {
                   return flow === LOOP_BREAK ? LOOP_BREAK : next();
                 });
               }
@@ -1441,18 +1488,18 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*/if*/
             /*#repeat*/
             if (st.kind === "repeat") {
-              if (!st.then || !st.then.length) continue;
+              if (!Array.isArray(st.then) || !st.then.length) continue;
               var count = numericAmount(st.times, self, scopeOf(cx), lookup);
               if (!Number.isInteger(count) || count < 0 || count > 1000) continue;
               var forever = typeof st.times === "number" && st.times === 0;
               if (!forever && count === 0) continue;
-              return loop(st, self, cx, 0, active, count, forever, depth).then(next);
+              return loop(st, self, cx, 0, active, count, forever, depth, nesting || 0).then(next);
             }
             /*/repeat*/
             /*#each*/
             if (st.kind === "for-each") {
-              if (!st.then || !st.then.length) continue;
-              return each(st, self, cx, 0, active, null, depth).then(next);
+              if (!Array.isArray(st.then) || !st.then.length) continue;
+              return each(st, self, cx, 0, active, null, depth, nesting || 0).then(next);
             }
             /*/each*/
             exec(st, self, cx);
@@ -1462,14 +1509,29 @@ export const SCRIPT_RUNTIME = `function (env) {
         return next();
       }
       // keep: 省略 = すべて / true・false = 「表示した要素の上も含める」のもの・それ以外だけ
+      // Programmatic input/change events can synchronously call back into the
+      // same handler (e.g. two set-value blocks alternating between values).
+      // Allow distinct triggers, but prevent a synchronous recursion cycle.
+      var firingTriggers = new WeakMap();
       function fire(el, trigger, keep) {
-        parse(el).forEach(function (s) {
-          if (s.trigger !== trigger) return;
-          /*#keep*/
-          if (keep !== undefined && !!s.keep !== keep) return;
-          /*/keep*/
-          runSteps(s.steps || [], el, undefined, activeRun());
-        });
+        var running = firingTriggers.get(el);
+        if (!running) {
+          running = new Set();
+          firingTriggers.set(el, running);
+        }
+        if (running.has(trigger)) return;
+        running.add(trigger);
+        try {
+          parse(el).forEach(function (s) {
+            if (s.trigger !== trigger) return;
+            /*#keep*/
+            if (keep !== undefined && !!s.keep !== keep) return;
+            /*/keep*/
+            runSteps(s.steps || [], el, undefined, activeRun());
+          });
+        } finally {
+          running.delete(trigger);
+        }
       }
       function chain(t) {
         var out = [];
@@ -1538,12 +1600,26 @@ export const SCRIPT_RUNTIME = `function (env) {
       // 「表示した要素の上も含める」要素 → 外れ判定のタイマー（null = 判定待ちなし）。
       // 表示した要素へカーソルが移っている間は「ホバーが外れた」としない
       var hovering = new Map();
+      // Browser :hover selector matching can be stale even after pointer events.
+      // Use the event destination to keep menus open across owner/child moves.
+      function withinHoverArea(owner, node) {
+        if (!node || node.nodeType !== 1) return false;
+        return owner.contains(node) || shownByHover(owner).some(function (shown) {
+          return root.contains(shown) && shown.contains(node);
+        });
+      }
       function leaveLater(el) {
         clearTimeout(hovering.get(el));
         hovering.set(
           el,
           setTimeout(function () {
-            if (!alive || !hovering.has(el)) return;
+            if (!alive || !hovering.has(el) || !root.contains(el)) {
+              hovering.delete(el);
+              return;
+            }
+            // The page may have changed before the mutation observer ran.
+            syncPage();
+            if (!hovering.has(el)) return;
             var still = [el].concat(shownByHover(el)).some(function (g) {
               return root.contains(g) && g.matches(":hover");
             });
@@ -1558,6 +1634,16 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/keep*/
       function onOver(e) {
+        /*#keep*/
+        // The shown menu may not have its own script listener.
+        // Crossing into it must cancel the pending hover-end timeout.
+        hovering.forEach(function (timer, owner) {
+          if (timer !== null && withinHoverArea(owner, e.target)) {
+            clearTimeout(timer);
+            hovering.set(owner, null);
+          }
+        });
+        /*/keep*/
         chain(e.target).forEach(function (el) {
           // 子要素間の移動では発火させない
           if (e.relatedTarget && el.contains(e.relatedTarget)) return;
@@ -1582,7 +1668,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*#keep*/
           if (hovering.has(el)) {
             done.push(el);
-            leaveLater(el);
+            if (withinHoverArea(el, e.relatedTarget)) {
+              clearTimeout(hovering.get(el));
+              hovering.set(el, null);
+            } else leaveLater(el);
             fire(el, "hover-end", false);
             return;
           }
@@ -1592,7 +1681,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#keep*/
         // 表示したメニュー側から離れたときも、元の要素の外れ判定をする
         hovering.forEach(function (t, el) {
-          if (t === null && done.indexOf(el) < 0) leaveLater(el);
+          if (t === null && done.indexOf(el) < 0 &&
+              !withinHoverArea(el, e.relatedTarget)) leaveLater(el);
         });
         /*/keep*/
       }
@@ -1610,6 +1700,13 @@ export const SCRIPT_RUNTIME = `function (env) {
           ? new IntersectionObserver(function (entries) {
               entries.forEach(function (en) {
                 if (!en.isIntersecting) return;
+                // A queued notification may arrive after page navigation.
+                // Detached elements must not mutate matching IDs on the new page.
+                if (!alive || !root.contains(en.target)) {
+                  io.unobserve(en.target);
+                  return;
+                }
+                syncPage();
                 io.unobserve(en.target);
                 fire(en.target, "in-view");
               });
@@ -1694,6 +1791,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*/live*/
       return function dispose() {
         alive = false;
+        /*#wait|repeat*/
+        cancelPendingSleeps();
+        /*/wait|repeat*/
         /*#filter*/
         filters.clear();
         sorts.clear();
