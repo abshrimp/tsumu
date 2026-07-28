@@ -454,6 +454,8 @@ const INITIAL_VALUES: Record<string, string[]> = {
   letterSpacing: ["normal", "0"],
   lineHeight: ["normal"],
   whiteSpace: ["normal", "pre-wrap"],
+  WebkitLineClamp: ["none"],
+  WebkitBoxOrient: ["horizontal"],
   position: ["static"],
   zIndex: ["auto"],
   // 「カスタム」「追従」を選んだときに入る 0 も既定とみなす（位置の切り替え自体は position で分かる）

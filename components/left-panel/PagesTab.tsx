@@ -22,6 +22,7 @@ import {
   FileInput,
 } from "lucide-react";
 import { useEditor } from "../../lib/store";
+import { useDocumentConfirmation } from "../../lib/use-document-confirmation";
 import { Icon } from "../icons";
 import { ContextMenu, type CtxMenuItem } from "../NodeContextMenu";
 import CopyToSiteModal from "../CopyToSite";
@@ -57,6 +58,7 @@ type PageDrop =
   | { kind: "loose" };
 
 export function PagesTab() {
+  const confirmDeletion = useDocumentConfirmation("page-deletion");
   const doc = useEditor((s) => s.doc);
   const activePageId = useEditor((s) => s.activePageId);
   const setActivePage = useEditor((s) => s.setActivePage);
@@ -213,7 +215,7 @@ export function PagesTab() {
     if (!ids.length) return;
     const all = ids.length >= doc.pageOrder.length;
     if (
-      !(await showConfirm(
+      !(await confirmDeletion(() => showConfirm(
         all
           ? tr("ページを0にはできないため、先頭の1ページは残します。ほかのページの要素もすべて削除されます（「元に戻す」で戻せます）。")
           : tr("ページの要素もすべて削除されます（「元に戻す」で戻せます）。"),
@@ -222,7 +224,7 @@ export function PagesTab() {
           okLabel: tr("削除"),
           danger: true,
         }
-      ))
+      )))
     ) {
       return;
     }
@@ -311,7 +313,7 @@ export function PagesTab() {
         onClick: run(async () => {
           const all = ids.length >= doc.pageOrder.length;
           if (
-            await showConfirm(
+            await confirmDeletion(() => showConfirm(
               all
                 ? tr("ページを0にはできないため、先頭の1ページは残します。ほかのページの要素もすべて削除されます（「元に戻す」で戻せます）。")
                 : tr("ページの要素もすべて削除されます（「元に戻す」で戻せます）。"),
@@ -322,7 +324,7 @@ export function PagesTab() {
                 okLabel: tr("削除"),
                 danger: true,
               }
-            )
+            ))
           ) {
             deletePages(ids);
             if (many) endPicking();
@@ -434,11 +436,11 @@ export function PagesTab() {
               onClick={async (e) => {
                 e.stopPropagation();
                 if (
-                  await showConfirm(tr("ページの要素もすべて削除されます（「元に戻す」で戻せます）。"), {
+                  await confirmDeletion(() => showConfirm(tr("ページの要素もすべて削除されます（「元に戻す」で戻せます）。"), {
                     title: tr("ページ「{name}」を削除しますか？", { name: p.name }),
                     okLabel: tr("削除"),
                     danger: true,
-                  })
+                  }))
                 ) {
                   deletePage(id);
                 }

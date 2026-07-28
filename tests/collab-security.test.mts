@@ -245,3 +245,34 @@ test("an open SSE stream closes without leaking the next document after revocati
     }
   });
 });
+
+test("a disconnected saving sender does not prevent persistence, activity or peer notifications", async () => {
+  await withAllowlist(async () => {
+    const { CollaborationRoom } = loadHandler("../custom-worker.ts", {
+      "cloudflare:workers": { DurableObject: class { constructor(public ctx: unknown, public env: unknown) {} } },
+      "./.open-next/worker.js": {},
+    });
+    const db = await getDb();
+    await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    let base = createInitialDoc();
+    await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
+    for (const type of ["save", "patch"] as const) {
+      const sender = socket("owner@example.com");
+      sender.deserializeAttachment = () => ({ clientId: "sender", siteId: "s1", user: { email: "owner@example.com", name: null, image: null } });
+      sender.send = () => { throw new Error("WebSocket is closed"); };
+      const peer = socket("editor@example.com");
+      const room = new CollaborationRoom({ getWebSockets: () => [sender, peer] }, {
+        DB: nodeDatabase(), ALLOWED_EMAILS: "owner@example.com", AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
+      });
+      const current = await readCurrentDoc(db, "s1");
+      const next = { ...base, siteName: `Saved through ${type}` };
+      const input = type === "save" ? { type, doc: next } : { type, patch: createDocPatch(base, next) };
+      await assert.doesNotReject(room.webSocketMessage(sender, JSON.stringify({ ...input, base: current!.rev, requestId: type })));
+      assert.equal(JSON.parse((await readCurrentDoc(db, "s1"))!.body).siteName, next.siteName);
+      assert.equal(peer.messages.length, 1);
+      assert.equal(JSON.parse(peer.messages[0]).type, type === "save" ? "doc-updated" : "doc-patched");
+      assert.equal((await db.execute("SELECT email FROM site_activity WHERE site_id = 's1' AND kind = 'edit'")).rows[0]?.email, "owner@example.com");
+      base = next;
+    }
+  });
+});

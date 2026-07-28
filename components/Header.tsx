@@ -30,6 +30,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useEditor } from "../lib/store";
+import { useDocumentConfirmation } from "../lib/use-document-confirmation";
 import { closeHelp, toggleHelp, useHelp } from "../lib/help";
 import { useServerStatus } from "../lib/status";
 import { toggleAi, useAi, useAiAvailability } from "./AiChat";
@@ -228,6 +229,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
 /** エディタの設定（ログインできるアカウントなど全サイト共通の設定は、ホームの設定にある） */
 function SettingsModal({ onClose }: { onClose: () => void }) {
+  const confirmReset = useDocumentConfirmation("document-reset");
   const resetDoc = useEditor((s) => s.resetDoc);
   useEscapeToClose(onClose);
   return (
@@ -253,11 +255,11 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
             className="btn"
             onClick={async () => {
               // 誤操作を防ぐため、確認の文を入力したときだけ実行できる
-              const confirmation = await showPrompt(
+              const accepted = await confirmReset(async () => (await showPrompt(
                 tr("サイト全体を初期状態に戻します（「元に戻す」で復帰できます）。\n実行するには「初期状態に戻す」と入力してください。"),
                 { title: tr("初期状態に戻しますか？"), expect: tr("初期状態に戻す"), okLabel: tr("初期状態に戻す"), danger: true }
-              );
-              if (confirmation !== tr("初期状態に戻す")) return;
+              )) === tr("初期状態に戻す"));
+              if (!accepted) return;
               resetDoc();
               onClose();
             }}

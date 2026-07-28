@@ -3,13 +3,14 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { build, transformSync } from "esbuild";
 import { useEditor } from "../../lib/store";
+import * as editorStore from "../../lib/store";
 import { readHtmlZip } from "../../lib/html-zip";
 import * as assets from "../../lib/assets";
 
 const require = createRequire(resolve("package.json"));
 
 /** 実際のコールバックを、完了順と再描画を制御して実行する。DOMでの同じ操作はE2Eでも確認する。 */
-export function importCallbacks(kind: "image" | "font" | "html" | "style" | "backup" | "breakpoints", upload = assets.uploadAsset, readZip = readHtmlZip) {
+export function importCallbacks(kind: "image" | "font" | "html" | "style" | "backup" | "breakpoints" | "pages" | "add" | "reset", upload = assets.uploadAsset, readZip = readHtmlZip) {
   let cursor = 0;
   let effects: (() => void)[] = [];
   const cells: any[] = [];
@@ -18,8 +19,8 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
     useMemo(compute: () => unknown) { return compute(); },
     useState(initial: unknown) {
       const i = cursor++;
-      if (!(i in cells)) cells[i] = { value: initial };
-      return [cells[i].value, (value: unknown) => { cells[i].value = value; }];
+      if (!(i in cells)) cells[i] = { value: typeof initial === "function" ? initial() : initial };
+      return [cells[i].value, (value: unknown) => { cells[i].value = typeof value === "function" ? value(cells[i].value) : value; }];
     },
     useRef(initial: unknown) {
       const i = cursor++;
@@ -38,6 +39,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
       });
     },
   };
+  Object.assign(hooks, { useEffect: hooks.useLayoutEffect });
   const inspector = () => {
     const s = useEditor.getState();
     const id = s.selection!;
@@ -54,15 +56,20 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
     const module = { exports: {} as any };
     new Function("require", "module", "exports", code)((name: string) => {
       if (name === "react") return hooks;
+      if (name.endsWith("/use-document-confirmation")) return evaluate("lib/use-document-confirmation.ts");
       if (name.endsWith("/use-pending-import")) return evaluate("lib/use-pending-import.ts");
-      if (name.endsWith("/store")) return { useEditor: Object.assign((select: (s: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState, subscribe: useEditor.subscribe }) };
+      if (name.endsWith("/store")) return { ...editorStore, useEditor: Object.assign((select: (s: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState, subscribe: useEditor.subscribe }) };
       if (name.endsWith("/html-zip")) return { readHtmlZip: readZip };
       if (name.endsWith("/assets")) return { ...assets, uploadAsset: upload };
       if (name.endsWith("/controls")) return { useInspector: inspector, InspectorCtx: { Provider: "inspector" } };
       if (name.endsWith("/dialog")) return {
         showAlert: (...args: unknown[]) => { alerts.push(args); },
+        showPrompt: () => new Promise<string | null>(resolve => { confirmations.push({ resolve: value => resolve(value ? "初期状態に戻す" : null) }); }),
         showConfirm: () => new Promise<boolean>(resolve => { confirmations.push({ resolve }); }),
       };
+      if (["/NodeContextMenu", "/CopyToSite", "/exportZip", "/export-formats", "/AiChat", "/HelpCenter", "/Tutorial", "/GuideOverlay"].some(x => name.endsWith(x))) return {};
+      if (name.endsWith("/PublishModal")) return { useEscapeToClose() {} };
+      if (name.endsWith("/drag")) return { useDragAutoScroll: () => ({}) };
       if (name.endsWith("/BackgroundSec") || name.endsWith("/shared")) return {};
       return name.startsWith(".") ? require(resolve(path, "..", name)) : require(name);
     }, module, module.exports);
@@ -70,6 +77,9 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
   }
   const component = kind === "image"
     ? evaluate("components/ImagePicker.tsx").default
+    : kind === "pages" ? evaluate("components/left-panel/PagesTab.tsx").PagesTab
+    : kind === "add" ? evaluate("components/left-panel/AddTab.tsx").AddTab
+    : kind === "reset" ? evaluate("components/Header.tsx", "\nexport { SettingsModal };").SettingsModal
     : kind === "breakpoints" ? evaluate("components/SitePanel.tsx", "\nexport { BreakpointSettings }; ").BreakpointSettings
     : kind === "backup" ? evaluate("components/SitePanel.tsx").default
     : kind === "html" ? evaluate("components/PagePanel.tsx").default

@@ -1,5 +1,6 @@
 "use client";
 
+import { cssValueParts } from "../lib/css-value-parts";
 import { isEnterKey } from "../lib/keys";
 import {
   createContext,
@@ -1779,7 +1780,7 @@ export function shorthandSide(
   i: number
 ): string | undefined {
   if (!sh) return undefined;
-  const p = sh.trim().split(/\s+/);
+  const p = cssValueParts(sh);
   if (p.length === 1) return p[0];
   if (p.length === 2) return i % 2 === 0 ? p[0] : p[1];
   if (p.length === 3) return [p[0], p[1], p[2], p[1]][i];

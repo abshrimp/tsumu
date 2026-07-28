@@ -162,7 +162,7 @@ function PairSides({
     const out: Record<string, string | null> = {};
     if (sh.setHere) {
       for (let i = 0; i < 4; i++) {
-        out[props[i]] = shorthandSide(sh.value, i) ?? "0px";
+        out[props[i]] = side(i) ?? "0px";
       }
       out[shorthand] = null;
     }
