@@ -29,3 +29,31 @@ createRoot(document.getElementById("app")).render(<Fixture />);
     define: { "process.env.NODE_ENV": '"development"' },
   })).outputFiles[0].text;
 }
+
+/** Real easing modal with a CSS probe to compare unchanged Apply and reopen. */
+export async function easingEditorBundle(initial = "cubic-bezier(0.123456, 0.000001, 0.876543, 1.234567)") {
+  return (await build({
+    stdin: {
+      contents: `
+import React, { useState } from "react";
+import { createRoot } from "react-dom/client";
+import { EasingEditorModal } from "./components/MotionEditors";
+function Fixture() {
+  const [value, setValue] = useState(${JSON.stringify(initial)});
+  const [open, setOpen] = useState(true);
+  return <>
+    <div id="easing-probe" style={{ transitionTimingFunction: value }} />
+    <button id="reopen" onClick={() => setOpen(true)}>Open easing</button>
+    <output id="saved">{value}</output>
+    {open && <EasingEditorModal value={value} duration={1}
+      onClose={() => setOpen(false)} onApply={(next) => { setValue(next); setOpen(false); }} />}
+  </>;
+}
+createRoot(document.getElementById("app")).render(<Fixture />);
+`,
+      resolveDir: resolve("."), loader: "tsx", sourcefile: "easing-editor-fixture.tsx",
+    },
+    bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"development"' },
+  })).outputFiles[0].text;
+}
