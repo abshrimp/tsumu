@@ -836,6 +836,7 @@ export const useEditor = create<EditorStore>((set, get) => {
             ? get().editingComponentId
             : null,
         editingText: null,
+        textSel: null,
       });
     },
 
@@ -1427,12 +1428,16 @@ export const useEditor = create<EditorStore>((set, get) => {
         (c) => c.rootId === nodeId
       );
       if (comp) {
+        const confirmedDoc = get().doc;
+        const confirmedRevision = get().historyRevision;
         void showConfirm(tr("ページに置いた、このコンポーネントの使用箇所（インスタンス）もすべて削除されます。"), {
           title: tr("コンポーネント「{name}」を削除しますか？", { name: comp.name }),
           okLabel: tr("削除"),
           danger: true,
         }).then((ok) => {
-          if (ok) get().deleteComponent(comp.id);
+          if (ok && get().doc === confirmedDoc && get().historyRevision === confirmedRevision) {
+            get().deleteComponent(comp.id);
+          }
         });
         return;
       }

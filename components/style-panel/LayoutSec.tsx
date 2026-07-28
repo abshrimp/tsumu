@@ -58,7 +58,7 @@ export function LayoutSec() {
   const display = displayInfo.value;
   const dir = dirInfo.value ?? "row";
   const isFlex = display === "flex" || display === "inline-flex";
-  const isGrid = display === "grid";
+  const isGrid = display === "grid" || display === "inline-grid";
   // フローは表示している状態（自動 / 縦 / 横 / グリッド）で比べる
   // （「省略」の折り返しで付く -webkit-box などは「自動」のまま）
   const flowChanged =
