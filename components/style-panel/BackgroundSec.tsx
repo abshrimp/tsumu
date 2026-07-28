@@ -9,7 +9,7 @@ import { useEditor } from "../../lib/store";
 import { assetSrc } from "../../lib/assets";
 import { cssAssetReferences, escapeCssAssetUrl } from "../../lib/css-assets";
 import ImagePicker from "../ImagePicker";
-import { parseNumeric, isInitialValue, sameValue, type PropInfo } from "../../lib/style";
+import { parseNumeric, isInitialValue, initialValueOf, sameValue, type PropInfo } from "../../lib/style";
 import {
   Dropdown,
   FillControl,
@@ -58,6 +58,8 @@ export function differsFrom(info: PropInfo, dflt: string): boolean {
 export function BackgroundSec() {
   const insp = useInspector();
   const doc = useEditor((s) => s.doc);
+  const explicitDefault = (prop: string) => isInitialValue(prop, insp.get(prop).baseline)
+    ? null : initialValueOf(prop) ?? null;
   const imageInfo = insp.get("backgroundImage");
   const colorInfo = insp.get("backgroundColor");
   const bgImage = imageInfo.value;
@@ -114,15 +116,15 @@ export function BackgroundSec() {
           // 小さい画面では、消すと大きい画面の背景が出てくるため初期値で打ち消す
           if (v === "none")
             insp.set({
-              backgroundColor: insp.cleared("backgroundColor"),
-              backgroundImage: insp.cleared("backgroundImage"),
+              backgroundColor: explicitDefault("backgroundColor"),
+              backgroundImage: explicitDefault("backgroundImage"),
               backgroundSize: null,
               backgroundPosition: null,
               backgroundRepeat: null,
               backgroundAttachment: null,
             });
           else if (v === "color")
-            insp.set({ backgroundImage: insp.cleared("backgroundImage"), backgroundColor: BG_DEFAULT_COLOR });
+            insp.set({ backgroundImage: explicitDefault("backgroundImage"), backgroundColor: BG_DEFAULT_COLOR });
           else if (v === "gradient") setGradient(180, "#ffffff", "#e4e4e7");
           else
             insp.set({
@@ -199,7 +201,7 @@ export function BackgroundSec() {
               })()}
               onChange={(v) => {
                 if (!v) {
-                  insp.set({ backgroundImage: insp.cleared("backgroundImage") });
+                  insp.set({ backgroundImage: explicitDefault("backgroundImage") });
                   return;
                 }
                 // アップロード直後のアセットは描画時の doc にまだ無いため、最新の状態から引く
