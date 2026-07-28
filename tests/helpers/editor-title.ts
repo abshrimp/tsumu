@@ -114,8 +114,9 @@ window.disposeTitleFixture = () => root.unmount();
           else if (args.path === "title-error") contents = errorSource;
           else if (args.path === "title-root-error") contents = rootErrorSource;
           else if (args.path.endsWith("/Editor")) contents = `
-import { useState } from "react";
-export default function Editor() {
+import { useLayoutEffect, useState } from "react";
+export default function Editor({ onReady }) {
+  useLayoutEffect(() => { onReady?.(); }, [onReady]);
   const [, refresh] = useState(0);
   window.failTitleEditor = () => { window.titleEditorFailed = true; refresh((n) => n + 1); };
   if (window.titleEditorFailed) throw new Error("title fixture editor failure");

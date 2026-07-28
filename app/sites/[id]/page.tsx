@@ -1,7 +1,8 @@
 "use client";
 
-import { type ComponentType, useEffect, useState } from "react";
+import { type ComponentType, useCallback, useEffect, useState } from "react";
 import BrandMark from "../../../components/BrandMark";
+import type { EditorProps } from "../../../components/Editor";
 import EditorLoading from "../../../components/EditorLoading";
 import { loadLocale, tr } from "../../../lib/i18n";
 import { currentSiteId, loadLocalSites } from "../../../lib/site";
@@ -28,7 +29,7 @@ function SiteNotFound() {
 type SiteState =
   | { kind: "checking" }
   | { kind: "missing" }
-  | { kind: "ok"; Editor: ComponentType }
+  | { kind: "ok"; Editor: ComponentType<EditorProps> }
   | { kind: "failed"; error: unknown };
 
 /**
@@ -82,8 +83,15 @@ function useSiteCheck(): SiteState {
 
 export default function SitePage() {
   const state = useSiteCheck();
-  if (state.kind === "checking") return <EditorLoading />;
+  const [ready, setReady] = useState(false);
+  const onReady = useCallback(() => setReady(true), []);
   if (state.kind === "missing") return <SiteNotFound />;
   if (state.kind === "failed") throw state.error;
-  return <state.Editor />;
+  // サイト確認・本体の読み込み・最初の文書取得を通して、ヒントと登場アニメーションを保つ。
+  return (
+    <>
+      {!ready && <EditorLoading />}
+      {state.kind === "ok" && <state.Editor onReady={onReady} />}
+    </>
+  );
 }
