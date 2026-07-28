@@ -13,8 +13,9 @@ import { insertSite } from "../lib/sites";
 import type { SiteDoc } from "../lib/types";
 
 const doc = (): SiteDoc => ({
-  siteName: "Example", pages: { home: { id: "home", name: "Home", slug: "", children: ["node-1"] } },
-  nodes: { "node-1": { id: "node-1", type: "text", name: "Text", children: [], text: "Hello", style: {} } },
+  siteName: "Example", pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["node-1"] } },
+  nodes: { "node-1": { id: "node-1", type: "box", name: "Text", semantic: "auto", children: [],
+    text: { content: "Hello", heading: 0 }, link: null, styles: {} } },
   pageOrder: ["home"], assets: {},
 } as SiteDoc);
 
@@ -40,14 +41,14 @@ async function database(run: (db: Db, statements: { sql: string; args: unknown[]
 
 test("one element edit sends only that element and leaves the base immutable", () => {
   const base = doc();
-  for (let n = 0; n < 1000; n++) base.nodes[`extra-${n}`] = { ...base.nodes["node-1"], id: `extra-${n}`, text: "x".repeat(1000) };
+  for (let n = 0; n < 1000; n++) base.nodes[`extra-${n}`] = { ...base.nodes["node-1"], id: `extra-${n}`, text: { content: "x".repeat(1000), heading: 0 } };
   const next = structuredClone(base);
-  next.nodes["node-1"].text = "Edited";
+  next.nodes["node-1"].text!.content = "Edited";
   const patch = createDocPatch(base, next)!;
   assert.deepEqual(patch.map((op) => op.path), [["nodes", "node-1"]]);
   assert.ok(JSON.stringify(patch).length < JSON.stringify(next).length / 1000);
   assert.deepEqual(applyDocPatch(base, patch), next);
-  assert.equal(base.nodes["node-1"].text, "Hello");
+  assert.equal(base.nodes["node-1"].text!.content, "Hello");
   assert.deepEqual(createDocPatch(base, structuredClone(base)), []);
 });
 
@@ -83,9 +84,8 @@ test("SQL patches preserve nulls, arrays, additions and removals without fetchin
     next.siteName = "Updated";
     delete next.description;
     delete next.nodes["node-1"];
-    next.nodes["node-2"] = { ...base.nodes["node-1"], id: "node-2", text: 'quote " and 日本語', custom: { nullable: null, flag: false, zero: 0 } } as any;
+    next.nodes["node-2"] = { ...base.nodes["node-1"], id: "node-2", text: { content: 'quote " and 日本語', heading: 0 }, custom: { nullable: null, flag: false, zero: 0 } } as any;
     next.pages.home.children = ["node-2"];
-    next.components = {};
     const patch = createDocPatch(base, next)!;
     statements.length = 0;
     const result = await saveDocPatch(db, "s1", patch, "1");
@@ -105,12 +105,12 @@ test("SQL patches preserve nulls, arrays, additions and removals without fetchin
 test("the maximum patch size fits parameter limits and applies all chunks correctly", async () => {
   await database(async (db, statements) => {
     const base = doc();
-    for (let n = 0; n < MAX_PATCH_OPS; n++) base.nodes[`item-${n}`] = { ...base.nodes["node-1"], id: `item-${n}` };
+    for (let n = 0; n < MAX_PATCH_OPS; n++) base.nodes[`item-${n}`] = { ...base.nodes["node-1"], id: `item-${n}`, text: structuredClone(base.nodes["node-1"].text) };
     await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
     const next = structuredClone(base);
     for (let n = 0; n < MAX_PATCH_OPS; n++) {
       if (n % 3 === 0) delete next.nodes[`item-${n}`];
-      else next.nodes[`item-${n}`].text = `Updated ${n}`;
+      else next.nodes[`item-${n}`].text!.content = `Updated ${n}`;
     }
     const patch = createDocPatch(base, next)!;
     assert.equal(patch.length, MAX_PATCH_OPS);
@@ -155,7 +155,7 @@ test("large documents save until the storage itself rejects them as too large", 
     await saveCurrentDoc(real, "s1", JSON.stringify(base), null);
     // 大きさの上限は決め打ちしない。D1 の公称2MBも、以前の10MBも超えて保存できる
     const large = structuredClone(base);
-    large.nodes["node-1"].text = "z".repeat(12 * 1024 * 1024) as any;
+    large.nodes["node-1"].text!.content = "z".repeat(12 * 1024 * 1024);
     assert.equal((await saveCurrentDoc(real, "s1", JSON.stringify(large), "1")).kind, "saved");
     const edited = { ...large, siteName: "Edited" };
     assert.equal((await saveDocPatch(real, "s1", createDocPatch(large, edited)!, "2")).kind, "saved");

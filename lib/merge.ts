@@ -8,17 +8,23 @@ import { MAX_NODE_DEPTH } from "./doc-tree";
  * いなければ自分、両方触っていたら自分優先」で合成する。
  */
 
+/** JSON values distinguish a missing property from an explicit null. */
+const sameValue = (a: unknown, b: unknown): boolean =>
+  a === undefined || b === undefined ? a === b : JSON.stringify(a) === JSON.stringify(b);
+
+/** Preserve arbitrary user data keys without triggering __proto__ setters. */
+function setOwn<T>(record: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(record, key, { value, enumerable: true, writable: true, configurable: true });
+}
+
 /** 値単位の三方向選択 */
 function pick<T>(
   base: T | undefined,
   local: T | undefined,
   remote: T | undefined
 ): T | undefined {
-  const jb = JSON.stringify(base ?? null);
-  const jl = JSON.stringify(local ?? null);
-  if (jl === jb) return remote; // 自分は未変更 → 相手の変更（削除含む）を採用
-  const jr = JSON.stringify(remote ?? null);
-  if (jr === jb) return local; // 相手は未変更 → 自分の変更を採用
+  if (sameValue(local, base)) return remote; // 自分は未変更 → 相手の変更（削除含む）を採用
+  if (sameValue(remote, base)) return local; // 相手は未変更 → 自分の変更を採用
   return local; // 両方変更（競合）→ 保存しようとしている自分を優先
 }
 
@@ -31,11 +37,8 @@ const isPlain = (v: unknown): v is Record<string, unknown> =>
  * 配列（スクリプトの並びなど）は1つの値として扱う
  */
 function pickDeep<T>(base: T | undefined, local: T | undefined, remote: T | undefined): T | undefined {
-  const jb = JSON.stringify(base ?? null);
-  const jl = JSON.stringify(local ?? null);
-  if (jl === jb) return remote;
-  const jr = JSON.stringify(remote ?? null);
-  if (jr === jb || jr === jl) return local;
+  if (sameValue(local, base)) return remote;
+  if (sameValue(remote, base) || sameValue(remote, local)) return local;
   if ((base !== undefined && !isPlain(base)) || !isPlain(local) || !isPlain(remote)) return local;
   // 同時に初めて追加した設定・スタイルの別々の項目も残す。
   // null やスカラーからの置き換えは、通常の競合としてローカルを優先する。
@@ -43,7 +46,7 @@ function pickDeep<T>(base: T | undefined, local: T | undefined, remote: T | unde
   const out: Record<string, unknown> = {};
   for (const key of new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(before)])) {
     const v = pickDeep(before[key], local[key], remote[key]);
-    if (v !== undefined) out[key] = v;
+    if (v !== undefined) setOwn(out, key, v);
   }
   return out as T;
 }
@@ -62,7 +65,7 @@ function mergeRecord<T>(
   for (const id of ids) {
     // 同じIDの別々の新規要素は混ぜない。深い合成は既存要素のプロパティだけ。
     const v = b[id] === undefined ? pick(b[id], l[id], r[id]) : pickDeep(b[id], l[id], r[id]);
-    if (v !== undefined) out[id] = v;
+    if (v !== undefined) setOwn(out, id, v);
   }
   return out;
 }
@@ -486,7 +489,7 @@ function mergeOnce(
   for (const key of new Set([...Object.keys(b), ...Object.keys(l), ...Object.keys(r)])) {
     if (COLLECTION_KEYS.has(key)) continue;
     const v = pickDeep(b[key], l[key], r[key]);
-    if (v !== undefined) settings[key] = v;
+    if (v !== undefined) setOwn(settings, key, v);
   }
 
   const merged: SiteDoc = {

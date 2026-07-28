@@ -38,7 +38,7 @@ import {
   type ClipPayload,
 } from "./clip-transfer";
 import { storageKey } from "./storage-keys";
-import { MAX_NODE_DEPTH, maxSubtreeDepth } from "./doc-tree";
+import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 
 // ブラウザ保存はサイトごとに分ける（開いているサイトは URL で決まり、開いている間は変わらない）
 const STORAGE_KEY = siteKey(DOC_STORAGE_KEY);
@@ -168,17 +168,45 @@ export function collectDescendants(doc: SiteDoc, nodeId: string): string[] {
  */
 export function componentsReachable(doc: SiteDoc, compIds: Iterable<string>): Set<string> {
   const out = new Set<string>();
-  const visit = (cid: string) => {
+  const pending = [...compIds];
+  // Component graphs can be far deeper than ordinary node trees. Avoid
+  // recursion even when every component in the document is individually valid.
+  for (let cid = pending.pop(); cid !== undefined; cid = pending.pop()) {
     const comp = doc.components?.[cid];
-    if (!comp || out.has(cid)) return;
+    if (!comp || out.has(cid)) continue;
     out.add(cid);
     for (const id of collectDescendants(doc, comp.rootId)) {
       const n = doc.nodes[id];
-      if (n?.type === "instance" && n.componentId) visit(n.componentId);
+      if (n?.type === "instance" && n.componentId) pending.push(n.componentId);
     }
-  };
-  for (const cid of compIds) visit(cid);
+  }
   return out;
+}
+
+/** Moving/inserting an instance into a master cannot make it render itself. */
+function canPlaceComponentNodes(
+  doc: SiteDoc,
+  parent: ParentRef,
+  rootIds: readonly string[],
+  inputNodes: Record<string, DocNode> = doc.nodes,
+): boolean {
+  const owner = parent.kind === "node" ? componentOf(doc, parent.id) : null;
+  const referenced = new Set<string>();
+  const pending = [...rootIds];
+  const seen = new Set<string>();
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = inputNodes[id];
+    if (!node) return false;
+    if (node.type === "instance") {
+      if (!node.componentId || !doc.components?.[node.componentId]) return false;
+      referenced.add(node.componentId);
+    }
+    pending.push(...node.children);
+  }
+  return !owner || !componentsReachable(doc, referenced).has(owner);
 }
 
 /**
@@ -295,18 +323,25 @@ export function insertPointFor(
   return { parent, index: childrenOf(doc, parent).indexOf(selected.id) + 1 };
 }
 
+// Per-tab baseline. Another tab may save a newer document while this tab is
+// editing; an old autosave must never silently overwrite it.
+let lastKnownLocalRaw: string | null | undefined;
+let corruptLocalSnapshot = false;
+
 function loadDoc(): SiteDoc {
   if (typeof window !== "undefined") {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const doc = JSON.parse(raw) as SiteDoc;
-        if (doc.pages && doc.nodes && doc.pageOrder?.length) {
-          return doc;
-        }
+      lastKnownLocalRaw = raw;
+      if (raw !== null) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (validSiteDoc(parsed)) return parsed as SiteDoc;
+        corruptLocalSnapshot = true;
       }
     } catch {
-      // 壊れたデータは無視して新規作成
+      // Preserve malformed bytes for recovery; do not overwrite them with a
+      // freshly initialized site on the next autosave.
+      if (lastKnownLocalRaw !== undefined) corruptLocalSnapshot = true;
     }
   }
   return createInitialDoc();
@@ -1411,7 +1446,9 @@ export const useEditor = create<EditorStore>((set, get) => {
       const doc = get().doc;
       if (parent.kind === "page" ? !doc.pages[parent.id] : !doc.nodes[parent.id]) return;
       const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
-      if (parentDepth + maxSubtreeDepth(Object.fromEntries(nodes.map(node => [node.id, node])), [rootId]) > MAX_NODE_DEPTH) return;
+      const inserted = Object.fromEntries(nodes.map(node => [node.id, node])) as Record<string, DocNode>;
+      if (parentDepth + maxSubtreeDepth(inserted, [rootId]) > MAX_NODE_DEPTH ||
+          !canPlaceComponentNodes(doc, parent, [rootId], inserted)) return;
       get().updateDoc((doc) => {
         refreshEditorClones(doc, nodes);
         for (const n of nodes) doc.nodes[n.id] = n;
@@ -1555,7 +1592,8 @@ export const useEditor = create<EditorStore>((set, get) => {
         return;
       }
       const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
-      if (parentDepth + maxSubtreeDepth(doc.nodes, ids) > MAX_NODE_DEPTH) return;
+      if (parentDepth + maxSubtreeDepth(doc.nodes, ids) > MAX_NODE_DEPTH ||
+          !canPlaceComponentNodes(doc, parent, ids)) return;
       ids.sort((a, b) =>
         comparePosition(treePosition(doc, a), treePosition(doc, b))
       );
@@ -1899,17 +1937,27 @@ export function persistDoc(doc: SiteDoc): LocalSaveResult {
   try {
     let blocked = localSaveBlock();
     if (blocked) return blocked;
+    if (corruptLocalSnapshot) return "error";
     const json = JSON.stringify(doc);
-    const unchanged = window.localStorage.getItem(STORAGE_KEY) === json;
+    const currentRaw = window.localStorage.getItem(STORAGE_KEY);
+    if (lastKnownLocalRaw === undefined) lastKnownLocalRaw = currentRaw;
+    const unchanged = currentRaw === json;
+    // Another tab changed this site's data after our last observed version.
+    // Reject rather than silently rolling its newer edits back. The caller
+    // retains the unsaved in-memory document and warns before unloading.
+    if (!unchanged && currentRaw !== lastKnownLocalRaw) return "error";
     // 読み込み中の削除も確認し、同一内容の早期成功・直後の再保存を防ぐ。
     blocked = localSaveBlock();
     if (blocked) return blocked;
     if (!unchanged) {
       window.localStorage.setItem(STORAGE_KEY, json);
+      lastKnownLocalRaw = json;
       blocked = localSaveBlock();
       if (blocked) return blocked;
       // 開いただけでは変わらず、中身が変わったときだけホームの「最終編集」を進める。
       touchLocalSite();
+    } else {
+      lastKnownLocalRaw = currentRaw;
     }
     // localStorage はトランザクションではない。重なった削除を成功とせず、
     // さらに後の削除は storage イベントで通知する。文書・削除記録は消さない。
