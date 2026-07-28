@@ -46,7 +46,29 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 
+  test((exported ? "exported" : "preview") + " text operations automatically convert numbers and booleans", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "12345", [
+      { id: "split", kind: "transform", source: "items", into: "items",
+        transform: { kind: "split", separator: "3" } },
+      { id: "join", kind: "transform", source: "items", into: "items",
+        transform: { kind: "join", separator: "-" } },
+    ]);
+    await expect(answer).toHaveValue("12-45");
+    expect(errors).toEqual([]);
+  });
 
+  test((exported ? "exported" : "preview") + " equality matches typed boolean and text variables", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "true", [
+      { id: "as-text", kind: "set-var", into: "expected", value: '"true"' },
+      { id: "compare", kind: "if",
+        cond: { subject: "var", target: "", left: "{items}", op: "eq", value: "{expected}" },
+        then: [{ id: "yes", kind: "set-var", into: "items", value: "matched" }],
+        else: [{ id: "no", kind: "set-var", into: "items", value: "unmatched" }],
+      },
+    ]);
+    await expect(answer).toHaveValue("matched");
+    expect(errors).toEqual([]);
+  });
 }
 
 for (const exported of [false, true]) {
@@ -834,6 +856,29 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("canvas transform menu exposes four groups without explicit text conversion", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "transform-groups", kind: "transform", source: "data.tags", into: "result",
+        transform: { kind: "field", key: "" },
+      });
+    });
+  });
+  const menu = page.locator('[data-sel-key="step:transform-groups"] select[aria-label="加工の種類"]');
+  await expect(menu).toHaveValue("field");
+  expect(await menu.locator("optgroup").evaluateAll((groups) =>
+    groups.map((group) => ({
+      label: (group as HTMLOptGroupElement).label,
+      values: [...group.querySelectorAll("option")].map((option) => option.value),
+    })))).toEqual([
+    { label: "値の取得・補完", values: ["field", "fallback"] },
+    { label: "数値・文字列の加工", values: ["math", "split", "replace", "join"] },
+    { label: "リストの操作", values: ["length", "sort", "append"] },
+    { label: "JSONの変換", values: ["stringify", "parse"] },
+  ]);
+});
 
 test("canvas append values use one typed input", async ({ page }) => {
   await page.evaluate(() => {

@@ -66,7 +66,7 @@ test("generated Vue and Svelte components never compile authored plain text into
 });
 
 
-test("list predicates and variable condition operators use the same typed semantics", () => {
+test("list predicates and variable condition operators share scalar text comparison semantics", () => {
   const ready = [{ status: "ready", price: 8 }, { status: "ready", price: 1 },
     { status: "draft", price: 9 }];
   const result = filterItems(ready, [{ kind: "filter", conds: [
@@ -77,7 +77,7 @@ test("list predicates and variable condition operators use the same typed semant
   assert.equal(matchesValueCondition("alphabet", "contains", "pha"), true);
   assert.equal(matchesValueCondition({ x: 1 }, "has-key", "x"), true);
   assert.equal(matchesValueCondition([1, 2], "contains", 2), true);
-  assert.equal(matchesValueCondition([1, 2], "contains", "2"), false);
+  assert.equal(matchesValueCondition([1, 2], "contains", "2"), true);
 });
 test("native framework links reject active URL schemes without breaking images", async () => {
   const source = nativeDataModule();

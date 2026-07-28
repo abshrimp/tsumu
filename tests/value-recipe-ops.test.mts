@@ -48,7 +48,7 @@ const run = (input: unknown, steps: readonly ValueTransform[]) => evaluateValueR
 const val = (value: unknown) => ({ kind: "value", value });
 
 test("all advertised transforms have stable, serializable defaults", () => {
-  assert.equal(VALUE_TRANSFORM_KINDS.length, 12);
+  assert.equal(VALUE_TRANSFORM_KINDS.length, 11);
   assert.equal(new Set(VALUE_TRANSFORM_KINDS).size, VALUE_TRANSFORM_KINDS.length);
   for (const kind of VALUE_TRANSFORM_KINDS) {
     const transform = defaultTransform(kind);
@@ -78,13 +78,23 @@ test("numeric operations accept number-like input, reject invalid coercions, and
 });
 
 
-test("split, join and replace compose without implicit coercion", () => {
+test("split, join and replace coerce scalars without coercing lists", () => {
   const items = run(" blue, , red, green ", [{ kind: "split", separator: "," }]);
   assert.deepEqual(items, val(["blue", "red", "green"]));
   assert.deepEqual(run((items as {kind:"value";value:unknown}).value, [{ kind: "join", separator: "/" }]), val("blue/red/green"));
   assert.deepEqual(run([0, false, "a", "", null], [{ kind: "join", separator: "-" }]), val("0-false-a"));
   assert.deepEqual(run([{ name: "A" }], [{ kind: "join", separator: "," }]), { kind: "error", code: "type-mismatch" });
   assert.deepEqual(run("banana", [{ kind: "replace", find: "na", replacement: "X", regex: false }]), val("baXX"));
+  assert.deepEqual(run(12345, [{ kind: "split", separator: "3" }]), val(["12", "45"]));
+  assert.deepEqual(run(true, [{ kind: "split", separator: "r" }]), val(["t", "ue"]));
+  assert.deepEqual(run(12345, [{ kind: "replace", find: "3", replacement: "X", regex: false }]), val("12X45"));
+  assert.deepEqual(run(true, [{ kind: "replace", find: "r", replacement: "R", regex: false }]), val("tRue"));
+  assert.deepEqual(run(false, [{ kind: "replace", find: "", replacement: "X", regex: false }]), val("false"));
+  for (const value of [null, [], { a: 1 }]) {
+    assert.deepEqual(run(value, [{ kind: "split", separator: "," }]), { kind: "error", code: "type-mismatch" });
+    assert.deepEqual(run(value, [{ kind: "replace", find: "a", replacement: "b", regex: false }]),
+      { kind: "error", code: "type-mismatch" });
+  }
   assert.deepEqual(run("ab12 cd34", [{ kind: "replace", find: "([a-z]+)(\\d+)", replacement: "$2:$1", regex: true }]), val("12:ab 34:cd"));
   assert.deepEqual(run("a", [{ kind: "replace", find: "(", replacement: "", regex: true }]), { kind: "error", code: "invalid-regex" });
 });
@@ -121,7 +131,7 @@ test("fallback has one operation with missing-only or missing-or-null semantics"
 });
 
 test("text, JSON and list conversion keep original typed data", () => {
-  assert.deepEqual(run(123, [{ kind: "format" }]), val("123"));
+  assert.deepEqual(run(123, [{ kind: "stringify" }]), val("123"));
   assert.deepEqual(run({ "0": "a" }, [{ kind: "stringify" }]), val('{"0":"a"}'));
   assert.deepEqual(run('{"0":"a"}', [{ kind: "parse" }]), val({ "0": "a" }));
   assert.deepEqual(run([1, 2], [{ kind: "length" }]), val(2));

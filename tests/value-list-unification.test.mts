@@ -15,7 +15,7 @@ const run = (steps: ScriptStep[], vars: Record<string, unknown>) =>
 test("list contains searches values, while has-key only checks own keys", () => {
   const dictionary = { apple: 100, banana: "200", orange: { price: 300 } };
   assert.equal(matchesValueCondition(dictionary, "contains", 100), true);
-  assert.equal(matchesValueCondition(dictionary, "contains", "100"), false);
+  assert.equal(matchesValueCondition(dictionary, "contains", "100"), true);
   assert.equal(matchesValueCondition(dictionary, "contains", "apple"), false);
   assert.equal(matchesValueCondition(dictionary, "has-key", "apple"), true);
   assert.equal(matchesValueCondition(dictionary, "has-key", "100"), false);
@@ -29,9 +29,20 @@ test("list contains searches values, while has-key only checks own keys", () => 
   assert.equal(matchesValueCondition(list, "has-key", "length"), false);
 });
 
-test("value checks keep typed values distinct and lists structurally comparable", () => {
-  assert.equal(matchesValueCondition(100, "eq", "100"), false);
+test("value checks equate exact scalar text while retaining other type boundaries", () => {
+  assert.equal(matchesValueCondition(100, "eq", "100"), true);
+  assert.equal(matchesValueCondition(true, "eq", "true"), true);
+  assert.equal(matchesValueCondition("false", "eq", false), true);
+  assert.equal(matchesValueCondition(100, "eq", "0100"), false);
+  assert.equal(matchesValueCondition(100, "eq", "1e2"), false);
   assert.equal(matchesValueCondition(false, "eq", 0), false);
+  assert.equal(matchesValueCondition(0, "eq", false), false);
+  assert.equal(matchesValueCondition(null, "eq", ""), false);
+  assert.equal(matchesValueCondition(undefined, "eq", ""), false);
+  assert.equal(matchesValueCondition(100, "in", "0100, 100"), true);
+  assert.equal(matchesValueCondition(100, "in", "0100, 1e2"), false);
+  assert.equal(matchesValueCondition({ x: 1, ok: true }, "eq", { x: "1", ok: "true" }), true);
+  assert.equal(matchesValueCondition([1, false, null], "contains", "1"), true);
   assert.equal(matchesValueCondition("12", "gt", 2), true);
   assert.equal(matchesValueCondition(true, "gt", 0), false);
   assert.equal(matchesValueCondition(null, "empty", ""), true);

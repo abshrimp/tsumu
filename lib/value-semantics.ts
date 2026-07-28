@@ -15,6 +15,12 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
   };
   const same = (a: unknown, b: unknown, depth = 0): boolean => {
     if (a === b) return true;
+    // Compare numbers and booleans with their exact text forms, without JS ==.
+    // Preserve null, missing values, scalar-kind differences, and numeric spelling.
+    if (typeof a === "string" && (typeof b === "boolean" ||
+        (typeof b === "number" && Number.isFinite(b)))) return a === String(b);
+    if (typeof b === "string" && (typeof a === "boolean" ||
+        (typeof a === "number" && Number.isFinite(a)))) return String(a) === b;
     if (!record(a) || !record(b) || depth >= 16) return false;
     const aa = Object.keys(a), bb = Object.keys(b);
     if (aa.length !== bb.length || aa.length > 10000) return false;
@@ -41,8 +47,7 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
     if (record(right)) return Object.keys(right).some((key) =>
       same((right as Record<string, unknown>)[key], left));
     if (typeof right !== "string") return false;
-    return right.split(",").some((part) => same(left, part.trim()) ||
-      (typeof left === "number" && numeric(part.trim()) === left));
+    return right.split(",").some((part) => same(left, part.trim()));
   }
   if (operator === "starts-with" || operator === "ends-with") {
     if (left === undefined || left === null || record(left) || record(right)) return false;

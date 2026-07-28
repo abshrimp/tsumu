@@ -272,7 +272,7 @@ export const PALETTE: PaletteItem[] = [
     icon: Workflow,
     label: tr("変数［］の値を［加工］して変数［］に入れる"),
     make: () => one({
-      id: st(), kind: "transform", source: "", into: "", transform: { kind: "format" },
+      id: st(), kind: "transform", source: "", into: "", transform: { kind: "field", key: "" },
     }),
   },
   {
