@@ -5,7 +5,7 @@ import { tr } from "../i18n";
  * サイト全体のCSS（要素のスタイル・画面幅・状態・フォント）の書き出し
  */
 
-import { replaceCssAssetUrls } from "../css-assets";
+import { escapeStyleContent, replaceCssAssetUrls } from "../css-assets";
 import type { Breakpoint, Page, SiteDoc, StyleMap } from "../types";
 import {
   allFonts,
@@ -390,7 +390,7 @@ export function rawHtmlWithBodyStyles(
       );
     }
   }
-  const css = [...base, ...responsive].join("\n\n").replace(/<\/style/gi, "<\\/style");
+  const css = escapeStyleContent([...base, ...responsive].join("\n\n"));
   if (!css) return html;
   const style = `<style data-editor-body-style>\n${css}\n</style>`;
   return /<\/head>/i.test(html)

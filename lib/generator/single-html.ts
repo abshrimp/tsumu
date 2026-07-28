@@ -1,7 +1,7 @@
 import type { DefaultTreeAdapterTypes as Html } from "parse5";
 import type { GeneratedProject } from "../generator";
 import { fetchWithRetry } from "../assets";
-import { CSS_ASSET_ATTRIBUTES } from "../css-assets";
+import { CSS_ASSET_ATTRIBUTES, escapeStyleContent } from "../css-assets";
 import { rewriteSrcsetUrls } from "../srcset";
 import { EXPORT_BASE, SINGLE_HTML_LIMIT, HtmlOutput, singleHtmlResources, textBytes, type ResourceRequest } from "./single-html-resources";
 
@@ -105,7 +105,7 @@ export async function toSingleHtmlProject(
           attrs.delete("integrity"); // The original bytes were verified before rewriting CSS.
         } else {
           for (const key of ["rel", "href", "integrity", "crossorigin", "referrerpolicy"]) attrs.delete(key);
-          replacement = startTag("style", attrs) + "\n" + css.replace(/<\/style/gi, "<\\/style") + "\n</style>";
+          replacement = startTag("style", attrs) + "\n" + escapeStyleContent(css) + "\n</style>";
         }
       } else if (href && rel.includes("icon")) set("href", await resources.embed(href, base));
     } else if (htmlTag && name === "script" && get("src")) {
@@ -141,7 +141,7 @@ export async function toSingleHtmlProject(
       const content = html.slice(start.endOffset, stop);
       const css = await resources.css(content, base);
       if (css !== content) {
-        replacement = (modified ? startTag(name, attrs) : original) + css.replace(/<\/style/gi, "<\\/style");
+        replacement = (modified ? startTag(name, attrs) : original) + escapeStyleContent(css);
         end = stop;
       }
     }

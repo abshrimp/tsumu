@@ -143,13 +143,18 @@ export async function getSite(db: Db, id: string): Promise<SiteRecord | null> {
   return rs.rows[0] ? toRecord(rs.rows[0]) : null;
 }
 
-export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>): Promise<void> {
+export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, initialBody?: string): Promise<void> {
   const now = Date.now();
-  await db.execute({
+  const site = {
     sql: `INSERT INTO sites (id, name, repo, branch, preview_branch, site_url, preview_url, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [id, v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
-  });
+  };
+  if (initialBody === undefined) { await db.execute(site); return; }
+  await db.batch([site, {
+    sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, 1, ?, ?)",
+    args: [id, now, initialBody],
+  }]);
 }
 
 /** Save only against the settings that were validated; callers retry a competing update. */

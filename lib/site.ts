@@ -13,6 +13,8 @@ import {
   type SiteRecord,
 } from "./sites";
 import { storageKey } from "./storage-keys";
+import { withLocalSiteListLock } from "./local-site-lock";
+export { withLocalSiteListLock };
 
 /** 編集データのブラウザ保存（サイトごとに siteKey で分ける） */
 export const DOC_STORAGE_KEY = storageKey("doc-v1");
@@ -86,6 +88,12 @@ export function otherLocalDocs(): string[] {
 
 const LOCAL_SITES_KEY = storageKey("sites-v1");
 
+/** Never replace an existing list entry, deleted site, or unlisted document. */
+export function localSiteIdInUse(id: string, list: SiteRecord[]): boolean {
+  return list.some(site => site.id === id) || isLocalSiteDeleted(id) ||
+    window.localStorage.getItem(siteKey(DOC_STORAGE_KEY, id)) !== null;
+}
+
 /** 明示的なローカルサイト削除の記録。古いタブの一覧保存や掃除で消さない。 */
 export const LOCAL_SITE_DELETED_KEY = storageKey("site-deleted-v1");
 
@@ -129,13 +137,11 @@ export function saveLocalSites(list: SiteRecord[]): boolean {
 /** いま開いているサイトの最終編集時刻を、ブラウザ内のサイト一覧に記録する */
 export function touchLocalSite(at = Date.now()): void {
   const id = currentSiteId();
-  try {
+  void withLocalSiteListLock(() => {
     const list = loadLocalSites({ strict: true });
     if (!list.some((s) => s.id === id)) return;
     saveLocalSites(list.map((s) => (s.id === id ? { ...s, updatedAt: at, savedAt: at } : s)));
-  } catch {
-    // 最終編集時刻だけの更新なので、一覧を読めないときは編集データの保存を妨げずに見送る。
-  }
+  }).catch(() => { /* Updating the timestamp is best effort; the document was already saved. */ });
 }
 
 /** ブラウザ内に保存した、いま開いているサイトの公開先（無ければ null） */

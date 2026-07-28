@@ -118,7 +118,7 @@ for (const storage of ["local", "remote"] as const) {
     expect(fixture.errors).toEqual([]);
   });
 
-  test(`ZIP CSS ${storage}: nested styles, images and a real font load in the opaque preview`, async ({ page }) => {
+  test(`ZIP CSS ${storage}: nested styles, images and a real font load in the opaque preview`, async ({ page, browserName }) => {
     const fixture = await zipCssBrowser(page, storage);
     await fixture.mount();
     const frame = await previewFrame(page);
@@ -136,7 +136,11 @@ for (const storage of ["local", "remote"] as const) {
       expect(fixture.resources.length).toBeGreaterThan(0);
       expect(fixture.resources.every((request) => !request.cookie)).toBe(true);
       const fontRequest = fixture.resources.find((request) => new URL(request.url).searchParams.get("path") === font);
-      expect(fontRequest?.origin).toBe("null");
+      expect(fontRequest).toBeDefined();
+      expect(await frame.evaluate(() => self.origin)).toBe("null");
+      // WebKit can omit Origin from this intercepted font request. When the
+      // browser reports the header, it must agree with the sandbox's origin.
+      if (browserName !== "webkit" || fontRequest!.origin !== undefined) expect(fontRequest!.origin).toBe("null");
       expect(new URL(fontRequest!.url).searchParams.get("font")).toBe("2");
       const backgroundRequest = fixture.resources.find((request) => new URL(request.url).searchParams.get("path") === background);
       expect(new URL(backgroundRequest!.url).searchParams.get("cache")).toBe("4");

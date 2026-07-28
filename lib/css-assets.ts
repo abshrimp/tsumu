@@ -169,6 +169,11 @@ function replacement(
   return target === undefined ? undefined : target + url.slice(hash);
 }
 
+/** Keep authored CSS text inside its HTML style element, preserving case and CSS string values. */
+export function escapeStyleContent(css: string): string {
+  return css.replace(/<\/(?=style)/gi, "<\\/");
+}
+
 export function escapeCssAssetUrl(url: string, quote: string): string {
   return url.replace(/[\\"'()\s\u0000-\u001f\u007f]/g, (c) => {
     if (c === "\\" || c === quote || (!quote && /["'()]/.test(c))) return `\\${c}`;

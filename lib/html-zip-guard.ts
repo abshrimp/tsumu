@@ -1,5 +1,6 @@
 import type JSZip from "jszip";
 import { IMPORT_LIMITS } from "./site-import";
+import { zipEntrySize } from "./zip-directory";
 import { ZIP_CSS_LIMITS } from "./zip-css";
 
 export const HTML_ZIP_LIMITS = {
@@ -45,21 +46,21 @@ export function inspectHtmlZip(zip: JSZip): {
     if (paths.has(canonical)) throw new Error("ZIPに重複したファイルパスがあります。");
     paths.add(canonical);
 
-    const size = entry._data?.uncompressedSize;
+    const size = zipEntrySize(entry);
     // Unknown/unsafe sizes cannot be used to bound a ZIP bomb before extraction.
-    if (!Number.isSafeInteger(size) || size! < 0) {
+    if (size === null) {
       throw new Error("ZIP内のファイルサイズが正しくありません。");
     }
-    expanded += size!;
+    expanded += size;
     if (expanded > HTML_ZIP_LIMITS.expandedBytes) {
       throw new Error("ZIP展開後のデータが大きすぎます。");
     }
     if (/\.html?$/i.test(name)) {
-      if (size! > HTML_ZIP_LIMITS.htmlBytes) throw new Error("ZIP内のHTMLが大きすぎます。");
+      if (size > HTML_ZIP_LIMITS.htmlBytes) throw new Error("ZIP内のHTMLが大きすぎます。");
     } else if (/\.css$/i.test(name)) {
-      cssBytes += size!;
+      cssBytes += size;
       if (cssBytes > HTML_ZIP_LIMITS.cssBytes) throw new Error("ZIP内のCSSは合計2MBまでです");
-    } else if (size! > HTML_ZIP_LIMITS.assetBytes) {
+    } else if (size > HTML_ZIP_LIMITS.assetBytes) {
       throw new Error("ZIP内のアセットが大きすぎます。");
     }
   }
