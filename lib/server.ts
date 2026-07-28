@@ -17,7 +17,9 @@ export async function requireAuth(): Promise<NextResponse | null> {
     return NextResponse.json({ error: tr("ログインが設定されていません") }, { status: 503 });
   }
   const session = await auth();
-  if (!session) {
+  // Googleの検証済みメールがないセッションをログイン済みとみなさない。
+  // NextAuth側でセッションの形式が変化した場合もAPIへの認可を fail-closed にする。
+  if (typeof session?.user?.email !== "string" || !session.user.email.trim()) {
     const tr = await serverTr();
     return NextResponse.json({ error: tr("ログインが必要です") }, { status: 401 });
   }

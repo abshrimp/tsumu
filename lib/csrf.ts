@@ -1,21 +1,40 @@
 /**
  * ほかのサイトから送られてきた、状態を変えるリクエストか（CSRF対策。middleware.ts で使う）。
- * ブラウザは別のサイトからの POST などに Origin・Sec-Fetch-Site を付ける。
- * ログインを使っていない（Cookie で守れない）ときも、ローカルで開いたエディタを
- * 別のサイトから操作されないようにする
+ * ブラウザの Fetch Metadata と Origin を組み合わせる。異なる scheme の同一ホストも
+ * 別オリジンであり、特にローカル・認証なしのエディタでは書き込みを許してはならない。
  */
-export function isCrossSiteWrite(req: { method: string; headers: Headers; nextUrl: { host: string } }): boolean {
+export function isCrossSiteWrite(req: {
+  method: string;
+  headers: Headers;
+  nextUrl: { host: string; protocol?: string };
+}): boolean {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())) return false;
-  // 今のブラウザは Sec-Fetch-Site を必ず付けるので、あればそれだけで決める。
-  // リバースプロキシが Host を内部の名前に書き換えていても、エディタ自身のリクエストを止めないように
+
   const site = req.headers.get("sec-fetch-site");
-  if (site) return site !== "same-origin" && site !== "none";
-  // 付けない古いブラウザは、Origin とホスト名を比べる
+  // site はブラウザが設定する。same-site（サブドメインや http/https の違い）は許可しない。
+  if (site && site !== "same-origin" && site !== "none") return true;
+
   const origin = req.headers.get("origin");
+  // Origin を送らない非ブラウザクライアントや、一部の同一オリジンリクエストを維持する。
+  // ブラウザ発のクロスサイト書き込みには Origin または Sec-Fetch-Site が付く。
   if (!origin) return false;
   try {
-    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host;
-    return new URL(origin).host !== host;
+    const parsed = new URL(origin);
+    // Origin ヘッダーは scheme + authority だけ。null、パス、ユーザー情報は認めない。
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.origin !== origin) return true;
+
+    // NextRequest の公開 URL を優先する。Host がリバースプロキシ内部名でも
+    // Sec-Fetch-Site に依存せず正しい Origin を認識できる。
+    const forwarded = req.headers.get("x-forwarded-host");
+    const host = forwarded ?? req.nextUrl.host ?? req.headers.get("host");
+    if (!host || host.includes(",")) return true;
+
+    const forwardedProto = req.headers.get("x-forwarded-proto");
+    const protocol = forwardedProto ?? req.nextUrl.protocol;
+    if (!protocol) return parsed.host !== host; // 次のURLを持たない単体テスト用
+    if (!/^https?:?$/i.test(protocol)) return true;
+    const scheme = protocol.endsWith(":") ? protocol : `${protocol}:`;
+    return parsed.origin !== new URL(`${scheme}//${host}`).origin;
   } catch {
     return true;
   }

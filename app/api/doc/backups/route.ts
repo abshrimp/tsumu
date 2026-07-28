@@ -19,14 +19,14 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
-  const dayParam = params.get("day");
+  const dayParams = params.getAll("day");
+  if (dayParams.length > 1 || (dayParams.length === 1 && !/^[0-6]$/.test(dayParams[0]))) {
+    return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+  }
+  const day = dayParams.length ? Number(dayParams[0]) : null;
   try {
     const db = await getDb();
-    if (dayParam !== null) {
-      const day = Number(dayParam);
-      if (!Number.isInteger(day) || day < 0 || day > 6) {
-        return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
-      }
+    if (day !== null) {
       const rs = await db.execute({
         sql: "SELECT body FROM site_backups WHERE site_id = ? AND day = ?",
         args: [siteId, day],
@@ -37,7 +37,10 @@ export async function GET(req: Request) {
       }
       // 保存済みのJSONをパースし直さずに返す（Workers無料プランのCPU時間制限対策）
       return new NextResponse(String(row.body), {
-        headers: { "Content-Type": "application/json; charset=utf-8" },
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "private, no-store",
+        },
       });
     }
     const rs = await db.execute({
@@ -50,7 +53,7 @@ export async function GET(req: Request) {
         savedAt: Number(r.saved_at),
         bytes: Number(r.size),
       })),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     return NextResponse.json(
       { error: tr(userMessage(e, "読み込めませんでした")) },

@@ -151,9 +151,14 @@ for (const published of [false, true]) {
     await install(page, published, entries);
     await page.locator("#owner").hover();
     await expect(page.locator("#menu")).toBeVisible();
-    await page.locator("#menu").hover();
+    // Move the pointer directly: locator.hover() may wait for actionability
+    // long enough for the delayed exit to hide a sibling menu.
+    const menu = page.locator("#menu");
+    const box = await menu.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
     await page.waitForTimeout(220);
-    await expect(page.locator("#menu")).toBeVisible();
+    await expect(menu).toBeVisible();
     await page.locator("#outside").hover();
     await expect(page.locator("#menu")).toBeHidden();
   });

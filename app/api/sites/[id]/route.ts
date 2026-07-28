@@ -4,6 +4,7 @@ import { serverTr } from "../../../../lib/i18n-server";
 import { requireAuth } from "../../../../lib/server";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { userMessage } from "../../../../lib/errors";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../lib/api-json";
 import {
   deleteSite,
   getSite,
@@ -37,7 +38,9 @@ export async function GET(_req: Request, ctx: Ctx) {
   try {
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
-    return NextResponse.json({ site: r.site });
+    return NextResponse.json({ site: r.site }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (e) {
     const tr = await serverTr();
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
@@ -49,7 +52,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
-    const input = (await req.json().catch(() => null)) as SiteInput | null;
+    let input: SiteInput | null;
+    try {
+      input = await readJsonLimited(req, 64 * 1024) as SiteInput | null;
+    } catch (error) {
+      return NextResponse.json({ error: r.tr("リクエストが正しくありません") }, {
+        status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+      });
+    }
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       return NextResponse.json({ error: r.tr("リクエストが正しくありません") }, { status: 400 });
     }

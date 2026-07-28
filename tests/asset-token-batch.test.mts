@@ -1,0 +1,106 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { ASSET_TOKEN_TTL, signAssetPath, signAssetPaths, verifyAssetToken } from "../lib/asset-token";
+
+const secret = process.env.AUTH_SECRET;
+const setSecret = (value: string | undefined) => {
+  if (value === undefined) delete process.env.AUTH_SECRET;
+  else process.env.AUTH_SECRET = value;
+};
+
+test("batched asset tokens are path-bound, expire and share one expiry", async () => {
+  setSecret("test-asset-batch-secret");
+  try {
+    const now = 1_700_000_000_000;
+    const paths = ["assets/a.png", "assets/b.svg", "assets/a.png"];
+    const tokens = await signAssetPaths(paths, now);
+    assert.equal(tokens.size, 2);
+    const expiries = new Set<string>();
+    for (const [path, token] of tokens) {
+      assert.ok(token);
+      const query = new URLSearchParams(token);
+      expiries.add(query.get("exp")!);
+      assert.equal(await verifyAssetToken(path, query.get("exp"), query.get("sig"), now), true);
+      assert.equal(await verifyAssetToken("assets/unrelated.png", query.get("exp"), query.get("sig"), now), false);
+      assert.equal(await verifyAssetToken(path, query.get("exp"), query.get("sig"), now + ASSET_TOKEN_TTL + 1), false);
+      assert.equal(await signAssetPath(path, now), token);
+    }
+    assert.deepEqual([...expiries], [String(now + ASSET_TOKEN_TTL)]);
+
+    setSecret(undefined);
+    const unsigned = await signAssetPaths(paths, now);
+    assert.equal(unsigned.size, 2);
+    assert.ok([...unsigned.values()].every(value => value === null));
+  } finally {
+    setSecret(secret);
+  }
+});
+
+test("signing many assets imports the secret key only once per batch", async () => {
+  setSecret("test-asset-batch-secret");
+  const subtle = crypto.subtle;
+  const original = subtle.importKey;
+  let imports = 0;
+  Object.defineProperty(subtle, "importKey", {
+    configurable: true,
+    writable: true,
+    value: (...args: unknown[]) => {
+      imports++;
+      return Reflect.apply(original, subtle, args);
+    },
+  });
+  try {
+    const tokens = await signAssetPaths(
+      Array.from({ length: 500 }, (_, i) => `assets/preview-${i}.png`),
+      1_700_000_000_000,
+    );
+    assert.equal(tokens.size, 500);
+    assert.equal(imports, 1, "one HMAC import per request, not per asset");
+  } finally {
+    delete (subtle as unknown as { importKey?: unknown }).importKey;
+    setSecret(secret);
+  }
+});
+
+
+test("invalid asset signatures are rejected before base64 decoding and key import", async () => {
+  setSecret("test-asset-batch-secret");
+  const now = 1_700_000_000_000;
+  const valid = new URLSearchParams((await signAssetPath("assets/example.png", now))!);
+  const subtle = crypto.subtle;
+  const original = subtle.importKey;
+  let imports = 0;
+  Object.defineProperty(subtle, "importKey", {
+    configurable: true,
+    writable: true,
+    value: (...args: unknown[]) => {
+      imports++;
+      return Reflect.apply(original, subtle, args);
+    },
+  });
+  try {
+    const canonical = valid.get("sig")!;
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const index = alphabet.indexOf(canonical.at(-1)!);
+    assert.equal(index % 4, 0);
+    const alias = canonical.slice(0, -1) + alphabet[index + 1];
+    assert.equal(await verifyAssetToken("assets/example.png", valid.get("exp"), alias, now), false,
+      "different final padding bits must not alias the same HMAC bytes");
+    for (const signature of [
+      "A".repeat(100_000),
+      "A".repeat(42),
+      "A".repeat(44),
+      "A".repeat(42) + "=",
+      "x:invalid",
+    ]) {
+      assert.equal(await verifyAssetToken("assets/example.png", valid.get("exp"), signature, now), false);
+    }
+    for (const expiry of ["0", "9999999999999999", "invalid"]) {
+      assert.equal(await verifyAssetToken("assets/example.png", expiry, valid.get("sig"), now), false);
+    }
+    assert.equal(imports, 0, "malformed query strings must not invoke the HMAC runtime");
+  } finally {
+    delete (subtle as unknown as { importKey?: unknown }).importKey;
+    setSecret(secret);
+  }
+});
