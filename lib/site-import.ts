@@ -1,5 +1,5 @@
 import { rebindImportedAssetUrls } from "./imported-asset-urls";
-import { sanitizeImportedSvg } from "./imported-svg";
+import { sanitizeImportedInlineIcons } from "./imported-svg";
 import { IMPORT_LIMITS, isImportObject, validateImportedDoc } from "./site-import-format";
 import type JSZip from "jszip";
 import { openImportZip, zipEntrySize } from "./zip-directory";
@@ -189,10 +189,8 @@ export async function restoreImportAssets(
     // Do not point at an unrelated asset key in the destination installation.
     if (asset.path) delete asset.path;
   }
-  // JSON/ZIP imports can contain active SVG even without going through HTML conversion.
-  for (const node of Object.values(doc.nodes)) {
-    if (node.type === "icon" && node.icon?.svg) node.icon.svg = sanitizeImportedSvg(node.icon.svg);
-  }
+  // History restoration and file imports use the same SVG sanitization policy.
+  sanitizeImportedInlineIcons(doc);
   rebindImportedAssetUrls(imported.doc, doc);
   return { doc, warnings: [...new Set(warnings)], createdPaths };
 }

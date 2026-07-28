@@ -3,6 +3,7 @@ import { serverTr } from "../../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../../lib/server";
 import {
   branchPath,
+  advanceBranchRef,
   configError,
   githubClient,
   targetConfig,
@@ -12,13 +13,44 @@ import {
 import type { PublishTarget } from "../../../../lib/generator";
 import { userMessage } from "../../../../lib/errors";
 import { destParam, siteDestOf, siteIdOf } from "../../../../lib/site-server";
-import { DOC_PATH, protectedTreeEdits, type TreeEntry } from "../../../../lib/publish-files";
+import {
+  DOC_PATH,
+  GENERATED_MANIFEST_PATH,
+  conflictingCommitPaths,
+  isProtectedPath,
+  isSafeCommitPath,
+  keptTreeEntries,
+  parseGeneratedManifest,
+  planPublish,
+  protectedTreeEdits,
+  type TreeEntry,
+} from "../../../../lib/publish-files";
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
+import { hasPublishCredentials } from "../../../../lib/publish-security";
 
 export const maxDuration = 30;
+const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
 
-const isSha = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{7,40}$/i.test(s);
+const isSha = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{40}$/i.test(s);
+
+/** A SHA from a different branch (or an unreachable commit) is not a history
+ * entry for the selected publication target, even when GitHub can read it. */
+async function belongsToHistory(
+  gh: (path: string) => Promise<Response>,
+  fail: (step: string, response: Response) => Promise<never>,
+  tr: (message: string) => string,
+  sha: string,
+  head: string
+): Promise<boolean> {
+  if (sha === head) return true;
+  const res = await gh(`/compare/${sha}...${head}`);
+  if (res.status === 404 || res.status === 422) return false;
+  if (!res.ok) await fail(tr("指定した版の取得"), res);
+  const data = (await res.json()) as { merge_base_commit?: { sha?: unknown } };
+  // Merely existing in the repository does not authorize restoration.
+  return data.merge_base_commit?.sha === sha;
+}
 
 function parseTarget(v: unknown): PublishTarget {
   return v === "test" ? "test" : "production";
@@ -55,6 +87,10 @@ export async function GET(req: Request) {
       if (!isSha(docSha)) {
         return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
       }
+      const current = await head();
+      if (!current || !(await belongsToHistory(gh, fail, tr, docSha, current))) {
+        return NextResponse.json({ error: tr("この版には編集データが含まれていません") }, { status: 404 });
+      }
       // raw で受け取り、パースせずにそのまま返す（大きな編集データでもCPU時間を使わない）
       const res = await gh(`/contents/${DOC_PATH}?ref=${docSha}`, {
         accept: "application/vnd.github.raw+json",
@@ -67,12 +103,12 @@ export async function GET(req: Request) {
       }
       if (!res.ok) await fail(tr("編集データの取得"), res);
       return new NextResponse(res.body, {
-        headers: { "Content-Type": "application/json; charset=utf-8" },
+        headers: { ...PRIVATE_NO_STORE, "Content-Type": "application/json; charset=utf-8" },
       });
     }
 
     const current = await head();
-    if (!current) return NextResponse.json({ head: null, commits: [] });
+    if (!current) return NextResponse.json({ head: null, commits: [] }, { headers: PRIVATE_NO_STORE });
     const res = await gh(`/commits?sha=${current}&per_page=30`);
     if (!res.ok) await fail(tr("履歴の取得"), res);
     const list = (await res.json()) as {
@@ -86,7 +122,7 @@ export async function GET(req: Request) {
       date: c.commit.committer?.date ?? c.commit.author?.date ?? "",
       url: c.html_url,
     }));
-    return NextResponse.json({ head: current, commits });
+    return NextResponse.json({ head: current, commits }, { headers: PRIVATE_NO_STORE });
   } catch (e) {
     return NextResponse.json(
       { error: tr(userMessage(e, "履歴を読み込めませんでした")) },
@@ -136,16 +172,110 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("まだ公開されていません") }, { status: 404 });
     }
     if (current !== body.expectedHead) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
+    if (!(await belongsToHistory(gh, fail, tr, sha, current))) {
+      return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 404 });
+    }
     const srcRes = await gh(`/git/commits/${sha}`);
     if (!srcRes.ok) await fail(tr("指定した版の取得"), srcRes);
     const src = (await srcRes.json()) as { tree: { sha: string }; message: string };
-    // .github/ は戻さず、いまの先端のものを引き継ぐ（公開と同じく、エディタからは書き込ませない）
-    const topLevel = async (commit: string): Promise<TreeEntry[]> => {
-      const res = await gh(`/git/trees/${commit}`);
+    // A rollback replaces the generated site, not manually maintained files.
+    // Compare full snapshots and keep manual files added after the old commit.
+    // Refuse partial trees, since an omitted file could otherwise be deleted.
+    const readTree = async (commit: string): Promise<TreeEntry[]> => {
+      const res = await gh(`/git/trees/${commit}?recursive=1`);
       if (!res.ok) await fail(tr("ツリーの取得"), res);
-      return ((await res.json()) as { tree: TreeEntry[] }).tree;
+      const result = (await res.json()) as { tree?: TreeEntry[]; truncated?: boolean };
+      if (result.truncated || !Array.isArray(result.tree) ||
+          result.tree.some(entry => !isSafeCommitPath(entry.path))) {
+        throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
+      }
+      return result.tree;
     };
-    const edits = protectedTreeEdits(await topLevel(src.tree.sha), await topLevel(current));
+    const [sourceEntries, currentEntries] = await Promise.all([
+      readTree(src.tree.sha), readTree(current),
+    ]);
+    // A rollback is also a publication. It must not reintroduce credential
+    // settings from an older editable document that normal publishing rejects.
+    const sourceDoc = sourceEntries.find(entry => entry.path === DOC_PATH && entry.type === "blob");
+    if (sourceDoc?.sha) {
+      const docRes = await gh(`/git/blobs/${sourceDoc.sha}`);
+      if (!docRes.ok) await fail(tr("編集データの取得"), docRes);
+      const blob = (await docRes.json()) as { content?: unknown; encoding?: unknown };
+      if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
+        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+      }
+      const bytes = Buffer.from(blob.content, "base64");
+      if (bytes.byteLength > 12 * 1024 * 1024) {
+        return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
+      }
+      let doc: unknown;
+      try { doc = JSON.parse(bytes.toString("utf8")); } catch {
+        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+      }
+      if (hasPublishCredentials(doc as Parameters<typeof hasPublishCredentials>[0])) {
+        return NextResponse.json({
+          error: tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"),
+        }, { status: 400 });
+      }
+    }
+    const leaf = (entries: TreeEntry[]) => entries.filter(
+      entry => (entry.type === "blob" || entry.type === "commit") && !!entry.sha
+    );
+    const blobsOf = (items: TreeEntry[]): Record<string, string> => {
+      const blobs: Record<string, string> = Object.create(null);
+      for (const entry of leaf(items)) blobs[entry.path] = entry.sha!;
+      return blobs;
+    };
+    const currentBlobs = blobsOf(currentEntries);
+    const sourceBlobs = blobsOf(sourceEntries);
+
+    // Read ownership metadata for both revisions. Never infer that every
+    // historical file was generated: a user may have deleted a manual file
+    // after the chosen snapshot, and rollback must respect that deletion.
+    const readGenerated = async (blobs: Record<string, string>): Promise<Record<string, string> | null> => {
+      const sha = blobs[GENERATED_MANIFEST_PATH];
+      if (!sha) return null;
+      const res = await gh(`/git/blobs/${sha}`);
+      if (!res.ok) await fail(tr("ツリーの取得"), res);
+      const data = (await res.json()) as { content?: unknown; encoding?: unknown };
+      if (typeof data.content !== "string" || (data.encoding && data.encoding !== "base64")) {
+        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      }
+      const parsed = parseGeneratedManifest(Buffer.from(data.content, "base64").toString("utf8"));
+      if (!parsed) throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      return parsed;
+    };
+    const generated = await readGenerated(currentBlobs);
+    const sourceGenerated = await readGenerated(sourceBlobs);
+    const sourcePaths = leaf(sourceEntries).map(entry => entry.path);
+    const manual = planPublish(currentBlobs, generated, []);
+    const keptPaths = Object.keys(manual.kept).filter(path => !isProtectedPath(path));
+    const kept = keptTreeEntries(currentEntries, keptPaths);
+    if (!kept || conflictingCommitPaths([...sourcePaths.filter(path => !isProtectedPath(path)), ...keptPaths])) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 409 });
+    }
+    // Preserve .github as a whole subtree. Do not also write its nested files
+    // in this Git Trees API request; that could replace the subtree.
+    const sourceRoot = sourceEntries.filter(entry => !entry.path.includes("/"));
+    const currentRoot = currentEntries.filter(entry => !entry.path.includes("/"));
+    const sourceByPath = new Map(sourceEntries.map(entry => [entry.path, entry]));
+    // When the older generated-file manifest exists, retain current deletions
+    // of files that were manually owned in the historical tree. Generated
+    // files absent from the current tree must still be restored.
+    const deletedManual = sourceGenerated
+      ? leaf(sourceEntries).filter(entry =>
+          !isProtectedPath(entry.path) && !entry.path.startsWith("_tsumu/") &&
+          !Object.hasOwn(sourceGenerated, entry.path) &&
+          !Object.hasOwn(currentBlobs, entry.path))
+      : [];
+    const edits = [
+      ...protectedTreeEdits(sourceRoot, currentRoot),
+      ...deletedManual.map(entry => ({ path: entry.path, mode: entry.mode, type: entry.type, sha: null })),
+      ...kept.filter(entry => {
+        const prior = sourceByPath.get(entry.path);
+        return !prior || prior.sha !== entry.sha || prior.mode !== entry.mode || prior.type !== entry.type;
+      }),
+    ];
     let treeSha = src.tree.sha;
     if (edits.length) {
       const treeRes = await gh(`/git/trees`, {
@@ -165,19 +295,19 @@ export async function POST(req: Request) {
     });
     if (!commitRes.ok) await fail(tr("コミットの作成"), commitRes);
     const commitSha = (await commitRes.json()).sha as string;
-    const upRes = await gh(`/git/refs/heads/${branchPath(conf.branch)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ sha: commitSha, force: false }),
-    });
-    if (upRes.status === 422 || upRes.status === 409) {
+    if (!(await advanceBranchRef(gh, fail, conf.branch, commitSha, true, tr))) {
       return NextResponse.json(
         { error: tr("ほかの公開と重なりました。履歴を読み込み直してから、もう一度お試しください") },
         { status: 409 }
       );
     }
-    if (!upRes.ok) await fail(tr("ブランチの更新"), upRes);
-    // ロールバックも公開として記録する（右下の「公開」に、最後に公開した人として出す）
-    await recordPublish(siteId, target);
+    // GitHub's ref has already moved. A bookkeeping outage must not report
+    // that rollback failed and encourage a duplicate rollback commit.
+    try {
+      await recordPublish(siteId, target);
+    } catch {
+      console.warn("Rollback completed, but the local publication record could not be updated", { siteId, target });
+    }
     return NextResponse.json({
       ok: true,
       commit: commitSha,

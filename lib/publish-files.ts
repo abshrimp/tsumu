@@ -60,6 +60,23 @@ export function isSafeCommitPath(path: string): boolean {
 }
 
 /**
+ * A Git tree cannot contain both a file and a child of that file, e.g.
+ * `public/assets` (symlink) alongside `public/assets/logo.svg`.
+ * GitHub's nested-tree API may replace one with the other depending on
+ * entry ordering, so reject prefix conflicts before constructing a tree.
+ */
+export function conflictingCommitPaths(paths: Iterable<string>): [string, string] | null {
+  const all = new Set(paths);
+  for (const path of all) {
+    for (let slash = path.indexOf("/"); slash !== -1; slash = path.indexOf("/", slash + 1)) {
+      const parent = path.slice(0, slash);
+      if (all.has(parent)) return [parent, path];
+    }
+  }
+  return null;
+}
+
+/**
  * 書き出しには使わず、手で追加したものをそのまま引き継ぐときだけコミットを許す場所。
  * .github/ のワークフローはリポジトリのシークレットで動くため、エディタの利用者が
  * サーバーのトークンで書き込めないようにする

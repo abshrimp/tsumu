@@ -1,4 +1,5 @@
 import DOMPurify from "dompurify";
+import type { SiteDoc } from "./types";
 import { parseFragment, serialize, type DefaultTreeAdapterTypes as Html } from "parse5";
 
 // Imports normally run in the browser. Keep the same trust boundary when
@@ -91,4 +92,12 @@ export function sanitizeImportedSvg(svg: string): string {
   };
   const originalTree = normalised(svg);
   return originalTree !== null && originalTree === normalised(cleaned) ? svg : cleaned;
+}
+
+/** Sanitize untrusted inline icon SVG, whether imported from a file or restored from GitHub. */
+export function sanitizeImportedInlineIcons(doc: SiteDoc): SiteDoc {
+  for (const node of Object.values(doc.nodes)) {
+    if (node.type === "icon" && node.icon?.svg) node.icon.svg = sanitizeImportedSvg(node.icon.svg);
+  }
+  return doc;
 }

@@ -3,6 +3,7 @@ import { serverTr } from "../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../lib/server";
 import {
   branchPath as toBranchPath,
+  advanceBranchRef,
   configError,
   githubClient,
   previewEnabled,
@@ -16,20 +17,25 @@ import { destParam, siteDestOf, siteIdOf } from "../../../lib/site-server";
 import {
   GENERATED_MANIFEST_PATH,
   ASSET_MANIFEST_PATH,
+  DOC_PATH,
   isProtectedPath,
   isSafeCommitPath,
+  conflictingCommitPaths,
   parseGeneratedManifest,
+  planPublish,
   keptTreeEntries,
   type TreeEntry,
 } from "../../../lib/publish-files";
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../lib/publish-preconditions";
+import { hasPublishCredentials } from "../../../lib/publish-security";
 
 export const maxDuration = 60;
 
 /** ツリー作成1リクエストあたりの上限（項目数・インライン本文の文字数） */
 const TREE_CHUNK_ITEMS = 200;
 const TREE_CHUNK_BYTES = 512 * 1024;
+const MAX_DOC_BYTES = 12 * 1024 * 1024;
 
 interface TargetField {
   expected: unknown;
@@ -105,7 +111,7 @@ export async function GET(req: Request) {
     previewEnabled: previewEnabled(dest),
     test: describe("test"),
     production: describe("production"),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -272,6 +278,7 @@ export async function POST(req: Request) {
       body.action !== "commit" ||
       !body.files ||
       typeof body.files !== "object" ||
+      Array.isArray(body.files) ||
       !Object.keys(body.files).length
     ) {
       return NextResponse.json(
@@ -282,12 +289,52 @@ export async function POST(req: Request) {
 
     const assetShas = body.assetShas ?? {};
     const keptPaths = body.keptPaths ?? [];
+    if (!assetShas || typeof assetShas !== "object" || Array.isArray(assetShas) ||
+        Object.values(body.files).some(value => typeof value !== "string") ||
+        Object.values(assetShas).some(value => typeof value !== "string" || !value) ||
+        Object.keys(body.files).some(path => Object.hasOwn(assetShas, path))) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
     if (!Array.isArray(keptPaths) || !keptPaths.every((path) => typeof path === "string")) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
     }
     const paths = [...Object.keys(body.files), ...Object.keys(assetShas), ...keptPaths];
     if (!paths.every(isSafeCommitPath) || Object.keys(body.files).some(isProtectedPath)) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
+
+    // The browser's credential check is not a security boundary. Inspect
+    // doc.json again in the committing request, including when the document
+    // was uploaded as a detached blob because it exceeded the inline limit.
+    if (Object.hasOwn(body.files, DOC_PATH) || Object.hasOwn(assetShas, DOC_PATH)) {
+      let content: string;
+      if (Object.hasOwn(body.files, DOC_PATH)) {
+        content = body.files[DOC_PATH];
+      } else {
+        const res = await gh(`/git/blobs/${assetShas[DOC_PATH]}`);
+        if (!res.ok) await fail(tr("編集データの取得"), res);
+        const blob = (await res.json()) as { content?: unknown; encoding?: unknown };
+        if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
+          return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+        }
+        const bytes = Buffer.from(blob.content, "base64");
+        if (bytes.byteLength > MAX_DOC_BYTES) {
+          return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
+        }
+        content = bytes.toString("utf8");
+      }
+      if (Buffer.byteLength(content, "utf8") > MAX_DOC_BYTES) {
+        return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
+      }
+      let document: unknown;
+      try { document = JSON.parse(content); } catch {
+        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+      }
+      if (hasPublishCredentials(document as Parameters<typeof hasPublishCredentials>[0])) {
+        return NextResponse.json({
+          error: tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"),
+        }, { status: 400 });
+      }
     }
 
     // 1. ブランチ先端を取得
@@ -341,6 +388,35 @@ export async function POST(req: Request) {
     }
     const protectedEntries = new Map(entries.filter(e =>
       isProtectedPath(e.path) && (e.type === "blob" || e.type === "commit")).map(e => [e.path, e]));
+
+    // Do not trust the caller's keptPaths to enumerate every manual file. A
+    // malformed or partial client request must not turn tree replacement into
+    // deletion of unrelated files. Determine ownership from the pinned head.
+    const existingBlobs: Record<string, string> = Object.create(null);
+    for (const entry of entries) {
+      if ((entry.type === "blob" || entry.type === "commit") && entry.sha) {
+        existingBlobs[entry.path] = entry.sha;
+      }
+    }
+    let previousGenerated: Record<string, string> | null = null;
+    const previousGeneratedSha = existingBlobs[GENERATED_MANIFEST_PATH];
+    if (previousGeneratedSha) {
+      const manifestRes = await gh(`/git/blobs/${previousGeneratedSha}`);
+      if (!manifestRes.ok) await fail(tr("ツリーの取得"), manifestRes);
+      const data = (await manifestRes.json()) as { content?: unknown; encoding?: unknown };
+      if (typeof data.content !== "string" || (data.encoding && data.encoding !== "base64")) {
+        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      }
+      previousGenerated = parseGeneratedManifest(Buffer.from(data.content, "base64").toString("utf8"));
+      if (!previousGenerated) {
+        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      }
+    }
+    const serverPlan = planPublish(
+      existingBlobs,
+      previousGenerated,
+      [...Object.keys(body.files), ...Object.keys(assetShas)]
+    );
     for (const [path, sha] of Object.entries(assetShas)) {
       if (isProtectedPath(path)) {
         if (!protectedEntries.has(path) || protectedEntries.get(path)!.sha !== sha) {
@@ -350,12 +426,30 @@ export async function POST(req: Request) {
         pushSha(path, sha);
       }
     }
-    const preserved = [...new Set([...keptPaths, ...protectedEntries.keys()])];
+    // Invalid keep paths and overlapping outputs are malformed requests,
+    // rather than normal head conflicts.
+    if (keptPaths.some(path => !Object.hasOwn(existingBlobs, path) ||
+        Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
+    // Client-supplied keep hints are never allowed to resurrect obsolete
+    // generated files. Only entries independently classified as manual (or
+    // the current protected GitHub configuration) can be retained.
+    if (keptPaths.some(path => !Object.hasOwn(serverPlan.kept, path) && !protectedEntries.has(path))) {
+      return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
+    }
+    const preserved = [...new Set([...Object.keys(serverPlan.kept), ...protectedEntries.keys()])];
     const kept = keptTreeEntries(entries, preserved);
     if (!kept || keptPaths.some(path => Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
     }
     for (const entry of kept) tree.push({ ...entry, sha: entry.sha! });
+    // A file at a parent path and a generated descendant cannot coexist in
+    // a Git tree. GitHub may silently replace one when building nested paths.
+    // Fail closed rather than losing an existing symlink, submodule or file.
+    if (conflictingCommitPaths(tree.map(entry => entry.path))) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
 
     // 一度に大きなツリーを送るとGitHub側でタイムアウトするため、分割して積み上げる。
     // 最初のチャンクは base_tree なし = リポジトリ内容を完全置換（削除も反映される）。
@@ -403,25 +497,19 @@ export async function POST(req: Request) {
     if (!commitRes.ok) await fail(tr("コミットの作成"), commitRes);
     const commitSha = (await commitRes.json()).sha;
 
-    // 4. Reject concurrent updates instead of overwriting a newer branch head.
-    if (branchExists) {
-      const upRes = await gh(`/git/refs/heads/${branchPath}`, {
-        method: "PATCH",
-        body: JSON.stringify({ sha: commitSha, force: false }),
-      });
-      if (upRes.status === 422 || upRes.status === 409) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
-      if (!upRes.ok) await fail(tr("ブランチの更新"), upRes);
-    } else {
-      const createRes = await gh(`/git/refs`, {
-        method: "POST",
-        body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commitSha }),
-      });
-      if (createRes.status === 422 || createRes.status === 409) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
-      if (!createRes.ok) await fail(tr("ブランチの作成"), createRes);
+    // 4. Never force an update. Resolve ambiguous transport errors by reading
+    // back GitHub's ref before asking the user to publish again.
+    if (!(await advanceBranchRef(gh, fail, branch, commitSha, branchExists, tr))) {
+      return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
     }
 
-    // 右下の「公開」にホバーしたときに出す、最後の公開と公開した人
-    await recordPublish(siteId, target);
+    // The GitHub commit already exists: a local history bookkeeping failure
+    // must not turn successful publication into a misleading 502/retry.
+    try {
+      await recordPublish(siteId, target);
+    } catch {
+      console.warn("Publish completed, but the local publication record could not be updated", { siteId, target });
+    }
     return NextResponse.json({
       ok: true,
       commit: commitSha,

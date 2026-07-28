@@ -5,6 +5,7 @@ import {
   DOC_PATH,
   isProtectedPath,
   isSafeCommitPath,
+  conflictingCommitPaths,
   parseGeneratedManifest,
   planPublish,
   keptTreeEntries,
@@ -121,4 +122,11 @@ test("手で追加した実行ファイル・リンク・サブモジュール�
   assert.deepEqual(keptTreeEntries(entries, []), []);
   assert.equal(keptTreeEntries(entries, ["missing"]), null);
   assert.equal(keptTreeEntries([{ path: "dir", mode: "040000", type: "tree", sha: "dir" }], ["dir"]), null);
+});
+
+test("detect file/directory prefix conflicts without rejecting ordinary siblings", () => {
+  assert.deepEqual(conflictingCommitPaths(["public/assets", "public/assets/logo.png"]), ["public/assets", "public/assets/logo.png"]);
+  assert.deepEqual(conflictingCommitPaths(["docs/guide.md", "docs"]), ["docs", "docs/guide.md"]);
+  assert.equal(conflictingCommitPaths(["public/a.png", "public/abc.png", "public/ab/b.png"]), null);
+  assert.equal(conflictingCommitPaths(["src/app/page.tsx", "src/app/layout.tsx"]), null);
 });
