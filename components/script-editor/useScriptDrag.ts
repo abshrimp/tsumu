@@ -3,7 +3,8 @@
 /**
  * スクリプト画面のドラッグ（パレット → ワークスペース / ワークスペース内の移動）と範囲選択
  */
-import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useEditor } from "../../lib/store";
 import { scriptUid, type PageScript } from "../../lib/script";
 import { isDataStep } from "../../lib/data";
 import { PAGE_TARGET } from "../../lib/types";
@@ -39,6 +40,17 @@ export function useScriptDrag({
   latest,
   paletteRef,
 }: UseScriptDragDeps) {
+  // 中断はドロップにしない。元のブロックと履歴をそのまま残す。
+  const cancelGesture = useCallback(() => {
+    if (!dragRef.current && !marqueeRef.current) return false;
+    dragRef.current = null;
+    marqueeRef.current = null;
+    setDrag(null);
+    setMarquee(null);
+    setActiveSlot(null);
+    return true;
+  }, [dragRef, marqueeRef, setDrag, setMarquee, setActiveSlot]);
+
   // ドラッグ（パレット → ワークスペース / ワークスペース内の移動）と範囲選択
   useEffect(() => {
     const inside = (el: HTMLElement | null, x: number, y: number) => {
@@ -94,6 +106,13 @@ export function useScriptDrag({
       return hits;
     };
     const onMove = (e: PointerEvent) => {
+      const gesture = marqueeRef.current ?? dragRef.current;
+      if (!gesture || e.pointerId !== gesture.pointerId) return;
+      // ウィンドウ外で離して pointerup を受け取れなかった場合も取り消す。
+      if (!(e.buttons & 1)) {
+        cancelGesture();
+        return;
+      }
       const m = marqueeRef.current;
       if (m) {
         m.x = e.clientX;
@@ -115,7 +134,9 @@ export function useScriptDrag({
       setActiveSlot(findSlot(d));
       setDrag({ ...d });
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
+      const gesture = marqueeRef.current ?? dragRef.current;
+      if (!gesture || e.pointerId !== gesture.pointerId) return;
       if (marqueeRef.current) {
         marqueeRef.current = null;
         setMarquee(null);
@@ -123,11 +144,13 @@ export function useScriptDrag({
       }
       const d = dragRef.current;
       dragRef.current = null;
-      if (d && !d.started && d.clickKey) setSelectedList([d.clickKey]);
-      if (!d?.started || !d.payload) return;
-      const slot = findSlot(d);
       setDrag(null);
       setActiveSlot(null);
+      if (d && !d.started && d.clickKey) setSelectedList([d.clickKey]);
+      if (!d?.started || !d.payload) return;
+      d.x = e.clientX;
+      d.y = e.clientY;
+      const slot = findSlot(d);
       drop(d, d.payload, slot);
     };
     const drop = (d: Drag, p: Payload, slot: string | null) => {
@@ -212,11 +235,37 @@ export function useScriptDrag({
         )
       );
     };
+    const onCancel = (e: PointerEvent) => {
+      const gesture = marqueeRef.current ?? dragRef.current;
+      if (gesture?.pointerId === e.pointerId) cancelGesture();
+    };
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") cancelGesture();
+    };
+    // Undo・ページ切替・外部の編集後に、古いペイロードを新しい文書へ落とさない。
+    const unsubscribe = useEditor.subscribe((state, previous) => {
+      if (
+        state.doc !== previous.doc ||
+        state.activePageId !== previous.activePageId ||
+        state.editingComponentId !== previous.editingComponentId ||
+        state.historyRevision !== previous.historyRevision
+      ) cancelGesture();
+    });
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    window.addEventListener("blur", cancelGesture);
+    document.addEventListener("visibilitychange", onHidden);
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("blur", cancelGesture);
+      document.removeEventListener("visibilitychange", onHidden);
+      unsubscribe();
+      cancelGesture();
     };
-  }, []);
+  }, [cancelGesture]);
+
+  return cancelGesture;
 }

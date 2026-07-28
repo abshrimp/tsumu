@@ -10,8 +10,7 @@ import type { Drag, ScriptEditorLatest } from "../ScriptEditor";
 /** ScriptEditorInner から受け取る値 */
 export interface UseScriptEditorKeysDeps {
   dragRef: RefObject<Drag | null>;
-  setDrag: Dispatch<SetStateAction<Drag | null>>;
-  setActiveSlot: Dispatch<SetStateAction<string | null>>;
+  cancelGesture: () => boolean;
   latest: RefObject<ScriptEditorLatest>;
   setPeekId: Dispatch<SetStateAction<string | null>>;
   setSelectedList: Dispatch<SetStateAction<string[]>>;
@@ -19,8 +18,7 @@ export interface UseScriptEditorKeysDeps {
 
 export function useScriptEditorKeys({
   dragRef,
-  setDrag,
-  setActiveSlot,
+  cancelGesture,
   latest,
   setPeekId,
   setSelectedList,
@@ -39,11 +37,8 @@ export function useScriptEditorKeys({
         // 開いている選択メニューは、メニュー側で閉じる
         if (document.querySelector("[data-se-popover]")) return;
         e.stopPropagation();
-        if (dragRef.current) {
-          dragRef.current = null;
-          setDrag(null);
-          setActiveSlot(null);
-        } else if (latest.current.peekId) {
+        if (cancelGesture()) return;
+        if (latest.current.peekId) {
           setPeekId(null);
         } else if (latest.current.selectedList.length) {
           setSelectedList([]);
@@ -88,5 +83,5 @@ export function useScriptEditorKeys({
       clearTimeout(t);
       setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
     };
-  }, []);
+  }, [cancelGesture]);
 }
