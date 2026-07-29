@@ -131,7 +131,7 @@ http://localhost:3000 を開くと、ホーム画面（サイトの一覧）が�
 | 費用 | 無料プランで運用可能（[制限事項](#制限事項)） | サーバー費用 | サーバー費用 |
 | 適した用途 | 自前のサーバーを持たずに運用する場合 | ローカル環境や既存のサーバーで運用する場合 | コンテナで管理する場合 |
 
-D1とローカルSQLiteのテーブルは初回アクセス時に自動作成されます。Cloudflareの編集データ保存には`DOC_STORE`バインディングと`wrangler.jsonc`のSQLite対応Durable Object migrationも必要です。既存環境へデプロイする前に[保存方式と切替手順](docs/durable-object-storage.md)を確認してください。サーバーの保存先がない場合、データはブラウザ内に保存されます（[環境設定](#環境設定)）。
+D1とローカルSQLiteのテーブルは初回アクセス時に自動作成されます。Cloudflareの編集データ保存には`DOC_STORE`バインディングと`wrangler.jsonc`のSQLite対応Durable Object migrationも必要です。保存方式とデプロイ時の確認事項は[編集データの保存設計](docs/durable-object-storage.md)を参照してください。サーバーの保存先がない場合、データはブラウザ内に保存されます（[環境設定](#環境設定)）。
 
 ### 共通の準備
 
