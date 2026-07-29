@@ -876,6 +876,8 @@ export const SCRIPT_RUNTIME = `function (env) {
           return;
         }
         /*/env*/
+        // ラジオを外すだけなら通知する入力欄はないが、参照している表示は更新する
+        if (!changed.length) refreshLive();
         changed.forEach(function (input) {
           input.dispatchEvent(new Event("input", { bubbles: true }));
           input.dispatchEvent(new Event("change", { bubbles: true }));
