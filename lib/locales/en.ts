@@ -3177,6 +3177,7 @@ const en: Dict = {
   // 複数サイト・ホーム画面
   "サイトの指定が正しくありません":
     "Invalid site",
+  "サイトの保存先が見つかりません": "The site's document storage was not found.",
   "サイトが見つかりません":
     "Site not found",
   "作成できませんでした":

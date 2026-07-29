@@ -2,7 +2,8 @@ import type { Db } from "./db";
 
 /**
  * サイト（1つの編集データと、その公開先）。
- * 一覧と公開先は D1 の sites テーブル、編集データは docs テーブルの id = サイトID の行に保存する。
+ * 一覧と公開先はD1のsitesテーブル、編集データはサイトごとのDocumentRoomに保存する。
+ * Node/Dockerでは同じサイト情報にローカルSQLiteを使用する。
  * D1 が無いときは、ブラウザ内（lib/site.ts）に同じ形で保存する
  */
 
@@ -128,19 +129,33 @@ function toRecord(r: Record<string, unknown>): SiteRecord {
 }
 
 export async function listSites(db: Db): Promise<SiteRecord[]> {
-  const rs = await db.execute(
-    `SELECT s.*, d.saved_at AS saved_at FROM sites s LEFT JOIN docs d ON d.id = s.id
-      ORDER BY COALESCE(d.saved_at, s.updated_at) DESC`
-  );
+  const sql = db.backend === "d1"
+    ? `SELECT s.*, r.saved_at FROM sites s
+        LEFT JOIN site_document_rooms r ON r.site_id=s.id
+        ORDER BY COALESCE(r.saved_at,s.updated_at) DESC`
+    : `SELECT s.*, d.saved_at FROM sites s
+        LEFT JOIN docs d ON d.id=s.id
+        ORDER BY COALESCE(d.saved_at,s.updated_at) DESC`;
+  const rs = await db.execute(sql);
   return rs.rows.map(toRecord);
 }
 
 export async function getSite(db: Db, id: string): Promise<SiteRecord | null> {
-  const rs = await db.execute({
-    sql: "SELECT s.*, d.saved_at AS saved_at FROM sites s LEFT JOIN docs d ON d.id = s.id WHERE s.id = ?",
-    args: [id],
-  });
+  const sql = db.backend === "d1"
+    ? "SELECT s.*, r.saved_at FROM sites s LEFT JOIN site_document_rooms r ON r.site_id=s.id WHERE s.id=?"
+    : "SELECT s.*, d.saved_at FROM sites s LEFT JOIN docs d ON d.id=s.id WHERE s.id=?";
+  const rs = await db.execute({ sql, args: [id] });
   return rs.rows[0] ? toRecord(rs.rows[0]) : null;
+}
+
+/** Return the current generation's room key, not the public site ID. */
+export async function getSiteRoomKey(db: Db, siteId: string): Promise<string | null> {
+  if (db.backend !== "d1") return null;
+  const rs = await db.execute({
+    sql: "SELECT room_key FROM site_document_rooms WHERE site_id = ?",
+    args: [siteId],
+  });
+  return typeof rs.rows[0]?.room_key === "string" ? String(rs.rows[0].room_key) : null;
 }
 
 export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, initialBody?: string): Promise<void> {
@@ -150,6 +165,15 @@ export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [id, v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
   };
+  if (db.backend === "d1") {
+    if (initialBody !== undefined) throw new Error("D1の編集データはDocumentRoomに保存してください");
+    const roomKey = crypto.randomUUID();
+    await db.batch([
+      site,
+      { sql: "INSERT INTO site_document_rooms(site_id, room_key) VALUES (?, ?)", args: [id, roomKey] },
+    ]);
+    return;
+  }
   if (initialBody === undefined) { await db.execute(site); return; }
   await db.batch([site, {
     sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, 1, ?, ?)",
@@ -171,8 +195,26 @@ export async function updateSite(
   return result.rowsAffected > 0;
 }
 
-/** サイトと、その編集データ・バックアップを消す（画像は KV に残る） */
-export async function deleteSite(db: Db, id: string): Promise<void> {
+/** Remove only the generation that the caller observed. Cloudflare cleanup is
+ * queued in the same D1 transaction, and retried until its DO is sealed.
+ */
+export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): Promise<void> {
+  if (db.backend === "d1") {
+    if (!expectedRoomKey) throw new Error("削除対象の保存先がありません");
+    const gate = "EXISTS (SELECT 1 FROM site_document_rooms WHERE site_id = ? AND room_key = ?)";
+    const result = await db.batch([
+      { sql: `DELETE FROM sites WHERE id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
+      { sql: `DELETE FROM site_activity WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
+      { sql: `DELETE FROM comment_messages WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
+      { sql: `DELETE FROM comment_threads WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
+      { sql: `INSERT OR IGNORE INTO document_room_cleanup(room_key,queued_at)
+        SELECT room_key, ? FROM site_document_rooms WHERE site_id=? AND room_key=?`,
+        args: [Date.now(), id, expectedRoomKey] },
+      { sql: "DELETE FROM site_document_rooms WHERE site_id=? AND room_key=?", args: [id, expectedRoomKey] },
+    ]);
+    if (!result[0]?.rowsAffected) throw new Error("サイトが変更されたため削除しませんでした");
+    return;
+  }
   await db.batch([
     { sql: "DELETE FROM sites WHERE id = ?", args: [id] },
     { sql: "DELETE FROM docs WHERE id = ?", args: [id] },

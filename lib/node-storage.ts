@@ -68,6 +68,7 @@ function d1Adapter(db: SqliteDatabase): D1LikeDatabase {
     });
   };
   return {
+    __tsumuBackend: "sqlite",
     prepare: (sql) => statement(sql),
     batch: async (stmts) => {
       db.exec("BEGIN");

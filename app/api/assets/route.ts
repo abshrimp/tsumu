@@ -7,6 +7,30 @@ import { userMessage } from "../../../lib/errors";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { readAssetForm } from "../../../lib/asset-upload";
 import { siteIdOf } from "../../../lib/site-server";
+import { documentAssetReferences } from "../../../lib/site-document-service";
+
+/**
+ * Read each other site's asset index directly from its SQLite-backed DO.
+ * This is intentionally conservative: a failed query aborts deletion rather
+ * than risk erasing a file referenced by another site. Concurrency is limited
+ * to avoid exhausting the per-request outgoing connection budget.
+ */
+async function otherSiteAssetReferences(db: Awaited<ReturnType<typeof getDb>>, siteId: string) {
+  const sites = await db.execute({ sql: "SELECT id FROM sites WHERE id != ?", args: [siteId] });
+  const others = new Map<string, number | null>();
+  for (let offset = 0; offset < sites.rows.length; offset += 4) {
+    const chunk = sites.rows.slice(offset, offset + 4);
+    const results = await Promise.all(chunk.map(row => documentAssetReferences(db, String(row.id))));
+    for (const refs of results) {
+      for (const ref of refs) {
+        const previous = others.get(ref.path);
+        others.set(ref.path, previous == null ? ref.bytes
+          : ref.bytes == null ? previous : Math.max(previous, ref.bytes));
+      }
+    }
+  }
+  return others;
+}
 
 /** 画像・動画・音声アセットをアップロード */
 export async function POST(req: Request) {
@@ -76,7 +100,7 @@ export async function POST(req: Request) {
 /**
  * 全サイトのアセットの使用量（ストレージは全サイト共通）。
  * ?site= のサイト以外が使っているファイルの一覧を返す（そのサイトの分は、ブラウザが編集中の内容から足す）。
- * 中身の JSON は D1 の中で読む（Workers の CPU 時間を使わない）
+ * 使用状況は各サイトの保存先から取得する。確認できないときは削除を中止する。
  */
 export async function GET(req: Request) {
   const tr = await serverTr();
@@ -87,19 +111,9 @@ export async function GET(req: Request) {
   if (siteId instanceof NextResponse) return siteId;
   try {
     const db = await getDb();
-    const rs = await db.execute({
-      // json_each にも path という列があるため、別名は asset_path にする（path だとそちらでまとめてしまう）
-      sql: `SELECT json_extract(a.value, '$.path') AS asset_path, MAX(json_extract(a.value, '$.bytes')) AS bytes
-        FROM docs d, json_each(d.body, '$.assets') a
-        WHERE d.id != ? AND json_extract(a.value, '$.path') IS NOT NULL
-        GROUP BY asset_path`,
-      args: [siteId],
-    });
+    const refs = await otherSiteAssetReferences(db, siteId);
     return NextResponse.json({
-      others: rs.rows.map((r) => ({
-        path: String(r.asset_path),
-        bytes: r.bytes === null || r.bytes === undefined ? null : Number(r.bytes),
-      })),
+      others: [...refs].map(([path, bytes]) => ({ path, bytes })),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
@@ -127,11 +141,14 @@ export async function DELETE(req: Request) {
   try {
     if (dbConfigured()) {
       const db = await getDb();
-      const rs = await db.execute({
-        sql: "SELECT 1 FROM docs WHERE id != ? AND instr(body, ?) > 0 LIMIT 1",
-        args: [siteId, `"${path}"`],
-      });
-      if (rs.rows.length) return NextResponse.json({ ok: true, kept: true });
+      if (db.backend === "d1") {
+        // DO metadata and KV are not one transaction. Physical deletion here
+        // can race a concurrent save/copy in another site. Keep immutable KV
+        // objects; orphan collection must use a separate, fenced GC protocol.
+        return NextResponse.json({ ok: true, kept: true });
+      }
+      const refs = await otherSiteAssetReferences(db, siteId);
+      if (refs.has(path)) return NextResponse.json({ ok: true, kept: true });
     }
     await store.delete(path);
     return NextResponse.json({ ok: true });

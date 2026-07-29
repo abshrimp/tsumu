@@ -22,7 +22,9 @@ function loadHandler(path: string, mocks: Record<string, unknown>): any {
   const { code } = transformSync(source, { loader: "ts", format: "cjs", target: "es2022" });
   const module = { exports: {} };
   new Function("require", "module", "exports", code)(
-    (name: string) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports,
+    (name: string) => name === "./document-room"
+      ? { DocumentRoom: class {} } // The DO class is exercised in dedicated storage tests.
+      : Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports,
   );
   return module.exports;
 }

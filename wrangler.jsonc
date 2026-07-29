@@ -21,7 +21,8 @@
 			"id": "<YOUR_KV_NAMESPACE_ID>"
 		}
 	],
-	// 編集データ・許可アカウントの保存先（Cloudflare D1）。
+	// サイト一覧・コメント・許可アカウントの保存先（Cloudflare D1）。
+  // 編集データ本体はDOC_STOREのDurable Object内SQLiteに保存する。
 	// `npx wrangler d1 create tsumu` で作成し、表示された database_id を設定する
 	"d1_databases": [
 		{
@@ -42,13 +43,21 @@
 			{
 				"name": "COLLAB_ROOM",
 				"class_name": "CollaborationRoom"
-			}
+			},
+      {
+        "name": "DOC_STORE",
+        "class_name": "DocumentRoom"
+      }
 		]
 	},
 	"migrations": [
 		{
 			"tag": "v1",
 			"new_sqlite_classes": ["CollaborationRoom"]
-		}
+		},
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["DocumentRoom"]
+    }
 	]
 }

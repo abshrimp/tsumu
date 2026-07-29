@@ -92,6 +92,8 @@ function deployConfigProbe(
       name: "test",
       d1_databases: [{ binding: "DB", database_id: "<YOUR_D1_DATABASE_ID>" }],
       kv_namespaces: [{ binding: "ASSETS_KV", id: "<YOUR_KV_NAMESPACE_ID>" }],
+      durable_objects: { bindings: [{ name: "DOC_STORE", class_name: "DocumentRoom" }] },
+      migrations: [{ tag: "v2", new_sqlite_classes: ["DocumentRoom"] }],
     }));
     if (localConfig) writeFileSync(join(dir, "wrangler.local.jsonc"), JSON.stringify(localConfig));
     const expression = "import { wranglerConfigPath } from " +
@@ -135,12 +137,25 @@ test("explicit local and WRANGLER_CONFIG paths must also have production storage
   const complete = {
     d1_databases: [{ binding: "DB", database_id: "separate-d1" }],
     kv_namespaces: [{ binding: "ASSETS_KV", id: "separate-kv" }],
+    durable_objects: { bindings: [{ name: "DOC_STORE", class_name: "DocumentRoom" }] },
+    migrations: [{ tag: "v2", new_sqlite_classes: ["DocumentRoom"] }],
   };
   const incomplete = { d1_databases: complete.d1_databases };
   assert.equal(deployConfigProbe({}, complete).status, 0);
   assert.notEqual(deployConfigProbe({}, incomplete).status, 0);
   assert.notEqual(deployConfigProbe({ WRANGLER_CONFIG: "wrangler.local.jsonc" }, incomplete).status, 0);
   assert.equal(deployConfigProbe({ TSUMU_ALLOW_BROWSER_ONLY_DEPLOY: "true" }, incomplete).status, 0);
+});
+
+test("production deployment rejects D1 config without a DocumentRoom binding or migration", () => {
+  const base = {
+    d1_databases: [{ binding: "DB", database_id: "test-d1" }],
+    kv_namespaces: [{ binding: "ASSETS_KV", id: "test-kv" }],
+    durable_objects: { bindings: [{ name: "DOC_STORE", class_name: "DocumentRoom" }] },
+    migrations: [{ tag: "v2", new_sqlite_classes: ["DocumentRoom"] }],
+  };
+  assert.notEqual(deployConfigProbe({}, { ...base, durable_objects: { bindings: [] } }).status, 0);
+  assert.notEqual(deployConfigProbe({}, { ...base, migrations: [] }).status, 0);
 });
 
 test("production deployment rejects flags that could override the validated target or bindings", () => {

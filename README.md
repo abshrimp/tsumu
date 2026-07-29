@@ -93,7 +93,7 @@ Every setting below is **optional**. The editor opens and lets you edit even whe
 
 | Setting | Without it | With it |
 |---|---|---|
-| Server storage (D1 and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and images are saved in the browser. Only that browser can see them, and each image is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each image can be up to 25 MB. |
+| Server storage (D1, Durable Objects and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and images are saved in the browser. Only that browser can see them, and each image is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each image can be up to 25 MB. |
 | Google sign-in (`AUTH_*`) | The editor doesn't open; it shows how to set sign-in up instead. With `ALLOW_ANONYMOUS=true`, or under `npm run dev`, it opens without sign-in — and then **anyone with the URL can edit and publish**. | Only the Google accounts you allow can use the editor. |
 | `GITHUB_TOKEN` | **Publish** explains what to set up. Exporting code as a zip still works. | Publishes to the repository set in each site's settings. |
 | `AI_*` | No **Ask AI** button. | **Ask AI** is available. |
@@ -126,12 +126,12 @@ The editor runs in any of three environments. The features are identical; what d
 
 | | Cloudflare Workers | Node.js | Docker |
 |---|---|---|---|
-| Storage | D1 (database) and Workers KV (images and files) | The `TSUMU_DATA_DIR` folder (SQLite and files) | `/data` in the container (mount a volume) |
+| Storage | D1 (site metadata), SQLite-backed Durable Objects (document rows), Workers KV (images and files) | The `TSUMU_DATA_DIR` folder (SQLite and files) | `/data` in the container (mount a volume) |
 | Collaborators' changes | Immediately (WebSocket via a Durable Object) | Immediately (Server-Sent Events) | Immediately (Server-Sent Events) |
 | Cost | Runs on the free plan (see [Limits](#limits)) | Your server | Your server |
 | Good for | Running without a server of your own | Running on your machine or an existing server | Managing it as a container |
 
-In every environment, database tables are created on first access, so there are no migrations to run. If you don't set up server storage, data is kept in the browser (see [What you need](#what-you-need)).
+D1 and local SQLite tables are created on first access. Cloudflare's SQLite-backed DocumentRoom also requires the `DOC_STORE` binding and the Wrangler migration declared in `wrangler.jsonc`. Before deployment to an existing installation, read [Document storage and cutover](docs/durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
 
 ### Common setup
 
@@ -442,7 +442,7 @@ Where to put them:
 | Item | Limit | What it means |
 |---|---|---|
 | Workers CPU time | 10 ms per request | Publishing a site with many assets can exceed it. Workers Paid ($5/month, 30 s CPU) removes the problem. |
-| D1 value size | 2 MB per value according to Cloudflare's documentation (larger values are accepted in practice) | Tsumu doesn't cap the size of a site's editing data. If D1 refuses a save, the save status says the document is too large. |
+| SQLite-backed Durable Object row | 8 MB per value | Page, node, component and asset JSON entries are stored independently; Tsumu limits each stored entry to 7 MB. |
 | KV | 1 GB total, 25 MB per file, 1,000 writes per day | All sites share this storage. The Assets tab shows the total for all sites. |
 | KV consistency | Eventual | A new upload can take a few seconds to appear everywhere. |
 | GitHub API | 5,000 requests per hour | One publish uses anywhere from a few to a dozen or so. |
@@ -450,7 +450,7 @@ Where to put them:
 ### Sites
 
 - Deleting a site deletes its editing data and automatic backups. The published repository and the images in storage remain.
-- Images copied between sites share the same stored file. If another site still uses a file, deleting it as unused doesn't remove it from storage.
+- Images copied between sites share a stored file. On Cloudflare, an asset is not physically deleted immediately, because a concurrent save in another site might still reference it. Unreferenced files require an explicit garbage-collection process; deletion in the editor only removes the reference.
 - Without D1, sites exist only in that browser. Clearing the browser's data loses them.
 
 ### Collaboration
