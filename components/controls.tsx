@@ -635,9 +635,10 @@ export function TextField({
   onChange: (v: string | null) => void;
   placeholder?: string;
 }) {
+  const editTarget = useContext(InspectorCtx)?.editTarget;
   return (
     <input
-      key={value ?? "_"}
+      key={JSON.stringify([editTarget, value ?? "_"])}
       className="input"
       defaultValue={value ?? ""}
       placeholder={placeholder ?? tr("未設定")}
