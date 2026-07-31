@@ -47,8 +47,12 @@ export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown
       return f.checked ? "true" : "false";
     case "radio":
       return f.checked ? fill(f.label, vars) : "";
-    case "select":
-      return fill(f.defaultValue, vars) || fill(f.options?.[0], vars);
+    case "select": {
+      const options = (f.options ?? []).map((option) => fill(option, vars));
+      const value = fill(f.defaultValue, vars);
+      // 初期値が選択肢に無ければブラウザと同じく先頭を選ぶ。変数が空に解決する場合も比較する。
+      return f.defaultValue && options.includes(value) ? value : (options[0] ?? "");
+    }
     case "file":
     case "submit":
       return "";
@@ -119,7 +123,7 @@ export function fieldStateValues(
     if (!name) continue;
     if (f.kind === "select") {
       const at = (f.options ?? []).map((o) => fill(o, vars)).indexOf(v);
-      out[`${name}.index`] = String(at < 0 ? 1 : at + 1);
+      out[`${name}.index`] = String(at < 0 ? (f.options?.length ? 1 : 0) : at + 1);
     }
     out[`${name}.length`] = String(v.length);
     out[`${name}.disabled`] = String(!!f.disabled);
