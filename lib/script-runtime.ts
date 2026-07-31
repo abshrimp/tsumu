@@ -849,7 +849,9 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (toggle) v = truthy(v) ? "true" : "false";
         // ラジオ（グループの値）はグループのボタンすべてから選ぶ
         else if (first && first.type === "radio") els = radiosOf(first);
-        if (valueOf(els) === v) return;
+        // 選択解除と空文字の選択肢はvalueが同じでも別の状態。
+        var select = first && first.tagName === "SELECT";
+        if (valueOf(els) === v && !(select && first.selectedIndex < 0)) return;
         // 値が変わった入力欄だけに知らせる（ラジオは選ばれたボタンだけ。外れたボタンは知らせない）
         var changed = [];
         els.forEach(function (el) {
@@ -860,6 +862,10 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (input.checked === on) return;
             input.checked = on;
             if (!on && input.type === "radio") return;
+          } else if (input.tagName === "SELECT") {
+            var before = input.selectedIndex;
+            input.value = v;
+            if (input.selectedIndex === before) return;
           } else {
             // ファイルの欄は、選んだファイルを外す（空にする）ことだけができる
             if (input.value === v || (input.type === "file" && v !== "")) return;
@@ -867,6 +873,8 @@ export const SCRIPT_RUNTIME = `function (env) {
           }
           changed.push(input);
         });
+        // 同じ未選択状態への代入では、プレビューの状態も変更通知も増やさない。
+        if (select && !changed.length) return;
         /*#env*/
         if (env.setValue && env.setValue(id, v)) {
           // 反映後に「値が変わったとき」を動かす
