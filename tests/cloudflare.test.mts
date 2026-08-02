@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { parseJsonc, assertSafeDeployArgs } from "../scripts/cloudflare.mjs";
+import { parseJsonc, assertSafeDeployArgs, normalizeStorageConfig, assertNoStorageDowngrade } from "../scripts/cloudflare.mjs";
 
 const scriptUrl = new URL("../scripts/cloudflare.mjs", import.meta.url).href;
 
@@ -78,84 +78,60 @@ test("Cloudflare 設定のエスケープを含むキーと値を変更しない
   assert.deepEqual(generatedConfig(JSON.stringify(config)), config);
 });
 
-function deployConfigProbe(
-  variables: Record<string, string> = {}, localConfig?: Record<string, unknown>,
-) {
-  const dir = mkdtempSync(join(tmpdir(), "tsumu-deploy-probe-"));
-  const env = { ...process.env };
-  for (const name of ["WRANGLER_CONFIG", "D1_DATABASE_ID", "KV_NAMESPACE_ID", "TSUMU_ALLOW_BROWSER_ONLY_DEPLOY"]) {
-    delete env[name];
-  }
-  Object.assign(env, variables);
-  try {
-    writeFileSync(join(dir, "wrangler.jsonc"), JSON.stringify({
-      name: "test",
-      d1_databases: [{ binding: "DB", database_id: "<YOUR_D1_DATABASE_ID>" }],
-      kv_namespaces: [{ binding: "ASSETS_KV", id: "<YOUR_KV_NAMESPACE_ID>" }],
-      durable_objects: { bindings: [{ name: "DOC_STORE", class_name: "DocumentRoom" }] },
-      migrations: [{ tag: "v2", new_sqlite_classes: ["DocumentRoom"] }],
-    }));
-    if (localConfig) writeFileSync(join(dir, "wrangler.local.jsonc"), JSON.stringify(localConfig));
-    const expression = "import { wranglerConfigPath } from " +
-      JSON.stringify(scriptUrl) + "; wranglerConfigPath({ deploy: true });";
-    const proc = spawnSync(process.execPath, ["--input-type=module", "-e", expression], {
-      cwd: dir, env, encoding: "utf8", timeout: 10_000,
-    });
-    return { status: proc.status, stderr: proc.stderr, generated: existsSync(join(dir, "wrangler.generated.jsonc")) };
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-}
+const completeStorage = {
+  d1_databases: [{ binding: "DB", database_id: "valid-db" }],
+  kv_namespaces: [{ binding: "ASSETS_KV", id: "valid-kv" }],
+  durable_objects: { bindings: [{ name: "DOC_STORE", class_name: "DocumentRoom" }] },
+  migrations: [{ tag: "v2", new_sqlite_classes: ["DocumentRoom"] }],
+};
 
-test("production deployment refuses missing storage bindings before writing config", () => {
-  for (const variables of [{}, { D1_DATABASE_ID: "test-d1" }, { KV_NAMESPACE_ID: "test-kv" }]) {
-    const result = deployConfigProbe(variables);
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Refusing deployment without/);
-    assert.equal(result.generated, false);
+test("complete storage keeps the server configuration intact", () => {
+  const result = normalizeStorageConfig(completeStorage);
+  assert.equal(result.mode, "server");
+  assert.deepEqual(result.config, completeStorage);
+});
+
+test("missing either resource selects browser storage with neither DB nor assets KV", () => {
+  const options = [
+    { ...completeStorage, d1_databases: [] },
+    { ...completeStorage, kv_namespaces: [] },
+    { ...completeStorage, durable_objects: { bindings: [] } },
+    { ...completeStorage, migrations: [] },
+    { ...completeStorage, d1_databases: [{ binding: "DB", database_id: "<YOUR_D1_DATABASE_ID>" }] },
+    { ...completeStorage, kv_namespaces: [{ binding: "ASSETS_KV", id: "<YOUR_KV_NAMESPACE_ID>" }] },
+  ];
+  for (const option of options) {
+    const result = normalizeStorageConfig(option);
+    assert.equal(result.mode, "browser");
+    assert.equal((result.config.d1_databases ?? []).some(b => b.binding === "DB"), false);
+    assert.equal((result.config.kv_namespaces ?? []).some(b => b.binding === "ASSETS_KV"), false);
   }
 });
 
-test("configured or explicitly browser-only deployment can generate config", () => {
-  const configured = deployConfigProbe({ D1_DATABASE_ID: "test-d1", KV_NAMESPACE_ID: "test-kv" });
-  assert.equal(configured.status, 0);
-  assert.equal(configured.generated, true);
-  const optedIn = deployConfigProbe({ TSUMU_ALLOW_BROWSER_ONLY_DEPLOY: "true" });
-  assert.equal(optedIn.status, 0);
-  assert.equal(optedIn.generated, true);
-  const notOptedIn = deployConfigProbe({ TSUMU_ALLOW_BROWSER_ONLY_DEPLOY: "TRUE" });
-  assert.notEqual(notOptedIn.status, 0);
-  assert.equal(notOptedIn.generated, false);
+test("browser-only new deployments and unchanged existing browser-only workers are accepted", () => {
+  const browser = normalizeStorageConfig({}).config;
+  assert.doesNotThrow(() => assertNoStorageDowngrade([], browser));
+  assert.doesNotThrow(() => assertNoStorageDowngrade([{ name: "ASSETS", type: "assets" }], browser));
+});
+
+test("deployment rejects loss of any existing server storage bindings", () => {
+  const browser = normalizeStorageConfig({}).config;
+  for (const binding of [
+    { name: "DB", type: "d1" },
+    { name: "ASSETS_KV", type: "kv_namespace" },
+    { name: "DOC_STORE", type: "durable_object_namespace" },
+  ]) assert.throws(() => assertNoStorageDowngrade([binding], browser), /Refusing deployment/);
+  assert.throws(() => assertNoStorageDowngrade(undefined, browser), /Cannot inspect/);
+  assert.doesNotThrow(() => assertNoStorageDowngrade([
+    { name: "DB", type: "d1" },
+    { name: "ASSETS_KV", type: "kv_namespace" },
+    { name: "DOC_STORE", type: "durable_object_namespace" },
+  ], completeStorage));
 });
 
 test("Wrangler JSONC parsing rejects unterminated comments after otherwise valid JSON", () => {
   assert.throws(() => parseJsonc('{"name":"tsumu"} /* dangling'), /Unterminated block comment/);
   assert.deepEqual(parseJsonc('{"name":"tsumu"} /* complete */'), { name: "tsumu" });
-});
-
-test("explicit local and WRANGLER_CONFIG paths must also have production storage or an opt-in", () => {
-  const complete = {
-    d1_databases: [{ binding: "DB", database_id: "separate-d1" }],
-    kv_namespaces: [{ binding: "ASSETS_KV", id: "separate-kv" }],
-    durable_objects: { bindings: [{ name: "DOC_STORE", class_name: "DocumentRoom" }] },
-    migrations: [{ tag: "v2", new_sqlite_classes: ["DocumentRoom"] }],
-  };
-  const incomplete = { d1_databases: complete.d1_databases };
-  assert.equal(deployConfigProbe({}, complete).status, 0);
-  assert.notEqual(deployConfigProbe({}, incomplete).status, 0);
-  assert.notEqual(deployConfigProbe({ WRANGLER_CONFIG: "wrangler.local.jsonc" }, incomplete).status, 0);
-  assert.equal(deployConfigProbe({ TSUMU_ALLOW_BROWSER_ONLY_DEPLOY: "true" }, incomplete).status, 0);
-});
-
-test("production deployment rejects D1 config without a DocumentRoom binding or migration", () => {
-  const base = {
-    d1_databases: [{ binding: "DB", database_id: "test-d1" }],
-    kv_namespaces: [{ binding: "ASSETS_KV", id: "test-kv" }],
-    durable_objects: { bindings: [{ name: "DOC_STORE", class_name: "DocumentRoom" }] },
-    migrations: [{ tag: "v2", new_sqlite_classes: ["DocumentRoom"] }],
-  };
-  assert.notEqual(deployConfigProbe({}, { ...base, durable_objects: { bindings: [] } }).status, 0);
-  assert.notEqual(deployConfigProbe({}, { ...base, migrations: [] }).status, 0);
 });
 
 test("production deployment rejects flags that could override the validated target or bindings", () => {

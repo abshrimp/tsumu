@@ -168,7 +168,7 @@ Git ignores `wrangler.local.jsonc`, so your resource IDs never end up in the rep
 
 The deploy wrapper validates the selected configuration and refuses command-line overrides such as `--config` or `--env` that could bypass these checks. Use `WRANGLER_CONFIG` with top-level bindings for a custom production config.
 
-For production, configure D1 and KV before deploying. Otherwise the deploy command refuses to proceed, to avoid unintentionally replacing server storage with browser-only storage. To deliberately deploy without one or both bindings, set `TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=true` for that deployment. Local builds and hosted Worker Previews remain browser-only without an opt-in.
+Production deployments automatically use browser-only storage if D1, KV, or the DocumentRoom binding/migration is incomplete. The deploy wrapper first inspects the active Worker versions and refuses to remove existing server-storage bindings. If it cannot inspect an existing deployment, it stops instead of risking data access. New Workers may deploy without server storage; local builds and hosted Worker Previews also require no storage IDs.
 
 **2. Set the secrets and deploy**
 
