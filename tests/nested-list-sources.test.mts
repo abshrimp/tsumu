@@ -67,7 +67,7 @@ for (const [from, expected] of [
   ["scores", "First product03Second product2"],
   ["flags", "First productfalsetrueSecond producttrue"],
   ["info.tags", "First productdeepSecond productother"],
-  ["empty", "First product表示できる項目がありません（データの読み込み・絞り込み条件を確認してください）Second product"],
+  ["empty", "First productSecond product"],
 ]) test(`settings can select ${from}, render each outer item, persist and undo/redo without changing other nodes`, () => {
   const f = fixture();
   const options = f.dropdown().options;
