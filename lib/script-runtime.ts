@@ -851,6 +851,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         else if (first && first.type === "radio") els = radiosOf(first);
         // 選択解除と空文字の選択肢はvalueが同じでも別の状態。
         var select = first && first.tagName === "SELECT";
+        var scalar = first && !select && first.type !== "checkbox" && first.type !== "radio";
         if (valueOf(els) === v && !(select && first.selectedIndex < 0)) return;
         // 値が変わった入力欄だけに知らせる（ラジオは選ばれたボタンだけ。外れたボタンは知らせない）
         var changed = [];
@@ -869,12 +870,17 @@ export const SCRIPT_RUNTIME = `function (env) {
           } else {
             // ファイルの欄は、選んだファイルを外す（空にする）ことだけができる
             if (input.value === v || (input.type === "file" && v !== "")) return;
+            var beforeValue = input.value;
             input.value = v;
+            // 数値・日付・範囲などは、代入してもブラウザが同じ値へ戻すことがある。
+            if (input.value === beforeValue) return;
           }
           changed.push(input);
         });
-        // 同じ未選択状態への代入では、プレビューの状態も変更通知も増やさない。
-        if (select && !changed.length) return;
+        // 同じ未選択状態・正規化後の値では、プレビューの状態も変更通知も増やさない。
+        if ((select || scalar) && !changed.length) return;
+        // プレビューにも要求した文字ではなく、ブラウザが実際に受け入れた値を渡す。
+        if (scalar) v = first.value;
         /*#env*/
         if (env.setValue && env.setValue(id, v)) {
           // 反映後に「値が変わったとき」を動かす

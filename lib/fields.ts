@@ -46,6 +46,30 @@ export function isRadioItem(n: Pick<DocNode, "attrId" | "field">): boolean {
  */
 export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown>): string {
   switch (f.kind) {
+    case "input": {
+      const value = fill(f.defaultValue, vars);
+      // サーバーでは文字を保ち、ブラウザでは公開サイトと同じネイティブの初期値を読む。
+      // 数値・日付・色・範囲などの正規化を独自実装せず、保存値や操作済みの値は書き換えない。
+      if (typeof document === "undefined") return value;
+      const input = document.createElement("input");
+      input.type = f.inputType ?? "text";
+      if (RANGED_INPUTS.has(input.type)) {
+        for (const key of ["min", "max", "step"] as const) {
+          const bound = fill(f[key], vars);
+          if (bound) input.setAttribute(key, bound);
+        }
+      }
+      // value属性はrangeの刻みの基準にもなる。範囲を設定した後、空の初期値も渡す。
+      input.defaultValue = value;
+      return input.value;
+    }
+    case "textarea": {
+      const value = fill(f.defaultValue, vars);
+      if (typeof document === "undefined") return value;
+      const input = document.createElement("textarea");
+      input.defaultValue = value;
+      return input.value;
+    }
     case "checkbox":
       return f.checked ? "true" : "false";
     case "radio":
