@@ -377,6 +377,13 @@ export default function Editor({ onReady }: EditorProps = {}) {
       const data = event.clipboardData;
       if (!data) return;
       const own = ++latestPaste;
+      // Clipboard API が利用できずコピー形式が空の場合だけ、エディタ内の控えを使う。
+      // 画像や外部テキストを持つ貼り付けは必ずOS側の内容を優先する。
+      if (data.types.length === 0 && internalClipboardOwned.current && useEditor.getState().clipboard) {
+        event.preventDefault();
+        useEditor.getState().pasteClipboard();
+        return;
+      }
       // エディタでコピーした要素（ほかのサイト・タブでコピーしたものも）
       const raw = data.getData(CLIP_MIME);
       const copied = parseClipPayload(raw);
@@ -1129,11 +1136,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
           e.preventDefault();
           s.copyNode(s.selection, { unlockedOnly: true });
           s.deleteNodes(s.selectedIds.length > 1 ? s.selectedIds : [s.selection]);
-        }
-      } else if (mod && key === "v") {
-        if (internalClipboardOwned.current && s.clipboard) {
-          e.preventDefault();
-          s.pasteClipboard();
         }
       } else if (e.key === "Backspace" || e.key === "Delete") {
         // 複数選んでいれば、まとめて消す

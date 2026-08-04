@@ -72,6 +72,41 @@ test("SVG paste preserves sanitized artwork, dimensions and styling in one Undo/
   await page.evaluate(() => (window as any).pasteEditor.getState().redo()); expect((await snapshot(page)).doc).toEqual(after.doc);
 });
 
+test("external SVG paste is not intercepted by an earlier internal copy shortcut", async ({ page }) => {
+  const prevented = await page.evaluate(() => {
+    const s = (window as any).pasteEditor.getState();
+    s.copyNode("a");
+    const event = new KeyboardEvent("keydown", {
+      key: "v", metaKey: true, bubbles: true, cancelable: true,
+    });
+    document.body.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(prevented).toBe(false);
+  await paste(page);
+  await uploads(page, 1);
+  await finish(page);
+  await settled(page);
+  const after = await snapshot(page);
+  expect(after.doc.pages.p.children).toHaveLength(3);
+  expect(after.doc.nodes[after.selection].name).toBe("貼り付けたSVG");
+});
+
+test("empty native clipboard may fall back to the internal node copy", async ({ page }) => {
+  const result = await page.evaluate(() => {
+    const s = (window as any).pasteEditor.getState();
+    s.copyNode("a");
+    const data = new DataTransfer();
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: data });
+    document.body.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(result).toBe(true);
+  await expect.poll(async () => (await snapshot(page)).doc.pages.p.children.length).toBe(3);
+  await uploads(page, 0);
+});
+
 test("SVG paste rejects DTD declarations and entity expansion", async ({ page }) => {
   const malicious = '<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&x;</text></svg>';
   await paste(page, false, malicious);
