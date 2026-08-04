@@ -9,7 +9,7 @@ import { glyphs } from "./Glyph";
 import { InfoTip } from "./controls";
 import { applyPageScripts, cloneSteps, pageNodeIds, pageScriptsOf, scriptUid, walkSteps, TRIGGER_LABELS, type PageScript } from "../lib/script";
 import { stepText } from "../lib/script-text";
-import { pageArrays, pagePlan, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
+import { pageArrays, pagePlan, pageVariableIndex, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
 import { PAGE_TARGET, type Script, type ScriptStep } from "../lib/types";
 import { tr, trNodes } from "../lib/i18n";
 import { HatView, PaletteLabel, PeekModal, StackView, StepList } from "./script-editor/blocks";
@@ -24,14 +24,30 @@ import {
   TRIGGER_ICON,
   type Payload,
 } from "./script-editor/palette";
-import { insertAt, listIn, mapStep, numberFilters, removeKeys, stepIn, takeAt } from "./script-editor/step-tree";
+import { insertAt, listIn, mapStep, numberFilters, removeKeys, takeAt } from "./script-editor/step-tree";
 import { buildTree, collectTargets, type MenuTarget } from "./script-editor/targets";
 import { useScriptDrag } from "./script-editor/useScriptDrag";
 import { useScriptEditorKeys } from "./script-editor/useScriptEditorKeys";
 
-// Keep the heavy block subtree mounted and unchanged when only the palette,
-// zoom controls, or other editor chrome updates.
-const MemoStackView = memo(StackView);
+// The global editor context changes when one selected block changes. Scope
+// selection and z-order to each script so the other block trees do not redraw.
+const EMPTY_SCRIPT_KEYS: readonly string[] = [];
+const ScopedStackView = memo(function ScopedStackView({
+  script, shared, selectedKeys, zIndex,
+}: {
+  script: PageScript;
+  shared: EdCtx;
+  selectedKeys: readonly string[];
+  zIndex?: number;
+}) {
+  const selected = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+  const context = useMemo<EdCtx>(() => ({
+    ...shared,
+    selected,
+    zOrder: zIndex === undefined ? new Map<string, number>() : new Map([[script.id, zIndex]]),
+  }), [shared, selected, script.id, zIndex]);
+  return <Ctx.Provider value={context}><StackView script={script} /></Ctx.Provider>;
+});
 
 /* ---------- 設定パネル用の一覧 ---------- */
 
@@ -194,6 +210,19 @@ function ScriptEditorInner({
     () => pageScriptsOf(doc, nodeIds, activePageId),
     [doc, nodeIds, activePageId]
   );
+  const stepOwners = useMemo(() => {
+    const owners = new Map<string, string[]>();
+    for (const script of scripts) {
+      walkSteps(script.steps, (step) => {
+        const matches = owners.get(step.id) ?? [];
+        if (!matches.includes(script.id)) {
+          matches.push(script.id);
+          owners.set(step.id, matches);
+        }
+      });
+    }
+    return owners;
+  }, [scripts]);
   const pageLoadScriptIds = useMemo(() => new Set(
     scripts.filter((s) => s.nodeId === PAGE_TARGET && s.trigger === "load").map((s) => s.id)
   ), [scripts]);
@@ -202,6 +231,23 @@ function ScriptEditorInner({
   const tree = useMemo(() => buildTree(doc, nodeIds), [doc, nodeIds]);
   const arrays = useMemo(() => pageArrays(doc, activePageId), [doc, activePageId]);
   const samples = useMemo(() => previewDataVars(doc, activePageId), [doc, activePageId]);
+  const variableIndex = useMemo(() => pageVariableIndex(doc, activePageId), [doc, activePageId]);
+  // All transform blocks share the same source values. Building a fresh object
+  // of every page variable for each block made large workspaces quadratic.
+  const transformSources = useMemo(() => {
+    const values: Record<string, unknown> = {};
+    for (const [name, value] of Object.entries(samples)) {
+      if (!name.startsWith("#")) Object.defineProperty(values, name, {
+        value, enumerable: true, configurable: true, writable: true,
+      });
+    }
+    for (const name of variableIndex.names) {
+      if (!Object.hasOwn(values, name)) Object.defineProperty(values, name, {
+        value: undefined, enumerable: true, configurable: true, writable: true,
+      });
+    }
+    return values;
+  }, [samples, variableIndex]);
   const elements = useMemo(
     () =>
       nodeIds.map((id) => {
@@ -319,7 +365,7 @@ function ScriptEditorInner({
   const highlightedSlotRef = useRef<HTMLElement | null>(null);
   // A drag can cross hundreds of insertion slots. Highlight only the changed
   // DOM node; never make the entire block editor render on pointer movement.
-  const setActiveSlot = useCallback((key: string | null) => {
+  const setActiveSlot = useCallback((key: string | null, measuredElement?: HTMLElement | null) => {
     const old = highlightedSlotRef.current;
     if (old && (old.dataset.slot !== key || !old.isConnected)) {
       old.classList.remove("is-active");
@@ -331,27 +377,41 @@ function ScriptEditorInner({
       return;
     }
     if (highlightedSlotRef.current?.classList.contains("is-active")) return;
-    const el = wsRef.current?.querySelector<HTMLElement>(
-      `[data-slot="${CSS.escape(key)}"]`
-    );
+    // Reuse the DOM element from the drag hit-test index instead of querying
+    // the entire workspace whenever the active drop target changes.
+    const el = measuredElement?.isConnected && measuredElement.dataset.slot === key
+      ? measuredElement
+      : wsRef.current?.querySelector<HTMLElement>(
+          `[data-slot="${CSS.escape(key)}"]`
+        );
     el?.classList.add("is-active");
     highlightedSlotRef.current = el ?? null;
   }, []);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [selectedList, setSelectedList] = useState<string[]>([]);
   const selected = useMemo(() => new Set(selectedList), [selectedList]);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const scopedSelections = useMemo(() => {
+    const byScript = new Map<string, string[]>();
+    for (const key of selectedList) {
+      const owners = key.startsWith("script:") ? [key.slice(7)] :
+        key.startsWith("step:") ? (stepOwners.get(key.slice(5)) ?? []) : [];
+      for (const owner of owners) {
+        const values = byScript.get(owner) ?? [];
+        values.push(key);
+        byScript.set(owner, values);
+      }
+    }
+    return byScript;
+  }, [selectedList, stepOwners]);
   /** 最後に選んだスクリプトほど後ろ（= 手前に描く）。重なったブロックを選んだら前に出す */
   const [front, setFront] = useState<string[]>([]);
   useEffect(() => {
     if (!selectedList.length) return;
-    const owners = scripts
-      .filter((sc) =>
-        selectedList.some((key) =>
-          key === `script:${sc.id}` ||
-          (key.startsWith("step:") && stepIn(sc.steps, key.slice(5)))
-        )
-      )
-      .map((sc) => sc.id);
+    const ids = new Set(selectedList.flatMap((key) => key.startsWith("script:") ? [key.slice(7)] :
+      key.startsWith("step:") ? (stepOwners.get(key.slice(5)) ?? []) : []));
+    const owners = scripts.filter((script) => ids.has(script.id)).map((script) => script.id);
     if (!owners.length) return;
     setFront((prev) => {
       const next = [...prev.filter((id) => !owners.includes(id)), ...owners];
@@ -473,7 +533,7 @@ function ScriptEditorInner({
       );
       return;
     }
-    if (key && !selected.has(key)) setSelectedList([key]);
+    if (key && !selectedRef.current.has(key)) setSelectedList([key]);
     if (!key) setSelectedList([]);
     // 入力欄の操作はドラッグにしない
     if (t.closest("input, select, textarea, button, label")) return;
@@ -495,9 +555,9 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
-      clickKey: key && selected.has(key) && selected.size > 1 ? key : undefined,
+      clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
     };
-  }, [selected]);
+  }, []);
 
   const view = useMemo(() => {
     const p = drag?.payload;
@@ -510,21 +570,23 @@ function ScriptEditorInner({
     return scripts;
   }, [scripts, drag?.payload]);
 
-  const ctx = useMemo<EdCtx>(() => ({
+  const sharedCtx = useMemo<EdCtx>(() => ({
     doc,
     pageId: activePageId,
     scriptRootIds: extraRootsKey ? extraRootsKey.split(",") : [],
     targets,
     tree,
     scripts,
+    variableIndex,
+    transformSources,
     pageLoadScriptIds,
     serverStepIds,
     elements,
     focusNodeId,
     readOnly: false,
     activeSlot: null,
-    selected,
-    zOrder,
+    selected: new Set<string>(),
+    zOrder: new Map<string, number>(),
     // 取得のように後から呼ばれることがあるため、描画時点ではなく最新の状態に適用する
     updateStep: (stepId, fn) =>
       commit(
@@ -585,12 +647,14 @@ function ScriptEditorInner({
     openMenu: (e, target, key) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!selected.has(key)) setSelectedList([key]);
+      if (!selectedRef.current.has(key)) setSelectedList([key]);
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
   }), [doc, activePageId, extraRootsKey, targets, tree, scripts,
-    pageLoadScriptIds, serverStepIds, elements, focusNodeId, selected,
-    zOrder, commit, updateDoc, nodeIds, arrays, samples, begin]);
+    variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId,
+    commit, updateDoc, nodeIds, arrays, samples, begin]);
+  const ctx = useMemo<EdCtx>(() => ({ ...sharedCtx, selected, zOrder }),
+    [sharedCtx, selected, zOrder]);
 
   const runMenu = (action: "delete" | "duplicate") => {
     if (!menu) return;
@@ -640,7 +704,8 @@ function ScriptEditorInner({
     <div
       ref={ghostRef}
       className="se-ghost"
-      style={{ left: drag.x - drag.ox * zoom, top: drag.y - drag.oy * zoom }}
+      style={{ left: 0, top: 0,
+        transform: `translate3d(${drag.x - drag.ox * zoom}px, ${drag.y - drag.oy * zoom}px, 0)` }}
     >
       <div style={{ zoom }}>
       <Ctx.Provider value={{ ...ctx, readOnly: true, activeSlot: null }}>
@@ -896,11 +961,11 @@ function ScriptEditorInner({
               className="se-ws-inner"
               style={{ width: wsSize.w, height: wsSize.h, zoom }}
             >
-              <Ctx.Provider value={ctx}>
-                {view.map((s) => (
-                  <MemoStackView key={s.id} script={s} />
-                ))}
-              </Ctx.Provider>
+              {view.map((s) => (
+                <ScopedStackView key={s.id} script={s} shared={sharedCtx}
+                  selectedKeys={scopedSelections.get(s.id) ?? EMPTY_SCRIPT_KEYS}
+                  zIndex={zOrder.get(s.id)} />
+              ))}
             </div>
             {!scripts.length && (
               <div className="se-empty">

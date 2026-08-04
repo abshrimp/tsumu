@@ -22,7 +22,7 @@ export interface UseScriptDragDeps {
   setSelectedList: Dispatch<SetStateAction<string[]>>;
   dragRef: RefObject<Drag | null>;
   setMenu: Dispatch<SetStateAction<Menu | null>>;
-  setActiveSlot: (key: string | null) => void;
+  setActiveSlot: (key: string | null, measuredElement?: HTMLElement | null) => void;
   setDrag: Dispatch<SetStateAction<Drag | null>>;
   latest: RefObject<ScriptEditorLatest>;
   paletteRef: RefObject<HTMLDivElement | null>;
@@ -63,6 +63,7 @@ export function useScriptDrag({
       return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
     };
     let slotIndex: SlotIndex | null = null;
+    let slotElements = new Map<string, HTMLElement>();
     let slotZoom = 0;
     let marqueeGesture: Marquee | null = null;
     let marqueeShown = false;
@@ -80,10 +81,12 @@ export function useScriptDrag({
       const wr = contentRect(ws);
       if (!slotIndex || slotZoom !== z) {
         const slots: SlotPoint[] = [];
+        slotElements = new Map();
         ws.querySelectorAll<HTMLElement>("[data-slot-kind]").forEach((el) => {
           const key = el.dataset.slot;
           const type = el.dataset.slotKind;
           if (!key || (type !== "step" && type !== "head")) return;
+          slotElements.set(key, el);
           const r = el.getBoundingClientRect();
           slots.push({ key, kind: type, x: r.left - wr.left + ws.scrollLeft,
             y: r.top - wr.top + ws.scrollTop });
@@ -126,8 +129,7 @@ export function useScriptDrag({
     const positionGhost = (d: Drag) => {
       const el = ghostRef?.current;
       if (!el) return;
-      el.style.left = `${d.x - d.ox * zoomRef.current}px`;
-      el.style.top = `${d.y - d.oy * zoomRef.current}px`;
+      el.style.transform = `translate3d(${d.x - d.ox * zoomRef.current}px, ${d.y - d.oy * zoomRef.current}px, 0)`;
     };
     const positionMarquee = (m: Marquee) => {
       const el = marqueeElRef?.current;
@@ -178,6 +180,7 @@ export function useScriptDrag({
         d.started = true;
         d.payload = d.make();
         slotIndex = null;
+        slotElements.clear();
         setMenu(null);
         setActiveSlot(null);
         // The initial render creates the ghost and removes the dragged blocks.
@@ -186,7 +189,8 @@ export function useScriptDrag({
       }
       positionGhost(d);
       paletteRef.current?.classList?.toggle("is-trash", inside(paletteRef.current, d.x, d.y));
-      setActiveSlot(findSlot(d));
+      const target = findSlot(d);
+      setActiveSlot(target, target ? slotElements.get(target) : null);
     };
     const onUp = (e: PointerEvent) => {
       const gesture = marqueeRef.current ?? dragRef.current;
@@ -200,15 +204,20 @@ export function useScriptDrag({
       }
       const d = dragRef.current;
       dragRef.current = null;
+      if (d) {
+        d.x = e.clientX;
+        d.y = e.clientY;
+      }
+      // Use the already-measured slot index for the final drop. Resetting it
+      // before this lookup forced a synchronous full-DOM measurement on release.
+      const slot = d?.started && d.payload ? findSlot(d) : null;
       slotIndex = null;
+      slotElements.clear();
       paletteRef.current?.classList?.remove("is-trash");
       setDrag(null);
       setActiveSlot(null);
       if (d && !d.started && d.clickKey) setSelectedList([d.clickKey]);
       if (!d?.started || !d.payload) return;
-      d.x = e.clientX;
-      d.y = e.clientY;
-      const slot = findSlot(d);
       drop(d, d.payload, slot);
     };
     const drop = (d: Drag, p: Payload, slot: string | null) => {

@@ -4,7 +4,7 @@
 
 import { createContext } from "react";
 import { type PageScript } from "../../lib/script";
-import { type PageArray } from "../../lib/data";
+import { type PageArray, type PageVariableIndex } from "../../lib/data";
 import { type ScriptStep, type SiteDoc } from "../../lib/types";
 import { type Loc } from "./step-tree";
 import { type MenuTarget, type Target, type TreeRow } from "./targets";
@@ -29,6 +29,10 @@ export interface EdCtx {
   tree: TreeRow[];
   /** ページのスクリプト（絞り込みの番号を選ぶのに使う） */
   scripts: PageScript[];
+  /** Indexed once per document rather than rescanning scripts in every input. */
+  variableIndex?: PageVariableIndex;
+  /** Shared source-variable choices for transform blocks. */
+  transformSources?: Record<string, unknown>;
   /** Page-load scripts and steps executable during pre-rendering (computed once). */
   pageLoadScriptIds: Set<string>;
   serverStepIds: Set<string>;
