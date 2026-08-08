@@ -779,7 +779,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (n.nodeType !== 1 || n.hasAttribute("data-tpl")) return;
         Array.prototype.slice.call(n.attributes).forEach(function (a) {
           // 操作の値は親項目を使い、並べるときに解決する。
-          if (a.name === "data-list-ops" || a.name === "data-text-parts") return;
+          if (a.name === "data-list-ops" || a.name === "data-text-parts" || a.name === "data-image-src-parts" ||
+              (a.name === "src" && n.hasAttribute("data-image-src-parts"))) return;
           var v = a.value;
           if (v.indexOf("{") < 0 && !/%7B/i.test(v)) return;
           n.setAttribute(
@@ -793,6 +794,17 @@ export const SCRIPT_RUNTIME = `function (env) {
                   : resolve(v, null, item)
           );
         });
+        if (n.hasAttribute("data-image-src-parts")) {
+          var src = listJson(n, "data-image-src-parts", []).map(function (part) {
+            if (typeof part === "string") return part;
+            // 文字と同じく、自分のキー・根は空でも代替値より優先する。
+            if (has(item, part.name) || has(item, part.name.split(".")[0])) {
+              return text(has(item, part.name) ? item[part.name] : dig(item, part.name));
+            }
+            return has(part, "fallback") ? part.fallback : text(lookup(part.name, null, item));
+          }).join("");
+          n.setAttribute("src", src || "${EMPTY_GIF}");
+        }
         // カスタムコード・アイコン（data-raw）の中身は書いたまま（配信前に並べるリスト・エディタと同じ）
         if (n.hasAttribute("data-raw")) return;
         var ownText = null;
