@@ -3,7 +3,7 @@
 import { isEnterKey } from "../lib/keys";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toggleCommentMode } from "../lib/comment-store";
-import { insertPointFor, persistDoc, useEditor } from "../lib/store";
+import { hydrateBrowserDoc, insertPointFor, persistDoc, useEditor } from "../lib/store";
 import type { SiteDoc } from "../lib/types";
 import { localSaveState, watchLocalSaveBlock, warnForDeletedLocalSave, type LocalSaveSnapshot } from "../lib/local-save";
 import type {
@@ -158,12 +158,18 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const cloudState = useEditor((s) => s.cloudState);
   // DB未設定と一時的な503を区別する。判定できない間は安全側で離脱を保護する。
   const browserOnly = useServerStatus()?.db === false;
+  const localSaveQueue = useRef<Promise<void>>(Promise.resolve());
   const saveLocalDoc = useCallback((snapshot: SiteDoc) => {
-    const result = localSiteDeleted.current ? "deleted" : persistDoc(snapshot);
-    if (result === "deleted") localSiteDeleted.current = true;
-    if (result === "saved") markSaved();
-    else useEditor.setState({ savedAt: null });
-    setLocalSave({ doc: snapshot, result });
+    const run = async () => {
+      const attempt = localSiteDeleted.current ? "deleted" : await persistDoc(snapshot);
+      const result = localSiteDeleted.current ? "deleted" : attempt;
+      if (result === "deleted") localSiteDeleted.current = true;
+      if (result === "saved") markSaved();
+      else useEditor.setState({ savedAt: null });
+      setLocalSave({ doc: snapshot, result });
+    };
+    // Serialize attempts so every write uses the last committed baseline.
+    localSaveQueue.current = localSaveQueue.current.then(run, run);
   }, [markSaved]);
   useEffect(() => watchLocalSaveBlock((result) => {
     if (result === "deleted") localSiteDeleted.current = true;
@@ -199,6 +205,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const cloudDirty = useRef(false);
   /** 初回同期が完了する前の編集も未保存として残す。 */
   const observedDoc = useRef(doc);
+  /** Hydration is a baseline read, not a new user edit. */
+  const initialBrowserDocObserved = useRef(false);
   /** 最後に同期した版の識別子（自分の保存分を見分ける） */
   const lastSyncedRev = useRef<string | null>(null);
   /** 最後に同期した時点のドキュメント（三方向マージのベース） */
@@ -481,7 +489,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     if (link.href !== href) link.href = href;
   }, [doc.customFonts]);
 
-  // 自動保存（500msデバウンス、localStorage = 高速キャッシュ）
+  // 自動保存（500msデバウンス、IndexedDB）
   useEffect(() => {
     if (!initialLoadComplete) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -559,8 +567,15 @@ export default function Editor({ onReady }: EditorProps = {}) {
 
   // 起動時：サーバーのドキュメントを取得（あれば正とする）
   const runSyncFromServer = useCallback(async () => {
+    await hydrateBrowserDoc();
     const s = useEditor.getState();
     const localBeforeLoad = s.doc;
+    // IndexedDB hydration changes the store reference, but is not an unsynced edit.
+    // Observe it before reconciliation, without clearing a genuine unsynced flag.
+    if (!initialBrowserDocObserved.current) {
+      observedDoc.current = localBeforeLoad;
+      initialBrowserDocObserved.current = true;
+    }
     cloudReady.current = false;
     if (cloudTimer.current) clearTimeout(cloudTimer.current);
     s.setCloud("checking");
@@ -717,14 +732,18 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return () => window.removeEventListener("cloud-sync-retry", onRetry);
   }, [syncFromServer, retrySaveNow]);
 
-  // 変更をサーバーへ自動保存（800msデバウンス）
-  useEffect(() => scheduleCloudSave({
-    observedDoc, cloudReady, cloudDirty, skipNextCloudSave, cloudTimer, activeCloudSave,
-    cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit,
-    getState: useEditor.getState, saveCloudDoc, setUnsyncedFlag,
-    requestRetry: () => setSaveRetry((n) => n + 1),
-    retryLater: retrySaveLater,
-  }, doc), [doc, saveCloudDoc, saveRetry, retrySaveLater]);
+  // 変更をサーバーへ自動保存（800msデバウンス）。
+  // 起動時のIndexedDB読込とサーバーからの初期取得は、ユーザー編集ではない。
+  useEffect(() => {
+    if (!initialLoadComplete) return;
+    return scheduleCloudSave({
+      observedDoc, cloudReady, cloudDirty, skipNextCloudSave, cloudTimer, activeCloudSave,
+      cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit,
+      getState: useEditor.getState, saveCloudDoc, setUnsyncedFlag,
+      requestRetry: () => setSaveRetry((n) => n + 1),
+      retryLater: retrySaveLater,
+    }, doc);
+  }, [doc, initialLoadComplete, saveCloudDoc, saveRetry, retrySaveLater]);
 
   // 回線が戻ったら待たずに保存し直す。保存できたら、自動の保存し直しを取りやめて間隔を最初に戻す
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
+import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
 
 const canvas = (page: Page) => page.locator('[data-tutorial="canvas"]');
 const saved = (page: Page) => expect(page.getByText("サーバー保存済み")).toBeVisible();
@@ -19,11 +20,14 @@ async function createSite(page: Page, remote?: SiteDoc) {
   return site.id as string;
 }
 async function prepare(page: Page, id: string, local?: SiteDoc, unsynced = false) {
-  await page.addInitScript(({ id, local, unsynced }) => {
+  await page.addInitScript(({ id, unsynced }) => {
     localStorage.setItem("tsumu-help-seen-v1", "1");
-    if (local) localStorage.setItem(`tsumu-doc-v1:${id}`, JSON.stringify(local));
     if (unsynced) localStorage.setItem(`tsumu-unsynced-v1:${id}`, "1");
-  }, { id, local, unsynced });
+  }, { id, unsynced });
+  if (local) {
+    await page.goto("/");
+    await setBrowserDoc(page, id, JSON.stringify(local));
+  }
 }
 async function holdInitialRead(page: Page, id: string, respond?: (route: Route) => Promise<void>) {
   let release!: () => void;
@@ -109,7 +113,7 @@ for (const cached of [false, true]) {
       await page.waitForTimeout(650);
       expect(pending.writes).toEqual([]);
       expect(await page.evaluate((id) => localStorage.getItem(`tsumu-unsynced-v1:${id}`), id)).toBeNull();
-      if (!cached) expect(await page.evaluate((id) => localStorage.getItem(`tsumu-doc-v1:${id}`), id)).toBeNull();
+      if (!cached) expect(await browserDoc(page, id)).toBeNull();
       pending.release();
       await expect(canvas(page).getByText("Saved server heading", { exact: true })).toBeVisible();
       await saved(page);

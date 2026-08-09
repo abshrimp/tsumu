@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { siteBootstrapBundle } from "../tests/helpers/site-bootstrap";
+import { setBrowserDoc } from "./helpers/browser-doc";
 
 let bundle: string;
 const css = readFileSync(resolve("app/globals.css"), "utf8");
@@ -62,10 +63,13 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
   }, { strict, cached, localSite });
   // Seed a cache in the actual format before the editor's dynamic import.
   await page.addScriptTag({ content: bundle });
-  if (cached) await page.evaluate(() => {
-    const local = (window as any).bootstrapDoc(); local.siteName = "Cached local document";
-    localStorage.setItem("tsumu-doc-v1:bootstrap-test", JSON.stringify(local));
-  });
+  if (cached) {
+    const raw = await page.evaluate(() => {
+      const local = (window as any).bootstrapDoc(); local.siteName = "Cached local document";
+      return JSON.stringify(local);
+    });
+    await setBrowserDoc(page, "bootstrap-test", raw);
+  }
   await expect(page.locator(".boot-tip")).toContainText("ヒント");
   await page.evaluate(() => {
     const w = window as any;

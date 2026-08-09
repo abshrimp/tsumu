@@ -16,9 +16,6 @@ import { storageKey } from "./storage-keys";
 import { withLocalSiteListLock } from "./local-site-lock";
 export { withLocalSiteListLock };
 
-/** 編集データのブラウザ保存（サイトごとに siteKey で分ける） */
-export const DOC_STORAGE_KEY = storageKey("doc-v1");
-
 /** いま開いているサイトのID（エディタの URL /sites/<id> から。エディタの外では空） */
 export function currentSiteId(): string {
   if (typeof window === "undefined") return "";
@@ -39,7 +36,6 @@ export function siteKey(key: string, id: string = currentSiteId()): string {
 
 /** サイトごとに分けて保存しているキー（サイトを消すときに一緒に消す） */
 export const SITE_SCOPED_KEYS = [
-  DOC_STORAGE_KEY,
   storageKey("published-v1"),
   storageKey("published-hash-v1"),
   storageKey("active-page-v1"),
@@ -66,32 +62,13 @@ export function sitePublishFields(): { site: string; dest?: SiteDest } {
   return { site: currentSiteId(), ...(dest ? { dest } : {}) };
 }
 
-/** このブラウザに保存している、ほかのサイトの編集データ（JSON の文字列のまま） */
-export function otherLocalDocs(): string[] {
-  const own = siteKey(DOC_STORAGE_KEY);
-  const out: string[] = [];
-  try {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-      if (!key || key === own) continue;
-      if (!key.startsWith(`${DOC_STORAGE_KEY}:`)) continue;
-      const raw = window.localStorage.getItem(key);
-      if (raw) out.push(raw);
-    }
-  } catch {
-    // 読めなければ、ほかのサイトは無いものとして扱う
-  }
-  return out;
-}
-
 /* ---------- D1 が無いときの、ブラウザ内のサイト一覧 ---------- */
 
 const LOCAL_SITES_KEY = storageKey("sites-v1");
 
-/** Never replace an existing list entry, deleted site, or unlisted document. */
+/** Document ID collisions are independently rejected by IndexedDB. */
 export function localSiteIdInUse(id: string, list: SiteRecord[]): boolean {
-  return list.some(site => site.id === id) || isLocalSiteDeleted(id) ||
-    window.localStorage.getItem(siteKey(DOC_STORAGE_KEY, id)) !== null;
+  return list.some(site => site.id === id) || isLocalSiteDeleted(id);
 }
 
 /** 明示的なローカルサイト削除の記録。古いタブの一覧保存や掃除で消さない。 */

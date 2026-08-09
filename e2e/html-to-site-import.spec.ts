@@ -5,7 +5,7 @@ import { createInitialDoc } from "../lib/presets";
 import { generateProject } from "../lib/generator";
 import { generateExportProject } from "../lib/export-formats";
 import { importedAssetPath, importedAssetUrl } from "../lib/generator/imported-assets";
-import { DOC_STORAGE_KEY, siteKey } from "../lib/site";
+import { browserDoc } from "./helpers/browser-doc";
 import { storageKey } from "../lib/storage-keys";
 
 const listKey = storageKey("sites-v1");
@@ -20,11 +20,8 @@ async function localMode(page: Page) {
   await page.route("**/api/assets", (route) => route.fulfill({ status: 503, json: {} }));
 }
 async function importedDoc(page: Page) {
-  return page.evaluate(({ listKey, docKey }) => {
-    const sites = JSON.parse(localStorage.getItem(listKey) || "[]");
-    const site = sites[0];
-    return site ? JSON.parse(localStorage.getItem(docKey + ":" + site.id) || "null") : null;
-  }, { listKey, docKey: DOC_STORAGE_KEY });
+  const sites = await page.evaluate(key => JSON.parse(localStorage.getItem(key) || "[]") as { id: string }[], listKey);
+  return sites[0] ? JSON.parse((await browserDoc(page, sites[0].id)) || "null") : null;
 }
 
 test("HTML file import generates editable nodes and responsive CSS, not rawHtml", async ({ page }) => {

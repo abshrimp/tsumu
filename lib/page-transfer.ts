@@ -10,7 +10,8 @@ import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } fr
 import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from "./clip-transfer";
 import { createInitialDoc, genId } from "./presets";
 import { copySlug, uniquePageNaming } from "./store";
-import { DOC_STORAGE_KEY, isLocalSiteDeleted, siteKey } from "./site";
+import { isLocalSiteDeleted } from "./site";
+import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
 import { tr } from "./i18n";
 import { isSiteLang, siteLangOf } from "./site-lang";
 import { normalizeQuery } from "./vars";
@@ -209,13 +210,14 @@ export async function copyPagesToSite(
   store: "server" | "local"
 ): Promise<void> {
   if (store === "local") {
-    const key = siteKey(DOC_STORAGE_KEY, target.id);
     let doc: SiteDoc;
+    let expected: string | null;
     try {
       // The destination list can be stale while the copy dialog is open.
       // Never recreate content for a site explicitly deleted in another tab.
       if (isLocalSiteDeleted(target.id)) throw new Error("Local destination deleted");
-      const raw = window.localStorage.getItem(key);
+      const raw = await readBrowserDoc(target.id);
+      expected = raw;
       // 未保存と読み込み失敗を区別し、読めない既存データを初期状態で上書きしない。
       if (raw === null) {
         doc = createInitialDoc();
@@ -231,9 +233,11 @@ export async function copyPagesToSite(
     }
     applyPagePayload(doc, payload);
     try {
-      window.localStorage.setItem(key, JSON.stringify(doc));
+      if (isLocalSiteDeleted(target.id)) throw new Error("Local destination deleted");
+      const result = await writeBrowserDoc(target.id, JSON.stringify(doc), expected);
+      if (result !== "saved" || isLocalSiteDeleted(target.id)) throw new Error("Destination changed");
     } catch {
-      throw new Error(tr("ブラウザの保存領域が足りないため、コピーできませんでした"));
+      throw new Error(tr("ブラウザへの保存ができなかったため、コピーできませんでした"));
     }
     return;
   }

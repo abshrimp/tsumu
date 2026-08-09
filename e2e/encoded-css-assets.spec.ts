@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { generateProject } from "../lib/generator";
-import { DOC_STORAGE_KEY, emptyDest, siteKey } from "../lib/site";
+import { emptyDest } from "../lib/site";
+import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
 import { storageKey } from "../lib/storage-keys";
 import { copySiteStorageBundle } from "../tests/helpers/copy-site-storage";
 import { encodedCssAssetDoc, emptyAssetDestination, picture, type CssLocation } from "../tests/helpers/encoded-css-assets";
@@ -16,18 +17,17 @@ for (const location of ["node.styles", "node.customCss", "page.bodyStyles"] as C
       return route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' });
     });
     await page.goto("http://css-copy.test/sites/source");
-    const key = siteKey(DOC_STORAGE_KEY, "destination");
     const destination = emptyAssetDestination();
-    await page.evaluate(({ key, listKey, site, destination }) => {
+    await page.evaluate(({ listKey, site }) => {
       localStorage.setItem("tsumu-lang", "ja");
       localStorage.setItem(listKey, JSON.stringify([site]));
-      localStorage.setItem(key, JSON.stringify(destination));
-    }, { key, listKey: storageKey("sites-v1"), site: { ...emptyDest(), id: "destination", name: "Destination", createdAt: 1, updatedAt: 1 }, destination });
+    }, { listKey: storageKey("sites-v1"), site: { ...emptyDest(), id: "destination", name: "Destination", createdAt: 1, updatedAt: 1 } });
+    await setBrowserDoc(page, "destination", JSON.stringify(destination));
     await page.addScriptTag({ content: bundle });
     await expect(page.locator(".copy-site-name")).toHaveText("Destination");
     await page.locator(".copy-site-item").click();
     await expect(page.locator(".copy-site-done")).toContainText("Destination");
-    const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), key);
+    const saved = JSON.parse((await browserDoc(page, "destination"))!);
     expect(saved.pages.dest).toEqual(destination.pages.dest);
     expect(saved.pageOrder).toHaveLength(2);
     expect(Object.keys(saved.assets)).toEqual([picture.id]);

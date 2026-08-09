@@ -1,5 +1,6 @@
 import { withImportUploads } from "./import-uploads";
-import { DOC_STORAGE_KEY, emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, siteKey, withLocalSiteListLock } from "./site";
+import { emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, withLocalSiteListLock } from "./site";
+import { createBrowserDoc, deleteBrowserDoc } from "./browser-doc-storage";
 import { newSiteId, type SiteRecord } from "./sites";
 import { IMPORT_LIMITS, parseSiteImport, restoreImportAssets, validateImportedDoc } from "./site-import";
 import { convertHtmlFile, isEditableSiteZip, isHtmlFile } from "./html-file-import";
@@ -17,31 +18,23 @@ export function importFileKind(file: Pick<File, "name">): "zip" | "doc" | "html"
   throw new Error("ZIP・doc.json・HTMLファイルを選択してください。");
 }
 
-function localWrite(doc: string, name: string): string {
+async function localWrite(doc: string, name: string): Promise<string> {
   const id = newSiteId();
   const now = Date.now();
-  const site: SiteRecord = {
-    ...emptyDest(), id, name, createdAt: now, updatedAt: now,
-  };
-  // Read the current site list before making any writes. A failed list save
-  // must not leave behind a partial document or an inaccessible site.
-  const list = loadLocalSites({ strict: true });
-  const docKey = siteKey(DOC_STORAGE_KEY, id);
-  if (localSiteIdInUse(id, list)) {
-    throw new Error("サイトを作成できませんでした。");
-  }
-  let wroteDoc = false;
+  const site: SiteRecord = { ...emptyDest(), id, name, createdAt: now, updatedAt: now };
+  let created = false;
   try {
-    window.localStorage.setItem(docKey, doc);
-    wroteDoc = true;
-    if (!saveLocalSites([site, ...list])) throw new Error("サイト一覧を保存できませんでした。");
+    created = await createBrowserDoc(id, doc);
+    if (!created) throw new Error("Document already exists");
+    await withLocalSiteListLock(() => {
+      const list = loadLocalSites({ strict: true });
+      if (localSiteIdInUse(id, list) || !saveLocalSites([site, ...list])) throw new Error("Site list write failed");
+    });
+    return id;
   } catch {
-    if (wroteDoc) {
-      try { window.localStorage.removeItem(docKey); } catch {}
-    }
+    if (created) await deleteBrowserDoc(id).catch(() => {});
     throw new Error("ブラウザにサイトを保存できませんでした。空き容量と保存設定を確認してください。");
   }
-  return id;
 }
 
 async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promise<string> {
@@ -100,7 +93,7 @@ export async function createSiteFromFile(
     }
     const id = mode === "server"
       ? await serverWrite(doc, raw, paths)
-      : await withLocalSiteListLock(() => localWrite(raw, doc.siteName));
+      : await localWrite(raw, doc.siteName);
     try {
       window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));
     } catch {

@@ -118,6 +118,10 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
     }
     return;
   }
+  // A server-acknowledged initial snapshot is not an edit. In particular,
+  // never leave an unsynced flag behind just because the loading gate opened.
+  // Explicit retries still work while an actual unsaved edit is pending.
+  if (!changed && !a.cloudDirty.current) return;
   const s = a.getState();
   if (s.cloudState === "local") return;
   a.cloudDirty.current = true;
