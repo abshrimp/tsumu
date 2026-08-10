@@ -200,6 +200,9 @@ export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): 
   // opening a workspace with many separate script stacks quadratic.
   const cellSize = 48;
   const placed = new Map<string, ScriptPos[]>();
+  // All earlier candidate rows for one original position remain occupied.
+  // Skip them on the next collision instead of repeatedly rescanning.
+  const nextCollisionY = new Map<string, number>();
   const key = (x: number, y: number) =>
     `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}`;
   const overlaps = (pos: ScriptPos) => {
@@ -216,7 +219,11 @@ export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): 
   };
   return out.map((s) => {
     const pos = { ...s.pos };
+    const originalKey = `${pos.x}:${pos.y}`;
+    const nextY = nextCollisionY.get(originalKey);
+    if (nextY !== undefined) pos.y = nextY;
     while (overlaps(pos)) pos.y += 150;
+    nextCollisionY.set(originalKey, pos.y + 150);
     const cell = key(pos.x, pos.y);
     const list = placed.get(cell) ?? [];
     list.push(pos);
@@ -233,13 +240,16 @@ export function applyPageScripts(
   views: PageScript[]
 ) {
   const byNode = new Map<string, Script[]>();
+  const validNodeIds = new Set(nodeIds);
   const loose: Script[] = [];
   const own: Script[] = [];
   for (const { nodeId, ...s } of views) {
     if (nodeId === PAGE_TARGET && s.trigger) {
       own.push(s);
-    } else if (nodeId && s.trigger && nodeIds.includes(nodeId) && doc.nodes[nodeId]) {
-      byNode.set(nodeId, [...(byNode.get(nodeId) ?? []), s]);
+    } else if (nodeId && s.trigger && validNodeIds.has(nodeId) && doc.nodes[nodeId]) {
+      const group = byNode.get(nodeId);
+      if (group) group.push(s);
+      else byNode.set(nodeId, [s]);
     } else {
       loose.push(s);
     }
