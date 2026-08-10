@@ -95,7 +95,7 @@ export default function ImagePicker({
           </button>
         ) : (
           <input
-            key={value?.url ?? "_"}
+            key={JSON.stringify([editTarget, value?.url ?? null])}
             className="input"
             defaultValue={value?.url ?? ""}
             placeholder={placeholder}
@@ -204,7 +204,7 @@ export function AssetGrid({
   const shown = q ? all.filter((a) => a.name.toLowerCase().includes(q)) : all;
   return (
     <div className="asset-pick">
-      {all.length > 4 && (
+      {(all.length > 4 || query.length > 0) && (
         <label className="asset-search asset-pick-search">
           <Search size={13} />
           <input

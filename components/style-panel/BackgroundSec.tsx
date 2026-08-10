@@ -362,7 +362,7 @@ export function BorderSec() {
               else
                 insp.set({
                   borderWidth: v,
-                  borderStyle: insp.get("borderStyle").value ?? "solid",
+                  borderStyle: isInitialValue("borderStyle", insp.get("borderStyle").value) ? "solid" : insp.get("borderStyle").value!,
                   borderColor: insp.get("borderColor").value ?? "#e4e4e7",
                 });
             }}
