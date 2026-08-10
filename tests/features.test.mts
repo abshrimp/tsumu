@@ -49,6 +49,21 @@ test("JSON body variables are escaped inside strings and raw outside", () => {
   assert.equal(bodyJsonError('{"a": '), true);
 });
 
+test("JSON body escaped braces remain valid with JSON-encoded backslashes", () => {
+  const template = String.raw`{"one":"\{name}","encoded":"\\{name}","double":"\\\\{name}","ordinary":"{name}"}`;
+  const vars = { name: "Ada" };
+  const body = interpolateJson(template, vars);
+  assert.deepEqual(JSON.parse(body), {
+    one: "{name}",
+    encoded: "{name}",
+    double: "\\{name}",
+    ordinary: "Ada",
+  });
+  assert.equal(bodyJsonError(template), false);
+  const request = fetchRequestOf({ method: "POST", body: template }, vars);
+  assert.deepEqual(JSON.parse(request?.body ?? ""), JSON.parse(body));
+});
+
 test("fetch request options add a JSON content type only when sending a body", () => {
   assert.equal(fetchRequestOf({}, {}), undefined);
   const r = fetchRequestOf(

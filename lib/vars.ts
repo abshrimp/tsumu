@@ -91,6 +91,15 @@ export function interpolateJson(template: string, vars: Vars): string {
     out += chunk;
     last = at + m[0].length;
     if (m[0] === ESCAPED_BRACE) {
+      if (inString) {
+        // A valid JSON string writes an escaped backslash as "\\\\". The
+        // token matcher consumes its final slash, leaving an invalid "\\{"
+        // escape unless its paired slash is removed as well.
+        let trailingSlashes = 0;
+        while (trailingSlashes < chunk.length &&
+          chunk[chunk.length - trailingSlashes - 1] === "\\") trailingSlashes++;
+        if (trailingSlashes % 2 === 1) out = out.slice(0, -1);
+      }
       out += "{";
       continue;
     }
