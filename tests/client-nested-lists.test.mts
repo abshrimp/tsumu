@@ -249,7 +249,42 @@ test('static nested filters prefer each parent value over a conflicting server f
     const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
     await runtime.click('reload');
     assert.deepEqual(details(runtime), canvasDetails(doc, items), value);
-    assert.deepEqual(details(runtime), ['Detail First:blue{literal}', 'Detail Second:red{literal}', 'Detail Missing:red{literal}', 'Detail Null:', 'Detail Empty:', 'Detail Literal key:']);
+    assert.deepEqual(details(runtime), ['Detail First:blue{literal}', 'Detail Second:red{literal}', 'Detail Missing:red{literal}', ...(value === '{choice.wanted}' ? [] : ['Detail Empty:'])]);
     runtime.dispose();
   }
+});
+
+for (const not of [false, true]) test(`nested base filters preserve typed values and negation (${not})`, async () => {
+  const doc = clientNestedDoc();
+  for (const action of ['descending', 'ascending', 'filter', 'empty', 'clear']) {
+    doc.pages.p.children = doc.pages.p.children.filter(id => id !== action); delete doc.nodes[action];
+  }
+  const tags = [
+    { label: 'object', match: { code: 2 } },
+    { label: 'array', match: [1, 2] },
+    { label: 'null', match: null },
+    { label: 'empty', match: '' },
+  ];
+  const items = [
+    { name: 'Object', wanted: { code: 2 }, tags },
+    { name: 'Array', wanted: [1, 2], tags },
+    { name: 'Null', wanted: null, tags },
+  ];
+  (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+  doc.pages.p.pageScripts![0].steps.push({id: 'global-wanted', kind: 'set-var', value: '{response.0.wanted}', into: 'wanted'});
+  doc.pages.p.pageScripts![0].steps.push({
+    id: 'typed-base-filter', kind: 'list-display', mode: 'filter', array: 'tags',
+    field: 'match', op: 'eq', value: '{wanted}', not, dir: 'asc',
+  });
+  const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
+  for (let i = 0; i < 2; i++) {
+    await runtime.click('reload');
+    assert.deepEqual(details(runtime), canvasDetails(doc, items));
+    assert.deepEqual(details(runtime), not ? [
+      'Detail Object:array', 'Detail Object:null', 'Detail Object:empty',
+      'Detail Array:object', 'Detail Array:null', 'Detail Array:empty',
+      'Detail Null:object', 'Detail Null:array', 'Detail Null:empty',
+    ] : ['Detail Object:object', 'Detail Array:array', 'Detail Null:null']);
+  }
+  runtime.dispose();
 });

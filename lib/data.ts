@@ -145,7 +145,13 @@ export type ListOp =
    * conds（「かつ」でつないだ組）のどれか1つを満たす項目を残す。
    * 複数の絞り込みは並んだ順に join（かつ / または）でつなぐ
    */
-  | { kind: "filter"; conds: FilterCond[]; no?: number; join?: "and" | "or" }
+  | {
+      kind: "filter";
+      // Transient Canvas evaluation state; never written to the document.
+      conds: (FilterCond & { resolvedValue?: { value: unknown } })[];
+      no?: number;
+      join?: "and" | "or";
+    }
   | { kind: "sort"; field: string; dir: "asc" | "desc" };
 
 /** 絞り込み（value の {変数} は解決済み）だけを項目配列に適用 */
@@ -158,10 +164,11 @@ export function filterItems(
   if (!filters.length) return items;
   const pass = (o: Extract<ListOp, { kind: "filter" }>, item: Record<string, unknown>) =>
     condGroups(o.conds).some((g) =>
-      g.every((c) =>
-        c.not ? !matchOp(keyOfItem(item, c.field), c.op, parseValueLiteral(c.value)) :
-          matchOp(keyOfItem(item, c.field), c.op, parseValueLiteral(c.value))
-      )
+      g.every((c) => {
+        const right = c.resolvedValue ? c.resolvedValue.value : parseValueLiteral(c.value);
+        const result = matchOp(keyOfItem(item, c.field), c.op, right);
+        return c.not ? !result : result;
+      })
     );
   return items.filter((item) =>
     filters.reduce<boolean>(

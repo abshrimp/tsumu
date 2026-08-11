@@ -98,7 +98,8 @@ test('nested static filters shadow server values without reinterpreting literal 
   await page.addScriptTag({ content: scriptsFile(doc) });
   for (let i = 0; i < 2; i++) {
     await page.getByRole('button', { name: 'Load items', exact: true }).click();
-    await expect(details(page)).toHaveText(['Detail First:blue{literal}', 'Detail Second:red{literal}', 'Detail Missing:red{literal}', 'Detail Null:']);
+    // A typed null condition must not match an empty-string label.
+    await expect(details(page)).toHaveText(['Detail First:blue{literal}', 'Detail Second:red{literal}', 'Detail Missing:red{literal}']);
   }
   expect(errors).toEqual([]);
 });
