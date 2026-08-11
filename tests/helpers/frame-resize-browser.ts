@@ -11,10 +11,12 @@ import { createRoot } from "react-dom/client";
 import Canvas from "./components/Canvas";
 import { useEditor } from "./lib/store";
 const doc = {
-  siteName: "Frame resize", assets: {}, nodes: {}, components: {}, pageOrder: ["p", "q"],
+  siteName: "Frame resize", assets: {}, nodes: {}, components: {}, pageOrder: ["p", "q", "h"],
   pages: {
     p: { id: "p", name: "Page", slug: "", title: "", description: "", children: [] },
     q: { id: "q", name: "Redirect", slug: "redirect", title: "", description: "", children: [], redirectTo: "/" },
+    h: { id: "h", name: "HTML", slug: "html", title: "", description: "", children: [], rawHtml:
+      '<!doctype html><html><head><style>body{color:rgb(10,20,30)}</style></head><body><button id="run" onclick="document.getElementById(&quot;execution&quot;).textContent=&quot;clicked&quot;">Click</button><p id="execution">initial</p><script>document.getElementById("execution").textContent="script ran";</script></body></html>' },
   },
 };
 useEditor.getState().replaceDoc(doc);
@@ -31,6 +33,7 @@ window.frameResize = {
   width: (value) => useEditor.getState().setCustomWidth(value),
   zoom: (value) => useEditor.getState().setZoom(value),
   page: (value) => useEditor.getState().setActivePage(value),
+  mode: (value) => useEditor.getState().setMode(value),
   unmount: () => root.unmount(),
 };
 root.render(<React.StrictMode><Canvas /></React.StrictMode>);
