@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SlotIndex, type SlotPoint } from "../components/script-editor/slot-index";
-import { filterNumbersOf, mapStep, numberFilters, removeKeys } from "../components/script-editor/step-tree";
+import { filterNumbersOf, insertAt, listIn, mapStep, numberFilters, removeKeys, takeAt } from "../components/script-editor/step-tree";
 import { dataVarNames, firstListItem, ITEM_VALUE, pageVariableIndex, scriptInputDoc, toListItems } from "../lib/data";
 import { PAGE_TARGET, type ScriptStep, type SiteDoc } from "../lib/types";
 import { applyPageScripts, pageScriptsOf, type PageScript } from "../lib/script";
@@ -294,4 +294,64 @@ test("editor list suggestions inspect the first item without materializing the r
   assert.deepEqual(firstListItem(firstOnly), { name: "first" });
   assert.equal(firstListItem({}), undefined);
   assert.equal(firstListItem(null), undefined);
+});
+
+test("dragging a tail of 4000 blocks preserves all untouched object identities", () => {
+  const steps: ScriptStep[] = Array.from({ length: 4000 }, (_, i) => ({
+    id: "block-" + i, kind: "wait", seconds: i,
+  }));
+  const scripts = [
+    { id: "large", nodeId: null, pos: { x: 0, y: 0 }, steps },
+    { id: "other", nodeId: null, pos: { x: 400, y: 0 },
+      steps: [{ id: "keep", kind: "wait" as const, seconds: 1 }] },
+  ];
+  const [remaining, moved] = takeAt(scripts, { scriptId: "large", list: "root", index: 3900 });
+  assert.equal(moved.length, 100);
+  assert.equal(moved[0], steps[3900]);
+  assert.equal(remaining[0].steps[0], steps[0]);
+  assert.equal(remaining[0].steps.at(-1), steps[3899]);
+  assert.equal(remaining[1], scripts[1]);
+  assert.equal(scripts[0].steps.length, 4000);
+
+  const inserted = insertAt(remaining, { scriptId: "other", list: "root", index: 1 }, moved);
+  assert.equal(inserted[0], remaining[0]);
+  assert.equal(inserted[1].steps[0], scripts[1].steps[0]);
+  assert.equal(inserted[1].steps[1], steps[3900]);
+  assert.equal(scripts[1].steps.length, 1);
+});
+
+test("nested drops and deletion copy only the changed branch, including repeated IDs", () => {
+  const cond = { subject: "var" as const, target: "", left: "on", op: "eq" as const, value: "true" };
+  const first: ScriptStep = { id: "branch", kind: "if", cond, then: [], else: [] };
+  const last: ScriptStep = { id: "branch", kind: "if", cond, then: [],
+    else: [{ id: "before", kind: "wait", seconds: 1 }] };
+  const unrelated: ScriptStep = { id: "unrelated", kind: "repeat", times: 2,
+    then: [{ id: "child", kind: "wait", seconds: 1 }] };
+  const scripts = [{ id: "a", nodeId: null, pos: { x: 0, y: 0 },
+    steps: [first, unrelated, last] }];
+  const loc = { scriptId: "a", list: "branch:else", index: 1 };
+  const next = insertAt(scripts, loc, [{ id: "new", kind: "wait", seconds: 2 }]);
+  assert.notEqual(next[0].steps[0], first);
+  assert.equal(next[0].steps[1], unrelated);
+  assert.equal(next[0].steps[2], last);
+  assert.equal(listIn(next[0], loc.list)?.length, 1);
+  assert.equal(listIn(scripts[0], loc.list)?.length, 0);
+
+  const deleted = removeKeys(next, ["step:new"]);
+  assert.equal(deleted[0].steps[1], unrelated);
+  assert.equal(deleted[0].steps[2], last);
+  assert.equal(listIn(deleted[0], loc.list)?.length, 0);
+  assert.equal(listIn(next[0], loc.list)?.length, 1);
+});
+
+test("inserting into an absent else branch does not mutate the original", () => {
+  const cond = { subject: "var" as const, target: "", left: "ok", op: "eq" as const, value: "true" };
+  const parent: ScriptStep = { id: "if", kind: "if", cond, then: [] };
+  const scripts = [{ id: "s", nodeId: null, pos: { x: 0, y: 0 }, steps: [parent] }];
+  const loc = { scriptId: "s", list: "if:else", index: 0 };
+  assert.equal(takeAt(scripts, loc)[0], scripts);
+  const inserted = insertAt(scripts, loc, [{ id: "new", kind: "wait", seconds: 1 }]);
+  assert.equal(listIn(scripts[0], loc.list), null);
+  assert.equal(listIn(inserted[0], loc.list)?.[0].id, "new");
+  assert.notEqual(inserted[0].steps[0], parent);
 });

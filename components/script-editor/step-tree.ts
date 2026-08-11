@@ -52,16 +52,67 @@ export function stepIn(steps: ScriptStep[], stepId: string): boolean {
   );
 }
 
+/**
+ * Copy only the edited list and its enclosing steps, instead of deeply cloning
+ * the entire workspace whenever a block is moved or deleted.
+ */
+function spliceScriptList(
+  scripts: PageScript[],
+  loc: Loc,
+  deleteCount: number,
+  inserted: ScriptStep[],
+  createMissing = false
+): [PageScript[], ScriptStep[]] {
+  const script = scripts.find((item) => item.id === loc.scriptId);
+  if (!script) return [scripts, []];
+
+  let removed: ScriptStep[] = [];
+  if (loc.list === "root") {
+    const steps = script.steps.slice();
+    removed = steps.splice(loc.index, deleteCount, ...inserted);
+    return [scripts.map((item) => item === script ? { ...item, steps } : item), removed];
+  }
+
+  const [sid, branch] = loc.list.split(":");
+  // Resolve duplicate IDs with the same direct-match short circuit as listIn.
+  const findOwner = (steps: ScriptStep[]): ScriptStep | null => {
+    let found: ScriptStep | null = null;
+    for (const step of steps) {
+      if (step.kind === "repeat" || step.kind === "for-each") {
+        if (step.id === sid) return step;
+        found = findOwner(step.then) ?? found;
+        continue;
+      }
+      if (step.kind !== "if") continue;
+      if (step.id === sid) return step;
+      found = findOwner(step.then) ?? found;
+      if (step.else) found = findOwner(step.else) ?? found;
+    }
+    return found;
+  };
+  const owner = findOwner(script.steps);
+  if (!owner) return [scripts, []];
+  const field = owner.kind === "if" && branch === "else" ? "else" : "then";
+  if (field === "else" && owner.kind === "if" && !owner.else && !createMissing) {
+    return [scripts, []];
+  }
+
+  const updated = mapStep(scripts, sid, (step) => {
+    if (step !== owner || !("then" in step)) return step;
+    const source = field === "else" && step.kind === "if" ? (step.else ?? []) : step.then;
+    const next = source.slice();
+    removed = next.splice(loc.index, deleteCount, ...inserted);
+    return { ...step, [field]: next } as ScriptStep;
+  });
+  return [updated, removed];
+}
+
 /** loc 以降のステップを取り出す（下につながるブロックごと動かす） */
 export function takeAt(scripts: PageScript[], loc: Loc): [PageScript[], ScriptStep[]] {
-  const next = structuredClone(scripts);
-  const script = next.find((s) => s.id === loc.scriptId);
-  const list = script && listIn(script, loc.list);
-  if (!script || !list) return [scripts, []];
-  const taken = list.splice(loc.index);
-  // きっかけの無い集まりを丸ごと取り出したら、その集まりは消す
-  if (loc.list === "root" && !script.trigger && !script.steps.length) {
-    return [next.filter((s) => s.id !== script.id), taken];
+  const [next, taken] = spliceScriptList(scripts, loc, Infinity, []);
+  const script = next.find((item) => item.id === loc.scriptId);
+  if (next !== scripts && loc.list === "root" && script && !script.trigger && !script.steps.length) {
+    return [next.filter((item) => item.id !== script.id), taken];
   }
   return [next, taken];
 }
@@ -71,12 +122,7 @@ export function insertAt(
   loc: Loc,
   steps: ScriptStep[]
 ): PageScript[] {
-  const next = structuredClone(scripts);
-  const script = next.find((s) => s.id === loc.scriptId);
-  const list = script && listIn(script, loc.list, true);
-  if (!list) return scripts;
-  list.splice(loc.index, 0, ...steps);
-  return next;
+  return spliceScriptList(scripts, loc, 0, steps, true)[0];
 }
 
 /**
