@@ -10,6 +10,8 @@ export class ListDomNode {
   style = { display: "" };
   parentElement: ListDomNode | null = null;
   nodeValue = "";
+  private fieldValue?: string;
+  private explicitSelection = false;
   handlers = new Map<string, Function[]>();
   constructor(public nodeType = 1, public tagName = "DIV") {}
   static from(node: any): ListDomNode {
@@ -30,6 +32,29 @@ export class ListDomNode {
   }
   get attributes() { return Object.entries(this.attrs).map(([name, value]) => ({ name, value })); }
   get textContent(): string { return this.nodeType === 3 ? this.nodeValue : this.childNodes.map(c => c.textContent).join(""); }
+  set textContent(value: string) {
+    this.childNodes = [];
+    if (value) this.appendChild(Object.assign(new ListDomNode(3), { nodeValue: value }));
+  }
+  get type() { return this.attrs.type ?? "text"; }
+  get name() { return this.attrs.name ?? ""; }
+  get id() { return this.attrs.id ?? ""; }
+  get options() { return this.querySelectorAll("option"); }
+  get defaultSelected() { return this.hasAttribute("selected"); }
+  set defaultSelected(value: boolean) { if (value) this.attrs.selected = ""; else delete this.attrs.selected; }
+  get selectedIndex() { const index = this.options.findIndex(o => o.defaultSelected); return index >= 0 || this.explicitSelection ? index : this.options.length ? 0 : -1; }
+  set selectedIndex(value: number) { this.explicitSelection = true; this.options.forEach((o, i) => { o.defaultSelected = i === value; }); }
+  get defaultValue(): string { return this.tagName === "TEXTAREA" ? this.textContent : this.attrs.value ?? ""; }
+  set defaultValue(value: string) { if (this.tagName === "TEXTAREA") this.textContent = value; else this.attrs.value = value; }
+  get value(): string {
+    if (this.tagName === "SELECT") return this.options[this.selectedIndex]?.value ?? "";
+    if (this.tagName === "OPTION") return this.attrs.value ?? this.textContent;
+    return this.fieldValue ?? this.defaultValue;
+  }
+  set value(value: string) {
+    if (this.tagName === "SELECT") this.selectedIndex = this.options.findIndex(o => o.value === value);
+    else this.fieldValue = value;
+  }
   getAttribute(name: string) { return this.attrs[name] ?? null; }
   hasAttribute(name: string) { return Object.hasOwn(this.attrs, name); }
   setAttribute(name: string, value: string) { this.attrs[name] = String(value); }
