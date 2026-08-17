@@ -94,11 +94,12 @@ export class ListDomNode {
   removeEventListener() {}
 }
 
-export function listRuntimeDom(html: string, source: string) {
+export function listRuntimeDom(html: string, source: string, globals: Record<string, unknown> = {}) {
   const root = ListDomNode.from(parse(html));
   let mutation = () => {};
   const frames: Array<() => void> = [], vars: Record<string, unknown> = {};
   const dispose = runInNewContext(source, {
+    ...globals,
     document: Object.assign(root, { createElement: (tag: string) => new ListDomNode(1, tag.toUpperCase()),
       createTextNode: (value: string) => Object.assign(new ListDomNode(3), { nodeValue: value }) }),
     CSS: { escape: (v: string) => v }, Event,
