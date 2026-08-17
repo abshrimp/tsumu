@@ -1339,7 +1339,11 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (lp) {
               var lo = {};
               for (var lk in lp.item) if (has(lp.item, lk)) lo[lk] = lp.item[lk];
-              lo[st.field] = one ? lookup(one[1].trim(), self, sc) : resolve(st.value, self, sc);
+              lo[st.field] =
+                /*#clist*/
+                st.rawRef ? scriptReference(st.rawRef, self, sc) :
+                /*/clist*/
+                one ? lookup(one[1].trim(), self, sc) : resolve(st.value, self, sc);
               lp.item = lo;
               var lv2 = av.slice();
               lv2[lp.index] = lo;
@@ -1357,7 +1361,11 @@ export const SCRIPT_RUNTIME = `function (env) {
                 var ao = {};
                 for (var ak in it) if (has(it, ak)) ao[ak] = it[ak];
                 var am = merged(sc, it);
-                ao[st.field] = one ? lookup(one[1].trim(), self, am) : resolve(st.value, self, am);
+                ao[st.field] =
+                  /*#clist*/
+                  st.rawRef ? scriptReference(st.rawRef, self, am) :
+                  /*/clist*/
+                  one ? lookup(one[1].trim(), self, am) : resolve(st.value, self, am);
                 return ao;
               })
             );

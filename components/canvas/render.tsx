@@ -127,7 +127,8 @@ export function applyScriptsAttr(
       const p = doc.pages[pageId];
       return p ? pageHrefOf(p) : "/";
     },
-    (str, kind) => {
+    (str, kind, item) => {
+      if (item) return str;
       if (!hasVars(str)) return str;
       // 画面上の変数は {名前} のまま、文字としての「{」は「\{」のまま渡し、ランタイムが置き換える
       const v = { ...vars, ...keepTokens(str, clientVars), [KEEP_ESCAPES]: true };
@@ -135,7 +136,7 @@ export function applyScriptsAttr(
     },
     true,
     skip,
-    (name) => (clientVars.has(name.split(".")[0]) ? undefined : (lookupVar(vars, name) ?? null))
+    (name, item) => (item || clientVars.has(name.split(".")[0]) ? undefined : (lookupVar(vars, name) ?? null))
   );
   if (compiled.length) common["data-scripts"] = JSON.stringify(compiled);
 }
