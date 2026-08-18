@@ -192,7 +192,7 @@ function browserStarter(assetPaths: string[]): string {
 }
 
 function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
-  framework: "vue" | "nuxt", lang: ExportLanguage, siteName: string): string {
+  framework: "vue" | "nuxt", lang: ExportLanguage, siteName: string, siteLanguage = "ja"): string {
   const isNuxt = framework === "nuxt";
   const rel = isNuxt ? "../generated/" : "./";
   const js = [
@@ -231,6 +231,7 @@ function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
         : "const vars = ref(loaded.value?.vars || {});",
       "watch(loaded, (next) => { vars.value = next?.vars || {}; });",
       "useHead(() => ({",
+      "  htmlAttrs: { lang: selected.value?.language || " + json(siteLanguage) + " },",
       "  title: selected.value ? selected.value.title + ' | ' + " + json(siteName) + " : " + json(siteName) + ",",
       "  meta: [{ name: 'description', content: selected.value?.description || '' }],",
       "}));",
@@ -280,6 +281,7 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
       : "let { data } = $props();",
     'let scope = $state(data.vars || {});',
     '$effect(() => { scope = { ...(data.vars || {}) }; });',
+    '$effect(() => { document.documentElement.lang = data.language; });',
     'onMount(() => {',
     '  void startPage(scope, (name, value) => { scope = { ...scope, [name]: value }; });',
     '});',
@@ -323,10 +325,18 @@ export function applyNativeFramework(
   } else if (framework === "nuxt") {
     files["app/app.vue"] = "<template><NuxtPage /></template>\n";
     files["app/generated/server-request.js"] = serverRequestSource(native.pages);
-    files["app/pages/index.vue"] = vueApp(native.pages, "nuxt", language, doc.siteName);
+    files["app/pages/index.vue"] = vueApp(native.pages, "nuxt", language, doc.siteName, doc.lang || "ja");
     files["app/pages/[...slug].vue"] = files["app/pages/index.vue"];
   } else {
     files["src/lib/server-request.js"] = serverRequestSource(native.pages);
+    files["src/hooks.server.js"] = [
+      'import { selectPage } from "$lib/site-routes.js";',
+      'export async function handle({ event, resolve }) {',
+      '  const language = selectPage(event.url.pathname, event.url.searchParams)?.language || ' + json(doc.lang || "ja") + ';',
+      `  const escaped = language.replace(/[&"<>]/g, char => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[char]);`,
+      '  return resolve(event, { transformPageChunk: ({ html }) => html.replace("%page.language%", () => escaped) });',
+      '}', '',
+    ].join("\n");
     const script = [
       'import { error } from "@sveltejs/kit";',
       'import { selectPage } from "$lib/site-routes.js";',

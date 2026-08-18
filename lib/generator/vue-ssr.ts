@@ -6,8 +6,6 @@ export function withVueSsr(
   files: Record<string, string>, doc: SiteDoc, language: ExportLanguage,
 ): void {
   const pages = generateNativeFiles(doc, language).pages;
-  const escapedLang = (doc.lang || "ja").replace(/[&<>"\x27]/g, (ch) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
   const ts = language === "typescript";
   const ext = ts ? "ts" : "js";
   const app = files["src/App.vue"];
@@ -48,7 +46,7 @@ export function withVueSsr(
     '  const url = new URL(urlString);',
     '  const selected = selectPage(url.pathname, url.searchParams);',
     '  if (!selected) return { status: 404, html: "<h1>Not Found</h1>", id: "", vars: {},',
-    '    title: "Not Found", description: "" };',
+    '    title: "Not Found", description: "", language: ' + JSON.stringify(doc.lang || "ja") + ' };',
     '  const vars = await loadPageData(selected.plan, url.searchParams,',
     '    (uri, init) => requestPublic(uri, init, url.origin,',
     '      (path' + (ts ? ': string' : '') + ', options' + (ts ? ': RequestInit' : '') + ') =>',
@@ -56,7 +54,7 @@ export function withVueSsr(
     '  const app = createSSRApp(App, { initialPageId: selected.id, initialVars: vars });',
     '  const html = await renderToString(app);',
     '  return { status: 200, html, id: selected.id, vars,',
-    '    title: selected.title, description: selected.description };',
+    '    title: selected.title + " | " + ' + JSON.stringify(doc.siteName) + ', description: selected.description, language: selected.language };',
     '}',
     "",
   ].join("\n");
@@ -109,13 +107,15 @@ export function withVueSsr(
     '      : render(siteUrl));',
     '    const sitePayload = JSON.stringify({ id: result.id, vars: result.vars })',
     '      .replace(/</g, "\\\\u003c");',
-    '    const escapeHtml = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");',
+    '    const escapeHtml = (value) => String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/\x27/g, "&#39;");',
     '    const slots = {',
     '      "app-html": result.html,',
     '      "app-data": \'<script id="site-payload" type="application/json">\' + sitePayload + "</script>",',
     '      "page-title": escapeHtml(result.title),',
+    '      "page-description": escapeHtml(result.description),',
+    '      "page-language": escapeHtml(result.language || ' + JSON.stringify(doc.lang || "ja") + '),',
     '    };',
-    '    let html = template.replace(/<!--(app-html|app-data|page-title)-->/g, (_, key) => slots[key]);',
+    '    let html = template.replace(/<!--(app-html|app-data|page-title|page-description|page-language)-->/g, (_, key) => slots[key]);',
     '    if (vite) html = await vite.transformIndexHtml(url.pathname, html);',
     '    res.writeHead(result.status, { "Content-Type": "text/html; charset=utf-8" });',
     '    res.end(html);',
@@ -134,9 +134,10 @@ export function withVueSsr(
   files["src/server-request.js"] = files["src/server-request.js"] || "";
   files["index.html"] = [
     "<!doctype html>",
-    '<html lang="' + escapedLang + '">',
+    '<html lang="<!--page-language-->">',
     "<head>",
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<meta name="description" content="<!--page-description-->">',
     "<title><!--page-title--></title>",
     "</head><body>",
     '<div id="app"><!--app-html--></div>',
