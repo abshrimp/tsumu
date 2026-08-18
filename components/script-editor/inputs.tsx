@@ -216,9 +216,14 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
 
 /** 対象（ID属性 / きっかけの要素）の入力欄の設定と、選べる値（ラジオは同じIDのボタンの文字） */
 function useTargetField(target: string): { kind: FieldContent["kind"]; choices: string[]; bool: boolean } | null {
-  const { doc, tree } = useContext(Ctx);
+  const { doc, tree, fieldLookup } = useContext(Ctx);
   const selfId = useContext(ScriptNodeCtx);
   return useMemo(() => {
+    if (fieldLookup) {
+      if (target !== SELF_TARGET) return fieldLookup.byAttr.get(target) ?? null;
+      if (fieldLookup.byNode.has(selfId)) return fieldLookup.byNode.get(selfId) ?? null;
+    }
+    // Standalone/read-only contexts may not supply the workspace index.
     const nodes = tree.map((r) => doc.nodes[r.id]).filter(Boolean);
     const node =
       target === SELF_TARGET ? doc.nodes[selfId] : target ? nodes.find((n) => n.attrId === target) : undefined;
@@ -235,7 +240,7 @@ function useTargetField(target: string): { kind: FieldContent["kind"]; choices: 
       return { kind: f.kind, choices: [...new Set(labels)].filter(Boolean), bool: false };
     }
     return { kind: f.kind, choices: [], bool: false };
-  }, [doc, tree, selfId, target]);
+  }, [doc, tree, selfId, target, fieldLookup]);
 }
 
 /** 「その他（変数・文字）」を選んだしるし */

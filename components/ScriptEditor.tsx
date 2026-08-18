@@ -14,6 +14,7 @@ import { PAGE_TARGET, type Script, type ScriptStep } from "../lib/types";
 import { tr, trNodes } from "../lib/i18n";
 import { HatView, PaletteLabel, PeekModal, StackView, StepList } from "./script-editor/blocks";
 import { Ctx, type EdCtx, type FetchPreviewScope } from "./script-editor/context";
+import { indexFieldTargets } from "./script-editor/field-index";
 import {
   CAT_INFO,
   CAT_OF,
@@ -229,6 +230,17 @@ function ScriptEditorInner({
   const serverStepIds = useMemo(() => pagePlan(doc, activePageId).serverIds, [doc, activePageId]);
   const targets = useMemo(() => collectTargets(doc, nodeIds), [doc, nodeIds]);
   const tree = useMemo(() => buildTree(doc, nodeIds), [doc, nodeIds]);
+  const targetLookup = useMemo(() => {
+    const firstByAttr = new Map<string, (typeof tree)[number]>();
+    const firstNodeIds = new Set<string>();
+    for (const row of tree) {
+      if (!row.attrId || firstByAttr.has(row.attrId)) continue;
+      firstByAttr.set(row.attrId, row);
+      firstNodeIds.add(row.id);
+    }
+    return { firstByAttr, firstNodeIds };
+  }, [tree]);
+  const fieldLookup = useMemo(() => indexFieldTargets(doc, tree), [doc, tree]);
   const arrays = useMemo(() => pageArrays(doc, activePageId), [doc, activePageId]);
   const samples = useMemo(() => previewDataVars(doc, activePageId), [doc, activePageId]);
   const variableIndex = useMemo(() => pageVariableIndex(doc, activePageId), [doc, activePageId]);
@@ -576,6 +588,8 @@ function ScriptEditorInner({
     scriptRootIds: extraRootsKey ? extraRootsKey.split(",") : [],
     targets,
     tree,
+    targetLookup,
+    fieldLookup,
     scripts,
     variableIndex,
     transformSources,
@@ -647,7 +661,7 @@ function ScriptEditorInner({
       if (!selectedRef.current.has(key)) setSelectedList([key]);
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
-  }), [doc, activePageId, extraRootsKey, targets, tree, scripts,
+  }), [doc, activePageId, extraRootsKey, targets, tree, targetLookup, fieldLookup, scripts,
     variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId,
     commit, updateDoc, nodeIds, arrays, samples, begin]);
   const ctx = useMemo<EdCtx>(() => ({ ...sharedCtx, selected, zOrder }),

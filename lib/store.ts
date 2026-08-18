@@ -627,6 +627,40 @@ export const useEditor = create<EditorStore>((set, get) => {
     }));
   };
 
+  /**
+   * Node-only edits are the most frequent editor operation. Clone only the
+   * affected nodes, preserving all other document branches and undo snapshots.
+   * A full structuredClone + whole-document JSON comparison on every pointer
+   * move made large pages disproportionately slow.
+   */
+  const updateNodes = (
+    ids: readonly string[],
+    change: (node: DocNode) => void,
+    opts?: { history?: boolean }
+  ) => {
+    const current = get().doc;
+    const changed = new Map<string, DocNode>();
+    for (const id of new Set(ids)) {
+      const original = current.nodes[id];
+      if (!original) continue;
+      const draft = structuredClone(original);
+      change(draft);
+      // Do not create a history entry, invalidate redo, or rerender for no-ops.
+      if (JSON.stringify(draft) !== JSON.stringify(original)) changed.set(id, draft);
+    }
+    if (!changed.size) return;
+    const next: SiteDoc = {
+      ...current,
+      nodes: { ...current.nodes, ...Object.fromEntries(changed) },
+    };
+    if (opts?.history === false || get().gestureActive) {
+      if (pendingBase) pushHistory(pendingBase);
+    } else {
+      pushHistory(current);
+    }
+    set({ doc: next });
+  };
+
   /** リモートの変更（current → next）を履歴にも反映し、同じ項目の競合は最新の変更を優先する */
   const rebaseHistory = (list: SiteDoc[], current: SiteDoc, next: SiteDoc) =>
     list.map((snap) => mergeDocs(current, next, snap));
@@ -1247,7 +1281,9 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (get().gestureActive) set({ gestureActive: false });
     },
     checkpoint: () => {
-      pendingBase = structuredClone(get().doc);
+      // Editor updates never mutate an existing snapshot, so a reference is
+      // sufficient; cloning the entire document at drag start causes a pause.
+      pendingBase = get().doc;
     },
 
     undo: () => {
@@ -1380,39 +1416,24 @@ export const useEditor = create<EditorStore>((set, get) => {
     setStyleProps: (nodeId, props, opts) => {
       const { breakpoint, styleState } = get();
       const targetIds = targetIdsFor(get().selectedIds, nodeId);
-      get().updateDoc(
-        (doc) => {
-          for (const id of targetIds) {
-            const node = doc.nodes[id];
-            if (!node) continue;
-            const bpStyles = (node.styles[breakpoint] ??= {});
-            const map = (bpStyles[styleState] ??= {});
-            for (const [k, v] of Object.entries(props)) {
-              // 空文字は「未設定」として消す（空の値が設定済みの色だけ付けて残らないように）
-              if (v === null || v === "") delete map[k];
-              else map[k] = v;
-            }
-          }
-        },
-        { history: !opts?.transient }
-      );
+      updateNodes(targetIds, (node) => {
+        const bpStyles = (node.styles[breakpoint] ??= {});
+        const map = (bpStyles[styleState] ??= {});
+        for (const [k, v] of Object.entries(props)) {
+          // 空文字は「未設定」として消す（空の値が設定済みの色だけ付けて残らないように）
+          if (v === null || v === "") delete map[k];
+          else map[k] = v;
+        }
+      }, { history: !opts?.transient });
     },
 
     updateNode: (nodeId, patch) => {
-      get().updateDoc((doc) => {
-        const node = doc.nodes[nodeId];
-        if (node) Object.assign(node, patch);
-      });
+      updateNodes([nodeId], (node) => Object.assign(node, patch));
     },
 
     updateTargets: (nodeId, fn) => {
       const targetIds = targetIdsFor(get().selectedIds, nodeId);
-      get().updateDoc((doc) => {
-        for (const id of targetIds) {
-          const node = doc.nodes[id];
-          if (node) fn(node);
-        }
-      });
+      updateNodes(targetIds, fn);
     },
 
     toggleHiddenHere: (nodeId) => {
