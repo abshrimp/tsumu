@@ -114,6 +114,7 @@ function node(ctx: Context, id: string, top = false): string {
       const body = ctx.vue ? "<" + comp + ' :scope="' + esc(scope) + '" />'
         : "<" + comp + " scope={" + scope + "} />";
       return '<div style="display:contents"' + common(ctx, n, [ctx.classes.get(id) || "el", importedClass(n.htmlClass)].filter(Boolean).join(" ")) +
+        (n.hiddenOn?.length ? literal("data-instance-hidden", ctx.classes.get(id) || "el") : "") +
         ">" + body + "</div>";
     }
 
