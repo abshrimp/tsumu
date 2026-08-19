@@ -82,6 +82,10 @@ export function splitCssModule(source: string): { global: string; module: string
     }
     if (outer.startsWith("@")) {
       global.push(prelude + " {" + body + "}");
+      // CSS Modules localizes animation names even when the keyframes were
+      // placed in another stylesheet. Keep a local definition too; the global
+      // copy remains necessary for document-wide rules such as body animations.
+      if (/^@(?:-[a-z]+-)?keyframes\b/i.test(outer)) module.push(prelude + " {" + body + "}");
       continue;
     }
     const globalSelectors: string[] = [], moduleSelectors: string[] = [];
