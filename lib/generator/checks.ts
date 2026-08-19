@@ -274,6 +274,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         if ("into" in st && st.into) loadVars.add(st.into);
         continue;
       }
+      if (st.as) loadVars.add(st.as);
       if (!st.url.trim()) {
         results.push({
           help: "data-fetch",
