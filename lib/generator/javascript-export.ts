@@ -65,25 +65,33 @@ export async function toJavaScriptProject(
       const { parse } = await import("parse5");
       const html = files["index.html"];
       const document = parse(html, { sourceCodeLocationInfo: true });
-      const entries: { startOffset: number; endOffset: number }[] = [];
+      const entries: { startOffset: number; endOffset: number; src: string }[] = [];
       const pending: Html.Node[] = [document];
       while (pending.length) {
         const node = pending.pop()!;
         if ("tagName" in node && node.tagName === "script" &&
           node.namespaceURI === "http://www.w3.org/1999/xhtml" &&
           node.attrs.some(attr => attr.name === "type" && attr.value === "module") &&
-          node.attrs.some(attr => attr.name === "src" && attr.value === "/src/main.tsx")) {
+          !node.attrs.some(attr => attr.name === "vite-ignore")) {
+          const src = node.attrs.find(attr => attr.name === "src")?.value;
           const location = node.sourceCodeLocation?.attrs?.src;
           // Every executable reference follows the renamed file. Comments,
           // script bodies and inert template content are never rewritten.
-          if (location) entries.push(location);
+          // Vite のローカル入力は index.html 基準で解決され、base 要素の影響を受けない。
+          // パスの表記とクエリ・フラグメントは維持し、外部URLには触れない。
+          // vite-ignore の参照はVite入力ではないため、ブラウザーに元のURLを渡す。
+          if (location && src && /^(?:\/|\.\/)?src\/main\.tsx(?:[?#]|$)/.test(src)) {
+            entries.push({ ...location, src: src.replace(/\.tsx(?=[?#]|$)/, ".jsx") });
+          }
         }
         if ("childNodes" in node) pending.push(...node.childNodes);
       }
       let rewritten = html;
       for (const entry of entries.sort((a, b) => b.startOffset - a.startOffset)) {
+        // parse5 が復号した属性値を、二重引用符付きのHTML属性として安全に戻す。
+        const escaped = entry.src.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
         rewritten = rewritten.slice(0, entry.startOffset) +
-          'src="/src/main.jsx"' + rewritten.slice(entry.endOffset);
+          'src="' + escaped + '"' + rewritten.slice(entry.endOffset);
       }
       files["index.html"] = rewritten;
     }
