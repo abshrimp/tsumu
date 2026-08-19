@@ -440,6 +440,17 @@ function cssDecls(css: string): string[] {
         continue;
       }
       if (c === quote) quote = "";
+    } else if (c === "\\") {
+      cur += c + (css[++i] ?? "");
+      continue;
+    } else if (c === "/" && css[i + 1] === "*") {
+      // Comments are whitespace between CSS tokens, not declaration delimiters.
+      // In particular, quotes and semicolons inside them must not affect parsing.
+      const end = css.indexOf("*/", i + 2);
+      cur += " ";
+      if (end < 0) break;
+      i = end + 1;
+      continue;
     } else if (c === '"' || c === "'") {
       quote = c;
     } else if (c === "(") {
