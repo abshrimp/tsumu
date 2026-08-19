@@ -132,7 +132,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
   }
 
   function checkScriptType(item: Resource) {
-    if (!/^(?:(?:text|application)\/(?:x-)?(?:java|ecma)script|text\/(?:jscript|livescript))$/i.test(item.mime)) {
+    if (!/^(?:application\/(?:x-)?(?:javascript|ecmascript)|text\/(?:(?:x-)?(?:javascript|ecmascript)|javascript1\.[0-5]|jscript|livescript))$/i.test(item.mime)) {
       throw new Error("Cannot embed script with media type " + item.mime);
     }
   }
