@@ -158,7 +158,14 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       throw new Error("Cannot embed a circular or oversized module graph. Use the HTML ZIP format.");
     }
     if (item.bytes.length > 4 * 1024 * 1024) throw new Error("Module exceeds 4 MB. Use the HTML ZIP format.");
-    const sourceText = decoder.decode(item.bytes);
+    const rewritten = await moduleText(decoder.decode(item.bytes), item.base, new Set([...parents, url.href]));
+    // Distinguish equal source bytes without publishing the original URL or its signed query.
+    const result = dataUrl(encoder.encode(rewritten), item.mime) + "#" + modules.size;
+    return remember(modules, url.href, result);
+  }
+
+  async function moduleText(sourceText: string, base: URL, parents = new Set<string>()): Promise<string> {
+    if (textBytes(sourceText) > 4 * 1024 * 1024) throw new Error("Module exceeds 4 MB. Use the HTML ZIP format.");
     const { parse } = await import("es-module-lexer/minimal/js");
     const [imports] = parse(sourceText);
     moduleReferences += imports.length;
@@ -176,7 +183,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       if (!/^(?:\.{1,2}\/|\/|[a-z][a-z0-9+.-]*:)/i.test(ref.n)) {
         throw new Error("Cannot resolve a bare module specifier. Use the HTML ZIP format.");
       }
-      const child = await embedModule(new URL(ref.n, item.base), "", new Set([...parents, url.href]));
+      const child = await embedModule(new URL(ref.n, base), "", parents);
       // Static offsets exclude quotes. Dynamic offsets include the entire string literal.
       const quoted = JSON.stringify(child).replaceAll("'", "\\u0027");
       output.append(sourceText.slice(cursor, ref.s));
@@ -184,9 +191,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       cursor = ref.e;
     }
     output.append(sourceText.slice(cursor));
-    // Distinguish equal source bytes without publishing the original URL or its signed query.
-    const result = dataUrl(encoder.encode(output.join()), item.mime) + "#" + modules.size;
-    return remember(modules, url.href, result);
+    return output.join();
   }
 
   async function stylesheet(url: URL, parents: Set<string>, integrity = ""): Promise<string> {
@@ -225,5 +230,5 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     return result.join();
   }
 
-  return { css, stylesheet, embed, embedModule, cssUrl: (text: string) => dataUrl(encoder.encode(text), "text/css") };
+  return { css, stylesheet, embed, embedModule, inlineModule: moduleText, cssUrl: (text: string) => dataUrl(encoder.encode(text), "text/css") };
 }
