@@ -65,7 +65,7 @@ function httpCharset(contentType: string): string | undefined {
   const parameters = /;[\t ]*([^;=\t ]+)[\t ]*=[\t ]*(?:"((?:[^"\\]|\\[\s\S])*)"|([^;]*))/g;
   for (const match of contentType.matchAll(parameters)) {
     if (match[1].toLowerCase() === "charset") {
-      return match[2] === undefined ? match[3].trim() : match[2].replace(/\\([\s\S])/g, "$1");
+      return match[2] === undefined ? match[3].replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, "") : match[2].replace(/\\([\s\S])/g, "$1");
     }
   }
 }
@@ -179,8 +179,12 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     const item = await load(url);
     await verifyIntegrity(item.bytes, integrity);
     if (script) checkScriptType(item);
-    const key = keyOf(url);
-    const value = embedded.get(key) ?? remember(embedded, key, dataUrl(item.bytes, item.mime));
+    // classic script の HTTP charset を残し、文字列の破損を防ぐ。元バイト列と SRI は変更しない。
+    // 有効な文字コードラベルは ASCII トークンなので、他の MIME パラメーターは持ち込まない。
+    const charset = script ? item.charset?.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, "") : undefined;
+    const mime = charset && /^[a-z0-9._:-]+$/i.test(charset) ? item.mime + ";charset=" + charset : item.mime;
+    const key = keyOf(url) + "\0" + mime;
+    const value = embedded.get(key) ?? remember(embedded, key, dataUrl(item.bytes, mime));
     return value + url.hash;
   }
 
