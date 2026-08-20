@@ -185,7 +185,8 @@ export function generateSiteCss(
         //（他の要素は auto が既定値なので書かない）
         if (isBaseDefault && (node.type === "image" || node.type === "media")) {
           map.width ??= "auto";
-          map.height ??= "auto";
+          // 音声の未指定の高さはブラウザ標準の操作部に任せる。
+          if (node.type !== "media" || node.media?.kind !== "audio") map.height ??= "auto";
         }
         // 入力欄のプレースホルダー・ファイル選択ボタン（疑似要素）のスタイルは専用ルールに分離する
         for (const part of extractPartStyles(map)) {
