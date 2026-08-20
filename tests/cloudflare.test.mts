@@ -91,6 +91,31 @@ test("complete storage keeps the server configuration intact", () => {
   assert.deepEqual(result.config, completeStorage);
 });
 
+test("declarative SQLite Durable Object exports preserve production storage bindings", () => {
+  const config = {
+    d1_databases: completeStorage.d1_databases,
+    kv_namespaces: completeStorage.kv_namespaces,
+    durable_objects: completeStorage.durable_objects,
+    exports: { DocumentRoom: { type: "durable-object", storage: "sqlite" } },
+  };
+  const normalized = normalizeStorageConfig(config);
+  assert.equal(normalized.mode, "server");
+  assert.deepEqual(normalized.config, config);
+  assert.doesNotThrow(() => assertNoStorageDowngrade([
+    { name: "DB", type: "d1" },
+    { name: "ASSETS_KV", type: "kv_namespace" },
+    { name: "DOC_STORE", type: "durable_object_namespace" },
+  ], config));
+
+  for (const invalid of [
+    { ...config, exports: { DocumentRoom: { type: "durable-object", storage: "memory" } } },
+    { ...config, exports: { DocumentRoom: { type: "ordinary-class", storage: "sqlite" } } },
+    { ...config, migrations: completeStorage.migrations },
+  ]) {
+    assert.equal(normalizeStorageConfig(invalid).mode, "browser");
+  }
+});
+
 test("missing either resource selects browser storage with neither DB nor assets KV", () => {
   const options = [
     { ...completeStorage, d1_databases: [] },

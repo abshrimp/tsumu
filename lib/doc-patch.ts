@@ -16,6 +16,13 @@ export function docPatchSqlPath(path: readonly string[]): string {
 }
 const COLLECTIONS = new Set(["pages", "nodes", "assets", "components"]);
 const REQUIRED = new Set(["schemaVersion", "pages", "nodes", "assets", "pageOrder", "siteName"]);
+/** Only fields declared by the persisted SiteDoc schema may be patched. */
+const ROOT_FIELDS = new Set([
+  "siteName", "lang", "colorPalette", "siteUrl", "dataRevalidate", "hosting",
+  "favicon", "appleTouchIcon", "ogImage", "loadingScreen", "pwa",
+  "pages", "pageOrder", "pageFolders", "nodes", "assets", "components",
+  "customFonts", "customHeadHtml", "customBodyEndHtml", "breakpoints", "baseWidth",
+]);
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const safeKey = isDocumentId;
@@ -26,7 +33,7 @@ export function isDocPatch(value: unknown): value is DocPatch {
   for (const op of value) {
     if (!record(op) || !Array.isArray(op.path) || !op.path.every(safeKey)) return false;
     const path = op.path as string[];
-    if (path[0] === "schemaVersion") return false;
+    if (!ROOT_FIELDS.has(path[0])) return false;
     if (path.length !== 1 && !(path.length === 2 && COLLECTIONS.has(path[0]))) return false;
     // 同じ場所や親子を同時に操作させず、SQLとブラウザで適用順が変わらないようにする。
     if (paths.some((other) => other[0] === path[0] &&

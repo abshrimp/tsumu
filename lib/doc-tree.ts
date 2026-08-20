@@ -1,5 +1,9 @@
 import { isDocumentId } from "./document-id";
 import { validDocumentScripts } from "./document-validation";
+import {
+  validAssetAdditionalFields, validNodeAdditionalFields,
+  validPageAdditionalFields, validSiteAdditionalFields,
+} from "./document-value-shapes";
 
 // The editor and generators recursively render child IDs from a flat map.
 // Detached nodes are valid, but every node must belong to a finite tree.
@@ -95,7 +99,7 @@ export function validDocNodeShape(value: unknown): boolean {
         !value.field.options.every(option => isObject(option) &&
           typeof option.label === "string" && typeof option.value === "string"))))) return false;
   if (value.scripts != null && !validDocumentScripts(value.scripts)) return false;
-  return true;
+  return validNodeAdditionalFields(value);
 }
 
 export function validDocPageShape(value: unknown): boolean {
@@ -104,7 +108,8 @@ export function validDocPageShape(value: unknown): boolean {
     (value.bodyStyles == null || validStyleDefinitions(value.bodyStyles)) &&
     (value.scripts == null || validDocumentScripts(value.scripts)) &&
     (value.pageScripts == null || validDocumentScripts(value.pageScripts)) &&
-    [value.rawHtml, value.redirectTo, value.rewriteTo].filter(v => v != null).length <= 1;
+    [value.rawHtml, value.redirectTo, value.rewriteTo].filter(v => v != null).length <= 1 &&
+    validPageAdditionalFields(value);
 }
 
 function entryWithId(id: string, value: unknown): value is Record<string, unknown> {
@@ -115,7 +120,8 @@ export function validAssetEntry(id: string, value: unknown): boolean {
   return safeCollectionId(id) && entryWithId(id, value) && typeof value.name === "string" &&
     (value.dataUrl == null || typeof value.dataUrl === "string") &&
     (value.path == null || typeof value.path === "string") &&
-    (value.mimeType == null || typeof value.mimeType === "string");
+    (value.mimeType == null || typeof value.mimeType === "string") &&
+    validAssetAdditionalFields(value);
 }
 
 export function validComponentEntry(id: string, value: unknown): value is { rootId: string } {
@@ -222,7 +228,8 @@ export function validSiteDoc(parsed: unknown): boolean {
   if (!record(parsed) || parsed.schemaVersion !== 1 || typeof parsed.siteName !== "string" ||
       !record(parsed.pages) || !record(parsed.nodes) || !record(parsed.assets) ||
       !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) return false;
-  if (!Object.entries(parsed.assets).every(([id, asset]) => validAssetEntry(id, asset)) ||
+  if (!validSiteAdditionalFields(parsed) ||
+      !Object.entries(parsed.assets).every(([id, asset]) => validAssetEntry(id, asset)) ||
       !validNodeForest(parsed.pages, parsed.nodes, parsed.components ?? {}) ||
       !Object.values(parsed.nodes).every(validDocNodeShape) ||
       !Object.values(parsed.pages).every(validDocPageShape)) return false;

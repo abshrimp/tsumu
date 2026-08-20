@@ -49,15 +49,20 @@ export function storageBindings(config) {
   const doc = (config.durable_objects?.bindings ?? []).some(
     b => b.name === "DOC_STORE" && b.class_name === "DocumentRoom" && !b.script_name && !b.environment
   );
-  const migration = (config.migrations ?? []).some(
+  const declaredClass = (config.migrations ?? []).some(
     m => (m.new_sqlite_classes ?? []).includes("DocumentRoom")
   );
+  // Wrangler supports both explicit class migrations and declarative exports.
+  // A configured, SQLite-backed DocumentRoom is required for server storage.
+  const exportedClass = config.exports?.DocumentRoom?.type === "durable-object" &&
+    config.exports.DocumentRoom.storage === "sqlite";
   const validId = id => typeof id === "string" && !!id.trim() &&
     id === id.trim() && !/[<>]/.test(id);
   return {
     db: validId(db?.database_id),
     kv: validId(kv?.id),
-    doc: doc && migration,
+    doc: doc && (declaredClass || exportedClass) &&
+      !((config.migrations ?? []).length && Object.keys(config.exports ?? {}).length),
   };
 }
 

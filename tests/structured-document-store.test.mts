@@ -182,3 +182,25 @@ test("deletion seals the room permanently, even if an old RPC save arrives later
   assert.equal(store.snapshot(), null);
   sqlite.close();
 });
+
+test("invalid optional fields cannot bypass full saves or fast node PATCH", () => {
+  const { store, sqlite } = database();
+  const original = createInitialDoc();
+  assert.equal(store.replace(JSON.stringify(original), null).kind, "saved");
+
+  const invalidNode = structuredClone(Object.values(original.nodes)[0]!);
+  (invalidNode as unknown as Record<string, unknown>).motions = [
+    { id: "animation", trigger: "load", duration: "invalid", delay: 0, easing: "linear" },
+  ];
+  assert.throws(() => store.patch([
+    { path: ["nodes", invalidNode.id], value: invalidNode },
+  ], "1"), /不正な/);
+  assert.equal(store.meta()?.rev, "1");
+
+  const invalidDoc = structuredClone(original);
+  (invalidDoc as unknown as Record<string, unknown>).baseWidth = "wide";
+  assert.throws(() => store.replace(JSON.stringify(invalidDoc), "1"), /不正な/);
+  assert.equal(store.meta()?.rev, "1");
+  assert.deepEqual(JSON.parse(store.snapshot()!.body), original);
+  sqlite.close();
+});

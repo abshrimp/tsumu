@@ -61,6 +61,10 @@ export async function readCurrentDoc(db: Db, siteId: string): Promise<CurrentDoc
   });
   const row = rs.rows[0];
   if (!row) return null;
+  // The Node SQLite backend must enforce the same read invariant as DO snapshots.
+  if (validateDocBody(String(row.body))) {
+    throw new Error("保存済み編集データが破損しています");
+  }
   return {
     rev: String(row.rev),
     savedAt: Number(row.saved_at),
@@ -96,8 +100,15 @@ export async function saveCurrentDoc(
   raw: string,
   base: string | null
 ): Promise<SaveDocResult> {
+  // Do not rely on the HTTP caller to validate a persisted document.
+  // Direct storage consumers, imports and copies must obey the same invariant.
+  const invalid = validateDocBody(raw);
+  if (invalid) throw new Error(invalid);
+  if (base !== null && (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
+    throw new Error("不正なリクエスト");
+  }
   const now = Date.now();
-  if (base) {
+  if (base !== null) {
     await backupPreviousDay(db, siteId, now);
     const rs = await write(db, {
       sql: "UPDATE docs SET body = ?, rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? RETURNING rev",
@@ -154,6 +165,13 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   // The UPDATE below still has WHERE rev = base: a concurrent write between
   // this read and the UPDATE cannot bypass the check.
   const referenceSensitive = patch.some(op => {
+    // SQL-only updates validate page/node/asset shapes and page ordering, but
+    // other site-level fields have no SQL type checks. Use the canonical
+    // SiteDoc validator for those updates before changing persisted JSON.
+    if (op.path.length === 1 &&
+        !["siteName", "pageOrder", "pages", "nodes", "assets", "components"].includes(op.path[0])) {
+      return true;
+    }
     if (op.path[0] === "components" || op.path[0] === "pageFolders" ||
         op.path[0] === "favicon" || op.path[0] === "appleTouchIcon" ||
         op.path[0] === "ogImage" || op.path[0] === "pwa") return true;

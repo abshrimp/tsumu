@@ -131,7 +131,7 @@ The editor runs in any of three environments. The features are identical; what d
 | Cost | Runs on the free plan (see [Limits](#limits)) | Your server | Your server |
 | Good for | Running without a server of your own | Running on your machine or an existing server | Managing it as a container |
 
-D1 and local SQLite tables are created on first access. Cloudflare's SQLite-backed DocumentRoom also requires the `DOC_STORE` binding and the Wrangler migration declared in `wrangler.jsonc`. For the storage model and deployment checks, see [Document storage](docs/durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
+D1 and local SQLite tables are created on first access. Cloudflare's SQLite-backed DocumentRoom requires the `DOC_STORE` binding and a matching Durable Object declaration (Wrangler `migrations` or `exports`; do not combine them). For the storage model and deployment checks, see [Document storage](docs/durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
 
 ### Common setup
 

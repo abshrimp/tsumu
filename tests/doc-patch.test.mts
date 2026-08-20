@@ -78,13 +78,11 @@ test("missing and out-of-order revisions require a snapshot instead of applying 
 test("SQL patches preserve nulls, arrays, additions and removals without fetching the body", async () => {
   await database(async (db, statements) => {
     const base = doc();
-    base.description = "remove me";
     await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
     const next = structuredClone(base);
     next.siteName = "Updated";
-    delete next.description;
     delete next.nodes["node-1"];
-    next.nodes["node-2"] = { ...base.nodes["node-1"], id: "node-2", text: { content: 'quote " and 日本語', heading: 0 }, custom: { nullable: null, flag: false, zero: 0 } } as any;
+    next.nodes["node-2"] = { ...base.nodes["node-1"], id: "node-2", text: { content: 'quote " and 日本語', heading: 0 }, field: { kind: "input", disabled: false, maxLength: 0 } };
     next.pages.home.children = ["node-2"];
     const patch = createDocPatch(base, next)!;
     statements.length = 0;

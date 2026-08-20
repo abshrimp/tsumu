@@ -42,7 +42,7 @@ Orphaned KV files require a separate fenced garbage collector or an administrati
 
 ## Deployment
 
-1. Configure the `DB` (D1), `ASSETS_KV` (Workers KV), `COLLAB_ROOM` and `DOC_STORE` bindings. `DOC_STORE` must point to the SQLite-backed `DocumentRoom` class and be declared in the Wrangler Durable Object migrations. Keep the same bindings in any separately maintained `wrangler.local.jsonc`.
+1. Configure the `DB` (D1), `ASSETS_KV` (Workers KV), `COLLAB_ROOM` and `DOC_STORE` bindings. `DOC_STORE` must point to the SQLite-backed `DocumentRoom` class, declared through Wrangler's `migrations` or declarative `exports` (not both). Existing deployments must retain their original Durable Object namespace. Keep the same bindings in any separately maintained `wrangler.local.jsonc`.
 2. Deploy the Worker and confirm that the configured D1 database and KV namespace are the intended production resources. Workers Builds can supply their IDs through `D1_DATABASE_ID` and `KV_NAMESPACE_ID`.
 3. Verify site creation, opening, duplication, editing, saving, collaboration, deletion, exports and daily backups in a controlled Cloudflare environment.
 4. Measure initial load on a large site and p50/p95 patch latency, CPU and row usage before production rollout. Local SQLite tests and a successful Worker build do not establish production latency.
