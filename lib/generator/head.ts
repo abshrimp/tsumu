@@ -46,6 +46,9 @@ export function headHtmlToJsx(html: string, indent: string): string {
     // invalid numeric references and duplicate attributes), then emit them
     // as literal JSX strings so the compiler cannot decode them a second time.
     for (const { name, value } of attrs) {
+      // HTML の children 属性は内容ではない。React に渡すと本文になり、
+      // void 要素や dangerouslySetInnerHTML と併用すると描画が失敗する。
+      if (name === "children") continue;
       // style は React では文字列にできない（head の中は表示されないので落とす）。
       // 属性名は JSX にそのまま書くので、名前の形でないもの（{ や ( を含むなど）も落とす
       if (name.startsWith("on") || name === "style" || !/^[a-z][a-z0-9._:-]*$/.test(name)) continue;
