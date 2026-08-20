@@ -14,9 +14,10 @@ function blocks(css: string): { prelude: string; body: string }[] {
         if (ch === "*" && css[i + 1] === "/") { comment = false; i++; }
         continue;
       }
+      // 文字列の外でも、エスケープした引用符・括弧・コメント開始は構文ではない。
+      if (ch === "\\") { i++; continue; }
       if (!quote && ch === "/" && css[i + 1] === "*") { comment = true; i++; continue; }
       if (quote) {
-        if (ch === "\\") { i++; continue; }
         if (ch === quote) quote = "";
         continue;
       }
@@ -33,11 +34,12 @@ function blocks(css: string): { prelude: string; body: string }[] {
       const ch = css[i];
       if (comment) {
         if (ch === "*" && css[i + 1] === "/") { comment = false; i++; }
+      } else if (ch === "\\") {
+        i++;
       } else if (!quote && ch === "/" && css[i + 1] === "*") {
         comment = true; i++;
       } else if (quote) {
-        if (ch === "\\") i++;
-        else if (ch === quote) quote = "";
+        if (ch === quote) quote = "";
       } else if (ch === "'" || ch === '"') quote = ch;
       else if (ch === "{") depth++;
       else if (ch === "}" && --depth === 0) break;
