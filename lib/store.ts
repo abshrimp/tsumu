@@ -919,7 +919,6 @@ export const useEditor = create<EditorStore>((set, get) => {
     },
 
     applyRemoteDoc: (doc) => {
-      pendingBase = null;
       set((s) => {
         const selectedIds = validSelectedIds(doc, s.selectedIds);
         const selection = validSelection(doc, s.selection);
@@ -930,8 +929,13 @@ export const useEditor = create<EditorStore>((set, get) => {
         try {
           past = rebaseHistory(s.past, s.doc, doc);
           future = rebaseHistory(s.future, s.doc, doc);
+          // A gesture may still be waiting for its first actual change. Keep
+          // its checkpoint in sync too, so that change remains undoable and
+          // discards stale redo without reverting the collaborator's edits.
+          if (pendingBase) pendingBase = mergeDocs(s.doc, doc, pendingBase);
         } catch {
           // マージできない場合は安全側に倒して履歴を破棄
+          pendingBase = null;
         }
         return {
           doc,
