@@ -116,7 +116,7 @@ export function applyBreakpoints(cfg: { breakpoints?: unknown; baseWidth?: unkno
     const smaller = list[i + 1];
     BP_INFO[b.id] = {
       label: tr(b.label),
-      short: SHORT_LABELS[b.label] ?? tr(b.label),
+      short: Object.hasOwn(SHORT_LABELS, b.label) ? SHORT_LABELS[b.label] : tr(b.label),
       // 区切りの幅ちょうどで見せる（その画面用のスタイルが効くいちばん広い幅。崩れやすい幅を確かめられる）
       width: b.maxWidth,
       maxWidth: b.maxWidth,
