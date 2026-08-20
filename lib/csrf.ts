@@ -12,12 +12,13 @@ export function isCrossSiteWrite(req: {
 
   const site = req.headers.get("sec-fetch-site");
   // site はブラウザが設定する。same-site（サブドメインや http/https の違い）は許可しない。
-  if (site && site !== "same-origin" && site !== "none") return true;
+  if (site !== null && site !== "same-origin" && site !== "none") return true;
 
   const origin = req.headers.get("origin");
   // Origin を送らない非ブラウザクライアントや、一部の同一オリジンリクエストを維持する。
   // ブラウザ発のクロスサイト書き込みには Origin または Sec-Fetch-Site が付く。
-  if (!origin) return false;
+  // 明示された空の値は「ヘッダーなし」ではなく、不正な Origin として拒否する。
+  if (origin === null) return false;
   try {
     const parsed = new URL(origin);
     // Origin ヘッダーは scheme + authority だけ。null、パス、ユーザー情報は認めない。
@@ -27,7 +28,9 @@ export function isCrossSiteWrite(req: {
     // Sec-Fetch-Site に依存せず正しい Origin を認識できる。
     const forwarded = req.headers.get("x-forwarded-host");
     const host = forwarded ?? req.nextUrl.host ?? req.headers.get("host");
-    if (!host || host.includes(",")) return true;
+    // Host は authority のみ。URL パーサーが userinfo・パス・空白などを
+    // 捨てて別の値へ正規化する前に拒否し、意図しない Origin を許可しない。
+    if (!host || /[,/\\?#@\s]/.test(host)) return true;
 
     const forwardedProto = req.headers.get("x-forwarded-proto");
     const protocol = forwardedProto ?? req.nextUrl.protocol;
