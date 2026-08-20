@@ -185,17 +185,35 @@ export function pageNodeIds(
   return out;
 }
 
+/** Reuse immutable view wrappers for unchanged scripts across editor updates. */
+const scriptViewCache = new WeakMap<Script, Map<string, PageScript>>();
+function scriptView(script: Script, nodeId: string | null): PageScript {
+  let byNode = scriptViewCache.get(script);
+  if (!byNode) {
+    byNode = new Map();
+    scriptViewCache.set(script, byNode);
+  }
+  const key = nodeId ?? "";
+  const saved = byNode.get(key);
+  if (saved && saved.id === script.id && saved.steps === script.steps &&
+      saved.pos === script.pos && saved.trigger === script.trigger &&
+      saved.keepOnShown === script.keepOnShown) return saved;
+  const view: PageScript = { ...script, nodeId };
+  byNode.set(key, view);
+  return view;
+}
+
 /** ページ内の全要素のスクリプト + 要素につながっていないブロック */
 export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): PageScript[] {
   const out: PageScript[] = [];
   for (const id of nodeIds) {
     const n = doc.nodes[id];
-    if (n) for (const s of scriptsOf(n)) out.push({ ...s, nodeId: id });
+    if (n) for (const s of scriptsOf(n)) out.push(scriptView(s, id));
   }
   for (const s of doc.pages[pageId]?.pageScripts ?? []) {
-    out.push({ ...s, nodeId: PAGE_TARGET });
+    out.push(scriptView(s, PAGE_TARGET));
   }
-  for (const s of doc.pages[pageId]?.scripts ?? []) out.push({ ...s, nodeId: null });
+  for (const s of doc.pages[pageId]?.scripts ?? []) out.push(scriptView(s, null));
   // Only examine nearby positions when avoiding overlaps. A full scan made
   // opening a workspace with many separate script stacks quadratic.
   const cellSize = 48;
@@ -232,13 +250,8 @@ export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): 
   });
 }
 
-/** スクリプト画面の内容を、各要素（link / scripts）とページ（未接続分）へ書き戻す */
-export function applyPageScripts(
-  doc: SiteDoc,
-  pageId: string,
-  nodeIds: string[],
-  views: PageScript[]
-) {
+/** Partition the workspace once; both mutable import writes and editor commits use it. */
+function groupPageScripts(doc: SiteDoc, nodeIds: string[], views: PageScript[]) {
   const byNode = new Map<string, Script[]>();
   const validNodeIds = new Set(nodeIds);
   const loose: Script[] = [];
@@ -254,6 +267,17 @@ export function applyPageScripts(
       loose.push(s);
     }
   }
+  return { byNode, loose, own };
+}
+
+/** スクリプト画面の内容を、各要素（link / scripts）とページ（未接続分）へ書き戻す */
+export function applyPageScripts(
+  doc: SiteDoc,
+  pageId: string,
+  nodeIds: string[],
+  views: PageScript[]
+) {
+  const { byNode, loose, own } = groupPageScripts(doc, nodeIds, views);
   for (const id of nodeIds) {
     const n = doc.nodes[id];
     if (!n) continue;
@@ -270,6 +294,90 @@ export function applyPageScripts(
     if (own.length) page.pageScripts = own;
     else delete page.pageScripts;
   }
+}
+
+
+/**
+ * Apply workspace edits without cloning the entire site (including its assets
+ * and unrelated pages). Undo snapshots can safely share the untouched branches.
+ *
+ * pageScriptsOf() creates display wrappers, so comparing only object identity
+ * would turn an unchanged script into a new document/history entry.
+ */
+function sameScript(a: Script, b: Script): boolean {
+  return a === b || (
+    a.id === b.id &&
+    a.trigger === b.trigger &&
+    a.keepOnShown === b.keepOnShown &&
+    a.steps === b.steps &&
+    a.pos.x === b.pos.x &&
+    a.pos.y === b.pos.y
+  );
+}
+
+function sameScriptList(a: Script[] | undefined, b: Script[] | undefined): boolean {
+  if (a === b) return true;
+  if ((a?.length ?? 0) !== (b?.length ?? 0)) return false;
+  return (a ?? []).every((script, i) => sameScript(script, b![i]));
+}
+
+/** Reuse stable script objects even when another script on the same node changes. */
+function reuseUnchangedScripts(before: Script[] | undefined, after: Script[] | undefined): Script[] | undefined {
+  if (!after || !before) return after;
+  return after.map((script, i) => before[i] && sameScript(before[i], script) ? before[i] : script);
+}
+
+function sameLink(a: LinkSetting | null, b: LinkSetting | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.kind === b.kind && a.url === b.url && a.pageId === b.pageId &&
+    !!a.newTab === !!b.newTab && a.pos?.x === b.pos?.x && a.pos?.y === b.pos?.y;
+}
+
+/** Pure, copy-on-write counterpart to applyPageScripts for frequent editor commits. */
+export function withPageScripts(
+  doc: SiteDoc,
+  pageId: string,
+  nodeIds: string[],
+  views: PageScript[]
+): SiteDoc {
+  const page = doc.pages[pageId];
+  if (!page) return doc;
+
+  const { byNode, loose, own } = groupPageScripts(doc, nodeIds, views);
+  let nodes: SiteDoc["nodes"] | null = null;
+  for (const id of nodeIds) {
+    const previous = doc.nodes[id];
+    if (!previous) continue;
+    // Only allocate a node when its own script or link data actually changes.
+    const updated = splitScripts(byNode.get(id) ?? [], previous.type === "box");
+    const sameLinkValue = sameLink(previous.link, updated.link);
+    if (sameLinkValue && sameScriptList(previous.scripts, updated.scripts)) continue;
+
+    const copy = { ...previous, link: sameLinkValue ? previous.link : updated.link };
+    if (updated.scripts) {
+      copy.scripts = reuseUnchangedScripts(previous.scripts, updated.scripts);
+    } else {
+      delete copy.scripts;
+    }
+    nodes ??= { ...doc.nodes };
+    nodes[id] = copy;
+  }
+
+  const changedPage = !sameScriptList(page.scripts, loose) ||
+    !sameScriptList(page.pageScripts, own);
+  if (!nodes && !changedPage) return doc;
+
+  let pages = doc.pages;
+  if (changedPage) {
+    const updated = { ...page };
+    if (loose.length) updated.scripts = reuseUnchangedScripts(page.scripts, loose);
+    else delete updated.scripts;
+    if (own.length) updated.pageScripts = reuseUnchangedScripts(page.pageScripts, own);
+    else delete updated.pageScripts;
+    pages = { ...doc.pages, [pageId]: updated };
+  }
+  return { ...doc, nodes: nodes ?? doc.nodes, pages };
 }
 
 /* ---------- 走査 ---------- */

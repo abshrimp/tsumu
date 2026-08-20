@@ -4,7 +4,7 @@ import { SlotIndex, type SlotPoint } from "../components/script-editor/slot-inde
 import { filterNumbersOf, insertAt, listIn, mapStep, numberFilters, removeKeys, takeAt } from "../components/script-editor/step-tree";
 import { dataVarNames, firstListItem, ITEM_VALUE, pageVariableIndex, scriptInputDoc, toListItems } from "../lib/data";
 import { PAGE_TARGET, type ScriptStep, type SiteDoc } from "../lib/types";
-import { applyPageScripts, pageScriptsOf, type PageScript } from "../lib/script";
+import { applyPageScripts, pageScriptsOf, withPageScripts, type PageScript } from "../lib/script";
 
 function brute(slots: SlotPoint[], kind: SlotPoint["kind"], x: number, y: number) {
   let best: string | null = null;
@@ -354,4 +354,93 @@ test("inserting into an absent else branch does not mutate the original", () => 
   assert.equal(listIn(scripts[0], loc.list), null);
   assert.equal(listIn(inserted[0], loc.list)?.[0].id, "new");
   assert.notEqual(inserted[0].steps[0], parent);
+});
+
+
+test("incremental script save preserves unrelated branches and a 4000-block undo snapshot", () => {
+  const untouched = Array.from({ length: 4000 }, (_, i): ScriptStep =>
+    ({ id: `wait-${i}`, kind: "wait", seconds: i }));
+  const source = { id: "main", trigger: "click" as const,
+    pos: { x: 32, y: 32 }, steps: untouched };
+  const doc = {
+    pages: {
+      p: { id: "p", children: [], scripts: [{ id: "loose", pos: { x: 600, y: 40 }, steps: [] }] },
+      other: { id: "other", children: [] },
+    },
+    nodes: {
+      owner: { id: "owner", type: "box", link: null, scripts: [source] },
+      untouched: { id: "untouched", type: "box", link: null },
+    },
+    assets: { asset: { id: "asset", name: "Asset" } },
+  } as unknown as SiteDoc;
+  const json = JSON.stringify(doc);
+  const views = pageScriptsOf(doc, ["owner", "untouched"], "p");
+  assert.strictEqual(withPageScripts(doc, "p", ["owner", "untouched"], views), doc,
+    "display-only wrappers must not create history");
+  const changed = mapStep(views, "wait-3999", (step) =>
+    ({ ...step, seconds: 9999 }) as ScriptStep);
+  const updated = withPageScripts(doc, "p", ["owner", "untouched"], changed);
+
+  assert.notStrictEqual(updated, doc);
+  assert.notStrictEqual(updated.nodes.owner, doc.nodes.owner);
+  assert.strictEqual(updated.nodes.untouched, doc.nodes.untouched);
+  assert.strictEqual(updated.pages, doc.pages);
+  assert.strictEqual(updated.assets, doc.assets);
+  assert.strictEqual(updated.nodes.owner.scripts![0].steps[0], untouched[0]);
+  assert.strictEqual(updated.nodes.owner.scripts![0].steps[3998], untouched[3998]);
+  assert.equal((updated.nodes.owner.scripts![0].steps[3999] as Extract<ScriptStep, { kind: "wait" }>).seconds, 9999);
+  assert.equal(JSON.stringify(doc), json, "the original and undo snapshot stay immutable");
+  assert.strictEqual(withPageScripts(updated, "p", ["owner", "untouched"],
+    pageScriptsOf(updated, ["owner", "untouched"], "p")), updated);
+});
+
+test("incremental script save moves ownership and preserves page script arrays", () => {
+  const doc = {
+    pages: { p: { id: "p", children: [], scripts: [
+      { id: "loose", pos: { x: 50, y: 90 }, steps: [{ id: "wait", kind: "wait", seconds: 1 }] },
+    ] } },
+    nodes: {
+      a: { id: "a", type: "box", link: null },
+      b: { id: "b", type: "box", link: null },
+    },
+    assets: {},
+  } as unknown as SiteDoc;
+  const initial = pageScriptsOf(doc, ["a", "b"], "p");
+  const attached = initial.map((s) => ({ ...s, trigger: "click" as const, nodeId: "b" }));
+  const next = withPageScripts(doc, "p", ["a", "b"], attached);
+  assert.strictEqual(next.nodes.a, doc.nodes.a);
+  assert.notStrictEqual(next.nodes.b, doc.nodes.b);
+  assert.equal(next.nodes.b.scripts?.[0]?.id, "loose");
+  assert.equal(next.pages.p.scripts, undefined);
+  assert.equal(doc.pages.p.scripts?.[0]?.id, "loose");
+  const cleared = withPageScripts(next, "p", ["a", "b"], []);
+  assert.equal(cleared.nodes.b.scripts, undefined);
+  assert.equal(cleared.pages.p.scripts, undefined);
+  assert.equal(next.nodes.b.scripts?.[0]?.id, "loose");
+});
+
+test("script updates reuse untouched sibling scripts and stable display wrappers", () => {
+  const first = { id: "one", trigger: "click" as const,
+    pos: { x: 32, y: 32 },
+    steps: [{ id: "wait-one", kind: "wait" as const, seconds: 1 }] };
+  const second = { id: "two", trigger: "click" as const,
+    pos: { x: 32, y: 300 },
+    steps: [{ id: "wait-two", kind: "wait" as const, seconds: 1 }] };
+  const doc = {
+    pages: { p: { id: "p", children: [] } },
+    nodes: { box: { id: "box", type: "box", link: null, scripts: [first, second] } },
+    assets: {},
+  } as unknown as SiteDoc;
+
+  const before = pageScriptsOf(doc, ["box"], "p");
+  assert.strictEqual(before[0], pageScriptsOf(doc, ["box"], "p")[0]);
+  const modified = mapStep(before, "wait-two", (step) => ({ ...step, seconds: 2 }) as ScriptStep);
+  const after = withPageScripts(doc, "p", ["box"], modified);
+  assert.notStrictEqual(after.nodes.box, doc.nodes.box);
+  assert.strictEqual(after.nodes.box.scripts![0], doc.nodes.box.scripts![0]);
+  assert.notStrictEqual(after.nodes.box.scripts![1], doc.nodes.box.scripts![1]);
+  const updatedView = pageScriptsOf(after, ["box"], "p");
+  assert.strictEqual(updatedView[0], before[0]);
+  assert.notStrictEqual(updatedView[1], before[1]);
+  assert.strictEqual(updatedView[0], pageScriptsOf(after, ["box"], "p")[0]);
 });
