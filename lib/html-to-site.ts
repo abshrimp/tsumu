@@ -103,6 +103,16 @@ function cssRules(text: string): CSSRuleList | null {
   }
 }
 
+function isPageCode(element: Element): boolean {
+  // DOMParser exposes noscript fallback markup with scripting disabled, and
+  // tag-name selectors also match inert MathML script/style elements. Hoisting
+  // either into HTML custom code would activate it on the published page.
+  // SVG descendants (including HTML in foreignObject) stay with the icon
+  // sanitizer instead of being promoted into page code.
+  return element.namespaceURI === "http://www.w3.org/1999/xhtml" &&
+    !element.closest("noscript, svg");
+}
+
 export function convertHtmlToSite(html: string, options: Options = {}): HtmlConversion {
   if (!html.trim() || html.length > MAX_HTML_CHARS) throw new Error(tr("HTMLのサイズが大きすぎるか、空です。"));
   if (typeof DOMParser === "undefined") throw new Error(tr("この環境ではHTMLを解析できません。"));
@@ -189,13 +199,11 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     else if (tag !== "title" && tag !== "base") unusedHead.push(element.outerHTML);
   }
   for (const style of Array.from(parsed.body.querySelectorAll("style"))) {
-    // SVG styles belong to the sanitised icon, not to the whole page.
-    if (style.closest("svg")) continue;
+    if (!isPageCode(style)) continue;
     sheets.push(resolveCss(style.textContent || ""));
   }
   for (const script of Array.from(parsed.body.querySelectorAll("script"))) {
-    // Never promote an SVG child script into an executable page script.
-    if (script.closest("svg")) continue;
+    if (!isPageCode(script)) continue;
     scripts.push(script.outerHTML);
     scriptCount++;
   }
