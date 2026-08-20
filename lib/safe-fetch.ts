@@ -96,13 +96,52 @@ function builtin<T>(name: string): T {
   return load(name) as T;
 }
 
+/** Native fetch also needs a bounded body, including its already-decoded bytes. */
+async function bufferNativeResponse(res: Response, maxBytes: number, signal?: AbortSignal | null): Promise<Response> {
+  const reader = res.body?.getReader();
+  if (!reader) return res;
+  // Cancelling the reader wakes a pending read even if no more bytes arrive.
+  const abort = () => { void reader.cancel(signal?.reason).catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+      signal?.throwIfAborted();
+      const { done, value } = await reader.read();
+      signal?.throwIfAborted();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxBytes) throw new TooLargeError("too large");
+      chunks.push(value);
+    }
+    const headers = new Headers(res.headers);
+    // Native fetch decompresses the body; wire metadata no longer describes it.
+    headers.delete("content-encoding");
+    headers.delete("content-length");
+    return new Response(new Blob(chunks as BlobPart[]), { status: res.status, statusText: res.statusText, headers });
+  } catch (error) {
+    // Do not let upstream cancellation delay a size error or request deadline.
+    void reader.cancel(error).catch(() => {});
+    throw error;
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    reader.releaseLock();
+  }
+}
+
 /**
  * Node では実際に接続する際の DNS 結果を検査する。
  * 事前の検査だけだと、検査後の再解決で内部IPに切り替える DNS rebinding が通ってしまう。
  * Workers はプラットフォームの公開ネットワーク用 fetch を使う。
  */
 async function fetchOnce(url: URL, init: RequestInit, maxBytes = 5 * 1024 * 1024): Promise<Response> {
-  if (isWorker() || url.hostname.startsWith("[") || parseIPv4(url.hostname)) return fetch(url, init);
+  if (isWorker() || url.hostname.startsWith("[") || parseIPv4(url.hostname)) {
+    const res = await fetch(url, init);
+    // fetchPublic discards redirect bodies before checking the next destination.
+    if ([301, 302, 303, 307, 308].includes(res.status) && res.headers.get("location")) return res;
+    return bufferNativeResponse(res, maxBytes, init.signal);
+  }
   const http = builtin<typeof import("node:http")>(url.protocol === "https:" ? "node:https" : "node:http");
   const dns = builtin<typeof import("node:dns/promises")>("node:dns/promises");
   const zlib = builtin<typeof import("node:zlib")>("node:zlib");
