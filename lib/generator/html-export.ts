@@ -9,7 +9,7 @@ import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetSrc } from "../assets";
 import { importedAssetUrl, isZipJavascript } from "./imported-assets";
-import { usedGoogleFonts } from "./css";
+import { cssValue, usedGoogleFonts } from "./css";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
@@ -24,6 +24,7 @@ import { QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { rewriteCssAssetUrls } from "../css-assets";
+import { parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -82,9 +83,15 @@ function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<stri
           return space + name + eq + quote + prefix + mapped.slice(1) + tail + quote;
         }
       }
-      const next = attribute === "style"
-        ? rewriteCssRootUrls(value, prefix)
-        : (attribute === "src" || attribute === "href" || attribute === "poster") &&
+      if (attribute === "style") {
+        // CSS tokenization happens after HTML attribute entity decoding in the
+        // browser. Serialized url(&quot;/assets/...&quot;) must work as well.
+        const fragment = parseFragment("<div style=" + quote + value + quote + "></div>");
+        const decoded = (fragment.childNodes[0] as Html.Element).attrs[0].value;
+        const rewritten = rewriteCssRootUrls(decoded, prefix);
+        return rewritten === decoded ? whole : space + name + eq + quote + escapeHtml(rewritten) + quote;
+      }
+      const next = (attribute === "src" || attribute === "href" || attribute === "xlink:href" || attribute === "poster") &&
           value.startsWith("/") && !value.startsWith("//")
           ? prefix + value.slice(1)
           : value;
@@ -282,11 +289,14 @@ function render(ctx: Context, id: string, top: boolean): string {
         attr("fetchpriority", im.priority ? "high" : undefined) + ">";
     }
     if (n.type === "code" && n.code) {
+      const html = cssValue(ctx.doc, "rawHtml", n.code.html, ctx.assets);
       return "<div" + commonAttrs + ' data-raw="">' +
-        rewriteRootUrls(n.code.html, ctx.prefix, ctx.scriptSources) + "</div>";
+        rewriteRootUrls(html, ctx.prefix, ctx.scriptSources) + "</div>";
     }
     if (n.type === "icon" && n.icon) {
-      return "<span" + commonAttrs + ' data-raw="" aria-hidden="true">' + n.icon.svg + "</span>";
+      const html = cssValue(ctx.doc, "rawHtml", n.icon.svg, ctx.assets);
+      return "<span" + commonAttrs + ' data-raw="" aria-hidden="true">' +
+        rewriteRootUrls(html, ctx.prefix, ctx.scriptSources) + "</span>";
     }
     if (n.type === "media" && n.media) {
       const media = n.media;
