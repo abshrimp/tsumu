@@ -37,6 +37,11 @@ export type InputType =
   | "color"
   | "range";
 
+export interface FieldOption {
+  label: string;
+  value: string;
+}
+
 export interface FieldContent {
   kind: FieldKind;
   /** kind="input" のときのHTML input type */
@@ -48,7 +53,7 @@ export interface FieldContent {
   /** 未入力のときに薄く出す案内文（{変数} を使える） */
   placeholder?: string;
   /** select の選択肢（{変数} を使える） */
-  options?: string[];
+  options?: FieldOption[];
   /** checkbox / radio: 最初からチェックしておく */
   checked?: boolean;
   /**
@@ -331,11 +336,12 @@ export type ScriptStep = { id: string } & (
       body?: string;
       /** 取得したデータの名前（要素では {名前.項目} としても使える） */
       as?: string;
-      /** エディタで見せる取得結果の見本（配列は先頭だけ残す） */
-      sample?: unknown;
-      /** 見本で切り詰めた配列の、元の件数（位置 → 件数。エディタで件数を正しく出すため） */
-      sampleTotals?: Record<string, number>;
-      fetchedAt?: number;
+      /** Preview data is separate from the executable fetch request. */
+      preview?: {
+        sample?: unknown;
+        totals?: Record<string, number>;
+        fetchedAt?: number;
+      };
     }
   | {
       kind: "if";
@@ -563,6 +569,8 @@ export interface PwaSetting {
 }
 
 export interface SiteDoc {
+  /** The exact on-disk document schema; all persistence paths require it. */
+  schemaVersion: 1;
   siteName: string;
   /**
    * 公開サイトの言語（BCP 47 の言語コード。例: ja, en, zh-Hant）。<html lang> などに使う。

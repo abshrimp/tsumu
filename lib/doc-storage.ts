@@ -1,6 +1,6 @@
 import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validDocNodeShape, validDocPageShape, validSiteDoc } from "./doc-tree";
 import type { Db, ResultSet } from "./db";
-import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
+import { applyDocPatch, docPatchSqlPath, isDocPatch, type DocPatch } from "./doc-patch";
 import type { SiteDoc } from "./types";
 
 /**
@@ -194,12 +194,12 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
     const removes: string[] = [];
     for (const op of chunk.filter((op) => !("remove" in op))) {
       sets.push("?, json(?)");
-      args.push(`$.${op.path.join(".")}`, JSON.stringify("value" in op ? op.value : null));
+      args.push(docPatchSqlPath(op.path), JSON.stringify("value" in op ? op.value : null));
     }
     if (sets.length) body = `json_set(${body}, ${sets.join(", ")})`;
     for (const op of chunk.filter((op) => "remove" in op)) {
       removes.push("?");
-      args.push(`$.${op.path.join(".")}`);
+      args.push(docPatchSqlPath(op.path));
     }
     if (removes.length) body = `json_remove(${body}, ${removes.join(", ")})`;
   }
@@ -263,7 +263,7 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   const rs = await write(db, {
     sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? ${pageGuard} ${treeGuard} RETURNING rev`,
     args: [...args, siteId, Number(base), now, siteId, Number(base),
-      ...(individual ? [JSON.stringify(treeOps.map(op => "$." + op.path.join(".") + ".children"))] : [])],
+      ...(individual ? [JSON.stringify(treeOps.map(op => docPatchSqlPath([...op.path, "children"])))] : [])],
   });
   if (rs.rows.length) {
     return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };

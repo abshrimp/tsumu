@@ -6,7 +6,7 @@ export function clientScriptFixture(component = false, items: any[] = [
   { name: 'Second', tags: [{ label: 'green' }] },
 ]) {
   const doc = clientNestedDoc(component);
-  (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as any).preview = { sample: items };
   doc.pages.p.pageScripts![0].steps.push(
     { id: 'name', kind: 'set-var', value: '{response.0.name}', into: 'name' },
     { id: 'private', kind: 'set-var', value: 'UNUSED_SERVER_PRIVATE', into: 'private' },

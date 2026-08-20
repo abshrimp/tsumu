@@ -14,7 +14,7 @@ const restoreCode = transformSync(source.slice(source.indexOf("async function re
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 function fixture(validate: typeof validateImportedDoc = validateImportedDoc) {
-  const doc = { siteName: "Original", assets: {}, nodes: {}, pages: { p: { id: "p", name: "Home", title: "", description: "", slug: "", children: [] } }, pageOrder: ["p"] };
+  const doc = { schemaVersion: 1, siteName: "Original", assets: {}, nodes: {}, pages: { p: { id: "p", name: "Home", title: "", description: "", slug: "", children: [] } }, pageOrder: ["p"] };
   useEditor.getState().replaceDoc(doc);
   const revision = useEditor.getState().historyRevision;
   const restored = { ...doc, siteName: "Backup" };

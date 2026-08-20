@@ -5,7 +5,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function aiCloneDoc(): SiteDoc {
   return {
-    siteName: "AI clone isolation", assets: {}, pageOrder: ["p"],
+    schemaVersion: 1, siteName: "AI clone isolation", assets: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["group", "outside"] } },
     nodes: {
       group: { ...makeBox(), id: "group", children: ["button", "menu", "entry", "readout", "jump"] },

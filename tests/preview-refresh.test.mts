@@ -183,7 +183,7 @@ test("unmount prevents late result and loading-state writes", async () => {
 
 test("parallel fetch blocks settle as one refresh and retain independent fallback data", async () => {
   const m = mount("design");
-  useEditor.getState().updateDoc((doc) => { doc.pages.home.pageScripts![0].steps.push({ id: "auxiliary", kind: "fetch", url: "https://example.test/aux", as: "aux", sample: { label: "aux sample" } }); });
+  useEditor.getState().updateDoc((doc) => { doc.pages.home.pageScripts![0].steps.push({ id: "auxiliary", kind: "fetch", url: "https://example.test/aux", as: "aux", preview: { sample: { label: "aux sample" } } }); });
   void m.render().refreshData();
   await m.finish(0, previewRows("main", 40));
   assert.equal(m.render().refreshing, true);
@@ -268,11 +268,11 @@ test("successful blocks clear only their own totals while failed blocks retain l
   const main = doc.pages.home.pageScripts![0].steps[0];
   if (main.kind === "fetch") {
     const made = makeSample(previewRows("saved main", 61));
-    main.sample = made.sample; main.sampleTotals = made.totals;
+    main.preview = { sample: made.sample, totals: made.totals };
   }
   const savedAux = makeSample(previewRows("saved aux", 67));
   doc.pages.home.pageScripts![0].steps.push(
-    { id: "auxiliary", kind: "fetch", url: "https://example.test/aux", as: "aux", sample: savedAux.sample, sampleTotals: savedAux.totals },
+    { id: "auxiliary", kind: "fetch", url: "https://example.test/aux", as: "aux", preview: { sample: savedAux.sample, totals: savedAux.totals } },
     { id: "aux-count", kind: "transform", source: "aux.rows", into: "auxTotal", transform: { kind: "length" } },
   );
   const m = mount("design", doc);

@@ -738,7 +738,7 @@ export function buildAiContext(
   // Keep the AI request snapshot independent from subsequent in-place editor edits.
   // A shallow copy would share node/page/style objects and could mask a replay conflict.
   const part: SiteDoc = structuredClone({
-    siteName: doc.siteName,
+    schemaVersion: 1, siteName: doc.siteName,
     pages,
     pageOrder: doc.pageOrder,
     nodes,

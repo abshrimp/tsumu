@@ -11,7 +11,7 @@ export const candidate: Asset = { id: "asset_candidate_a", name: "a.png", path: 
 export const spare: Asset = { ...candidate, id: "asset_candidate_b", name: "b.png", path: "assets/b.png" };
 export function assetConfirmationDoc(): SiteDoc {
   return {
-    siteName: "Asset confirmation", pageOrder: ["p"],
+    schemaVersion: 1, siteName: "Asset confirmation", pageOrder: ["p"],
     pages: { p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["image", "media"] } },
     assets: { [candidate.id]: { ...candidate }, [spare.id]: { ...spare } },
     nodes: {

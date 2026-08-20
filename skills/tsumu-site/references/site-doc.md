@@ -27,6 +27,8 @@ import gzip
 import json
 
 # doc is a complete SiteDoc dictionary.
+
+All editable documents use the single current schema (`schemaVersion: 1`). A document without this exact value is invalid and must be converted before import.
 plain = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 packed = json.dumps({
     "format": "tsumu-doc",

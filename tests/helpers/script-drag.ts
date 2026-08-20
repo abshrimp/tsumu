@@ -4,7 +4,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function scriptDragDoc(): SiteDoc {
   return {
-    siteName: "Script gestures", assets: {}, nodes: {}, pageOrder: ["p", "q"],
+    schemaVersion: 1, siteName: "Script gestures", assets: {}, nodes: {}, pageOrder: ["p", "q"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "", description: "", children: [], pageScripts: [
         { id: "script", trigger: "load", pos: { x: 32, y: 32 }, steps: [{ id: "wait", kind: "wait", seconds: 1 }] },

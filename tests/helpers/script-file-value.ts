@@ -32,7 +32,7 @@ export function scriptFileValueDoc(): SiteDoc {
     { ...makeText("file={upload}; changes={changes}; name={name}; agree={agree}"), id: "result", attrId: "result" },
   ];
   return {
-    siteName: "Script file value", assets: {}, pageOrder: ["home"],
+    schemaVersion: 1, siteName: "Script file value", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: nodes.map((n) => n.id), pageScripts: [{
       id: "init", trigger: "load", pos: { x: 0, y: 0 }, steps: [
         { id: "init-changes", kind: "set-var", into: "changes", value: "0" },

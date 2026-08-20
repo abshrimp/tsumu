@@ -3,7 +3,7 @@ import { editorBootstrapBundle } from "../tests/helpers/editor-bootstrap";
 import { makeText } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
-const fixture = (): SiteDoc => ({ siteName: "Paste scope", assets: {}, pageOrder: ["p"], pages: {
+const fixture = (): SiteDoc => ({ schemaVersion: 1, siteName: "Paste scope", assets: {}, pageOrder: ["p"], pages: {
   p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["a"] },
 }, nodes: { a: { ...makeText("Copied text"), id: "a" } } });
 

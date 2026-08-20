@@ -5,7 +5,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function textStyleConfirmationDoc(): SiteDoc {
   return {
-    siteName: "Text style confirmation", assets: {}, pageOrder: ["p", "q"],
+    schemaVersion: 1, siteName: "Text style confirmation", assets: {}, pageOrder: ["p", "q"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["a", "b"] },
       q: { id: "q", name: "Q", slug: "q", title: "", description: "", children: [] },

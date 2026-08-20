@@ -8,7 +8,7 @@ import { makeText } from "../../lib/presets";
 import type { DocNode, Page, SiteDoc } from "../../lib/types";
 
 export function previewQueryDoc(slug = "blog", queries = ["", "tab=news", "tab=news&lang=ja", "tab=archive"]): SiteDoc {
-  const doc: SiteDoc = { siteName: "Preview query navigation", pages: {}, pageOrder: [], nodes: {}, assets: {} };
+  const doc: SiteDoc = { schemaVersion: 1, siteName: "Preview query navigation", pages: {}, pageOrder: [], nodes: {}, assets: {} };
   const addPage = (id: string, path: string, query = "") => {
     doc.pages[id] = { id, name: id, title: id, description: "", slug: path, query, children: [] };
     doc.pageOrder.push(id);

@@ -44,6 +44,11 @@ export type InputType =
   | "color"
   | "range";
 
+export interface FieldOption {
+  label: string;
+  value: string;
+}
+
 export interface FieldContent {
   kind: FieldKind;
   
@@ -55,7 +60,7 @@ export interface FieldContent {
   
   placeholder?: string;
   
-  options?: string[];
+  options?: FieldOption[];
   
   checked?: boolean;
   
@@ -315,11 +320,7 @@ export type ScriptStep = { id: string } & (
       body?: string;
       
       as?: string;
-      
-      sample?: unknown;
-      
-      sampleTotals?: Record<string, number>;
-      fetchedAt?: number;
+      preview?: { sample?: unknown; totals?: Record<string, number>; fetchedAt?: number; };
     }
   | {
       kind: "if";
@@ -535,6 +536,7 @@ export interface PwaSetting {
 }
 
 export interface SiteDoc {
+  schemaVersion: 1;
   siteName: string;
   
 

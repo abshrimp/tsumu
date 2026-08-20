@@ -25,9 +25,9 @@ const cases: Array<{ options: string[]; defaultValue: string; scope: Record<stri
 ];
 for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
   cases.forEach((sample, i) => test(`${framework}: select resolves default and options before selecting (${i})`, () => {
-    const field = { kind: "select" as const, options: sample.options, defaultValue: sample.defaultValue };
+    const field = { kind: "select" as const, options: sample.options.map(value => ({label:value,value})), defaultValue: sample.defaultValue };
     const doc: SiteDoc = {
-      siteName: "Select", assets: {}, pageOrder: ["p"],
+      schemaVersion: 1, siteName: "Select", assets: {}, pageOrder: ["p"],
       pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: ["select"] } },
       nodes: { select: { ...makeBox(), id: "select", type: "field", field } },
     };

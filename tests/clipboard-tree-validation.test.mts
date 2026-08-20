@@ -8,7 +8,7 @@ import type { SiteDoc } from "../lib/types";
 
 const node = (id: string, children: string[] = []) => ({ ...makeBox(), id, children });
 const emptyDoc = (): SiteDoc => ({
-  siteName: "Clipboard", assets: {}, pageOrder: ["p"],
+  schemaVersion: 1, siteName: "Clipboard", assets: {}, pageOrder: ["p"],
   pages: { p: { id: "p", name: "Home", slug: "", children: [] } }, nodes: {},
 });
 function payload(): ClipPayload {

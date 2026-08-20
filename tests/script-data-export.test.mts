@@ -14,7 +14,7 @@ function fixture() {
   const page = doc.pages[doc.pageOrder[0]];
   const steps = [
     { id: "fetch", kind: "fetch", as: "data", url: "https://data.example.test/items",
-      sample: { items: [{ id: "editor", price: 99 }] } },
+      preview: { sample: { items: [{ id: "editor", price: 99 }] } } },
     { id: "items", kind: "transform", source: "data", into: "items",
       transform: { kind: "field", key: "items" } },
     { id: "size", kind: "transform", source: "items", into: "size",

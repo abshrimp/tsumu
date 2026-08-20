@@ -11,7 +11,7 @@ test("standalone HTML fetches JSON, transforms it, and renders live text and lis
   const list = { ...makeBox(), id: "list", type: "list" as const,
     list: { from: "rows" }, children: ["entry"] };
   const doc: SiteDoc = {
-    siteName: "Public data page",
+    schemaVersion: 1, siteName: "Public data page",
     pages: {
       home: {
         id: "home", name: "Home", slug: "", title: "Home", description: "",
@@ -63,7 +63,7 @@ test("standalone HTML selects query-variant pages before loading their data", as
   const defaultNode = { ...makeBox(), id: "default-heading", text: { content: "Default page", heading: 1 } };
   const specialNode = { ...makeBox(), id: "special-heading", text: { content: "Query-specific page", heading: 1 } };
   const doc: SiteDoc = {
-    siteName: "Query variants",
+    schemaVersion: 1, siteName: "Query variants",
     pages: {
       default: { id: "default", name: "Default", slug: "", title: "Default", description: "",
         children: ["default-heading"] },
@@ -110,7 +110,7 @@ test("standalone HTML selects query-variant pages before loading their data", as
 
 test("standalone HTML executes transform and condition blocks in Chromium", async ({ page }) => {
   const doc: SiteDoc = {
-    siteName: "Composable HTML data",
+    schemaVersion: 1, siteName: "Composable HTML data",
     pageOrder: ["home"],
     pages: {
       home: { id: "home", name: "Home", slug: "", title: "Composable", description: "",
@@ -165,7 +165,7 @@ test("standalone HTML executes transform and condition blocks in Chromium", asyn
 
 test("standalone HTML uses form and query operands and clears missing transform output", async ({ page }) => {
   const doc: SiteDoc = {
-    siteName: "Dynamic operands", pageOrder: ["home"],
+    schemaVersion: 1, siteName: "Dynamic operands", pageOrder: ["home"],
     pages: { home: {
       id: "home", name: "Home", slug: "", title: "Home", description: "",
       children: ["rate", "shadow", "button", "result"],

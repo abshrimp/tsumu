@@ -36,7 +36,7 @@ test('field parts preserve own roots, scalar fallbacks, escapes, literal data br
     { name: '', profile: {}, tags: [{ label: 'empty' }] },
     { 'profile.name': 'Dotted {name}', tags: [{ label: 'dotted' }] },
   ];
-  (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as any).preview = { sample: items };
   doc.pages.p.pageScripts![0].steps.push(
     { id: 'profile', kind: 'set-var', value: '{response.0.profile}', into: 'profile' },
     { id: 'fallback', kind: 'set-var', value: 'Server \\{name}', into: 'fallback' },
@@ -72,10 +72,10 @@ test('live field tokens continue reading current values without reparsing data o
 });
 test('select static defaults and absent defaults are reapplied after resolving dynamic options', async () => {
   const doc = clientFieldDoc();
-  doc.nodes.choice.field!.options = ['{name}', 'Static']; doc.nodes.choice.field!.defaultValue = 'Static';
+  doc.nodes.choice.field!.options = ['{name}', 'Static'].map(value => ({label:value,value})); doc.nodes.choice.field!.defaultValue = 'Static';
   const rt = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', fieldItems), scriptsFile(doc)); await rt.click('reload');
   assert.deepEqual(values(rt, 'choice'), ['Static', 'Static']); rt.dispose();
-  doc.nodes.choice.field!.defaultValue = undefined; doc.nodes.choice.field!.options!.push('');
+  doc.nodes.choice.field!.defaultValue = undefined; doc.nodes.choice.field!.options!.push({label:'',value:''});
   const empty = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', fieldItems), scriptsFile(doc)); await empty.click('reload');
   assert.deepEqual(values(empty, 'choice'), ['First', 'Second']); empty.dispose();
 });
@@ -92,7 +92,7 @@ test('no-collision input, static controls and server-only rendering retain their
 });
 test('live select options refresh before default values and same-script reads', async () => {
   const doc = clientFieldDoc();
-  doc.nodes.choice.field!.options = ['Other', '{name}: {live}']; doc.nodes.choice.field!.defaultValue = '{name}: {live}';
+  doc.nodes.choice.field!.options = ['Other', '{name}: {live}'].map(value => ({label:value,value})); doc.nodes.choice.field!.defaultValue = '{name}: {live}';
   doc.nodes.change = { ...makeText('Change'), id: 'change', attrId: 'change', scripts: [{ id: 'change-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [
     { id: 'change-live', kind: 'set-var', into: 'live', value: 'Later' },
     { id: 'read-choice', kind: 'set-var', into: 'observed', value: '{choice}' },

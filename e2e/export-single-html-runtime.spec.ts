@@ -8,7 +8,7 @@ import type { SiteDoc } from "../lib/types";
  */
 test("single HTML executes page-load scripts and renders dynamic variables without external files", async ({ page }) => {
   const doc: SiteDoc = {
-    siteName: "Standalone runtime",
+    schemaVersion: 1, siteName: "Standalone runtime",
     pageOrder: ["home"],
     pages: {
       home: {

@@ -59,7 +59,7 @@ export async function fetchWhole(url: string, options: FetchOptions = {}, vars: 
 export const wholeCache = new Map<string, unknown>();
 const sourceKey = (scope?: FetchPreviewScope) => scope?.owner ?? { nodeId: scope?.nodeId ?? "" };
 export const wholeKey = (st: FetchStep, pageId = useEditor.getState().activePageId, session = useEditor.getState().documentSession, scope?: FetchPreviewScope) =>
-  JSON.stringify([session, pageId, sourceKey(scope), st.id, st.url, st.method, st.headers, st.body, st.fetchedAt]);
+  JSON.stringify([session, pageId, sourceKey(scope), st.id, st.url, st.method, st.headers, st.body, st.preview?.fetchedAt]);
 const ownerKey = (stepId: string, pageId: string, scope?: FetchPreviewScope) => JSON.stringify([useEditor.getState().documentSession, pageId, sourceKey(scope), stepId]);
 
 /** 見本を取得したリクエストと、保存先の現在の設定を比べる（見本の更新時刻は除く） */
@@ -69,14 +69,17 @@ export const fetchTestKey = (step: FetchStep, scope: FetchPreviewScope) =>
   JSON.stringify([requestKey(step.url, step), scope.nodeId, scope.localNames]);
 
 /** 時刻のある見本だけが現在の設定で確認済み。未確認の見本もフォールバックには残す。 */
-export const hasCurrentSample = (step: FetchStep) => step.sample !== undefined &&
-  typeof step.fetchedAt === "number" && Number.isFinite(step.fetchedAt) && step.fetchedAt > 0;
+export const hasCurrentSample = (step: FetchStep) => step.preview?.sample !== undefined &&
+  typeof step.preview?.fetchedAt === "number" && Number.isFinite(step.preview.fetchedAt) && step.preview.fetchedAt > 0;
 
 /** 設定変更は取得済みの印だけを外し、見本のフォールバックは保持する。 */
 export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?: string }, pageId = useEditor.getState().activePageId, scope?: FetchPreviewScope): FetchStep {
   const next = { ...step, ...patch };
   if (requestKey(step.url, step) !== requestKey(next.url, next)) {
-    delete next.fetchedAt;
+    if (next.preview) {
+      const { fetchedAt: _at, ...preview } = next.preview;
+      next.preview = preview;
+    }
     const owner = ownerKey(step.id, pageId, scope);
     attemptedRequests.delete(owner); requestErrors.delete(owner); submittedRequests.delete(owner); temporaryValues.delete(owner);
   }
@@ -167,9 +170,11 @@ export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
       useEditor.getState().updateDoc((doc) => {
         const current = currentFetch(doc, pageId, step.id, scope, scriptRootIds);
         if (!isCurrent() || !current || requestKey(current.url, current) !== key) return;
-        Object.assign(current, { sample, sampleTotals: totals, fetchedAt: Math.max(Date.now(), (current.fetchedAt ?? 0) + 1) });
+        current.preview = {
+          sample, totals, fetchedAt: Math.max(Date.now(), (current.preview?.fetchedAt ?? 0) + 1),
+        };
         wholeCache.set(wholeKey(current, pageId, session, scope), whole);
-        resultRequests.set(owner, { method: options.method ?? "GET", url: interpolateUrl(url, vars), fetchedAt: current.fetchedAt! });
+        resultRequests.set(owner, { method: options.method ?? "GET", url: interpolateUrl(url, vars), fetchedAt: current.preview.fetchedAt! });
         saved = true;
       });
       return saved;
@@ -190,7 +195,7 @@ export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
       notifyRequests();
     }
   };
-  return { busy, attempted, resultSource: resultSource?.fetchedAt === step.fetchedAt ? resultSource : undefined, submitted: submitted?.key === currentKey ? submitted : undefined,
+  return { busy, attempted, resultSource: resultSource?.fetchedAt === step.preview?.fetchedAt ? resultSource : undefined, submitted: submitted?.key === currentKey ? submitted : undefined,
     error: error?.key === currentKey ? error.message : null, run };
 }
 
@@ -254,7 +259,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
   }, []);
   const key = wholeKey(step, useContext(Ctx).pageId, undefined, scope);
   const full = wholeCache.has(key);
-  const truncatedSample = Object.keys(step.sampleTotals ?? {}).length > 0;
+  const truncatedSample = Object.keys(step.preview?.totals ?? {}).length > 0;
   const method = step.method ?? "GET";
   const destination = state.missing ? step.url : interpolateUrl(step.url, state.vars);
   return <div ref={dialogRef} className="se-modal se-fetch-test" role="dialog" aria-modal="true"
@@ -295,13 +300,13 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
     {method !== "GET" && <p className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</p>}
     {busy && <p role="status">{tr("送信中…")}</p>}
     {error && <p className="se-badge is-warn" role="alert">{error}</p>}
-    {step.sample !== undefined && <>
+    {step.preview?.sample !== undefined && <>
       {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("この結果の送信先")}: {resultSource.method} {resultSource.url}</p>}
       {!hasCurrentSample(step) && <p className="se-badge is-warn">{tr("現在の設定で未確認の見本です")}</p>}
       {!full && <p className="hint">{truncatedSample
         ? tr("見本にはリストの先頭20件のみ保存されています。全件を見るには右上の「取得し直す」で再取得してください。")
         : tr("保存された見本を表示しています。")}</p>}
-      <JsonPeek value={full ? wholeCache.get(key) : step.sample} />
+      <JsonPeek value={full ? wholeCache.get(key) : step.preview?.sample} />
     </>}
   </div>;
 }

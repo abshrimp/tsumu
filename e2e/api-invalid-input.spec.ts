@@ -21,7 +21,7 @@ test("a full save and a subsequent SQL patch use the same value for duplicate JS
   try {
     const node = { id: "n", type: "box", name: "Original", semantic: "auto", children: [], styles: {} };
     const page = { id: "home", slug: "", name: "Home", title: "", description: "", children: ["n"] };
-    const text = '{"siteName":"Duplicate keys","nodes":{},"nodes":' + JSON.stringify({ n: node }) +
+    const text = '{"schemaVersion":1,"siteName":"Duplicate keys","nodes":{},"nodes":' + JSON.stringify({ n: node }) +
       ',"pages":' + JSON.stringify({ home: page }) + ',"pageOrder":["home"],"assets":{}}';
     const saved = await request.put(url, { data: text, headers: { "Content-Type": "application/json" } });
     expect(saved.status()).toBe(200);

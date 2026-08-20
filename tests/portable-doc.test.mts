@@ -6,7 +6,7 @@ import { IMPORT_LIMITS, parseSiteImport } from "../lib/site-import";
 
 const encoder = new TextEncoder();
 const minimalDoc = () => ({
-  siteName: "Minimal",
+  schemaVersion: 1, siteName: "Minimal",
   pages: { page: { id: "page", name: "Home", slug: "", title: "Home", description: "", children: [] } },
   pageOrder: ["page"],
   nodes: {},

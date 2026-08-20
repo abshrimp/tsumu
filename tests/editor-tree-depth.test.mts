@@ -13,7 +13,7 @@ function fixture(depth: number): SiteDoc {
     ...makeBox(), id: `n${i}`, children: i < depth ? [`n${i + 1}`] : [],
   };
   return {
-    siteName: "Depth", assets: {}, nodes, pageOrder: ["p"],
+    schemaVersion: 1, siteName: "Depth", assets: {}, nodes, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Page", slug: "", title: "", description: "", children: ["host", "n1"] } },
   };
 }

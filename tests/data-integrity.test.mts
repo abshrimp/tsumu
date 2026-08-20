@@ -8,7 +8,7 @@ import type { SiteDoc } from "../lib/types";
 const node = (id: string) => ({ ...makeBox(), id });
 function fixture(): SiteDoc {
   return {
-    siteName: "Integrity",
+    schemaVersion: 1, siteName: "Integrity",
     pages: { home: { id: "home", name: "Home", slug: "", title: "", description: "", children: [] } },
     pageOrder: ["home"],
     nodes: {},

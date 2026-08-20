@@ -317,7 +317,8 @@ export function makeField(kind: FieldKind): DocNode {
     select: {
       name: tr("選択肢"),
       field: {
-        options: [tr("選択してください"), tr("選択肢A"), tr("選択肢B")],
+        options: [tr("選択してください"), tr("選択肢A"), tr("選択肢B")]
+          .map((value) => ({ label: value, value })),
       },
       attrId: "choice",
       styles: {
@@ -715,7 +716,8 @@ function loadScript(url: string, sample: unknown, then: ScriptStep[]): Script {
     trigger: "load",
     pos: { x: 32, y: 32 },
     steps: [
-      { id: genId("st"), kind: "fetch", url, as: trc("変数名", "データ"), sample, fetchedAt: Date.now() },
+      { id: genId("st"), kind: "fetch", url, as: trc("変数名", "データ"),
+        preview: { sample, fetchedAt: Date.now() } },
       ...then,
     ],
   };
@@ -970,6 +972,7 @@ export function createInitialDoc(): SiteDoc {
   const demo = buildDemoProducts(nodes);
 
   return {
+    schemaVersion: 1,
     siteName: "My Site",
     // 初期の文言はエディタの表示言語で入るので、サイトの言語もそれに合わせる
     lang: getLang(),

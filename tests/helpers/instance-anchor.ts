@@ -10,7 +10,7 @@ import type { SiteDoc } from "../../lib/types";
 const loadDependency = createRequire(resolve("package.json"));
 export function anchorFixture(): SiteDoc {
   return {
-    siteName: "Anchors", assets: {}, pageOrder: ["p"],
+    schemaVersion: 1, siteName: "Anchors", assets: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["jump", "show", "first", "second"] } },
     components: { card: { id: "card", name: "Card", rootId: "root" } },
     nodes: {

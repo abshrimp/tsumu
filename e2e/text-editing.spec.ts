@@ -9,7 +9,7 @@ async function openSite(page: Page) {
   expect(response.ok()).toBeTruthy();
   const { site } = await response.json();
   const doc: SiteDoc = {
-    siteName: "Text editing integrity", assets: {}, pageOrder: ["home"],
+    schemaVersion: 1, siteName: "Text editing integrity", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["text"] } },
     nodes: { text: { ...makeText("Before"), id: "text" } },
   };

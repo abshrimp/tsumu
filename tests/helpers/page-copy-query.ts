@@ -14,7 +14,7 @@ export function queryCopyFixture() {
     id, name: id, slug, query, title: id, description: "", children: [],
   });
   const source: SiteDoc = {
-    siteName: "From", assets: {}, pageOrder: ["home", "source-news"],
+    schemaVersion: 1, siteName: "From", assets: {}, pageOrder: ["home", "source-news"],
     pages: {
       home: { ...page("home", ""), children: ["link", "button"] },
       "source-news": page("source-news", "blog", "tab=news"),
@@ -34,7 +34,7 @@ export function queryCopyFixture() {
     },
   };
   const target: SiteDoc = {
-    siteName: "To", assets: {}, nodes: {}, pageOrder: ["default", "news", "archive"],
+    schemaVersion: 1, siteName: "To", assets: {}, nodes: {}, pageOrder: ["default", "news", "archive"],
     pages: {
       default: page("default", "blog"),
       news: page("news", "blog", "tab=news"),

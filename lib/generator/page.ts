@@ -604,7 +604,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     for (const st of steps) {
       if (st.kind === "fetch") {
         if (st.as) known.add(st.as);
-        addItemKeys(st.sample, false, 0);
+        addItemKeys(st.preview?.sample, false, 0);
       }
       if (st.kind === "list-display") {
         if (st.field) itemKeys.add(st.field.split(".")[0]);
@@ -683,7 +683,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
           unknown(f.max, inList) ||
           unknown(f.step, inList) ||
           unknown(f.accept, inList) ||
-          (f.options ?? []).some((o) => unknown(o, inList))))
+          (f.options ?? []).some((o) => unknown(o.label, inList) || unknown(o.value, inList))))
     ) {
       return true;
     }

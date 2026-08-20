@@ -971,13 +971,17 @@ function FieldSettings({
               key={`${nodeId}-opts`}
               className="textarea"
               rows={4}
-              value={(f.options ?? []).join("\n")}
+              value={(f.options ?? []).map((o) => o.label === o.value ? o.label : o.label + "\t" + o.value).join("\n")}
               onCommit={(v) =>
                 onChange({
                   options: v
                     .split("\n")
                     .map((x) => x.trim())
-                    .filter(Boolean),
+                    .filter(Boolean)
+                    .map((line) => {
+                      const [label, ...values] = line.split("\t");
+                      return { label, value: values.length ? values.join("\t").trim() : label };
+                    }),
                 })
               }
             />

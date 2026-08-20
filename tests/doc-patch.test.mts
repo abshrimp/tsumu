@@ -13,7 +13,7 @@ import { insertSite } from "../lib/sites";
 import type { SiteDoc } from "../lib/types";
 
 const doc = (): SiteDoc => ({
-  siteName: "Example", pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["node-1"] } },
+  schemaVersion: 1, siteName: "Example", pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["node-1"] } },
   nodes: { "node-1": { id: "node-1", type: "box", name: "Text", semantic: "auto", children: [],
     text: { content: "Hello", heading: 0 }, link: null, styles: {} } },
   pageOrder: ["home"], assets: {},

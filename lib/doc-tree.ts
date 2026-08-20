@@ -1,12 +1,12 @@
+import { isDocumentId } from "./document-id";
+import { validDocumentScripts } from "./document-validation";
+
 // The editor and generators recursively render child IDs from a flat map.
 // Detached nodes are valid, but every node must belong to a finite tree.
 export const MAX_NODE_DEPTH = 256;
 
 /** Map IDs become object property names throughout the editor. */
-function safeCollectionId(id: string): boolean {
-  return !!id && id !== "constructor" && id !== "prototype" &&
-    !Object.hasOwn(Object.prototype, id);
-}
+const safeCollectionId = isDocumentId;
 
 /** Height of the deepest root tree, counting a leaf as one node. Invalid input cannot fit. */
 export function maxSubtreeDepth(
@@ -92,8 +92,9 @@ export function validDocNodeShape(value: unknown): boolean {
   if (value.code != null && (!isObject(value.code) || typeof value.code.html !== "string")) return false;
   if (value.field != null && (!isObject(value.field) || !FIELD_KINDS.has(value.field.kind as string) ||
       (value.field.options != null && (!Array.isArray(value.field.options) ||
-        !value.field.options.every(option => typeof option === "string"))))) return false;
-  if (value.scripts != null && !Array.isArray(value.scripts)) return false;
+        !value.field.options.every(option => isObject(option) &&
+          typeof option.label === "string" && typeof option.value === "string"))))) return false;
+  if (value.scripts != null && !validDocumentScripts(value.scripts)) return false;
   return true;
 }
 
@@ -101,8 +102,9 @@ export function validDocPageShape(value: unknown): boolean {
   return isObject(value) && typeof value.name === "string" &&
     typeof value.title === "string" && typeof value.description === "string" &&
     (value.bodyStyles == null || validStyleDefinitions(value.bodyStyles)) &&
-    (value.scripts == null || Array.isArray(value.scripts)) &&
-    (value.pageScripts == null || Array.isArray(value.pageScripts));
+    (value.scripts == null || validDocumentScripts(value.scripts)) &&
+    (value.pageScripts == null || validDocumentScripts(value.pageScripts)) &&
+    [value.rawHtml, value.redirectTo, value.rewriteTo].filter(v => v != null).length <= 1;
 }
 
 function entryWithId(id: string, value: unknown): value is Record<string, unknown> {
@@ -217,7 +219,7 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
 export function validSiteDoc(parsed: unknown): boolean {
   const record = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value);
-  if (!record(parsed) || typeof parsed.siteName !== "string" ||
+  if (!record(parsed) || parsed.schemaVersion !== 1 || typeof parsed.siteName !== "string" ||
       !record(parsed.pages) || !record(parsed.nodes) || !record(parsed.assets) ||
       !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) return false;
   if (!Object.entries(parsed.assets).every(([id, asset]) => validAssetEntry(id, asset)) ||

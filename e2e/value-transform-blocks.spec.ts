@@ -19,7 +19,7 @@ async function runChain(page: Page, exported: boolean, input: string, transforms
     }],
   };
   const doc: SiteDoc = {
-    siteName: "Block composition", assets: {}, nodes: { button: node }, pageOrder: ["p"],
+    schemaVersion: 1, siteName: "Block composition", assets: {}, nodes: { button: node }, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "",
       children: ["button"] } },
   };
@@ -111,7 +111,7 @@ test("scripted named state changes a distant element and reset restores its defa
     styles: { base: { default: { backgroundColor: "#eeeeee" },
       "custom:selected": { backgroundColor: "#ff0000" } } } };
   const doc: SiteDoc = {
-    siteName: "Named states", assets: {}, nodes: { trigger: button, reset, remote },
+    schemaVersion: 1, siteName: "Named states", assets: {}, nodes: { trigger: button, reset, remote },
     pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", slug: "", title: "Home",
       description: "", children: ["trigger", "reset", "remote"] } },
@@ -160,7 +160,7 @@ for (const exported of [false, true]) {
         value: "red", not: true, dir: "asc" as const }],
     }] };
     const doc: SiteDoc = {
-      siteName: "Negated filter", assets: {}, nodes: { filterButton: button }, pageOrder: ["p"],
+      schemaVersion: 1, siteName: "Negated filter", assets: {}, nodes: { filterButton: button }, pageOrder: ["p"],
       pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["filterButton"] } },
     };
     await page.setContent('<html><body><button id="filterButton">Filter</button><section data-array="results"><div data-item=\'{"name":"red"}\' id="red">red</div><div data-item=\'{"name":"blue"}\' id="blue">blue</div></section></body></html>');
@@ -357,7 +357,7 @@ for (const exported of [false, true]) {
       }] }],
     };
     const doc: SiteDoc = {
-      siteName: "Filter gap", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
+      schemaVersion: 1, siteName: "Filter gap", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
       pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "",
         children: ["filterButton"] } },
     };
@@ -391,7 +391,7 @@ for (const exported of [false, true]) {
       }] }],
     };
     const doc: SiteDoc = {
-      siteName: "Safe JSON filter", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
+      schemaVersion: 1, siteName: "Safe JSON filter", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
       pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "",
         children: ["filterButton"] } },
     };

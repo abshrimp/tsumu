@@ -5,7 +5,7 @@ import type { SiteDoc } from "../lib/types";
 
 function fixture(): SiteDoc {
   return {
-    siteName: "Merge",
+    schemaVersion: 1, siteName: "Merge",
     pages: { home: { id: "home", name: "Home", slug: "", title: "", description: "", children: [] } },
     pageOrder: ["home"], nodes: {}, assets: {},
     pwa: { enabled: true, name: "Initial" },

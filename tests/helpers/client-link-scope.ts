@@ -10,7 +10,7 @@ export const linkItems = [
 ];
 export function clientLinkDoc(component = false, url = '/products/{name}', items: unknown[] = linkItems) {
   const doc = clientNestedDoc(component);
-  (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as { preview?: { sample?: unknown } }).preview = { sample: items };
   for (const key of ['name', 'profile', 'slug']) doc.pages.p.pageScripts![0].steps.push({ id: `global-${key}`, kind: 'set-var', value: `{response.0.${key}}`, into: key });
   doc.pages.p.pageScripts![0].steps.push(
     { id: 'fallback', kind: 'set-var', value: 'Server \\{name}', into: 'fallback' },

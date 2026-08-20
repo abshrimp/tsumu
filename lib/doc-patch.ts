@@ -1,4 +1,5 @@
 import type { SiteDoc } from "./types";
+import { isDocumentId } from "./document-id";
 
 /** 設定は項目単位、ページ・要素・画像・コンポーネントはID単位で置き換える。 */
 export type DocPatchOp =
@@ -7,12 +8,17 @@ export type DocPatchOp =
 export type DocPatch = DocPatchOp[];
 // D1 のバインド数上限内に収める。大規模な置き換えは従来の全体保存を使う。
 export const MAX_PATCH_OPS = 32;
+
+/** Canonical SQLite JSON path for patch targets. All segments are validated IDs. */
+export function docPatchSqlPath(path: readonly string[]): string {
+  if (!path.length || !path.every(isDocumentId)) throw new Error("Invalid document path");
+  return "$" + path.map(part => `."${part}"`).join("");
+}
 const COLLECTIONS = new Set(["pages", "nodes", "assets", "components"]);
-const REQUIRED = new Set(["pages", "nodes", "assets", "pageOrder", "siteName"]);
+const REQUIRED = new Set(["schemaVersion", "pages", "nodes", "assets", "pageOrder", "siteName"]);
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
-const safeKey = (key: unknown): key is string => typeof key === "string" &&
-  /^[a-zA-Z0-9_-]{1,200}$/.test(key) && !["__proto__", "constructor", "prototype"].includes(key);
+const safeKey = isDocumentId;
 
 export function isDocPatch(value: unknown): value is DocPatch {
   if (!Array.isArray(value) || !value.length || value.length > MAX_PATCH_OPS) return false;
@@ -20,6 +26,7 @@ export function isDocPatch(value: unknown): value is DocPatch {
   for (const op of value) {
     if (!record(op) || !Array.isArray(op.path) || !op.path.every(safeKey)) return false;
     const path = op.path as string[];
+    if (path[0] === "schemaVersion") return false;
     if (path.length !== 1 && !(path.length === 2 && COLLECTIONS.has(path[0]))) return false;
     // 同じ場所や親子を同時に操作させず、SQLとブラウザで適用順が変わらないようにする。
     if (paths.some((other) => other[0] === path[0] &&

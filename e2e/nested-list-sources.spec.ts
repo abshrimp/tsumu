@@ -53,7 +53,7 @@ test("Empty arrays can be selected and later display values after sample updates
   await expect(source(page)).toHaveText("empty");
   const before = await saved(page);
   await page.evaluate(() => (window as any).nestedListStore.getState().updateDoc((doc: any) => {
-    const sample = doc.pages.p.pageScripts[0].steps[0].sample;
+    const sample = doc.pages.p.pageScripts[0].steps[0].preview.sample;
     sample[0].empty = ["New first"]; sample[1].empty = ["New second"];
   }));
   await expect(page.locator("#preview")).toHaveText("First productNew firstSecond productNew second");

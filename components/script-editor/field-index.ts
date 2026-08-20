@@ -52,7 +52,7 @@ export function indexFieldTargets(
         kind: field.kind,
         bool,
         choices: bool ? [] : field.kind === "select"
-          ? (field.options ?? []).filter(Boolean)
+          ? (field.options ?? []).map((o) => o.value).filter(Boolean)
           : field.kind === "radio"
             ? (radioChoices.get(fieldVarName(node)) ?? [])
             : [],

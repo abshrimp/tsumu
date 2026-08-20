@@ -17,7 +17,7 @@ export function largeAssetLibrary(count = 2_000, nodeCount = 100): SiteDoc {
       mobile: { default: { padding: "12px", gap: "8px", width: "100%" } },
     } }];
   }));
-  return { siteName: "Synthetic large asset library", assets, nodes, pageOrder: ["p"], pages: {
+  return { schemaVersion: 1, siteName: "Synthetic large asset library", assets, nodes, pageOrder: ["p"], pages: {
     p: { id: "p", name: "Page", slug: "", title: "", description: "", children: Object.keys(nodes) },
   } };
 }

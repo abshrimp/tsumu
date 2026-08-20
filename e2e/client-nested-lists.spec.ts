@@ -84,7 +84,7 @@ test('nested static filters shadow server values without reinterpreting literal 
     { name: 'Missing', tags },
     { name: 'Null', wanted: null, tags },
   ];
-  (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as { preview?: { sample?: unknown } }).preview = { sample: items };
   doc.pages.p.pageScripts![0].steps.push(
     { id: 'global-wanted', kind: 'set-var', value: '{response.1.wanted}', into: 'wanted' },
     { id: 'base-filter', kind: 'list-display', mode: 'filter', array: 'tags', field: 'label', op: 'eq', value: '{wanted}', dir: 'asc' },

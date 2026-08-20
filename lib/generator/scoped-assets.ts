@@ -50,7 +50,7 @@ export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set
         else if (mode === "css" || key === "customCss") css(child);
         else if (mode === "script" && (key === "value" || key === "template")) record(child, base);
         else attribute(key.toLowerCase(), child, base);
-      } else if (key !== "assets" && key !== "sample" && key !== "sampleTotals") {
+      } else if (key !== "assets" && key !== "preview") {
         const context = key === "styles" || key === "bodyStyles" ? "css" :
           key === "scripts" || key === "pageScripts" ? "script" : mode;
         walk(child, depth + 1, context);

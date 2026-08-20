@@ -11,7 +11,7 @@ import type { SiteDoc } from "../lib/types";
 const state = () => useEditor.getState();
 const node = (id: string, children: string[] = []) => ({ ...makeBox(), id, children });
 const doc = (): SiteDoc => ({
-  siteName: "Test", assets: {}, pageOrder: ["p"],
+  schemaVersion: 1, siteName: "Test", assets: {}, pageOrder: ["p"],
   pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: [] } }, nodes: {}, components: {},
 });
 function open(d: SiteDoc) {

@@ -7,7 +7,7 @@ import type { DocNode } from "../lib/types";
 const field = (name: string, kind: "input" | "select" | "radio" = "input"): DocNode => ({
   ...makeBox(), id: `node-${name}`, type: "field", attrId: name,
   field: kind === "radio" ? { kind, group: "choice", label: "Selected", checked: true }
-    : { kind, defaultValue: "Selected", options: ["Selected"] },
+    : { kind, defaultValue: "Selected", options: [{ label: "Selected", value: "Selected" }] },
 });
 for (const name of ["constructor", "toString", "__proto__"]) {
   test(`field defaults preserve an own value for the valid ID ${name}`, () => {

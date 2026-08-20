@@ -4,7 +4,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function commitFieldsDoc(): SiteDoc {
   return {
-    siteName: "Commit fields", assets: {}, nodes: {}, pageOrder: ["p"],
+    schemaVersion: 1, siteName: "Commit fields", assets: {}, nodes: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Original page", slug: "", title: "Original title", description: "Original description", children: [] } },
   };
 }

@@ -155,6 +155,9 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           )`,
           `CREATE INDEX IF NOT EXISTS comment_messages_site ON comment_messages (site_id)`,
           `CREATE INDEX IF NOT EXISTS comment_messages_thread ON comment_messages (site_id, thread_id, at, id)`,
+          // The schema version is asserted before any document storage is used.
+          `CREATE TABLE IF NOT EXISTS storage_schema (name TEXT PRIMARY KEY, version INTEGER NOT NULL)`,
+          `INSERT OR IGNORE INTO storage_schema(name,version) VALUES('main',1)`,
           // Local SQLite retains its optional rolling backups.
           ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS site_backups (
             site_id TEXT NOT NULL,
@@ -165,7 +168,10 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           )`] : []),
         ].map((sql) => binding.prepare(sql))
       )
-      .then(() => undefined)
+      .then(async () => {
+        const rows = await binding.prepare("SELECT version FROM storage_schema WHERE name='main'").all();
+        if (Number(rows.results?.[0]?.version) !== 1) throw new Error("Unsupported storage schema");
+      })
       .catch((error) => {
         schemaReady.delete(binding);
         throw error;

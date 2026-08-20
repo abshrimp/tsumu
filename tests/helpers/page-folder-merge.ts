@@ -5,7 +5,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function pageFolderFixture(): SiteDoc {
   return {
-    siteName: "Page folders", assets: {}, pageOrder: ["p", "q"],
+    schemaVersion: 1, siteName: "Page folders", assets: {}, pageOrder: ["p", "q"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "", description: "", folderId: "first", children: ["a"] },
       q: { id: "q", name: "Q", slug: "q", title: "", description: "", folderId: "second", children: ["b"] },

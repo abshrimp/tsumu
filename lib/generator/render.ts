@@ -407,7 +407,7 @@ ${indent}</div>`;
     const phAttr = attr("placeholder", f.placeholder) + liveOf("data-live-placeholder", f.placeholder);
     const defaultValueAttr = attr("defaultValue", f.defaultValue) + liveOf("data-live-value", f.defaultValue) +
       (!hasVars(f.defaultValue) && (
-        (f.kind === "select" && f.defaultValue && (f.options ?? []).some(hasVars)) ||
+        (f.kind === "select" && f.defaultValue && (f.options ?? []).some((o) => hasVars(o.label) || hasVars(o.value))) ||
         (f.kind === "input" && RANGED_INPUTS.has(f.inputType ?? "text") && [f.min, f.max, f.step].some(hasVars))
       ) ? partsOf("value", f.defaultValue ?? "", true) : "");
     const lenAttr = f.maxLength && f.maxLength > 0 ? ` maxLength={${Math.round(f.maxLength)}}` : "";
@@ -417,7 +417,7 @@ ${indent}</div>`;
     }
     if (f.kind === "select") {
       const opts = (f.options ?? [])
-        .map((o) => `${indent}  <option${liveOf("data-live", o)}${partsOf("text", o)}>{${textExpr(o)}}</option>`)
+        .map((o) => `${indent}  <option${attr("value", o.value)}${liveOf("data-live-value", o.value)}${partsOf("value", o.value)}${liveOf("data-live", o.label)}${partsOf("text", o.label)}>{${textExpr(o.label)}}</option>`)
         .join("\n");
       return `${indent}<select${idAttr} className=${jsxString(cls)}${nameAttr}${defaultValueAttr}${reqAttr}>\n${opts}\n${indent}</select>`;
     }

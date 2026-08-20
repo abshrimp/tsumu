@@ -111,7 +111,7 @@ test("shared list components resolve each page and each placement's own data and
   doc.nodes.secondUse = { ...instance, id: "secondUse" };
   doc.pages.second = { ...structuredClone(doc.pages.p), id: "second", slug: "second", children: ["secondUse"], pageScripts: [{
     id: "second-load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
-      { id: "second-fetch", kind: "fetch", url: "https://example.com/data", as: "tags", sample: [] },
+      { id: "second-fetch", kind: "fetch", url: "https://example.com/data", as: "tags", preview: { sample: [] } },
       { id: "second-sort", kind: "list-display", mode: "sort", array: "tags", field: "label", dir: "desc", op: "eq", value: "" },
     ],
   }] };

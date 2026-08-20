@@ -17,7 +17,7 @@ export function searchFormFiles() {
     field("stock", { kind: "checkbox", label: "In stock", checked: true }),
     field("small", { kind: "radio", label: "S", group: "size" }),
     field("medium", { kind: "radio", label: "M", group: "size", checked: true }),
-    field("sort", { kind: "select", options: ["A", "B", "C"], defaultValue: "B" }),
+    field("sort", { kind: "select", options: ["A", "B", "C"].map((value) => ({ label: value, value })), defaultValue: "B" }),
     field("upload", { kind: "file" }),
     field("submit", { kind: "submit", label: "Search" }),
   ];
@@ -31,7 +31,7 @@ export function searchFormFiles() {
   const staticInput = field("static-input", { kind: "input", defaultValue: "Static form" });
   const staticForm: DocNode = { ...makeBox(), id: "static-form", attrId: "static-form", semantic: "form", children: [staticInput.id] };
   const doc: SiteDoc = {
-    siteName: "Search navigation fixture", assets: {}, pageOrder: ["static", "search"],
+    schemaVersion: 1, siteName: "Search navigation fixture", assets: {}, pageOrder: ["static", "search"],
     pages: {
       static: { id: "static", name: "Static", slug: "", title: "Static", description: "", children: [staticForm.id, ...links.map((n) => n.id)] },
       search: { id: "search", name: "Search", slug: "search", title: "Search", description: "", children: [form.id, result.id, revision.id, ...links.map((n) => n.id)], pageScripts: [{

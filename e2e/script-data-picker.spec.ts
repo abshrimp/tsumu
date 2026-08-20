@@ -166,7 +166,7 @@ test("a newly defined output cannot suggest itself, but a prior producer remains
 
 test("raw picker retains a loop object with the same name as its output and shadows the page value", async ({ page }) => {
   await page.evaluate(() => (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
-    const fetch = doc.pages.p.pageScripts[0].steps[0]; fetch.sample.rows = [{ details: { id: "LOCAL" }, empty: {} }];
+    const fetch = doc.pages.p.pageScripts[0].steps[0]; fetch.preview.sample.rows = [{ details: { id: "LOCAL" }, empty: {} }];
     doc.pages.p.pageScripts[0].steps = [fetch,
       { id: "global", kind: "set-var", value: "{data.detail}", into: "details" },
       { id: "each", kind: "for-each", array: "data.rows", then: [{ id: "local-value", kind: "set-var", value: "{details}", into: "details" }] },

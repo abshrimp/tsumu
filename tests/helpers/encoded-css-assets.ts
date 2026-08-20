@@ -16,7 +16,7 @@ export function setAssetCss(doc: SiteDoc, location: CssLocation, css: string) {
 
 export function encodedCssAssetDoc(location: CssLocation, nested = false): SiteDoc {
   const doc: SiteDoc = {
-    siteName: "CSS asset dependencies", pageOrder: ["p"],
+    schemaVersion: 1, siteName: "CSS asset dependencies", pageOrder: ["p"],
     pages: { p: { id: "p", name: "Source", slug: "source", title: "", description: "", children: ["box"] } },
     nodes: { box: { ...makeBox(), id: "box", name: "Picture", styles: {} } },
     assets: { [picture.id]: { ...picture }, [sparePicture.id]: { ...sparePicture } },
@@ -37,5 +37,5 @@ export function encodedCssAssetDoc(location: CssLocation, nested = false): SiteD
 }
 
 export function emptyAssetDestination(): SiteDoc {
-  return { siteName: "Destination", pages: { dest: { id: "dest", name: "Destination", slug: "", title: "", description: "", children: [] } }, pageOrder: ["dest"], nodes: {}, assets: {} };
+  return { schemaVersion: 1, siteName: "Destination", pages: { dest: { id: "dest", name: "Destination", slug: "", title: "", description: "", children: [] } }, pageOrder: ["dest"], nodes: {}, assets: {} };
 }
