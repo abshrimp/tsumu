@@ -144,6 +144,31 @@ export async function POST(req: Request) {
   const { repo, branch } = conf;
   const { gh, fail } = githubClient(conf, tr);
 
+  // Creating even an unattached GitHub blob sends its contents to the
+  // destination repository. Validate editable data before that first write,
+  // and use the same check for inline and SHA-based commits.
+  const validateDocument = (content: string | Uint8Array) => {
+    const size = typeof content === "string" ? Buffer.byteLength(content, "utf8") : content.byteLength;
+    if (size > MAX_DOC_BYTES) {
+      return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
+    }
+    let document: unknown;
+    try {
+      const text = typeof content === "string" ? content :
+        new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content);
+      document = JSON.parse(text);
+    } catch {
+      // Parser errors may contain document excerpts. Do not log or return them.
+      return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+    }
+    if (hasPublishCredentials(document as Parameters<typeof hasPublishCredentials>[0])) {
+      return NextResponse.json({
+        error: tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"),
+      }, { status: 400 });
+    }
+    return null;
+  };
+
   // 空リポジトリでは Git Data API が使えないため、Contents API で初期コミットを作る
   //（.gitkeep もスナップショットに含め、ほかの手動ファイルと同様に保持する）。
   // 最初のコミットのブランチがリポジトリの既定ブランチになるため、テスト公開が最初でも
@@ -257,7 +282,9 @@ export async function POST(req: Request) {
     // アセットごとに別のWorker呼び出しへ分け、無料枠のサブリクエスト上限を回避する。
     if (body.action === "upload") {
       if (
-        !body.path ||
+        typeof body.path !== "string" || !body.path ||
+        (body.base64 !== undefined && typeof body.base64 !== "string") ||
+        (body.source !== undefined && typeof body.source !== "string") ||
         (body.base64 === undefined) === (body.source === undefined)
       ) {
         return NextResponse.json(
@@ -270,6 +297,10 @@ export async function POST(req: Request) {
         Buffer.from(await loadStoredAsset(body.path, body.source!)).toString(
           "base64"
         );
+      if (body.path === DOC_PATH) {
+        const invalid = validateDocument(Buffer.from(base64, "base64"));
+        if (invalid) return invalid;
+      }
       const sha = await uploadBlob(body.path, base64);
       return NextResponse.json({ ok: true, path: body.path, sha });
     }
@@ -307,7 +338,7 @@ export async function POST(req: Request) {
     // doc.json again in the committing request, including when the document
     // was uploaded as a detached blob because it exceeded the inline limit.
     if (Object.hasOwn(body.files, DOC_PATH) || Object.hasOwn(assetShas, DOC_PATH)) {
-      let content: string;
+      let content: string | Uint8Array;
       if (Object.hasOwn(body.files, DOC_PATH)) {
         content = body.files[DOC_PATH];
       } else {
@@ -317,24 +348,10 @@ export async function POST(req: Request) {
         if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
           return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
         }
-        const bytes = Buffer.from(blob.content, "base64");
-        if (bytes.byteLength > MAX_DOC_BYTES) {
-          return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
-        }
-        content = bytes.toString("utf8");
+        content = Buffer.from(blob.content, "base64");
       }
-      if (Buffer.byteLength(content, "utf8") > MAX_DOC_BYTES) {
-        return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
-      }
-      let document: unknown;
-      try { document = JSON.parse(content); } catch {
-        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
-      }
-      if (hasPublishCredentials(document as Parameters<typeof hasPublishCredentials>[0])) {
-        return NextResponse.json({
-          error: tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"),
-        }, { status: 400 });
-      }
+      const invalid = validateDocument(content);
+      if (invalid) return invalid;
     }
 
     // 1. ブランチ先端を取得
