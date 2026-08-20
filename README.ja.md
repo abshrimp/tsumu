@@ -131,7 +131,7 @@ http://localhost:3000 を開くと、ホーム画面（サイトの一覧）が�
 | 費用 | 無料プランで運用可能（[制限事項](#制限事項)） | サーバー費用 | サーバー費用 |
 | 適した用途 | 自前のサーバーを持たずに運用する場合 | ローカル環境や既存のサーバーで運用する場合 | コンテナで管理する場合 |
 
-D1とローカルSQLiteのテーブルは初回アクセス時に自動作成されます。Cloudflareの編集データ保存には`DOC_STORE`バインディングとSQLite対応Durable Objectの宣言が必要です（Wranglerの`migrations`または`exports`を使用し、併用しません）。保存方式とデプロイ時の確認事項は[編集データの保存設計](docs/durable-object-storage.md)を参照してください。サーバーの保存先がない場合、データはブラウザ内に保存されます（[環境設定](#環境設定)）。
+D1とローカルSQLiteのテーブルは初回アクセス時に自動作成されます。Cloudflareの編集データ保存には`DOC_STORE`バインディングと`wrangler.jsonc`の`exports.DocumentRoom`（SQLite）の宣言が必要です。保存方式とデプロイ時の確認事項は[編集データの保存設計](docs/durable-object-storage.md)を参照してください。サーバーの保存先がない場合、データはブラウザ内に保存されます（[環境設定](#環境設定)）。
 
 ### 共通の準備
 
@@ -187,7 +187,7 @@ Cloudflare Workers Builds で自動デプロイする場合は、リポジトリ
 - Preview command: `node scripts/cloudflare-preview.mjs`（下記参照）
 - ビルド変数（任意。Settings → Build → Variables and secrets）: `D1_DATABASE_ID`・`KV_NAMESPACE_ID`
 
-ビルド時に、スクリプトが `wrangler.jsonc` からデプロイ用の設定ファイル `wrangler.generated.jsonc` を生成します。ビルド変数の ID を埋め込み、ID のないバインディングを除外するため、ID をコミットする必要はありません。
+ビルド時に、スクリプトが `wrangler.jsonc` からデプロイ用の設定ファイル `wrangler.generated.jsonc` を生成します。ビルド変数の ID を埋め込み、ID のないバインディングを除外するため、ID をコミットする必要はありません。 Workers Builds が渡す `WRANGLER_CI_OVERRIDE_NAME` を使用して接続先 Worker 名を生成設定に反映するため、リポジトリの既定名を変更する必要はありません。
 
 #### プルリクエストのプレビュー（Worker Previews）
 

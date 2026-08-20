@@ -36,7 +36,7 @@ Cloudflare Workers Builds では、エディタの本番以外の各ブランチ
 `scripts/cloudflare-preview.mjs` は、元の設定ファイルと同じディレクトリに `wrangler.preview.generated.jsonc` を生成し（本リポジトリでは Git の管理対象外）、それを使って `wrangler preview` を実行します。次の場合は、デプロイせずにエラーで終了します。
 
 - プレビュー用の D1 または KV の ID が未設定、プレースホルダのまま、または本番と同一である
-- `COLLAB_ROOM` がプレビュー自身の `CollaborationRoom` にバインドされていない、別の Worker を指している、またはマイグレーションでクラスを移動している
+- `COLLAB_ROOM` がプレビュー自身の `CollaborationRoom` にバインドされていない、別の Worker を指している、または`exports`設定でDurable Objectクラスの状態を変更している
 - `previews` に、分離の方法が定義されていない設定が含まれている
 - `previews.vars` に `AUTH_SECRET` や `GITHUB_TOKEN` など、認証情報に相当する名前が含まれている（秘密の値は平文の変数ではなく Preview のシークレットへ設定する）
 - OpenNext の設定で、既定のダミー以外のキャッシュ、キュー、スキュー保護を使用している

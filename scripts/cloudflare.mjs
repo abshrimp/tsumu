@@ -49,20 +49,17 @@ export function storageBindings(config) {
   const doc = (config.durable_objects?.bindings ?? []).some(
     b => b.name === "DOC_STORE" && b.class_name === "DocumentRoom" && !b.script_name && !b.environment
   );
-  const declaredClass = (config.migrations ?? []).some(
-    m => (m.new_sqlite_classes ?? []).includes("DocumentRoom")
-  );
-  // Wrangler supports both explicit class migrations and declarative exports.
-  // A configured, SQLite-backed DocumentRoom is required for server storage.
-  const exportedClass = config.exports?.DocumentRoom?.type === "durable-object" &&
-    config.exports.DocumentRoom.storage === "sqlite";
+  // The document store must be a live, SQLite-backed Durable Object export.
+  const docExport = config.exports?.DocumentRoom;
+  const exportedClass = docExport?.type === "durable-object" &&
+    docExport.storage === "sqlite" &&
+    (docExport.state === undefined || docExport.state === "created");
   const validId = id => typeof id === "string" && !!id.trim() &&
     id === id.trim() && !/[<>]/.test(id);
   return {
     db: validId(db?.database_id),
     kv: validId(kv?.id),
-    doc: doc && (declaredClass || exportedClass) &&
-      !((config.migrations ?? []).length && Object.keys(config.exports ?? {}).length),
+    doc: doc && exportedClass,
   };
 }
 
@@ -130,11 +127,24 @@ export function assertRemoteStorageContinuity(config, configPath) {
   }
 }
 
+/** Workers Builds chooses the connected Worker, which may differ from this project's default name. */
+export function resolveWorkerName(configuredName, env = process.env) {
+  const override = env.WRANGLER_CI_OVERRIDE_NAME;
+  if (override === undefined || override === "") return configuredName;
+  if (typeof override !== "string" || !/^[a-z0-9](?:[a-z0-9-]{0,253}[a-z0-9])?$/.test(override)) {
+    throw new Error("Invalid WRANGLER_CI_OVERRIDE_NAME");
+  }
+  return override;
+}
+
 /** Resolve the same configuration for building and production deployments. */
 export function wranglerConfigPath({ deploy = false } = {}) {
   const explicit = process.env.WRANGLER_CONFIG || (existsSync("wrangler.local.jsonc") ? "wrangler.local.jsonc" : null);
   const source = explicit ?? "wrangler.jsonc";
   const config = parseJsonc(readFileSync(source, "utf8"));
+  const selectedName = resolveWorkerName(config.name);
+  const nameOverridden = selectedName !== config.name;
+  if (nameOverridden) config.name = selectedName;
   if (!explicit) {
     const d1 = process.env.D1_DATABASE_ID;
     const kv = process.env.KV_NAMESPACE_ID;
@@ -152,7 +162,7 @@ export function wranglerConfigPath({ deploy = false } = {}) {
   const { config: finalConfig, mode } = normalizeStorageConfig(config);
   if (mode === "browser") console.warn("Server storage is incomplete; using browser-only storage.");
   // Keep custom configs in place when complete so relative paths still resolve correctly.
-  if (explicit && mode === "server") return source;
+  if (explicit && mode === "server" && !nameOverridden) return source;
   // For a custom config in a different directory, keep generated paths relative to that directory.
   const generated = explicit ? join(dirname(source), GENERATED) : GENERATED;
   writeFileSync(generated, JSON.stringify(finalConfig, null, "\t") + "\n");

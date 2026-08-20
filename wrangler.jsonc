@@ -50,14 +50,15 @@
       }
 		]
 	},
-	"migrations": [
-		{
-			"tag": "v1",
-			"new_sqlite_classes": ["CollaborationRoom"]
+	// Preserve the existing SQLite namespaces and their data by keeping these class names.
+	"exports": {
+		"CollaborationRoom": {
+			"type": "durable-object",
+			"storage": "sqlite"
 		},
-    {
-      "tag": "v2",
-      "new_sqlite_classes": ["DocumentRoom"]
-    }
-	]
+		"DocumentRoom": {
+			"type": "durable-object",
+			"storage": "sqlite"
+		}
+	}
 }

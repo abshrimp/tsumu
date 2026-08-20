@@ -4,16 +4,18 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { parseJsonc, assertSafeDeployArgs, normalizeStorageConfig, assertNoStorageDowngrade } from "../scripts/cloudflare.mjs";
+import { parseJsonc, assertSafeDeployArgs, normalizeStorageConfig, assertNoStorageDowngrade, resolveWorkerName } from "../scripts/cloudflare.mjs";
 
 const scriptUrl = new URL("../scripts/cloudflare.mjs", import.meta.url).href;
 
-function generatedConfig(src: string) {
+function generatedConfig(src: string, workersBuildsName?: string) {
   const dir = mkdtempSync(join(tmpdir(), "tsumu-cloudflare-"));
   const env = { ...process.env };
   delete env.WRANGLER_CONFIG;
   delete env.D1_DATABASE_ID;
   delete env.KV_NAMESPACE_ID;
+  delete env.WRANGLER_CI_OVERRIDE_NAME;
+  if (workersBuildsName !== undefined) env.WRANGLER_CI_OVERRIDE_NAME = workersBuildsName;
   try {
     writeFileSync(join(dir, "wrangler.jsonc"), src);
     // CLI の引数や作業ディレクトリをテスト本体と分離する。
@@ -81,8 +83,14 @@ test("Cloudflare 設定のエスケープを含むキーと値を変更しない
 const completeStorage = {
   d1_databases: [{ binding: "DB", database_id: "valid-db" }],
   kv_namespaces: [{ binding: "ASSETS_KV", id: "valid-kv" }],
-  durable_objects: { bindings: [{ name: "DOC_STORE", class_name: "DocumentRoom" }] },
-  migrations: [{ tag: "v2", new_sqlite_classes: ["DocumentRoom"] }],
+  durable_objects: { bindings: [
+    { name: "COLLAB_ROOM", class_name: "CollaborationRoom" },
+    { name: "DOC_STORE", class_name: "DocumentRoom" },
+  ] },
+  exports: {
+    CollaborationRoom: { type: "durable-object", storage: "sqlite" },
+    DocumentRoom: { type: "durable-object", storage: "sqlite" },
+  },
 };
 
 test("complete storage keeps the server configuration intact", () => {
@@ -92,12 +100,7 @@ test("complete storage keeps the server configuration intact", () => {
 });
 
 test("declarative SQLite Durable Object exports preserve production storage bindings", () => {
-  const config = {
-    d1_databases: completeStorage.d1_databases,
-    kv_namespaces: completeStorage.kv_namespaces,
-    durable_objects: completeStorage.durable_objects,
-    exports: { DocumentRoom: { type: "durable-object", storage: "sqlite" } },
-  };
+  const config = completeStorage;
   const normalized = normalizeStorageConfig(config);
   assert.equal(normalized.mode, "server");
   assert.deepEqual(normalized.config, config);
@@ -108,9 +111,9 @@ test("declarative SQLite Durable Object exports preserve production storage bind
   ], config));
 
   for (const invalid of [
-    { ...config, exports: { DocumentRoom: { type: "durable-object", storage: "memory" } } },
-    { ...config, exports: { DocumentRoom: { type: "ordinary-class", storage: "sqlite" } } },
-    { ...config, migrations: completeStorage.migrations },
+    { ...config, exports: { ...config.exports, DocumentRoom: { type: "durable-object", storage: "memory" } } },
+    { ...config, exports: { ...config.exports, DocumentRoom: { type: "ordinary-class", storage: "sqlite" } } },
+    { ...config, exports: { ...config.exports, DocumentRoom: { type: "durable-object", storage: "sqlite", state: "deleted" } } },
   ]) {
     assert.equal(normalizeStorageConfig(invalid).mode, "browser");
   }
@@ -121,7 +124,7 @@ test("missing either resource selects browser storage with neither DB nor assets
     { ...completeStorage, d1_databases: [] },
     { ...completeStorage, kv_namespaces: [] },
     { ...completeStorage, durable_objects: { bindings: [] } },
-    { ...completeStorage, migrations: [] },
+    { ...completeStorage, exports: { CollaborationRoom: completeStorage.exports.CollaborationRoom } },
     { ...completeStorage, d1_databases: [{ binding: "DB", database_id: "<YOUR_D1_DATABASE_ID>" }] },
     { ...completeStorage, kv_namespaces: [{ binding: "ASSETS_KV", id: "<YOUR_KV_NAMESPACE_ID>" }] },
   ];
@@ -152,6 +155,35 @@ test("deployment rejects loss of any existing server storage bindings", () => {
     { name: "ASSETS_KV", type: "kv_namespace" },
     { name: "DOC_STORE", type: "durable_object_namespace" },
   ], completeStorage));
+});
+
+
+test("repository Worker config declares both live SQLite classes without legacy migrations", () => {
+  const config = parseJsonc(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+  assert.equal(config.main, "custom-worker.ts");
+  assert.equal(config.migrations, undefined);
+  assert.deepEqual(config.exports, completeStorage.exports);
+  assert.deepEqual(config.durable_objects.bindings, completeStorage.durable_objects.bindings);
+});
+
+test("Workers Builds generates a config for its connected Worker without changing local defaults", () => {
+  const source = JSON.stringify({ ...completeStorage, name: "tsumu", main: "custom-worker.ts" });
+  const local = generatedConfig(source);
+  const ci = generatedConfig(source, "site-editor");
+  assert.equal(local.name, "tsumu");
+  assert.equal(ci.name, "site-editor");
+  assert.equal(ci.main, "custom-worker.ts");
+  assert.deepEqual(ci.exports, local.exports);
+  assert.deepEqual(ci.durable_objects, local.durable_objects);
+  assert.deepEqual(ci.d1_databases, local.d1_databases);
+  assert.deepEqual(ci.kv_namespaces, local.kv_namespaces);
+  assert.equal(resolveWorkerName("tsumu", {}), "tsumu");
+});
+
+test("Workers Builds rejects malformed Worker name overrides", () => {
+  for (const name of ["other/worker", "../tsumu", "bad name", "site_editor", "Site-Editor", "-worker", "worker-"]) {
+    assert.throws(() => resolveWorkerName("tsumu", { WRANGLER_CI_OVERRIDE_NAME: name }), /Invalid WRANGLER_CI_OVERRIDE_NAME/);
+  }
 });
 
 test("Wrangler JSONC parsing rejects unterminated comments after otherwise valid JSON", () => {

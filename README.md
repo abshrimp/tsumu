@@ -131,7 +131,7 @@ The editor runs in any of three environments. The features are identical; what d
 | Cost | Runs on the free plan (see [Limits](#limits)) | Your server | Your server |
 | Good for | Running without a server of your own | Running on your machine or an existing server | Managing it as a container |
 
-D1 and local SQLite tables are created on first access. Cloudflare's SQLite-backed DocumentRoom requires the `DOC_STORE` binding and a matching Durable Object declaration (Wrangler `migrations` or `exports`; do not combine them). For the storage model and deployment checks, see [Document storage](docs/durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
+D1 and local SQLite tables are created on first access. Cloudflare's SQLite-backed DocumentRoom requires the `DOC_STORE` binding and the live SQLite-backed `exports.DocumentRoom` declaration in `wrangler.jsonc`. For the storage model and deployment checks, see [Document storage](docs/durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
 
 ### Common setup
 
@@ -168,7 +168,7 @@ Git ignores `wrangler.local.jsonc`, so your resource IDs never end up in the rep
 
 The deploy wrapper validates the selected configuration and refuses command-line overrides such as `--config` or `--env` that could bypass these checks. Use `WRANGLER_CONFIG` with top-level bindings for a custom production config.
 
-Production deployments automatically use browser-only storage if D1, KV, or the DocumentRoom binding/migration is incomplete. The deploy wrapper first inspects the active Worker versions and refuses to remove existing server-storage bindings. If it cannot inspect an existing deployment, it stops instead of risking data access. New Workers may deploy without server storage; local builds and hosted Worker Previews also require no storage IDs.
+Production deployments automatically use browser-only storage if D1, KV, or the DocumentRoom binding/export is incomplete. The deploy wrapper first inspects the active Worker versions and refuses to remove existing server-storage bindings. If it cannot inspect an existing deployment, it stops instead of risking data access. New Workers may deploy without server storage; local builds and hosted Worker Previews also require no storage IDs.
 
 **2. Set the secrets and deploy**
 
@@ -187,7 +187,7 @@ To deploy automatically with Cloudflare Workers Builds, connect the repository a
 - Preview command: `node scripts/cloudflare-preview.mjs` (see below)
 - Build variables (optional; under Settings → Build → Variables and secrets): `D1_DATABASE_ID` and `KV_NAMESPACE_ID`
 
-At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wrangler.generated.jsonc`. It fills in the IDs from the build variables and drops bindings that have none, so you never need to commit your IDs.
+At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wrangler.generated.jsonc`. It fills in the IDs from the build variables and drops bindings that have none, so you never need to commit your IDs. Workers Builds selects its connected Worker name through `WRANGLER_CI_OVERRIDE_NAME`, so this generated config targets the correct Worker without changing the repository default.
 
 #### Previewing pull requests (Worker Previews)
 
