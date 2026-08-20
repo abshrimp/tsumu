@@ -23,6 +23,7 @@ import {
   parseGeneratedManifest,
   planPublish,
   protectedTreeEdits,
+  serializeGeneratedManifest,
   type TreeEntry,
 } from "../../../../lib/publish-files";
 
@@ -268,7 +269,7 @@ export async function POST(req: Request) {
           !Object.hasOwn(sourceGenerated, entry.path) &&
           !Object.hasOwn(currentBlobs, entry.path))
       : [];
-    const edits = [
+    const edits: (TreeEntry | { path: string; mode: "100644"; type: "blob"; content: string })[] = [
       ...protectedTreeEdits(sourceRoot, currentRoot),
       ...deletedManual.map(entry => ({ path: entry.path, mode: entry.mode, type: entry.type, sha: null })),
       ...kept.filter(entry => {
@@ -276,6 +277,20 @@ export async function POST(req: Request) {
         return !prior || prior.sha !== entry.sha || prior.mode !== entry.mode || prior.type !== entry.type;
       }),
     ];
+    // A retained manual file may reuse a formerly generated path. Restoring
+    // its old ownership would let the next publish delete it, even when its
+    // content and Git attributes happen to match the historical version.
+    if (sourceGenerated && keptPaths.some(path => Object.hasOwn(sourceGenerated, path))) {
+      const retained = new Set(keptPaths);
+      edits.push({
+        path: GENERATED_MANIFEST_PATH,
+        mode: "100644",
+        type: "blob",
+        content: serializeGeneratedManifest(Object.fromEntries(
+          Object.entries(sourceGenerated).filter(([path]) => !retained.has(path))
+        )),
+      });
+    }
     let treeSha = src.tree.sha;
     if (edits.length) {
       const treeRes = await gh(`/git/trees`, {
