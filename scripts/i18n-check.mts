@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "@typescript/typescript6";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const lang = process.argv[2] ?? "en";
@@ -29,7 +30,10 @@ for (const d of ["app", "components", "lib"]) walk(path.join(root, d));
 files.push(path.join(root, "auth.ts"), path.join(root, "middleware.ts"));
 
 const JA = /[぀-ヿ㐀-鿿]/;
-const str = (s: string) => JSON.parse(`"${s}"`) as string;
+const literal = (node: ts.Node | undefined): string | undefined =>
+  node && ts.isStringLiteralLike(node) ? node.text : undefined;
+// Match the runtime's lookup: an empty translation falls back to the source text.
+const translated = (key: string) => typeof dict[key] === "string" && dict[key].length > 0;
 const missing = new Map<string, string[]>();
 const add = (f: string, key: string) => {
   const rel = path.relative(root, f);
@@ -37,15 +41,28 @@ const add = (f: string, key: string) => {
 };
 for (const f of files) {
   if (f.endsWith(path.join("lib", "i18n.ts"))) continue;
-  const src = fs.readFileSync(f, "utf8");
-  for (const m of src.matchAll(/\btr(?:Nodes)?\(\s*"((?:[^"\\]|\\.)*)"/g)) {
-    const key = str(m[1]);
-    if (JA.test(key) && !(key in dict)) add(f, key);
-  }
-  for (const m of src.matchAll(/\btrc\(\s*"((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"/g)) {
-    const key = `${str(m[1])}\u0004${str(m[2])}`;
-    if (!(key in dict) && !(str(m[2]) in dict)) add(f, key);
-  }
+  // Parse TS/TSX so comments and examples are not calls, and JavaScript literal
+  // quoting/escapes are decoded correctly. Dynamic keys still require manual coverage.
+  const source = ts.createSourceFile(f, fs.readFileSync(f, "utf8"), ts.ScriptTarget.Latest);
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const name = ts.isIdentifier(node.expression) ? node.expression.text
+        : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
+      const first = literal(node.arguments[0]);
+      if ((name === "tr" || name === "trNodes") && first !== undefined) {
+        if (JA.test(first) && !translated(first)) add(f, first);
+      } else if (name === "trc" && first !== undefined) {
+        const second = literal(node.arguments[1]);
+        if (second !== undefined) {
+          // trc only looks up the context-specific key; it does not fall back to tr.
+          const key = `${first}\u0004${second}`;
+          if (!translated(key)) add(f, key);
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
 }
 
 let n = 0;
