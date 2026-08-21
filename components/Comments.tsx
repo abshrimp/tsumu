@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Check, CornerDownLeft, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useEditor } from "../lib/store";
 import { commentId, useComments, type CommentDraft } from "../lib/comment-store";
 import { isAuthor, type CommentMessage, type CommentThread } from "../lib/comments";
 import { useServerStatus } from "../lib/status";
 import { BP_INFO } from "../lib/style";
+import { commentTargetResolver, isDeletedCommentTarget, type CommentTarget } from "../lib/comment-targets";
 import { getLang, tr } from "../lib/i18n";
 import { relativeTime } from "../lib/time";
 import { showConfirm } from "../lib/dialog";
@@ -26,12 +27,15 @@ export function usePageThreads(): CommentThread[] {
   const threads = useComments((s) => s.threads);
   const showResolved = useComments((s) => s.showResolved);
   const pageId = useEditor((s) => s.activePageId);
+  const doc = useEditor((s) => s.doc);
+  const bp = useEditor((s) => s.breakpoint);
+  const targetOf = useMemo(() => commentTargetResolver(doc, bp), [doc, bp]);
   return useMemo(
     () =>
       threads
-        .filter((t) => t.pageId === pageId && (showResolved || !t.resolvedAt))
+        .filter((t) => targetOf(t).pageId === pageId && (showResolved || !t.resolvedAt))
         .sort((a, b) => a.createdAt - b.createdAt),
-    [threads, showResolved, pageId]
+    [threads, showResolved, pageId, targetOf]
   );
 }
 
@@ -263,7 +267,7 @@ function ThreadView({ thread, onClose }: { thread: CommentThread; onClose: () =>
   );
 }
 
-/* ---------- キャンバス上のピンと吹き出し ---------- */
+/* ---------- キャンバス上のピン ---------- */
 
 interface PinPos {
   id: string;
@@ -289,8 +293,7 @@ export function CommentLayer({
   const openId = useComments((s) => s.openId);
   const draft = useComments((s) => s.draft);
   const threads = usePageThreads();
-  const allThreads = useComments((s) => s.threads);
-  const { open, setDraft, run, load } = useComments.getState();
+  const { open, setDraft, load } = useComments.getState();
   const [frameBox, setFrameBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [pins, setPins] = useState<PinPos[]>([]);
   const [draftPos, setDraftPos] = useState<{ left: number; top: number } | null>(null);
@@ -353,7 +356,7 @@ export function CommentLayer({
             : next
         );
         const d = useComments.getState().draft;
-        const dp = d ? place(d.nodeId, d.x, d.y) : null;
+        const dp = d?.pageId === pageId ? place(d.nodeId, d.x, d.y) : null;
         setDraftPos((prev) =>
           prev && dp && Math.abs(prev.left - dp.left) < 0.5 && Math.abs(prev.top - dp.top) < 0.5 ? prev : dp
         );
@@ -362,12 +365,7 @@ export function CommentLayer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [on, threads, frameRef, innerRef]);
-
-  // 開いていたスレッドが消えた（ほかの人が削除した・ページを移った）ら閉じる
-  useEffect(() => {
-    if (openId && !allThreads.some((t) => t.id === openId && t.pageId === pageId)) open(null);
-  }, [openId, allThreads, pageId, open]);
+  }, [on, threads, pageId, frameRef, innerRef]);
 
   if (!on || !frameBox) return null;
 
@@ -380,11 +378,6 @@ export function CommentLayer({
     if (!el) return null;
     return { nodeId: el.getAttribute("data-node"), el };
   };
-
-  const openThread = openId ? threads.find((t) => t.id === openId) : undefined;
-  const openPin = openThread ? pins.find((p) => p.id === openThread.id) : undefined;
-  const popAt = draft ? draftPos : openPin ?? null;
-  const innerWidth = innerRef.current?.clientWidth ?? 0;
 
   return (
     <>
@@ -423,6 +416,7 @@ export function CommentLayer({
             bp: breakpoint,
           };
           setDraft(next);
+          window.dispatchEvent(new CustomEvent("tsumu-open-panel", { detail: "r" }));
         }}
       />
       {hover && !draft && !openId && (
@@ -443,6 +437,7 @@ export function CommentLayer({
             onClick={(e) => {
               e.stopPropagation();
               open(t.id === openId ? null : t.id);
+              if (t.id !== openId) window.dispatchEvent(new CustomEvent("tsumu-open-panel", { detail: "r" }));
             }}
           >
             {author?.image ? <UserAvatar user={author} size={20} /> : <span>{n}</span>}
@@ -451,58 +446,7 @@ export function CommentLayer({
         );
       })}
       {draft && draftPos && <span className="cm-pin is-draft" style={{ left: draftPos.left, top: draftPos.top }} />}
-      {popAt && (draft || openThread) && (
-        <CommentPop left={popAt.left} top={popAt.top} limit={innerWidth}>
-          {draft ? (
-            <>
-              <div className="cm-pop-head">
-                <span className="cm-pop-title">{tr("新しいコメント")}</span>
-                <span className="cm-pop-sub">{BP_INFO[draft.bp]?.label}</span>
-                <button type="button" className="icon-btn sm" aria-label={tr("閉じる")} onClick={() => setDraft(null)}>
-                  <X size={14} />
-                </button>
-              </div>
-              <Composer
-                placeholder={tr("コメントを書く")}
-                submitLabel={tr("投稿")}
-                autoFocus
-                onCancel={() => setDraft(null)}
-                onSubmit={async (body) => {
-                  const id = commentId();
-                  const ok = await run({ action: "create", id, ...draft, body });
-                  if (ok) open(id);
-                  return ok;
-                }}
-              />
-            </>
-          ) : (
-            openThread && <ThreadView thread={openThread} onClose={() => open(null)} />
-          )}
-        </CommentPop>
-      )}
     </>
-  );
-}
-
-/** ピンの横に出す吹き出し（右に収まらなければ左に出す） */
-function CommentPop({ left, top, limit, children }: { left: number; top: number; limit: number; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [flip, setFlip] = useState(false);
-  useLayoutEffect(() => {
-    const w = ref.current?.offsetWidth ?? 300;
-    setFlip(limit > 0 && left + 24 + w > limit);
-  }, [left, limit]);
-  return (
-    <div
-      ref={ref}
-      className="cm-pop"
-      style={flip ? { left: left - 16, top, transform: "translateX(-100%)" } : { left: left + 24, top }}
-      onClick={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      {children}
-    </div>
   );
 }
 
@@ -518,17 +462,28 @@ export function CommentsPanel() {
   const loading = useComments((s) => s.loading);
   const doc = useEditor((s) => s.doc);
   const activePageId = useEditor((s) => s.activePageId);
+  const bp = useEditor((s) => s.breakpoint);
+  const draft = useComments((s) => s.draft);
+  const { open, setDraft, run } = useComments.getState();
   const [allPages, setAllPages] = useState(false);
+  const [deletedOnly, setDeletedOnly] = useState(false);
+  const targetOf = useMemo(() => commentTargetResolver(doc, bp), [doc, bp]);
+  // 閲覧中のスレッドはページ・絞り込み・ピン位置から独立させ、共同編集の削除でも入力を保つ。
+  const openThread = openId ? threads.find((t) => t.id === openId) : undefined;
+  useEffect(() => {
+    if (openId && !threads.some((t) => t.id === openId)) open(null);
+  }, [openId, threads, open]);
   const shown = threads
-    .filter((t) => (showResolved || !t.resolvedAt) && (allPages || t.pageId === activePageId))
+    .filter((t) => (showResolved || !t.resolvedAt) && (allPages || targetOf(t).pageId === activePageId) && (!deletedOnly || isDeletedCommentTarget(targetOf(t))))
     .sort((a, b) => b.updatedAt - a.updatedAt);
   const pageThreads = threads
-    .filter((t) => t.pageId === activePageId && (showResolved || !t.resolvedAt))
+    .filter((t) => targetOf(t).pageId === activePageId && (showResolved || !t.resolvedAt))
     .sort((a, b) => a.createdAt - b.createdAt);
 
   const jump = (t: CommentThread) => {
     const s = useEditor.getState();
-    if (t.pageId !== s.activePageId && s.doc.pages[t.pageId]) s.setActivePage(t.pageId);
+    const pageId = targetOf(t).pageId;
+    if (pageId !== s.activePageId && s.doc.pages[pageId]) s.setActivePage(pageId);
     // 付けたときの画面幅で見せる（その幅で非表示の要素もあるため）
     if (BP_INFO[t.bp] && s.breakpoint !== t.bp) s.setBreakpoint(t.bp);
     useComments.getState().open(t.id);
@@ -557,6 +512,10 @@ export function CommentsPanel() {
           <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />
           {tr("解決済みも表示")}
         </label>
+        <label className="lbl cm-panel-check">
+          <input type="checkbox" checked={deletedOnly} onChange={(e) => { setDeletedOnly(e.target.checked); if (e.target.checked) setAllPages(true); }} />
+          {tr("削除された対象のみ")}
+        </label>
       </div>
       {store === "local" && (
         <p className="hint cm-panel-hint">{tr("サーバーの保存先が無いため、コメントはこのブラウザにだけ保存されます。")}</p>
@@ -571,6 +530,7 @@ export function CommentsPanel() {
             const last = t.messages[t.messages.length - 1];
             const n = pageThreads.indexOf(t) + 1;
             const node = t.nodeId ? doc.nodes[t.nodeId] : null;
+            const target = targetOf(t);
             return (
               <button
                 key={t.id}
@@ -586,8 +546,9 @@ export function CommentsPanel() {
                 </span>
                 <span className="cm-item-body">{first.body}</span>
                 <span className="cm-item-meta">
-                  {allPages && doc.pages[t.pageId] ? `${doc.pages[t.pageId].name} · ` : ""}
-                  {t.nodeId ? (node ? node.name : tr("削除された要素")) : tr("ページ")}
+                  {allPages && doc.pages[target.pageId] ? `${doc.pages[target.pageId].name} · ` : ""}
+                  {target.kind === "deleted-page" ? tr("削除されたページ") : t.nodeId ? (node ? node.name : tr("削除された要素")) : tr("ページ")}
+                  {target.hidden ? ` · ${tr("この画面幅では非表示")}` : ""}
                   {t.messages.length === 2 ? ` · ${tr("返信1件")}` : t.messages.length > 2 ? ` · ${tr("返信{n}件", { n: t.messages.length - 1 })}` : ""}
                   {t.resolvedAt ? ` · ${tr("解決済み")}` : ""}
                 </span>
@@ -596,6 +557,44 @@ export function CommentsPanel() {
           })
         )}
       </div>
+      {(draft || openThread) && (
+        <section className="cm-detail" aria-label={tr("コメントの詳細")}>
+          <TargetNotice target={targetOf(draft ?? openThread!)} draft={!!draft} />
+          {draft ? (
+            <>
+              <div className="cm-pop-head">
+                <span className="cm-pop-title">{tr("新しいコメント")}</span>
+                <span className="cm-pop-sub">{BP_INFO[draft.bp]?.label}</span>
+                <button type="button" className="icon-btn sm" aria-label={tr("閉じる")} onClick={() => setDraft(null)}><X size={14} /></button>
+              </div>
+              <Composer
+                placeholder={tr("コメントを書く")}
+                submitLabel={tr("投稿")}
+                autoFocus
+                onCancel={() => setDraft(null)}
+                onSubmit={async (body) => {
+                  const id = commentId();
+                  const ok = await run({ action: "create", id, ...draft, body });
+                  if (ok) open(id);
+                  return ok;
+                }}
+              />
+            </>
+          ) : (
+            openThread && <ThreadView key={openThread.id} thread={openThread} onClose={() => open(null)} />
+          )}
+        </section>
+      )}
     </div>
   );
+}
+
+function TargetNotice({ target, draft }: { target: CommentTarget; draft: boolean }) {
+  if (draft && isDeletedCommentTarget(target)) return <p className="cm-target-notice" role="status">{target.kind === "deleted-page"
+    ? tr("対象のページは削除されています。入力中の内容は保持されています。")
+    : tr("対象の要素は削除されています。入力中の内容は保持されています。")}</p>;
+  const text = target.kind === "deleted-page" ? tr("対象のページは削除されています。コメントは残っています。")
+    : target.kind === "deleted-node" ? tr("対象の要素は削除されています。コメントは残っています。")
+    : target.hidden ? tr("対象の要素はこの画面幅では非表示です。") : null;
+  return text ? <p className="cm-target-notice" role="status">{text}</p> : null;
 }
