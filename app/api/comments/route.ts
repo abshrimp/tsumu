@@ -4,7 +4,7 @@ import { serverTr } from "../../../lib/i18n-server";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { requireAuth, sessionUser } from "../../../lib/server";
 import { siteIdOf } from "../../../lib/site-server";
-import { listComments, parseCommentAction, runCommentAction } from "../../../lib/comments";
+import { listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction } from "../../../lib/comments";
 import { userMessage } from "../../../lib/errors";
 
 export const maxDuration = 30;
@@ -17,8 +17,14 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return await dbUnavailable();
   const siteId = await siteIdOf(new URL(req.url).searchParams.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const params = new URL(req.url).searchParams;
+  const before = parseCommentCursor(params.get("before"));
+  const focus = params.get("focus");
+  if ((params.has("before") && !before) || (focus !== null && !/^[a-zA-Z0-9_-]{1,64}$/.test(focus))) {
+    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+  }
   try {
-    return NextResponse.json({ threads: await listComments(await getDb(), siteId) });
+    return NextResponse.json(await listCommentPage(await getDb(), siteId, before, focus));
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
   }
@@ -32,6 +38,12 @@ export async function POST(req: Request) {
   if (!dbConfigured()) return await dbUnavailable();
   const siteId = await siteIdOf(new URL(req.url).searchParams.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const params = new URL(req.url).searchParams;
+  const before = parseCommentCursor(params.get("before"));
+  const focus = params.get("focus");
+  if ((params.has("before") && !before) || (focus !== null && !/^[a-zA-Z0-9_-]{1,64}$/.test(focus))) {
+    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+  }
   const action = parseCommentAction(await req.json().catch(() => null));
   if (!action) return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   try {
@@ -40,7 +52,8 @@ export async function POST(req: Request) {
     if (!ok) {
       return NextResponse.json({ error: tr("ほかの人のコメントは変更できません") }, { status: 403 });
     }
-    return NextResponse.json({ threads: await listComments(db, siteId) });
+    // 新規投稿は最新の一覧に戻し、競合する投稿が多くても自身の詳細を返す。
+    return NextResponse.json(await listCommentPage(db, siteId, action.action === "create" ? null : before, action.action === "create" ? action.id : focus));
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "保存できませんでした")) }, { status: 502 });
   }
