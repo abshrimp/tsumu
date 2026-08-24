@@ -101,6 +101,19 @@ export const isAuthor = (author: ActivityUser, user: ActivityUser | null) =>
 
 const ANON: ActivityUser = { email: "", name: null, image: null };
 
+/** 返信の再送は同じスレッド・投稿者のメール・本文だけを認める。表示名や画像は変わってもよい。 */
+export function hasCommentIdConflict(threads: CommentThread[], a: CommentAction, user: ActivityUser | null): boolean {
+  if (a.action === "create") {
+    // 先頭コメントも返信と同じID空間を使う。D1と同様に衝突した作成は保存しない。
+    return threads.some(t => t.id === a.id || t.messages.some(m => m.id === `${a.id}-0`));
+  }
+  if (a.action === "reply") {
+    return threads.some(t => t.messages.some(m => m.id === a.id &&
+      (t.id !== a.threadId || m.author.email !== (user ?? ANON).email || m.body !== a.body)));
+  }
+  return false;
+}
+
 /**
  * 操作をコメントの一覧に当てはめる（ブラウザ保存で使う。threads を書き換えずに新しい一覧を返す）。
  * 他人のコメントの編集・削除はしない（スレッドの削除は最初のコメントを書いた人だけ）
@@ -115,7 +128,7 @@ export function applyCommentAction(
   const touch = (t: CommentThread, patch: Partial<CommentThread>): CommentThread => ({ ...t, ...patch, updatedAt: now });
   switch (a.action) {
     case "create":
-      if (threads.some((t) => t.id === a.id)) return threads;
+      if (hasCommentIdConflict(threads, a, user)) return threads;
       return [
         ...threads,
         {
@@ -133,6 +146,7 @@ export function applyCommentAction(
         },
       ];
     case "reply":
+      if (hasCommentIdConflict(threads, a, user)) return threads;
       return threads.map((t) =>
         t.id === a.threadId && !t.messages.some((m) => m.id === a.id)
           ? touch(t, { messages: [...t.messages, { id: a.id, author: me, body: a.body, at: now }] })
@@ -241,14 +255,14 @@ export async function listComments(db: Db, siteId: string): Promise<CommentThrea
   return (await listCommentPage(db, siteId)).threads;
 }
 
-/** 操作を D1 に当てはめる。他人の変更は false、削除済みの返信先は missing。 */
+/** 操作を D1 に当てはめる。他人の変更は false、削除済みの返信先は missing、返信IDの衝突は conflict。 */
 export async function runCommentAction(
   db: Db,
   siteId: string,
   a: CommentAction,
   user: ActivityUser | null,
   now = Date.now()
-): Promise<boolean | "missing"> {
+): Promise<boolean | "missing" | "conflict"> {
   const me = user ?? ANON;
   const authorOf = async (messageId: string): Promise<{ thread: string; author: ActivityUser } | null> => {
     const rs = await db.execute({
@@ -287,12 +301,23 @@ export async function runCommentAction(
             ON CONFLICT(id) DO NOTHING`,
           args: [a.id, a.threadId, siteId, me.email, me.name, me.image, a.body, now, a.threadId, siteId],
         },
-        bump(a.threadId),
+        {
+          // 同じトランザクションの直前のINSERTが成功したときだけ更新する。再送・衝突は変更しない。
+          sql: "UPDATE comment_threads SET updated_at = ? WHERE id = ? AND site_id = ? AND changes() > 0",
+          args: [now, a.threadId, siteId],
+        },
+        {
+          // 再送の判定も同じスナップショットで行う。他サイトの本文・投稿者は取得しない。
+          sql: `SELECT t.id, m.id AS message_id, m.email, m.body FROM comment_threads t
+            LEFT JOIN comment_messages m ON m.id = ? AND m.thread_id = t.id AND m.site_id = t.site_id
+            WHERE t.id = ? AND t.site_id = ?`,
+          args: [a.id, a.threadId, siteId],
+        },
       ]);
       if (results[0].rowsAffected > 0) return true;
-      // 同じIDの再送は成功として扱うが、消えた返信先への未保存を成功扱いしない。
-      const exists = await db.execute({ sql: "SELECT id FROM comment_threads WHERE id = ? AND site_id = ?", args: [a.threadId, siteId] });
-      return exists.rows.length ? true : "missing";
+      const existing = results[2].rows[0];
+      if (!existing) return "missing";
+      return existing.message_id === a.id && existing.email === me.email && existing.body === a.body ? true : "conflict";
     }
     case "edit": {
       const m = await authorOf(a.messageId);

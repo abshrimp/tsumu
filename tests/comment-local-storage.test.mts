@@ -130,3 +130,33 @@ test("a local reply to a thread removed in another tab fails without writing or 
   await useComments.getState().load(); assert.equal(useComments.getState().focusedThread?.id, "existing");
   assert.equal(useComments.getState().threadUnavailable, true);
 });
+
+for (const store of ["local", null] as const) for (const collision of ["body", "author", "thread", "create-thread", "create-message"] as const) {
+  test(`${store ?? "503 fallback"}: a ${collision} ID collision preserves stored content and the open draft host`, async () => {
+    let saved = applyCommentAction(initial, create("other"), null, 2);
+    const reply = { action: "reply" as const, threadId: "existing", id: "reply", body: "Reply" };
+    const stored = collision === "thread" ? { ...reply, threadId: "other" }
+      : collision === "create-message" ? { ...reply, id: "new-0" } : reply;
+    saved = applyCommentAction(saved, stored, collision === "author" ? { email: "author@example.com", name: "Author", image: null } : null, 3);
+    const storage = setup(store, null, JSON.stringify(saved));
+    const action = collision === "body" ? { ...reply, body: "Keep this unsent reply" }
+      : collision === "create-message" ? create("new") : collision === "create-thread" ? create("existing") : reply;
+    const before = structuredClone(useComments.getState().threads);
+    assert.equal(await useComments.getState().run(action), false);
+    assert.equal(storage.memory.get(key), JSON.stringify(saved)); assert.equal(storage.writes(), 0);
+    assert.deepEqual(useComments.getState().threads, before);
+    assert.equal(useComments.getState().openId, "existing"); assert.equal(useComments.getState().focusedThread?.id, "existing");
+    assert.equal(useComments.getState().threadUnavailable, false); assert.ok(useComments.getState().error);
+    assert.deepEqual(applyCommentAction(saved, action, null, 4), saved, "the pure local reducer also preserves global message-ID uniqueness");
+  });
+}
+
+for (const store of ["local", null] as const) test(`${store ?? "503 fallback"}: an identical reply retry succeeds without changing messages or timestamps`, async () => {
+  const reply = { action: "reply" as const, threadId: "existing", id: "reply", body: "Reply" };
+  const saved = applyCommentAction(initial, reply, null, 2);
+  const storage = setup(store, null, JSON.stringify(saved));
+  assert.equal(await useComments.getState().run(reply), true);
+  assert.equal(storage.memory.get(key), JSON.stringify(saved));
+  assert.deepEqual(useComments.getState().threads, saved);
+  assert.equal(useComments.getState().threadUnavailable, false); assert.equal(useComments.getState().error, null);
+});

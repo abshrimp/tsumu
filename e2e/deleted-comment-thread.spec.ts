@@ -78,3 +78,32 @@ test("deleting a message closes the thread when a concurrent deletion made it th
   await page.locator(".modal-backdrop").getByRole("button", { name: "削除", exact: true }).click();
   await expect(detail(page)).toHaveCount(0); await expect(page.locator(".cm-item")).toHaveCount(0);
 });
+
+test("a reply ID collision keeps the draft and live discussion available for a successful retry", async ({ page }) => {
+  const { site, id } = await openSite(page);
+  const collisionId = `collision_${site}`;
+  const original = { action: "reply", threadId: id, id: collisionId, body: "Already saved reply" };
+  expect((await page.request.post(`/api/comments?site=${site}`, { data: original })).ok()).toBeTruthy();
+  let collide = true;
+  await page.route("**/api/comments?*", async route => {
+    const request = route.request();
+    if (request.method() !== "POST" || request.postDataJSON()?.action !== "reply" || !collide) return route.continue();
+    collide = false;
+    await route.continue({ postData: JSON.stringify({ ...request.postDataJSON(), id: collisionId }) });
+  });
+  const reply = detail(page).getByPlaceholder("返信", { exact: true });
+  const submit = detail(page).getByRole("button", { name: "返信", exact: true });
+  await reply.fill("Keep this unsent reply");
+  const failed = page.waitForResponse(response => response.url().includes("/api/comments?") && response.request().method() === "POST");
+  await submit.click(); expect((await failed).status()).toBe(409);
+  await expect(reply).toHaveValue("Keep this unsent reply"); await expect(submit).toBeEnabled();
+  await expect(deletedWarning(page)).toHaveCount(0);
+  await expect(detail(page).getByRole("button", { name: "解決済みにする", exact: true })).toBeEnabled();
+  await expect(page.locator(".cm-item")).toHaveCount(1);
+  const before = await (await page.request.get(`/api/comments?site=${site}`)).json();
+  expect(before.threads[0].messages.map((m: { body: string }) => m.body)).toEqual(["Original discussion", "Already saved reply"]);
+  const saved = page.waitForResponse(response => response.url().includes("/api/comments?") && response.request().method() === "POST");
+  await submit.click(); expect((await saved).status()).toBe(200);
+  await expect(reply).toHaveValue("");
+  await expect(detail(page).locator(".cm-msg-body")).toHaveText(["Original discussion", "Already saved reply", "Keep this unsent reply"]);
+});
