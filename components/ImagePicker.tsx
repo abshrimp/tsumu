@@ -99,6 +99,7 @@ export default function ImagePicker({
             className="input"
             defaultValue={value?.url ?? ""}
             placeholder={placeholder}
+            onChange={() => pending.cancel()}
             onBlur={(e) => {
               pending.cancel();
               const url = e.target.value.trim();

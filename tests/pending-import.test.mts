@@ -53,6 +53,40 @@ test("image upload does not replace a newer chosen image or cleared value", asyn
   }
 });
 
+test("typing a URL cancels the pending image assignment before blur, including stale errors", async () => {
+  for (const initial of [undefined, { url: "https://example.test/original.png" }]) {
+    for (const fail of [false, true]) {
+      open();
+      if (initial) state().updatePage("p", { ogImage: initial });
+      const work = deferred<Asset>();
+      const ui = importCallbacks("image", () => work.promise);
+      const render = () => elements(ui.render({
+        editTarget: "p", value: state().doc.pages.p.ogImage,
+        onChange: (value: ImageRef | null) => state().updatePage("p", { ogImage: value }),
+      }));
+      const urlInput = () => render().find((e) => e.type === "input" && e.props.className === "input");
+      try {
+        render().find((e) => e.props?.className?.startsWith("img-pick-thumb")).props.onClick();
+        render().find((e) => e.type === "input" && e.props.type === "file").props.onChange({
+          target: { files: [new File(["image"], "new.png", { type: "image/png" })], value: "new.png" },
+        });
+        const draft = "  https://example.test/newer.png  ";
+        urlInput().props.onChange?.({ target: { value: draft } });
+        assert.deepEqual(state().doc.pages.p.ogImage, initial, "typing does not commit the draft");
+        if (fail) work.reject(new Error("stale upload failed"));
+        else work.resolve(uploaded);
+        await tick();
+        assert.deepEqual(state().doc.pages.p.ogImage, initial, "completion cannot assign over the unblurred draft");
+        assert.deepEqual(state().doc.assets, fail ? {} : { new: uploaded });
+        assert.deepEqual(ui.alerts, []);
+        assert.ok(urlInput(), "the URL field remains mounted");
+        urlInput().props.onBlur({ target: { value: draft } });
+        assert.deepEqual(state().doc.pages.p.ogImage, { url: draft.trim() });
+      } finally { ui.unmount(); }
+    }
+  }
+});
+
 test("completed uploads stay in Assets without assignment after closing, unmounting, target changes, or new values", async () => {
   for (const stop of ["close", "unmount", "target", "value"]) {
     const f = imageFixture();
