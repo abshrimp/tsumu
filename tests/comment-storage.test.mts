@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
-import { deleteSite, insertSite } from "../lib/sites";
-import { listComments, runCommentAction, type CommentAction } from "../lib/comments";
+import { deleteSite, insertSite, isSiteId } from "../lib/sites";
+import { listComments, listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction, type CommentAction } from "../lib/comments";
+import { userMessage } from "../lib/errors";
 
 const author = { email: "author@example.com", name: "Author", image: null };
 const create: CommentAction = {
@@ -40,10 +42,65 @@ async function assertEmpty(db: Db) {
 test("a late comment creation cannot recreate data for a deleted site", async () => {
   await database(async (db) => {
     await deleteSite(db, "site");
-    assert.equal(await runCommentAction(db, "site", create, author), true);
+    assert.equal(await runCommentAction(db, "site", create, author), "site-missing");
     await assertEmpty(db);
   });
 });
+
+// 実際の API・サイトID検証・SQLite を通し、認証・翻訳・接続だけを差し替える。
+function api(db: Db) {
+  class NextResponse extends Response {
+    static json(data: unknown, init?: ResponseInit) { return new NextResponse(JSON.stringify(data), init); }
+  }
+  const serverTr = async () => (text: string) => text;
+  const load = (path: string, name: string, injected: Record<string, unknown>) => {
+    const source = stripTypeScriptTypes(readFileSync(new URL(path, import.meta.url), "utf8"))
+      .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
+    return new Function(...Object.keys(injected), `${source}\nreturn ${name};`)(...Object.values(injected));
+  };
+  const siteIdOf = load("../lib/site-server.ts", "siteIdOf", { NextResponse, serverTr, isSiteId });
+  const post = load("../app/api/comments/route.ts", "POST", {
+    NextResponse, serverTr, siteIdOf, userMessage,
+    listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction,
+    requireAuth: async () => null, sessionUser: async () => author,
+    dbConfigured: () => true, getDb: async () => db,
+    dbUnavailable: () => { throw new Error("Unexpected fallback"); },
+  }) as (req: Request) => Promise<Response>;
+  return (site = "site") => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", body: JSON.stringify(create) }));
+}
+
+for (const timing of ["before request", "before write"] as const) {
+  test(`the API rejects creation when the site is deleted ${timing}, without resurrecting any records`, async () => database(async db => {
+    let writes = 0;
+    if (timing === "before request") await deleteSite(db, "site");
+    const racingDb: Db = {
+      ...db,
+      batch: async statements => {
+        if (++writes === 1 && timing === "before write") await deleteSite(db, "site");
+        return db.batch(statements);
+      },
+    };
+    const response = await api(racingDb)();
+    await assertEmpty(db);
+    assert.equal((await db.execute("SELECT COUNT(*) AS n FROM sites")).rows[0].n, 0);
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), { error: "サイトが見つかりません", code: "comment_site_missing" });
+    assert.equal(writes, 1, "a failed create must not fetch a success snapshot");
+  }));
+}
+
+test("the API still creates a discussion for an existing site and rejects invalid site IDs", async () => database(async db => {
+  const send = api(db);
+  const invalid = await send("../invalid");
+  assert.equal(invalid.status, 400);
+  await assertEmpty(db);
+  const response = await send();
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.focusedThread.id, create.id);
+  assert.equal(data.focusedThread.messages[0].body, create.body);
+  assert.equal(data.total, 1);
+}));
 
 for (const target of ["thread", "site"] as const) {
   test("a reply racing with " + target + " deletion leaves no orphaned message", async () => {
