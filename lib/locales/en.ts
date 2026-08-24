@@ -3444,6 +3444,8 @@ const en: Dict = {
   "最新の一覧": "Latest comments",
   "この一覧に条件に合うコメントはありません。ほかの一覧も確認できます。": "No matching comments in this batch. You can check other batches.",
   "コメントは{max}文字以内で入力してください": "Comments must be {max} characters or fewer.",
+  "返信先のスレッドは削除されています": "The discussion you are replying to has been deleted.",
+  "このスレッドは削除されています。入力中の文章は閉じるまで残るので、必要ならコピーしてください。": "This discussion has been deleted. Your draft remains until you close it, so copy it if you need it.",
 };
 
 export default en;

@@ -24,12 +24,16 @@ function harness() {
     isAuthor: () => true, tr: (value: string) => value, getLang: () => "en", relativeTime: () => "now", userLabel: () => "Guest",
     UserAvatar: "UserAvatar", MoreHorizontal: "MoreHorizontal", Pencil: "Pencil", Trash2: "Trash2", CornerDownLeft: "CornerDownLeft", ContextMenu: "ContextMenu", showConfirm: async () => true,
   };
+  let commentState = { threadUnavailable: false };
+  const closed: string[] = [];
+  context.useComments.getState = () => commentState;
+  context.closeCommentIfOpen = (id: string) => closed.push(id);
   runInNewContext(code, context);
   const { Composer, Message } = context.module.exports;
   function instance(fn: any, props: any) {
     return { slots: [] as any[], index: 0, render() { current = this; this.index = 0; const tree = fn(props); current = undefined; return tree; } };
   }
-  return { Composer, Message, instance, setRun: (fn: typeof run) => { run = fn; } };
+  return { Composer, Message, instance, closed, setCommentState: (state: typeof commentState) => { commentState = state; }, setRun: (fn: typeof run) => { run = fn; } };
 }
 function find(node: any, predicate: (node: any) => boolean): any {
   if (!node || typeof node !== "object") return undefined;
@@ -106,4 +110,23 @@ test("the comment layer's bubbling Escape listener also ignores IME events", () 
   onKey({ key: "Escape", isComposing: true }); onKey({ key: "Escape", isComposing: false, keyCode: 229 });
   assert.deepEqual(closed, []); assert.deepEqual(active, []);
   onKey({ key: "Escape", isComposing: false, keyCode: 27 }); assert.deepEqual(closed, [null]);
+});
+
+
+test("an unavailable discussion keeps the text copyable but prevents submission", () => {
+  const h = harness(); let sent = 0;
+  const composer = h.instance(h.Composer, { initial: "Unsent reply", disabled: true, placeholder: "", submitLabel: "", onSubmit: () => { sent++; return true; } });
+  assert.equal(textarea(composer.render()).props.value, "Unsent reply");
+  assert.equal(submit(composer.render()).props.disabled, true);
+  submit(composer.render()).props.onClick(); assert.equal(sent, 0);
+});
+
+
+for (const unavailable of [true, false]) test(`message deletion uses the authoritative remaining thread, not its earlier count: ${unavailable}`, async () => {
+  const h = harness(); const m = { id: "one", author: {}, body: "Original", at: 1 };
+  const message = h.instance(h.Message, { m, thread: { id: "thread", messages: [m, { ...m, id: "two" }] } });
+  h.setRun(async () => { h.setCommentState({ threadUnavailable: unavailable }); return true; });
+  find(message.render(), node => node.type === "button").props.onClick({ currentTarget: { getBoundingClientRect: () => ({ right: 200, bottom: 20 }) } });
+  await find(message.render(), node => node.type === "ContextMenu").props.items.find((item: any) => item.key === "delete").onClick();
+  assert.deepEqual(h.closed, unavailable ? ["thread"] : []);
 });
