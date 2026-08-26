@@ -54,7 +54,7 @@ test("テスト公開の遅い履歴応答が本番の履歴とロールバッ�
   await expect(page.getByText("preview commit", { exact: false })).toHaveCount(0);
   await page.getByRole("button", { name: "サイトを戻す", exact: true }).click();
   await page.getByRole("button", { name: "この版に戻す", exact: true }).click();
-  await expect.poll(() => rollbacks).toEqual([{ site: site.id, target: "production", sha: "latest-production-old" }]);
+  await expect.poll(() => rollbacks).toEqual([{ site: site.id, target: "production", sha: "latest-production-old", expectedHead: "latest-production-head", expected: { site: site.id, target: "production", repo: "example/site", branch: "main", productionBranch: "main" } }]);
   await expect.poll(() => production.length).toBe(3);
   await respond(production[2], commits("after-rollback"));
   await expect(page.getByText("ロールバックしました", { exact: true })).toBeVisible();

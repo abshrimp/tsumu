@@ -16,6 +16,7 @@ import {
 import { docFingerprint, useEditor } from "../lib/store";
 import { HelpLink } from "./HelpCenter";
 import { showAlert, showConfirm } from "../lib/dialog";
+import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publish-preconditions";
 import type { SiteDoc } from "../lib/types";
 import { detectSvgFilters } from "../lib/assets";
 import { generateProject, type PublishTarget } from "../lib/generator";
@@ -120,6 +121,7 @@ const INLINE_TEXT_LIMIT = 32 * 1024;
 
 /** 保存先にアセットが無い（削除済みなど）。公開は警告付きで続行する */
 class MissingAssetError extends Error {}
+class PublishConflictError extends Error {}
 
 /** 確認の一覧に並べるファイルの数（残りは件数だけ出す） */
 const OVERWRITE_LIST_LIMIT = 8;
@@ -135,20 +137,40 @@ function confirmOverwrite(paths: string[]): Promise<boolean> {
   );
 }
 
+/** Keep the displayed identity fixed, while exposing current local settings for validation. */
+function publishFields(conf: PublishConfig, target: PublishTarget) {
+  const fields = sitePublishFields();
+  if (fields.site !== conf.site) throw new PublishConflictError(tr(publishConflictMessage));
+  const expected: ExpectedPublishTarget = {
+    site: conf.site, target, repo: conf[target].repo, branch: conf[target].branch,
+    productionBranch: conf.production.branch,
+  };
+  return { ...fields, site: conf.site, expected };
+}
+
+function historyUrl(conf: PublishConfig, target: PublishTarget, doc?: string): string {
+  const { site, dest, expected } = publishFields(conf, target);
+  const params = new URLSearchParams({ site, target, expected: JSON.stringify(expected) });
+  if (dest) params.set("dest", JSON.stringify(dest));
+  if (doc) params.set("doc", doc);
+  return `/api/publish/history?${params}`;
+}
+
 /**
  * /api/publish を呼び、エラー時はサーバーのメッセージで例外を投げる。
  * WorkersのCPU超過などではHTMLが返るため、JSONでなくても状態コードで報告する。
  */
-async function postPublish<T>(body: object, fallback: string, url = "/api/publish"): Promise<T> {
+async function postPublish<T>(conf: PublishConfig, target: PublishTarget, body: object, fallback: string, url = "/api/publish"): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // どのサイトを公開するか（と、D1 が無いときの公開先）を毎回付ける
-    body: JSON.stringify({ ...sitePublishFields(), ...body }),
+    // Current local settings are checked against the immutable displayed identity.
+    body: JSON.stringify({ ...publishFields(conf, target), ...body }),
   });
   const data = (await res.json().catch(() => null)) as
     | (T & { error?: string; missing?: boolean })
     | null;
+  if (res.status === 409) throw new PublishConflictError(data?.error ?? tr(publishConflictMessage));
   if (data?.missing) {
     throw new MissingAssetError(data.error ?? fallback);
   }
@@ -166,6 +188,7 @@ interface TargetInfo {
 }
 
 interface PublishConfig {
+  site: string;
   /** GitHubのトークンと公開先リポジトリが設定されているか */
   configured: boolean;
   /** 足りない設定（token = 環境変数の GITHUB_TOKEN / repo = サイトの公開先） */
@@ -181,11 +204,14 @@ function usePublishConfig(): PublishConfig | null | "error" {
   const [conf, setConf] = useState<PublishConfig | null | "error">(null);
   useEffect(() => {
     let cancelled = false;
-    fetch(siteApi("/api/publish"))
+    const fields = sitePublishFields();
+    const query = new URLSearchParams({ site: fields.site });
+    if (fields.dest) query.set("dest", JSON.stringify(fields.dest));
+    fetch(`/api/publish?${query}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: PublishConfig | null) => {
         if (cancelled) return;
-        setConf(data?.test && data.production ? data : "error");
+        setConf(data?.test && data.production ? { ...data, site: fields.site } : "error");
       })
       .catch(() => {
         if (!cancelled) setConf("error");
@@ -253,6 +279,7 @@ export default function PublishModal({
     commitUrl?: string;
     error?: string;
     warnings?: string[];
+    conflict?: boolean;
   }>({});
   const [progress, setProgress] = useState("");
   const checks: CheckResult[] = runChecks(doc);
@@ -260,6 +287,7 @@ export default function PublishModal({
   useEscapeToClose(onClose, phase !== "busy");
 
   const publish = async (site: PublishTarget) => {
+    if (!targets) return;
     setSite(site);
     setPhase("busy");
     setProgress("");
@@ -299,10 +327,14 @@ export default function PublishModal({
       // 手で追加したファイルを残すためにも使うので、取得できなければ公開しない
       setProgress(tr("公開済みの内容を確認しています…"));
       const existing = await postPublish<{
+        head: string | null;
         blobs: Record<string, string>;
         manifest: Record<string, string>;
         generated: Record<string, string> | null;
-      }>({ action: "tree", target: site }, tr("公開済みの内容を取得できませんでした"));
+      }>(targets, site, { action: "tree", target: site }, tr("公開済みの内容を取得できませんでした"));
+      if (!(existing.head === null || (typeof existing.head === "string" && existing.head.length > 0))) {
+        throw new PublishConflictError(tr(publishConflictMessage));
+      }
       const plan = planPublish(existing.blobs, existing.generated, outputPaths);
       const overwritten = [...plan.edited, ...plan.clashing];
       if (overwritten.length && !(await confirmOverwrite(overwritten))) {
@@ -337,7 +369,7 @@ export default function PublishModal({
         while (!failed && nextAsset < pending.length) {
           const asset = pending[nextAsset++];
           try {
-            const uploaded = await postPublish<{ sha: string }>(
+            const uploaded = await postPublish<{ sha: string }>(targets, site,
               { action: "upload", target: site, ...asset },
               tr("アセット（{path}）をアップロードできませんでした", { path: asset.path })
             );
@@ -367,9 +399,10 @@ export default function PublishModal({
       files[GENERATED_MANIFEST_PATH] = serializeGeneratedManifest(generated);
       setProgress(tr("GitHubへコミットしています…"));
 
-      const data = await postPublish<{ commitUrl?: string }>(
+      const data = await postPublish<{ commitUrl?: string }>(targets, site,
         {
           action: "commit",
+          expectedHead: existing.head,
           target: site,
           files,
           assetShas,
@@ -383,7 +416,7 @@ export default function PublishModal({
       setResult({ commitUrl: data.commitUrl, warnings });
       setPhase("done");
     } catch (e) {
-      setResult({ error: userMessage(e, tr("公開できませんでした")) });
+      setResult({ error: userMessage(e, tr("公開できませんでした")), conflict: e instanceof PublishConflictError });
       setPhase("error");
     }
   };
@@ -546,10 +579,10 @@ export default function PublishModal({
               </li>
             </ul>
             <div className="modal-actions">
-              <button className="btn" onClick={() => setPhase("check")}>
-                {tr("戻る")}
+              <button className="btn" onClick={() => result.conflict ? onClose() : setPhase("check")}>
+                {result.conflict ? tr("閉じる") : tr("戻る")}
               </button>
-              <button className="btn btn-primary" onClick={() => site && publish(site)}>
+              <button className="btn btn-primary" disabled={result.conflict} onClick={() => site && publish(site)}>
                 {tr("再試行")}
               </button>
             </div>
@@ -637,14 +670,14 @@ function TargetHistory({ conf, target, onDone, busy, setBusy }: {
     setState(null);
     setError(null);
     try {
-      const res = await fetch(siteApi("/api/publish/history", { target }));
+      const res = await fetch(historyUrl(conf, target));
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? tr("履歴を読み込めませんでした"));
       setState(data);
     } catch (e) {
       setError(userMessage(e, tr("履歴を読み込めませんでした")));
     }
-  }, [target]);
+  }, [conf, target]);
 
   useEffect(() => {
     if (!conf[target].error) void load();
@@ -661,10 +694,11 @@ function TargetHistory({ conf, target, onDone, busy, setBusy }: {
     if (!ok) return;
     setBusy(c.sha);
     try {
-      await postPublish({ target, sha: c.sha }, tr("ロールバックできませんでした"), "/api/publish/history");
+      await postPublish(conf, target, { target, sha: c.sha, expectedHead: state?.head }, tr("ロールバックできませんでした"), "/api/publish/history");
       await load();
       void showAlert(tr("ホスティング側でビルドが終わると反映されます。"), { title: tr("ロールバックしました") });
     } catch (e) {
+      if (e instanceof PublishConflictError) { setState(null); setError(e.message); }
       void showAlert(userMessage(e, tr("ロールバックできませんでした")), { title: tr("ロールバックできませんでした") });
     } finally {
       setBusy(null);
@@ -674,7 +708,7 @@ function TargetHistory({ conf, target, onDone, busy, setBusy }: {
   const restore = async (c: PublishCommit) => {
     setBusy(`doc:${c.sha}`);
     try {
-      if (await restoreFrom(siteApi("/api/publish/history", { target, doc: c.sha }), formatDate(c.date))) onDone();
+      if (await restoreFrom(historyUrl(conf, target, c.sha), formatDate(c.date))) onDone();
     } catch (e) {
       void showAlert(userMessage(e, tr("編集データを読み込めませんでした")), { title: tr("編集データを読み込めませんでした") });
     } finally {
