@@ -1121,6 +1121,12 @@ const en: Dict = {
     "Enter a site URL like \"/new-page\" or an external URL starting with \"https://\". It's a 301 redirect, which tells search engines the page has moved.",
   "「外部サイトを表示」を使うと、アドレスはそのままで別のサイトの内容を表示できます（リバースプロキシ）。":
     "\"Show an external site\" displays another site's content while keeping your address (a reverse proxy).",
+  "トップページ（/）の配下では、このサイトのページ・ファイルを優先し、見つからないパスを外部サイトへ中継します。":
+    "Under the home page (/), this site's pages and files take priority. Only unmatched paths are forwarded to the external site.",
+  "転送先URLに ? または # がある場合は、このページのURLに一致するパスだけを中継します。":
+    "If the destination URL contains ? or #, only paths matching this page's URL are forwarded.",
+  "このサイトの /_next/image は外部へ中継しません。外部サイト側の画像最適化など、同じように動作しない機能があります。":
+    "This site does not forward /_next/image to the external site. Some features, such as the external site's image optimization, may not work the same way.",
   "公開済みのページのURLを変えるときは、古いURLにリダイレクトを置いておくと、SNSなどに貼られたリンクが切れません。":
     "When you change the URL of a published page, add a redirect at the old URL so links shared on social media keep working.",
   "「カスタムコード」の「ページの種類」で「リダイレクト」を選びます。":

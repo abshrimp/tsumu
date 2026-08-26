@@ -118,17 +118,22 @@ export function generateProject(
     }));
   // リバースプロキシ: ページURLのまま外部サイトの内容を中継する。
   // 外部サイトの相対パス（CSS・画像・下層ページ）も届くよう、配下のパスも同じ先へ中継する
+  const fallbackRewrites: { source: string; destination: string }[] = [];
   const rewrites = routedPages
     .filter((page) => page.rewriteTo?.trim())
     .flatMap((page) => {
       const source = configSource(page.slug);
       const destination = page.rewriteTo!.trim();
       const rules = [{ source, destination }];
-      if (source !== "/" && !source.includes("*") && !/[?#]/.test(destination)) {
-        rules.push({
-          source: `${source}/:proxyPath*`,
+      if (!source.includes("*") && !/[?#]/.test(destination)) {
+        const descendants = {
+          source: source === "/" ? "/:proxyPath+" : `${source}/:proxyPath*`,
           destination: `${destination.replace(/\/+$/, "")}/:proxyPath*`,
-        });
+        };
+        // トップの配下は、ローカルのページ・動的ルート・ファイルが無い場合だけ中継する。
+        // / 自体と既存の非トップのルールは、これまでどおり beforeFiles に残す。
+        if (source === "/") fallbackRewrites.push(descendants);
+        else rules.push(descendants);
       }
       return rules;
     });
@@ -810,7 +815,12 @@ const nextConfig = {
       ? `
   async rewrites() {
     return {
-      beforeFiles: ${JSON.stringify(rewrites, null, 6)},
+      beforeFiles: ${JSON.stringify(rewrites, null, 6)},${
+        fallbackRewrites.length
+          ? `
+      fallback: ${JSON.stringify(fallbackRewrites, null, 6)},`
+          : ""
+      }
     };
   },`
       : ""
