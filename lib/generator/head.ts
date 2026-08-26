@@ -28,6 +28,10 @@ const HEAD_PLAIN_ATTRS = new Set([
   "property", "rel", "resource", "sizes", "src", "target", "title", "translate", "type", "typeof", "vocab",
 ]);
 
+// HTML の真偽属性は値が空でも "false" でも、存在すれば有効になる。
+// React には文字列ではなく boolean を渡す（data-* / aria-* は含めない）。
+const HEAD_BOOLEAN_ATTRS = new Set(["async", "defer", "disabled", "nomodule", "itemscope"]);
+
 /** 属性の値の文字参照（&amp; &#39; など）を文字に戻す */
 function decodeEntities(value: string): string {
   const named: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" };
@@ -53,8 +57,14 @@ export function headHtmlToJsx(html: string, indent: string): string {
       if (name.startsWith("on") || name === "style" || !/^[a-z][a-z0-9._:-]*$/.test(name)) continue;
       const value = m[2] ?? m[3] ?? m[4];
       const prop = HEAD_ATTR_NAMES[name] ?? name;
-      if (name in HEAD_ATTR_NAMES || HEAD_PLAIN_ATTRS.has(name) || name.includes("-")) {
-        out.push(value === undefined ? ` ${prop}` : ` ${prop}=${jsxHtmlString(value)}`);
+      if (HEAD_BOOLEAN_ATTRS.has(name)) {
+        // disabled は link の HTML 属性だが、React の link 型には含まれていない。
+        out.push(name === "disabled" ? ` {...{ disabled: true }}` : ` ${prop}`);
+      } else if (name === "hidden" && value === undefined) {
+        // hidden は until-found などの文字列値もあるため、値付きの属性は変えない。
+        out.push(" hidden");
+      } else if (name in HEAD_ATTR_NAMES || HEAD_PLAIN_ATTRS.has(name) || name.includes("-")) {
+        out.push(` ${prop}=${jsxHtmlString(value ?? "")}`);
       } else {
         // React の型に無い属性（language・scheme など）は、そのまま書くと型チェックで公開のビルドが止まる。
         // 展開で渡せば型の検査を受けず、HTML の属性としてそのまま出る
@@ -64,8 +74,9 @@ export function headHtmlToJsx(html: string, indent: string): string {
     return out.join("");
   };
   const out: string[] = [];
+  // 引用符の中の > は属性値の一部。script/style などの本文は HTML のまま保つ。
   const re =
-    /<!--[\s\S]*?-->|<(script|style|noscript|title)\b([^>]*)>([\s\S]*?)<\/\1\s*>|<(meta|link|base)\b([^>]*?)\/?>/gi;
+    /<!--[\s\S]*?-->|<(script|style|noscript|title)\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/\1\s*>|<(meta|link|base)\b((?:"[^"]*"|'[^']*'|[^'">])*)\/?>/gi;
   for (const m of html.matchAll(re)) {
     if (m[0].startsWith("<!--")) continue;
     if (m[1]) {
