@@ -98,19 +98,19 @@ export function scriptsOf(node: DocNode): Script[] {
 }
 
 /** ステップを新しいIDで複製する */
-export function cloneSteps(steps: ScriptStep[]): ScriptStep[] {
+export function cloneSteps(steps: ScriptStep[], makeId = () => scriptUid("st")): ScriptStep[] {
   return steps.map((st) =>
     st.kind === "if"
       ? {
           ...st,
-          id: scriptUid("st"),
+          id: makeId(),
           cond: { ...st.cond },
-          then: cloneSteps(st.then),
-          ...(st.else ? { else: cloneSteps(st.else) } : {}),
+          then: cloneSteps(st.then, makeId),
+          ...(st.else ? { else: cloneSteps(st.else, makeId) } : {}),
         }
       : st.kind === "repeat" || st.kind === "for-each"
-        ? { ...st, id: scriptUid("st"), then: cloneSteps(st.then) }
-        : { ...st, id: scriptUid("st") }
+        ? { ...st, id: makeId(), then: cloneSteps(st.then, makeId) }
+        : { ...st, id: makeId() }
   );
 }
 

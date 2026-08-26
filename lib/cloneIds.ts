@@ -38,13 +38,15 @@ function mapSteps(steps: ScriptStep[], fn: (id: string) => string | null) {
  * - ID属性が置き先のページの要素やラジオのグループ名と重なるなら、別のIDに付け替える
  * - 複製の中のスクリプト・{ID}・#ID の参照も、付け替えたIDへ合わせる（複製したメニューボタンは複製したメニューを開く）
  * - スクリプトとブロックには新しい内部IDを振る（元と同じだとスクリプト画面で元のブロックまで変わる）
+ * makeId を渡す場合は、呼び出し側で衝突を検査したIDを返す（AIの操作を同じIDで再生するため）。
  */
 export function refreshClonedIds(
   doc: SiteDoc,
   pageId: string,
   clones: DocNode[],
   extraRootIds: string[] = [],
-  replacing?: { rootId: string; attrId?: string }
+  replacing?: { rootId: string; attrId?: string },
+  makeId?: (prefix: "attr" | "sc" | "st") => string
 ) {
   const used = new Set<string>();
   for (const id of pageNodeIds(doc, pageId, extraRootIds, true)) {
@@ -76,7 +78,7 @@ export function refreshClonedIds(
       c.attrId = prev;
       continue;
     }
-    const next = uniqueId(c.attrId, used);
+    const next = makeId ? makeId("attr") : uniqueId(c.attrId, used);
     used.add(next);
     if (next !== c.attrId) renamed.set(c.attrId, next);
     c.attrId = next;
@@ -89,7 +91,10 @@ export function refreshClonedIds(
   };
   for (const c of clones) {
     if (c.scripts?.length) {
-      c.scripts = c.scripts.map((s) => ({ ...s, id: scriptUid(), steps: cloneSteps(s.steps) }));
+      c.scripts = c.scripts.map((s) => ({
+        ...s, id: makeId ? makeId("sc") : scriptUid(),
+        steps: cloneSteps(s.steps, makeId ? () => makeId("st") : undefined),
+      }));
     }
     if (!renamed.size) continue;
     // {ID} の変数（文字・画像・リンク・スクリプトの値）
