@@ -144,13 +144,32 @@ export function findParentOf(doc: SiteDoc, nodeId: string): ParentRef | null {
 
 /** nodeId がいずれかのコンポーネントのマスターに属しているか */
 export function componentOf(doc: SiteDoc, nodeId: string): string | null {
-  for (const comp of Object.values(doc.components ?? {})) {
-    if (comp.rootId === nodeId) return comp.id;
-    let cur = findParentOf(doc, nodeId);
-    while (cur?.kind === "node") {
-      if (cur.id === comp.rootId) return comp.id;
-      cur = findParentOf(doc, cur.id);
+  const components = Object.values(doc.components ?? {});
+  if (!components.length) return null;
+
+  // Resolve parent ownership once, rather than scanning the entire document
+  // separately for every candidate component and every ancestor.
+  const parents = new Map<string, ParentRef>();
+  for (const page of Object.values(doc.pages)) {
+    for (const child of page.children) {
+      if (!parents.has(child)) parents.set(child, { kind: "page", id: page.id });
     }
+  }
+  for (const node of Object.values(doc.nodes)) {
+    for (const child of node.children) {
+      if (!parents.has(child)) parents.set(child, { kind: "node", id: node.id });
+    }
+  }
+
+  const ancestors = new Set([nodeId]);
+  let parent = parents.get(nodeId);
+  while (parent?.kind === "node" && !ancestors.has(parent.id)) {
+    ancestors.add(parent.id);
+    parent = parents.get(parent.id);
+  }
+  // Keep the established component-order precedence for nested master roots.
+  for (const comp of components) {
+    if (ancestors.has(comp.rootId)) return comp.id;
   }
   return null;
 }
