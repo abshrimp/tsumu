@@ -52,7 +52,16 @@ interface FsSync {
 
 function runOne(db: SqliteDatabase, sql: string, args: unknown[]) {
   const stmt = db.prepare(sql);
-  if (stmt.columns().length) return { results: stmt.all(...args), meta: { changes: 0 } };
+  if (stmt.columns().length) {
+    // RETURNING produces columns too. Execute only once, then read SQLite's
+    // direct change count (like run()). A SELECT leaves changes() unchanged,
+    // so first check whether this statement changed the connection's total.
+    const counters = db.prepare("SELECT total_changes() AS total, changes() AS direct");
+    const before = counters.all()[0].total;
+    const results = stmt.all(...args);
+    const after = counters.all()[0];
+    return { results, meta: { changes: after.total === before ? 0 : Number(after.direct) } };
+  }
   const { changes } = stmt.run(...args);
   return { results: [], meta: { changes: Number(changes) } };
 }

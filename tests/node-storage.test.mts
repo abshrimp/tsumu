@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { getDbFromBinding } from "../lib/db";
 import { assetFileName, nodeAssetStore, nodeDatabase } from "../lib/node-storage";
 import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
@@ -59,6 +61,89 @@ test("batch の途中で失敗したらすべて取り消す", withDataDir(async
   ]));
   const rs = await db.execute("SELECT COUNT(*) AS n FROM allowed_emails");
   assert.equal(rs.rows[0].n, 0);
+}));
+
+test("SQLite RETURNING reports affected rows without treating reads as writes", withDataDir(async () => {
+  const db = await getDbFromBinding(nodeDatabase()!);
+  const inserted = await db.execute({
+    sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, 1, 100, '{}') RETURNING id, rev",
+    args: ["returning"],
+  });
+  assert.deepEqual(inserted.rows.map(row => ({ ...row })), [{ id: "returning", rev: 1 }]);
+  assert.equal(inserted.rowsAffected, 1);
+
+  const results = await db.batch([
+    "WITH target AS (SELECT 'returning' AS id) UPDATE docs SET rev = rev + 1 WHERE id IN (SELECT id FROM target) RETURNING rev",
+    "SELECT rev FROM docs WHERE id = 'returning'",
+    "UPDATE docs SET rev = 3 WHERE id = 'missing' RETURNING rev",
+    "INSERT INTO docs VALUES ('returning', 1, 100, '{}') ON CONFLICT(id) DO NOTHING RETURNING rev",
+    "DELETE FROM docs WHERE id = 'returning' RETURNING id",
+    "SELECT COUNT(*) AS n FROM docs",
+  ]);
+  assert.deepEqual(results.map(result => result.rowsAffected), [1, 0, 0, 0, 1, 0]);
+  assert.deepEqual(results.map(result => result.rows.map(row => ({ ...row }))), [
+    [{ rev: 2 }], [{ rev: 2 }], [], [], [{ id: "returning" }], [{ n: 0 }],
+  ]);
+}));
+
+test("RETURNING counts direct changes once and excludes trigger writes", withDataDir(async () => {
+  const db = await getDbFromBinding(nodeDatabase()!);
+  await db.execute("CREATE TABLE returning_audit (doc_id TEXT)");
+  await db.execute(`CREATE TRIGGER audit_doc_insert AFTER INSERT ON docs BEGIN
+    INSERT INTO returning_audit VALUES (new.id);
+    INSERT INTO returning_audit VALUES (new.id);
+  END`);
+  const inserted = await db.execute("INSERT INTO docs VALUES ('a', 1, 100, '{}'), ('b', 1, 100, '{}') RETURNING id");
+  assert.equal(inserted.rowsAffected, 2);
+  assert.equal(inserted.rows.length, 2);
+  const audit = await db.execute("SELECT COUNT(*) AS n FROM returning_audit");
+  assert.equal(audit.rows[0].n, 4, "each insert and trigger must execute only once");
+  assert.equal(audit.rowsAffected, 0, "SELECT must not reuse the preceding write count");
+
+  await assert.rejects(db.batch([
+    "UPDATE docs SET rev = 2 RETURNING id",
+    "INSERT INTO no_such_table VALUES (1)",
+  ]), /no_such_table/);
+  const rows = await db.execute("SELECT rev FROM docs ORDER BY id");
+  assert.deepEqual(rows.rows.map(row => row.rev), [1, 1]);
+  assert.equal(rows.rowsAffected, 0);
+  assert.equal((await db.execute("UPDATE docs SET rev = 2 RETURNING id")).rowsAffected, 2);
+}));
+
+test("RETURNING commits and batch rollbacks survive a Node process restart", withDataDir(async (dir) => {
+  // Separate processes ensure neither a cached connection nor uncommitted
+  // in-process state can satisfy the persistence assertions.
+  const setup = `
+    const assert = require('node:assert/strict');
+    const { nodeDatabase } = require(${JSON.stringify(fileURLToPath(new URL("../lib/node-storage.ts", import.meta.url)))});
+    const { getDbFromBinding } = require(${JSON.stringify(fileURLToPath(new URL("../lib/db.ts", import.meta.url)))});
+  `;
+  const run = (body: string) => execFileSync(process.execPath, [
+    "--import", "tsx", "--eval", `${setup}
+    (async () => {
+      const db = await getDbFromBinding(nodeDatabase());
+      ${body}
+    })().catch(error => { console.error(error); process.exitCode = 1; });`,
+  ], { env: { ...process.env, TSUMU_DATA_DIR: dir }, encoding: "utf8", timeout: 15_000, stdio: "pipe" });
+  run(`
+    const committed = await db.batch([
+      "INSERT INTO docs VALUES ('persistent', 1, 100, '{}') RETURNING rev",
+      "UPDATE docs SET rev = 2 WHERE id = 'persistent' RETURNING rev",
+    ]);
+    assert.deepEqual(committed.map(result => result.rowsAffected), [1, 1]);
+    await assert.rejects(db.batch([
+      "UPDATE docs SET rev = 3 WHERE id = 'persistent' RETURNING rev",
+      "INSERT INTO no_such_table VALUES (1)",
+    ]), /no_such_table/);
+  `);
+  run(`
+    const saved = await db.execute("SELECT rev FROM docs WHERE id = 'persistent'");
+    assert.equal(saved.rows[0].rev, 2);
+    assert.equal(saved.rowsAffected, 0);
+    const updated = await db.execute("UPDATE docs SET rev = 3 WHERE id = 'persistent' RETURNING rev");
+    assert.equal(updated.rows[0].rev, 3);
+    assert.equal(updated.rowsAffected, 1);
+  `);
 }));
 
 test("アセットをファイルに保存・配信・削除できる", withDataDir(async () => {
