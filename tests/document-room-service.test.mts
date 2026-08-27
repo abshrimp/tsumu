@@ -3,44 +3,59 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { transformSync } from "esbuild";
+import type { SaveDocResult } from "../lib/doc-storage";
 
 /** Exercise the real Cloudflare routing module without requiring a Worker. */
-function fixture() {
+function fixture(options: { local?: boolean; missingBinding?: boolean } = {}) {
   const url = new URL("../lib/site-document-service.ts", import.meta.url);
   const require = createRequire(url);
   const code = transformSync(readFileSync(url, "utf8"), {
     loader: "ts", format: "cjs", target: "es2022",
   }).code;
 
-  let generation = "first-room";
+  let generation: string | null = "first-room";
+  let saveResult: SaveDocResult = { kind: "saved", rev: "2", savedAt: 200 };
+  let storageError: Error | null = null;
+  let roomLookups = 0;
+  let localCalls = 0;
+  let timestampWrites = 0;
   const queue = ["old-room"];
   let erased = 0;
   let mutation: (() => void) | null = null;
+  const save = async () => {
+    mutation?.(); mutation = null;
+    if (storageError) throw storageError;
+    return saveResult;
+  };
   const room = {
     getSnapshot: async () => {
       mutation?.(); mutation = null;
       return { rev: "1", savedAt: 100, body: '{"siteName":"Old"}' };
     },
     getMetadata: async () => ({ rev: "1", savedAt: 100 }),
-    replaceDocument: async () => {
-      mutation?.(); mutation = null;
-      return { kind: "saved", rev: "2", savedAt: 200 };
-    },
-    patchDocument: async () => ({ kind: "saved", rev: "2", savedAt: 200 }),
+    replaceDocument: save,
+    patchDocument: save,
     listAssetReferences: async () => [],
     listBackups: async () => [],
     readBackup: async () => null,
     eraseDocument: async () => { erased++; },
   };
-  const namespace = { idFromName: (key: string) => key, get: (_key: string) => room };
+  const namespace = {
+    idFromName: (key: string) => key,
+    get: (_key: string) => { roomLookups++; return room; },
+  };
+  const local = async () => { localCalls++; return { kind: "missing" }; };
   const mocks: Record<string, unknown> = {
     "@opennextjs/cloudflare": {
-      getCloudflareContext: () => ({ env: { DB: {}, DOC_STORE: namespace } }),
+      getCloudflareContext: () => {
+        if (options.local) throw new Error("Not a Worker");
+        return { env: { DB: {}, DOC_STORE: options.missingBinding ? undefined : namespace } };
+      },
     },
     "./sites": { getSiteRoomKey: async () => generation },
     "./doc-storage": {
-      readCurrentDoc: async () => null, saveCurrentDoc: async () => ({ kind: "missing" }),
-      saveDocPatch: async () => ({ kind: "missing" }),
+      readCurrentDoc: async () => { localCalls++; return null; },
+      saveCurrentDoc: local, saveDocPatch: local,
     },
   };
   const module = { exports: {} as Record<string, any> };
@@ -62,6 +77,7 @@ function fixture() {
       throw new Error("Unexpected D1 SQL: " + sql);
     },
     async batch(stmts: Array<{ sql: string; args: unknown[] }>) {
+      timestampWrites++;
       const key = String(stmts[0].args[2]);
       const match = key === generation;
       return [{ rows: [], rowsAffected: Number(match) }, { rows: [], rowsAffected: Number(match) }];
@@ -71,7 +87,13 @@ function fixture() {
     store: module.exports,
     db, queue,
     get erased() { return erased; },
-    changeOnNextCall(to: string) { mutation = () => { generation = to; }; },
+    get roomLookups() { return roomLookups; },
+    get localCalls() { return localCalls; },
+    get timestampWrites() { return timestampWrites; },
+    setGeneration(to: string | null) { generation = to; },
+    setSaveResult(result: SaveDocResult) { saveResult = result; },
+    failSave(error: Error) { storageError = error; },
+    changeOnNextCall(to: string | null) { mutation = () => { generation = to; }; },
   };
 }
 
@@ -95,4 +117,75 @@ test("retired rooms are sealed and their deletion queue is drained", async () =>
   assert.deepEqual(f.queue, []);
   await f.store.cleanupAbandonedDocuments(f.db, 2);
   assert.equal(f.erased, 1);
+});
+
+const conflict: SaveDocResult = {
+  kind: "conflict", current: { rev: "3", savedAt: 300, body: '{"siteName":"Old generation"}' },
+};
+const saveMethods = ["saveSiteDocument", "patchSiteDocument"] as const;
+const saveInput = (method: typeof saveMethods[number]) => method === "saveSiteDocument"
+  ? "{}" : [{ path: ["siteName"], value: "Edited" }];
+
+for (const method of saveMethods) {
+  for (const generation of [null, "new-room"]) {
+    test(`${method} hides conflict snapshots after deletion${generation ? " and recreation" : ""}`, async () => {
+      const f = fixture();
+      f.setSaveResult(conflict);
+      f.changeOnNextCall(generation);
+      assert.deepEqual(await f.store[method](f.db, "site", saveInput(method), "1"), { kind: "missing" });
+      assert.equal(f.timestampWrites, 0);
+      assert.equal(f.localCalls, 0);
+    });
+  }
+
+  test(`${method} preserves a current-generation revision conflict`, async () => {
+    const f = fixture();
+    f.setSaveResult(conflict);
+    assert.deepEqual(await f.store[method](f.db, "site", saveInput(method), "1"), conflict);
+    assert.equal(f.timestampWrites, 0);
+  });
+
+  test(`${method} propagates storage failures instead of classifying them as missing`, async () => {
+    const f = fixture();
+    const error = new Error("RPC unavailable");
+    f.failSave(error);
+    await assert.rejects(f.store[method](f.db, "site", saveInput(method), "1"), error);
+    assert.equal(f.timestampWrites, 0);
+  });
+
+  test(`${method} returns missing before calling storage for a deleted generation`, async () => {
+    const f = fixture();
+    f.setGeneration(null);
+    assert.deepEqual(await f.store[method](f.db, "site", saveInput(method), "1"), { kind: "missing" });
+    assert.equal(f.roomLookups, 0);
+    assert.equal(f.localCalls, 0);
+    assert.equal(f.timestampWrites, 0);
+  });
+
+  test(`${method} still routes Node saves to local storage`, async () => {
+    const f = fixture({ local: true });
+    assert.deepEqual(await f.store[method](f.db, "site", saveInput(method), "1"), { kind: "missing" });
+    assert.equal(f.localCalls, 1);
+    assert.equal(f.roomLookups, 0);
+  });
+}
+
+for (const [method, expected] of [
+  ["readSiteDocument", null], ["readSiteDocumentMeta", null],
+  ["listSiteDocumentBackups", []], ["readSiteDocumentBackup", null],
+  ["documentAssetReferences", []],
+] as const) {
+  test(`${method} treats an absent room generation as missing without a local fallback`, async () => {
+    const f = fixture();
+    f.setGeneration(null);
+    assert.deepEqual(await f.store[method](f.db, "site", 0), expected);
+    assert.equal(f.roomLookups, 0);
+    assert.equal(f.localCalls, 0);
+  });
+}
+
+test("missing Cloudflare bindings remain configuration errors", async () => {
+  const f = fixture({ missingBinding: true });
+  await assert.rejects(f.store.readSiteDocument(f.db, "site"), /DOC_STORE binding is required/);
+  assert.equal(f.localCalls, 0);
 });

@@ -44,13 +44,18 @@ function byKey(key: string): DocumentStub | null {
   return namespace ? namespace.get(namespace.idFromName(key)) : null;
 }
 
-async function forSite(db: Db, siteId: string):
-  Promise<{ stub: DocumentStub; roomKey: string } | null> {
+type DocumentTarget =
+  | { kind: "local" }
+  | { kind: "missing" }
+  | { kind: "room"; stub: DocumentStub; roomKey: string };
+
+async function forSite(db: Db, siteId: string): Promise<DocumentTarget> {
   const namespace = cloudNamespace();
-  if (!namespace) return null;
+  if (!namespace) return { kind: "local" };
   const roomKey = await getSiteRoomKey(db, siteId);
-  if (!roomKey) throw new Error("サイトの保存先が見つかりません");
-  return { stub: namespace.get(namespace.idFromName(roomKey)), roomKey };
+  // A deleted Cloudflare generation must never fall back to local storage.
+  if (!roomKey) return { kind: "missing" };
+  return { kind: "room", stub: namespace.get(namespace.idFromName(roomKey)), roomKey };
 }
 
 /** Revalidate the generation after an awaited RPC; a deleted site is not visible. */
@@ -64,7 +69,8 @@ export function usesDocumentRooms(): boolean {
 
 export async function readSiteDocument(db: Db, siteId: string): Promise<CurrentDoc | null> {
   const target = await forSite(db, siteId);
-  if (!target) return readLocalDocument(db, siteId);
+  if (target.kind === "local") return readLocalDocument(db, siteId);
+  if (target.kind === "missing") return null;
   const doc = await target.stub.getSnapshot();
   return await unchangedGeneration(db, siteId, target.roomKey) ? doc : null;
 }
@@ -72,7 +78,8 @@ export async function readSiteDocument(db: Db, siteId: string): Promise<CurrentD
 export async function readSiteDocumentMeta(db: Db, siteId: string):
   Promise<{ rev: string; savedAt: number } | null> {
   const target = await forSite(db, siteId);
-  if (target) {
+  if (target.kind === "missing") return null;
+  if (target.kind === "room") {
     const meta = await target.stub.getMetadata();
     return await unchangedGeneration(db, siteId, target.roomKey) ? meta : null;
   }
@@ -81,9 +88,12 @@ export async function readSiteDocumentMeta(db: Db, siteId: string):
   return row ? { rev: String(row.rev), savedAt: Number(row.saved_at) } : null;
 }
 
-/** A failed advisory timestamp update cannot undo a committed DO write. */
-async function markEdited(db: Db, siteId: string, roomKey: string | null, result: SaveDocResult):
+/** Fence conflict snapshots as reads; timestamp writes remain advisory after a commit. */
+async function finishSave(db: Db, siteId: string, roomKey: string | null, result: SaveDocResult):
   Promise<SaveDocResult> {
+  if (roomKey && result.kind === "conflict") {
+    return await unchangedGeneration(db, siteId, roomKey) ? result : { kind: "missing" };
+  }
   if (result.kind !== "saved") return result;
   try {
     if (roomKey) {
@@ -112,17 +122,19 @@ async function markEdited(db: Db, siteId: string, roomKey: string | null, result
 export async function saveSiteDocument(db: Db, siteId: string, raw: string, base: string | null):
   Promise<SaveDocResult> {
   const target = await forSite(db, siteId);
-  const result = target ? await target.stub.replaceDocument(raw, base)
+  if (target.kind === "missing") return { kind: "missing" };
+  const result = target.kind === "room" ? await target.stub.replaceDocument(raw, base)
     : await saveLocalDocument(db, siteId, raw, base);
-  return markEdited(db, siteId, target?.roomKey ?? null, result);
+  return finishSave(db, siteId, target.kind === "room" ? target.roomKey : null, result);
 }
 
 export async function patchSiteDocument(db: Db, siteId: string, patch: DocPatch, base: string):
   Promise<SaveDocResult> {
   const target = await forSite(db, siteId);
-  const result = target ? await target.stub.patchDocument(patch, base)
+  if (target.kind === "missing") return { kind: "missing" };
+  const result = target.kind === "room" ? await target.stub.patchDocument(patch, base)
     : await patchLocalDocument(db, siteId, patch, base);
-  return markEdited(db, siteId, target?.roomKey ?? null, result);
+  return finishSave(db, siteId, target.kind === "room" ? target.roomKey : null, result);
 }
 
 /** Seal and clear an obsolete generation, including its daily backups. */
@@ -160,7 +172,8 @@ export async function cleanupAbandonedDocuments(db: Db, limit = 3): Promise<void
 export async function listSiteDocumentBackups(db: Db, siteId: string):
   Promise<Array<{ day: number; savedAt: number; bytes: number }>> {
   const target = await forSite(db, siteId);
-  if (!target) throw new Error("DO backup service is not available on local SQLite");
+  if (target.kind === "local") throw new Error("DO backup service is not available on local SQLite");
+  if (target.kind === "missing") return [];
   const entries = await target.stub.listBackups();
   return await unchangedGeneration(db, siteId, target.roomKey) ? entries : [];
 }
@@ -168,7 +181,8 @@ export async function listSiteDocumentBackups(db: Db, siteId: string):
 export async function readSiteDocumentBackup(db: Db, siteId: string, day: number):
   Promise<string | null> {
   const target = await forSite(db, siteId);
-  if (!target) throw new Error("DO backup service is not available on local SQLite");
+  if (target.kind === "local") throw new Error("DO backup service is not available on local SQLite");
+  if (target.kind === "missing") return null;
   const body = await target.stub.readBackup(day);
   return await unchangedGeneration(db, siteId, target.roomKey) ? body : null;
 }
@@ -176,7 +190,8 @@ export async function readSiteDocumentBackup(db: Db, siteId: string, day: number
 export async function documentAssetReferences(db: Db, siteId: string):
   Promise<Array<{ path: string; bytes: number | null }>> {
   const target = await forSite(db, siteId);
-  if (target) {
+  if (target.kind === "missing") return [];
+  if (target.kind === "room") {
     const refs = await target.stub.listAssetReferences();
     return await unchangedGeneration(db, siteId, target.roomKey) ? refs : [];
   }
