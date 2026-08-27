@@ -48,3 +48,11 @@ Orphaned KV files require a separate fenced garbage collector or an administrati
 4. Measure initial load on a large site and p50/p95 patch latency, CPU and row usage before production rollout. Local SQLite tests and a successful Worker build do not establish production latency.
 
 The document room's schema is in `lib/structured-document-store.ts`. Routing is in `lib/site-document-service.ts`, and the RPC facade is in `document-room.ts`.
+
+## Hosted Preview storage
+
+Hosted Worker Previews have a separate `previews` configuration. The helper in `scripts/cloudflare-preview.mjs` defaults its Durable Object bindings to `COLLAB_ROOM` only; it does not copy the top-level `DOC_STORE` binding. This is sufficient for the default browser-only demo, whose D1/KV binding arrays are empty.
+
+A Preview with server storage needs `DB`, `ASSETS_KV`, and an explicit `previews.durable_objects.bindings` list containing both `COLLAB_ROOM` → `CollaborationRoom` and `DOC_STORE` → `DocumentRoom`. The top-level SQLite class exports must remain present. With D1 but no `DOC_STORE`, `lib/site-document-service.ts` throws `DOC_STORE binding is required`; it does not store Cloudflare documents in D1 or fall back to browser persistence.
+
+Use the [complete Preview setup](worker-previews.md#using-test-storage-optional). The hosted Preview helper does not run the production storage-completeness check on the `previews` block, so successful config generation alone does not verify document saving. D1 contains site metadata and room keys, while document content lives in the Preview's DocumentRoom storage; sharing D1/KV IDs between Previews is not a way to share a complete editor store.
