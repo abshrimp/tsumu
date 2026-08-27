@@ -84,7 +84,8 @@ export function validateImportedDoc(value: unknown): SiteDoc {
     !isImportObject(ref) || ref.assetId === undefined ||
     (typeof ref.assetId === "string" && Object.hasOwn(doc.assets as Record<string, unknown>, ref.assetId));
   for (const node of Object.values(doc.nodes)) {
-    if (!isImportObject(node) || !assetRefValid(node.image) || !assetRefValid(node.media)) {
+    if (!isImportObject(node) || !assetRefValid(node.image) || !assetRefValid(node.media) ||
+        (isImportObject(node.media) && Array.isArray(node.media.sources) && !node.media.sources.every(assetRefValid))) {
       throw new Error("アセットの参照情報が正しくありません。");
     }
   }

@@ -2,6 +2,7 @@
  * 要素の木を JSX に書き出す
  */
 
+import { assetMediaUrl } from "../assets";
 import { safeNavigationUrl } from "../url-policy";
 import type { SiteDoc } from "../types";
 import { toggleShowDisplay } from "../style";
@@ -336,7 +337,7 @@ ${indent}</div>`;
     const height = Number.isFinite(node.image.height) && node.image.height > 0 ? node.image.height : 500;
     ctx.usesImage = true;
     const src = node.image.assetId
-      ? assetPath(ctx, node.image.assetId)
+      ? assetMediaUrl(assetPath(ctx, node.image.assetId), node.image.assetSuffix)
       : node.image.src;
     let srcAttr = `src=${jsxString(src)}`;
     if (hasVars(src)) {
@@ -456,18 +457,27 @@ ${indent}</div>`;
 
   if (node.type === "media" && node.media) {
     const m = node.media;
-    const src = m.assetId ? assetPath(ctx, m.assetId) : m.src;
-    if (!src.trim()) return "";
-    // Keep literal media URL syntax while denying executable browser schemes.
-    const normalized = src.replace(/[\u0000-\u0020\u007f]/g, "").toLowerCase();
-    const mediaSrc = /^(?:javascript:|vbscript:|data:text\/html(?:[;,]|$))/.test(normalized) ? "#" : src;
+    const src = m.assetId ? assetMediaUrl(assetPath(ctx, m.assetId), m.assetSuffix) : m.src;
+    const safeMedia = (value: string): string => {
+      const normalized = value.replace(/[\u0000-\u0020\u007f]/g, "").toLowerCase();
+      return /^(?:javascript:|vbscript:|data:text\/html(?:[;,]|$))/.test(normalized) ? "#" : value;
+    };
+    const sources = (m.sources ?? []).map((source) => {
+      const url = source.assetId ? assetMediaUrl(assetPath(ctx, source.assetId), source.assetSuffix) : source.src;
+      if (!url.trim()) return "";
+      return `${indent}  <source src=${jsxString(safeMedia(url))}${source.type != null ? ` type=${jsxString(source.type)}` : ""}${source.media != null ? ` media=${jsxString(source.media)}` : ""} />`;
+    }).filter(Boolean);
+    if (!src.trim() && !sources.length) return "";
+    const mediaSrc = src.trim() ? `\n${indent}  src=${jsxString(safeMedia(src))}` : "";
     const extra = [
       m.loop ? " loop" : "",
       m.autoplay ? " autoPlay" : "",
       m.muted || m.autoplay ? " muted" : "",
       m.kind === "video" ? " playsInline" : "",
     ].join("");
-    return `${indent}<${m.kind === "audio" ? "audio" : "video"}${idAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  src=${jsxString(mediaSrc)}\n${indent}  controls${extra}\n${indent}/>`;
+    const tag = m.kind === "audio" ? "audio" : "video";
+    const opening = `${indent}<${tag}${idAttr}\n${indent}  className=${jsxString(cls)}${mediaSrc}\n${indent}  controls${extra}`;
+    return sources.length ? `${opening}>\n${sources.join("\n")}\n${indent}</${tag}>` : `${opening}\n${indent}/>`;
   }
 
   if (node.type === "embed" && node.embed) {

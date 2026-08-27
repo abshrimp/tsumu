@@ -95,7 +95,7 @@ export function rebindImportedAssetUrls(original: SiteDoc, doc: SiteDoc) {
     }
   }
   for (const node of Object.values(doc.nodes)) {
-    for (const media of [node.image, node.media]) {
+    for (const media of [node.image, node.media, ...(node.media?.sources ?? [])]) {
       if (!media) continue;
       if (!media.src) continue;
       const id = media.assetId;

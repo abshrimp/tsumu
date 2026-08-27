@@ -3,6 +3,8 @@
 import { isEmbeddedAssetUrl } from "./site-import-format";
 import { CSS_ASSET_ATTRIBUTES, replaceCssAssetUrls, rewriteCssAssetUrls } from "./css-assets";
 import { zipAssetClosure, zipCssPreviewUrls, zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
+import { assetMediaUrl } from "./media-url";
+export { assetMediaUrl } from "./media-url";
 import { appendAssetSuffix } from "./zip-references";
 import type { Asset, SiteDoc } from "./types";
 import { genId } from "./presets";
@@ -248,9 +250,9 @@ export function nodeAssetSrc(asset: Asset): string {
 }
 
 /** 画像・動画の要素の表示用URL（アセットを使っていれば、アセットから引く） */
-export function mediaSrc(doc: SiteDoc, ref: { src: string; assetId?: string }): string {
+export function mediaSrc(doc: SiteDoc, ref: { src: string; assetId?: string; assetSuffix?: string }): string {
   const asset = ref.assetId ? doc.assets[ref.assetId] : undefined;
-  return asset ? (assetSrc(asset) || ref.src) : ref.src;
+  return asset ? assetMediaUrl(assetSrc(asset) || ref.src, ref.assetSuffix) : ref.src;
 }
 
 /**
@@ -268,6 +270,7 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
   for (const node of Object.values(doc.nodes)) {
     if (node.image?.assetId === assetId) node.image.src = src;
     if (node.media?.assetId === assetId) node.media.src = src;
+    for (const source of node.media?.sources ?? []) if (source.assetId === assetId) source.src = src;
     if (!data) continue;
     for (const bp of Object.values(node.styles)) {
       for (const styles of Object.values(bp ?? {})) {

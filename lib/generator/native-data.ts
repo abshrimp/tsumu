@@ -47,7 +47,7 @@ export function nativeDataModule(): string {
     "}",
     "export function resolveResourceUrl(value, vars, ...items) {",
     "  const url = String(resolveText(value, vars, ...items) || '').trim();",
-    "  if (/^data:(?:image|video|audio)\\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+$/i.test(url)) return url;",
+    "  if (/^data:(?:image|video|audio)\\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+(?:#[^\\u0000-\\u001f\\u007f]*)?$/i.test(url)) return url;",
     "  if (/^blob:/i.test(url)) return url;",
     "  return safeLink(url);",
     "}",

@@ -515,7 +515,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                   // Keep that asset, but allow an explicitly cleared external URL.
                   if (src || !node.image!.assetId)
                     updateNode(nodeId, {
-                      image: { ...node.image!, src, assetId: undefined },
+                      image: { ...node.image!, src, assetId: undefined, assetSuffix: undefined },
                     });
                 }}
               />
@@ -538,7 +538,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                     image: {
                       ...node.image!,
                       src: nodeAssetSrc(asset),
-                      assetId: asset.id,
+                      assetId: asset.id, assetSuffix: undefined,
                       width: asset.width,
                       height: asset.height,
                     },
@@ -657,15 +657,15 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                     ? "https://…/movie.mp4"
                     : "https://…/sound.mp3"
                 }
-                onCommit={(value) =>
+                onCommit={(value) => {
                   updateNode(nodeId, {
                     media: {
                       ...node.media!,
                       src: value.trim(),
-                      assetId: undefined,
+                      assetId: undefined, assetSuffix: undefined, sources: undefined,
                     },
-                  })
-                }
+                  });
+                }}
                 onKeyDown={(e) => {
                   if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
                 }}
@@ -687,7 +687,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 emptyText={tr("対応するアセットがありません。左パネルの「アセット」から追加してください。")}
                 onPick={(asset) => {
                   updateNode(nodeId, {
-                    media: { ...node.media!, src: nodeAssetSrc(asset), assetId: asset.id },
+                    media: { ...node.media!, src: nodeAssetSrc(asset), assetId: asset.id, assetSuffix: undefined, sources: undefined },
                   });
                   setAssetPickerOpen(false);
                 }}

@@ -29,6 +29,7 @@ import { tr } from "../../lib/i18n";
 import { storageKey } from "../../lib/storage-keys";
 import { canvasHtml } from "../../lib/canvas-html";
 import { mediaSrc } from "../../lib/assets";
+import { safeResourceUrl } from "../../lib/url-policy";
 
 /* ---------- 変数コンテキスト ---------- */
 
@@ -326,7 +327,13 @@ export function renderLeafNode(
 
   if (node.type === "media" && node.media) {
     const src = opts.doc ? mediaSrc(opts.doc, node.media) : node.media.src;
-    if (!src.trim()) {
+    const sources = (node.media.sources ?? []).map((source, index) => {
+      const url = opts.doc ? mediaSrc(opts.doc, source) : source.src;
+      return url.trim() ? createElement("source", {
+        key: index, src: safeResourceUrl(url), type: source.type, media: source.media,
+      }) : null;
+    }).filter(Boolean);
+    if (!src.trim() && !sources.length) {
       return createElement(
         "div",
         { ...common, className: "cv-placeholder" },
@@ -337,13 +344,13 @@ export function renderLeafNode(
     }
     return createElement(node.media.kind, {
       ...common,
-      src,
+      src: src.trim() ? src : undefined,
       controls: true,
       loop: node.media.loop,
       muted: node.media.muted,
       playsInline: true,
       preload: "metadata",
-    });
+    }, ...sources);
   }
 
   if (node.type === "embed" && node.embed) {

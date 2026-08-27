@@ -27,7 +27,7 @@ const findSource = (tree: any): any => {
 };
 for (const kind of ["video", "audio"] as const) test(`${kind} source only commits deliberate edits and supports undo`, () => {
   const doc = createInitialDoc();
-  const node = { ...makeBox(), id: "media", type: "media" as const, media: { kind, src: "/api/assets/file?path=movie", assetId: "movie", loop: true } };
+  const node = { ...makeBox(), id: "media", type: "media" as const, media: { kind, src: "/api/assets/file?path=movie", assetId: "movie", assetSuffix: "#t=4", sources: [{src:"alternative.mp4"}], loop: true } };
   doc.nodes.media = node;
   doc.pages[doc.pageOrder[0]].children = [node.id];
   useEditor.getState().replaceDoc(doc);
@@ -40,7 +40,7 @@ for (const kind of ["video", "audio"] as const) test(`${kind} source only commit
   assert.equal(field.props.value, "");
   assert.equal(field.props.onBlur, undefined, "no unconditional blur write can detach the asset");
   field.props.onCommit(" https://example.test/media ");
-  assert.deepEqual(useEditor.getState().doc.nodes.media.media, { kind, src: "https://example.test/media", assetId: undefined, loop: true });
+  assert.deepEqual(useEditor.getState().doc.nodes.media.media, { kind, src: "https://example.test/media", assetId: undefined, assetSuffix: undefined, sources: undefined, loop: true });
   useEditor.getState().undo();
   assert.deepEqual(useEditor.getState().doc.nodes.media.media, node.media);
   useEditor.getState().redo();

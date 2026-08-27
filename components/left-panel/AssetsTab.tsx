@@ -511,7 +511,7 @@ export function AssetsTab() {
         image: {
           ...sel.image,
           src: nodeAssetSrc(asset),
-          assetId: asset.id,
+          assetId: asset.id, assetSuffix: undefined,
           width: asset.width,
           height: asset.height,
         },
@@ -520,14 +520,14 @@ export function AssetsTab() {
     }
     if (kind !== "image" && sel?.type === "media" && sel.media?.kind === kind) {
       updateNode(sel.id, {
-        media: { ...sel.media, src: nodeAssetSrc(asset), assetId: asset.id },
+        media: { ...sel.media, src: nodeAssetSrc(asset), assetId: asset.id, assetSuffix: undefined, sources: undefined },
       });
       return;
     }
     if (kind !== "image") {
       const node = makeMedia(kind);
       node.name = asset.name;
-      node.media = { ...node.media!, src: nodeAssetSrc(asset), assetId: asset.id };
+      node.media = { ...node.media!, src: nodeAssetSrc(asset), assetId: asset.id, assetSuffix: undefined };
       const target = insertPointFor(doc, selection, fallback, useEditor.getState().insertMode);
       insertNodes([node], node.id, target.parent, target.index);
       setLeftTab("layers");
@@ -540,7 +540,7 @@ export function AssetsTab() {
       alt: "",
       width: asset.width,
       height: asset.height,
-      assetId: asset.id,
+      assetId: asset.id, assetSuffix: undefined,
     };
     const target = insertPointFor(doc, selection, fallback, useEditor.getState().insertMode);
     insertNodes([node], node.id, target.parent, target.index);
@@ -568,11 +568,20 @@ export function AssetsTab() {
       for (const node of Object.values(d.nodes)) {
         if (node.image?.assetId === asset.id) {
           node.image.assetId = undefined;
+          node.image.assetSuffix = undefined;
           node.image.src = "";
         }
         if (node.media?.assetId === asset.id) {
           node.media.assetId = undefined;
+          node.media.assetSuffix = undefined;
           node.media.src = "";
+        }
+        for (const source of node.media?.sources ?? []) {
+          if (source.assetId === asset.id) {
+            source.assetId = undefined;
+            source.assetSuffix = undefined;
+            source.src = "";
+          }
         }
         if (src) {
           for (const bp of Object.values(node.styles)) {
