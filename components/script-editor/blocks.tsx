@@ -310,11 +310,7 @@ function StepChunkView({ scriptId, list, chunk }: {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    return observeScriptViewport(el, (visible) => {
-      // Do not discard a focused field or its uncommitted draft while scrolling.
-      if (visible) setRendered(true);
-      else if (!el.contains(document.activeElement)) setRendered(false);
-    });
+    return observeScriptViewport(el, setRendered);
   }, []);
 
   useLayoutEffect(() => {
@@ -483,10 +479,7 @@ export function StackView({ script }: { script: PageScript }) {
   useEffect(() => {
     const el = ref.current;
     if (!el || ctx.readOnly || !ctx.virtualizeStacks) return;
-    return observeScriptViewport(el, (visible) => {
-      if (visible) setInViewport(true);
-      else if (!el.contains(document.activeElement)) setInViewport(false);
-    });
+    return observeScriptViewport(el, setInViewport);
   }, [ctx.readOnly, ctx.virtualizeStacks]);
 
   useLayoutEffect(() => {

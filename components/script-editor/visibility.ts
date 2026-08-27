@@ -1,6 +1,7 @@
 /**
  * Share one viewport observer between the script stacks and step chunks.
  * Thousands of independently created IntersectionObservers are costly.
+ * Keep focused views mounted until their blur handlers have committed drafts.
  */
 type Listener = (visible: boolean) => void;
 interface ObservationSet {
@@ -26,9 +27,30 @@ export function observeScriptViewport(element: HTMLElement, listener: Listener):
     group = { observer, listeners };
     byWorkspace.set(workspace, group);
   }
-  group.listeners.set(element, listener);
+  // IntersectionObserver does not report focus changes. Remember visibility so
+  // a view retained for editing can be released after focus leaves, even if it
+  // never crosses the viewport boundary again.
+  let visible = true;
+  let blurTimer: ReturnType<typeof setTimeout> | undefined;
+  const update = () => listener(visible || element.contains(element.ownerDocument.activeElement));
+  const onFocusOut = () => {
+    if (blurTimer !== undefined) clearTimeout(blurTimer);
+    // Wait for both the blur commit and the next focus target to settle. Moving
+    // between fields inside this view must not discard either field's state.
+    blurTimer = setTimeout(() => {
+      blurTimer = undefined;
+      update();
+    }, 0);
+  };
+  element.addEventListener("focusout", onFocusOut);
+  group.listeners.set(element, (intersecting) => {
+    visible = intersecting;
+    update();
+  });
   group.observer.observe(element);
   return () => {
+    element.removeEventListener("focusout", onFocusOut);
+    if (blurTimer !== undefined) clearTimeout(blurTimer);
     const current = byWorkspace.get(workspace);
     current?.observer.unobserve(element);
     current?.listeners.delete(element);
