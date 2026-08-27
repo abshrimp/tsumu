@@ -9,6 +9,7 @@ import { buildAssetNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
 import { pwaIconType } from "./templates";
 import { REACT_SEARCH_FORM } from "./react-form";
+import { routeDir } from "./page";
 
 const esc = (value: string) =>
   value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);
@@ -72,10 +73,13 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   }
   for (const [i, page] of pages.entries()) {
     const slug = page.slug.replace(/^\/+|\/+$/g, "");
+    const dir = routeDir(slug);
+    // Locate JSX using Next.js's filesystem routes; retain the authored slug
+    // below for the React router. Distinct slugs can share a Next.js directory.
     const variants = pages.filter((candidate) =>
-      candidate.slug.replace(/^\/+|\/+$/g, "") === slug && !candidate.rawHtml?.trim());
+      routeDir(candidate.slug) === dir && !candidate.rawHtml?.trim());
     const variant = variants.length > 1 ? variants.indexOf(page) : -1;
-    const generatedPath = "app/" + (slug ? slug + "/" : "") +
+    const generatedPath = "app/" + (dir ? dir + "/" : "") +
       (variant < 0 ? "page.tsx" : "_q/p" + variant + ".tsx");
     const generated = next.files[generatedPath];
     if (!generated) throw new Error("Missing generated page: " + generatedPath);

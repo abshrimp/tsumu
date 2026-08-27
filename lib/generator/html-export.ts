@@ -9,7 +9,7 @@ import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetSrc } from "../assets";
 import { importedAssetUrl, isZipJavascript } from "./imported-assets";
-import { cssValue, usedGoogleFonts } from "./css";
+import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
@@ -359,15 +359,6 @@ function render(ctx: Context, id: string, top: boolean): string {
   } finally { ctx.seen.delete(id); }
 }
 
-/** Raw HTML pages already contain their complete original document. */
-function importedHtml(next: GeneratedProject, page: Page): string {
-  const slug = page.slug.replace(/^\/+|\/+$/g, "");
-  const source = next.files["app/" + (slug ? slug + "/" : "") + "route.ts"];
-  const match = /^const html = (.+);$/m.exec(source || "");
-  if (!match) throw new Error("Could not read HTML page: " + page.name);
-  return JSON.parse(match[1]) as string;
-}
-
 /**
  * Render a data-driven page body that the shared browser runtime can populate.
  * React can mount it through a component, and static HTML can embed it directly.
@@ -514,7 +505,11 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     outputPaths.add(path);
     const prefix = pagePrefix(path);
     if (page.rawHtml?.trim()) {
-      files[path] = rewriteRootUrls(importedHtml(next, page), prefix, scriptSources);
+      // Render with the shared HTML/CSS generators. Next.js route filenames and
+      // serialized TypeScript are framework output, not a source of page data.
+      const html = rawHtmlWithBodyStyles(normalized, page,
+        cssValue(normalized, "rawHtml", page.rawHtml, assets), assets);
+      files[path] = rewriteRootUrls(html, prefix, scriptSources);
       continue;
     }
     const ctx: Context = {
