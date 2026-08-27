@@ -30,6 +30,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run i18n:check
+      - name: Verify Docker build context isolation
+        env:
+          TSUMU_DOCKER_TESTS: "1"
+        run: node --import tsx --test tests/docker-build-context.test.mts
       - run: npm run build:worker
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
