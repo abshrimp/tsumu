@@ -171,7 +171,9 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       return;
     }
     const input = decoded as CollabClientMessage;
-    if (!/^[a-zA-Z0-9_-]{1,100}$/.test(input.requestId ?? "")) {
+    // JSON input has no runtime TypeScript guarantees. Check the type before
+    // RegExp.test can coerce arrays/numbers or throw on an object.
+    if (typeof input.requestId !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(input.requestId)) {
       reply(
         JSON.stringify({
           type: "error",
@@ -236,7 +238,9 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         result = remote ? await remote.patchDocument(input.patch, input.base)
           : await saveDocPatch(db, siteId, input.patch, input.base);
       } else {
-        if (!input.doc) throw new Error("不正なリクエスト");
+        if (!input.doc || (input.base !== null && typeof input.base !== "string")) {
+          throw new Error("不正なリクエスト");
+        }
         const raw = JSON.stringify(input.doc);
         const validationError = validateDocBody(raw);
         if (validationError) throw new Error(validationError);
