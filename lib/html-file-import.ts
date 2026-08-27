@@ -109,7 +109,9 @@ function convertHtmlPages(
         const href = node.link.url;
         if (!/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) {
           const m = /^([^?#]*)([?#].*)?$/.exec(href);
-          const relative = m?.[1] || "";
+          let relative = m?.[1] || "";
+          // URLのパスだけを一度復号し、ZIP内の元のファイル名と照合する。
+          try { relative = decodeURIComponent(relative); } catch { /* 不正なエスケープは元の表記を保つ。 */ }
           const suffix = m?.[2] || "";
           const folder = filename.slice(0, filename.lastIndexOf("/") + 1);
           // パスのないクエリは親フォルダではなく、現在のHTMLページを指す。
