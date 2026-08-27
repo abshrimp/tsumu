@@ -126,3 +126,124 @@ test("script edits preserve undo/redo and do not create history for an unchanged
   useEditor.getState().redo();
   assert.equal((useEditor.getState().doc.nodes["node-0"].scripts?.[0].steps[0] as { seconds: number }).seconds, 2);
 });
+
+for (const mode of ["gesture", "checkpoint"] as const) {
+  test(`${mode} document no-ops preserve references, redo and the pending checkpoint`, () => {
+    open();
+    useEditor.getState().updateNode("node-0", { name: "Redo me" });
+    useEditor.getState().undo();
+    const finish = mode === "gesture" ? useEditor.getState().beginGesture() : () => {};
+    if (mode === "checkpoint") useEditor.getState().checkpoint();
+    const before = useEditor.getState();
+    let notifications = 0;
+    const unsubscribe = useEditor.subscribe(() => { notifications++; });
+    try {
+      for (let i = 0; i < 100; i++) {
+        useEditor.getState().updateDoc(d => { d.siteName = before.doc.siteName; },
+          mode === "checkpoint" ? { history: false } : undefined);
+      }
+    } finally { unsubscribe(); }
+    assert.equal(notifications, 0, "unchanged pointer events must not notify subscribers");
+    assert.strictEqual(useEditor.getState(), before);
+
+    for (const name of ["First", "Last"]) {
+      useEditor.getState().updateDoc(d => { d.siteName = name; },
+        mode === "checkpoint" ? { history: false } : undefined);
+    }
+    finish();
+    const after = useEditor.getState().doc;
+    assert.equal(useEditor.getState().past.length, 1);
+    assert.equal(useEditor.getState().future.length, 0);
+    useEditor.getState().undo();
+    assert.strictEqual(useEditor.getState().doc, before.doc);
+    useEditor.getState().redo();
+    assert.strictEqual(useEditor.getState().doc, after);
+  });
+}
+
+const edits = {
+  node: () => useEditor.getState().updateNode("node-0", { name: "Changed" }),
+  document: () => useEditor.getState().updateDoc(d => { d.siteName = "Changed"; }),
+  scripts: () => useEditor.getState().updatePageScripts("p", ["node-0"], [{
+    id: "script", nodeId: "node-0", trigger: "click", pos: { x: 0, y: 0 },
+    steps: [{ id: "step", kind: "wait", seconds: 1 }],
+  }]),
+};
+
+for (const [kind, edit] of Object.entries(edits)) {
+  for (const gesture of [false, true]) {
+    test(`${kind} edits publish document and history together${gesture ? " during a gesture" : ""}`, () => {
+      open();
+      useEditor.getState().updateNode("node-1", { name: "Redo me" });
+      useEditor.getState().undo();
+      const finish = gesture ? useEditor.getState().beginGesture() : () => {};
+      const before = useEditor.getState();
+      const observed: ReturnType<typeof useEditor.getState>[] = [];
+      const unsubscribe = useEditor.subscribe(s => { observed.push(s); });
+      try { edit(); } finally { unsubscribe(); }
+      const after = useEditor.getState().doc;
+      finish();
+      assert.equal(observed.length, 1, "one edit must publish one complete state");
+      assert.notStrictEqual(observed[0].doc, before.doc);
+      assert.deepEqual(observed[0].past, [before.doc]);
+      assert.deepEqual(observed[0].future, []);
+      useEditor.getState().undo();
+      assert.strictEqual(useEditor.getState().doc, before.doc);
+      useEditor.getState().redo();
+      assert.strictEqual(useEditor.getState().doc, after);
+    });
+  }
+
+  test(`${kind} commits retain subscriber edits and their separate undo steps`, () => {
+    open();
+    const before = useEditor.getState().doc;
+    let handled = false;
+    let firstEdit: SiteDoc | undefined;
+    const unsubscribe = useEditor.subscribe((s, previous) => {
+      if (handled || s.past === previous.past) return;
+      handled = true;
+      firstEdit = s.doc;
+      s.updateNode("node-1", { name: "Subscriber edit" });
+    });
+    try { edit(); } finally { unsubscribe(); }
+    const after = useEditor.getState().doc;
+    assert.equal(after.nodes["node-1"].name, "Subscriber edit");
+    assert.notDeepEqual(firstEdit, before);
+    assert.equal(useEditor.getState().past.length, 2);
+    useEditor.getState().undo();
+    assert.strictEqual(useEditor.getState().doc, firstEdit);
+    useEditor.getState().undo();
+    assert.strictEqual(useEditor.getState().doc, before);
+    useEditor.getState().redo();
+    assert.strictEqual(useEditor.getState().doc, firstEdit);
+    useEditor.getState().redo();
+    assert.strictEqual(useEditor.getState().doc, after);
+  });
+}
+
+for (const action of ["restoreDoc", "resetDoc"] as const) {
+  test(`${action} publishes its document, session and undo history together`, () => {
+    open();
+    const before = useEditor.getState();
+    const observed: ReturnType<typeof useEditor.getState>[] = [];
+    const unsubscribe = useEditor.subscribe(s => { observed.push(s); });
+    try {
+      if (action === "restoreDoc") {
+        useEditor.getState().restoreDoc({ ...before.doc, siteName: "Restored" });
+      } else {
+        useEditor.getState().resetDoc();
+      }
+    } finally { unsubscribe(); }
+    assert.equal(observed.length, 1);
+    const after = observed[0];
+    assert.notStrictEqual(after.doc, before.doc);
+    assert.equal(after.documentSession, before.documentSession + 1);
+    assert.equal(after.historyRevision, before.historyRevision + 1);
+    assert.deepEqual(after.past, [before.doc]);
+    assert.deepEqual(after.future, []);
+    useEditor.getState().undo();
+    assert.strictEqual(useEditor.getState().doc, before.doc);
+    useEditor.getState().redo();
+    assert.strictEqual(useEditor.getState().doc, after.doc);
+  });
+}
