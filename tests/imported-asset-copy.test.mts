@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { assetSrc } from "../lib/assets";
-import { buildClipPayload } from "../lib/clip-transfer";
+import { buildClipPayload, mergeClipDeps } from "../lib/clip-transfer";
 import { validSiteDoc } from "../lib/doc-tree";
 import { generateProject } from "../lib/generator";
 import { importedAssetPath } from "../lib/generator/imported-assets";
@@ -73,4 +73,49 @@ test("copying a ZIP image alone does not pull in unused scripts from its archive
   code.code!.html = `<img src="${assetSrc(doc.assets.picture)}">`;
   const payload = buildClipPayload(doc, { nodes: [code], rootIds: [code.id] });
   assert.deepEqual(Object.keys(payload.assets), ["picture"]);
+});
+
+for (const conflict of ["different-id", "same-id"] as const) {
+  test(`copying a ZIP script retains dependency aliases despite ${conflict} destination dedupe`, () => {
+    const { doc } = fixture();
+    const target = createInitialDoc();
+    const original = doc.assets.picture;
+    const id = conflict === "same-id" ? original.id : "existing-picture";
+    target.assets[id] = { ...original, id, zip: { version: 1, group: "other_zip", path: "other.png" } };
+    const existing = structuredClone(target.assets[id]);
+    const payload = buildPagePayload(doc, doc.pageOrder);
+    const before = structuredClone(payload);
+    applyPagePayload(target, payload);
+    const project = generateProject(target);
+    assert.equal(project.remoteAssets[importedAssetPath(original)!], original.path);
+    assert.deepEqual(target.assets[id], existing);
+    assert.deepEqual(payload, before);
+    assert.equal(validSiteDoc(target), true);
+  });
+}
+
+test("ZIP module dependencies sharing bytes at different relative paths retain both aliases", () => {
+  const { doc, code } = fixture();
+  doc.assets.alias = { ...doc.assets.picture, id: "alias", zip: { ...doc.assets.picture.zip!, path: "images/second.png" } };
+  const payload = buildClipPayload(doc, { nodes: [code], rootIds: [code.id] });
+  const target = createInitialDoc();
+  mergeClipDeps(target, payload);
+  const project = generateProject(target);
+  for (const a of [doc.assets.picture, doc.assets.alias]) {
+    assert.equal(project.remoteAssets[importedAssetPath(a)!], a.path);
+  }
+  // 同じ ZIP の同じ場所なら再度貼り付けてもアセットを増やさない。
+  const before = structuredClone(target.assets);
+  assert.equal(mergeClipDeps(target, payload).assetIds.size, 0);
+  assert.deepEqual(target.assets, before);
+});
+
+test("copies without ZIP scripts still dedupe identical image bytes across archive groups", () => {
+  const { doc, code } = fixture();
+  code.code!.html = `<img src="${assetSrc(doc.assets.picture)}">`;
+  const target = createInitialDoc();
+  target.assets.existing = { ...doc.assets.picture, id: "existing", zip: { version: 1, group: "other_zip", path: "other.png" } };
+  const payload = buildClipPayload(doc, { nodes: [code], rootIds: [code.id] });
+  assert.equal(mergeClipDeps(target, payload).assetIds.get("picture"), "existing");
+  assert.deepEqual(Object.keys(target.assets), ["existing"]);
 });
