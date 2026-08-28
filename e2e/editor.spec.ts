@@ -32,7 +32,7 @@ async function deleteHero(page: Page) {
   await expect(canvas(page).getByText(HEADING)).toHaveCount(0);
 }
 
-test("Create a site from Home and open it in the editor", async ({ page }) => {
+test("Create a site from Home and open it in the editor", { tag: "@core-editing" }, async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto("/");
   await page.getByRole("button", { name: "新しいサイト" }).first().click();
@@ -44,7 +44,7 @@ test("Create a site from Home and open it in the editor", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("Tsumu page title and save preferences survive a reload", async ({ page, context }) => {
+test("Tsumu page title and save preferences survive a reload", { tag: "@core-editing" }, async ({ page, context }) => {
   const id = await openNewSite(page, "Tsumu smoke");
   await saved(page);
   await expect(page).toHaveTitle("Tsumu smoke | Tsumu");
@@ -55,7 +55,7 @@ test("Tsumu page title and save preferences survive a reload", async ({ page, co
   await expect(page.getByRole("button", { name: "始める" })).toHaveCount(0);
 });
 
-test("Deleting a node is undoable, persists, and survives a reload", async ({ page }) => {
+test("Deleting a node is undoable, persists, and survives a reload", { tag: "@core-editing" }, async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   await deleteHero(page);
@@ -94,7 +94,7 @@ test("Edits from another user arrive immediately without waiting for polling", a
   }
 });
 
-test("Style, Settings, and Script panels open", async ({ page }) => {
+test("Style, Settings, and Script panels open", { tag: "@core-editing" }, async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   await layers(page).getByText("ボタン", { exact: true }).click();
@@ -131,7 +131,7 @@ test("ZIP export produces a standard Next.js project", async ({ page }) => {
   expect(await zip.file(`${root}app/page.tsx`)!.async("string")).toContain(HEADING);
 });
 
-test("Drag a canvas node to reorder it", async ({ page }) => {
+test("Drag a canvas node to reorder it", { tag: "@core-editing" }, async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   const order = async () => {
@@ -154,7 +154,7 @@ test("Drag a canvas node to reorder it", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("Drag a palette block into the script workspace", async ({ page }) => {
+test("Drag a palette block into the script workspace", { tag: "@core-editing" }, async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   await layers(page).getByText("ボタン", { exact: true }).click();
