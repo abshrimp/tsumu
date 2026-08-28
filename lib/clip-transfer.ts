@@ -11,6 +11,7 @@ import type { Asset, Component, CustomFont, DocNode, Page, SiteDoc } from "./typ
 import { assetSrc } from "./assets";
 import { createCssAssetFinder } from "./css-asset-dependencies";
 import { zipAssetClosure, zipStylesheet } from "./zip-css";
+import { isZipJavascript } from "./generator/imported-assets";
 import { genId } from "./presets";
 import { cloneSteps, scriptUid } from "./script";
 import { currentSiteId } from "./site";
@@ -77,6 +78,12 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
     if (cssIds.has(a.id) || text.includes(a.id) || (src && text.includes(src))) assets[a.id] = structuredClone(a);
   }
   for (const id of zipAssetClosure(doc.assets, Object.keys(assets))) assets[id] = structuredClone(doc.assets[id]);
+  // JS の相対参照はアセットの内容にあり、ここでは読み取れない。
+  // 未使用削除の判定と同じく、使用中のスクリプトの ZIP 一式をコピーする。
+  const scriptGroups = new Set(Object.values(assets).filter(isZipJavascript).map(asset => asset.zip!.group));
+  for (const asset of Object.values(doc.assets)) {
+    if (asset.zip && scriptGroups.has(asset.zip.group)) assets[asset.id] = structuredClone(asset);
+  }
   const customFonts = (doc.customFonts ?? []).filter((f) => text.includes(f.family));
   return {
     v: 1,
