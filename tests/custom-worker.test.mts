@@ -10,7 +10,7 @@ import { StructuredDocumentStore, type DocumentSqlStorage } from "../lib/structu
 
 // Exercise the real Worker handler and document store, replacing only host
 // bindings. A D1 binding selects the production DOC_STORE RPC path.
-function fixture(initialize = true) {
+function fixture(initialize = true, allowGenerationClose = false) {
   const sqlite = new DatabaseSync(":memory:");
   const storage: DocumentSqlStorage = {
     sql: { exec(sql, ...args) {
@@ -37,8 +37,17 @@ function fixture(initialize = true) {
   const original = createInitialDoc();
   if (initialize) documents.replace(JSON.stringify(original), null);
   let rpcCalls = 0;
+  let generation: string | null = "generation-1";
+  let readStarted: (() => void) | undefined;
+  let readGate: Promise<void> | undefined;
   const remote = {
-    async getSnapshot() { rpcCalls++; return documents.snapshot(); },
+    async getSnapshot() {
+      rpcCalls++;
+      const snapshot = documents.snapshot();
+      readStarted?.();
+      await readGate;
+      return snapshot;
+    },
     async replaceDocument(raw: string, base: string | null) { rpcCalls++; return documents.replace(raw, base); },
     async patchDocument(patch: Parameters<StructuredDocumentStore["patch"]>[0], base: string) {
       rpcCalls++;
@@ -54,7 +63,7 @@ function fixture(initialize = true) {
     "./.open-next/worker.js": {},
     "./document-room": { DocumentRoom: class {} },
     "./lib/db": { getDbFromBinding: async () => ({ execute: async () => ({ rows: [{}] }) }) },
-    "./lib/sites": { getSiteRoomKey: async () => "generation-1" },
+    "./lib/sites": { getSiteRoomKey: async () => generation },
   };
   const { code } = transformSync(readFileSync(url, "utf8"), { loader: "ts", format: "cjs", target: "es2022" });
   const module = { exports: {} as any };
@@ -63,9 +72,13 @@ function fixture(initialize = true) {
   );
   const socket = (clientId: string) => ({
     messages: [] as string[],
+    closed: [] as Array<{ code: number; reason: string }>,
     deserializeAttachment: () => ({ clientId, siteId: "s1", roomKey: "generation-1", user: null }),
     send(raw: string) { this.messages.push(raw); },
-    close() { assert.fail("Valid site generation must stay connected"); },
+    close(code: number, reason: string) {
+      if (!allowGenerationClose) assert.fail("Valid site generation must stay connected");
+      this.closed.push({ code, reason });
+    },
   });
   const sender = socket("sender");
   const peer = socket("peer");
@@ -74,9 +87,48 @@ function fixture(initialize = true) {
   });
   return {
     documents, original, sender, peer, rpcCalls: () => rpcCalls,
+    setGeneration(value: string | null) { generation = value; },
+    pauseRead() {
+      const started = new Promise<void>(resolve => { readStarted = resolve; });
+      let release!: () => void;
+      readGate = new Promise<void>(resolve => { release = resolve; });
+      return { started, release };
+    },
     send: (input: unknown) => room.webSocketMessage(sender, JSON.stringify(input)),
     close: () => sqlite.close(),
   };
+}
+
+for (const initialize of [true, false]) {
+  for (const generation of [null, "generation-2", "generation-1"]) {
+    test(`WebSocket load fences an in-flight ${initialize ? "snapshot" : "empty result"} against generation ${generation}`, async () => {
+      const f = fixture(initialize, generation !== "generation-1");
+      try {
+        const before = f.documents.snapshot();
+        const read = f.pauseRead();
+        const pending = f.send({ type: "load", requestId: "delayed-load" });
+        await read.started;
+        // Deletion/recreation can commit in D1 while a previously captured
+        // DocumentRoom response is still in transit to CollaborationRoom.
+        f.setGeneration(generation);
+        read.release();
+        await pending;
+        assert.equal(f.rpcCalls(), 1);
+        assert.deepEqual(f.peer.messages, []);
+        assert.deepEqual(f.documents.snapshot(), before, "loading must not write a revision");
+        if (generation === "generation-1") {
+          assert.deepEqual(f.sender.closed, []);
+          assert.deepEqual(f.sender.messages.map(raw => JSON.parse(raw)), [{
+            type: "snapshot", requestId: "delayed-load", exists: initialize,
+            ...(before ? { rev: before.rev, savedAt: before.savedAt, doc: f.original } : {}),
+          }]);
+        } else {
+          assert.equal(f.sender.messages.length, 0, "neither stale content nor a stale exists:false may escape");
+          assert.deepEqual(f.sender.closed, [{ code: 1008, reason: "Site generation changed" }]);
+        }
+      } finally { f.close(); }
+    });
+  }
 }
 
 for (const type of ["load", "save", "patch"] as const) {
