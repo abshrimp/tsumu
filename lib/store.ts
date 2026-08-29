@@ -2007,10 +2007,13 @@ export async function persistDoc(doc: SiteDoc): Promise<LocalSaveResult> {
     const json = JSON.stringify(doc);
     const result = await writeBrowserDoc(currentSiteId(), json, lastKnownBrowserRaw);
     if (result === "conflict") return "error";
+    // IndexedDB has committed, even if the following deletion-marker read
+    // fails. Keep its baseline so a later edit or Undo can safely retry.
+    const changed = lastKnownBrowserRaw !== json;
+    lastKnownBrowserRaw = json;
     const deleted = localSaveBlock();
     if (deleted) return deleted;
-    if (lastKnownBrowserRaw !== json) touchLocalSite();
-    lastKnownBrowserRaw = json;
+    if (changed) touchLocalSite();
     return "saved";
   } catch (error) {
     console.error("[Tsumu] Failed to save browser document", error);
