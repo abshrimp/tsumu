@@ -2,7 +2,63 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { useEditor } from "../lib/store";
 import { AI_STREAM_TYPE } from "../lib/ai/progress";
+import { buildAiContext } from "../lib/aiOps";
 import { aiChatDoc, aiChatFixture, aiChatBundle } from "./helpers/ai-chat";
+
+for (const interruption of ["undo", "redo", "undo-redo", "replace", "restore"] as const) {
+  test(`AI response after ${interruption} during the request preserves the document and history`, async (t) => {
+    const { askForTest, useAi } = aiChatFixture();
+    useEditor.getState().replaceDoc(aiChatDoc());
+    useEditor.getState().setActivePage("p");
+    useEditor.getState().updateDoc(doc => { doc.nodes.b.text!.content = "Manual B"; });
+    if (interruption === "redo") useEditor.getState().undo();
+    const requestedContext = buildAiContext(useEditor.getState().doc, { pageId: "p" }).doc;
+    let finish!: (response: Response) => void;
+    t.mock.method(globalThis, "fetch", () => new Promise<Response>(resolve => { finish = resolve; }));
+    const request = askForTest("Update A");
+    if (interruption === "undo") useEditor.getState().undo();
+    else if (interruption === "redo") useEditor.getState().redo();
+    else if (interruption === "undo-redo") {
+      useEditor.getState().undo();
+      useEditor.getState().redo();
+    } else if (interruption === "replace") {
+      useEditor.getState().replaceDoc(structuredClone(useEditor.getState().doc));
+    } else {
+      const restored = structuredClone(useEditor.getState().doc);
+      restored.nodes.b.text!.content = "Restored B";
+      useEditor.getState().restoreDoc(restored);
+    }
+    const before = useEditor.getState();
+    // The target page is unchanged: content comparison alone cannot detect this interruption.
+    assert.deepEqual(buildAiContext(before.doc, { pageId: "p" }).doc, requestedContext);
+    finish(new Response(JSON.stringify({ type: "result", result: {
+      reply: "Done", operations: [{ op: "set_text", id: "a", text: "AI A" }],
+    } }) + "\n", { headers: { "content-type": AI_STREAM_TYPE } }));
+    await request;
+    assert.equal(useEditor.getState().future, before.future, "a stale AI response must not discard Redo");
+    assert.equal(useEditor.getState().doc, before.doc);
+    assert.equal(useEditor.getState().past, before.past);
+    assert.equal(useAi.getState().messages.at(-1).error, true);
+    assert.equal(useAi.getState().messages.at(-1).appliedDoc, undefined);
+    assert.equal(useAi.getState().busy, false);
+    if (interruption === "undo") {
+      useEditor.getState().redo();
+      assert.equal(useEditor.getState().doc.nodes.b.text!.content, "Manual B");
+      assert.equal(useEditor.getState().doc.nodes.a.text!.content, "Original A");
+    }
+    // The interruption must not poison later requests; the next edit still has one Undo.
+    const retryBefore = useEditor.getState().doc;
+    const retry = askForTest("Try again");
+    finish(new Response(JSON.stringify({ type: "result", result: {
+      reply: "Done", operations: [{ op: "set_text", id: "a", text: "New AI A" }],
+    } }) + "\n", { headers: { "content-type": AI_STREAM_TYPE } }));
+    await retry;
+    assert.equal(useAi.getState().messages.at(-1).error, undefined);
+    assert.equal(useEditor.getState().doc.nodes.a.text!.content, "New AI A");
+    useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc, retryBefore);
+  });
+}
 
 for (const changes of [false, true]) {
   test(`AI ${changes ? "changes undo independently" : "no-op cannot undo manual edits"} after an unrelated-page edit`, async (t) => {

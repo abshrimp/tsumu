@@ -170,6 +170,8 @@ async function ask(text: string) {
     });
     controller.signal.throwIfAborted();
     const ops = data.operations;
+    // Undo/Redo and document replacement also invalidate requests still awaiting the response.
+    if (ops.length && useEditor.getState().historyRevision !== s.historyRevision) throw new AiEditConflict("History changed");
     const beforeWaitRevision = useEditor.getState().historyRevision;
     while (ops.length && useEditor.getState().gestureActive) await waitForAiGesture(controller.signal);
     controller.signal.throwIfAborted();
