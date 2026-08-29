@@ -15,6 +15,7 @@ function mount(selected = ["step:open"]) {
   useEditor.getState().replaceDoc(scriptKeyboardDoc());
   useEditor.getState().setActivePage("p");
   const win = new EventTarget();
+  let popoverOpen = false;
   const cleanups: (() => void)[] = [];
   const latest = { current: {} as ScriptEditorLatest };
   const scripts = () => pageScriptsOf(useEditor.getState().doc, [], "p");
@@ -34,7 +35,10 @@ function mount(selected = ["step:open"]) {
   new Function("require", "module", "exports", "window", "document", code)(
     (id: string) => id === "react" ? { useEffect: (fn: () => () => void) => cleanups.push(fn()) } :
       id === "../../lib/store" ? { useEditor } : require(id),
-    module, module.exports, win, { querySelector: () => null },
+    module, module.exports, win, {
+      querySelector: (selector: string) =>
+        popoverOpen && selector.includes("[data-se-popover]") ? {} : null,
+    },
   );
   module.exports.useScriptEditorKeys({
     dragRef: { current: null }, cancelGesture: () => false, latest,
@@ -42,6 +46,7 @@ function mount(selected = ["step:open"]) {
   });
   return {
     latest,
+    setPopoverOpen(value: boolean) { popoverOpen = value; },
     key(key: string, tagName = "BODY", ctrlKey = false, shiftKey = false, metaKey = false) {
       const event = Object.assign(new Event("keydown", { cancelable: true }), { key, ctrlKey, shiftKey, metaKey });
       Object.defineProperty(event, "target", { value: { tagName, isContentEditable: tagName === "DIV" } });
@@ -52,6 +57,40 @@ function mount(selected = ["step:open"]) {
   };
 }
 const snapshot = () => structuredClone({ doc: useEditor.getState().doc, past: useEditor.getState().past, future: useEditor.getState().future });
+
+// NodePicker portals contain tabbable buttons as well as the search input.
+// Native-input detection alone must not expose the selected workspace behind them.
+for (const key of ["Backspace", "Delete"]) test(`an open picker owns ${key} after focus moves to a button`, () => {
+  const f = mount(["script:script"]);
+  try {
+    f.setPopoverOpen(true);
+    const before = snapshot();
+    const prevented = f.key(key, "BUTTON");
+    assert.deepEqual(snapshot(), before);
+    assert.deepEqual(f.latest.current.selectedList, ["script:script"]);
+    assert.equal(prevented, false);
+    f.setPopoverOpen(false);
+    assert.equal(f.key(key, "BUTTON"), true, "workspace shortcuts resume after closing the picker");
+    assert.notDeepEqual(snapshot().doc, before.doc);
+  } finally { f.cleanup(); }
+});
+
+for (const modifier of ["Control", "Meta"]) for (const { key, shift } of [
+  { key: "a", shift: false }, { key: "z", shift: false },
+  { key: "y", shift: false }, { key: "z", shift: true },
+]) test(`an open picker owns ${modifier}+${shift ? "Shift+" : ""}${key} on a button`, () => {
+  const f = mount();
+  try {
+    useEditor.getState().updatePage("p", { title: "Keep this edit" });
+    if (key === "y" || shift) useEditor.getState().undo();
+    f.setPopoverOpen(true);
+    const before = snapshot();
+    const prevented = f.key(key, "BUTTON", modifier === "Control", shift, modifier === "Meta");
+    assert.deepEqual(snapshot(), before);
+    assert.deepEqual(f.latest.current.selectedList, ["step:open"]);
+    assert.equal(prevented, false);
+  } finally { f.cleanup(); }
+});
 
 for (const tag of ["SELECT", "INPUT", "TEXTAREA", "DIV"]) {
   for (const key of ["Backspace", "Delete"]) test(`${tag}: ${key} does not delete the selected script block`, () => {

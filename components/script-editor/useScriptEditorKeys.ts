@@ -43,8 +43,9 @@ export function useScriptEditorKeys({
       const t = e.target as HTMLElement;
       const typing =
         t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable;
-      // 確認ダイアログを開いている間は、ダイアログに任せる
-      if (document.querySelector(".dialog-backdrop:not(.is-leaving)")) return;
+      // Pickers also contain focusable buttons. Keep workspace shortcuts out
+      // of them even after focus leaves their search input (as with Escape).
+      if (document.querySelector(".dialog-backdrop:not(.is-leaving), [data-se-popover]")) return;
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
       if (dragRef.current?.started || latest.current.peekId) return;
