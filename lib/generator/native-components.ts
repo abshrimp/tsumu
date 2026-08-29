@@ -8,6 +8,7 @@ import { hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpe
 import { fieldVarName } from "../fields";
 import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
+import { pageQueryConditions } from "../page-query";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
@@ -346,7 +347,7 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
       sveltePages[name] = build(page.children, "sveltekit", page);
       return { id: page.id, name, title: page.title || page.name,
         description: page.description, slug: page.slug,
-        query: Object.fromEntries(new URLSearchParams(page.query ?? "")),
+        query: Object.fromEntries(pageQueryConditions(page.query)),
         language: page.lang || normalized.lang || "ja", plan: pageDataPlan(normalized, page) };
     });
   return { pages, vuePages, vueComponents, sveltePages, svelteComponents };

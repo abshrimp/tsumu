@@ -158,9 +158,8 @@ test("dictionary entries are expanded into rows using ordinary loops in generate
   doc.pageOrder = [page.id];
   const exported = generateExportProject(doc, "sveltekit");
   const routesSource = exported.files["src/lib/site-routes.js"];
-  const match = /^export const pages = (.*);$/m.exec(routesSource);
-  assert.ok(match);
-  const plan = JSON.parse(match[1])[0].plan;
+  const routeModule = await import("data:text/javascript;base64," + Buffer.from(routesSource).toString("base64"));
+  const plan = routeModule.pages[0].plan;
   const uri = "data:text/javascript;base64," +
     Buffer.from(exported.files["src/lib/site-data.js"]).toString("base64");
   const { loadPageData } = await import(uri);
@@ -190,9 +189,8 @@ test("export preserves variable references after obfuscating a transformation ch
   doc.pageOrder = [page.id];
   const output = generateExportProject(doc, "sveltekit");
   const routes = output.files["src/lib/site-routes.js"];
-  const match = /^export const pages = (.*);$/m.exec(routes);
-  assert.ok(match);
-  const steps = JSON.parse(match[1])[0].plan.steps;
+  const routeModule = await import("data:text/javascript;base64," + Buffer.from(routes).toString("base64"));
+  const steps = routeModule.pages[0].plan.steps;
   assert.equal(steps[1].source, steps[0].into);
   assert.equal(steps[2].source, steps[1].into);
   const { loadPageData } = await import("data:text/javascript;base64," +

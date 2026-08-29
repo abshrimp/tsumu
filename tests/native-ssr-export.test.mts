@@ -108,9 +108,8 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
       loadPageData: (plan: unknown, query: string, request: typeof fetch) => Promise<Record<string, unknown>>;
     };
     const routes = project.files[base + "site-routes.js"];
-    const match = /^export const pages = (.*);$/m.exec(routes);
-    assert.ok(match);
-    const plan = JSON.parse(match[1])[0].plan;
+    const routeModule = await import("data:text/javascript;base64," + Buffer.from(routes).toString("base64"));
+    const plan = routeModule.pages[0].plan;
     const calls: string[] = [];
     const vars = await module.loadPageData(plan, "?category=books", async (input) => {
       calls.push(String(input));

@@ -218,7 +218,7 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     assert.match(tailwind.files["package.json"], /tailwindcss/);
   });
 
-  test(framework + " supports URL query parameters without a dynamic server path", () => {
+  test(framework + " supports URL query parameters without a dynamic server path", async () => {
     const doc = fixture();
     doc.pages.home.query = "tab=default";
     doc.pages.variant = { ...doc.pages.home, id: "variant", title: "Variant", query: "tab=2" };
@@ -227,7 +227,8 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     const result = generateExportProject(doc, framework);
     const path = framework === "nuxt" ? "app/generated/site-routes.js" :
       framework === "sveltekit" ? "src/lib/site-routes.js" : "src/site-routes.js";
-    assert.match(result.files[path], /"tab":"2"/);
+    const routes = await import("data:text/javascript;base64," + Buffer.from(result.files[path]).toString("base64"));
+    assert.equal(routes.selectPage("/", "tab=2")?.id, "variant");
     assert.match(result.files[path], /URLSearchParams/);
     doc.pages.home.slug = "[slug]";
     assert.ok(exportLimitations(doc, framework).some((m) => m.includes("[slug]")));

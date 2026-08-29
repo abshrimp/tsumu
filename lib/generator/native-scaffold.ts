@@ -13,9 +13,10 @@ const json = (value: unknown) => JSON.stringify(value)
 
 function routesFile(pages: ReturnType<typeof generateNativeFiles>["pages"]): string {
   const plain = pages.map(({ id, name, title, description, slug, query, language, plan }) =>
-    ({ id, name, title, description, path: "/" + slug.replace(/^\/+|\/+$/g, ""), query, language, plan }));
+    ({ id, name, title, description, path: "/" + slug.replace(/^\/+|\/+$/g, ""), query: Object.entries(query), language, plan }));
   return [
-    "export const pages = " + json(plain) + ";",
+    // __proto__ も条件の名前として保持し、オブジェクト初期化子の特別な構文にしない。
+    "export const pages = " + json(plain) + ".map(page => ({ ...page, query: Object.fromEntries(page.query) }));",
     "export function selectPage(pathname, query) {",
     "  let path;",
     '  try { path = decodeURI(String(pathname || "/")); }',
