@@ -726,13 +726,8 @@ a {
     } else if (asset.path) {
       remoteAssets[path] = asset.path;
     } else if (asset.dataUrl) {
-      // data:image/svg+xml;charset=utf-8;base64,… や base64でない形式も受け付ける
-      const m = /^data:([^,]*?)(;base64)?,([\s\S]*)$/.exec(asset.dataUrl);
-      if (m) {
-        binaries[path] = m[2]
-          ? m[3].replace(/\s+/g, "")
-          : utf8ToBase64(decodeURIComponent(m[3]));
-      }
+      const encoded = dataUrlBase64(asset.dataUrl);
+      if (encoded !== undefined) binaries[path] = encoded;
     }
   }
 
@@ -748,12 +743,8 @@ a {
     if (asset.path) {
       remoteAssets[alias] = asset.path;
     } else if (asset.dataUrl) {
-      const m = /^data:([^,]*?)(;base64)?,([\s\S]*)$/.exec(asset.dataUrl);
-      if (m) {
-        binaries[alias] = m[2]
-          ? m[3].replace(/\s+/g, "")
-          : utf8ToBase64(decodeURIComponent(m[3]));
-      }
+      const encoded = dataUrlBase64(asset.dataUrl);
+      if (encoded !== undefined) binaries[alias] = encoded;
     } else if (zipStylesheet(asset)) {
       files[alias] = zipStylesheet(asset)!.source;
     }
@@ -959,11 +950,31 @@ export const config = {
 `;
 }
 
-function utf8ToBase64(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+/** Match data URL fetching: percent escapes encode bytes, not UTF-8 text.
+ * Decode before Base64 processing, and exclude the URL fragment from the file.
+ */
+function dataUrlBase64(source: string): string | undefined {
+  const url = new URL(source);
+  if (url.protocol !== "data:") return undefined;
+  const data = url.pathname + url.search;
+  const comma = data.indexOf(",");
+  if (comma < 0) return undefined;
+  const input = new TextEncoder().encode(data.slice(comma + 1));
+  const bytes = new Uint8Array(input.length);
+  let length = 0;
+  const hex = (byte: number) => byte >= 48 && byte <= 57 ? byte - 48
+    : byte >= 65 && byte <= 70 ? byte - 55 : byte >= 97 && byte <= 102 ? byte - 87 : -1;
+  for (let i = 0; i < input.length; i++) {
+    const hi = hex(input[i + 1]), lo = hex(input[i + 2]);
+    if (input[i] === 37 && hi >= 0 && lo >= 0) {
+      bytes[length++] = hi * 16 + lo;
+      i += 2;
+    } else bytes[length++] = input[i];
   }
-  return btoa(bin);
+  let bin = "";
+  for (let i = 0; i < length; i += 0x8000) {
+    bin += String.fromCharCode(...bytes.subarray(i, Math.min(length, i + 0x8000)));
+  }
+  const mime = data.slice(0, comma).replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, "");
+  return btoa(/; *base64$/i.test(mime) ? atob(bin) : bin);
 }
