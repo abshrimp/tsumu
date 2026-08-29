@@ -252,14 +252,6 @@ export async function POST(req: Request) {
     const manual = planPublish(currentBlobs, generated, []);
     const keptPaths = Object.keys(manual.kept).filter(path => !isProtectedPath(path));
     const kept = keptTreeEntries(currentEntries, keptPaths);
-    if (!kept || conflictingCommitPaths([...sourcePaths.filter(path => !isProtectedPath(path)), ...keptPaths])) {
-      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 409 });
-    }
-    // Preserve .github as a whole subtree. Do not also write its nested files
-    // in this Git Trees API request; that could replace the subtree.
-    const sourceRoot = sourceEntries.filter(entry => !entry.path.includes("/"));
-    const currentRoot = currentEntries.filter(entry => !entry.path.includes("/"));
-    const sourceByPath = new Map(sourceEntries.map(entry => [entry.path, entry]));
     // When the older generated-file manifest exists, retain current deletions
     // of files that were manually owned in the historical tree. Generated
     // files absent from the current tree must still be restored.
@@ -269,9 +261,28 @@ export async function POST(req: Request) {
           !Object.hasOwn(sourceGenerated, entry.path) &&
           !Object.hasOwn(currentBlobs, entry.path))
       : [];
+    const deletedPaths = new Set(deletedManual.map(entry => entry.path));
+    if (!kept || conflictingCommitPaths([
+      ...sourcePaths.filter(path => !isProtectedPath(path) && !deletedPaths.has(path)), ...keptPaths,
+    ])) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 409 });
+    }
+    // Preserve .github as a whole subtree. Do not also write its nested files
+    // in this Git Trees API request; that could replace the subtree.
+    const sourceRoot = sourceEntries.filter(entry => !entry.path.includes("/"));
+    const currentRoot = currentEntries.filter(entry => !entry.path.includes("/"));
+    const sourceByPath = new Map(sourceEntries.map(entry => [entry.path, entry]));
+    // 手動ファイルとディレクトリを入れ替えた場合は、古いパスを先に別ツリーから除く。
+    // 親と子の編集を同時に渡さず、最後のコミットまでブランチの先端は動かさない。
+    const pruneFirst = !!conflictingCommitPaths([
+      ...sourcePaths.filter(path => !isProtectedPath(path)), ...keptPaths,
+    ]);
+    const deletions: TreeEntry[] = deletedManual.map(entry => ({
+      path: entry.path, mode: entry.mode, type: entry.type, sha: null,
+    }));
     const edits: (TreeEntry | { path: string; mode: "100644"; type: "blob"; content: string })[] = [
       ...protectedTreeEdits(sourceRoot, currentRoot),
-      ...deletedManual.map(entry => ({ path: entry.path, mode: entry.mode, type: entry.type, sha: null })),
+      ...(!pruneFirst ? deletions : []),
       ...kept.filter(entry => {
         const prior = sourceByPath.get(entry.path);
         return !prior || prior.sha !== entry.sha || prior.mode !== entry.mode || prior.type !== entry.type;
@@ -292,10 +303,11 @@ export async function POST(req: Request) {
       });
     }
     let treeSha = src.tree.sha;
-    if (edits.length) {
+    for (const changes of pruneFirst ? [deletions, edits] : [edits]) {
+      if (!changes.length) continue;
       const treeRes = await gh(`/git/trees`, {
         method: "POST",
-        body: JSON.stringify({ base_tree: src.tree.sha, tree: edits }),
+        body: JSON.stringify({ base_tree: treeSha, tree: changes }),
       });
       if (!treeRes.ok) await fail(tr("ツリーの作成"), treeRes);
       treeSha = ((await treeRes.json()) as { sha: string }).sha;
