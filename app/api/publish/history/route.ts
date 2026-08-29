@@ -29,9 +29,11 @@ import {
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
 import { hasPublishCredentials } from "../../../../lib/publish-security";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../lib/api-json";
 
 export const maxDuration = 30;
 const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
+const MAX_ROLLBACK_REQUEST_BYTES = 128 * 1024;
 
 const isSha = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{40}$/i.test(s);
 
@@ -142,10 +144,13 @@ export async function POST(req: Request) {
   if (denied) return denied;
   let body: { target?: unknown; sha?: unknown; site?: string; dest?: unknown; expected?: unknown; expectedHead?: unknown };
   try {
-    body = await req.json();
-    if (!body || typeof body !== "object" || Array.isArray(body)) throw new TypeError();
-  } catch {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    const value = await readJsonLimited(req, MAX_ROLLBACK_REQUEST_BYTES);
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError();
+    body = value as typeof body;
+  } catch (error) {
+    const status = error instanceof JsonBodyTooLargeError ? 413
+      : error instanceof JsonContentTypeError ? 415 : 400;
+    return NextResponse.json({ error: tr(status === 413 ? "リクエストが大きすぎます" : "リクエストが正しくありません") }, { status });
   }
   if (!isSha(body.sha)) {
     return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });

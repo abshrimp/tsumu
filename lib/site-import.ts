@@ -148,9 +148,10 @@ export async function restoreImportAssets(
     embeddedBytes += url?.length ?? 0;
     if (embeddedBytes > IMPORT_LIMITS.docBytes) throw new Error("編集データが容量上限を超えています。");
   };
-  for (const [id, asset] of Object.entries(doc.assets)) {
+  const assets = Object.entries(doc.assets);
+  for (const [id, asset] of assets) {
     number++;
-    progress("アセットを復元中… " + number + " / " + Object.keys(doc.assets).length);
+    progress("アセットを復元中… " + number + " / " + assets.length);
     const archived = imported.assets.get(id);
     let bytes = archived;
     if (!bytes && isEmbeddedAssetUrl(asset.dataUrl)) {
