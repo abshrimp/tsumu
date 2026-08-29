@@ -35,16 +35,34 @@ function Dialog({ req }: { req: DialogRequest }) {
 
   // 初期フォーカス: 入力欄 → （危険な操作なら）キャンセル → 決定
   useEffect(() => {
+    const previousFocus = document.activeElement;
     if (req.kind === "prompt") {
       inputRef.current?.focus();
       inputRef.current?.select();
     } else if (danger && req.kind === "confirm") cancelRef.current?.focus();
     else okRef.current?.focus();
+    return () => {
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
   }, [req.kind, danger]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === "Tab") {
+        // The portal is last in the document, so native Tab at either end
+        // would reach the editor behind this modal. Re-read disabled on each
+        // keypress: typing the expected confirmation text can enable OK.
+        const controls = [inputRef.current, cancelRef.current, okRef.current]
+          .filter((el): el is HTMLInputElement | HTMLButtonElement => !!el && !el.disabled);
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        const active = document.activeElement;
+        if (!controls.some(el => el === active) || active === (e.shiftKey ? first : last)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first)?.focus();
+        }
+      }
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
@@ -100,6 +118,8 @@ function Dialog({ req }: { req: DialogRequest }) {
           <input
             ref={inputRef}
             className="input dialog-input"
+            aria-labelledby={`dialog-title-${req.id}`}
+            aria-describedby={`dialog-msg-${req.id}`}
             value={value}
             placeholder={req.opts.placeholder ?? expect}
             onChange={(e) => setValue(e.target.value)}
