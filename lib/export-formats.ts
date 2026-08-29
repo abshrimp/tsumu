@@ -287,7 +287,7 @@ export function generateExportProject(
     : (options.framework === "html" || options.framework === "single-html")
       ? generateStandaloneHtml(scoped, next)
       : (options.framework === "vue" || options.framework === "nuxt" || options.framework === "sveltekit")
-        ? buildAdditionalFramework(scoped, next, options.framework, options.language)
+        ? buildAdditionalFramework(scoped, next, options.framework, options.language, target)
         : next;
   const styled = options.style === "css" ? generated
     : applyExportStyle(generated, options.framework, options.style);
