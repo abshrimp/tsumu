@@ -74,6 +74,19 @@ export async function sendCloudDoc(
   };
 }
 
+export interface DeferredCloudConflict {
+  base: string;
+  baseDoc: SiteDoc;
+  snapshot: SiteDoc;
+  remoteDoc: SiteDoc;
+  remoteRev: string;
+}
+
+function reconcileConflict(conflict: DeferredCloudConflict, local: SiteDoc): SiteDoc {
+  const reconciled = mergeDocs(conflict.baseDoc, conflict.snapshot, conflict.remoteDoc);
+  return local === conflict.snapshot ? reconciled : mergeDocs(conflict.snapshot, local, reconciled);
+}
+
 export interface CloudAutosave {
   observedDoc: Ref<SiteDoc>;
   cloudReady: Ref<boolean>;
@@ -85,6 +98,7 @@ export interface CloudAutosave {
   lastSyncedRev: Ref<string | null>;
   lastSyncedDoc: Ref<SiteDoc | null>;
   retrySaveAfterEdit: Ref<boolean>;
+  deferredCloudConflict: Ref<DeferredCloudConflict | null>;
   getState: () => Pick<EditorStore, "doc" | "cloudState" | "editingText" | "setCloud" | "applyRemoteDoc">;
   saveCloudDoc: (snapshot: SiteDoc, base: string | null, baseDoc?: SiteDoc) => Promise<CloudRequestResult>;
   setUnsyncedFlag: (on: boolean) => void;
@@ -136,24 +150,43 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
       return;
     }
     a.activeCloudSave.current = (async () => {
-      const st = a.getState();
-      const base = a.lastSyncedRev.current;
-      const baseDoc = a.lastSyncedDoc.current;
-      if (!base || !baseDoc) {
-        a.cloudReady.current = false;
-        st.setCloud("error");
-        return;
-      }
-      const snapshot = st.doc;
-      if (snapshot === baseDoc) {
-        a.cloudDirty.current = false;
-        a.setUnsyncedFlag(false);
-        // 保存に失敗したあと、元に戻すなどで同期済みの内容へ戻ったときは表示も戻す
-        if (st.cloudState === "error" || st.cloudState === "saving") st.setCloud("synced");
-        return;
-      }
-      st.setCloud("saving");
+      let st = a.getState();
       try {
+        const deferred = a.deferredCloudConflict.current;
+        if (deferred) {
+          // 入力中は競合と送信時の版を保ち、何度保存を予約しても上書きしない。
+          if (st.editingText) {
+            a.retrySaveAfterEdit.current = true;
+            return;
+          }
+          // 再読み込みなどで同期済みの版が変わった場合、古い競合は適用しない。
+          if (a.lastSyncedRev.current === deferred.base && a.lastSyncedDoc.current === deferred.baseDoc) {
+            const merged = reconcileConflict(deferred, st.doc);
+            st.applyRemoteDoc(merged);
+            st = a.getState();
+            a.lastSyncedRev.current = deferred.remoteRev;
+            a.lastSyncedDoc.current = deferred.remoteDoc;
+          }
+          // 合成・適用に失敗した場合は、送信時の版を残して安全に再試行する。
+          a.deferredCloudConflict.current = null;
+          a.retrySaveAfterEdit.current = false;
+        }
+        const base = a.lastSyncedRev.current;
+        const baseDoc = a.lastSyncedDoc.current;
+        if (!base || !baseDoc) {
+          a.cloudReady.current = false;
+          st.setCloud("error");
+          return;
+        }
+        const snapshot = st.doc;
+        if (snapshot === baseDoc) {
+          a.cloudDirty.current = false;
+          a.setUnsyncedFlag(false);
+          // 保存に失敗したあと、元に戻すなどで同期済みの内容へ戻ったときは表示も戻す
+          if (st.cloudState === "error" || st.cloudState === "saving") st.setCloud("synced");
+          return;
+        }
+        st.setCloud("saving");
         // base 付き = 楽観ロック。他の編集者が先に保存していれば 409 が返る
         const res = await a.saveCloudDoc(snapshot, base, baseDoc);
         if (res.ok) {
@@ -171,9 +204,11 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
           const data = res.data;
           const now = a.getState();
           if (data?.doc && baseDoc && now.editingText) {
-            // テキスト編集中のマージは入力が失われるため、確定（blur）後の
-            // 再保存時に解決する（base は据え置き → もう一度409になる）。
-            // 文字を変えずに編集を終えても保存し直せるよう、終わったときに知らせる
+            // 入力を失わないよう確定後に合成する。送信中や確定待ちの Undo も
+            // 戻せるよう、送信時の版と受け取った競合を一緒に残す。
+            a.deferredCloudConflict.current = {
+              base, baseDoc, snapshot, remoteDoc: data.doc, remoteRev: data.rev ?? base,
+            };
             a.retrySaveAfterEdit.current = true;
             st.setCloud("saving");
           } else if (data?.doc && baseDoc) {
@@ -182,9 +217,9 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
             // reconcile that attempt, then replay edits made while it was in
             // flight. Comparing only now.doc with baseDoc would mistake Undo
             // back to the base for "no local change" and resurrect the edit.
-            const reconciled = mergeDocs(baseDoc, snapshot, data.doc);
-            const merged = now.doc === snapshot ? reconciled
-              : mergeDocs(snapshot, now.doc, reconciled);
+            const merged = reconcileConflict({
+              base, baseDoc, snapshot, remoteDoc: data.doc, remoteRev: data.rev ?? base,
+            }, now.doc);
             a.lastSyncedRev.current = data.rev ?? a.lastSyncedRev.current;
             a.lastSyncedDoc.current = data.doc;
             // dirty のまま適用 → 保存エフェクトが再スケジュールされる
