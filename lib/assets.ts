@@ -448,7 +448,8 @@ export async function downloadAsset(asset: Asset): Promise<void> {
 
 /**
  * サーバー上のアセットを削除（dataURL資産は何もしない）。
- * ほかのサイトが同じファイルを使っていれば消さない（サーバーでも D1 の全サイトを見て確かめる）
+ * ほかのサイトが同じファイルを使っていれば消さない（Node.js・Docker のサーバーは全サイトを見て確かめる。
+ * Cloudflare のサーバーは同時保存との競合を避けるため KV のファイルを消さない）
  */
 export async function deleteAssetRemote(asset: Asset): Promise<void> {
   if (!asset.path) return;

@@ -148,7 +148,7 @@
 
 - **Tsumu の zip・`doc.json`**（`lib/site-import.ts`）：zip には `_tsumu/doc.json` が1つのみ含まれている必要があります。`_tsumu/assets.json` は、元のアセットの ID とアーカイブ内のファイルを対応付けます。`doc.json` は通常の JSON か、`lib/portable-doc.ts` の gzip＋Base64 による圧縮形式です。文書を検証し、アセットを元の ID のまま再アップロードします。パスは推測しないため、対応表になく data URL もないアセットは復元せず、注意事項として表示します。ルートの外を指すパスは拒否します。
 - **HTML ファイル・ウェブサイトの zip**（`lib/html-to-site.ts`）：すべてのページを編集可能なノードに変換します。クラスと安全な一部の属性は保持し（`lib/imported-html-attrs.ts`）、イベント属性、URL を含む属性、Tsumu 内部の `data-*` 属性は引き継ぎません。
-- **上限**（`IMPORT_LIMITS`）：zip は100MB、`doc.json` と HTML ファイルは12MB、展開後は500ファイル・300MBまでです。
+- **上限**（`IMPORT_LIMITS`）：zip は100MB、`doc.json` と HTML ファイルは12MB、展開後は1,500ファイル・300MBまでです。
 
 エディタのページ設定からは、1つのページに HTML を読み込むこともできます。ノードに変換するか、HTMLページとしてそのまま使うかを選べます。後者については次節で説明します。
 

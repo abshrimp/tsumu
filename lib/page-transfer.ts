@@ -3,7 +3,7 @@
 /**
  * ページをほかのサイトへコピーする。
  * ページと中の要素を、使っているアセット・コンポーネント・フォントと一緒にまとめ、
- * コピー先のサイトの編集データ（D1 / このブラウザの保存）へ書き足す
+ * コピー先のサイトの編集データ（サーバー / このブラウザの保存）へ書き足す
  */
 
 import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } from "./types";
@@ -206,7 +206,7 @@ async function readJson(res: Response): Promise<Record<string, any>> {
 
 /**
  * ページをほかのサイトへコピーする。
- * server = D1 に保存しているサイト（ほかの人が編集中でも、版を確かめて書き足す）、
+ * server = サーバーに保存しているサイト（ほかの人が編集中でも、版を確かめて書き足す）、
  * local = このブラウザに保存しているサイト
  */
 export async function copyPagesToSite(

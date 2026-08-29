@@ -544,16 +544,19 @@ lib/
   site-import.ts      Restore a Tsumu zip or doc.json (import-site-file.ts creates the site)
   html-to-site.ts     Convert HTML into editable elements (html-file-import.ts, html-zip.ts)
   script.ts           Script model; script-runtime.ts is the runtime shared by the canvas and exported sites
+  site-document-service.ts  Routes each site's editing data to its Durable Object (Cloudflare) or local SQLite
+  structured-document-store.ts  Row-per-page/node SQLite schema inside the DocumentRoom Durable Object
   node-storage.ts     SQLite and file storage outside Cloudflare (TSUMU_DATA_DIR)
   store.ts            Editor state (zustand) and undo history
   clip-transfer.ts    Copy and paste between sites
   page-transfer.ts    Copy pages to another site
-  comments.ts         Comment threads (D1 and browser storage)
+  comments.ts         Comment threads on the server (comment-store.ts keeps them in the browser without one)
   activity.ts         Edit and publish activity log
   aiOps.ts            AI edit operations (applied on the server and in the browser)
   manualTopics.ts     Help articles
   locales/            English translations
 custom-worker.ts      Cloudflare Worker entry, including the collaboration Durable Object
+document-room.ts      The per-site document Durable Object (DocumentRoom)
 scripts/cloudflare.mjs  Writes the deploy wrangler config and runs OpenNext
 ```
 
@@ -561,7 +564,7 @@ scripts/cloudflare.mjs  Writes the deploy wrangler config and runs OpenNext
 npm run typecheck      # tsc --noEmit
 npm test               # regression tests for collaboration, undo, scripts, publishing and more
 npm run i18n:check     # missing English translations (other languages: npm run i18n:check -- <code>)
-npm run build && npm run test:e2e   # end-to-end tests in a real browser (Playwright; first run: npx playwright install chromium)
+npm run build && npm run test:e2e   # end-to-end tests in real browsers (Playwright; first run: npx playwright install chromium firefox webkit)
 ```
 
 To check that an output format still builds, generate a sample project and build it (CI does this for every framework, in TypeScript and JavaScript):

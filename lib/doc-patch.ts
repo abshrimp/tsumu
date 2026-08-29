@@ -6,7 +6,7 @@ export type DocPatchOp =
   | { path: string[]; value: unknown }
   | { path: string[]; remove: true };
 export type DocPatch = DocPatchOp[];
-// D1 のバインド数上限内に収める。大規模な置き換えは従来の全体保存を使う。
+// 1回の差分保存で扱う操作数の上限。大規模な置き換えは全体保存を使う。
 export const MAX_PATCH_OPS = 32;
 
 /** Canonical SQLite JSON path for patch targets. All segments are validated IDs. */

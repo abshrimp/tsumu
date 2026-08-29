@@ -87,7 +87,8 @@ export function detectFields(items: Record<string, unknown>[]): string[] {
 }
 
 /**
- * 絞り込みの比較（スクリプトの「配列を絞り込む」。ブラウザの cmp・書き出しの filterExpr と同じ規則）
+ * 絞り込みの比較（スクリプトの「配列を絞り込む」。ブラウザ実行時・書き出し（filterPredicate）と同じく
+ * lib/value-semantics.ts の matchesValueCondition の規則）
  */
 export function matchOp(v: unknown, op: ScriptOp | undefined, w: unknown): boolean {
   return matchesValueCondition(v, op ?? "eq", w);
@@ -103,7 +104,7 @@ function safeCompareText(value: unknown): string {
 
 /**
  * 並べ替えの比較。数値どうしは数値で、それ以外は数字を数値として比べる文字列比較
- * （ブラウザの renderList・書き出しの sortExpr と同じ規則）
+ * （ブラウザ実行時の order・書き出しの listItemsExpr と同じ規則）
  */
 export function compareValues(a: unknown, b: unknown): number {
   if (typeof a === "number" && typeof b === "number") return a - b;

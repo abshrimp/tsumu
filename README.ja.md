@@ -122,6 +122,8 @@ http://localhost:3000 を開くと、ホーム画面（サイトの一覧）が�
 
 ## エディタのデプロイ
 
+稼働中のエディタを更新する前に、[リリース時の安全確認](docs/releasing.md)（英語）に沿って、ステージングでの確認、バックアップと復元の検証、ロールバック、監視を行ってください。
+
 エディタは次の3つの環境で動作します。機能は共通で、データの保存先と、他の編集者の変更を反映する方式のみが異なります。
 
 | | Cloudflare Workers | Node.js | Docker |
@@ -191,9 +193,9 @@ Cloudflare Workers Builds で自動デプロイする場合は、リポジトリ
 
 #### プルリクエストのプレビュー（Worker Previews）
 
-上記の Preview command を設定すると、Workers Builds はプルリクエストごとに **Worker Preview** をデプロイし、その URL をプルリクエストに投稿します。プレビューはログイン不要の公開デモで、データはブラウザ内に保存し、本番の保存先やシークレットは使用しません。
+上記の Preview command を設定すると、Workers Builds はプルリクエストごとに **Worker Preview** をデプロイし、その URL をプルリクエストに投稿します。リポジトリの既定のプレビュー設定は、ログイン不要でデータをブラウザ内に保存する公開デモです。スクリプトは空の D1/KV バインディングを用意して `--ignore-base-config` を付けて実行しますが、既存のプレビューに設定済みのシークレットは削除しません。公開デモとして再利用する前に、シークレットを確認してください。
 
-設定方法とテスト用の保存先については、[エディタのプルリクエストのプレビュー](docs/worker-previews.ja.md) を参照してください。
+設定方法とテスト用の保存先については、[エディタのプルリクエストのプレビュー](docs/worker-previews.ja.md) を参照してください。サーバーに保存する場合は、D1・KV の ID に加えて、`COLLAB_ROOM` とともに `DOC_STORE` を `DocumentRoom` にバインドする設定をプレビューに明示する必要があります。共有のテスト用保存先を使う前に、ログインを設定してください。
 
 ### Node.js
 
@@ -217,7 +219,7 @@ ALLOW_ANONYMOUS=true TSUMU_DATA_DIR=./data npm start
 
 **運用上の注意**
 
-- **バックアップ**: `TSUMU_DATA_DIR` のフォルダ全体をコピーします。SQLite は直近の書き込みを `tsumu.db-wal` にも保持するため、`tsumu.db`・`tsumu.db-wal`・`tsumu.db-shm` をまとめてコピーしてください。可能であればエディタを停止してから行います。
+- **バックアップ**: `TSUMU_DATA_DIR` に書き込むすべてのプロセスを停止し、自動再起動も無効にしてから、フォルダ全体をコピーします。コピーが終わるまで書き込みを再開しないでください。稼働中の SQLite のデータベースと WAL ファイルを1つずつコピーしても、整合したスナップショットにはなりません。`assets/` と、残っている `tsumu.db-wal`・`tsumu.db-shm` も含め、これらを削除しないでください。コピー先はデータフォルダの外の新しい場所にし、使用する前に[使い捨ての環境での復元](docs/releasing.md#backup-and-restore-validation)を検証してください。
 - **1つのフォルダにつき1つのエディタ**: 同じ `TSUMU_DATA_DIR` を使うエディタは1つだけ起動してください。他の編集者の変更は、1つのプロセス内で通知しているためです。
 - **リバースプロキシ（nginx など）を使用する場合**:
   - `AUTH_URL` に公開 URL を設定し、プロキシで `X-Forwarded-Host` と `X-Forwarded-Proto` を転送してください。設定しないと、Googleログイン後に正しいアドレスへ戻りません。
@@ -249,13 +251,27 @@ docker run -d --name tsumu -p 3000:3000 -v tsumu-data:/data --env-file .env.loca
 - ホスト上のフォルダに保存する場合は、`-v "$(pwd)/data:/data"` と指定します。コンテナは `node` ユーザー（UID 1000）で動作するため、Linux では事前にフォルダの所有者を変更してください（`sudo chown 1000:1000 data`）。
 - **`-v` を指定せずに起動しないでください。** データが匿名のボリュームに保存され、コンテナを再作成すると参照できなくなります。
 
-名前付きボリュームのバックアップ（可能であればコンテナを停止してから行います）:
+上の例の名前付きボリュームをバックアップするには、まずエディタを再起動し得る外部の監視を無効にし、このボリュームへの他の書き込みを止めます。次のブロック全体を、データのボリュームの外にあるバックアップ用のディレクトリで実行します。
 
 ```bash
-docker stop tsumu
-docker run --rm -v tsumu-data:/data -v "$(pwd)":/backup busybox tar czf /backup/tsumu-data.tgz -C /data .
-docker start tsumu
+(
+  set -eu
+  data_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' tsumu)"
+  test "$data_volume" = 'tsumu-data'
+  docker stop tsumu
+  running="$(docker inspect --format '{{.State.Running}}' tsumu)"
+  test "$running" = 'false'
+  backup_dir="$(mktemp -d "$PWD/tsumu-backup.XXXXXX")"
+  docker run --rm \
+    --mount type=volume,src=tsumu-data,dst=/data,readonly \
+    --mount "type=bind,src=$backup_dir,dst=/backup" \
+    busybox sh -ec 'test -s /data/tsumu.db; tar czf /backup/tsumu-data.tgz -C /data .; tar tzf /backup/tsumu-data.tgz >/dev/null'
+  printf 'Backup archive (restore validation pending): %s/tsumu-data.tgz\n' "$backup_dir"
+  docker start tsumu
+)
 ```
+
+このブロックは、対象のボリュームと停止状態を確かめ、元のデータを読み取り専用でマウントし、実行ごとに別のディレクトリを作成します。失敗した場合は再起動に進まずに終了します。エラーとコンテナの状態を確認し、安全を確かめてからエディタを再起動してください。途中までのアーカイブは使用しないでください。アーカイブを読み込めるだけでは復元できる保証にならないため、[隔離した環境での復元の手順](docs/releasing.md#backup-and-restore-validation)に従って確認してください。
 
 リバースプロキシの設定は [Node.js](#nodejs) と同じです。
 
@@ -521,16 +537,19 @@ lib/
   site-import.ts      Tsumu の zip・doc.json の復元（サイトの作成は import-site-file.ts）
   html-to-site.ts     HTML を編集可能な要素に変換（html-file-import.ts・html-zip.ts）
   script.ts           スクリプトのデータ構造（実行ランタイムは script-runtime.ts。キャンバスと書き出したサイトで共用）
+  site-document-service.ts  サイトごとの編集データの保存先の振り分け（Cloudflare は Durable Object、それ以外はローカルの SQLite）
+  structured-document-store.ts  DocumentRoom（Durable Object）内の SQLite の構造（ページ・要素ごとの行）
   node-storage.ts     Cloudflare 以外での保存先（SQLite・ファイル。TSUMU_DATA_DIR）
   store.ts            エディタの状態（zustand）と元に戻す履歴
   clip-transfer.ts    サイト間のコピー＆ペースト
   page-transfer.ts    ページを他のサイトへコピー
-  comments.ts         コメント（D1・ブラウザ保存）
+  comments.ts         サーバーでのコメントの保存（サーバーがない場合は comment-store.ts がブラウザ内に保存）
   activity.ts         編集・公開の記録
   aiOps.ts            AI の編集操作（サーバーとブラウザの両方で適用）
   manualTopics.ts     ヘルプの記事
   locales/            英語の訳
 custom-worker.ts      同時編集の Durable Object を含む Cloudflare Worker のエントリポイント
+document-room.ts      サイトごとの編集データを保存する Durable Object（DocumentRoom）
 scripts/cloudflare.mjs  デプロイ用の wrangler 設定を生成し、OpenNext を実行
 ```
 
@@ -538,7 +557,7 @@ scripts/cloudflare.mjs  デプロイ用の wrangler 設定を生成し、OpenNex
 npm run typecheck      # tsc --noEmit
 npm test               # 同時編集・元に戻す・スクリプト・公開などの回帰テスト
 npm run i18n:check     # 英訳の漏れを検出（他の言語は npm run i18n:check -- <言語コード>）
-npm run build && npm run test:e2e   # 実際のブラウザによるE2Eテスト（Playwright。初回は npx playwright install chromium）
+npm run build && npm run test:e2e   # 実際のブラウザによるE2Eテスト（Playwright。初回は npx playwright install chromium firefox webkit）
 ```
 
 出力形式のビルドを確認するには、サンプルのプロジェクトを生成してビルドします（CI では全フレームワークを TypeScript と JavaScript の両方で確認しています）。
