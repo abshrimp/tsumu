@@ -158,10 +158,17 @@ function RestoreFields({ formRef }: { formRef: RefObject<HTMLFormElement | null>
       const input = el as HTMLInputElement;
       // ファイルの欄は値を入れられない（空以外を入れると例外になる）
       if (!input.name || input.type === "file") continue;
-      const v = params.get(input.name);
+      const values = params.getAll(input.name);
+      const v = values[0] ?? null;
       if (el instanceof HTMLSelectElement) {
         // select には defaultValue が無い。URLの値の選択肢が無ければ最初に選んでいたものに戻す
         const options = Array.from(el.options);
+        // 複数選択は同名のクエリをすべて復元し、以前の選択も解除する。
+        if (el.multiple) {
+          for (const option of options)
+            option.selected = hasQuery ? values.includes(option.value) : option.defaultSelected;
+          continue;
+        }
         const pick =
           (v === null ? undefined : options.find((o) => o.value === v)) ??
           options.find((o) => o.defaultSelected) ??
@@ -169,7 +176,7 @@ function RestoreFields({ formRef }: { formRef: RefObject<HTMLFormElement | null>
         if (pick) pick.selected = true;
       } else if (input.type === "checkbox" || input.type === "radio") {
         input.checked = hasQuery
-          ? v !== null && (input.value === v || (input.type === "checkbox" && v === "on"))
+          ? (input.type === "radio" ? input.value === v : values.includes(input.value))
           : input.defaultChecked;
       } else {
         input.value = v ?? input.defaultValue;
@@ -200,7 +207,7 @@ export default function SearchForm({
         const qs = new URLSearchParams(window.location.search);
         for (const name of fieldNames(event.currentTarget)) qs.delete(name);
         for (const [k, v] of data.entries()) {
-          if (typeof v === "string" && v !== "") qs.set(k, v);
+          if (typeof v === "string") qs.append(k, v);
         }
         // ソフトナビゲーション: サーバー再取得で一覧だけが更新される
         router.replace(
