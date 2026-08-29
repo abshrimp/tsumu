@@ -15,9 +15,15 @@ export interface Loc {
   index: number;
 }
 
+// Only the final colon separates the branch; imported step IDs may contain colons.
+function branchOf(list: string): [string, string] {
+  const separator = list.lastIndexOf(":");
+  return [list.slice(0, separator), list.slice(separator + 1)];
+}
+
 export function listIn(script: PageScript, list: string, createMissing = false): ScriptStep[] | null {
   if (list === "root") return script.steps;
-  const [sid, branch] = list.split(":");
+  const [sid, branch] = branchOf(list);
   let found: ScriptStep[] | null = null;
   const visit = (steps: ScriptStep[]) => {
     for (const s of steps) {
@@ -73,7 +79,7 @@ function spliceScriptList(
     return [scripts.map((item) => item === script ? { ...item, steps } : item), removed];
   }
 
-  const [sid, branch] = loc.list.split(":");
+  const [sid, branch] = branchOf(loc.list);
   // Resolve duplicate IDs with the same direct-match short circuit as listIn.
   const findOwner = (steps: ScriptStep[]): ScriptStep | null => {
     let found: ScriptStep | null = null;
@@ -335,8 +341,10 @@ export function filterNumbersOf(scripts: PageScript[], array: string): number[] 
   return [...(index.get(array) ?? [])];
 }
 
-export const slotKey = (loc: Loc) => `${loc.scriptId}|${loc.list}|${loc.index}`;
+// These keys only address live DOM slots, never saved data. A tuple keeps IDs
+// containing pipes, quotes or other delimiters distinct without rewriting them.
+export const slotKey = (loc: Loc) => JSON.stringify([loc.scriptId, loc.list, loc.index]);
 export function parseSlot(key: string): Loc {
-  const [scriptId, list, index] = key.split("|");
-  return { scriptId, list, index: Number(index) };
+  const [scriptId, list, index] = JSON.parse(key) as [string, string, number];
+  return { scriptId, list, index };
 }
