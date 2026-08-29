@@ -128,6 +128,9 @@ export default function Canvas() {
   const editingComp = editingComponentId
     ? doc.components?.[editingComponentId]
     : null;
+  const hasVisualFrame = !!page && (!!editingComp || (
+    page.rawHtml == null && page.redirectTo === undefined && page.rewriteTo === undefined
+  ));
   /** キャンバスに描画するルート群（ページ or コンポーネントのマスター） */
   const rootIds = editingComp ? [editingComp.rootId] : (page?.children ?? []);
   /** 編集中のコンポーネントの中に、そのコンポーネント自身のインスタンスがあっても描き続けない */
@@ -471,8 +474,11 @@ export default function Canvas() {
       return true;
     },
   };
+  // Each page/master visit owns its listeners and pending scripts. HTML and
+  // redirect/rewrite views remove frameRef; returning needs a fresh install.
+  // Do not depend on doc: ordinary data/style updates must not replay load.
   useEffect(() => {
-    if (mode !== "preview") return;
+    if (mode !== "preview" || !hasVisualFrame) return;
     const root = frameRef.current;
     if (!root) return;
     // 最新の state を参照するため ref 経由で呼ぶ（入れ直すと「開いたとき」が再実行される）
@@ -492,7 +498,7 @@ export default function Canvas() {
       storePrefix: "site-preview:",
     };
     return createScriptRuntime(env).install(root);
-  }, [mode]);
+  }, [mode, activePageId, editingComponentId, hasVisualFrame]);
 
   // テキスト編集中の部分選択を追跡（スタイルパネルでのspan分割に使う）
   const setTextSel = useEditor((s) => s.setTextSel);
