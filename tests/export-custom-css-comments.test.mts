@@ -31,8 +31,12 @@ for(const source of [
   if(source.includes('--literal:'))assert.equal(result['--literal'],expected['--literal']);
   if(source.includes('content:'))assert.equal(result.content,expected.content);
 });
-test('comment tokens do not make rule-breaking custom declarations valid',()=>{
-  const result=css('color: red; /* note */ background: blue; bad property: x; content: "</style><script>x</script>";');
-  assert.equal(declarations(result.exported).background,'blue');
-  assert.doesNotMatch(result.exported,/bad property|<\/style>|<script>/);
+for (const [closingStyle, openingScript] of [
+  ['</style>', '<script>'],
+  ['</STYLE>', '<SCRIPT>'],
+  ['</StYlE>', '<ScRiPt>'],
+]) test(`comment tokens do not make rule-breaking custom declarations valid: ${closingStyle}`, () => {
+  const result = css(`color: red; /* note */ background: blue; bad property: x; content: "${closingStyle}${openingScript}x</script>";`);
+  assert.equal(declarations(result.exported).background, 'blue');
+  assert.doesNotMatch(result.exported, /bad property|<\/style>|<script>/i);
 });
