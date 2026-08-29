@@ -1,12 +1,14 @@
 import JSZip from "jszip";
-import type { SiteDoc } from "./types";
+import type { Asset, SiteDoc } from "./types";
 import { prepareExportScopeDoc, prepareExportProject, type ExportFormat, type ExportOptions } from "./export-formats";
-import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
+import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, isEmbeddedAssetUrl, mapLimit } from "./assets";
 import { tr } from "./i18n";
 import { buildAssetNames } from "./generator/names";
 import { cssValue } from "./generator/css";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from "./site-import";
+import { zipStylesheet } from "./zip-css";
+import { importedAssetPath } from "./generator/imported-assets";
 
 /** A ZIP's top-level folder is also a filesystem path, not just a download label. */
 export function exportDirectoryName(siteName: string): string {
@@ -33,10 +35,8 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
     if (node.code?.html) node.code.html = cssValue(editableDoc, "rawHtml", node.code.html, assetNames);
   }
   const project = await prepareExportProject(websiteDoc, { ...options, scope: "project" });
-  const { files, binaries, remoteAssets } = project;
-  // This archive adds editable metadata after framework generation. Treat
-  // those entries as reserved paths before JSZip creates any directories.
-  assertGeneratedPaths(project, [EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH]);
+  const { files, binaries } = project;
+  const remoteAssets = { ...project.remoteAssets };
   const dirName = exportDirectoryName(doc.siteName);
   if (options.framework === "single-html") {
     const html = files["index.html"];
@@ -53,18 +53,38 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
     return [];
   }
 
-  const zip = new JSZip();
-  const root = zip.folder(dirName)!;
-  // Preserve the full editable document and its original asset IDs separately
-  // from the generated framework code, for ZIP URL round-tripping.
-  root.file(EDITABLE_DOC_PATH, JSON.stringify(editableDoc));
   const archiveAssets: ArchiveAssetMap = { version: 1, assets: {} };
+  const originalStylesheets = new Map<string, Asset>();
   const assetRoot = options.framework === "html" ? "assets/" :
     options.framework === "sveltekit" ? "static/assets/" : "public/assets/";
   for (const [id, name] of assetNames) {
-    archiveAssets.assets[id] = assetRoot + name;
+    const asset = editableDoc.assets[id];
+    const stylesheet = zipStylesheet(asset);
+    const importedPath = stylesheet && importedAssetPath(asset);
+    const alias = importedPath ? assetRoot + importedPath.slice("public/assets/".length) : undefined;
+    const existingOriginal = alias && (Object.hasOwn(files, alias) ||
+      Object.hasOwn(binaries, alias) || Object.hasOwn(remoteAssets, alias));
+    // Website CSS has rewritten URLs. Restoring those bytes under the original
+    // ZIP path breaks script-relative CSS imports on the next export.
+    // Reuse the original alias already emitted for ZIPs containing JavaScript.
+    const path = stylesheet ? existingOriginal ? alias : "_tsumu/assets/" + name : assetRoot + name;
+    archiveAssets.assets[id] = path;
+    if (stylesheet && !existingOriginal) originalStylesheets.set(path, asset);
   }
+  // Reserve editable entries before JSZip creates any directories.
+  assertGeneratedPaths(project, [EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, ...originalStylesheets.keys()]);
+  const zip = new JSZip();
+  const root = zip.folder(dirName)!;
+  root.file(EDITABLE_DOC_PATH, JSON.stringify(editableDoc));
   root.file(EDITABLE_ASSETS_PATH, JSON.stringify(archiveAssets));
+  for (const [path, asset] of originalStylesheets) {
+    if (asset.path) remoteAssets[path] = asset.path;
+    else if (isEmbeddedAssetUrl(asset.dataUrl)) {
+      root.file(path, await (await fetch(asset.dataUrl!)).arrayBuffer());
+    } else {
+      root.file(path, zipStylesheet(asset)!.source);
+    }
+  }
 
   for (const [path, content] of Object.entries(files)) {
     root.file(path, content);
