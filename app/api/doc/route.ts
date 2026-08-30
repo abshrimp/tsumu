@@ -155,7 +155,7 @@ async function save(req: Request, partial: boolean) {
       );
     }
     // 右下の「保存」にホバーしたときに出す、最近編集した人
-    await recordActivity(db, siteId, "edit", await sessionUser().catch(() => null), result.savedAt);
+    await recordActivity(db, siteId, "edit", await sessionUser().catch(() => null), result.savedAt, roomKey);
     const metadata = {
       rev: result.rev,
       savedAt: result.savedAt,

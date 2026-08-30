@@ -313,7 +313,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       // 右下の「保存」にホバーしたときに出す、最近編集した人
       // 照会に失敗したときは、同じIDで作り直されたサイトへ履歴を書き込まない。
       if (!generationCheckFailed) {
-        await recordActivity(db, siteId, "edit", attachment?.user ?? null, result.savedAt);
+        await recordActivity(db, siteId, "edit", attachment?.user ?? null, result.savedAt, roomKey);
       }
       const metadata = { rev: result.rev, savedAt: result.savedAt };
       const update: DocChangeMessage = input.type === "patch"

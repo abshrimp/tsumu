@@ -51,16 +51,20 @@ export async function recordActivity(
   siteId: string,
   kind: ActivityKind,
   user: ActivityUser | null,
-  at = Date.now()
+  at = Date.now(),
+  expectedRoomKey?: string | null
 ): Promise<void> {
+  // 保存した世代と同じ行だけに、存在確認と記録を一つのSQLで行う。
+  const fenced = db.backend === "d1" && expectedRoomKey !== undefined;
   const u = user ?? { email: "", name: null, image: null };
   try {
     await db.execute({
       sql: `INSERT INTO site_activity (site_id, kind, email, name, image, at)
         SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?)
+        ${fenced ? "AND EXISTS (SELECT 1 FROM site_document_rooms WHERE site_id = ? AND room_key = ?)" : ""}
         ON CONFLICT(site_id, kind, email) DO UPDATE SET name = excluded.name, image = excluded.image, at = excluded.at
         WHERE site_activity.at <= excluded.at`,
-      args: [siteId, kind, u.email, u.name, u.image, at, siteId],
+      args: [siteId, kind, u.email, u.name, u.image, at, siteId, ...(fenced ? [siteId, expectedRoomKey ?? null] : [])],
     });
   } catch {
     // 記録は表示のためだけなので、失敗しても無視する
