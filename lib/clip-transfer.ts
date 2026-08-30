@@ -7,7 +7,7 @@
  * 別のタブ・ウィンドウで開いた別のサイトでも、⌘V で同じものを貼り付けられる
  */
 
-import type { Asset, Component, CustomFont, DocNode, Page, SiteDoc } from "./types";
+import type { Asset, BreakpointDef, Component, CustomFont, DocNode, Page, SiteDoc } from "./types";
 import { assetSrc } from "./assets";
 import { createCssAssetFinder } from "./css-asset-dependencies";
 import { zipAssetClosure, zipStylesheet } from "./zip-css";
@@ -17,6 +17,7 @@ import { cloneSteps, scriptUid } from "./script";
 import { currentSiteId } from "./site";
 import { storageKey } from "./storage-keys";
 import { validNodeForest } from "./doc-tree";
+import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 
 /** クリップボードに書くエディタ専用の形式 */
 export const CLIP_MIME = "application/x-tsumu+json";
@@ -27,6 +28,8 @@ export interface ClipPayload {
   v: 1;
   /** コピー元のサイト */
   site: string;
+  /** コピー時の画面幅設定。旧形式は画面幅別の指定がない場合だけ使える。 */
+  breakpoints?: BreakpointDef[];
   nodes: DocNode[];
   rootIds: string[];
   /** 要素が使っているアセット */
@@ -88,6 +91,7 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
   return {
     v: 1,
     site: currentSiteId(),
+    breakpoints: structuredClone(doc.breakpoints ?? DEFAULT_BREAKPOINTS),
     nodes: clip.nodes,
     rootIds: clip.rootIds,
     assets,
@@ -95,6 +99,42 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
     componentNodes,
     customFonts,
   };
+}
+
+/** コピー時と同じ画面幅の設定へ参照を移す。対応できなければ文書を変えずに断る。 */
+export function prepareClipBreakpoints(doc: SiteDoc, payload: ClipPayload): ClipPayload | null {
+  const nodes = [...payload.nodes, ...payload.componentNodes];
+  if (nodes.some((node) => node.hiddenOn !== undefined &&
+      (!Array.isArray(node.hiddenOn) || node.hiddenOn.some((id) => typeof id !== "string")))) return null;
+  const checked = (input: BreakpointDef[]) => {
+    if (!Array.isArray(input) || input.length > MAX_BREAKPOINTS) return null;
+    const normalized = normalizeBreakpoints(input);
+    if (normalized.length !== input.length || input.some((b) =>
+      !b || !Number.isInteger(b.maxWidth) || b.maxWidth < 240 || b.maxWidth > 2999
+    )) return null;
+    return normalized;
+  };
+  const responsive = nodes.some((node) =>
+    Object.keys(node.styles).some((id) => id !== "base") || node.hiddenOn?.some((id) => id !== "base"));
+  // 旧形式には幅の情報がないため、同じIDでも同じ幅とは断定できない。
+  if (payload.breakpoints === undefined) return responsive ? null : structuredClone(payload);
+  const source = checked(payload.breakpoints);
+  const target = checked(doc.breakpoints ?? DEFAULT_BREAKPOINTS);
+  if (!source || !target) return null;
+  // 全画面幅で共通の指定だけなら、画面幅の設定が異なっていても表示を保てる。
+  if (!responsive) return { ...structuredClone(payload), breakpoints: structuredClone(target) };
+  if (source.length !== target.length ||
+      source.some((b, i) => b.maxWidth !== target[i].maxWidth)) return null;
+  const ids = new Map([["base", "base"], ...source.map((b, i) => [b.id, target[i].id] as [string, string])]);
+  const copy = structuredClone(payload);
+  for (const node of [...copy.nodes, ...copy.componentNodes]) {
+    if (Object.keys(node.styles).some((id) => !ids.has(id)) ||
+        node.hiddenOn?.some((id) => !ids.has(id))) return null;
+    node.styles = Object.fromEntries(Object.entries(node.styles).map(([id, styles]) => [ids.get(id)!, styles]));
+    if (node.hiddenOn) node.hiddenOn = node.hiddenOn.map((id) => ids.get(id)!);
+  }
+  copy.breakpoints = structuredClone(target);
+  return copy;
 }
 
 /** 要素の形（貼り付けたときに文書を壊さないよう、子の参照が中でそろっているかまで見る） */
