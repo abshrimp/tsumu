@@ -1,5 +1,5 @@
 import { validAssetSuffix } from "./media-url";
-import { isDocumentId } from "./document-id";
+import { isBreakpointId } from "./breakpoint-id";
 /** Runtime checks for optional persisted fields shared by import, save and PATCH. */
 type Check = (value: unknown) => boolean;
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -118,7 +118,7 @@ function validCustomFont(value: unknown): boolean {
     (value.weights === "variable" || arrayOf(value.weights, str));
 }
 function validBreakpoint(value: unknown): boolean {
-  return record(value) && isDocumentId(value.id) && str(value.label) &&
+  return record(value) && isBreakpointId(value.id) && str(value.label) &&
     nonnegative(value.maxWidth);
 }
 
