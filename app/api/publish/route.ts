@@ -566,13 +566,13 @@ export async function POST(req: Request) {
     let optionsSaved = false;
     if (dbConfigured()) {
       try {
-        optionsSaved = await savePublishedExportOptions(await getDb(), siteId, exportOptions);
+        optionsSaved = await savePublishedExportOptions(await getDb(), siteId, exportOptions, dest.roomKey);
       } catch (error) {
         console.warn("Published to GitHub, but could not save export preferences", error);
       }
     }
     try {
-      await recordPublish(siteId, target);
+      await recordPublish(siteId, target, dest.roomKey);
     } catch {
       console.warn("Publish completed, but the local publication record could not be updated", { siteId, target });
     }

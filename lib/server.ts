@@ -36,14 +36,16 @@ export async function sessionUser(): Promise<ActivityUser | null> {
 }
 
 /** 公開（ロールバックも含む）したことと、公開した人を記録する（右下の「公開」にホバーしたときに出す） */
-export async function recordPublish(siteId: string, target: "production" | "test"): Promise<void> {
+export async function recordPublish(siteId: string, target: "production" | "test", expectedRoomKey?: string | null): Promise<void> {
   if (!dbConfigured()) return;
   try {
     await recordActivity(
       await getDb(),
       siteId,
       target === "test" ? "publish-test" : "publish",
-      await sessionUser().catch(() => null)
+      await sessionUser().catch(() => null),
+      Date.now(),
+      expectedRoomKey
     );
   } catch {
     // 記録は表示のためだけなので、失敗しても公開は成功させる

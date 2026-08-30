@@ -336,7 +336,7 @@ export async function POST(req: Request) {
     // GitHub's ref has already moved. A bookkeeping outage must not report
     // that rollback failed and encourage a duplicate rollback commit.
     try {
-      await recordPublish(siteId, target);
+      await recordPublish(siteId, target, dest.roomKey);
     } catch {
       console.warn("Rollback completed, but the local publication record could not be updated", { siteId, target });
     }
