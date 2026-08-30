@@ -234,3 +234,29 @@ export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): 
     { sql: "DELETE FROM comment_threads WHERE site_id = ?", args: [id] },
   ]);
 }
+
+/**
+ * Mirror a committed save's timestamp into D1 so the site list (home screen)
+ * shows the real last-edit time. Every save path — HTTP and WebSocket — must
+ * call this after a successful commit. Returns false when the site/generation
+ * no longer exists.
+ */
+export async function recordSiteSavedAt(db: Db, siteId: string, roomKey: string | null, savedAt: number):
+  Promise<boolean> {
+  if (roomKey) {
+    // Two D1 statements, one transaction, fenced by the room-generation key.
+    const rows = await db.batch([
+      { sql: `UPDATE site_document_rooms SET saved_at=MAX(COALESCE(saved_at,0),?)
+        WHERE site_id=? AND room_key=?`, args: [savedAt, siteId, roomKey] },
+      { sql: `UPDATE sites SET updated_at=MAX(updated_at,?) WHERE id=?
+        AND EXISTS(SELECT 1 FROM site_document_rooms WHERE site_id=? AND room_key=?)`,
+        args: [savedAt, siteId, siteId, roomKey] },
+    ]);
+    return Boolean(rows[0]?.rowsAffected && rows[1]?.rowsAffected);
+  }
+  const rs = await db.execute({
+    sql: "UPDATE sites SET updated_at=MAX(updated_at, ?) WHERE id=?",
+    args: [savedAt, siteId],
+  });
+  return Boolean(rs.rowsAffected);
+}

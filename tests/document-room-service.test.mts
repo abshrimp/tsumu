@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { transformSync } from "esbuild";
 import type { SaveDocResult } from "../lib/doc-storage";
+import { recordSiteSavedAt } from "../lib/sites";
 
 /** Exercise the real Cloudflare routing module without requiring a Worker. */
 function fixture(options: { local?: boolean; missingBinding?: boolean } = {}) {
@@ -52,7 +53,7 @@ function fixture(options: { local?: boolean; missingBinding?: boolean } = {}) {
         return { env: { DB: {}, DOC_STORE: options.missingBinding ? undefined : namespace } };
       },
     },
-    "./sites": { getSiteRoomKey: async () => generation },
+    "./sites": { getSiteRoomKey: async () => generation, recordSiteSavedAt },
     "./doc-storage": {
       readCurrentDoc: async () => { localCalls++; return null; },
       saveCurrentDoc: local, saveDocPatch: local,
