@@ -20,17 +20,22 @@ const esc = (value: string) =>
  * routing are explicitly rejected by exportLimitations before calling this.
  */
 export function reactSource(source: string): string {
+  // Generated declarations start on LF-delimited lines; authored strings use
+  // JSON/JSX escaping. Do not interpret text inside those strings as source
+  // (including literal Unicode line separators, which /m also treats as lines).
   const result = source
-    .replace(/^import type \{ Metadata \} from "next";\r?\n/gm, "")
-    .replace(/export const metadata: Metadata = \{[\s\S]*?\n\};\s*/g, "")
-    .replace(/^import (?:Link|Image) from "next\/(?:link|image)";\r?\n/gm, "")
-    .replace(/export default async function Page\([\s\S]*?\)\s*\{/g, "export default function Page() {")
-    .replace("const sp = await searchParams;", "const sp = Object.fromEntries(new URLSearchParams(window.location.search));")
-    .replace(/<Link(?=[\s>])/g, "<a")
-    .replace(/<\/Link>/g, "</a>")
-    .replace(/<Image(?=[\s>])/g, "<img")
-    .replace(/^\s*preload\s*$/gm, "");
-  if (/(?:\bfrom\s*|\bimport\s*)["']next(?:\/|["'])/.test(result))
+    .replace(/(^|\n)import type \{ Metadata \} from "next";\r?\n/g, "$1")
+    .replace(/(^|\n)export const metadata: Metadata = \{[\s\S]*?\n\};[ \t\r\n]*/g, "$1")
+    .replace(/(^|\n)import (?:Link|Image) from "next\/(?:link|image)";(?=\r?\n|$)/g, "$1")
+    .replace(/(^|\n)export default async function Page\([\s\S]*?\)\s*\{/g, "$1export default function Page() {")
+    .replace(/(^|\n)([ \t]*)const sp = await searchParams;/g, "$1$2const sp = Object.fromEntries(new URLSearchParams(window.location.search));")
+    // Skip generated string literals and comments when adapting inline JSX.
+    // Raw HTML and text examples can contain the very same tag spellings.
+    .replace(/"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`|\/\/[^\r\n]*|\/\*[\s\S]*?\*\/|<(\/?)(Link|Image)(?=[\s/>])/g,
+      (whole, closing: string | undefined, tag: string | undefined) =>
+        tag ? "<" + closing + (tag === "Link" ? "a" : "img") : whole)
+    .replace(/(^|\n)[ \t]*preload[ \t]*(?=\r?\n|$)/g, "$1");
+  if (/(?:^|\n)import[ \t]+(?:[^;\r\n]*[ \t]+from[ \t]+)?["']next(?:\/|["'])/.test(result))
     throw new Error("Next.js-only imports cannot be used in React exports.");
   return result;
 }
