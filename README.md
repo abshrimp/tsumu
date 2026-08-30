@@ -135,6 +135,8 @@ The editor runs in any of three environments. The features are identical; what d
 
 D1 and local SQLite tables are created on first access. Cloudflare's SQLite-backed DocumentRoom requires the `DOC_STORE` binding and the live SQLite-backed `exports.DocumentRoom` declaration in `wrangler.jsonc`. For the storage model and deployment checks, see [Document storage](docs/durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
 
+On Cloudflare, asset removal registers a seven-day garbage-collection candidate in D1. The daily 03:00 JST job processes only expired candidates; a separate weekly check discovers orphaned uploads. Physical KV deletion is disabled by default and requires `ASSET_GC_ENABLED=true`. See [KV asset GC](docs/asset-gc.md) for retention trade-offs and admin controls.
+
 ### Common setup
 
 #### Google sign-in

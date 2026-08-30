@@ -8,6 +8,7 @@ import { dbConfigured, getDb } from "../../../lib/db";
 import { readAssetForm } from "../../../lib/asset-upload";
 import { siteIdOf } from "../../../lib/site-server";
 import { documentAssetReferences } from "../../../lib/site-document-service";
+import { recordAssetGcCandidates } from "../../../lib/asset-gc";
 
 /**
  * Read each other site's asset index directly from its SQLite-backed DO.
@@ -86,7 +87,7 @@ export async function POST(req: Request) {
 
   try {
     await store.put(path, await file.arrayBuffer(), {
-      metadata: { contentType: file.type },
+      metadata: { contentType: file.type, bytes: file.size },
     });
     return NextResponse.json({ ok: true, name: safeName, path });
   } catch (e) {
@@ -121,8 +122,8 @@ export async function GET(req: Request) {
 }
 
 /**
- * アセットを削除（path 指定）。
- * ほかのサイトが同じファイルを使っていれば（サイトをまたいでコピーしたとき）、ファイルは残す
+ * アセットを削除（path 指定）。Cloudflare は候補登録のみを行い、
+ * 猶予期間後に全サイトの現在の参照を確認する。Node/Docker は即時に他サイトを調べる。
  */
 export async function DELETE(req: Request) {
   const tr = await serverTr();
@@ -142,9 +143,16 @@ export async function DELETE(req: Request) {
     if (dbConfigured()) {
       const db = await getDb();
       if (db.backend === "d1") {
-        // DO metadata and KV are not one transaction. Physical deletion here
-        // can race a concurrent save/copy in another site. Keep immutable KV
-        // objects; orphan collection must use a separate, fenced GC protocol.
+        // The editor has removed the asset from its local doc. Register it now
+        // rather than listing all KV objects every night. Other sites and
+        // pending saves are rechecked after the seven-day grace period.
+        const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
+        if (!site.rows.length) return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+        const scheduled = await recordAssetGcCandidates(db, [path]);
+        return NextResponse.json({ ok: true, kept: true, scheduled: scheduled > 0 });
+      }
+      // Browser-only sites can hold references outside this server database.
+      if (params.get("browserReferenced") === "1") {
         return NextResponse.json({ ok: true, kept: true });
       }
       const refs = await otherSiteAssetReferences(db, siteId);

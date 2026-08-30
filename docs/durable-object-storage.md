@@ -38,7 +38,7 @@ The D1 deletion and DO sealing are not a distributed transaction. A failed clean
 
 A file path may be referenced by more than one site's editor document, including newly imported or copied documents. Removing a reference from one site therefore does **not** immediately remove the Workers KV object. In particular, Cloudflare's asset DELETE endpoint returns `kept: true` and does not issue `KV.delete()`: a reference scan and a delete across DO and KV cannot be one atomic transaction. This intentionally favors avoiding permanent data loss over immediate storage reclamation.
 
-Orphaned KV files require a separate fenced garbage collector or an administrative export-and-cleanup process. **Cloudflare asset storage usage will not automatically shrink as documents remove assets.** The existing local-Node deletion path continues to check other site references and may remove unused files.
+The opt-in [seven-day asset garbage collector](asset-gc.md) registers D1 candidates when an asset is removed from the editor. The nightly task inspects **only expired candidates** and rereads all current site documents before attempting a KV delete. A separate, paginated **weekly** KV inventory catches orphaned uploads and entire-site deletions. Deletion is disabled by default (`ASSET_GC_ENABLED=false`). Restorable backups and old GitHub `doc.json` revisions are deliberately excluded from the seven-day retention roots. A small concurrent-save race remains because DO writes and KV deletes are not atomic. Local Node/Docker behavior is unchanged.
 
 ## Deployment
 

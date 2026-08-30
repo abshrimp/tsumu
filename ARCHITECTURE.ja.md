@@ -58,6 +58,7 @@
 | インポート | `lib/import-site-file.ts`（ファイルからのサイト作成）、`lib/site-import.ts`（Tsumu の zip と `doc.json`）、`lib/portable-doc.ts`（圧縮形式の `doc.json`）、`lib/html-to-site.ts` と `html-file-import.ts`・`html-zip.ts`（HTML）。詳細は [インポート](#インポート) を参照してください。 |
 | 公開前チェック | `lib/generator/checks.ts` の `runChecks`。リンク切れ、代替テキスト、見出しの順序、小さすぎる文字、レイアウトのはみ出しを検査します。 |
 | 保存 | `document-room.ts`・`lib/structured-document-store.ts`：サイト作成世代ごとのSQLite対応Durable Objectでページ・要素などを個別行保存<br>`lib/site-document-service.ts`：CloudflareとNodeの保存先振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node・Docker用SQLite<br>`lib/kv.ts`：アセット実体<br>`lib/local-storage.ts`：ブラウザ保存 |
+| KVアセットのGC | `DELETE /api/assets` でD1に削除候補を登録し、`lib/asset-gc.ts` が期限切れ候補を毎日処理します。`custom-worker.ts` の週次処理で孤立KVファイルも確認します。初期設定はdry-runです（[詳細](docs/asset-gc.md)）。 |
 | 同時編集 | `custom-worker.ts`：サイト作成世代ごとに独立したWebSocket用Durable Object<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker における Server-Sent Events<br>`lib/collab.ts`：送受信するメッセージ<br>`lib/merge.ts`：3方向マージ。ノードの ID、次に項目の単位で照合し、配列は全体を1つの値として扱います。 |
 | AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数） |
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |

@@ -2,6 +2,8 @@
 import nextHandler from "./.open-next/worker.js";
 import { DurableObject } from "cloudflare:workers";
 import { getDbFromBinding, type D1LikeDatabase } from "./lib/db";
+import { runAssetGc, type AssetGcDocumentNamespace } from "./lib/asset-gc";
+import type { KVLikeNamespace } from "./lib/kv";
 export { DocumentRoom } from "./document-room";
 import {
   readCurrentDoc,
@@ -21,6 +23,10 @@ import { isDocPatch } from "./lib/doc-patch";
 interface WorkerEnv {
   COLLAB_ROOM: DurableObjectNamespace<CollaborationRoom>;
   DOC_STORE: DurableObjectNamespace;
+  ASSETS_KV?: KVLikeNamespace;
+  ASSET_GC_ENABLED?: string;
+  ASSET_GC_GRACE_DAYS?: string;
+  ASSET_GC_MAX_DELETES?: string;
   /** 未設定なら編集データはブラウザ内に保存する（クライアントがHTTPの503を見て切り替える） */
   DB?: D1LikeDatabase;
   ALLOWED_EMAILS?: string;
@@ -371,6 +377,29 @@ async function authorizeWebSocket(
 }
 
 export default {
+  scheduled(event: { cron?: string }, env: WorkerEnv, ctx: ExecutionContext): void {
+    // Every day: only expired D1 candidates. Weekly: reconcile one KV page
+    // to find failed uploads or assets orphaned by deleted sites.
+    const discoverUntracked = event.cron === "0 19 * * 0";
+    if (!env.DB || !env.ASSETS_KV || !env.DOC_STORE ||
+        (discoverUntracked && !env.ASSETS_KV.list)) return;
+    ctx.waitUntil((async () => {
+      try {
+        const db = await getDbFromBinding(env.DB!);
+        await runAssetGc({
+          db, kv: env.ASSETS_KV!,
+          rooms: env.DOC_STORE as unknown as AssetGcDocumentNamespace,
+          graceDays: env.ASSET_GC_GRACE_DAYS === undefined ? undefined : Number(env.ASSET_GC_GRACE_DAYS),
+          maxDeletes: env.ASSET_GC_MAX_DELETES === undefined ? undefined : Number(env.ASSET_GC_MAX_DELETES),
+          dryRun: env.ASSET_GC_ENABLED !== "true",
+          discoverUntracked,
+        });
+      } catch {
+        // A failed run records the number of completed deletes in D1.
+        console.error("[asset-gc] run aborted or failed; see asset_gc_runs");
+      }
+    })());
+  },
   async fetch(
     request: Request,
     env: WorkerEnv,
