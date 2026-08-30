@@ -180,8 +180,10 @@ async function save(req: Request, partial: boolean) {
       (e instanceof Error && /too big|大きすぎ|SQLITE_TOOBIG/i.test(e.message))) {
       return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
     }
+    // 例外には保存済みの本文や接続情報が含まれ得るため、ログにも応答にも渡さない。
+    console.error("[api/doc] document save failed");
     return NextResponse.json(
-      { error: tr(userMessage(e, "保存できませんでした")) },
+      { error: tr("保存できませんでした") },
       { status: 502 }
     );
   }
