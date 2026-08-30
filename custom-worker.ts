@@ -36,6 +36,29 @@ type SocketAttachment = { clientId: string; siteId: string; roomKey?: string; us
 const USER_HEADER = "X-Editor-User";
 const ROOM_KEY_HEADER = "X-Editor-Room-Key";
 
+// 保存層の例外には本文が含まれうるため、固定の案内文だけを公開する。
+// 日本語かどうかや部分一致では判定せず、未知の例外はログにも残さない。
+const PUBLIC_DOCUMENT_ERRORS = new Set([
+  "保存先が設定されていません",
+  "サイトが指定されていません",
+  "サイトが見つかりません",
+  "DOC_STORE binding is missing",
+  "未対応のメッセージです",
+  "不正なリクエスト",
+  "JSONが壊れています",
+  "ドキュメントが大きすぎて、保存先に入りきりません",
+  "編集データの1項目が大きすぎます",
+  "保存済み編集データが破損しています",
+  "バックアップが破損しています",
+  "Unsupported document storage schema",
+  "Unsupported storage schema",
+  "D1バインディング（DB）がありません",
+  "Invalid document path",
+  "Invalid document patch",
+  "Missing patch collection",
+  "Invalid patch key",
+]);
+
 type AttachableSocket = WebSocket & {
   serializeAttachment(value: SocketAttachment): void;
   deserializeAttachment(): SocketAttachment | null;
@@ -286,7 +309,8 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         JSON.stringify({
           type: "error",
           requestId: input.requestId,
-          message: error instanceof Error ? error.message : "処理に失敗しました",
+          message: error instanceof Error && PUBLIC_DOCUMENT_ERRORS.has(error.message)
+            ? error.message : "処理に失敗しました",
         })
       );
     }
