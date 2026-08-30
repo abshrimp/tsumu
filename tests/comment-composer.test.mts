@@ -246,3 +246,26 @@ for (const kind of ["message", "thread"]) test(`${kind} deletion closes the remo
   await remove();
   assert.deepEqual(h.closed, ["thread"]);
 });
+
+for (const draftKey of ["new", undefined]) test(`Escape cancels an explicit composer and discards its draft: ${draftKey ?? "edit"}`, () => {
+  const h = harness(); let cancelled = 0; let stopped = 0;
+  const props = { draftKey, initial: "", placeholder: "", submitLabel: "", onCancel: () => cancelled++, onSubmit: () => false };
+  const composer = h.instance(h.Composer, props);
+  textarea(composer.render()).props.onChange({ target: { value: "Discarded text" } });
+  textarea(composer.render()).props.onKeyDown({ key: "Escape", nativeEvent: { isComposing: false }, stopPropagation() { stopped++; } });
+  assert.equal(cancelled, 1);
+  assert.equal(stopped, 1);
+  composer.unmount();
+  assert.equal(textarea(h.instance(h.Composer, props).render()).props.value, "");
+});
+
+test("Escape in a reply bubbles to the thread close handler and preserves its unsent text", () => {
+  const h = harness(); let stopped = 0;
+  const props = { draftKey: "reply:thread", placeholder: "", submitLabel: "", onSubmit: () => false };
+  const composer = h.instance(h.Composer, props);
+  textarea(composer.render()).props.onChange({ target: { value: "Keep this reply" } });
+  textarea(composer.render()).props.onKeyDown({ key: "Escape", nativeEvent: { isComposing: false }, stopPropagation() { stopped++; } });
+  assert.equal(stopped, 0, "the canvas Escape listener must be able to close the discussion");
+  composer.unmount();
+  assert.equal(textarea(h.instance(h.Composer, props).render()).props.value, "Keep this reply");
+});

@@ -112,9 +112,11 @@ function Composer({
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             void submit();
-          } else if (e.key === "Escape") {
+          } else if (e.key === "Escape" && onCancel) {
             e.stopPropagation();
-            onCancel?.();
+            // 明示的なキャンセルはボタンと同じく下書きを破棄する。返信は親のEscで閉じる。
+            if (draftKey) unsentBodies.delete(draftKey);
+            onCancel();
           }
         }}
       />

@@ -71,6 +71,8 @@ test("IME Escape and modified Enter do not cancel or submit a new comment draft"
   await expect(input).toHaveValue("日本語の下書き");
   expect((await (await page.request.get(`/api/comments?site=${site}`)).json()).threads).toHaveLength(0);
   await input.press("Escape"); await expect(input).toHaveCount(0);
+  await page.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
+  await expect(input).toHaveValue("");
 });
 
 test("a site deleted while posting a new discussion keeps the unsent text", async ({ page }) => {
@@ -110,4 +112,20 @@ test("oversized comments stay editable and are rejected without silently truncat
   await expect(reply).toHaveValue("");
   const stored = await (await page.request.get(`/api/comments?site=${site}`)).json();
   expect(stored.threads[0].messages[1].body).toHaveLength(5000);
+});
+
+
+test("Escape closes a reply discussion without discarding its draft", async ({ page }) => {
+  const site = await openSite(page);
+  const reply = detail(page).getByPlaceholder("返信", { exact: true });
+  await reply.fill("Keep this reply draft");
+  await reply.dispatchEvent("keydown", { key: "Escape", isComposing: true });
+  await expect(reply).toHaveValue("Keep this reply draft");
+  await reply.press("Escape");
+  await expect(detail(page)).toHaveCount(0);
+  await expect(page.locator(".cm-panel")).toBeVisible();
+  await page.locator(".cm-item").click();
+  await expect(reply).toHaveValue("Keep this reply draft");
+  const stored = await (await page.request.get(`/api/comments?site=${site}`)).json();
+  expect(stored.threads[0].messages).toHaveLength(1);
 });
