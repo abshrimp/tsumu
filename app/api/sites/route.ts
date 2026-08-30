@@ -13,7 +13,6 @@ import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
   getSite,
-  getSiteRoomKey,
   insertSite,
   deleteSite,
   isSiteId,
@@ -111,14 +110,16 @@ export async function POST(req: Request) {
     }
     // The D1 site record and DO document are different transactional stores.
     // If document initialization fails, delete the newly created site record.
-    await insertSite(db, id, parsed.value);
-    createdSite = { id, db, roomKey: await getSiteRoomKey(db, id) };
+    const roomKey = await insertSite(db, id, parsed.value);
+    createdSite = { id, db, roomKey };
     const content = initialBody ?? src?.body;
     if (content !== undefined) {
-      const saved = await saveSiteDocument(db, id, content, null);
+      const saved = await saveSiteDocument(db, id, content, null, roomKey ?? undefined);
       if (saved.kind !== "saved") throw new Error("初期ドキュメントを保存できませんでした");
     }
-    return NextResponse.json({ site: await getSite(db, id) });
+    const site = await getSite(db, id, roomKey ?? undefined);
+    if (!site) throw new Error("サイトを作成できませんでした。");
+    return NextResponse.json({ site });
   } catch (e) {
     if (createdSite) {
       await deleteSite(createdSite.db, createdSite.id, createdSite.roomKey ?? undefined).catch(() => undefined);
