@@ -86,7 +86,9 @@ export async function* readLines(body: ReadableStream<Uint8Array>): AsyncGenerat
     }
     if (pending) yield pending.replace(/\r$/, "");
   } finally {
-    await reader.cancel().catch(() => {});
+    // A terminal result or error must not wait for upstream cancellation,
+    // which can remain pending while another response clone is unread.
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

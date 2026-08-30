@@ -188,7 +188,7 @@ export async function mapLimit<T>(
 export async function readAssetBytes(response: Response, limit: number, message = "Resource exceeds export size limit."): Promise<Uint8Array<ArrayBuffer>> {
   const tooLarge = () => new Error(message);
   if (Number(response.headers.get("content-length")) > limit) {
-    await response.body?.cancel().catch(() => {});
+    void response.body?.cancel().catch(() => {});
     throw tooLarge();
   }
   const reader = response.body?.getReader();
@@ -200,11 +200,14 @@ export async function readAssetBytes(response: Response, limit: number, message 
       if (part.done) break;
       size += part.value.length;
       if (size > limit) {
-        await reader.cancel().catch(() => {});
         throw tooLarge();
       }
       chunks.push(part.value);
     }
+  } catch (error) {
+    // Release the consumer even when an unread clone delays upstream cleanup.
+    void reader?.cancel(error).catch(() => {});
+    throw error;
   } finally { reader?.releaseLock(); }
   const bytes = new Uint8Array(size);
   let offset = 0;
@@ -221,7 +224,7 @@ export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit)
     try {
       const res = await fetch(url, init);
       if ((res.status === 429 || res.status >= 500) && i < tries) {
-        await res.body?.cancel().catch(() => {});
+        void res.body?.cancel().catch(() => {});
         await new Promise((r) => setTimeout(r, 500 * i));
         continue;
       }

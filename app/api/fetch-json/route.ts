@@ -62,7 +62,8 @@ export async function POST(req: Request) {
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
-      await res.body?.cancel().catch(() => {});
+      // Error reporting must not wait for a cloned response's other reader.
+      void res.body?.cancel().catch(() => {});
       return NextResponse.json(
         { error: tr("読み込めませんでした（HTTP {status}）", { status: res.status }) },
         { status: 502 }
