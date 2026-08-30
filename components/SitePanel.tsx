@@ -19,6 +19,7 @@ import { showAlert, showConfirm } from "../lib/dialog";
 import { assetSrc } from "../lib/assets";
 import { serializePortableDoc } from "../lib/portable-doc";
 import { parseSiteImport, IMPORT_LIMITS } from "../lib/site-import";
+import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
 import { siteLangOf } from "../lib/site-lang";
 import { genId, makeBox, makeText } from "../lib/presets";
 import {
@@ -605,7 +606,7 @@ export default function SitePanel() {
     if (await showConfirm(
       tr("いまの編集内容は、このファイルの内容に置き換わります。「元に戻す」（⌘Z）で今の内容に戻せます。"),
       { title: tr("バックアップを読み込みますか？"), okLabel: tr("読み込む") },
-    ) && request.current()) restoreDoc(parsed);
+    ) && request.current()) restoreDoc(sanitizeImportedInlineIcons(parsed));
     request.finish();
   };
 
