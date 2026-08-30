@@ -276,7 +276,20 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         result = remote ? await remote.replaceDocument(raw, input.base)
           : await saveCurrentDoc(db, siteId, raw, input.base);
       }
-      if (roomKey && await getSiteRoomKey(db, siteId) !== roomKey) {
+      let generationChanged = false;
+      let generationCheckFailed = false;
+      if (roomKey) {
+        try {
+          generationChanged = await getSiteRoomKey(db, siteId) !== roomKey;
+        } catch (error) {
+          // 保存は確定済み。後続の照会失敗で失敗扱いにせず、元の部屋だけへ通知する。
+          // 競合結果は本文を含むため、世代を確認できなければ返さない。
+          if (result.kind !== "saved") throw error;
+          generationCheckFailed = true;
+          console.error("[collab] committed save generation check failed");
+        }
+      }
+      if (generationChanged) {
         socket.close(1008, "Site generation changed");
         return;
       }
@@ -298,7 +311,10 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         })
       );
       // 右下の「保存」にホバーしたときに出す、最近編集した人
-      await recordActivity(db, siteId, "edit", attachment?.user ?? null, result.savedAt);
+      // 照会に失敗したときは、同じIDで作り直されたサイトへ履歴を書き込まない。
+      if (!generationCheckFailed) {
+        await recordActivity(db, siteId, "edit", attachment?.user ?? null, result.savedAt);
+      }
       const metadata = { rev: result.rev, savedAt: result.savedAt };
       const update: DocChangeMessage = input.type === "patch"
         ? { ...metadata, type: "doc-patched", base: input.base, patch: input.patch }
