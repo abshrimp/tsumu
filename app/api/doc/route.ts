@@ -68,9 +68,11 @@ export async function GET(req: Request) {
       `{"exists":true,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
       { headers: { "Content-Type": "application/json", ...PRIVATE_CACHE } }
     );
-  } catch (e) {
+  } catch {
+    // 例外には保存済みの本文や接続情報が含まれ得るため、ログにも応答にも渡さない。
+    console.error("[api/doc GET] document read failed");
     return NextResponse.json(
-      { error: tr(userMessage(e, "読み込めませんでした")) },
+      { error: tr("読み込めませんでした") },
       { status: 502 }
     );
   }
