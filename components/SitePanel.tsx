@@ -1,7 +1,7 @@
 "use client";
 
 import { isEnterKey } from "../lib/keys";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   AppWindow,
   FileDown,
@@ -100,6 +100,7 @@ export function LoadingScreenSettings({
 }: {
   showEditButton?: boolean;
 }) {
+  const inputBaseId = useId();
   const doc = useEditor((s) => s.doc);
   const activePageId = useEditor((s) => s.activePageId);
   const updateDoc = useEditor((s) => s.updateDoc);
@@ -141,6 +142,8 @@ export function LoadingScreenSettings({
         style={{ display: "flex", alignItems: "center", gap: 6 }}
       >
         <input
+          id={`${inputBaseId}-enabled`}
+
           type="checkbox"
           checked={!!setting?.enabled}
           onChange={(e) => {
@@ -176,9 +179,10 @@ export function LoadingScreenSettings({
           )}
           <div className="grid2">
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl">{tr("最短の表示時間（ms）")}</label>
+              <label className="lbl" htmlFor={`${inputBaseId}-min`}>{tr("最短の表示時間（ms）")}</label>
               <input
                 key={`loading-min-${setting.minDuration ?? 500}`}
+                id={`${inputBaseId}-min`}
                 type="number"
                 min={0}
                 className="input"
@@ -195,9 +199,10 @@ export function LoadingScreenSettings({
               />
             </div>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl">{tr("フェード（ms）")}</label>
+              <label className="lbl" htmlFor={`${inputBaseId}-fade`}>{tr("フェード（ms）")}</label>
               <input
                 key={`loading-fade-${setting.fadeDuration ?? 300}`}
+                id={`${inputBaseId}-fade`}
                 type="number"
                 min={0}
                 className="input"
@@ -219,6 +224,8 @@ export function LoadingScreenSettings({
             style={{ display: "flex", alignItems: "center", gap: 6 }}
           >
             <input
+          id={`${inputBaseId}-once`}
+
               type="checkbox"
               checked={!!setting.showOnce}
               onChange={(e) =>
@@ -264,6 +271,7 @@ const PWA_DISPLAY_MODES: {
 
 /** PWA（ホーム画面に追加してアプリのように使える）の公開設定 */
 function PwaSettings() {
+  const inputBaseId = useId();
   const pwa = useEditor((s) => s.doc.pwa);
   const doc = useEditor((s) => s.doc);
   const updateDoc = useEditor((s) => s.updateDoc);
@@ -293,6 +301,8 @@ function PwaSettings() {
         style={{ display: "flex", alignItems: "center", gap: 6 }}
       >
         <input
+          id={`${inputBaseId}-enabled`}
+
           type="checkbox"
           checked={!!pwa?.enabled}
           onChange={(e) => set({ enabled: e.target.checked })}
@@ -335,9 +345,10 @@ function PwaSettings() {
 
           <div className="grid2" style={{ alignItems: "start" }}>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl">{tr("アプリ名")}</label>
+              <label className="lbl" htmlFor={`${inputBaseId}-name`}>{tr("アプリ名")}</label>
               <input
                 key={`pwa-name-${pwa.name ?? ""}`}
+                id={`${inputBaseId}-name`}
                 className="input"
                 defaultValue={pwa.name ?? ""}
                 placeholder={doc.siteName}
@@ -346,12 +357,13 @@ function PwaSettings() {
               />
             </div>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl lbl-info">
+              <label className="lbl lbl-info" htmlFor={`${inputBaseId}-short`}>
                 {tr("短い名前")}
                 <InfoTip text={tr("ホーム画面のアイコンの下に出る名前です。12文字程度までにします。")} />
               </label>
               <input
                 key={`pwa-short-${pwa.shortName ?? ""}`}
+                id={`${inputBaseId}-short`}
                 className="input"
                 defaultValue={pwa.shortName ?? ""}
                 placeholder={appName}
@@ -364,15 +376,15 @@ function PwaSettings() {
           </div>
 
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl lbl-info">
+            <span className="lbl lbl-info">
               {tr("アイコン")}
               <InfoTip text={tr("512×512pxの正方形のPNGがおすすめです。未設定のときはホーム画面アイコンを、それもなければファビコンを使います。")} />
-            </label>
+            </span>
             <ImagePicker value={pwa.icon} onChange={(v) => set({ icon: v })} />
           </div>
 
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl">{tr("表示モード")}</label>
+            <span className="lbl">{tr("表示モード")}</span>
             <Seg
               value={mode.value}
               options={PWA_DISPLAY_MODES.map((m) => ({
@@ -392,20 +404,20 @@ function PwaSettings() {
 
           <div className="grid2" style={{ alignItems: "start" }}>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl lbl-info">
+              <span className="lbl lbl-info">
                 {tr("テーマ色")}
                 <InfoTip text={tr("アプリとして開いたときの、タイトルバーやステータスバーの色です。")} />
-              </label>
+              </span>
               <FillControl
                 value={pwa.themeColor}
                 onChange={(v) => set({ themeColor: v ?? undefined })}
               />
             </div>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl lbl-info">
+              <span className="lbl lbl-info">
                 {tr("背景色")}
                 <InfoTip text={tr("起動してからページが表示されるまでの画面の色です。アイコンの余白にも使われます。")} />
-              </label>
+              </span>
               <FillControl
                 value={pwa.backgroundColor}
                 onChange={(v) => set({ backgroundColor: v ?? undefined })}
@@ -500,6 +512,7 @@ function BreakpointSettings() {
                 <BpIcon bp={b.id} />
                 <input
                   key={b.label}
+                  id={`site-breakpoint-${b.id}`}
                   className="bp-edit-label"
                   defaultValue={tr(b.label)}
                   aria-label={tr("ブレークポイントの名前")}
@@ -614,12 +627,13 @@ export default function SitePanel() {
     <div className="panel-body" data-tutorial="site-settings">
       <Sec title={tr("サイト設定")} tutorialTarget="site-basics" help="pub-site">
         <div className="row">
-          <label className="lbl-info">
+          <label className="lbl-info" htmlFor={`site-name`}>
             {tr("サイト名")}
             <InfoTip text={tr("ブラウザのタブの名前が「ページ名 | サイト名」の形になります。")} />
           </label>
           <input
             key={doc.siteName}
+            id="site-name"
             className="input"
             defaultValue={doc.siteName}
             onBlur={(e) =>
@@ -631,12 +645,13 @@ export default function SitePanel() {
           />
         </div>
         <div className="row">
-          <label className="lbl-info">
+          <label className="lbl-info" htmlFor={`site-url`}>
             {tr("サイトURL")}
             <InfoTip text={tr("公開したサイトのアドレスです（例: https://example.com）。シェア用画像のURLなどに使います。")} />
           </label>
           <input
             key={doc.siteUrl ?? "_"}
+            id="site-url"
             className="input"
             defaultValue={doc.siteUrl ?? ""}
             placeholder="https://example.com"
@@ -649,40 +664,41 @@ export default function SitePanel() {
           />
         </div>
         <div className="row">
-          <label className="lbl-info">
+          <label className="lbl-info" htmlFor={`site-language`}>
             {tr("言語")}
             <InfoTip text={tr("ページの文章の言語です。ブラウザの読み上げ・翻訳や検索エンジンが、この言語として扱います。")} />
           </label>
           <SiteLanguageSelect
+            id="site-language"
             value={siteLangOf(doc)}
             onChange={(lang) => updateDoc((d) => void (d.lang = lang))}
           />
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <span className="lbl lbl-info">
             {tr("ファビコン（タブのアイコン）")}
             <InfoTip text={tr("正方形のPNG・SVG・ICOがおすすめです。")} />
-          </label>
+          </span>
           <ImagePicker
             value={doc.favicon}
             onChange={(v) => updateDoc((d) => void (d.favicon = v))}
           />
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <span className="lbl lbl-info">
             {tr("ホーム画面アイコン")}
             <InfoTip text={tr("iPhone・iPadで「ホーム画面に追加」したときのアイコンです（apple-touch-icon）。180×180pxのPNGがおすすめです。")} />
-          </label>
+          </span>
           <ImagePicker
             value={doc.appleTouchIcon}
             onChange={(v) => updateDoc((d) => void (d.appleTouchIcon = v))}
           />
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <span className="lbl lbl-info">
             {tr("デフォルトのシェア用画像（OGP）")}
             <InfoTip text={tr("ページで設定していないときに使われます。1200×630pxがおすすめです。")} />
-          </label>
+          </span>
           <ImagePicker
             value={doc.ogImage}
             onChange={(v) => updateDoc((d) => void (d.ogImage = v))}
@@ -716,10 +732,10 @@ export default function SitePanel() {
         info={tr("書き出したサイトを動かすサービスと、外部のJSONを使うページを取得し直す間隔です。")}
       >
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <span className="lbl lbl-info">
             {tr("公開先のホスティング")}
             <InfoTip text={tr("書き出すサイトを動かすサービスです。外部のJSONを使うページの作り方が変わります。\n標準: Vercel・Netlify・Node.js など。ページを作り置き、更新間隔ごとに作り直します（ISR）。\nCloudflare Workers: ページはアクセスのたびに描画し、取得したJSONを更新間隔のあいだCloudflareのキャッシュに置きます。")} />
-          </label>
+          </span>
           <Seg
             value={doc.hosting ?? "standard"}
             options={[
@@ -732,12 +748,13 @@ export default function SitePanel() {
           />
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <label className="lbl lbl-info" htmlFor={`site-data-revalidate`}>
             {tr("データの更新間隔（秒）")}
             <InfoTip text={tr("外部のJSONを使うページを取得し直す間隔です。その間は作っておいたページ（Cloudflareでは取得済みのJSON）を使うので、サーバーの負荷を抑えられます。0にするとアクセスのたびに取得します（常に最新ですが、負荷は大きくなります）。")} />
           </label>
           <input
             key={doc.dataRevalidate ?? "_"}
+            id="site-data-revalidate"
             className="input"
             inputMode="numeric"
             defaultValue={doc.dataRevalidate ?? ""}
@@ -761,11 +778,12 @@ export default function SitePanel() {
         help="page-code-snippet"
       >
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <label className="lbl lbl-info" htmlFor={`site-head-code`}>
             {tr("head内コード")}
             <InfoTip text={tr("全ページの <head> に挿入されます。")} />
           </label>
           <CommitTextarea
+            id="site-head-code"
             className="textarea mono"
             rows={5}
             value={doc.customHeadHtml ?? ""}
@@ -775,11 +793,12 @@ export default function SitePanel() {
           />
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <label className="lbl lbl-info" htmlFor={`site-body-code`}>
             {tr("body末尾コード")}
             <InfoTip text={tr("全ページの </body> 直前に挿入されます。")} />
           </label>
           <CommitTextarea
+            id="site-body-code"
             className="textarea mono"
             rows={5}
             value={doc.customBodyEndHtml ?? ""}
@@ -821,6 +840,8 @@ export default function SitePanel() {
           </button>
           <input
             ref={docFileRef}
+            id="site-backup-import"
+            aria-label={tr("読み込む")}
             type="file"
             accept=".json,application/json"
             style={{ display: "none" }}

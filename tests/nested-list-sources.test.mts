@@ -34,7 +34,7 @@ function fixture() {
   nodes(render()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("リスト表示にする"))!.props.onClick();
   const id = state().selection!;
   const dropdown = () => {
-    const row = nodes(render()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "label" && x.props.children === "表示するリスト"));
+    const row = nodes(render()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "span" && x.props.className === "lbl" && x.props.children === "表示するリスト"));
     return nodes(row).find(n => n.props?.options && n.props?.placeholder === "選択してください").props;
   };
   const { NodeView } = load("components/canvas/NodeView.tsx");

@@ -9,10 +9,11 @@ const CUSTOM = "__custom__";
 const isCustom = (value: string) => !!value && !SITE_LANGS.some((lang) => lang.value === value);
 
 /** サイトとページで共通の言語選択。空文字はページの「サイトと同じ」。 */
-export default function SiteLanguageSelect({ value, onChange, inheritLabel }: {
+export default function SiteLanguageSelect({ value, onChange, inheritLabel, id }: {
   value: string;
   onChange: (value: string) => void;
   inheritLabel?: string;
+  id?: string;
 }) {
   const [custom, setCustom] = useState(() => isCustom(value));
   const [draft, setDraft] = useState(value);
@@ -40,6 +41,7 @@ export default function SiteLanguageSelect({ value, onChange, inheritLabel }: {
   return (
     <div className="site-language-select">
       <select
+        id={id ?? `${hintId}-select`}
         className="select"
         aria-label={tr("言語")}
         value={custom ? CUSTOM : value}
@@ -58,6 +60,7 @@ export default function SiteLanguageSelect({ value, onChange, inheritLabel }: {
       {custom && (
         <>
           <input
+            id={`${hintId}-custom`}
             className="input"
             aria-label={tr("カスタム言語コード")}
             aria-describedby={hintId}

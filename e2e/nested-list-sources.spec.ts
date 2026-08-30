@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole("button", { name: "リスト表示にする", exact: true }).click();
 });
 const source = (page: Page) => page.locator("aside .row").filter({
-  has: page.locator("label", { hasText: /^表示するリスト$/ }),
+  has: page.locator("span.lbl", { hasText: /^表示するリスト$/ }),
 }).locator("button");
 const saved = (page: Page) => page.evaluate(() => {
   const { doc, past, selection } = (window as any).nestedListStore.getState();

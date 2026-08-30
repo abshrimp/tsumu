@@ -22,7 +22,7 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   doc.nodes.tags.list!.from = '';
   useEditor.getState().replaceDoc(doc); useEditor.getState().setActivePage('p');
   const panel = loadNestedUi('components/SettingsPanel.tsx', true).default({ nodeId: 'tags' });
-  const row = nodes(panel).find(n => n.props?.className === 'row' && nodes(n).some(x => x.type === 'label' && x.props.children === '表示するリスト'));
+  const row = nodes(panel).find(n => n.props?.className === 'row' && nodes(n).some(x => x.type === 'span' && x.props.className === 'lbl' && x.props.children === '表示するリスト'));
   const drop = nodes(row).find(n => n.props?.options).props;
   assert.ok(drop.options.some((o: any) => o.value === 'tags')); drop.onChange('tags');
   doc = structuredClone(useEditor.getState().doc);

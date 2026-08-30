@@ -16,7 +16,7 @@ import {
   TextCursor,
   Wand2,
 } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import dynamic from "next/dynamic";
 import { componentOf, useEditor } from "../lib/store";
 import {
@@ -139,9 +139,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       <div className="sec">
         <div className="sec-body" style={{ marginTop: 0 }}>
           <div className="row" data-tutorial="settings-name">
-            <label>{tr("名前")}</label>
+            <label htmlFor={`settings-${nodeId}-name`}>{tr("名前")}</label>
             <CommitInput
               key={`${nodeId}-name`}
+              id={`settings-${nodeId}-name`}
               className="input"
               value={node.name}
               onCommit={(v) => updateNode(nodeId, { name: v.trim() || node.name })}
@@ -151,7 +152,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             />
           </div>
           <div className="row" data-tutorial="settings-id">
-            <label className="lbl-info">
+            <label className="lbl-info" htmlFor={`settings-${nodeId}-id`}>
               {tr("ID属性")}
               <InfoTip
                 text={
@@ -163,6 +164,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             </label>
             <CommitInput
               key={`${nodeId}-id`}
+              id={`settings-${nodeId}-id`}
               className="input"
               value={node.attrId ?? ""}
               placeholder={tr("アンカー・{変数} の名前")}
@@ -332,7 +334,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               return (
                 <>
                   <div className="row">
-                    <label>{tr("表示するリスト")}</label>
+                    <span className="lbl">{tr("表示するリスト")}</span>
                     <Dropdown
                       value={from}
                       placeholder={tr("選択してください")}
@@ -373,10 +375,11 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               return (
                 <>
                   <div className="row">
-                    <label>{tr("表示件数")}</label>
+                    <label htmlFor={`settings-${nodeId}-limit`}>{tr("表示件数")}</label>
                     {/* 空欄 = すべて表示 */}
                     <input
                       key={`${nodeId}-limit-${node.list.limit ?? ""}`}
+                      id={`settings-${nodeId}-limit`}
                       className="input"
                       type="number"
                       min={1}
@@ -424,9 +427,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             />
             {node.semantic === "custom" && (
               <div className="row" style={{ marginTop: 8 }}>
-                <label>{tr("タグ名")}</label>
+                <label htmlFor={`settings-${nodeId}-tag`}>{tr("タグ名")}</label>
                 <CommitInput
                   key={`${nodeId}-tag`}
+                  id={`settings-${nodeId}-tag`}
                   className="input"
                   value={node.customTag ?? ""}
                   placeholder="pre"
@@ -497,9 +501,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           </div>
           <div className="sec-body">
             <div className="row">
-              <label>URL</label>
+              <label htmlFor={`settings-${nodeId}-image-url`}>URL</label>
               <VarInput
                 key={`${nodeId}-src-${node.image.assetId ?? node.image.src}`}
+                id={`settings-${nodeId}-image-url`}
                 value={node.image.assetId ? "" : node.image.src}
                 placeholder={
                   node.image.assetId
@@ -548,9 +553,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               />
             )}
             <div className="row">
-              <label>{tr("代替テキスト")}</label>
+              <label htmlFor={`settings-${nodeId}-alt`}>{tr("代替テキスト")}</label>
               <CommitInput
                 key={`${nodeId}-alt`}
+                id={`settings-${nodeId}-alt`}
                 className="input"
                 value={node.image.alt}
                 placeholder={tr("画像の説明（必須）")}
@@ -570,6 +576,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               style={{ display: "flex", alignItems: "center", gap: 6 }}
             >
               <input
+                id={`settings-${nodeId}-image-priority`}
                 type="checkbox"
                 checked={!!node.image.priority}
                 onChange={(e) =>
@@ -586,7 +593,8 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 style={{ display: "flex", alignItems: "center", gap: 6 }}
               >
                 <input
-                  type="checkbox"
+                  id={`settings-${nodeId}-image-crisp`}
+                type="checkbox"
                   checked={node.image.crispShadow !== false}
                   onChange={(e) =>
                     updateNode(nodeId, {
@@ -643,9 +651,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           </div>
           <div className="sec-body">
             <div className="row">
-              <label>{tr("ファイルURL")}</label>
+              <label htmlFor={`settings-${nodeId}-media-url`}>{tr("ファイルURL")}</label>
               <CommitInput
                 key={`${nodeId}-msrc-${node.media.assetId ?? node.media.src}`}
+                id={`settings-${nodeId}-media-url`}
                 className="input"
                 value={node.media.assetId ? "" : node.media.src}
                 placeholder={
@@ -707,7 +716,8 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                   style={{ display: "flex", alignItems: "center", gap: 6 }}
                 >
                   <input
-                    type="checkbox"
+                    id={`settings-${nodeId}-media-${key}`}
+                type="checkbox"
                     checked={!!node.media![key]}
                     onChange={(e) =>
                       updateNode(nodeId, {
@@ -741,7 +751,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           </div>
           <div className="sec-body">
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl">
+              <label className="lbl" htmlFor={`settings-${nodeId}-embed-url`}>
                 {
                   {
                     youtube: tr("動画のURL"),
@@ -752,6 +762,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               </label>
               <CommitInput
                 key={`${nodeId}-esrc`}
+                id={`settings-${nodeId}-embed-url`}
                 className="input"
                 value={node.embed.src}
                 placeholder={
@@ -800,9 +811,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
 /* ---------- フォーム部品 ---------- */
 
 function CheckRow({ checked, label, onChange }: { checked: boolean; label: string; onChange: (v: boolean) => void }) {
+  const inputId = useId();
   return (
     <label className="lbl" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input id={inputId} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {label}
     </label>
   );
@@ -830,6 +842,7 @@ function FieldSettings({
   const varField = (key: "defaultValue" | "placeholder" | "label" | "min" | "max" | "step", placeholder: string) => (
     <VarInput
       key={`${nodeId}-${key}-${f[key] ?? ""}`}
+      id={`field-${nodeId}-${key}`}
       className="input"
       value={f[key] ?? ""}
       placeholder={placeholder}
@@ -842,6 +855,7 @@ function FieldSettings({
   const num = (key: "maxLength" | "rows", placeholder: string) => (
     <CommitInput
       key={`${nodeId}-${key}-${f[key] ?? ""}`}
+      id={`field-${nodeId}-${key}`}
       className="input"
       type="number"
       min={1}
@@ -872,7 +886,7 @@ function FieldSettings({
       <div className="sec-body">
         {f.kind === "input" && (
           <div className="row">
-            <label>type</label>
+            <span className="lbl">type</span>
             <Dropdown
               value={f.inputType ?? "text"}
               options={INPUT_TYPE_OPTIONS}
@@ -883,9 +897,10 @@ function FieldSettings({
         {f.kind === "radio" && (
           <div className="stack" style={{ gap: 4 }}>
             <div className="row">
-              <label>{tr("グループ")}</label>
+              <label htmlFor={`field-${nodeId}-group`}>{tr("グループ")}</label>
               <CommitInput
                 key={`${nodeId}-group-${f.group ?? ""}`}
+                id={`field-${nodeId}-group`}
                 className="input"
                 value={f.group ?? ""}
                 placeholder="radio"
@@ -905,7 +920,7 @@ function FieldSettings({
         {(f.kind === "checkbox" || f.kind === "radio") && (
           <>
             <div className="row">
-              <label>{tr("表示テキスト")}</label>
+              <label htmlFor={`field-${nodeId}-label`}>{tr("表示テキスト")}</label>
               {varField("label", f.kind === "radio" ? tr("選んだときの値にもなります") : "")}
             </div>
             <CheckRow
@@ -917,7 +932,7 @@ function FieldSettings({
         )}
         {(f.kind === "input" || f.kind === "textarea" || f.kind === "select") && (
           <div className="row">
-            <label>{tr("初期値")}</label>
+            <label htmlFor={`field-${nodeId}-defaultValue`}>{tr("初期値")}</label>
             {varField(
               "defaultValue",
               f.kind === "select"
@@ -932,43 +947,44 @@ function FieldSettings({
         )}
         {(textual || type === "number" || (ranged && type !== "range")) && (
           <div className="row">
-            <label>{tr("プレースホルダ")}</label>
+            <label htmlFor={`field-${nodeId}-placeholder`}>{tr("プレースホルダ")}</label>
             {varField("placeholder", tr("未入力時に薄く表示される文字"))}
           </div>
         )}
         {ranged && (
           <div className="grid3" style={{ gap: 6 }}>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl">{tr("最小")}</label>
+              <label className="lbl" htmlFor={`field-${nodeId}-min`}>{tr("最小")}</label>
               {varField("min", type === "range" ? "0" : rangePh)}
             </div>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl">{tr("最大")}</label>
+              <label className="lbl" htmlFor={`field-${nodeId}-max`}>{tr("最大")}</label>
               {varField("max", type === "range" ? "100" : rangePh)}
             </div>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl">{tr("刻み")}</label>
+              <label className="lbl" htmlFor={`field-${nodeId}-step`}>{tr("刻み")}</label>
               {varField("step", type === "range" || type === "number" ? "1" : "")}
             </div>
           </div>
         )}
         {textual && (
           <div className="row">
-            <label>{tr("最大文字数")}</label>
+            <label htmlFor={`field-${nodeId}-maxLength`}>{tr("最大文字数")}</label>
             {num("maxLength", tr("制限なし"))}
           </div>
         )}
         {f.kind === "textarea" && (
           <div className="row">
-            <label>{tr("行数")}</label>
+            <label htmlFor={`field-${nodeId}-rows`}>{tr("行数")}</label>
             {num("rows", "2")}
           </div>
         )}
         {f.kind === "select" && (
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl">{tr("選択肢（1行に1つ）")}</label>
+            <label className="lbl" htmlFor={`field-${nodeId}-options`}>{tr("選択肢（1行に1つ）")}</label>
             <CommitTextarea
               key={`${nodeId}-opts`}
+              id={`field-${nodeId}-options`}
               className="textarea"
               rows={4}
               value={(f.options ?? []).map((o) => o.label === o.value ? o.label : o.label + "\t" + o.value).join("\n")}
@@ -990,9 +1006,10 @@ function FieldSettings({
         {f.kind === "file" && (
           <>
             <div className="row">
-              <label>{tr("種類")}</label>
+              <label htmlFor={`field-${nodeId}-accept`}>{tr("種類")}</label>
               <CommitInput
                 key={`${nodeId}-accept-${f.accept ?? ""}`}
+                id={`field-${nodeId}-accept`}
                 className="input"
                 value={f.accept ?? ""}
                 placeholder={tr("例: image/*, .pdf（空 = すべて）")}
@@ -1100,7 +1117,8 @@ function LinkSettings({
         {link && (
           <label className="lbl" style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <input
-              type="checkbox"
+              id={`settings-${nodeId}-new-tab`}
+                type="checkbox"
               checked={!!link.newTab}
               onChange={(e) => onChange({ ...link, newTab: e.target.checked || undefined })}
             />

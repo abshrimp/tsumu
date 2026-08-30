@@ -76,7 +76,7 @@ test("unified value candidates retain object roots while text still excludes the
 function mountInput(eager: boolean) {
   const slots: any[] = []; let cursor = 0;
   const frames: (() => void)[] = [];
-  const hooks = { ...React, useEffect() {}, useRef(initial: any) { return slots[cursor++] ??= { current: initial }; },
+  const hooks = { ...React, useId() { const i = cursor++; return slots[i] ??= `test-field-${i}`; }, useEffect() {}, useRef(initial: any) { return slots[cursor++] ??= { current: initial }; },
     useState(initial: any) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;
       return [slots[i], (next: any) => { slots[i] = typeof next === "function" ? next(slots[i]) : next; }]; } };
   const require = createRequire(resolve("components/controls.tsx")); const mod = { exports: {} as any };
