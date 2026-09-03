@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { SITE_EDIT_METADATA_INTERVAL_MS } from "./sites";
 
 /**
  * サイトの編集・公開の記録（D1 の site_activity テーブル）。
@@ -56,6 +57,11 @@ export async function recordActivity(
 ): Promise<void> {
   // 保存した世代と同じ行だけに、存在確認と記録を一つのSQLで行う。
   const fenced = db.backend === "d1" && expectedRoomKey !== undefined;
+  // The D1 edit hover history is approximate, not the authoritative savedAt.
+  // A conditional upsert throttles writes atomically across Worker instances.
+  // Keep publishing activity immediate and Node/Docker history unchanged.
+  const minInterval = kind === "edit" && db.backend === "d1"
+    ? SITE_EDIT_METADATA_INTERVAL_MS : 0;
   const u = user ?? { email: "", name: null, image: null };
   try {
     await db.execute({
@@ -63,8 +69,8 @@ export async function recordActivity(
         SELECT ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?)
         ${fenced ? "AND EXISTS (SELECT 1 FROM site_document_rooms WHERE site_id = ? AND room_key = ?)" : ""}
         ON CONFLICT(site_id, kind, email) DO UPDATE SET name = excluded.name, image = excluded.image, at = excluded.at
-        WHERE site_activity.at <= excluded.at`,
-      args: [siteId, kind, u.email, u.name, u.image, at, siteId, ...(fenced ? [siteId, expectedRoomKey ?? null] : [])],
+        WHERE site_activity.at <= excluded.at - ?`,
+      args: [siteId, kind, u.email, u.name, u.image, at, siteId, ...(fenced ? [siteId, expectedRoomKey ?? null] : []), minInterval],
     });
   } catch {
     // 記録は表示のためだけなので、失敗しても無視する

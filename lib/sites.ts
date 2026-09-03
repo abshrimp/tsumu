@@ -236,24 +236,53 @@ export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): 
 }
 
 /**
- * Mirror a committed save's timestamp into D1 so the site list (home screen)
- * shows the real last-edit time. Every save path — HTTP and WebSocket — must
- * call this after a successful commit. Returns false when the site/generation
- * no longer exists.
+ * D1 site-list metadata is advisory; the exact revision and savedAt live in
+ * the document room. Avoid two additional D1 row writes for every keystroke.
+ */
+export const SITE_EDIT_METADATA_INTERVAL_MS = 60_000;
+
+/**
+ * Mirror document saves into the site list at most once a minute.
+ * A matching site/room generation is checked even when no write is due;
+ * otherwise a deleted and recreated site could acknowledge an old save.
  */
 export async function recordSiteSavedAt(db: Db, siteId: string, roomKey: string | null, savedAt: number):
   Promise<boolean> {
   if (roomKey) {
-    // Two D1 statements, one transaction, fenced by the room-generation key.
-    const rows = await db.batch([
-      { sql: `UPDATE site_document_rooms SET saved_at=MAX(COALESCE(saved_at,0),?)
-        WHERE site_id=? AND room_key=?`, args: [savedAt, siteId, roomKey] },
-      { sql: `UPDATE sites SET updated_at=MAX(updated_at,?) WHERE id=?
-        AND EXISTS(SELECT 1 FROM site_document_rooms WHERE site_id=? AND room_key=?)`,
-        args: [savedAt, siteId, siteId, roomKey] },
-    ]);
-    return Boolean(rows[0]?.rowsAffected && rows[1]?.rowsAffected);
+    const state = await db.execute({
+      sql: "SELECT r.saved_at, s.updated_at FROM site_document_rooms r JOIN sites s ON s.id=r.site_id WHERE r.site_id=? AND r.room_key=?",
+      args: [siteId, roomKey],
+    });
+    const row = state.rows[0];
+    if (!row) return false;
+    const cutoff = savedAt - SITE_EDIT_METADATA_INTERVAL_MS;
+    const roomDue = row.saved_at == null || Number(row.saved_at) <= cutoff;
+    const siteDue = Number(row.updated_at) <= cutoff;
+    if (!roomDue && !siteDue) return true;
+
+    // Guard each UPDATE in SQL, not only with the preceding SELECT: multiple
+    // Workers may save simultaneously, and an old generation may disappear.
+    const statements: Array<{ sql: string; args: (string | number | null)[] }> = [];
+    if (roomDue) statements.push({
+      sql: "UPDATE site_document_rooms SET saved_at=MAX(COALESCE(saved_at,0),?) WHERE site_id=? AND room_key=? AND (saved_at IS NULL OR saved_at<=?)",
+      args: [savedAt, siteId, roomKey, cutoff],
+    });
+    if (siteDue) statements.push({
+      sql: "UPDATE sites SET updated_at=MAX(updated_at,?) WHERE id=? AND updated_at<=? AND EXISTS(SELECT 1 FROM site_document_rooms WHERE site_id=? AND room_key=?)",
+      args: [savedAt, siteId, cutoff, siteId, roomKey],
+    });
+    const results = await db.batch(statements);
+    if (results.some(result => result.rowsAffected > 0)) return true;
+    // A concurrent save may have won the timestamp race. Distinguish that
+    // harmless case from a deleted/recreated generation before acknowledging.
+    const current = await db.execute({
+      sql: "SELECT 1 FROM site_document_rooms r JOIN sites s ON s.id=r.site_id WHERE r.site_id=? AND r.room_key=?",
+      args: [siteId, roomKey],
+    });
+    return current.rows.length > 0;
   }
+
+  // Node/Docker do not have a D1 write quota or room-generation binding.
   const rs = await db.execute({
     sql: "UPDATE sites SET updated_at=MAX(updated_at, ?) WHERE id=?",
     args: [savedAt, siteId],
