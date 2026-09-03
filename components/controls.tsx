@@ -1042,7 +1042,7 @@ export function VarInput({
   // If the parent loads candidates on focus, refresh the menu after that
   // render. The first focus event still sees the previous (empty) list.
   useEffect(() => {
-    if (eager && ref.current && document.activeElement === ref.current && !explore) {
+    if (eager && !dismissedByOutsideClick.current && ref.current && document.activeElement === ref.current && !explore) {
       update(true);
     }
     // Only candidate changes should re-open a focused suggestion.
@@ -1081,6 +1081,7 @@ export function VarInput({
     setSug(null);
   };
 
+  const dismissedByOutsideClick = useRef(false);
   const open = !!sug;
   useEffect(() => {
     if (!open) return;
@@ -1088,6 +1089,8 @@ export function VarInput({
       const target = e.target as Node;
       if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
       // A non-focusable canvas/label may not blur the input. Dismiss immediately.
+      // Do not reopen it when lazy variable names change while focus remains.
+      dismissedByOutsideClick.current = true;
       setSug(null);
     };
     const reposition = (e: Event) => {
@@ -1128,12 +1131,14 @@ export function VarInput({
         defaultValue={value}
         placeholder={placeholder}
         onFocus={() => {
+          dismissedByOutsideClick.current = false;
           onActivate?.();
           // The parent may populate lazy candidates immediately after focus.
           if (eager && !explore) update(true);
         }}
         onInput={(e) => {
           if ((e.nativeEvent as InputEvent).isComposing) return;
+          dismissedByOutsideClick.current = false;
           update(!eager && sug?.query.mode === "manual");
         }}
         onCompositionEnd={() => update(!eager && sug?.query.mode === "manual")}
