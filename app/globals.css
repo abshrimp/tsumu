@@ -4755,15 +4755,14 @@ input.se-in {
 
 .se-ghost {
   position: fixed;
-  z-index: 3;
+  /* Above every script stack, palette and header while dragging. */
+  z-index: 1000;
   pointer-events: none;
-  opacity: 0.92;
   will-change: transform;
 }
 
 .se-ghost .se-stack {
   position: static;
-  box-shadow: var(--shadow-pop);
 }
 
 .se-ghost-item {

@@ -187,6 +187,107 @@ test("dragging multiple scripts preserves each original stack width", async ({ p
   await expect(transient(page)).toHaveCount(0);
 });
 
+
+test("drag preview keeps the original input controls and appears above every script layer", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({ id: "value", kind: "set-var", value: "Initial", into: "result" });
+    });
+  });
+  const original = page.locator('.se-ws [data-sel-key="step:value"]');
+  const input = original.locator("input").first();
+  await input.fill("Current unsaved input");
+  const before = {
+    value: await input.inputValue(),
+    className: await original.getAttribute("class"),
+    controls: await original.locator("input,select,textarea").count(),
+  };
+  await start(page, "step");
+  const preview = page.locator('.se-ghost [data-sel-key="step:value"]');
+  await expect(preview).toBeVisible();
+  expect(await preview.getAttribute("class")).toBe(before.className);
+  expect(await preview.locator("input,select,textarea").count()).toBe(before.controls);
+  await expect(preview.locator("input").first()).toHaveValue(before.value);
+  expect(await page.locator(".se-ghost").evaluate((el) => Number(getComputedStyle(el).zIndex))).toBeGreaterThan(20);
+  expect(await page.locator(".se-ghost").evaluate((el) => (el as HTMLElement).inert)).toBe(true);
+  await pointer(page, "pointercancel", { buttons: 0 });
+  await expect(transient(page)).toHaveCount(0);
+});
+
+test("script block clipboard supports copy, paste, cut and Undo without hijacking text or external clipboard", async ({ page }) => {
+  const trigger = page.locator('.se-ws [data-sel-key="step:wait"]');
+  const rect = (await trigger.boundingBox())!;
+  await trigger.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "mouse", button: 0, buttons: 1,
+    clientX: rect.x + 6, clientY: rect.y + 6,
+  });
+  await pointer(page, "pointerup", { buttons: 0 });
+  await expect(trigger).toHaveClass(/is-selected/);
+  const before = await snapshot(page);
+  const copied = await page.evaluate(() => {
+    const data = new DataTransfer();
+    const e = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: data });
+    document.querySelector('.se-ws [data-sel-key="step:wait"]')!.dispatchEvent(e);
+    return { prevented: e.defaultPrevented, raw: data.getData("application/x-tsumu-script+json") };
+  });
+  expect(copied.prevented).toBe(true);
+  expect(JSON.parse(copied.raw).steps[0].id).toBe("wait");
+  const paste = async (raw: string, mime = "application/x-tsumu-script+json") => page.evaluate(({ raw, mime }) => {
+    const data = new DataTransfer(); data.setData(mime, raw);
+    const e = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+    document.querySelector(".se-ws")!.dispatchEvent(e);
+    return e.defaultPrevented;
+  }, { raw, mime });
+  expect(await paste(copied.raw)).toBe(true);
+  const afterPaste = await snapshot(page);
+  const steps = afterPaste.doc.pages.p.pageScripts[0].steps;
+  expect(steps).toHaveLength(2);
+  expect(steps[1].id).not.toBe(steps[0].id);
+  await page.keyboard.press("Control+z");
+  expect((await snapshot(page)).doc).toEqual(before.doc);
+  await page.keyboard.press("Control+y");
+  expect((await snapshot(page)).doc).toEqual(afterPaste.doc);
+  expect(await paste("Some other copied text", "text/plain")).toBe(false);
+  expect((await snapshot(page)).doc).toEqual(afterPaste.doc);
+
+  const cut = await page.evaluate(() => {
+    const data = new DataTransfer();
+    const e = new ClipboardEvent("cut", { bubbles: true, cancelable: true, clipboardData: data });
+    document.querySelector(".se-ws")!.dispatchEvent(e);
+    return { prevented: e.defaultPrevented, raw: data.getData("application/x-tsumu-script+json") };
+  });
+  expect(cut.prevented).toBe(true);
+  expect(JSON.parse(cut.raw).steps).toHaveLength(1);
+  expect((await snapshot(page)).doc.pages.p.pageScripts[0].steps).toHaveLength(1);
+  await page.keyboard.press("Control+z");
+  expect((await snapshot(page)).doc).toEqual(afterPaste.doc);
+});
+
+test("copying a whole script creates independent script and nested step IDs", async ({ page }) => {
+  const hat = page.locator(".se-ws .se-hat").first();
+  const r = (await hat.boundingBox())!;
+  await hat.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "mouse", button: 0, buttons: 1, clientX: r.x + 6, clientY: r.y + 6,
+  });
+  await pointer(page, "pointerup", { buttons: 0 });
+  const ids = await page.evaluate(() => {
+    const data = new DataTransfer();
+    document.querySelector(".se-ws .se-hat")!.dispatchEvent(
+      new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: data })
+    );
+    const raw = data.getData("application/x-tsumu-script+json");
+    if (!raw) return null;
+    const paste = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+    document.querySelector(".se-ws")!.dispatchEvent(paste);
+    return { raw, accepted: paste.defaultPrevented };
+  });
+  expect(ids?.accepted).toBe(true);
+  const scripts = (await snapshot(page)).doc.pages.p.pageScripts;
+  expect(scripts).toHaveLength(2);
+  expect(scripts[0].id).not.toBe(scripts[1].id);
+  expect(scripts[0].steps[0].id).not.toBe(scripts[1].steps[0].id);
+});
+
 test("a real mouse drop still moves one stack and supports Undo/Redo", async ({ page }) => {
   const before = await snapshot(page);
   const r = await page.locator(owner("script")).boundingBox(); const p = await point(page);

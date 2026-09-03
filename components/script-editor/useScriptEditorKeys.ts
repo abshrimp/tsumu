@@ -1,11 +1,12 @@
 "use client";
 
 /**
- * スクリプト画面のキー操作（Esc・削除・すべて選択・拡大縮小・取り消し / やり直し）
+ * スクリプト画面のキー操作（Esc・削除・選択・拡大縮小・履歴・ブロックのコピー / 貼り付け）
  */
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useEditor } from "../../lib/store";
 import type { Drag, ScriptEditorLatest } from "../ScriptEditor";
+import type { ScriptBlockClipboard } from "./clipboard";
 
 /** ScriptEditorInner から受け取る値 */
 export interface UseScriptEditorKeysDeps {
@@ -15,6 +16,10 @@ export interface UseScriptEditorKeysDeps {
   setPeekId: Dispatch<SetStateAction<string | null>>;
   setSelectedList: Dispatch<SetStateAction<string[]>>;
 }
+
+const SCRIPT_CLIP_MIME = "application/x-tsumu-script+json";
+const SCRIPT_CLIP_PREFIX = "Tsumu script blocks v1\\n";
+let lastScriptClipboard: { raw: string; value: ScriptBlockClipboard } | null = null;
 
 export function useScriptEditorKeys({
   dragRef,
@@ -79,10 +84,63 @@ export function useScriptEditorKeys({
         latest.current.deleteSelected();
       }
     };
+    // Clipboard events preserve native copy/paste inside all text fields.
+    // In the workspace, transfer structured blocks instead of the stale
+    // canvas-element selection behind this dialog.
+    const textEditing = (event: Event) => {
+      const target = event.target as HTMLElement;
+      return target.tagName === "INPUT" || target.tagName === "TEXTAREA" ||
+        target.tagName === "SELECT" || target.isContentEditable ||
+        !!document.querySelector(".dialog-backdrop:not(.is-leaving), [data-se-popover]");
+    };
+    const blocked = (event: Event) => textEditing(event) ||
+      !!dragRef.current?.started || !!latest.current.peekId;
+    const writeSelection = (event: ClipboardEvent) => {
+      if (blocked(event) || !event.clipboardData) return false;
+      const textSelection = window.getSelection();
+      if (textSelection && !textSelection.isCollapsed && textSelection.toString()) return false;
+      const copied = latest.current.copySelection();
+      if (!copied) return false;
+      const raw = JSON.stringify(copied);
+      event.clipboardData.setData(SCRIPT_CLIP_MIME, raw);
+      // Text fallback survives browsers which strip custom OS clipboard types.
+      event.clipboardData.setData("text/plain", SCRIPT_CLIP_PREFIX + raw);
+      lastScriptClipboard = { raw, value: copied };
+      event.preventDefault();
+      return true;
+    };
+    const onCopy = (event: ClipboardEvent) => {
+      if (!writeSelection(event)) lastScriptClipboard = null;
+    };
+    const onCut = (event: ClipboardEvent) => {
+      if (writeSelection(event)) latest.current.deleteSelected();
+      else lastScriptClipboard = null;
+    };
+    const onPaste = (event: ClipboardEvent) => {
+      if (blocked(event) || !lastScriptClipboard) return;
+      const data = event.clipboardData;
+      const plain = data?.getData("text/plain") ?? "";
+      const raw = data?.getData(SCRIPT_CLIP_MIME) ||
+        (plain.startsWith(SCRIPT_CLIP_PREFIX) ? plain.slice(SCRIPT_CLIP_PREFIX.length) : "");
+      // Never interpret arbitrary external clipboard text as editor scripts.
+      // The empty clipboard fallback is only for an editor-owned prior copy.
+      const copied = raw === lastScriptClipboard.raw ||
+        (!raw && data?.types.length === 0)
+        ? lastScriptClipboard.value : null;
+      if (!copied) return;
+      event.preventDefault();
+      latest.current.pasteSelection(copied);
+    };
+    window.addEventListener("copy", onCopy);
+    window.addEventListener("cut", onCut);
+    window.addEventListener("paste", onPaste);
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("keydown", onEscape);
     const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
     return () => {
+      window.removeEventListener("copy", onCopy);
+      window.removeEventListener("cut", onCut);
+      window.removeEventListener("paste", onPaste);
       window.removeEventListener("keydown", onKey, true);
       window.removeEventListener("keydown", onEscape);
       clearTimeout(t);
