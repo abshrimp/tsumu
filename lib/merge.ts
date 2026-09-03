@@ -1,4 +1,5 @@
 import type { PageFolder, SiteDoc } from "./types";
+import type { DocPatch } from "./doc-patch";
 import { MAX_NODE_DEPTH } from "./doc-tree";
 
 /**
@@ -10,7 +11,7 @@ import { MAX_NODE_DEPTH } from "./doc-tree";
 
 /** JSON values distinguish a missing property from an explicit null. */
 const sameValue = (a: unknown, b: unknown): boolean =>
-  a === undefined || b === undefined ? a === b : JSON.stringify(a) === JSON.stringify(b);
+  a === b || (a !== undefined && b !== undefined && JSON.stringify(a) === JSON.stringify(b));
 
 /** Preserve arbitrary user data keys without triggering __proto__ setters. */
 function setOwn<T>(record: Record<string, T>, key: string, value: T): void {
@@ -49,6 +50,54 @@ function pickDeep<T>(base: T | undefined, local: T | undefined, remote: T | unde
     if (v !== undefined) setOwn(out, key, v);
   }
   return out as T;
+}
+
+/**
+ * Rebase a history checkpoint for a document patch that changes only existing
+ * node properties. Most collaborative edits change a node's style or text.
+ * Re-merging every node and rebuilding the entire element tree for each of
+ * up to 100 Undo checkpoints is unnecessary for these changes.
+ *
+ * Return null for structural edits: callers must use the full three-way merge
+ * to preserve moves, deletions, and component graph invariants.
+ *
+ * base/updated must be the exact documents before/after the supplied patch.
+ */
+export function rebaseNodePatch(
+  base: SiteDoc,
+  updated: SiteDoc,
+  checkpoint: SiteDoc,
+  patch: DocPatch,
+): SiteDoc | null {
+  if (!patch.length) return null;
+  let nodes: SiteDoc["nodes"] | null = null;
+  const seen = new Set<string>();
+  for (const op of patch) {
+    if (op.path.length !== 2 || op.path[0] !== "nodes" || "remove" in op) return null;
+    const id = op.path[1];
+    if (seen.has(id)) return null;
+    seen.add(id);
+    const before = base.nodes[id];
+    const after = updated.nodes[id];
+    const historical = checkpoint.nodes[id];
+    if (!before || !after || !historical ||
+        before.id !== after.id || before.type !== after.type ||
+        before.componentId !== after.componentId ||
+        !sameValue(before.children, after.children)) return null;
+
+    // Match mergeDocs(base, updated, checkpoint)'s property-level conflict
+    // precedence without traversing any other node or rewriting its identity.
+    const merged = pickDeep(before, after, historical);
+    if (!merged ||
+        merged.id !== historical.id || merged.type !== historical.type ||
+        merged.componentId !== historical.componentId ||
+        !sameValue(merged.children, historical.children)) return null;
+    if (merged !== historical) {
+      nodes ??= { ...checkpoint.nodes };
+      setOwn(nodes, id, merged);
+    }
+  }
+  return nodes ? { ...checkpoint, nodes } : checkpoint;
 }
 
 /** ID keyed なコレクションをID単位でマージ */

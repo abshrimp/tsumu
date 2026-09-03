@@ -10,7 +10,7 @@ export const CLOUD_SAVE_DEBOUNCE_MS = 800;
 type Ref<T> = { current: T };
 
 export type CollabRequestInput =
-  | { type: "load" }
+  | { type: "load"; knownRev?: string }
   | { type: "patch"; base: string; patch: DocPatch }
   | { type: "save"; base: string | null; doc: SiteDoc };
 

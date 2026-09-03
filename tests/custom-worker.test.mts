@@ -37,16 +37,27 @@ function fixture(initialize = true, allowGenerationClose = false) {
   const original = createInitialDoc();
   if (initialize) documents.replace(JSON.stringify(original), null);
   let rpcCalls = 0;
+  let snapshotReads = 0;
+  let metadataReads = 0;
   let generation: string | null = "generation-1";
   let readStarted: (() => void) | undefined;
   let readGate: Promise<void> | undefined;
   const remote = {
     async getSnapshot() {
       rpcCalls++;
+      snapshotReads++;
       const snapshot = documents.snapshot();
       readStarted?.();
       await readGate;
       return snapshot;
+    },
+    async getMetadata() {
+      rpcCalls++;
+      metadataReads++;
+      const metadata = documents.meta();
+      readStarted?.();
+      await readGate;
+      return metadata;
     },
     async replaceDocument(raw: string, base: string | null) { rpcCalls++; return documents.replace(raw, base); },
     async patchDocument(patch: Parameters<StructuredDocumentStore["patch"]>[0], base: string) {
@@ -86,7 +97,8 @@ function fixture(initialize = true, allowGenerationClose = false) {
     DB: {}, DOC_STORE: { idFromName: (name: string) => name, get: () => remote },
   });
   return {
-    documents, original, sender, peer, rpcCalls: () => rpcCalls,
+    documents, original, sender, peer,
+    rpcCalls: () => rpcCalls, snapshotReads: () => snapshotReads, metadataReads: () => metadataReads,
     setGeneration(value: string | null) { generation = value; },
     pauseRead() {
       const started = new Promise<void>(resolve => { readStarted = resolve; });
@@ -130,6 +142,47 @@ for (const initialize of [true, false]) {
     });
   }
 }
+
+test("WebSocket reconnect with a current revision skips the full document snapshot", async () => {
+  const f = fixture();
+  try {
+    const before = f.documents.snapshot();
+    await f.send({ type: "load", requestId: "reconnect", knownRev: before!.rev });
+    assert.deepEqual(JSON.parse(f.sender.messages.pop()!), {
+      type: "snapshot", requestId: "reconnect", exists: true,
+      rev: before!.rev, savedAt: before!.savedAt,
+    });
+    assert.equal(f.metadataReads(), 1);
+    assert.equal(f.snapshotReads(), 0, "do not rebuild the large document just to compare revisions");
+    assert.equal(f.rpcCalls(), 1);
+    assert.deepEqual(f.peer.messages, []);
+
+    await f.send({ type: "load", requestId: "catchup", knownRev: "0" });
+    assert.deepEqual(JSON.parse(f.sender.messages.pop()!), {
+      type: "snapshot", requestId: "catchup", exists: true,
+      rev: before!.rev, savedAt: before!.savedAt, doc: f.original,
+    });
+    assert.equal(f.metadataReads(), 2);
+    assert.equal(f.snapshotReads(), 1, "out-of-date editors still receive the full latest document");
+    assert.deepEqual(f.documents.snapshot(), before);
+  } finally { f.close(); }
+});
+
+test("metadata-only load refuses to acknowledge a deleted and recreated site", async () => {
+  const f = fixture(true, true);
+  try {
+    const read = f.pauseRead();
+    const pending = f.send({ type: "load", requestId: "stale-reconnect", knownRev: "1" });
+    await read.started;
+    f.setGeneration("generation-2");
+    read.release();
+    await pending;
+    assert.equal(f.snapshotReads(), 0);
+    assert.equal(f.metadataReads(), 1);
+    assert.deepEqual(f.sender.messages, []);
+    assert.deepEqual(f.sender.closed, [{ code: 1008, reason: "Site generation changed" }]);
+  } finally { f.close(); }
+});
 
 for (const type of ["load", "save", "patch"] as const) {
   test(`WebSocket ${type} rejects non-string request IDs without invoking document RPC`, async () => {

@@ -23,7 +23,7 @@ export interface DocPatchedMessage {
 export type DocChangeMessage = DocUpdatedMessage | DocPatchedMessage;
 
 export type CollabClientMessage =
-  | { type: "load"; requestId: string }
+  | { type: "load"; requestId: string; knownRev?: string }
   | {
       type: "save";
       requestId: string;

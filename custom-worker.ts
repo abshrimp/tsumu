@@ -234,6 +234,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         ? this.env.DOC_STORE.get(this.env.DOC_STORE.idFromName(roomKey)) as unknown as
         | {
             getSnapshot(): Promise<{ body: string; rev: string; savedAt: number } | null>;
+            getMetadata(): Promise<{ rev: string; savedAt: number } | null>;
             replaceDocument(raw: string, base: string | null): Promise<import("./lib/doc-storage").SaveDocResult>;
             patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<import("./lib/doc-storage").SaveDocResult>;
           } : undefined;
@@ -241,6 +242,27 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         throw new Error("DOC_STORE binding is missing");
       }
       if (input.type === "load") {
+        // Reconnecting editors already hold this revision. A metadata lookup
+        // avoids rebuilding and transferring the entire document on every
+        // WebSocket reconnect (and avoids parsing it again on the main thread).
+        if (remote && typeof input.knownRev === "string" && input.knownRev.length <= 30) {
+          const meta = await remote.getMetadata();
+          if (meta?.rev === input.knownRev) {
+            // Even a metadata-only response must fence deleted/recreated sites.
+            if (roomKey && await getSiteRoomKey(db, siteId) !== roomKey) {
+              socket.close(1008, "Site generation changed");
+              return;
+            }
+            reply(JSON.stringify({
+              type: "snapshot",
+              requestId: input.requestId,
+              exists: true,
+              rev: meta.rev,
+              savedAt: meta.savedAt,
+            }));
+            return;
+          }
+        }
         const current = remote ? await remote.getSnapshot() : await readCurrentDoc(db, siteId);
         // The site can be deleted/recreated while the document RPC is in flight.
         // Fence empty results too: exists:false starts an initial client save.
