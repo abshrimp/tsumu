@@ -558,11 +558,17 @@ function ScriptEditorInner({
     e.preventDefault();
     // 入力欄にフォーカスが残っていると Backspace が文字の削除になるため外す
     (document.activeElement as HTMLElement | null)?.blur?.();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const target = e.currentTarget as HTMLElement;
+    const r = target.getBoundingClientRect();
     // つかんだ位置は倍率 1 の大きさで持つ（ワークスペースの中は表示倍率がかかっている）
-    const z = wsRef.current?.contains(e.currentTarget as Node) ? zoomRef.current : 1;
-    const sourceStack = (e.currentTarget as HTMLElement).closest(".se-stack");
-    const sourceStackWidth = sourceStack ? sourceStack.getBoundingClientRect().width / z : undefined;
+    const z = wsRef.current?.contains(target) ? zoomRef.current : 1;
+    // The editor's entrance animation scales its entire DOM. Bounding rectangles
+    // include that temporary scale; storing them as CSS widths shrinks the ghost
+    // again (and freezes a source stack at the wrong size) while dragging.
+    // offsetWidth measures layout width, independent of both the modal scale
+    // animation and the workspace's CSS zoom.
+    const sourceStack = target.closest<HTMLElement>(".se-stack");
+    const sourceStackWidth = sourceStack?.offsetWidth;
     let scriptWidths: Record<string, number> | undefined;
     if (key?.startsWith("script:") && selectedRef.current.has(key)) {
       const ids = new Set([...selectedRef.current]
@@ -572,7 +578,7 @@ function ScriptEditorInner({
         scriptWidths = {};
         wsRef.current?.querySelectorAll<HTMLElement>(".se-stack[data-script-id]").forEach((stack) => {
           const id = stack.dataset.scriptId;
-          if (id && ids.has(id)) scriptWidths![id] = stack.getBoundingClientRect().width / z;
+          if (id && ids.has(id)) scriptWidths![id] = stack.offsetWidth;
         });
       }
     }
@@ -588,9 +594,9 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
-      // The preview adds a 1px border on each side. Its outer width must
-      // account for that border so the actual dragged row keeps its width.
-      w: key?.startsWith("script:") ? (sourceStackWidth ?? r.width / z) : r.width / z + 2,
+      // The preview adds a 1px border on each side. Use the unscaled layout
+      // width of the dragged row, rather than a temporarily animated rectangle.
+      w: key?.startsWith("script:") ? (sourceStackWidth ?? target.offsetWidth) : target.offsetWidth + 2,
       sourceStackWidth,
       scriptWidths,
       clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,

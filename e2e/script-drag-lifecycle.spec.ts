@@ -118,9 +118,19 @@ test("closing during a drag and reopening leaves no late operation or listener",
   expect((await snapshot(page)).past).toBe(1);
 });
 
+// Model an active modal entrance transform deterministically: drag measurements
+// must use layout widths, not rectangles scaled by the modal animation.
+async function scaleScriptModal(page: Page) {
+  await page.locator(".se").evaluate((modal) => {
+    for (const animation of modal.getAnimations()) animation.finish();
+    (modal as HTMLElement).style.scale = "0.94";
+  });
+}
+
 test("dragged steps retain their width without narrowing the source stack", async ({ page }) => {
   // A wide step determines the source stack width; removing it would normally shrink the stack.
   await page.addStyleTag({ content: '.se-ws [data-sel-key="step:wait"] { min-width: 480px; }' });
+  await scaleScriptModal(page);
   const source = page.locator('.se-ws .se-stack[data-script-id="script"]');
   const originalStack = (await source.boundingBox())!;
   await start(page, "step");
@@ -147,6 +157,7 @@ test("dragging multiple scripts preserves each original stack width", async ({ p
     '.se-ws .se-stack[data-script-id="script"] { min-width: 420px; }',
     '.se-ws .se-stack[data-script-id="second"] { min-width: 530px; }',
   ].join(" ") });
+  await scaleScriptModal(page);
   const widths: number[] = [];
   for (const id of ["script", "second"]) {
     const hat = page.locator(`.se-ws .se-stack[data-script-id="${id}"] .se-hat`);

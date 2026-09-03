@@ -3,8 +3,15 @@ import { commitFieldsBundle, commitFieldsDoc, commitPageFieldsBundle } from "../
 
 const seoField = (page: Page, field: "title" | "description") => page.locator(`[data-tutorial="page-seo"] ${field === "title" ? ".row > input.input" : "textarea"}`);
 
+// The store-level suite exercises the full field × editing-state matrix.
+// Use the browser/server path for both native field types and all distinct edit states.
+const serverEditingCases = {
+  title: ["fresh", "pending"],
+  description: ["previously-committed", "pending"],
+} as const;
+
 for (const field of ["title", "description"] as const) {
-  for (const editing of ["fresh", "previously-committed", "pending"] as const) {
+  for (const editing of serverEditingCases[field]) {
     test(`${field}: after a remote edit, a ${editing} field commits only if the user types`, async ({ page }) => {
       await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
       const response = await page.request.post("/api/sites", { data: { name: "Idle field collaboration" } });
@@ -39,7 +46,6 @@ for (const field of ["title", "description"] as const) {
       if (editing === "pending") await expect(input).toHaveValue("Deliberate local draft");
       if (field === "title") await input.press("Enter");
       else await input.blur();
-      console.info("commit-field native result", JSON.stringify({ field, editing, value: await input.inputValue(), stored: (await (await page.request.get(endpoint)).json()).doc.pages.p[field] }));
       const expected = structuredClone(remote);
       if (editing === "pending") expected.pages.p[field] = "Deliberate local draft";
       await expect(input).toHaveValue(expected.pages.p[field]);
