@@ -51,7 +51,7 @@ function fixture({ configured = true, anonymous = false, session = false } = {})
     reads, authCalls: () => authCalls,
   };
 }
-function readableFromPreview(response: Response) {
+function readableFromPreview(response: Response, cacheControl: string | RegExp) {
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
   assert.equal(response.headers.get("Cross-Origin-Resource-Policy"), "cross-origin");
@@ -59,13 +59,16 @@ function readableFromPreview(response: Response) {
   assert.equal(response.headers.get("Content-Type"), "font/woff2");
   assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
   assert.match(response.headers.get("Content-Security-Policy") ?? "", /default-src 'none';.*sandbox/);
-  assert.equal(response.headers.get("Cache-Control"), "private, no-store");
+  const header = response.headers.get("Cache-Control") ?? "";
+  if (typeof cacheControl === "string") assert.equal(header, cacheControl);
+  else assert.match(header, cacheControl);
 }
+const IMMUTABLE_YEAR = "private, max-age=31536000, immutable";
 
 test("public anonymous assets can supply fonts to the opaque HTML preview", async () => {
   const f = fixture({ configured: false, anonymous: true });
   const response = await f.get();
-  readableFromPreview(response);
+  readableFromPreview(response, IMMUTABLE_YEAR);
   assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], [119, 79, 70, 50]);
   assert.deepEqual(f.reads, ["assets/font.woff2"]);
 });
@@ -73,7 +76,11 @@ test("public anonymous assets can supply fonts to the opaque HTML preview", asyn
 test("signed preview URLs retain cross-origin access without a login cookie", async () => {
   const f = fixture();
   const query = await signAssetPath("assets/font.woff2");
-  readableFromPreview(await f.get(`path=assets%2Ffont.woff2&${query}`));
+  // Cached no longer than the signature is valid (one hour).
+  const response = await f.get(`path=assets%2Ffont.woff2&${query}`);
+  readableFromPreview(response, /^private, max-age=(\d+), immutable$/);
+  const maxAge = Number(/max-age=(\d+)/.exec(response.headers.get("Cache-Control")!)![1]);
+  assert.ok(maxAge > 3500 && maxAge <= ASSET_TOKEN_TTL / 1000, `max-age ${maxAge}`);
   assert.equal(f.authCalls(), 0);
   assert.deepEqual(f.reads, ["assets/font.woff2"]);
 });
@@ -84,6 +91,7 @@ test("cookie-authorized private assets do not gain public CORS access", async ()
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), null);
   assert.equal(response.headers.get("Cross-Origin-Resource-Policy"), null);
+  assert.equal(response.headers.get("Cache-Control"), IMMUTABLE_YEAR);
   assert.equal(f.authCalls(), 1);
 });
 

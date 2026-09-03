@@ -2,6 +2,9 @@ import type { Db } from "./db";
 import type { KVLikeNamespace } from "./kv";
 import { assetUploadedAt, planAssetGc, type GcCandidate } from "./asset-gc-plan";
 
+/** GC only enumerates and deletes asset keys. */
+export type AssetGcKv = Pick<KVLikeNamespace, "delete" | "list">;
+
 /**
  * Deletion events register candidates immediately. The daily cron handles only
  * expired candidates; a separate weekly inventory discovers orphaned uploads
@@ -15,14 +18,14 @@ export interface AssetGcDocumentNamespace {
 
 export interface AssetGcDependencies {
   db: Db;
-  kv: KVLikeNamespace;
+  kv: AssetGcKv;
   rooms: AssetGcDocumentNamespace;
   now?: number;
   graceDays?: number;
   maxDeletes?: number;
   /** Explicit opt-in for physical deletion; the default is dry-run. */
   dryRun?: boolean;
-  /** Weekly or manual reconciliation, not part of the daily scheduled sweep. */
+  /** Weekly reconciliation, not part of the daily scheduled sweep. */
   discoverUntracked?: boolean;
 }
 
@@ -137,11 +140,46 @@ async function finishRun(db: Db, id: number, fields: {
   });
 }
 
-const PAGE_LIMIT = 250;
+// Workers KV returns at most 1,000 keys per list call; one call per weekly run.
+const PAGE_LIMIT = 1000;
 const LEASE_MS = 20 * 60 * 1000;
 const PREVIEW_LIMIT = 2000;
-// Leave ample room for D1 and DO requests on the Workers free plan.
-const KV_DELETES_PER_RUN = 10;
+/**
+ * Workers Free allows 1,000 subrequests to Cloudflare services (D1, KV, DO)
+ * per invocation. Keep 10% for the caller (the admin route's auth checks).
+ * Each physical delete costs a D1 recheck, a KV delete and a D1 delete, and
+ * the run always needs its final count, run log and lease release.
+ */
+export const GC_INTERNAL_SUBREQUEST_BUDGET = 900;
+const SUBREQUESTS_PER_DELETE = 3;
+const SUBREQUESTS_TO_FINISH = 3;
+
+/** Count every Cloudflare-service call so deletion stops inside the budget. */
+function countSubrequests(db: Db, kv: AssetGcKv, rooms: AssetGcDocumentNamespace) {
+  let used = 0;
+  return {
+    db: {
+      backend: db.backend,
+      execute: (stmt) => { used++; return db.execute(stmt); },
+      batch: (stmts) => { used++; return db.batch(stmts); },
+    } satisfies Db,
+    // Call through the binding itself: platform bindings reject other receivers.
+    kv: {
+      delete: (key: string) => { used++; return kv.delete(key); },
+      ...(kv.list ? { list: (options: Parameters<NonNullable<KVLikeNamespace["list"]>>[0]) => {
+        used++; return kv.list!(options);
+      } } : {}),
+    } satisfies AssetGcKv,
+    rooms: {
+      idFromName: (name: string) => rooms.idFromName(name),
+      get: (id: unknown) => {
+        const stub = rooms.get(id);
+        return { gcAssetReferences: () => { used++; return stub.gcAssetReferences(); } };
+      },
+    } satisfies AssetGcDocumentNamespace,
+    used: () => used,
+  };
+}
 
 function candidateFromRow(row: Record<string, unknown>): GcCandidate {
   const path = String(row.path);
@@ -155,10 +193,10 @@ function candidateFromRow(row: Record<string, unknown>): GcCandidate {
 }
 
 /** Scan one KV page for paths missed by client-side deletion events.
- * Called weekly (or explicitly by an administrator), never on daily Cron.
+ * Called weekly, never on daily Cron.
  */
 async function discoverOrphans(
-  db: Db, kv: KVLikeNamespace, refs: ReadonlySet<string>,
+  db: Db, kv: AssetGcKv, refs: ReadonlySet<string>,
   now: number, token: string, state: Record<string, unknown>,
 ): Promise<{ scanned: number; complete: boolean }> {
   if (!kv.list) throw new AssetGcAbortedError("KV listing is unavailable");
@@ -172,17 +210,20 @@ async function discoverOrphans(
   }
   const seen = new Set<string>();
   const candidates: Array<{ path: string; bytes: number | null }> = [];
+  // Every listed key belongs in the storage ledger, referenced or not.
+  const objects: Array<{ path: string; bytes: number | null; uploadedAt: number }> = [];
   for (const item of page.keys) {
     const path = item?.name;
     if (typeof path !== "string" || !path.startsWith("assets/") || seen.has(path)) {
       throw new Error("Invalid KV key");
     }
     seen.add(path);
-    if (refs.has(path) || assetUploadedAt(path) === null) continue;
-    const bytes = item.metadata?.bytes;
-    candidates.push({ path,
-      bytes: typeof bytes === "number" && Number.isSafeInteger(bytes) && bytes >= 0
-        ? bytes : null });
+    const size = item.metadata?.bytes;
+    const bytes = typeof size === "number" && Number.isSafeInteger(size) && size >= 0 ? size : null;
+    const uploadedAt = assetUploadedAt(path);
+    objects.push({ path, bytes, uploadedAt: uploadedAt ?? now });
+    if (refs.has(path) || uploadedAt === null) continue;
+    candidates.push({ path, bytes });
   }
   const next = page.list_complete ? null : (page.cursor ?? null);
   if (!page.list_complete && (!next || previousCursor === next)) {
@@ -197,17 +238,29 @@ async function discoverOrphans(
         ON CONFLICT(path) DO UPDATE SET last_seen_at=excluded.last_seen_at,
           bytes=COALESCE(excluded.bytes,asset_gc_candidates.bytes)`,
       args: [now, now, JSON.stringify(candidates)] },
+    { sql: `INSERT INTO asset_objects(path,bytes,uploaded_at,last_seen_at)
+        SELECT json_extract(value,'$.path'), json_extract(value,'$.bytes'), json_extract(value,'$.uploadedAt'), ?
+        FROM json_each(?) WHERE true
+        ON CONFLICT(path) DO UPDATE SET last_seen_at=excluded.last_seen_at,
+          bytes=COALESCE(excluded.bytes,asset_objects.bytes)`,
+      args: [now, JSON.stringify(objects)] },
     { sql: `UPDATE asset_gc_state SET scan_cursor=?, scan_started_at=?
         WHERE id=1 AND lease_token=?`,
       args: [next, page.list_complete ? null : scanStarted, token] },
   ]);
   if (page.list_complete) {
     // Only completed inventories know which objects are no longer in KV.
-    // New delete events after scan start must not be discarded.
-    await db.execute({
-      sql: "DELETE FROM asset_gc_candidates WHERE last_seen_at < ? AND first_unreferenced_at < ?",
-      args: [scanStarted, scanStarted],
-    });
+    // New delete events and uploads after scan start must not be discarded.
+    await db.batch([
+      { sql: "DELETE FROM asset_gc_candidates WHERE last_seen_at < ? AND first_unreferenced_at < ?",
+        args: [scanStarted, scanStarted] },
+      { sql: "DELETE FROM asset_objects WHERE last_seen_at < ? AND uploaded_at < ?",
+        args: [scanStarted, scanStarted] },
+      // Keys that existed before the ledger may have been missed by a scan
+      // that was already under way; only a later scan proves completeness.
+      { sql: "UPDATE asset_ledger_state SET complete_at=? WHERE id=1 AND created_at <= ?",
+        args: [now, scanStarted] },
+    ]);
   }
   return { scanned: page.keys.length, complete: page.list_complete };
 }
@@ -217,9 +270,10 @@ async function discoverOrphans(
  * Failure to read any site aborts physical deletion.
  */
 export async function runAssetGc({
-  db, kv, rooms, now = Date.now(), graceDays, maxDeletes, dryRun = true,
+  db: rawDb, kv: rawKv, rooms: rawRooms, now = Date.now(), graceDays, maxDeletes, dryRun = true,
   discoverUntracked = false,
 }: AssetGcDependencies): Promise<AssetGcReport> {
+  const { db, kv, rooms, used } = countSubrequests(rawDb, rawKv, rawRooms);
   if (db.backend !== "d1" || discoverUntracked && !kv.list) {
     throw new AssetGcAbortedError("Cloudflare storage is unavailable");
   }
@@ -276,9 +330,13 @@ export async function runAssetGc({
     let eligible = plan.eligible;
     if (eligible.length) {
       stage = "references";
-      // Required even in dry-run so administrators see only currently unused keys.
-      try { refs = await collectAllAssetReferences(db, rooms); }
-      catch { throw new AssetGcAbortedError("Unable to read current documents"); }
+      // Required even in dry-run so the run log counts only currently unused keys.
+      // The weekly inventory just scanned every site in this run; reuse it to
+      // save one Durable Object call per site. Deletion still rescans below.
+      if (!refs) {
+        try { refs = await collectAllAssetReferences(db, rooms); }
+        catch { throw new AssetGcAbortedError("Unable to read current documents"); }
+      }
       referencedCount = refs.size;
       const protectedNow = eligible.filter(item => refs!.has(item.path));
       if (protectedNow.length) {
@@ -306,7 +364,10 @@ export async function runAssetGc({
         eligible = eligible.filter(item => !lastRefs.has(item.path));
         // KV deletion can outlive D1 logging. Retained candidates are safe to
         // retry because deleting an already-missing KV key is idempotent.
-        for (const item of eligible.slice(0, KV_DELETES_PER_RUN)) {
+        // The site scans above cost one DO call per site, so the number of
+        // deletes that fit depends on the deployment; stop before the limit.
+        for (const item of eligible) {
+          if (used() + SUBREQUESTS_PER_DELETE + SUBREQUESTS_TO_FINISH > GC_INTERNAL_SUBREQUEST_BUDGET) break;
           const check = await db.execute({
             sql: "SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?",
             args: [item.path],
@@ -316,10 +377,12 @@ export async function runAssetGc({
           deleted++;
           deletedBytesKnown += item.bytes ?? 0;
           deletedPaths.push(item.path);
-          await db.execute({
-            sql: "DELETE FROM asset_gc_candidates WHERE path=? AND first_unreferenced_at=?",
-            args: [item.path, item.firstUnreferencedAt],
-          });
+          // One batch keeps the cost at three subrequests per delete.
+          await db.batch([
+            { sql: "DELETE FROM asset_gc_candidates WHERE path=? AND first_unreferenced_at=?",
+              args: [item.path, item.firstUnreferencedAt] },
+            { sql: "DELETE FROM asset_objects WHERE path=?", args: [item.path] },
+          ]);
         }
       }
     }

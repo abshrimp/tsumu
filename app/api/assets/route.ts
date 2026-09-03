@@ -9,6 +9,7 @@ import { readAssetForm } from "../../../lib/asset-upload";
 import { siteIdOf } from "../../../lib/site-server";
 import { documentAssetReferences } from "../../../lib/site-document-service";
 import { recordAssetGcCandidates } from "../../../lib/asset-gc";
+import { readAssetLedger, recordUploadedAsset } from "../../../lib/asset-ledger";
 
 /**
  * Read each other site's asset index directly from its SQLite-backed DO.
@@ -89,6 +90,14 @@ export async function POST(req: Request) {
     await store.put(path, await file.arrayBuffer(), {
       metadata: { contentType: file.type, bytes: file.size },
     });
+    if (dbConfigured()) {
+      try {
+        await recordUploadedAsset(await getDb(), path, file.size);
+      } catch {
+        // The file is stored. The weekly KV inventory adds a missed ledger row.
+        console.warn("Uploaded asset was not recorded in the storage ledger");
+      }
+    }
     return NextResponse.json({ ok: true, name: safeName, path });
   } catch (e) {
     return NextResponse.json(
@@ -100,8 +109,10 @@ export async function POST(req: Request) {
 
 /**
  * 全サイトのアセットの使用量（ストレージは全サイト共通）。
- * ?site= のサイト以外が使っているファイルの一覧を返す（そのサイトの分は、ブラウザが編集中の内容から足す）。
- * 使用状況は各サイトの保存先から取得する。確認できないときは削除を中止する。
+ * Cloudflare では、KV に置いたファイルの台帳（D1）を ledger として返す。
+ * 台帳が揃っていれば、それだけで KV の実際の使用量になる。
+ * 揃うまで（最初の週次の棚卸しが終わるまで）と Node/Docker では、
+ * ?site= のサイト以外が使っているファイルの一覧も返す（そのサイトの分は、ブラウザが編集中の内容から足す）。
  */
 export async function GET(req: Request) {
   const tr = await serverTr();
@@ -112,9 +123,12 @@ export async function GET(req: Request) {
   if (siteId instanceof NextResponse) return siteId;
   try {
     const db = await getDb();
-    const refs = await otherSiteAssetReferences(db, siteId);
+    const ledger = await readAssetLedger(db);
+    // A complete ledger already counts every file; skip one DO call per site.
+    const refs = ledger?.complete ? null : await otherSiteAssetReferences(db, siteId);
     return NextResponse.json({
-      others: [...refs].map(([path, bytes]) => ({ path, bytes })),
+      ...(ledger ? { ledger } : {}),
+      ...(refs ? { others: [...refs].map(([path, bytes]) => ({ path, bytes })) } : {}),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });

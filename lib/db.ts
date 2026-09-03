@@ -143,6 +143,25 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
               lease_token TEXT
             )`,
             `INSERT OR IGNORE INTO asset_gc_state(id) VALUES(1)`,
+            // Ledger of every object in ASSETS_KV, so storage usage is one D1
+            // query instead of a KV listing (1,000 lists/day on Workers Free).
+            // Uploads add rows, GC deletes remove them, and the weekly KV
+            // inventory backfills older objects and drops vanished ones.
+            `CREATE TABLE IF NOT EXISTS asset_objects (
+              path TEXT PRIMARY KEY,
+              bytes INTEGER,
+              uploaded_at INTEGER NOT NULL,
+              last_seen_at INTEGER NOT NULL
+            )`,
+            // The ledger is complete once an inventory that started after the
+            // ledger existed has listed every key.
+            `CREATE TABLE IF NOT EXISTS asset_ledger_state (
+              id INTEGER PRIMARY KEY CHECK(id=1),
+              created_at INTEGER NOT NULL,
+              complete_at INTEGER
+            )`,
+            `INSERT OR IGNORE INTO asset_ledger_state(id,created_at)
+              VALUES(1, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`,
           ]),
           // サイト単位で最後にGitHubへ公開した出力形式。D1とNode SQLiteで共通。
           `CREATE TABLE IF NOT EXISTS site_publish_options (

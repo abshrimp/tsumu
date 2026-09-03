@@ -51,7 +51,8 @@ import { Icon } from "../icons";
 import { userMessage } from "../../lib/errors";
 import { showConfirm } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
-import { useServerStatus } from "../../lib/status";
+import { serverStatusSnapshot, useServerStatus, type AssetDeletion } from "../../lib/status";
+import { computeStorageUsage, type StorageUsageResponse } from "../../lib/storage-usage";
 
 /* ============ アセット ============ */
 
@@ -107,84 +108,93 @@ const STATIC_MIME: Record<string, string> = {
   md: "text/markdown", xml: "application/xml", csv: "text/csv",
 };
 
-/** ほかのサイトが使っているサーバー保存のファイル（path → bytes）。開いている間に1回だけ取りに行く */
-let otherSitesUsage: Promise<Map<string, number | null>> | null = null;
-
-function loadOtherSitesUsage(): Promise<Map<string, number | null>> {
-  otherSitesUsage ??= (async () => {
-    const map = new Map<string, number | null>();
+/** 使用量の元データを取りに行く（サーバーで数えられなければ、このブラウザに保存しているほかのサイトから数える） */
+async function fetchStorageUsage(): Promise<StorageUsageResponse> {
+  try {
+    const res = await fetch(siteApi("/api/assets"));
+    if (res.ok) return (await res.json()) as StorageUsageResponse;
+  } catch {
+    // 下のブラウザ内の保存から数える
+  }
+  const others = new Map<string, number | null>();
+  for (const raw of await otherBrowserDocs(currentSiteId()).catch(() => [])) {
     try {
-      const res = await fetch(siteApi("/api/assets"));
-      if (res.ok) {
-        const data = (await res.json()) as { others?: { path: string; bytes: number | null }[] };
-        for (const o of data.others ?? []) map.set(o.path, o.bytes);
-        return map;
+      const doc = JSON.parse(raw) as Pick<SiteDoc, "assets">;
+      for (const a of Object.values(doc.assets ?? {})) {
+        if (a.path) others.set(a.path, a.bytes ?? others.get(a.path) ?? null);
       }
     } catch {
-      // サーバーで数えられなければ、このブラウザに保存しているほかのサイトから数える
+      // 壊れた保存は数えない
     }
-    for (const raw of await otherBrowserDocs(currentSiteId()).catch(() => [])) {
-      try {
-        const doc = JSON.parse(raw) as Pick<SiteDoc, "assets">;
-        for (const a of Object.values(doc.assets ?? {})) {
-          if (a.path) map.set(a.path, a.bytes ?? map.get(a.path) ?? null);
-        }
-      } catch {
-        // 壊れた保存は数えない
-      }
-    }
-    return map;
-  })();
-  return otherSitesUsage;
+  }
+  return { others: [...others].map(([path, bytes]) => ({ path, bytes })) };
 }
 
 /** 保存先（KV）があるときだけ使用量を出す（無ければアセットはサイトの中に保存され、KVの容量は使わない） */
 function StorageUsage() {
   const status = useServerStatus();
-  return status?.assets ? <StorageUsageMeter /> : null;
+  return status?.assets ? <StorageUsageMeter deletion={status.assetDeletion ?? null} /> : null;
 }
 
 /**
- * サーバー保存済みアセットの使用量。保存先（KV）は全サイト共通なので、全サイトの合計を出す
- * （docに記録したbytesから算出し、同じファイルは1回だけ数える。KVのlistを使わずに表示できる）
+ * サーバー保存済みアセットの使用量。保存先（KV）は全サイト共通なので、全サイトの合計を出す。
+ * Cloudflare では KV に置いたファイルの台帳（D1）から数えるので、削除待ちのファイルも含めて
+ * KV の実際の使用量と一致する（台帳が揃うまでは、サイトが使っているファイルだけを数える）。
  */
-function StorageUsageMeter() {
+function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
   const doc = useEditor((s) => s.doc);
-  const [others, setOthers] = useState<Map<string, number | null> | null>(null);
+  const [response, setResponse] = useState<StorageUsageResponse | null>(null);
+  const own = Object.values(doc.assets).filter((a) => a.path);
+  // 台帳はアップロード・削除で変わるので、このサイトのファイルが変わったら取り直す（連続した変更はまとめる）
+  const ownKey = own.map((a) => a.path).sort().join("\n");
+  const exact = !!response?.ledger?.complete;
+  const loaded = response !== null;
   useEffect(() => {
+    // 台帳が揃っていないときは、このサイトの分を編集中の内容から足すので取り直さない
+    if (loaded && !exact) return;
     let alive = true;
-    void loadOtherSitesUsage().then((m) => {
-      if (alive) setOthers(m);
-    });
+    const timer = setTimeout(() => {
+      void fetchStorageUsage().then((r) => {
+        if (alive) setResponse(r);
+      });
+    }, loaded ? 1000 : 0);
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
-  }, []);
-  const files = new Map<string, number | null>(others ?? []);
-  const own = Object.values(doc.assets).filter((a) => a.path);
-  for (const a of own) files.set(a.path!, a.bytes ?? files.get(a.path!) ?? null);
-  let total = 0;
-  let unknown = 0;
-  for (const b of files.values()) {
-    if (b === null) unknown++;
-    else total += b;
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ownKey]);
+  const usage = computeStorageUsage(response, own);
   /** Workers KV の無料枠（有料プランでも 1GB までは料金に含まれ、超えた分は従量課金） */
   const limit = 1024 * 1024 * 1024;
-  const pct = Math.min(100, (total / limit) * 100);
-  return (
-    <div
-      className="storage-usage"
-      data-tip={
-        tr("全サイトの合計: サーバーに保存したアセット {length}件（このサイト {own}件）{p2}", {
-          length: files.size,
+  const pct = Math.min(100, (usage.bytes / limit) * 100);
+  const lines = [
+    usage.exact
+      ? tr("全サイトの合計: サーバーに保存したファイル {files}件{p2}", {
+          files: usage.files,
+          p2: usage.unknown ? tr("（うち{unknown}件はサイズ不明）", { unknown: usage.unknown }) : "",
+        })
+      : tr("全サイトの合計: サーバーに保存したアセット {length}件（このサイト {own}件）{p2}", {
+          length: usage.files,
           own: own.length,
-          p2: unknown ? tr("（うち{unknown}件はサイズ不明）", { unknown }) : "",
-        }) +
-        "\n" +
-        tr("1GB は Workers KV の無料枠です。有料プランでは超えた分が従量課金になります。")
-      }
-    >
+          p2: usage.unknown ? tr("（うち{unknown}件はサイズ不明）", { unknown: usage.unknown }) : "",
+        }),
+  ];
+  if (usage.pendingCount && deletion?.mode === "scheduled") {
+    lines.push(tr("うち削除予定 {count}件（{size}）は、削除から{days}日後にサーバーから消えます。", {
+      count: usage.pendingCount, size: formatBytes(usage.pendingBytes), days: deletion.days,
+    }));
+  } else if (usage.pendingCount && deletion?.mode === "kept") {
+    lines.push(tr("うち削除したアセット {count}件（{size}）が、サーバーに残っています。", {
+      count: usage.pendingCount, size: formatBytes(usage.pendingBytes),
+    }));
+  }
+  if (response?.ledger && !usage.exact) {
+    lines.push(tr("サーバー全体の確認（週1回）が終わるまでは、サイトで使っているファイルだけを数えています。"));
+  }
+  lines.push(tr("1GB は Workers KV の無料枠です。有料プランでは超えた分が従量課金になります。"));
+  return (
+    <div className="storage-usage" data-tip={lines.join("\n")}>
       <div className="storage-bar">
         <div
           className="storage-fill"
@@ -195,7 +205,7 @@ function StorageUsageMeter() {
         />
       </div>
       <span className="hint">
-        {tr("使用量（全サイト）")} {formatBytes(total)} / {tr("無料枠 {size}", { size: formatBytes(limit) })}
+        {tr("使用量（全サイト）")} {formatBytes(usage.bytes)} / {tr("無料枠 {size}", { size: formatBytes(limit) })}
       </span>
     </div>
   );
@@ -221,6 +231,20 @@ let assetScrollTop = 0;
 function sameAssetFile(current: Asset | undefined, approved: Asset): boolean {
   return !!current && current.id === approved.id && current.path === approved.path &&
     current.dataUrl === approved.dataUrl && JSON.stringify(current.zip) === JSON.stringify(approved.zip);
+}
+
+/**
+ * 削除の確認で伝える、サーバーに保存したファイルの扱い。
+ * Cloudflare はすぐには消さず、GC が days 日後に消す（ASSET_GC_ENABLED が無ければ消さない）。
+ */
+function serverFileNotice(deletion: AssetDeletion | null | undefined, several: boolean): string {
+  if (deletion?.mode === "scheduled") {
+    return tr("サーバーに保存したファイルは{days}日後に削除されます（それまでに元に戻すか、ほかのサイトで使っていれば残ります）。", { days: deletion.days });
+  }
+  if (deletion?.mode === "kept") return tr("サーバーに保存したファイルは削除されずに残ります。");
+  return several
+    ? tr("サーバーに保存したファイルも削除され、元に戻せません。")
+    : tr("サーバーに保存したファイルも削除されます。");
 }
 
 /** 別IDで残るアセットの保存先を守り、同じファイルを二重に削除しない。 */
@@ -406,7 +430,7 @@ export function AssetsTab() {
     if (!unused.length) return;
     const current = removalScope();
     if (
-      !(await showConfirm(tr("サーバーに保存したファイルも削除され、元に戻せません。"), {
+      !(await showConfirm(serverFileNotice(serverStatusSnapshot()?.assetDeletion, true), {
         title: tr("使用していないアセット {length}件を削除しますか？", { length: unused.length }),
         okLabel: tr("削除"),
         danger: true,
@@ -550,11 +574,12 @@ export function AssetsTab() {
   const removeAsset = async (asset: Asset) => {
     const used = usedBy(asset);
     const current = removalScope();
+    const notice = asset.path ? serverFileNotice(serverStatusSnapshot()?.assetDeletion, false) : "";
     if (
       !(await showConfirm(
         used
-          ? tr("{used}箇所で使用中です。使っている要素からも外して削除します。サーバーのファイルも削除されます。", { used })
-          : tr("サーバーに保存したファイルも削除されます。"),
+          ? tr("{used}箇所で使用中です。使っている要素からも外して削除します。", { used }) + notice
+          : notice,
         { title: tr("「{name}」を削除しますか？", { name: asset.name }), okLabel: tr("削除"), danger: true }
       ))
     ) {

@@ -6,6 +6,7 @@ import { requireAuth } from "../../../../lib/server";
 import { assetStore } from "../../../../lib/kv";
 import { userMessage } from "../../../../lib/errors";
 import { verifyAssetToken } from "../../../../lib/asset-token";
+import { assetCacheControl } from "../../../../lib/asset-cache";
 
 /** KV上のアセットを認証つきで配信する（エディタのキャンバス表示用） */
 export async function GET(req: Request) {
@@ -35,7 +36,7 @@ export async function GET(req: Request) {
     return new NextResponse(value, {
       headers: {
         "Content-Type": metadata?.contentType ?? "application/octet-stream",
-        "Cache-Control": "private, no-store",
+        "Cache-Control": assetCacheControl(signed ? Number(params.get("exp")) : null),
         // エディタと同じオリジンから配信するため、SVGなどを直接開いてもスクリプトが動かないようにする
         "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; media-src 'self'; sandbox",
         "X-Content-Type-Options": "nosniff",

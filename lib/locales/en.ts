@@ -1029,8 +1029,6 @@ const en: Dict = {
     "Can't save to the server yet. Check the save status at the bottom of the screen.",
   "サーバーへ移せませんでした":
     "Couldn't move it to the server",
-  "{used}箇所で使用中です。使っている要素からも外して削除します。サーバーのファイルも削除されます。":
-    "Used in {used} places. It will be removed from those elements and deleted, including the file on the server.",
   "サーバーに保存したファイルも削除されます。":
     "The file on the server will also be deleted.",
   "「{name}」を削除しますか？":
@@ -3403,6 +3401,20 @@ const en: Dict = {
     "The search and share title of \"{name}\" is still the automatic \"{title}\"",
   "{names} の検索・シェア用タイトルが同じ「{title}」です（検索結果やタブで見分けられません）":
     "{names} have the same search and share title \"{title}\" (they can't be told apart in search results or tabs)",
+  "全サイトの合計: サーバーに保存したファイル {files}件{p2}":
+    "All sites: {files} files stored on the server{p2}",
+  "うち削除予定 {count}件（{size}）は、削除から{days}日後にサーバーから消えます。":
+    "{count} of them ({size}) are scheduled for deletion and leave the server {days} days after they were deleted.",
+  "うち削除したアセット {count}件（{size}）が、サーバーに残っています。":
+    "{count} deleted assets ({size}) remain on the server.",
+  "サーバー全体の確認（週1回）が終わるまでは、サイトで使っているファイルだけを数えています。":
+    "Until the weekly server-wide check finishes, only files used by sites are counted.",
+  "サーバーに保存したファイルは{days}日後に削除されます（それまでに元に戻すか、ほかのサイトで使っていれば残ります）。":
+    "The file stored on the server will be deleted in {days} days (it is kept if you undo before then or another site uses it).",
+  "サーバーに保存したファイルは削除されずに残ります。":
+    "The file stored on the server is kept and not deleted.",
+  "{used}箇所で使用中です。使っている要素からも外して削除します。":
+    "Used in {used} places. It will also be removed from the elements that use it. ",
   "使用量（全サイト）":
     "Usage (all sites)",
   "無料枠 {size}":
