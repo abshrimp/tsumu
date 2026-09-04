@@ -3,6 +3,8 @@ import { IMPORT_LIMITS } from "./site-import";
 import { zipEntrySize } from "./zip-directory";
 import { ZIP_CSS_LIMITS } from "./zip-css";
 
+export const isHtmlIndex = (path: string) => /(^|\/)index\.html?$/i.test(path);
+
 export const HTML_ZIP_LIMITS = {
   zipBytes: IMPORT_LIMITS.zipBytes,
   entries: 200,
@@ -69,7 +71,17 @@ export function inspectHtmlZip(zip: JSZip): {
     !entry.name.startsWith("__MACOSX/") && !entry.name.endsWith(".DS_Store"));
   const htmlEntries = entries.filter((entry) => /\.html?$/i.test(entry.name));
   if (!htmlEntries.length) throw new Error("ZIP内にHTMLファイルが見つかりません");
-  const htmlEntry = htmlEntries.find((entry) => /(^|\/)index\.html?$/i.test(entry.name)) ?? htmlEntries[0];
+  // Archives may list a nested index before the site's home page.
+  let htmlEntry = htmlEntries[0];
+  let indexDepth = Infinity;
+  for (const entry of htmlEntries) {
+    if (!isHtmlIndex(entry.name)) continue;
+    const depth = entry.name.split("/").length;
+    if (depth < indexDepth) {
+      indexDepth = depth;
+      htmlEntry = entry;
+    }
+  }
   return { htmlEntries, htmlEntry, assetEntries: entries.filter((entry) => !/\.html?$/i.test(entry.name)) };
 }
 
