@@ -63,6 +63,39 @@ test("HTML export produces independent nested pages and relative links", () => {
   assert.equal(result.files["src/App.tsx"], undefined);
 });
 
+test("standalone HTML keeps explicit URL queries independent of page-variant queries", () => {
+  const doc = fixture();
+  const about = { ...doc.pages.home, id: "about", slug: "about", query: "lang=ja", children: [] };
+  doc.pages.about = about;
+  doc.pages.english = { ...about, id: "english", query: "lang=en" };
+  doc.pageOrder.push("about", "english");
+  doc.nodes.hero.link = { kind: "url", url: "/about/?lang=en&view=list#section" };
+  doc.nodes.nav = { ...makeBox(), id: "nav", link: { kind: "page", pageId: "about" } };
+  doc.pages.home.children.push("nav");
+  const html = generateExportProject(doc, "html").files["index.html"];
+  assert.ok(html.includes('href="./about/index.html?lang=en&amp;view=list#section"'));
+  assert.ok(html.includes('href="./about/index.html?lang=ja"'));
+});
+
+test("a URL link to the only exported page uses index.html without inheriting its query", () => {
+  const doc = fixture();
+  doc.pages.home.slug = "about";
+  doc.pages.home.query = "lang=ja";
+  doc.nodes.hero.link = { kind: "url", url: "/about#section" };
+  const html = generateExportProject(doc, "html").files["index.html"];
+  assert.ok(html.includes('href="./index.html#section"'));
+});
+
+test("standalone HTML treats a favicon URL as a resource even if it matches a page slug", () => {
+  const doc = fixture();
+  doc.favicon = { url: "/icon.svg" };
+  doc.pages.icon = { ...doc.pages.home, id: "icon", slug: "icon.svg", children: [] };
+  doc.pageOrder.push("icon");
+  const { files } = generateExportProject(doc, "html");
+  assert.ok(files["index.html"].includes('<link rel="icon" href="./icon.svg">'));
+  assert.ok(files["icon.svg/index.html"].includes('<link rel="icon" href="../icon.svg">'));
+});
+
 test("HTML export keeps raw HTML routes without transpiling their content", () => {
   const doc = fixture();
   doc.pages.home.rawHtml = '<!doctype html><html><head><title>Raw</title></head><body><main id="raw-html">Raw body</main></body></html>';
