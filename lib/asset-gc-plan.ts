@@ -1,3 +1,6 @@
+import { decodeHTML } from "entities/decode";
+import { decodeCssEscapes } from "./css-escape";
+
 /**
  * Conservative asset GC planning. This module never writes to storage.
  *
@@ -67,7 +70,8 @@ export function planAssetGc(input: GcPlanInput) {
     remainingEligible: Math.max(0, eligible.length - maxDeletes) };
 }
 
-/** Extract both direct paths and percent-encoded paths from every JSON string.
+/** Extract literal paths and HTML/CSS/URL-encoded paths from every JSON string.
+ * Decode only when escape markers are present; never build an HTML document.
  * False positives retain data; omitted matches would put data at risk.
  */
 export function extractAssetReferences(raw: string): Set<string> {
@@ -83,21 +87,32 @@ export function extractAssetReferences(raw: string): Set<string> {
       let text = value;
       for (let round = 0; round < 3; round++) {
         for (const match of text.matchAll(re)) paths.add(match[0]);
-        if (!text.includes("%")) break;
-        let decoded: string;
-        try { decoded = decodeURIComponent(text); }
-        catch {
-          // A malformed escape elsewhere must not obscure ordinary %2F paths.
-          decoded = text.replace(/%2f/gi, "/").replace(/%2d/gi, "-").replace(/%2e/gi, ".");
+        // Preserve the literal match above, then also protect spellings that
+        // browsers decode inside HTML attributes, CSS URLs and query values.
+        let decoded = text;
+        if (decoded.includes("&")) decoded = decodeHTML(decoded);
+        if (decoded.includes("\\")) decoded = decodeCssEscapes(decoded);
+        if (decoded.includes("%")) {
+          try { decoded = decodeURIComponent(decoded); }
+          catch {
+            // Asset keys are ASCII. Recover each valid ASCII escape even when
+            // unrelated text contains a stray percent sign or invalid UTF-8.
+            decoded = decoded.replace(/%([0-7][0-9a-f])/gi,
+              (_match, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+          }
         }
+        // URL parsing removes ASCII tabs and line breaks even in query values.
+        decoded = decoded.replace(/[\t\r\n]/g, "");
         if (decoded === text) break;
         text = decoded;
       }
     } else if (Array.isArray(value)) {
-      pending.push(...value);
+      for (const item of value) pending.push(item);
     } else if (value !== null && typeof value === "object") {
       // Paths in object keys (e.g. imported lookup maps) also retain objects.
-      pending.push(...Object.keys(value), ...Object.values(value));
+      for (const key of Object.keys(value)) {
+        pending.push(key, (value as Record<string, unknown>)[key]);
+      }
     }
   }
   return paths;

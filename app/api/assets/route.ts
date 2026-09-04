@@ -154,21 +154,22 @@ export async function DELETE(req: Request) {
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
   try {
-    if (dbConfigured()) {
-      const db = await getDb();
-      if (db.backend === "d1") {
-        // The editor has removed the asset from its local doc. Register it now
-        // rather than listing all KV objects every night. Other sites and
-        // pending saves are rechecked after the seven-day grace period.
-        const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
-        if (!site.rows.length) return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
-        const scheduled = await recordAssetGcCandidates(db, [path]);
-        return NextResponse.json({ ok: true, kept: true, scheduled: scheduled > 0 });
-      }
-      // Browser-only sites can hold references outside this server database.
-      if (params.get("browserReferenced") === "1") {
-        return NextResponse.json({ ok: true, kept: true });
-      }
+    const db = dbConfigured() ? await getDb() : null;
+    if (db?.backend === "d1") {
+      // The editor has removed the asset from its local doc. Register it now
+      // rather than listing all KV objects every night. Other sites and
+      // pending saves are rechecked after the seven-day grace period.
+      const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
+      if (!site.rows.length) return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+      const scheduled = await recordAssetGcCandidates(db, [path]);
+      return NextResponse.json({ ok: true, kept: true, scheduled: scheduled > 0 });
+    }
+    // Browser-only sites can hold references with or without a server database.
+    // Every immediate-delete path must retain files shared by those sites.
+    if (params.get("browserReferenced") === "1") {
+      return NextResponse.json({ ok: true, kept: true });
+    }
+    if (db) {
       const refs = await otherSiteAssetReferences(db, siteId);
       if (refs.has(path)) return NextResponse.json({ ok: true, kept: true });
     }

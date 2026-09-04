@@ -9,8 +9,8 @@ class NextResponse extends Response {
   }
 }
 
-function assetDeleteRoute({ backend = "d1", siteExists = true, browserReferenced = false }:
-  { backend?: "d1" | "sqlite"; siteExists?: boolean; browserReferenced?: boolean } = {}) {
+function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true, browserReferenced = false }:
+  { backend?: "d1" | "sqlite"; configured?: boolean; siteExists?: boolean; browserReferenced?: boolean } = {}) {
   const source = readFileSync(new URL("../app/api/assets/route.ts", import.meta.url), "utf8");
   const { code } = transformSync(source, { loader: "ts", format: "cjs", target: "es2022" });
   let registered = 0, deleted = 0, otherSiteReads = 0;
@@ -36,7 +36,7 @@ function assetDeleteRoute({ backend = "d1", siteExists = true, browserReferenced
     "../../../lib/server": { requireAuth: async () => null },
     "../../../lib/kv": { assetStore: () => ({ async delete() { deleted++; } }), MAX_ASSET_BYTES: 25 * 1024 * 1024 },
     "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
-    "../../../lib/db": { dbConfigured: () => true, getDb: async () => db },
+    "../../../lib/db": { dbConfigured: () => configured, getDb: async () => db },
     "../../../lib/asset-upload": { readAssetForm: async () => null },
     "../../../lib/site-server": { siteIdOf: async (id: string) => id },
     "../../../lib/site-document-service": {
@@ -120,3 +120,15 @@ test("Node/Docker continue their cross-site reference check on direct deletion",
   assert.equal(f.deleted(), 1);
   assert.equal(f.registered(), 0);
 });
+
+for (const browserReferenced of [true, false]) {
+  test(`KV-only deletion ${browserReferenced ? "retains a file referenced by another browser site" : "deletes an unreferenced file"}`, async () => {
+    const f = assetDeleteRoute({ configured: false, browserReferenced });
+    const response = await f.call();
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), browserReferenced ? { ok: true, kept: true } : { ok: true });
+    assert.equal(f.deleted(), browserReferenced ? 0 : 1);
+    assert.equal(f.registered(), 0);
+    assert.equal(f.otherSiteReads(), 0);
+  });
+}
