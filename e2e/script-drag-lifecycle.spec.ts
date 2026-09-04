@@ -288,6 +288,61 @@ test("copying a whole script creates independent script and nested step IDs", as
   expect(scripts[0].steps[0].id).not.toBe(scripts[1].steps[0].id);
 });
 
+test("nested step drag keeps the original indentation, border and width", async ({ page }) => {
+  await page.evaluate(() => (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
+    doc.pages.p.pageScripts[0].steps.push({
+      id: "loop", kind: "repeat", times: 3, then: [{ id: "inside", kind: "wait", seconds: 4 }],
+    });
+  }));
+  await page.addStyleTag({ content:
+    '.se-ws [data-sel-key="step:inside"] { border-top: 3px dotted rgb(30, 70, 120); padding-left: 18px; }',
+  });
+  const nested = page.locator('.se-ws [data-sel-key="step:inside"]');
+  const measure = (locator: typeof nested) => locator.evaluate((el) => {
+    const css = getComputedStyle(el);
+    return { width: (el as HTMLElement).offsetWidth, padding: css.paddingLeft,
+      border: css.borderTop, radius: css.borderTopLeftRadius };
+  });
+  const before = await measure(nested);
+  const origin = (await nested.boundingBox())!;
+  await nested.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "touch", button: 0, buttons: 1,
+    clientX: origin.x + 5, clientY: origin.y + 5,
+  });
+  const p = await point(page);
+  await pointer(page, "pointermove", { x: p.x - 40, y: p.y - 40 });
+  const ghost = page.locator('.se-ghost [data-sel-key="step:inside"]');
+  await expect(ghost).toBeVisible();
+  expect(await measure(ghost)).toEqual(before);
+  await pointer(page, "pointercancel", { buttons: 0 });
+  await expect(transient(page)).toHaveCount(0);
+});
+
+test("large nested drag keeps its real header instead of switching to read-only placeholders", async ({ page }) => {
+  await page.evaluate(() => (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
+    doc.pages.p.pageScripts[0].steps.push({
+      id: "long", kind: "repeat", times: 5,
+      then: Array.from({ length: 160 }, (_, i) => ({ id: "long-" + i, kind: "wait", seconds: i + 1 })),
+    });
+  }));
+  const original = page.locator('.se-ws [data-sel-key="step:long"]');
+  const input = original.locator("input").first();
+  await expect(input).toHaveValue("5");
+  const origin = (await original.boundingBox())!;
+  await original.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "touch", button: 0, buttons: 1,
+    clientX: origin.x + 5, clientY: origin.y + 5,
+  });
+  const p = await point(page);
+  await pointer(page, "pointermove", { x: p.x - 40, y: p.y - 40 });
+  const ghost = page.locator('.se-ghost [data-sel-key="step:long"]');
+  await expect(ghost).toBeVisible();
+  await expect(ghost.locator("input").first()).toHaveValue("5");
+  await expect(ghost).toHaveClass(/se-c-head/);
+  await pointer(page, "pointercancel", { buttons: 0 });
+  await expect(transient(page)).toHaveCount(0);
+});
+
 test("a real mouse drop still moves one stack and supports Undo/Redo", async ({ page }) => {
   const before = await snapshot(page);
   const r = await page.locator(owner("script")).boundingBox(); const p = await point(page);
