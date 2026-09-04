@@ -123,7 +123,7 @@ function apiError(status: number | undefined, detail: string): AiApiError {
 }
 
 function anthropicSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSignal, onText?: (text: string) => void, onTools?: () => void): () => Promise<Step> {
-  const client = new Anthropic({ apiKey: conf.apiKey, maxRetries: 0 });
+  const client = new Anthropic({ apiKey: conf.apiKey, maxRetries: 0, fetchOptions: { redirect: "manual" } });
   const messages: Anthropic.MessageParam[] = turns.map((t) => ({ role: t.role, content: t.text }));
   return async () => {
     const params: Anthropic.MessageCreateParamsNonStreaming = {
@@ -197,7 +197,7 @@ function compatibleSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSigna
           ...(sendEffort ? { reasoning_effort: ["xhigh", "max"].includes(conf.effort) ? "high" : conf.effort } : {}),
         }),
         signal,
-        redirect: "error", // Never forward an API key to a redirected endpoint.
+        redirect: "manual", // Workers supports manual mode. Treat 3xx as provider errors.
       });
       if (res.ok) break;
       const detail = await readTextLimited(res, MAX_MODEL_ERROR_BYTES).catch((error: unknown) => {

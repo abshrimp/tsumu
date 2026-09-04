@@ -63,12 +63,18 @@ function api(db: Db) {
   const post = load("../app/api/comments/route.ts", "POST", {
     NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
     listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction,
-    requireAuth: async () => null, sessionUser: async () => author,
+    requireAuth: async (mode?: "user") => mode === "user" ? author : null,
     dbConfigured: () => true, getDb: async () => db,
     dbUnavailable: () => { throw new Error("Unexpected fallback"); },
   }) as (req: Request) => Promise<Response>;
   return (site = "site", action: CommentAction = create, contentType = "application/json") => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", headers: { "Content-Type": contentType }, body: JSON.stringify(action) }));
 }
+
+test("the API stores the identity that authorized the new comment", async () => database(async db => {
+  assert.equal((await api(db)()).status, 200);
+  const [thread] = await listComments(db, "site");
+  assert.deepEqual(thread.messages[0].author, author);
+}));
 
 for (const timing of ["before request", "before write"] as const) {
   test(`the API rejects creation when the site is deleted ${timing}, without resurrecting any records`, async () => database(async db => {

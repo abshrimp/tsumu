@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { dbUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
+import { isValidEmail } from "../../../lib/email";
 import { allowedEmails, auth, authConfigured } from "../../../auth";
 import {
   addAllowedEmail,
@@ -13,17 +14,6 @@ import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "..
 
 export const maxDuration = 30;
 
-// Bound untrusted input and validate fixed-size components (no repeated regex groups).
-const validEmail = (email: string): boolean => {
-  if (email.length < 3 || email.length > 254) return false;
-  const at = email.indexOf("@");
-  if (at < 1 || at > 64 || at !== email.lastIndexOf("@")) return false;
-  const local = email.slice(0, at);
-  const domain = email.slice(at + 1);
-  if (/\s/.test(local) || domain.length > 253 || !domain.includes(".")) return false;
-  return domain.split(".").every((label) => label.length > 0 && label.length <= 63 && /^[a-z0-9-]+$/i.test(label));
-};
-
 /** 認証済みの自分のメールアドレスを返す。使えない場合はレスポンスを返す */
 async function requireMe(): Promise<string | NextResponse> {
   const tr = await serverTr();
@@ -35,7 +25,7 @@ async function requireMe(): Promise<string | NextResponse> {
   }
   const session = await auth();
   const identity = session?.user?.email;
-  if (typeof identity !== "string" || !identity.trim()) {
+  if (!isValidEmail(identity)) {
     return NextResponse.json({ error: tr("ログインが必要です") }, { status: 401 });
   }
   return identity.toLowerCase();
@@ -87,7 +77,7 @@ export async function POST(req: Request) {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }
-  if (!validEmail(email)) {
+  if (!isValidEmail(email)) {
     return NextResponse.json(
       { error: tr("メールアドレスの形式が正しくありません") },
       { status: 400 }
@@ -124,7 +114,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
   }
   const email = addresses[0].trim().toLowerCase();
-  if (!validEmail(email)) {
+  if (!isValidEmail(email)) {
     return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
   }
   if (email === me) {

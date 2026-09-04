@@ -172,6 +172,37 @@ test("GitHub publish client never attaches credentials to a malicious API path",
   }
 });
 
+test("GitHub publishing follows repository moves within the API with the original write intact", async (t) => {
+  const calls: string[] = [];
+  const body = JSON.stringify({ sha: "example", force: false });
+  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init: RequestInit) => {
+    calls.push(String(input));
+    assert.equal(init.redirect, "manual");
+    assert.equal(init.method, "PATCH");
+    assert.equal(init.body, body);
+    assert.equal(new Headers(init.headers).get("authorization"), "Bearer test");
+    if (calls.length === 1) {
+      return new Response(null, { status: 301, headers: { location: "/repositories/123/git/refs/heads/main" } });
+    }
+    return Response.json({ ref: "refs/heads/main" });
+  });
+  const client = githubClient({ repo: "owner/renamed", branch: "main", token: "test", url: undefined }, text => text);
+  const response = await client.gh("/git/refs/heads/main", { method: "PATCH", body });
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls, [
+    "https://api.github.com/repos/owner/renamed/git/refs/heads/main",
+    "https://api.github.com/repositories/123/git/refs/heads/main",
+  ]);
+});
+
+test("the publish client leaves GitHub website redirects unfollowed", async (t) => {
+  const request = t.mock.method(globalThis, "fetch", async () =>
+    Response.redirect("https://github.com/owner/repo", 302));
+  const client = githubClient({ repo: "owner/repo", branch: "main", token: "test", url: undefined }, text => text);
+  await assert.rejects(client.gh("/commits"), /Invalid GitHub API redirect/);
+  assert.equal(request.mock.callCount(), 1);
+});
+
 test("signed asset URLs are tied to the path and expire", async () => {
   const { signAssetPath, verifyAssetToken, ASSET_TOKEN_TTL } = await import("../lib/asset-token");
   const prev = process.env.AUTH_SECRET;

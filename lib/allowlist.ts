@@ -1,5 +1,6 @@
 import { dbConfigured, getDb } from "./db";
 import { envVar } from "./env";
+import { isValidEmail } from "./email";
 
 export function parseAllowedEmails(raw: string | undefined): string[] {
   return (raw ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -16,7 +17,7 @@ export async function isEmailAllowed(
   fixed = allowedEmails(),
   readExtra: () => Promise<string[]> = readAllowlist
 ): Promise<boolean> {
-  if (typeof email !== "string" || !email) return false;
+  if (!isValidEmail(email)) return false;
   const normalized = email.toLowerCase();
   if (fixed.includes(normalized)) return true;
   try {

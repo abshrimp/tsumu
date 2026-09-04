@@ -348,19 +348,22 @@ interface PinPos {
   top: number;
 }
 
+interface CommentLayerProps {
+  frameRef: RefObject<HTMLDivElement | null>;
+  innerRef: RefObject<HTMLDivElement | null>;
+}
+
+export function CommentLayer(props: CommentLayerProps) {
+  const active = useComments((s) => s.active);
+  const mode = useEditor((s) => s.mode);
+  return active && mode === "design" ? <ActiveCommentLayer {...props} /> : null;
+}
+
 /**
  * コメントモードでキャンバスに重ねる層。クリックした要素にコメントを置き、
  * 付いているコメントをピンで見せる（位置は要素の中の割合なので、幅を変えてもついてくる）
  */
-export function CommentLayer({
-  frameRef,
-  innerRef,
-}: {
-  frameRef: RefObject<HTMLDivElement | null>;
-  innerRef: RefObject<HTMLDivElement | null>;
-}) {
-  const active = useComments((s) => s.active);
-  const mode = useEditor((s) => s.mode);
+function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
   const pageId = useEditor((s) => s.activePageId);
   const breakpoint = useEditor((s) => s.breakpoint);
   const openId = useComments((s) => s.openId);
@@ -374,20 +377,17 @@ export function CommentLayer({
   const [pins, setPins] = useState<PinPos[]>([]);
   const [draftPos, setDraftPos] = useState<{ left: number; top: number } | null>(null);
   const [hover, setHover] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-  const on = active && mode === "design";
 
   // ほかの人のコメントも見えるよう、開いている間はときどき読み込み直す
   useEffect(() => {
-    if (!on) return;
     const id = setInterval(() => {
       if (!document.hidden) void load();
     }, 15000);
     return () => clearInterval(id);
-  }, [on, load]);
+  }, [load]);
 
   // Esc: 書きかけ・開いているスレッドを閉じ、何も無ければコメントモードを終える
   useEffect(() => {
-    if (!on) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.isComposing || e.keyCode === 229 || document.querySelector(".modal-backdrop")) return;
       const s = useComments.getState();
@@ -396,10 +396,9 @@ export function CommentLayer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [on]);
+  }, []);
 
   useEffect(() => {
-    if (!on) return;
     const onKey = (e: KeyboardEvent) => {
       // Windows では Alt を単独で離すとブラウザのメニューに移るので止める
       if (e.type === "keyup" && e.key === "Alt") e.preventDefault();
@@ -413,13 +412,11 @@ export function CommentLayer({
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);
       window.removeEventListener("blur", reset);
-      setPeeking(false);
     };
-  }, [on]);
+  }, []);
 
   // ピンの位置（スクロール・拡大・幅の変更についていくため、毎フレーム測る）
   useEffect(() => {
-    if (!on) return;
     let raf = 0;
     const tick = () => {
       const frame = frameRef.current;
@@ -460,9 +457,9 @@ export function CommentLayer({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [on, threads, pageId, frameRef, innerRef]);
+  }, [threads, pageId, frameRef, innerRef]);
 
-  if (!on || !frameBox) return null;
+  if (!frameBox) return null;
 
   /** クリックした場所の要素と、その中の位置 */
   const hitAt = (cx: number, cy: number): { nodeId: string | null; el: HTMLElement } | null => {

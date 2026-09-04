@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildCanvasCss, previewHtmlWithBodyStyles } from "../components/canvas/css";
+import { buildCanvasCss, previewHtmlWithBodyStyles, type CanvasCssCache } from "../components/canvas/css";
+import { applyBreakpoints } from "../lib/style";
 import { canvasMoveDoc } from "./helpers/canvas-move";
 
 function render(map: Record<string, any>, kind: "node" | "body" = "node") {
@@ -84,4 +85,60 @@ test("Canvas CSS uses the exported-site declaration validator without diverging"
     else assert.ok(!html.includes(key + ": " + value), key);
   }
   assert.doesNotMatch(html, /\.hostile\s*\{|<script/i);
+});
+
+test("canvas CSS reuses unchanged nodes and updates an unchanged parent's containing block", () => {
+  const doc = canvasMoveDoc();
+  doc.nodes.a.children = ["b"];
+  doc.nodes.c.motions = [{
+    id: "motion", trigger: "load", keyframes: "custom",
+    customKeyframes: "from { opacity: 0; } to { opacity: 1; }", duration: 1, delay: 0, easing: "linear",
+  }];
+  const roots = ["a", "c"];
+  const cache: CanvasCssCache = new Map();
+  const renderDoc = (snapshot: typeof doc) =>
+    buildCanvasCss(snapshot, roots, "md", "preview", null, "default", undefined, cache);
+  const initial = renderDoc(doc);
+  assert.doesNotMatch(initial, /position: relative;/);
+  assert.match(initial, /@keyframes /);
+  const sibling = cache.get("c");
+  assert.ok(sibling);
+
+  const moved = { ...doc, nodes: { ...doc.nodes, b: {
+    ...doc.nodes.b, styles: { lg: { default: { position: "absolute" } } },
+  } } };
+  const after = renderDoc(moved);
+  assert.equal(after, buildCanvasCss(moved, roots, "md", "preview", null, "default"));
+  assert.match(after, /position: relative;/);
+  assert.equal(cache.get("c"), sibling);
+  assert.equal(renderDoc(doc), initial);
+  assert.doesNotMatch(buildCanvasCss(doc, ["a"], "md", "preview", null, "default", undefined, cache), /@keyframes /);
+  assert.deepEqual([...cache.keys()].sort(), ["a", "b"]);
+});
+
+test("canvas CSS tracks the selected state, preview mode and custom breakpoint order", () => {
+  const doc = canvasMoveDoc();
+  doc.nodes.a.styles = {
+    base: { default: { color: "black" }, hover: { color: "red" } },
+    lg: { default: { color: "blue" } },
+  };
+  const cache: CanvasCssCache = new Map();
+  const renderNode = (mode: "design" | "preview", selection: string | null) => {
+    const css = buildCanvasCss(doc, ["a"], "md", mode, selection, "hover", undefined, cache);
+    assert.equal(css, buildCanvasCss(doc, ["a"], "md", mode, selection, "hover"));
+    return css;
+  };
+  assert.match(renderNode("design", null), /color: blue;/);
+  assert.match(renderNode("design", "a"), /color: red;/);
+  assert.match(renderNode("preview", "a"), /:hover \{ color: red; \}/);
+  renderNode("design", null);
+  try {
+    applyBreakpoints({ breakpoints: [
+      { id: "md", label: "Medium", maxWidth: 900 },
+      { id: "lg", label: "Narrow", maxWidth: 600 },
+    ] });
+    assert.match(renderNode("design", null), /color: black;/);
+  } finally {
+    applyBreakpoints(undefined);
+  }
 });

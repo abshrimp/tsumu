@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { isValidEmail } from "./email";
 import { SITE_EDIT_METADATA_INTERVAL_MS } from "./sites";
 
 /**
@@ -38,9 +39,12 @@ const clip = (v: unknown, max: number): string | null =>
 export function parseActivityUser(raw: unknown): ActivityUser | null {
   if (!raw || typeof raw !== "object") return null;
   const u = raw as Record<string, unknown>;
+  // The full email is also the comment owner and collaboration identity.
+  const email = typeof u.email === "string" ? u.email.toLowerCase() : null;
+  if (!isValidEmail(email)) return null;
   const image = clip(u.image, 500);
   return {
-    email: (clip(u.email, 200) ?? "").toLowerCase(),
+    email,
     name: clip(u.name, 100),
     image: image && /^https:\/\//.test(image) ? image : null,
   };

@@ -11,7 +11,7 @@ test("script storage fallback retains prototype-like keys when cookies and local
   const code = SCRIPT_RUNTIME.slice(start, end);
   const unavailable = () => { throw new Error("storage unavailable"); };
   const location = { hostname: "site.example", protocol: "https:" };
-  const document = { get cookie() { return ""; }, set cookie(_value: string) { unavailable(); } };
+  const document = { get cookie() { return unavailable(); }, set cookie(_value: string) { unavailable(); } };
   const localStorage = {
     getItem: unavailable, setItem: unavailable, removeItem: unavailable,
   };
@@ -23,18 +23,30 @@ test("script storage fallback retains prototype-like keys when cookies and local
     storeGet: (key: string, shared: boolean) => string;
     storeSet: (key: string, value: string, shared: boolean) => void;
   };
-  for (const key of ["__proto__", "constructor", "toString", "ordinary"]) {
-    storage.storeSet(key, "value for " + key, false);
-    assert.equal(storage.storeGet(key, false), "value for " + key);
+  for (const shared of [false, true]) {
+    for (const key of ["__proto__", "constructor", "toString", "ordinary"]) {
+      storage.storeSet(key, "value for " + key, shared);
+      assert.equal(storage.storeGet(key, shared), "value for " + key);
+    }
   }
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
 });
 
-test("script storage round-trips primitive and structured JSON values", () => {
+test("script storage round-trips primitive and structured JSON values locally and through shared cookies", () => {
   const start = SCRIPT_RUNTIME.indexOf('  var prefix = "";');
   const end = SCRIPT_RUNTIME.indexOf("  /*/store*/", start);
   const storageSource = SCRIPT_RUNTIME.slice(start, end);
   const values = new Map<string, string>();
+  const cookies = new Map<string, string>();
+  const document = {
+    get cookie() { return [...cookies.values()].join("; "); },
+    set cookie(raw: string) {
+      const pair = raw.split(";", 1)[0];
+      const key = pair.slice(0, pair.indexOf("="));
+      if (/; max-age=0(?:;|$)/i.test(raw)) cookies.delete(key);
+      else cookies.set(key, pair);
+    },
+  };
   const localStorage = {
     getItem(key: string) { return values.get(key) ?? null; },
     setItem(key: string, value: string) { values.set(key, value); },
@@ -42,8 +54,8 @@ test("script storage round-trips primitive and structured JSON values", () => {
   };
   const storage = new Function("env", "location", "document", "localStorage", "has",
     storageSource + "\nreturn { storeGet, storeSet };")(
-      { storePrefix: "" }, { hostname: "example.com", protocol: "https:" },
-      { cookie: "" }, localStorage,
+      { storePrefix: "", sharedDomain: "example.com" }, { hostname: "one.example.com", protocol: "https:" },
+      document, localStorage,
       (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key),
     ) as { storeGet(k: string, shared: boolean): unknown; storeSet(k: string, v: unknown, shared: boolean): void };
   const cases: Array<[string, unknown]> = [
@@ -51,11 +63,16 @@ test("script storage round-trips primitive and structured JSON values", () => {
     ["array", [1, false, null, { city: "Kyoto" }]],
     ["dictionary", { a: 1, b: [2] }], ["missing", undefined],
   ];
-  for (const [key, value] of cases) {
-    storage.storeSet(key, value, false);
-    assert.deepEqual(storage.storeGet(key, false), value);
+  for (const shared of [false, true]) {
+    for (const [key, value] of cases) {
+      storage.storeSet(key, value, shared);
+      assert.deepEqual(storage.storeGet(key, shared), value, key);
+      assert.equal(cookies.has(key), shared);
+    }
+    assert.equal(storage.storeGet("absent", shared), undefined);
   }
-  assert.equal(storage.storeGet("absent", false), undefined);
+  document.cookie = "external=0012";
+  assert.equal(storage.storeGet("external", true), "0012");
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
 });
 

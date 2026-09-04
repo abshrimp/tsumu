@@ -70,6 +70,29 @@ export function branchPath(branch: string): string {
   return branch.split("/").map(encodeURIComponent).join("/");
 }
 
+/** GitHub redirects moved repositories to their canonical API URL. */
+async function fetchGitHubPath(path: string, init: RequestInit): Promise<Response> {
+  for (let redirects = 0; ; redirects++) {
+    const url = GH + path;
+    // codeql[js/request-forgery] Only a path is appended to the constant API origin.
+    const response = await fetch(url, { ...init, redirect: "manual" });
+    const location = response.headers.get("location");
+    if (!location || ![301, 302, 303, 307, 308].includes(response.status)) return response;
+    void response.body?.cancel().catch(() => {});
+    if (redirects >= 5) throw new Error("Too many GitHub API redirects");
+    const next = new URL(location, url);
+    if (next.protocol !== "https:" || next.origin !== GH || next.username || next.password) {
+      throw new Error("Invalid GitHub API redirect");
+    }
+    path = next.pathname + next.search;
+    if (response.status === 303 && init.method !== "HEAD") {
+      const headers = new Headers(init.headers);
+      headers.delete("Content-Type");
+      init = { ...init, method: "GET", body: undefined, headers };
+    }
+  }
+}
+
 /** 公開先リポジトリに対する GitHub API の呼び出し（失敗時は fail で例外にする） */
 export function githubClient(conf: TargetConfig, tr: Tr) {
   const gh = (path: string, init?: RequestInit & { accept?: string }): Promise<Response> => {
@@ -79,9 +102,7 @@ export function githubClient(conf: TargetConfig, tr: Tr) {
         path.split(/[/?]/).some((segment) => segment === "." || segment === ".." || /%(?:2e|2f|5c)/i.test(segment))) {
       throw new Error("Invalid GitHub API destination");
     }
-    // codeql[js/request-forgery] GitHub's API origin is constant and both repository
-    // identifiers and endpoint paths are validated before attaching credentials.
-    return fetch(`${GH}/repos/${conf.repo}${path}`, {
+    return fetchGitHubPath(`/repos/${conf.repo}${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${conf.token}`,

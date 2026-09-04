@@ -29,7 +29,7 @@ import { BP_INFO, toggleShowDisplay } from "../lib/style";
 import { pageLangOf, siteLangOf } from "../lib/site-lang";
 import VarExplorer from "./VarExplorer";
 import { tr } from "../lib/i18n";
-import { buildCanvasCss, previewHtmlWithBodyStyles } from "./canvas/css";
+import { buildCanvasCss, previewHtmlWithBodyStyles, type CanvasCssCache } from "./canvas/css";
 import { MemoNodeView } from "./canvas/NodeView";
 import {
   InstanceChainCtx,
@@ -773,13 +773,14 @@ export default function Canvas() {
   // Rebuild the potentially large stylesheet only when document styles change.
   // Selection changes need a new stylesheet only when inspecting a non-default state.
   const cssSelection = mode === "design" && styleState !== "default" ? selection : null;
+  const cssCache = useMemo<CanvasCssCache>(() => new Map(), []);
   const css = useMemo(
     () => page
-      ? buildCanvasCss(doc, rootIds, breakpoint, mode, cssSelection, styleState, page.bodyStyles)
+      ? buildCanvasCss(doc, rootIds, breakpoint, mode, cssSelection, styleState, page.bodyStyles, cssCache)
       : "",
     // rootIds and page are derived from doc, activePageId and editingComponentId.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, activePageId, editingComponentId, breakpoint, mode, cssSelection, styleState]
+    [doc, activePageId, editingComponentId, breakpoint, mode, cssSelection, styleState, cssCache]
   );
 
   if (!page) return <div className="canvas-area" ref={areaRef} />;

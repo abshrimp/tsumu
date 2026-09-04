@@ -101,7 +101,7 @@ function api(db: Db, user: ActivityUser | null = author) {
     parseCommentAction: comments.parseCommentAction, runCommentAction: comments.runCommentAction,
     NextResponse, userMessage, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
     serverTr: async () => (text: string) => text,
-    requireAuth: async () => null, sessionUser: async () => user,
+    requireAuth: async (mode?: "user") => mode === "user" ? user : null,
     dbConfigured: () => true, getDb: async () => db,
     dbUnavailable: () => { throw new Error("Unexpected fallback"); },
     siteIdOf: async (id: string) => id,
