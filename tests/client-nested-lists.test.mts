@@ -84,6 +84,26 @@ test('three nested levels preserve inner names, primitive values, scripts and un
   runtime.dispose();
 });
 
+test('client lists preserve dictionary entries, nested array values and null rows after a script refresh', async () => {
+  const doc = clientNestedDoc();
+  doc.nodes.detail.text!.content = '{name}:{値}{label}';
+  const values = [{ label: 'record' }, null, ['a', 'b'], false];
+  const items = [
+    { name: 'Array', tags: values },
+    { name: 'Dictionary', tags: Object.fromEntries(values.map((value, i) => [String.fromCharCode(97 + i), value])) },
+  ];
+  const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
+  try {
+    await runtime.click('reload');
+    const expectedRows = [{ label: 'record' }, { 値: null }, { 値: ['a', 'b'] }, { 値: false }];
+    const actualRows = runtime.active('#tags-list').map(list => list.children
+      .filter(row => row.hasAttribute('data-row'))
+      .map(row => JSON.parse(row.getAttribute('data-item')!)));
+    assert.deepEqual(actualRows, [expectedRows, expectedRows]);
+    assert.deepEqual(details(runtime), canvasDetails(doc, items));
+  } finally { runtime.dispose(); }
+});
+
 test('newly deferred global sources keep literals and item roots shadow fallback arrays', async () => {
   const doc = clientNestedDoc();
   const items: any[] = [{ name: 'Fallback' }, { name: 'Own', tags: [{ label: 'own' }] }, { name: 'Empty', tags: [] }, { name: 'Null', tags: null }, { name: 'Text', tags: 'not array' }];

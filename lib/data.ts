@@ -38,33 +38,27 @@ export function digPath(root: unknown, path: string | undefined): unknown {
 /** 文字や数値の配列をリストで並べるとき、各要素を入れる項目名（{値}） */
 export const ITEM_VALUE = "値";
 
-/** リストで並べる項目にする（オブジェクトはそのまま、文字や数値は {値} に入れる） */
+/** Shared display row for the canvas and generated scripts. The latter embed the function source. */
+export function toListItem(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : { "値": value };
+}
+
 export function toListItems(value: unknown): Record<string, unknown>[] {
-  if (!value || typeof value !== "object") return [];
-  const out: Record<string, unknown>[] = [];
-  for (const [, item] of Object.entries(value)) {
-    out.push(item && typeof item === "object" && !Array.isArray(item)
-      ? item as Record<string, unknown>
-      : { [ITEM_VALUE]: item });
-  }
-  return out;
+  return value && typeof value === "object" ? Object.values(value).map(toListItem) : [];
 }
 
 /** Return the first list record for an editor suggestion without expanding the whole list. */
 export function firstListItem(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object") return undefined;
-  const asItem = (item: unknown): Record<string, unknown> =>
-    item && typeof item === "object" && !Array.isArray(item)
-      ? item as Record<string, unknown>
-      : { [ITEM_VALUE]: item };
   // The common dense-array case never needs to enumerate the remaining keys.
   if (Array.isArray(value) && Object.prototype.propertyIsEnumerable.call(value, 0)) {
-    return asItem(value[0]);
+    return toListItem(value[0]);
   }
   // Object.entries(value) would allocate every record even though previews
   // inspect only the first own enumerable entry.
   for (const key in value) {
-    if (Object.hasOwn(value, key)) return asItem((value as Record<string, unknown>)[key]);
+    if (Object.hasOwn(value, key)) return toListItem((value as Record<string, unknown>)[key]);
   }
   return undefined;
 }
@@ -1007,7 +1001,7 @@ export function primaryCandidates(
   const selection = slugSelectorOf(doc, pageId);
   if (!selection) return null;
   const vars = previewDataVars(doc, pageId, { live, index: 0 });
-  return { field: selection.field, items: toItems(lookupVar(vars, selection.loop.array)) };
+  return { field: selection.field, items: toListItems(lookupVar(vars, selection.loop.array)) };
 }
 
 /** 一覧の1件の、見分ける項目の値（"category.slug" のような位置も使える） */
@@ -1019,14 +1013,6 @@ export function keyOfItem(item: Record<string, unknown>, field: string): unknown
 export function sameKey(value: unknown, key: string): boolean {
   const v = String(value ?? "");
   return v === key || encodeURIComponent(v) === key;
-}
-
-/** オブジェクトの配列だけを一覧の項目として取り出す */
-export function toItems(value: unknown): Record<string, unknown>[] {
-  if (!value || typeof value !== "object") return [];
-  return Object.values(value).map((item) =>
-    item && typeof item === "object" && !Array.isArray(item)
-      ? item as Record<string, unknown> : { [ITEM_VALUE]: item });
 }
 
 export interface PreviewOpts {
@@ -1124,7 +1110,7 @@ export function previewDataVars(
         // override outer values, while assignments persist in the page vars.
         const selectedSlug = st.kind === "for-each" && primarySelector?.loop.id === st.id &&
           opts.index !== undefined && opts.slug === undefined
-          ? keyOfItem(toItems(lookupVar(scope(), st.array))[opts.index] ?? {}, primarySelector.field)
+          ? keyOfItem(toListItems(lookupVar(scope(), st.array))[opts.index] ?? {}, primarySelector.field)
           : opts.slug;
         runPurePageSteps([st], out, lookupVar, interpolate, evaluateValueRecipe,
           { ...opts.vars, slug: selectedSlug });

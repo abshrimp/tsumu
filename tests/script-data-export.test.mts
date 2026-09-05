@@ -54,13 +54,14 @@ const response = { items: [
   { id: "second", price: 3 },
 ] };
 
-const expected = (result: Record<string, unknown>) => {
+const expected = (result: Record<string, unknown>, shown: unknown) => {
   assert.equal(result.size, 2);
   assert.equal(result.total, 6);
   assert.equal(result.branch, "high");
   assert.equal(result.lastPrice, 6);
   assert.deepEqual(JSON.parse(JSON.stringify(result.selected)), response.items[1]);
-  assert.deepEqual(JSON.parse(JSON.stringify(result.items)), [response.items[1]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.items)), response.items);
+  assert.deepEqual(JSON.parse(JSON.stringify(shown)), [response.items[1]]);
 };
 
 test("the document exports its pure transform, nested loop, conditions and list display", async () => {
@@ -82,20 +83,21 @@ test("the document exports its pure transform, nested loop, conditions and list 
     console,
   };
   runInNewContext(PAGE_DATA_RUNTIME, sandbox, { timeout: 5000 });
-  expected(await sandbox.window.__pageDataReady);
+  const vars = await sandbox.window.__pageDataReady;
+  expected(vars, sandbox.window.__pageListRows(vars.items, "items", vars));
 });
 
 test("the same transform semantics run in native SSR without browser globals", async () => {
   const { doc, page } = fixture();
   const plan = pageDataPlan(doc, page);
   const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
-  const { loadPageData } = await import(uri);
+  const { loadPageData, listItemsWithOps } = await import(uri);
   const vars = await loadPageData(plan, "?offset=2", async () => ({
     ok: true, status: 200,
     headers: { get: () => null },
     text: async () => JSON.stringify(response),
   }));
-  expected(vars);
+  expected(vars, listItemsWithOps(plan.listOps, vars, "items", 0));
 });
 
 test("exported HTML carries the page plan and executable data runtime", () => {
@@ -361,10 +363,13 @@ test("empty OR filtering preserves group boundaries in browser and SSR", async (
   runInNewContext(PAGE_DATA_RUNTIME, sandbox, { timeout: 5000 });
   const browser = await sandbox.window.__pageDataReady;
   const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
-  const { loadPageData } = await import(uri);
+  const { loadPageData, listItemsWithOps } = await import(uri);
   const server = await loadPageData(plan, "", respond);
-  for (const output of [browser, server]) {
-    assert.deepEqual(JSON.parse(JSON.stringify(output.items)), rows.slice(0, 2));
+  assert.deepEqual(JSON.parse(JSON.stringify(browser.items)), rows);
+  assert.deepEqual(JSON.parse(JSON.stringify(server.items)), rows);
+  for (const shown of [sandbox.window.__pageListRows(browser.items, "items", browser),
+    listItemsWithOps(plan.listOps, server, "items", 0)]) {
+    assert.deepEqual(JSON.parse(JSON.stringify(shown)), rows.slice(0, 2));
   }
 });
 
