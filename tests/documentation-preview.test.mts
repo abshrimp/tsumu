@@ -50,10 +50,6 @@ test("default browser-only previews and incomplete custom storage have different
   assert.equal(defaults.previews.vars.ALLOW_ANONYMOUS, "true");
 
   // This was the old guide: remove the empty arrays and supply only D1/KV IDs.
-  // The Preview helper accepts it, but the runtime needs DOC_STORE as well.
   config.previews = { vars: {} };
-  const incomplete = isolatedPreviewConfig(config, previewEnv);
-  assert.deepEqual(storageBindings({ ...incomplete, ...incomplete.previews }), {
-    db: true, kv: true, doc: false,
-  });
+  assert.throws(() => isolatedPreviewConfig(config, previewEnv), /DOC_STORE/);
 });

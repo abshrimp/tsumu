@@ -46,7 +46,7 @@ Cloudflare Workers Builds では、エディタの本番以外の各ブランチ
 4. 共有の保存先を使用する前に、プレビュー自体に `AUTH_SECRET`、`AUTH_GOOGLE_ID`、`AUTH_GOOGLE_SECRET`、`AUTH_URL`、専用の OAuth コールバック URL、対象を絞った `ALLOWED_EMAILS` を設定してください。この例は `ALLOW_ANONYMOUS` を除いているため、ログイン未設定ではアクセスできません。認証情報は `previews.vars` ではなくプレビューのシークレットに設定します。
 5. `wrangler.preview.generated.jsonc` の `previews` に、テスト用の `DB` と `ASSETS_KV`、両方の Durable Object のバインディングがあることを確認します。本番データを使わず、ログイン、サイト作成、編集、保存、別のブラウザからの再表示を検証してください。
 
-D1 と KV の追加だけでは不十分です。D1 があって `DOC_STORE` がない場合、文書へのアクセスは `DOC_STORE binding is required` で失敗します。プレビュー用スクリプトは保存先の構成が揃っているかを検査しないため、ビルドや設定生成の成功だけでは保存の動作を確認できません。[保存先の構造](durable-object-storage.md#hosted-preview-storage)も参照してください。
+プレビュー用の `DB` を設定すると、スクリプトは `DOC_STORE` がそのプレビューの SQLite 版 `DocumentRoom` にバインドされていることをデプロイ前に確認します。[保存先の構造](durable-object-storage.md#hosted-preview-storage)も参照してください。
 
 ## スクリプトが拒否する設定
 
