@@ -317,3 +317,17 @@ test("a real parent property edit survives even when its children were also remo
   assert.ok(merged.nodes.a.children.includes("b"));
   assertTree(merged);
 });
+
+test("remote additions keep their relative order around locally reordered siblings", () => {
+  const base = fixture();
+  const local = structuredClone(base);
+  local.pages.p.children.reverse();
+  const remote = structuredClone(base);
+  for (const id of ["leading", "first", "second", "trailing"]) {
+    remote.nodes[id] = { ...makeBox(), id };
+  }
+  remote.pages.p.children = ["leading", "a", "first", "second", "outside", "trailing"];
+  const merged = mergeDocs(base, local, remote);
+  assert.deepEqual(merged.pages.p.children, ["first", "second", "outside", "leading", "a", "trailing"]);
+  assertTree(merged);
+});
