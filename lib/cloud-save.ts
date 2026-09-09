@@ -39,12 +39,14 @@ export async function sendCloudDoc(
   if (patch?.length === 0) {
     return { ok: true, status: 200, data: { rev: base, savedAt: t.savedAt() } };
   }
+  // A committed write advances the optimistic lock by one on both storage backends.
+  const expectedRev = String(Number(base) + 1);
   if (t.collabSocket.current?.readyState === WebSocket.OPEN) {
     try {
       const message = await t.requestViaWebSocket(patch && base
         ? { type: "patch", base, patch }
         : { type: "save", base, doc: snapshot });
-      if (message.type === "saved") {
+      if (message.type === "saved" && message.rev === expectedRev && Number.isFinite(message.savedAt)) {
         return { ok: true, status: 200, data: message };
       }
       if (message.type === "conflict") {
@@ -67,11 +69,11 @@ export async function sendCloudDoc(
       body: JSON.stringify(patch ?? snapshot),
     }
   );
-  return {
-    ok: response.ok,
-    status: response.status,
-    data: await response.json().catch(() => ({})),
-  };
+  const data = await response.json().catch(() => null);
+  if (response.ok && (data?.ok !== true || data.rev !== expectedRev || !Number.isFinite(data.savedAt))) {
+    throw new Error("Invalid document save acknowledgment");
+  }
+  return { ok: response.ok, status: response.status, data: data ?? {} };
 }
 
 export interface DeferredCloudConflict {
