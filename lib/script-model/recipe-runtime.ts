@@ -119,11 +119,34 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
   };
   // JavaScript RegExp may backtrack exponentially on external data.
   // The generated browser and server code embed this evaluator verbatim.
-  const safeRegex = (pattern: string): boolean => {
+  const safeRegex = (pattern: string, sourceLength: number): boolean => {
     if (pattern.length > 256) return false;
-    type Scope = { repeats: boolean; alternation: boolean };
-    type Atom = { category: string | null; group?: Scope };
-    const scopes: Scope[] = [{ repeats: false, alternation: false }];
+    // Alternatives add within a choice and multiply when groups are joined.
+    // Even without quantifiers, many ambiguous groups can backtrack exponentially.
+    // A repeated prefix can replay every following atom, including fixed-count
+    // suffixes and group exits. Keep those input-dependent choices separate from
+    // fixed expansion. Long expressions with several repeats may exceed this
+    // conservative budget even when their character classes do not overlap.
+    const MAX_REGEX_PATHS = 256;
+    const MAX_REGEX_EXPANSION = 4096;
+    const MAX_REGEX_WORK = 2 ** 24;
+    const searchStarts = sourceLength + 1;
+    type Scope = {
+      repeats: boolean; alternation: boolean;
+      paths: number; branchPaths: number;
+      choices: number; branchChoices: number;
+      fixedWork: number; runtimeWork: number;
+    };
+    type Atom = {
+      category: string | null; group?: Scope;
+      choices: number; fixedWork: number; runtimeWork: number;
+    };
+    const newScope = (): Scope => ({
+      repeats: false, alternation: false, paths: 0, branchPaths: 1,
+      choices: 0, branchChoices: 1,
+      fixedWork: 0, runtimeWork: 0,
+    });
+    const scopes: Scope[] = [newScope()];
     const repeated: (string | null)[] = [];
     const category = (value: string): string | null => {
       if (value === "\\d" || value === "[0-9]") return "digit";
@@ -152,6 +175,24 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       return a === b;
     };
     let last: Atom | null = null;
+    const addAtom = (category: string | null, group?: Scope): Atom | null => {
+      const scope = scopes[scopes.length - 1];
+      if (group) scope.branchPaths *= group.paths + group.branchPaths;
+      // Entering and leaving groups costs work even when their bodies are empty.
+      // Exits can run once per inner match choice during backtracking.
+      const choices = group ? group.choices + group.branchChoices : 1;
+      const atom = {
+        category, group, choices,
+        fixedWork: group ? group.fixedWork + 2 : 1,
+        runtimeWork: group ? 1 + group.runtimeWork + choices : 1,
+      };
+      scope.fixedWork += atom.fixedWork;
+      scope.runtimeWork += scope.branchChoices * atom.runtimeWork;
+      scope.branchChoices *= choices;
+      return scope.paths + scope.branchPaths <= MAX_REGEX_PATHS &&
+        scope.choices + scope.branchChoices <= MAX_REGEX_WORK &&
+        scope.fixedWork <= MAX_REGEX_EXPANSION && scope.runtimeWork <= MAX_REGEX_WORK ? atom : null;
+    };
     for (let i = 0; i < pattern.length; i++) {
       const char = pattern[i];
       if (char === "\\") {
@@ -165,12 +206,14 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (!token) return false;
           const code = escape === "c" ? token[0].toUpperCase().charCodeAt(1) % 32 :
             parseInt(token[0].slice(1), 16);
-          last = { category: category(String.fromCharCode(code)) };
+          last = addAtom(category(String.fromCharCode(code)));
+          if (!last) return false;
           i += token[0].length;
           continue;
         }
         if (escape === "0" && /[0-9]/.test(pattern[i + 2] ?? "")) return false;
-        last = { category: category("\\" + pattern[++i]) };
+        last = addAtom(category("\\" + pattern[++i]));
+        if (!last) return false;
         continue;
       }
       if (char === "[") {
@@ -180,7 +223,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (pattern[end] === "]") break;
         }
         if (end >= pattern.length) return false;
-        last = { category: category(pattern.slice(i, end + 1)) };
+        last = addAtom(category(pattern.slice(i, end + 1)));
+        if (!last) return false;
         i = end;
         continue;
       }
@@ -189,7 +233,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (pattern[i + 2] !== ":") return false;
           i += 2;
         }
-        scopes.push({ repeats: false, alternation: false });
+        scopes.push(newScope());
         last = null;
         continue;
       }
@@ -200,16 +244,26 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         // groups; retain those flags when validating an outer group quantifier.
         scopes[scopes.length - 1].repeats ||= completed.repeats;
         scopes[scopes.length - 1].alternation ||= completed.alternation;
-        last = { category: null, group: completed };
+        last = addAtom(null, completed);
+        if (!last) return false;
         continue;
       }
       if (char === "|") {
-        scopes[scopes.length - 1].alternation = true;
+        const scope = scopes[scopes.length - 1];
+        scope.alternation = true;
+        scope.paths += scope.branchPaths;
+        scope.branchPaths = 1;
+        scope.choices += scope.branchChoices;
+        scope.branchChoices = 1;
+        if (scope.paths + scope.branchPaths > MAX_REGEX_PATHS ||
+            scope.choices + scope.branchChoices > MAX_REGEX_WORK) return false;
         last = null;
         continue;
       }
       let quantifier = char === "*" || char === "+" || char === "?";
       let fixed = false;
+      let minimum = char === "+" ? 1 : 0;
+      let maximum = char === "?" ? 1 : Infinity;
       if (char === "{") {
         const count = /^\{(\d+)(?:,(\d*))?\}/.exec(pattern.slice(i));
         if (count) {
@@ -218,11 +272,23 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (min > 1000 || (max > 1000 && max !== Infinity) || max < min) return false;
           quantifier = true;
           fixed = min === max;
+          minimum = min;
+          maximum = max;
           i += count[0].length - 1;
         }
       }
       if (quantifier) {
         if (!last || (last.group && (last.group.repeats || last.group.alternation))) return false;
+        const scope = scopes[scopes.length - 1];
+        const fixedIterations = Math.max(1, maximum === Infinity ? minimum : maximum);
+        const runtimeIterations = maximum === Infinity ? Math.max(searchStarts, minimum) : Math.max(1, maximum);
+        const prefixChoices = scope.branchChoices / last.choices;
+        const choices = fixed ? 1 : runtimeIterations - minimum + 1;
+        scope.fixedWork += last.fixedWork * (fixedIterations - 1);
+        scope.runtimeWork += prefixChoices * last.runtimeWork * (runtimeIterations - 1);
+        scope.branchChoices = prefixChoices * choices;
+        if (scope.fixedWork > MAX_REGEX_EXPANSION || scope.runtimeWork > MAX_REGEX_WORK ||
+            scope.choices + scope.branchChoices > MAX_REGEX_WORK) return false;
         if (!fixed) {
           if (repeated.some((other) => overlaps(last!.category, other))) return false;
           repeated.push(last.category);
@@ -230,10 +296,13 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         }
         last = null;
       } else {
-        last = { category: char === "." || char === "^" || char === "$" ? null : category(char) };
+        last = addAtom(char === "." || char === "^" || char === "$" ? null : category(char));
+        if (!last) return false;
       }
     }
-    return scopes.length === 1;
+    const root = scopes[0];
+    return scopes.length === 1 &&
+      searchStarts * root.runtimeWork <= MAX_REGEX_WORK;
   };
   const MAX_RECIPE_TEXT = 100000;
 
@@ -355,7 +424,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (source.length > 10000) return failure("limit-exceeded");
           if (!needle.value) { current = source; break; }
           if (step.regex) {
-            if (source.length > 2048 || !safeRegex(needle.value)) return failure("invalid-regex");
+            if (source.length > 2048 || !safeRegex(needle.value, source.length)) return failure("invalid-regex");
             let pattern: RegExp;
             try { pattern = new RegExp(needle.value, "g"); } catch { return failure("invalid-regex"); }
             // Bound potentially expanded capture and surrounding-context substitutions.
