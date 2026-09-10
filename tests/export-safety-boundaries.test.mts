@@ -31,7 +31,7 @@ function doc(): SiteDoc {
 const opts = { framework: "html", language: "javascript", style: "css", scope: "component",
   pageId: "public" } as const;
 
-test("AUD-F-001: component export cannot select a stale node from a different page", () => {
+test("component export cannot select a stale node from a different page", () => {
   const site = doc();
   assert.ok(exportLimitations(site, { ...opts, nodeId: "secret" }).length > 0);
   assert.throws(() => exportScopeDoc(site, { ...opts, nodeId: "secret" }),
@@ -42,7 +42,7 @@ test("AUD-F-001: component export cannot select a stale node from a different pa
     /書き出すコンポーネント/);
 });
 
-test("AUD-F-001: descendant nodes and referenced component masters remain valid selections", () => {
+test("descendant nodes and referenced component masters remain valid selections", () => {
   const site = doc();
   for (const nodeId of ["container", "visible", "instance", "master", "nested"]) {
     const scoped = exportScopeDoc(site, { ...opts, nodeId });
@@ -56,7 +56,7 @@ test("AUD-F-001: descendant nodes and referenced component masters remain valid 
     "export must not mutate the saved document");
 });
 
-test("AUD-F-001: inherited object properties never count as page or component nodes", () => {
+test("inherited object properties never count as page or component nodes", () => {
   const site = doc();
   assert.throws(() => exportScopeDoc(site, { ...opts, nodeId: "toString" }),
     /書き出すコンポーネント/);
@@ -64,7 +64,7 @@ test("AUD-F-001: inherited object properties never count as page or component no
     /書き出すページ/);
 });
 
-test("AUD-F-001: malformed cyclic child pointers terminate without widening export scope", () => {
+test("malformed cyclic child pointers terminate without widening export scope", () => {
   const site = doc();
   site.nodes.visible.children = ["container"];
   assert.doesNotThrow(() => exportScopeDoc(site, { ...opts, nodeId: "visible" }));
@@ -72,7 +72,7 @@ test("AUD-F-001: malformed cyclic child pointers terminate without widening expo
     /書き出すコンポーネント/);
 });
 
-test("AUD-F-002: static query variants bootstrap authored scripts before the page engine", async () => {
+test("static query variants bootstrap authored scripts before the page engine", async () => {
   const { QUERY_VARIANT_RUNTIME } = await import("../lib/generator/query-route");
   const site = doc();
   site.pages.private.unpublished = false;
@@ -169,7 +169,7 @@ test("AUD-F-002: static query variants bootstrap authored scripts before the pag
   ]);
 });
 
-test("AUD-F-003: native formats refuse authored HTML they would otherwise omit", () => {
+test("native formats refuse authored HTML they would otherwise omit", () => {
   const site = doc();
   const page = site.pages.public;
   const cases: Array<() => void> = [
@@ -194,7 +194,7 @@ test("AUD-F-003: native formats refuse authored HTML they would otherwise omit",
     "custom page HTML is supported in standalone HTML");
 });
 
-test("AUD-F-003: React refuses executable page scripts on data-driven DOM pages", () => {
+test("React refuses executable page scripts on data-driven DOM pages", () => {
   const site = doc();
   const page = site.pages.public;
   page.pageScripts = [{
@@ -210,7 +210,7 @@ test("AUD-F-003: React refuses executable page scripts on data-driven DOM pages"
     reason.includes("カスタムスクリプト")));
 });
 
-test("AUD-F-004: exporting a selected unpublished page includes it without publishing it in the source", () => {
+test("exporting a selected unpublished page includes it without publishing it in the source", () => {
   const site = doc();
   site.pages.public.unpublished = true;
   const scoped = exportScopeDoc(site, { ...opts, scope: "page" });
@@ -224,7 +224,7 @@ test("AUD-F-004: exporting a selected unpublished page includes it without publi
     "exporting a page does not change the saved publication state");
 });
 
-test("AUD-F-005: every Tailwind export registers its CSS processing plugin", () => {
+test("every Tailwind export registers its CSS processing plugin", () => {
   const site = doc();
   const options = { language: "typescript", style: "tailwind", scope: "project" } as const;
   const registrations = [
@@ -242,7 +242,7 @@ test("AUD-F-005: every Tailwind export registers its CSS processing plugin", () 
   }
 });
 
-test("AUD-F-006: generated ZIPs reject file/directory collisions and unsafe paths", async () => {
+test("generated ZIPs reject file/directory collisions and unsafe paths", async () => {
   const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
   const empty = { binaries: {}, remoteAssets: {} };
   for (const path of ["../outside.txt", "/absolute.txt", "C:/drive.txt",
@@ -264,7 +264,7 @@ test("AUD-F-006: generated ZIPs reject file/directory collisions and unsafe path
   }));
 });
 
-test("AUD-F-006: HTML export reports a page slug that collides with the CSS file", () => {
+test("HTML export reports a page slug that collides with the CSS file", () => {
   const site = doc();
   site.pages.private.unpublished = false;
   site.pages.private.slug = "styles/site.css";
@@ -274,7 +274,7 @@ test("AUD-F-006: HTML export reports a page slug that collides with the CSS file
     "Next.js uses a different output tree without this HTML static-file collision");
 });
 
-test("AUD-F-007: generated names remain unambiguous on case-insensitive filesystems", async () => {
+test("generated names remain unambiguous on case-insensitive filesystems", async () => {
   const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
   const { buildAssetNames } = await import("../lib/generator/names");
   assert.throws(() => assertGeneratedPaths({
@@ -302,7 +302,7 @@ test("AUD-F-007: generated names remain unambiguous on case-insensitive filesyst
 });
 
 
-test("AUD-F-008: editable ZIP metadata cannot collide with generated page paths", async () => {
+test("editable ZIP metadata cannot collide with generated page paths", async () => {
   const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
   const reserved = ["_tsumu/doc.json", "_tsumu/assets.json"];
   const empty = { binaries: {}, remoteAssets: {} };
@@ -321,7 +321,7 @@ test("AUD-F-008: editable ZIP metadata cannot collide with generated page paths"
   assert.throws(() => assertGeneratedPaths(html, reserved), /file\/directory collision/);
 });
 
-test("AUD-F-009: Windows device names are renamed, not rejected, as asset paths", async () => {
+test("Windows device names are renamed, not rejected, as asset paths", async () => {
   const { buildAssetNames } = await import("../lib/generator/names");
   const site = doc();
   for (const [i, name] of ["CON.png", "con.png", "AUX.svg", "COM1.jpg",
@@ -342,7 +342,7 @@ test("AUD-F-009: Windows device names are renamed, not rejected, as asset paths"
   assert.doesNotThrow(() => generateExportProject(site, "html"));
 });
 
-test("AUD-F-010: the ZIP root directory is portable for Windows device-name site titles", async () => {
+test("the ZIP root directory is portable for Windows device-name site titles", async () => {
   const { exportDirectoryName } = await import("../lib/exportZip");
   for (const name of ["CON", "prn", "AuX", "NUL", "com1", "LPT9"]) {
     assert.equal(exportDirectoryName(name), "_" + name.toLowerCase());
@@ -351,7 +351,7 @@ test("AUD-F-010: the ZIP root directory is portable for Windows device-name site
   assert.equal(exportDirectoryName(""), "my-site");
 });
 
-test("AUD-F-011: Next.js refuses imported HTML route collisions before generating files", () => {
+test("Next.js refuses imported HTML route collisions before generating files", () => {
   const site = doc();
   site.pages.public.rawHtml = "<!doctype html><html><body>Imported</body></html>";
   site.pages.private.unpublished = false;
@@ -370,7 +370,7 @@ test("AUD-F-011: Next.js refuses imported HTML route collisions before generatin
   assert.deepEqual(exportLimitations(site, "nextjs"), []);
 });
 
-test("AUD-F-012: browser exports use decoded, deep credential scanning like GitHub Push", () => {
+test("browser exports use decoded, deep credential scanning like GitHub Push", () => {
   const site = doc();
   site.pages.public.pageScripts = [{
     id: "load", trigger: "load", pos: { x: 0, y: 0 },
@@ -404,11 +404,11 @@ test("AUD-F-012: browser exports use decoded, deep credential scanning like GitH
     "pure variable placeholders are not literal credentials");
 });
 
-test("AUD-F-013: every export, including Next.js SSR, rejects credentials before source generation", async () => {
+test("every export, including Next.js SSR, rejects credentials before source generation", async () => {
   const { hasPublishCredentials } = await import("../lib/publish-security");
   const { prepareExportProject } = await import("../lib/export-formats");
   const site = doc();
-  const sentinel = "AUDIT_NOT_A_REAL_SECRET_SENTINEL_0529";
+  const sentinel = "PROBE_NOT_A_REAL_SECRET_SENTINEL_0529";
   site.pages.public.pageScripts = [{
     id: "load", trigger: "load", pos: { x: 0, y: 0 },
     steps: [{ id: "fetch", kind: "fetch", as: "data",
@@ -451,7 +451,7 @@ test("AUD-F-013: every export, including Next.js SSR, rejects credentials before
     "a scoped page archive does not include unrelated private pages");
 });
 
-test("AUD-F-014: generated filename components are bounded for portable ZIP extraction", async () => {
+test("generated filename components are bounded for portable ZIP extraction", async () => {
   const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
   const { buildAssetNames } = await import("../lib/generator/names");
   const { exportDirectoryName } = await import("../lib/exportZip");
@@ -472,7 +472,7 @@ test("AUD-F-014: generated filename components are bounded for portable ZIP extr
   assert.ok(exportDirectoryName("A".repeat(1000)).length <= 96);
 });
 
-test("AUD-F-015: exported CSS contains untrusted style-map values as declarations only", async () => {
+test("exported CSS contains untrusted style-map values as declarations only", async () => {
   const { safeCssDeclaration } = await import("../lib/css-declaration");
   assert.equal(safeCssDeclaration("color", "rebeccapurple"), "color: rebeccapurple;");
   assert.equal(safeCssDeclaration("WebkitLineClamp", "3"), "-webkit-line-clamp: 3;");
@@ -488,7 +488,7 @@ test("AUD-F-015: exported CSS contains untrusted style-map values as declaration
   const site = doc();
   site.nodes.visible.styles = { base: { default: {
     "color; } body {": "red",
-    color: 'red; } body { --__AUDIT_CSS_BREAKOUT__: yes; } /*',
+    color: 'red; } body { --__PROBE_CSS_BREAKOUT__: yes; } /*',
     backgroundImage: "url(data:image/png;base64,AQID)",
     fontFamily: '"A; B", sans-serif',
     WebkitLineClamp: "3",
@@ -496,14 +496,14 @@ test("AUD-F-015: exported CSS contains untrusted style-map values as declaration
   } } };
   site.nodes.visible.customCss = 'padding: 5px; border-radius: calc(2px + 1px);';
   site.pages.public.bodyStyles = { base: { default: {
-    color: '"</style><script>window.__AUDIT_CSS_XSS__=1</script>"',
+    color: '"</style><script>window.__PROBE_CSS_XSS__=1</script>"',
     margin: "12px",
   } } };
-  site.pages.public.htmlBackground = 'red; } body { --__AUDIT_HTML_BACKGROUND_BREAKOUT__: yes; } /*';
+  site.pages.public.htmlBackground = 'red; } body { --__PROBE_HTML_BACKGROUND_BREAKOUT__: yes; } /*';
   for (const format of ["nextjs", "html"] as const) {
     const project = generateExportProject(site, format);
     const css = project.files["styles/site.css"];
-    assert.doesNotMatch(css, /__AUDIT_CSS_BREAKOUT__|__AUDIT_CSS_XSS__|__AUDIT_HTML_BACKGROUND_BREAKOUT__/);
+    assert.doesNotMatch(css, /__PROBE_CSS_BREAKOUT__|__PROBE_CSS_XSS__|__PROBE_HTML_BACKGROUND_BREAKOUT__/);
     assert.match(css, /background-image: url\(data:image\/png;base64,AQID\);/);
     assert.match(css, /font-family: "A; B", sans-serif;/);
     assert.match(css, /-webkit-line-clamp: 3;/);
@@ -514,14 +514,14 @@ test("AUD-F-015: exported CSS contains untrusted style-map values as declaration
   }
 });
 
-test("AUD-F-016: custom keyframes and motion settings cannot escape generated CSS", async () => {
+test("custom keyframes and motion settings cannot escape generated CSS", async () => {
   const { safeCssKeyframesBody } = await import("../lib/css-declaration");
   for (const good of ["from { opacity: 0; } to { opacity: 1; }",
     "0%, 30.5% { transform: translateX(0); } 100% { transform: translateX(1px); }",
     "/* start */ from { background: url(data:image/png;base64,AQID); }"]) {
     assert.equal(safeCssKeyframesBody(good), true, good);
   }
-  for (const bad of ["from { opacity: 0; } } body { --__AUDIT_KF_BREAKOUT__: yes; } /*",
+  for (const bad of ["from { opacity: 0; } } body { --__PROBE_KF_BREAKOUT__: yes; } /*",
     "from { opacity:0;", "from { opacity:0; } @import url(x);",
     "body { color:red; }", 'from { content: "</style><script>x</script>"; }']) {
     assert.equal(safeCssKeyframesBody(bad), false, bad);
@@ -532,20 +532,20 @@ test("AUD-F-016: custom keyframes and motion settings cannot escape generated CS
       customKeyframes: "from { opacity: 0; } to { opacity: 1; }",
       duration: 1, delay: 0, easing: "ease" },
     { id: "broken", trigger: "load", keyframes: "custom",
-      customKeyframes: "from { opacity: 0; } } body { --__AUDIT_KF_BREAKOUT__: yes; } /*",
+      customKeyframes: "from { opacity: 0; } } body { --__PROBE_KF_BREAKOUT__: yes; } /*",
       duration: 1, delay: 0, easing: "ease" },
     { id: "easing", trigger: "hover", keyframes: "fade-in",
-      duration: 1, delay: 0, easing: "ease; } body { --__AUDIT_EASING_BREAKOUT__: yes; } /*" },
+      duration: 1, delay: 0, easing: "ease; } body { --__PROBE_EASING_BREAKOUT__: yes; } /*" },
     { id: "transition", trigger: "state", property: "opacity, transform",
       duration: 0.2, delay: 0, easing: "ease" },
   ];
   const css = generateExportProject(site, "html").files["styles/site.css"];
   assert.match(css, /@keyframes anim-visible-valid/);
   assert.match(css, /transition: opacity, transform 0\.2s ease 0s;/);
-  assert.doesNotMatch(css, /__AUDIT_KF_BREAKOUT__|__AUDIT_EASING_BREAKOUT__/);
+  assert.doesNotMatch(css, /__PROBE_KF_BREAKOUT__|__PROBE_EASING_BREAKOUT__/);
 });
 
-test("AUD-F-017: Vue TypeScript CSS Modules has Vite ambient CSS module types", () => {
+test("Vue TypeScript CSS Modules has Vite ambient CSS module types", () => {
   const site = doc();
   const { files } = generateExportProject(site, {
     framework: "vue", language: "typescript", style: "css-modules", scope: "project",

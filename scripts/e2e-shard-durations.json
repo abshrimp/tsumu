@@ -1,6 +1,4 @@
 {
-  "sourceRun": "https://github.com/abshrimp/tsumu/actions/runs/42835111586",
-  "notes": "Successful main CI at 012002c7b29ae3678372fe3ae9aebbe8f208838e (2026-11-10). Sum of Playwright per-test durations reported in four E2E job logs, including the tagged Firefox/WebKit smoke cases. Baseline: 891 tests in 117 files; changes to case counts are scaled automatically by the shard runner. These values are balancing hints, not a test manifest.",
   "files": {
     "e2e/ai-chat-history.spec.ts": [
       5,
@@ -38,7 +36,7 @@
       9,
       8474
     ],
-    "e2e/audit-j-external-json.spec.ts": [
+    "e2e/external-json-security.spec.ts": [
       2,
       424
     ],
@@ -398,7 +396,7 @@
       3,
       2240
     ],
-    "e2e/script-runtime-browser-audit.spec.ts": [
+    "e2e/script-runtime-browser.spec.ts": [
       8,
       2042
     ],

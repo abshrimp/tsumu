@@ -117,8 +117,7 @@ function VarTextIn({
 }) {
   const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
   const stepId = useContext(ScriptStepCtx);
-  // Every input formerly copied and traversed every script on mount.
-  // Produce its suggestions only when the user actually focuses it.
+  // Build suggestions only when focused to avoid traversing inactive inputs.
   const [active, setActive] = useState(false);
   const doc = useMemo(
     () => active && !readOnly ? scriptInputDoc(savedDoc, stepId) : null,

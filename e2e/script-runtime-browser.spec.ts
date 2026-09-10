@@ -6,14 +6,14 @@ type Entry = { trigger: ScriptTrigger; steps: ScriptStep[]; keep?: boolean };
 
 function fixture(entries: Entry[]): SiteDoc {
   const pageScripts = entries.map((entry, index) => ({
-    id: "audit-script-" + index,
+    id: "script-" + index,
     trigger: entry.trigger,
     keepOnShown: !!entry.keep,
     pos: { x: 0, y: 0 },
     steps: entry.steps,
   }));
   return {
-    schemaVersion: 1, siteName: "Script browser audit",
+    schemaVersion: 1, siteName: "Script browser tests",
     pageOrder: ["a", "b"],
     assets: {},
     nodes: {},

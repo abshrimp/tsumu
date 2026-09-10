@@ -4,17 +4,17 @@ import { generateExportProject } from "../lib/export-formats";
 import { toSingleHtmlProject } from "../lib/generator/single-html";
 import type { SiteDoc } from "../lib/types";
 
-// J-1: The response is untrusted; imported text and links must not become
+// The response is untrusted; imported text and links must not become
 // active HTML/JavaScript when a generated site loads its page data.
-const prefix = "/__audit_j_external_json__/";
+const prefix = "/__external_json_security__/";
 const payload = [
   {
-    name: '<img src=x onerror="globalThis.auditJExecuted=1">',
-    link: 'javascript:globalThis.auditJExecuted=2',
+    name: '<img src=x onerror="globalThis.externalPayloadExecuted=1">',
+    link: 'javascript:globalThis.externalPayloadExecuted=2',
   },
   {
-    name: '</script><svg onload="globalThis.auditJExecuted=3">',
-    link: 'data:text/html,<script>globalThis.auditJExecuted=4</script>',
+    name: '</script><svg onload="globalThis.externalPayloadExecuted=3">',
+    link: 'data:text/html,<script>globalThis.externalPayloadExecuted=4</script>',
   },
   {
     name: 'Safe <&> "quoted" 日本語',
@@ -37,7 +37,7 @@ function fixture(): SiteDoc {
     text: null, list: { from: "items" }, children: ["row-title", "row-link"],
   };
   return {
-    schemaVersion: 1, siteName: "AUD-J external JSON boundary",
+    schemaVersion: 1, siteName: "External JSON security fixture",
     pageOrder: ["home"],
     pages: { home: {
       id: "home", name: "Home", title: "Home", slug: "",
@@ -53,14 +53,14 @@ function fixture(): SiteDoc {
 }
 
 for (const format of ["html", "single-html"] as const) {
-  test(`AUD-J-013: ${format} treats hostile external JSON as text and prevents active link injection`, async ({ page }) => {
+  test(`${format} treats hostile external JSON as text and prevents active link injection`, async ({ page }) => {
     const doc = fixture();
     const original = generateExportProject(doc, "html");
     const project = format === "single-html" ? await toSingleHtmlProject(original) : original;
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     const requests: string[] = [];
-    await page.route("**/__audit_j_external_json__/**", async route => {
+    await page.route("**/__external_json_security__/**", async route => {
       const url = new URL(route.request().url());
       const path = url.pathname.slice(prefix.length);
       requests.push(path);
@@ -93,10 +93,10 @@ for (const format of ["html", "single-html"] as const) {
       }
       await expect(rows.nth(i).locator("#row-title img, #row-title svg")).toHaveCount(0);
     }
-    expect(await page.evaluate(() => (window as any).auditJExecuted)).toBeUndefined();
+    expect(await page.evaluate(() => (window as any).externalPayloadExecuted)).toBeUndefined();
     expect(await page.evaluate(() => ({} as Record<string, unknown>).inert)).toBeUndefined();
     await rows.nth(0).locator("#row-link").click();
-    expect(await page.evaluate(() => (window as any).auditJExecuted)).toBeUndefined();
+    expect(await page.evaluate(() => (window as any).externalPayloadExecuted)).toBeUndefined();
     expect(requests.filter(path => path === "items.json")).toHaveLength(1);
     expect(errors).toEqual([]);
   });

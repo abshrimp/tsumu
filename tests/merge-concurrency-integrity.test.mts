@@ -54,7 +54,7 @@ const changes: ((doc: SiteDoc) => void)[] = [
   },
 ];
 
-test("AUD-J-011: concurrent independent valid edits never produce a cyclic or invalid merged document", () => {
+test("concurrent independent valid edits never produce a cyclic or invalid merged document", () => {
   const next = seeded(SEED ^ 0x1111);
   for (let i = 0; i < 240; i++) {
     const base = fixture();
@@ -76,7 +76,7 @@ test("AUD-J-011: concurrent independent valid edits never produce a cyclic or in
   }
 });
 
-test("AUD-J-012: opposing moves across parent trees cannot introduce a merge-only cycle", () => {
+test("opposing moves across parent trees cannot introduce a merge-only cycle", () => {
   const base = fixture();
   const local = structuredClone(base);
   const remote = structuredClone(base);

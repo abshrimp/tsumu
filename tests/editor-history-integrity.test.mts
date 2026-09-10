@@ -17,7 +17,7 @@ function random(seed: number) {
 }
 function fixture(): SiteDoc {
   return {
-    siteName: "AUD-J history",
+    siteName: "Editor history fixture",
     pageOrder: ["home"],
     pages: {
       home: {
@@ -48,7 +48,7 @@ function assertTree(doc: SiteDoc, caseIndex: number): void {
   }
 }
 
-test("AUD-J-017: duplicated nodes keep unique IDs through undo, redo and deletion", () => {
+test("duplicated nodes keep unique IDs through undo, redo and deletion", () => {
   const next = random(SEED ^ 0x1717);
   const state = () => useEditor.getState();
   for (let caseIndex = 0; caseIndex < 32; caseIndex++) {

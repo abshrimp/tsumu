@@ -110,8 +110,8 @@ test("Preview cannot change provisioned Durable Object class lifecycles", () => 
 });
 
 test("Preview CLI accepts only metadata and cannot override protected configuration", () => {
-  assert.deepEqual(previewArguments(["--name", "pr-116", "--tag=review", "--message", "Review data UI", "--json"]),
-    ["--name", "pr-116", "--tag", "review", "--message", "Review data UI", "--json"]);
+  assert.deepEqual(previewArguments(["--name", "review-preview", "--tag=review", "--message", "Review data UI", "--json"]),
+    ["--name", "review-preview", "--tag", "review", "--message", "Review data UI", "--json"]);
   for (const args of [["--config", "prod.jsonc"], ["--env=production"], ["--var", "ALLOW_ANONYMOUS:true"],
     ["--secrets-file", ".env"], ["--worker-name", "other"], ["--ignore-base-config=false"],
     ["other-worker.js"], ["--name"], ["--name", "--json"]]) {

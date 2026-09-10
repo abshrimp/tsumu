@@ -1,5 +1,5 @@
 import { build, transformSync } from "esbuild";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { createElement } from "react";
@@ -7,19 +7,15 @@ import { renderToString } from "react-dom/server";
 
 const require = createRequire(resolve("package.json"));
 const layoutPath = resolve("app/sites/[id]/layout.tsx");
-// 修正前の構造でも同じ再現を実行する（エディタ専用レイアウトは無かった）。
-const layoutSource = existsSync(layoutPath) ? readFileSync(layoutPath, "utf8") :
-  "export const metadata = {}; export default function Layout({ children }) { return children; }";
+const layoutSource = readFileSync(layoutPath, "utf8");
 const errorPath = resolve("app/sites/[id]/error.tsx");
-const hasScopedError = existsSync(errorPath);
 const rootErrorSource = readFileSync(resolve("app/error.tsx"), "utf8");
-const errorSource = hasScopedError ? readFileSync(errorPath, "utf8") : rootErrorSource;
-// Keep exercising the real loading UI after it was extracted for the document-loading phase.
+const errorSource = readFileSync(errorPath, "utf8");
 const loadingPath = resolve("components/EditorLoading.tsx");
-const loadingSource = existsSync(loadingPath) ? readFileSync(loadingPath, "utf8") : null;
+const loadingSource = readFileSync(loadingPath, "utf8");
 const pageSource = readFileSync(resolve("app/sites/[id]/page.tsx"), "utf8").replace(
   /import EditorLoading from "\.\.\/\.\.\/\.\.\/components\/EditorLoading";/,
-  loadingSource ? 'import { glyphs } from "../../../components/Glyph";\n' + loadingSource.replace(/^import .*;$/gm, "").replace(/export default function/, "function") : "",
+  'import { glyphs } from "../../../components/Glyph";\n' + loadingSource.replace(/^import .*;$/gm, "").replace(/export default function/, "function"),
 );
 
 function evaluate(source: string, mocks: Record<string, unknown>) {
@@ -68,9 +64,7 @@ function EditorRoute() {
   const page = React.createElement(SitePage);
   const boundary = (children) => React.createElement(ErrorBoundaryHandler,
     { pathname: "/sites/title-test", errorComponent: ErrorPage }, children);
-  return ${JSON.stringify(hasScopedError)}
-    ? React.createElement(SiteLayout, null, boundary(page))
-    : boundary(React.createElement(SiteLayout, null, page));
+  return React.createElement(SiteLayout, null, boundary(page));
 }
 window.titleHydrationErrors = [];
 window.titleCaughtErrors = [];

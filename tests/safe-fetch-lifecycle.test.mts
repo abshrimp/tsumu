@@ -15,7 +15,7 @@ const runtimes = { source, generated: generatedModule.exports as typeof source }
 function clonedResponse(t: TestContext, init?: ResponseInit, request?: AbortController) {
   const original = new Response("unused body", init);
   t.after(() => {
-    // A failing pre-fix redirect must not resume after the fetch mock is restored.
+    // An aborted redirect must not resume after the fetch mock is restored.
     request?.abort();
     void original.body?.cancel().catch(() => {});
   });
