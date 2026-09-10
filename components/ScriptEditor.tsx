@@ -620,14 +620,17 @@ function ScriptEditorInner({
         } else if (payload.type === "steps" && payload.from) {
           const item = target.closest<HTMLElement>(".se-item");
           const count = Math.min(8, payload.steps.length);
-          const siblings = item ? Array.from(item.parentElement?.children ?? []) : [];
+          // Step lists interleave drop slots with items. Index only actual
+          // blocks, including visible items inside virtualized chunks, so a
+          // chained drag still snapshots every real block instead of silently
+          // falling back to a different read-only rendering.
+          const list = item?.closest<HTMLElement>(".se-list");
+          const siblings = list ? Array.from(list.querySelectorAll<HTMLElement>(
+            ":scope > .se-item, :scope > .se-virtual-chunk > .se-item"
+          )) : [];
           const index = item ? siblings.indexOf(item) : -1;
           if (index >= 0) {
-            const elements = siblings.slice(index, index + count);
-            const nodes = elements.map((element) =>
-              element instanceof HTMLElement && element.classList.contains("se-item")
-                ? cloneDragElement(element) : null
-            );
+            const nodes = siblings.slice(index, index + count).map(cloneDragElement);
             if (nodes.length === count && nodes.every((node): node is HTMLElement => node !== null)) {
               dragRef.current!.previewNodes = nodes;
             }
@@ -1188,7 +1191,7 @@ function boundedDragCopy(source: HTMLElement): HTMLElement | null {
 /** Match the source geometry and decorations even when a row is lifted out of
  * its original sibling/loop context in the floating drag layer. */
 function freezeDragAppearance(source: HTMLElement, copy: HTMLElement, shallow = false) {
-  const selector = ".se-stack, .se-item, .se-blk, .se-c, .se-c-mid";
+  const selector = ".se-stack, .se-item, .se-blk, .se-c, .se-c-mid, .se-if-conditions, .se-if-condition-line, .np-btn";
   // A shortened preview has fewer descendants than its source. Its children
   // were already frozen while individually cloned; avoid pairing unrelated
   // rows merely because they occupy the same index in different trees.
@@ -1212,8 +1215,9 @@ function freezeDragAppearance(source: HTMLElement, copy: HTMLElement, shallow = 
     ]) to.style.setProperty(property, computed.getPropertyValue(property));
     // A nested item or wrapping condition can otherwise resize to its new
     // parent even though drag.w keeps the outside of the ghost fixed.
-    if (from.classList.contains("se-blk") || from.classList.contains("se-item") ||
-        from.classList.contains("se-stack")) {
+    // Selected element pickers and wrapping condition lines otherwise recompute
+    // their flex widths when a conditional block enters the drag layer.
+    if (from.matches(".se-blk, .se-item, .se-stack, .se-if-conditions, .se-if-condition-line, .np-btn")) {
       to.style.boxSizing = "border-box";
       to.style.width = `${from.offsetWidth}px`;
     }
