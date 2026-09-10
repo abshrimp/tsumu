@@ -87,34 +87,36 @@ for (const published of [false, true]) {
     await expect(page.locator("#banner")).toBeHidden();
   });
 
-  test(mode + ": denied Clipboard API uses the fallback and removes its temporary field", async ({ page }) => {
+  test(mode + ": denied Clipboard API does not invoke deprecated DOM copy", async ({ page }) => {
     const entries: Entry[] = [
       { trigger: "click", steps: [{ id: "copy", kind: "copy", value: "fallback content" }] },
     ];
     await page.setContent('<main data-page-body="a"><button id="copy">Copy</button></main>');
     await attach(page, "#copy", entries);
     await page.evaluate(() => {
-      (window as any).__fallbackCopyForScriptAudit = "";
+      (window as any).__modernCopyForScriptAudit = "";
+      (window as any).__legacyCopyForScriptAudit = false;
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
-        value: { writeText: () => Promise.reject(new Error("denied")) },
+        value: { writeText: (value: string) => {
+          (window as any).__modernCopyForScriptAudit = value;
+          return Promise.reject(new Error("denied"));
+        } },
       });
       Object.defineProperty(document, "execCommand", {
         configurable: true,
-        value: (command: string) => {
-          if (command === "copy") {
-            (window as any).__fallbackCopyForScriptAudit =
-              document.querySelector("textarea")?.value || "";
-          }
-          return true;
+        value: () => {
+          (window as any).__legacyCopyForScriptAudit = true;
+          throw new Error("Deprecated copy must not run");
         },
       });
     });
     await install(page, published, entries);
     await page.locator("#copy").click();
     await expect.poll(() => page.evaluate(() =>
-      (window as any).__fallbackCopyForScriptAudit
+      (window as any).__modernCopyForScriptAudit
     )).toBe("fallback content");
+    expect(await page.evaluate(() => (window as any).__legacyCopyForScriptAudit)).toBe(false);
     await expect(page.locator("textarea")).toHaveCount(0);
   });
 
