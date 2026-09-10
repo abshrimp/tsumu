@@ -157,16 +157,29 @@ export function filterItems(
   // 絞り込みは、並んだ順に「かつ」「または」でつないだ1つの条件にする
   const filters = ops.filter((o): o is Extract<ListOp, { kind: "filter" }> => o.kind === "filter");
   if (!filters.length) return items;
-  const pass = (o: Extract<ListOp, { kind: "filter" }>, item: Record<string, unknown>) =>
-    condGroups(o.conds).some((g) =>
-      g.every((c) => {
-        const right = c.resolvedValue ? c.resolvedValue.value : parseValueLiteral(c.value);
-        const result = matchOp(keyOfItem(item, c.field), c.op, right);
+  // 条件の組み分けと定数の解析は行数によらず1回だけ行う。
+  // 呼び出しごとに作り直し、編集や変数の変更を次のプレビューに反映する。
+  const prepared = filters.map((o) => ({
+    join: o.join,
+    groups: condGroups(o.conds).map((group) => group.map((condition) => ({
+      condition, ready: false, right: undefined as unknown,
+    }))),
+  }));
+  const pass = (o: (typeof prepared)[number], item: Record<string, unknown>) =>
+    o.groups.some((g) =>
+      g.every((entry) => {
+        const c = entry.condition;
+        // 短絡評価で使われない値は解析しない。
+        if (!entry.ready) {
+          entry.right = c.resolvedValue ? c.resolvedValue.value : parseValueLiteral(c.value);
+          entry.ready = true;
+        }
+        const result = matchOp(keyOfItem(item, c.field), c.op, entry.right);
         return c.not ? !result : result;
       })
     );
   return items.filter((item) =>
-    filters.reduce<boolean>(
+    prepared.reduce<boolean>(
       (acc, o, i) => (i === 0 ? pass(o, item) : o.join === "or" ? acc || pass(o, item) : acc && pass(o, item)),
       true
     )
