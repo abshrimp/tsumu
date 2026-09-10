@@ -549,7 +549,7 @@ lib/
   activity.ts         編集・公開の記録
   aiOps.ts            AI の編集操作（サーバーとブラウザの両方で適用）
   manualTopics.ts     ヘルプの記事
-  locales/            日本語の訳
+  locales/            言語の辞書と自動生成した登録情報
 custom-worker.ts      同時編集の Durable Object を含む Cloudflare Worker のエントリポイント
 document-room.ts      サイトごとの編集データを保存する Durable Object（DocumentRoom）
 scripts/cloudflare.mjs  デプロイ用の wrangler 設定を生成し、OpenNext を実行
@@ -558,7 +558,7 @@ scripts/cloudflare.mjs  デプロイ用の wrangler 設定を生成し、OpenNex
 ```bash
 npm run typecheck      # tsc --noEmit
 npm test               # 同時編集・元に戻す・スクリプト・公開などの回帰テスト
-npm run i18n:check     # 英訳の漏れを検出（他の言語は npm run i18n:check -- <言語コード>）
+npm run i18n:check     # 翻訳漏れを警告表示（日本語の厳格チェックは -- --strict ja）
 npm run build && npm run test:e2e   # 実際のブラウザによるE2Eテスト（Playwright。初回は npx playwright install chromium firefox webkit）
 ```
 
@@ -571,18 +571,17 @@ cd .generated-export-smoke && npm install && npm run build
 
 ### 翻訳
 
-画面の文言は日本語で記述し、`tr("…")` で囲みます（`lib/i18n.ts`）。他の言語は、日本語の原文と訳を対応付けた辞書 `lib/locales/<言語コード>.ts` で管理します。英語のヘルプとチュートリアルの文言は `en-help.ts` に分けています。
-
-訳がない文言は英語で、英訳もない場合は日本語の原文で表示されます。値を埋め込む場合は `tr("{name}を削除", { name })` のように記述します。
+画面の文言は英語を原文とし、`tr("Save")` のように英語原文を翻訳キーにします。日本語訳は `lib/locales/ja.ts` に記述します。未翻訳の文言は英語で表示され、英語辞書は必要ありません。翻訳に含まれる `{name}` のような置換変数は変更しないでください。
 
 #### 言語の追加
 
-1. `lib/lang.ts` の `LANGUAGES` に言語を追加します。キーは `zh`・`ko`・`fr` のような BCP 47 の言語コードです。
-2. `Dict` をエクスポートするファイル `lib/locales/<言語コード>.ts` を作成します。`en.ts` を複製して値を翻訳するのが最も簡単です。未翻訳の項目は削除すれば英語で表示されます。
-3. `lib/locales/index.ts` の `LOCALES` に登録します。
-4. `npm run i18n:check -- <言語コード>` で、未翻訳の文言を確認します。
+1. `lib/locales/<言語コード>.ts` を作り、英語原文から翻訳への対応を `Dict` のデフォルトエクスポートとして定義します。例: `fr.ts` に `{ Save: "Enregistrer" }` を指定します。部分的な翻訳でも構いません。
+2. `npm run dev` または `npm run build` を実行します。ファイル名から対応言語一覧と辞書の遅延読み込み先が自動生成され、言語選択にも表示されます。**`lib/lang.ts` や `lib/locales/index.ts` を編集する必要はありません。** 言語の表示名にはその言語自身の名称を使用します。
+3. `npm run i18n:check -- fr` で未翻訳の文言を警告として確認できます。`npm run i18n:check -- --strict fr` は翻訳漏れがあると失敗し、`npm run i18n:check -- --all` は全辞書を確認します。CI では日本語の完全性を `--strict ja` で検査し、追加言語の部分翻訳は許容します。
 
-追加した言語は、ホーム画面の **設定** にある **表示言語**（エディタでは **⋯** メニューの **設定**）に表示され、ブラウザの言語設定に応じて自動で選択されます。
+`typecheck`・`test`・`test:e2e`・`build:worker` の実行前にも自動生成されます。npm 経由ではない直接実行の前には `npm run locales:sync` を実行してください。英語は原文のため `en.ts` は不要です。
+
+追加した言語は、ホーム画面の **設定** にある **表示言語**（エディタでは **⋯** メニューの **設定**）に表示され、ブラウザの言語設定に応じて自動選択されます。日本語・英語の既存 E2E は、追加言語ごとに変更する必要はありません。
 
 ### ヘルプの記事
 

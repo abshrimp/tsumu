@@ -21,7 +21,7 @@ npm run dev
 
 - **1つのプルリクエストでは1つの問題のみを扱い**、変更後の動作を説明してください。
 - **動作を変更する場合は、回帰テストを追加してください。** 単体テストは `tests/` に、ブラウザでのテストは `e2e/` に配置します。
-- **画面の文言とコードのコメントは日本語で記述してください。** 画面の文言は `tr()` で囲み、英訳を `lib/locales/` に追加してください。
+- **画面の文言の原文は英語で `tr()` に指定し、コードのコメントは日本語で記述してください。** 日本語訳は `lib/locales/ja.ts` に追加します。新言語は辞書ファイルだけで追加できます。
 - **Tsumu のデータ形式と実行仕様を一貫させてください。** 型定義・エディタ・生成コード・テストの整合性を保ってください。
 - **公開時に、利用者が作成したファイルを削除しないでください。** `_tsumu/` は、Tsumu の文書と公開の管理情報を置く専用のディレクトリです。
 
@@ -30,7 +30,8 @@ npm run dev
 ```sh
 npm run typecheck
 npm test
-npm run i18n:check
+npm run i18n:check -- --strict ja
+npm run i18n:check -- --all   # 追加言語の未翻訳箇所は警告
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:e2e

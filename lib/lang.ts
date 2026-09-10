@@ -1,17 +1,11 @@
 /**
- * 表示言語の一覧と、リクエストから言語を決める処理（辞書を含まないので middleware でも使える）。
- *
- * 言語を足すときは:
- * 1. 下の LANGUAGES に1行足す（キーは BCP 47 の言語コード。例: zh, ko, fr）
- * 2. lib/locales/<コード>.ts に「英語の原文 → 訳」の辞書を作る（ja.ts を参照）
- * 3. lib/locales/index.ts の LOCALES に読み込みを足す
- * 訳の無い文は英語の原文をそのまま表示する
+ * Lightweight language metadata for middleware and the browser.
+ * Add lib/locales/<BCP-47>.ts; scripts/sync-locales.mjs discovers it.
+ * Source English needs no file. Missing translations fall back to English.
  */
+import { REGISTERED_LANGUAGES } from "./locales/languages.generated";
 
-export const LANGUAGES = {
-  ja: { label: "日本語" },
-  en: { label: "English" },
-} as const;
+export const LANGUAGES = REGISTERED_LANGUAGES;
 
 export type Lang = keyof typeof LANGUAGES;
 

@@ -556,7 +556,7 @@ lib/
   activity.ts         Edit and publish activity log
   aiOps.ts            AI edit operations (applied on the server and in the browser)
   manualTopics.ts     Help articles
-  locales/            Japanese translations
+  locales/            Translations and generated language registry
 custom-worker.ts      Cloudflare Worker entry, including the collaboration Durable Object
 document-room.ts      The per-site document Durable Object (DocumentRoom)
 scripts/cloudflare.mjs  Writes the deploy wrangler config and runs OpenNext
@@ -565,7 +565,7 @@ scripts/cloudflare.mjs  Writes the deploy wrangler config and runs OpenNext
 ```bash
 npm run typecheck      # tsc --noEmit
 npm test               # regression tests for collaboration, undo, scripts, publishing and more
-npm run i18n:check     # missing Japanese translations (other languages: npm run i18n:check -- <code>)
+npm run i18n:check     # translation warnings; use -- --strict ja to enforce Japanese coverage
 npm run build && npm run test:e2e   # end-to-end tests in real browsers (Playwright; first run: npx playwright install chromium firefox webkit)
 ```
 
@@ -578,18 +578,17 @@ cd .generated-export-smoke && npm install && npm run build
 
 ### Translations
 
-UI strings are written in Japanese and wrapped in `tr("…")` (see `lib/i18n.ts`). Every other language has a dictionary, `lib/locales/<lang>.ts`, that maps each Japanese source string to its translation. English help and tutorial strings live separately in `en-help.ts`.
-
-If a translation is missing, Tsumu falls back to English, and then to the Japanese source. For placeholders, write `tr("{name}を削除", { name })`.
+Tsumu uses English source strings as translation keys (`tr("Save")`). Japanese translations live in `lib/locales/ja.ts`. Untranslated entries are shown in English; no English dictionary is required. Keep interpolation placeholders (e.g. `{name}`) unchanged in translated values.
 
 #### Adding a language
 
-1. Add the language to `LANGUAGES` in `lib/lang.ts`. The key is a BCP 47 code such as `zh`, `ko` or `fr`.
-2. Create `lib/locales/<code>.ts` that exports a `Dict`. The quickest start is to copy `en.ts` and translate the values; you can simply leave out entries you haven't translated yet.
-3. Register the dictionary in `LOCALES` in `lib/locales/index.ts`.
-4. Run `npm run i18n:check -- <code>` to see what's left.
+1. Add `lib/locales/<BCP-47>.ts` with a default-exported `Dict` mapping English keys to translations. For instance, `fr.ts` can export `{ Save: "Enregistrer" }`. Partial dictionaries are supported.
+2. Run `npm run dev` or `npm run build`. The language picker and lazy dictionary loader are generated automatically from file names; **do not edit** `lib/lang.ts` or `lib/locales/index.ts`. Language labels are generated using the native language display name.
+3. Run `npm run i18n:check -- fr` to report missing entries without failing. `npm run i18n:check -- --strict fr` makes missing translations a failing check; `npm run i18n:check -- --all` reports every registered dictionary. CI enforces complete Japanese translations with `--strict ja` but permits partially translated new languages.
 
-The language then appears under **Settings → Language** on the home screen (and under **⋯ → Settings** in the editor). It's also picked automatically from the browser's language.
+The generation also runs before `typecheck`, `test`, `test:e2e`, and `build:worker`. For direct commands without npm lifecycle hooks, run `npm run locales:sync` first. `en` is reserved for the built-in English source strings; it needs no `en.ts` file.
+
+The language appears under **Settings → Language** on the home screen and **⋯ → Settings** in the editor. The browser's language preferences select supported languages automatically. Existing Japanese/English E2E assertions are not expanded to newly added languages.
 
 ### Help articles
 

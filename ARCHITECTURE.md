@@ -167,7 +167,7 @@ If the user edited the same page while the AI was working, the AI's change is dr
 
 ## Conventions
 
-- **Language.** Comments and UI strings are in Japanese. Every new `tr()` string needs an English translation (`npm run i18n:check`).
+- **Language.** Comments are in Japanese and `tr()` uses English source strings. Japanese translations are checked strictly (`npm run i18n:check -- --strict ja`); new language dictionaries are auto-discovered and may be partial.
 - **Readable output.** Generated code should look hand-written. Output a developer wouldn't write by hand is a bug.
 - **Formats.** Browser state uses `tsumu-` keys, and clipboard data uses the `application/x-tsumu+json` type. The format is defined by the current document schema.
 - **Tests.** New behavior needs a test.
