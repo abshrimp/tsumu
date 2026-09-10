@@ -3,7 +3,6 @@ import type { ScriptStep, SiteDoc, StyleState } from "./types";
 /** User-authored states are scoped to an element, not a new global CSS pseudoclass. */
 export const CUSTOM_STATE_PREFIX = "custom:";
 export const CUSTOM_STATE_ATTRIBUTE = "data-site-state";
-export const DEFAULT_STATE = "default";
 
 export function isValidCustomStateName(value: string): boolean {
   return value.length > 0 && value.length <= 40 &&

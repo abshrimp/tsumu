@@ -3,7 +3,7 @@ import { sanitizeImportedInlineIcons } from "./imported-svg";
 import { IMPORT_LIMITS, isImportObject, validateImportedDoc } from "./site-import-format";
 import type JSZip from "jszip";
 import { openImportZip, zipEntrySize } from "./zip-directory";
-import type { Asset, SiteDoc } from "./types";
+import type { SiteDoc } from "./types";
 import { isEmbeddedAssetUrl, uploadStaticAsset } from "./assets";
 import { decodePortableDoc } from "./portable-doc";
 import { readZipEntryLimited, ZipEntryTooLargeError } from "./zip-stream";

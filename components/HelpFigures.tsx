@@ -1059,7 +1059,6 @@ function AltText() {
   );
 }
 
-
 /** クリックするたびに1階層ずつ奥を選ぶ（⌘クリックは一番奥） */
 function SelectDepth() {
   const step = (sel: 0 | 1 | 2, label: string, sub: string) => (
@@ -1261,8 +1260,6 @@ const FIGURES = {
 } satisfies Record<string, () => ReactNode>;
 
 export type FigureId = keyof typeof FIGURES;
-
-export const FIGURE_IDS = Object.keys(FIGURES) as FigureId[];
 
 /** 図解（キャプション付き） */
 export default function HelpFigure({ id, caption }: { id: FigureId; caption?: string }) {

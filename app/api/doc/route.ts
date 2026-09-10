@@ -18,7 +18,6 @@ import {
   patchSiteDocumentWithTarget,
 } from "../../../lib/site-document-service";
 import { getSite } from "../../../lib/sites";
-import { userMessage } from "../../../lib/errors";
 import { isDocPatch } from "../../../lib/doc-patch";
 import type { SiteDoc } from "../../../lib/types";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";

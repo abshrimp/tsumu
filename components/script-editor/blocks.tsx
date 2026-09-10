@@ -15,7 +15,7 @@ import { tr } from "../../lib/i18n";
 import { AnyArraySelect, itemFieldsOf } from "./arrays";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, ScriptStepCtx, type FetchPreviewScope } from "./context";
 import { FetchResult } from "./fetch";
-import { CondEditor, NumericVariableIn, Phrase, TextIn } from "./inputs";
+import { CondEditor, NumericVariableIn, Phrase } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";

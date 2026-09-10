@@ -1,11 +1,9 @@
 import type { SiteDoc } from "../types";
 import type { ExportLanguage } from "../export-formats";
-import { generateNativeFiles } from "./native-components";
 
 export function withVueSsr(
   files: Record<string, string>, doc: SiteDoc, language: ExportLanguage,
 ): void {
-  const pages = generateNativeFiles(doc, language).pages;
   const ts = language === "typescript";
   const ext = ts ? "ts" : "js";
   const app = files["src/App.vue"];

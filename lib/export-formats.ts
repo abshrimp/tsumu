@@ -153,14 +153,6 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   return prunePartialDoc({ ...doc, pages: { [id]: scopedPage }, pageOrder: [id] });
 }
 
-/**
- * A component marked async solely for Next.js ISR/variable handling can be
- * rendered synchronously if it never awaits request data.
- */
-export function needsServerRuntime(source: string): boolean {
-  return /\bawait\b/.test(source) || /\bfetchPublic\b/.test(source);
-}
-
 function publishedPages(doc: SiteDoc) {
   return doc.pageOrder.map((id) => doc.pages[id]).filter((page) => page && !page.unpublished);
 }

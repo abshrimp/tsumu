@@ -7,7 +7,6 @@ const str = (v: unknown): v is string => typeof v === "string";
 const finite = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const optional = (v: unknown, test: (v: unknown) => boolean) => v === undefined || test(v);
 const bool = (v: unknown) => typeof v === "boolean";
-const strings = (v: unknown) => Array.isArray(v) && v.every(str);
 const oneOf = (v: unknown, choices: readonly string[]) => str(v) && choices.includes(v);
 const scriptOps: readonly ScriptOp[] = [
   "eq", "contains", "starts-with", "ends-with", "gt", "gte", "lt", "lte", "empty", "has-key", "in",

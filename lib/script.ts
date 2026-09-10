@@ -9,10 +9,9 @@ import {
   type ScriptTrigger,
   type SiteDoc,
 } from "./types";
-import { filterConds, isDataStep, listFromOf, pagePlan } from "./data";
+import { filterConds, isDataStep } from "./data";
 import { tr } from "./i18n";
-import { extractVars, splitRegexVars } from "./vars";
-import { fieldVarNames } from "./fields";
+import { extractVars } from "./vars";
 
 /** src が空のときに出す透明の1×1画像（壊れた画像の枠を出さない） */
 export const EMPTY_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -296,7 +295,6 @@ export function applyPageScripts(
   }
 }
 
-
 /**
  * Apply workspace edits without cloning the entire site (including its assets
  * and unrelated pages). Undo snapshots can safely share the untouched branches.
@@ -575,18 +573,3 @@ export function keepTokens(str: string, names: Set<string>): Record<string, stri
   return out;
 }
 
-/** スクリプトの {変数} のうち、画面上で値を入れるもの（画面上の変数と入力欄のID） */
-export function liveVarNames(doc: SiteDoc, pageId: string, nodeIds: string[]): Set<string> {
-  const out = new Set(pagePlan(doc, pageId).clientVars);
-  for (const id of nodeIds) {
-    const n = doc.nodes[id];
-    if (n?.type === "field") fieldVarNames(n).forEach((v) => out.add(v));
-  }
-  return out;
-}
-
-/** 画面上で値が決まる配列を並べるリストか（ブラウザでお手本を複製して並べる） */
-export function isClientList(doc: SiteDoc, pageId: string, node: DocNode): boolean {
-  const from = listFromOf(node);
-  return !!from && pagePlan(doc, pageId).clientVars.has(from.split(".")[0]);
-}

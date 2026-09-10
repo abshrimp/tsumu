@@ -154,7 +154,6 @@ export function styleStateLabel(state: StyleState): string {
   return STATE_INFO[state as keyof typeof STATE_INFO].label;
 }
 
-
 /** 指定ブレークポイントまでのカスケードチェーン（base → bp） */
 export function bpChain(bp: Breakpoint): Breakpoint[] {
   return BP_ORDER.slice(0, BP_ORDER.indexOf(bp) + 1);
@@ -562,11 +561,6 @@ export function isChangedValue(
   }
   const initial = INITIAL_VALUES[prop];
   return !initial || !initial.some((d) => normValue(d) === v);
-}
-
-/** camelCase → kebab-case */
-export function toKebab(prop: string): string {
-  return prop.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
 }
 
 /** "16px" → { num: 16, unit: "px" }。数値でなければ null */

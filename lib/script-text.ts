@@ -9,7 +9,6 @@ import {
   type ScriptStep,
   type SiteDoc,
 } from "./types";
-import { fieldLabel } from "./data";
 import { tr } from "./i18n";
 
 /* ---------- 表示用の文 ---------- */

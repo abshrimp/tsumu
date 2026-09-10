@@ -126,29 +126,6 @@ export function extractVars(template: string): string[] {
   return [...out];
 }
 
-/** 正規表現の回数指定（{2}・{2,}・{2,4}）か */
-export function isRegexQuantifier(name: string): boolean {
-  return /^\d+(,\d*)?$/.test(name);
-}
-
-/**
- * 正規表現を、そのまま使う部分と {変数}（var = 変数名）に分ける。
- * 回数指定・\{ … }・[slug]（文字の集まり）は正規表現の書き方として残す
- */
-export function splitRegexVars(pattern: string): { text: string; var?: string }[] {
-  const out: { text: string; var?: string }[] = [];
-  let last = 0;
-  for (const m of pattern.matchAll(/(\\)?\{([^{}\s"'<>`]+)\}/g)) {
-    if (m[1] || isRegexQuantifier(m[2])) continue;
-    const at = m.index ?? 0;
-    if (at > last) out.push({ text: pattern.slice(last, at) });
-    out.push({ text: m[0], var: m[2] });
-    last = at + m[0].length;
-  }
-  if (last < pattern.length) out.push({ text: pattern.slice(last) });
-  return out;
-}
-
 /** テキストを {変数} トークンとそれ以外に分ける（表示・編集のハイライト用） */
 export function splitVarTokens(text: string): { text: string; name?: string }[] {
   const out: { text: string; name?: string }[] = [];

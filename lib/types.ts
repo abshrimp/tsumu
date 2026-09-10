@@ -366,8 +366,6 @@ export type ScriptStep = { id: string } & (
     }
 );
 
-export type ScriptStepKind = ScriptStep["kind"];
-
 export type FetchMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface FetchHeader {
