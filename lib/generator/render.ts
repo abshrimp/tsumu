@@ -440,7 +440,7 @@ ${indent}</div>`;
     }
     if (f.kind === "submit") {
       const label = f.label ?? "送信";
-      return `${indent}<button${idAttr} type="submit" className=${jsxString(cls)}${liveOf("data-live", label)}${partsOf("text", label)}>\n${indent}  {${textExpr(label)}}\n${indent}</button>`;
+      return `${indent}<button${idAttr} type="submit" className=${jsxString(cls)}${f.disabled ? " disabled" : ""}${liveOf("data-live", label)}${partsOf("text", label)}>\n${indent}  {${textExpr(label)}}\n${indent}</button>`;
     }
     if (f.kind === "file") {
       const acceptAttr = attr("accept", f.accept);

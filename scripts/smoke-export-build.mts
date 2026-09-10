@@ -21,7 +21,7 @@ const doc: SiteDoc = {
   pageOrder: ["home"],
   pages: {
     home: { id: "home", name: "Home", slug: "", title: "Home", description: "",
-      children: ["heading", "literal-text", "picture", "media-sources", "search", "items", "action-button", "status-text", "component-instance"],
+      children: ["heading", "literal-text", "picture", "media-sources", "search", "disabled-submit", "items", "action-button", "status-text", "component-instance"],
       pageScripts: [{
         id: "load", trigger: "load", pos: { x: 0, y: 0 },
         steps: [
@@ -46,6 +46,8 @@ const doc: SiteDoc = {
       ] } },
     search: { ...makeBox(), id: "search", type: "field", attrId: "searchTerm",
       field: { kind: "input", inputType: "text", defaultValue: "", placeholder: "Search {1 + 2}" } },
+    "disabled-submit": { ...makeBox(), id: "disabled-submit", type: "field", attrId: "disabled-submit",
+      field: { kind: "submit", label: "Send", disabled: true } },
     items: { ...makeBox(), id: "items", type: "list", list: { from: "names" }, children: ["row"] },
     row: { ...makeBox(), id: "row", text: { content: "{値}", heading: 0 } },
     "action-button": { ...makeBox(), id: "action-button", attrId: "action-button",
