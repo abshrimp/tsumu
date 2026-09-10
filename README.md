@@ -166,8 +166,10 @@ To deploy on every push with Cloudflare Workers Builds, connect the repository a
 
 - Build command: `node scripts/cloudflare.mjs build`
 - Deploy command: `node scripts/cloudflare.mjs deploy`
-- Non-production branch deploy command: `node scripts/cloudflare.mjs upload`
+- Preview command (after setting up Worker Previews): `node scripts/cloudflare-preview.mjs`
 - Build variables (Settings → Build → Variables and secrets, optional): `D1_DATABASE_ID` and `KV_NAMESPACE_ID`
+
+The editor exports a Durable Object, so legacy `opennextjs-cloudflare upload` / `wrangler versions upload` Version URLs cannot preview it. Existing Workers Builds projects need a one-time, **irreversible** switch to Worker Previews. Do not just enable a Version URL. See [isolated hosted previews](docs/worker-previews.md) for setup, separate storage, authentication, and verification. `npm run preview` remains local-only; `npm run preview:deploy` creates a hosted Preview.
 
 At build time the script writes a deploy config (`wrangler.generated.jsonc`) from `wrangler.jsonc`, filling in the IDs from the build variables and dropping bindings that have none, so the IDs never have to be committed.
 
