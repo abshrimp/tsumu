@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
 import { dbConfigured, getDb } from "../../../lib/db";
-import { requireAuth, sessionUser } from "../../../lib/server";
+import { requireAuth } from "../../../lib/server";
 import { recordActivity } from "../../../lib/activity";
 import { notifyDocUpdated } from "../../../lib/collab";
 import { siteIdOf } from "../../../lib/site-server";
@@ -93,8 +93,8 @@ export async function PATCH(req: Request) {
 
 async function save(req: Request, partial: boolean) {
   const tr = await serverTr();
-  const denied = await requireAuth();
-  if (denied) return denied;
+  const user = await requireAuth("user");
+  if (user instanceof NextResponse) return user;
   if (!dbConfigured()) return await dbUnavailable();
 
   let input: unknown;
@@ -155,7 +155,7 @@ async function save(req: Request, partial: boolean) {
       );
     }
     // 右下の「保存」にホバーしたときに出す、最近編集した人
-    await recordActivity(db, siteId, "edit", await sessionUser().catch(() => null), result.savedAt, roomKey);
+    await recordActivity(db, siteId, "edit", user, result.savedAt, roomKey);
     const metadata = {
       rev: result.rev,
       savedAt: result.savedAt,

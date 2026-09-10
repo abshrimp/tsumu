@@ -1,6 +1,7 @@
 import type { PageFolder, SiteDoc } from "./types";
 import type { DocPatch } from "./doc-patch";
 import { MAX_NODE_DEPTH } from "./doc-tree";
+import { assetUsage } from "./asset-usage";
 
 /**
  * ドキュメントの三方向マージ（同時編集の競合解決）。
@@ -97,6 +98,10 @@ export function rebaseNodePatch(
       setOwn(nodes, id, merged);
     }
   }
+  // 古い履歴に無い画像・CSS/HTML アセットを新しい参照が使う可能性がある。
+  // 依存を復元できる完全マージへ任せ、Undo で欠損した文書を作らない。
+  if (nodes && checkpoint.assets !== updated.assets &&
+      Object.keys(updated.assets).some(id => !Object.hasOwn(checkpoint.assets, id))) return null;
   return nodes ? { ...checkpoint, nodes } : checkpoint;
 }
 
@@ -522,6 +527,27 @@ export function mergeDocs(
   return mergeOnce(base, local, { ...remote, pages, nodes, pageOrder: [...remote.pageOrder, ...kept] });
 }
 
+/**
+ * 一方で未使用アセットを削除し、もう一方で使い始めた場合は、残った参照を優先する。
+ * 画像だけでなく CSS・HTML・ZIP 内の依存も、未使用判定と同じ規則で保護する。
+ */
+function restoreReferencedAssets(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteDoc): void {
+  const missing = new Map<string, SiteDoc["assets"][string]>();
+  for (const doc of [base, remote, local]) {
+    for (const [id, asset] of Object.entries(doc.assets)) {
+      if (!Object.hasOwn(merged.assets, id)) missing.set(id, asset);
+    }
+  }
+  // 通常の同時編集ではアセットの削除が無いため、本文の使用箇所検索は不要。
+  if (!missing.size) return;
+  const available = { ...merged.assets };
+  for (const [id, asset] of missing) setOwn(available, id, asset);
+  const used = assetUsage({ ...merged, assets: available });
+  for (const [id, asset] of missing) {
+    if (used.has(id)) setOwn(merged.assets, id, asset);
+  }
+}
+
 function mergeOnce(
   base: SiteDoc,
   local: SiteDoc,
@@ -569,6 +595,7 @@ function mergeOnce(
   if (pageFolders !== undefined) merged.pageFolders = pageFolders;
   restoreEditedTreePaths(base, local, remote, merged);
   mergeTree(base, local, remote, merged);
+  restoreReferencedAssets(base, local, remote, merged);
   // 移動とフォルダ削除が重なっても、存在しないフォルダへの所属を残さない。
   const folderIds = new Set((pageFolders ?? []).map((folder) => folder.id));
   for (const page of Object.values(merged.pages)) {

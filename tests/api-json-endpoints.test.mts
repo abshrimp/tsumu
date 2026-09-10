@@ -5,6 +5,8 @@ import { createRequire } from "node:module";
 import { transformSync } from "esbuild";
 import { readJsonLimited } from "../lib/api-json";
 import { parseAiRequest, readAiRequest } from "../lib/ai/request";
+import { AI_STREAM_TYPE, readAiResponse, type AiProgress } from "../lib/ai/progress";
+import type { runAi } from "../lib/ai/run";
 
 class NextResponse extends Response {
   static json(body: unknown, init?: ResponseInit) {
@@ -40,7 +42,7 @@ const inputs = {
   },
 } as const;
 
-function fixture(route: keyof typeof inputs, authorized = true) {
+function fixture(route: keyof typeof inputs, authorized = true, model?: typeof runAi) {
   let calls = 0;
   const common = {
     "next/server": { NextResponse },
@@ -61,11 +63,55 @@ function fixture(route: keyof typeof inputs, authorized = true) {
     "../../../lib/ai/config": { aiConfig: () => ({ enabled: true }) },
     "../../../lib/ai/run": {
       AiApiError: class extends Error {},
-      runAi: async () => { calls++; return "Done"; },
+      runAi: async (...args: Parameters<typeof runAi>) => {
+        calls++;
+        return model ? model(...args) : "Done";
+      },
     },
   });
   return { POST, get calls() { return calls; }, maxBytes: (route === "ai" ? 4 : 2) * 1024 * 1024 };
 }
+
+for (const accept of [AI_STREAM_TYPE, "application/json", null]) {
+  test(`AI returns the same progress stream regardless of Accept: ${accept}`, async () => {
+    const events: AiProgress[] = [];
+    const f = fixture("ai", true, async (_conf, _turns, _tool, _signal, onProgress) => {
+      assert.ok(onProgress, "the current endpoint always enables model progress");
+      onProgress({ type: "text", text: "Working", turn: 1 });
+      return "Done";
+    });
+    const req = request("ai");
+    if (accept !== null) req.headers.set("accept", accept);
+    const res = await f.POST(req);
+    assert.ok(res.headers.get("content-type")?.startsWith(AI_STREAM_TYPE));
+    assert.deepEqual(await readAiResponse(res, event => events.push(event)), { reply: "Done", operations: [] });
+    assert.deepEqual(events.map(event => event.type), ["phase", "text"]);
+    assert.equal(f.calls, 1);
+  });
+}
+
+test("AI stream cancellation aborts the in-flight model without an Accept header", async () => {
+  let aborted = false;
+  const f = fixture("ai", true, async (_conf, _turns, _tool, signal) => {
+    assert.ok(signal);
+    return new Promise(resolve => signal.addEventListener("abort", () => {
+      aborted = true;
+      resolve(null);
+    }, { once: true }));
+  });
+  const res = await f.POST(request("ai"));
+  await res.body!.cancel();
+  assert.equal(aborted, true);
+  assert.equal(f.calls, 1);
+});
+
+test("AI provider failures use the current stream error contract", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const f = fixture("ai", true, async () => { throw new Error("private provider failure details"); });
+  const res = await f.POST(request("ai"));
+  await assert.rejects(readAiResponse(res, () => {}), /^Error: AIに問い合わせできませんでした$/);
+  assert.equal(f.calls, 1);
+});
 
 function request(route: keyof typeof inputs, body: BodyInit | null = JSON.stringify(inputs[route]), headers: HeadersInit = { "Content-Type": "application/json" }) {
   return new Request("https://editor.example.test/api/" + route, {
@@ -91,7 +137,7 @@ for (const route of ["fetch-json", "ai"] as const) {
       else req.headers.set("content-type", mime);
       const res = await f.POST(req);
       assert.equal(res.status, 200);
-      assert.deepEqual(await res.json(), route === "ai"
+      assert.deepEqual(route === "ai" ? await readAiResponse(res, () => {}) : await res.json(), route === "ai"
         ? { reply: "Done", operations: [] } : { ok: true, json: { message: "日本語" } });
     }
     assert.equal(f.calls, 3);

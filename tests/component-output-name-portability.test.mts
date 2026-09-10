@@ -33,3 +33,20 @@ for(const names of [['Hero','HERO','Hero2','hero'],['Con','Aux','NUL','COM1','Lp
 test('ordinary readable component names retain stable output',()=>{
   assert.deepEqual([...buildComponentNames(fixture(['Hero','Footer','Call to action'])).values()],['Hero','Footer','CallToAction']);
 });
+
+test('long component labels export with bounded unique filenames and matching imports',()=>{
+  const names=['A'.repeat(300),'A'.repeat(299)+'B','a'.repeat(300)];
+  const doc=fixture(names),assigned=[...buildComponentNames(doc).values()];
+  assert.deepEqual(assigned,['A'.repeat(120),'A'.repeat(120)+'2','A'+'a'.repeat(119)+'3']);
+  for(const framework of ['nextjs','react'] as const) {
+    const {files}=generateExportProject(doc,{framework,language:'typescript',style:'css',scope:'project'});
+    const prefix=framework==='nextjs'?'components/':'src/components/';
+    const page=files[framework==='nextjs'?'app/page.tsx':'src/pages/Page0.tsx'];
+    for(const name of assigned) {
+      assert.ok(files[prefix+name+'.tsx']);
+      assert.ok(page.includes('/components/'+name));
+      assert.ok(new TextEncoder().encode(name+'.tsx').length<=255);
+    }
+  }
+  assert.deepEqual(Object.values(doc.components!).map(c=>c.name),names);
+});

@@ -3,7 +3,7 @@
 /**
  * キャンバスのプレビューで使うデータ（取得したデータ・フォームの値・[slug] のページで表示する項目）と、ページ内の移動
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useEditor, type EditorMode } from "../../lib/store";
 import {
   type ListOp,
@@ -38,6 +38,27 @@ function queryPage(pages: Page[], query: URLSearchParams): Page | undefined {
   return best;
 }
 
+/** ページ切替の最初の描画から、前のページのフォーム値・取得結果を使わない。 */
+function usePageValues<T extends object>(pageId: string): [T, Dispatch<SetStateAction<T>>] {
+  const empty = useMemo(() => ({} as T), [pageId]);
+  const [state, setState] = useState(() => ({ pageId, value: empty }));
+  const currentPage = useRef(pageId);
+  currentPage.current = pageId;
+  useEffect(() => {
+    setState((previous) => previous.pageId === pageId ? previous : { pageId, value: empty });
+  }, [pageId, empty]);
+  const setValue = useCallback<Dispatch<SetStateAction<T>>>((next) => {
+    setState((previous) => {
+      // 古いページの非同期処理が、移動先の値を消さないようにする。
+      if (currentPage.current !== pageId) return previous;
+      const value = previous.pageId === pageId ? previous.value : empty;
+      const result = typeof next === "function" ? next(value) : next;
+      return previous.pageId === pageId && result === value ? previous : { pageId, value: result };
+    });
+  }, [pageId, empty]);
+  return [state.pageId === pageId ? state.value : empty, setValue];
+}
+
 /** Canvas から受け取る値 */
 export interface UseCanvasDataDeps {
   page: Page;
@@ -57,22 +78,23 @@ export function useCanvasData({
   setPreviewIndex,
 }: UseCanvasDataDeps) {
   /* ---- 変数（要素のデータ / フォーム値 / slug） ---- */
-  const [fieldValues, setFieldValues] = useState<FieldValues>({});
+  const [fieldValues, setFieldValues] = usePageValues<FieldValues>(activePageId);
   /** プレビューで、スクリプトが画面上で値を入れた変数（ストレージ・分解した配列など） */
-  const [clientValues, setClientValues] = useState<Record<string, unknown>>({});
+  const [clientValues, setClientValues] = usePageValues<Record<string, unknown>>(activePageId);
   /** 再取得したデータ（取得ブロックのID → JSON） */
-  const [liveSamples, setLiveSamples] = useState<Record<string, unknown>>({});
+  const [liveSamples, setLiveSamples] = usePageValues<Record<string, unknown>>(activePageId);
   /** 再取得したデータで切り詰めた配列の元の件数（件数のブロックで使う） */
-  const [liveTotals, setLiveTotals] = useState<Record<string, Record<string, number>>>({});
+  const [liveTotals, setLiveTotals] = usePageValues<Record<string, Record<string, number>>>(activePageId);
   /**
    * 取り直したデータの全件（切り詰めない）。プレビューのときだけ使い、
    * 表示件数「全て」のリストに全件を並べる（デザイン画面は重くならないよう見本を使う）
    */
-  const [fullData, setFullData] = useState<Record<string, unknown>>({});
+  const [fullData, setFullData] = usePageValues<Record<string, unknown>>(activePageId);
   const [previewSlug, setPreviewSlug] = useState("1");
   const [refreshing, setRefreshing] = useState(false);
   /** 再取得・ページ切替・プレビューの開始/終了で、以前の応答を無効にする。 */
   const refreshRequest = useRef(0);
+  const refreshController = useRef<AbortController | null>(null);
 
   /** [slug]のプレビュー値・プレビューバーの基準になるデータ（スクリプトで取得するもの） */
   const primary = page ? primaryDataStep(doc, page.id) : null;
@@ -170,6 +192,9 @@ export function useCanvasData({
   const refreshData = useCallback(async () => {
     if (!page) return;
     const request = ++refreshRequest.current;
+    refreshController.current?.abort();
+    const controller = new AbortController();
+    refreshController.current = controller;
     setRefreshing(true);
     try {
       const vars = { ...pageVars, slug: slugVal };
@@ -182,11 +207,13 @@ export function useCanvasData({
           try {
             const res = await fetch("/api/fetch-json", {
               method: "POST",
+              signal: controller.signal,
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ url: interpolateUrl(st.url, vars), ...fetchRequestOf(st, vars) }),
             });
-            if (!res.ok) return;
+            if (!res.ok || controller.signal.aborted) return;
             const data = await res.json();
+            if (controller.signal.aborted) return;
             full[st.id] = data.json;
             const made = makeSample(data.json);
             results[st.id] = made.sample;
@@ -202,7 +229,10 @@ export function useCanvasData({
       setLiveTotals((prev) => ({ ...prev, ...totals }));
       setFullData((prev) => ({ ...prev, ...full }));
     } finally {
-      if (request === refreshRequest.current) setRefreshing(false);
+      if (request === refreshRequest.current) {
+        refreshController.current = null;
+        setRefreshing(false);
+      }
     }
   }, [page, doc, slugVal, pageVars]);
 
@@ -212,7 +242,11 @@ export function useCanvasData({
   useEffect(() => {
     setRefreshing(false);
     if (mode === "preview" && page) void refreshRef.current();
-    return () => { refreshRequest.current++; };
+    return () => {
+      refreshRequest.current++;
+      refreshController.current?.abort();
+      refreshController.current = null;
+    };
   }, [mode, page?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setActivePage = useEditor((s) => s.setActivePage);
@@ -250,9 +284,13 @@ export function useCanvasData({
         ) {
           continue;
         }
-        const val = decodeURIComponent(
-          path.slice(pre.length, path.length - post.length)
-        );
+        let val: string;
+        try {
+          val = decodeURIComponent(path.slice(pre.length, path.length - post.length));
+        } catch {
+          // 壊れたエスケープを含むリンクも、他の不一致URLと同じく404へ進める。
+          continue;
+        }
         if (!val || val.includes("/")) continue;
         const target = queryPage(pages.filter((p) => clean(p.slug) === slug), query)!;
         setPreviewSlug(val);

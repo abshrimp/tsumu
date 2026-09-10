@@ -11,6 +11,9 @@ export const dynamic = "force-dynamic";
 
 /** 接続を保つための空のコメントを送る間隔（プロキシの無通信の切断を避ける） */
 const HEARTBEAT_MS = 25_000;
+const MAX_PENDING_MESSAGES = 32;
+// 文書保存 API の本文上限と同じ。低速な接続ごとに無制限の通知を保持しない。
+const MAX_BUFFERED_BYTES = 64 * 1024 * 1024;
 
 /**
  * WebSocket（Durable Object）が使えないときの、保存の通知の受け取り口（Server-Sent Events）。
@@ -33,20 +36,44 @@ export async function GET(req: Request) {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
-      let pending = Promise.resolve();
+      const pending: Uint8Array[] = [];
+      let pendingBytes = 0;
+      let sending = false;
       const close = () => {
         cleanup();
         try { controller.close(); } catch { /* すでに閉じている */ }
       };
-      const send = (text: string | (() => Promise<string | null>)) => {
-        // 通知の順序を保ち、接続後に権限を外された人へ本文を送らない。
-        pending = pending.then(async () => {
-          if (closed) return;
-          if (!collaborationIdentityAllowed(!!user, authConfigured())) return close();
-          if (user && !await isEmailAllowed(user.email)) return close();
-          const output = typeof text === "string" ? text : await text();
-          if (!closed && output !== null) controller.enqueue(encoder.encode(output));
-        }).catch(close);
+      const overflow = () => {
+        cleanup();
+        // 古い差分を捨てて接続し直す。クライアントは再接続時に最新版を照合する。
+        try { controller.error(new Error("Collaboration stream buffer exceeded")); } catch { /* すでに閉じている */ }
+      };
+      const drain = async () => {
+        sending = true;
+        try {
+          while (!closed && pending.length) {
+            // 通知の順序を保ち、接続後に権限を外された人へ本文を送らない。
+            if (!collaborationIdentityAllowed(!!user, authConfigured())) return close();
+            if (user && !await isEmailAllowed(user.email)) return close();
+            if (closed) return;
+            const bytes = pending.shift()!;
+            pendingBytes -= bytes.byteLength;
+            if (bytes.byteLength > (controller.desiredSize ?? 0)) return overflow();
+            controller.enqueue(bytes);
+          }
+        } catch { close(); }
+        finally { sending = false; }
+      };
+      const send = (text: string) => {
+        if (closed) return;
+        // UTF-8 化の前にも粗い上限を置き、巨大な通知の追加コピーを避ける。
+        if (pending.length >= MAX_PENDING_MESSAGES ||
+            text.length + pendingBytes > (controller.desiredSize ?? 0)) return overflow();
+        const bytes = encoder.encode(text);
+        if (bytes.byteLength + pendingBytes > (controller.desiredSize ?? 0)) return overflow();
+        pending.push(bytes);
+        pendingBytes += bytes.byteLength;
+        if (!sending) void drain();
       };
       const unsubscribe = subscribeDocUpdates(siteId, (message, raw) => {
         if (clientId && message.senderId === clientId) return;
@@ -57,6 +84,9 @@ export async function GET(req: Request) {
         closed = true;
         clearInterval(heartbeat);
         unsubscribe();
+        pending.length = 0;
+        pendingBytes = 0;
+        req.signal.removeEventListener("abort", close);
         cleanup = () => {};
       };
       req.signal.addEventListener("abort", close, { once: true });
@@ -67,7 +97,7 @@ export async function GET(req: Request) {
     cancel() {
       cleanup();
     },
-  });
+  }, { highWaterMark: MAX_BUFFERED_BYTES, size: chunk => chunk.byteLength });
 
   return new Response(stream, {
     headers: {

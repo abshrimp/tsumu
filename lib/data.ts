@@ -20,6 +20,7 @@ import { tr, trc } from "./i18n";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { matchesValueCondition, parseValueLiteral } from "./value-semantics";
 import { runPurePageSteps } from "./page-load-steps";
+import { formatValueText } from "./value-text";
 
 /** "data.items" のようなパスでオブジェクトを掘る（配列の "-1" は最後の要素） */
 export function digPath(root: unknown, path: string | undefined): unknown {
@@ -90,10 +91,7 @@ export function matchOp(v: unknown, op: ScriptOp | undefined, w: unknown): boole
 
 /** Coerce fetched JSON without invoking custom or shadowed toString methods. */
 function safeCompareText(value: unknown): string {
-  if (value == null) return "";
-  if (Array.isArray(value)) return value.map(safeCompareText).join(",");
-  if (typeof value === "object") return "[object Object]";
-  return String(value);
+  return formatValueText(value, true);
 }
 
 /**

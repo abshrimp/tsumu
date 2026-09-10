@@ -42,9 +42,9 @@ function mount(initialMode: EditorMode = "preview", doc = previewRefreshDoc()) {
       });
     },
   };
-  const requests: { input: any; finish: (response: Response) => void; fail: (error: Error) => void }[] = [];
+  const requests: { input: any; signal: AbortSignal | null | undefined; finish: (response: Response) => void; fail: (error: Error) => void }[] = [];
   const fetch = (_url: string, options: RequestInit) => new Promise<Response>((finish, fail) => {
-    requests.push({ input: JSON.parse(String(options.body)), finish, fail });
+    requests.push({ input: JSON.parse(String(options.body)), signal: options.signal, finish, fail });
   });
   const require = createRequire(resolve("components/canvas/useCanvasData.ts"));
   const module = { exports: {} as any };
@@ -67,9 +67,6 @@ function mount(initialMode: EditorMode = "preview", doc = previewRefreshDoc()) {
     mode(next: EditorMode) { mode = next; render(); },
     page(next: string) {
       pageId = next;
-      const data = render();
-      // Canvas がページ切替の effect で消す値と同じ。
-      data.setFieldValues({}); data.setClientValues({}); data.setLiveSamples({}); data.setLiveTotals({}); data.setFullData({});
       render();
     },
     unmount() { for (const slot of slots) if (slot?.effect) slot.cleanup?.(); },
@@ -292,5 +289,71 @@ test("successful blocks clear only their own totals while failed blocks retain l
   assert.equal(m.render().pageVars.auxTotal, 0);
   assert.equal(m.render().pageVars.response.label, "small main");
   assert.equal(m.render().pageVars.aux.label, "empty aux");
+  m.unmount();
+});
+
+
+test("replacing a preview refresh aborts all requests in the old batch", async () => {
+  const doc = previewRefreshDoc();
+  doc.pages.home.pageScripts![0].steps.push({ id: "aux", kind: "fetch", url: "https://example.test/aux" });
+  const m = mount("preview", doc);
+  assert.equal(m.requests.length, 2);
+  void m.render().refreshData();
+  assert.equal(m.requests.length, 4);
+  assert.equal(m.requests[0].signal?.aborted, true);
+  assert.equal(m.requests[1].signal?.aborted, true);
+  assert.equal(m.requests[2].signal?.aborted, false);
+  assert.equal(m.requests[3].signal?.aborted, false);
+  m.unmount();
+});
+
+for (const interruption of ["mode", "page", "unmount"] as const) {
+  test(`${interruption} aborts preview requests before they download abandoned data`, () => {
+    const m = mount();
+    if (interruption === "mode") m.mode("design");
+    else if (interruption === "page") m.page("other");
+    else m.unmount();
+    assert.equal(m.requests[0].signal?.aborted, true);
+    if (interruption === "page") assert.equal(m.requests[1].signal?.aborted, false);
+    if (interruption !== "unmount") m.unmount();
+  });
+}
+
+test("the first refresh on another page uses its own field defaults", async () => {
+  const doc = previewRefreshDoc();
+  doc.nodes["other-query"] = { ...structuredClone(doc.nodes.query), id: "other-query", field: { kind: "input", defaultValue: "other default" } };
+  doc.pages.other.children.push("other-query");
+  const m = mount("preview", doc);
+  m.render().setFieldValues({ q: "home private input" });
+  m.page("other");
+  assert.equal(new URL(m.requests[1].input.url).searchParams.get("q"), "other default");
+  assert.equal(m.render().pageVars.q, "other default");
+  m.render().setFieldValues({ q: "other private input" });
+  m.page("home");
+  assert.equal(new URL(m.requests[2].input.url).searchParams.get("q"), "initial");
+  m.unmount();
+});
+
+
+test("a late field callback from the old page cannot overwrite the current page", () => {
+  const m = mount();
+  const old = m.render();
+  m.page("other");
+  m.render().setFieldValues({ q: "current" });
+  old.setFieldValues({ q: "stale" });
+  assert.equal(m.render().pageVars.q, "current");
+  m.unmount();
+});
+
+test("an obsolete response is skipped before JSON parsing", async () => {
+  const m = mount();
+  void m.render().refreshData();
+  let parsed = false;
+  const response = new Response("{}");
+  response.json = async () => { parsed = true; return { json: previewRows("stale") }; };
+  m.requests[0].finish(response);
+  await new Promise((done) => setTimeout(done, 0));
+  assert.equal(parsed, false);
+  assert.equal(m.render().refreshing, true);
   m.unmount();
 });
