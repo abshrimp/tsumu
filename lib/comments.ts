@@ -64,8 +64,9 @@ export function parseCommentAction(raw: unknown): CommentAction | null {
       const tid = id("id");
       const pageId = id("pageId");
       const nodeId = a.nodeId === null ? null : id("nodeId");
-      if (!tid || !pageId || x === null || y === null || !body || (a.nodeId !== null && !nodeId)) return null;
-      return { action: "create", id: tid, pageId, nodeId, x, y, bp: typeof a.bp === "string" ? a.bp.slice(0, 40) : "base", body };
+      const bp = typeof a.bp === "string" && a.bp.length > 0 && a.bp.length <= 40 ? a.bp : null;
+      if (!tid || !pageId || x === null || y === null || !body || !bp || (a.nodeId !== null && !nodeId)) return null;
+      return { action: "create", id: tid, pageId, nodeId, x, y, bp, body };
     }
     case "reply": {
       const threadId = id("threadId");
@@ -232,7 +233,7 @@ export async function listCommentPage(
   }
   const threadOf = (r: Record<string, unknown>): CommentThread => ({
     id: String(r.id), pageId: String(r.page_id), nodeId: r.node_id == null ? null : String(r.node_id),
-    x: Number(r.x), y: Number(r.y), bp: String(r.bp ?? "base"),
+    x: Number(r.x), y: Number(r.y), bp: String(r.bp),
     createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
     resolvedAt: r.resolved_at == null ? null : Number(r.resolved_at),
     resolvedBy: r.resolved_at == null ? null : userOf(r, "resolved_"),
@@ -248,11 +249,6 @@ export async function listCommentPage(
     unresolvedCount: Number(counts.rows[0]?.unresolved ?? 0),
     focusedThread: focusedThread?.messages.length ? focusedThread : null,
   };
-}
-
-/** 単一ページを扱う既存の呼び出し用。続きを読むときは listCommentPage を使う。 */
-export async function listComments(db: Db, siteId: string): Promise<CommentThread[]> {
-  return (await listCommentPage(db, siteId)).threads;
 }
 
 /** 操作を D1 に当てはめる。他人の変更は false、削除済みのサイトは site-missing、返信先は missing、返信IDの衝突は conflict。 */

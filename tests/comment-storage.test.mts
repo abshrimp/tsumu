@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import { deleteSite, insertSite, isSiteId } from "../lib/sites";
-import { listComments, listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction, type CommentAction } from "../lib/comments";
+import { listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction, type CommentAction } from "../lib/comments";
 import { userMessage } from "../lib/errors";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
@@ -39,6 +39,13 @@ async function assertEmpty(db: Db) {
     assert.equal(result.rows[0].n, 0, table + " must not contain orphaned records");
   }
 }
+
+test("comment creation requires an explicit current breakpoint ID", () => {
+  for (const bp of [undefined, null, "", 123, "x".repeat(41)]) {
+    assert.equal(parseCommentAction({ ...create, bp }), null);
+  }
+  assert.deepEqual(parseCommentAction(create), create);
+});
 
 test("a late comment creation cannot recreate data for a deleted site", async () => {
   await database(async (db) => {
@@ -72,7 +79,7 @@ function api(db: Db) {
 
 test("the API stores the identity that authorized the new comment", async () => database(async db => {
   assert.equal((await api(db)()).status, 200);
-  const [thread] = await listComments(db, "site");
+  const [thread] = (await listCommentPage(db, "site")).threads;
   assert.deepEqual(thread.messages[0].author, author);
 }));
 
@@ -137,7 +144,7 @@ test("comment creation and replies still persist, and retries cannot duplicate r
     assert.equal(await runCommentAction(db, "site", create, author, 1), true);
     assert.equal(await runCommentAction(db, "site", reply, author, 2), true);
     assert.equal(await runCommentAction(db, "site", reply, author, 3), true);
-    const threads = await listComments(db, "site");
+    const threads = (await listCommentPage(db, "site")).threads;
     assert.equal(threads.length, 1);
     assert.deepEqual(threads[0].messages.map((m) => m.body), ["Original", "Reply"]);
     assert.equal(threads[0].updatedAt, 2);
@@ -157,7 +164,7 @@ for (const timing of ["before lookup", "before write"] as const) {
     } };
     const result = await runCommentAction(wrapped, "site", { action: "edit", messageId: "reply", body: "Unsaved edit" }, author, 4);
     assert.equal(result, "message-missing");
-    const [thread] = await listComments(db, "site");
+    const [thread] = (await listCommentPage(db, "site")).threads;
     assert.equal(thread.messages.length, 1);
     assert.equal(thread.messages[0].body, "Original");
     assert.equal(thread.updatedAt, 3, "failed edit must not bump the surviving discussion");
@@ -184,7 +191,7 @@ test("thread deletion rechecks the current first author's authority inside the w
     return db.batch(statements);
   } };
   assert.equal(await runCommentAction(racingDb, "site", { action: "delete-thread", threadId: "thread" }, author, 400), false);
-  const threads = await listComments(db, "site");
+  const threads = (await listCommentPage(db, "site")).threads;
   assert.equal(threads.length, 1); assert.deepEqual(threads[0].messages.map(m => m.id), ["reply"]);
   assert.equal(await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, other, 500), true);
   await assertEmpty(db);
@@ -204,7 +211,7 @@ test("a delayed message deletion cannot delete a replacement message owned by an
     return db.batch(statements);
   } };
   assert.equal(await runCommentAction(racingDb, "site", { action: "delete-message", messageId: "thread-0" }, author, 400), false);
-  const threads = await listComments(db, "site");
+  const threads = (await listCommentPage(db, "site")).threads;
   assert.equal(threads.length, 1);
   assert.equal(threads[0].updatedAt, 300, "a rejected delete must not bump the replacement thread");
   assert.equal(threads[0].messages[0].body, "Replacement");

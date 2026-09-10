@@ -29,8 +29,8 @@ export interface ClipPayload {
   v: 1;
   /** コピー元のサイト */
   site: string;
-  /** コピー時の画面幅設定。旧形式は画面幅別の指定がない場合だけ使える。 */
-  breakpoints?: BreakpointDef[];
+  /** コピー元サイトの画面幅設定。貼り付け先への参照変換に必須。 */
+  breakpoints: BreakpointDef[];
   nodes: DocNode[];
   rootIds: string[];
   /** 要素が使っているアセット */
@@ -117,8 +117,6 @@ export function prepareClipBreakpoints(doc: SiteDoc, payload: ClipPayload): Clip
   };
   const responsive = nodes.some((node) =>
     Object.keys(node.styles).some((id) => id !== "base") || node.hiddenOn?.some((id) => id !== "base"));
-  // 旧形式には幅の情報がないため、同じIDでも同じ幅とは断定できない。
-  if (payload.breakpoints === undefined) return responsive ? null : structuredClone(payload);
   const source = checked(payload.breakpoints);
   const target = checked(doc.breakpoints ?? DEFAULT_BREAKPOINTS);
   if (!source || !target) return null;
@@ -162,7 +160,7 @@ function validNodes(nodes: unknown, roots?: unknown): nodes is DocNode[] {
 function isPayload(v: unknown): v is ClipPayload {
   const p = v as ClipPayload | null;
   return (
-    !!p && p.v === 1 && typeof p.site === "string" && Array.isArray(p.rootIds) &&
+    !!p && p.v === 1 && typeof p.site === "string" && Array.isArray(p.breakpoints) && Array.isArray(p.rootIds) &&
     validNodes(p.nodes, p.rootIds) &&
     !!p.assets && typeof p.assets === "object" && !Array.isArray(p.assets) &&
     Object.entries(p.assets).every(([id, asset]) => validAssetEntry(id, asset)) &&
