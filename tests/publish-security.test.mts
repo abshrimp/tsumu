@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialDoc } from "../lib/presets";
 import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
+import { fetchRequestOf } from "../lib/fetch-request";
+import { validSiteDoc } from "../lib/doc-tree";
+import { exportLimitations } from "../lib/export-formats";
 import { validateImportedDoc } from "../lib/site-import";
 
 const siteWithFetch = (url: string, headers?: { name: string; value: string }[], body?: string) => {
@@ -82,4 +85,21 @@ test("validated history JSON round-trips a SiteDoc but rejects poisoned restores
   const invalid = JSON.parse(JSON.stringify(doc));
   invalid.pageOrder = ["nonexistent-page"];
   assert.throws(() => validateImportedDoc(invalid), /ページ|親子/);
+});
+
+test("credential checks normalize header names exactly as executable fetch settings do", () => {
+  for (const name of [" Authorization ", "\tX-API-Key\r\n", "\u00a0Cookie\u00a0", "  x-AuTh-ToKeN\t"]) {
+    const headers = [{ name, value: "synthetic-credential" }];
+    const doc = siteWithFetch("https://public.example/data", headers);
+    assert.equal(validSiteDoc(doc), true, "padded names are valid editable data");
+    assert.equal(fetchRequestOf({ headers }, {})?.headers?.[name.trim()], "synthetic-credential");
+    assert.equal(hasPublishCredentials(doc), true, name);
+    for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
+      assert.ok(exportLimitations(doc, framework).length > 0, framework + ": " + name);
+    }
+  }
+  assert.equal(hasPublishCredentials(siteWithFetch("https://public.example/data",
+    [{ name: " Authorization ", value: " \t" }])), false);
+  assert.equal(hasPublishCredentials(siteWithFetch("https://public.example/data",
+    [{ name: " X-Public-Category ", value: "books" }])), false);
 });
