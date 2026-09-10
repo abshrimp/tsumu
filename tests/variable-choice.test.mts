@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference } from "../lib/variable-choice";
-import { setVarSource } from "../lib/data";
+import { flattenFields, setVarSource } from "../lib/data";
 import { scriptDataPickerBundle } from "./helpers/script-data-picker";
 
 for (const v of [undefined, null, false, true, 0, "001", [], ["red"], {}, { title: "Nested" }]) {
@@ -85,3 +85,9 @@ test("real raw chip uses node samples and treats loop roots as runtime values", 
 });
 
 
+
+test("script field suggestions show only the first member of nested arrays", () => {
+  assert.deepEqual(flattenFields({
+    rows: [{ title: "First" }, { title: "Second" }, { title: "Third" }, { title: "Fourth" }],
+  }, 4).map(({ field }) => field), ["rows.0.title"]);
+});

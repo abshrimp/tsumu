@@ -1282,12 +1282,12 @@ export function fieldLabel(path: string): string {
 
 /**
  * 1件分のデータから、表示に使える項目をすべて取り出す。
- * 配列は「すべて」と各要素、入れ子はその中の項目まで展開する
+ * 配列は「すべて」と先頭要素の見本、入れ子はその中の項目まで展開する
  */
 export function flattenFields(
   item: Record<string, unknown>,
   maxDepth = 3,
-  maxItems = 5
+  maxItems = 1
 ): FieldOption[] {
   const out: FieldOption[] = [];
   const walk = (value: unknown, path: string, depth: number) => {

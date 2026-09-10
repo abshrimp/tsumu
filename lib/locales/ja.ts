@@ -2099,6 +2099,13 @@ const ja: Dict = {
   "Choose the list to display in the list display settings": "リスト表示の設定で、表示するリストを選んでください",
   "List · {length} items (can be shown in a list display)": "リスト・{length}件（リスト表示で並べられます）",
   "No lists": "リストがありません",
+  "Search or enter a list path": "リスト名・位置を検索または入力",
+  "Use entered path: {path}": "入力した位置を使用: {path}",
+  "Enter a path or index": "位置または添字を入力",
+  "Index (0-based) or full path": "添字（0始まり）または位置",
+  "Enter a path": "位置を入力",
+  "Use path": "使用する",
+
   "Lists inside variables": "変数の中のリスト",
   "Use {{field}} in each list display item (sample: {sample})": "リスト表示の項目では {{field}} として使えます（見本: {sample}）",
   "How this combines with other filters on the same list": "同じリストのほかの絞り込みとのつなぎ方",

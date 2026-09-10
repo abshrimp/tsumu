@@ -20,20 +20,20 @@ function kindOf(v: unknown, note?: string): string {
   return tr("Value");
 }
 
-/** 中の子要素（配列は先頭5件まで） */
+/** 配列の要素は先頭のみを提示し、別の添字は参照式で入力する。 */
 function childrenOf(v: unknown): [key: string, label: string, value: unknown][] {
-  if (Array.isArray(v)) return v.slice(0, 5).map((x, i) => [String(i), tr("#{p1}", { p1: i + 1 }), x]);
+  if (Array.isArray(v)) return v.slice(0, 1).map((x, i) => [String(i), tr("#{p1}", { p1: i + 1 }), x]);
   if (v && typeof v === "object") return Object.entries(v).map(([k, x]) => [k, k, x]);
   return [];
 }
 
-/** 検索用に、すべての位置を平らに並べる（4階層・配列は先頭3件まで） */
+/** 検索用に、すべての位置を平らに並べる（4階層・配列は先頭のみ） */
 function flatten(groups: VarGroup[]): { path: string; value: unknown; note?: string }[] {
   const out: { path: string; value: unknown; note?: string }[] = [];
   const walk = (path: string, v: unknown, depth: number, note?: string) => {
     out.push({ path, value: v, note });
     if (depth >= 4 || !isNested(v)) return;
-    const kids = Array.isArray(v) ? v.slice(0, 3).map((x, i) => [String(i), x] as const) : Object.entries(v as object);
+    const kids = Array.isArray(v) ? v.slice(0, 1).map((x, i) => [String(i), x] as const) : Object.entries(v as object);
     for (const [k, x] of kids) walk(`${path}.${k}`, x, depth + 1);
   };
   for (const g of groups) {

@@ -220,3 +220,35 @@ test("きっかけの要素選択で「このページ」の上に適切な余�
   await expect(special).toBeVisible();
   expect(await special.evaluate((el) => parseFloat(getComputedStyle(el).marginTop))).toBeGreaterThanOrEqual(4);
 });
+
+test("array paths show only their first element but accept the zero-based fourth index", async ({ page }) => {
+  await page.evaluate(() => (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+    doc.pages.p.pageScripts[0].steps.push({
+      id: "index-path", kind: "transform", source: "data.tags.0", into: "indexed",
+      transform: { kind: "field", key: "name" },
+    });
+  }));
+  const blockPicker = block(page, "index-path").getByRole("button", { name: "加工する元の変数" });
+  await blockPicker.click();
+  const menu = page.locator(".se-pm").filter({ has: page.locator(".se-path-direct") });
+  await expect(menu.getByText("1番目", { exact: true })).toBeVisible();
+  await expect(menu.getByText("2番目", { exact: true })).toHaveCount(0);
+  const manual = menu.locator(".se-path-direct input");
+  await expect(manual).toHaveAttribute("placeholder", "添字（0始まり）または位置");
+  await manual.fill("3");
+  await manual.press("Enter");
+  await expect(menu).toBeHidden();
+  const doc = await snapshot(page);
+  expect(doc.pages.p.pageScripts[0].steps.find((step: any) => step.id === "index-path").source)
+    .toBe("data.tags.3");
+
+  await openPicker(page);
+  const data = row(page, "{data}");
+  await data.locator(".vx-chev").click();
+  const tags = row(page, "{data.tags}");
+  await tags.locator(".vx-chev").click();
+  await expect(row(page, "{data.tags.0}")).toBeVisible();
+  await expect(row(page, "{data.tags.1}")).toHaveCount(0);
+  await picker(page).getByPlaceholder("変数名・値で検索").fill("data.tags.1");
+  await expect(picker(page).locator(".vx-row")).toHaveCount(0);
+});
