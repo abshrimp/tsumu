@@ -87,7 +87,7 @@ export function otherLocalDocs(): string[] {
 const LOCAL_SITES_KEY = storageKey("sites-v1");
 
 /** 明示的なローカルサイト削除の記録。古いタブの一覧保存や掃除で消さない。 */
-const LOCAL_SITE_DELETED_KEY = storageKey("site-deleted-v1");
+export const LOCAL_SITE_DELETED_KEY = storageKey("site-deleted-v1");
 
 /** 一覧の不在とは区別する。読めない場合は削除と決めつけず、呼び出し元へ失敗を返す。 */
 export function isLocalSiteDeleted(id: string = currentSiteId()): boolean {
