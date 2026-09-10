@@ -898,3 +898,32 @@ test("canvas append values use one typed input", async ({ page }) => {
       .find((step: any) => step.id === "append-value").transform
   )).toMatchObject({ kind: "append", operand: "42", operandType: "number" });
 });
+
+test("canvas field picker leaves Japanese composition keys to the IME", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      const steps = doc.pages.p.pageScripts[0].steps;
+      steps[0].preview.sample = { 商品名: "りんご", 商品番号: "001" };
+      steps.push({ id: "ime-field", kind: "transform", source: "data", into: "picked",
+        transform: { kind: "field", key: "" } });
+    });
+  });
+  const key = page.locator('[data-sel-key="step:ime-field"]')
+    .getByRole("combobox", { name: "取り出す項目名" });
+  await key.fill("商品");
+  await expect(key).toHaveAttribute("aria-expanded", "true");
+  const active = await key.getAttribute("aria-activedescendant");
+  const before = await page.evaluate(() => JSON.stringify((window as any).dataPickerStore.getState().doc));
+  for (const nativeEvent of [{ isComposing: true }, { keyCode: 229 }]) {
+    for (const composingKey of ["Enter", "ArrowDown", "ArrowUp", "Escape"]) {
+      await key.dispatchEvent("keydown", { key: composingKey, bubbles: true, cancelable: true, ...nativeEvent });
+      await expect(key).toHaveValue("商品");
+      await expect(key).toHaveAttribute("aria-expanded", "true");
+      await expect(key).toHaveAttribute("aria-activedescendant", active!);
+      expect(await page.evaluate(() => JSON.stringify((window as any).dataPickerStore.getState().doc))).toBe(before);
+    }
+  }
+  await key.press("Enter");
+  await expect(key).toHaveValue("商品名");
+  await expect(key).toHaveAttribute("aria-expanded", "false");
+});
