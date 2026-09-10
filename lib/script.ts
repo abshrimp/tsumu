@@ -29,12 +29,12 @@ const LINK_PREFIX = "link_";
 export const isLinkScriptId = (id: string) => id.startsWith(LINK_PREFIX);
 
 export const TRIGGER_LABELS: Record<ScriptTrigger, string> = {
-  click: tr("クリックしたとき"),
-  "hover-start": tr("ホバーし始めたとき"),
-  "hover-end": tr("ホバーが外れたとき"),
-  change: tr("値が変わったとき"),
-  load: tr("ページを開いたとき"),
-  "in-view": tr("画面に入ったとき"),
+  click: tr("When clicked"),
+  "hover-start": tr("When hover starts"),
+  "hover-end": tr("When hover ends"),
+  change: tr("When the value changes"),
+  load: tr("When the page opens"),
+  "in-view": tr("When scrolled into view"),
 };
 
 export const TRIGGER_ORDER: ScriptTrigger[] = [

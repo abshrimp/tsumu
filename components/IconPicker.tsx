@@ -54,7 +54,7 @@ export default function IconPicker({
     <div className="icon-picker">
       <input
         className="input"
-        placeholder={tr("英語で検索（例: heart, arrow, music）")}
+        placeholder={tr("Search (e.g. heart, arrow, music)")}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
@@ -76,7 +76,7 @@ export default function IconPicker({
         })}
         {!matches.length && (
           <p className="hint" style={{ gridColumn: "1 / -1", margin: 0 }}>
-            {tr("見つかりませんでした")}
+            {tr("No results")}
           </p>
         )}
       </div>

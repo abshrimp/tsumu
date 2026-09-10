@@ -102,8 +102,8 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         level: "error",
         message:
           shareable && clash.shareable && route !== "404"
-            ? tr("URL「/{route}{p2}」が「{name}」と「{name2}」で重複しています（クエリを変えてください）", { route, p2: query ? `?${query}` : "", name: clash.name, name2: page.name })
-            : tr("URL「/{route}」が「{name}」と「{name2}」で重複しています", { route, name: clash.name, name2: page.name }),
+            ? tr("The URL \"/{route}{p2}\" is used by both \"{name}\" and \"{name2}\" (change the query)", { route, p2: query ? `?${query}` : "", name: clash.name, name2: page.name })
+            : tr("The URL \"/{route}\" is used by both \"{name}\" and \"{name2}\"", { route, name: clash.name, name2: page.name }),
       });
     }
     routes.set(key, [...same, { name: page.name, conditions, shareable }]);
@@ -112,7 +112,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       results.push({
         help: "data-detail",
         level: "error",
-        message: tr("「{name}」のURL: {slugErr}", { name: page.name, slugErr }),
+        message: tr("URL of \"{name}\": {slugErr}", { name: page.name, slugErr }),
       });
     }
   };
@@ -121,7 +121,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     results.push({
       help: "page-draft",
       level: "error",
-      message: tr("公開できるページがありません（すべて非公開になっています）"),
+      message: tr("No pages to publish (all pages are unpublished)"),
     });
   } else if (
     !published.some(
@@ -131,7 +131,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     results.push({
       help: "page-draft",
       level: "error",
-      message: tr("トップページ（URLが空のページ）が非公開になっています"),
+      message: tr("The home page (the page with an empty URL) is unpublished"),
     });
   }
 
@@ -140,7 +140,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     results.push({
       help: "pub-site",
       level: "warn",
-      message: tr("サイト名が初期値の「{siteName}」のままです（すべてのページのタイトルの後ろに付きます）", { siteName: doc.siteName?.trim() || DEFAULT_SITE_NAME }),
+      message: tr("The site name is still the default \"{siteName}\" (it's added after every page title)", { siteName: doc.siteName?.trim() || DEFAULT_SITE_NAME }),
     });
   }
   const byTitle = new Map<string, string[]>();
@@ -150,7 +150,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       results.push({
         help: "page-url",
         level: "warn",
-        message: tr("「{name}」のURL「/{slug}」が自動で付けたままです（内容を表す短い英単語にすると、検索やシェアで伝わりやすくなります）", { name: page.name, slug: page.slug }),
+        message: tr("The URL \"/{slug}\" of \"{name}\" is still the automatic one (a short word that describes the page reads better in search results and shares)", { name: page.name, slug: page.slug }),
       });
     }
     // 転送・HTMLページはタイトルを出さない
@@ -160,7 +160,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       results.push({
         help: "page-seo",
         level: "warn",
-        message: tr("「{name}」の検索・シェア用タイトルが自動で付けた「{title}」のままです", { name: page.name, title }),
+        message: tr("The search and share title of \"{name}\" is still the automatic \"{title}\"", { name: page.name, title }),
       });
     }
     byTitle.set(title, [...(byTitle.get(title) ?? []), page.name]);
@@ -170,8 +170,8 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     results.push({
       help: "page-seo",
       level: "warn",
-      message: tr("{names} の検索・シェア用タイトルが同じ「{title}」です（検索結果やタブで見分けられません）", {
-        names: names.map((n) => tr("「{name}」", { name: n })).join(tr("・")),
+      message: tr("{names} have the same search and share title \"{title}\" (they can't be told apart in search results or tabs)", {
+        names: names.map((n) => tr("\"{name}\"", { name: n })).join(tr(", ")),
         title,
       }),
     });
@@ -185,29 +185,29 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       help: "pub-site",
       level: "warn",
       message:
-        tr("シェア用画像を正しく出すため、サイト設定でサイトURLを設定してください"),
+        tr("Set the site URL in Site settings so share images work correctly"),
     });
   }
 
   const assetRefs: { id: string; label: string }[] = [];
   if (doc.favicon?.assetId) {
-    assetRefs.push({ id: doc.favicon.assetId, label: tr("ファビコン") });
+    assetRefs.push({ id: doc.favicon.assetId, label: tr("The favicon") });
   }
   if (doc.appleTouchIcon?.assetId) {
-    assetRefs.push({ id: doc.appleTouchIcon.assetId, label: tr("ホーム画面アイコン") });
+    assetRefs.push({ id: doc.appleTouchIcon.assetId, label: tr("Home screen icon") });
   }
   if (doc.ogImage?.assetId) {
-    assetRefs.push({ id: doc.ogImage.assetId, label: tr("デフォルトのOGP画像") });
+    assetRefs.push({ id: doc.ogImage.assetId, label: tr("The default share image") });
   }
   for (const pageId of published) {
     const page = doc.pages[pageId];
     if (page.ogImage?.assetId) {
-      assetRefs.push({ id: page.ogImage.assetId, label: tr("「{name}」のOGP画像", { name: page.name }) });
+      assetRefs.push({ id: page.ogImage.assetId, label: tr("The share image of \"{name}\"", { name: page.name }) });
     }
   }
   for (const node of Object.values(doc.nodes)) {
     for (const ref of [node.image, node.media, ...(node.media?.sources ?? [])]) {
-      if (ref?.assetId) assetRefs.push({ id: ref.assetId, label: tr("「{name}」", { name: node.name }) });
+      if (ref?.assetId) assetRefs.push({ id: ref.assetId, label: tr("\"{name}\"", { name: node.name }) });
     }
   }
   for (const ref of assetRefs) {
@@ -215,7 +215,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       results.push({
         help: "img-add",
         level: "error",
-        message: tr("{label}が存在しないアセットを参照しています", { label: ref.label }),
+        message: tr("{label} refers to an asset that doesn't exist", { label: ref.label }),
       });
     }
   }
@@ -229,7 +229,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "page-redirect",
           level: "error",
-          message: tr("リダイレクトページ「{name}」に転送先または表示する外部サイトが設定されていません", { name: page.name }),
+          message: tr("Redirect page \"{name}\" has no redirect target or external site set", { name: page.name }),
         });
       } else if (
         page.redirectTo?.trim() &&
@@ -239,13 +239,13 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "page-redirect",
           level: "error",
-          message: tr("リダイレクトページ「{name}」の301転送先は / から始まるサイト内URLか http(s) URLにしてください", { name: page.name }),
+          message: tr("The 301 target of redirect page \"{name}\" must be a site URL starting with / or an http(s) URL", { name: page.name }),
         });
       } else if (hasSelfRedirect(page, earlierRedirects)) {
         results.push({
           help: "page-redirect",
           level: "error",
-          message: tr("リダイレクトページ「{name}」の301転送先「{destination}」は転送元と同じURLに一致します（転送が繰り返されるため、別のパスに変更してください）", { name: page.name, destination: page.redirectTo!.trim() }),
+          message: tr("The 301 target \"{destination}\" of redirect page \"{name}\" matches its own source URL, causing a redirect loop. Change it to a different path.", { name: page.name, destination: page.redirectTo!.trim() }),
         });
       } else if (
         page.rewriteTo?.trim() &&
@@ -254,7 +254,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "page-redirect",
           level: "error",
-          message: tr("リダイレクトページ「{name}」の表示する外部サイトは http(s):// から始まるURLにしてください", { name: page.name }),
+          message: tr("The external site of redirect page \"{name}\" must be a URL starting with http(s)://", { name: page.name }),
         });
       }
       if (page.redirectTo?.trim()) earlierRedirects.push(page);
@@ -280,7 +280,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "data-fetch",
           level: "error",
-          message: tr("「{name}」のスクリプトで、データを取得するURLが空です", { name: page.name }),
+          message: tr("A script on \"{name}\" fetches data from an empty URL", { name: page.name }),
         });
       }
     }
@@ -319,7 +319,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
             results.push({
               help: "act-link",
               level: "warn",
-              message: tr("「{name}」の「{name2}」のスクリプトで開くページが選択されていないか、削除されています", { name: page.name, name2: node.name }),
+              message: tr("A script on \"{name2}\" in \"{name}\" opens a page that isn't selected or was deleted", { name: page.name, name2: node.name }),
             });
           }
         });
@@ -330,13 +330,13 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
           results.push({
             help: "act-link",
             level: "warn",
-            message: tr("「{name}」の「{name2}」のリンク先ページが削除されています（トップページへのリンクになります）", { name: page.name, name2: node.name }),
+            message: tr("The link target of \"{name2}\" in \"{name}\" was deleted (it will link to the home page)", { name: page.name, name2: node.name }),
           });
         } else if (target.unpublished) {
           results.push({
             help: "page-draft",
             level: "warn",
-            message: tr("「{name}」の「{name2}」のリンク先「{name3}」が非公開です（404になります）", { name: page.name, name2: node.name, name3: target.name }),
+            message: tr("\"{name2}\" in \"{name}\" links to \"{name3}\", which is unpublished (it will be a 404)", { name: page.name, name2: node.name, name3: target.name }),
           });
         }
       }
@@ -344,14 +344,14 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "data-list",
           level: "warn",
-          message: tr("「{name}」のリスト表示「{name2}」に表示するリストが選ばれていません（出力されません）", { name: page.name, name2: node.name }),
+          message: tr("List display \"{name2}\" in \"{name}\" has no list selected (it won't be output)", { name: page.name, name2: node.name }),
         });
       }
       if (node.type === "image" && node.image && !node.image.alt) {
         results.push({
           help: "img-alt",
           level: "warn",
-          message: tr("「{name}」の画像「{name2}」に代替テキスト（alt）が設定されていません", { name: page.name, name2: node.name }),
+          message: tr("Image \"{name2}\" in \"{name}\" has no alt text", { name: page.name, name2: node.name }),
         });
       }
       if (
@@ -363,7 +363,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "act-vars",
           level: "warn",
-          message: tr("「{name}」のフォーム部品「{name2}」にID属性がありません（値が送信されず {変数} としても使えません）", { name: page.name, name2: node.name }),
+          message: tr("Form field \"{name2}\" in \"{name}\" has no ID attribute (its value won't be submitted or usable as a {variable})", { name: page.name, name2: node.name }),
         });
       }
       node.children.forEach(walk);
@@ -375,13 +375,13 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "act-script",
           level: "warn",
-          message: tr("「{name}」の「{name2}」のスクリプトに対象が選択されていないブロックがあります", { name: page.name, name2: t.name }),
+          message: tr("A script on \"{name2}\" in \"{name}\" has a block with no target selected", { name: page.name, name2: t.name }),
         });
       } else if (!idCount.has(t.targetId)) {
         results.push({
           help: "act-script",
           level: "warn",
-          message: tr("「{name}」の「{name2}」のスクリプトの対象ID「{targetId}」がこのページに見つかりません", { name: page.name, name2: t.name, targetId: t.targetId }),
+          message: tr("The target ID \"{targetId}\" in the script on \"{name2}\" in \"{name}\" isn't on this page", { name: page.name, name2: t.name, targetId: t.targetId }),
         });
       }
     }
@@ -390,7 +390,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
         results.push({
           help: "act-anchor",
           level: "warn",
-          message: tr("「{name}」でID「{aid}」が{n}個の要素に重複しています（{変数}やアンカーが正しく動きません）", { name: page.name, aid, n }),
+          message: tr("The ID \"{aid}\" is used by {n} elements in \"{name}\" (variables and anchors won't work correctly)", { name: page.name, aid, n }),
         });
       }
     }
@@ -398,21 +398,21 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       results.push({
         help: "data-detail",
         level: "warn",
-        message: tr("[slug]ページ「{name}」のID「slug」はページ変数 {slug} と重複しています（別のIDにしてください）", { name: page.name }),
+        message: tr("The ID \"slug\" in [slug] page \"{name}\" conflicts with the page variable {slug} (use a different ID)", { name: page.name }),
       });
     }
     if (page.slug.includes("[slug]") && !hasData) {
       results.push({
         help: "data-detail",
         level: "warn",
-        message: tr("[slug]ページ「{name}」でデータを取得していません（ページを開いたときのスクリプトで、{slug} を使って1件のデータを取得してください）", { name: page.name }),
+        message: tr("[slug] page \"{name}\" doesn't fetch any data (in its \"When the page opens\" script, fetch one item using {slug})", { name: page.name }),
       });
     }
     if (!hasH1) {
       results.push({
         help: "text-heading",
         level: "warn",
-        message: tr("「{name}」に見出し1（h1）がありません", { name: page.name }),
+        message: tr("\"{name}\" has no Heading 1 (h1)", { name: page.name }),
       });
     }
   }
@@ -445,8 +445,8 @@ function opensLink(node: DocNode): boolean {
 
 /** 「〇〇」ほかN件 */
 function namesText(names: string[]): string {
-  const first = tr("「{name}」", { name: names[0] });
-  return names.length > 1 ? tr("{first}ほか{n}件", { first, n: names.length - 1 }) : first;
+  const first = tr("\"{name}\"", { name: names[0] });
+  return names.length > 1 ? tr("{first} and {n} more", { first, n: names.length - 1 }) : first;
 }
 
 /**
@@ -494,14 +494,14 @@ function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
     out.push({
       help: "d-type-scale",
       level: "warn",
-      message: tr("「{name}」のスマホ表示で、12px未満の読みにくい文字があります（{p2}）", { name: page.name, p2: namesText(tiny) }),
+      message: tr("\"{name}\" has text smaller than 12px on phones, which is hard to read ({p2})", { name: page.name, p2: namesText(tiny) }),
     });
   }
   if (wide.length) {
     out.push({
       help: "d-units",
       level: "warn",
-      message: tr("「{name}」の{p2}は幅が{width}pxで固定されていて、スマホ（幅{PHONE_WIDTH}px前後）の画面からはみ出します（幅を%にするか、最大幅を付けてください）", { name: page.name, p2: namesText(wide.map((w) => w.name)), width: wide[0].width, PHONE_WIDTH }),
+      message: tr("{p2} in \"{name}\" has a fixed width of {width}px and overflows phone screens (about {PHONE_WIDTH}px wide). Use a % width or add a max width", { name: page.name, p2: namesText(wide.map((w) => w.name)), width: wide[0].width, PHONE_WIDTH }),
     });
   }
   const h1 = headings.filter((h) => h === 1).length;
@@ -509,7 +509,7 @@ function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
     out.push({
       help: "text-heading",
       level: "warn",
-      message: tr("「{name}」に見出し1が{h1}つあります（ページの題名だけを見出し1にします）", { name: page.name, h1 }),
+      message: tr("\"{name}\" has {h1} Heading 1s (use Heading 1 only for the page title)", { name: page.name, h1 }),
     });
   }
   for (let i = 1; i < headings.length; i++) {
@@ -517,7 +517,7 @@ function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
       out.push({
         help: "text-heading",
         level: "warn",
-        message: tr("「{name}」で見出し{p2}の次が見出し{p3}になっています（見出しの段は1つずつ下げます）", { name: page.name, p2: headings[i - 1], p3: headings[i] }),
+        message: tr("In \"{name}\", Heading {p2} is followed by Heading {p3} (go down one level at a time)", { name: page.name, p2: headings[i - 1], p3: headings[i] }),
       });
       break;
     }
@@ -528,8 +528,8 @@ function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
       level: "warn",
       message:
         vague.length > 1
-          ? tr("「{name}」のリンクの文字が「{text}」です（ほか{n}件）。行き先が分かる言葉にしてください", { name: page.name, text: vague[0].text, n: vague.length - 1 })
-          : tr("「{name}」のリンクの文字が「{text}」です。行き先が分かる言葉にしてください", { name: page.name, text: vague[0].text }),
+          ? tr("A link in \"{name}\" says \"{text}\" (and {n} more). Use words that describe where it goes", { name: page.name, text: vague[0].text, n: vague.length - 1 })
+          : tr("A link in \"{name}\" says \"{text}\". Use words that describe where it goes", { name: page.name, text: vague[0].text }),
     });
   }
   return out;
@@ -574,6 +574,6 @@ function componentCycleChecks(doc: SiteDoc, published: string[]): CheckResult[] 
   return cyclic.map((c) => ({
     help: "reuse-component",
     level: used.has(c.id) ? ("error" as const) : ("warn" as const),
-    message: tr("コンポーネント「{name}」が自分自身を含んでいます（無限に入れ子になります）。マスターから自分自身のインスタンスを取り除いてください", { name: c.name }),
+    message: tr("Component \"{name}\" contains itself (it would nest forever). Remove its own instance from the main component", { name: c.name }),
   }));
 }

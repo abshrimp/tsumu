@@ -15,5 +15,5 @@ export function relativeTime(ms: number): string {
   for (const [unit, sec] of units) {
     if (Math.abs(diff) >= sec) return rtf.format(Math.round(diff / sec), unit);
   }
-  return tr("たった今");
+  return tr("just now");
 }

@@ -44,24 +44,24 @@ function ZIndexControl() {
     <div className="z-ctl">
       <button
         className="icon-btn"
-        data-tip={tr("背面へ移動")}
+        data-tip={tr("Send backward")}
         onClick={() => bump(-1)}
       >
         <SendToBack size={14} />
       </button>
       <span
         className={`z-val${info.changed ? " is-set" : ""}`}
-        data-tip={info.setHere ? tr("右クリックでリセット") : tr("重なり順（z-index）")}
+        data-tip={info.setHere ? tr("Right-click to reset") : tr("Stacking order (z-index)")}
         onContextMenu={(e) => {
           e.preventDefault();
           insp.set({ zIndex: null });
         }}
       >
-        {z !== null ? z : tr("自動")}
+        {z !== null ? z : tr("automatic")}
       </span>
       <button
         className="icon-btn"
-        data-tip={tr("前面へ移動")}
+        data-tip={tr("Bring forward")}
         onClick={() => bump(1)}
       >
         <BringToFront size={14} />
@@ -93,7 +93,7 @@ export function PositionSec() {
   const rotateChanged = tfInfo.setHere && tf.rotate !== parseTransform(tfInfo.reference).rotate;
 
   return (
-    <Sec title={tr("位置")} tutorialTarget="style-position" help="layout-position">
+    <Sec title={tr("Position")} tutorialTarget="style-position" help="layout-position">
       <Grp
         setHere={modeChanged}
         onReset={() =>
@@ -103,9 +103,9 @@ export function PositionSec() {
         <Seg
           value={mode}
           options={[
-            { label: tr("自動"), value: "auto" },
-            { label: tr("カスタム"), value: "custom" },
-            { label: tr("追従"), value: "sticky" },
+            { label: tr("automatic"), value: "auto" },
+            { label: tr("Custom"), value: "custom" },
+            { label: tr("Sticky"), value: "sticky" },
           ]}
           onChange={(v) => {
             // display: none が付いていれば（AIの編集などで付くことがある）、位置を選び直したときに外す
@@ -182,15 +182,15 @@ export function PositionSec() {
                   />
                 </Grp>
                 <Grp
-                  label={tr("横の基準点")}
+                  label={tr("Horizontal anchor")}
                   setHere={x.changed}
                   onReset={() => x.changed && swapAnchor(x.now, x.base)}
                 >
                   <Seg
                     value={xAnchor}
                     options={[
-                      { label: tr("左から"), value: "left" },
-                      { label: tr("右から"), value: "right" },
+                      { label: tr("From left"), value: "left" },
+                      { label: tr("From right"), value: "right" },
                     ]}
                     onChange={(v) => {
                       if (v !== xAnchor) swapAnchor(xAnchor, v);
@@ -206,15 +206,15 @@ export function PositionSec() {
                   />
                 </Grp>
                 <Grp
-                  label={tr("縦の基準点")}
+                  label={tr("Vertical anchor")}
                   setHere={y.changed}
                   onReset={() => y.changed && swapAnchor(y.now, y.base)}
                 >
                   <Seg
                     value={yAnchor}
                     options={[
-                      { label: tr("上から"), value: "top" },
-                      { label: tr("下から"), value: "bottom" },
+                      { label: tr("From top"), value: "top" },
+                      { label: tr("From bottom"), value: "bottom" },
                     ]}
                     onChange={(v) => {
                       if (v !== yAnchor) swapAnchor(yAnchor, v);
@@ -223,15 +223,15 @@ export function PositionSec() {
                 </Grp>
               </div>
               <Grp
-                label={tr("基準にする要素")}
+                label={tr("Relative to", "relative_to_variant_1")}
                 setHere={posInfo.setHere && (pos === "fixed") !== (posInfo.reference === "fixed")}
                 onReset={() => insp.set({ position: "absolute" })}
               >
                 <Seg
                   value={pos}
                   options={[
-                    { label: tr("親要素"), value: "absolute" },
-                    { label: tr("画面全体"), value: "fixed" },
+                    { label: tr("Parent element"), value: "absolute" },
+                    { label: tr("Viewport"), value: "fixed" },
                   ]}
                   onChange={(v) => insp.set({ position: v })}
                 />
@@ -242,7 +242,7 @@ export function PositionSec() {
 
       {mode === "sticky" && (
         <div className="grid2">
-          <Grp label={tr("上端から")} props={["top"]}>
+          <Grp label={tr("From the top edge")} props={["top"]}>
             <PropNum prop="top" pre="Y" units={["px"]} />
           </Grp>
         </div>
@@ -250,7 +250,7 @@ export function PositionSec() {
 
       <div className="grid2">
         <Grp
-          label={tr("回転")}
+          label={tr("Rotation")}
           setHere={rotateChanged}
           // 回転だけを元に戻す（移動・拡大などはそのまま）
           onReset={() =>
@@ -278,7 +278,7 @@ export function PositionSec() {
           />
         </Grp>
         <Grp
-          label={tr("重なり順")}
+          label={tr("Stacking order")}
           setHere={insp.get("zIndex").changed}
           onReset={() => insp.set({ zIndex: null })}
         >
@@ -387,8 +387,8 @@ export function MainSizeField({
         value={fill ? undefined : (info.value ?? "auto")}
         units={["px", "%"]}
         pre={pre}
-        placeholder={fill ? tr("残り") : "auto"}
-        title={fill ? tr("親の残りを埋めています（数値を入れると固定されます）") : undefined}
+        placeholder={fill ? tr("Fill") : "auto"}
+        title={fill ? tr("Filling the parent's remaining space (enter a number to fix the size)") : undefined}
         onChange={(v) => {
           const val = v === null ? clear(prop) : v;
           insp.set({ [prop]: val, ...flexFor(v) });
@@ -402,13 +402,13 @@ export function MainSizeField({
           type="button"
           className={`size-fill${fill ? " is-on" : ""}${fill && grow.changed ? " is-set" : ""}`}
           aria-pressed={fill}
-          aria-label={tr("残りを埋める")}
+          aria-label={tr("Fill remaining space")}
           data-tip={
             fill
-              ? tr("残りを埋めています（押すと解除）")
+              ? tr("Filling remaining space (click to turn off)")
               : prop === "width"
-                ? tr("親の残りの幅をすべて使う")
-                : tr("親の残りの高さをすべて使う")
+                ? tr("Use all of the parent's remaining width")
+                : tr("Use all of the parent's remaining height")
           }
           onClick={() => setFill(!fill)}
         >

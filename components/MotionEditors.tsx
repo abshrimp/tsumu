@@ -279,9 +279,9 @@ function ModalFrame({
           <h2>{title}</h2>
           <button
             className="icon-btn"
-            data-tip={tr("元に戻す")}
+            data-tip={tr("Undo")}
             data-tip-kbd="⌘Z"
-            aria-label={tr("元に戻す")}
+            aria-label={tr("Undo")}
             disabled={!history.canUndo}
             onClick={history.undo}
           >
@@ -289,9 +289,9 @@ function ModalFrame({
           </button>
           <button
             className="icon-btn"
-            data-tip={tr("やり直す")}
+            data-tip={tr("Redo")}
             data-tip-kbd="⇧⌘Z"
-            aria-label={tr("やり直す")}
+            aria-label={tr("Redo")}
             disabled={!history.canRedo}
             onClick={history.redo}
           >
@@ -301,10 +301,10 @@ function ModalFrame({
         {children}
         <div className="modal-actions">
           <button className="btn" onClick={onClose}>
-            {tr("キャンセル")}
+            {tr("Cancel")}
           </button>
           <button className="btn btn-primary" onClick={onApply}>
-            {tr("適用")}
+            {tr("Apply")}
           </button>
         </div>
       </div>
@@ -361,16 +361,16 @@ function curvePath(e: Easing, sx: (x: number) => number, sy: (y: number) => numb
 }
 
 const STEP_POSITIONS: { value: StepPosition; label: string; desc: string }[] = [
-  { value: "jump-end", label: tr("終わりで切り替え"), desc: "steps(n, end)" },
-  { value: "jump-start", label: tr("始まりで切り替え"), desc: "steps(n, start)" },
-  { value: "jump-none", label: tr("最初と最後の段を含める"), desc: "steps(n, jump-none)" },
-  { value: "jump-both", label: tr("両端で切り替え"), desc: "steps(n, jump-both)" },
+  { value: "jump-end", label: tr("Change at the end"), desc: "steps(n, end)" },
+  { value: "jump-start", label: tr("Change at the start"), desc: "steps(n, start)" },
+  { value: "jump-none", label: tr("Include the first and last step"), desc: "steps(n, jump-none)" },
+  { value: "jump-both", label: tr("Change at both ends"), desc: "steps(n, jump-both)" },
 ];
 
 const PRESET_GROUPS: { group: (typeof EASING_PRESETS)[number]["group"]; label: string }[] = [
-  { group: "basic", label: tr("基本") },
-  { group: "smooth", label: tr("なめらか") },
-  { group: "back", label: tr("行き過ぎて戻る") },
+  { group: "basic", label: tr("Basic") },
+  { group: "smooth", label: tr("Smooth") },
+  { group: "back", label: tr("Overshoot") },
 ];
 
 /** グラフの大きさ（x の 0〜1 を横幅、y は値に合わせて広げる範囲を縦幅に描く） */
@@ -458,13 +458,13 @@ export function EasingEditorModal({
 
   return (
     <ModalFrame
-      title={tr("イージングを編集")}
+      title={tr("Edit easing")}
       className="ee-modal"
       history={history as History<unknown>}
       onClose={onClose}
       onApply={() => onApply(current)}
     >
-      <p className="modal-desc">{tr("動きの速さの変化（緩急）を決めます。横が時間、縦が進み具合です。")}</p>
+      <p className="modal-desc">{tr("Set how the speed changes over the motion. Horizontal is time, vertical is progress.")}</p>
       <div className="ee-body">
         <div className="ee-graph-col">
           <svg
@@ -505,7 +505,7 @@ export function EasingEditorModal({
                       r={7}
                       onPointerDown={dragHandle(i)}
                     >
-                      <title>{i === 0 ? tr("始まりの緩急") : tr("終わりの緩急")}</title>
+                      <title>{i === 0 ? tr("Start handle") : tr("End handle")}</title>
                     </circle>
                   ))}
               </>
@@ -533,7 +533,7 @@ export function EasingEditorModal({
               ))}
             </div>
           )}
-          <label className="lbl">{tr("CSSの値")}</label>
+          <label className="lbl">{tr("CSS value")}</label>
           <CommitInput
             key={current}
             className="input mono"
@@ -549,15 +549,15 @@ export function EasingEditorModal({
               if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
             }}
           />
-          {raw !== null && <p className="hint">{tr("グラフで表せない値です。この値のまま使えます。")}</p>}
+          {raw !== null && <p className="hint">{tr("This value can't be shown as a graph, but it can be used as is.")}</p>}
         </div>
 
         <div className="ee-side">
           <Seg
             value={raw !== null ? "" : mode}
             options={[
-              { value: "bezier", label: tr("曲線") },
-              { value: "steps", label: tr("段階") },
+              { value: "bezier", label: tr("Curve") },
+              { value: "steps", label: tr("Steps") },
             ]}
             onChange={(v) =>
               setEasing(
@@ -570,7 +570,7 @@ export function EasingEditorModal({
 
           {mode === "steps" && easing?.kind === "steps" && raw === null ? (
             <div className="ee-steps">
-              <label className="lbl">{tr("段の数")}</label>
+              <label className="lbl">{tr("Number of steps")}</label>
               <NumField
                 value={String(easing.n)}
                 units={[""]}
@@ -581,7 +581,7 @@ export function EasingEditorModal({
                   setEasing({ ...easing, n: Math.max(easing.pos === "jump-none" ? 2 : 1, n) });
                 }}
               />
-              <label className="lbl">{tr("切り替わる時点")}</label>
+              <label className="lbl">{tr("When each step changes")}</label>
               <Dropdown
                 value={easing.pos}
                 options={STEP_POSITIONS}
@@ -590,7 +590,7 @@ export function EasingEditorModal({
                   setEasing({ ...easing, pos, n: pos === "jump-none" ? Math.max(2, easing.n) : easing.n });
                 }}
               />
-              <p className="hint">{tr("時計の針やコマ送りのように、なめらかにつながず段階的に切り替えます。")}</p>
+              <p className="hint">{tr("Jumps from step to step instead of moving smoothly, like a clock hand or frame-by-frame animation.")}</p>
             </div>
           ) : (
             <div className="ee-presets">
@@ -620,19 +620,19 @@ export function EasingEditorModal({
 
       <div className="ee-preview">
         <div className="ee-lane">
-          <span className="ee-lane-label">{tr("比較（一定の速さ）")}</span>
+          <span className="ee-lane-label">{tr("Constant speed")}</span>
           <div className="ee-track">
             <span className="ee-ball is-ghost" style={{ left: `${p * 100}%` }} />
           </div>
         </div>
         <div className="ee-lane">
-          <span className="ee-lane-label">{tr("このイージング")}</span>
+          <span className="ee-lane-label">{tr("This easing")}</span>
           <div className="ee-track">
             <span className="ee-ball" style={{ left: `${y * 100}%` }} />
           </div>
         </div>
         <div className="me-transport">
-          <button className="icon-btn" data-tip={playing ? tr("一時停止") : tr("再生")} onClick={toggle}>
+          <button className="icon-btn" data-tip={playing ? tr("Pause") : tr("Play")} onClick={toggle}>
             {playing ? <Pause size={14} /> : <Play size={14} />}
           </button>
           <span className="me-time">
@@ -651,11 +651,11 @@ type NumKey = "opacity" | "x" | "y" | "scale" | "rotate";
 
 /** 項目（表示の単位に換算して出す。不透明度・拡大は % で見せる） */
 const KF_FIELDS: { key: NumKey; label: string; unit: string; pre: string; toView: (n: number) => number; fromView: (n: number) => number; min?: number; max?: number }[] = [
-  { key: "opacity", label: tr("不透明度"), unit: "%", pre: "α", toView: (n) => n * 100, fromView: (n) => n / 100, min: 0, max: 100 },
-  { key: "x", label: tr("横の移動"), unit: "px", pre: "X", toView: (n) => n, fromView: (n) => n },
-  { key: "y", label: tr("縦の移動"), unit: "px", pre: "Y", toView: (n) => n, fromView: (n) => n },
-  { key: "scale", label: tr("拡大"), unit: "%", pre: "S", toView: (n) => n * 100, fromView: (n) => n / 100, min: 0 },
-  { key: "rotate", label: tr("回転"), unit: "deg", pre: "R", toView: (n) => n, fromView: (n) => n },
+  { key: "opacity", label: tr("Opacity"), unit: "%", pre: "α", toView: (n) => n * 100, fromView: (n) => n / 100, min: 0, max: 100 },
+  { key: "x", label: tr("Move X"), unit: "px", pre: "X", toView: (n) => n, fromView: (n) => n },
+  { key: "y", label: tr("Move Y"), unit: "px", pre: "Y", toView: (n) => n, fromView: (n) => n },
+  { key: "scale", label: tr("Zoom in"), unit: "%", pre: "S", toView: (n) => n * 100, fromView: (n) => n / 100, min: 0 },
+  { key: "rotate", label: tr("Rotation"), unit: "deg", pre: "R", toView: (n) => n, fromView: (n) => n },
 ];
 
 const round = (n: number) => Math.round(n * 1000) / 1000;
@@ -803,7 +803,7 @@ export function KeyframeEditorModal({
 
   return (
     <ModalFrame
-      title={tr("キーフレームを編集")}
+      title={tr("Edit keyframes")}
       className="kfe-modal"
       history={history as History<unknown>}
       onClose={onClose}
@@ -811,10 +811,10 @@ export function KeyframeEditorModal({
     >
       <style>{`@keyframes ${animName} {\n${output}\n}`}</style>
       <div className="kfe-toolbar">
-        <p className="modal-desc">{tr("タイムラインの各時点での見た目を決めると、そのあいだが自動でつながります。")}</p>
+        <p className="modal-desc">{tr("Set how the element looks at points on the timeline, and the motion in between is filled in automatically.")}</p>
         <Dropdown
           value={undefined}
-          placeholder={tr("プリセットから始める")}
+          placeholder={tr("Start from a preset")}
           options={KEYFRAMES.map((k) => ({ value: k.key, label: k.label }))}
           style={{ width: 180 }}
           onChange={(key) => {
@@ -836,7 +836,7 @@ export function KeyframeEditorModal({
       </div>
 
       <div className="me-transport">
-        <button className="icon-btn" data-tip={playing ? tr("一時停止") : tr("再生")} onClick={toggle}>
+        <button className="icon-btn" data-tip={playing ? tr("Pause") : tr("Play")} onClick={toggle}>
           {playing ? <Pause size={14} /> : <Play size={14} />}
         </button>
         <span className="me-time">
@@ -846,14 +846,14 @@ export function KeyframeEditorModal({
         <span style={{ flex: 1 }} />
         <button
           className={`icon-btn${ghosts ? " is-on" : ""}`}
-          data-tip={tr("各キーフレームの位置を薄く表示")}
+          data-tip={tr("Show each keyframe as an outline")}
           onClick={() => setGhosts((g) => !g)}
         >
           <Ghost size={14} />
         </button>
         <button
           className={`icon-btn${cssText !== null ? " is-on" : ""}`}
-          data-tip={tr("CSSで編集")}
+          data-tip={tr("Edit as CSS")}
           onClick={() => {
             if (cssText === null) {
               history.set({ list, cssText: serializeKeyframes(list) });
@@ -904,7 +904,7 @@ export function KeyframeEditorModal({
               ))}
               <span className="kfe-playhead" style={{ left: `${(time / dur) * 100}%` }} />
             </div>
-            <p className="hint">{tr("上の目盛りをドラッグで再生位置を動かし、下の帯の空いた所をクリックでキーフレームを追加、◆ をドラッグで時点を動かせます。")}</p>
+            <p className="hint">{tr("Drag the scale to move the playhead, click an empty spot on the bar below to add a keyframe, and drag ◆ to move it.")}</p>
           </div>
 
           {sel ? (
@@ -912,19 +912,19 @@ export function KeyframeEditorModal({
               <div className="kfe-ins-head">
                 <span className="kfe-ins-title">
                   <Diamond size={12} />
-                  {tr("{offset}% の時点", { offset: round(sel.offset) })}
+                  {tr("At {offset}%", { offset: round(sel.offset) })}
                 </span>
                 <button
                   className="btn"
                   onClick={() => addAt((time / dur) * 100)}
-                  data-tip={tr("いまの再生位置にキーフレームを追加")}
+                  data-tip={tr("Add a keyframe at the playhead")}
                 >
                   <Plus size={13} />
-                  {tr("追加")}
+                  {tr("Add")}
                 </button>
                 <button
                   className="icon-btn"
-                  data-tip={tr("このキーフレームを削除")}
+                  data-tip={tr("Delete this keyframe")}
                   disabled={list.length <= 1}
                   onClick={() => {
                     const rest = list.filter((k) => k.id !== sel.id);
@@ -937,7 +937,7 @@ export function KeyframeEditorModal({
               </div>
               <div className="kfe-fields">
                 <label className="kfe-field">
-                  <span className="lbl">{tr("位置")}</span>
+                  <span className="lbl">{tr("Position")}</span>
                   <NumField
                     value={`${round(sel.offset)}%`}
                     units={["%"]}
@@ -978,7 +978,7 @@ export function KeyframeEditorModal({
                   );
                 })}
               </div>
-              <label className="lbl">{tr("そのほかのCSS")}</label>
+              <label className="lbl">{tr("Other CSS")}</label>
               <CommitTextarea
                 key={sel.id}
                 className="textarea mono"
@@ -988,10 +988,10 @@ export function KeyframeEditorModal({
                 spellCheck={false}
                 onCommit={(v) => update(sel.id, { extra: v.trim() })}
               />
-              <p className="hint">{tr("空欄の項目は、前後のキーフレームから自然につながります。")}</p>
+              <p className="hint">{tr("Empty fields blend smoothly from the keyframes before and after.")}</p>
             </div>
           ) : (
-            <p className="hint">{tr("タイムラインをクリックしてキーフレームを追加します。")}</p>
+            <p className="hint">{tr("Click the timeline to add a keyframe.")}</p>
           )}
         </>
       ) : (
@@ -1010,8 +1010,8 @@ export function KeyframeEditorModal({
           />
           <p className={`hint${cssError ? " is-error" : ""}`}>
             {cssError
-              ? tr("この書き方は項目に分けられません。from / to / 0%〜100% と { } の組み合わせで書いてください。")
-              : tr("@keyframes の中身（from / to / 0%〜100%）を書きます。もう一度ボタンを押すと項目の編集に戻ります。")}
+              ? tr("This can't be split into fields. Write it as from / to / 0%–100% followed by { }.")
+              : tr("Write the body of @keyframes (from / to / 0%–100%). Press the button again to go back to the fields.")}
           </p>
         </div>
       )}

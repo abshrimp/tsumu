@@ -38,9 +38,9 @@ function BpScopeChip({ style }: { style?: React.CSSProperties }) {
     <span
       className={`bp-chip${breakpoint === "base" ? "" : " is-override"}`}
       style={style}
-      data-tip={tr("変更は{scope}", { scope: info.scope })}
+      data-tip={tr("{scope}", { scope: info.scope })}
     >
-      {breakpoint === "base" ? tr("全デバイス共通") : tr("{label}用", { label: info.label })}
+      {breakpoint === "base" ? tr("All devices") : tr("For {label}", { label: info.label })}
     </span>
   );
 }
@@ -104,7 +104,7 @@ export function BodyStylePanel() {
     <InspectorCtx.Provider value={insp}>
       <div className="state-bar">
         <strong style={{ fontSize: 11 }}>
-          {tr("body（{name}）", { name: doc.pages[activePageId]?.name ?? "" })}
+          {tr("body ({name})", { name: doc.pages[activePageId]?.name ?? "" })}
         </strong>
         <BpScopeChip style={{ marginLeft: "auto" }} />
       </div>
@@ -151,8 +151,8 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
         ) {
           const request = pending.begin();
           void showConfirm(
-            tr("選んだ部分だけのスタイルを変えるには、その部分を別のテキストとして分割します。分割しますか？\n（分割しない場合は、テキスト全体に適用します）"),
-            { title: tr("選んだ部分だけに適用"), okLabel: tr("分割して適用"), cancelLabel: tr("全体に適用") }
+            tr("To style only the selected part, it needs to be split into a separate text element. Split it?\n(If not, the style applies to the whole text.)"),
+            { title: tr("Apply to selection only"), okLabel: tr("Split and apply"), cancelLabel: tr("Apply to all") }
           ).then((ok) => {
             try {
               const st = useEditor.getState();
@@ -189,7 +189,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
     <InspectorCtx.Provider value={insp}>
       <div className="state-bar" data-tutorial="style-state">
         <span className="grp-label" style={{ flex: "none" }}>
-          {tr("状態")}
+          {tr("State")}
         </span>
         <div style={{ flex: 1 }}>
           <Dropdown

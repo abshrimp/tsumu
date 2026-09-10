@@ -214,8 +214,8 @@ test("native HTML does not expose authorization credentials or token-bearing URL
     headers: [{ name: "Authorization", value: "Bearer should-not-be-exported" }],
   }]);
   const problems = exportLimitations(doc, "html");
-  assert.ok(problems.some((problem) => problem.includes("秘密のAPIキー")));
-  assert.throws(() => generateExportProject(doc, "html"), /APIキー/);
+  assert.ok(problems.some((problem) => /credentials|secret API key/i.test(problem)));
+  assert.throws(() => generateExportProject(doc, "html"), /credentials|secret API key/i);
   doc.pages.main.pageScripts![0].steps[0] = {
     id: "fetch", kind: "fetch", url: "https://data.example.test/items?api_key=secret", as: "data",
   };

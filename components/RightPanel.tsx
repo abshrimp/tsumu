@@ -45,7 +45,7 @@ export default function RightPanel() {
       ) : selection === BODY_NODE_ID ? (
         <>
           <div className="tabs">
-            <button className="tab is-on">{tr("スタイル")}</button>
+            <button className="tab is-on">{tr("Style")}</button>
           </div>
           <BodyStylePanel />
         </>
@@ -53,7 +53,7 @@ export default function RightPanel() {
         node.type === "instance" ? (
           <>
             <div className="tabs">
-              <button className="tab is-on">{tr("設定")}</button>
+              <button className="tab is-on">{tr("Settings")}</button>
             </div>
             <SettingsPanel nodeId={node.id} />
           </>
@@ -72,7 +72,7 @@ export default function RightPanel() {
                   );
                 }}
               >
-                {tr("スタイル")}
+                {tr("Style")}
               </button>
               <button
                 className={`tab${tab === "settings" ? " is-on" : ""}`}
@@ -86,7 +86,7 @@ export default function RightPanel() {
                   );
                 }}
               >
-                {tr("設定")}
+                {tr("Settings")}
               </button>
             </div>
             {tab === "style" ? (

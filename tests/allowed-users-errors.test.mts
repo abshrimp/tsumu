@@ -34,7 +34,7 @@ for (const method of ["POST", "DELETE"] as const) {
     });
     const response = await api[method](req);
     assert.equal(response.status, 502);
-    assert.equal((await response.json()).error, method === "POST" ? "保存できませんでした" : "削除できませんでした");
+    assert.equal((await response.json()).error, method === "POST" ? "Couldn't save" : "Couldn't delete");
     assert.equal(emails.has("editor@example.com"), method === "POST", "the mutation already completed before refresh failed");
   });
   test(`${method} still returns the updated account list when refresh succeeds`, async () => {

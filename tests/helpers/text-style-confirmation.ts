@@ -23,10 +23,15 @@ export async function textStyleConfirmationBundle() {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
-import RightPanel from "./components/RightPanel";
-import DialogHost from "./components/DialogHost";
+
+
+
 import { useEditor } from "./lib/store";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
+  const { default: RightPanel } = await import("./components/RightPanel");
+  const { default: DialogHost } = await import("./components/DialogHost");
 useEditor.getState().replaceDoc(${JSON.stringify(textStyleConfirmationDoc())});
 useEditor.getState().select("a");
 useEditor.getState().setRightTab("style");
@@ -34,6 +39,8 @@ window.textStyleEditor = useEditor;
 const root = createRoot(document.getElementById("app"));
 window.hideTextStylePanel = () => root.render(<React.StrictMode><Canvas /><DialogHost /></React.StrictMode>);
 root.render(<React.StrictMode><Canvas /><RightPanel /><DialogHost /></React.StrictMode>);
+
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "text-style-confirmation-browser.tsx" },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

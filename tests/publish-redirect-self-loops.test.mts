@@ -81,7 +81,7 @@ for (const [slug, destination, request] of [
     assert.equal(checks[0].help, "page-redirect");
     assert.match(checks[0].message, /Old URL/);
     assert.ok(checks[0].message.includes(destination.trim()));
-    assert.match(checks[0].message, /転送が繰り返される/);
+    assert.match(checks[0].message, /redirect loop/);
     assert.deepEqual(doc, before, "checks and generation preserve the saved URL and destination");
   });
 }

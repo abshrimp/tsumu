@@ -24,8 +24,8 @@ test("imported node settings must have usable shape before the document is persi
     const doc = createInitialDoc();
     const node = Object.values(doc.nodes)[0];
     Object.assign(node, patch);
-    assert.throws(() => validateImportedDoc(doc), /要素の設定/, name);
-    await assert.rejects(parseSiteImport(encoder.encode(JSON.stringify(doc)), "doc"), /要素の設定/, name);
+    assert.throws(() => validateImportedDoc(doc), /invalid element settings/i, name);
+    await assert.rejects(parseSiteImport(encoder.encode(JSON.stringify(doc)), "doc"), /invalid element settings/i, name);
   }
 });
 
@@ -34,7 +34,7 @@ test("imported page style maps cannot contain malformed declarations", () => {
   Object.assign(doc.pages[doc.pageOrder[0]], {
     bodyStyles: { base: { default: { backgroundColor: ["red"] } } },
   });
-  assert.throws(() => validateImportedDoc(doc), /ページの構造/);
+  assert.throws(() => validateImportedDoc(doc), /page structure/i);
 });
 
 test("imported SiteDoc rejects dangling asset references before saving or reopening", async () => {
@@ -50,8 +50,8 @@ test("imported SiteDoc rejects dangling asset references before saving or reopen
   for (const [index, setRef] of referenceCases.entries()) {
     const doc = createInitialDoc();
     setRef(doc);
-    assert.throws(() => validateImportedDoc(doc), /アセットの参照/, String(index));
-    await assert.rejects(parseSiteImport(encoder.encode(JSON.stringify(doc)), "doc"), /アセットの参照/, String(index));
+    assert.throws(() => validateImportedDoc(doc), /asset references/i, String(index));
+    await assert.rejects(parseSiteImport(encoder.encode(JSON.stringify(doc)), "doc"), /asset references/i, String(index));
   }
   const valid = createInitialDoc();
   valid.assets.existing = { id: "existing", name: "existing.png", width: 1, height: 1 };
@@ -63,12 +63,12 @@ test("imported SiteDoc rejects missing or duplicate page folders", () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
   page.folderId = "missing";
-  assert.throws(() => validateImportedDoc(doc), /ページフォルダー/);
+  assert.throws(() => validateImportedDoc(doc), /page folder/i);
   doc.pageFolders = [{ id: "folder", name: "Folder" }];
   page.folderId = "folder";
   assert.equal(validateImportedDoc(doc), doc);
   doc.pageFolders.push({ id: "folder", name: "Duplicate" });
-  assert.throws(() => validateImportedDoc(doc), /ページフォルダー/);
+  assert.throws(() => validateImportedDoc(doc), /page folder/i);
 });
 
 test("valid documents retain editable node styles after validation", () => {
@@ -104,7 +104,7 @@ test("direct API SiteDoc validation blocks executable inline SVG without browser
     '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://attacker.example/svg"/></svg>',
   ]) {
     icon.icon!.svg = payload;
-    assert.throws(() => validateImportedDoc(doc), /要素の設定/);
+    assert.throws(() => validateImportedDoc(doc), /invalid element settings/i);
   }
 });
 

@@ -23,9 +23,12 @@ export async function canvasMoveBundle() {
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
+
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(canvasMoveDoc())});
 useEditor.getState().setActivePage("p");
@@ -38,6 +41,8 @@ function Fixture() {
   return <div style={{ display: "flex", height: "100vh" }}>{open && <Canvas />}</div>;
 }
 createRoot(document.getElementById("app")).render(<React.StrictMode><Fixture /></React.StrictMode>);
+
+});
 `, loader: "tsx", sourcefile: "canvas-move-browser.tsx", resolveDir: resolve("."),
     },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",

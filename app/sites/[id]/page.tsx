@@ -16,10 +16,10 @@ function SiteNotFound() {
     <div className="boot">
       <div className="boot-card">
         <BrandMark size={40} />
-        <strong>{tr("サイトが見つかりません")}</strong>
-        <p className="boot-tip">{tr("削除されたか、URLが間違っている可能性があります。")}</p>
+        <strong>{tr("Site not found")}</strong>
+        <p className="boot-tip">{tr("It may have been deleted, or the URL may be wrong.")}</p>
         <a className="btn btn-primary" href="/">
-          {tr("サイト一覧へ")}
+          {tr("Go to sites")}
         </a>
       </div>
     </div>

@@ -32,6 +32,6 @@ test("asset search remains clearable when deletion reduces the library below fiv
   f.setAssets(3);
   const input = f.grid().find(x => x.type === "input");
   assert.ok(input); assert.equal(input.props.value, "missing");
-  f.grid().find(x => x.type === "button" && x.props["aria-label"] === "検索をクリア").props.onClick();
+  f.grid().find(x => x.type === "button" && x.props["aria-label"] === "Clear search").props.onClick();
   assert.equal(f.grid().filter(x => x.type === "button" && x.props.className === "img-pick-cell").length, 3);
 });

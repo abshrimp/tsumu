@@ -52,9 +52,9 @@ export function StepBody({ step }: { step: ScriptStep }) {
                   )
                 }
               >
-                <option value="show">{tr("を表示する")}</option>
-                <option value="hide">{tr("を隠す")}</option>
-                <option value="toggle">{tr("の表示を切り替える")}</option>
+                <option value="show">{tr("Show", "show_variant_1")}</option>
+                <option value="hide">{tr("Hide", "hide_variant_1")}</option>
+                <option value="toggle">{tr("Toggle visibility of")}</option>
               </select>
             ),
           }}
@@ -76,15 +76,15 @@ export function StepBody({ step }: { step: ScriptStep }) {
                 }
               >
                 <option value="" disabled>
-                  {tr("ページを選択")}
+                  {tr("Select a page")}
                 </option>
                 {doc.pageOrder.map((pid) => (
                   <option key={pid} value={pid}>
-                    {tr("{name}（/{slug}）", { name: doc.pages[pid].name, slug: doc.pages[pid].slug })}
+                    {tr("{name} (/{slug})", { name: doc.pages[pid].name, slug: doc.pages[pid].slug })}
                   </option>
                 ))}
                 {step.pageId && !doc.pages[step.pageId] && (
-                  <option value={step.pageId}>{tr("（削除されたページ）")}</option>
+                  <option value={step.pageId}>{tr("(deleted page)")}</option>
                 )}
               </select>
               ),
@@ -108,7 +108,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               url: (
                 <TextIn
                   value={step.url}
-                  placeholder={tr("https://~ / #ID / {変数}")}
+                  placeholder={tr("https://~ / #ID / {variable}")}
                   vars
                   width={180}
                   onCommit={(v) => set((s) => ({ ...s, url: v.trim() }) as ScriptStep)}
@@ -149,7 +149,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
             ),
             state: (
               <TextIn value={step.state} width={120}
-                placeholder={tr("状態名（既定で戻す）")}
+                placeholder={tr("State name (default to reset)")}
                 onCommit={(state) => set((s) => ({
                   ...s, state: state.trim().slice(0, 40),
                 }) as ScriptStep)} />
@@ -175,9 +175,9 @@ export function StepBody({ step }: { step: ScriptStep }) {
                 value={step.op}
                 onChange={(e) => set((s) => ({ ...s, op: e.target.value }) as ScriptStep)}
               >
-                <option value="enable">{tr("有効にする")}</option>
-                <option value="disable">{tr("無効にする")}</option>
-                <option value="toggle">{tr("有効・無効を切り替える")}</option>
+                <option value="enable">{tr("Enable")}</option>
+                <option value="disable">{tr("Disable")}</option>
+                <option value="toggle">{tr("Toggle enabled")}</option>
               </select>
             ),
           }}
@@ -212,25 +212,25 @@ export function StepBody({ step }: { step: ScriptStep }) {
         set((s) => s.kind === "list-display" ? { ...s, mode } : s);
       return (
         <>
-          <select className="se-in" aria-label={tr("リスト表示の操作")}
+          <select className="se-in" aria-label={tr("List display operation")}
             value={step.mode} onChange={(event) =>
               changeMode(event.target.value as "filter" | "sort" | "clear")}>
-            <option value="filter">{tr("絞り込む")}</option>
-            <option value="sort">{tr("並べ替える")}</option>
-            <option value="clear">{tr("絞り込みを解除")}</option>
+            <option value="filter">{tr("Filter")}</option>
+            <option value="sort">{tr("Sort")}</option>
+            <option value="clear">{tr("Clear filters")}</option>
           </select>
           {step.mode === "filter" ? <FilterArrayBody step={step} /> :
             step.mode === "sort" ? <SortArrayBody step={step} /> :
             <Phrase text="リスト{array}の{which}を解除する" parts={{
               array: <ArraySelect value={step.array}
                 onChange={(array) => set((s) => s.kind === "list-display" ? { ...s, array } : s)} />,
-              which: <select className="se-in" aria-label={tr("解除する絞り込み")}
+              which: <select className="se-in" aria-label={tr("Filter to clear")}
                 value={step.no === undefined ? "all" : String(step.no)}
                 onChange={(event) => set((s) => s.kind === "list-display" ?
                   { ...s, no: event.target.value === "all" ? undefined : Number(event.target.value) } : s)}>
-                <option value="all">{tr("すべての絞り込み")}</option>
+                <option value="all">{tr("all filters")}</option>
                 {filterNumbersOf(scripts, step.array).map((n) =>
-                  <option key={n} value={n}>{tr("絞り込み{n}", { n })}</option>)}
+                  <option key={n} value={n}>{tr("Filter {n}", { n })}</option>)}
               </select>,
             }} />}
         </>
@@ -242,14 +242,14 @@ export function StepBody({ step }: { step: ScriptStep }) {
           list: <AnyArraySelect value={step.list} onChange={(list) =>
             set((s) => s.kind === "set-list-item" ? { ...s, list } : s)} />,
           key: <TextIn vars value={step.key} width={110}
-            placeholder={tr("キー（空欄なら末尾）")}
+            placeholder={tr("Key (blank to append)")}
             onCommit={(key) => set((s) => s.kind === "set-list-item" ? { ...s, key } : s)} />,
           value: <ValueIn value={step.value} width={150}
             onCommit={(value) => set((s) => s.kind === "set-list-item" ? { ...s, value } : s)} />,
         }} />
       );
     case "break-loop":
-      return <span>{tr("ループを終了する")}</span>;
+      return <span>{tr("Break out of loop")}</span>;
     case "store-save":
       return (
         <>
@@ -259,7 +259,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               key: (
                 <TextIn
                   value={step.key}
-                  placeholder={tr("キー")}
+                  placeholder={tr("Key")}
                   width={96}
                   onCommit={(v) => set((s) => ({ ...s, key: v.trim() }) as ScriptStep)}
                 />
@@ -267,7 +267,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               value: (
                 <TextIn
                   value={step.value}
-                  placeholder={tr("値 / {変数}")}
+                  placeholder={tr("value / {variable}")}
                   vars
                   width={110}
                   onCommit={(v) => set((s) => ({ ...s, value: v }) as ScriptStep)}
@@ -287,7 +287,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               key: (
                 <TextIn
                   value={step.key}
-                  placeholder={tr("キー")}
+                  placeholder={tr("Key")}
                   width={96}
                   onCommit={(v) => {
                     const key = v.trim();
@@ -329,7 +329,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
             value: (
               <TextIn
                 value={step.value}
-                placeholder={tr("文字列 / {変数}")}
+                placeholder={tr("string / {variable}")}
                 vars
                 width={150}
                 onCommit={(v) => set((s) => ({ ...s, value: v }) as ScriptStep)}
@@ -361,7 +361,7 @@ function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page
         );
       }}
     >
-      <option value="open-page">{tr("ページ")}</option>
+      <option value="open-page">{tr("Pages")}</option>
       <option value="open-url">URL</option>
     </select>
   );
@@ -383,14 +383,14 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
               renameVar(step.id, "", uniqueVarName(doc, pageId, nameFromPath(match[1].trim()), step.id));
             }
           }} />,
-        into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前")} />,
+        into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("Name")} />,
       }} />
       {step.into && value !== undefined && value !== null && (
         <span className="se-blk-note">{Array.isArray(value)
-          ? tr("リスト・{length}件（リスト表示で並べられます）", { length: value.length })
+          ? tr("List · {length} items (can be shown in a list display)", { length: value.length })
           : isNested(value)
-            ? tr("要素では {{into}.項目名} のように使えます", { into: step.into })
-            : tr("見本: {p1}", { p1: readableValue(value) })}</span>
+            ? tr("Use it in elements like {{into}.field}", { into: step.into })
+            : tr("Sample: {p1}", { p1: readableValue(value) })}</span>
       )}
     </>
   );
@@ -427,7 +427,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
         text="変数{source}に{operation}を行い、変数{into}に入れる"
         parts={{
           source: <PathMenu root={sourceValues} path={step.source}
-            ariaLabel={tr("加工する元の変数")} placeholder={tr("変数を選択")}
+            ariaLabel={tr("Source variable")} placeholder={tr("Select a variable")}
             mode="any" allowRoot={false} portalZIndex={550}
             excludeRootKey={excludedSourceName}
             onChange={(source) => updateStep(step.id, (s) => {
@@ -436,7 +436,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
               return { ...s, source,
                 into: !s.into || s.into === s.source ? source : s.into };
             })} />,
-          operation: <select className="se-in" aria-label={tr("加工の種類")}
+          operation: <select className="se-in" aria-label={tr("Operation")}
             value={step.transform.kind}
             onChange={(e) => set({ transform: defaultTransform(e.target.value as ValueTransformKind) })}>
             {VALUE_TRANSFORM_GROUPS.map((group) =>
@@ -445,7 +445,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
                   <option key={kind} value={kind}>{tr(VALUE_TRANSFORM_LABELS[kind])}</option>)}
               </optgroup>)}
           </select>,
-          into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("変数名")} />,
+          into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("Variable name")} />,
         }}
       />
       <div className="se-transform-settings">
@@ -455,11 +455,11 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
       </div>
       {preview?.kind === "value" && (
         <span className="se-blk-note">
-          {tr("見本: {p1}", { p1: typeof preview.value === "object"
+          {tr("Sample: {p1}", { p1: typeof preview.value === "object"
             ? JSON.stringify(preview.value).slice(0, 90) : String(preview.value) })}
         </span>
       )}
-      {preview?.kind === "error" && <span className="se-blk-note">{tr("見本を加工できません（{code}）", { code: preview.code })}</span>}
+      {preview?.kind === "error" && <span className="se-blk-note">{tr("Cannot process sample value ({code})", { code: preview.code })}</span>}
     </>
   );
 }
@@ -478,10 +478,10 @@ function SharedCheck({ step }: { step: Extract<ScriptStep, { kind: "store-save" 
             updateStep(step.id, (s) => ({ ...s, shared: e.target.checked || undefined }) as ScriptStep)
           }
         />
-        {domain ? tr("{domain} の全サブドメインと共有", { domain }) : tr("サブドメインと共有")}
+        {domain ? tr("Share with all subdomains of {domain}", { domain }) : tr("Share with subdomains")}
       </label>
       {step.shared && !domain && (
-        <span className="se-badge is-warn">{tr("サイト設定の公開URLを入れると共有されます")}</span>
+        <span className="se-badge is-warn">{tr("Set the site URL in Site settings to enable sharing")}</span>
       )}
     </>
   );

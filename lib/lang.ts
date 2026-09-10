@@ -3,9 +3,9 @@
  *
  * 言語を足すときは:
  * 1. 下の LANGUAGES に1行足す（キーは BCP 47 の言語コード。例: zh, ko, fr）
- * 2. lib/locales/<コード>.ts に「日本語の原文 → 訳」の辞書を作る（en.ts を写して訳すと早い）
+ * 2. lib/locales/<コード>.ts に「英語の原文 → 訳」の辞書を作る（ja.ts を参照）
  * 3. lib/locales/index.ts の LOCALES に読み込みを足す
- * 訳の無い文は英語（FALLBACK_LANG）、それも無ければ日本語で出る
+ * 訳の無い文は英語の原文をそのまま表示する
  */
 
 export const LANGUAGES = {
@@ -15,8 +15,8 @@ export const LANGUAGES = {
 
 export type Lang = keyof typeof LANGUAGES;
 
-/** 画面の文言を書いている言語（辞書のキー） */
-export const SOURCE_LANG: Lang = "ja";
+/** The source strings in tr() are written in English. */
+export const SOURCE_LANG: Lang = "en";
 
 /** 対応していない言語の人に出す言語。訳が無い文もこの言語の訳を使う */
 export const FALLBACK_LANG: Lang = "en";

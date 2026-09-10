@@ -6,7 +6,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const tr = await serverTr();
   return {
     title: "Tsumu",
-    description: tr("Webサイトを見たまま編集して公開するエディタです。"),
+    description: tr("A visual editor for building and publishing websites."),
     robots: {
       index: false,
       follow: false,

@@ -76,7 +76,7 @@ for (const store of ["local", null] as const) for (const action of actions) {
       assert.equal(f.writes(), 0); assert.equal(f.values.has(commentKey), false);
       const state = useComments.getState();
       assert.deepEqual(state.threads, []); assert.equal(state.total, 0); assert.equal(state.unresolvedCount, 0);
-      assert.equal(state.active, true); assert.equal(state.error, "サイトが見つかりません");
+      assert.equal(state.active, true); assert.equal(state.error, "Site not found");
       if (action.action === "create") assert.equal(state.draft, draft);
       else { assert.equal(state.openId, "existing"); assert.equal(state.focusedThread, focused); assert.equal(state.threadUnavailable, true); }
     } finally { f.home.dispose(); }
@@ -166,7 +166,7 @@ for (const operation of ["load", "write"] as const) test(`a marker read failure 
     else assert.equal(await useComments.getState().run(create("new")), false);
     assert.deepEqual(useComments.getState().threads, initial);
     assert.equal(useComments.getState().threadUnavailable, false);
-    assert.equal(useComments.getState().error, operation === "load" ? "コメントを読み込めませんでした" : "コメントを保存できませんでした");
+    assert.equal(useComments.getState().error, operation === "load" ? "Couldn't load comments" : "Couldn't save the comment");
     assert.equal(f.writes(), 0); assert.equal(f.values.has(markerKey), false);
     f.failMarkerRead(false); assert.equal(await useComments.getState().run(create("retry")), true);
   } finally { f.home.dispose(); }
@@ -194,7 +194,7 @@ test("an unreadable post-write marker fails safely without claiming deletion or 
     assert.equal(await useComments.getState().run(create("new")), false);
     assert.equal(f.writes(), 1); assert.equal(f.values.has(commentKey), true);
     assert.deepEqual(useComments.getState().threads, initial); assert.equal(useComments.getState().draft, draft);
-    assert.equal(useComments.getState().error, "コメントを保存できませんでした");
+    assert.equal(useComments.getState().error, "Couldn't save the comment");
     assert.equal(f.values.has(markerKey), false);
   } finally { f.home.dispose(); }
 });

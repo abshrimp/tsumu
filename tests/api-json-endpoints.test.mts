@@ -109,7 +109,7 @@ test("AI provider failures use the current stream error contract", async (t) => 
   t.mock.method(console, "error", () => {});
   const f = fixture("ai", true, async () => { throw new Error("private provider failure details"); });
   const res = await f.POST(request("ai"));
-  await assert.rejects(readAiResponse(res, () => {}), /^Error: AIに問い合わせできませんでした$/);
+  await assert.rejects(readAiResponse(res, () => {}), /^Error: Couldn't reach AI$/);
   assert.equal(f.calls, 1);
 });
 

@@ -45,24 +45,24 @@ import { I, Sec } from "./shared";
 /* ---------- 画像（縦横比・切り抜き方） ---------- */
 
 const ASPECT_PRESETS = [
-  { value: "1 / 1", label: tr("1:1（正方形）") },
+  { value: "1 / 1", label: tr("1:1 (square)") },
   { value: "4 / 3", label: "4:3" },
   { value: "3 / 2", label: "3:2" },
-  { value: "16 / 9", label: tr("16:9（横長）") },
-  { value: "3 / 4", label: tr("3:4（縦長）") },
-  { value: "2 / 3", label: tr("2:3（縦長）") },
+  { value: "16 / 9", label: tr("16:9 (landscape)") },
+  { value: "3 / 4", label: tr("3:4 (portrait)") },
+  { value: "2 / 3", label: tr("2:3 (portrait)") },
 ];
 
 /** "16/9" と "16 / 9" を同じものとして比べる */
 const ratioKey = (v: string | undefined) => (v ?? "").replace(/\s+/g, "");
 
 const OBJECT_POSITIONS = [
-  { value: "top", label: tr("上") },
-  { value: "bottom", label: tr("下") },
-  { value: "left", label: tr("左") },
-  { value: "right", label: tr("右") },
-  { value: "left top", label: tr("左上") },
-  { value: "right top", label: tr("右上") },
+  { value: "top", label: tr("Top") },
+  { value: "bottom", label: tr("Bottom") },
+  { value: "left", label: tr("Left") },
+  { value: "right", label: tr("Right") },
+  { value: "left top", label: tr("Top left") },
+  { value: "right top", label: tr("Top right") },
 ];
 
 /** 画像・動画を枠にどう収めるか。比率の違う写真を同じ形にそろえるときに使う */
@@ -75,18 +75,18 @@ export function ImageSec() {
   const preset = ASPECT_PRESETS.find((p) => ratioKey(p.value) === ratioKey(ratio.value));
 
   return (
-    <Sec title={tr("画像")} tutorialTarget="style-image" help="img-fit">
+    <Sec title={tr("Image")} tutorialTarget="style-image" help="img-fit">
       <Grp
-        label={tr("縦横比")}
+        label={tr("Aspect ratio")}
         setHere={ratio.changed}
         onReset={() => insp.set({ aspectRatio: null })}
       >
         <Dropdown
           value={ratio.value ? (preset?.value ?? ratio.value) : ""}
           options={[
-            { value: "", label: tr("元の比率") },
+            { value: "", label: tr("Original ratio") },
             ...ASPECT_PRESETS,
-            ...(ratio.value && !preset ? [{ value: ratio.value, label: tr("{value}（カスタム）", { value: ratio.value }) }] : []),
+            ...(ratio.value && !preset ? [{ value: ratio.value, label: tr("{value} (custom)", { value: ratio.value }) }] : []),
           ]}
           onChange={(v) => {
             const props: Record<string, string | null> = {
@@ -104,23 +104,23 @@ export function ImageSec() {
         />
       </Grp>
       <Grp
-        label={tr("切り抜き方")}
+        label={tr("Fit", "fit_variant_1")}
         setHere={fit.changed}
         onReset={() => insp.set({ objectFit: null, objectPosition: null })}
       >
         <Seg
           value={fitValue}
           options={[
-            { label: tr("枠を埋める"), value: "cover", title: tr("はみ出した部分を切り取って、枠いっぱいに表示します（写真向け）") },
-            { label: tr("全体を表示"), value: "contain", title: tr("画像全体が枠に収まるように表示します（ロゴ向け）") },
-            { label: tr("引き伸ばす"), value: "fill", title: tr("枠に合わせて縦横を引き伸ばします") },
+            { label: tr("Fill frame"), value: "cover", title: tr("Crops the overflow to fill the frame (good for photos)") },
+            { label: tr("Show all", "show_all_variant_1"), value: "contain", title: tr("Fits the whole image inside the frame (good for logos)") },
+            { label: tr("Stretch", "stretch_variant_1"), value: "fill", title: tr("Stretches the image to the frame's shape") },
           ]}
           onChange={(v) => insp.set({ objectFit: v === "fill" ? insp.cleared("objectFit") : v })}
         />
       </Grp>
       {fitValue !== "fill" && (
-        <Grp label={tr("見せる位置")} props={["objectPosition"]}>
-          <PropSelect prop="objectPosition" unsetLabel={tr("中央")} options={OBJECT_POSITIONS} />
+        <Grp label={tr("Focal point")} props={["objectPosition"]}>
+          <PropSelect prop="objectPosition" unsetLabel={tr("Center")} options={OBJECT_POSITIONS} />
         </Grp>
       )}
     </Sec>
@@ -188,9 +188,9 @@ function PairSides({
         ? "var(--field-set)"
         : "var(--field-base)",
   });
-  const pairPlaceholder = (a: number, b: number) => (same(side(a), side(b)) ? "0" : tr("混在"));
+  const pairPlaceholder = (a: number, b: number) => (same(side(a), side(b)) ? "0" : tr("Mixed"));
 
-  const LABELS = [tr("上"), tr("右"), tr("下"), tr("左")];
+  const LABELS = [tr("Top"), tr("Right"), tr("Bottom"), tr("Left")];
   /** まとめ欄では見えない、辺ごとに違う値がある */
   const smaller = useEditor((s) => s.breakpoint !== "base");
   const mixed = !same(side(1), side(3)) || !same(side(0), side(2));
@@ -205,7 +205,7 @@ function PairSides({
             value={pairValue(3, 1)}
             placeholder={pairPlaceholder(3, 1)}
             pre={<UnfoldHorizontal size={I} />}
-            title={tr("左右")}
+            title={tr("Left & right")}
             units={["px"]}
             min={min}
             onChange={(v) => write({ 1: v, 3: v })}
@@ -216,7 +216,7 @@ function PairSides({
             value={pairValue(0, 2)}
             placeholder={pairPlaceholder(0, 2)}
             pre={<UnfoldVertical size={I} />}
-            title={tr("上下")}
+            title={tr("Top & bottom")}
             units={["px"]}
             min={min}
             onChange={(v) => write({ 0: v, 2: v })}
@@ -224,7 +224,7 @@ function PairSides({
           </div>
           <button
             className={`icon-btn${sidesState}`}
-            data-tip={tr("4方向を個別に設定")}
+            data-tip={tr("Set each side")}
             onClick={() => setExpanded(true)}
           >
             <Scan size={13} />
@@ -248,7 +248,7 @@ function PairSides({
           </div>
           <button
             className="icon-btn is-on"
-            data-tip={tr("まとめて設定に戻す")}
+            data-tip={tr("Set all sides together")}
             onClick={() => setExpanded(false)}
             style={{ alignSelf: "start" }}
           >
@@ -262,15 +262,15 @@ function PairSides({
 
 export function SpacingSec() {
   return (
-    <Sec title={tr("余白")} tutorialTarget="style-spacing" help="layout-spacing">
+    <Sec title={tr("Spacing")} tutorialTarget="style-spacing" help="layout-spacing">
       <PairSides
-        label={tr("内側余白")}
+        label={tr("Padding")}
         shorthand="padding"
         min={0}
         props={["paddingTop", "paddingRight", "paddingBottom", "paddingLeft"]}
       />
       <PairSides
-        label={tr("外側余白")}
+        label={tr("Margin")}
         shorthand="margin"
         props={["marginTop", "marginRight", "marginBottom", "marginLeft"]}
       />
@@ -299,10 +299,10 @@ export function AppearanceSec() {
   const cornersState = useHiddenState(cornerProps);
 
   return (
-    <Sec title={tr("外見")} tutorialTarget="style-appearance" help="look-radius">
+    <Sec title={tr("Appearance")} tutorialTarget="style-appearance" help="look-radius">
       <div className="grid2t">
         <Grp
-          label={tr("不透明度")}
+          label={tr("Opacity")}
           setHere={opacity.changed}
           onReset={() => insp.set({ opacity: null })}
         >
@@ -327,7 +327,7 @@ export function AppearanceSec() {
           />
         </Grp>
         <Grp
-          label={tr("角の丸み")}
+          label={tr("Corner radius")}
           setHere={radius.changed}
           onReset={() => {
             const out: Record<string, string | null> = { borderRadius: null };
@@ -345,7 +345,7 @@ export function AppearanceSec() {
         </Grp>
         <button
           className={`icon-btn${corners ? " is-on" : ""}${cornersState}`}
-          data-tip={tr("4隅を個別に設定")}
+          data-tip={tr("Set each corner")}
           onClick={() => setCorners(!corners)}
           style={{ alignSelf: "end", marginBottom: 0 }}
         >
@@ -383,10 +383,10 @@ export function SelectionSec() {
     insp.get("userSelect").set;
 
   return (
-    <Sec title={tr("選択")} defaultOpen={anySet}>
+    <Sec title={tr("Select")} defaultOpen={anySet}>
       <div className="grid2">
         <Grp
-          label={tr("カーソル")}
+          label={tr("Cursor")}
           setHere={insp.get("cursor").changed}
           onReset={() => insp.set({ cursor: null })}
         >
@@ -394,64 +394,64 @@ export function SelectionSec() {
             prop="cursor"
             options={[
               {
-                label: tr("default（矢印）"),
+                label: tr("default (arrow)"),
                 value: "default",
                 icon: <MousePointer2 size={13} />,
               },
               {
-                label: tr("pointer（指）"),
+                label: tr("pointer (hand)"),
                 value: "pointer",
                 icon: <Pointer size={13} />,
               },
               {
-                label: tr("text（文字）"),
+                label: tr("text"),
                 value: "text",
                 icon: <TextCursor size={13} />,
               },
-              { label: tr("move（移動）"), value: "move", icon: <Move size={13} /> },
-              { label: tr("grab（つかむ）"), value: "grab", icon: <Grab size={13} /> },
+              { label: tr("move"), value: "move", icon: <Move size={13} /> },
+              { label: tr("grab"), value: "grab", icon: <Grab size={13} /> },
               {
-                label: tr("grabbing（つかんでいる）"),
+                label: tr("grabbing"),
                 value: "grabbing",
                 icon: <Grab size={13} />,
               },
               {
-                label: tr("crosshair（十字）"),
+                label: tr("crosshair"),
                 value: "crosshair",
                 icon: <Crosshair size={13} />,
               },
               {
-                label: tr("zoom-in（拡大）"),
+                label: tr("zoom-in"),
                 value: "zoom-in",
                 icon: <ZoomIn size={13} />,
               },
               {
-                label: tr("zoom-out（縮小）"),
+                label: tr("zoom-out"),
                 value: "zoom-out",
                 icon: <ZoomOut size={13} />,
               },
               {
-                label: tr("help（ヘルプ）"),
+                label: tr("help"),
                 value: "help",
                 icon: <HelpCircle size={13} />,
               },
               {
-                label: tr("wait（待機）"),
+                label: tr("wait"),
                 value: "wait",
                 icon: <Hourglass size={13} />,
               },
               {
-                label: tr("copy（コピー）"),
+                label: tr("copy"),
                 value: "copy",
                 icon: <CopyIcon size={13} />,
               },
               {
-                label: tr("not-allowed（禁止）"),
+                label: tr("not-allowed"),
                 value: "not-allowed",
                 icon: <Ban size={13} />,
               },
               {
-                label: tr("none（非表示）"),
+                label: tr("none (hidden)"),
                 value: "none",
                 icon: <EyeOff size={13} />,
               },
@@ -462,14 +462,14 @@ export function SelectionSec() {
       </div>
 
       <PropFill
-        label={tr("選択したときの背景色")}
-        info={tr("テキストをドラッグして選択したときのハイライト色です。")}
+        label={tr("Selection background")}
+        info={tr("The highlight color when text is selected by dragging.")}
         prop="selectionBackgroundColor"
       />
-      <PropFill label={tr("選択したときの文字色")} prop="selectionColor" />
+      <PropFill label={tr("Selection text color")} prop="selectionColor" />
       <StyleCheck
         prop="userSelect"
-        label={tr("文字を選択できないようにする")}
+        label={tr("Prevent text selection")}
         on="none"
         off="auto"
       />

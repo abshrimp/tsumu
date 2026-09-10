@@ -41,16 +41,16 @@ export default class SafeBoundary extends Component<
       <div className="safe-fallback" role="alert">
         <p>
           {this.props.label
-            ? tr("{label}を表示できませんでした。編集中のデータは保存されています。", { label: this.props.label })
-            : tr("この部分を表示できませんでした。編集中のデータは保存されています。")}
+            ? tr("Couldn't display {label}. Your work has been saved.", { label: this.props.label })
+            : tr("Couldn't display this part. Your work has been saved.")}
         </p>
         <div className="safe-fallback-actions">
           <button className="btn btn-sm" onClick={() => this.setState({ failed: false })}>
-            {tr("もう一度表示する")}
+            {tr("Try again")}
           </button>
           {this.props.onClose && (
             <button className="btn btn-sm" onClick={this.props.onClose}>
-              {tr("閉じる")}
+              {tr("Close")}
             </button>
           )}
         </div>

@@ -66,12 +66,17 @@ export async function previewDynamicRadioBundle(source: "query" | "data" | "lite
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
+
 import { useEditor } from "./lib/store";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
 useEditor.getState().replaceDoc(${JSON.stringify(previewDynamicRadioDoc(source))});
 useEditor.getState().setMode("preview");
 window.radioEditor = useEditor;
 createRoot(document.getElementById("app")).render(<Canvas />);
+
+});
 `, loader: "tsx", sourcefile: "preview-dynamic-radio-browser.tsx", resolveDir: resolve(".") },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

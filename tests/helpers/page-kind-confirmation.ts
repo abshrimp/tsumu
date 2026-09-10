@@ -20,15 +20,18 @@ export async function pageKindBundle() {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import RightPanel from "./components/RightPanel";
-import DialogHost from "./components/DialogHost";
+import { loadLocale } from "./lib/i18n";
 import { useEditor } from "./lib/store";
+void loadLocale().then(async () => {
+const { default: RightPanel } = await import("./components/RightPanel");
+const { default: DialogHost } = await import("./components/DialogHost");
 useEditor.getState().replaceDoc(${JSON.stringify(pageKindFixture())});
 useEditor.getState().select(null);
 window.pageKindEditor = useEditor;
 const root = createRoot(document.getElementById("app"));
 window.hidePagePanel = () => root.render(<React.StrictMode><DialogHost /></React.StrictMode>);
 root.render(<React.StrictMode><RightPanel /><DialogHost /></React.StrictMode>);
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "page-kind-browser.tsx" },
     bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

@@ -57,7 +57,7 @@ for (const [bp, state] of [["sm", "default"], ["base", "focus"]]) test(`${bp}/${
 });
 test("hover fill toggle explicitly disables inherited flex-grow", () => {
   const view = render("PositionSec", "MainSizeField", { flexGrow: "1", flexBasis: "0%" }, { prop: "width", pre: "W", axis: "main" });
-  view.elements.find(e => e.type === "button" && e.props["aria-label"] === "残りを埋める").props.onClick();
+  view.elements.find(e => e.type === "button" && e.props["aria-label"] === "Fill remaining space").props.onClick();
   assert.equal(view.result().flexGrow, "0"); assert.equal(view.result().flexBasis, "auto");
 });
 test("base background mode deletion and context reset still remove local overrides", () => {

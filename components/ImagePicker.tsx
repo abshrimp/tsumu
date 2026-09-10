@@ -54,7 +54,7 @@ export default function ImagePicker({
       setOpen(false);
     } catch (e) {
       if (!request.current()) return;
-      void showAlert(userMessage(e, tr("アップロードできませんでした")), { title: tr("アップロードできませんでした") });
+      void showAlert(userMessage(e, tr("Couldn't upload")), { title: tr("Couldn't upload") });
     } finally {
       request.finish();
     }
@@ -71,9 +71,9 @@ export default function ImagePicker({
         <button
           type="button"
           className={`img-pick-thumb${open ? " is-open" : ""}`}
-          aria-label={tr("アセットから選択")}
+          aria-label={tr("Choose from assets")}
           aria-expanded={open}
-          data-tip={tr("アセットから選択")}
+          data-tip={tr("Choose from assets")}
           onClick={toggle}
         >
           {previewSrc ? (
@@ -88,7 +88,7 @@ export default function ImagePicker({
             type="button"
             className={`img-pick-asset${open ? " is-open" : ""}`}
             aria-expanded={open}
-            data-tip={tr("クリックで別の画像を選択")}
+            data-tip={tr("Click to choose another image")}
             onClick={toggle}
           >
             <span>{asset.name}</span>
@@ -117,8 +117,8 @@ export default function ImagePicker({
           <button
             type="button"
             className={`icon-btn${open ? " is-on" : ""}`}
-            aria-label={tr("アセットから選択")}
-            data-tip={tr("アセットから選択")}
+            aria-label={tr("Choose from assets")}
+            data-tip={tr("Choose from assets")}
             onClick={toggle}
           >
             <Images size={13} />
@@ -128,7 +128,7 @@ export default function ImagePicker({
           <button
             type="button"
             className="icon-btn"
-            data-tip={tr("クリア")}
+            data-tip={tr("Clear")}
             onClick={() => {
               pending.cancel();
               onChange(null);
@@ -156,13 +156,13 @@ export default function ImagePicker({
                 className="img-pick-cell is-upload"
                 disabled={busy}
                 onClick={() => inputRef.current?.click()}
-                data-tip={tr("新しい画像をアップロード")}
+                data-tip={tr("Upload a new image")}
               >
                 {busy ? <LoaderCircle size={14} className="spin" /> : <Upload size={14} />}
               </button>
               <input
                 id={`${inputId}-upload`}
-                aria-label={tr("新しい画像をアップロード")}
+                aria-label={tr("Upload a new image")}
                 ref={inputRef}
                 type="file"
                 accept="image/*"
@@ -190,7 +190,7 @@ export function AssetGrid({
   selectedId,
   onPick,
   lead,
-  emptyText = tr("アセットがありません。左パネルの「アセット」から追加してください。"),
+  emptyText = tr("No assets yet. Add some from the Assets tab in the left panel."),
 }: {
   kind: "image" | "video" | "audio";
   selectedId?: string;
@@ -217,7 +217,7 @@ export function AssetGrid({
             id={searchId}
             type="search"
             autoFocus
-            placeholder={tr("アセットを検索")}
+            placeholder={tr("Search assets")}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -229,7 +229,7 @@ export function AssetGrid({
             <button
               type="button"
               className="asset-search-clear"
-              aria-label={tr("検索をクリア")}
+              aria-label={tr("Clear search")}
               onClick={() => setQuery("")}
             >
               <X size={12} />
@@ -260,7 +260,7 @@ export function AssetGrid({
         ))}
         {!shown.length && (
           <span className="hint" style={{ gridColumn: lead && !q ? "2 / -1" : "1 / -1", alignSelf: "center", textAlign: "center" }}>
-            {q ? tr("「{p1}」に一致するアセットはありません", { p1: query.trim() }) : emptyText}
+            {q ? tr("No assets match \"{p1}\"", { p1: query.trim() }) : emptyText}
           </span>
         )}
       </div>

@@ -20,7 +20,7 @@ function setup(upload?: (file: File) => Promise<Asset>, migrate?: (asset: Asset)
   const ui = assetLibraryCallbacks(upload, migrate);
   const render = () => elements(ui.render());
   const add = (count = 1) => render().find((e) => e.type === "input" && e.props.type === "file").props.onChange({ target: { files: Array.from({ length: count }, () => new File(["audio"], "new.wav", { type: "audio/wav" })), value: "new.wav" } });
-  const move = () => render().find((e) => e.props?.["data-tip"] === "サーバーへアップロード").props.onClick();
+  const move = () => render().find((e) => e.props?.["data-tip"] === "Upload to server").props.onClick();
   const busy = () => render().find((e) => e.props?.["data-tutorial"] === "asset-upload").props.disabled;
   render();
   return { ui, render, add, move, busy };

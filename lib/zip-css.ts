@@ -6,7 +6,7 @@ import { appendAssetSuffix, zipDependency } from "./zip-references";
 // CSS is embedded in separate data URLs, not flattened into the importing sheet.
 // Bounds cover both individual results and aggregate work, including ancestor-dependent variants.
 export const ZIP_CSS_LIMITS = { source: 2 * 1024 * 1024, output: 8 * 1024 * 1024, work: 64 * 1024 * 1024, variants: 4096, assets: 2000 };
-const limitError = () => new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+const limitError = () => new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
 export const zipCssUrl = (id: string) => `tsumu-zip-css:${encodeURIComponent(id)}`;
 
 const sourceSizes = new WeakMap<object, { source: string; bytes: number }>();
@@ -73,7 +73,7 @@ export function zipCssPreviewUrls(
   const rootIds = [...new Set(roots)];
   const closure = zipAssetClosure(assets, rootIds);
   for (const id of closure) {
-    if (assets[id].zip?.stylesheet !== undefined && !zipStylesheet(assets[id])) throw new Error(tr("ZIPのCSSデータを読み込めません。ZIPを再読み込みしてください。"));
+    if (assets[id].zip?.stylesheet !== undefined && !zipStylesheet(assets[id])) throw new Error(tr("The ZIP stylesheet data could not be read. Reimport the ZIP."));
   }
   if (closure.size > ZIP_CSS_LIMITS.assets || [...closure].reduce((n, id) => n + (zipStylesheet(assets[id]) ? sourceBytes(zipStylesheet(assets[id])!) : 0), 0) > ZIP_CSS_LIMITS.source) throw limitError();
   const cache = new Map<string, string>();
@@ -135,7 +135,7 @@ export function zipCssPreviewUrls(
 export function exportZipStylesheet(asset: Asset, names: Map<string, string>): string | undefined {
   const sheet = zipStylesheet(asset);
   if (!sheet) {
-    if (asset.zip?.stylesheet !== undefined) throw new Error(tr("ZIPのCSSデータを読み込めません。ZIPを再読み込みしてください。"));
+    if (asset.zip?.stylesheet !== undefined) throw new Error(tr("The ZIP stylesheet data could not be read. Reimport the ZIP."));
     return undefined;
   }
   const refs = new Map(sheet.references.map((r) => [r.url, r]));

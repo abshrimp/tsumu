@@ -217,11 +217,11 @@ export function PagesTab() {
     if (
       !(await confirmDeletion(() => showConfirm(
         all
-          ? tr("ページを0にはできないため、先頭の1ページは残します。ほかのページの要素もすべて削除されます（「元に戻す」で戻せます）。")
-          : tr("ページの要素もすべて削除されます（「元に戻す」で戻せます）。"),
+          ? tr("A site needs at least one page, so the first page is kept. All elements on the other pages are deleted too (Undo brings them back).")
+          : tr("All elements on the page will be deleted too (you can undo this)."),
         {
-          title: tr("{n}ページを削除しますか？", { n: all ? ids.length - 1 : ids.length }),
-          okLabel: tr("削除"),
+          title: tr("Delete {n} pages?", { n: all ? ids.length - 1 : ids.length }),
+          okLabel: tr("Delete"),
           danger: true,
         }
       )))
@@ -256,12 +256,12 @@ export function PagesTab() {
       ...(many
         ? []
         : [
-            { key: "open", label: tr("開く"), icon: <FileInput size={14} />, onClick: run(() => openPage(id)) },
+            { key: "open", label: tr("Open"), icon: <FileInput size={14} />, onClick: run(() => openPage(id)) },
             "sep" as const,
           ]),
       {
         key: "dup",
-        label: many ? tr("{n}ページを複製", { n: ids.length }) : tr("複製"),
+        label: many ? tr("Duplicate {n} pages", { n: ids.length }) : tr("Duplicate"),
         icon: <CopyPlus size={14} />,
         onClick: run(() => {
           // 下から複製すると、それぞれの複製が元のすぐ後ろに並ぶ
@@ -270,14 +270,14 @@ export function PagesTab() {
       },
       {
         key: "copy-site",
-        label: many ? tr("{n}ページをほかのサイトへコピー…", { n: ids.length }) : tr("ほかのサイトへコピー…"),
+        label: many ? tr("Copy {n} pages to another site…", { n: ids.length }) : tr("Copy to another site…"),
         icon: <Send size={14} />,
         onClick: run(() => setCopyIds(ids)),
       },
       "sep",
       {
         key: "publish",
-        label: allUnpublished ? tr("公開する") : tr("非公開にする（下書き）"),
+        label: allUnpublished ? tr("Publish", "publish_variant_1") : tr("Unpublish (draft)"),
         icon: allUnpublished ? <Eye size={14} /> : <EyeOff size={14} />,
         onClick: run(() =>
           updateDoc((d) => {
@@ -295,7 +295,7 @@ export function PagesTab() {
         : [
             {
               key: "pick",
-              label: tr("選択"),
+              label: tr("Select"),
               icon: <ListChecks size={14} />,
               onClick: run(() => {
                 setPicked([id]);
@@ -306,7 +306,7 @@ export function PagesTab() {
       "sep",
       {
         key: "del",
-        label: many ? tr("{n}ページを削除", { n: ids.length }) : tr("削除"),
+        label: many ? tr("Delete {n} pages", { n: ids.length }) : tr("Delete"),
         icon: <Trash2 size={14} />,
         danger: true,
         disabled: doc.pageOrder.length <= 1,
@@ -315,13 +315,13 @@ export function PagesTab() {
           if (
             await confirmDeletion(() => showConfirm(
               all
-                ? tr("ページを0にはできないため、先頭の1ページは残します。ほかのページの要素もすべて削除されます（「元に戻す」で戻せます）。")
-                : tr("ページの要素もすべて削除されます（「元に戻す」で戻せます）。"),
+                ? tr("A site needs at least one page, so the first page is kept. All elements on the other pages are deleted too (Undo brings them back).")
+                : tr("All elements on the page will be deleted too (you can undo this)."),
               {
                 title: many
-                  ? tr("{n}ページを削除しますか？", { n: all ? ids.length - 1 : ids.length })
-                  : tr("ページ「{name}」を削除しますか？", { name: doc.pages[id]?.name ?? "" }),
-                okLabel: tr("削除"),
+                  ? tr("Delete {n} pages?", { n: all ? ids.length - 1 : ids.length })
+                  : tr("Delete page \"{name}\"?", { name: doc.pages[id]?.name ?? "" }),
+                okLabel: tr("Delete"),
                 danger: true,
               }
             ))
@@ -392,7 +392,7 @@ export function PagesTab() {
             type="checkbox"
             className="page-pick"
             checked={livePicked.includes(id)}
-            aria-label={tr("「{name}」を選ぶ", { name: p.name })}
+            aria-label={tr("Select \"{name}\"", { name: p.name })}
             onClick={(e) => e.stopPropagation()}
             onChange={() => {
               setPicked((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -421,7 +421,7 @@ export function PagesTab() {
         <div className="row-acts">
           <button
             className="row-act"
-            data-tip={tr("複製")}
+            data-tip={tr("Duplicate")}
             onClick={(e) => {
               e.stopPropagation();
               duplicatePage(id);
@@ -432,13 +432,13 @@ export function PagesTab() {
           {doc.pageOrder.length > 1 && (
             <button
               className="row-act is-danger"
-              data-tip={tr("削除")}
+              data-tip={tr("Delete")}
               onClick={async (e) => {
                 e.stopPropagation();
                 if (
-                  await confirmDeletion(() => showConfirm(tr("ページの要素もすべて削除されます（「元に戻す」で戻せます）。"), {
-                    title: tr("ページ「{name}」を削除しますか？", { name: p.name }),
-                    okLabel: tr("削除"),
+                  await confirmDeletion(() => showConfirm(tr("All elements on the page will be deleted too (you can undo this)."), {
+                    title: tr("Delete page \"{name}\"?", { name: p.name }),
+                    okLabel: tr("Delete"),
                     danger: true,
                   }))
                 ) {
@@ -451,7 +451,7 @@ export function PagesTab() {
           )}
           <button
             className={`row-act${p.unpublished ? " is-on" : ""}`}
-            data-tip={p.unpublished ? tr("公開する") : tr("非公開にする（下書き）")}
+            data-tip={p.unpublished ? tr("Publish", "publish_variant_1") : tr("Unpublish (draft)")}
             onClick={(e) => {
               e.stopPropagation();
               updatePage(id, { unpublished: !p.unpublished });
@@ -469,20 +469,20 @@ export function PagesTab() {
       {/* 追加ボタンは一覧の長さに関係なく常に見えるよう、スクロールしない上部に置く */}
       {selecting ? (
         <div className="pages-toolbar is-bulk">
-          <button className="icon-btn" aria-label={tr("選択をやめる")} data-tip={tr("選択をやめる（Esc）")} onClick={endPicking}>
+          <button className="icon-btn" aria-label={tr("Stop selecting")} data-tip={tr("Stop selecting (Esc)")} onClick={endPicking}>
             <X size={14} />
           </button>
-          <span className="pages-count">{tr("{n}件を選択", { n: livePicked.length })}</span>
+          <span className="pages-count">{tr("{n} selected", { n: livePicked.length })}</span>
           <div className="pages-bulk-acts">
             <Dropdown
               value=""
               trigger={<FolderInput size={14} />}
-              title={tr("フォルダへ移動")}
+              title={tr("Move to folder")}
               menuWidth={200}
               options={[
-                { value: "__loose__", label: tr("フォルダの外"), icon: <Icon name="page" size={13} /> },
+                { value: "__loose__", label: tr("Outside folders"), icon: <Icon name="page" size={13} /> },
                 ...folders.map((f) => ({ value: f.id, label: f.name, icon: <Folder size={13} /> })),
-                { value: "__new__", label: tr("新しいフォルダ"), icon: <FolderPlus size={13} /> },
+                { value: "__new__", label: tr("New folder", "new_folder_variant_1"), icon: <FolderPlus size={13} /> },
               ]}
               onChange={(v) => {
                 if (!livePicked.length) return;
@@ -499,18 +499,18 @@ export function PagesTab() {
             <Dropdown
               value=""
               trigger={<Icon name="eye" size={13} />}
-              title={tr("公開・非公開")}
+              title={tr("Publish / unpublish")}
               menuWidth={190}
               options={[
-                { value: "on", label: tr("公開する"), icon: <Icon name="eye" size={13} /> },
-                { value: "off", label: tr("非公開にする（下書き）"), icon: <Icon name="eyeOff" size={13} /> },
+                { value: "on", label: tr("Publish", "publish_variant_1"), icon: <Icon name="eye" size={13} /> },
+                { value: "off", label: tr("Unpublish (draft)"), icon: <Icon name="eyeOff" size={13} /> },
               ]}
               onChange={(v) => bulkPublish(v === "on")}
             />
             <button
               className="icon-btn"
-              aria-label={tr("選んだページをほかのサイトへコピー")}
-              data-tip={tr("選んだページをほかのサイトへコピー")}
+              aria-label={tr("Copy the selected pages to another site")}
+              data-tip={tr("Copy the selected pages to another site")}
               disabled={!livePicked.length}
               onClick={() => setCopyIds(livePicked)}
             >
@@ -518,8 +518,8 @@ export function PagesTab() {
             </button>
             <button
               className="icon-btn is-danger"
-              aria-label={tr("選んだページを削除")}
-              data-tip={tr("選んだページを削除")}
+              aria-label={tr("Delete selected pages")}
+              data-tip={tr("Delete selected pages")}
               disabled={!livePicked.length}
               onClick={() => void bulkDelete()}
             >
@@ -529,11 +529,11 @@ export function PagesTab() {
         </div>
       ) : (
       <div className="pages-toolbar">
-        <span className="pages-count">{doc.pageOrder.length}{tr("ページ")}</span>
+        <span className="pages-count">{doc.pageOrder.length}{tr("Pages")}</span>
         <button
           className="icon-btn"
-          aria-label={tr("ページを選ぶ")}
-          data-tip={tr("複数のページを選んで、まとめてフォルダへ移動・削除します（⌘クリック・Shiftクリックでも選べます）")}
+          aria-label={tr("Select pages")}
+          data-tip={tr("Select several pages to move to a folder or delete together (⌘-click and Shift-click work too)")}
           onClick={() => setPicking(true)}
         >
           <ListChecks size={14} />
@@ -541,8 +541,8 @@ export function PagesTab() {
         <button
           className="icon-btn"
           data-tutorial="add-folder-button"
-          aria-label={tr("フォルダを作る")}
-          data-tip={tr("フォルダを作る（ページの整理用。URLには影響しません）")}
+          aria-label={tr("New folder")}
+          data-tip={tr("New folder (for organizing pages; doesn't affect URLs)")}
           onClick={() => {
             const id = addPageFolder();
             setRenaming(id);
@@ -556,7 +556,7 @@ export function PagesTab() {
           onClick={() => addPage()}
         >
           <Icon name="plus" size={12} />
-          {tr("ページを追加")}
+          {tr("Add page")}
         </button>
       </div>
       )}
@@ -585,7 +585,7 @@ export function PagesTab() {
             >
               <Icon name="loader" size={13} />
               <span className="page-label" style={{ flex: 1 }}>
-                {tr("ローディング画面")}
+                {tr("Loading screen")}
               </span>
             </div>
           )}
@@ -661,7 +661,7 @@ export function PagesTab() {
                   ) : (
                     <span
                       className="page-label folder-name"
-                      title={tr("ダブルクリックで名前を変更")}
+                      title={tr("Double-click to rename")}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
                         setRenaming(f.id);
@@ -674,7 +674,7 @@ export function PagesTab() {
                   <div className="row-acts">
                     <button
                       className="row-act"
-                      data-tip={tr("このフォルダにページを追加")}
+                      data-tip={tr("Add a page to this folder")}
                       onClick={(e) => {
                         e.stopPropagation();
                         toggleFolder(f.id, true);
@@ -685,7 +685,7 @@ export function PagesTab() {
                     </button>
                     <button
                       className="row-act"
-                      data-tip={tr("名前を変更")}
+                      data-tip={tr("Rename")}
                       onClick={(e) => {
                         e.stopPropagation();
                         setRenaming(f.id);
@@ -695,7 +695,7 @@ export function PagesTab() {
                     </button>
                     <button
                       className="row-act is-danger"
-                      data-tip={tr("フォルダを削除（中のページはフォルダの外へ出ます）")}
+                      data-tip={tr("Delete folder (its pages move out of the folder)")}
                       onClick={(e) => {
                         e.stopPropagation();
                         deletePageFolder(f.id);
@@ -709,7 +709,7 @@ export function PagesTab() {
                   <div className="folder-pages">
                     {pages.map((id) => pageRow(id, true))}
                     {!pages.length && (
-                      <div className="folder-empty">{tr("ページをここへドラッグして入れられます")}</div>
+                      <div className="folder-empty">{tr("Drag pages here")}</div>
                     )}
                   </div>
                 )}

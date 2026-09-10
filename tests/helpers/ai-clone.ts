@@ -30,13 +30,18 @@ export async function aiCloneBundle() {
     stdin: { contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import AiChat, { useAi } from "./components/AiChat";
-import ScriptEditor from "./components/ScriptEditor";
-import Canvas from "./components/Canvas";
+
+
+
 import { useEditor } from "./lib/store";
 import { applyAiOps } from "./lib/aiOps";
 import { parseAiRequest } from "./lib/ai/request";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: AiChat, useAi } = await import("./components/AiChat");
+  const { default: ScriptEditor } = await import("./components/ScriptEditor");
+  const { default: Canvas } = await import("./components/Canvas");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(aiCloneDoc())});
 useEditor.getState().setActivePage("p");
@@ -63,6 +68,8 @@ function Fixture() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Fixture />);
+
+});
 `, loader: "tsx", sourcefile: "ai-clone-browser.tsx", resolveDir: resolve(".") },
     loader: { ".css": "text" }, bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

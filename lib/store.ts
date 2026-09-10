@@ -860,7 +860,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const makeSpan = (part: string): DocNode => ({
         id: genId("node"),
         type: "box",
-        name: part.trim().slice(0, 12) || tr("テキスト"),
+        name: part.trim().slice(0, 12) || tr("Text", "text_variant_1"),
         semantic: "span",
         text: { content: part, heading: 0 },
         link: null,
@@ -1114,7 +1114,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         d.nodes[listId] = {
           id: listId,
           type: "list",
-          name: tr("{name}リスト", { name: node.name }),
+          name: tr("{name} list", { name: node.name }),
           semantic: "auto",
           text: null,
           link: null,
@@ -1252,7 +1252,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (!payload) return;
       const clip = prepareClipBreakpoints(get().doc, payload);
       if (!clip) {
-        void showAlert(tr("コピー元とコピー先の画面幅設定が一致しないか、参照できない設定があります。表示を保持するためコピーを中止しました。画面幅設定を揃えてから再試行してください。"));
+        void showAlert(tr("The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to preserve the appearance. Match the screen-width settings and try again."));
         return;
       }
       const idMap = new Map(clip.nodes.map((n) => [n.id, genId("node")]));
@@ -1279,7 +1279,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       // コピー単体が保存可能でも、置き先の深さを足すと保存上限を超える場合がある。
       const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
       if (parentDepth + maxSubtreeDepth(Object.fromEntries(clones.map(n => [n.id, n])), newRootIds) > MAX_NODE_DEPTH) {
-        void showAlert(tr("ここには貼り付けられません"));
+        void showAlert(tr("Can't paste here"));
         return;
       }
       // 追加予定の依存を隔離したmapへ解決する。既存マスターの再利用まで含めて検査し、
@@ -1304,8 +1304,8 @@ export const useEditor = create<EditorStore>((set, get) => {
         );
         if (componentsReachable(prepared, pasted).has(host)) {
           void showAlert(
-            tr("コンポーネント「{p1}」の中に、そのコンポーネント自身は入れられません（無限に入れ子になるため）。", { p1: doc.components?.[host]?.name ?? "" }),
-            { title: tr("ここには貼り付けられません") }
+            tr("You can't put component \"{p1}\" inside itself (it would nest forever).", { p1: doc.components?.[host]?.name ?? "" }),
+            { title: tr("Can't paste here") }
           );
           return;
         }
@@ -1538,9 +1538,9 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (comp) {
         const confirmedDoc = get().doc;
         const confirmedRevision = get().historyRevision;
-        void showConfirm(tr("ページに置いた、このコンポーネントの使用箇所（インスタンス）もすべて削除されます。"), {
-          title: tr("コンポーネント「{name}」を削除しますか？", { name: comp.name }),
-          okLabel: tr("削除"),
+        void showConfirm(tr("Every instance of this component placed on pages will also be deleted."), {
+          title: tr("Delete component \"{name}\"?", { name: comp.name }),
+          okLabel: tr("Delete"),
           danger: true,
         }).then((ok) => {
           if (ok && get().doc === confirmedDoc && get().historyRevision === confirmedRevision) {
@@ -1730,9 +1730,9 @@ export const useEditor = create<EditorStore>((set, get) => {
       const id = genId("folder");
       const names = new Set((get().doc.pageFolders ?? []).map((f) => f.name));
       let n = 1;
-      while (names.has(n > 1 ? tr("フォルダ {n}", { n }) : tr("フォルダ"))) n++;
+      while (names.has(n > 1 ? tr("Folder {n}", { n }) : tr("Folder"))) n++;
       get().updateDoc((d) => {
-        d.pageFolders = [...(d.pageFolders ?? []), { id, name: n > 1 ? tr("フォルダ {n}", { n }) : tr("フォルダ") }];
+        d.pageFolders = [...(d.pageFolders ?? []), { id, name: n > 1 ? tr("Folder {n}", { n }) : tr("Folder") }];
       });
       return id;
     },
@@ -1814,7 +1814,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       // 2回目以降の複製でもURLが重ならないよう「-copy-2」のように番号を付ける
       const { name, slug } = uniquePageNaming(
         doc,
-        (n) => (n > 1 ? tr("{name} のコピー {n}", { name: src.name, n }) : tr("{name} のコピー", { name: src.name })),
+        (n) => (n > 1 ? tr("{name} copy {n}", { name: src.name, n }) : tr("{name} copy", { name: src.name })),
         (n) => copySlug(src.slug, n),
         1
       );

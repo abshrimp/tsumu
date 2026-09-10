@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   if (!store) return await storeUnavailable();
 
   if (!path?.startsWith("assets/")) {
-    return NextResponse.json({ error: tr("パスが正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid path") }, { status: 400 });
   }
 
   try {
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
       type: "stream",
     });
     if (!value) {
-      return NextResponse.json({ error: tr("見つかりません") }, { status: 404 });
+      return NextResponse.json({ error: tr("Not found") }, { status: 404 });
     }
     return new NextResponse(value, {
       headers: {
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     return NextResponse.json(
-      { error: tr(userMessage(e, "読み込めませんでした")) },
+      { error: tr(userMessage(e, "Couldn't load")) },
       { status: 502 }
     );
   }

@@ -122,14 +122,14 @@ export function fieldStateNotes(fields: DocNode[], tr: (s: string) => string): R
     const f = n.field;
     const name = fieldVarName(n);
     if (n.type !== "field" || !f || f.kind === "submit") continue;
-    if (isRadioItem(n)) out[`${n.attrId!}.disabled`] = tr("操作できない（無効）とき true");
+    if (isRadioItem(n)) out[`${n.attrId!}.disabled`] = tr("true when disabled");
     if (!name) continue;
-    if (f.kind === "radio") out[`${name}.index`] = tr("選んだボタンの番号（1から。選んでいなければ空）");
-    if (f.kind === "select") out[`${name}.index`] = tr("選んだ選択肢の番号（1から）");
+    if (f.kind === "radio") out[`${name}.index`] = tr("Number of the chosen button (from 1; empty if none)");
+    if (f.kind === "select") out[`${name}.index`] = tr("Number of the chosen option (from 1)");
     if (f.kind === "textarea" || (f.kind === "input" && TEXT_INPUTS.has(f.inputType ?? "text"))) {
-      out[`${name}.length`] = tr("入力した文字数");
+      out[`${name}.length`] = tr("Number of characters entered");
     }
-    out[`${name}.disabled`] = tr("操作できない（無効）とき true");
+    out[`${name}.disabled`] = tr("true when disabled");
   }
   return out;
 }

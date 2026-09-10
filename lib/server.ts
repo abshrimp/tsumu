@@ -16,7 +16,7 @@ export async function requireAuth(mode?: "user"): Promise<NextResponse | Activit
   if (!authConfigured()) {
     if (anonymousAllowed()) return null;
     const tr = await serverTr();
-    return NextResponse.json({ error: tr("ログインが設定されていません") }, { status: 503 });
+    return NextResponse.json({ error: tr("Sign-in is not configured") }, { status: 503 });
   }
   const session = await auth();
   // Googleの検証済みメールがないセッションをログイン済みとみなさない。
@@ -24,7 +24,7 @@ export async function requireAuth(mode?: "user"): Promise<NextResponse | Activit
   const user = parseActivityUser(session?.user);
   if (!user) {
     const tr = await serverTr();
-    return NextResponse.json({ error: tr("ログインが必要です") }, { status: 401 });
+    return NextResponse.json({ error: tr("You need to sign in") }, { status: 401 });
   }
   return mode === "user" ? user : null;
 }

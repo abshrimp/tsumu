@@ -63,7 +63,7 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 | AI | `lib/ai/` (providers, prompt, streaming); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client) |
 | Comments, activity | `lib/comments.ts`, `lib/comment-store.ts`, `lib/activity.ts` |
 | Auth | `auth.ts`, `middleware.ts`, `lib/allowlist.ts`. Without `AUTH_*`, the editor opens only under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
-| i18n | `lib/i18n.ts`. Source strings are Japanese, wrapped in `tr("…")`. Translations are in `lib/locales/`. |
+| i18n | `lib/i18n.ts`. Source strings are English, wrapped in `tr("…")`. Japanese translations are in `lib/locales/ja.ts`. |
 | Help and tutorial | `lib/manualTopics.ts`, `components/HelpCenter.tsx`, `HelpFigures.tsx`, `Tutorial.tsx` |
 
 ### Deleting a local site

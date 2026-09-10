@@ -26,8 +26,8 @@ function fixture() {
     id === "../lib/i18n" ? { tr: (v: string) => v } : require(id), mod, mod.exports, fetch);
   const flatten = (v: any): any[] => Array.isArray(v) ? v.flatMap(flatten) : v && typeof v === "object" ? [v, ...flatten(v.props?.children)] : [];
   const render = () => { cursor = 0; const items = flatten(mod.exports.default()); return {
-    input: items.find(e => e.type === "input"), add: items.find(e => e.type === "button" && e.props.children === "追加"),
-    remove: items.find(e => e.type === "button" && e.props["aria-label"] === "ログイン許可を取り消す"),
+    input: items.find(e => e.type === "input"), add: items.find(e => e.type === "button" && e.props.children === "Add"),
+    remove: items.find(e => e.type === "button" && e.props["aria-label"] === "Remove sign-in access"),
   }; };
   const settle = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
   return { calls, confirmations, render, settle, unmount: () => cleanups.forEach(fn => fn?.()) };

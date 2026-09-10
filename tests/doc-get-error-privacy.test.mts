@@ -98,7 +98,7 @@ for (const stage of ["database", "site", "metadata", "snapshot"] as const) {
       assert.equal(response.status, 502);
       assert.equal(response.headers.get("cache-control"), null);
       assert.equal(response.headers.get("x-tsumu-error-stage"), null);
-      assert.deepEqual(await response.json(), { error: "読み込めませんでした" });
+      assert.deepEqual(await response.json(), { error: "Couldn't load" });
       assert.deepEqual(logs(), [["[api/doc GET] document read failed"]]);
       const expected = ["auth", "configured", "siteId", "database"];
       if (stage !== "database") expected.push("site");
@@ -112,7 +112,7 @@ test("document GET still translates the generic error and logs a single metadata
   const logs = captureErrors(t);
   const f = fixture({
     failStage: "database", error: new Error("synthetic database error"),
-    translate: value => value === "読み込めませんでした" ? "Could not load" : value,
+    translate: value => value === "Couldn't load" ? "Could not load" : value,
   });
   const response = await f.GET(new Request(url + "&meta=1"));
   assert.deepEqual(await response.json(), { error: "Could not load" });
@@ -163,7 +163,7 @@ test("document GET success, missing documents and absent sites preserve their be
     const f = fixture({ siteExists: false });
     const missing = await f.GET(new Request(path));
     assert.equal(missing.status, 404);
-    assert.deepEqual(await missing.json(), { error: "サイトが見つかりません" });
+    assert.deepEqual(await missing.json(), { error: "Site not found" });
     assert.equal(missing.headers.get("x-tsumu-error-stage"), null);
     assert.deepEqual(f.calls, ["auth", "configured", "siteId", "database", "site"]);
   }
@@ -203,7 +203,7 @@ for (const field of ["props", "entry"] as const) {
       assert.equal(response.status, 502);
       assert.equal(response.headers.get("cache-control"), null);
       assert.equal(response.headers.get("x-tsumu-error-stage"), null);
-      assert.deepEqual(await response.json(), { error: "読み込めませんでした" });
+      assert.deepEqual(await response.json(), { error: "Couldn't load" });
       assert.deepEqual(logs(), [["[api/doc GET] document read failed"]]);
     });
   }

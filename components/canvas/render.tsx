@@ -91,7 +91,7 @@ export function recursiveInstance(common: Record<string, unknown>): ReactNode {
   return createElement("div", {
     ...common,
     style: { padding: 12, color: "#a1a1aa", fontSize: 13 },
-    children: tr("（コンポーネントが自分自身を含んでいるため表示できません）"),
+    children: tr("(Can't display: the component contains itself)"),
   });
 }
 
@@ -287,7 +287,7 @@ export function renderLeafNode(
               }
             : {}),
         },
-        f.label !== undefined ? fill(f.label) : tr("送信")
+        f.label !== undefined ? fill(f.label) : tr("Submit")
       );
     }
     if (f.kind === "file") {
@@ -339,8 +339,8 @@ export function renderLeafNode(
         "div",
         { ...common, className: "cv-placeholder" },
         node.media.kind === "video"
-          ? tr("動画のURLを設定パネルで指定してください")
-          : tr("音声のURLを設定パネルで指定してください")
+          ? tr("Set the video URL in the Settings panel")
+          : tr("Set the audio URL in the Settings panel")
       );
     }
     return createElement(node.media.kind, {
@@ -358,9 +358,9 @@ export function renderLeafNode(
     const src = embedSrc(node.embed);
     if (!src) {
       const hint = {
-        youtube: tr("YouTubeのURLを設定パネルで指定してください"),
-        map: tr("住所またはマップのURLを設定パネルで指定してください"),
-        url: tr("埋め込むURLを設定パネルで指定してください"),
+        youtube: tr("Set the YouTube URL in the Settings panel"),
+        map: tr("Set an address or map URL in the Settings panel"),
+        url: tr("Set the URL to embed in the Settings panel"),
       }[node.embed.kind];
       return createElement(
         "div",

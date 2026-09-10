@@ -25,19 +25,19 @@ export async function GET(req: Request) {
   if (siteId instanceof NextResponse) return siteId;
   const dayParams = params.getAll("day");
   if (dayParams.length > 1 || (dayParams.length === 1 && !/^[0-6]$/.test(dayParams[0]))) {
-    return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
   }
   const day = dayParams.length ? Number(dayParams[0]) : null;
   try {
     const db = await getDb();
     if (usesDocumentRooms()) {
       if (!await getSite(db, siteId)) {
-        return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+        return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
       }
       if (day !== null) {
         const body = await readSiteDocumentBackup(db, siteId, day);
         if (body === null) {
-          return NextResponse.json({ error: tr("バックアップが見つかりません") }, { status: 404 });
+          return NextResponse.json({ error: tr("Backup not found") }, { status: 404 });
         }
         return new NextResponse(body, {
           headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-store" },
@@ -54,7 +54,7 @@ export async function GET(req: Request) {
       });
       const row = rs.rows[0];
       if (!row) {
-        return NextResponse.json({ error: tr("バックアップが見つかりません") }, { status: 404 });
+        return NextResponse.json({ error: tr("Backup not found") }, { status: 404 });
       }
       // 保存済みのJSONをパースし直さずに返す（Workers無料プランのCPU時間制限対策）
       return new NextResponse(String(row.body), {
@@ -77,7 +77,7 @@ export async function GET(req: Request) {
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     return NextResponse.json(
-      { error: tr(userMessage(e, "読み込めませんでした")) },
+      { error: tr(userMessage(e, "Couldn't load")) },
       { status: 502 }
     );
   }

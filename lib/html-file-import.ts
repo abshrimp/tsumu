@@ -58,7 +58,7 @@ function convertHtmlPages(
   assets: Asset[],
   initialBreakpoints?: BreakpointDef[],
 ): HtmlConversion {
-  if (!pages.length) throw new Error(tr("ZIP内にHTMLファイルが見つかりません"));
+  if (!pages.length) throw new Error(tr("No HTML file found in the zip"));
   const main = pages[0];
   const prefix = main.name.slice(0, main.name.lastIndexOf("/") + 1);
   const result: SiteDoc = {

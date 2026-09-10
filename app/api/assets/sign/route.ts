@@ -16,13 +16,13 @@ export async function POST(req: Request) {
   try {
     body = await readJsonLimited(req, 1024 * 1024) as { paths?: unknown } | null;
   } catch (error) {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, {
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }
   const paths = Array.isArray(body?.paths) ? body.paths : null;
   if (!paths || paths.length > 500 || !paths.every((p) => typeof p === "string" && p.startsWith("assets/") && p.length < 500)) {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
   }
   const urls: Record<string, string> = Object.create(null);
   const tokens = await signAssetPaths(paths as string[]);

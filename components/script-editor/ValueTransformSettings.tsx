@@ -162,14 +162,14 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
       <input
         ref={inputRef}
         role="combobox"
-        aria-label={ariaLabel ?? tr("取り出す項目名")}
+        aria-label={ariaLabel ?? tr("Field name to read")}
         aria-autocomplete="list"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-activedescendant={open && filtered.length ? listId + "-" + selectedIndex : undefined}
         value={value}
         maxLength={256}
-        placeholder={placeholder ?? tr("項目名")}
+        placeholder={placeholder ?? tr("Field name")}
         onFocus={() => { setOpen(true); setShowAll(true); setActive(0); }}
         onChange={(event) => {
           onChange(event.target.value);
@@ -199,7 +199,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
       <button
         type="button"
         className="se-composer-field-toggle"
-        aria-label={tr("項目の候補を表示")}
+        aria-label={tr("Show suggested fields")}
         aria-expanded={open}
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => {
@@ -215,7 +215,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
           className="se-composer-field-menu"
           role="listbox"
           id={listId}
-          aria-label={tr("項目の候補")}
+          aria-label={tr("Suggested fields")}
           data-se-popover=""
           style={position}
           onPointerDown={(event) => event.stopPropagation()}
@@ -244,8 +244,8 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
           )) : (
             <p className="se-composer-field-empty" role="status">
               {tr(choices.length
-                ? "一致する候補がありません。項目名を直接入力できます。"
-                : "候補がありません。項目名を直接入力できます。")}
+                ? "No matching fields. You can type a field name."
+                : "No fields available. You can type a field name.")}
             </p>
           )}
         </div>,
@@ -266,7 +266,7 @@ function ValueOperandEditor({ type, text, onChange, purpose = "compare" }: {
   return (
     <div className="se-composer-operand">
       <TextIn vars value={formatValueOperandInput(text, type)} valueContext="value" width={144}
-        placeholder={isList ? tr("追加・削除する値 / {変数}") : tr("設定する値 / {変数}")}
+        placeholder={isList ? tr("Value to add or remove / {variable}") : tr("Value / {variable}")}
         onCommit={(input) => {
           const next = parseValueOperandInput(input);
           onChange(next.operand, next.operandType);
@@ -284,14 +284,14 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
 }) {
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
-      <FixedOptionSelect aria-label={tr("計算方法")} value={transform.operation}
+      <FixedOptionSelect aria-label={tr("Arithmetic operation")} value={transform.operation}
         onChange={(e) => onChange({ ...transform, operation: e.target.value as NumericOperation })}>
         {MATH.map((method) => <option key={method.value} value={method.value}>{tr(method.label)}</option>)}
       </FixedOptionSelect>
       <div className="se-composer-operand">
         <TextIn vars value={transform.operandType === "variable"
           ? "{" + String(transform.operand) + "}" : String(transform.operand)}
-          valueContext="value" width={154} placeholder={tr("計算する値 / {変数}")}
+          valueContext="value" width={154} placeholder={tr("Number or {variable}")}
           onCommit={(input) => {
             const text = input.trim();
             const variable = /^\{([^{}\s"'<>]+)\}$/.exec(text);
@@ -312,21 +312,21 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
 
   if (transform.kind === "split" || transform.kind === "join") return (
     <div className="se-composer-step-settings">
-      <TextIn vars value={transform.separator} width={144} placeholder={tr("区切り文字")}
+      <TextIn vars value={transform.separator} width={144} placeholder={tr("Delimiter")}
         onCommit={(separator) => onChange({ ...transform, separator })} />
     </div>
   );
 
   if (transform.kind === "replace") return (
     <div className="se-composer-step-settings">
-      <TextIn vars value={transform.find} width={144} placeholder={tr("探す文字列")}
+      <TextIn vars value={transform.find} width={144} placeholder={tr("String to find")}
         onCommit={(find) => onChange({ ...transform, find })} />
-      <TextIn vars value={transform.replacement} width={144} placeholder={tr("置き換え後")}
+      <TextIn vars value={transform.replacement} width={144} placeholder={tr("Replacement")}
         onCommit={(replacement) => onChange({ ...transform, replacement })} />
       <label className="se-composer-regex">
         <input type="checkbox" checked={transform.regex}
           onChange={(e) => onChange({ ...transform, regex: e.target.checked })} />
-        {tr("正規表現")}
+        {tr("Regex")}
       </label>
     </div>
   );
@@ -335,13 +335,13 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
     <div className="se-composer-step-settings">
       <FieldKeyPicker value={transform.field} options={options} samples={samples}
         excludedVariableName={excludedVariableName}
-        ariaLabel={tr("リスト内の項目名")}
-        placeholder={tr("項目（空なら要素自身）")}
+        ariaLabel={tr("List item field")}
+        placeholder={tr("Field (blank = item itself)")}
         onChange={(field) => onChange({ ...transform, field })} />
-        <FixedOptionSelect aria-label={tr("並び順")} value={transform.direction}
+        <FixedOptionSelect aria-label={tr("Sort order")} value={transform.direction}
           onChange={(e) => onChange({ ...transform, direction: e.target.value as "asc" | "desc" })}>
-          <option value="asc">{tr("昇順")}</option>
-          <option value="desc">{tr("降順")}</option>
+          <option value="asc">{tr("Ascending")}</option>
+          <option value="desc">{tr("Descending")}</option>
         </FixedOptionSelect>
     </div>
   );
@@ -361,21 +361,21 @@ export function ValueTransformSettings({ transform, options, onChange, samples, 
     <div className="se-composer-step-settings">
       <FieldKeyPicker value={transform.key} options={options} samples={samples}
         excludedVariableName={excludedVariableName}
-        placeholder={tr("項目名 / {変数}")}
+        placeholder={tr("Field name / {variable}")}
         onChange={(key) => onChange({ ...transform, key })} />
     </div>
   );
   if (transform.kind === "fallback") return (
     <div className="se-composer-step-settings">
       <select className="se-in se-fixed-select"
-        aria-label={tr("値を補う条件")}
+        aria-label={tr("When to use a fallback")}
         value={transform.when ?? "missing"}
         onChange={(event) => onChange({ kind: "fallback", text: transform.text,
           when: event.target.value === "nullish" ? "nullish" : "missing" })}>
-        <option value="missing">{tr("値が存在しない場合")}</option>
-        <option value="nullish">{tr("値が存在しないかnullの場合")}</option>
+        <option value="missing">{tr("When the value is missing")}</option>
+        <option value="nullish">{tr("When the value is missing or null")}</option>
       </select>
-      <TextIn vars value={transform.text} width={174} placeholder={tr("代わりに使う値 / {変数}")}
+      <TextIn vars value={transform.text} width={174} placeholder={tr("Replacement value / {variable}")}
         onCommit={(text) => onChange({ ...transform, text })} />
     </div>
   );

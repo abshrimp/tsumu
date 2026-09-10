@@ -229,7 +229,7 @@ function LayerRow({
         <div className="row-acts">
           <button
             className={`row-act${node.locked ? " is-on" : ""}`}
-            data-tip={node.locked ? tr("ロック解除") : tr("ロック")}
+            data-tip={node.locked ? tr("Unlock") : tr("Lock")}
             onClick={(e) => {
               e.stopPropagation();
               updateNode(id, { locked: !node.locked });
@@ -243,7 +243,7 @@ function LayerRow({
             }`}
             data-tip={
               hiddenElsewhere.length
-                ? tr("{p1}では非表示 ― クリックで{p2}", { p1: hiddenElsewhere.map((b) => BP_INFO[b].label).join(tr("・")), p2: hideToggleLabel(false, breakpoint) })
+                ? tr("Hidden on {p1} — click to {p2}", { p1: hiddenElsewhere.map((b) => BP_INFO[b].label).join(tr(", ")), p2: hideToggleLabel(false, breakpoint) })
                 : hideToggleLabel(hiddenHere, breakpoint)
             }
             onClick={(e) => {
@@ -270,7 +270,7 @@ function LayerRow({
           extra={[
             {
               key: "rename",
-              label: tr("名前を変更"),
+              label: tr("Rename"),
               icon: <Pencil size={14} />,
               onClick: () => {
                 setMenu(null);
@@ -281,7 +281,7 @@ function LayerRow({
               ? [
                   {
                     key: "fold",
-                    label: isCollapsed ? tr("展開") : tr("折りたたむ"),
+                    label: isCollapsed ? tr("Expand") : tr("Collapse"),
                     icon: (
                       <Icon
                         name="chevron"
@@ -481,13 +481,13 @@ export function LayersTab() {
     >
       {editingComp && (
         <div className="hint" style={{ padding: "8px 12px 0" }}>
-          {tr("コンポーネント「{name}」を編集中", { name: editingComp.name })}
+          {tr("Editing component \"{name}\"", { name: editingComp.name })}
         </div>
       )}
       {uploading && (
         <div className="hint layer-uploading">
           <LoaderCircle size={13} className="spin" />
-          {tr("アップロード中…")}
+          {tr("Uploading…")}
         </div>
       )}
       <div ref={listRef} style={{ padding: "6px 0 40px" }}>
@@ -519,9 +519,9 @@ export function LayersTab() {
         )}
         {rootIds.length === 0 && !collapsed.has(BODY_NODE_ID) && (
           <div className="panel-empty">
-            {tr("要素がありません。")}
+            {tr("No elements yet.")}
             <br />
-            {tr("「追加」タブから置けます。")}
+            {tr("Add some from the Add tab.")}
           </div>
         )}
         {visibleLayers.length > 0 && (

@@ -48,12 +48,17 @@ export async function scriptFileValueBundle() {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
+
 import { useEditor } from "./lib/store";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
 useEditor.getState().replaceDoc(${JSON.stringify(scriptFileValueDoc())});
 useEditor.getState().setMode("preview");
 window.fileEditor = useEditor;
 createRoot(document.getElementById("app")).render(<Canvas />);
+
+});
 `, loader: "tsx", sourcefile: "script-file-value-browser.tsx", resolveDir: resolve(".") },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

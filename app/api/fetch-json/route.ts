@@ -24,12 +24,12 @@ export async function POST(req: Request) {
       url: string; method?: string; headers?: unknown; body?: unknown;
     });
   } catch (error) {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: error instanceof RangeError ? 413 : 400 });
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: error instanceof RangeError ? 413 : 400 });
   }
   // メソッド・ヘッダー・本文（データの取得ブロックの「リクエストの設定」）
   const verb = typeof method === "string" ? method.toUpperCase() : method == null ? "GET" : "";
   if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(verb)) {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
   }
   const sendHeaders: Record<string, string> = { Accept: "application/json" };
   if (headers && typeof headers === "object") {
@@ -43,11 +43,11 @@ export async function POST(req: Request) {
   }
   const sendBody = typeof body === "string" && verb !== "GET" && verb !== "DELETE" ? body : undefined;
   if (sendBody && sendBody.length > 1024 * 1024) {
-    return NextResponse.json({ error: tr("送る本文が大きすぎます（1MBまで）") }, { status: 400 });
+    return NextResponse.json({ error: tr("The request body is too large (up to 1 MB)") }, { status: 400 });
   }
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {
     return NextResponse.json(
-      { error: tr("http(s) のURLを指定してください") },
+      { error: tr("Enter an http(s) URL") },
       { status: 400 }
     );
   }
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       // Error reporting must not wait for a cloned response's other reader.
       void res.body?.cancel().catch(() => {});
       return NextResponse.json(
-        { error: tr("読み込めませんでした（HTTP {status}）", { status: res.status }) },
+        { error: tr("Couldn't load (HTTP {status})", { status: res.status }) },
         { status: 502 }
       );
     }
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
       json = JSON.parse(text);
     } catch {
       return NextResponse.json(
-        { error: tr("JSONとして読み取れませんでした") },
+        { error: tr("Couldn't parse it as JSON") },
         { status: 502 }
       );
     }
@@ -83,19 +83,19 @@ export async function POST(req: Request) {
   } catch (e) {
     if (e instanceof BlockedUrlError) {
       return NextResponse.json(
-        { error: tr("このホストへのアクセスは許可されていません") },
+        { error: tr("Access to this host isn't allowed") },
         { status: 400 }
       );
     }
     if (e instanceof TooLargeError) {
-      return NextResponse.json({ error: tr("JSONが大きすぎます（5MBまで）") }, { status: 502 });
+      return NextResponse.json({ error: tr("The JSON is too large (max 5MB)") }, { status: 502 });
     }
     return NextResponse.json(
       {
         error:
           e instanceof Error && e.name === "TimeoutError"
-            ? tr("読み込みがタイムアウトしました（15秒）")
-            : tr("読み込めませんでした"),
+            ? tr("Loading timed out (15 seconds)")
+            : tr("Couldn't load"),
       },
       { status: 502 }
     );

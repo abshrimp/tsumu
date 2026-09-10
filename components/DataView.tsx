@@ -13,18 +13,18 @@ const isPrimitive = (v: unknown) => v == null || typeof v !== "object";
 
 /** 値を一覧表示用の短い文字にする */
 export function readableValue(value: unknown): string {
-  if (value == null || value === "") return tr("（空）");
+  if (value == null || value === "") return tr("(empty)");
   if (Array.isArray(value)) {
-    if (!value.length) return tr("（空）");
+    if (!value.length) return tr("(empty)");
     if (value.every(isPrimitive)) return clip(value.map(String).join(", "));
-    return tr("{length}件", { length: value.length });
+    return tr("{length} items", { length: value.length });
   }
   if (typeof value === "object") {
     return clip(
       Object.entries(value)
         .filter(([, v]) => isPrimitive(v))
         .map(([k, v]) => `${k}: ${v ?? ""}`)
-        .join(" / ") || tr("{length}項目", { length: Object.keys(value).length })
+        .join(" / ") || tr("{length} fields", { length: Object.keys(value).length })
     );
   }
   return clip(String(value));
@@ -75,7 +75,7 @@ export function DataTable({
         <table className="data-table">
           <thead>
             <tr>
-              <th aria-label={tr("番号")} />
+              <th aria-label={tr("#")} />
               {fields.map((f) => (
                 <th key={f}>{f}</th>
               ))}
@@ -104,23 +104,23 @@ export function DataTable({
       </div>
       {items.length > shown.length && (
         <div className="data-more">
-          <span>{tr("{n}件中 {m}件を表示", { n: items.length, m: shown.length })}</span>
+          <span>{tr("Showing {m} of {n}", { n: items.length, m: shown.length })}</span>
           <button type="button" className="btn btn-sm" onClick={() => setLimit((l) => l + 100)}>
-            {tr("さらに100件")}
+            {tr("100 more")}
           </button>
           <button type="button" className="btn btn-sm" onClick={() => setLimit(items.length)}>
-            {tr("すべて表示")}
+            {tr("Show all")}
           </button>
         </div>
       )}
       {open !== null && shown[open] ? (
         <div className="data-detail">
-          <div className="data-detail-head">{tr("{n}件目の中身", { n: open + 1 })}</div>
+          <div className="data-detail-head">{tr("Contents of item {n}", { n: open + 1 })}</div>
           <JsonTree value={shown[open]} path={basePath ? `${basePath}.${open}` : String(open)} />
         </div>
       ) : (
         <p className="hint" style={{ margin: 0 }}>
-          {tr("行をクリックすると、リストの中身まで確認できます。")}
+          {tr("Click a row to inspect the contents of lists.")}
         </p>
       )}
     </div>
@@ -134,14 +134,14 @@ const isRecordList = (v: unknown): v is Record<string, unknown>[] =>
 
 /** 中身の種類と数（「一覧 20件」「6項目」） */
 function containerMeta(value: unknown): string {
-  return tr("リスト・{length}項目", { length: Object.keys(value as object).length });
+  return tr("List · {length} items", "list_length_items_variant_1", { length: Object.keys(value as object).length });
 }
 
 /** 文字・数値などの値 */
 function LeafValue({ value }: { value: unknown }) {
-  if (value == null || value === "") return <span className="jt-empty">{tr("（空）")}</span>;
+  if (value == null || value === "") return <span className="jt-empty">{tr("(empty)")}</span>;
   if (typeof value === "number") return <span className="jt-num">{value}</span>;
-  if (typeof value === "boolean") return <span className="jt-num">{value ? tr("はい") : tr("いいえ")}</span>;
+  if (typeof value === "boolean") return <span className="jt-num">{value ? tr("Yes") : tr("No")}</span>;
   if (Array.isArray(value)) {
     // 文字や数値の一覧
     if (value.every(looksLikeImage)) return <Thumbs urls={value.map(String)} />;
@@ -152,7 +152,7 @@ function LeafValue({ value }: { value: unknown }) {
             {String(v)}
           </span>
         ))}
-        {value.length > 12 && <span className="jt-empty">{tr("ほか{n}件", { n: value.length - 12 })}</span>}
+        {value.length > 12 && <span className="jt-empty">{tr("and {n} more", { n: value.length - 12 })}</span>}
       </span>
     );
   }
@@ -183,7 +183,7 @@ function JsonNode({
     !(Array.isArray(value) && value.every(isPrimitive));
   const [open, setOpen] = useState(depth === 0);
   const [asTable, setAsTable] = useState(true);
-  const where = tr("取得したデータの {p1}", { p1: fieldLabel(path) });
+  const where = tr("{p1} in the fetched data", { p1: fieldLabel(path) });
 
   if (!nested) {
     return (
@@ -217,20 +217,20 @@ function JsonNode({
       {open && (
         <div className="jt-children">
           {list && (
-            <div className="jt-switch" role="group" aria-label={tr("表示の切り替え")}>
+            <div className="jt-switch" role="group" aria-label={tr("Switch view")}>
               <button
                 type="button"
                 className={asTable ? "is-on" : ""}
                 onClick={() => setAsTable(true)}
               >
-                {tr("表")}
+                {tr("Table")}
               </button>
               <button
                 type="button"
                 className={asTable ? "" : "is-on"}
                 onClick={() => setAsTable(false)}
               >
-                {tr("ツリー")}
+                {tr("Tree")}
               </button>
             </div>
           )}
@@ -254,9 +254,9 @@ function JsonEntries({ value, path, depth }: { value: unknown; path: string; dep
   const [limit, setLimit] = useState(100);
   const total = Array.isArray(value) ? value.length : 0;
   const entries = Array.isArray(value)
-    ? value.slice(0, limit).map((v, i) => [String(i), tr("{p1}番目", { p1: i + 1 }), v] as const)
+    ? value.slice(0, limit).map((v, i) => [String(i), tr("#{p1}", { p1: i + 1 }), v] as const)
     : Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, k, v] as const);
-  if (!entries.length) return <span className="jt-empty">{tr("（空）")}</span>;
+  if (!entries.length) return <span className="jt-empty">{tr("(empty)")}</span>;
   return (
     <>
       {entries.map(([key, label, v]) => (
@@ -270,12 +270,12 @@ function JsonEntries({ value, path, depth }: { value: unknown; path: string; dep
       ))}
       {total > entries.length && (
         <div className="data-more">
-          <span>{tr("{n}件中 {m}件を表示", { n: total, m: entries.length })}</span>
+          <span>{tr("Showing {m} of {n}", { n: total, m: entries.length })}</span>
           <button type="button" className="btn btn-sm" onClick={() => setLimit((l) => l + 100)}>
-            {tr("さらに100件")}
+            {tr("100 more")}
           </button>
           <button type="button" className="btn btn-sm" onClick={() => setLimit(total)}>
-            {tr("すべて表示")}
+            {tr("Show all")}
           </button>
         </div>
       )}
@@ -301,7 +301,7 @@ export function JsonPeek({ value }: { value: unknown }) {
   if (isRecordList(value)) {
     return (
       <div className="jt">
-        <JsonNode name={tr("取得したデータ")} value={value} path="" depth={0} />
+        <JsonNode name={tr("Fetched data")} value={value} path="" depth={0} />
       </div>
     );
   }

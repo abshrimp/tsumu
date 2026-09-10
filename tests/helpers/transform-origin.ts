@@ -31,10 +31,14 @@ export async function transformOriginBundle() {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
-import RightPanel from "./components/RightPanel";
+
+
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
+  const { default: RightPanel } = await import("./components/RightPanel");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(transformOriginDoc())});
 useEditor.getState().setActivePage("p");
@@ -45,6 +49,8 @@ window.originEditor = useEditor;
 createRoot(document.getElementById("app")).render(<React.StrictMode>
   <div style={{display: "flex", height: "100vh"}}><Canvas /><RightPanel /></div>
 </React.StrictMode>);
+
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "transform-origin-browser.tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

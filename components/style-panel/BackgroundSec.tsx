@@ -89,7 +89,7 @@ export function BackgroundSec() {
 
   return (
     <Sec
-      title={tr("背景")}
+      title={tr("Background")}
       defaultOpen={mode !== "none"}
       tutorialTarget="style-background"
       help="look-color"
@@ -107,10 +107,10 @@ export function BackgroundSec() {
       <Seg
         value={mode}
         options={[
-          { label: tr("なし"), value: "none" },
-          { label: tr("色"), value: "color" },
-          { label: tr("グラデーション"), value: "gradient" },
-          { label: tr("画像"), value: "image" },
+          { label: tr("None"), value: "none" },
+          { label: tr("Color"), value: "color" },
+          { label: tr("Gradient"), value: "gradient" },
+          { label: tr("Image"), value: "image" },
         ]}
         onChange={(v) => {
           // 小さい画面では、消すと大きい画面の背景が出てくるため初期値で打ち消す
@@ -142,7 +142,7 @@ export function BackgroundSec() {
       {mode === "gradient" && (
         <>
           <div className="grid2">
-            <Grp label={tr("角度")} setHere={gradChanged("angle")}>
+            <Grp label={tr("Angle")} setHere={gradChanged("angle")}>
               <NumField
                 value={`${angle}deg`}
                 units={["deg"]}
@@ -153,7 +153,7 @@ export function BackgroundSec() {
               />
             </Grp>
           </div>
-          <Grp label={tr("開始色")} setHere={gradChanged("c1")}>
+          <Grp label={tr("Start color")} setHere={gradChanged("c1")}>
             <FillControl
               value={c1}
               allowClear={false}
@@ -164,7 +164,7 @@ export function BackgroundSec() {
               }
             />
           </Grp>
-          <Grp label={tr("終了色")} setHere={gradChanged("c2")}>
+          <Grp label={tr("End color")} setHere={gradChanged("c2")}>
             <FillControl
               value={c2}
               allowClear={false}
@@ -181,7 +181,7 @@ export function BackgroundSec() {
       {mode === "image" && (
         <>
           <Grp
-            label={tr("画像")}
+            label={tr("Image")}
             // 上位が画像でなければ、「画像」を選んだときに入る仮の画像と比べる
             setHere={
               imageInfo.setHere &&
@@ -212,25 +212,25 @@ export function BackgroundSec() {
             />
           </Grp>
           <div className="grid2">
-            <Grp label={tr("サイズ")} setHere={differsFrom(insp.get("backgroundSize"), "cover")} onReset={() => insp.set({ backgroundSize: null })}>
+            <Grp label={tr("Size")} setHere={differsFrom(insp.get("backgroundSize"), "cover")} onReset={() => insp.set({ backgroundSize: null })}>
               <PropSelect
                 prop="backgroundSize"
-                unsetLabel={tr("自動")}
+                unsetLabel={tr("automatic")}
                 options={[
-                  { label: tr("カバー"), value: "cover" },
-                  { label: tr("全体を表示"), value: "contain" },
-                  { label: tr("幅に合わせる"), value: "100% auto" },
+                  { label: tr("Cover"), value: "cover" },
+                  { label: tr("Show all", "show_all_variant_1"), value: "contain" },
+                  { label: tr("Fit width"), value: "100% auto" },
                 ]}
               />
             </Grp>
-            <Grp label={tr("位置")} setHere={differsFrom(insp.get("backgroundPosition"), "center")} onReset={() => insp.set({ backgroundPosition: null })}>
+            <Grp label={tr("Position")} setHere={differsFrom(insp.get("backgroundPosition"), "center")} onReset={() => insp.set({ backgroundPosition: null })}>
               <PropSelect
                 prop="backgroundPosition"
-                unsetLabel={tr("左上")}
+                unsetLabel={tr("Top left")}
                 options={[
-                  { label: tr("中央"), value: "center" },
-                  { label: tr("上"), value: "top" },
-                  { label: tr("下"), value: "bottom" },
+                  { label: tr("Center"), value: "center" },
+                  { label: tr("Top"), value: "top" },
+                  { label: tr("Bottom"), value: "bottom" },
                 ]}
               />
             </Grp>
@@ -238,13 +238,13 @@ export function BackgroundSec() {
           <div className="grid2">
             <StyleCheck
               prop="backgroundRepeat"
-              label={tr("くり返す")}
+              label={tr("Repeat")}
               on="repeat"
               off="no-repeat"
               // background-repeat は消すと CSS の初期値の「繰り返す」になる
               baseOff="no-repeat"
             />
-            <StyleCheck prop="backgroundAttachment" label={tr("固定")} on="fixed" off="scroll" />
+            <StyleCheck prop="backgroundAttachment" label={tr("Fixed")} on="fixed" off="scroll" />
           </div>
         </>
       )}
@@ -307,14 +307,14 @@ export function StyleCheck({
 
 /** 線種の選択肢（アイコンは実際のborder-styleで描画したプレビュー） */
 const BORDER_STYLE_OPTIONS = [
-  { value: "solid", label: tr("実線") },
-  { value: "dashed", label: tr("破線") },
-  { value: "dotted", label: tr("点線") },
-  { value: "double", label: tr("二重線") },
-  { value: "groove", label: tr("溝（立体）") },
-  { value: "ridge", label: tr("畝（立体）") },
-  { value: "inset", label: tr("くぼみ（立体）") },
-  { value: "outset", label: tr("浮き出し（立体）") },
+  { value: "solid", label: tr("Solid") },
+  { value: "dashed", label: tr("Dashed") },
+  { value: "dotted", label: tr("Dotted") },
+  { value: "double", label: tr("Double") },
+  { value: "groove", label: tr("Groove") },
+  { value: "ridge", label: tr("Ridge") },
+  { value: "inset", label: tr("Inset") },
+  { value: "outset", label: tr("Outset") },
 ].map((o) => ({
   ...o,
   icon: (
@@ -333,10 +333,10 @@ export function BorderSec() {
   const insp = useInspector();
   const width = insp.get("borderWidth");
   return (
-    <Sec title={tr("線")} defaultOpen={width.set} tutorialTarget="style-border" help="look-border">
+    <Sec title={tr("Border")} defaultOpen={width.set} tutorialTarget="style-border" help="look-border">
       <div className="grid2">
         <Grp
-          label={tr("太さ")}
+          label={tr("Weight")}
           setHere={width.changed}
           onReset={() =>
             insp.set({
@@ -368,7 +368,7 @@ export function BorderSec() {
             }}
           />
         </Grp>
-        <Grp label={tr("スタイル")} setHere={differsFrom(insp.get("borderStyle"), "solid")} onReset={() => insp.set({ borderStyle: null })}>
+        <Grp label={tr("Style")} setHere={differsFrom(insp.get("borderStyle"), "solid")} onReset={() => insp.set({ borderStyle: null })}>
           <Dropdown
             value={insp.get("borderStyle").value ?? "solid"}
             options={BORDER_STYLE_OPTIONS}
@@ -376,7 +376,7 @@ export function BorderSec() {
           />
         </Grp>
       </div>
-      <PropFill label={tr("色")} prop="borderColor" dflt="#e4e4e7" />
+      <PropFill label={tr("Color")} prop="borderColor" dflt="#e4e4e7" />
     </Sec>
   );
 }

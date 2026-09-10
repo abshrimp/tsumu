@@ -31,10 +31,14 @@ export async function aiChatBundle() {
       contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import AiChat, { useAi } from "./components/AiChat";
-import { NumField } from "./components/controls";
+
+
 import { useEditor } from "./lib/store";
 import { makeText } from "./lib/presets";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: AiChat, useAi } = await import("./components/AiChat");
+  const { NumField } = await import("./components/controls");
 const doc = ${JSON.stringify(aiChatDoc())};
 useEditor.getState().replaceDoc(doc);
 useEditor.getState().setActivePage("p");
@@ -51,6 +55,8 @@ function Fixture() {
     onChange={(value) => useEditor.getState().setStyleProps("b", { fontSize: value })} /></>;
 }
 createRoot(document.getElementById("app")).render(<Fixture />);
+
+});
 `, loader: "tsx", resolveDir: resolve("."),
     },
     bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",

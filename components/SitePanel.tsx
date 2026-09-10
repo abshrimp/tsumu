@@ -62,7 +62,7 @@ const blurOnEnter = (e: React.KeyboardEvent) => {
 };
 
 function makeLoadingPage(): { page: Page; nodes: DocNode[] } {
-  const root = makeBox(tr("ローディング画面"), {
+  const root = makeBox(tr("Loading screen"), {
     width: "100%",
     minHeight: "100vh",
     padding: "40px",
@@ -74,20 +74,20 @@ function makeLoadingPage(): { page: Page; nodes: DocNode[] } {
   });
   const nodes: DocNode[] = [root];
   const children: string[] = [];
-  const text = makeText(tr("読み込み中…"), {
+  const text = makeText(tr("Loading…"), {
     color: "#18181b",
     textAlign: "center",
   });
-  text.name = tr("ローディングテキスト");
+  text.name = tr("Loading text");
   nodes.push(text);
   children.push(text.id);
   root.children = children;
   return {
     page: {
       id: genId("page"),
-      name: tr("ローディング画面"),
+      name: tr("Loading screen"),
       slug: "__loading-screen",
-      title: tr("ローディング画面"),
+      title: tr("Loading screen"),
       description: "",
       children: [root.id],
     },
@@ -159,8 +159,8 @@ export function LoadingScreenSettings({
             });
           }}
         />
-        {tr("ローディング画面を表示する")}
-        <InfoTip text={tr("見た目は、通常のページと同じようにキャンバスで要素を追加・編集できます。")} />
+        {tr("Show a loading screen")}
+        <InfoTip text={tr("Design it on the canvas, just like a regular page.")} />
       </label>
       {setting?.enabled && (
         <>
@@ -174,12 +174,12 @@ export function LoadingScreenSettings({
                 select(null);
               }}
             >
-              {tr("ローディング画面を編集")}
+              {tr("Edit loading screen")}
             </button>
           )}
           <div className="grid2">
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl" htmlFor={`${inputBaseId}-min`}>{tr("最短の表示時間（ms）")}</label>
+              <label className="lbl" htmlFor={`${inputBaseId}-min`}>{tr("Minimum display time (ms)")}</label>
               <input
                 key={`loading-min-${setting.minDuration ?? 500}`}
                 id={`${inputBaseId}-min`}
@@ -199,7 +199,7 @@ export function LoadingScreenSettings({
               />
             </div>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl" htmlFor={`${inputBaseId}-fade`}>{tr("フェード（ms）")}</label>
+              <label className="lbl" htmlFor={`${inputBaseId}-fade`}>{tr("Fade (ms)")}</label>
               <input
                 key={`loading-fade-${setting.fadeDuration ?? 300}`}
                 id={`${inputBaseId}-fade`}
@@ -235,7 +235,7 @@ export function LoadingScreenSettings({
                 })
               }
             />
-            {tr("同じタブでは初回だけ表示する")}
+            {tr("Show only once per tab")}
           </label>
         </>
       )}
@@ -251,20 +251,20 @@ const PWA_DISPLAY_MODES: {
 }[] = [
   {
     value: "standalone",
-    label: tr("スタンドアロン"),
-    desc: tr("アドレスバーのない、アプリと同じ見た目で開きます。"),
+    label: tr("Standalone"),
+    desc: tr("Opens like an app, without the address bar."),
     icon: AppWindow,
   },
   {
     value: "minimal-ui",
-    label: tr("最小UI"),
-    desc: tr("戻る・再読み込みなど、最小限の操作だけを残して開きます。"),
+    label: tr("Minimal UI"),
+    desc: tr("Opens with only minimal controls like back and reload."),
     icon: PanelTop,
   },
   {
     value: "fullscreen",
-    label: tr("全画面"),
-    desc: tr("ステータスバーも隠して画面全体に表示します。ゲームや展示向けです。"),
+    label: tr("Full screen"),
+    desc: tr("Hides the status bar too and fills the whole screen. Good for games and kiosks."),
     icon: Maximize,
   },
 ];
@@ -307,8 +307,8 @@ function PwaSettings() {
           checked={!!pwa?.enabled}
           onChange={(e) => set({ enabled: e.target.checked })}
         />
-        {tr("PWAとして公開する")}
-        <InfoTip text={tr("スマートフォンやパソコンで「ホーム画面に追加」「アプリをインストール」したとき、ブラウザの枠なしでアプリのように開けます。")} />
+        {tr("Publish as a PWA")}
+        <InfoTip text={tr("When added to the home screen or installed as an app, the site opens like an app without the browser frame.")} />
       </label>
       {pwa?.enabled && (
         <>
@@ -345,7 +345,7 @@ function PwaSettings() {
 
           <div className="grid2" style={{ alignItems: "start" }}>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl" htmlFor={`${inputBaseId}-name`}>{tr("アプリ名")}</label>
+              <label className="lbl" htmlFor={`${inputBaseId}-name`}>{tr("App name")}</label>
               <input
                 key={`pwa-name-${pwa.name ?? ""}`}
                 id={`${inputBaseId}-name`}
@@ -358,8 +358,8 @@ function PwaSettings() {
             </div>
             <div className="stack" style={{ gap: 4 }}>
               <label className="lbl lbl-info" htmlFor={`${inputBaseId}-short`}>
-                {tr("短い名前")}
-                <InfoTip text={tr("ホーム画面のアイコンの下に出る名前です。12文字程度までにします。")} />
+                {tr("Short name")}
+                <InfoTip text={tr("The name shown under the home screen icon. Keep it to about 12 characters.")} />
               </label>
               <input
                 key={`pwa-short-${pwa.shortName ?? ""}`}
@@ -377,14 +377,14 @@ function PwaSettings() {
 
           <div className="stack" style={{ gap: 4 }}>
             <span className="lbl lbl-info">
-              {tr("アイコン")}
-              <InfoTip text={tr("512×512pxの正方形のPNGがおすすめです。未設定のときはホーム画面アイコンを、それもなければファビコンを使います。")} />
+              {tr("Icon")}
+              <InfoTip text={tr("A 512×512px square PNG is recommended. Falls back to the home screen icon, then the favicon.")} />
             </span>
             <ImagePicker value={pwa.icon} onChange={(v) => set({ icon: v })} />
           </div>
 
           <div className="stack" style={{ gap: 4 }}>
-            <span className="lbl">{tr("表示モード")}</span>
+            <span className="lbl">{tr("Display mode")}</span>
             <Seg
               value={mode.value}
               options={PWA_DISPLAY_MODES.map((m) => ({
@@ -405,8 +405,8 @@ function PwaSettings() {
           <div className="grid2" style={{ alignItems: "start" }}>
             <div className="stack" style={{ gap: 4 }}>
               <span className="lbl lbl-info">
-                {tr("テーマ色")}
-                <InfoTip text={tr("アプリとして開いたときの、タイトルバーやステータスバーの色です。")} />
+                {tr("Theme color")}
+                <InfoTip text={tr("The title bar and status bar color when opened as an app.")} />
               </span>
               <FillControl
                 value={pwa.themeColor}
@@ -415,8 +415,8 @@ function PwaSettings() {
             </div>
             <div className="stack" style={{ gap: 4 }}>
               <span className="lbl lbl-info">
-                {tr("背景色")}
-                <InfoTip text={tr("起動してからページが表示されるまでの画面の色です。アイコンの余白にも使われます。")} />
+                {tr("Background color")}
+                <InfoTip text={tr("The screen color shown while the app starts. Also used around the icon.")} />
               </span>
               <FillControl
                 value={pwa.backgroundColor}
@@ -444,8 +444,8 @@ function BreakpointSettings() {
     if (
       used &&
       !(await showConfirm(
-        tr("{used}個の要素に設定した「{label}」用のスタイル・表示設定も削除されます（「元に戻す」で戻せます）。", { used, label }),
-        { title: tr("「{label}」を削除しますか？", { label }), okLabel: tr("削除"), danger: true }
+        tr("Styles and visibility settings for \"{label}\" on {used} elements will also be deleted (you can undo this).", { used, label }),
+        { title: tr("Delete \"{label}\"?", { label }), okLabel: tr("Delete"), danger: true }
       ))
     ) {
       request.finish();
@@ -462,11 +462,11 @@ function BreakpointSettings() {
     if (
       used &&
       !(await showConfirm(
-        tr("追加した{names}用のスタイル（{used}個の要素）が削除されます。", {
-          names: added.map((b) => tr("「{name}」", { name: tr(b.label) })).join(tr("・")),
+        tr("Styles for the added {names} ({used} elements) will be deleted.", {
+          names: added.map((b) => tr("\"{name}\"", { name: tr(b.label) })).join(tr(", ")),
           used,
         }),
-        { title: tr("ブレークポイントを既定に戻しますか？"), okLabel: tr("既定に戻す"), danger: true }
+        { title: tr("Reset breakpoints to the defaults?"), okLabel: tr("Reset to defaults"), danger: true }
       ))
     ) {
       request.finish();
@@ -479,22 +479,22 @@ function BreakpointSettings() {
   return (
     <div data-section="breakpoints">
       <Sec
-        title={tr("ブレークポイント")}
+        title={tr("Breakpoints")}
         tutorialTarget="site-breakpoints"
         help="resp-breakpoints"
         info={
-          tr("画面幅ごとにスタイルを変えるための区切りです。それぞれのスタイルは、その幅以下の画面に効きます（小さい幅のほうが優先）。\n「パソコン」はキャンバスで表示するときの幅です。名前の変更や、追加・削除もできます。")
+          tr("Breakpoints let you change styles by screen width. Each one applies to screens at or below its width (smaller ones take priority).\n\"Desktop\" is the width shown on the canvas. You can rename, add and remove breakpoints.")
         }
       >
         <div className="bp-edit">
           <div className="bp-edit-row">
             <span className="bp-edit-name">
               <BpIcon bp="base" />
-              <span className="bp-edit-fixed">{tr("パソコン")}</span>
+              <span className="bp-edit-fixed">{tr("Desktop")}</span>
             </span>
-            <div className="bp-edit-field" data-tip={tr("キャンバスで表示する幅")}>
+            <div className="bp-edit-field" data-tip={tr("Width shown on the canvas")}>
               <NumField
-                pre={tr("幅")}
+                pre={tr("Width")}
                 value={`${baseWidth}px`}
                 units={["px"]}
                 min={320}
@@ -515,7 +515,7 @@ function BreakpointSettings() {
                   id={`site-breakpoint-${b.id}`}
                   className="bp-edit-label"
                   defaultValue={tr(b.label)}
-                  aria-label={tr("ブレークポイントの名前")}
+                  aria-label={tr("Breakpoint name")}
                   onBlur={(e) => {
                     // 既定の名前は日本語で保存し、表示するときに訳す（訳のまま変えていなければ保存しない）
                     const label = e.target.value.trim();
@@ -527,7 +527,7 @@ function BreakpointSettings() {
                   }}
                 />
               </span>
-              <div className="bp-edit-field" data-tip={tr("{maxWidth}px以下の画面に効きます", { maxWidth: b.maxWidth })}>
+              <div className="bp-edit-field" data-tip={tr("Applies to screens up to {maxWidth}px wide", { maxWidth: b.maxWidth })}>
                 <NumField
                   pre="≦"
                   value={`${b.maxWidth}px`}
@@ -543,8 +543,8 @@ function BreakpointSettings() {
               <button
                 type="button"
                 className="icon-btn sm"
-                aria-label={tr("{label}を削除", { label: tr(b.label) })}
-                data-tip={tr("{label}を削除", { label: tr(b.label) })}
+                aria-label={tr("Delete {label}", { label: tr(b.label) })}
+                data-tip={tr("Delete {label}", { label: tr(b.label) })}
                 onClick={() => remove(b.id, tr(b.label))}
               >
                 <X size={12} />
@@ -556,16 +556,16 @@ function BreakpointSettings() {
           <button
             className="btn btn-sm"
             disabled={list.length >= MAX_BREAKPOINTS}
-            data-tip={list.length >= MAX_BREAKPOINTS ? tr("{MAX_BREAKPOINTS}個まで追加できます", { MAX_BREAKPOINTS }) : undefined}
+            data-tip={list.length >= MAX_BREAKPOINTS ? tr("You can add up to {MAX_BREAKPOINTS}", { MAX_BREAKPOINTS }) : undefined}
             onClick={() => updateDoc((d) => void addBreakpoint(d))}
           >
             <Plus size={12} />
-            {tr("追加")}
+            {tr("Add")}
           </button>
           {!isDefaultBreakpoints(doc) && (
             <button className="btn btn-sm" onClick={reset}>
               <RotateCcw size={12} />
-              {tr("既定に戻す")}
+              {tr("Reset to defaults")}
             </button>
           )}
         </div>
@@ -586,7 +586,7 @@ export default function SitePanel() {
     try {
       serialized = await serializePortableDoc(doc, IMPORT_LIMITS.docBytes);
     } catch {
-      void showAlert(tr("バックアップファイルを作成できませんでした。"));
+      void showAlert(tr("Could not create the backup file."));
       return;
     }
     const blob = new Blob([serialized], {
@@ -610,26 +610,26 @@ export default function SitePanel() {
     } catch {
       if (!request.current()) return;
       request.finish();
-      void showAlert(tr("エディタで保存したバックアップファイルか確認してください。"), {
-        title: tr("このファイルは読み込めませんでした"),
+      void showAlert(tr("Make sure it's a backup file saved from this editor."), {
+        title: tr("Couldn't load this file"),
       });
       return;
     }
     if (!request.current()) return;
     if (await showConfirm(
-      tr("いまの編集内容は、このファイルの内容に置き換わります。「元に戻す」（⌘Z）で今の内容に戻せます。"),
-      { title: tr("バックアップを読み込みますか？"), okLabel: tr("読み込む") },
+      tr("Your current edits will be replaced with this file's content. Undo (⌘Z) brings back what you have now."),
+      { title: tr("Load the backup?"), okLabel: tr("Load") },
     ) && request.current()) restoreDoc(sanitizeImportedInlineIcons(parsed));
     request.finish();
   };
 
   return (
     <div className="panel-body" data-tutorial="site-settings">
-      <Sec title={tr("サイト設定")} tutorialTarget="site-basics" help="pub-site">
+      <Sec title={tr("Site settings")} tutorialTarget="site-basics" help="pub-site">
         <div className="row">
           <label className="lbl-info" htmlFor={`site-name`}>
-            {tr("サイト名")}
-            <InfoTip text={tr("ブラウザのタブの名前が「ページ名 | サイト名」の形になります。")} />
+            {tr("Site name")}
+            <InfoTip text={tr("Browser tabs show \"Page name | Site name\".")} />
           </label>
           <input
             key={doc.siteName}
@@ -646,8 +646,8 @@ export default function SitePanel() {
         </div>
         <div className="row">
           <label className="lbl-info" htmlFor={`site-url`}>
-            {tr("サイトURL")}
-            <InfoTip text={tr("公開したサイトのアドレスです（例: https://example.com）。シェア用画像のURLなどに使います。")} />
+            {tr("Site URL")}
+            <InfoTip text={tr("Your published site's address (e.g. https://example.com). Used for things like share image URLs.")} />
           </label>
           <input
             key={doc.siteUrl ?? "_"}
@@ -665,8 +665,8 @@ export default function SitePanel() {
         </div>
         <div className="row">
           <label className="lbl-info" htmlFor={`site-language`}>
-            {tr("言語")}
-            <InfoTip text={tr("ページの文章の言語です。ブラウザの読み上げ・翻訳や検索エンジンが、この言語として扱います。")} />
+            {tr("Language")}
+            <InfoTip text={tr("The language your pages are written in. Screen readers, browser translation and search engines treat the text as this language.")} />
           </label>
           <SiteLanguageSelect
             id="site-language"
@@ -676,8 +676,8 @@ export default function SitePanel() {
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <span className="lbl lbl-info">
-            {tr("ファビコン（タブのアイコン）")}
-            <InfoTip text={tr("正方形のPNG・SVG・ICOがおすすめです。")} />
+            {tr("Favicon (tab icon)")}
+            <InfoTip text={tr("A square PNG, SVG or ICO is recommended.")} />
           </span>
           <ImagePicker
             value={doc.favicon}
@@ -686,8 +686,8 @@ export default function SitePanel() {
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <span className="lbl lbl-info">
-            {tr("ホーム画面アイコン")}
-            <InfoTip text={tr("iPhone・iPadで「ホーム画面に追加」したときのアイコンです（apple-touch-icon）。180×180pxのPNGがおすすめです。")} />
+            {tr("Home screen icon")}
+            <InfoTip text={tr("The icon used when added to the home screen on iPhone or iPad (apple-touch-icon). A 180×180px PNG is recommended.")} />
           </span>
           <ImagePicker
             value={doc.appleTouchIcon}
@@ -696,8 +696,8 @@ export default function SitePanel() {
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <span className="lbl lbl-info">
-            {tr("デフォルトのシェア用画像（OGP）")}
-            <InfoTip text={tr("ページで設定していないときに使われます。1200×630pxがおすすめです。")} />
+            {tr("Default share image (OGP)")}
+            <InfoTip text={tr("Used when a page doesn't set its own. 1200×630px is recommended.")} />
           </span>
           <ImagePicker
             value={doc.ogImage}
@@ -725,21 +725,21 @@ export default function SitePanel() {
       </Sec>
 
       <Sec
-        title={tr("ホスティングとデータの更新")}
+        title={tr("Hosting & data refresh")}
         defaultOpen={false}
         tutorialTarget="site-hosting"
         help="pub-hosting"
-        info={tr("書き出したサイトを動かすサービスと、外部のJSONを使うページを取得し直す間隔です。")}
+        info={tr("The service that runs the exported site, and how often pages that use external JSON fetch it again.")}
       >
         <div className="stack" style={{ gap: 4 }}>
           <span className="lbl lbl-info">
-            {tr("公開先のホスティング")}
-            <InfoTip text={tr("書き出すサイトを動かすサービスです。外部のJSONを使うページの作り方が変わります。\n標準: Vercel・Netlify・Node.js など。ページを作り置き、更新間隔ごとに作り直します（ISR）。\nCloudflare Workers: ページはアクセスのたびに描画し、取得したJSONを更新間隔のあいだCloudflareのキャッシュに置きます。")} />
+            {tr("Hosting")}
+            <InfoTip text={tr("The service that runs the exported site. It changes how pages that use external JSON are built.\nStandard: Vercel, Netlify, Node.js, etc. Pages are prebuilt and rebuilt at the refresh interval (ISR).\nCloudflare Workers: pages are rendered on every request, and fetched JSON is cached at Cloudflare for the refresh interval.")} />
           </span>
           <Seg
             value={doc.hosting ?? "standard"}
             options={[
-              { value: "standard", label: tr("標準（Vercel など）") },
+              { value: "standard", label: tr("Standard (Vercel etc.)") },
               { value: "cloudflare", label: "Cloudflare", title: "Cloudflare Workers" },
             ]}
             onChange={(v) =>
@@ -749,8 +749,8 @@ export default function SitePanel() {
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info" htmlFor={`site-data-revalidate`}>
-            {tr("データの更新間隔（秒）")}
-            <InfoTip text={tr("外部のJSONを使うページを取得し直す間隔です。その間は作っておいたページ（Cloudflareでは取得済みのJSON）を使うので、サーバーの負荷を抑えられます。0にするとアクセスのたびに取得します（常に最新ですが、負荷は大きくなります）。")} />
+            {tr("Data refresh interval (seconds)")}
+            <InfoTip text={tr("How often pages that use external JSON fetch it again. In between, the prebuilt page (on Cloudflare, the fetched JSON) is reused to keep server load down. Set 0 to fetch on every request (always fresh, but heavier).")} />
           </label>
           <input
             key={doc.dataRevalidate ?? "_"}
@@ -772,15 +772,15 @@ export default function SitePanel() {
       </Sec>
 
       <Sec
-        title={tr("カスタムコード（全ページ共通）")}
+        title={tr("Custom code (all pages)")}
         defaultOpen={false}
         tutorialTarget="site-code"
         help="page-code-snippet"
       >
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info" htmlFor={`site-head-code`}>
-            {tr("head内コード")}
-            <InfoTip text={tr("全ページの <head> に挿入されます。")} />
+            {tr("Head code")}
+            <InfoTip text={tr("Inserted into <head> on every page.")} />
           </label>
           <CommitTextarea
             id="site-head-code"
@@ -794,8 +794,8 @@ export default function SitePanel() {
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info" htmlFor={`site-body-code`}>
-            {tr("body末尾コード")}
-            <InfoTip text={tr("全ページの </body> 直前に挿入されます。")} />
+            {tr("End of body code")}
+            <InfoTip text={tr("Inserted just before </body> on every page.")} />
           </label>
           <CommitTextarea
             id="site-body-code"
@@ -812,36 +812,36 @@ export default function SitePanel() {
       <BreakpointSettings />
 
       <Sec
-        title={tr("バックアップ")}
+        title={tr("Backup")}
         tutorialTarget="site-backup"
         help="pub-backup"
-        info={tr("サイト全体の編集データをバックアップファイルとして保存・復元します。公開時にリポジトリへ保存される _tsumu/doc.json も読み込めます。")}
+        info={tr("Save or restore the whole site's data as a backup file. You can also load the _tsumu/doc.json saved to the repository when publishing.")}
         defaultOpen={false}
       >
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button
             className="btn btn-sm"
-            data-tip={tr("サーバーの自動バックアップや、公開した版の編集内容に戻します")}
+            data-tip={tr("Restore from the server's automatic backups or from a published version")}
             onClick={() => window.dispatchEvent(new CustomEvent("tsumu-open-history", { detail: "doc" }))}
           >
             <History size={12} />
-            {tr("履歴から戻す")}
+            {tr("Restore from history")}
           </button>
           <button className="btn btn-sm" onClick={exportDocJson}>
             <FileDown size={12} />
-            {tr("書き出す")}
+            {tr("Export")}
           </button>
           <button
             className="btn btn-sm"
             onClick={() => docFileRef.current?.click()}
           >
             <FileUp size={12} />
-            {tr("読み込む")}
+            {tr("Load")}
           </button>
           <input
             ref={docFileRef}
             id="site-backup-import"
-            aria-label={tr("読み込む")}
+            aria-label={tr("Load")}
             type="file"
             accept=".json,application/json"
             style={{ display: "none" }}

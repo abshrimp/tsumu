@@ -6,8 +6,11 @@ export async function imagePickerBundle() {
     stdin: { contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import ImagePicker, { AssetGrid } from "./components/ImagePicker";
+
 import { useEditor } from "./lib/store";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: ImagePicker, AssetGrid } = await import("./components/ImagePicker");
 const assets = Object.fromEntries(Array.from({length:5}, (_,i) => [String(i), {id:String(i), name:"photo"+i+".png", mimeType:"image/gif", dataUrl:"data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs="}]));
 useEditor.getState().updateDoc(d => { d.assets = assets; });
 function Fixture() {
@@ -22,6 +25,8 @@ function Fixture() {
  </>;
 }
 createRoot(document.getElementById("app")).render(<Fixture/>);
+
+});
 `, resolveDir: resolve("."), loader: "tsx" },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

@@ -45,7 +45,7 @@ import { tr } from "../lib/i18n";
 
 // lucide全アイコンを含むため遅延読み込み
 const IconPicker = dynamic(() => import("./IconPicker"), {
-  loading: () => <p className="hint">{tr("アイコン一覧を読み込み中…")}</p>,
+  loading: () => <p className="hint">{tr("Loading icons…")}</p>,
 });
 
 const SEMANTIC_ICONS: Record<Semantic, React.ReactNode> = {
@@ -64,20 +64,20 @@ const SEMANTIC_ICONS: Record<Semantic, React.ReactNode> = {
 };
 
 const INPUT_TYPE_OPTIONS: { value: InputType; label: string }[] = [
-  { value: "text", label: tr("text（テキスト）") },
-  { value: "email", label: tr("email（メールアドレス）") },
-  { value: "password", label: tr("password（パスワード）") },
-  { value: "number", label: tr("number（数値）") },
-  { value: "tel", label: tr("tel（電話番号）") },
-  { value: "url", label: tr("url（URL）") },
-  { value: "search", label: tr("search（検索）") },
-  { value: "date", label: tr("date（日付）") },
-  { value: "time", label: tr("time（時刻）") },
-  { value: "datetime-local", label: tr("datetime-local（日時）") },
-  { value: "month", label: tr("month（月）") },
-  { value: "week", label: tr("week（週）") },
-  { value: "color", label: tr("color（色）") },
-  { value: "range", label: tr("range（範囲）") },
+  { value: "text", label: tr("text", "text_variant_1") },
+  { value: "email", label: tr("email (email address)") },
+  { value: "password", label: tr("password") },
+  { value: "number", label: tr("number") },
+  { value: "tel", label: tr("tel (phone number)") },
+  { value: "url", label: tr("url") },
+  { value: "search", label: tr("search") },
+  { value: "date", label: tr("date") },
+  { value: "time", label: tr("time") },
+  { value: "datetime-local", label: tr("datetime-local (date and time)") },
+  { value: "month", label: tr("month") },
+  { value: "week", label: tr("week") },
+  { value: "color", label: tr("color", "color_variant_1") },
+  { value: "range", label: tr("range (slider)") },
 ];
 
 export default function SettingsPanel({ nodeId }: { nodeId: string }) {
@@ -139,7 +139,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       <div className="sec">
         <div className="sec-body" style={{ marginTop: 0 }}>
           <div className="row" data-tutorial="settings-name">
-            <label htmlFor={`settings-${nodeId}-name`}>{tr("名前")}</label>
+            <label htmlFor={`settings-${nodeId}-name`}>{tr("Name")}</label>
             <CommitInput
               key={`${nodeId}-name`}
               id={`settings-${nodeId}-name`}
@@ -153,12 +153,12 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           </div>
           <div className="row" data-tutorial="settings-id">
             <label className="lbl-info" htmlFor={`settings-${nodeId}-id`}>
-              {tr("ID属性")}
+              {tr("ID attribute")}
               <InfoTip
                 text={
                   node.attrId && node.type !== "field" && !!nodeTextTemplate(doc, node)
-                    ? tr("この要素の値は {{attrId}} として、データの取得先URLやリンクに差し込めます。", { attrId: node.attrId })
-                    : tr("ページ内リンクのアンカーや、{変数} として値を差し込むときの名前になります。")
+                    ? tr("This element's value can be inserted into data URLs and links as {{attrId}}.", { attrId: node.attrId })
+                    : tr("Used as the anchor for in-page links, and as the name when inserting the value as a {variable}.")
                 }
               />
             </label>
@@ -167,7 +167,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               id={`settings-${nodeId}-id`}
               className="input"
               value={node.attrId ?? ""}
-              placeholder={tr("アンカー・{変数} の名前")}
+              placeholder={tr("Anchor / {variable} name")}
               // {ID} の変数・スクリプトの対象として使える名前にそろえる（ラジオのグループ名と同じ規則。
               // 空白・引用符・「.」（中の項目をたどる記号）などを含むと、{ID} に値が入らない）
               onCommit={(v) => updateNode(nodeId, { attrId: cleanVarName(v.trim()) || undefined })}
@@ -178,7 +178,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           </div>
           {masterId && node.attrId && masterId !== node.attrId && (
             <p className="hint" style={{ margin: "-4px 0 0", color: "var(--warn)" }}>
-              {tr("マスターのID「{id}」が優先されます。この使用箇所のIDは公開されません。", { id: masterId })}
+              {tr("The master ID “{id}” takes priority. This instance’s ID will not be published.", { id: masterId })}
             </p>
           )}
           {node.attrId === "slug" && isSlugPg && (
@@ -186,7 +186,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               className="hint"
               style={{ margin: "-4px 0 0", color: "var(--warn)" }}
             >
-              {tr("ID「slug」は、このページの変数 {slug} と重なっています。別のIDにしてください。")}
+              {tr("The ID \"slug\" conflicts with this page's {slug} variable. Use a different ID.")}
             </p>
           )}
           {dupIdCount > 1 && (
@@ -194,7 +194,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               className="hint"
               style={{ margin: "-4px 0 0", color: "var(--warn)" }}
             >
-              {tr("ID「{id}」がこのページの{n}個の要素で重なっています。{変数}やアンカーが正しく動かないので、別々のIDにしてください。", {
+              {tr("The ID \"{id}\" is used by {n} elements on this page. Variables and anchors won't work correctly, so give each a unique ID.", {
                 id: node.attrId ?? "",
                 n: dupIdCount,
               })}
@@ -203,15 +203,15 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           <div className="settings-node-actions">
             <button className="btn btn-sm" onClick={() => duplicateNodes(targetIds)}>
               <Icon name="copy" size={12} />
-              {tr("複製")}
+              {tr("Duplicate")}
             </button>
             <button
               className={`btn btn-sm${node.locked ? " is-on" : ""}`}
               aria-pressed={!!node.locked}
               data-tip={
                 node.locked
-                  ? tr("ロックを解除して、キャンバス・レイヤーで動かしたり削除したりできるようにします")
-                  : tr("キャンバス・レイヤーでの移動・リサイズ・削除をできなくします（スタイルは変えられます）")
+                  ? tr("Unlock so the element can be moved and deleted on the canvas and in Layers again")
+                  : tr("Prevent moving, resizing and deleting on the canvas and in Layers (styles can still be changed)")
               }
               onClick={() => {
                 const lock = !node.locked;
@@ -222,36 +222,36 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               }}
             >
               <Icon name={node.locked ? "lock" : "unlock"} size={12} />
-              {node.locked ? tr("ロック中") : tr("ロック")}
+              {node.locked ? tr("Locked") : tr("Lock")}
             </button>
             <button
               className="btn btn-sm"
               style={{ color: "var(--danger)" }}
               disabled={!!node.locked}
-              data-tip={node.locked ? tr("ロック中は削除できません") : undefined}
+              data-tip={node.locked ? tr("Can't delete while locked") : undefined}
               onClick={() => deleteNodes(targetIds)}
             >
               <Icon name="trash" size={12} />
-              {tr("削除")}
+              {tr("Delete")}
             </button>
           </div>
           {node.type === "box" && !inComponent && (
             <div className="settings-node-actions" data-tutorial="settings-make">
               <button
                 className="btn btn-sm"
-                data-tip={tr("複数のページで使い回せる部品にします（マスターを編集すると、すべての使用箇所に反映されます）")}
+                data-tip={tr("Turn into a reusable part for multiple pages (edits to the main component apply everywhere)")}
                 onClick={() => createComponent(nodeId)}
               >
                 <Component size={12} />
-                {tr("コンポーネント化")}
+                {tr("Create component")}
               </button>
               <button
                 className="btn btn-sm"
-                data-tip={tr("このボックスをお手本にして、データの件数分くり返すリスト表示を作ります")}
+                data-tip={tr("Create a list display using this box as a template for each data item")}
                 onClick={() => createList(nodeId)}
               >
                 <Icon name="list" size={12} />
-                {tr("リスト表示にする")}
+                {tr("Turn into list display")}
               </button>
             </div>
           )}
@@ -263,9 +263,9 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
         <div className="sec" data-tutorial="settings-component">
           <div className="sec-head is-open">
             <span className="sec-title">
-              {tr("コンポーネント ― {name}", { name: doc.components?.[node.componentId ?? ""]?.name ?? "?" })}
+              {tr("Component — {name}", { name: doc.components?.[node.componentId ?? ""]?.name ?? "?" })}
             </span>
-            <InfoTip text={tr("コンポーネントのインスタンスです。中身を変えるにはマスターを編集します（すべての使用箇所に反映されます）。")} />
+            <InfoTip text={tr("This is an instance of a component. To change its content, edit the main component (changes apply everywhere it's used).")} />
           </div>
           <div className="sec-body">
             <div style={{ display: "flex", gap: 6 }}>
@@ -275,13 +275,13 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                   node.componentId && setEditingComponent(node.componentId)
                 }
               >
-                {tr("マスターを編集")}
+                {tr("Edit main component")}
               </button>
               <button
                 className="btn btn-sm"
                 onClick={() => detachInstance(nodeId)}
               >
-                {tr("インスタンスを解除")}
+                {tr("Detach instance")}
               </button>
             </div>
           </div>
@@ -291,9 +291,9 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       {node.type === "list" && node.list && (
         <div className="sec">
           <div className="sec-head is-open">
-            <span className="sec-title">{tr("リスト表示")}</span>
+            <span className="sec-title">{tr("List display")}</span>
             <InfoTip
-              text={tr("リスト表示の1つ目がお手本のカードです。カードの中の文字で「{」を入力して項目を選ぶと、すべてのカードに反映されます。\n並べ替えや絞り込みは、スクリプトの「並べ替える」「絞り込む」で行います。")}
+              text={tr("The first item in the list display is the template card. Type \"{\" in its text and pick a field to apply it to every card.\nSort and filter with the \"Sort\" and \"Filter\" script actions.")}
             />
           </div>
           <div className="sec-body">
@@ -319,33 +319,33 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                     value: a.name,
                     label: a.name,
                     desc: a.client
-                      ? tr("リスト · ページを開いてから値が決まる")
+                      ? tr("List · set after the page opens")
                       : Array.isArray(v)
-                        ? tr("リスト · 見本{length}件", { length: v.length })
-                        : tr("リスト"),
+                        ? tr("List · {length} sample items", { length: v.length })
+                        : tr("List", "list_variant_1"),
                   };
                 }),
                 ...nested.map((c) => ({
                   value: c.path,
                   label: fieldLabel(c.path),
-                  desc: tr("外側のリスト表示の項目 · 見本{count}件", { count: c.count }),
+                  desc: tr("Outer list display item · {count} sample items", { count: c.count }),
                 })),
               ];
               return (
                 <>
                   <div className="row">
-                    <span className="lbl">{tr("表示するリスト")}</span>
+                    <span className="lbl">{tr("List to display")}</span>
                     <Dropdown
                       value={from}
-                      placeholder={tr("選択してください")}
+                      placeholder={tr("Select…")}
                       options={[
                         ...options,
                         ...(from && !options.some((o) => o.value === from)
                           ? [
                               {
                                 value: from,
-                                label: tr("{p1}（リストになっていません）", { p1: fieldLabel(from) }),
-                                desc: tr("スクリプトで変数に入れると選べるようになります"),
+                                label: tr("{p1} (not a list)", { p1: fieldLabel(from) }),
+                                desc: tr("Store it in a variable with a script to make it selectable"),
                               },
                             ]
                           : []),
@@ -360,10 +360,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                       <button
                         className="btn btn-sm"
                         style={{ justifyContent: "center" }}
-                        data-tip={tr("スクリプトでデータを変数に入れるか、文字列を分解してリストにすると、ここで選べるようになります")}
+                        data-tip={tr("Store data in a variable or split text into a list with a script, and it will appear here")}
                         onClick={() => openScriptEditor({ focusNodeId: nodeId })}
                       >
-                        {tr("スクリプトでリストを作る")}
+                        {tr("Create a list with a script")}
                       </button>
                     </>
                   )}
@@ -375,7 +375,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               return (
                 <>
                   <div className="row">
-                    <label htmlFor={`settings-${nodeId}-limit`}>{tr("表示件数")}</label>
+                    <label htmlFor={`settings-${nodeId}-limit`}>{tr("Items to show")}</label>
                     {/* 空欄 = すべて表示 */}
                     <input
                       key={`${nodeId}-limit-${node.list.limit ?? ""}`}
@@ -385,7 +385,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                       min={1}
                       step={1}
                       defaultValue={node.list.limit ?? ""}
-                      placeholder={tr("すべて")}
+                      placeholder={tr("All")}
                       onBlur={(e) => {
                         const n = Math.floor(Number(e.target.value));
                         updateNode(nodeId, {
@@ -410,7 +410,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       {node.type === "box" && (
         <div className="sec" data-tutorial="settings-semantic">
           <div className="sec-head is-open">
-            <span>{tr("意味付け（出力タグ）")}</span>
+            <span>{tr("Meaning (output tag)")}</span>
           </div>
           <div className="sec-body">
             <Dropdown
@@ -419,7 +419,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               options={SEMANTIC_OPTIONS.map((o) => ({
                 value: o.value,
                 label:
-                  o.value !== "auto" && o.value !== "custom" ? tr("{label}（{value}）", { label: o.label, value: o.value }) : o.label,
+                  o.value !== "auto" && o.value !== "custom" ? tr("{label} ({value})", { label: o.label, value: o.value }) : o.label,
                 desc: o.desc,
                 icon: SEMANTIC_ICONS[o.value],
               }))}
@@ -427,7 +427,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             />
             {node.semantic === "custom" && (
               <div className="row" style={{ marginTop: 8 }}>
-                <label htmlFor={`settings-${nodeId}-tag`}>{tr("タグ名")}</label>
+                <label htmlFor={`settings-${nodeId}-tag`}>{tr("Tag name")}</label>
                 <CommitInput
                   key={`${nodeId}-tag`}
                   id={`settings-${nodeId}-tag`}
@@ -443,7 +443,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               </div>
             )}
             {node.semantic === "custom" && (
-              <p className="hint">{tr("空欄や使えないタグ名のときは div で出力します")}</p>
+              <p className="hint">{tr("Outputs a div when empty or when the tag name can't be used")}</p>
             )}
           </div>
         </div>
@@ -464,12 +464,12 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           data-tutorial={scriptEditorOpen ? undefined : "settings-link"}
         >
           <div className="sec-head is-open">
-            <span className="sec-title">{tr("スクリプト")}</span>
+            <span className="sec-title">{tr("Scripts")}</span>
             <InfoTip
               text={
-                tr("「クリックしたとき」などのきっかけに、ページを開く・要素を表示するといった動作をつないで、要素に動きを付けられます。") +
+                tr("Connect triggers like \"when clicked\" to actions like opening a page or showing an element to make it interactive.") +
                 (node.link
-                  ? tr("\n「クリックしたとき」にページやURLを開くだけのスクリプトは、リンク（a タグ）として出力されます。")
+                  ? tr("\nA script that only opens a page or URL \"when clicked\" is output as a link (a tag).")
                   : "")
               }
             />
@@ -488,7 +488,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               style={{ width: "100%", justifyContent: "center" }}
               onClick={() => openScriptEditor({ focusNodeId: nodeId })}
             >
-              {tr("ページのスクリプトを編集")}
+              {tr("Edit page scripts")}
             </button>
           </div>
         </div>
@@ -497,7 +497,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       {node.type === "image" && node.image && (
         <div className="sec" data-tutorial="settings-image">
           <div className="sec-head is-open">
-            <span>{tr("画像")}</span>
+            <span>{tr("Image")}</span>
           </div>
           <div className="sec-body">
             <div className="row">
@@ -508,8 +508,8 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 value={node.image.assetId ? "" : node.image.src}
                 placeholder={
                   node.image.assetId
-                    ? tr("（アセット画像）")
-                    : tr("https:// または {変数}")
+                    ? tr("(asset image)")
+                    : tr("https:// or {variable}")
                 }
                 names={varNames}
                 samples={varSamples}
@@ -532,7 +532,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               onClick={() => setAssetPickerOpen((open) => !open)}
             >
               <Icon name="image" size={12} />
-              {tr("アセットから選択")}
+              {tr("Choose from assets")}
             </button>
             {assetPickerOpen && (
               <AssetGrid
@@ -553,13 +553,13 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               />
             )}
             <div className="row">
-              <label htmlFor={`settings-${nodeId}-alt`}>{tr("代替テキスト")}</label>
+              <label htmlFor={`settings-${nodeId}-alt`}>{tr("Alt text")}</label>
               <CommitInput
                 key={`${nodeId}-alt`}
                 id={`settings-${nodeId}-alt`}
                 className="input"
                 value={node.image.alt}
-                placeholder={tr("画像の説明（必須）")}
+                placeholder={tr("Describe the image (required)")}
                 onCommit={(v) => updateNode(nodeId, { image: { ...node.image!, alt: v } })}
                 onKeyDown={(e) => {
                   if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
@@ -568,7 +568,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             </div>
             {!node.image.alt && (
               <p className="hint" style={{ margin: 0, color: "var(--warn)" }}>
-                {tr("代替テキストが未設定です。公開前チェックで警告されます。")}
+                {tr("No alt text. The pre-publish check will warn about this.")}
               </p>
             )}
             <label
@@ -585,7 +585,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                   })
                 }
               />
-              {tr("優先して読み込む（最初に見える画像向け）")}
+              {tr("Load first (for images visible on page load)")}
             </label>
             {node.image.assetId && doc.assets[node.image.assetId]?.svgFilter && (
               <label
@@ -605,11 +605,11 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                     })
                   }
                 />
-                {tr("iPhoneで影がぼやけるのを防ぐ（公開時に適用）")}
+                {tr("Prevent blurry shadows on iPhone (applied when publishing)")}
               </label>
             )}
             <p className="hint" style={{ margin: 0 }}>
-              {tr("元のサイズ: {w} × {h}px", { w: node.image.width, h: node.image.height })}
+              {tr("Original size: {w} × {h}px", { w: node.image.width, h: node.image.height })}
             </p>
           </div>
         </div>
@@ -618,14 +618,14 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       {node.type === "icon" && node.icon && (
         <div className="sec">
           <div className="sec-head is-open">
-            <span className="sec-title">{tr("アイコン ― {name}", { name: node.icon.name })}</span>
-            <InfoTip text={tr("色はスタイルの「テキスト → 色」、大きさは「サイズ」で調整できます。")} />
+            <span className="sec-title">{tr("Icon — {name}", { name: node.icon.name })}</span>
+            <InfoTip text={tr("Change the color with Style → Text → Color, and the size with Size.")} />
           </div>
           <div className="sec-body">
             <IconPicker
               value={node.icon.name}
               onSelect={(name, svg) =>
-                updateNode(nodeId, { icon: { name, svg }, name: tr("アイコン {name}", { name }) })
+                updateNode(nodeId, { icon: { name, svg }, name: tr("Icon {name}", { name }) })
               }
             />
           </div>
@@ -646,12 +646,12 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       {node.type === "media" && node.media && (
         <div className="sec">
           <div className="sec-head is-open">
-            <span className="sec-title">{node.media.kind === "video" ? tr("動画") : tr("音声")}</span>
-            <InfoTip text={tr("mp4・mp3などのファイルのURLを指定します。YouTubeは「YouTube」要素を使ってください。")} />
+            <span className="sec-title">{node.media.kind === "video" ? tr("Video") : tr("Audio")}</span>
+            <InfoTip text={tr("Enter the URL of a file such as mp4 or mp3. For YouTube, use the YouTube element.")} />
           </div>
           <div className="sec-body">
             <div className="row">
-              <label htmlFor={`settings-${nodeId}-media-url`}>{tr("ファイルURL")}</label>
+              <label htmlFor={`settings-${nodeId}-media-url`}>{tr("File URL")}</label>
               <CommitInput
                 key={`${nodeId}-msrc-${node.media.assetId ?? node.media.src}`}
                 id={`settings-${nodeId}-media-url`}
@@ -660,8 +660,8 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 placeholder={
                   node.media.assetId
                     ? node.media.kind === "video"
-                      ? tr("（アセットの動画）")
-                      : tr("（アセットの音声）")
+                      ? tr("(asset video)")
+                      : tr("(asset audio)")
                     : node.media.kind === "video"
                     ? "https://…/movie.mp4"
                     : "https://…/sound.mp3"
@@ -687,13 +687,13 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               onClick={() => setAssetPickerOpen((open) => !open)}
             >
               <Icon name={node.media.kind === "video" ? "video" : "audio"} size={12} />
-              {tr("アセットから選択")}
+              {tr("Choose from assets")}
             </button>
             {assetPickerOpen && (
               <AssetGrid
                 kind={node.media.kind}
                 selectedId={node.media?.assetId}
-                emptyText={tr("対応するアセットがありません。左パネルの「アセット」から追加してください。")}
+                emptyText={tr("No matching assets. Add some from the Assets tab in the left panel.")}
                 onPick={(asset) => {
                   updateNode(nodeId, {
                     media: { ...node.media!, src: nodeAssetSrc(asset), assetId: asset.id, assetSuffix: undefined, sources: undefined },
@@ -705,9 +705,9 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             <div className="stack" style={{ gap: 4 }}>
               {(
                 [
-                  ["loop", tr("くり返し再生")],
-                  ["autoplay", tr("自動再生（ミュートされます）")],
-                  ["muted", tr("ミュート")],
+                  ["loop", tr("Loop")],
+                  ["autoplay", tr("Autoplay (muted)")],
+                  ["muted", tr("Mute")],
                 ] as const
               ).map(([key, label]) => (
                 <label
@@ -740,13 +740,13 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               {
                 {
                   youtube: "YouTube",
-                  map: tr("Googleマップ"),
-                  url: tr("URL埋め込み"),
+                  map: tr("Google Maps"),
+                  url: tr("Embed URL"),
                 }[node.embed.kind]
               }
             </span>
             {node.embed.kind === "url" && (
-              <InfoTip text={tr("埋め込みを許可していないサイトは表示されないことがあります。")} />
+              <InfoTip text={tr("Sites that don't allow embedding may not appear.")} />
             )}
           </div>
           <div className="sec-body">
@@ -754,9 +754,9 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               <label className="lbl" htmlFor={`settings-${nodeId}-embed-url`}>
                 {
                   {
-                    youtube: tr("動画のURL"),
-                    map: tr("住所・場所名・マップのURL"),
-                    url: tr("埋め込むページのURL"),
+                    youtube: tr("Video URL"),
+                    map: tr("Address, place name or map URL"),
+                    url: tr("URL of the page to embed"),
                   }[node.embed.kind]
                 }
               </label>
@@ -768,7 +768,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 placeholder={
                   {
                     youtube: "https://www.youtube.com/watch?v=…",
-                    map: tr("例: 東京駅"),
+                    map: tr("e.g. Eiffel Tower"),
                     url: "https://example.com",
                   }[node.embed.kind]
                 }
@@ -780,7 +780,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             </div>
             {node.embed.src.trim() && !embedSrc(node.embed) && (
               <p className="hint" style={{ margin: 0, color: "var(--warn)" }}>
-                {tr("URLを読み取れませんでした。形式を確認してください。")}
+                {tr("Couldn't read the URL. Check its format.")}
               </p>
             )}
           </div>
@@ -790,8 +790,8 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       {node.type === "code" && node.code && (
         <div className="sec">
           <div className="sec-head is-open">
-            <span className="sec-title">{tr("カスタムコード（HTML）")}</span>
-            <InfoTip text={tr("そのままHTMLとして埋め込まれます。")} />
+            <span className="sec-title">{tr("Custom code (HTML)")}</span>
+            <InfoTip text={tr("Embedded as HTML as is.")} />
           </div>
           <div className="sec-body">
             <CommitTextarea
@@ -875,11 +875,11 @@ function FieldSettings({
   return (
     <div className="sec">
       <div className="sec-head is-open">
-        <span className="sec-title">{tr("フォーム部品")}</span>
+        <span className="sec-title">{tr("Form field")}</span>
         <InfoTip
           text={
-            tr("上の「ID属性」が入力値の名前になります。{ID} と書くと、データの取得先URLなどに差し込めます。") +
-            tr("\n初期値・案内文・表示テキストには {変数} を使えます。")
+            tr("The ID attribute above becomes the value's name. Write {ID} to insert it into data URLs and more.") +
+            tr("\nThe initial value, placeholder and label can use {variables}.")
           }
         />
       </div>
@@ -897,7 +897,7 @@ function FieldSettings({
         {f.kind === "radio" && (
           <div className="stack" style={{ gap: 4 }}>
             <div className="row">
-              <label htmlFor={`field-${nodeId}-group`}>{tr("グループ")}</label>
+              <label htmlFor={`field-${nodeId}-group`}>{tr("group")}</label>
               <CommitInput
                 key={`${nodeId}-group-${f.group ?? ""}`}
                 id={`field-${nodeId}-group`}
@@ -912,76 +912,76 @@ function FieldSettings({
             </div>
             <p className="hint" style={{ margin: 0 }}>
               {f.group
-                ? tr("同じグループのラジオボタンから1つだけ選べます。{{group}} が選んだボタンの値（表示テキスト）になります。", { group: f.group })
-                : tr("同じグループ名のラジオボタンから1つだけ選べます。グループ名は、選んだボタンの値の変数名になります。")}
+                ? tr("Only one radio button in the same group can be chosen. {{group}} is the value (label) of the chosen button.", { group: f.group })
+                : tr("Only one radio button with the same group name can be chosen. The group name becomes the variable holding the chosen button's value.")}
             </p>
           </div>
         )}
         {(f.kind === "checkbox" || f.kind === "radio") && (
           <>
             <div className="row">
-              <label htmlFor={`field-${nodeId}-label`}>{tr("表示テキスト")}</label>
-              {varField("label", f.kind === "radio" ? tr("選んだときの値にもなります") : "")}
+              <label htmlFor={`field-${nodeId}-label`}>{tr("Label")}</label>
+              {varField("label", f.kind === "radio" ? tr("Also the value when chosen") : "")}
             </div>
             <CheckRow
               checked={!!f.checked}
-              label={tr("最初からチェックしておく")}
+              label={tr("Checked by default")}
               onChange={(v) => onChange({ checked: v || undefined })}
             />
           </>
         )}
         {(f.kind === "input" || f.kind === "textarea" || f.kind === "select") && (
           <div className="row">
-            <label htmlFor={`field-${nodeId}-defaultValue`}>{tr("初期値")}</label>
+            <label htmlFor={`field-${nodeId}-defaultValue`}>{tr("Default value")}</label>
             {varField(
               "defaultValue",
               f.kind === "select"
-                ? tr("選択肢と同じ文字を入力")
+                ? tr("Enter text matching an option")
                 : type === "color"
                   ? "#000000"
                   : ranged && rangePh
                     ? rangePh
-                    : tr("最初から入力されている文字")
+                    : tr("Text entered by default")
             )}
           </div>
         )}
         {(textual || type === "number" || (ranged && type !== "range")) && (
           <div className="row">
-            <label htmlFor={`field-${nodeId}-placeholder`}>{tr("プレースホルダ")}</label>
-            {varField("placeholder", tr("未入力時に薄く表示される文字"))}
+            <label htmlFor={`field-${nodeId}-placeholder`}>{tr("Placeholder")}</label>
+            {varField("placeholder", tr("Faint text shown when empty"))}
           </div>
         )}
         {ranged && (
           <div className="grid3" style={{ gap: 6 }}>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl" htmlFor={`field-${nodeId}-min`}>{tr("最小")}</label>
+              <label className="lbl" htmlFor={`field-${nodeId}-min`}>{tr("Min")}</label>
               {varField("min", type === "range" ? "0" : rangePh)}
             </div>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl" htmlFor={`field-${nodeId}-max`}>{tr("最大")}</label>
+              <label className="lbl" htmlFor={`field-${nodeId}-max`}>{tr("Max")}</label>
               {varField("max", type === "range" ? "100" : rangePh)}
             </div>
             <div className="stack" style={{ gap: 4 }}>
-              <label className="lbl" htmlFor={`field-${nodeId}-step`}>{tr("刻み")}</label>
+              <label className="lbl" htmlFor={`field-${nodeId}-step`}>{tr("Step")}</label>
               {varField("step", type === "range" || type === "number" ? "1" : "")}
             </div>
           </div>
         )}
         {textual && (
           <div className="row">
-            <label htmlFor={`field-${nodeId}-maxLength`}>{tr("最大文字数")}</label>
-            {num("maxLength", tr("制限なし"))}
+            <label htmlFor={`field-${nodeId}-maxLength`}>{tr("Max length")}</label>
+            {num("maxLength", tr("No limit"))}
           </div>
         )}
         {f.kind === "textarea" && (
           <div className="row">
-            <label htmlFor={`field-${nodeId}-rows`}>{tr("行数")}</label>
+            <label htmlFor={`field-${nodeId}-rows`}>{tr("Rows", "rows_variant_1")}</label>
             {num("rows", "2")}
           </div>
         )}
         {f.kind === "select" && (
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl" htmlFor={`field-${nodeId}-options`}>{tr("選択肢（1行に1つ）")}</label>
+            <label className="lbl" htmlFor={`field-${nodeId}-options`}>{tr("Options (one per line)")}</label>
             <CommitTextarea
               key={`${nodeId}-opts`}
               id={`field-${nodeId}-options`}
@@ -1006,13 +1006,13 @@ function FieldSettings({
         {f.kind === "file" && (
           <>
             <div className="row">
-              <label htmlFor={`field-${nodeId}-accept`}>{tr("種類")}</label>
+              <label htmlFor={`field-${nodeId}-accept`}>{tr("Type")}</label>
               <CommitInput
                 key={`${nodeId}-accept-${f.accept ?? ""}`}
                 id={`field-${nodeId}-accept`}
                 className="input"
                 value={f.accept ?? ""}
-                placeholder={tr("例: image/*, .pdf（空 = すべて）")}
+                placeholder={tr("e.g. image/*, .pdf (empty = any)")}
                 onCommit={(v) => onChange({ accept: v.trim() || undefined })}
                 onKeyDown={(e) => {
                   if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
@@ -1021,26 +1021,26 @@ function FieldSettings({
             </div>
             <CheckRow
               checked={!!f.multiple}
-              label={tr("複数のファイルを選べる")}
+              label={tr("Allow multiple files")}
               onChange={(v) => onChange({ multiple: v || undefined })}
             />
           </>
         )}
         <CheckRow
           checked={!!f.required}
-          label={f.kind === "checkbox" ? tr("必須（チェックしないと送信できない）") : tr("必須（入力しないと送信できない）")}
+          label={f.kind === "checkbox" ? tr("Required (must be checked to submit)") : tr("Required (must be filled in to submit)")}
           onChange={(v) => onChange({ required: v || undefined })}
         />
         <CheckRow
           checked={!!f.disabled}
-          label={tr("無効にする（操作できない）")}
+          label={tr("Disabled (can't be used)")}
           onChange={(v) => onChange({ disabled: v || undefined })}
         />
         {!hasId && (
           <p className="hint" style={{ margin: 0, color: "var(--warn)" }}>
             {f.kind === "radio"
-              ? tr("グループが未設定のため、この部品の値は送信されません。")
-              : tr("ID属性が未設定のため、この部品の値は送信されません。")}
+              ? tr("This field has no group, so its value isn't submitted.")
+              : tr("This field has no ID attribute, so its value won't be submitted.")}
           </p>
         )}
       </div>
@@ -1068,18 +1068,18 @@ function LinkSettings({
   return (
     <div className="sec">
       <div className="sec-head is-open">
-        <span className="sec-title">{tr("リンク")}</span>
+        <span className="sec-title">{tr("Link")}</span>
         <InfoTip
-          text={tr("押したときに開くURLやページです。スクリプト画面の「クリックしたとき → 開く」と同じもので、どちらで変えても同じになります。URLには {変数} や #ID（ページ内の位置）も使えます。")}
+          text={tr("The URL or page opened when this is pressed. It is the same as “When clicked → Open” in the script editor, so changing either changes both. URLs can use {variables} and #ID (a position on the page).")}
         />
       </div>
       <div className="sec-body">
         <Seg
           value={kind}
           options={[
-            { value: "none", label: tr("なし") },
+            { value: "none", label: tr("None") },
             { value: "url", label: "URL" },
-            { value: "page", label: tr("ページ") },
+            { value: "page", label: tr("Pages") },
           ]}
           onChange={(v) =>
             onChange(
@@ -1096,7 +1096,7 @@ function LinkSettings({
             key={`${nodeId}-link-${link.url ?? ""}`}
             className="input"
             value={link.url ?? ""}
-            placeholder={tr("https://…・#ID・{変数}")}
+            placeholder={tr("https://… · #ID · {variable}")}
             names={varNames}
             nodeId={nodeId}
             onCommit={(v) => onChange({ ...link, url: v.trim() })}
@@ -1122,7 +1122,7 @@ function LinkSettings({
               checked={!!link.newTab}
               onChange={(e) => onChange({ ...link, newTab: e.target.checked || undefined })}
             />
-            {tr("新しいタブで開く")}
+            {tr("Open in a new tab")}
           </label>
         )}
       </div>

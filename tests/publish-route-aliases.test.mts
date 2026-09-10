@@ -28,7 +28,7 @@ test("publish and export checks reject URLs that produce the same generated rout
     doc.pages.second.slug = slug;
     const result = errors(doc);
     assert.equal(result.length, 1, slug);
-    assert.match(result[0].message, /重複/);
+    assert.match(result[0].message, /used by both|same URL|duplicate/i);
     assert.match(result[0].message, /first/);
     assert.match(result[0].message, /second/);
   }
@@ -38,7 +38,7 @@ test("aliases cannot bypass conflicts for raw HTML and redirect pages", () => {
   for (const patch of [{ rawHtml: "<html><body>Other</body></html>" }, { redirectTo: "/" }, { rewriteTo: "https://example.com/" }]) {
     const doc = fixture();
     Object.assign(doc.pages.second, patch, { query: "tab=other" });
-    assert.ok(errors(doc).some((c) => /重複/.test(c.message)));
+    assert.ok(errors(doc).some((c) => /used by both|same URL|duplicate/i.test(c.message)));
   }
 });
 
@@ -109,5 +109,5 @@ test("HTML /404 routes remain distinct from not-found but collide with normal /4
   assert.match(files["app/404/route.ts"], /Explicit 404 URL/);
   doc.pages.second.unpublished = false;
   doc.pages.second.slug = "404/.";
-  assert.ok(errors(doc).some((c) => /重複/.test(c.message)));
+  assert.ok(errors(doc).some((c) => /used by both|same URL|duplicate/i.test(c.message)));
 });

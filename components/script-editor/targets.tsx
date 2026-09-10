@@ -172,22 +172,22 @@ export function TargetSelect({
       special={
         only
           ? []
-          : [{ value: SELF_TARGET, label: tr("きっかけの要素"), on: value === SELF_TARGET }]
+          : [{ value: SELF_TARGET, label: tr("Triggering element"), on: value === SELF_TARGET }]
       }
       onSpecial={onChange}
       onPick={(r) => onChange(r.attrId ?? assignAttrId(r.id))}
       label={
         value === SELF_TARGET && !only
-          ? tr("きっかけの要素")
+          ? tr("Triggering element")
           : cur
             ? cur.name
             : value && !known
-              ? tr("#{value}（見つかりません）", { value })
+              ? tr("#{value} (not found)", { value })
               : null
       }
       sub={cur ? `#${cur.attrId}` : undefined}
-      placeholder={only ? tr("入力欄を選択") : tr("要素を選択")}
-      hint={tr("IDの無い要素は、選ぶとIDを自動で付けます")}
+      placeholder={only ? tr("Select a field", "select_a_field_variant_1") : tr("Select an element")}
+      hint={tr("Elements without an ID get one automatically when selected")}
     />
   );
 }
@@ -439,7 +439,7 @@ export function NodePicker({
               <input
                 autoFocus
                 value={query}
-                placeholder={tr("要素名・IDで検索")}
+                placeholder={tr("Search by name or ID")}
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setSearchOpen(new Set());
@@ -502,7 +502,7 @@ export function NodePicker({
                       <button
                         type="button"
                         className={`np-chev${expanded ? " is-open" : ""}`}
-                        aria-label={expanded ? tr("閉じる") : tr("開く")}
+                        aria-label={expanded ? tr("Close") : tr("Open")}
                         aria-expanded={expanded}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -522,7 +522,7 @@ export function NodePicker({
               })}
               {!shown.length && (
                 <div className="se-pm-none">
-                  {q ? tr("「{p1}」に一致する要素はありません", { p1: query.trim() }) : (hint ?? tr("選べる要素がありません"))}
+                  {q ? tr("No elements match \"{p1}\"", { p1: query.trim() }) : (hint ?? tr("No elements to choose from"))}
                 </div>
               )}
             </div>

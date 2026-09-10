@@ -19,8 +19,8 @@ for (const kind of ["pages", "add", "reset"] as const) {
       const tree = ui.render({ onClose: () => { closed = true; } });
       const button = elements(tree).find(e => e.type === "button" && (kind === "pages"
         ? e.props.className === "row-act is-danger"
-        : kind === "add" ? e.props["data-tip"] === "削除（すべてのインスタンスも削除）"
-        : elements(e).some(x => Array.isArray(x.props.children) && x.props.children.includes("初期状態に戻す"))));
+        : kind === "add" ? e.props["data-tip"] === "Delete (also deletes every instance)"
+        : elements(e).some(x => Array.isArray(x.props.children) && x.props.children.includes("Reset"))));
       assert.ok(button, kind);
       const pending = button.props.onClick({ stopPropagation() {} });
       assert.equal(ui.confirmations.length, 1);
@@ -63,7 +63,7 @@ for (const route of ["menu", "bulk"] as const) test(`page ${route} deletion canc
       menu.props.items.find((item: any) => item.key === "del").onClick();
     } else {
       row.props.onClick({ metaKey: true });
-      elements(ui.render()).find(e => e.props?.["aria-label"] === "選んだページを削除").props.onClick();
+      elements(ui.render()).find(e => e.props?.["aria-label"] === "Delete selected pages").props.onClick();
     }
     assert.equal(ui.confirmations.length, 1);
     useEditor.getState().updateDoc(d => { d.siteName = "Remote edit"; });

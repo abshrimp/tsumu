@@ -122,12 +122,12 @@ test("non-editor HTML ZIP is not confused with SiteDoc archive", async () => {
 test("document validation rejects corrupt references and unsafe object keys", () => {
   const doc = fixture();
   const bad = { ...doc, pageOrder: ["missing-page"] };
-  assert.throws(() => validateImportedDoc(bad), /ページの参照/);
+  assert.throws(() => validateImportedDoc(bad), /page references/i);
   const corrupt = JSON.parse(JSON.stringify(doc));
   Object.defineProperty(corrupt.assets, "__proto__", {
     value: { id: "__proto__", name: "bad" }, enumerable: true, configurable: true,
   });
-  assert.throws(() => validateImportedDoc(corrupt), /プロパティ/);
+  assert.throws(() => validateImportedDoc(corrupt), /property names/i);
 });
 
 test("ZIP source limits reject oversized and enormous archives", async () => {
@@ -163,7 +163,7 @@ test("document imports reject network references disguised as embedded assets be
   const doc = fixture();
   for (const url of ["/api/doc?site=private", "https://example.test/logo", "//example.test/logo"]) {
     doc.assets["original-image"].dataUrl = url;
-    await assert.rejects(parseSiteImport(enc.encode(JSON.stringify(doc)), "doc"), /アセット/);
+    await assert.rejects(parseSiteImport(enc.encode(JSON.stringify(doc)), "doc"), /asset/i);
   }
 });
 
@@ -185,7 +185,7 @@ test("document imports reject dangling references, malformed nodes, and cycles i
   for (const node of [null, { ...doc.nodes[root], children: ["absent"] },
     { ...doc.nodes[root], children: [root] }]) {
     const value = { ...doc, nodes: { ...doc.nodes, [root]: node } };
-    await assert.rejects(parseSiteImport(enc.encode(JSON.stringify(value)), "doc"), /要素/);
+    await assert.rejects(parseSiteImport(enc.encode(JSON.stringify(value)), "doc"), /element/i);
   }
 });
 
@@ -197,10 +197,10 @@ test("imports reject page roots shared with another page or parent node", () => 
   const sharedPage = structuredClone(doc);
   sharedPage.pages.other = { ...structuredClone(page), id: "other", slug: "other" };
   sharedPage.pageOrder.push("other");
-  assert.throws(() => validateImportedDoc(sharedPage), /親子関係/);
+  assert.throws(() => validateImportedDoc(sharedPage), /element hierarchy/i);
   const nested = structuredClone(doc);
   nested.nodes.extra = { ...structuredClone(doc.nodes[child]), id: "extra", children: [child] };
-  assert.throws(() => validateImportedDoc(nested), /親子関係/);
+  assert.throws(() => validateImportedDoc(nested), /element hierarchy/i);
 });
 
 test("editable ZIP imports accept a zero-byte asset alongside the document", async () => {
@@ -253,7 +253,7 @@ test("an upload without a registered destination is never accepted as a restored
         assert.equal(init?.redirect, "error");
         return Response.json({ path });
       };
-      await assert.rejects(uploadStaticAsset(new File(["test"], "a.txt", { type: "text/plain" })), /アップロード/);
+      await assert.rejects(uploadStaticAsset(new File(["test"], "a.txt", { type: "text/plain" })), /uploaded|upload/i);
     }
   } finally { globalThis.fetch = original; }
 });

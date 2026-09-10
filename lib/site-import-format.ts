@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import { validAssetEntry, validDocNodeShape, validNodeForest, validSiteDoc, validStyleDefinitions } from "./doc-tree";
 import { isSafeImportedSvg } from "./imported-svg";
 import type { SiteDoc } from "./types";
@@ -32,7 +33,7 @@ function validImportedNode(value: unknown): boolean {
 
 /** Reject malformed archives before writing any site or uploading any asset. */
 export function validateImportedDoc(value: unknown): SiteDoc {
-  if (!isImportObject(value)) throw new Error("サイトの編集データではありません。");
+  if (!isImportObject(value)) throw new Error(tr("This file does not contain editable site data."));
   const doc = value;
   if (typeof doc.siteName !== "string" || !doc.siteName.trim() ||
       !isImportObject(doc.pages) || !isImportObject(doc.nodes) ||
@@ -40,42 +41,42 @@ export function validateImportedDoc(value: unknown): SiteDoc {
       !Array.isArray(doc.pageOrder) || !doc.pageOrder.length ||
       doc.pageOrder.length > 500 || Object.keys(doc.pages).length > 500 || Object.keys(doc.nodes).length > 25000 ||
       Object.keys(doc.assets).length > IMPORT_LIMITS.assets) {
-    throw new Error("ページ・要素・アセット情報が不正な編集データです。");
+    throw new Error(tr("Invalid page, element or asset data."));
   }
   let visited = 0;
   function check(value: unknown, depth = 0) {
-    if (++visited > 400000 || depth > 80) throw new Error("編集データが複雑すぎます。");
+    if (++visited > 400000 || depth > 80) throw new Error(tr("The document is too complex."));
     if (!value || typeof value !== "object") return;
     if (Array.isArray(value)) {
       for (const item of value) check(item, depth + 1);
       return;
     }
     for (const [key, item] of Object.entries(value)) {
-      if (suspicious.has(key)) throw new Error("編集データに使用できないプロパティがあります。");
+      if (suspicious.has(key)) throw new Error(tr("The document contains invalid property names."));
       check(item, depth + 1);
     }
   }
   check(value);
-  if (!validNodeForest(doc.pages, doc.nodes, doc.components)) throw new Error("要素の親子関係が不正です。");
+  if (!validNodeForest(doc.pages, doc.nodes, doc.components)) throw new Error(tr("The element hierarchy is invalid."));
   if (!Object.values(doc.nodes).every(validImportedNode)) {
-    throw new Error("要素の設定が不正な編集データです。");
+    throw new Error(tr("The document contains invalid element settings."));
   }
-  if (new Set(doc.pageOrder).size !== doc.pageOrder.length) throw new Error("ページの参照が壊れています。");
+  if (new Set(doc.pageOrder).size !== doc.pageOrder.length) throw new Error(tr("The document contains invalid page references."));
   for (const id of doc.pageOrder) {
     if (typeof id !== "string" || !isImportObject(doc.pages[id])) {
-      throw new Error("ページの参照が壊れています。");
+      throw new Error(tr("The document contains invalid page references."));
     }
     const page = doc.pages[id];
     if (typeof page.slug !== "string" || typeof page.name !== "string" ||
         typeof page.title !== "string" || typeof page.description !== "string" ||
         (page.bodyStyles != null && !validStyleDefinitions(page.bodyStyles)) ||
         !Array.isArray(page.children)) {
-      throw new Error("ページの構造が正しくありません。");
+      throw new Error(tr("The page structure is invalid."));
     }
   }
   for (const [id, item] of Object.entries(doc.assets)) {
     if (!isImportObject(item) || !validAssetEntry(id, item) || (item.dataUrl != null && !isEmbeddedAssetUrl(item.dataUrl))) {
-      throw new Error("アセットIDと参照情報が正しくありません。");
+      throw new Error(tr("Asset IDs or references are invalid."));
     }
   }
   // A document accepted by import must also be accepted by persistence when
@@ -86,36 +87,36 @@ export function validateImportedDoc(value: unknown): SiteDoc {
   for (const node of Object.values(doc.nodes)) {
     if (!isImportObject(node) || !assetRefValid(node.image) || !assetRefValid(node.media) ||
         (isImportObject(node.media) && Array.isArray(node.media.sources) && !node.media.sources.every(assetRefValid))) {
-      throw new Error("アセットの参照情報が正しくありません。");
+      throw new Error(tr("Asset references are invalid."));
     }
   }
   for (const page of Object.values(doc.pages)) {
     if (!isImportObject(page) || !assetRefValid(page.ogImage)) {
-      throw new Error("アセットの参照情報が正しくありません。");
+      throw new Error(tr("Asset references are invalid."));
     }
   }
   if (!assetRefValid(doc.favicon) || !assetRefValid(doc.appleTouchIcon) ||
       !assetRefValid(doc.ogImage) ||
       (isImportObject(doc.pwa) && !assetRefValid(doc.pwa.icon))) {
-    throw new Error("アセットの参照情報が正しくありません。");
+    throw new Error(tr("Asset references are invalid."));
   }
   const folderIds = new Set<string>();
   if (doc.pageFolders != null) {
-    if (!Array.isArray(doc.pageFolders)) throw new Error("ページフォルダーが正しくありません。");
+    if (!Array.isArray(doc.pageFolders)) throw new Error(tr("Page folders are invalid."));
     for (const folder of doc.pageFolders) {
       if (!isImportObject(folder) || typeof folder.id !== "string" ||
           !folder.id || suspicious.has(folder.id) || typeof folder.name !== "string" ||
-          folderIds.has(folder.id)) throw new Error("ページフォルダーが正しくありません。");
+          folderIds.has(folder.id)) throw new Error(tr("Page folders are invalid."));
       folderIds.add(folder.id);
     }
   }
   for (const page of Object.values(doc.pages)) {
     if (isImportObject(page) && page.folderId !== undefined &&
         (typeof page.folderId !== "string" || !folderIds.has(page.folderId))) {
-      throw new Error("ページフォルダーの参照が正しくありません。");
+      throw new Error(tr("Page folder references are invalid."));
     }
   }
   // Full saves, cache recovery and imports must agree on structural validity.
-  if (!validSiteDoc(doc)) throw new Error("編集データの参照・構造が不正です。");
+  if (!validSiteDoc(doc)) throw new Error(tr("The document structure or references are invalid."));
   return value as unknown as SiteDoc;
 }

@@ -69,7 +69,7 @@ export function isSafeBranch(branch: string): boolean {
 const clean = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
 /**
- * 入力を確かめて、保存できる形にする。誤りがあれば日本語のメッセージ（訳す前の文）を返す。
+ * 入力を確かめて、保存できる形にする。Validation failures return English source text for i18n.
  * base は変更前の値（新規作成では既定値）
  */
 export function normalizeSiteInput(
@@ -78,27 +78,27 @@ export function normalizeSiteInput(
 ): { ok: true; value: Pick<SiteRecord, "name" | keyof SiteDest> } | { ok: false; error: string } {
   const has = (k: keyof SiteInput) => Object.prototype.hasOwnProperty.call(input, k);
   const name = has("name") ? clean(input.name) : base.name;
-  if (!name) return { ok: false, error: "サイト名を入力してください" };
-  if (name.length > 100) return { ok: false, error: "サイト名は100文字までです" };
+  if (!name) return { ok: false, error: "Enter a site name" };
+  if (name.length > 100) return { ok: false, error: "Site names can be up to 100 characters" };
 
   const repo = has("repo") ? clean(input.repo) || null : base.repo;
   if (repo && !isSafeRepo(repo)) {
-    return { ok: false, error: "リポジトリは owner/name の形で入力してください" };
+    return { ok: false, error: "Enter the repository as owner/name" };
   }
   const branch = has("branch") ? clean(input.branch) || DEFAULT_BRANCH : base.branch;
   const previewBranch = has("previewBranch") ? clean(input.previewBranch) : base.previewBranch;
   if (!isSafeBranch(branch) || (previewBranch && !isSafeBranch(previewBranch))) {
-    return { ok: false, error: "ブランチ名に使えない文字が含まれています" };
+    return { ok: false, error: "The branch name contains characters that aren't allowed" };
   }
   if (previewBranch && previewBranch === branch) {
-    return { ok: false, error: "テスト公開のブランチは、本番と別の名前にしてください" };
+    return { ok: false, error: "Use a different branch for test publishing than for production" };
   }
   const url = (k: "siteUrl" | "previewUrl") => (has(k) ? clean(input[k]) || null : base[k]);
   const siteUrl = url("siteUrl");
   const previewUrl = url("previewUrl");
   for (const u of [siteUrl, previewUrl]) {
     if (u && !/^https?:\/\/[^\s]+$/.test(u)) {
-      return { ok: false, error: "URLは http:// か https:// から入力してください" };
+      return { ok: false, error: "URLs must start with http:// or https://" };
     }
   }
   return { ok: true, value: { name, repo, branch, previewBranch, siteUrl, previewUrl } };

@@ -32,11 +32,11 @@ const doc = createInitialDoc();
 const patch: DocPatch = [{ path: ["siteName"], value: "Edited" }];
 const snapshot: SiteSnapshot = { rev: "1", savedAt: 123, body: JSON.stringify(doc) };
 const saved: SiteSaveResult = { kind: "saved", rev: "2", savedAt: 124 };
-const saveMessage = "保存できませんでした";
-const createMessage = "作成できませんでした";
+const saveMessage = "Couldn't save";
+const createMessage = "Couldn't create it";
 const saveLog = "[api/doc] document save failed";
 const createLog = "[api/sites POST] site creation failed";
-const tooLarge = "ドキュメントが大きすぎて、保存先に入りきりません";
+const tooLarge = "The document is too large for the storage";
 
 function fixture(options: {
   stage?: Stage;
@@ -234,10 +234,10 @@ test("mutation failures still translate only the fixed public fallback", async t
 test("safe document validation and capacity failures retain their status and public messages", async t => {
   const logs = captureErrors(t);
   for (const method of ["PUT", "PATCH"] as const) {
-    for (const error of [new InvalidDocPatchError(), new Error("不正なリクエスト"), new Error("JSONが壊れています")]) {
+    for (const error of [new InvalidDocPatchError(), new Error("Invalid request"), new Error("JSONが壊れています")]) {
       const response = await fixture({ stage: "save", error })[method](request(method));
       assert.equal(response.status, 400);
-      assert.deepEqual(await response.json(), { error: "不正なリクエスト" });
+      assert.deepEqual(await response.json(), { error: "Invalid request" });
     }
     for (const error of [new DocTooLargeError(), new Error("SQLITE_TOOBIG synthetic-private-details"), new Error("編集データの1項目が大きすぎます")]) {
       const response = await fixture({ stage: "save", error })[method](request(method));
@@ -251,7 +251,7 @@ test("safe document validation and capacity failures retain their status and pub
   const imported = { name: doc.siteName, importId: "0123456789", initialDoc: doc };
   const collision = await fixture({ siteExists: false, stage: "insert", error: new Error("UNIQUE constraint failed: sites.id") }).POST(copyRequest(imported));
   assert.equal(collision.status, 409);
-  assert.deepEqual(await collision.json(), { error: "サイトを作成できませんでした。" });
+  assert.deepEqual(await collision.json(), { error: "Could not create the site." });
   assert.deepEqual(logs(), []);
 });
 
@@ -279,7 +279,7 @@ test("auth, missing storage, invalid input, and absent sites retain early return
   const badImport = fixture();
   const imported = await badImport.POST(copyRequest({ name: "Import", importId: "0123456789", initialDoc: {} }));
   assert.equal(imported.status, 400);
-  assert.deepEqual(await imported.json(), { error: "ページ・要素・アセット情報が不正な編集データです。" });
+  assert.deepEqual(await imported.json(), { error: "Invalid page, element or asset data." });
   assert.ok(!badImport.calls.includes("database"));
   assert.deepEqual(logs(), []);
 });

@@ -8,16 +8,16 @@ const { Footer, tr, useEditor } = await localSaveStatusFixture();
 
 const messages = {
   local: {
-    pending: "このブラウザへ保存中…",
-    saved: "このブラウザにのみ保存",
-    error: "このブラウザに保存できません",
-    deleted: "このブラウザの保存先は削除済み",
+    pending: "Saving in this browser…",
+    saved: "Saved in this browser only",
+    error: "Couldn't save in this browser",
+    deleted: "Browser save location deleted",
   },
   error: {
-    pending: "サーバーに保存できません（ブラウザへの保存を確認中…）",
-    saved: "サーバーに保存できません（このブラウザには保存済み）",
-    error: "サーバーにもこのブラウザにも保存できません",
-    deleted: "サーバーに保存できません（ブラウザの保存先は削除済み）",
+    pending: "Couldn't save to server (checking browser save…)",
+    saved: "Couldn't save to server (saved in this browser)",
+    error: "Couldn't save to the server or in this browser",
+    deleted: "Couldn't save to server (browser save location deleted)",
   },
 };
 
@@ -26,11 +26,11 @@ for (const cloudState of ["local", "error", "synced", "saving", "checking"] as c
     test(`${cloudState}/${localSaveState}: the footer reports the current browser save result`, () => {
       // SSRではZustandが初期スナップショットを読むので、検証用の初期値を指定する。
       Object.assign(useEditor.getInitialState(), { cloudState, savedAt: 1, cloudSavedAt: 1, cloudError: null });
-      const html = renderToStaticMarkup(createElement(Footer, { localSaveState, onRetryLocalSave() {} }));
+      const html = renderToStaticMarkup(createElement(Footer, { localSaveState, onRetryLocalSave() {} })).replaceAll("&#x27;", "'").replaceAll("&#39;", "'");
       const expected = cloudState === "local" || cloudState === "error"
         ? messages[cloudState][localSaveState]
-        : cloudState === "synced" ? "サーバー保存済み"
-        : cloudState === "saving" ? "サーバーへ保存中…" : "同期を確認中…";
+        : cloudState === "synced" ? "Saved to server"
+        : cloudState === "saving" ? "Saving to server…" : "Checking sync…";
       assert.ok(html.includes(tr(expected)), expected);
       if (localSaveState !== "saved") {
         assert.ok(!html.includes(tr(messages.local.saved)));

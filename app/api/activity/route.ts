@@ -20,6 +20,6 @@ export async function GET(req: Request) {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (e) {
-    return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
+    return NextResponse.json({ error: tr(userMessage(e, "Couldn't load")) }, { status: 502 });
   }
 }

@@ -549,7 +549,7 @@ lib/
   activity.ts         編集・公開の記録
   aiOps.ts            AI の編集操作（サーバーとブラウザの両方で適用）
   manualTopics.ts     ヘルプの記事
-  locales/            英語の訳
+  locales/            日本語の訳
 custom-worker.ts      同時編集の Durable Object を含む Cloudflare Worker のエントリポイント
 document-room.ts      サイトごとの編集データを保存する Durable Object（DocumentRoom）
 scripts/cloudflare.mjs  デプロイ用の wrangler 設定を生成し、OpenNext を実行

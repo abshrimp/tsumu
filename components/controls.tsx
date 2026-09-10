@@ -114,8 +114,8 @@ export function SecHead({
         <button
           type="button"
           className="sec-help"
-          aria-label={tr("{p1}の使い方", { p1: typeof title === "string" ? title : "" })}
-          data-tip={tr("使い方を見る")}
+          aria-label={tr("How to use {p1}", { p1: typeof title === "string" ? title : "" })}
+          data-tip={tr("How to use")}
           onClick={(e) => {
             e.stopPropagation();
             openHelp(help);
@@ -263,10 +263,10 @@ export function Grp({
           data-tip={
             setHere
               ? stateLabel
-                ? tr("{stateLabel}用に変更済み（右クリックで解除すると、通常時の設定に戻ります）", { stateLabel })
+                ? tr("Changed for {stateLabel} (right-click to clear and use the default setting)", { stateLabel })
                 : bpLabel
-                  ? tr("{bpLabel}用に変更済み（右クリックで解除すると、大きい画面の設定に戻ります）", { bpLabel })
-                  : tr("右クリックでリセット")
+                  ? tr("Changed for {bpLabel} (right-click to clear and use the larger screen's setting)", { bpLabel })
+                  : tr("Right-click to reset")
               : undefined
           }
           onContextMenu={(e) => {
@@ -553,7 +553,7 @@ export function NumField({
           type="button"
           className={`field-unit${canCycle ? " clickable" : ""}`}
           tabIndex={-1}
-          data-tip={canCycle ? (convert ? tr("クリックで単位を切り替え（見た目の大きさはそのまま）") : tr("クリックで単位を切り替え")) : undefined}
+          data-tip={canCycle ? (convert ? tr("Click to switch units (keeps the same visual size)") : tr("Click to switch units")) : undefined}
           onClick={() => {
             if (!canCycle) return;
             const next = units[(units.indexOf(activeUnit) + 1) % units.length];
@@ -649,7 +649,7 @@ export function TextField({
       key={JSON.stringify([editTarget, value ?? "_"])}
       className="input"
       defaultValue={value ?? ""}
-      placeholder={placeholder ?? tr("未設定")}
+      placeholder={placeholder ?? tr("Not set")}
       onBlur={(e) => {
         const v = e.target.value.trim();
         // 触っただけなら書き込まない
@@ -906,11 +906,11 @@ export function VarSuggestMenu({
       onMouseDown={(e) => e.preventDefault()}
     >
       <div className="var-comp-head">
-        {query.mode === "manual" ? tr("変数") : tr("変数の候補")}
+        {query.mode === "manual" ? tr("Variables") : tr("Variable suggestions")}
       </div>
       {!matches.length && (
         <div className="var-comp-none">
-          {query.partial ? tr("「{partial}」に一致する変数はありません", { partial: query.partial }) : tr("この位置で使える変数はありません")}
+          {query.partial ? tr("No variables match \"{partial}\"", { partial: query.partial }) : tr("No variables are available here")}
         </div>
       )}
       <div ref={listRef} className="var-comp-list">
@@ -935,20 +935,20 @@ export function VarSuggestMenu({
           onClick={onExplore}
         >
           <Search size={13} />
-          <span>{tr("変数を探す…")}</span>
-          <span className="var-comp-sample">{tr("値を見ながら選ぶ")}</span>
+          <span>{tr("Browse variables…")}</span>
+          <span className="var-comp-sample">{tr("Pick while viewing values")}</span>
         </button>
       )}
       <div className="var-comp-foot">
         <span>
           <kbd>{glyphs("↑")}</kbd>
-          <kbd>{glyphs("↓")}</kbd> {tr("選択")}
+          <kbd>{glyphs("↓")}</kbd> {tr("Select")}
         </span>
         <span>
-          <kbd>{query.mode === "word" ? "Tab" : "Enter"}</kbd> {tr("挿入")}
+          <kbd>{query.mode === "word" ? "Tab" : "Enter"}</kbd> {tr("Insert")}
         </span>
         {exploreShortcut && <span>
-          <kbd>{glyphs(VAR_LIST_KBD)}</kbd> {tr("変数を探す")}
+          <kbd>{glyphs(VAR_LIST_KBD)}</kbd> {tr("Browse variables")}
         </span>}
       </div>
     </div>,
@@ -1227,7 +1227,7 @@ export function Dropdown({
   value,
   options,
   onChange,
-  placeholder = tr("未設定"),
+  placeholder = tr("Not set"),
   style,
   menuWidth,
   trigger,
@@ -1364,7 +1364,7 @@ export function Dropdown({
 export function PropSelect({
   prop,
   options,
-  unsetLabel = tr("未設定"),
+  unsetLabel = tr("Not set"),
   menuWidth,
 }: {
   prop: string;
@@ -1622,14 +1622,14 @@ export function FillControl({
           className="color-swatch"
           style={{ ["--sw" as string]: value ?? "transparent" }}
           onClick={() => setOpen(!open)}
-          data-tip={value ?? tr("未設定")}
+          data-tip={value ?? tr("Not set")}
         />
         <input
           id={`${colorFieldId}-hex`}
           aria-label="HEX"
           key={value ?? "_"}
           defaultValue={isSet ? hex.slice(1) : ""}
-          placeholder={tr("未設定")}
+          placeholder={tr("Not set")}
           onBlur={(e) => {
             const t = e.target.value.trim().replace(/^#/, "");
             // 触っただけなら書き込まない（名前付きの色・透明などが黒に変わらないように）
@@ -1654,7 +1654,7 @@ export function FillControl({
       </div>
       <div className="fill-alpha">
         <NumField
-          title={tr("不透明度")}
+          title={tr("Opacity")}
           value={isSet ? `${Math.round(alpha * 100)}%` : undefined}
           units={["%"]}
           min={0}
@@ -1670,7 +1670,7 @@ export function FillControl({
         <div className="color-pop">
           <input
             id={`${colorFieldId}-picker`}
-            aria-label={tr("色")}
+            aria-label={tr("Color")}
             type="color"
             value={hex}
             onChange={(e) =>
@@ -1680,7 +1680,7 @@ export function FillControl({
           />
           <input
             id={`${colorFieldId}-opacity`}
-            aria-label={tr("不透明度")}
+            aria-label={tr("Opacity")}
             type="range"
             className="range"
             min={0}
@@ -1697,12 +1697,12 @@ export function FillControl({
           />
           <div className="saved-colors">
             <div className="saved-colors-head">
-              <span className="grp-label">{tr("カラーパレット")}</span>
+              <span className="grp-label">{tr("Color palette")}</span>
               <button
                 type="button"
                 className="icon-btn sm"
                 disabled={!value || palette.includes(value)}
-                data-tip={tr("現在の色を登録")}
+                data-tip={tr("Save current color")}
                 onClick={addToPalette}
               >
                 <Plus size={12} />
@@ -1726,9 +1726,9 @@ export function FillControl({
                     <button
                       type="button"
                       className="saved-color-remove"
-                      data-tip={tr("登録色を削除")}
+                      data-tip={tr("Remove saved color")}
                       onClick={() => removeFromPalette(c)}
-                      aria-label={tr("{c}を削除", { c })}
+                      aria-label={tr("Remove {c}", { c })}
                     >
                       <X size={9} />
                     </button>
@@ -1737,13 +1737,13 @@ export function FillControl({
               </div>
             ) : (
               <span className="saved-colors-empty">
-                {tr("＋で現在の色を登録できます")}
+                {tr("Press + to save the current color")}
               </span>
             )}
           </div>
           {recent.length > 0 && (
             <div className="recent-colors">
-              <span className="grp-label">{tr("最近使った色")}</span>
+              <span className="grp-label">{tr("Recent colors")}</span>
               <div className="recent-colors-grid">
                 {recent.map((c) => (
                   <button
@@ -1771,7 +1771,7 @@ export function FillControl({
                 setOpen(false);
               }}
             >
-              {tr("クリア")}
+              {tr("Clear")}
             </button>
           )}
         </div>
@@ -1840,9 +1840,9 @@ export function shorthandSide(
 const POS_VALUES = ["flex-start", "center", "flex-end"];
 /** 配置グリッドの各マスの名前（[縦][横]） */
 const POS_NAMES = [
-  [tr("左上"), tr("上中央"), tr("右上")],
-  [tr("左中央"), tr("中央"), tr("右中央")],
-  [tr("左下"), tr("下中央"), tr("右下")],
+  [tr("Top left"), tr("Top center"), tr("Top right")],
+  [tr("Middle left"), tr("Center"), tr("Middle right")],
+  [tr("Bottom left"), tr("Bottom center"), tr("Bottom right")],
 ];
 
 export function AlignGrid({ isColumn }: { isColumn: boolean }) {
@@ -1869,8 +1869,8 @@ export function AlignGrid({ isColumn }: { isColumn: boolean }) {
           className={on ? "is-on" : ""}
           data-tip={
             on
-              ? tr("{pos}に揃える（もう一度押すと解除）", { pos: POS_NAMES[y][x] })
-              : tr("{pos}に揃える", { pos: POS_NAMES[y][x] })
+              ? tr("Align {pos} (press again to clear)", { pos: POS_NAMES[y][x] })
+              : tr("Align {pos}", { pos: POS_NAMES[y][x] })
           }
           aria-pressed={on}
           onClick={() =>

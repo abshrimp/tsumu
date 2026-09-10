@@ -204,7 +204,7 @@ export function rewriteCssAssetUrls(
   let length = 0;
   const append = (part: string) => {
     length += part.length;
-    if (length > maxLength) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+    if (length > maxLength) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
     parts.push(part);
   };
   for (const ref of iterateCssAssetReferences(css)) {
@@ -212,7 +212,7 @@ export function rewriteCssAssetUrls(
     if (target === undefined || target === ref.url) continue;
     // Check before CSS-escaping, which can allocate up to several times the URL length.
     if (length + ref.start - from + target.length > maxLength) {
-      throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+      throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
     }
     append(css.slice(from, ref.start));
     append(escapeCssAssetUrl(target, ref.quote));

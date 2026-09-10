@@ -23,9 +23,13 @@ export async function selectDefaultBundle(doc = selectDefaultDoc()) {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
-import SettingsPanel from "./components/SettingsPanel";
+
+
 import { useEditor } from "./lib/store";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
+  const { default: SettingsPanel } = await import("./components/SettingsPanel");
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 window.selectEditor = useEditor;
 function Example() {
@@ -37,6 +41,8 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "select-default-browser.tsx" },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

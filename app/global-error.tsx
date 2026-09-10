@@ -22,9 +22,9 @@ export default function GlobalError({ error }: { error: Error }) {
         }}
       >
         <div style={{ maxWidth: 420, padding: 24, textAlign: "center" }}>
-          <h1 style={{ fontSize: 18, margin: "0 0 8px" }}>{tr("画面を表示できませんでした")}</h1>
+          <h1 style={{ fontSize: 18, margin: "0 0 8px" }}>{tr("Something went wrong")}</h1>
           <p style={{ fontSize: 14, color: "#52525b", margin: "0 0 16px" }}>
-            {tr("編集中のデータは保存されています。ページを再読み込みしてください。")}
+            {tr("Your work has been saved. Please reload the page.")}
           </p>
           <button
             onClick={() => location.reload()}
@@ -36,7 +36,7 @@ export default function GlobalError({ error }: { error: Error }) {
               cursor: "pointer",
             }}
           >
-            {tr("再読み込み")}
+            {tr("Reload")}
           </button>
         </div>
       </body>

@@ -120,18 +120,18 @@ function Composer({
           }
         }}
       />
-      {tooLong && <p className="hint is-error" role="alert">{tr("コメントは{max}文字以内で入力してください", { max: MAX_COMMENT_LENGTH })}</p>}
+      {tooLong && <p className="hint is-error" role="alert">{tr("Comments must be {max} characters or fewer.", { max: MAX_COMMENT_LENGTH })}</p>}
       <div className="cm-compose-acts">
         {onCancel && (
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => { if (draftKey) unsentBodies.delete(draftKey); onCancel(); }}>
-            {tr("キャンセル")}
+            {tr("Cancel")}
           </button>
         )}
         <button
           type="button"
           className="btn btn-sm btn-primary"
           disabled={disabled || !body.trim() || busy || tooLong}
-          data-tip={tr("送信（⌘Enter）")}
+          data-tip={tr("Send (⌘Enter)")}
           onClick={() => void submit()}
         >
           <CornerDownLeft size={12} />
@@ -176,17 +176,17 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
     <div className="cm-msg">
       <div className="cm-msg-head">
         <UserAvatar user={m.author} size={22} />
-        <strong>{userLabel(m.author, tr("ゲスト"))}</strong>
+        <strong>{userLabel(m.author, tr("Guest"))}</strong>
         <time title={new Date(m.at).toLocaleString(getLang())}>
           {relativeTime(m.at)}
-          {m.editedAt ? tr("（編集済み）") : ""}
+          {m.editedAt ? tr(" (edited)") : ""}
         </time>
         {mine && !editing && !unavailable && (
           <span className="cm-msg-menu">
             <button
               type="button"
               className="icon-btn sm"
-              aria-label={tr("コメントの操作")}
+              aria-label={tr("Comment actions")}
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect();
                 setMenu(menu ? null : { x: r.right - 160, y: r.bottom + 4 });
@@ -202,7 +202,7 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
                 items={[
                   {
                     key: "edit",
-                    label: tr("コメントを編集"),
+                    label: tr("Edit"),
                     icon: <Pencil size={14} />,
                     onClick: () => {
                       setMenu(null);
@@ -212,7 +212,7 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
                   },
                   {
                     key: "delete",
-                    label: tr("削除"),
+                    label: tr("Delete"),
                     icon: <Trash2 size={14} />,
                     danger: true,
                     onClick: async () => {
@@ -222,9 +222,9 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
                       try {
                         const all = first && thread.messages.length === 1;
                         if (
-                          await showConfirm(all ? tr("このスレッドを削除します。") : tr("このコメントを削除します。"), {
-                            title: tr("コメントを削除しますか？"),
-                            okLabel: tr("削除"),
+                          await showConfirm(all ? tr("This thread will be deleted.") : tr("This comment will be deleted."), {
+                            title: tr("Delete this comment?"),
+                            okLabel: tr("Delete"),
                             danger: true,
                           })
                         ) {
@@ -245,8 +245,8 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
         <Composer
           initial={m.body}
           disabled={unavailable}
-          placeholder={tr("コメント")}
-          submitLabel={tr("保存")}
+          placeholder={tr("Comments")}
+          submitLabel={tr("save")}
           autoFocus
           onCancel={() => { editSession.current++; setEditing(false); }}
           onSubmit={async (body) => {
@@ -274,12 +274,12 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
       <div className="cm-pop-head">
         <BackButton onClick={onClose} />
         <span className="cm-pop-title" title={place}>{place}</span>
-        {thread.resolvedAt && <span className="cm-badge">{tr("解決済み")}</span>}
+        {thread.resolvedAt && <span className="cm-badge">{tr("Resolved")}</span>}
         <button
           type="button"
           className={`icon-btn sm${thread.resolvedAt ? " is-on" : ""}`}
-          data-tip={thread.resolvedAt ? tr("未解決に戻す") : tr("解決済みにする")}
-          aria-label={thread.resolvedAt ? tr("未解決に戻す") : tr("解決済みにする")}
+          data-tip={thread.resolvedAt ? tr("Reopen") : tr("Resolve")}
+          aria-label={thread.resolvedAt ? tr("Reopen") : tr("Resolve")}
           disabled={unavailable}
           onClick={() => void run({ action: "resolve", threadId: thread.id, resolved: !thread.resolvedAt })}
         >
@@ -289,17 +289,17 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
           <button
             type="button"
             className="icon-btn sm"
-            data-tip={tr("スレッドを削除")}
-            aria-label={tr("スレッドを削除")}
+            data-tip={tr("Delete thread")}
+            aria-label={tr("Delete thread")}
             disabled={unavailable}
             onClick={async () => {
               const operation = beginDeletion();
               if (!operation) return;
               try {
                 if (
-                  await showConfirm(tr("返信も含めて、このスレッドを削除します。"), {
-                    title: tr("スレッドを削除しますか？"),
-                    okLabel: tr("削除"),
+                  await showConfirm(tr("This thread and all its replies will be deleted."), {
+                    title: tr("Delete this thread?"),
+                    okLabel: tr("Delete"),
                     danger: true,
                   })
                 ) {
@@ -315,8 +315,8 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
       </div>
       {thread.resolvedAt && thread.resolvedBy && (
         <p className="cm-resolved">
-          {tr("{name}が解決済みにしました（{time}）", {
-            name: userLabel(thread.resolvedBy, tr("ゲスト")),
+          {tr("Resolved by {name} ({time})", {
+            name: userLabel(thread.resolvedBy, tr("Guest")),
             time: relativeTime(thread.resolvedAt),
           })}
         </p>
@@ -329,9 +329,9 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
         ))}
       </div>
       <Composer
-        placeholder={tr("返信")}
+        placeholder={tr("Reply")}
         disabled={unavailable}
-        submitLabel={tr("返信")}
+        submitLabel={tr("Reply")}
         autoFocus
         draftKey={`reply:${thread.id}`}
         onSubmit={(body) => run({ action: "reply", threadId: thread.id, id: commentId(), body })}
@@ -525,7 +525,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
             type="button"
             className={`cm-pin${t.id === openId ? " is-open" : ""}${t.resolvedAt ? " is-resolved" : ""}`}
             style={{ left: p.left, top: p.top }}
-            aria-label={tr("コメント {n}", { n })}
+            aria-label={tr("Comment {n}", { n })}
             onClick={(e) => {
               e.stopPropagation();
               open(t.id === openId ? null : t.id);
@@ -546,7 +546,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
 
 function BackButton({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" className="icon-btn sm" aria-label={tr("一覧に戻る")} data-tip={tr("一覧に戻る（Esc）")} onClick={onClick}>
+    <button type="button" className="icon-btn sm" aria-label={tr("Back to list", "back_to_list_variant_1")} data-tip={tr("Back to list (Esc)")} onClick={onClick}>
       <ArrowLeft size={14} />
     </button>
   );
@@ -597,7 +597,7 @@ export function CommentsPanel() {
     const target = targetOf(t);
     const page = doc.pages[target.pageId];
     const node = t.nodeId ? doc.nodes[t.nodeId] : null;
-    const where = target.kind === "deleted-page" ? tr("削除されたページ") : t.nodeId ? (node ? node.name : tr("削除された要素")) : tr("ページ全体");
+    const where = target.kind === "deleted-page" ? tr("Deleted page") : t.nodeId ? (node ? node.name : tr("Deleted element")) : tr("The whole page");
     return withPage && page && target.kind !== "deleted-page" ? `${page.name} · ${where}` : where;
   };
 
@@ -616,38 +616,38 @@ export function CommentsPanel() {
     <div className="cm-panel">
       <div className="cm-panel-head">
         <MessageSquare size={14} />
-        <strong>{tr("コメント")}</strong>
+        <strong>{tr("Comments")}</strong>
         <button
           type="button"
           className={`icon-btn sm${pinsHidden ? " is-on" : ""}`}
-          aria-label={pinsHidden ? tr("ピンを表示") : tr("ピンを隠す")}
+          aria-label={pinsHidden ? tr("Show pins") : tr("Hide pins")}
           aria-pressed={pinsHidden}
-          data-tip={pinsHidden ? tr("キャンバスにピンを表示") : tr("キャンバスのピンを隠す（⌥を押している間も隠せます）")}
+          data-tip={pinsHidden ? tr("Show pins on the canvas") : tr("Hide pins on the canvas (or hold ⌥ to hide them briefly)")}
           onClick={() => setPinsHidden(!pinsHidden)}
         >
           {pinsHidden ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
-        <button type="button" className="icon-btn sm" aria-label={tr("コメントモードを終える")} data-tip={tr("コメントモードを終える（Esc）")} onClick={() => useComments.getState().setActive(false)}>
+        <button type="button" className="icon-btn sm" aria-label={tr("Exit comment mode")} data-tip={tr("Exit comment mode (Esc)")} onClick={() => useComments.getState().setActive(false)}>
           <X size={14} />
         </button>
       </div>
       {error && <p className="hint is-error cm-panel-hint">{error}</p>}
       {detailOpen ? (
-        <section className="cm-detail" aria-label={tr("コメントの詳細")}>
+        <section className="cm-detail" aria-label={tr("Comment details")}>
           {draft ? (
             <>
               <div className="cm-detail-head">
                 <div className="cm-pop-head">
                   <BackButton onClick={() => setDraft(null)} />
-                  <span className="cm-pop-title">{tr("新しいコメント")}</span>
+                  <span className="cm-pop-title">{tr("New comment")}</span>
                   <span className="cm-pop-sub">{BP_INFO[draft.bp]?.label}</span>
                 </div>
                 <p className="cm-detail-context">{placeOf(draft, true)}</p>
               </div>
               <TargetNotice target={targetOf(draft)} draft />
               <Composer
-                placeholder={tr("コメントを書く")}
-                submitLabel={tr("投稿")}
+                placeholder={tr("Write a comment")}
+                submitLabel={tr("Post")}
                 autoFocus
                 draftKey="new"
                 onCancel={() => setDraft(null)}
@@ -669,7 +669,7 @@ export function CommentsPanel() {
                 onClose={() => closeCommentIfOpen(openThread.id)}
                 notices={
                   <>
-                    {threadUnavailable && <p className="cm-target-notice is-alert" role="alert">{tr("このスレッドは削除されています。入力中の文章は閉じるまで残るので、必要ならコピーしてください。")}</p>}
+                    {threadUnavailable && <p className="cm-target-notice is-alert" role="alert">{tr("This discussion has been deleted. Your draft remains until you close it, so copy it if you need it.")}</p>}
                     <TargetNotice target={targetOf(openThread)} draft={false} />
                   </>
                 }
@@ -682,27 +682,27 @@ export function CommentsPanel() {
           <div className="cm-panel-filters">
             <div className="seg seg-full">
               <button type="button" className={allPages ? "" : "is-on"} onClick={() => setAllPages(false)}>
-                {tr("このページ")}
+                {tr("This page")}
               </button>
               <button type="button" className={allPages ? "is-on" : ""} onClick={() => setAllPages(true)}>
-                {tr("すべてのページ")}
+                {tr("All pages")}
               </button>
             </div>
             <label className="lbl cm-panel-check">
               <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />
-              {tr("解決済みも表示")}
+              {tr("Show resolved")}
             </label>
           </div>
           <div className="cm-list">
             {onDeletedPages > 0 && (
               <button type="button" className="cm-list-notice" onClick={() => setAllPages(true)}>
-                {tr("削除されたページのコメントが{n}件あります。「すべてのページ」で表示できます。", { n: onDeletedPages })}
+                {tr("Comments on deleted pages: {n}. Switch to All pages to see them.", { n: onDeletedPages })}
               </button>
             )}
             {shown.length === 0 ? (
               <div className="cm-empty">
-                <p>{loading ? tr("読み込み中…") : partial ? tr("この一覧に条件に合うコメントはありません。ほかの一覧も確認できます。") : tr("コメントはありません")}</p>
-                {!loading && !partial && <p className="hint">{tr("キャンバスをクリックすると、その場所の要素にコメントを付けられます。")}</p>}
+                <p>{loading ? tr("Loading…") : partial ? tr("No matching comments in this batch. You can check other batches.") : tr("No comments")}</p>
+                {!loading && !partial && <p className="hint">{tr("Click the canvas to attach a comment to the element there.")}</p>}
               </div>
             ) : (
               shown.map((t) => {
@@ -721,15 +721,15 @@ export function CommentsPanel() {
                     <span className="cm-item-head">
                       {n > 0 && <span className="cm-item-num">{n}</span>}
                       <UserAvatar user={first.author} size={20} />
-                      <strong>{userLabel(first.author, tr("ゲスト"))}</strong>
+                      <strong>{userLabel(first.author, tr("Guest"))}</strong>
                       <time>{relativeTime(last.at)}</time>
                     </span>
                     <span className="cm-item-body">{first.body}</span>
                     <span className="cm-item-meta">
                       <span className={isDeletedCommentTarget(target) ? "cm-item-place is-deleted" : "cm-item-place"}>{placeOf(t, allPages)}</span>
-                      {target.hidden && <span>{tr("この画面幅では非表示")}</span>}
-                      {replies === 1 ? <span>{tr("返信1件")}</span> : replies > 1 ? <span>{tr("返信{n}件", { n: replies })}</span> : null}
-                      {t.resolvedAt && <span>{tr("解決済み")}</span>}
+                      {target.hidden && <span>{tr("Hidden at this screen width")}</span>}
+                      {replies === 1 ? <span>{tr("1 reply")}</span> : replies > 1 ? <span>{tr("{n} replies", { n: replies })}</span> : null}
+                      {t.resolvedAt && <span>{tr("Resolved")}</span>}
                     </span>
                   </button>
                 );
@@ -737,25 +737,25 @@ export function CommentsPanel() {
             )}
           </div>
           {partial && (
-            <div className="cm-pagination" title={tr("絞り込みとピンは、表示中の一覧の範囲に適用されます。")}>
-              <span className="hint">{tr("全{total}件中{loaded}件", { total, loaded: threads.length })}</span>
+            <div className="cm-pagination" title={tr("Filters and pins apply to the batch shown.")}>
+              <span className="hint">{tr("{loaded} of {total}", { total, loaded: threads.length })}</span>
               <span className="cm-pagination-actions">
                 {cursor && (
-                  <button type="button" className="icon-btn sm" aria-label={tr("最新の一覧")} data-tip={tr("最新の一覧")} disabled={loading || saving} onClick={() => void navigate("newest")}>
+                  <button type="button" className="icon-btn sm" aria-label={tr("Latest comments")} data-tip={tr("Latest comments")} disabled={loading || saving} onClick={() => void navigate("newest")}>
                     <ChevronsLeft size={14} />
                   </button>
                 )}
-                <button type="button" className="icon-btn sm" aria-label={tr("新しい一覧")} data-tip={tr("新しい一覧")} disabled={loading || saving || !previousCursors.length} onClick={() => void navigate("newer")}>
+                <button type="button" className="icon-btn sm" aria-label={tr("Newer comments")} data-tip={tr("Newer comments")} disabled={loading || saving || !previousCursors.length} onClick={() => void navigate("newer")}>
                   <ChevronLeft size={14} />
                 </button>
-                <button type="button" className="icon-btn sm" aria-label={tr("古い一覧")} data-tip={tr("古い一覧")} disabled={loading || saving || !nextCursor} onClick={() => void navigate("older")}>
+                <button type="button" className="icon-btn sm" aria-label={tr("Older comments")} data-tip={tr("Older comments")} disabled={loading || saving || !nextCursor} onClick={() => void navigate("older")}>
                   <ChevronRight size={14} />
                 </button>
               </span>
             </div>
           )}
           {store === "local" && (
-            <p className="hint cm-panel-foot">{tr("サーバーの保存先が無いため、コメントはこのブラウザにだけ保存されます。")}</p>
+            <p className="hint cm-panel-foot">{tr("There is no server storage, so comments are saved only in this browser.")}</p>
           )}
         </>
       )}
@@ -765,10 +765,10 @@ export function CommentsPanel() {
 
 function TargetNotice({ target, draft }: { target: CommentTarget; draft: boolean }) {
   if (draft && isDeletedCommentTarget(target)) return <p className="cm-target-notice" role="status">{target.kind === "deleted-page"
-    ? tr("対象のページは削除されています。入力中の内容は保持されています。")
-    : tr("対象の要素は削除されています。入力中の内容は保持されています。")}</p>;
-  const text = target.kind === "deleted-page" ? tr("対象のページは削除されています。コメントは残っています。")
-    : target.kind === "deleted-node" ? tr("対象の要素は削除されています。コメントは残っています。")
-    : target.hidden ? tr("対象の要素はこの画面幅では非表示です。") : null;
+    ? tr("The page has been deleted. Your unfinished comment is retained.")
+    : tr("The element has been deleted. Your unfinished comment is retained.")}</p>;
+  const text = target.kind === "deleted-page" ? tr("The page has been deleted. Its comments are retained.")
+    : target.kind === "deleted-node" ? tr("The element has been deleted. Its comments are retained.")
+    : target.hidden ? tr("The element is hidden at this screen width.") : null;
   return text ? <p className="cm-target-notice" role="status">{text}</p> : null;
 }

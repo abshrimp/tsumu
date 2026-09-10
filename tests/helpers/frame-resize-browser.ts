@@ -8,8 +8,11 @@ export async function frameResizeBundle() {
       contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
+
 import { useEditor } from "./lib/store";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
 const doc = {
   siteName: "Frame resize", assets: {}, nodes: {}, components: {}, pageOrder: ["p", "q", "h"],
   pages: {
@@ -37,6 +40,8 @@ window.frameResize = {
   unmount: () => root.unmount(),
 };
 root.render(<React.StrictMode><Canvas /></React.StrictMode>);
+
+});
 `,
       resolveDir: resolve("."), loader: "tsx", sourcefile: "frame-resize-fixture.tsx",
     },

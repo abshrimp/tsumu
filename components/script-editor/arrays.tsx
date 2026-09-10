@@ -31,14 +31,14 @@ export function ArraySelect({ value, onChange }: { value: string; onChange: (v: 
       onChange={(e) => onChange(e.target.value)}
     >
       <option value="" disabled>
-        {arrays.length ? tr("リストを選択") : tr("リストがありません")}
+        {arrays.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists")}
       </option>
       {arrays.map((a) => (
         <option key={a.name} value={a.name}>
           {a.name}
         </option>
       ))}
-      {!known && <option value={value}>{value}{tr("（見つかりません）")}</option>}
+      {!known && <option value={value}>{value}{tr("(not found)")}</option>}
     </select>
   );
 }
@@ -83,7 +83,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
       onChange={(e) => onChange(e.target.value)}
     >
       <option value="" disabled>
-        {all.length ? tr("リストを選択") : tr("リストがありません")}
+        {all.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists")}
       </option>
       {named.map((n) => (
         <option key={n} value={n}>
@@ -91,7 +91,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
         </option>
       ))}
       {nested.length > 0 && (
-        <optgroup label={tr("変数の中のリスト")}>
+        <optgroup label={tr("Lists inside variables")}>
           {nested.map((n) => (
             <option key={n} value={n}>
               {fieldLabel(n)}
@@ -99,7 +99,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
           ))}
         </optgroup>
       )}
-      {value && !all.includes(value) && <option value={value}>{value}{tr("（見つかりません）")}</option>}
+      {value && !all.includes(value) && <option value={value}>{value}{tr("(not found)")}</option>}
     </select>
   );
 }
@@ -143,8 +143,8 @@ export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "lis
         field: <ArrayFieldSelect array={step.array} value={step.field} onChange={(field) => set({ field })} />,
         dir: (
           <select className="se-in" value={step.dir} onChange={(e) => set({ dir: e.target.value })}>
-            <option value="asc">{tr("昇順")}</option>
-            <option value="desc">{tr("降順")}</option>
+            <option value="asc">{tr("Ascending")}</option>
+            <option value="desc">{tr("Descending")}</option>
           </select>
         ),
       }}
@@ -167,21 +167,21 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
       <span className="se-line">
         <span
           className="se-filter-no"
-          data-tip={tr("絞り込みの番号（自動）。「絞り込みを解除する」で番号を選ぶと、この絞り込みだけを外せます")}
+          data-tip={tr("Filter number (automatic). Choose it in \"Clear filters\" to remove just this filter")}
         >
-          {tr("絞り込み{n}", { n: step.no ?? "?" })}
+          {tr("Filter {n}", { n: step.no ?? "?" })}
         </span>
         {others.length > 0 && (
           <select
             className="se-in se-fixed-select"
-            aria-label={tr("ほかの絞り込みとのつなぎ方")}
+            aria-label={tr("How to combine with other filters")}
             value={step.join ?? "and"}
             disabled={readOnly}
-            data-tip={tr("同じリストのほかの絞り込みとのつなぎ方")}
+            data-tip={tr("How this combines with other filters on the same list")}
             onChange={(e) => set({ join: e.target.value === "or" ? "or" : undefined })}
           >
-            <option value="and">{tr("ほかの絞り込みと「かつ」")}</option>
-            <option value="or">{tr("ほかの絞り込みと「または」")}</option>
+            <option value="and">{tr("AND with other filters")}</option>
+            <option value="or">{tr("OR with other filters")}</option>
           </select>
         )}
         <Phrase
@@ -195,7 +195,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
                 value={step.value}
                 not={step.not}
                 onNotChange={(not) => set({ not })}
-                placeholder={tr("値 / {変数}")}
+                placeholder={tr("value / {variable}")}
                 onChange={(op, value) => set({ op, value })}
               />
             ),
@@ -211,12 +211,12 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
               join: (
                 <select
                   className="se-in se-fixed-select"
-                  aria-label={tr("条件のつなぎ方")}
+                  aria-label={tr("Join conditions with")}
                   value={c.and ? "and" : "or"}
                   onChange={(e) => setOr(i, { and: e.target.value === "and" })}
                 >
-                  <option value="and">{tr("かつ")}</option>
-                  <option value="or">{tr("または")}</option>
+                  <option value="and">{tr("and")}</option>
+                  <option value="or">{tr("or")}</option>
                 </select>
               ),
               field: (
@@ -228,7 +228,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
                   value={c.value}
                   not={c.not}
                   onNotChange={(not) => setOr(i, { not })}
-                  placeholder={tr("値 / {変数}")}
+                  placeholder={tr("value / {variable}")}
                   onChange={(op, value) => setOr(i, { op, value })}
                 />
               ),
@@ -238,7 +238,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
             <button
               type="button"
               className="se-mini"
-              aria-label={tr("この条件を削除")}
+              aria-label={tr("Remove this condition")}
               onClick={() => set({ or: or.filter((_, j) => j !== i) })}
             >
               <X size={12} />
@@ -251,11 +251,11 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
         <div className="se-composer-condition-actions">
           <button type="button" className="se-mini se-mini-text"
             onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: true }] })}>
-            <Plus size={12} />{tr("かつ")}
+            <Plus size={12} />{tr("and")}
           </button>
           <button type="button" className="se-mini se-mini-text"
             onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: false }] })}>
-            <Plus size={12} />{tr("または")}
+            <Plus size={12} />{tr("or")}
           </button>
         </div>
       )}

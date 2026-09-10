@@ -22,10 +22,10 @@ function needMet(s: EditorState, need: SelectionNeed | undefined): boolean {
 }
 
 const NEED_TEXT: Record<SelectionNeed, string> = {
-  any: tr("まず、操作したい要素をキャンバスかレイヤーでクリックして選んでください。"),
-  text: tr("まず、文字（テキスト・見出し・ボタン）をクリックして選んでください。"),
-  image: tr("まず、画像をクリックして選んでください。"),
-  container: tr("まず、中に要素を入れているボックス（親）を選んでください。中の要素を選んでいるときは ⇧Enter で親を選べます。"),
+  any: tr("First, select the element you want to work on by clicking it on the canvas or in Layers."),
+  text: tr("First, click a text element (text, heading or button) to select it."),
+  image: tr("First, click an image to select it."),
+  container: tr("First, select the box (parent) that contains the elements. If a child is selected, press ⇧Enter to select its parent."),
 };
 
 /** いちばん小さいブレークポイント（スマホ）のID */
@@ -240,10 +240,10 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
         className="guide-card"
         role="dialog"
         aria-modal="false"
-        aria-label={tr("操作ガイド: {q}", { q: topic.q })}
+        aria-label={tr("Guide: {q}", { q: topic.q })}
         style={{ top: pos.top, left: pos.left }}
       >
-        <button type="button" className="guide-close" aria-label={tr("案内を終える")} data-tip={tr("案内を終える（Esc）")} onClick={() => stopGuide()}>
+        <button type="button" className="guide-close" aria-label={tr("End guide")} data-tip={tr("End guide (Esc)")} onClick={() => stopGuide()}>
           <X size={14} />
         </button>
         <div className="guide-eyebrow">
@@ -266,35 +266,35 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
             <span>{glyphs(step.hint)}</span>
           </p>
         )}
-        {missingBp && <p className="guide-hint">{tr("このサイトには小さい画面用のブレークポイントがありません。")}</p>}
+        {missingBp && <p className="guide-hint">{tr("This site has no breakpoints for smaller screens.")}</p>}
         {!found && !missingBp && (
           <p className="guide-hint">
-            {tr("示す場所が画面に見当たりません。パネルが閉じていないか、前の手順が済んでいるかを確かめてください。")}
+            {tr("The target isn't visible on screen. Check that the panel is open and the previous step is done.")}
           </p>
         )}
         {ready && checks && (
           <div className={`guide-status${done ? " is-done" : ""}`}>
             {done ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-            {done ? tr("できました") : tr("操作すると次へ進みます")}
+            {done ? tr("Done", "done_variant_1") : tr("Do it to continue")}
           </div>
         )}
         <div className="guide-actions">
           <button type="button" className="guide-back-link" onClick={() => stopGuide(true)}>
-            {tr("記事に戻る")}
+            {tr("Back to article")}
           </button>
           {index > 0 && (
             <button type="button" className="btn btn-sm" onClick={() => setGuideStep(index - 1)}>
               <ChevronLeft size={13} />
-              {tr("戻る")}
+              {tr("Back")}
             </button>
           )}
           {last ? (
             <button type="button" className="btn btn-sm btn-primary" onClick={() => stopGuide()}>
-              {tr("完了")}
+              {tr("Done")}
             </button>
           ) : (
             <button type="button" className="btn btn-sm btn-primary" onClick={() => setGuideStep(index + 1)}>
-              {tr("次へ")}
+              {tr("Next")}
               <ChevronRight size={13} />
             </button>
           )}

@@ -76,10 +76,10 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   useEscapeToClose(onClose, !busy);
 
   const description = format === "html"
-    ? tr("HTML・CSS・JavaScript・画像をまとめたZIPをダウンロードします。展開後、index.htmlをブラウザで開くだけで表示できます。npmやビルドは不要です。")
+    ? tr("Download a ZIP with ready-to-use HTML, CSS, JavaScript and images. Extract it and open index.html in your browser. No npm or build step is needed.")
     : format === "single-html"
-      ? tr("画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数のページを同時に出力することはできません。")
-      : trNodes("{framework}プロジェクトとして保存します。展開後に {cmd} で起動できます。", {
+      ? tr("Download one HTML file with embedded images, fonts, CSS and JavaScript. Multiple pages cannot be exported at the same time.")
+      : trNodes("Export as a {framework} project. After extracting the files, run {cmd} to start.", {
           framework: tr(EXPORT_FRAMEWORK_OPTIONS.find((item) => item.value === format)?.label ?? "Next.js"),
           cmd: <span className="kbd">npm install && npm run dev</span>,
         });
@@ -87,12 +87,12 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <div className="modal export-modal" onClick={(event) => event.stopPropagation()}>
-        <h2>{tr("コードをエクスポート")}</h2>
+        <h2>{tr("Export code")}</h2>
         <p className="modal-desc">{description}</p>
 
         <fieldset className="export-options" disabled={busy}>
           <div className="export-option">
-            <div className="export-option-label">{tr("フレームワーク")}</div>
+            <div className="export-option-label">{tr("Framework")}</div>
             <Dropdown
               value={format}
               options={EXPORT_FRAMEWORK_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))}
@@ -105,12 +105,12 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                 }
               }}
               style={{ width: "100%" }}
-              title={tr("フレームワーク")}
+              title={tr("Framework")}
             />
           </div>
           <div className="export-option-grid">
             <div className="export-option">
-              <div className="export-option-label">{tr("言語")}</div>
+              <div className="export-option-label">{tr("Language")}</div>
               <Dropdown
                 value={language}
                 options={format === "html" || format === "single-html"
@@ -121,11 +121,11 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                     ]}
                 onChange={(value) => setLanguage(value as ExportLanguage)}
                 style={{ width: "100%" }}
-                title={tr("言語")}
+                title={tr("Language")}
               />
             </div>
             <div className="export-option">
-              <div className="export-option-label">{tr("スタイル")}</div>
+              <div className="export-option-label">{tr("Style")}</div>
               <Dropdown
                 value={style}
                 options={format === "html" || format === "single-html"
@@ -137,62 +137,62 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                     ]}
                 onChange={(value) => setStyle(value as ExportStyle)}
                 style={{ width: "100%" }}
-                title={tr("スタイル")}
+                title={tr("Style")}
               />
             </div>
           </div>
           <div className="export-option">
-            <div className="export-option-label">{tr("出力範囲")}</div>
+            <div className="export-option-label">{tr("Export scope")}</div>
             <Dropdown
               value={scope}
               options={[
-                { value: "component", label: tr("選択したコンポーネント") },
-                { value: "page", label: tr("現在のページ") },
-                ...(format === "single-html" ? [] : [{ value: "project", label: tr("プロジェクト全体") }]),
+                { value: "component", label: tr("Selected component") },
+                { value: "page", label: tr("Current page") },
+                ...(format === "single-html" ? [] : [{ value: "project", label: tr("Entire project") }]),
               ]}
               onChange={(value) => setScope(value as ExportScope)}
               style={{ width: "100%" }}
-              title={tr("出力範囲")}
+              title={tr("Export scope")}
             />
           </div>
         </fieldset>
         {style === "tailwind" && (
           <p className="hint export-note">
-            {tr("Tailwind CSSのユーティリティを利用できます。デザインを維持するため、Tsumuが生成したCSSも含まれます。")}
+            {tr("Tailwind utilities are available. Tsumu-generated CSS remains included to preserve your design.")}
           </p>
         )}
         {scope === "component" && (
           <p className="hint export-note">
-            {tr("選択中の要素を単独のページとして書き出します。選択した要素の子要素も含まれます。")}
+            {tr("Exports the selected element and its descendants as a standalone page.")}
           </p>
         )}
         {(format === "html" || format === "single-html") && (
           <p className="hint export-note">
-            {tr("HTML形式はそのまま開けるファイルを出力するため、言語はJavaScript、スタイルはCSSに固定されます。")}
+            {tr("The HTML format provides ready-to-open files, so language is JavaScript and styling is CSS.")}
           </p>
         )}
         {(format === "html" || format === "single-html") && (
           <p className="hint export-note">
-            {tr("外部データの取得にはAPIのCORS許可が必要です。file://での利用には制約があるため、localhostなどの環境で確認してください。")}
+            {tr("Fetching external data requires the API to allow CORS. file:// has restrictions, so test on localhost or a similar environment.")}
           </p>
         )}
         {format === "single-html" && (
           <p className="hint export-note">
-            {tr("外部APIや埋め込み動画はインターネット接続が必要です。外部画像などを埋め込めない場合は、アセットとして取り込んでから再試行してください。")}
+            {tr("External APIs and embedded videos still require an internet connection. If external images cannot be embedded, import them into the asset library and retry.")}
           </p>
         )}
         {format !== "single-html" && (
           <p className="hint export-note">
             {scope === "project"
-              ? tr("ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。")
-              : tr("ZIPには書き出した範囲の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。")}
+              ? tr("The ZIP contains the site’s complete editable source (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.")
+              : tr("The ZIP contains the editable source for the exported scope (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.")}
           </p>
         )}
         <CheckList checks={checks} onClose={onClose} />
 
         <div className="modal-actions">
           <button className="btn" disabled={busy} onClick={onClose}>
-            {tr("キャンセル")}
+            {tr("Cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -204,12 +204,12 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                 onClose();
                 if (missing.length) {
                   void showAlert(
-                    tr("次の画像は保存先に見つからなかったため、zipに含めていません（削除済みの可能性があります）。\n{p1}", { p1: missing.join("\n") }),
-                    { title: tr("一部の画像を含めずにダウンロードしました") }
+                    tr("These images weren't found in storage, so they were left out of the zip (they may have been deleted).\n{p1}", { p1: missing.join("\n") }),
+                    { title: tr("Downloaded without some images") }
                   );
                 }
               } catch (error) {
-                const title = format === "single-html" ? tr("HTMLを生成できませんでした") : tr("zipを生成できませんでした");
+                const title = format === "single-html" ? tr("Could not generate the HTML file") : tr("Couldn't create the zip");
                 void showAlert(userMessage(error, title), { title });
               } finally {
                 setBusy(false);
@@ -217,7 +217,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             }}
           >
             <Download size={13} />
-            {busy ? tr("生成中…") : format === "single-html" ? tr("HTMLをダウンロード") : tr("zipをダウンロード")}
+            {busy ? tr("Generating…") : format === "single-html" ? tr("Download HTML") : tr("Download zip")}
           </button>
         </div>
       </div>
@@ -235,10 +235,10 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("設定")}</h2>
+        <h2>{tr("Settings")}</h2>
 
         <section className="settings-sec">
-          <h3>{tr("表示言語")}</h3>
+          <h3>{tr("Language", "language_variant_1")}</h3>
           <Seg
             value={getLang()}
             options={LANGS}
@@ -246,33 +246,33 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               if (v !== getLang()) setLang(v as Lang);
             }}
           />
-          <p className="hint">{tr("切り替えると画面を読み込み直します。作成中のサイトの内容は変わりません。")}</p>
+          <p className="hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>
 
         <section className="settings-sec">
-          <h3>{tr("サイトのリセット")}</h3>
+          <h3>{tr("Reset site")}</h3>
           <button
             className="btn"
             onClick={async () => {
               // 誤操作を防ぐため、確認の文を入力したときだけ実行できる
               const accepted = await confirmReset(async () => (await showPrompt(
-                tr("サイト全体を初期状態に戻します（「元に戻す」で復帰できます）。\n実行するには「初期状態に戻す」と入力してください。"),
-                { title: tr("初期状態に戻しますか？"), expect: tr("初期状態に戻す"), okLabel: tr("初期状態に戻す"), danger: true }
-              )) === tr("初期状態に戻す"));
+                tr("This resets the entire site to its initial state (you can undo it).\nType \"Reset\" to continue."),
+                { title: tr("Reset the site?"), expect: tr("Reset"), okLabel: tr("Reset"), danger: true }
+              )) === tr("Reset"));
               if (!accepted) return;
               resetDoc();
               onClose();
             }}
           >
             <RotateCcw size={13} />
-            {tr("初期状態に戻す")}
+            {tr("Reset")}
           </button>
-          <p className="hint">{tr("すべてのページ・要素・設定を消して、新規作成した直後の状態に戻します。公開済みのサイトは、再度公開するまで変わりません。")}</p>
+          <p className="hint">{tr("Removes all pages, elements and settings and returns the site to how it was when created. The published site isn't affected.")}</p>
         </section>
 
         <div className="modal-actions" style={{ marginTop: 16 }}>
           <button className="btn" onClick={onClose}>
-            {tr("閉じる")}
+            {tr("Close")}
           </button>
         </div>
       </div>
@@ -289,23 +289,23 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <div className="modal" style={{ width: 400 }} onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("ログアウトしますか？")}</h2>
+        <h2>{tr("Sign out?")}</h2>
         <p className="modal-desc">
-          {tr("もう一度使うには、Googleアカウントでログインし直す必要があります。")}
+          {tr("You'll need to sign in with Google again to continue.")}
         </p>
         {unsaved && (
           <ul className="check-list">
             <li className="is-error">
               <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
               {cloudState === "saving"
-                ? tr("サーバーへ保存しています。保存が終わってからログアウトすると安全です。")
-                : tr("サーバーに保存されていない変更があります。このブラウザには残りますが、他の端末からは見えません。")}
+                ? tr("Saving to the server. It's safest to sign out after saving finishes.")
+                : tr("Some changes haven't been saved to the server. They're kept in this browser but won't appear on other devices.")}
             </li>
           </ul>
         )}
         <div className="modal-actions">
           <button className="btn" onClick={onClose} disabled={busy} autoFocus>
-            {tr("キャンセル")}
+            {tr("Cancel")}
           </button>
           <button
             className="btn btn-primary"
@@ -316,7 +316,7 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
             }}
           >
             {busy ? <LoaderCircle size={13} className="spin" /> : <LogOut size={13} />}
-            {tr("ログアウト")}
+            {tr("Sign out")}
           </button>
         </div>
       </div>
@@ -381,16 +381,16 @@ export default function Header({
     <header className="hdr">
       <div className="hdr-group">
         {/* ホーム（サイトの一覧）へ。ページごと移動するので、未保存の変更があればブラウザが確認する */}
-        <a className="icon-btn" href="/" aria-label={tr("サイト一覧")} data-tip={tr("サイト一覧へ戻る")}>
+        <a className="icon-btn" href="/" aria-label={tr("Sites")} data-tip={tr("Back to sites")}>
           <LayoutGrid size={16} />
         </a>
         {mode === "design" && (
           <button
             className={`icon-btn${panels.l ? "" : " is-off"}`}
             onClick={() => onTogglePanel("l")}
-            aria-label={panels.l ? tr("左パネルを閉じる") : tr("左パネルを開く")}
+            aria-label={panels.l ? tr("Close left panel") : tr("Open left panel")}
             aria-pressed={panels.l}
-            data-tip={panels.l ? tr("左パネルを閉じる") : tr("左パネルを開く")}
+            data-tip={panels.l ? tr("Close left panel") : tr("Open left panel")}
             data-tip-kbd="⌘["
           >
             {panels.l ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
@@ -406,8 +406,8 @@ export default function Header({
                 ? [
                     {
                       value: doc.loadingScreen.pageId,
-                      label: tr("ローディング画面"),
-                      desc: tr("サイト共通"),
+                      label: tr("Loading screen"),
+                      desc: tr("Site-wide"),
                       icon: <LoaderCircle size={13} />,
                     },
                   ]
@@ -415,7 +415,7 @@ export default function Header({
               ...doc.pageOrder.map((id) => ({
                 value: id,
                 label: doc.pages[id].unpublished
-                  ? tr("{name}（非公開）", { name: doc.pages[id].name })
+                  ? tr("{name} (unpublished)", { name: doc.pages[id].name })
                   : doc.pages[id].name,
                 // フォルダに入れているページは、フォルダ名も添える
                 desc: `${
@@ -436,8 +436,8 @@ export default function Header({
           data-tutorial="undo"
           disabled={!past.length}
           onClick={undo}
-          aria-label={tr("元に戻す")}
-          data-tip={tr("元に戻す")} data-tip-kbd="⌘Z"
+          aria-label={tr("Undo")}
+          data-tip={tr("Undo")} data-tip-kbd="⌘Z"
         >
           <Undo2 size={15} />
         </button>
@@ -445,8 +445,8 @@ export default function Header({
           className="icon-btn"
           disabled={!future.length}
           onClick={redo}
-          aria-label={tr("やり直す")}
-          data-tip={tr("やり直す")} data-tip-kbd="⇧⌘Z"
+          aria-label={tr("Redo")}
+          data-tip={tr("Redo")} data-tip-kbd="⇧⌘Z"
         >
           <Redo2 size={15} />
         </button>
@@ -465,7 +465,7 @@ export default function Header({
                 desc:
                   bp === "base"
                     ? `${BP_INFO[bp].width}px`
-                    : tr("{max}px以下に反映", { max: BP_INFO[bp].maxWidth ?? 0 }),
+                    : tr("Applies at {max}px and below", { max: BP_INFO[bp].maxWidth ?? 0 }),
                 icon: <BpIcon bp={bp} size={13} />,
               }))}
               onChange={(v) => setBreakpoint(v)}
@@ -477,8 +477,8 @@ export default function Header({
                 key={bp}
                 className={breakpoint === bp && customWidth === null ? "is-on" : ""}
                 data-tutorial={`breakpoint-${bp}`}
-                data-tip={tr("{label}（{width}px）で表示 ― 変更は{scope}", { label: BP_INFO[bp].label, width: BP_INFO[bp].width, scope: BP_INFO[bp].scope })}
-                aria-label={tr("{label}で表示", { label: BP_INFO[bp].label })}
+                data-tip={tr("View as {label} ({width}px) — {scope}", { label: BP_INFO[bp].label, width: BP_INFO[bp].width, scope: BP_INFO[bp].scope })}
+                aria-label={tr("View as {label}", { label: BP_INFO[bp].label })}
                 onClick={() => setBreakpoint(bp)}
               >
                 <BpIcon bp={bp} size={14} />
@@ -492,7 +492,7 @@ export default function Header({
               units={["px"]}
               min={240}
               max={3000}
-              title={tr("画面幅を指定（キャンバス左右の端をドラッグしても変えられます）")}
+              title={tr("Set screen width (you can also drag the canvas edges)")}
               pre={<MoveHorizontal size={12} />}
               onChange={(v) => {
                 const n = v ? parseNumeric(v)?.num : undefined;
@@ -505,7 +505,7 @@ export default function Header({
             />
             <Dropdown
               value={String(customWidth ?? BP_INFO[breakpoint].width)}
-              title={tr("よくある端末の幅で確かめる")}
+              title={tr("Check common device widths")}
               trigger={<Smartphone size={14} />}
               menuWidth={240}
               options={[...DEVICE_WIDTHS]
@@ -529,11 +529,11 @@ export default function Header({
       </div>
 
       <div className="hdr-group">
-        <div className="hdr-zoom" data-tutorial="zoom" data-tip={tr("⌘+スクロールでもズームできます")}>
+        <div className="hdr-zoom" data-tutorial="zoom" data-tip={tr("You can also zoom with ⌘ + scroll")}>
           <Dropdown
             value={String(zoom)}
             options={[
-              { value: "0", label: tr("フィット"), icon: <ZoomIn size={13} /> },
+              { value: "0", label: tr("Fit"), icon: <ZoomIn size={13} /> },
               ...([0.5, 0.75, 1, 1.5].includes(zoom) || zoom === 0
                 ? []
                 : [
@@ -555,27 +555,27 @@ export default function Header({
           <button
             className={mode === "design" ? "is-on" : ""}
             onClick={() => setMode("design")}
-            aria-label={tr("デザイン")}
+            aria-label={tr("Design")}
           >
             <PenTool size={12} className="hdr-icon-narrow" />
-            <span className="hdr-label">{tr("デザイン")}</span>
+            <span className="hdr-label">{tr("Design")}</span>
           </button>
           <button
             className={mode === "preview" ? "is-on" : ""}
             onClick={() => setMode("preview")}
-            aria-label={tr("プレビュー")}
-            data-tip={tr("ボタンやリンクの動きを試す")}
+            aria-label={tr("Preview")}
+            data-tip={tr("Try out buttons and links")}
           >
             <Play size={12} />
-            <span className="hdr-label">{tr("プレビュー")}</span>
+            <span className="hdr-label">{tr("Preview")}</span>
           </button>
         </div>
         {aiEnabled && (
           <button
             className={`icon-btn hdr-ai${aiOpen ? " is-on" : ""}`}
             data-tutorial="ai"
-            data-tip={tr("AIに頼んで編集する")}
-            aria-label={tr("AIに頼む")}
+            data-tip={tr("Ask AI to edit")}
+            aria-label={tr("Ask AI")}
             aria-pressed={aiOpen}
             onClick={() => {
               closeHelp();
@@ -588,9 +588,9 @@ export default function Header({
         <button
           className={`icon-btn hdr-comment${commenting && mode === "design" ? " is-on" : ""}`}
           data-tutorial="comments"
-          data-tip={tr("コメント")}
+          data-tip={tr("Comments")}
           data-tip-kbd="C"
-          aria-label={tr("コメント")}
+          aria-label={tr("Comments")}
           aria-pressed={commenting && mode === "design"}
           onClick={() => {
             closeHelp();
@@ -603,9 +603,9 @@ export default function Header({
         <button
           className={`icon-btn${helpOpen ? " is-on" : ""}`}
           data-tutorial="help"
-          data-tip={tr("ヘルプ・使い方")}
+          data-tip={tr("Help", "help_variant_1")}
           data-tip-kbd="?"
-          aria-label={tr("ヘルプ")}
+          aria-label={tr("Help")}
           aria-pressed={helpOpen}
           onClick={() => {
             toggleAi(false);
@@ -619,16 +619,16 @@ export default function Header({
           <Dropdown
             value=""
             trigger={<MoreHorizontal size={16} />}
-            title={tr("メニュー（書き出し・履歴・設定）")}
+            title={tr("Menu (export, history, settings)")}
             menuWidth={230}
             options={[
-              { value: "history", label: tr("履歴・ロールバック"), icon: <History size={13} /> },
-              { value: "export", label: tr("zipでエクスポート"), icon: <Download size={13} /> },
-              { value: "settings", label: tr("設定"), icon: <Settings size={13} /> },
+              { value: "history", label: tr("History & rollback"), icon: <History size={13} /> },
+              { value: "export", label: tr("Export as zip"), icon: <Download size={13} /> },
+              { value: "settings", label: tr("Settings"), icon: <Settings size={13} /> },
               // Google認証を使っていない（ログインなしで開ける）ときはログアウトを出さない
               ...(status?.auth === false
                 ? []
-                : [{ value: "logout", label: tr("ログアウト"), icon: <LogOut size={13} /> }]),
+                : [{ value: "logout", label: tr("Sign out"), icon: <LogOut size={13} /> }]),
             ]}
             onChange={(v) => {
               if (v === "export") openModal(setExporting);
@@ -647,15 +647,15 @@ export default function Header({
           onClick={() => openModal(setPublishing)}
         >
           <Globe size={13} />
-          {tr("公開")}
+          {tr("Publish")}
         </button>
         {mode === "design" && (
           <button
             className={`icon-btn${panels.r ? "" : " is-off"}`}
             onClick={() => onTogglePanel("r")}
-            aria-label={panels.r ? tr("右パネルを閉じる") : tr("右パネルを開く")}
+            aria-label={panels.r ? tr("Close right panel") : tr("Open right panel")}
             aria-pressed={panels.r}
-            data-tip={panels.r ? tr("右パネルを閉じる") : tr("右パネルを開く")}
+            data-tip={panels.r ? tr("Close right panel") : tr("Open right panel")}
             data-tip-kbd="⌘]"
           >
             {panels.r ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}

@@ -33,11 +33,13 @@ export async function nestedListSourcesBundle() {
       contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import SettingsPanel from "./components/SettingsPanel";
-import { NodeView } from "./components/canvas/NodeView";
-import { VarsCtx } from "./components/canvas/render";
+import { loadLocale } from "./lib/i18n";
 import { previewDataVars, pagePlan } from "./lib/data";
 import { useEditor } from "./lib/store";
+void loadLocale().then(async () => {
+const { default: SettingsPanel } = await import("./components/SettingsPanel");
+const { NodeView } = await import("./components/canvas/NodeView");
+const { VarsCtx } = await import("./components/canvas/render");
 useEditor.getState().replaceDoc(${JSON.stringify(nestedListSourcesDoc())});
 useEditor.getState().setActivePage("p"); useEditor.getState().select("tag");
 window.nestedListStore = useEditor;
@@ -53,6 +55,7 @@ function Example() {
 }
 window.nestedListRoot = createRoot(document.getElementById("app"));
 window.nestedListRoot.render(<Example />);
+});
 `,
       loader: "tsx", sourcefile: "nested-list-sources-browser.tsx", resolveDir: resolve("."),
     },

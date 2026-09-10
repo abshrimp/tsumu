@@ -5,7 +5,7 @@ import { useEditor } from "../lib/store";
 import { assetConfirmationCallbacks, assetConfirmationDoc, candidate, spare } from "./helpers/asset-confirmation";
 
 const tick = () => new Promise((resolve) => setImmediate(resolve));
-const failure = "アセットをダウンロードできませんでした";
+const failure = "Could not download the asset.";
 
 function browser() {
   const originals = Object.getOwnPropertyDescriptors(globalThis);
@@ -109,7 +109,7 @@ function panel() {
     ...b, ui, requests,
     click(id = candidate.id) {
       const card = ui.render().find((e) => e.props?.["data-asset-id"] === id);
-      card.props.children.find((e: any) => e?.props?.["data-tip"] === "ダウンロード").props.onClick();
+      card.props.children.find((e: any) => e?.props?.["data-tip"] === "Download").props.onClick();
     },
     errors: () => ui.render().filter((e) => e.props?.className === "hint" && e.props.children === failure),
     close() { ui.unmount(); b.close(); },

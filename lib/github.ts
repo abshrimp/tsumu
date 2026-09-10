@@ -46,21 +46,21 @@ const sameDestination = (a: TargetConfig, b: TargetConfig) =>
 export function configError(dest: SiteDest, target: PublishTarget, tr: Tr): string | null {
   const conf = targetConfig(dest, target);
   if (target === "test" && !previewEnabled(dest)) {
-    return tr("テスト公開は無効になっています（サイトの設定でテスト公開のブランチを指定すると使えます）");
+    return tr("Test publishing is off (set a test branch in the site settings to use it)");
   }
   if (!conf.token) {
     console.warn("Publishing is unavailable: GITHUB_TOKEN is not set");
-    return tr("GitHubへの公開が設定されていません。管理者に確認してください");
+    return tr("Publishing to GitHub isn't configured. Contact your administrator");
   }
   if (!conf.repo) {
-    return tr("このサイトの公開先リポジトリが設定されていません。ホーム画面のサイトの設定で指定してください");
+    return tr("This site has no repository to publish to. Set one in the site settings on the home screen");
   }
   // 保存済みの古い設定も、API の別のパスへ抜ける名前は使わない
   if (!isSafeRepo(conf.repo) || !isSafeBranch(conf.branch)) {
-    return tr("リポジトリの指定が正しくありません（owner/name の形で指定してください）: {repo}", { repo: conf.repo });
+    return tr("Invalid repository (use the owner/name format): {repo}", { repo: conf.repo });
   }
   if (sameDestination(targetConfig(dest, "test"), targetConfig(dest, "production"))) {
-    return tr("テストサイトと本番サイトの公開先（リポジトリ・ブランチ）が同じです。別のブランチを指定してください");
+    return tr("The test site and live site point to the same repository and branch. Use a different branch");
   }
   return null;
 }
@@ -119,18 +119,18 @@ export function githubClient(conf: TargetConfig, tr: Tr) {
     // response text next to a request that carries the publishing token.
     console.error("GitHub API request failed", { repo: conf.repo, step, status: res.status });
     if (res.status === 401) {
-      throw new Error(tr("GitHubに接続できませんでした。管理者に確認してください"));
+      throw new Error(tr("Couldn't connect to GitHub. Contact your administrator"));
     }
     if (res.status === 403 || res.status === 404) {
-      throw new Error(tr("{step}に失敗しました（{status}）。公開先リポジトリへの書き込みが許可されていない可能性があります。管理者に確認してください", { step, status: res.status }));
+      throw new Error(tr("{step} failed ({status}). Writing to the site repository may not be allowed. Contact your administrator", { step, status: res.status }));
     }
-    throw new Error(tr("{step}に失敗しました（{status}）", { step, status: res.status }));
+    throw new Error(tr("{step} failed ({status})", { step, status: res.status }));
   };
   /** ブランチ先端のコミット（ブランチが無い・空リポジトリなら null） */
   const head = async (): Promise<string | null> => {
     const res = await gh(`/git/ref/heads/${branchPath(conf.branch)}`);
     if (res.status === 404 || res.status === 409) return null;
-    if (!res.ok) await fail(tr("ブランチの取得"), res);
+    if (!res.ok) await fail(tr("Fetching the branch"), res);
     return (await res.json()).object.sha as string;
   };
   return { gh, fail, head };
@@ -189,6 +189,6 @@ export async function advanceBranchRef(
   }
   if (transportError) throw transportError;
   if (response?.status === 409 || response?.status === 422) return false;
-  if (response) await fail(tr(branchExists ? "ブランチの更新" : "ブランチの作成"), response);
+  if (response) await fail(tr(branchExists ? "Updating the branch" : "Creating the branch"), response);
   throw new Error("Could not verify GitHub branch update");
 }

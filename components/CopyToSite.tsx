@@ -33,7 +33,7 @@ export default function CopyToSiteModal({ pageIds, onClose }: { pageIds: string[
           return;
         }
         const data = await res.json().catch(() => null);
-        if (!res.ok || !data?.sites) throw new Error(data?.error ?? tr("読み込めませんでした"));
+        if (!res.ok || !data?.sites) throw new Error(data?.error ?? tr("Couldn't load"));
         if (alive) setSites(data.sites);
       } catch (e) {
         if (alive) {
@@ -61,7 +61,7 @@ export default function CopyToSiteModal({ pageIds, onClose }: { pageIds: string[
       await copyPagesToSite(site, buildPagePayload(useEditor.getState().doc, pageIds), store);
       setDone(site);
     } catch (e) {
-      setError(userMessage(e, tr("コピーできませんでした")));
+      setError(userMessage(e, tr("Couldn't copy")));
     } finally {
       setBusy(null);
     }
@@ -70,19 +70,19 @@ export default function CopyToSiteModal({ pageIds, onClose }: { pageIds: string[
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <div className="modal copy-site" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("ほかのサイトへコピー")}</h2>
+        <h2>{tr("Copy to another site")}</h2>
         <p className="modal-desc">
           {names.length === 1
-            ? tr("「{name}」を、選んだサイトの末尾に追加します。使っている画像・コンポーネント・フォントも一緒にコピーします。", { name: names[0] })
-            : tr("{n}ページを、選んだサイトの末尾に追加します。使っている画像・コンポーネント・フォントも一緒にコピーします。", { n: names.length })}
+            ? tr("“{name}” will be added to the end of the site you choose, along with the images, components and fonts it uses.", { name: names[0] })
+            : tr("{n} pages will be added to the end of the site you choose, along with the images, components and fonts they use.", { n: names.length })}
         </p>
 
         {done ? (
           <div className="copy-site-done">
-            <p>{tr("「{name}」へコピーしました。", { name: done.name })}</p>
+            <p>{tr("Copied to “{name}”.", { name: done.name })}</p>
             <a className="btn" href={sitePath(done.id)} target="_blank" rel="noopener">
               <ExternalLink size={13} />
-              {tr("新しいタブで開く")}
+              {tr("Open in a new tab")}
             </a>
           </div>
         ) : (
@@ -95,8 +95,8 @@ export default function CopyToSiteModal({ pageIds, onClose }: { pageIds: string[
                   value={query}
                   autoFocus
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={tr("サイトを探す")}
-                  aria-label={tr("サイトを探す")}
+                  placeholder={tr("Search sites")}
+                  aria-label={tr("Search sites")}
                 />
               </label>
             )}
@@ -104,11 +104,11 @@ export default function CopyToSiteModal({ pageIds, onClose }: { pageIds: string[
               {sites === null ? (
                 <p className="copy-site-empty">
                   <LoaderCircle size={13} className="spin" />
-                  {tr("読み込み中…")}
+                  {tr("Loading…")}
                 </p>
               ) : shown.length === 0 ? (
                 <p className="copy-site-empty">
-                  {query.trim() ? tr("当てはまるサイトはありません") : tr("コピー先にできるサイトがありません。ホームでサイトを作ってください。")}
+                  {query.trim() ? tr("No matching sites") : tr("There is no other site to copy to. Create one on the home screen.")}
                 </p>
               ) : (
                 shown.map((s) => (
@@ -141,7 +141,7 @@ export default function CopyToSiteModal({ pageIds, onClose }: { pageIds: string[
 
         <div className="modal-actions">
           <button className="btn" onClick={onClose} disabled={!!busy}>
-            {done ? tr("閉じる") : tr("キャンセル")}
+            {done ? tr("Close") : tr("Cancel")}
           </button>
         </div>
       </div>

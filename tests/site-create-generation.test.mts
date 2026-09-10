@@ -21,7 +21,7 @@ for (const importing of [false, true]) {
     f.hooks.beforeExecute = async stmt => { if (isRoomLookup(stmt, id)) throw new Error("Synthetic transient D1 failure"); };
     const response = await f.sites.POST(copyRequest(importing ? imported : undefined));
     assert.equal(response.status, 502);
-    assert.deepEqual(await response.json(), { error: "作成できませんでした" });
+    assert.deepEqual(await response.json(), { error: "Couldn't create it" });
     assert.ok(createdKey);
     assert.equal(await sites.getSite(f.rawDb, id), null);
     assert.equal(await sites.getSiteRoomKey(f.rawDb, id), null);
@@ -56,7 +56,7 @@ for (const timing of ["before target lookup", "during RPC", "after RPC", "final 
       }
       const response = await f.sites.POST(copyRequest());
       assert.equal(response.status, 502);
-      assert.deepEqual(await response.json(), { error: "作成できませんでした" });
+      assert.deepEqual(await response.json(), { error: "Couldn't create it" });
       assert.ok(replacementKey);
       assert.equal((await sites.getSite(f.rawDb, "destination"))?.name, "Replacement owner");
       assert.equal(await sites.getSiteRoomKey(f.rawDb, "destination"), replacementKey);
@@ -100,7 +100,7 @@ test("failed D1 rollback and cleanup never target a replacement generation", asy
   };
   const response = await f.sites.POST(copyRequest());
   assert.equal(response.status, 502);
-  assert.deepEqual(await response.json(), { error: "作成できませんでした" });
+  assert.deepEqual(await response.json(), { error: "Couldn't create it" });
   assert.ok(replacementKey);
   assert.equal(attemptedErase.length, 1);
   assert.ok(!attemptedErase.includes(replacementKey));

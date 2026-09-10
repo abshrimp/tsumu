@@ -316,7 +316,7 @@ test("rollback cannot reactivate a historical document containing embedded API c
   const f = fixture({ rollbackSourceContainsCredentials: true });
   const response = await f.post({ sha: old }, true);
   assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /認証情報/);
+  assert.match((await response.json()).error, /credentials|API key/i);
   assert.deepEqual(f.writes, []);
   assert.equal(f.recorded, 0);
 });

@@ -66,10 +66,10 @@ function ForEachView({
             ),
           }}
         />
-        {step.array && <span className="se-blk-note">{tr("中では {ループ.値}・{ループ.キー}・{ループ.順番} を使えます")}</span>}
+        {step.array && <span className="se-blk-note">{tr("Within the loop you can use {ループ.値}, {ループ.キー}, and {ループ.順番}")}</span>}
         {stuck && !ctx.readOnly && (
           <span className="se-badge is-warn">
-            {tr("この繰り返しには、ページの配信前に実行できない操作または変数参照があります。中のブロックを確認してください。")}
+            {tr("This loop contains actions or variable references that cannot run before the page is served. Check the nested blocks.")}
           </span>
         )}
       </div>
@@ -117,14 +117,14 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
                   value={forever ? "forever" : "times"}
                   onChange={(e) => setTimes(e.target.value === "forever" ? 0 : 3)}
                 >
-                  <option value="times">{tr("回くり返す")}</option>
-                  <option value="forever">{tr("ずっとくり返す")}</option>
+                  <option value="times">{tr("times")}</option>
+                  <option value="forever">{tr("forever")}</option>
                 </select>
               ),
             }}
           />
           {forever && !step.then.some((x) => x.kind === "wait") && (
-            <span className="se-badge is-warn">{tr("中に「秒待つ」を入れると間隔を決められます")}</span>
+            <span className="se-badge is-warn">{tr("Add a \"Wait\" block inside to set the interval")}</span>
           )}
         </div>
         <div className="se-c-body">
@@ -174,12 +174,12 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
                   parts={{
                     join: (
                       <select className="se-in se-fixed-select"
-                        aria-label={tr("条件のつなぎ方")}
+                        aria-label={tr("Join conditions with")}
                         value={condition.and ? "and" : "or"}
                         disabled={ctx.readOnly}
                         onChange={(event) => changeCondition(index, { and: event.target.value === "and" })}>
-                        <option value="and">{tr("かつ")}</option>
-                        <option value="or">{tr("または")}</option>
+                        <option value="and">{tr("and")}</option>
+                        <option value="or">{tr("or")}</option>
                       </select>
                     ),
                     cond: <CondEditor cond={condition}
@@ -188,7 +188,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
                 />
                 {!ctx.readOnly && (
                   <button type="button" className="se-mini"
-                    aria-label={tr("この条件を削除")}
+                    aria-label={tr("Remove this condition")}
                     onClick={() => removeCondition(index)}>
                     <X size={12} />
                   </button>
@@ -199,17 +199,17 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
               <div className="se-composer-condition-actions">
                 <button type="button" className="se-mini se-mini-text"
                   disabled={conditions.length >= 32} onClick={() => addCondition(true)}>
-                  <Plus size={12} />{tr("かつ")}
+                  <Plus size={12} />{tr("and")}
                 </button>
                 <button type="button" className="se-mini se-mini-text"
                   disabled={conditions.length >= 32} onClick={() => addCondition(false)}>
-                  <Plus size={12} />{tr("または")}
+                  <Plus size={12} />{tr("or")}
                 </button>
                 {!step.else && (
                   <button type="button" className="se-mini se-mini-text"
                     onClick={() => ctx.updateStep(step.id, (current) =>
                       current.kind === "if" ? { ...current, else: [] } : current)}>
-                    <Plus size={12} />{tr("でなければ")}
+                    <Plus size={12} />{tr("Else")}
                   </button>
                 )}
               </div>
@@ -226,13 +226,13 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
         {step.else && (
           <>
             <div className="se-blk se-c-mid">
-              <span>{tr("でなければ")}</span>
+              <span>{tr("Else")}</span>
               {/* 中が空のときだけ外せる（中のブロックを消さないように） */}
               {!ctx.readOnly && !step.else.length && (
                 <button
                   type="button"
                   className="se-mini"
-                  aria-label={tr("「でなければ」を外す")}
+                  aria-label={tr("Remove \"Else\"")}
                   onClick={() =>
                     ctx.updateStep(step.id, (s) => {
                       const { else: _else, ...rest } = s as Extract<ScriptStep, { kind: "if" }>;
@@ -266,7 +266,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
       <ScriptStepCtx.Provider value={step.id}><StepBody step={step} /></ScriptStepCtx.Provider>
       {isDataStep(step) && !ctx.readOnly && !ctx.isPageLoadRoot(loc) && (
         <span className="se-badge is-warn">
-          {tr("ページを開いたときのスクリプトの下に置くと動きます")}
+          {tr("Works when placed under the page's \"When the page opens\" script")}
         </span>
       )}
     </div>
@@ -276,7 +276,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
 function Slot({ loc, empty }: { loc: Loc; empty?: boolean }) {
   const { readOnly, activeSlot } = useContext(Ctx);
   if (readOnly) {
-    return empty ? <div className="se-slot is-empty">{tr("動作をここへ")}</div> : null;
+    return empty ? <div className="se-slot is-empty">{tr("Drop actions here")}</div> : null;
   }
   const key = slotKey(loc);
   return (
@@ -285,7 +285,7 @@ function Slot({ loc, empty }: { loc: Loc; empty?: boolean }) {
       data-slot={key}
       data-slot-kind="step"
     >
-      {empty ? tr("動作をここへ") : null}
+      {empty ? tr("Drop actions here") : null}
     </div>
   );
 }
@@ -386,12 +386,12 @@ function ElementSelect({
       rows={tree}
       pickable={() => true}
       selectedId={cur?.id ?? null}
-      special={[{ value: PAGE_TARGET, label: tr("このページ"), on: value === PAGE_TARGET }]}
+      special={[{ value: PAGE_TARGET, label: tr("This page"), on: value === PAGE_TARGET }]}
       onSpecial={(v) => onChange(v)}
       onPick={(r) => onChange(r.id)}
-      label={value === PAGE_TARGET ? tr("このページ") : cur ? cur.name : null}
+      label={value === PAGE_TARGET ? tr("This page") : cur ? cur.name : null}
       sub={cur?.attrId ? `#${cur.attrId}` : undefined}
-      placeholder={tr("要素を選択")}
+      placeholder={tr("Select an element")}
       strong
     />
   );
@@ -428,8 +428,8 @@ export function HatView({
         nodeId !== undefined && (
           <span className="se-in se-in-fake se-in-strong">
             {nodeId === PAGE_TARGET
-              ? tr("このページ")
-              : (elements.find((e) => e.id === nodeId)?.label ?? tr("要素"))}
+              ? tr("This page")
+              : (elements.find((e) => e.id === nodeId)?.label ?? tr("Element"))}
           </span>
         )
       )}
@@ -456,7 +456,7 @@ export function HatView({
             disabled={!onKeepOnShownChange}
             onChange={(e) => onKeepOnShownChange?.(e.target.checked)}
           />
-          {tr("表示した要素の上ではホバー中とみなす")}
+          {tr("Treat hovering over shown elements as still hovering")}
         </label>
       )}
       {badge}
@@ -547,9 +547,9 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
           }
           badge={
             isLinkScriptId(script.id) ? (
-              <span className="se-badge">{tr("リンクとして出力")}</span>
+              <span className="se-badge">{tr("Output as a link")}</span>
             ) : !script.nodeId ? (
-              <span className="se-badge is-warn">{tr("要素を選ぶまで実行されません")}</span>
+              <span className="se-badge is-warn">{tr("Won't run until an element is chosen")}</span>
             ) : undefined
           }
           selKey={ctx.readOnly ? undefined : scriptKey}
@@ -575,7 +575,7 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
             data-slot={headKey}
             data-slot-kind="head"
           >
-            {tr("きっかけが無いため実行されません")}
+            {tr("Won't run without a trigger")}
           </div>
         )
       ))}

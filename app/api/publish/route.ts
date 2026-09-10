@@ -137,7 +137,7 @@ export async function POST(req: Request) {
   } catch (error) {
     const status = error instanceof JsonBodyTooLargeError ? 413
       : error instanceof JsonContentTypeError ? 415 : 400;
-    return NextResponse.json({ error: tr(status === 413 ? "リクエストが大きすぎます" : "リクエストが正しくありません") }, { status });
+    return NextResponse.json({ error: tr(status === 413 ? "Request too large" : "Invalid request", status === 413 ? undefined : "invalid_request_variant_1") }, { status });
   }
 
   const target: PublishTarget = body.target === "test" ? "test" : "production";
@@ -163,7 +163,7 @@ export async function POST(req: Request) {
   const validateDocument = (content: string | Uint8Array) => {
     const size = typeof content === "string" ? Buffer.byteLength(content, "utf8") : content.byteLength;
     if (size > MAX_DOC_BYTES) {
-      return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
+      return NextResponse.json({ error: tr("doc.json exceeds the size limit.") }, { status: 400 });
     }
     let document: unknown;
     try {
@@ -172,11 +172,11 @@ export async function POST(req: Request) {
       document = JSON.parse(text);
     } catch {
       // Parser errors may contain document excerpts. Do not log or return them.
-      return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+      return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
     }
     if (hasPublishCredentials(document as Parameters<typeof hasPublishCredentials>[0])) {
       return NextResponse.json({
-        error: tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"),
+        error: tr("Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead."),
       }, { status: 400 });
     }
     return null;
@@ -205,19 +205,19 @@ export async function POST(req: Request) {
         body: gitBlobRequestBody(content),
       });
     const blobRes = await createBlob();
-    if (!blobRes.ok) await fail(tr("アセット（{path}）のアップロード", { path }), blobRes);
+    if (!blobRes.ok) await fail(tr("Uploading asset ({path})", { path }), blobRes);
     return (await blobRes.json()).sha;
   };
 
   /** KV に保存したアセットを読み込む */
   const loadStoredAsset = async (path: string, source: string): Promise<ArrayBuffer> => {
     if (!source.startsWith("assets/")) {
-      throw new Error(tr("許可されていないアセット指定です: {source}", { source }));
+      throw new Error(tr("Asset source not allowed: {source}", { source }));
     }
     const store = assetStore();
-    if (!store) throw new Error(tr("アセットの保存先が設定されていません。管理者に確認してください"));
+    if (!store) throw new Error(tr("Asset storage isn't configured. Contact your administrator"));
     const data = await store.get(source, { type: "arrayBuffer" });
-    if (!data) throw new MissingAssetError(tr("アセットを読み込めませんでした: {path}", { path }));
+    if (!data) throw new MissingAssetError(tr("Couldn't load asset: {path}", { path }));
     return data;
   };
 
@@ -234,29 +234,29 @@ export async function POST(req: Request) {
         // A concurrent preflight may have initialized first. Re-read, but do not
         // treat an unsuccessful initialization as an empty snapshot.
         refRes = await gh(`/git/ref/heads/${branchPath}`);
-        if (!bootRes.ok && !refRes.ok && refRes.status !== 404) await fail(tr("リポジトリの初期化"), bootRes);
+        if (!bootRes.ok && !refRes.ok && refRes.status !== 404) await fail(tr("Initializing the repository"), bootRes);
         if (!bootRes.ok && refRes.status === 404) {
           const prodRef = await gh(`/git/ref/heads/${toBranchPath(initBranch)}`);
-          if (!prodRef.ok) await fail(tr("リポジトリの初期化"), bootRes);
+          if (!prodRef.ok) await fail(tr("Initializing the repository"), bootRes);
         }
       }
       if (refRes.status === 404) {
         return NextResponse.json({ ok: true, head: null, blobs: {}, manifest: {}, generated: null });
       }
-      if (!refRes.ok) await fail(tr("ブランチの取得"), refRes);
+      if (!refRes.ok) await fail(tr("Fetching the branch"), refRes);
       const commitSha = (await refRes.json()).object.sha as string;
       const treeRes = await gh(`/git/trees/${commitSha}?recursive=1`);
-      if (!treeRes.ok) await fail(tr("ツリーの取得"), treeRes);
+      if (!treeRes.ok) await fail(tr("Fetching the tree"), treeRes);
       const treeData = (await treeRes.json()) as {
         tree: { path: string; type: string; sha: string }[];
         truncated?: boolean;
       };
       // A partial snapshot would silently delete files omitted by GitHub.
       if (treeData.truncated) {
-        throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
+        throw new Error(tr("Publishing stopped because the complete file list could not be retrieved from the destination"));
       }
       if (treeData.tree.some(item => !isSafeCommitPath(item.path))) {
-        return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+        return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
       }
       const blobs: Record<string, string> = Object.create(null);
       for (const item of treeData.tree) {
@@ -269,7 +269,7 @@ export async function POST(req: Request) {
         const blobRes = await gh(`/git/blobs/${sha}`);
         if (!blobRes.ok) {
           if (!required) return null;
-          await fail(tr("ツリーの取得"), blobRes);
+          await fail(tr("Fetching the tree"), blobRes);
         }
         const { content } = (await blobRes.json()) as { content: string };
         return Buffer.from(content, "base64").toString("utf8");
@@ -287,7 +287,7 @@ export async function POST(req: Request) {
       const generatedText = await readText(GENERATED_MANIFEST_PATH, true);
       const generated = generatedText === null ? null : parseGeneratedManifest(generatedText);
       if (generatedText !== null && generated === null) {
-        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+        throw new Error(tr("Publishing stopped because the generated file manifest is invalid."));
       }
       return NextResponse.json({ ok: true, head: commitSha, blobs, manifest, generated });
     }
@@ -301,7 +301,7 @@ export async function POST(req: Request) {
         (body.base64 === undefined) === (body.source === undefined)
       ) {
         return NextResponse.json(
-          { error: tr("アセットの指定が正しくありません") },
+          { error: tr("Invalid asset reference") },
           { status: 400 }
         );
       }
@@ -324,7 +324,7 @@ export async function POST(req: Request) {
       !Object.keys(body.files).length
     ) {
       return NextResponse.json(
-        { error: tr("ファイルがありません") },
+        { error: tr("No file was provided") },
         { status: 400 }
       );
     }
@@ -332,7 +332,7 @@ export async function POST(req: Request) {
     // Never advance the GitHub branch if the format to persist is invalid.
     const exportOptions = parsePublishedExportOptions(body.exportOptions);
     if (!exportOptions) {
-      return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+      return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
     }
 
     const assetShas = body.assetShas ?? {};
@@ -341,14 +341,14 @@ export async function POST(req: Request) {
         Object.values(body.files).some(value => typeof value !== "string") ||
         Object.values(assetShas).some(value => typeof value !== "string" || !value) ||
         Object.keys(body.files).some(path => Object.hasOwn(assetShas, path))) {
-      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+      return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
     if (!Array.isArray(keptPaths) || !keptPaths.every((path) => typeof path === "string")) {
-      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+      return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
     const paths = [...Object.keys(body.files), ...Object.keys(assetShas), ...keptPaths];
     if (!paths.every(isSafeCommitPath) || Object.keys(body.files).some(isProtectedPath)) {
-      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+      return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
 
     // Ownership metadata controls deletion on the next publish and rollback.
@@ -360,17 +360,17 @@ export async function POST(req: Request) {
         manifestText = body.files[GENERATED_MANIFEST_PATH];
       } else {
         const res = await gh(`/git/blobs/${assetShas[GENERATED_MANIFEST_PATH]}`);
-        if (!res.ok) await fail(tr("ツリーの取得"), res);
+        if (!res.ok) await fail(tr("Fetching the tree"), res);
         const blob = (await res.json()) as { content?: unknown; encoding?: unknown };
         if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
-          return NextResponse.json({ error: tr("公開ファイル一覧が壊れているため、公開を中止しました") }, { status: 400 });
+          return NextResponse.json({ error: tr("Publishing stopped because the generated file manifest is invalid.") }, { status: 400 });
         }
         manifestText = Buffer.from(blob.content, "base64").toString("utf8");
       }
       const generated = parseGeneratedManifest(manifestText);
       if (!generated || Object.keys(generated).some(path =>
         !Object.hasOwn(body.files, path) && !Object.hasOwn(assetShas, path))) {
-        return NextResponse.json({ error: tr("公開ファイル一覧が壊れているため、公開を中止しました") }, { status: 400 });
+        return NextResponse.json({ error: tr("Publishing stopped because the generated file manifest is invalid.") }, { status: 400 });
       }
     }
 
@@ -383,10 +383,10 @@ export async function POST(req: Request) {
         content = body.files[DOC_PATH];
       } else {
         const res = await gh(`/git/blobs/${assetShas[DOC_PATH]}`);
-        if (!res.ok) await fail(tr("編集データの取得"), res);
+        if (!res.ok) await fail(tr("Fetching editor data"), res);
         const blob = (await res.json()) as { content?: unknown; encoding?: unknown };
         if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
-          return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+          return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
         }
         content = Buffer.from(blob.content, "base64");
       }
@@ -403,7 +403,7 @@ export async function POST(req: Request) {
       parentSha = (await refRes.json()).object.sha;
       branchExists = true;
     } else if (refRes.status !== 404 && refRes.status !== 409) {
-      await fail(tr("ブランチの取得"), refRes);
+      await fail(tr("Fetching the branch"), refRes);
     }
 
     // A mandatory snapshot prevents an old keep/delete plan being rebased onto
@@ -433,14 +433,14 @@ export async function POST(req: Request) {
     let entries: TreeEntry[] = [];
     if (branchExists && parentSha) {
       const treeRes = await gh(`/git/trees/${parentSha}?recursive=1`);
-      if (!treeRes.ok) await fail(tr("ツリーの取得"), treeRes);
+      if (!treeRes.ok) await fail(tr("Fetching the tree"), treeRes);
       const treeData = (await treeRes.json()) as { tree: TreeEntry[]; truncated?: boolean };
       if (treeData.truncated) {
-        throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
+        throw new Error(tr("Publishing stopped because the complete file list could not be retrieved from the destination"));
       }
       entries = treeData.tree;
       if (entries.some(item => !isSafeCommitPath(item.path))) {
-        return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+        return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
       }
     }
     const protectedEntries = new Map(entries.filter(e =>
@@ -459,14 +459,14 @@ export async function POST(req: Request) {
     const previousGeneratedSha = existingBlobs[GENERATED_MANIFEST_PATH];
     if (previousGeneratedSha) {
       const manifestRes = await gh(`/git/blobs/${previousGeneratedSha}`);
-      if (!manifestRes.ok) await fail(tr("ツリーの取得"), manifestRes);
+      if (!manifestRes.ok) await fail(tr("Fetching the tree"), manifestRes);
       const data = (await manifestRes.json()) as { content?: unknown; encoding?: unknown };
       if (typeof data.content !== "string" || (data.encoding && data.encoding !== "base64")) {
-        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+        throw new Error(tr("Publishing stopped because the generated file manifest is invalid."));
       }
       previousGenerated = parseGeneratedManifest(Buffer.from(data.content, "base64").toString("utf8"));
       if (!previousGenerated) {
-        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+        throw new Error(tr("Publishing stopped because the generated file manifest is invalid."));
       }
     }
     const serverPlan = planPublish(
@@ -477,7 +477,7 @@ export async function POST(req: Request) {
     for (const [path, sha] of Object.entries(assetShas)) {
       if (isProtectedPath(path)) {
         if (!protectedEntries.has(path) || protectedEntries.get(path)!.sha !== sha) {
-          return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+          return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
         }
       } else {
         pushSha(path, sha);
@@ -487,7 +487,7 @@ export async function POST(req: Request) {
     // rather than normal head conflicts.
     if (keptPaths.some(path => !Object.hasOwn(existingBlobs, path) ||
         Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
-      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+      return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
     // Client-supplied keep hints are never allowed to resurrect obsolete
     // generated files. Only entries independently classified as manual (or
@@ -498,14 +498,14 @@ export async function POST(req: Request) {
     const preserved = [...new Set([...Object.keys(serverPlan.kept), ...protectedEntries.keys()])];
     const kept = keptTreeEntries(entries, preserved);
     if (!kept || keptPaths.some(path => Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
-      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+      return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
     for (const entry of kept) tree.push({ ...entry, sha: entry.sha! });
     // A file at a parent path and a generated descendant cannot coexist in
     // a Git tree. GitHub may silently replace one when building nested paths.
     // Fail closed rather than losing an existing symlink, submodule or file.
     if (conflictingCommitPaths(tree.map(entry => entry.path))) {
-      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+      return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
 
     // 一度に大きなツリーを送るとGitHub側でタイムアウトするため、分割して積み上げる。
@@ -538,7 +538,7 @@ export async function POST(req: Request) {
           treeSha ? { base_tree: treeSha, tree: chunk } : { tree: chunk }
         ),
       });
-      if (!treeRes.ok) await fail(tr("ツリーの作成"), treeRes);
+      if (!treeRes.ok) await fail(tr("Creating the tree"), treeRes);
       treeSha = (await treeRes.json()).sha as string;
     }
 
@@ -551,7 +551,7 @@ export async function POST(req: Request) {
         parents: parentSha ? [parentSha] : [],
       }),
     });
-    if (!commitRes.ok) await fail(tr("コミットの作成"), commitRes);
+    if (!commitRes.ok) await fail(tr("Creating the commit"), commitRes);
     const commitSha = (await commitRes.json()).sha;
 
     // 4. Never force an update. Resolve ambiguous transport errors by reading
@@ -589,7 +589,7 @@ export async function POST(req: Request) {
       );
     }
     return NextResponse.json(
-      { error: tr(userMessage(e, "公開できませんでした")) },
+      { error: tr(userMessage(e, "Couldn't publish")) },
       { status: 502 }
     );
   }
