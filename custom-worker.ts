@@ -18,6 +18,7 @@ import type {
 import { parseActivityUser, recordActivity, type ActivityUser } from "./lib/activity";
 import { isSiteId, getSiteRoomKey, recordSiteSavedAt } from "./lib/sites";
 import { isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
+import { collaborationIdentityAllowed } from "./lib/anonymous";
 import { isDocPatch } from "./lib/doc-patch";
 
 interface WorkerEnv {
@@ -30,6 +31,7 @@ interface WorkerEnv {
   /** 未設定なら編集データはブラウザ内に保存する（クライアントがHTTPの503を見て切り替える） */
   DB?: D1LikeDatabase;
   ALLOWED_EMAILS?: string;
+  ALLOW_ANONYMOUS?: string;
   AUTH_SECRET?: string;
   AUTH_GOOGLE_ID?: string;
   AUTH_GOOGLE_SECRET?: string;
@@ -88,9 +90,8 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
     readExtra = () => this.readAllowedEmails()
   ): Promise<boolean> {
     const user = (socket as AttachableSocket).deserializeAttachment()?.user;
-    const allowed = user
-      ? await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), readExtra)
-      : !signInConfigured(this.env);
+    const allowed = collaborationIdentityAllowed(!!user, signInConfigured(this.env), this.env) &&
+      (!user || await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), readExtra));
     if (!allowed) socket.close(1008, "Access revoked");
     return allowed;
   }
@@ -149,7 +150,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         return new Response("Invalid user", { status: 401 });
       }
     }
-    if (!user && (rawUser !== null || signInConfigured(this.env))) {
+    if ((!user && rawUser !== null) || !collaborationIdentityAllowed(!!user, signInConfigured(this.env), this.env)) {
       return new Response("Invalid user", { status: 401 });
     }
 
@@ -454,7 +455,7 @@ export default {
     if (!authorized.ok) return authorized;
     const auth = (await authorized.json().catch(() => null)) as { user?: unknown } | null;
     const user = parseActivityUser(auth?.user);
-    if (!user && (auth?.user !== null || signInConfigured(env))) {
+    if ((!user && auth?.user !== null) || !collaborationIdentityAllowed(!!user, signInConfigured(env), env)) {
       return new Response("Invalid user", { status: 401 });
     }
 

@@ -80,7 +80,7 @@ for (const method of ["save", "patch"] as const) {
       send(raw: string) { this.messages.push(raw); },
       close() { assert.fail("unexpected generation or auth rejection"); },
     };
-    const room = new CollaborationRoom({ getWebSockets: () => [sender] }, { DB: {}, DOC_STORE: {
+    const room = new CollaborationRoom({ getWebSockets: () => [sender] }, { ALLOW_ANONYMOUS: "true", DB: {}, DOC_STORE: {
       idFromName: (key: string) => key,
       get: (key: string) => ({
         replaceDocument: async (raw: string, base: string | null) => f.room(key).replace(raw, base),

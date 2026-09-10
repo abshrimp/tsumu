@@ -94,7 +94,7 @@ function fixture(initialize = true, allowGenerationClose = false) {
   const sender = socket("sender");
   const peer = socket("peer");
   const room = new module.exports.CollaborationRoom({ getWebSockets: () => [sender, peer] }, {
-    DB: {}, DOC_STORE: { idFromName: (name: string) => name, get: () => remote },
+    ALLOW_ANONYMOUS: "true", DB: {}, DOC_STORE: { idFromName: (name: string) => name, get: () => remote },
   });
   return {
     documents, original, sender, peer,

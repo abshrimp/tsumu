@@ -55,6 +55,55 @@ function socket(email: string) {
   };
 }
 
+test("WebSocket sender and recipient follow the current anonymous mode", async () => {
+  const { CollaborationRoom } = loadHandler("../custom-worker.ts", {
+    "cloudflare:workers": { DurableObject: class {
+      constructor(public ctx: unknown, public env: unknown) {}
+    } },
+    "./.open-next/worker.js": {},
+  });
+  for (const change of [{ ALLOW_ANONYMOUS: "false" }, {
+    AUTH_SECRET: "secret", AUTH_GOOGLE_ID: "client", AUTH_GOOGLE_SECRET: "secret",
+  }]) {
+    const peer = { ...socket("peer"), deserializeAttachment: () => ({ user: null }) };
+    const sender = { ...socket("sender"), deserializeAttachment: () => ({ user: null }) };
+    const env = { ALLOW_ANONYMOUS: "true" };
+    const room = new CollaborationRoom({ getWebSockets: () => [peer] }, env);
+    const broadcast = () => room.fetch(new Request("https://room/broadcast", { method: "POST", body: "{}" }));
+    await room.webSocketMessage(sender, "ping");
+    await broadcast();
+    Object.assign(env, change);
+    await room.webSocketMessage(sender, "ping");
+    await broadcast();
+    assert.deepEqual(sender.messages, ["pong"]);
+    assert.deepEqual(peer.messages, ["{}"]);
+    assert.ok(sender.closed && peer.closed);
+  }
+});
+
+test("an anonymous event stream rechecks access on the next notification", async t => {
+  const previous = process.env.ALLOW_ANONYMOUS;
+  t.after(() => {
+    if (previous === undefined) delete process.env.ALLOW_ANONYMOUS;
+    else process.env.ALLOW_ANONYMOUS = previous;
+  });
+  process.env.ALLOW_ANONYMOUS = "true";
+  const { GET } = loadHandler("../app/api/collab/events/route.ts", {
+    "../../../../lib/server": { requireAuth: async () => null },
+    "../../../../auth": { authConfigured: () => false },
+    "../../../../lib/site-server": { siteIdOf: async () => "s1" },
+    "../../../../lib/collab": { collabRoomAvailable: () => false },
+  });
+  const abort = new AbortController();
+  t.after(() => abort.abort());
+  const res = await GET(new Request("https://editor.example/api/collab/events?site=s1", { signal: abort.signal }));
+  const reader = res.body.getReader();
+  assert.equal(new TextDecoder().decode((await reader.read()).value), ": connected\n\n");
+  delete process.env.ALLOW_ANONYMOUS;
+  publishDocUpdate("s1", { type: "doc-updated", doc: createInitialDoc(), rev: "1", savedAt: 1 });
+  assert.equal((await reader.read()).done, true);
+});
+
 test("each broadcast reads the allowlist once and refreshes it before the next broadcast", async () => {
   let emails = ["first@example.com", "second@example.com"];
   let reads = 0;
@@ -159,7 +208,7 @@ test("HTTP PATCH enforces revision checks and publishes only the delta", async (
 test("SSE broadcasts patch deltas to all authorized clients", async () => {
   await withAllowlist(async () => {
     const { GET } = loadHandler("../app/api/collab/events/route.ts", {
-      "../../../../lib/server": { requireAuth: async () => null, sessionUser: async () => ({ email: "editor@example.com" }) },
+      "../../../../lib/server": { requireAuth: async (mode: string) => { assert.equal(mode, "user"); return { email: "editor@example.com" }; } },
       "../../../../auth": { authConfigured: () => true },
       "../../../../lib/site-server": { siteIdOf: async () => "s1" },
       "../../../../lib/collab": { collabRoomAvailable: () => false },
@@ -228,7 +277,7 @@ test("open WebSockets lose read, write and broadcast access when their account i
 test("an open SSE stream closes without leaking the next document after revocation", async () => {
   await withAllowlist(async () => {
     const { GET } = loadHandler("../app/api/collab/events/route.ts", {
-      "../../../../lib/server": { requireAuth: async () => null, sessionUser: async () => ({ email: "editor@example.com" }) },
+      "../../../../lib/server": { requireAuth: async (mode: string) => { assert.equal(mode, "user"); return { email: "editor@example.com" }; } },
       "../../../../auth": { authConfigured: () => true },
       "../../../../lib/site-server": { siteIdOf: async () => "s1" },
       "../../../../lib/collab": { collabRoomAvailable: () => false },

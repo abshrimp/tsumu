@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAuth, sessionUser } from "../../../../lib/server";
+import { collaborationIdentityAllowed } from "../../../../lib/anonymous";
+import { requireAuth } from "../../../../lib/server";
 import { isEmailAllowed } from "../../../../lib/allowlist";
 import { authConfigured } from "../../../../auth";
 import { siteIdOf } from "../../../../lib/site-server";
@@ -17,8 +18,8 @@ const HEARTBEAT_MS = 25_000;
  * 自分の保存（?clientId= と同じ送り主）は送らない
  */
 export async function GET(req: Request) {
-  const denied = await requireAuth();
-  if (denied) return denied;
+  const user = await requireAuth("user");
+  if (user instanceof NextResponse) return user;
   // Cloudflare では通知は Durable Object から WebSocket で届き、ここには来ない。
   // 204 を返すとブラウザは再接続せず、WebSocket の再接続とポーリングで待つ
   if (collabRoomAvailable()) return new Response(null, { status: 204 });
@@ -26,8 +27,6 @@ export async function GET(req: Request) {
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
   const clientId = params.get("clientId") ?? "";
-  const user = await sessionUser();
-  if (authConfigured() && !user) return new Response(null, { status: 401 });
 
   const encoder = new TextEncoder();
   let cleanup = () => {};
@@ -43,6 +42,7 @@ export async function GET(req: Request) {
         // 通知の順序を保ち、接続後に権限を外された人へ本文を送らない。
         pending = pending.then(async () => {
           if (closed) return;
+          if (!collaborationIdentityAllowed(!!user, authConfigured())) return close();
           if (user && !await isEmailAllowed(user.email)) return close();
           const output = typeof text === "string" ? text : await text();
           if (!closed && output !== null) controller.enqueue(encoder.encode(output));
