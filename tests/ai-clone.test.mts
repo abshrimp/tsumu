@@ -175,6 +175,7 @@ test("component editing isolates duplicates and preserves root and outside-page 
 for (const kind of ["node", "attr", "radio", "script", "step", "page-script", "page-step"] as const) {
   test(`a hidden ${kind} identity collision rejects the whole client batch without history or partial clones`, () => {
     const original = withMaster();
+    if (kind.startsWith("page-")) original.pages.q = { ...original.pages.p, id: "q", children: [] };
     const context = buildAiContext(original, target);
     const server = structuredClone(context.doc);
     const result = applyAiOps(server, [duplicate], target);
@@ -189,9 +190,7 @@ for (const kind of ["node", "attr", "radio", "script", "step", "page-script", "p
     ] };
     if (kind === "script" || kind === "step") hidden.scripts = [script];
     if (kind.startsWith("page-")) {
-      original.pages.q = { ...original.pages.p, id: "q", children: [], pageScripts: [script] };
-      // 別ページのスクリプトはコンテキストに含まれない。
-      context.doc.pages.q = { ...original.pages.q, scripts: undefined, pageScripts: undefined, rawHtml: undefined };
+      original.pages.q.pageScripts = [script];
     }
     const before = structuredClone(original);
     assert.deepEqual(buildAiContext(original, target).doc, context.doc);

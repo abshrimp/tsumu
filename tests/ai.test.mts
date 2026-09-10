@@ -117,6 +117,27 @@ test("request validation rejects malformed and cyclic documents and ignores supp
   assert.throws(() => parseAiRequest({ messages: turns, context }));
 });
 
+test("the AI request keeps the target language and omits unrelated page content", () => {
+  const doc = fixture();
+  doc.lang = "fr";
+  doc.pages.q = { ...doc.pages.p, id: "q", name: "Contact", slug: "contact", children: [],
+    customTopHtml: "unrelated-page-head", description: "unrelated-description" };
+  doc.pageOrder.push("q");
+  const context = buildAiContext(doc, target);
+  const payload = JSON.stringify({ messages: turns, context });
+  assert.doesNotMatch(payload, /unrelated-page-head|unrelated-description/);
+  assert.equal(Object.hasOwn(context, "summary"), false);
+  const prompt = parseAiRequest(JSON.parse(payload)).turns[0].text;
+  assert.match(prompt, /"language":"fr"/);
+  assert.match(prompt, /"name":"Contact","url":"\/contact"/);
+
+  doc.pages.q.customTopHtml = "edited while waiting";
+  assert.equal(applyAiEdits(doc, context, [{ op: "rename", id: "a", name: "Updated" }]), 1);
+  assert.equal(doc.pages.q.customTopHtml, "edited while waiting");
+  doc.pages.p.lang = "de";
+  assert.match(parseAiRequest({ messages: turns, context: buildAiContext(doc, target) }).turns[0].text, /"language":"de"/);
+});
+
 test("request limits count UTF-8 bytes, including chunked requests", async () => {
   const text = JSON.stringify({ text: "あ".repeat(Math.floor(MAX_REQUEST_BYTES / 3)) });
   assert.ok(text.length < MAX_REQUEST_BYTES);
