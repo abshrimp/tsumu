@@ -78,6 +78,41 @@ function mount() {
   };
 }
 
+test("pointer movement reuses the dragged subtree and sibling positions for one gesture", () => {
+  const m = mount();
+  try {
+    state().updateDoc(doc => {
+      doc.pages.p.children = ["a", "b"];
+      doc.nodes.b.children = ["c"];
+    });
+    const { doc } = state();
+    const children = doc.nodes.a.children;
+    let reads = 0;
+    Object.defineProperty(doc.nodes.a, "children", {
+      configurable: true, enumerable: true, get() { reads++; return children; },
+    });
+    try {
+      m.start(false);
+      m.pointer("pointermove", { x: 2, y: 2 });
+      assert.equal(reads, 0, "clicks below the movement threshold never walk the subtree");
+      m.pointer("pointermove");
+      const firstMoveReads = reads;
+      assert.ok(firstMoveReads > 0);
+      for (let i = 0; i < 20; i++) {
+        m.pointer("pointermove", { y: i % 2 ? 5 : 95 });
+        assert.deepEqual(m.moveDropRef.current, {
+          parent: { kind: "node", id: "b" }, index: i % 2 ? 0 : 1,
+        });
+      }
+      assert.equal(reads, firstMoveReads, "subsequent pointer samples must reuse both tree lookups");
+    } finally {
+      Object.defineProperty(doc.nodes.a, "children", {
+        configurable: true, enumerable: true, writable: true, value: children,
+      });
+    }
+  } finally { m.close(); }
+});
+
 for (const active of [false, true]) {
   for (const end of ["pointercancel", "blur", "hidden", "released-outside", "escape", "unmount"]) {
     test(`${active ? "active" : "pending"} movement: ${end} removes the gesture without editing or destroying redo`, () => {

@@ -4,8 +4,8 @@
  * キャンバス上のドラッグ操作（要素の移動・大きさの変更）と、ファイル・追加パネルからのドロップ
  */
 import { useLayoutEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { collectDescendants, findParentOf, useEditor, type EditorMode, type ParentRef } from "../../lib/store";
-import { canvasFallbackDrop } from "../../lib/canvas-drop";
+import { findParentOf, useEditor, type EditorMode, type ParentRef } from "../../lib/store";
+import { canvasFallbackDrop, canvasMoveTargets } from "../../lib/canvas-drop";
 import { ELEMENT_DRAG_TYPE, makeElementByKey, normalizeMade } from "../../lib/elements";
 import { ASSET_DRAG_TYPE, assetKind, nodeAssetSrc } from "../../lib/assets";
 import { useImageDrop } from "../../lib/image-drop";
@@ -70,14 +70,13 @@ export function useCanvasDrag({
   }, []);
 
   /** キャンバス内ドラッグ移動: ドロップ先（前/後/中）を解決 */
-  const resolveMoveDrop = (x: number, y: number, dragIds: string[]) => {
+  const resolveMoveDrop = (x: number, y: number, targets: ReturnType<typeof canvasMoveTargets>) => {
     const inner = innerRef.current;
     if (!inner) return null;
     const innerRect = inner.getBoundingClientRect();
-    const descendants = new Set(dragIds.flatMap((id) => collectDescendants(doc, id)));
     let el: Element | null =
       document.elementFromPoint(x, y)?.closest("[data-node]") ?? null;
-    while (el && descendants.has(el.getAttribute("data-node")!)) {
+    while (el && targets.excludes(el.getAttribute("data-node")!)) {
       el = el.parentElement?.closest("[data-node]") ?? null;
     }
     if (!el) {
@@ -100,12 +99,8 @@ export function useCanvasDrag({
         insideId: targetId,
       };
     }
-    const parent = findParentOf(doc, targetId);
-    if (!parent) return null;
-    const list =
-      parent.kind === "page"
-        ? doc.pages[parent.id].children
-        : doc.nodes[parent.id].children;
+    const sibling = targets.position(targetId);
+    if (!sibling) return null;
     // 親が横並び（flex-row）なら左右、それ以外は上下で挿入位置を決める
     const parentEl = el.parentElement;
     const pcs = parentEl ? getComputedStyle(parentEl) : null;
@@ -114,7 +109,7 @@ export function useCanvasDrag({
     const after = isRow
       ? (x - r.left) / Math.max(1, r.width) >= 0.5
       : ratioY >= 0.5;
-    const index = list.indexOf(targetId) + (after ? 1 : 0);
+    const index = sibling.position + (after ? 1 : 0);
     const line = isRow
       ? {
           left: (after ? r.right : r.left) - innerRect.left - 1.5,
@@ -128,7 +123,7 @@ export function useCanvasDrag({
           width: r.width,
           height: 3,
         };
-    return { parent, index, line, insideId: null };
+    return { parent: sibling.ref, index, line, insideId: null };
   };
 
   /** キャンバス内の要素をドラッグで移動（6px動いたらドラッグ開始） */
@@ -148,6 +143,7 @@ export function useCanvasDrag({
       selected.length > 1 && selected.includes(id) && !e.shiftKey
         ? selected.filter((x) => doc.nodes[x] && !doc.nodes[x].locked)
         : [id];
+    const targets = canvasMoveTargets(doc, ids);
     moveState.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, id, ids, active: false };
     const initial = useEditor.getState();
     let expectedSelection = initial.selectedIds;
@@ -176,7 +172,7 @@ export function useCanvasDrag({
         }
       }
       ev.preventDefault();
-      const res = resolveMoveDrop(ev.clientX, ev.clientY, st.ids);
+      const res = resolveMoveDrop(ev.clientX, ev.clientY, targets);
       moveDropRef.current = res
         ? { parent: res.parent, index: res.index }
         : null;
@@ -200,7 +196,7 @@ export function useCanvasDrag({
       const st = moveState.current;
       moveState.current = null;
       const drop = st?.active && ev?.type === "pointerup"
-        ? resolveMoveDrop(ev.clientX, ev.clientY, st.ids) : null;
+        ? resolveMoveDrop(ev.clientX, ev.clientY, targets) : null;
       moveDropRef.current = null;
       setMoveDrag(null);
       if (st?.active) {

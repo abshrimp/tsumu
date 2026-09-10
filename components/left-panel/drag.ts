@@ -15,14 +15,14 @@ export interface DragState {
   /** ドラッグ中の要素（複数選択ごと動かすときは全部） */
   dragIds: string[];
   /** ドラッグ中の要素とその子孫（そこへは落とせない） */
-  blockedIds: string[];
+  blockedIds: ReadonlySet<string>;
   overId: string | null;
   pos: DropPos | null;
   /** OSからファイル（画像）をドラッグ中 */
   files?: boolean;
 }
 
-export const NO_DRAG: DragState = { dragIds: [], blockedIds: [], overId: null, pos: null };
+export const NO_DRAG: DragState = { dragIds: [], blockedIds: new Set(), overId: null, pos: null };
 
 export const isFileDrag = (e: React.DragEvent) => e.dataTransfer.types.includes("Files");
 
