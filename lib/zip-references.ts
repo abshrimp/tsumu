@@ -13,7 +13,13 @@ export function resolveZipReference(value: string, htmlPath: string, urls: Map<s
     if (part === "..") normalized.pop();
     else if (part && part !== ".") normalized.push(part);
   }
-  const mapped = urls.get(normalized.join("/"));
+  const archivePath = normalized.join("/");
+  // ZIPを親フォルダごと圧縮した場合、HTML内の /images/... は
+  // ZIP全体のルートではなく、その親フォルダを起点とする。
+  // アーカイブ直下に同名ファイルがあるときは、そちらを優先する。
+  const wrapper = htmlPath.includes("/") ? htmlPath.split("/")[0] : "";
+  const mapped = urls.get(archivePath) ??
+    (decodedPath.startsWith("/") && wrapper ? urls.get(wrapper + "/" + archivePath) : undefined);
   if (!mapped) return value;
   // Asset proxy URLs already have a path query. Keep archive query parameters
   // separate from that path, and preserve the complete query and fragment.

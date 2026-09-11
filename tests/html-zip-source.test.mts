@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { htmlZipSource, rewriteHtmlZipSource } from "../lib/html-zip-source";
-import type { Asset, HtmlZipPage } from "../lib/types";
+import type { Asset, HtmlZipPage, SiteDoc } from "../lib/types";
+import { generateProject } from "../lib/generator";
+import { generateExportProject } from "../lib/export-formats";
 
 const urls = new Map([
   ["site/images/logo.svg", "/api/assets/file?path=assets%2Flogo"],
@@ -54,4 +56,39 @@ test("srcset and inline styles are rewritten without touching HTML comments", ()
   assert.ok(output.includes('srcset="/api/assets/file?path=assets%2Flogo 1x, /api/assets/file?path=assets%2Flogo 2x"'));
   assert.ok(output.includes('style="background:url(/api/assets/file?path=assets%2Flogo)"'));
   assert.ok(output.includes('src="data:image/png;base64,AAAA"'));
+});
+
+
+test("wrapped HTML ZIP images resolve in published Next.js and standalone HTML pages", () => {
+  const picture: Asset = {
+    id: "logo", name: "logo.svg", mimeType: "image/svg+xml", width: 12, height: 8,
+    path: "assets/uploaded-logo",
+    zip: { version: 1, group: "wrapped_site", path: "website/images/logo.svg" },
+  };
+  const source = '<!doctype html><html><head><base href="/"><style>.hero{background:url("images/logo.svg")}</style></head>' +
+    '<body><img id="root" src="/images/logo.svg"><img id="relative" src="images/logo.svg">' +
+    '<picture><source srcset="/images/logo.svg 1x, images/logo.svg 2x"></picture></body></html>';
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "ZIP resources", assets: { logo: picture }, nodes: {},
+    pageOrder: ["home"], pages: { home: {
+      id: "home", name: "Home", slug: "", title: "", description: "", children: [],
+      rawHtml: source, htmlZip: { path: "website/index.html", assetIds: ["logo"] },
+    } },
+  };
+  const original = structuredClone(doc);
+  const next = generateProject(doc);
+  const match = /^const html = (.*);$/m.exec(next.files["app/route.ts"]);
+  assert.ok(match);
+  const publishedHtml = JSON.parse(match[1]) as string;
+  for (const id of ["root", "relative"]) {
+    assert.ok(publishedHtml.includes(`id="${id}" src="/assets/logo.svg"`), id);
+  }
+  assert.ok(publishedHtml.includes('srcset="/assets/logo.svg 1x, /assets/logo.svg 2x"'));
+  assert.ok(publishedHtml.includes('background:url("/assets/logo.svg")'));
+  assert.equal(next.remoteAssets["public/assets/logo.svg"], "assets/uploaded-logo");
+  assert.ok(!publishedHtml.includes("/api/assets/file?path="));
+  const standalone = generateExportProject(doc, "html");
+  assert.match(standalone.files["index.html"], /src="(?:\.\/)?assets\/logo\.svg"/);
+  assert.equal(standalone.remoteAssets["assets/logo.svg"], "assets/uploaded-logo");
+  assert.deepEqual(doc, original, "export never rewrites the editable HTML source");
 });

@@ -46,7 +46,7 @@ function archiveResolver(htmlPath: string, href: string | undefined | null, urls
     try { url = new URL(ref, base); } catch { return raw; }
     if (url.protocol !== "file:") return url.href;
     const path = url.pathname + url.search + url.hash;
-    const target = resolveZipReference(path, "", urls);
+    const target = resolveZipReference(path, htmlPath, urls);
     return target === path ? raw : target;
   };
 }
