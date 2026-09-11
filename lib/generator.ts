@@ -419,7 +419,9 @@ export default function manifest(): MetadataRoute.Manifest {
     files["lib/value-recipe.ts"] =
       "// @ts-nocheck\n" +
       "const __name = (fn) => fn;\n" +
-      "export const evaluateValueRecipe = (" + evaluateValueRecipe.toString() + ");\n";
+      "export const evaluateValueRecipe = (" + evaluateValueRecipe.toString() + ") as " +
+      "(input: unknown, steps: readonly unknown[], variables?: Record<string, unknown>) => " +
+      "({ kind: \"value\"; value: unknown } | { kind: \"missing\" } | { kind: \"error\"; code: string });\n";
   }
   if (needsPurePageControls) {
     files["lib/page-load-steps.ts"] =
@@ -915,7 +917,7 @@ out/
 /**
  * テストサイト用の検索エンジン対策。どれか1つが効かなくても他で防げるよう重ねる。
  * - robots.txt で全URLのクロールを禁止
- * - ミドルウェアでクローラーのUser-Agentを403で拒否し、X-Robots-Tag を付与
+ * - Proxy でクローラーのUser-Agentを403で拒否し、X-Robots-Tag を付与
  * - 静的ファイル（Workers Static Assets から直接配信される分）にも _headers で X-Robots-Tag
  * - レイアウトの robots メタ（generateProject 内）と next.config の headers
  */
@@ -926,7 +928,7 @@ function addTestSiteGuards(files: Record<string, string>) {
   }
   files["public/robots.txt"] = "User-agent: *\nDisallow: /\n";
   files["public/_headers"] = `/*\n  X-Robots-Tag: ${TEST_ROBOTS_HEADER}\n`;
-  files["middleware.ts"] = `import { NextResponse, type NextRequest } from "next/server";
+  files["proxy.ts"] = `import { NextResponse, type NextRequest } from "next/server";
 
 // テストサイト: 検索エンジン等のクローラーを拒否する（エディタが自動生成）
 const ROBOTS = ${JSON.stringify(TEST_ROBOTS_HEADER)};
@@ -934,7 +936,7 @@ const BLOCKED = new RegExp(${JSON.stringify(
     TEST_BLOCKED_BOTS.map((b) => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")
   )}, "i");
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const ua = req.headers.get("user-agent") ?? "";
   if (req.nextUrl.pathname !== "/robots.txt" && BLOCKED.test(ua)) {
     return new NextResponse("Forbidden", {
