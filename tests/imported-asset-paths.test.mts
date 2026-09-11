@@ -33,6 +33,28 @@ test("relative ZIP module references retain their original public directory", ()
   assert.doesNotMatch(page, /api\/assets\/file\?path/);
 });
 
+test("portable punctuation in ZIP module paths keeps relative imports and media resolvable", () => {
+  const script = fixture("web site/scripts/app (v2)&team!.js", "entry", "app.js");
+  const chunk = fixture("web site/scripts/chunk [prod],v2.js", "chunk", "chunk.js");
+  const image = fixture("web site/images/banner (2026)&team.png", "banner", "banner.png");
+  const doc = createInitialDoc();
+  doc.assets = { entry: script, chunk, banner: image };
+  const page = doc.pages[doc.pageOrder[0]];
+  page.rawHtml = '<script type="module" src="scripts/app%20(v2)%26team!.js"></script>';
+  page.htmlZip = { path: "web site/index.html", assetIds: ["entry", "chunk", "banner"] };
+  const generated = generateProject(doc);
+  const html: string = JSON.parse(/^const html = (.*);$/m.exec(generated.files["app/route.ts"])![1]);
+  const src = /<script type="module" src="([^"]+)"/.exec(html)?.[1];
+  assert.ok(src);
+  const entryUrl = new URL(src, "https://site.example/");
+  const dependencyUrl = new URL("./chunk%20%5Bprod%5D%2Cv2.js", entryUrl);
+  const mediaUrl = new URL("../images/banner%20(2026)%26team.png", entryUrl);
+  assert.equal(generated.remoteAssets["public" + decodeURIComponent(entryUrl.pathname)], "assets/entry");
+  assert.equal(generated.remoteAssets["public" + decodeURIComponent(dependencyUrl.pathname)], "assets/chunk");
+  assert.equal(generated.remoteAssets["public" + decodeURIComponent(mediaUrl.pathname)], "assets/banner");
+  assert.equal(importedAssetUrl(script), entryUrl.pathname);
+});
+
 test("unsafe or corrupted ZIP paths never become export output paths", () => {
   for (const input of ["../outside.js", "/outside.js", "js/../../outside.js",
     "js\\outside.js", "js//outside.js", "js/asset?danger.js", "js/%2e%2e.js"]) {

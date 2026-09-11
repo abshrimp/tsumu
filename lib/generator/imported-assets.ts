@@ -14,8 +14,13 @@ export function importedAssetPath(asset: Asset): string | null {
   if (!zip || zip.version !== 1) return null;
   if (typeof zip.group !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(zip.group)) return null;
   const path = zip.path;
-  if (typeof path !== "string" || path.length > 600 ||
-      !/^[\p{L}\p{N}\p{M} ._~@+/-]+$/u.test(path) || !isPortableOutputPath(path)) return null;
+  // ZIP accepts portable filenames containing parentheses, brackets, commas,
+  // and other punctuation. Dropping these aliases breaks relative JS imports
+  // even when the entry script itself can be published.
+  if (typeof path !== "string" || path.length > 600 || path.includes("%") ||
+      !isPortableOutputPath(path)) return null;
+  // Reject malformed Unicode before importedAssetUrl calls encodeURIComponent.
+  try { encodeURIComponent(path); } catch { return null; }
   return `public/assets/_imports/${zip.group}/${path}`;
 }
 
