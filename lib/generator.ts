@@ -1,6 +1,7 @@
 import rootPackage from "../package.json";
 import { exportZipStylesheet, zipStylesheet, zipCssUrl } from "./zip-css";
 import { htmlZipSource } from "./html-zip-source";
+import { rewriteHtmlZipScriptUrls } from "./html-zip-script-assets";
 import { assetSrc } from "./assets";
 import type { SiteDoc } from "./types";
 import { applyBreakpoints } from "./style";
@@ -17,7 +18,7 @@ import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } fro
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
-import { importedAssetPath, isZipJavascript } from "./generator/imported-assets";
+import { importedAssetPath, importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
 import { generatePageFile, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
 import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
@@ -178,7 +179,12 @@ export function generateProject(
           asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset)), assetNames),
         assetNames
       );
-      files[path] = `const html = ${JSON.stringify(htmlWithAssets)};
+      const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets, asset => {
+        const name = assetNames.get(asset.id);
+        if (!name) return "";
+        return isZipJavascript(asset) ? importedAssetUrl(asset) ?? "/assets/" + name : "/assets/" + name;
+      });
+      files[path] = `const html = ${JSON.stringify(htmlWithScriptAssets)};
 
 export const dynamic = "force-static";
 

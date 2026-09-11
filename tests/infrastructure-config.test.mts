@@ -43,7 +43,8 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /framework: \[nextjs, react, vue, nuxt, sveltekit\]/);
   assert.match(workflow, /node scripts\/run-e2e-shard\.mjs/);
-  assert.match(workflow, /npx --no-install playwright install/);
+  const browserImages = workflow.match(/^      image: mcr\.microsoft\.com\/playwright:v\d+\.\d+\.\d+-noble$/gm) ?? [];
+  assert.equal(browserImages.length, 2, "E2E shards and generated-format checks must use preinstalled browser images");
   const shardRunner = read("scripts/run-e2e-shard.mjs");
   assert.equal((shardRunner.match(/"--no-install"/g) ?? []).length, 2);
   assert.match(read("playwright.config.ts"), /npx --no-install next start/);

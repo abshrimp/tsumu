@@ -11,6 +11,7 @@ import { assetMediaUrl, assetSrc } from "../assets";
 import { importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
 import { htmlZipSource } from "../html-zip-source";
+import { rewriteHtmlZipScriptUrls } from "../html-zip-script-assets";
 import { zipStylesheet, zipCssUrl } from "../zip-css";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
@@ -518,7 +519,13 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
         cssValue(normalized, "rawHtml",
           htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
             asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset)), assets), assets);
-      files[path] = rewriteRootUrls(html, prefix, scriptSources);
+      const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(html, page.htmlZip, normalized.assets, asset => {
+        const name = assets.get(asset.id);
+        if (!name) return "";
+        const url = isZipJavascript(asset) ? importedAssetUrl(asset) ?? "/assets/" + name : "/assets/" + name;
+        return prefix + url.slice(1);
+      });
+      files[path] = rewriteRootUrls(htmlWithScriptAssets, prefix, scriptSources);
       continue;
     }
     const ctx: Context = {

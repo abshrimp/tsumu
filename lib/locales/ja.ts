@@ -5,6 +5,7 @@ const ja: Dict = {
   "The element hierarchy is invalid.": "要素の親子関係が不正です。",
   "The document contains invalid element settings.": "要素の設定が不正な編集データです。",
   "Asset references are invalid.": "アセットの参照情報が正しくありません。",
+  "HTML page \"{name}\" refers to media files missing from its imported ZIP: {paths}": "HTMLページ「{name}」のJavaScriptが、取り込んだZIPにない画像・音声ファイルを参照しています: {paths}",
   "Page folders are invalid.": "ページフォルダーが正しくありません。",
   "Page folder references are invalid.": "ページフォルダーの参照が正しくありません。",
   "The document structure or references are invalid.": "編集データの参照・構造が不正です。",
