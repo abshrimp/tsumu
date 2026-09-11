@@ -12,13 +12,14 @@ import { idVarNodesOf, obfuscateVarNames, pagePlan } from "./data";
 import { hasRunnableScripts, listFilterFields, matchVariableWrites, scriptTargetIds } from "./script";
 import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
+import { setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
 import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
-import { htmlZipExportSource, importedAssetPath, importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
-import { generatePageFile, needsPageStepRunner, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
+import { htmlZipExportSource, htmlZipExportUrl, importedAssetPath, isZipJavascript } from "./generator/imported-assets";
+import { generatePageFile, needsPageStepRunner, writesNestedPageValue, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
 import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
 import {
@@ -171,17 +172,11 @@ export function generateProject(
     if (page.rawHtml?.trim()) {
       // HTMLページ: Route Handler でそのまま配信（script / css込みで動く）
       const path = dir ? `app/${dir}/route.ts` : "app/route.ts";
-      const htmlWithAssets = rawHtmlWithBodyStyles(
-        doc,
-        page,
-        cssValue(doc, "rawHtml", htmlZipSource(page.rawHtml, page.htmlZip, doc.assets, htmlZipExportSource), assetNames),
-        assetNames
-      );
-      const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets, asset => {
-        const name = assetNames.get(asset.id);
-        if (!name) return "";
-        return isZipJavascript(asset) ? importedAssetUrl(asset) ?? "/assets/" + name : "/assets/" + name;
-      });
+      const source = htmlZipSource(page.rawHtml, page.htmlZip, doc.assets,
+        asset => htmlZipExportSource(asset, assetNames));
+      const htmlWithAssets = rawHtmlWithBodyStyles(doc, page, cssValue(doc, "rawHtml", source, assetNames), assetNames);
+      const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets,
+        asset => htmlZipExportUrl(asset, assetNames));
       files[path] = `const html = ${JSON.stringify(htmlWithScriptAssets)};
 
 export const dynamic = "force-static";
@@ -417,10 +412,10 @@ export default function manifest(): MetadataRoute.Manifest {
   if (needsScripts) files["public/scripts.js"] = scriptsFile(doc);
   // Generated SSR pages share the same pure recipe evaluator as editor and client scripts.
   // Output plain JavaScript so the emitted function can be compiled without implicit-any errors.
-  const needsPurePageControls = Object.values(doc.pages).some((page) => !page.unpublished &&
-    pagePlan(doc, page.id).steps.some(needsPageStepRunner));
-  if (needsPurePageControls || Object.values(doc.pages).some((page) => !page.unpublished &&
-    pagePlan(doc, page.id).steps.some((step) => step.kind === "transform"))) {
+  const publishedSteps = Object.values(doc.pages).filter(page => !page.unpublished)
+    .flatMap(page => pagePlan(doc, page.id).steps);
+  const needsPurePageControls = publishedSteps.some(needsPageStepRunner);
+  if (needsPurePageControls || publishedSteps.some(step => step.kind === "transform")) {
     files["lib/value-recipe.ts"] =
       "// @ts-nocheck\n" +
       "const __name = (fn) => fn;\n" +
@@ -428,11 +423,13 @@ export default function manifest(): MetadataRoute.Manifest {
       "(input: unknown, steps: readonly unknown[], variables?: Record<string, unknown>) => " +
       "({ kind: \"value\"; value: unknown } | { kind: \"missing\" } | { kind: \"error\"; code: string });\n";
   }
-  if (needsPurePageControls) {
+  const nestedPageWrites = publishedSteps.some(writesNestedPageValue);
+  if (needsPurePageControls || nestedPageWrites) {
     files["lib/page-load-steps.ts"] =
       "// @ts-nocheck\n" +
       "const __name = (fn) => fn;\n" +
-      "export const runPurePageSteps = " + PAGE_STEP_RUNNER_SOURCE + ";\n";
+      (needsPurePageControls ? "export const runPurePageSteps = " + PAGE_STEP_RUNNER_SOURCE + ";\n" : "") +
+      (nestedPageWrites ? `const write = (${setVarPath.toString()});\nconst withinLimit = (${withinScriptValueLimit.toString()});\nexport const writePageValue = (vars, path, value) => write(vars, path, value, withinLimit);\n` : "");
   }
 
   const loading = doc.loadingScreen?.enabled ? doc.loadingScreen : null;

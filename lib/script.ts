@@ -581,21 +581,35 @@ export function listFilterFields(doc: SiteDoc): Map<string, Set<string>> {
 }
 
 /** A write replaces its descendants and changes the value of its ancestors. */
-export function matchVariableWrites(writes: Set<string>): (name: string) => boolean {
+export function matchVariableWrites(writes: Set<string>, assignments = writes) {
   const parents = new Set<string>();
+  const countParents = new Set<string>();
+  const indexedParents = new Set<string>();
+  const lastItemParents = new Set<string>();
   for (const path of writes) {
     const last = path.lastIndexOf(".");
     if (last >= 0 && /^(0|[1-9]\d*)$/.test(path.slice(last + 1))) {
       parents.add(path.slice(0, last) + ".length");
     }
     for (let end = path.indexOf("."); end >= 0; end = path.indexOf(".", end + 1)) {
-      parents.add(path.slice(0, end));
+      const parent = path.slice(0, end);
+      const part = path.slice(end + 1).split(".", 1)[0];
+      if (/^(0|[1-9]\d*|-1)$/.test(part)) indexedParents.add(parent);
+      if (part === "-1") lastItemParents.add(parent);
+      parents.add(parent);
+      // An assignment may create a field. List edits require an existing list,
+      // so modifying a nested list cannot add keys to its ancestors.
+      if (assignments.has(path)) countParents.add(parent);
     }
   }
-  return (name) => {
-    if (writes.has(name) || parents.has(name)) return true;
+  return (name: string, usage?: "length") => {
+    if (writes.has(name) || (usage === "length" ? countParents : parents).has(name)) return true;
     for (let end = name.indexOf("."); end >= 0; end = name.indexOf(".", end + 1)) {
-      if (writes.has(name.slice(0, end))) return true;
+      const parent = name.slice(0, end);
+      if (writes.has(parent)) return true;
+      const part = name.slice(end + 1).split(".", 1)[0];
+      if (part === "-1" && indexedParents.has(parent) ||
+          lastItemParents.has(parent) && /^(0|[1-9]\d*)$/.test(part)) return true;
     }
     return false;
   };

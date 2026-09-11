@@ -461,8 +461,10 @@ function isSafeClipAsset(a: Asset, pageZipMime?: string): boolean {
       /^data:text\/css(?:;charset=utf-8)?(?:;base64)?,/i.test(a.dataUrl);
     // Only a page-copy operation can carry local scripts, JSON or other ZIP
     // bytes. Require the MIME recorded by the ZIP importer and the data URL to agree.
-    const embedded = pageZipMime && pageZipMime !== "text/css" && pageZipMime === a.mimeType &&
-      /^data:([^;,]+)(?:;charset=utf-8)?(?:;base64)?,/i.exec(a.dataUrl)?.[1].toLowerCase() === pageZipMime;
+    const binaryMedia = pageZipMime && /^(?:image|audio|video|font)\//.test(pageZipMime) &&
+      a.mimeType === "application/octet-stream";
+    const embedded = pageZipMime && pageZipMime !== "text/css" && (pageZipMime === a.mimeType || binaryMedia) &&
+      /^data:([^;,]+)(?:;charset=utf-8)?(?:;base64)?,/i.exec(a.dataUrl)?.[1].toLowerCase() === a.mimeType;
     if (!media && !style && !embedded) return false;
   }
   return Boolean(a.path || a.dataUrl);

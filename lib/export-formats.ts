@@ -7,6 +7,7 @@ import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
 import { toSingleHtmlProject } from "./generator/single-html";
 import { applyExportStyle } from "./generator/style-export";
+import { zipMediaMime } from "./zip-mime";
 import { zipAssetClosure } from "./zip-css";
 import { scopedAssetIds } from "./generator/scoped-assets";
 import { assertGeneratedPaths } from "./generator/output-paths";
@@ -346,7 +347,9 @@ export async function prepareExportProject(
       const names = buildAssetNames(scoped);
       for (const id of zip.assetIds) {
         const name = names.get(id);
-        if (name && /^(?:image|audio|video|font)\//i.test(scoped.assets[id]?.mimeType ?? "")) media.add("/assets/" + name);
+        const asset = scoped.assets[id];
+        if (name && asset && (/^(?:image|audio|video|font)\//i.test(asset.mimeType ?? "") ||
+            zipMediaMime(asset.zip?.path ?? name))) media.add("/assets/" + name);
       }
     }
     ready = await toSingleHtmlProject(project, undefined, media);

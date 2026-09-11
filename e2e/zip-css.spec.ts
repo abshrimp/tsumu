@@ -100,11 +100,14 @@ for (const storage of ["local", "remote"] as const) {
         if (exported) {
           expect(url.pathname).toBe("/assets/site-images-background.svg");
           const query = id === "query" ? "?v=1&theme=dark" : id === "raw-query" ? "?quot;" : "";
-          expect(url.search).toBe(storage === "remote" ? query : "");
+          expect(url.search).toBe(query);
         } else if (storage === "remote") {
           expect(url.searchParams.get("sig")).toMatch(/^fixture-/);
           expect(url.searchParams.get("v")).toBe(id === "query" ? "1" : null);
-        } else expect(url.protocol).toBe("data:");
+        } else {
+          expect(url.protocol).toBe("data:");
+          expect(url.search).toBe("");
+        }
       }
     }
 

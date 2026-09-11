@@ -174,7 +174,7 @@ export function withinScriptValueLimit(value: unknown): boolean {
 
 /** 変数に値を入れる（"記事.tags" のような入れ子は、元の値を変えずに途中を複製して入れる） */
 export function setVarPath(vars: Record<string, unknown>, name: string, value: unknown,
-  accept?: (candidate: unknown) => boolean): string | undefined {
+  accept?: (candidate: unknown) => boolean, editingList = false): string | undefined {
   if (typeof name !== "string" || !name) return undefined;
   const owns = (obj: object, key: string | number) =>
     Object.prototype.hasOwnProperty.call(obj, key);
@@ -196,9 +196,11 @@ export function setVarPath(vars: Record<string, unknown>, name: string, value: u
       // A nested array path must update an existing slot or append one item.
       // Never turn a list into a dictionary or construct a sparse million-slot
       // list from an accidental index (set-list-item follows the same rule).
-      if (!/^(0|[1-9][0-9]*)$/.test(k)) { invalidPath = true; return cur; }
-      const index = Number(k);
-      if (!Number.isSafeInteger(index) || index > cur.length ||
+      // A list edit writes back to the same list it read via the last-item alias.
+      const lastItem = editingList && k === "-1";
+      if (!lastItem && !/^(0|[1-9][0-9]*)$/.test(k)) { invalidPath = true; return cur; }
+      const index = lastItem ? cur.length - 1 : Number(k);
+      if (!Number.isSafeInteger(index) || index < 0 || index > cur.length ||
           (index === cur.length && cur.length >= 10000)) {
         invalidPath = true;
         return cur;

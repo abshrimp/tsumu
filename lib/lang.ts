@@ -25,10 +25,19 @@ export function isLang(v: unknown): v is Lang {
 /** 優先する順の言語コード（"zh-TW" など）から、対応している言語を選ぶ */
 export function pickLang(prefs: readonly string[]): Lang {
   for (const p of prefs) {
-    const code = p.trim().toLowerCase();
-    if (isLang(code)) return code;
-    const base = code.split("-")[0];
-    if (isLang(base)) return base;
+    let code: string;
+    try {
+      code = Intl.getCanonicalLocales(p.trim())[0].toLowerCase();
+    } catch {
+      continue;
+    }
+    // A script- or region-specific dictionary can also match a more specific tag.
+    for (;;) {
+      if (isLang(code)) return code;
+      const hyphen = code.lastIndexOf("-");
+      if (hyphen < 0) break;
+      code = code.slice(0, hyphen);
+    }
   }
   return FALLBACK_LANG;
 }

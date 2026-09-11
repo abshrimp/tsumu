@@ -19,7 +19,7 @@ import {
 import { fieldStateNotes, fieldVarName, fieldVarNames, isRadioItem } from "./fields";
 import { tr, trc } from "./i18n";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
-import { matchesValueCondition, parseValueLiteral } from "./value-semantics";
+import { matchesValueCondition, parseValueLiteral, setVarPath } from "./value-semantics";
 import { runPurePageSteps } from "./page-load-steps";
 import { formatValueText } from "./value-text";
 
@@ -461,7 +461,7 @@ export interface PagePlan {
   /** 画面上（ブラウザ）で値が決まる変数・配列の名前 */
   clientVars: Set<string>;
   /** Exact destinations, used to distinguish mutable paths from their server-only siblings. */
-  clientWritePaths: Set<string>;
+  clientAssignmentPaths: Set<string>;
   /** Exact list paths mutated by browser actions, for initializing their runtime values. */
   clientListTargets: Set<string>;
   /**
@@ -541,7 +541,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   const mayRunOnServer = (st: ScriptStep) => loadRoot.has(st) || nestedLoad.has(st);
   const clientVars = new Set<string>();
   const clientListTargets = new Set<string>();
-  const clientWritePaths = new Set<string>();
+  const clientAssignmentPaths = new Set<string>();
   const watchedRoots = new Set((page?.pageScripts ?? []).flatMap((s) =>
     s.trigger === "change" && s.changeVariable && s.steps.length ? [rootName(s.changeVariable)] : []));
   const runtimeScripts = scriptsInPage(doc, pageId, true);
@@ -551,8 +551,8 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
     const name = writeTarget(st);
     if (!name) return;
     clientVars.add(rootName(name));
-    clientWritePaths.add(name);
     if (st.kind === "set-list-item" || st.kind === "remove-list-item") clientListTargets.add(name);
+    else clientAssignmentPaths.add(name);
   };
   const fieldIds = new Set(
     idVarNodesOf(doc, pageId)
@@ -690,7 +690,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       }
     }
   }
-  return { steps, serverIds, clientVars, clientWritePaths, clientListTargets, listOps };
+  return { steps, serverIds, clientVars, clientAssignmentPaths, clientListTargets, listOps };
 }
 
 /**
@@ -1067,8 +1067,7 @@ export function previewDataVars(
   const out: Record<string, unknown> = {};
   const origins: Record<string, { totals?: Record<string, number>; path: string }> = {};
   const own = (object: object, key: string) => Object.prototype.hasOwnProperty.call(object, key);
-  const save = (key: string, value: unknown) =>
-    Object.defineProperty(out, key, { value, writable: true, enumerable: true, configurable: true });
+  const save = (key: string, value: unknown) => setVarPath(out, key, value);
   const setOrigin = (key: string, value: { totals?: Record<string, number>; path: string }) =>
     Object.defineProperty(origins, key, { value, writable: true, enumerable: true, configurable: true });
   const originFor = (name: string) => {
@@ -1505,7 +1504,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
   const addQueryKeys = (url: string | undefined) => {
     for (const m of (url ?? "").matchAll(/[?&]([^=&#]+)=/g)) keep.add(m[1]);
   };
-  for (const p of Object.values(out.pages)) Object.keys(pageQueryVars(p.query)).forEach((k) => keep.add(k));
+  for (const p of Object.values(out.pages)) Object.keys(pageQueryVars(p.query)).forEach((k) => keep.add(rootName(k)));
   for (const n of Object.values(out.nodes)) if (n.link?.kind === "url") addQueryKeys(n.link.url);
   // 取得したデータの配列の要素（リストの項目）の項目名
   const addItemKeys = (v: unknown, inArray: boolean, depth: number) => {
@@ -1524,7 +1523,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
   for (const steps of stepLists) {
     walkAll(steps, (st) => {
       if (st.kind === "fetch") {
-        if (st.as) defined.add(st.as);
+        if (st.as) defined.add(rootName(st.as));
         addItemKeys(st.preview?.sample, false, 0);
       }
       if (st.kind === "list-display") {
@@ -1534,7 +1533,8 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
         }
       }
       if (st.kind === "open-url") addQueryKeys(st.url);
-      if ("into" in st && st.into) defined.add(st.into);
+      // A dotted assignment updates a field of its root variable.
+      if ("into" in st && st.into) defined.add(rootName(st.into));
     });
   }
 
@@ -1549,14 +1549,9 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
   }
   if (!names.size) return out;
 
-  // 長い名前から当てる（"a.b" という名前と "a" の両方があっても正しく付け替える）
-  const sorted = [...names.keys()].sort((a, b) => b.length - a.length);
   const fn = (name: string): string | null => {
-    for (const from of sorted) {
-      const r = renameVarFn(from, names.get(from)!)(name);
-      if (r != null) return r;
-    }
-    return null;
+    const root = rootName(name), replacement = names.get(root);
+    return replacement === undefined ? null : replacement + name.slice(root.length);
   };
   for (const n of Object.values(out.nodes)) {
     mapNodeTokens(n, fn);
@@ -1571,8 +1566,8 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
   }
   for (const steps of stepLists) {
     walkAll(steps, (st) => {
-      if (st.kind === "fetch" && st.as) st.as = names.get(st.as) ?? st.as;
-      if ("into" in st && st.into) st.into = names.get(st.into) ?? st.into;
+      if (st.kind === "fetch" && st.as) st.as = fn(st.as) ?? st.as;
+      if ("into" in st && st.into) st.into = fn(st.into) ?? st.into;
     });
   }
   return out;

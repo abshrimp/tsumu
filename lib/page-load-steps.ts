@@ -45,9 +45,9 @@ function createPageStepRunner(
       }
       return interpolate(input, scope);
     };
-    const write = (name: string, result: unknown) => {
+    const write = (name: string, result: unknown, editingList = false) => {
       if (!name) return;
-      const root = writePath(staged, name, result, withinLimit);
+      const root = writePath(staged, name, result, withinLimit, editingList);
       if (root === undefined) { exhausted = true; return; }
       changed.add(root);
     };
@@ -85,7 +85,7 @@ function createPageStepRunner(
               if (!Number.isSafeInteger(index) || index < 0 || index > copy.length ||
                   (index === copy.length && copy.length >= 10000)) break;
               copy[index] = nextValue;
-              write(step.list, copy);
+              write(step.list, copy, true);
             } else {
               if (!provided) break;
               const key = String(keyValue);
@@ -93,7 +93,7 @@ function createPageStepRunner(
               if (key === "__proto__" || key === "prototype" || key === "constructor") break;
               const copy = Object.assign(Object.create(null), list) as Record<string, unknown>;
               copy[key] = nextValue;
-              write(step.list, copy);
+              write(step.list, copy, true);
             }
             break;
           }
@@ -102,7 +102,7 @@ function createPageStepRunner(
             const source = lookup(scope, step.list);
             const selection = valueInput(step.value, scope);
             const result = removeItem(source, step.mode, selection, matchesValueCondition);
-            if (result !== undefined) write(step.list, result);
+            if (result !== undefined) write(step.list, result, true);
             break;
           }
           case "transform": {

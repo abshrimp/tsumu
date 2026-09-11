@@ -5,7 +5,7 @@ import { CSS_ASSET_ATTRIBUTES, iterateCssAssetReferences } from "../css-assets";
 import { rewriteSrcsetUrls } from "../srcset";
 import type { Asset, SiteDoc } from "../types";
 import { zipCssUrl } from "../zip-css";
-import { importedAssetUrl } from "./imported-assets";
+import { importedAssetPath } from "./imported-assets";
 
 // A virtual file root distinguishes archive paths from every HTTP origin.
 const root = new URL("file:///");
@@ -135,7 +135,7 @@ export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set
   for (const [id, asset] of Object.entries(assets)) {
     if (urls.has(assetSrc(asset)) || urls.has("/assets/" + asset.name) ||
         (asset.path && urls.has("/" + asset.path)) || urls.has(zipCssUrl(id)) ||
-        (asset.zip && urls.has(importedAssetUrl(asset) ?? ""))) ids.add(id);
+        (asset.zip && urls.has(importedAssetPath(asset)?.slice("public".length) ?? ""))) ids.add(id);
   }
   return ids;
 }

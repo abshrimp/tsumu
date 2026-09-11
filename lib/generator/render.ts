@@ -74,7 +74,7 @@ export interface JsxContext {
   /** スクリプトで絞り込む配列の名前 → 項目名 */
   listFilterFields: Map<string, Set<string>>;
   /** スクリプトの {変数} のうち、画面上で値を入れるもの（ページを配信するときは残す） */
-  isLive: (name: string) => boolean;
+  isLive: (name: string, usage?: "length") => boolean;
   /** 検索フォームの中を描いているか（中のボタンを送信ボタンにする） */
   inForm?: boolean;
   /** アセットID → 一意化した出力ファイル名 */
