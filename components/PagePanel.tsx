@@ -124,9 +124,12 @@ export default function PagePanel() {
     const request = beginImport("zip");
     setZipMessage(null);
     try {
-      const { assets, html: rewritten, name } = await readHtmlZip(file, (message) => {
+      const existing = (page.htmlZip?.assetIds ?? [])
+        .map(id => useEditor.getState().doc.assets[id])
+        .filter((asset): asset is NonNullable<typeof asset> => !!asset);
+      const { assets, source, zip, name } = await readHtmlZip(file, (message) => {
         if (request.current()) setZipMessage(message);
-      });
+      }, undefined, existing, true);
       await waitForGesture(request);
       if (!request.current()) {
         // アップロード済みの一式は残すが、Undo/Redoや手動編集を上書きしない。
@@ -136,7 +139,10 @@ export default function PagePanel() {
       updateDoc((draft) => {
         for (const asset of assets) draft.assets[asset.id] = asset;
         const target = draft.pages[page.id];
-        if (target) target.rawHtml = rewritten;
+        if (target) {
+          target.rawHtml = source;
+          target.htmlZip = zip;
+        }
       });
       setZipMessage(
         tr("Loaded {name} and {length} assets", { name, length: assets.length })
@@ -200,6 +206,7 @@ export default function PagePanel() {
         target.pageScripts = undefined;
         target.scripts = undefined;
         target.rawHtml = null;
+        delete target.htmlZip;
         draft.breakpoints = normalizeBreakpoints(converted.doc.breakpoints);
       });
       setNormalImportMessage(converted.warnings.length
@@ -242,11 +249,13 @@ export default function PagePanel() {
         kind === "html"
           ? {
               rawHtml: page.rawHtml || "",
+              ...(page.htmlZip ? { htmlZip: undefined } : {}),
               redirectTo: undefined,
               rewriteTo: undefined,
             }
           : {
               rawHtml: null,
+              ...(page.htmlZip ? { htmlZip: undefined } : {}),
               ...(page.rewriteTo !== undefined
                 ? { rewriteTo: page.rewriteTo, redirectTo: undefined }
                 : { redirectTo: page.redirectTo ?? "", rewriteTo: undefined }),
@@ -255,6 +264,7 @@ export default function PagePanel() {
     } else {
       updatePage(page.id, {
         rawHtml: null,
+        ...(page.htmlZip ? { htmlZip: undefined } : {}),
         redirectTo: undefined,
         rewriteTo: undefined,
       });
@@ -613,6 +623,7 @@ export default function PagePanel() {
                   await waitForGesture(request);
                   if (request.current()) updatePage(page.id, {
                     rawHtml: String(reader.result ?? ""),
+                    ...(page.htmlZip ? { htmlZip: undefined } : {}),
                   });
                   request.finish();
                 };

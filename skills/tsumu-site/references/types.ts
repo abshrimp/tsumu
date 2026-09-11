@@ -423,6 +423,11 @@ export interface ImageRef {
   assetId?: string;
 }
 
+export interface HtmlZipPage {
+  path: string;
+  assetIds: string[];
+}
+
 export interface Page {
   id: string;
   name: string;
@@ -446,6 +451,7 @@ export interface Page {
   unpublished?: boolean;
   
   rawHtml?: string | null;
+  htmlZip?: HtmlZipPage;
   
   folderId?: string;
   
@@ -492,6 +498,7 @@ export interface ZipAssetMetadata {
   version: 1;
   group: string;
   path: string;
+  sha256?: string;
   stylesheet?: {
     source: string;
     references: { url: string; assetId: string; suffix: string }[];

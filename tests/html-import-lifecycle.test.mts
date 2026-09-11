@@ -23,7 +23,7 @@ function fixture() {
   globalThis.FileReader = class { result = ""; onload?: () => void; readAsText() { readers.push(this); } } as any;
   const render = () => elements(ui.render());
   const start = (zip: boolean) => render().find(e => e.type === "input" && e.props.accept?.startsWith(zip ? ".zip" : ".html")).props.onChange({ target: { files: [new File([], zip ? "site.zip" : "index.html")], value: "" } });
-  const complete = async (zip: boolean, index = 0) => { if (zip) jobs[index].resolve({ html: imported, assets, name: "index.html" }); else { readers[index].result = imported; readers[index].onload(); } await tick(); };
+  const complete = async (zip: boolean, index = 0) => { if (zip) jobs[index].resolve({ html: imported, source: imported, zip: { path: "index.html", assetIds: assets.map(a => a.id) }, assets, name: "index.html" }); else { readers[index].result = imported; readers[index].onload(); } await tick(); };
   render();
   return { ui, render, start, complete, jobs, readers, close() { ui.unmount(); globalThis.FileReader = oldReader; } };
 }

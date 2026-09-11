@@ -27,6 +27,7 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
   add(doc.pwa?.icon?.assetId);
   for (const page of Object.values(doc.pages)) {
     add(page.ogImage?.assetId);
+    for (const id of page.htmlZip?.assetIds ?? []) add(id);
     findCssAssets(page.bodyStyles).forEach(add);
   }
 

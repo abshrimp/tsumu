@@ -84,7 +84,7 @@ export const zipCssBrowserBundle = buildSync({
       import { HTML_PREVIEW_REFRESH_MS } from "./components/canvas/useHtmlPreview";
       let root;
       function Preview({ doc }) {
-        const { html, error, needsRefresh, refreshing, refresh } = useHtmlPreview(doc.pages.p.rawHtml, doc.assets);
+        const { html, error, needsRefresh, refreshing, refresh } = useHtmlPreview(doc.pages.p.rawHtml, doc.assets, doc.pages.p.htmlZip);
         return createElement("div", null,
           createElement("output", { id: "preview-error" }, error || ""),
           (needsRefresh || error) && createElement("button", {
@@ -102,13 +102,14 @@ export const zipCssBrowserBundle = buildSync({
       }).observe(document.getElementById("app"), { childList: true, subtree: true, attributes: true });
       window.zipCssHarness = {
         rendered, refreshMs: HTML_PREVIEW_REFRESH_MS,
-        async importZip(base64) {
+        async importZip(base64, previous) {
           const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-          const imported = await readHtmlZip(bytes);
+          const existing = (previous?.pages.p.htmlZip?.assetIds || []).map((id) => previous.assets[id]);
+          const imported = await readHtmlZip(bytes, undefined, undefined, existing);
           return {
             siteName: "ZIP CSS", nodes: {}, pageOrder: ["p"],
-            assets: Object.fromEntries(imported.assets.map((asset) => [asset.id, asset])),
-            pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: [], rawHtml: imported.html } },
+            assets: { ...previous?.assets, ...Object.fromEntries(imported.assets.map((asset) => [asset.id, asset])) },
+            pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: [], rawHtml: imported.source, htmlZip: imported.zip } },
           };
         },
         mount(doc) {
@@ -228,7 +229,9 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
   const base64 = await zip.generateAsync({ type: "base64" });
   const doc = await page.evaluate((input) => (window as any).zipCssHarness.importZip(input), base64) as SiteDoc;
   return {
-    doc, uploaded, signatures, resources, exportedRequests, externalRequests, unexpected, errors, control,
+    doc, archiveBase64: base64, uploaded, signatures, resources, exportedRequests, externalRequests, unexpected, errors, control,
+    reimport: (archive: string, previous: SiteDoc = doc): Promise<SiteDoc> =>
+      page.evaluate(({ data, previous }) => (window as any).zipCssHarness.importZip(data, previous), { data: archive, previous }),
     mount: (next: SiteDoc = doc) => page.evaluate((input) => (window as any).zipCssHarness.mount(input), next),
     async openExport() {
       exported = await renderZipExport(doc);

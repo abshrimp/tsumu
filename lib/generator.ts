@@ -1,5 +1,7 @@
 import rootPackage from "../package.json";
-import { exportZipStylesheet, zipStylesheet } from "./zip-css";
+import { exportZipStylesheet, zipStylesheet, zipCssUrl } from "./zip-css";
+import { htmlZipSource } from "./html-zip-source";
+import { assetSrc } from "./assets";
 import type { SiteDoc } from "./types";
 import { applyBreakpoints } from "./style";
 import { siteLangOf, siteText } from "./site-lang";
@@ -172,7 +174,8 @@ export function generateProject(
       const htmlWithAssets = rawHtmlWithBodyStyles(
         doc,
         page,
-        cssValue(doc, "rawHtml", page.rawHtml, assetNames),
+        cssValue(doc, "rawHtml", htmlZipSource(page.rawHtml, page.htmlZip, doc.assets,
+          asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset)), assetNames),
         assetNames
       );
       files[path] = `const html = ${JSON.stringify(htmlWithAssets)};
