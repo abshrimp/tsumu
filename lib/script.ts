@@ -196,6 +196,7 @@ function scriptView(script: Script, nodeId: string | null): PageScript {
   const saved = byNode.get(key);
   if (saved && saved.id === script.id && saved.steps === script.steps &&
       saved.pos === script.pos && saved.trigger === script.trigger &&
+      saved.changeVariable === script.changeVariable &&
       saved.keepOnShown === script.keepOnShown) return saved;
   const view: PageScript = { ...script, nodeId };
   byNode.set(key, view);
@@ -306,6 +307,7 @@ function sameScript(a: Script, b: Script): boolean {
   return a === b || (
     a.id === b.id &&
     a.trigger === b.trigger &&
+    a.changeVariable === b.changeVariable &&
     a.keepOnShown === b.keepOnShown &&
     a.steps === b.steps &&
     a.pos.x === b.pos.x &&
@@ -426,7 +428,9 @@ export function scriptTargetIds(
 /** 画面上で動くスクリプトを持つか（きっかけ + データの取得以外の動作がある） */
 export function hasRunnableScripts(node: Pick<DocNode, "scripts">): boolean {
   return !!node.scripts?.some(
-    (s) => s.trigger && s.steps.some((st) => !isDataStep(st))
+    (s) => s.trigger &&
+      (s.trigger !== "change" || s.changeVariable === undefined || !!s.changeVariable.trim()) &&
+      s.steps.some((st) => !isDataStep(st))
   );
 }
 
@@ -436,6 +440,7 @@ type RuntimeStep = Record<string, unknown>;
 export interface RuntimeScript {
   trigger: ScriptTrigger;
   steps: RuntimeStep[];
+  changeVariable?: string;
   keep?: true;
 }
 
@@ -536,10 +541,12 @@ export function compileScripts(
       }
     });
   return (node.scripts ?? [])
-    .filter((s) => s.trigger && s.steps.length)
+    .filter((s) => s.trigger && s.steps.length &&
+      (s.trigger !== "change" || s.changeVariable === undefined || !!s.changeVariable.trim()))
     .map((s) => ({
       trigger: s.trigger!,
       steps: conv(s.steps),
+      ...(s.trigger === "change" && s.changeVariable ? { changeVariable: s.changeVariable } : {}),
       ...(s.trigger === "hover-end" && s.keepOnShown ? { keep: true as const } : {}),
     }))
     .filter((s) => s.steps.length);

@@ -10,12 +10,13 @@ import { readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
 import { isDataStep, keyOfItem, firstListItem, type FetchStep } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
+import { singleValueReference } from "../../lib/variable-choice";
 import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/types";
 import { tr } from "../../lib/i18n";
 import { AnyArraySelect, itemFieldsOf } from "./arrays";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, ScriptStepCtx, type FetchPreviewScope } from "./context";
 import { FetchResult } from "./fetch";
-import { CondEditor, NumericVariableIn, Phrase } from "./inputs";
+import { CondEditor, NumericVariableIn, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";
@@ -404,6 +405,9 @@ export function HatView({
   onNodeChange,
   keepOnShown,
   onKeepOnShownChange,
+  changeVariable,
+  onChangeVariable,
+  onChangeSource,
   badge,
   handlers,
   selKey,
@@ -412,6 +416,10 @@ export function HatView({
   onChange?: (t: ScriptTrigger) => void;
   keepOnShown?: boolean;
   onKeepOnShownChange?: (v: boolean) => void;
+  /** Defined (including empty) means this is a variable-change trigger. */
+  changeVariable?: string;
+  onChangeVariable?: (name: string) => void;
+  onChangeSource?: (source: "element" | "variable") => void;
   nodeId?: string | null;
   onNodeChange?: (id: string | null) => void;
   badge?: ReactNode;
@@ -422,7 +430,26 @@ export function HatView({
   return (
     <div className="se-blk se-hat" data-sel-key={selKey} {...handlers}>
       <Ico icon={TRIGGER_ICON[trigger]} cat="event" />
-      {onNodeChange ? (
+      {trigger === "change" && (
+        <select className="se-in" aria-label={tr("When the value changes")}
+          value={changeVariable === undefined ? "element" : "variable"}
+          disabled={!onChangeSource}
+          onChange={(e) => onChangeSource?.(e.target.value as "element" | "variable")}>
+          <option value="element">{tr("Element")}</option>
+          <option value="variable">{tr("Variables")}</option>
+        </select>
+      )}
+      {trigger === "change" && changeVariable !== undefined ? (
+        <TextIn vars value={changeVariable ? "{" + changeVariable + "}" : ""}
+          placeholder={tr("Select a variable")} width={170}
+          onCommit={(input) => {
+            const raw = input.trim();
+            const selected = singleValueReference(raw);
+            // The trigger watches exactly one variable path, not mixed text.
+            const name = selected ?? (!/[{}\s"'<>`]/.test(raw) ? raw : null);
+            if (name !== null) onChangeVariable?.(name);
+          }} />
+      ) : onNodeChange ? (
         <ElementSelect value={nodeId ?? null} onChange={onNodeChange} />
       ) : (
         nodeId !== undefined && (
@@ -439,7 +466,9 @@ export function HatView({
           value={trigger}
           onChange={(e) => onChange(e.target.value as ScriptTrigger)}
         >
-          {(nodeId === PAGE_TARGET ? (["load"] as const) : TRIGGER_ORDER).map((t) => (
+          {(nodeId === PAGE_TARGET
+            ? (changeVariable !== undefined ? (["change", "load"] as const) : (["load"] as const))
+            : TRIGGER_ORDER).map((t) => (
             <option key={t} value={t}>
               {TRIGGER_LABELS[t]}
             </option>
@@ -501,7 +530,8 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
 
   const headKey = slotKey({ scriptId: script.id, list: "head", index: 0 });
   const scriptKey = `script:${script.id}`;
-  const runnable = !!script.trigger && !!script.nodeId;
+  const runnable = !!script.trigger && !!script.nodeId &&
+    (script.trigger !== "change" || script.changeVariable === undefined || !!script.changeVariable.trim());
   return (
     <ScriptOwnerCtx.Provider value={{ scriptId: script.id, nodeId: script.nodeId }}>
     <ScriptNodeCtx.Provider value={script.nodeId && script.nodeId !== PAGE_TARGET ? script.nodeId : ""}>
@@ -526,7 +556,22 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
           onChange={
             ctx.readOnly
               ? undefined
-              : (t) => ctx.updateScript(script.id, { trigger: t })
+              : (t) => ctx.updateScript(script.id, {
+                  trigger: t,
+                  ...(script.changeVariable !== undefined && t !== "change"
+                    ? { changeVariable: undefined, nodeId: t === "load" ? PAGE_TARGET : null }
+                    : {}),
+                })
+          }
+          changeVariable={script.changeVariable}
+          onChangeVariable={
+            ctx.readOnly ? undefined : (name) => ctx.updateScript(script.id, { changeVariable: name })
+          }
+          onChangeSource={
+            ctx.readOnly ? undefined : (source) => ctx.updateScript(script.id, {
+              changeVariable: source === "variable" ? "" : undefined,
+              nodeId: source === "variable" ? PAGE_TARGET : null,
+            })
           }
           keepOnShown={script.keepOnShown}
           onKeepOnShownChange={
@@ -548,6 +593,8 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
           badge={
             isLinkScriptId(script.id) ? (
               <span className="se-badge">{tr("Output as a link")}</span>
+            ) : script.trigger === "change" && script.changeVariable === "" ? (
+              <span className="se-badge is-warn">{tr("Select a variable")}</span>
             ) : !script.nodeId ? (
               <span className="se-badge is-warn">{tr("Won't run until an element is chosen")}</span>
             ) : undefined

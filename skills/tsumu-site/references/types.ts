@@ -354,6 +354,7 @@ export interface Script {
   id: string;
   
   trigger?: ScriptTrigger;
+  changeVariable?: string;
   
   keepOnShown?: boolean;
   steps: ScriptStep[];
