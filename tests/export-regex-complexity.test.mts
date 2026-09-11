@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import vm from "node:vm";
 import { parse } from "acorn";
+import { transformSync } from "esbuild";
 import { generateExportProject } from "../lib/export-formats";
 import { makeText } from "../lib/presets";
 import type { ScriptStep, SiteDoc } from "../lib/types";
@@ -71,7 +72,12 @@ for (const [framework, path] of [
   test(`${framework} published evaluator applies regex budgets to ordinary catalog values`, () => {
     const files = generateExportProject(site(), framework).files;
     assert.ok(files[path], path);
-    const evaluator = emittedEvaluator(files[path]);
+    // Next.js emits TypeScript, whereas the other formats emit JavaScript.
+    // Strip type-only syntax before parsing or executing the evaluator in Acorn/vm.
+    const runtimeSource = path.endsWith(".ts")
+      ? transformSync(files[path], { loader: "ts", target: "es2022" }).code
+      : files[path];
+    const evaluator = emittedEvaluator(runtimeSource);
     const script = new vm.Script("const __name = (fn) => fn; (" + evaluator + ")(input, [transform]);");
     const evaluate = (input: string, find: string, replacement: string) => JSON.parse(JSON.stringify(
       script.runInNewContext({ input, transform: { kind: "replace", find, replacement, regex: true } }),
