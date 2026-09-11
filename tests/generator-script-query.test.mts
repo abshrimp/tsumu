@@ -37,7 +37,7 @@ test("クエリをスクリプトだけで使う場合も、リクエストご�
 test("ページの条件分岐にしかないクエリも失われない", async () => {
   const doc = fixture(script([{ id: "if", kind: "if", cond: { subject: "var", target: "", left: "{campaign}", op: "eq", value: "sale" }, then: [{ id: "go", kind: "open-url", url: "/sale?from={source}" }] }]), true);
   const scripts = await renderedScript(doc, { campaign: "sale", source: "mail" }, true);
-  assert.equal(scripts[0].steps[0].cond.left, "sale");
+  assert.deepEqual(scripts[0].steps[0].cond.left, { inputRef: "campaign", raw: "sale" });
   assert.equal(scripts[0].steps[0].then[0].url, "/sale?from=mail");
 });
 

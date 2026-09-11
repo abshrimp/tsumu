@@ -1,7 +1,7 @@
 import { createCssAssetFinder } from "./css-asset-dependencies";
 import { assetSrc } from "./assets";
 import { zipAssetClosure } from "./zip-css";
-import { isZipJavascript } from "./generator/imported-assets";
+import { importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
 import type { SiteDoc } from "./types";
 
 /**
@@ -38,7 +38,8 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
   for (const a of Object.values(doc.assets)) {
     if (usage.has(a.id)) continue;
     const src = assetSrc(a);
-    if (text.includes(a.id) || (src && text.includes(src))) usage.set(a.id, 1);
+    const alias = importedAssetUrl(a);
+    if (text.includes(a.id) || (src && text.includes(src)) || (alias && text.includes(alias))) usage.set(a.id, 1);
   }
   for (const id of zipAssetClosure(doc.assets, usage.keys())) if (!usage.has(id)) usage.set(id, 1);
   // A ZIP JavaScript module can refer to sibling files by relative paths:

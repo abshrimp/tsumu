@@ -108,7 +108,7 @@ export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "lis
     updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
   return (
     <Phrase
-      text="リスト{array}を{field}の{dir}に並べ替える"
+      text="Sort list {array} by {field} {dir}"
       parts={{
         array: <ArraySelect value={step.array} onChange={(array) => set({ array })} />,
         field: <ArrayFieldSelect array={step.array} value={step.field} onChange={(field) => set({ field })} />,
@@ -136,7 +136,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
   const setOr = (i: number, patch: Partial<FilterCond>) =>
     set({ or: or.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
   // 条件ごとに1行にする（折り返しに任せると、ブロックの幅が全条件を横に並べた長さになる）
-  const tail = <Phrase text="ものに絞り込む" parts={{}} />;
+  const tail = <Phrase text=" " parts={{}} />;
   return (
     <>
       <span className="se-line">
@@ -160,7 +160,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
           </select>
         )}
         <Phrase
-          text="リスト{array}を{field}が{cond}"
+          text="Filter list {array} to items where {field} {cond}"
           parts={{
             array: <ArraySelect value={step.array} onChange={(array) => set({ array })} />,
             field: <ArrayFieldSelect array={step.array} value={step.field} allowContainers
@@ -184,7 +184,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
       {or.map((c, i) => (
         <span key={i} className="se-line">
           <Phrase
-            text="{join}{field}が{cond}"
+            text="{join} {field} {cond}"
             parts={{
               join: (
                 <select

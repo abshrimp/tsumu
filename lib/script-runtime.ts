@@ -69,13 +69,13 @@ export const SCRIPT_RUNTIME = `function (env) {
     return Object.prototype.hasOwnProperty.call(o, k);
   }
   // "items.0.title" のような位置を掘る（配列の "-1" は最後の要素）
-  function dig(v, path) {
+  function dig(v, path, missing) {
     var keys = String(path).split(".");
     for (var i = 0; i < keys.length; i++) {
-      if (v == null || typeof v !== "object") return undefined;
+      if (v == null || typeof v !== "object") return missing;
       var k = keys[i];
       var part = Array.isArray(v) && k === "-1" ? v.length - 1 : k;
-      if (!has(v, part)) return undefined;
+      if (!has(v, part)) return missing;
       v = v[part];
     }
     return v;
@@ -345,6 +345,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       var pageGeneration = 0;
       var pageBody = null;
       var pageId = null;
+      var pageSeeds = null;
       /*#wait|repeat*/
       // Each install owns its outstanding delays. Navigating away or
       // disposing resolves them immediately instead of retaining closures.
@@ -368,10 +369,14 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/wait|repeat*/
       // DOM の入れ替え直後（監視の走査前）に始まるスクリプトも、新しいページとして扱う。
-      function syncPage() {
+      function syncPage(checkSeeds) {
         var body = root.querySelector("[data-page-body]");
         var pid = body ? body.getAttribute("data-page-body") : null;
-        if (body !== pageBody || pid !== pageId) {
+        var changed = body !== pageBody || pid !== pageId;
+        if (!changed && !checkSeeds) return pageGeneration;
+        var seedData = body && body.getAttribute("data-list-seeds");
+        var newData = seedData !== pageSeeds || (changed && !!seedData);
+        if (changed || newData) {
           /*#wait|repeat*/
           cancelPendingSleeps();
           /*/wait|repeat*/
@@ -382,21 +387,32 @@ export const SCRIPT_RUNTIME = `function (env) {
           pageGeneration++;
           pageBody = body;
         }
-        if (pid !== pageId) {
+        if (pid !== pageId || newData) {
+          pageSeeds = seedData;
           if (pageId !== null) {
             vars = Object.create(null);
+            /*#clist*/
+            rendered = new WeakSet();
+            /*/clist*/
             /*#filter*/
             filters.clear();
             sorts.clear();
             /*/filter*/
           }
           pageId = pid;
+          if (seedData) {
+            try {
+              JSON.parse(seedData).forEach(function (entry) {
+                writeVarPath(vars, entry[0], entry[1], withinValueLimit);
+              });
+            } catch (e) {}
+          }
         }
         return pageGeneration;
       }
       // 待機・くり返しは、開始したページを離れたら続けない。
       function activeRun() {
-        var generation = syncPage();
+        var generation = syncPage(true);
         // One user event must not monopolize the browser through deeply
         // nested finite loops. An actual wait yields and starts a new budget.
         var stepsRun = 0;
@@ -414,15 +430,30 @@ export const SCRIPT_RUNTIME = `function (env) {
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
       var vars = initialVars && typeof initialVars === "object"
         ? Object.assign(Object.create(null), initialVars) : Object.create(null);
-      function getVar(name) {
-        return has(vars, name) ? vars[name] : dig(vars, name);
+      var missingVar = {};
+      function getVar(name, missing) {
+        var source = vars;
+        /*#env*/
+        if (env.getPageData && !has(vars, name) && !has(vars, name.split(".")[0]))
+          source = env.getPageData();
+        /*/env*/
+        return has(source, name) ? source[name] : dig(source, name, missing);
       }
       function writeVar(name, v) {
+        /*#env*/
+        if (env.getPageData && name.includes(".")) {
+          var data = env.getPageData(), rootKey = has(data, name) ? name : name.split(".")[0];
+          if (!has(vars, rootKey) && has(data, rootKey)) vars[rootKey] = data[rootKey];
+        }
+        /*/env*/
         var rootName = writeVarPath(vars, name, v, withinValueLimit);
         if (rootName === undefined) return false;
         if (typeof window !== "undefined" && typeof window.__siteVarsOnChange === "function") {
           window.__siteVarsOnChange(rootName, vars[rootName]);
         }
+        /*#env*/
+        if (env.setVar) env.setVar(rootName, vars[rootName]);
+        /*/env*/
         return true;
       }
       // リストのお手本（data-tpl）の中は {名前} が未解決の非表示の複製元なので対象にしない
@@ -474,6 +505,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (item && (has(item, name) || has(item, head)))
           return has(item, name) ? item[name] : dig(item, name);
         if (has(vars, name) || has(vars, head)) return getVar(name);
+        /*#env*/
+        if (env.getPageData) {
+          var data = env.getPageData();
+          if (has(data, name) || has(data, head)) return getVar(name);
+        }
+        /*/env*/
         var prop = dot < 0 ? "" : name.slice(dot + 1);
         var els = find(self, head);
         // ラジオボタンのグループ名
@@ -488,7 +525,6 @@ export const SCRIPT_RUNTIME = `function (env) {
         } catch (e) {}
         return "";
       }
-      /*#clist*/
       // スクリプトの参照は実行時に解決する。値の中の波かっこは再解釈しない。
       function scriptReference(ref, self, item) {
         if (!ref || typeof ref !== "object" ||
@@ -497,13 +533,16 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (item && (has(item, name) || has(item, head))) {
           return has(item, name) ? item[name] : dig(item, name);
         }
+        /*#clist*/
         var row = self && self.closest && self.closest("[data-row]");
         var scope = row && rowScopes.get(row);
         if (scope && (has(scope, name) || has(scope, head))) {
           return has(scope, name) ? scope[name] : dig(scope, name);
         }
+        /*/clist*/
         return has(ref, "fallback") ? ref.fallback : lookup(name, self, item);
       }
+      /*#clist*/
       function scriptExpression(s, self, item, mode) {
         var offset = 0;
         return s.scriptParts.map(function (part) {
@@ -607,22 +646,21 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/live*/
       function setVar(name, v) {
-        if (!name || Object.is(getVar(name), v)) return;
+        if (typeof name !== "string" || !name || Object.is(getVar(name, missingVar), v)) return;
         // Variable-change scripts live on the page marker, not on an element.
         // Snapshot the watched paths before writing so unchanged nested fields
         // do not fire when their parent is reassigned.
         var owner = root.querySelector("[data-page-body]");
         var watching = [];
+        var changedRoot = name.split(".")[0];
         if (owner) parse(owner).forEach(function (s) {
           if (s.trigger !== "change" || typeof s.changeVariable !== "string" || !s.changeVariable) return;
           var watched = s.changeVariable;
-          if (name === watched || name.indexOf(watched + ".") === 0 || watched.indexOf(name + ".") === 0)
+          // An indexed write can also change its array's length and -1 alias.
+          if (watched.split(".")[0] === changedRoot)
             watching.push({ script: s, name: watched, before: getVar(watched) });
         });
         if (!writeVar(name, v)) return;
-        /*#env*/
-        if (env.setVar) env.setVar(name, v);
-        /*/env*/
         refreshLive();
         /*#clist*/
         var rk = name.split(".")[0];
@@ -645,6 +683,11 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       // Inputs can contain a literal value, a list, one raw reference, or mixed text.
       function readInput(raw, self, scope) {
+        if (raw && typeof raw.inputRef === "string") {
+          var ref = raw.rawRef || { name: raw.inputRef };
+          if (has(raw, "raw")) ref.fallback = raw.raw;
+          return scriptReference(ref, self, scope);
+        }
         // Generated client scripts wrap mixed text in scriptParts objects.
         // Resolve them as expressions, not as literal list payloads.
         if (raw && typeof raw === "object" && Array.isArray(raw.scriptParts))
@@ -661,12 +704,16 @@ export const SCRIPT_RUNTIME = `function (env) {
         }
         return resolve(raw, self, scope);
       }
+      function configuredInput(value) {
+        return typeof value === "string" ? !!value.trim() :
+          !!value && (typeof value.inputRef === "string" || Array.isArray(value.scriptParts));
+      }
       /*#if*/
       function test(c, self, sc) {
         if (!c || typeof c !== "object") return false;
         /*#var*/
         if (c.subject === "var") {
-          if (typeof c.left !== "string" || !c.left.trim()) return false;
+          if (!configuredInput(c.left)) return false;
           var matched = matchValueCondition(readInput(c.left, self, sc), c.op || "eq", readInput(c.value, self, sc));
           return c.not ? !matched : matched;
         }
@@ -725,7 +772,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (!condition || typeof condition !== "object") return;
           if (!condition.and) groups.push([]);
           if (condition.subject !== "var" ||
-              (typeof condition.left === "string" && !!condition.left.trim()))
+              configuredInput(condition.left))
             groups[groups.length - 1].push(condition);
         });
         return groups.some(function (group) {
@@ -1355,7 +1402,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             var inputValue = sc && (has(sc, st.source) ? sc[st.source] : dig(sc, st.source));
             var sourceRoot = st.source.split(".")[0];
             var localShadows = !!(sc && (has(sc, st.source) || has(sc, sourceRoot)));
-            var shadowed = has(vars, st.source) || has(vars, sourceRoot) || localShadows;
+            var shadowed = localShadows || (!st.serverSource && (has(vars, st.source) || has(vars, sourceRoot)));
             if (inputValue === undefined && !localShadows) inputValue = getVar(st.source);
             /*#clist*/
             if (inputValue === undefined && !shadowed && st.rawRef) inputValue = scriptReference(st.rawRef, self, sc);
@@ -1381,7 +1428,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (!st.list || typeof st.list !== "string") break;
             var sourceList = getVar(st.list);
             if (!sourceList || typeof sourceList !== "object") break;
-            var providedKey = typeof st.key === "string" && st.key.trim() !== "";
+            var providedKey = configuredInput(st.key);
             var rawKey = providedKey ? readInput(st.key, self, sc) : undefined;
             if (providedKey && (rawKey === null || typeof rawKey !== "string" && typeof rawKey !== "number")) break;
             var newValue = readInput(st.value, self, sc);
@@ -1405,7 +1452,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           }
           case "remove-list-item": {
             if (!st.list || typeof st.list !== "string" ||
-                typeof st.value !== "string" || !st.value.trim()) break;
+                !configuredInput(st.value)) break;
             var selected = readInput(st.value, self, sc);
             var remaining = removeItem(getVar(st.list), st.mode, selected, matchValueCondition);
             if (remaining !== undefined) setVar(st.list, remaining);
@@ -1749,7 +1796,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       function scan() {
         if (!alive) return;
         // 前のページの変数・絞り込み・並べ替えと、待機中のスクリプトを引き継がない。
-        syncPage();
+        syncPage(true);
         /*#live*/
         // Next.js のページ遷移で追加された入力欄・文字も初期化する
         refreshLive();
@@ -1800,7 +1847,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["data-scripts", "data-page-body"],
+        attributeFilter: ["data-scripts", "data-page-body", "data-list-seeds"],
       });
       scan();
       /*/scan*/
@@ -1870,7 +1917,9 @@ export interface ScriptEnv {
   setValue?: (id: string, value: string) => boolean;
   /** 表示を変えた要素（プレビュー終了時の掃除用） */
   touch?: (el: HTMLElement) => void;
-  /** 画面上の変数が変わった（プレビューでリストなどを描き直す） */
+  /** Current server-step results, including data refreshed after the preview opened. */
+  getPageData?: () => Record<string, unknown>;
+  /** Updated root, including its unchanged siblings after a nested write. */
   setVar?: (name: string, value: unknown) => void;
   /** ストレージのキーの前に付ける文字（プレビューでエディタ自身の保存と混ざらないように） */
   storePrefix?: string;

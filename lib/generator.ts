@@ -1,8 +1,7 @@
 import rootPackage from "../package.json";
-import { exportZipStylesheet, zipStylesheet, zipCssUrl } from "./zip-css";
+import { exportZipStylesheet, zipStylesheet } from "./zip-css";
 import { htmlZipSource } from "./html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "./html-zip-script-assets";
-import { assetSrc } from "./assets";
 import type { SiteDoc } from "./types";
 import { applyBreakpoints } from "./style";
 import { siteLangOf, siteText } from "./site-lang";
@@ -10,7 +9,7 @@ import { INVIEW_SCRIPT } from "./motion";
 import { fieldVarNames } from "./fields";
 import { VARS_RUNTIME } from "./vars";
 import { idVarNodesOf, obfuscateVarNames, pagePlan } from "./data";
-import { hasRunnableScripts, listFilterFields, scriptTargetIds } from "./script";
+import { hasRunnableScripts, listFilterFields, matchVariableWrites, scriptTargetIds } from "./script";
 import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
@@ -18,8 +17,8 @@ import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } fro
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
-import { importedAssetPath, importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
-import { generatePageFile, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
+import { htmlZipExportSource, importedAssetPath, importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
+import { generatePageFile, needsPageStepRunner, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
 import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
 import {
@@ -103,7 +102,7 @@ export function generateProject(
       ),
     ]),
     listFilterFields: listFilterFields(doc),
-    liveNames: new Set(),
+    isLive: () => false,
     assetNames,
   };
   const files: Record<string, string> = {};
@@ -175,8 +174,7 @@ export function generateProject(
       const htmlWithAssets = rawHtmlWithBodyStyles(
         doc,
         page,
-        cssValue(doc, "rawHtml", htmlZipSource(page.rawHtml, page.htmlZip, doc.assets,
-          asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset)), assetNames),
+        cssValue(doc, "rawHtml", htmlZipSource(page.rawHtml, page.htmlZip, doc.assets, htmlZipExportSource), assetNames),
         assetNames
       );
       const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets, asset => {
@@ -236,6 +234,8 @@ export function GET() {
     if (n.type === "field") fieldVarNames(n).forEach((v) => siteLiveNames.add(v));
   }
 
+  const sharedPathIsLive = matchVariableWrites(siteLiveNames);
+
   // コンポーネント（1コンポーネント = 1ファイル）
   for (const comp of Object.values(doc.components ?? {})) {
     const name = componentNames.get(comp.id)!;
@@ -253,7 +253,7 @@ export function GET() {
     ctx.varsExpr = "{}";
     ctx.listVars = undefined;
     ctx.listOps = undefined;
-    ctx.liveNames = new Set(siteLiveNames);
+    ctx.isLive = sharedPathIsLive;
     ctx.componentRootId = comp.rootId;
     const body = renderNode(ctx, comp.rootId, "    ", false);
     ctx.componentRootId = undefined;
@@ -418,8 +418,7 @@ export default function manifest(): MetadataRoute.Manifest {
   // Generated SSR pages share the same pure recipe evaluator as editor and client scripts.
   // Output plain JavaScript so the emitted function can be compiled without implicit-any errors.
   const needsPurePageControls = Object.values(doc.pages).some((page) => !page.unpublished &&
-    pagePlan(doc, page.id).steps.some((step) =>
-      step.kind === "for-each" || step.kind === "if" || step.kind === "repeat"));
+    pagePlan(doc, page.id).steps.some(needsPageStepRunner));
   if (needsPurePageControls || Object.values(doc.pages).some((page) => !page.unpublished &&
     pagePlan(doc, page.id).steps.some((step) => step.kind === "transform"))) {
     files["lib/value-recipe.ts"] =
@@ -455,7 +454,7 @@ export default function manifest(): MetadataRoute.Manifest {
       varsExpr: "{}",
       listVars: undefined,
       listOps: undefined,
-      liveNames: new Set(siteLiveNames),
+      isLive: sharedPathIsLive,
     };
     const loadingBody = loadingPage
       ? loadingPage.children

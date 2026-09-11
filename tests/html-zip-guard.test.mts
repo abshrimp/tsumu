@@ -28,7 +28,7 @@ test("HTML ZIP rejects traversal paths before any file is extracted", async () =
   const zip = await reopen(new JSZip()
     .file("index.html", "<main>Safe</main>")
     .file("../outside.js", "bad"));
-  assert.throws(() => inspectHtmlZip(zip), /安全でないファイルパス/);
+  assert.throws(() => inspectHtmlZip(zip), /unsafe path/);
 });
 
 test("HTML ZIP rejects case-folded path collisions", async () => {
@@ -36,14 +36,14 @@ test("HTML ZIP rejects case-folded path collisions", async () => {
     .file("index.html", "<main>Safe</main>")
     .file("assets/logo.svg", "<svg/>")
     .file("assets/LOGO.svg", "<svg/>"));
-  assert.throws(() => inspectHtmlZip(zip), /重複したファイルパス/);
+  assert.throws(() => inspectHtmlZip(zip), /duplicate file paths/);
 });
 
 test("HTML ZIP rejects advertised oversize assets before uploading", async () => {
   const zip = await reopen(new JSZip()
     .file("index.html", "<main>Safe</main>")
     .file("huge.bin", new Uint8Array(HTML_ZIP_LIMITS.assetBytes + 1)));
-  assert.throws(() => inspectHtmlZip(zip), /アセットが大きすぎ/);
+  assert.throws(() => inspectHtmlZip(zip), /asset in the ZIP is too large/);
 });
 
 test("HTML ZIP rejects aggregate expansion and implausible metadata", async () => {
@@ -56,20 +56,20 @@ test("HTML ZIP rejects aggregate expansion and implausible metadata", async () =
     };
     entry._data.uncompressedSize = HTML_ZIP_LIMITS.assetBytes;
   }
-  assert.throws(() => inspectHtmlZip(zip), /展開後のデータが大きすぎ/);
+  assert.throws(() => inspectHtmlZip(zip), /expands beyond the size limit/);
 
   const entry = zip.file("asset-0.bin") as JSZip.JSZipObject & {
     _data: { uncompressedSize?: number };
   };
   delete entry._data.uncompressedSize;
-  assert.throws(() => inspectHtmlZip(zip), /ファイルサイズが正しく/);
+  assert.throws(() => inspectHtmlZip(zip), /invalid size/);
 });
 
 test("streamed decompression rejects real expansion beyond the advertised limit", async () => {
   const original = new Uint8Array(256 * 1024).fill(65);
   const zip = await reopen(new JSZip().file("index.html", "ok").file("payload.bin", original));
   const entry = zip.file("payload.bin")!;
-  await assert.rejects(readZipEntryLimited(entry, 1024), /展開後のデータが大きすぎ/);
+  await assert.rejects(readZipEntryLimited(entry, 1024), /expands beyond the size limit/);
   assert.deepEqual(await readZipEntryLimited(entry, original.length), original);
 });
 
@@ -77,7 +77,7 @@ test("HTML ZIP rejects more than 200 files", async () => {
   const input = new JSZip().file("index.html", "safe");
   for (let i = 0; i < HTML_ZIP_LIMITS.entries; i++) input.file("assets/" + i + ".txt", "x");
   const zip = await reopen(input);
-  assert.throws(() => inspectHtmlZip(zip), /200個まで/);
+  assert.throws(() => inspectHtmlZip(zip), /up to 200 files/);
 });
 
 test("raw HTML ZIP import rejects oversized HTML without starting uploads", async () => {
@@ -89,7 +89,7 @@ test("raw HTML ZIP import rejects oversized HTML without starting uploads", asyn
   let uploads = 0;
   globalThis.fetch = async () => { uploads++; throw new Error("Unexpected upload"); };
   try {
-    await assert.rejects(readHtmlZip(bytes), /HTMLが大きすぎ/);
+    await assert.rejects(readHtmlZip(bytes), /HTML file in the ZIP is too large/);
     assert.equal(uploads, 0);
   } finally {
     globalThis.fetch = originalFetch;
@@ -118,7 +118,7 @@ test("ZIPs with duplicate physical names cannot hide a record in JSZip's normali
   const bytes = await zip.generateAsync({ type: "uint8array" });
   // Both names now have the same bytes in the local headers and central directory.
   const duplicated = Buffer.from(Buffer.from(bytes).toString("latin1").replaceAll("b.txt", "a.txt"), "latin1");
-  await assert.rejects(readHtmlZip(duplicated), /重複/);
+  await assert.rejects(readHtmlZip(duplicated), /duplicate file paths/);
 });
 
 test("failure after an upload removes exactly the new archive asset", async () => {
@@ -192,7 +192,7 @@ test("ZIP local and central filenames must identify the same member", async () =
   const { openImportZip } = await import("../lib/zip-directory");
   const bytes = Buffer.from(await new JSZip().file("a.txt", "hello").generateAsync({ type: "uint8array" }));
   bytes[30] = "b".charCodeAt(0);
-  await assert.rejects(openImportZip(bytes, 200), /ファイル一覧/);
+  await assert.rejects(openImportZip(bytes, 200), /file directory is invalid/);
 });
 
 test("true DEFLATE empty members survive validation", async () => {

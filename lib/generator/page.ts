@@ -6,7 +6,7 @@ import type { DocNode, ScriptStep, SiteDoc } from "../types";
 import { pageLangOf, siteLangOf } from "../site-lang";
 import { fieldVarNames } from "../fields";
 import { sendsBody } from "../fetch-request";
-import { extractVars, hasVars, pageQueryVars } from "../vars";
+import { extractVars, hasVars, interpolate, pageQueryVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
 import {
   filterConds,
@@ -20,7 +20,7 @@ import {
   setVarSource,
 } from "../data";
 import { resolveTag } from "../tags";
-import { compileScripts } from "../script";
+import { compileScripts, matchVariableWrites } from "../script";
 import { DEFAULT_DATA_REVALIDATE } from "../types";
 import {
   dynamicOrigin,
@@ -34,8 +34,15 @@ import { renderNode, type JsxContext } from "./render";
 import { cssValue } from "./css";
 import { RUNNABLE_SCRIPT } from "./templates";
 import { codeLiteral } from "./code-literal";
+import { parseValueLiteral } from "../value-semantics";
 
 export { normalizeQuery } from "../vars";
+
+/** Shared by the page imports and the project file emitter. */
+export function needsPageStepRunner(step: ScriptStep): boolean {
+  return step.kind === "for-each" || step.kind === "if" || step.kind === "repeat" ||
+    step.kind === "set-list-item" || step.kind === "remove-list-item";
+}
 
 /**
  * 同じURLをクエリで分けたページの振り分け（page.tsx）。
@@ -126,8 +133,22 @@ export function generatePageFile(
   ctx.usedComponents = new Set();
   ctx.varsExpr = "vars";
   const plan = pagePlan(doc, pageId);
-  ctx.liveNames = new Set(plan.clientVars);
-  for (const n of idVarNodesOf(doc, pageId)) if (n.type === "field") fieldVarNames(n).forEach((v) => ctx.liveNames.add(v));
+  const writes = new Set(plan.clientWritePaths);
+  for (const n of idVarNodesOf(doc, pageId)) if (n.type === "field") fieldVarNames(n).forEach((v) => writes.add(v));
+  const loads = nf ? [] : plan.steps.filter((st) => st.kind !== "fetch" || st.url.trim());
+  const fetchedRoots = new Set(loads.flatMap(step => step.kind === "fetch" && step.as ? [step.as] : []));
+  const seedPaths = new Set([...plan.clientListTargets].filter(path => fetchedRoots.has(path.split(".")[0])));
+  // Existing browser-owned variable roots include array aliases such as -1.
+  // Narrow only fetched roots, whose untouched siblings remain on the server.
+  for (const root of plan.clientVars) if (!fetchedRoots.has(root)) writes.add(root);
+  const isLivePath = matchVariableWrites(writes);
+  ctx.isLive = name => {
+    if (!isLivePath(name)) return false;
+    // When a script explicitly reads a parent of a mutable fetched list, it
+    // needs the parent record/array with its original structure and fields.
+    if (fetchedRoots.has(name.split(".")[0])) seedPaths.add(name);
+    return true;
+  };
 
   // リストを含む部品は、ページごとの配列・項目・ブラウザ変数のスコープで展開する。
   ctx.inlineComponents = new Set(Object.values(doc.components ?? {})
@@ -153,13 +174,10 @@ export function generatePageFile(
   ctx.listVars = new Map(
     listNodes.map((l, i) => [
       l.node.id,
-      { ivar: `iv${i}`, from: l.from, client: plan.clientVars.has(l.from.split(".")[0]) },
+      { ivar: `iv${i}`, from: l.from, client: ctx.isLive(l.from) },
     ])
   );
-  const loads = nf ? [] : plan.steps.filter((st) => st.kind !== "fetch" || st.url.trim());
-  const hasPurePageControls = loads.some((st) =>
-    st.kind === "for-each" || st.kind === "if" || st.kind === "repeat" ||
-    st.kind === "set-list-item" || st.kind === "remove-list-item");
+  const hasPurePageControls = loads.some(needsPageStepRunner);
   /** [slug]ページのメタデータ・404判定に使うデータ */
   const primary = nf ? null : (primaryDataStep(doc, pageId)?.step ?? null);
 
@@ -181,9 +199,21 @@ export function generatePageFile(
     ? cssValue(doc, "rawHtml", page.customTopHtml.trim(), ctx.assetNames) : "";
   const endHtml = page.customEndHtml?.trim()
     ? cssValue(doc, "rawHtml", page.customEndHtml.trim(), ctx.assetNames) : "";
+  const pageScripts = nf ? "" : scriptsAttr(ctx, { scripts: page.pageScripts }, plan.serverIds);
+  // A parent already contains all of its descendants; emit its value once.
+  const fetchedListTargets = [...seedPaths].filter(path => {
+    for (let end = path.indexOf("."); end >= 0; end = path.indexOf(".", end + 1)) {
+      if (seedPaths.has(path.slice(0, end))) return false;
+    }
+    return true;
+  });
+  const listSeeds = fetchedListTargets.length
+    ? ` data-list-seeds={JSON.stringify(${codeLiteral(fetchedListTargets)}.map(path => [path, lookupVar(vars, path)]))}`
+    : "";
+  if (listSeeds) ctx.usesLookup = true;
   const parts = [
     // 「このページ」のスクリプト（データの取得以外）はページの目印に載せて動かす
-    `      <span hidden data-page-body=${jsxString(page.id)}${nf ? "" : scriptsAttr(ctx, { scripts: page.pageScripts }, plan.serverIds)} />`,
+    `      <span hidden data-page-body=${jsxString(page.id)}${listSeeds}${pageScripts} />`,
     topHtml ? htmlFrag(topHtml) : null,
     rendered,
     endHtml ? htmlFrag(endHtml) : null,
@@ -372,8 +402,13 @@ ${loads
         if (!st.into) return "";
         const from = setVarSource(st);
         if (from) return `  vars[${codeLiteral(st.into)}] = lookupVar(vars, ${codeLiteral(from)}) ?? null;`;
-        if (!extractVars(st.value).length)
-          return `  vars[${codeLiteral(st.into)}] = interpolate(${codeLiteral(st.value)}, vars);`;
+        if (!extractVars(st.value).length) {
+          const literal = interpolate(st.value, {});
+          // Keep JSON containers (including their own keys) and scalar types on the server.
+          const expression = parseValueLiteral(literal) === literal
+            ? codeLiteral(literal) : `JSON.parse(${codeLiteral(literal)})`;
+          return `  vars[${codeLiteral(st.into)}] = ${expression};`;
+        }
         return "";
       }
     }

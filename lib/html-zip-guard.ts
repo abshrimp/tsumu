@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import type JSZip from "jszip";
 import { IMPORT_LIMITS } from "./site-import";
 import { zipEntrySize } from "./zip-directory";
@@ -30,7 +31,7 @@ export function inspectHtmlZip(zip: JSZip): {
 } {
   const files = Object.values(zip.files).filter((entry) => !entry.dir) as ZipEntry[];
   if (files.length > HTML_ZIP_LIMITS.entries) {
-    throw new Error("ZIPに入れられるファイルは200個までです");
+    throw new Error(tr("A zip can contain up to 200 files"));
   }
   const paths = new Set<string>();
   let expanded = 0;
@@ -41,36 +42,36 @@ export function inspectHtmlZip(zip: JSZip): {
     if ((entry.unsafeOriginalName && entry.unsafeOriginalName !== name) ||
         !name || name.includes("\\") || /[\u0000-\u001f\u007f]/.test(name) ||
         name.split("/").some((part) => !part || part === "." || part === "..")) {
-      throw new Error("ZIPに安全でないファイルパスがあります。");
+      throw new Error(tr("The ZIP contains an unsafe path."));
     }
     // Avoid overwriting distinct assets on case-insensitive or Unicode-normalizing hosts.
     const canonical = name.normalize("NFC").toLowerCase();
-    if (paths.has(canonical)) throw new Error("ZIPに重複したファイルパスがあります。");
+    if (paths.has(canonical)) throw new Error(tr("The ZIP contains duplicate file paths."));
     paths.add(canonical);
 
     const size = zipEntrySize(entry);
     // Unknown/unsafe sizes cannot be used to bound a ZIP bomb before extraction.
     if (size === null) {
-      throw new Error("ZIP内のファイルサイズが正しくありません。");
+      throw new Error(tr("A file in the ZIP has an invalid size."));
     }
     expanded += size;
     if (expanded > HTML_ZIP_LIMITS.expandedBytes) {
-      throw new Error("ZIP展開後のデータが大きすぎます。");
+      throw new Error(tr("The ZIP expands beyond the size limit."));
     }
     if (/\.html?$/i.test(name)) {
-      if (size > HTML_ZIP_LIMITS.htmlBytes) throw new Error("ZIP内のHTMLが大きすぎます。");
+      if (size > HTML_ZIP_LIMITS.htmlBytes) throw new Error(tr("The HTML file in the ZIP is too large."));
     } else if (/\.css$/i.test(name)) {
       cssBytes += size;
-      if (cssBytes > HTML_ZIP_LIMITS.cssBytes) throw new Error("ZIP内のCSSは合計2MBまでです");
+      if (cssBytes > HTML_ZIP_LIMITS.cssBytes) throw new Error(tr("ZIP stylesheets must total 2 MB or less."));
     } else if (size > HTML_ZIP_LIMITS.assetBytes) {
-      throw new Error("ZIP内のアセットが大きすぎます。");
+      throw new Error(tr("An asset in the ZIP is too large."));
     }
   }
 
   const entries = files.filter((entry) =>
     !entry.name.startsWith("__MACOSX/") && !entry.name.endsWith(".DS_Store"));
   const htmlEntries = entries.filter((entry) => /\.html?$/i.test(entry.name));
-  if (!htmlEntries.length) throw new Error("ZIP内にHTMLファイルが見つかりません");
+  if (!htmlEntries.length) throw new Error(tr("No HTML file found in the zip"));
   // Archives may list a nested index before the site's home page.
   let htmlEntry = htmlEntries[0];
   let indexDepth = Infinity;

@@ -122,7 +122,10 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
 export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
   p = prepareResponsivePayload(d, p);
   const { assetIds: assetMap, componentIds: componentMap, componentNodes } =
-    mergeClipDeps(d, p.deps, { preserveSourceOnCollision: true });
+    mergeClipDeps(d, p.deps, {
+      preserveSourceOnCollision: true,
+      htmlZipAssetIds: new Set(p.pages.flatMap(page => page.htmlZip?.assetIds ?? [])),
+    });
   const pageMap = new Map<string, string>();
   for (const page of p.pages) pageMap.set(page.id, genId("page"));
   const urlKey = (slug: string, query?: string) => JSON.stringify([slug, normalizeQuery(query)]);
@@ -161,6 +164,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
 
   for (const raw of p.pages) {
     const page = remapAssetIds(structuredClone(raw), assetMap);
+    if (page.htmlZip) page.htmlZip.assetIds = page.htmlZip.assetIds.map(id => assetMap.get(id) ?? id);
     const id = pageMap.get(raw.id)!;
     const { name, slug } = uniquePageNaming(
       d,

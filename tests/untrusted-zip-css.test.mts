@@ -33,7 +33,7 @@ test("ZIP extraction round-trips bounded random bytes and rejects undersized out
     assert.deepEqual(await readZipEntryLimited(parsed.file("assets/random.bin")!, payload.length), payload,
       "seed=" + SEED + " case=" + i);
     await assert.rejects(readZipEntryLimited(parsed.file("assets/random.bin")!, payload.length - 1),
-      /展開後のデータが大きすぎ/, "seed=" + SEED + " case=" + i);
+      /expands beyond the size limit/, "seed=" + SEED + " case=" + i);
   }
 });
 
@@ -79,14 +79,14 @@ test("archive path normalization is rejected across editable and raw HTML entry 
       .file(path, "unsafe")
       .generateAsync({ type: "uint8array" });
     const zip = await openImportZip(html, 200);
-    assert.throws(() => inspectHtmlZip(zip), /安全でないファイルパス/,
+    assert.throws(() => inspectHtmlZip(zip), /unsafe path/,
       "seed=" + SEED + " HTML path=" + i);
     const editable = await new JSZip()
       .file("_tsumu/doc.json", JSON.stringify(doc))
       .file("_tsumu/assets.json", JSON.stringify({ version: 1, assets: {} }))
       .file(path, "unsafe")
       .generateAsync({ type: "uint8array" });
-    await assert.rejects(parseSiteImport(editable, "zip"), /安全でないファイルパス/,
+    await assert.rejects(parseSiteImport(editable, "zip"), /unsafe path/,
       "seed=" + SEED + " doc path=" + i);
   }
   for (const names of [
@@ -99,7 +99,7 @@ test("archive path normalization is rejected across editable and raw HTML entry 
       .file(names[1], "second")
       .generateAsync({ type: "uint8array" });
     const parsed = await openImportZip(html, 200);
-    assert.throws(() => inspectHtmlZip(parsed), /重複したファイルパス/);
+    assert.throws(() => inspectHtmlZip(parsed), /duplicate file paths/);
   }
 });
 

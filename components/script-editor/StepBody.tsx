@@ -30,7 +30,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "toggle":
       return (
         <Phrase
-          text="{target}{action}"
+          text="{action} {target}"
           parts={{
             target: (
               <TargetSelect
@@ -64,7 +64,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
       return (
         <>
           <Phrase
-            text="{kind}{page}を開く"
+            text="Open {kind} {page}"
             parts={{
               kind: <OpenKindSelect step={step} />,
               page: (
@@ -102,7 +102,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
       return (
         <>
           <Phrase
-            text="{kind}{url}を開く"
+            text="Open {kind} {url}"
             parts={{
               kind: <OpenKindSelect step={step} />,
               url: (
@@ -127,7 +127,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "scroll-to":
       return (
         <Phrase
-          text="{target}までスクロールする"
+          text="Scroll to {target}"
           parts={{
             target: (
               <TargetSelect
@@ -141,7 +141,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "set-state":
       return (
         <Phrase
-          text="{target}を{state}にする"
+          text="Set {target} to state {state}"
           parts={{
             target: (
               <TargetSelect value={step.target}
@@ -160,7 +160,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "set-enabled":
       return (
         <Phrase
-          text="{target}を{op}"
+          text="{op} {target}"
           parts={{
             target: (
               <TargetSelect
@@ -186,7 +186,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "set-value":
       return (
         <Phrase
-          text="{target}に{value}を入れる"
+          text="Set {target} to {value}"
           parts={{
             target: (
               <TargetSelect
@@ -221,7 +221,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
           </select>
           {step.mode === "filter" ? <FilterArrayBody step={step} /> :
             step.mode === "sort" ? <SortArrayBody step={step} /> :
-            <Phrase text="リスト{array}の{which}を解除する" parts={{
+            <Phrase text="Clear {which} on list {array}" parts={{
               array: <ArraySelect value={step.array}
                 onChange={(array) => set((s) => s.kind === "list-display" ? { ...s, array } : s)} />,
               which: <select className="se-in" aria-label={tr("Filter to clear")}
@@ -238,7 +238,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     }
     case "set-list-item":
       return (
-        <Phrase text="リスト{list}の項目{key}に{value}を入れる" parts={{
+        <Phrase text="Set {value} at key {key} of list {list}" parts={{
           list: <AnyArraySelect value={step.list} onChange={(list) =>
             set((s) => s.kind === "set-list-item" ? { ...s, list } : s)} />,
           key: <TextIn vars value={step.key} width={110}
@@ -271,7 +271,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
       return (
         <>
           <Phrase
-            text="ストレージの{key}に{value}を保存する"
+            text="Save {value} to storage key {key}"
             parts={{
               key: (
                 <TextIn
@@ -299,7 +299,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
       return (
         <>
           <Phrase
-            text="ストレージの{key}を読み込んで変数{into}とする"
+            text="Load storage key {key} into variable {into}"
             parts={{
               key: (
                 <TextIn
@@ -325,7 +325,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "wait":
       return (
         <Phrase
-          text="{seconds}秒待つ"
+          text="Wait {seconds} seconds"
           parts={{
             seconds: (
               <NumericVariableIn value={step.seconds} width={56}
@@ -341,7 +341,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "copy":
       return (
         <Phrase
-          text="{value}をコピーする"
+          text="Copy {value}"
           parts={{
             value: (
               <TextIn
@@ -391,7 +391,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
   const value = src ? lookupVar(samples, src) : undefined;
   return (
     <>
-      <Phrase text="{value}を変数{into}とする" parts={{
+      <Phrase text="Set variable {into} to {value}" parts={{
         value: <ValueIn value={step.value} width={150}
           onCommit={(v) => {
             updateStep(step.id, (s) => ({ ...s, value: v }) as ScriptStep);
@@ -441,7 +441,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
   return (
     <>
       <Phrase
-        text="変数{source}に{operation}を行い、変数{into}に入れる"
+        text="Apply {operation} to variable {source} and assign to {into}"
         parts={{
           source: <PathMenu root={sourceValues} path={step.source}
             ariaLabel={tr("Source variable")} placeholder={tr("Select a variable")}

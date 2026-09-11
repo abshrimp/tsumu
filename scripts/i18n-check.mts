@@ -33,7 +33,7 @@ for (const name of fs.readdirSync(localeDir)) {
   const code = Intl.getCanonicalLocales(name.slice(0, -3))[0].toLowerCase();
   available.set(code, name);
 }
-const codes = all ? [...available.keys()].sort() : [selected[0] ?? "ja"];
+const codes = all ? [...available.keys()].sort() : [Intl.getCanonicalLocales(selected[0] ?? "ja")[0].toLowerCase()];
 for (const code of codes) {
   if (code !== "en" && !available.has(code)) throw new Error("Unknown language: " + code);
 }
@@ -60,7 +60,24 @@ for (const file of files) {
   if (file.endsWith(path.join("lib", "i18n.ts"))) continue;
   const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest);
   const found = new Set<string>();
+  // Phrase inserts interactive controls into a translated script-block label.
+  const collectPhrase = (text: ts.Node | undefined): void => {
+    if (!text) return;
+    if (ts.isJsxExpression(text)) collectPhrase(text.expression);
+    else if (ts.isConditionalExpression(text)) {
+      collectPhrase(text.whenTrue);
+      collectPhrase(text.whenFalse);
+    } else if (ts.isStringLiteralLike(text)) found.add(text.text);
+  };
   const visit = (node: ts.Node) => {
+    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) &&
+        ts.isIdentifier(node.tagName) && node.tagName.text === "Phrase") {
+      for (const attr of node.attributes.properties) {
+        if (ts.isJsxAttribute(attr) && ts.isIdentifier(attr.name) && attr.name.text === "text") {
+          collectPhrase(attr.initializer);
+        }
+      }
+    }
     if (ts.isCallExpression(node)) {
       const name = ts.isIdentifier(node.expression) ? node.expression.text
         : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;

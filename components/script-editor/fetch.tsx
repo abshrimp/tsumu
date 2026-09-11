@@ -418,7 +418,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
       onCompositionStartCapture={() => { composing.current = true; }}
       onCompositionEndCapture={() => { composing.current = false; }}>
       <Phrase
-        text="{url}のデータを取得して{as}とする"
+        text="Fetch data from {url} as {as}"
         parts={{
           url: (
             <TextIn

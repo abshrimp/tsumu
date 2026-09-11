@@ -99,3 +99,18 @@ test("partial languages warn without failing, while strict mode fails", () => {
   assert.match(all.output, /WARNING: 1 untranslated strings for fr/);
   assert.match(all.output, /All static strings are translated for ja/);
 });
+
+test("i18n checker accepts canonical region tags from the locale filename", () => {
+  const result = check('tr("Save");', {}, ["--strict", "pt-BR"], { "pt-BR": { Save: "Salvar" } });
+  assert.equal(result.status, 0, result.output);
+  assert.match(result.output, /All static strings are translated for pt-br/);
+});
+
+test("i18n checker audits static and conditional script-block phrases", () => {
+  const source = `const block = <><Phrase text="Wait {seconds} seconds" parts={{}} />
+    <Phrase text={multiple ? "If {condition}" : "If {condition} then"} parts={{}} /></>;`;
+  const result = check(source, { "Wait {seconds} seconds": "{seconds}秒待つ" });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /2 untranslated strings/);
+  assert.match(result.output, /"If \{condition\} then"/);
+});

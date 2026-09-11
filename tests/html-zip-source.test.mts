@@ -92,3 +92,10 @@ test("wrapped HTML ZIP images resolve in published Next.js and standalone HTML p
   assert.equal(standalone.remoteAssets["assets/logo.svg"], "assets/uploaded-logo");
   assert.deepEqual(doc, original, "export never rewrites the editable HTML source");
 });
+
+test("only transformed archive stylesheets lose their original integrity metadata", () => {
+  const external = '<base href="https://cdn.example/"><link rel="stylesheet" href="css/main.css" integrity="keep">';
+  assert.equal(rewriteHtmlZipSource(external, "site/index.html", urls), external.replace('href="css/', 'href="https://cdn.example/css/'));
+  const preload = '<link rel="preload" as="style" href="css/main.css" integrity="old">';
+  assert.ok(!rewriteHtmlZipSource(preload, "site/index.html", urls).includes('integrity'));
+});

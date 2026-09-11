@@ -395,7 +395,7 @@ export function OpEditor({
   const pick = target !== undefined && op === "eq";
   return (
     <Phrase
-      text={op === "has-key" ? "{value}という{op}{negation}" : "{value}{op}{negation}"}
+      text={op === "has-key" ? "{negation} {op} named {value}" : "{negation} {op} {value}"}
       parts={{
         value: !noValue &&
           (pick ? (
@@ -462,7 +462,7 @@ export function CondEditor({
       <>
         {kindSelect}
         <Phrase
-          text="{left}が{cond}"
+          text="{left} {cond}"
           parts={{
             left: (
               <TextIn

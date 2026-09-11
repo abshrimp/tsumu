@@ -2,6 +2,7 @@ import type { SiteDoc } from "./types";
 import { pagePlan } from "./data";
 import { generateProject, type GeneratedProject, type PublishTarget } from "./generator";
 import { buildReactProject } from "./generator/react-export";
+import { buildAssetNames } from "./generator/names";
 import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
 import { toSingleHtmlProject } from "./generator/single-html";
@@ -202,16 +203,14 @@ export function exportLimitations(
     return [];
   }
   const reasons: string[] = [];
-  const add = (bad: boolean, message: string) => {
-    if (bad) reasons.push(tr(message));
-  };
-  add(pages.some((p) => /\[[^\]]+\]/.test(p.slug)),
-    "動的パス（[slug]など）は、静的ホスティングで任意のURLへ直接アクセスできる設定が必要です。固定パスに変更するか、Next.js形式を選択してください。");
-  add(pages.some((p) => p.rewriteTo !== undefined || p.redirectTo !== undefined),
-    "リダイレクトとリバースプロキシにはサーバーの処理が必要です。転送先への通常のリンクに変更するか、Next.js形式を選択してください。");
-  if (!["html", "single-html"].includes(options.framework)) {
-    add(pages.some((p) => !!p.rawHtml?.trim()),
-      "取り込んだHTMLページをReactコンポーネントへ安全に変換できません。HTML形式なら元のHTMLをそのまま出力できます。");
+  if (pages.some((p) => /\[[^\]]+\]/.test(p.slug))) {
+    reasons.push(tr("Dynamic paths such as [slug] require a static host that can serve arbitrary URLs. Use a fixed path or export to Next.js."));
+  }
+  if (pages.some((p) => p.rewriteTo !== undefined || p.redirectTo !== undefined)) {
+    reasons.push(tr("Redirects and reverse proxies require a server. Link directly to the destination or export to Next.js."));
+  }
+  if (!["html", "single-html"].includes(options.framework) && pages.some((p) => p.rawHtml?.trim())) {
+    reasons.push(tr("Imported HTML pages cannot be safely converted to React components. Export to HTML to keep the original markup."));
   }
   if (["html", "single-html"].includes(options.framework)) {
     // A query variant cannot share its output with an imported HTML document,
@@ -221,42 +220,46 @@ export function exportLimitations(
       const key = page.slug.replace(/^\/+|\/+$/g, "");
       grouped.set(key, [...(grouped.get(key) ?? []), page]);
     }
-    add([...grouped.values()].some((group) =>
-      group.length > 1 && group.some((page) => !!page.rawHtml?.trim())),
-      "同じパスに取り込んだHTMLページとクエリ別ページが混在しています。通常ページに変更するか、別の固定URLに分けてください。");
+    if ([...grouped.values()].some((group) =>
+      group.length > 1 && group.some((page) => !!page.rawHtml?.trim()))) {
+      reasons.push(tr("An imported HTML page and a query variant share a path. Use a regular page or assign separate URLs."));
+    }
   }
-  if (options.framework === "single-html") {
-    add(pages.length !== 1,
-      "単一HTMLは1ページだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。");
+  if (options.framework === "single-html" && pages.length !== 1) {
+    reasons.push(tr("A single HTML file can contain only one page. Select the current page or export an HTML ZIP."));
   }
-  if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework)) {
-    add(!!doc.customBodyEndHtml?.match(/<script\b/i),
-      "body末尾のカスタムスクリプトは、画面更新時に実行タイミングが異なります。HTML形式で書き出すか、利用するフレームワーク用の処理へ移行してください。");
+  if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework) && /<script\b/i.test(doc.customBodyEndHtml ?? "")) {
+    reasons.push(tr("Custom scripts at the end of the body execute at a different time during navigation. Export to HTML or move the scripts into framework-specific code."));
   }
   if (["vue", "nuxt", "sveltekit"].includes(options.framework)) {
     // Native components currently render page nodes only. Dropping authored
     // custom <head>, footer, or per-page markup would silently alter the site.
-    add(!!doc.customHeadHtml?.trim() || !!doc.customBodyEndHtml?.trim() ||
-      pages.some((page) => !!page.customTopHtml?.trim() || !!page.customEndHtml?.trim()),
-      "カスタムHTMLはこのフレームワーク形式の生成結果に含まれません。Next.js形式またはHTML形式を選択してください。");
+    if (!!doc.customHeadHtml?.trim() || !!doc.customBodyEndHtml?.trim() ||
+      pages.some((page) => !!page.customTopHtml?.trim() || !!page.customEndHtml?.trim())) {
+      reasons.push(tr("Custom HTML is omitted from this framework format. Export to Next.js or HTML."));
+    }
   }
   if (options.framework === "react") {
     // Data-driven React pages use dangerouslySetInnerHTML for their DOM
     // runtime. Scripts inserted this way do not execute in browsers.
-    add(pages.some((page) => {
+    if (pages.some((page) => {
       const plan = pagePlan(doc, page.id);
       const needsClientRuntime = plan.steps.length > 0 || plan.listOps.size > 0 ||
         plan.clientVars.size > 0;
       return needsClientRuntime &&
         /<script\b(?![^>]*\btype\s*=\s*["']?application\/(?:ld\+)?json)/i
           .test((page.customTopHtml ?? "") + (page.customEndHtml ?? ""));
-    }), "動的データを使うページのカスタムスクリプトはReact形式では実行されません。Next.js形式またはHTML形式を選択してください。");
+    })) {
+      reasons.push(tr("Custom scripts on pages with dynamic data cannot run in the React export. Export to Next.js or HTML."));
+    }
   }
   if (["html", "single-html"].includes(options.framework)) {
-    add(options.style === "css-modules",
-      "CSS Modulesはモジュールを読み込むビルド工程が必要です。ビルド不要のHTML形式ではCSSを選択してください。");
-    add(options.style === "tailwind",
-      "Tailwind CSSのユーティリティ生成にはビルド工程が必要です。ビルド不要のHTML形式ではCSSを選択してください。");
+    if (options.style === "css-modules") {
+      reasons.push(tr("CSS Modules require a build step. Select CSS for a build-free HTML export."));
+    }
+    if (options.style === "tailwind") {
+      reasons.push(tr("Tailwind CSS requires a build step to generate utilities. Select CSS for a build-free HTML export."));
+    }
   }
   return reasons;
 }
@@ -335,7 +338,19 @@ export async function prepareExportProject(
     }
     project = { ...project, files };
   }
-  const ready = options.framework === "single-html" ? await toSingleHtmlProject(project) : project;
+  let ready = project;
+  if (options.framework === "single-html") {
+    const zip = publishedPages(scoped)[0]?.htmlZip;
+    const media = new Set<string>();
+    if (zip) {
+      const names = buildAssetNames(scoped);
+      for (const id of zip.assetIds) {
+        const name = names.get(id);
+        if (name && /^(?:image|audio|video|font)\//i.test(scoped.assets[id]?.mimeType ?? "")) media.add("/assets/" + name);
+      }
+    }
+    ready = await toSingleHtmlProject(project, undefined, media);
+  }
   assertGeneratedPaths(ready);
   return ready;
 

@@ -239,3 +239,18 @@ test("generated code has no framework-editor brand markers (documentation except
     assert.doesNotMatch(source, /tsumu/i, path);
   }
 });
+
+test("native HTML runs top-level list removal before the next page-load operation", async () => {
+  const doc = fixture([
+    { id: "seed", kind: "set-var", into: "rows", value: '["A","B","A"]' },
+    { id: "remove", kind: "remove-list-item", list: "rows", mode: "value", value: "A" },
+    { id: "use", kind: "fetch", url: "https://example.com/{rows.0}", as: "result" },
+  ]);
+  const calls: string[] = [];
+  const { warnings } = await runBrowserData(generateExportProject(doc, "html"), "", async (url) => {
+    calls.push(url);
+    return Response.json({});
+  });
+  assert.deepEqual(calls, ["https://example.com/B"]);
+  assert.deepEqual(warnings, []);
+});

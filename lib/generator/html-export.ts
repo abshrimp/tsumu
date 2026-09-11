@@ -8,11 +8,10 @@ import { obfuscateVarNames } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";
-import { importedAssetUrl, isZipJavascript } from "./imported-assets";
+import { htmlZipExportSource, importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
-import { htmlZipSource } from "../html-zip-source";
+import { htmlZipElements, htmlZipSource } from "../html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "../html-zip-script-assets";
-import { zipStylesheet, zipCssUrl } from "../zip-css";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
@@ -28,6 +27,8 @@ import { QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { rewriteCssAssetUrls } from "../css-assets";
+import { rewriteSrcsetUrls } from "../srcset";
+import { archiveBaseUrl } from "../zip-references";
 import { parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
@@ -49,6 +50,25 @@ function pageFilename(page: Page, single: boolean): string {
 
 function pagePrefix(path: string): string {
   return "../".repeat(path.split("/").length - 1) || "./";
+}
+
+/**
+ * A standalone page can be opened under any hosting directory or file://.
+ * Resolve emitted asset links from its active base, including a base ending
+ * in a filename, and express a root-relative base from the exported page.
+ */
+function standaloneZipBase(html: string, path: string) {
+  if (!/<base[\s>]/i.test(html)) return undefined;
+  const { baseElement } = htmlZipElements(html);
+  const href = baseElement?.attrs.find(attr => attr.name === "href");
+  const location = baseElement?.sourceCodeLocation?.attrs?.href;
+  const base = archiveBaseUrl(path, href?.value);
+  if (!location || base?.protocol !== "file:") return undefined;
+  return {
+    prefix: pagePrefix(base.pathname.slice(1)),
+    href: pagePrefix(path) + base.pathname.slice(1) + base.search + base.hash,
+    location,
+  };
 }
 
 /** Rewrite only root-relative CSS resource references. */
@@ -86,6 +106,11 @@ function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<stri
           const tail = suffix < 0 ? "" : value.slice(suffix).replace(/^&(?:amp;)?/, "?");
           return space + name + eq + quote + prefix + mapped.slice(1) + tail + quote;
         }
+      }
+      if (attribute === "srcset" || attribute === "imagesrcset") {
+        const rewritten = rewriteSrcsetUrls(value, url =>
+          url.startsWith("/") && !url.startsWith("//") ? prefix + url.slice(1) : url);
+        return rewritten === value ? whole : space + name + eq + quote + rewritten + quote;
       }
       if (attribute === "style") {
         // CSS tokenization happens after HTML attribute entity decoding in the
@@ -517,15 +542,22 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       // serialized TypeScript are framework output, not a source of page data.
       const html = rawHtmlWithBodyStyles(normalized, page,
         cssValue(normalized, "rawHtml",
-          htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
-            asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset)), assets), assets);
-      const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(html, page.htmlZip, normalized.assets, asset => {
+          htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets, htmlZipExportSource), assets), assets);
+      const base = page.htmlZip && standaloneZipBase(html, path);
+      const assetPrefix = base?.prefix ?? prefix;
+      let htmlWithScriptAssets = rewriteHtmlZipScriptUrls(html, page.htmlZip, normalized.assets, asset => {
         const name = assets.get(asset.id);
         if (!name) return "";
         const url = isZipJavascript(asset) ? importedAssetUrl(asset) ?? "/assets/" + name : "/assets/" + name;
-        return prefix + url.slice(1);
+        return assetPrefix + url.slice(1);
       });
-      files[path] = rewriteRootUrls(htmlWithScriptAssets, prefix, scriptSources);
+      if (base) {
+        // A script preceding <base> can change its source offsets.
+        const updated = htmlWithScriptAssets === html ? base : standaloneZipBase(htmlWithScriptAssets, path)!;
+        htmlWithScriptAssets = htmlWithScriptAssets.slice(0, updated.location.startOffset) +
+          'href="' + escapeHtml(base.href) + '"' + htmlWithScriptAssets.slice(updated.location.endOffset);
+      }
+      files[path] = rewriteRootUrls(htmlWithScriptAssets, assetPrefix, scriptSources);
       continue;
     }
     const ctx: Context = {

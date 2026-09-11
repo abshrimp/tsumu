@@ -186,8 +186,8 @@ test("native formats refuse authored HTML they would otherwise omit", () => {
     setup();
     for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
       assert.ok(exportLimitations(site, framework).some((reason) =>
-        reason.includes("カスタムHTML")), framework);
-      assert.throws(() => generateExportProject(site, framework), /カスタムHTML/);
+        reason.includes("Custom HTML")), framework);
+      assert.throws(() => generateExportProject(site, framework), /Custom HTML/);
     }
   }
   assert.equal(exportLimitations(site, "html").length, 0,
@@ -203,11 +203,11 @@ test("React refuses executable page scripts on data-driven DOM pages", () => {
   }];
   page.customTopHtml = '<script>window.__pageStarted = true;</script>';
   assert.ok(exportLimitations(site, "react").some((reason) =>
-    reason.includes("カスタムスクリプト")));
-  assert.throws(() => generateExportProject(site, "react"), /カスタムスクリプト/);
+    reason.includes("Custom scripts")));
+  assert.throws(() => generateExportProject(site, "react"), /Custom scripts/);
   page.customTopHtml = '<script type="application/json">{"safe":true}</script>';
   assert.ok(!exportLimitations(site, "react").some((reason) =>
-    reason.includes("カスタムスクリプト")));
+    reason.includes("Custom scripts")));
 });
 
 test("exporting a selected unpublished page includes it without publishing it in the source", () => {

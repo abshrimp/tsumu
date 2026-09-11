@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { rewriteHtmlZipScriptUrls, missingHtmlZipScriptAssets } from "../lib/html-zip-script-assets";
 import { generateProject } from "../lib/generator";
-import { generateExportProject } from "../lib/export-formats";
+import { generateExportProject, prepareExportProject } from "../lib/export-formats";
 import { runChecks } from "../lib/generator/checks";
 import { createInitialDoc } from "../lib/presets";
 import { buildAssetNames } from "../lib/generator/names";
@@ -113,4 +113,69 @@ test("non-ZIP HTML and external or inactive script values are never changed", ()
   assert.equal(rewriteHtmlZipScriptUrls(html, zip, doc.assets, a => "/assets/" + a.name), html);
   assert.deepEqual(missingHtmlZipScriptAssets(html, undefined, doc.assets), []);
   assert.equal(rewriteHtmlZipScriptUrls(html, undefined, doc.assets, a => a.name), html);
+});
+
+test("markup, scripts and preflight resolve files from the active HTML base", () => {
+  const { doc } = fixture();
+  const page = doc.pages[doc.pageOrder[0]];
+  doc.assets.root = stored("root", "root.png", "logo.png");
+  doc.assets.nested = stored("nested", "nested.png", "media/logo.png");
+  page.htmlZip!.assetIds.push("root", "nested");
+  page.rawHtml = '<head><template><base href="https://inert.test/"></template>' +
+    '<base href="media/"></head><img src="logo.png"><script>new Image().src = "logo.png";</script>';
+  const published = JSON.parse(/^const html = (.*);$/m.exec(generateProject(doc).files["app/route.ts"])![1]) as string;
+  assert.ok(published.includes('src="/assets/nested.png"'));
+  assert.ok(published.includes('src = "/assets/nested.png"'));
+  assert.deepEqual(missingHtmlZipScriptAssets(page.rawHtml, page.htmlZip, doc.assets), []);
+  page.rawHtml = '<base href="https://cdn.example.test/"><script>new Image().src = "logo.png";</script>';
+  assert.equal(rewriteHtmlZipScriptUrls(page.rawHtml, page.htmlZip, doc.assets, assetSrc), page.rawHtml);
+  assert.deepEqual(missingHtmlZipScriptAssets(page.rawHtml, page.htmlZip, {}), []);
+  assert.deepEqual(missingHtmlZipScriptAssets('<script>new Audio("missing.mp3")</script>',
+    { path: "index.html", assetIds: [] }, {}), ["missing.mp3"]);
+});
+
+test("standalone HTML resolves responsive and script assets from the exported file's base", () => {
+  const { doc } = fixture();
+  const page = doc.pages[doc.pageOrder[0]];
+  doc.pages.outer = { ...page, id: "outer", slug: "games/dream" };
+  doc.pageOrder.push("outer");
+  const entry = doc.pages.outer;
+  const file = new URL("file:///arbitrary/export/games/dream/index.html");
+  const asset = new URL("../../assets/classroom.png", file).href;
+  for (const href of ["", "media/", "/media/", "../", "file.html"]) {
+    const image = "/classroom.png";
+    entry.rawHtml = '<head><script>new Image().src = "' + image + '";</script>' +
+      (href ? '<base href="' + href + '">' : "") +
+      '<link rel="preload" as="image" imagesrcset="' + image + ' 2x"></head>' +
+      '<picture><source srcset="' + image + ' 1x, https://cdn.example.test/x 2x">' +
+      '<img src="' + image + '"></picture>';
+    const exported = generateExportProject(doc, "html").files["games/dream/index.html"];
+    const base = new URL(/<base href="([^"]*)"/.exec(exported)?.[1] ?? "", file);
+    for (const match of [/<img src="([^"]+)"/, /srcset="([^"]+) 1x/, /imagesrcset="([^"]+) 2x/, /src = "([^"]+)"/]) {
+      const ref = match.exec(exported)?.[1];
+      assert.ok(ref, match.source);
+      assert.equal(new URL(ref, base).href, asset, href + " " + ref);
+    }
+  }
+});
+
+test("single HTML embeds media referenced from classic and module ZIP scripts", async () => {
+  const { doc } = fixture();
+  const page = doc.pages[doc.pageOrder[0]];
+  page.rawHtml = '<base href="media/"><script>/* ../assets/MENU-2.png */ ' +
+    'new Image().src="/MENU.png?v=1#icon";</script>' +
+    '<script type="module">new Audio(`/sound.mp3`);</script>' +
+    '<script type="application/json">{"draft":"../assets/MENU-2.png"}</script>';
+  for (const id of ["menu", "audio"]) {
+    const asset = doc.assets[id];
+    delete asset.path;
+    asset.dataUrl = "data:" + asset.mimeType + ";base64,AQID";
+  }
+  const ready = await prepareExportProject(doc, "single-html");
+  assert.deepEqual(Object.keys(ready.files), ["index.html"]);
+  const html = ready.files["index.html"];
+  assert.match(html, /new Image\(\)\.src="data:image\/png;base64,AQID#icon"/);
+  assert.match(html, /new Audio\(`data:audio\/mpeg;base64,AQID`\)/);
+  assert.ok(html.includes("/* ../assets/MENU-2.png */"));
+  assert.ok(html.includes('{"draft":"../assets/MENU-2.png"}'));
 });

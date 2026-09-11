@@ -31,7 +31,7 @@ import { EMPTY_GIF } from "./templates";
 import { cssValue } from "./css";
 
 /** 文字列で参照する値だけを代替値として残す。項目の値はブラウザで優先する。 */
-function textParts(value: string, base: string, url = false, liveNames?: Set<string>): string {
+function textParts(value: string, base: string, url = false, isLive?: (name: string) => boolean): string {
   const parts: string[] = [];
   let end = 0;
   for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g)) {
@@ -40,7 +40,7 @@ function textParts(value: string, base: string, url = false, liveNames?: Set<str
     else {
       const token = m[1] ?? "slug";
       const name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
-      parts.push(`{ name: ${name}, ${url ? `at: ${m.index}, ` : ""}${liveNames?.has(token.split(".")[0]) ? "live: true, " : ""}...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: interpolate(${JSON.stringify(m[0])}, { ...${base} }) } : {}) }`);
+      parts.push(`{ name: ${name}, ${url ? `at: ${m.index}, ` : ""}${isLive?.(token) ? "live: true, " : ""}...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: interpolate(${JSON.stringify(m[0])}, { ...${base} }) } : {}) }`);
     }
     end = m.index + m[0].length;
   }
@@ -74,7 +74,7 @@ export interface JsxContext {
   /** スクリプトで絞り込む配列の名前 → 項目名 */
   listFilterFields: Map<string, Set<string>>;
   /** スクリプトの {変数} のうち、画面上で値を入れるもの（ページを配信するときは残す） */
-  liveNames: Set<string>;
+  isLive: (name: string) => boolean;
   /** 検索フォームの中を描いているか（中のボタンを送信ボタンにする） */
   inForm?: boolean;
   /** アセットID → 一意化した出力ファイル名 */
@@ -388,7 +388,7 @@ ${indent}</div>`;
     /** 画面上で値が決まる {変数}（入力欄の値など）を含むなら、ブラウザで書き直すための属性 */
     const liveOf = (name: string, v: string | undefined): string => {
       if (ctx.inTemplate || !v || !livesHere(ctx) || !hasVars(v)) return "";
-      const keep = keepTokens(v, ctx.liveNames);
+      const keep = keepTokens(v, ctx.isLive);
       if (!Object.keys(keep).length) return "";
       ctx.usesInterpolate = true;
       return ` ${name}={interpolate(${JSON.stringify(v)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
@@ -397,7 +397,7 @@ ${indent}</div>`;
     const partsOf = (name: string, v: string | undefined, force = false): string => {
       if (!ctx.inTemplate || v == null || (!force && !hasVars(v))) return "";
       ctx.usesInterpolate = true;
-      return ` data-field-${name}-parts={JSON.stringify(${textParts(v, base, false, ctx.liveNames)})}`;
+      return ` data-field-${name}-parts={JSON.stringify(${textParts(v, base, false, ctx.isLive)})}`;
     };
     const attr = (name: string, v: string | undefined): string => {
       if (!v) return "";
@@ -524,7 +524,7 @@ ${indent}</div>`;
       inner.push(`${indent}  {interpolate(${JSON.stringify(node.text.content)}, ${base})}`);
       // 画面上で値が決まる {変数}（件数など）は、値が変わるたびにブラウザで書き直す
       //（リストの項目内はお手本の複製で埋めるので対象外）
-      const keep = livesHere(ctx) ? keepTokens(node.text.content, ctx.liveNames) : {};
+      const keep = livesHere(ctx) ? keepTokens(node.text.content, ctx.isLive) : {};
       if (Object.keys(keep).length) {
         liveAttr = ` data-live={interpolate(${JSON.stringify(node.text.content)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
       }

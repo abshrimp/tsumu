@@ -32,8 +32,8 @@ function fixtureDoc(): SiteDoc {
 // Execute Canvas's actual render/effects and the actual script runtime. Only
 // React scheduling, data fetching, and the host DOM are controlled here. The
 // browser suite covers React reconciliation and native event delivery.
-function mount(initialPage = "a") {
-  useEditor.getState().replaceDoc(fixtureDoc());
+function mount(initialPage = "a", doc = fixtureDoc()) {
+  useEditor.getState().replaceDoc(doc);
   useEditor.getState().setActivePage(initialPage);
   useEditor.getState().setMode("preview");
   useEditor.getState().setBreakpoint("base");
@@ -117,12 +117,12 @@ function mount(initialPage = "a") {
     if (frameRef) frameRef.current = null;
     if (frame) {
       root ??= new ListDomNode(1, "DIV");
-      // React reuses the unkeyed page-script span across visual page changes.
       let marker = root.children[0];
       walk(frame, el => {
         if (!el.props?.["data-scripts"]) return;
         if (!marker) { marker = new ListDomNode(1, "SPAN"); root!.appendChild(marker); }
         marker.setAttribute("data-scripts", el.props["data-scripts"]);
+        if (el.props["data-page-body"]) marker.setAttribute("data-page-body", el.props["data-page-body"]);
       });
       frameRef = frame.props.ref; frameRef!.current = root;
     } else root = null;
@@ -200,4 +200,17 @@ test("same-page conversion to HTML and undo replace the runtime owner", () => {
     useEditor.getState().undo(); m.render();
     assert.deepEqual(m.calls, ["/a-load", "/a-load"]);
   } finally { m.close(); }
+});
+
+test("Canvas preview dispatches a variable change to the active page script", () => {
+  const doc = fixtureDoc();
+  doc.pages.a.pageScripts = [
+    { id: "init", trigger: "load", pos: { x: 0, y: 0 },
+      steps: [{ id: "set", kind: "set-var", into: "count", value: "1" }] },
+    { id: "watch", trigger: "change", changeVariable: "count", pos: { x: 0, y: 0 },
+      steps: [{ id: "open", kind: "open-url", url: "/changed" }] },
+  ];
+  const m = mount("a", doc);
+  try { assert.deepEqual(m.calls, ["/changed"]); }
+  finally { m.close(); }
 });
