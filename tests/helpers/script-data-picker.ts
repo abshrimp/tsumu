@@ -8,12 +8,18 @@ export function scriptDataPickerDoc(): SiteDoc {
       id: "s", trigger: "load", pos: { x: 32, y: 32 }, steps: [
         { id: "fetch", kind: "fetch", as: "data", url: "https://example.test/data", preview: { sample: {
           name: "Product", price: 12, code: "001", available: false, empty: null,
-          detail: { title: "Nested" }, tags: ["red", "blue"], rows: [{ title: "First" }],
+          detail: { title: "Nested" }, tags: ["red", "blue"], rows: [
+            { title: "First", categories: {
+              "出展カテゴリ": ["物販"], "投票カテゴリ": ["物販"], "大分類": ["かう"],
+            } },
+          ],
         } } },
         { id: "value", kind: "set-var", value: "Value {data.name}", into: "chosen" },
         { id: "copy", kind: "copy", value: "" },
         { id: "numeric", kind: "transform", source: "data.price", into: "total", transform: { kind: "math", operation: "add", operand: 0 } },
         { id: "dynamic", kind: "store-load", key: "dynamic", into: "later" },
+        { id: "category-filter", kind: "list-display", mode: "filter",
+          array: "data.rows", field: "", op: "eq", value: "物販", dir: "asc" },
       ],
     }] },
   } };
