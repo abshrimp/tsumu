@@ -1,4 +1,4 @@
-import { matchesValueCondition, setVarPath, withinScriptValueLimit } from "./value-semantics";
+import { matchesValueCondition, removeListItem, setVarPath, withinScriptValueLimit } from "./value-semantics";
 import type { ScriptStep } from "./types";
 import type { RecipeEvaluation } from "./script-model/recipe-runtime";
 
@@ -14,6 +14,7 @@ function createPageStepRunner(
   matchesValueCondition: typeof import("./value-semantics").matchesValueCondition,
   withinLimit: typeof withinScriptValueLimit,
   writePath: typeof setVarPath,
+  removeItem: typeof removeListItem,
 ) {
   return function runPurePageSteps(
     steps: readonly ScriptStep[],
@@ -94,6 +95,14 @@ function createPageStepRunner(
               copy[key] = nextValue;
               write(step.list, copy);
             }
+            break;
+          }
+          case "remove-list-item": {
+            if (!step.list || !step.value.trim()) break;
+            const source = lookup(scope, step.list);
+            const selection = valueInput(step.value, scope);
+            const result = removeItem(source, step.mode, selection, matchesValueCondition);
+            if (result !== undefined) write(step.list, result);
             break;
           }
           case "transform": {
@@ -182,7 +191,7 @@ function createPageStepRunner(
   };
 }
 
-export const runPurePageSteps = createPageStepRunner(matchesValueCondition, withinScriptValueLimit, setVarPath);
+export const runPurePageSteps = createPageStepRunner(matchesValueCondition, withinScriptValueLimit, setVarPath, removeListItem);
 
 // The generated browser/SSR interpreter uses the same predicates and budget.
-export const PAGE_STEP_RUNNER_SOURCE = `(${createPageStepRunner.toString()})(${matchesValueCondition.toString()}, ${withinScriptValueLimit.toString()}, ${setVarPath.toString()})`;
+export const PAGE_STEP_RUNNER_SOURCE = `(${createPageStepRunner.toString()})(${matchesValueCondition.toString()}, ${withinScriptValueLimit.toString()}, ${setVarPath.toString()}, ${removeListItem.toString()})`;

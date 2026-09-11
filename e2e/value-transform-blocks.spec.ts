@@ -844,6 +844,34 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 
+  test((exported ? "exported" : "preview") + " removes all equal list items with typed values", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, '["red","blue","red","green"]', [
+      { id: "delete-red", kind: "remove-list-item", list: "items", mode: "value", value: '"red"' },
+      { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "|" } },
+    ]);
+    await expect(answer).toHaveValue("blue|green");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " removes a single positional item and keeps list order", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, '["a","b","c","d"]', [
+      { id: "delete-second", kind: "remove-list-item", list: "items", mode: "key", value: "1" },
+      { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "|" } },
+    ]);
+    await expect(answer).toHaveValue("a|c|d");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " removes dictionary entries by value and key", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, '{"a":1,"b":2,"c":"2","d":3}', [
+      { id: "delete-twos", kind: "remove-list-item", list: "items", mode: "value", value: "2" },
+      { id: "delete-first", kind: "remove-list-item", list: "items", mode: "key", value: "a" },
+      { id: "stringify", kind: "transform", source: "items", into: "items", transform: { kind: "stringify" } },
+    ]);
+    await expect(answer).toHaveValue('{"d":3}');
+    expect(errors).toEqual([]);
+  });
+
   test((exported ? "exported" : "preview") + " list construction uses keyed assignments and keeps typed values", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "unused", [
       { id: "empty", kind: "set-var", into: "basket", value: "[]" },
@@ -878,6 +906,28 @@ test("canvas transform menu exposes four groups without explicit text conversion
     { label: "リストの操作", values: ["length", "sort", "append"] },
     { label: "JSONの変換", values: ["stringify", "parse"] },
   ]);
+});
+
+test("canvas removal block switches between value and position/key", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "remove-entry", kind: "remove-list-item", list: "data.tags",
+        mode: "value", value: "",
+      });
+    });
+  });
+  const block = page.locator('[data-sel-key="step:remove-entry"]');
+  const method = block.getByRole("combobox", { name: "削除方法" });
+  await expect(method).toHaveValue("value");
+  await method.selectOption("key");
+  const input = block.getByPlaceholder("値 / {変数}");
+  await input.fill("1");
+  await input.blur();
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
+      .find((step: any) => step.id === "remove-entry")
+  )).toMatchObject({ kind: "remove-list-item", list: "data.tags", mode: "key", value: "1" });
 });
 
 test("canvas append values use one typed input", async ({ page }) => {

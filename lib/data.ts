@@ -389,7 +389,7 @@ export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
 export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
 /** ページを配信する前に実行するブロック */
 export type PureGroupStep = Extract<ScriptStep, { kind: "for-each" | "if" | "repeat" }>;
-export type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep | Extract<ScriptStep, { kind: "set-list-item" }>;
+export type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep | Extract<ScriptStep, { kind: "set-list-item" | "remove-list-item" }>;
 
 /** 「［{名前}］を変数［］とする」の {名前}（値が {名前} 1つだけでなければ null） */
 export function setVarSource(st: SetVarStep): string | null {
@@ -493,6 +493,7 @@ function pureLoadStep(st: ScriptStep, inLoop = false): boolean {
   switch (st.kind) {
     case "set-var": return !!st.into;
     case "set-list-item": return !!st.list;
+    case "remove-list-item": return !!st.list && !!st.value.trim();
     case "break-loop": return inLoop;
     case "transform": return !!st.source && !!st.into;
     case "if": return (st.conditions?.length ?? 0) <= 32 &&
@@ -577,6 +578,8 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       !clientVars.has(st.into) && !extractVars(st.value).some(isClient);
     if (st.kind === "set-list-item") return !!st.list && !isClient(st.list) &&
       !extractVars(st.key).some(isClient) && !extractVars(st.value).some(isClient);
+    if (st.kind === "remove-list-item") return !!st.list && !!st.value.trim() &&
+      !isClient(st.list) && !extractVars(st.value).some(isClient);
     if (st.kind === "break-loop") return inLoop;
     if (st.kind === "transform") {
       if (!st.into || !st.source || clientVars.has(st.into) || isClient(st.source)) return false;
@@ -616,10 +619,10 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
           steps.push(st);
           serverIds.add(st.id);
         }
-      } else if (st.kind === "set-list-item" && isServerPure(st)) {
+      } else if ((st.kind === "set-list-item" || st.kind === "remove-list-item") && isServerPure(st)) {
         steps.push(st);
         serverIds.add(st.id);
-      } else if (st.kind === "set-list-item") {
+      } else if (st.kind === "set-list-item" || st.kind === "remove-list-item") {
         clientVars.add(rootName(st.list));
       } else if (
         (st.kind === "for-each" || st.kind === "if" || st.kind === "repeat") &&
@@ -1069,7 +1072,8 @@ export function previewDataVars(
         }
         break;
       }
-      case "set-list-item": {
+      case "set-list-item":
+      case "remove-list-item": {
         runPurePageSteps([st], out, lookupVar, interpolate, evaluateValueRecipe,
           { ...opts.vars, slug: opts.slug });
         break;
@@ -1331,9 +1335,9 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
   for (const st of steps) {
     // 配列・取得したデータの名前での参照
     if ("array" in st && st.array) st.array = fn(st.array) ?? st.array;
-    if (st.kind === "set-list-item") {
+    if (st.kind === "set-list-item" || st.kind === "remove-list-item") {
       st.list = fn(st.list) ?? st.list;
-      st.key = mapVarTokens(st.key, fn);
+      if (st.kind === "set-list-item") st.key = mapVarTokens(st.key, fn);
       st.value = mapVarTokens(st.value, fn);
     }
     if (st.kind === "open-url" || st.kind === "fetch") st.url = mapVarTokens(st.url, fn);
