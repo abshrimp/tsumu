@@ -220,6 +220,7 @@ export async function readHtmlZip(
       await prepareHtmlZip(file, progress, paths, existing);
     const path = cleanZipPath(htmlEntry.name);
     const source = pristineHtmlText.get(htmlEntry.name) ?? "";
+    if (!source.trim()) throw new Error(tr("The HTML file in the ZIP is empty. The existing page has not been replaced."));
     // HTML-mode imports never parse/serialize the authored source.
     // Visual-node imports still need resolved references for conversion.
     const html = sourceOnly ? source : rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", path, urls);

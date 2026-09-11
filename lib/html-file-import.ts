@@ -11,6 +11,16 @@ export function isHtmlFile(name: string): boolean {
   return /\.html?$/i.test(name);
 }
 
+/** An import that produces no editable elements must not erase the target page. */
+export function requireEditableHtmlContent(result: HtmlConversion): HtmlConversion {
+  for (const id of result.doc.pageOrder) {
+    if (!result.doc.pages[id]?.children.length) {
+      throw new Error(tr("The HTML conversion produced no editable elements. Switch the page type to HTML and load the ZIP there to keep its original code."));
+    }
+  }
+  return result;
+}
+
 /**
  * Inspect only the archive's file names before routing ZIP imports. An editable
  * Tsumu ZIP is restored losslessly; a regular website ZIP is converted to nodes.
@@ -34,19 +44,19 @@ export async function convertHtmlFile(
     return withImportUploads(async paths => {
       if (!options.allPages) {
         const converted = await readHtmlZip(file, options.progress, paths);
-        return convertHtmlToSite(converted.html, {
+        return requireEditableHtmlContent(convertHtmlToSite(converted.html, {
           breakpoints: options.breakpoints, assets: converted.assets,
-        });
+        }));
       }
       const archive = await readHtmlZipPages(file, options.progress, paths);
-      return convertHtmlPages(archive.pages, archive.assets, options.breakpoints);
+      return requireEditableHtmlContent(convertHtmlPages(archive.pages, archive.assets, options.breakpoints));
     }, uploaded);
   }
   if (!isHtmlFile(file.name)) throw new Error("HTMLまたはHTMLのZIPファイルを選択してください。");
   if (file.size > IMPORT_LIMITS.docBytes) throw new Error("インポートするファイルが大きすぎます。");
   const html = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
   options.progress?.("HTMLを編集可能な要素へ変換中…");
-  return convertHtmlToSite(html, { breakpoints: options.breakpoints });
+  return requireEditableHtmlContent(convertHtmlToSite(html, { breakpoints: options.breakpoints }));
 }
 
 /**
