@@ -4,7 +4,7 @@ import { matchesValueCondition, parseValueLiteral } from "../lib/value-semantics
 import { PAGE_STEP_RUNNER_SOURCE, runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
-import { obfuscateVarNames, pagePlan } from "../lib/data";
+import { obfuscateVarNames, pagePlan, previewDataVars } from "../lib/data";
 import { generateProject } from "../lib/generator";
 import { validDocumentScripts } from "../lib/document-validation";
 import { createInitialDoc } from "../lib/presets";
@@ -335,4 +335,28 @@ test("preview removes from the latest fetched list and preserves sibling fields 
   await dom.click("act");
   assert.deepEqual(JSON.parse(JSON.stringify(dom.vars.data)), { rows: ["full three"], title: "Current" });
   assert.deepEqual(state.data.rows, ["full one", "full two", "full three"]);
+});
+
+test("preview terminates and chains copies into nested variable paths", () => {
+  const doc = createInitialDoc();
+  const page = doc.pages[doc.pageOrder[0]];
+  page.pageScripts = [
+    { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+      { id: "seed", kind: "fetch", as: "source", url: "https://example.test/source",
+        preview: { sample: { title: "ready" } } },
+      { id: "protected", kind: "fetch", as: "preserve", url: "https://example.test/preserve",
+        preview: { sample: { title: "original" } } },
+    ] },
+    { id: "click", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+      // Deliberately out of order: the first copy needs a second pass.
+      { id: "second", kind: "set-var", into: "record.label", value: "{record.title}" },
+      { id: "first", kind: "set-var", into: "record.title", value: "{source.title}" },
+      { id: "keep", kind: "set-var", into: "preserve.title", value: "{source.title}" },
+      { id: "end", kind: "set-var", into: "result", value: "{record.label}" },
+    ] },
+  ];
+  const preview = previewDataVars(doc, page.id);
+  assert.deepEqual(preview.record, { title: "ready", label: "ready" });
+  assert.equal(preview.result, "ready");
+  assert.deepEqual(preview.preserve, { title: "original" });
 });
