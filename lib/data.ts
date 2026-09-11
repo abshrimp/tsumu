@@ -901,9 +901,16 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
       seen.add(name);
       out.push({ name, client: clientVars.has(name.split(".")[0]) });
     }
-    if (depth < 4) for (const [key, child] of Object.entries(value).slice(0, 50)) {
-      if (!key.includes(".") && child && typeof child === "object")
-        visit(child, name + "." + key, depth + 1);
+    if (depth < 4) {
+      // List samples can contain 20 records, but their picker only needs the
+      // first record to discover nested paths. Other indexes remain writable.
+      const children = Array.isArray(value)
+        ? value.length ? [["0", value[0]] as const] : []
+        : Object.entries(value).slice(0, 50);
+      for (const [key, child] of children) {
+        if (!key.includes(".") && child && typeof child === "object")
+          visit(child, name + "." + key, depth + 1);
+      }
     }
   };
   const sampleVars = previewDataVars(doc, pageId);
