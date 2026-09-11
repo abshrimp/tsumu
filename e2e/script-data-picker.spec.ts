@@ -134,7 +134,7 @@ test("mixed templates and generated code survive exploring, cancelling and save/
 
 test("filter field dropdown marks nested Japanese category arrays as lists", async ({ page }) => {
   const filter = block(page, "category-filter");
-  await filter.locator(".se-pm-btn").click();
+  await filter.locator(".se-pm-btn:not(.se-list-choice)").click();
   const menu = page.locator(".se-pm");
   const title = menu.locator(".se-pm-row").filter({
     has: page.locator(".se-pm-key").filter({ hasText: /^title$/ }),
@@ -159,7 +159,7 @@ test("filter field dropdown marks nested Japanese category arrays as lists", asy
   await menu.locator(".se-pm-row").filter({
     has: page.locator(".se-pm-key").filter({ hasText: /^出展カテゴリ$/ }),
   }).locator(".dd-item").click();
-  await expect(filter.locator(".se-pm-btn")).toHaveText("categories › 出展カテゴリ");
+  await expect(filter.locator(".se-pm-btn:not(.se-list-choice)")).toHaveText("categories › 出展カテゴリ");
   const doc = await snapshot(page);
   const savedFilter = doc.pages.p.pageScripts[0].steps.find((s: any) => s.id === "category-filter");
   expect(savedFilter.field).toBe("categories.出展カテゴリ");

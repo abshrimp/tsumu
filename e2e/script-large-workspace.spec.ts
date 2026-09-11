@@ -124,3 +124,30 @@ test("offscreen stacks release focus retention without losing edits or accumulat
   await workspace.evaluate((el) => { el.scrollTop = 0; });
   await expect(workspace.locator('[data-script-id="stack-0"] input.se-in')).toHaveValue("2");
 });
+
+test("workspace grid scrolls with the content and stays aligned when zooming", async ({ page }) => {
+  await page.setContent('<html><body><div id="app"></div></body></html>');
+  await page.addScriptTag({ content: bundle });
+
+  const workspace = page.locator(".se-ws");
+  await expect(workspace).toBeVisible();
+
+  const background = () => workspace.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      attachment: style.backgroundAttachment,
+      size: style.backgroundSize,
+      scrollTop: el.scrollTop,
+    };
+  });
+
+  expect(await background()).toMatchObject({ attachment: "local", size: "16px 16px" });
+  await workspace.evaluate((el) => { el.scrollTop = 123; });
+  await expect.poll(async () => (await background()).scrollTop).toBeGreaterThan(0);
+  expect((await background()).attachment).toBe("local");
+
+  await page.locator(".se-zoom button").last().click();
+  await expect.poll(async () => parseFloat((await background()).size))
+    .toBeCloseTo(17.6, 1);
+  expect((await background()).attachment).toBe("local");
+});
