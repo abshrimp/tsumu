@@ -71,3 +71,26 @@ test("root-relative resources in a wrapped site ZIP resolve without altering ext
   assert.equal(resolveZipReference("https://cdn.example/logo.svg", "site/index.html", resources), "https://cdn.example/logo.svg");
   assert.equal(resolveZipReference("/missing.svg", "site/index.html", resources), "/missing.svg");
 });
+
+test("root-relative URLs resolve through multiple wrapper directories around a ZIP site", () => {
+  const nested = new Map([
+    ["archive/project/dist/images/logo.svg", "nested-logo"],
+    ["archive/project/dist/css/main.css", "nested-css"],
+  ]);
+  for (const html of ["archive/project/dist/index.html", "archive/project/dist/pages/about.html"]) {
+    assert.equal(resolveZipReference("/images/logo.svg", html, nested), "nested-logo");
+    assert.equal(resolveZipReference("/css/main.css?v=2#main", html, nested), "nested-css?v=2#main");
+  }
+  assert.equal(zipDependency("/images/logo.svg", "archive/project/dist/css/main.css",
+    new Map([["archive/project/dist/images/logo.svg", "logo-id"]]))?.assetId, "logo-id");
+
+  // Keep the existing rule that archive-root and shallower wrapper paths win.
+  const withAlternatives = new Map([
+    ["images/logo.svg", "archive-root"],
+    ["archive/images/logo.svg", "first-wrapper"],
+    ["archive/project/dist/images/logo.svg", "site-root"],
+  ]);
+  assert.equal(resolveZipReference("/images/logo.svg", "archive/project/dist/index.html", withAlternatives), "archive-root");
+  withAlternatives.delete("images/logo.svg");
+  assert.equal(resolveZipReference("/images/logo.svg", "archive/project/dist/index.html", withAlternatives), "first-wrapper");
+});

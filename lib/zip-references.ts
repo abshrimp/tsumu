@@ -16,10 +16,15 @@ export function resolveZipReference(value: string, htmlPath: string, urls: Map<s
   const archivePath = normalized.join("/");
   // ZIPを親フォルダごと圧縮した場合、HTML内の /images/... は
   // ZIP全体のルートではなく、その親フォルダを起点とする。
-  // アーカイブ直下に同名ファイルがあるときは、そちらを優先する。
-  const wrapper = htmlPath.includes("/") ? htmlPath.split("/")[0] : "";
-  const mapped = urls.get(archivePath) ??
-    (decodedPath.startsWith("/") && wrapper ? urls.get(wrapper + "/" + archivePath) : undefined);
+  // アーカイブ直下を優先し、なければ浅い階層から順に探す。
+  // project/dist/index.html のような多重ラッパーにも対応する。
+  let mapped = urls.get(archivePath);
+  if (!mapped && decodedPath.startsWith("/")) {
+    const parents = htmlPath.split("/").slice(0, -1);
+    for (let depth = 1; depth <= parents.length && !mapped; depth++) {
+      mapped = urls.get(parents.slice(0, depth).join("/") + "/" + archivePath);
+    }
+  }
   if (!mapped) return value;
   // Asset proxy URLs already have a path query. Keep archive query parameters
   // separate from that path, and preserve the complete query and fragment.
