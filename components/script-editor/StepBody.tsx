@@ -238,7 +238,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     }
     case "set-list-item":
       return (
-        <Phrase text="リスト{list}のキー{key}に{value}を入れる" parts={{
+        <Phrase text="リスト{list}の項目{key}に{value}を入れる" parts={{
           list: <AnyArraySelect value={step.list} onChange={(list) =>
             set((s) => s.kind === "set-list-item" ? { ...s, list } : s)} />,
           key: <TextIn vars value={step.key} width={110}
