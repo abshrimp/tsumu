@@ -81,7 +81,7 @@ export function CheckList({ checks, onClose }: { checks: CheckResult[]; onClose:
   }
   return (
     <ul className="check-list">
-      {checks.map((c, i) => (
+      {[...checks].sort((a, b) => Number(b.level === "warn") - Number(a.level === "warn")).map((c, i) => (
         <li key={i} className={c.level === "error" ? "is-error" : ""}>
           <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
           <span>{c.message}</span>

@@ -29,6 +29,8 @@ test("同じ書き出し先のURLを検出し、URL修正後は両方のクエ�
     await expect(page.locator(".export-modal").getByRole("heading", { name: "コードをエクスポート" })).toBeVisible();
   };
   await openExport();
+  const checks = page.locator(".modal .check-list li");
+  await expect(checks.first()).not.toHaveClass(/is-error/);
   await expect(page.locator(".modal .check-list .is-error")).toContainText("重複");
   await expect(page.getByRole("button", { name: "zipをダウンロード", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "キャンセル", exact: true }).click();
