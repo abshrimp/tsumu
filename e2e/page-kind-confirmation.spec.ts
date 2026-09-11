@@ -13,6 +13,15 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("button", { name: "HTML", exact: true })).toBeVisible();
 });
 
+test("page settings clearly distinguish editable HTML conversion and raw HTML loading", async ({ page }) => {
+  await expect(page.getByRole("button", { name: "HTMLを変換して読み込む", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "HTMLとアセットのZIPを変換して読み込む", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "HTML", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "切り替える", exact: true }).click();
+  await expect(page.getByRole("button", { name: "HTMLをそのまま読み込む", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "HTMLとアセットのZIPをそのまま読み込む", exact: true })).toBeVisible();
+});
+
 // The complete kind/interruption matrix is covered by the store-level tests.
 // Keep browser cases for distinct dialog, focus, navigation, and collaboration behavior.
 const browserInterruptions = {
