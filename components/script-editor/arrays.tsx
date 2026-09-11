@@ -169,6 +169,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
               <OpEditor
                 op={step.op}
                 value={step.value}
+                valueContext="value"
                 operators={filterFieldOperators(sampleAt(step.field))}
                 not={step.not}
                 onNotChange={(not) => set({ not })}
@@ -204,6 +205,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
                 <OpEditor
                   op={c.op}
                   value={c.value}
+                  valueContext="value"
                   operators={filterFieldOperators(sampleAt(c.field))}
                   not={c.not}
                   onNotChange={(not) => setOr(i, { not })}
