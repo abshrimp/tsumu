@@ -1,7 +1,7 @@
 /**
- * キャンバス上のテキスト編集（contentEditable）。
+ * キャンバス上のテキストの編集（contentEditable）。
  * {変数} をチップとして表示しながら、中身はプレーンテキストとして読み書きする。
- * DOM は常に「テキスト + 変数チップ(span.cv-tok) + 末尾の改行用 br」だけに保つ。
+ * DOM は常に「テキスト + 変数のチップ（span.cv-tok）+ 末尾の改行用の br」だけに保つ。
  */
 
 import { splitVarTokens } from "./vars";
@@ -11,7 +11,7 @@ const TOK_CLASS = "cv-tok";
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** 要素の中身をプレーンテキストとして読む（br・ブロック要素は改行） */
+/** 要素の中身をプレーンテキストとして読む（br とブロック要素は改行として扱う） */
 export function editableText(el: Node): string {
   let out = "";
   const walk = (n: Node) => {
@@ -38,7 +38,7 @@ export function editableText(el: Node): string {
   return out;
 }
 
-/** 選択範囲の先頭・末尾を、プレーンテキスト上の位置で返す */
+/** 選択範囲の先頭と末尾を、プレーンテキスト上の位置で返す */
 export function selectionOffsets(el: HTMLElement): [number, number] | null {
   const sel = window.getSelection();
   if (!sel?.rangeCount) return null;
@@ -56,7 +56,7 @@ export function selectionOffsets(el: HTMLElement): [number, number] | null {
   return [start, range.collapsed ? start : at(range.endContainer, range.endOffset)];
 }
 
-/** プレーンテキスト上の位置にカーソルを置く（チップの直後なら外側に置く） */
+/** プレーンテキスト上の位置にカーソルを置く（チップの直後なら、チップの外側に置く） */
 function setCaret(el: HTMLElement, offset: number) {
   const sel = window.getSelection();
   if (!sel) return;
@@ -89,7 +89,7 @@ function setCaret(el: HTMLElement, offset: number) {
   sel.addRange(r);
 }
 
-/** テキストを描き直す（変数はチップに） */
+/** テキストを描き直す（変数はチップにする） */
 function paint(el: HTMLElement, text: string) {
   el.innerHTML =
     splitVarTokens(text)
@@ -99,11 +99,11 @@ function paint(el: HTMLElement, text: string) {
           : esc(p.text)
       )
       .join("") +
-    // 末尾の改行・空のときも1行分の高さとカーソル位置を保つ
+    // 末尾が改行のときや空のときも、1行分の高さとカーソルの位置を保つ
     (!text || text.endsWith("\n") ? '<br data-end="1">' : "");
 }
 
-/* ---- 取り消し履歴（innerHTML を書き換えるためブラウザの履歴は使えない） ---- */
+/* ---- 取り消しの履歴（innerHTML を書き換えるため、ブラウザの履歴は使えない） ---- */
 
 interface History {
   stack: { text: string; caret: number }[];
@@ -131,7 +131,7 @@ export function setEditable(el: HTMLElement, text: string, caret: number) {
   record(el, text, caret);
 }
 
-/** 編集開始: 内容を描いて全選択する */
+/** 編集の開始: 内容を描いて全体を選択する */
 export function startEditable(el: HTMLElement, text: string) {
   histories.delete(el);
   paint(el, text);
@@ -144,8 +144,8 @@ export function startEditable(el: HTMLElement, text: string) {
 }
 
 /**
- * 全部消したときなどにブラウザが行の高さを保つために入れる末尾の <br> を取り除く
- * （改行はすべて文字として入れるので、後ろに文字の無い <br> は改行ではない）
+ * すべて消したときなどに、ブラウザが行の高さを保つために入れる末尾の <br> を取り除く
+ * （改行はすべて文字として入れるため、後ろに文字の無い <br> は改行ではない）
  */
 function dropPlaceholderBr(el: HTMLElement) {
   const brs = el.querySelectorAll("br:not([data-end])");
@@ -157,7 +157,7 @@ function dropPlaceholderBr(el: HTMLElement) {
   if (after.toString() === "") last.remove();
 }
 
-/** 入力後: DOM から読み直してチップを付け直す */
+/** 入力の後: DOM から読み直して、チップを付け直す */
 export function normalizeEditable(el: HTMLElement) {
   dropPlaceholderBr(el);
   const text = editableText(el);
@@ -165,14 +165,14 @@ export function normalizeEditable(el: HTMLElement) {
   setEditable(el, text, caret);
 }
 
-/** 選択範囲を文字で置き換える（改行・貼り付け用） */
+/** 選択範囲を文字で置き換える（改行や貼り付けに使う） */
 export function insertEditable(el: HTMLElement, str: string) {
   const text = editableText(el);
   const [s, e] = selectionOffsets(el) ?? [text.length, text.length];
   setEditable(el, text.slice(0, s) + str + text.slice(e), s + str.length);
 }
 
-/** 取り消し（dir = -1）/ やり直し（dir = 1） */
+/** 取り消す（dir = -1）/ やり直す（dir = 1） */
 export function undoEditable(el: HTMLElement, dir: -1 | 1) {
   const h = histories.get(el);
   if (!h) return;

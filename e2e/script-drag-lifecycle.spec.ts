@@ -13,7 +13,7 @@ const snapshot = (page: Page) => page.evaluate(() => {
   const s = (window as any).scriptDragEditor.getState();
   return { doc: s.doc, past: s.past.length, future: s.future.length };
 });
-// A whole-script drag ghost contains absolutely positioned cards; inspect a card, not the zero-sized parent.
+// スクリプト全体をドラッグするときの影には、絶対配置のカードが入る。大きさ 0 の親ではなく、カードを調べる。
 const visibleGhost = (page: Page) => page.locator(".se-ghost .se-stack").first();
 const transient = (page: Page) => page.locator(".se-ghost, .se-marquee, .se-slot.is-active, .se-hat-slot.is-active");
 const owner = (kind: string) => kind === "marquee" ? ".se-ws" : kind === "palette" ? '[data-tutorial="se-block-wait"]' :
@@ -74,7 +74,7 @@ for (const action of ["undo", "redo", "page", "replace"]) test(`an active step d
   }, action);
   await start(page, "step");
   if (action === "undo" || action === "redo") {
-    // A second finger or an accessibility button action must not complete the original drag while changing history.
+    // 2本目の指や、支援技術からのボタンの操作で、履歴を変えながら元のドラッグを完了させてはならない。
     await page.getByRole("button", { name: action === "undo" ? "取り消す" : "やり直す", exact: true }).dispatchEvent("click");
   } else await page.evaluate((action) => {
     const s = (window as any).scriptDragEditor.getState();
@@ -119,8 +119,8 @@ test("closing during a drag and reopening leaves no late operation or listener",
   expect((await snapshot(page)).past).toBe(1);
 });
 
-// Model an active modal entrance transform deterministically: drag measurements
-// must use layout widths, not rectangles scaled by the modal animation.
+// モーダルの表示時の変形を、決まった形で再現する。ドラッグの計測は、モーダルの
+// アニメーションで拡大・縮小された矩形ではなく、レイアウトの幅を使わなければならない。
 async function scaleScriptModal(page: Page) {
   await page.locator(".se").evaluate((modal) => {
     for (const animation of modal.getAnimations()) animation.finish();
@@ -129,7 +129,7 @@ async function scaleScriptModal(page: Page) {
 }
 
 test("dragged steps retain their width without narrowing the source stack", async ({ page }) => {
-  // A wide step determines the source stack width; removing it would normally shrink the stack.
+  // 幅の広い手順が、元の並びの幅を決める。それを取り除くと、通常は並びが縮む。
   await page.addStyleTag({ content: '.se-ws [data-sel-key="step:wait"] { min-width: 480px; }' });
   await scaleScriptModal(page);
   const source = page.locator('.se-ws .se-stack[data-script-id="script"]');
@@ -137,8 +137,8 @@ test("dragged steps retain their width without narrowing the source stack", asyn
   await start(page, "step");
   const preview = (await visibleGhost(page).boundingBox())!;
   const remaining = (await source.boundingBox())!;
-  // Compare the card's outer box: the workspace-only min-width rule in this
-  // fixture intentionally does not apply to the preview's inner step row.
+  // カードの外側の枠で比べる。この準備で画面にだけ付けた min-width の規則は、
+  // 意図的に、プレビューの内側の手順の行には適用していない。
   expect(Math.abs(preview.width - originalStack.width)).toBeLessThan(1);
   expect(Math.abs(remaining.width - originalStack.width)).toBeLessThan(1);
   await pointer(page, "pointercancel", { buttons: 0 });
@@ -170,7 +170,7 @@ test("dragging multiple scripts preserves each original stack width", async ({ p
     widths.push((await page.locator(`.se-ws .se-stack[data-script-id="${id}"]`).boundingBox())!.width);
   }
   await expect(page.locator(".se-ws .se-stack.is-selected")).toHaveCount(2);
-  // Select a specific hat: the workspace now contains more than one.
+  // 画面にはきっかけのブロックが複数あるため、特定のものを選ぶ。
   const mainHat = page.locator('.se-ws .se-stack[data-script-id="script"] .se-hat');
   const rect = (await mainHat.boundingBox())!;
   await mainHat.dispatchEvent("pointerdown", {
@@ -291,7 +291,7 @@ test("copying a whole script creates independent script and nested step IDs", as
 
 for (const hasTrailingBlock of [false, true]) {
   test(`dragging a condition with a selected element keeps its original controls and layout${hasTrailingBlock ? " across chained blocks" : ""}`, async ({ page }) => {
-    // Script condition targets store the HTML ID attribute, not the node ID.
+    // スクリプトの条件の対象には、ノードの ID ではなく、HTML の ID 属性を保存する。
     const selected = { ...makeBox("選択済みの要素（長い名前）"), id: "chosen-node", attrId: "chosen-element" };
     await page.evaluate(({ selected, hasTrailingBlock }) => {
       (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {

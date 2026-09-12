@@ -162,8 +162,8 @@ test("asset references are read directly from asset rows and erase clears both t
 test("daily backups preserve the previous day's final SiteDoc, in small SQLite chunks", () => {
   const { store, sqlite } = database();
   const original = createInitialDoc();
-  // A single UTF-16 character flips the surrogate alignment between the
-  // first and second chunks. The backup must preserve emoji on either side.
+  // UTF-16 の1文字で、1つ目と2つ目の分割の間のサロゲートのそろい方が反転する。
+  // バックアップは、どちら側の絵文字も保たなければならない。
   original.customHeadHtml = "😀".repeat(150_000) + "x" +
     "😀".repeat(150_000) + "保存データ".repeat(150_000);
   store.replace(JSON.stringify(original), null);
@@ -196,7 +196,7 @@ test("deletion seals the room permanently, even if an old RPC save arrives later
   assert.deepEqual(store.assetReferences(), []);
   assert.deepEqual(store.replace(JSON.stringify(doc), null), { kind: "missing" });
   assert.deepEqual(store.patch([{ path: ["siteName"], value: "Resurrect" }], "1"), { kind: "missing" });
-  store.erase(); // retries are idempotent
+  store.erase(); // 再試行しても結果は変わらない
   assert.equal(store.snapshot(), null);
   sqlite.close();
 });

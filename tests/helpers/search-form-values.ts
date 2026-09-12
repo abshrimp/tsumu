@@ -20,7 +20,7 @@ export const searchFormValuesHtml = `
   <input value="unnamed">
   <button id="submit" type="submit">Search</button>`;
 
-/** 生成されたフォームだけを実際のReact/DOMに載せ、外部への通信は行わない。 */
+/** 生成したフォームだけを実際の React と DOM に載せ、外部への通信は行わない。 */
 export async function searchFormValuesBundle(format: "nextjs" | "react") {
   const result = await build({
     bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",

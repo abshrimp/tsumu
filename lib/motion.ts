@@ -23,7 +23,7 @@ export const TRANSITION_PROPS: { value: string; label: string }[] = [
   { value: "box-shadow", label: tr("Shadow") },
 ];
 
-/** ビルトインのキーフレーム。CSSは @keyframes anim-<key> { ... } として出力する */
+/** 組み込みのキーフレーム。CSS は @keyframes anim-<key> { ... } として出力する */
 export const KEYFRAMES: { key: string; label: string; css: string }[] = [
   { key: "fade-in", label: tr("Fade in"), css: "from { opacity: 0; }" },
   { key: "fade-out", label: tr("Fade out"), css: "to { opacity: 0; }" },
@@ -119,7 +119,7 @@ export const FILL_MODES = [
 ] as const;
 
 /**
- * カスタムの @keyframes の名前。要素を複製するとモーションのIDも同じまま写るため、
+ * カスタムの @keyframes の名前。要素を複製すると、モーションの ID も同じまま写るため、
  * 要素（scope）ごとに分ける（分けないと、複製先でキーフレームを変えても元の動きになる）
  */
 export function customKeyframeName(m: Motion, scope?: string): string {
@@ -127,11 +127,11 @@ export function customKeyframeName(m: Motion, scope?: string): string {
   return scope ? `anim-${safe(scope)}-${safe(m.id)}` : `anim-${safe(m.id)}`;
 }
 
-/** animation ショートハンドの値を組み立てる */
+/** animation の一括指定の値を組み立てる */
 export function animationValue(m: Motion, paused = false, scope?: string): string {
   const iter = m.repeat === -1 ? "infinite" : String(m.repeat ?? 1);
   return [
-    // カスタムはモーションごとに固有の @keyframes 名を使う
+    // カスタムでは、モーションごとに固有の @keyframes の名前を使う
     m.keyframes === "custom" ? customKeyframeName(m, scope) : `anim-${m.keyframes}`,
     `${m.duration}s`,
     m.easing || "ease",
@@ -143,7 +143,7 @@ export function animationValue(m: Motion, paused = false, scope?: string): strin
   ].join(" ");
 }
 
-/** transition の値（状態変化時トリガーのモーションをまとめる） */
+/** transition の値（状態が変わるときのきっかけのモーションをまとめる） */
 export function transitionValue(motions: Motion[]): string | null {
   const list = motions.filter((m) => m.trigger === "state");
   if (!list.length) return null;
@@ -156,27 +156,27 @@ export function transitionValue(motions: Motion[]): string | null {
 }
 
 export interface MotionCss {
-  /** 既定ルールに足す宣言（transition / load・in-view の animation） */
+  /** 既定のルールに足す宣言（transition と、load・in-view の animation） */
   base: string[];
   /** 擬似クラス → 宣言（hover / active の animation） */
   pseudo: { pseudo: string; decls: string[] }[];
-  /** 使用したキーフレームのキー */
+  /** 使ったキーフレームのキー */
   usedKeyframes: string[];
   /** カスタムキーフレーム（名前 → @keyframes 本体） */
   customKeyframes: { name: string; css: string }[];
-  /** in-view トリガーを含むか */
+  /** in-view のきっかけを含むか */
   hasInView: boolean;
 }
 
 /**
- * モーション設定からCSS宣言を組み立てる。
- * inViewMode: "paused" = 停止で開始し .is-inview で再生（書き出し用）、
- *             "run" = 即時再生（エディタのプレビュー用）
+ * モーションの設定から CSS の宣言を組み立てる。
+ * inViewMode: "paused" = 停止した状態で始め、.is-inview で再生する（書き出し用）、
+ *             "run" = すぐに再生する（エディタのプレビュー用）
  */
 export function motionCss(
   motions: Motion[] | undefined,
   inViewMode: "paused" | "run",
-  /** 要素ごとに分けるカスタムの @keyframes 名に付ける名前（要素のIDなど） */
+  /** 要素ごとに分けるカスタムの @keyframes の名前に付ける名前（要素の ID など） */
   scope?: string
 ): MotionCss {
   const out: MotionCss = {
@@ -248,7 +248,7 @@ export function motionCss(
   return out;
 }
 
-/** 使用キーフレーム（ビルトイン + カスタム）の @keyframes CSS を生成 */
+/** 使ったキーフレーム（組み込み + カスタム）の @keyframes の CSS を生成する */
 export function keyframesCss(
   keys: Iterable<string>,
   customs: { name: string; css: string }[] = []
@@ -269,7 +269,7 @@ export function keyframesCss(
   return blocks.join("\n\n");
 }
 
-/** 書き出しサイト用の IntersectionObserver スクリプト */
+/** 書き出したサイト用の IntersectionObserver のスクリプト */
 export const INVIEW_SCRIPT = `(function () {
   var io =
     "IntersectionObserver" in window

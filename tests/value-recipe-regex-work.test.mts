@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 
-// Exercise the same self-contained evaluator emitted into exported pages. Only the
-// constructor in this evaluator is replaced; none of the budget fixtures is compiled.
+// 書き出したページに出力するものと同じ、自己完結した評価器を動かす。置き換えるのは、
+// この評価器の中のコンストラクターだけ。処理量の上限を試す準備は、どれもコンパイルしない。
 const withConstructor = new Function("RegExp",
   "const __name = (fn) => fn; return (" + evaluateValueRecipe.toString() + ");");
 
@@ -12,7 +12,7 @@ function checkBudget(source: string, find: string, expectedPattern: string | nul
   const compiled: [string, string][] = [];
   const evaluate = withConstructor(function (pattern: string, flags: string) {
     compiled.push([pattern, flags]);
-    return /\uFFFF/g; // The fixed sentinel does not match any of the ASCII fixtures.
+    return /\uFFFF/g; // 固定の番兵は、ASCII のどの準備にも一致しない。
   }) as typeof evaluateValueRecipe;
   const result = evaluate(source, [{ kind: "replace", find, replacement: "", regex: true }], variables);
   assert.deepEqual(compiled, expectedPattern === null ? [] : [[expectedPattern, "g"]]);
@@ -28,14 +28,14 @@ test("independent choices in four code fields can use exactly 256 paths", () => 
 });
 
 test("fixed group expansion counts its two group boundaries", () => {
-  // The three letters and two boundaries cost five units per fixed iteration.
+  // 3文字と2つの境界で、固定の1回のくり返しあたり5単位かかる。
   const field = "(?:abc){819}X";
   checkBudget("!", field, field); // 819 × 5 + 1 = 4096
   checkBudget("!", field + "Y", null);
 });
 
 test("the work for a fixed suffix depends on the source length", () => {
-  // For n possible search starts, this prefix and its 64-unit suffix cost 65n².
+  // 探索を始める位置が n 通りあるとき、この前置部分と 64 単位の後ろの部分で、65n² かかる。
   const field = "x+y{64}";
   checkBudget("-".repeat(507), field, field);
   checkBudget("-".repeat(508), field, null);

@@ -53,7 +53,7 @@ for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html"] 
     assert.equal(validSiteDoc(doc), true);
     const parsed = await parseSiteImport(new TextEncoder().encode(JSON.stringify(doc)), "doc");
     assert.deepEqual(parsed.doc, doc);
-    // Native data URL fetching is the same byte decoder used by asset restoration.
+    // ネイティブの data URL の取得は、アセットの復元が使うものと同じバイト列のデコーダー。
     const expected = new Uint8Array(await (await fetch(url)).arrayBuffer());
     const project = generateExportProject(parsed.doc, framework);
     const root = framework === "html" ? "" : framework === "sveltekit" ? "static/" : "public/";

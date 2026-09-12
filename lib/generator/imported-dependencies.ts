@@ -4,7 +4,7 @@ import { zipDependency } from "../zip-references";
 import { zipStylesheet } from "../zip-css";
 import { importedAssetPath, isZipJavascript } from "./imported-assets";
 
-/** Discover module edges from registered archive files, including previously saved sites. */
+/** 以前に保存したサイトも含め、登録したアーカイブのファイルからモジュールの依存関係を見つける。 */
 export async function retainImportedDependencies(scoped: SiteDoc, assets: Record<string, Asset>) {
   const pending = Object.values(scoped.assets);
   if (!pending.some(isZipJavascript)) return;

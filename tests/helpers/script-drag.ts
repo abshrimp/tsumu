@@ -14,7 +14,7 @@ export function scriptDragDoc(): SiteDoc {
   };
 }
 
-/** 実際のスクリプト画面・ストア・CSSで、操作の中断と履歴を確かめる。 */
+/** 実際のスクリプトの画面・ストア・CSS で、操作の中断と履歴を確かめる。 */
 export async function scriptDragBundle(doc: SiteDoc = scriptDragDoc()) {
   return (await build({
     stdin: {

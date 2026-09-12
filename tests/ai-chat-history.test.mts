@@ -29,7 +29,7 @@ for (const interruption of ["undo", "redo", "undo-redo", "replace", "restore"] a
       useEditor.getState().restoreDoc(restored);
     }
     const before = useEditor.getState();
-    // The target page is unchanged: content comparison alone cannot detect this interruption.
+    // 対象のページは変わっていない。内容の比較だけでは、この中断を見つけられない。
     assert.deepEqual(buildAiContext(before.doc, { pageId: "p" }).doc, requestedContext);
     finish(new Response(JSON.stringify({ type: "result", result: {
       reply: "Done", operations: [{ op: "set_text", id: "a", text: "AI A" }],
@@ -46,7 +46,7 @@ for (const interruption of ["undo", "redo", "undo-redo", "replace", "restore"] a
       assert.equal(useEditor.getState().doc.nodes.b.text!.content, "Manual B");
       assert.equal(useEditor.getState().doc.nodes.a.text!.content, "Original A");
     }
-    // The interruption must not poison later requests; the next edit still has one Undo.
+    // 中断が後のリクエストを損なってはならない。次の編集も、1回の「元に戻す」で戻せる。
     const retryBefore = useEditor.getState().doc;
     const retry = askForTest("Try again");
     finish(new Response(JSON.stringify({ type: "result", result: {
@@ -161,7 +161,7 @@ for (const interruption of ["abort", "undo", "target-edit", "invalid-op"] as con
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(useAi.getState().busy, true);
     if (interruption === "abort") {
-      // The fixture exports the same controller used by the UI Stop button.
+      // この準備は、UI の停止ボタンと同じ制御を公開する。
       cancelForTest();
       assert.equal(signal.aborted, true);
     } else if (interruption === "undo") useEditor.getState().undo();
@@ -178,7 +178,7 @@ for (const interruption of ["abort", "undo", "target-edit", "invalid-op"] as con
     assert.equal(useEditor.getState().doc, before);
     assert.equal(useEditor.getState().past, past);
     assert.equal(useAi.getState().messages.at(-1).appliedDoc, undefined);
-    // A canceled/rejected wait must not keep the next request busy or subscribed.
+    // 取り消された待機や拒否された待機で、次のリクエストが処理中や購読中のまま残ってはならない。
     const again = askForTest("Try again");
     finish(new Response(JSON.stringify({ type: "result", result: { reply: "Done", operations: [] } }) + "\n", {
       headers: { "content-type": AI_STREAM_TYPE },

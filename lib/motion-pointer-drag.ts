@@ -1,4 +1,4 @@
-/** Track one motion-editor pointer until release, cancellation, or capture loss. */
+/** モーションの編集画面のポインターを1つ、離す・取り消す・キャプチャを失うまで追跡する。 */
 export function trackMotionPointer(
   start: Pick<PointerEvent, "pointerId">,
   target: Element,
@@ -24,7 +24,7 @@ export function trackMotionPointer(
   };
   const onMove = (event: PointerEvent) => {
     if (event.pointerId !== pointerId) return;
-    // Re-entering the window after releasing outside must not restart the edit.
+    // ウィンドウの外でボタンを離して戻ってきても、編集を再開してはいけない。
     if (!(event.buttons & 1)) end(null);
     else move(event);
   };
@@ -36,7 +36,7 @@ export function trackMotionPointer(
   };
   const onLostCapture = (event: Event) => onCancel(event as PointerEvent);
   const onBlur = () => end(null);
-  // Capture on the stable timeline, not a marker that changes DOM order as it moves.
+  // 動くたびに DOM の順序が変わる印ではなく、変わらないタイムラインでキャプチャする。
   target.setPointerCapture(pointerId);
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);

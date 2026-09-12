@@ -28,7 +28,7 @@ export function scriptSelectValueDoc(options = ["A", "B"]): SiteDoc {
   return doc;
 }
 
-/** 本物のScriptEditorで動作を編集し、その文書をCanvasと書き出しサイトの両方で実行する。 */
+/** 実際の ScriptEditor で動作を編集し、その文書を Canvas と書き出したサイトの両方で実行する。 */
 export async function scriptSelectValueBundle(doc = scriptSelectValueDoc()) {
   return (await build({
     stdin: { contents: `

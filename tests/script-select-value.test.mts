@@ -12,7 +12,7 @@ import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { useEditor } from "../lib/store";
 import { publishedScriptSelectValue, scriptSelectValueBundle, scriptSelectValueDoc } from "./helpers/script-select-value";
 
-/** 実Canvasデータフックの状態・変数を読む。DOMの選択・イベントはnative e2eで確かめる。 */
+/** 実際の Canvas のデータのフックの状態と変数を読む。DOM の選択とイベントは、ネイティブの e2e で確かめる。 */
 function canvasData(doc = scriptSelectValueDoc()) {
   const slots: any[] = [];
   let cursor = 0;
@@ -72,7 +72,7 @@ test("no-selection and an empty option have different preview indices", () => {
   assert.equal(fieldStateValues(fields, { choice: "" }, { empty: "" })["choice.index"], "2");
 });
 
-/** nativeのvalue setter後の結果を返す最小の入力欄。通知とpreviewへの呼び出しだけを検証する。 */
+/** ネイティブの value の setter の後の結果を返す、最小限の入力欄。通知とプレビューへの呼び出しだけを検証する。 */
 function runtimeAssignments(preview: boolean, options: string[], initial: number, values: string[]) {
   const doc = scriptSelectValueDoc(options);
   const script = { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: values.map((value, i) => ({ id: `set-${i}`, kind: "set-value", target: "choice", value })) };

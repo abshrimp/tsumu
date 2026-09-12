@@ -85,7 +85,7 @@ test("the special not-found page is separate from normal /404 routes", async () 
     doc.pages.first.slug = "404/.";
     doc.pages.first.query = query;
     doc.pages.second.unpublished = true;
-    // The initial document already has a special 404 page.
+    // 初期の文書には、すでに特別な 404 のページがある。
     assert.ok(doc.pageOrder.some((id) => doc.pages[id].slug === "404"));
     assert.deepEqual(errors(doc), []);
     const { files } = generateProject(doc);

@@ -11,11 +11,11 @@ export const maxDuration = 300;
 
 /**
  * AIに頼んで編集する（チャット）。設定は lib/ai/config.ts を参照。
- * AIは edit_site の操作を返し、ここでページの写しに試しに適用して誤りをAIへ返す。
- * 適用できた操作（新しい要素のIDを確定させたもの）をブラウザへ返し、ブラウザが同じ処理で適用する
+ * AIが返した edit_site の操作を、ここでページの写しに試しに適用し、誤りがあればAIへ返す。
+ * 適用できた操作（新しい要素のIDを確定させたもの）をブラウザへ返し、ブラウザも同じ処理で適用する
  */
 
-/** AI機能が使えるか（画面にボタンを出すかの判定） */
+/** AI機能が使えるか（画面にボタンを表示するかの判定に使う） */
 export async function GET() {
   const denied = await requireAuth();
   if (denied) return denied;

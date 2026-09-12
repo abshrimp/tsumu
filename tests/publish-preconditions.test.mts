@@ -164,7 +164,7 @@ test("a changed head rejects a stale kept-path plan before creating any tree", a
   f.addManual();
   assert.equal((await f.post({ action: "commit", files: { "page.txt": "p" }, expectedHead: snapshot.head, keptPaths: Object.keys(plan.kept) })).status, 409);
   assert.deepEqual(f.writes, []); assert.equal(f.recorded, 0); assert.equal(f.heads.main, newer);
-  // A deliberate retry takes a fresh snapshot and includes the newly added file.
+  // 意図して再試行すると、新しいスナップショットを取り、新しく追加したファイルも含める。
   const fresh = await (await f.post({ action: "tree" })).json();
   const retry = await f.post({ action: "commit", files: { "page.txt": "p" }, expectedHead: fresh.head, keptPaths: Object.keys(fresh.blobs) });
   assert.equal(retry.status, 200);

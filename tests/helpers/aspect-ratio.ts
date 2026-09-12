@@ -16,7 +16,7 @@ export function aspectRatioDoc(): SiteDoc {
   };
 }
 
-/** 実際のインスペクタとストアで、共同編集などによる書き込み先の変更を確認する。 */
+/** 実際のインスペクターとストアで、共同編集などによる書き込み先の変更を確かめる。 */
 export async function aspectRatioBundle() {
   return (await build({
     stdin: { contents: `

@@ -50,7 +50,7 @@ test("Site and page language settings accept suggested and custom values and sur
   await pageCode.press("Enter");
   await expect.poll(async () => { const doc = await readDoc(); return doc.pages[doc.pageOrder[0]].lang; }).toBe("en-US");
 
-  // Existing custom language values can still be edited after reload.
+  // 既存の独自の言語の値は、再読み込みした後も編集できる。
   await page.reload();
   await expect(page.getByText("サーバー保存済み")).toBeVisible();
   await page.locator('[data-tutorial="left-tab-site"]').click();

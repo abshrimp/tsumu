@@ -19,7 +19,7 @@ export function assetLibraryDoc(): SiteDoc {
   };
 }
 
-/** 実際のアセットタブとストアを使い、通信の完了順・再描画・終了だけを制御する。 */
+/** 実際のアセットのタブとストアを使い、通信の完了の順序・再描画・終了だけを制御する。 */
 export function assetLibraryCallbacks(upload = assets.uploadAsset, migrate = assets.uploadEmbeddedAsset) {
   const require = createRequire(resolve("package.json"));
   let cursor = 0;
@@ -57,7 +57,7 @@ export function assetLibraryCallbacks(upload = assets.uploadAsset, migrate = ass
   };
 }
 
-/** React StrictModeの実際のアセットタブとアップロード経路。通信のみE2Eで差し替える。 */
+/** React の StrictMode での、実際のアセットのタブとアップロードの経路。通信だけを E2E で差し替える。 */
 export async function assetLibraryBundle() {
   return (await build({
     stdin: {

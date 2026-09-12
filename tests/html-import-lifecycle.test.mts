@@ -45,7 +45,7 @@ for (const zip of [false, true]) {
         if (change === "undo-redo") state().redo();
         if (change === "restore") state().restoreDoc({ ...structuredClone(state().doc), siteName: "Restored" });
         if (change === "replace") state().replaceDoc(structuredClone(state().doc));
-        // Deliberately resolve before rerender: live state guards must also work.
+        // 再描画の前にわざと解決する。現在の状態での確認も働かなければならない。
         const before = structuredClone(state().doc); const past = structuredClone(state().past); const future = structuredClone(state().future);
         await f.complete(zip);
         const retain = (d: typeof before) => zip ? { ...d, assets: Object.fromEntries(assets.map(a => [a.id, a])) } : d;

@@ -55,7 +55,7 @@ test("single HTML does not treat an HTML feimage lookalike as an SVG resource", 
 });
 
 test("SVG image URLs ignore removed xml:base attributes and retain the HTML base", async () => {
-  // SVG 2 では xml:base が削除されているため、HTML の文書ベースだけを使う。
+  // SVG 2 では xml:base が削除されたため、HTML の文書の基準だけを使う。
   // https://www.w3.org/TR/SVG2/changes.html#struct
   const result = await toSingleHtmlProject({
     files: {

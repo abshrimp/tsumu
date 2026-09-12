@@ -18,7 +18,7 @@ interface ChatMessage {
   text: string;
   /** 適用した操作の数 */
   ops?: number;
-  /** 適用した直後の編集データ（これと同じ間だけ「元に戻す」を出す） */
+  /** 適用した直後の編集データ（現在の内容がこれと同じあいだだけ「元に戻す」を表示する） */
   appliedDoc?: SiteDoc;
   /** 変更した要素（押すとその要素を選ぶ） */
   changes?: AiChange[];
@@ -84,7 +84,7 @@ export function toggleAi(open?: boolean) {
   useAi.setState((s) => ({ open: open ?? !s.open }));
 }
 
-/** AI機能が有効かをサーバーに確かめる（ヘッダーのボタンを出すか決める） */
+/** AI機能が有効かをサーバーに確かめる（ヘッダーにボタンを表示するかを決める） */
 export function useAiAvailability(): boolean {
   const enabled = useAi((s) => s.enabled);
   useEffect(() => {
@@ -95,7 +95,7 @@ export function useAiAvailability(): boolean {
         if (!cancelled) useAi.setState({ enabled: !!data?.enabled });
       })
       .catch(() => {
-        // 一時的な通信の失敗で機能を隠したままにしない（確認中のままなら、いったん無効にする）
+        // 一時的な通信の失敗で機能を隠したままにしない（確認中のままなら、いったん無効として扱う）
         if (!cancelled && useAi.getState().enabled === null) useAi.setState({ enabled: false });
       });
     void check();
@@ -115,7 +115,7 @@ const SUGGESTIONS = () => [
   tr("Make the buttons slightly darker on hover"),
 ];
 
-/** 連続編集を分断せず、AIだけのUndoを作る。中止・履歴移動でも購読を解放する。 */
+/** 連続した編集を分断せずに、AIの変更だけを取り消せる履歴を作る。中止や履歴の移動でも購読を解除する。 */
 async function waitForAiGesture(signal: AbortSignal) {
   const revision = useEditor.getState().historyRevision;
   while (useEditor.getState().gestureActive) {
@@ -170,13 +170,13 @@ async function ask(text: string) {
     });
     controller.signal.throwIfAborted();
     const ops = data.operations;
-    // Undo/Redo and document replacement also invalidate requests still awaiting the response.
+    // 元に戻す・やり直す操作や文書の置き換えでも、応答を待っているリクエストは無効にする。
     if (ops.length && useEditor.getState().historyRevision !== s.historyRevision) throw new AiEditConflict("History changed");
     const beforeWaitRevision = useEditor.getState().historyRevision;
     while (ops.length && useEditor.getState().gestureActive) await waitForAiGesture(controller.signal);
     controller.signal.throwIfAborted();
     if (useEditor.getState().historyRevision !== beforeWaitRevision) throw new AiEditConflict("History changed");
-    // 待機中の別ページの編集を、AI自身の変更として取り消さない。
+    // 待っている間に行った別ページの編集を、AI自身の変更として取り消さない。
     const beforeApply = useEditor.getState().doc;
     let appliedDoc: SiteDoc | undefined;
     let applied = 0;

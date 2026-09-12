@@ -102,8 +102,8 @@ test("the same transform semantics run in native SSR without browser globals", a
 
 test("exported HTML carries the page plan and executable data runtime", () => {
   const { doc, page } = fixture();
-  // This test exercises the actual exported files, not only the interpreter.
-  // Other starter pages include a dynamic [slug] path that HTML intentionally rejects.
+  // このテストは、インタープリターだけでなく、実際に書き出したファイルを動かす。
+  // 初期の他のページには、HTML が意図的に拒否する動的な [slug] のパスが含まれる。
   doc.pages = { [page.id]: page };
   doc.pageOrder = [page.id];
   const project = generateExportProject(doc, "html");
@@ -233,8 +233,8 @@ test("multiple if clauses retain AND-before-OR grouping in browser and SSR", asy
   const server = await loadPageData(plan, "?flag=1&mode=other");
   assert.equal(server.result, "yes");
 
-  // Conditions involving an actual element cannot run during SSR. Preserve them
-  // for the generated client script rather than silently skipping the if block.
+  // 実際の要素が関わる条件は、SSR の間には実行できない。「もし」のブロックを黙って飛ばさず、
+  // 生成したクライアントのスクリプトのために残す。
   const conditional = (page.pageScripts![0].steps[0] as unknown as {
     conditions: Array<{ subject: string; target: string }>;
     id: string;

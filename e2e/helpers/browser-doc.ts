@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 const DB = "tsumu-documents";
 const STORE = "documents";
 
-/** Exercise the real browser IndexedDB rather than mocking document storage. */
+/** 文書の保存を模擬せず、実際のブラウザの IndexedDB を使う。 */
 export async function browserDoc(page: Page, siteId: string): Promise<string | null> {
   return page.evaluate(async ({ dbName, storeName, siteId }) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {

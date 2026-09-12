@@ -15,7 +15,7 @@ function seeded(seed: number) {
   };
 }
 
-/** A sandbox preview URL must not authorize any other KV key. */
+/** サンドボックスのプレビューの URL で、他の KV のキーが許可されてはならない。 */
 test("signed asset URLs do not permit mutated paths, signatures or expiry", async () => {
   const previous = process.env.AUTH_SECRET;
   process.env.AUTH_SECRET = "asset-token-test-isolated-secret";

@@ -1,6 +1,6 @@
 /**
- * Native, build-free HTML/CSS/JavaScript export. No framework source is shipped.
- * Use the same normalized document and generated CSS/assets as the Next.js export.
+ * ビルド不要の HTML / CSS / JavaScript の書き出し。フレームワークのソースは含めない。
+ * Next.js の書き出しと同じ、正規化した文書と、生成した CSS・アセットを使う。
  */
 import type { DocNode, Page, SiteDoc } from "../types";
 import type { GeneratedProject } from "../generator";
@@ -53,9 +53,9 @@ function pagePrefix(path: string): string {
 }
 
 /**
- * A standalone page can be opened under any hosting directory or file://.
- * Resolve emitted asset links from its active base, including a base ending
- * in a filename, and express a root-relative base from the exported page.
+ * 単独のページは、どのホスティングのディレクトリの下でも、file:// でも開ける。
+ * 出力したアセットのリンクを、ファイル名で終わる base も含めた有効な base から解決し、
+ * ルート相対の base は、書き出したページからの相対パスで表す。
  */
 function standaloneZipBase(html: string, path: string) {
   if (!/<base[\s>]/i.test(html)) return undefined;
@@ -71,7 +71,7 @@ function standaloneZipBase(html: string, path: string) {
   };
 }
 
-/** Rewrite only root-relative CSS resource references. */
+/** ルート相対の CSS のリソースの参照だけを書き換える。 */
 function rewriteCssRootUrls(source: string, prefix: string): string {
   return rewriteCssAssetUrls(source, (url) =>
     url.startsWith("/") && !url.startsWith("//") ? prefix + url.slice(1) : undefined
@@ -89,8 +89,8 @@ function importedScriptSources(doc: SiteDoc): Map<string, string> {
 }
 
 /**
- * Rewrite actual HTML attributes and inline CSS, never script text, comments,
- * text nodes, or values of unrelated attributes that happen to contain markup.
+ * 実際の HTML の属性とインラインの CSS だけを書き換える。スクリプトの本文、コメント、
+ * テキストノード、たまたまマークアップを含む無関係な属性の値は、決して書き換えない。
  */
 function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<string, string>): string {
   const rewriteTag = (tag: string) => tag.replace(
@@ -113,8 +113,8 @@ function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<stri
         return rewritten === value ? whole : space + name + eq + quote + rewritten + quote;
       }
       if (attribute === "style") {
-        // CSS tokenization happens after HTML attribute entity decoding in the
-        // browser. Serialized url(&quot;/assets/...&quot;) must work as well.
+        // ブラウザでは、CSS の字句の解析は HTML の属性の文字参照をデコードした後に行われる。
+        // 直列化した url(&quot;/assets/...&quot;) も使えるようにする。
         const fragment = parseFragment("<div style=" + quote + value + quote + "></div>");
         const decoded = (fragment.childNodes[0] as Html.Element).attrs[0].value;
         const rewritten = rewriteCssRootUrls(decoded, prefix);
@@ -139,7 +139,7 @@ function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<stri
   );
 }
 
-/** Preserve list item tokens until Tsumu's browser runtime clones each row. */
+/** Tsumu のブラウザのランタイムが各行を複製するまで、リストの項目の字句を残す。 */
 function templateParts(value: string): string {
   const out: (string | { name: string })[] = [];
   let from = 0;
@@ -180,16 +180,16 @@ function href(ctx: Context, value: string): string {
   const match = /^([^?#]*)(.*)$/.exec(safe);
   const slug = (match?.[1] ?? safe).replace(/^\/+|\/+$/g, "");
   const route = ctx.staticRoutes.get(slug);
-  // A URL link supplies its own query even when variants share the output file.
+  // URL のリンクは、クエリ違いのページが出力ファイルを共有していても、自身のクエリを持つ。
   if (route) return ctx.prefix + pageFilename(route[0], ctx.single) + (match?.[2] ?? "");
   return ctx.prefix + safe.replace(/^\/+/, "");
 }
 
-/** A media source can be inline data or a site-local file, never an active URL scheme. */
+/** メディアのソースは、インラインのデータか、サイト内のファイルに限る。動作するような URL のスキームは使わない。 */
 function sourceHref(ctx: Context, value: string): string {
   const safe = safeResourceUrl(value);
-  // Media paths are file references, not page links. Never resolve a coincident
-  // page slug to index.html when the source actually points to an asset.
+  // メディアのパスはファイルへの参照で、ページへのリンクではない。ソースが実際にアセットを
+  // 指しているときに、たまたま一致したページの slug を index.html に解決してはいけない。
   return /^\/(?!\/)/.test(safe)
     ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
 }
@@ -392,8 +392,8 @@ function render(ctx: Context, id: string, top: boolean): string {
 }
 
 /**
- * Render a data-driven page body that the shared browser runtime can populate.
- * React can mount it through a component, and static HTML can embed it directly.
+ * 共通のブラウザのランタイムが中身を入れられる、データを使うページの本文を描画する。
+ * React ではコンポーネントからマウントでき、静的な HTML ではそのまま埋め込める。
  */
 function pageFragment(ctx: Context, page: Page): string {
   const plan = pagePlan(ctx.doc, page.id);
@@ -437,7 +437,7 @@ export function createReactPageRenderer(doc: SiteDoc) {
   };
 }
 
-/** Quote a font name as a single CSS string token. */
+/** フォント名を、1つの CSS の文字列の字句として引用符で囲む。 */
 function cssQuoted(value: string): string {
   return '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
     "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
@@ -466,7 +466,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
   for (const [path, source] of Object.entries(next.files)) {
     if (!path.startsWith("public/")) continue;
     const output = path.slice(7);
-    // Service workers are not usable from file://. The rest is directly readable.
+    // Service Worker は file:// からは使えない。それ以外は、そのまま読める。
     files[output] = output.endsWith(".css")
       ? rewriteCssRootUrls(source, output.startsWith("assets/") ? "./" : "../") : source;
   }
@@ -502,8 +502,8 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
   }
   files["styles/site.css"] = rewriteCssRootUrls(next.files["styles/site.css"], "../");
   files["styles/globals.css"] = fontsCss(normalized) + "\n" + next.files["app/globals.css"];
-  // The page plan runs before the shared DOM runtime installs listeners,
-  // so its fetched variables are available for live text and client lists.
+  // ページの計画は、共通の DOM のランタイムがリスナーを登録する前に実行するため、
+  // 取得した変数を、動的なテキストやクライアントのリストで使える。
   files["data-loader.js"] = PAGE_DATA_RUNTIME;
   files["scripts.js"] = scriptsFile(normalized, true);
   files["README.txt"] = [
@@ -532,8 +532,8 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     outputPaths.add(path);
     const prefix = pagePrefix(path);
     if (page.rawHtml?.trim()) {
-      // Render with the shared HTML/CSS generators. Next.js route filenames and
-      // serialized TypeScript are framework output, not a source of page data.
+      // 共通の HTML / CSS の生成処理で描画する。Next.js のルートのファイル名と、
+      // 直列化した TypeScript はフレームワークの出力で、ページのデータの元ではない。
       const source = htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
         asset => htmlZipExportSource(asset, assets));
       const html = rawHtmlWithBodyStyles(normalized, page, cssValue(normalized, "rawHtml", source, assets), assets);
@@ -544,7 +544,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
         return url ? assetPrefix + url.slice(1) : "";
       });
       if (base) {
-        // A script preceding <base> can change its source offsets.
+        // <base> より前にあるスクリプトは、ソースの位置を変えることがある。
         const updated = htmlWithScriptAssets === html ? base : standaloneZipBase(htmlWithScriptAssets, path)!;
         htmlWithScriptAssets = htmlWithScriptAssets.slice(0, updated.location.startOffset) +
           'href="' + escapeHtml(base.href) + '"' + htmlWithScriptAssets.slice(updated.location.endOffset);
@@ -590,9 +590,9 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     ].filter(Boolean).join("\n");
     const scriptNames = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"]
       .filter((name) => name in files);
-    // Query variants insert authored page fragments at runtime. Their scripts
-    // are otherwise inert, so route selection must replay them first and then
-    // load the shared data/event runtimes in the usual order.
+    // クエリ違いのページは、書かれたページの断片を実行時に挿入する。その中のスクリプトは
+    // そのままでは動かないため、ルートの選択でそれらを先に再実行し、
+    // その後で、共通のデータとイベントのランタイムを通常の順序で読み込む。
     const scripts = group.length > 1
       ? '<script defer src="' + prefix + 'query-router.js"' +
         attr("data-runtime-sources", JSON.stringify(scriptNames.map((name) => prefix + name))) +
@@ -609,8 +609,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       scripts, "</body>", "</html>", "",
     ].join("\n");
   }
-  // Ensure the archive always has an openable entry point, even when the
-  // published pages have no dedicated root route.
+  // 公開するページに専用のルートが無くても、アーカイブに必ず開ける入口を用意する。
   if (!files["index.html"] && pages.length) {
     const first = pageFilename(pages[0], false);
     const target = "./" + first;

@@ -2,7 +2,7 @@
 
 /**
  * モーションの編集画面（右パネルのモーションから開く）。
- * - イージング: 曲線のハンドルをドラッグし、動く点で緩急を見ながら決める
+ * - イージング: 曲線のハンドルをドラッグし、動く点で緩急を確かめながら決める
  * - カスタムキーフレーム: タイムラインに置いた各時点の見た目を、見本を動かしながら決める
  * どちらも画面の中だけで編集し、「適用」で1回の変更として書き込む（「元に戻す」1回で戻せる）
  */
@@ -21,7 +21,7 @@ import { trackMotionPointer } from "../lib/motion-pointer-drag";
 
 /* ---------- 共通 ---------- */
 
-/** 入力中・メニューを開いている間の Esc はそちらに任せ、それ以外で閉じる */
+/** 入力中やメニューを開いている間の Esc はそちらに任せ、それ以外のときは画面を閉じる */
 function useEscape(onClose: () => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -41,11 +41,11 @@ const SPEEDS = [
   { value: "0.25", label: "0.25×" },
 ];
 
-/** プレビューの再生時間（短すぎ・長すぎると動きが読み取れないので、見本の範囲に収める） */
+/** プレビューの再生時間（短すぎても長すぎても動きが分からないため、一定の範囲に収める） */
 const previewSeconds = (duration: number) => Math.min(10, Math.max(0.1, duration || 0.3));
 
 /**
- * 再生の時計。time は 0〜duration（秒）で、最後まで行ったら少し止めてから最初に戻る。
+ * 再生の時計。time は 0〜duration（秒）で、最後まで進んだら少し止めてから最初に戻る。
  * speed は見た目の速さ（0.25 = 4倍ゆっくり）
  */
 function usePlayback(duration: number, speed: number) {
@@ -56,7 +56,7 @@ function usePlayback(duration: number, speed: number) {
     if (!playing) return;
     const lead = 0.25;
     const hold = 0.6;
-    // 時計は「止め」を含めて回し、表示する時刻は 0〜duration に収める
+    // 時計は「止め」の時間を含めて進め、表示する時刻は 0〜duration に収める
     let last = performance.now();
     let raf = 0;
     const tick = (now: number) => {
@@ -92,22 +92,22 @@ function usePlayback(duration: number, speed: number) {
 
 interface History<T> {
   value: T;
-  /** 変える。mergeKey が続けて同じなら（文字の入力など）、ひとつの履歴にまとめる */
+  /** 値を変える。mergeKey が続けて同じなら（文字の入力など）、1つの履歴にまとめる */
   set: (next: T | ((v: T) => T), mergeKey?: string) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  /** 編集を受け付けたポインターを、履歴のドラッグ操作として明示的に所有する */
+  /** 編集を受け付けたポインターを、履歴上のドラッグ操作の持ち主として明示的に記録する */
   beginGesture: (pointerId: number) => void;
-  /** キャンセルやキャプチャ喪失で終わった操作を、次の操作と別の履歴にする */
+  /** キャンセルやキャプチャの喪失で終わった操作を、次の操作とは別の履歴にする */
   endGesture: () => void;
 }
 
 /**
- * 編集画面の中だけの「元に戻す / やり直す」。
+ * 編集画面の中だけで使う「元に戻す / やり直す」。
  * エディタ本体の履歴とは別で、「適用」したときに1回の変更として本体の履歴に入る。
- * ドラッグ（押してから離すまで）の間の変更は、ひとつの履歴にまとめる
+ * ドラッグ（押してから離すまで）の間の変更は、1つの履歴にまとめる
  */
 function useHistory<T>(init: () => T): History<T> {
   const ref = useRef<{
@@ -163,7 +163,7 @@ function useHistory<T>(init: () => T): History<T> {
   const set = useCallback((next: T | ((v: T) => T), mergeKey?: string) => {
     const h = ref.current!;
     const v = typeof next === "function" ? (next as (v: T) => T)(h.value) : next;
-    // 欄を触っただけなど、中身が変わらないときは履歴に積まない
+    // 欄に触れただけなど、中身が変わらないときは履歴に積まない
     if (JSON.stringify(v) === JSON.stringify(h.value)) return;
     const dragging = h.pressed && h.moved;
     const merge = (dragging && h.dragPushed) || (mergeKey !== undefined && h.mergeKey === mergeKey);
@@ -185,8 +185,8 @@ function useHistory<T>(init: () => T): History<T> {
     h.future.push(h.value);
     h.value = prev;
     h.mergeKey = null;
-    // Undo/redo is a history boundary even while a pointer remains down.
-    // Subsequent pointer updates must not merge into the entry just traversed.
+    // ポインターを押したままでも、元に戻す・やり直すは履歴の区切りになる。
+    // その後のポインターの動きを、移動した先の履歴にまとめてはいけない。
     h.pressed = false;
     h.moved = false;
     h.dragPushed = false;
@@ -202,8 +202,8 @@ function useHistory<T>(init: () => T): History<T> {
     h.past.push(h.value);
     h.value = next;
     h.mergeKey = null;
-    // Undo/redo is a history boundary even while a pointer remains down.
-    // Subsequent pointer updates must not merge into the entry just traversed.
+    // ポインターを押したままでも、元に戻す・やり直すは履歴の区切りになる。
+    // その後のポインターの動きを、移動した先の履歴にまとめてはいけない。
     h.pressed = false;
     h.moved = false;
     h.dragPushed = false;
@@ -232,7 +232,7 @@ function useHistory<T>(init: () => T): History<T> {
   return { value: h.value, set, undo, redo, beginGesture, endGesture, canUndo: h.past.length > 0, canRedo: h.future.length > 0 };
 }
 
-/** ⌘Z / ⇧⌘Z（Ctrl+Z / Ctrl+Y）で編集画面の中の履歴を戻す。入力欄の中では、文字の取り消しに任せる */
+/** ⌘Z / ⇧⌘Z（Ctrl+Z / Ctrl+Y）で、編集画面の中の履歴を移動する。入力欄の中では、文字の取り消しに任せる */
 function useHistoryKeys(history: Pick<History<unknown>, "undo" | "redo">) {
   const { undo, redo } = history;
   useEffect(() => {
@@ -271,7 +271,7 @@ function ModalFrame({
 }) {
   useEscape(onClose);
   useHistoryKeys(history);
-  // 右パネルの中から開くため、パネルの重なり・はみ出しの影響を受けないよう body に描く
+  // 右パネルの中から開くため、パネルの重なりやはみ出しの影響を受けないよう、body に描画する
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal me-modal ${className}`} role="dialog" aria-label={title}>
@@ -315,7 +315,7 @@ function ModalFrame({
 
 /* ---------- イージング ---------- */
 
-/** 曲線の小さな絵（右パネルのボタン・プリセットの一覧に使う） */
+/** 曲線の小さな絵（右パネルのボタンや、プリセットの一覧に使う） */
 export function EasingCurve({ value, size = 22 }: { value: string; size?: number }) {
   const e = parseEasing(value);
   const pad = 2;
@@ -345,7 +345,7 @@ function curvePath(e: Easing, sx: (x: number) => number, sy: (y: number) => numb
     const [x1, y1, x2, y2] = e.b;
     return `M${sx(0)} ${sy(0)} C${sx(x1)} ${sy(y1)} ${sx(x2)} ${sy(y2)} ${sx(1)} ${sy(1)}`;
   }
-  // 段になる値は、区間ごとの水平線を縦の線でつなぐ
+  // 段階的に変わる値は、区間ごとの水平線を縦の線でつなぐ
   const pts: string[] = [];
   const N = 400;
   let prev = easeAt(e, 0);
@@ -373,7 +373,7 @@ const PRESET_GROUPS: { group: (typeof EASING_PRESETS)[number]["group"]; label: s
   { group: "back", label: tr("Overshoot") },
 ];
 
-/** グラフの大きさ（x の 0〜1 を横幅、y は値に合わせて広げる範囲を縦幅に描く） */
+/** グラフの大きさ（x の 0〜1 を横幅に、y は値に合わせて広げた範囲を縦幅に描く） */
 const GW = 240;
 const GH = 240;
 const GPAD = 14;
@@ -390,7 +390,7 @@ export function EasingEditorModal({
   onApply: (value: string) => void;
   onClose: () => void;
 }) {
-  /** raw = グラフで表せない値を直接書いたとき、その文字 */
+  /** raw = グラフで表せない値を直接書いたときの、その文字列 */
   const history = useHistory<{ easing: Easing | null; raw: string | null }>(() => {
     const e = parseEasing(value);
     return { easing: e, raw: e ? null : value };
@@ -434,7 +434,7 @@ export function EasingEditorModal({
     const start = easing.b;
     const move = (ev: PointerEvent) => {
       const r = svg.getBoundingClientRect();
-      // 画面上の位置を、描画の座標（viewBox）を経て曲線の値に戻す
+      // 画面上の位置を、描画の座標（viewBox）を経由して曲線の値に戻す
       const vx = ((ev.clientX - r.left) / r.width) * GW;
       const vy = ((ev.clientY - r.top) / r.height) * GH;
       const x = Math.min(1, Math.max(0, (vx - GPAD) / (GW - GPAD * 2)));
@@ -649,7 +649,7 @@ export function EasingEditorModal({
 
 type NumKey = "opacity" | "x" | "y" | "scale" | "rotate";
 
-/** 項目（表示の単位に換算して出す。不透明度・拡大は % で見せる） */
+/** 項目（表示用の単位に換算して表示する。不透明度と拡大は % で表示する） */
 const KF_FIELDS: { key: NumKey; label: string; unit: string; pre: string; toView: (n: number) => number; fromView: (n: number) => number; min?: number; max?: number }[] = [
   { key: "opacity", label: tr("Opacity"), unit: "%", pre: "α", toView: (n) => n * 100, fromView: (n) => n / 100, min: 0, max: 100 },
   { key: "x", label: tr("Move X"), unit: "px", pre: "X", toView: (n) => n, fromView: (n) => n },
@@ -674,7 +674,7 @@ export function KeyframeEditorModal({
   onClose: () => void;
 }) {
   const initial = useMemo(() => parseKeyframes(css), [css]);
-  /** cssText = CSSを直接書いているとき、その文字（読めない書き方でも、そのまま適用できる） */
+  /** cssText = CSS を直接書いているときの、その文字列（読み取れない書き方でも、そのまま適用できる） */
   const history = useHistory<{ list: Keyframe[]; cssText: string | null }>(() => ({
     list: initial ?? [emptyKeyframe(0), emptyKeyframe(100)],
     cssText: initial ? null : css,
@@ -691,14 +691,14 @@ export function KeyframeEditorModal({
 
   const output = cssText ?? serializeKeyframes(list);
   const sorted = [...list].sort((a, b) => a.offset - b.offset);
-  // 元に戻すで選んでいたキーフレームが消えたときは、先頭を選ぶ
+  // 元に戻す操作で、選んでいたキーフレームが消えたときは、先頭を選ぶ
   const sel = list.find((k) => k.id === selected) ?? list[0] ?? null;
 
   const rawId = useId();
   const animName = `kfe-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const stageRef = useRef<HTMLDivElement>(null);
 
-  // 見本の CSS アニメーションは止めたまま、時刻を直接合わせて描く（タイムラインと同じ時刻を見せる）
+  // 見本の CSS アニメーションは止めたまま、時刻を直接合わせて描く（タイムラインと同じ時刻の見た目を表示する）
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -711,7 +711,7 @@ export function KeyframeEditorModal({
   const update = (id: string, patch: Partial<Keyframe>) =>
     setList((l) => l.map((k) => (k.id === id ? { ...k, ...patch } : k)));
 
-  /** 同じ位置に2つ置かない（CSSでは後のものだけが効き、見分けが付かないため） */
+  /** 同じ位置に2つ置かない（CSS では後のものだけが効き、見分けが付かないため） */
   const freeOffset = (offset: number, except?: string) =>
     !list.some((k) => k.id !== except && Math.abs(k.offset - offset) < 0.001);
 
@@ -766,9 +766,9 @@ export function KeyframeEditorModal({
     const finish = (ev: PointerEvent | null) => {
       dragCleanup.current = null;
       if (moved) {
-        // キャンセルには有効な座標がないので、最後に動かした位置で終える。
+        // キャンセルには有効な座標が無いため、最後に動かした位置で終える。
         const o = ev ? Math.round(pct(ev.clientX)) : offset;
-        // 重なったら元の位置に戻す（この後始末も同じドラッグの履歴に含める）
+        // 重なったら元の位置に戻す（この後始末も、同じドラッグの履歴に含める）
         setList((l) =>
           l.map((k) => (k.id === kf.id ? { ...k, offset: l.some((x) => x.id !== kf.id && x.offset === o) ? from : o } : k))
         );
@@ -1002,7 +1002,7 @@ export function KeyframeEditorModal({
             value={cssText}
             spellCheck={false}
             onChange={(e) => {
-              // 続けて打った文字は、ひとつの履歴にまとめる
+              // 続けて入力した文字は、1つの履歴にまとめる
               const text = e.target.value;
               history.set((h) => ({ ...h, cssText: text }), "css-text");
               setCssError(false);

@@ -14,8 +14,8 @@ function withFreshDb(run: (db: Awaited<ReturnType<typeof getDbFromBinding>>) => 
     process.env.TSUMU_DATA_DIR = dir;
     try {
       const sqlite = nodeDatabase()!;
-      // Execute the production D1 SQL schema against real SQLite, not the
-      // self-hosted adapter mode (which stores SiteDoc JSON in local docs).
+      // 自前でホストするときのアダプターのモード（SiteDoc の JSON をローカルの docs に保存する）ではなく、
+      // 本番の D1 の SQL のスキーマを、実際の SQLite に対して実行する。
       const fakeD1: D1LikeDatabase = {
         prepare: (sql) => sqlite.prepare(sql),
         batch: (stmts) => sqlite.batch(stmts),

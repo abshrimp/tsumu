@@ -52,7 +52,7 @@ test("a structural edit keeps every untouched page, node, asset and setting by r
   assert.equal(after.assets, before.assets, "an unchanged collection is shared as a whole");
   assert.equal(after.colorPalette, before.colorPalette);
   assert.equal(after.pageOrder, before.pageOrder);
-  // 履歴に積まれた編集前の文書は書き換わらず、元に戻すと同じ参照へ戻る
+  // 履歴に積まれた編集前の文書は書き換わらず、元に戻すと、同じ参照に戻る
   assert.equal(before.nodes["node-3"].name, "node-3");
   state().undo();
   assert.equal(state().doc, before);
@@ -85,7 +85,7 @@ test("after a structural edit, the incremental save sends only what changed", ()
   const next = state().doc;
   const patch = createDocPatch(synced, next);
   assert.deepEqual(patch?.map((op) => op.path), [["pages", "home"], ["nodes", "added"]]);
-  // 変わっていない要素は参照が同じなので、差分の作成で直列化されない
+  // 変わっていない要素は参照が同じなので、差分を作るときに直列化されない
   const original = JSON.stringify;
   let serialized = 0;
   JSON.stringify = ((...args: Parameters<typeof JSON.stringify>) => {
@@ -126,7 +126,7 @@ test("adding, removing and reordering entries is never mistaken for an unchanged
 });
 
 test("sharing never changes the saved content and never mutates either input", () => {
-  // 決まった乱数列で、要素・ページ・設定への変更を組み合わせる
+  // 決まった乱数の列で、要素・ページ・設定への変更を組み合わせる
   let seed = 12345;
   const random = (n: number) => {
     seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
@@ -158,7 +158,7 @@ test("sharing never changes the saved content and never mutates either input", (
     assert.equal(sameDocContent(before, after), beforeJson === afterJson, `round ${round}: comparison`);
     assert.equal(JSON.stringify(before), beforeJson, `round ${round}: before is not mutated`);
     assert.equal(JSON.stringify(after), afterJson, `round ${round}: after is not mutated`);
-    // 差分保存も同じ比較を使う。差分を当てた結果は、編集後と同じ内容になる
+    // 差分の保存も同じ比較を使う。差分を適用した結果は、編集後と同じ内容になる
     const patch = createDocPatch(before, result);
     if (patch) {
       assert.equal(patch.length === 0, beforeJson === afterJson, `round ${round}: empty patch`);
@@ -195,7 +195,7 @@ test("values that differ in memory but serialize identically count as unchanged"
   assert.equal(shareUnchangedDoc(before, after), before);
   assert.equal(sameDocContent(before, after), true);
 
-  // 配列とオブジェクト、キーの並びの違いは別の内容として扱う
+  // 配列とオブジェクトの違いや、キーの並びの違いは、別の内容として扱う
   const reshaped = structuredClone(before);
   (reshaped.nodes["node-0"] as unknown as Record<string, unknown>).htmlAttrs = [["a", "1"]];
   assert.equal(sameDocContent(before, reshaped), false);

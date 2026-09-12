@@ -91,7 +91,7 @@ test("dropping a JSON file imports a new editable site", async ({ page }) => {
   }, payload);
   await expect(page.locator(".home-drop-overlay")).toBeVisible();
   await page.evaluate((input) => {
-    // Drop on a different part of the homepage, not on a dedicated drop target.
+    // 専用のドロップ先ではなく、ホームの別の部分にドロップする。
     const target = document.querySelector(".home-main");
     if (!target) throw new Error("Home content missing");
     const transfer = new DataTransfer();
@@ -297,8 +297,8 @@ test("local import waits for a preceding tab's site index to reach this tab", as
       await expect(tab).toHaveURL(/\/sites\/[a-z0-9]{10}$/);
     }
     await upload(page, "First tab");
-    // Chromium can grant the IndexedDB transaction before propagating changes
-    // to the second renderer's localStorage. Delay that visibility deterministically.
+    // Chromium は、2つ目のレンダラーの localStorage に変更を伝える前に、IndexedDB の
+    // トランザクションを許可することがある。その見え方の遅れを、決まった形で再現する。
     await second.evaluate(({ listKey, markerKey }) => {
       const get = Storage.prototype.getItem;
       let until = 0;

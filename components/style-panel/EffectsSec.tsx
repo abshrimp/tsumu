@@ -45,8 +45,8 @@ import { tr } from "../../lib/i18n";
 import { editFilterFunction, filterFunctions } from "../../lib/filter-edit";
 import { I, Sec } from "./shared";
 
-/** An explicit removal differs from reset: default/wider-screen effects must
- * be disabled in this state, not revealed again by deleting the override. */
+/** 明示的な削除はリセットとは違う。既定や大きい画面の効果を、上書きを消して再び
+ * 表示させるのではなく、この状態では無効にする。 */
 function disabledEffect(insp: ReturnType<typeof useInspector>, prop: string): string | null {
   return isInitialValue(prop, insp.get(prop).baseline) ? null : "none";
 }
@@ -63,8 +63,8 @@ interface Shadow {
 }
 
 export function parseShadow(s: string): Shadow {
-  // Split only outside color functions: unitless zero is a length, but an
-  // rgb()/color() channel or a number inside var()/calc() is not.
+  // 区切るのは色の関数の外側だけにする。単位の無い 0 は長さだが、
+  // rgb() や color() の成分、var() や calc() の中の数値は長さではない。
   const tokens: string[] = [];
   let depth = 0, token = "";
   for (const ch of s.trim()) {
@@ -84,8 +84,8 @@ export function parseShadow(s: string): Shadow {
   for (const part of tokens) {
     if (part.toLowerCase() === "inset") inset = true;
     else if (/^[+-]?(?:\d*\.)?\d+px$/i.test(part) || /^[+-]?(?:0*\.)?0+$/.test(part)) nums.push(parseFloat(part));
-    // Preserve relative/physical lengths rather than treating them as color
-    // tokens. Editing a color must not flatten em/rem/viewport-based geometry.
+    // 相対的な長さや物理的な長さは、色の字句として扱わずにそのまま残す。
+    // 色を編集したときに、em・rem・ビューポート基準の大きさを平らにしてはいけない。
     else if (/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?(?:px|em|rem|ex|rex|cap|rcap|ch|rch|ic|ric|lh|rlh|vw|vh|vi|vb|vmin|vmax|[sld]v(?:w|h|i|b|min|max)|cq(?:w|h|i|b|min|max)|cm|mm|q|in|pt|pc)$/i.test(part) || /^(?:calc|min|max|clamp)\(/i.test(part)) nums.push(part);
     else colors.push(part);
   }
@@ -175,7 +175,7 @@ function ShadowCard({
   );
 }
 
-/** フィルタ各項目のフィールド定義 */
+/** フィルターの各項目の入力欄の定義 */
 const FILTER_FIELDS: {
   key: keyof FilterParts;
   label: string;
@@ -229,7 +229,7 @@ function originCell(v: string | undefined): string | null {
     else if (word(parts[0])) x = word(parts[0])!;
     else return null;
   } else {
-    // 「top left」のように縦が先でも読む
+    // 「top left」のように縦が先に書かれていても読む
     const [a, b] = parts[0] === "top" || parts[0] === "bottom" || parts[1] === "left" || parts[1] === "right" ? [parts[1], parts[0]] : [parts[0], parts[1]];
     if (!word(a) || !word(b)) return null;
     x = word(a)!;
@@ -253,7 +253,7 @@ function OriginGrid() {
           aria-checked={cur === o.value}
           className={cur === o.value ? "is-on" : ""}
           data-tip={o.label}
-          // 中央も明示する（設定を消すと、大きい画面・通常時の基準点が再び効いてしまう）。
+          // 中央も明示的に指定する（設定を消すと、大きい画面や通常時の基準点が再び効いてしまう）。
           onClick={() => insp.set({ transformOrigin: o.value })}
         />
       ))}
@@ -261,7 +261,7 @@ function OriginGrid() {
   );
 }
 
-/** 変形（transform）: 移動・回転・拡大・傾きと基準点。まわりの配置は変えずに見た目だけ動かす */
+/** 変形（transform）: 移動・回転・拡大・傾きと基準点。周りの配置は変えずに、見た目だけを動かす */
 function TransformCard({ onDelete }: { onDelete: () => void }) {
   const insp = useInspector();
   const info = insp.get("transform");
@@ -357,7 +357,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
 
 export function EffectsSec() {
   const insp = useInspector();
-  // 「none」（小さい画面で影を打ち消した値）は影なしとして扱う
+  // 「none」（小さい画面で影を打ち消した値）は、影なしとして扱う
   const shadowList = (raw: string | undefined) =>
     raw && !isInitialValue("boxShadow", raw) ? splitTopLevel(raw).map(parseShadow) : [];
   const dropShadows = shadowList(insp.get("boxShadow").value);
@@ -382,7 +382,7 @@ export function EffectsSec() {
 
   const filterInfo = insp.get("filter");
   const f = parseFilter(filterInfo.value);
-  /** 比べる相手（大きい画面・通常時）のフィルタ。項目ごとの変更の色に使う */
+  /** 比べる相手（大きい画面・通常時）のフィルター。項目ごとの変更の色に使う */
   const fBase = parseFilter(filterInfo.baseline);
   const filterChanged = (key: keyof FilterParts) => filterInfo.setHere && f[key] !== fBase[key];
   const setFilter = (patch: Partial<FilterParts>) => {
@@ -398,7 +398,7 @@ export function EffectsSec() {
   const bdVal = insp.get("backdropFilter").value;
   const bdM = /blur\(\s*(\d*\.?\d+)px\s*\)/i.exec(filterFunctions(bdVal ?? "").find(fn => fn.name === "blur")?.text ?? "");
 
-  // 変形: 設定済みか、「＋」から足したときに出す
+  // 変形: 設定済みのとき、または「＋」から追加したときに表示する
   const tfSet = !!serializeTransform(parseTransform(insp.get("transform").value)) || insp.get("transformOrigin").set;
   const [tfAdded, setTfAdded] = useState(false);
 

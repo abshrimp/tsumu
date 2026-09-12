@@ -5,7 +5,7 @@ export type LocalSaveResult = "saved" | "error" | "deleted";
 export type LocalSaveState = LocalSaveResult | "pending";
 export type LocalSaveSnapshot = { doc: SiteDoc; result: LocalSaveResult };
 
-/** 一覧に無いだけでは止めない。削除記録を読めないときも成功とは扱わない。 */
+/** 一覧に無いというだけでは止めない。削除の記録を読めないときも、成功としては扱わない。 */
 export function localSaveBlock(): Exclude<LocalSaveResult, "saved"> | null {
   try {
     return isLocalSiteDeleted() ? "deleted" : null;
@@ -15,12 +15,12 @@ export function localSaveBlock(): Exclude<LocalSaveResult, "saved"> | null {
 }
 
 export function localSaveState(saved: LocalSaveSnapshot | null, doc: SiteDoc): LocalSaveState {
-  // 削除後の編集・Undoで「保存中」に戻し、保存先がまだあるようには見せない。
+  // 削除した後の編集や元に戻す操作では「保存中」に戻し、保存先がまだあるようには見せない。
   if (saved?.result === "deleted") return "deleted";
   return saved?.doc === doc ? saved.result : "pending";
 }
 
-/** 別タブでの削除は、次の編集を待たずに前の「保存済み」を無効にする。 */
+/** 別のタブでの削除は、次の編集を待たずに、前回の「保存済み」を無効にする。 */
 export function watchLocalSaveBlock(onBlocked: (reason: "deleted" | "error") => void): () => void {
   const markerKey = siteKey(LOCAL_SITE_DELETED_KEY, currentSiteId());
   const check = () => {
@@ -46,7 +46,7 @@ export function watchLocalSaveBlock(onBlocked: (reason: "deleted" | "error") => 
   };
 }
 
-/** サーバー保存済みならブラウザ側の削除だけで離脱を妨げない。 */
+/** サーバーに保存済みなら、ブラウザ側の削除だけでは、ページを離れるのを妨げない。 */
 export function warnForDeletedLocalSave(state: LocalSaveState, cloudState: string): boolean {
   return cloudState !== "synced" && (state === "deleted" || localSaveBlock() === "deleted");
 }

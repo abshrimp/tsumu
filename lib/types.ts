@@ -44,26 +44,26 @@ export interface FieldOption {
 
 export interface FieldContent {
   kind: FieldKind;
-  /** kind="input" のときのHTML input type */
+  /** kind="input" のときの HTML の input type */
   inputType?: InputType;
   /** checkbox / radio の隣に表示するテキスト（{変数} を使える） */
   label?: string;
   /** input / textarea / select の初期値（{変数} を使える） */
   defaultValue?: string;
-  /** 未入力のときに薄く出す案内文（{変数} を使える） */
+  /** 未入力のときに薄く表示する案内文（{変数} を使える） */
   placeholder?: string;
   /** select の選択肢（{変数} を使える） */
   options?: FieldOption[];
-  /** checkbox / radio: 最初からチェックしておく */
+  /** checkbox / radio: 最初からチェックしておくか */
   checked?: boolean;
   /**
-   * radio: グループ名（同じグループのラジオボタンから1つだけ選べる。送信するときの名前で、
+   * radio: グループ名（同じグループのラジオボタンからは1つだけ選べる。送信するときの名前になり、
    * {グループ名} が選んだボタンの値になる）
    */
   group?: string;
-  /** 操作できない状態にする（disabled） */
+  /** 操作できない状態にするか（disabled） */
   disabled?: boolean;
-  /** 送信する前に入力が必要 */
+  /** 送信する前に入力が必要か */
   required?: boolean;
   /** number / range / 日付・時刻: 最小値・最大値・刻み */
   min?: string;
@@ -75,11 +75,11 @@ export interface FieldContent {
   rows?: number;
   /** file: 選べるファイルの種類（例: image/*, .pdf） */
   accept?: string;
-  /** file: 複数のファイルを選べる */
+  /** file: 複数のファイルを選べるか */
   multiple?: boolean;
 }
 
-/** 動画・音声の代替ソース。識別子とURL末尾を分けて保存する。 */
+/** 動画・音声の代わりのソース。識別子と URL の末尾を分けて保存する。 */
 export interface MediaSource {
   src: string;
   assetId?: string;
@@ -93,7 +93,7 @@ export interface MediaContent {
   kind: "video" | "audio";
   src: string;
   assetId?: string;
-  /** アセットに付けるクエリ・フラグメント（先頭は ? または #）。 */
+  /** アセットに付けるクエリやフラグメント（先頭は ? か #）。 */
   assetSuffix?: string;
   loop?: boolean;
   autoplay?: boolean;
@@ -102,33 +102,33 @@ export interface MediaContent {
 
 export interface EmbedContent {
   kind: "youtube" | "map" | "url";
-  /** ユーザー入力（YouTubeのURL / 住所 / 埋め込みたいURL） */
+  /** 利用者の入力（YouTube の URL / 住所 / 埋め込みたい URL） */
   src: string;
 }
 
 export interface IconContent {
   /** lucide のアイコン名（kebab-case） */
   name: string;
-  /** インライン展開用のSVGマークアップ */
+  /** インラインで展開するための SVG のマークアップ */
   svg: string;
 }
 
 export interface Motion {
   id: string;
-  /** state = transition、それ以外 = animation */
+  /** state なら transition、それ以外なら animation */
   trigger: "state" | "hover" | "active" | "load" | "in-view";
-  /** state: 変化を監視するプロパティ */
+  /** state: 変化を見張るプロパティ */
   property?: string;
-  /** animation: KEYFRAMES のキー（"custom" = customKeyframes を使用） */
+  /** animation: KEYFRAMES のキー（"custom" なら customKeyframes を使う） */
   keyframes?: string;
-  /** keyframes="custom" のときの @keyframes 本体（from {...} to {...}） */
+  /** keyframes="custom" のときの @keyframes の本体（from {...} to {...}） */
   customKeyframes?: string;
   /** 秒 */
   duration: number;
   /** 秒 */
   delay: number;
   easing: string;
-  /** -1 = 無限 */
+  /** -1 = 無限にくり返す */
   repeat?: number;
   direction?: "normal" | "reverse" | "alternate";
   fillMode?: "both" | "forwards" | "backwards" | "none";
@@ -149,8 +149,8 @@ export type Semantic =
   | "custom";
 
 /**
- * "base"（すべての画面）か、ブレークポイントのID。
- * 既定は lg（タブレット）/ md（スマホ横向き）/ sm（スマホ）で、サイト設定で追加・削除できる
+ * "base"（すべての画面）か、ブレークポイントの ID。
+ * 既定は lg（タブレット）/ md（スマホの横向き）/ sm（スマホ）で、サイトの設定で追加・削除できる
  */
 export type Breakpoint = string;
 
@@ -158,18 +158,18 @@ export type Breakpoint = string;
 export interface BreakpointDef {
   id: string;
   label: string;
-  /** この幅以下に効く（max-width） */
+  /** この幅以下で効く（max-width） */
   maxWidth: number;
 }
 export type StyleState = "default" | "hover" | "active" | "focus" | `custom:${string}`;
 
-/** camelCase CSS プロパティ → 値 */
+/** camelCase の CSS プロパティ → 値 */
 export type StyleMap = Record<string, string>;
 
 /** ブレークポイント → 状態 → スタイル（無いブレークポイントは undefined） */
 export type NodeStyles = Record<Breakpoint, Partial<Record<StyleState, StyleMap>>>;
 
-/** UI上でbodyを通常要素と同じ選択状態にするための予約ID */
+/** 画面上で body を通常の要素と同じように選択するための、予約の ID */
 export const BODY_NODE_ID = "__body__";
 
 export interface LinkSetting {
@@ -177,16 +177,16 @@ export interface LinkSetting {
   url?: string;
   pageId?: string;
   newTab?: boolean;
-  /** スクリプトエディタ上の位置（「クリックしたとき → 開く」として表示する） */
+  /** スクリプトの画面での位置（「クリックしたとき → 開く」として表示する） */
   pos?: ScriptPos;
 }
 
 /* ---------- スクリプト（きっかけ → 動作） ---------- */
 
-/** 動作の対象に「この要素自身」を指定するときの予約値 */
+/** 動作の対象に「この要素自身」を指定するときの予約の値 */
 export const SELF_TARGET = "@self";
 
-/** スクリプト画面で、きっかけに「このページ」を指定するときの予約値 */
+/** スクリプトの画面で、きっかけに「このページ」を指定するときの予約の値 */
 export const PAGE_TARGET = "@page";
 
 export type ScriptTrigger =
@@ -213,38 +213,38 @@ export type ScriptOp =
   | "lte"
   | "empty"
   | "has-key"
-  /** 指定した複数の値やリスト内の値のどれかと同じ */
+  /** 指定した複数の値か、リストの中の値のどれかと同じ */
   | "in";
 
 export interface ScriptCond {
   /** value = 値 / checked = チェック / visible = 表示中 / hovered = ホバー中 / var = 変数 */
   subject: "value" | "checked" | "visible" | "hovered" | "var";
-  /** 対象のID属性（SELF_TARGET = この要素。subject="var" では使わない） */
+  /** 対象の ID 属性（SELF_TARGET = この要素。subject="var" では使わない） */
   target: string;
   /** subject="var" で比べる値（{変数} と文字を混ぜて書ける） */
   left?: string;
   /** subject="value" / "var" の比較方法 */
   op?: ScriptOp;
   value?: string;
-  /** どの条件も「でない」を選べば判定を反転する */
+  /** どの条件も、「でない」を選べば判定を反転する */
   not?: boolean;
 }
 
-/** Additional if conditions connect to the preceding condition; AND binds before OR. */
+/** 追加の「もし」の条件は、直前の条件とつながる。「かつ」は「または」より先に結び付く。 */
 export interface JoinedScriptCond extends ScriptCond {
   /** true = かつ、false = または */
   and: boolean;
 }
 
-/** リスト表示の絞り込み条件 */
+/** リストの表示の絞り込みの条件 */
 export interface FilterCond {
   field: string;
   op: ScriptOp;
-  /** {変数} は実行時の値に置き換える */
+  /** {変数} は、実行時の値に置き換える */
   value: string;
-  /** 「でない」を選んだときにこの条件だけ反転する */
+  /** 「でない」を選んだときは、この条件だけを反転する */
   not?: boolean;
-  /** 直前の条件と「かつ」でつなぐ（無ければ「または」） */
+  /** 直前の条件と「かつ」でつなぐ（無ければ「または」でつなぐ） */
   and?: boolean;
 }
 
@@ -255,31 +255,31 @@ export type ScriptStep = { id: string } & (
   | { kind: "open-url"; url: string; newTab?: boolean }
   | { kind: "scroll-to"; target: string }
   | { kind: "set-value"; target: string; value: string }
-  /** 入力欄・ボタンを操作できる / できない状態にする（disabled） */
+  /** 入力欄やボタンを、操作できる / できない状態にする（disabled） */
   | { kind: "set-enabled"; target: string; op: "enable" | "disable" | "toggle" }
   | {
-      /** Change only the displayed list (filter, sort, clear), not its source data. */
+      /** 表示しているリストだけを変える（絞り込み・並べ替え・解除）。元のデータは変えない。 */
       kind: "list-display";
       mode: "filter" | "sort" | "clear";
       array: string;
       field: string;
       op: ScriptOp;
       value: string;
-      /** 最初の絞り込み条件の反転 */
+      /** 最初の絞り込みの条件を反転するか */
       not?: boolean;
-      /** Filter conditions and stable filter-slot identifier. */
+      /** 絞り込みの条件と、変わらない絞り込みの枠の識別子。 */
       or?: FilterCond[];
       no?: number;
       join?: "and" | "or";
       dir: "asc" | "desc";
     }
   | {
-      /** ブラウザに値やリストを保存する（localStorage → このホストのクッキー → メモリの順に試す） */
+      /** ブラウザに値やリストを保存する（localStorage → このホストのクッキー → メモリ の順に試す） */
       kind: "store-save";
       key: string;
       /** {変数} を使える */
       value: string;
-      /** 公開URLのドメインの全サブドメインで共有するクッキーにも保存する */
+      /** 公開 URL のドメインのすべてのサブドメインで共有するクッキーにも保存するか */
       shared?: boolean;
     }
   | {
@@ -287,28 +287,28 @@ export type ScriptStep = { id: string } & (
       kind: "store-load";
       key: string;
       into: string;
-      /** 全サブドメインで共有するクッキーを先に読む */
+      /** すべてのサブドメインで共有するクッキーを先に読むか */
       shared?: boolean;
     }
   | { kind: "set-list-item"; list: string; key: string; value: string }
-  /** Delete every matching value, or one entry by its array position / object key. */
+  /** 一致する値をすべて削除するか、配列の位置やオブジェクトのキーで1件を削除する。 */
   | { kind: "remove-list-item"; list: string; mode: "value" | "key"; value: string }
   | { kind: "break-loop" }
   | {
       /**
        * 値を変数に入れる（{変数} と文字を混ぜて書ける）。
-       * {名前} 1つだけなら内部型を保持して代入する。{データ.items.0} などの位置も参照できる
+       * {名前} が1つだけなら、内部の型を保ったまま代入する。{データ.items.0} などの位置も参照できる
        */
       kind: "set-var";
       value: string;
       into: string;
     }
   | {
-      /** A single composable pure operation on a variable. Multiple blocks run in order. */
+      /** 変数に対する、組み合わせられる純粋な操作を1つ。複数のブロックは順に実行する。 */
       kind: "transform";
-      /** Variable or nested path to read; no braces. */
+      /** 読む変数か、入れ子の位置。波かっこは付けない。 */
       source: string;
-      /** Output variable. May be the same as source for a sequential pipeline. */
+      /** 出力する変数。順に処理をつなぐ場合は、source と同じでもよい。 */
       into: string;
       transform: ValueTransform;
     }
@@ -319,14 +319,14 @@ export type ScriptStep = { id: string } & (
     }
   | { kind: "wait"; seconds: number | string }
   | {
-      /** 中のブロックを times 回くり返す（0 = ずっと。止まらないよう1回ごとに少し間をあける） */
+      /** 中のブロックを times 回くり返す（0 = ずっと。止まらなくならないよう、1回ごとに少し間をあける） */
       kind: "repeat";
       times: number | string;
       then: ScriptStep[];
     }
   | {
       /**
-       * リストの項目ごとに中のブロックを実行する。
+       * リストの項目ごとに、中のブロックを実行する。
        * {ループ.値}、{ループ.キー}、{ループ.順番} を参照できる
        */
       kind: "for-each";
@@ -335,14 +335,14 @@ export type ScriptStep = { id: string } & (
     }
   /*
    * データの取得。「このページ｜ページを開いたとき」の直下でだけ動き、
-   * 公開サイトではページを配信する前（サーバー側）に上から順に実行する。
-   * 取得結果は {名前.項目} などの変数参照やリスト操作で利用する
+   * 公開したサイトでは、ページを配信する前（サーバー側）に上から順に実行する。
+   * 取得した結果は、{名前.項目} などの変数の参照やリストの操作で使う
    */
   | {
-      /** URLからJSONを取得して、as の名前を付ける（{変数} を使える） */
+      /** URL から JSON を取得して、as の名前を付ける（{変数} を使える） */
       kind: "fetch";
       url: string;
-      /** HTTPメソッド（未設定 = GET） */
+      /** HTTP のメソッド（未設定なら GET） */
       method?: FetchMethod;
       /** 送るヘッダー（値に {変数} を使える） */
       headers?: FetchHeader[];
@@ -350,7 +350,7 @@ export type ScriptStep = { id: string } & (
       body?: string;
       /** 取得したデータの名前（要素では {名前.項目} としても使える） */
       as?: string;
-      /** Preview data is separate from the executable fetch request. */
+      /** プレビュー用のデータは、実行する取得のリクエストとは別に持つ。 */
       preview?: {
         sample?: unknown;
         totals?: Record<string, number>;
@@ -360,10 +360,10 @@ export type ScriptStep = { id: string } & (
   | {
       kind: "if";
       cond: ScriptCond;
-      /** Additional conditions; omitted when the if block has only one condition. */
+      /** 追加の条件。「もし」のブロックの条件が1つだけなら省略する。 */
       conditions?: JoinedScriptCond[];
       then: ScriptStep[];
-      /** 未定義 = 「もし〜なら」、配列 = 「もし〜なら / でなければ」 */
+      /** 未定義なら「もし〜なら」、配列なら「もし〜なら / でなければ」 */
       else?: ScriptStep[];
     }
 );
@@ -377,11 +377,11 @@ export interface FetchHeader {
 
 export interface Script {
   id: string;
-  /** 未設定 = きっかけの無いブロックの集まり（実行されない） */
+  /** 未設定なら、きっかけの無いブロックの集まり（実行されない） */
   trigger?: ScriptTrigger;
-  /** When trigger is "change", an explicit variable path watches script-assigned values instead of an element. */
+  /** trigger が "change" のとき、変数の位置を明示すれば、要素ではなくスクリプトが代入した値を見張る。 */
   changeVariable?: string;
-  /** hover-end: 「ホバーし始めたとき」に表示した要素の上にいる間は、外れたとしない */
+  /** hover-end: 「ホバーし始めたとき」に表示した要素の上にいる間は、外れたとみなさない */
   keepOnShown?: boolean;
   steps: ScriptStep[];
   pos: ScriptPos;
@@ -389,7 +389,7 @@ export interface Script {
 
 export interface TextContent {
   content: string;
-  /** 0 = 本文(p) / 1〜6 = h1〜h6 */
+  /** 0 = 本文（p）/ 1〜6 = h1〜h6 */
   heading: number;
 }
 
@@ -399,10 +399,10 @@ export interface ImageContent {
   width: number;
   height: number;
   assetId?: string;
-  /** アセットに付けるクエリ・フラグメント（先頭は ? または #）。 */
+  /** アセットに付けるクエリやフラグメント（先頭は ? か #）。 */
   assetSuffix?: string;
   priority?: boolean;
-  /** false = シャドウ付きSVGのiOS Safari向けぼやけ対策を適用しない */
+  /** false なら、シャドウ付きの SVG が iOS の Safari でぼやけるのを防ぐ処理を適用しない */
   crispShadow?: boolean;
 }
 
@@ -414,9 +414,9 @@ export interface DocNode {
   /** semantic === "custom" のときに出力するタグ名（pre・aside など） */
   customTag?: string;
   text: TextContent | null;
-  /** 「クリックしたとき → 開く」だけのスクリプト。a タグで出力する */
+  /** 「クリックしたとき → 開く」だけのスクリプト。a タグとして出力する */
   link: LinkSetting | null;
-  /** きっかけ → 動作 のスクリプト（link で表せるものは除く） */
+  /** 「きっかけ → 動作」のスクリプト（link で表せるものは除く） */
   scripts?: Script[];
   image?: ImageContent;
   code?: { html: string };
@@ -425,120 +425,120 @@ export interface DocNode {
   media?: MediaContent;
   embed?: EmbedContent;
   list?: ListContent;
-  /** type === "instance" のとき参照するコンポーネントID */
+  /** type === "instance" のときに参照するコンポーネントの ID */
   componentId?: string;
   children: string[];
   styles: NodeStyles;
-  /** この要素に常に適用される生CSS宣言（プロパティ: 値; の並び） */
+  /** この要素に常に適用する、生の CSS の宣言（「プロパティ: 値;」の並び） */
   customCss?: string;
-  /** Original HTML classes retained for imported selectors and scripts. */
+  /** 取り込んだセレクターやスクリプトのために残す、元の HTML のクラス。 */
   htmlClass?: string;
-  /** Safe, non-event HTML attributes retained during HTML conversion. */
+  /** HTML の変換で残す、イベントでない安全な HTML の属性。 */
   htmlAttrs?: Record<string, string>;
   motions?: Motion[];
-  /** 非表示にするデバイス。含まれないデバイスでは表示される */
+  /** 非表示にするデバイス。含まれないデバイスでは表示する */
   hiddenOn?: Breakpoint[];
   locked?: boolean;
   /**
-   * ID属性。アンカーに使えるほか、フォーム部品では送信時の項目名になり、
-   * テキストを持つ要素では内容が {ID} 変数として使える
+   * ID 属性。アンカーに使えるほか、フォームの部品では送信するときの項目名になり、
+   * テキストを持つ要素では、その内容を {ID} の変数として使える
    */
   attrId?: string;
 }
 
-/** URL直指定 or アセット参照のどちらかで画像を指す */
+/** URL の直接の指定か、アセットの参照のどちらかで画像を指す */
 export interface ImageRef {
   url?: string;
   assetId?: string;
 }
 
-/** Links an untouched HTML source file to the imported ZIP's asset identities. */
+/** 手を加えていない HTML のソースファイルを、取り込んだ ZIP のアセットの識別子と結び付ける。 */
 export interface HtmlZipPage {
-  /** Original path to the HTML entry inside the ZIP. */
+  /** ZIP の中での、HTML の入り口のファイルの元のパス。 */
   path: string;
-  /** Exactly the assets belonging to this import (not earlier replaced versions). */
+  /** この取り込みに属するアセットだけ（以前に置き換えた版は含まない）。 */
   assetIds: string[];
 }
 
 export interface Page {
   id: string;
   name: string;
-  /** "" = トップページ。"blog/post-1" のような階層も可 */
+  /** "" = トップページ。"blog/post-1" のような階層にもできる */
   slug: string;
-  /** リンク先に付けるクエリ（"?" を除いた "tab=news&page=1"）。ページでは {tab} 変数として使える */
+  /** リンク先に付けるクエリ（"?" を除いた "tab=news&page=1"）。ページでは {tab} の変数として使える */
   query?: string;
   title: string;
   /**
-   * タイトルがまだ決まっていない（追加・複製した直後）しるし。
-   * 初めてページ名を確定したら、タイトルもその名前にして外す（先にタイトルを書き換えても外す）。lib/pageTitle.ts
+   * タイトルがまだ決まっていない（追加・複製した直後の）しるし。
+   * 初めてページ名を確定したら、タイトルもその名前にして外す（先にタイトルを書き換えた場合も外す）。lib/pageTitle.ts
    */
   titlePending?: boolean;
   description: string;
-  /** このページの言語（BCP 47 の言語コード。未設定 = サイトの言語）。lib/site-lang.ts */
+  /** このページの言語（BCP 47 の言語コード。未設定ならサイトの言語）。lib/site-lang.ts */
   lang?: string;
-  /** このページにだけ適用するbodyスタイル */
+  /** このページにだけ適用する body のスタイル */
   bodyStyles?: NodeStyles;
-  /** htmlの背景色（オーバースクロール時に見える色）。未設定ならbodyの背景が広がる */
+  /** html の背景色（オーバースクロールのときに見える色）。未設定なら body の背景が広がる */
   htmlBackground?: string;
   noindex?: boolean;
-  /** true なら書き出し・公開に含めない（下書き） */
+  /** true なら、書き出しや公開に含めない（下書き） */
   unpublished?: boolean;
-  /** 設定されていればHTMLページ（このHTMLをそのまま配信。要素編集は無効） */
+  /** 設定されていれば HTML のページ（この HTML をそのまま配信し、要素の編集はできない） */
   rawHtml?: string | null;
-  /** Raw HTML source retains its relative references; resolve these only in preview/export. */
+  /** 生の HTML のソースは、相対的な参照をそのまま持つ。参照を解決するのは、プレビューと書き出しのときだけ。 */
   htmlZip?: HtmlZipPage;
-  /** エディタのページ一覧で入れているフォルダ（URL・公開には関係しない） */
+  /** エディタのページの一覧で入れているフォルダ（URL や公開には関係しない） */
   folderId?: string;
-  /** このページ専用コード（ページHTMLの先頭に挿入。JSON-LD・計測タグなど） */
+  /** このページ専用のコード（ページの HTML の先頭に挿入する。JSON-LD や計測のタグなど） */
   customTopHtml?: string;
-  /** このページ専用コード（ページHTMLの末尾に挿入） */
+  /** このページ専用のコード（ページの HTML の末尾に挿入する） */
   customEndHtml?: string;
-  /** このページURLからの301リダイレクト先 */
+  /** このページの URL からの 301 リダイレクトの転送先 */
   redirectTo?: string;
-  /** このページURLを表示したまま内容を中継する外部サイトのURL（リバースプロキシ） */
+  /** このページの URL を表示したまま、内容を中継する外部のサイトの URL（リバースプロキシ） */
   rewriteTo?: string;
-  /** OGP画像（SNSシェア時のプレビュー） */
+  /** OGP 画像（SNS でシェアしたときのプレビュー） */
   ogImage?: ImageRef | null;
-  /** スクリプト画面に置いた、要素につながっていないブロック（実行されない） */
+  /** スクリプトの画面に置いた、要素につながっていないブロック（実行されない） */
   scripts?: Script[];
-  /** きっかけが「このページ」のスクリプト（ページを開いたとき。データの取得もここ） */
+  /** きっかけが「このページ」のスクリプト（ページを開いたとき。データの取得もここに置く） */
   pageScripts?: Script[];
   children: string[];
 }
 
-/** エディタのページ一覧を整理するフォルダ（URLの階層とは関係しない） */
+/** エディタのページの一覧を整理するフォルダ（URL の階層とは関係しない） */
 export interface PageFolder {
   id: string;
   name: string;
 }
 
-/** 追加したGoogle Font。weights が "variable" なら可変フォント */
+/** 追加した Google Font。weights が "variable" なら可変フォント */
 export interface CustomFont {
   family: string;
   weights: string[] | "variable";
 }
 
-/** 再利用コンポーネント。マスターのノードツリーは nodes 内に持つ */
+/** 再利用するコンポーネント。マスターのノードのツリーは nodes の中に持つ */
 export interface Component {
   id: string;
   name: string;
   rootId: string;
 }
 
-/** リスト要素の設定（配列の項目を繰り返し表示） */
+/** リストの要素の設定（配列の項目をくり返し表示する） */
 export interface ListContent {
   /** 並べる配列の名前（"記事" や "商品.レビュー" のように「.」で中をたどれる） */
   from?: string;
-  /** 表示件数（未設定 = 全件） */
+  /** 表示する件数（未設定ならすべて） */
   limit?: number;
 }
 
-/** Original archive provenance and CSS dependency edges. Uploaded bytes are never rewritten. */
+/** 元のアーカイブの出どころと、CSS の依存関係。アップロードしたバイト列は決して書き換えない。 */
 export interface ZipAssetMetadata {
   version: 1;
   group: string;
   path: string;
-  /** SHA-256 of the original ZIP entry; enables unchanged-file reuse on reimport. */
+  /** 元の ZIP の項目の SHA-256。取り込み直すときに、変わっていないファイルを使い回すために使う。 */
   sha256?: string;
   stylesheet?: {
     source: string;
@@ -549,99 +549,99 @@ export interface ZipAssetMetadata {
 export interface Asset {
   id: string;
   name: string;
-  /** Workers KV上のパス（/api/assets/file 経由で配信） */
+  /** Workers KV でのパス（/api/assets/file を通して配信する） */
   path?: string;
-  /** サーバーの保存先が無いときに、このブラウザ内へ保存した中身（dataURL） */
+  /** サーバーの保存先が無いときに、このブラウザの中に保存した中身（data URL） */
   dataUrl?: string;
-  /** ファイルサイズ（bytes。使用量表示に使う） */
+  /** ファイルの大きさ（bytes。使用量の表示に使う） */
   bytes?: number;
   /** MIME type（未設定なら画像として扱う） */
   mimeType?: string;
   width: number;
   height: number;
-  /** SVGが <filter>（シャドウ等）を含むか。未判定なら undefined */
+  /** SVG が <filter>（シャドウなど）を含むか。まだ判定していなければ undefined */
   svgFilter?: boolean;
   zip?: ZipAssetMetadata;
 }
 
 export interface LoadingScreenSetting {
   enabled: boolean;
-  /** 通常ページと同じ要素ツリーを保持する編集用ページ */
+  /** 通常のページと同じ要素のツリーを持つ、編集用のページ */
   pageId?: string;
-  /** 最低表示時間（ms） */
+  /** 最低限表示する時間（ms） */
   minDuration?: number;
-  /** フェードアウト時間（ms） */
+  /** フェードアウトの時間（ms） */
   fadeDuration?: number;
-  /** 同じタブのセッション中は初回だけ表示 */
+  /** 同じタブのセッションの間は、最初の1回だけ表示する */
   showOnce?: boolean;
 }
 
-/** JSONを取得するページを作り直す間隔の既定値（秒） */
+/** JSON を取得するページを作り直す間隔の既定値（秒） */
 export const DEFAULT_DATA_REVALIDATE = 60;
 
-/** PWA（ホーム画面に追加してアプリのように使う）の設定 */
+/** PWA（ホーム画面に追加して、アプリのように使う）の設定 */
 export interface PwaSetting {
   enabled: boolean;
-  /** アプリ名（未設定はサイト名） */
+  /** アプリの名前（未設定ならサイト名） */
   name?: string;
-  /** ホーム画面のアイコン下に出る短い名前（未設定はアプリ名） */
+  /** ホーム画面のアイコンの下に表示する短い名前（未設定ならアプリの名前） */
   shortName?: string;
-  /** アプリのアイコン（未設定はホーム画面アイコン → ファビコン。512×512 PNG推奨） */
+  /** アプリのアイコン（未設定ならホーム画面のアイコン → ファビコン の順に使う。512×512 の PNG を推奨） */
   icon?: ImageRef | null;
   /** 表示モード */
   display?: "standalone" | "fullscreen" | "minimal-ui" | "browser";
-  /** ツールバー等の色 */
+  /** ツールバーなどの色 */
   themeColor?: string;
-  /** 起動時の背景色 */
+  /** 起動するときの背景色 */
   backgroundColor?: string;
 }
 
 export interface SiteDoc {
-  /** The exact on-disk document schema; all persistence paths require it. */
+  /** 保存する文書のスキーマの版（この値と完全に一致すること）。保存と読み込みのすべての経路で必須。 */
   schemaVersion: 1;
   siteName: string;
   /**
-   * 公開サイトの言語（BCP 47 の言語コード。例: ja, en, zh-Hant）。<html lang> などに使う。
-   * 未設定 = ja。lib/site-lang.ts
+   * 公開するサイトの言語（BCP 47 の言語コード。例: ja, en, zh-Hant）。<html lang> などに使う。
+   * 未設定なら ja。lib/site-lang.ts
    */
   lang?: string;
-  /** サイト内で共通利用する登録色 */
+  /** サイトの中で共通して使う、登録した色 */
   colorPalette?: string[];
-  /** 公開URL（例: https://example.com）。OGPの絶対URL化に使用 */
+  /** 公開 URL（例: https://example.com）。OGP の URL を絶対 URL にするのに使う */
   siteUrl?: string;
   /**
-   * JSONを取得するページを作り直す間隔（秒）。その間は作り置きのページ（Cloudflare では取得済みのJSON）を使う。
-   * 未設定 = 60、0 = アクセスのたびに取得する
+   * JSON を取得するページを作り直す間隔（秒）。その間は、作り置きのページ（Cloudflare では取得済みの JSON）を使う。
+   * 未設定なら 60、0 ならアクセスのたびに取得する
    */
   dataRevalidate?: number;
   /**
-   * 公開サイトを動かすホスティング（データを取得するページの作り方が変わる）。
-   * 未設定 = 標準（Vercel・Netlify・Node.js など。ISRでページを作り置く）、
-   * cloudflare = Cloudflare Workers（ページは毎回描画し、取得したJSONをCloudflareのキャッシュに置く）
+   * 公開したサイトを動かすホスティング（データを取得するページの作り方が変わる）。
+   * 未設定なら標準（Vercel・Netlify・Node.js など。ISR でページを作り置く）、
+   * cloudflare なら Cloudflare Workers（ページは毎回描画し、取得した JSON を Cloudflare のキャッシュに置く）
    */
   hosting?: "cloudflare";
   favicon?: ImageRef | null;
-  /** iPhone/iPadのホーム画面アイコン（apple-touch-icon。推奨 180×180 PNG） */
+  /** iPhone・iPad のホーム画面のアイコン（apple-touch-icon。180×180 の PNG を推奨） */
   appleTouchIcon?: ImageRef | null;
-  /** デフォルトのOGP画像（ページ側で未設定のときに使う） */
+  /** 既定の OGP 画像（ページの側で未設定のときに使う） */
   ogImage?: ImageRef | null;
   loadingScreen?: LoadingScreenSetting;
   pwa?: PwaSetting;
   pages: Record<string, Page>;
   pageOrder: string[];
-  /** ページ一覧のフォルダ（並び順）。ページは Page.folderId で入る */
+  /** ページの一覧のフォルダ（並び順）。ページは Page.folderId で、フォルダに入る */
   pageFolders?: PageFolder[];
   nodes: Record<string, DocNode>;
   assets: Record<string, Asset>;
   components?: Record<string, Component>;
-  /** 追加したGoogle Fonts */
+  /** 追加した Google Fonts */
   customFonts?: CustomFont[];
-  /** カスタムコード: head内（meta / script等） */
+  /** カスタムのコード: head の中（meta や script など） */
   customHeadHtml?: string;
-  /** カスタムコード: body末尾 */
+  /** カスタムのコード: body の末尾 */
   customBodyEndHtml?: string;
-  /** ブレークポイント（大きい順。未設定は既定の lg / md / sm） */
+  /** ブレークポイント（大きい順。未設定なら既定の lg / md / sm） */
   breakpoints?: BreakpointDef[];
-  /** パソコン表示のキャンバス幅（未設定は 1280） */
+  /** パソコン表示のキャンバスの幅（未設定なら 1280） */
   baseWidth?: number;
 }

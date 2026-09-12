@@ -10,12 +10,12 @@ new Function("module", "exports", transformSync(SAFE_FETCH_SOURCE, {
 }).code)(generatedModule, generatedModule.exports);
 const runtimes = { source, generated: generatedModule.exports as typeof source };
 
-// A cloned Response uses tee: cancelling one branch waits for the unread sibling.
-// Keep that sibling alive until the assertion so cleanup cannot mask a deadlock.
+// 複製した Response は tee を使う。片方の枝を取り消すと、読まれていないもう一方の枝を待つ。
+// 検証が終わるまでその枝を残し、後始末でデッドロックが隠れないようにする。
 function clonedResponse(t: TestContext, init?: ResponseInit, request?: AbortController) {
   const original = new Response("unused body", init);
   t.after(() => {
-    // An aborted redirect must not resume after the fetch mock is restored.
+    // fetch の模擬を元に戻した後に、中断したリダイレクトを再開してはならない。
     request?.abort();
     void original.body?.cancel().catch(() => {});
   });

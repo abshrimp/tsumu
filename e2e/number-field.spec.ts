@@ -26,7 +26,7 @@ test("Repeated breakpoint arrow-key input stays in sync with width at both limit
   await page.keyboard.press("Shift+ArrowDown");
   await expect(input).toHaveValue("792");
   await expect(input).toBeFocused();
-  // Breakpoint widths are rounded to integers; show the committed value without losing focus.
+  // ブレークポイントの幅は整数に丸める。フォーカスを失わずに、確定した値を表示する。
   await input.fill("800.5");
   await page.keyboard.press("ArrowUp");
   await expect(input).toHaveValue("802");
@@ -72,7 +72,7 @@ test("Numeric style inputs follow Undo, Redo, and node/breakpoint target changes
   await expect(font).toHaveValue("41");
   await page.getByRole("button", { name: "やり直す", exact: true }).click();
   await expect(font).toHaveValue("42");
-  // A normal canvas click commits the pending input before switching its edit target.
+  // キャンバスを普通にクリックすると、編集の対象を切り替える前に、保留中の入力を確定する。
   await font.fill("43");
   await page.locator('[data-tutorial="canvas"]').getByText("はじめる", { exact: true }).click();
   await expect(font).not.toHaveValue("43");
@@ -110,7 +110,7 @@ test.describe("Numeric field commits and external updates", () => {
     await page.keyboard.press("Enter");
     await expect(input).toHaveValue("100");
     await expect(stored).toHaveText("100px");
-    // Restore the display after clearing even if the stored value remains unchanged.
+    // 保存された値が変わらない場合も、欄を空にした後に表示を元に戻す。
     await input.fill("");
     await page.locator("#outside").click();
     await expect(input).toHaveValue("100");
@@ -169,7 +169,7 @@ test.describe("Numeric field target changes", () => {
       const before = await page.evaluate(() => (window as any).numericInspector.getState().doc.nodes);
       await font.fill("77");
       await font.evaluate((input) => { (window as any).oldNumericInput = input; });
-      // Keep the draft tied to its target even when the state changes without pointerdown/blur.
+      // pointerdown や blur 無しで状態が変わっても、下書きをその対象に結び付けたまま保つ。
       await page.evaluate((target) => {
         const state = (window as any).numericInspector.getState();
         if (target === "node" || target === "same-value-node") state.select("b");
@@ -183,7 +183,7 @@ test.describe("Numeric field target changes", () => {
       await font.focus();
       await page.keyboard.press("Enter");
       expect(await page.evaluate(() => (window as any).numericInspector.getState().doc.nodes)).toEqual(before);
-      // After switching targets, continuous numeric input still works in the same field.
+      // 対象を切り替えた後も、同じ欄で数値を続けて入力できる。
       await font.focus();
       await page.keyboard.press("ArrowUp");
       await expect(font).toHaveValue(String(Number(shown) + 1));

@@ -4,7 +4,7 @@ import { safeNavigationUrl } from "../../lib/url-policy";
 import { canvasHtml } from "../../lib/canvas-html";
 
 /**
- * キャンバス上の1要素（選択・ドラッグ・文字の直接編集）と、ドラッグ中の影
+ * キャンバス上の1つの要素（選択・ドラッグ・文字の直接編集）と、ドラッグ中の影
  */
 
 import { isEnterKey } from "../../lib/keys";
@@ -35,7 +35,7 @@ import {
   resolvedListOps,
 } from "./render";
 
-/** インスタンス / リスト2件目以降の描画（選択不可・data-ghostでスタイルのみ適用） */
+/** インスタンスや、リストの2件目以降の描画（選択できない。data-ghost でスタイルだけを適用する） */
 function GhostViewInner({
   id,
   isTop,
@@ -100,7 +100,7 @@ function GhostViewInner({
   }
 
   if (node.type === "list") {
-    // リストの中のリスト: 項目ごとに並べる（空のテンプレートはデザイン画面だけ）
+    // リストの中のリスト: 項目ごとに並べる（空のテンプレートを表示するのはデザイン画面だけ）
     const from = listFromOf(node) ?? "";
     if (ctx.preview && from) common["data-array"] = from;
     const items = node.list
@@ -123,7 +123,7 @@ function GhostViewInner({
                 itemVars={{ ...scopedVars, ...item }}
               />
             ));
-            // 後続の外側項目・インスタンス内でも、スクリプトの対象を同じ内側項目に限定する。
+            // 後に続く外側の項目やインスタンスの中でも、スクリプトの対象を同じ内側の項目に限る。
             return ctx.preview ? createElement("div", {
               key: `item-${i}`, style: { display: "contents" }, "data-item": JSON.stringify(item),
             }, children) : children;
@@ -159,7 +159,7 @@ function GhostViewInner({
     const href = safeNavigationUrl(resolved);
     common.href = href;
     if (ctx.preview) {
-      // 表示切替のonClickが付いていれば合成する
+      // 表示の切り替えの onClick が付いていれば、合成する
       const prevClick = common.onClick as
         | ((e: React.MouseEvent) => void)
         | undefined;
@@ -199,13 +199,13 @@ export function NodeView({
 }: {
   id: string;
   isTop: boolean;
-  /** リスト内テンプレートの場合、現在の項目 */
+  /** リスト内のテンプレートの場合の、現在の項目 */
   itemVars?: Record<string, unknown>;
 }): ReactNode {
   const doc = useEditor((s) => s.doc);
   const mode = useEditor((s) => s.mode);
-  // Subscribe to the selected/editing status of this node rather than the whole
-  // selection array. A click must not re-render every sibling in a large canvas.
+  // 選択の配列全体ではなく、このノードが選択中・編集中かだけを購読する。
+  // 大きなキャンバスでも、クリックのたびにすべての兄弟を描画し直さないようにする。
   const isSelected = useEditor((s) => s.selectedIds.includes(id));
   const editing = useEditor((s) => s.editingText === id);
   const setEditingText = useEditor((s) => s.setEditingText);
@@ -240,7 +240,7 @@ export function NodeView({
   }
   if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars, undefined, scopedVars);
 
-  // リスト: 1件目は編集可能なテンプレート、2件目以降はゴースト表示
+  // リスト: 1件目は編集できるテンプレート、2件目以降はゴーストとして表示する
   if (node.type === "list") {
     const from = listFromOf(node);
     const items =
@@ -255,7 +255,7 @@ export function NodeView({
     // 画面上で値が決まる配列（ストレージから読み込んだものなど）
     const live = !!from && ctx.clientVars.has(from.split(".")[0]);
     if (ctx.preview && from) common["data-array"] = from;
-    // 公開サイトと同じく、プレビューで空の配列は行を作らない。編集用の案内は残さない。
+    // 公開サイトと同じく、プレビューでは空の配列から行を作らない。編集用の案内も表示しない。
     if (ctx.preview && !items.length) return createElement("div", common);
     if (!from) {
       kids.push(
@@ -266,7 +266,7 @@ export function NodeView({
         )
       );
     } else if (!items.length && live) {
-      // 編集中はお手本を1件分表示する（プレビューでは値が入るまで何も並べない）
+      // 編集中はお手本を1件分表示する（プレビューでは、値が入るまで何も並べない）
       if (!ctx.preview) {
         kids.push(
           ...node.children.map((cid) => (
@@ -302,7 +302,7 @@ export function NodeView({
         ))
       );
       if (ctx.preview) {
-        // プレビュー: スクリプトの絞り込み用に、項目ごとに値を持たせて包む
+        // プレビュー: スクリプトで絞り込めるよう、項目ごとに値を持たせて包む
         [first, ...rest].forEach((els, i) =>
           kids.push(
             createElement(
@@ -323,7 +323,7 @@ export function NodeView({
     return createElement("div", common, kids);
   }
 
-  // インスタンス: マスターのルート要素として描画し、中身はゴースト表示
+  // インスタンス: マスターのルート要素として描画し、中身はゴーストとして表示する
   if (node.type === "instance") {
     const comp = doc.components?.[node.componentId ?? ""];
     const root = comp ? doc.nodes[comp.rootId] : null;
@@ -336,7 +336,7 @@ export function NodeView({
     }
     if (chain.includes(comp.id)) return recursiveInstance(common);
     const tag = resolveTag(root, isTop);
-    // プレビューではインスタンスの外枠にもマスターのID・スクリプト・リンクを反映する。
+    // プレビューでは、インスタンスの外枠にもマスターの ID・スクリプト・リンクを反映する。
     if (ctx.preview) {
       if (root.attrId) common.id = root.attrId;
       applyScriptsAttr(root, common, doc, vars, ctx.clientVars, undefined, scopedVars);
@@ -394,9 +394,9 @@ export function NodeView({
       draggable: false,
       onLoad: (e: React.SyntheticEvent<HTMLImageElement>) => {
         const el = e.currentTarget;
-        // Image loading must not overwrite dimensions explicitly stored in a document.
-        // In particular, imported sites may reference an asset whose intrinsic size
-        // differs from the authored dimensions.
+        // 画像の読み込みで、文書に明示的に保存されている大きさを上書きしてはいけない。
+        // 特に、取り込んだサイトでは、指定した大きさと画像本来の大きさが異なるアセットを
+        // 参照していることがある。
         if (el.naturalWidth && el.naturalHeight &&
             (!node.image!.width || !node.image!.height)) {
           updateDoc(
@@ -437,10 +437,10 @@ export function NodeView({
 
   const tag = resolveTag(node, isTop);
   const children: ReactNode[] = [];
-  // 子要素の無いテキストは、編集中の中身を lib/editable が直接描く（変数をチップ表示）
+  // 子要素の無いテキストは、編集中の中身を lib/editable が直接描く（変数はチップで表示する）
   const richEdit = editing && !node.children.length;
   if (node.text && !richEdit) {
-    // 編集中は生テンプレート、それ以外は変数を差し込んで表示
+    // 編集中はテンプレートをそのまま、それ以外は変数を差し込んで表示する
     children.push(
       !editing && hasVars(node.text.content)
         ? renderTpl(node.text.content, vars, ctx.preview)
@@ -464,7 +464,7 @@ export function NodeView({
     const href = safeNavigationUrl(resolved);
     common.href = href;
     if (mode === "preview") {
-      // 表示切替のonClickが付いていれば合成する
+      // 表示の切り替えの onClick が付いていれば、合成する
       const prevClick = common.onClick as
         | ((e: React.MouseEvent) => void)
         | undefined;
@@ -509,7 +509,7 @@ export function NodeView({
     if (richEdit) {
       common["data-rich-edit"] = "true";
       common.onInput = (e: React.FormEvent<HTMLElement>) => {
-        // 変換中に DOM を書き換えると IME が壊れるため、確定後に付け直す
+        // 変換中に DOM を書き換えると IME の入力がおかしくなるため、確定してから付け直す
         if ((e.nativeEvent as InputEvent).isComposing) return;
         normalizeEditable(e.currentTarget);
       };
@@ -522,10 +522,10 @@ export function NodeView({
       };
     }
     common.onBlur = (e: React.FocusEvent<HTMLElement>) => {
-      // 「変数を探す」を開いている間は編集を続ける（選んだ変数をカーソル位置に入れる）
+      // 「変数を探す」を開いている間は編集を続ける（選んだ変数をカーソルの位置に入れる）
       if (holdEditing.current) return;
       const content = richEdit
-        // editableTextは末尾のプレースホルダーbrを除外済み。本物の改行はそのまま残す。
+        // editableText は、末尾のプレースホルダーの br を除いている。本物の改行はそのまま残す。
         ? editableText(e.currentTarget)
         : e.currentTarget.innerText.replace(/\n$/, "");
       updateDoc((d) => {
@@ -547,7 +547,7 @@ export function NodeView({
       if (!richEdit || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
       const mod = e.metaKey || e.ctrlKey;
       if (isEnterKey(e) && !mod) {
-        // ブラウザ任せだと div/br が入るため、改行文字として入れる
+        // ブラウザに任せると div や br が入るため、改行文字として入れる
         e.preventDefault();
         insertEditable(e.currentTarget, "\n");
       } else if (mod && e.key.toLowerCase() === "z") {
@@ -562,11 +562,11 @@ export function NodeView({
 
   if (tag === "button") applyButton(node, common, ctx.preview, ctx.refresh);
   // 編集中の中身は lib/editable が DOM に直接描くため、React の管理外のノードが残る。
-  // 編集の開始・終了で要素ごと作り直し、終了後に文字が二重に描かれないようにする
+  // 編集の開始と終了で要素ごと作り直し、終了後に文字が二重に描かれないようにする
   common.key = richEdit ? "rich-edit" : "view";
-  // ボタンの文字を書き換えている間は span にする（button の中ではスペースキーなどが押す操作になる）
+  // ボタンの文字を書き換えている間は span にする（button の中ではスペースキーなどがボタンを押す操作になる）
   return createElement(tag === "button" && editing ? "span" : tag, common, children.length ? children : undefined);
 }
 
-/** Preserve unchanged subtrees when selection or canvas chrome changes. */
+/** 選択やキャンバスの枠などが変わっても、変更の無い部分木は描画し直さない。 */
 export const MemoNodeView = memo(NodeView);

@@ -1,5 +1,5 @@
 /**
- * AIに渡す、エディタのしくみの説明と、編集の操作（edit_site ツール）の定義。
+ * AI に渡す、エディタのしくみの説明と、編集の操作（edit_site ツール）の定義。
  * どのプロバイダでも同じ内容を使う
  */
 
@@ -23,7 +23,7 @@ How to work:
 - Never claim a change was made unless edit_site confirmed it. If you need to edit the page, actually call edit_site rather than returning code or a plan.
 - Reply in the same language as the user's latest message, in one to three short sentences, without listing element ids.`;
 
-/** 自由なキーのまとまりを引数にできないAPI向けの補足 */
+/** キーが自由なオブジェクトを引数にできない API 向けの補足 */
 export const PORTABLE_NOTE = `
 
 Notes for this tool:
@@ -53,8 +53,8 @@ const OP_NAMES = [
 
 /**
  * edit_site の引数の JSON Schema。
- * portable = true のときは、スタイルを CSS の文字列にし、要素の入れ子を使わない形にする
- * （Gemini などの OpenAI 互換APIは、自由なキーのまとまりや入れ子の定義をうまく扱えないため）
+ * portable = true のときは、スタイルを CSS の文字列にし、要素を入れ子にしない形にする
+ * （Gemini などの OpenAI 互換 API は、キーが自由なオブジェクトや入れ子の定義をうまく扱えないため）
  */
 export function editToolSchema(portable: boolean): Record<string, unknown> {
   const styles = portable

@@ -10,7 +10,7 @@ import { useEditor, type EditorMode } from "../lib/store";
 import { makeSample, previewDataVars } from "../lib/data";
 import { previewRefreshDoc, previewRows } from "./helpers/preview-refresh";
 
-// 実フックの状態と依存配列を保持する。実際の Canvas/DOM の操作は e2e でも検証する。
+// 実際のフックの状態と依存配列を持つ。実際の Canvas と DOM の操作は、e2e でも検証する。
 function mount(initialMode: EditorMode = "preview", doc = previewRefreshDoc()) {
   useEditor.getState().replaceDoc(doc);
   let mode = initialMode;
@@ -207,7 +207,7 @@ test("a successful obsolete request cannot replace the newest request's failure 
   m.unmount();
 });
 
-// 件数の補正は、切り詰めた見本と同じ取得結果にだけ適用する。
+// 件数の補正は、切り詰めた見本と同じ取得の結果にだけ適用する。
 for (const length of [0, 1, 2, 20, 21, 50]) {
   test(`a successful ${length}-row response replaces the previous sample total`, async () => {
     const m = mount();

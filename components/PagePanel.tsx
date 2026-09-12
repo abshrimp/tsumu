@@ -38,7 +38,7 @@ const blurOnEnter = (e: React.KeyboardEvent) => {
   }
 };
 
-/** 要素が未選択のときに右パネルへ表示するページ設定 */
+/** 要素を選んでいないときに、右パネルに表示するページの設定 */
 export default function PagePanel() {
   const doc = useEditor((s) => s.doc);
   const activePageId = useEditor((s) => s.activePageId);
@@ -66,12 +66,12 @@ export default function PagePanel() {
   const zipBusy = pending.busy && importKind === "zip";
   const historyRevision = useEditor((s) => s.historyRevision);
   const kindRevision = useRef(0);
-  // 確認中に対象・履歴・パネルが変わったら、以前の切り替えを反映しない。
+  // 確認している間に対象・履歴・パネルが変わったら、以前の切り替えを反映しない。
   useLayoutEffect(() => () => { kindRevision.current++; }, [scope, historyRevision]);
   useLayoutEffect(() => { setZipMessage(null); setNormalImportMessage(null); }, [activePageId, historyRevision]);
   useLayoutEffect(wakeImports, [scope, historyRevision, pending.busy]);
   const waitForGesture = async (request: { current: () => boolean }) => {
-    // 色などの連続編集を確定するまで待ち、読み込みを別のUndoにする。
+    // 色などの連続した編集が確定するまで待ち、読み込みを別の取り消し単位にする。
     while (request.current() && useEditor.getState().gestureActive) {
       await new Promise<void>((resolve) => {
         const wake = () => { gestureWaiters.current.delete(wake); resolve(); };
@@ -79,7 +79,7 @@ export default function PagePanel() {
       });
     }
   };
-  // ストア変更直後（再描画前）にも、古いページやコードへ書き戻さない。
+  // ストアが変わった直後（再描画の前）でも、古いページやコードへ書き戻さない。
   const beginImport = (kind: "html" | "zip") => {
     setImportKind(kind);
     const request = pending.begin();
@@ -88,7 +88,7 @@ export default function PagePanel() {
   };
   if (!page) return null;
 
-  /** ページ内の全要素のスクリプト（要素名つき） */
+  /** ページ内のすべての要素のスクリプト（要素名付き） */
   const pageScripts = pageScriptsOf(
     doc,
     pageNodeIds(doc, page.id),
@@ -134,7 +134,7 @@ export default function PagePanel() {
       }, undefined, existing, true);
       await waitForGesture(request);
       if (!request.current()) {
-        // アップロード済みの一式は残すが、Undo/Redoや手動編集を上書きしない。
+        // アップロード済みのファイル一式は残すが、元に戻す・やり直す操作や手動の編集を上書きしない。
         useEditor.getState().retainUploadedAssets(assets);
         return;
       }
@@ -149,7 +149,7 @@ export default function PagePanel() {
     }
   };
 
-  /** Convert one HTML document, keeping the page's URL and site settings. */
+  /** HTML の文書を1つ変換する。ページの URL とサイトの設定はそのまま残す。 */
   const importAsEditablePage = async (file: File) => {
     const request = beginImport(file.name.toLowerCase().endsWith(".zip") ? "zip" : "html");
     setNormalImportMessage(null);
@@ -176,8 +176,8 @@ export default function PagePanel() {
         const target = draft.pages[page.id];
         if (!target) return;
         const importedPage = converted.doc.pages[converted.doc.pageOrder[0]];
-        // Keep nodes referenced from other pages and component masters. Unreachable
-        // nodes from the replaced page must not inflate future doc.json exports.
+        // 他のページやコンポーネントのマスターから参照されているノードは残す。置き換えたページの
+        // どこからも参照されないノードは、今後の doc.json の書き出しを大きくしないよう取り除く。
         const oldNodes = new Set<string>();
         const reachable = (id: string, found: Set<string>) => {
           if (found.has(id) || !draft.nodes[id]) return;
@@ -191,7 +191,7 @@ export default function PagePanel() {
         }
         for (const comp of Object.values(draft.components || {})) reachable(comp.rootId, keep);
         for (const id of oldNodes) if (!keep.has(id)) delete draft.nodes[id];
-        // Imported nodes use globally unique IDs, so no remaining nodes are overwritten.
+        // 取り込んだノードには全体で一意な ID が付いているため、残っているノードを上書きすることはない。
         Object.assign(draft.nodes, converted.doc.nodes);
         Object.assign(draft.assets, converted.doc.assets);
         target.children = [...importedPage.children];
@@ -400,7 +400,7 @@ export default function PagePanel() {
           {pageScripts.length > 0 && <ScriptSummary
               items={pageScripts}
               onOpen={(script) => {
-                // きっかけの要素があれば、その要素を選んだ状態にして開く
+                // きっかけの要素があれば、その要素を選んだ状態で開く
                 const nodeId = pageScripts.find((p) => p.script.id === script.id)?.script.nodeId;
                 const el = nodeId && nodeId !== PAGE_TARGET && doc.nodes[nodeId] ? nodeId : null;
                 if (el) useEditor.getState().select(el);

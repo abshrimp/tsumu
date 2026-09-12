@@ -8,7 +8,7 @@ import { publishedSelectDefault, selectDefaultBundle, selectDefaultDoc } from ".
 test("renaming the default option uses the first remaining choice without rewriting the document", () => {
   useEditor.getState().replaceDoc(selectDefaultDoc());
   const original = useEditor.getState().doc.nodes.choice;
-  // 設定欄と同じ変更。初期値は消さず、Undoで元の選択肢に戻せる。
+  // 設定の欄と同じ変更。初期値は消さず、「元に戻す」で元の選択肢に戻せる。
   useEditor.getState().updateNode("choice", { field: { ...original.field!, options: ["A", "C"].map(value => ({ label:value,value })) } });
   const edited = structuredClone(useEditor.getState().doc);
   const read = () => fieldDefaults([useEditor.getState().doc.nodes.choice]).choice;

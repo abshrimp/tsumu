@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ブロックの中の入力欄（文字・変数入り文字・フォームの値）と条件の編集
+ * ブロックの中の入力欄（文字・変数入りの文字・フォームの値）と、条件の編集
  */
 
 import { isEnterKey } from "../../lib/keys";
@@ -35,9 +35,9 @@ export function TextIn({
   width?: number;
   type?: "text" | "number";
   numberStep?: number;
-  /** {変数} の候補を出す（「{」を入れなくても出る。「変数を探す」も使える） */
+  /** {変数} の候補を表示する（「{」を入れなくても表示する。「変数を探す」も使える） */
   vars?: boolean;
-  /** 候補の先頭に出す、配列の要素の項目名（とその見本） */
+  /** 候補の先頭に表示する、配列の要素の項目名（とその見本） */
   itemFields?: string[];
   itemSamples?: Record<string, string>;
   valueContext?: ValueContext;
@@ -75,7 +75,7 @@ export function TextIn({
   );
 }
 
-/** Number and {variable} share one input. No type-selection control is needed. */
+/** 数値と {変数} を同じ入力欄で扱う。型を選ぶ部品は必要ない。 */
 export function NumericVariableIn({
   value, onCommit, integer = false, min = 0, max, width = 60,
 }: {
@@ -118,7 +118,7 @@ function VarTextIn({
 }) {
   const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
   const stepId = useContext(ScriptStepCtx);
-  // Build suggestions only when focused to avoid traversing inactive inputs.
+  // 使われていない入力欄まで調べないよう、候補はフォーカスがあるときだけ作る。
   const [active, setActive] = useState(false);
   const doc = useMemo(
     () => active && !readOnly ? scriptInputDoc(savedDoc, stepId) : null,
@@ -135,7 +135,7 @@ function VarTextIn({
     );
     const item = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
     const raw = variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), item);
-    // 取得したデータの項目と親のまとまりも、同じスコープの見本から選べるようにする。
+    // 取得したデータの項目と、その親のまとまりも、同じ範囲の見本から選べるようにする。
     const nested = localVariableNames(flattenFields(raw, 4).map((field) => field.field));
     const available = [...new Set([...at, ...made, ...nested])];
     return {
@@ -179,7 +179,7 @@ function VarTextIn({
   );
 }
 
-/** 単独参照は値をそのまま渡し、文章は既存の文字列テンプレートとして編集する。 */
+/** 変数だけを参照する場合は値をそのまま渡し、文章の場合は文字列のテンプレートとして編集する。 */
 export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 }: {
   value: string; onCommit: (v: string) => void; itemFields?: string[];
   itemSamples?: Record<string, string>; width?: number;
@@ -188,8 +188,8 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
   const stepId = useContext(ScriptStepCtx);
   const loops = useContext(LoopCtx);
   const source = singleValueReference(value);
-  // Use the shared preview without materializing a modified document for every
-  // input. A local loop or list-item root shadows the page sample completely.
+  // 入力欄ごとに書き換えた文書を作らず、共有のプレビューを使う。ループやリストの項目の
+  // ルートが手元にある場合は、ページの見本を完全に隠す。
   const produced = variableIndex?.byStep.get(stepId);
   const exclusiveOwnOutput = source && [source, source.split(".")[0]].some((name) =>
     produced?.has(name) && !variableIndex?.hasOther(name, stepId));
@@ -213,7 +213,7 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
   </span>;
 }
 
-/** 対象（ID属性 / きっかけの要素）の入力欄の設定と、選べる値（ラジオは同じIDのボタンの文字） */
+/** 対象（ID 属性、またはきっかけの要素）の入力欄の設定と、選べる値（ラジオは、同じ ID のボタンの文字） */
 function useTargetField(target: string): { kind: FieldContent["kind"]; choices: string[]; bool: boolean } | null {
   const { doc, tree, fieldLookup } = useContext(Ctx);
   const selfId = useContext(ScriptNodeCtx);
@@ -222,13 +222,13 @@ function useTargetField(target: string): { kind: FieldContent["kind"]; choices: 
       if (target !== SELF_TARGET) return fieldLookup.byAttr.get(target) ?? null;
       if (fieldLookup.byNode.has(selfId)) return fieldLookup.byNode.get(selfId) ?? null;
     }
-    // Standalone/read-only contexts may not supply the workspace index.
+    // 単独で使う場合や読み取り専用の文脈では、ワークスペースの索引が渡されないことがある。
     const nodes = tree.map((r) => doc.nodes[r.id]).filter(Boolean);
     const node =
       target === SELF_TARGET ? doc.nodes[selfId] : target ? nodes.find((n) => n.attrId === target) : undefined;
     const f = node?.type === "field" ? node.field : undefined;
     if (!f) return null;
-    // チェックボックス・グループのラジオボタン1つは true / false
+    // チェックボックスと、グループのラジオボタン1つは、true / false
     if (f.kind === "checkbox" || isRadioItem(node!)) return { kind: f.kind, choices: [], bool: true };
     if (f.kind === "select") return { kind: f.kind, choices: (f.options ?? []).map((o) => o.value).filter(Boolean), bool: false };
     if (f.kind === "radio") {
@@ -242,12 +242,12 @@ function useTargetField(target: string): { kind: FieldContent["kind"]; choices: 
   }, [doc, tree, selfId, target, fieldLookup]);
 }
 
-/** 「その他（変数・文字）」を選んだしるし */
+/** 「その他（変数・文字）」を選んだことを表す印 */
 const OTHER_VALUE = "\u0000other";
 
 /**
- * 入力欄に入れる・比べる値。チェックボックスは「オン / オフ」、
- * セレクト・ラジオは選択肢から選べる（「その他」で変数・文字も書ける）
+ * 入力欄に入れる値、または比べる値。チェックボックスは「オン / オフ」、
+ * セレクトとラジオは選択肢から選べる（「その他」で変数や文字も書ける）
  */
 export function FieldValueIn({
   target,
@@ -345,13 +345,13 @@ export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string }[] 
   { value: "has-key", label: tr("Has a key") },
 ];
 
-/** "である / でない" is shared by if conditions and every list filter clause. */
+/** 「である / でない」の選択欄。「もし」の条件と、すべてのリストの絞り込み条件で共有する。 */
 export function NegationSelect({ not, onChange, operation }: {
   not?: boolean;
   onChange: (not: boolean) => void;
   operation?: ScriptOp;
 }) {
-  // Contextual translations let each language choose the appropriate auxiliary verb.
+  // 文脈付きの翻訳にして、言語ごとに適切な補助動詞を選べるようにする。
   const context = operation === "contains" || operation === "starts-with" || operation === "ends-with"
     ? "condition_check_verb" : "condition_check";
   return (
@@ -363,7 +363,7 @@ export function NegationSelect({ not, onChange, operation }: {
   );
 }
 
-/** The editor offers positive operations; the negation selector inverts any of them. */
+/** エディタが提示するのは肯定の比較だけで、否定の選択欄でどれでも反転できる。 */
 export function OpEditor({
   op,
   value,
@@ -379,13 +379,13 @@ export function OpEditor({
   value: string;
   onChange: (op: ScriptOp, value: string) => void;
   placeholder?: string;
-  /** 比べる入力欄（あれば、チェックボックス・選択肢に合わせた入力にする） */
+  /** 比べる入力欄（あれば、チェックボックスや選択肢に合わせた入力欄にする） */
   target?: string;
   not?: boolean;
   onNotChange?: (not: boolean) => void;
-  /** Show predicates appropriate to a known list/record field while retaining saved predicates. */
+  /** 種類の分かっているリストや項目には、それに合う比較を表示する。保存済みの比較はそのまま残す。 */
   operators?: readonly ScriptOp[];
-  /** Preserve the raw type of a variable when comparing whole lists. */
+  /** リスト全体を比べるときは、変数の元の型を保つ。 */
   valueContext?: ValueContext;
 }) {
   const noValue = op === "empty";
@@ -440,7 +440,7 @@ export function CondEditor({
   const subject = cond.subject;
   const op = cond.op ?? "eq";
   const isVar = cond.subject === "var";
-  // 比べるもの: 要素（値・チェック・表示など） / 変数（{変数} と文字を混ぜて書ける）
+  // 比べるもの: 要素（値・チェック・表示など）か、変数（{変数} と文字を混ぜて書ける）
   const kindSelect = (
     <select
       className="se-in"
@@ -533,7 +533,7 @@ export function CondEditor({
 /* ---------- ブロック ---------- */
 
 /**
- * ブロックの文。{名前} の位置に入力欄などの部品を入れる（言語によって語順が変わるため、
+ * ブロックの文。{名前} の位置に、入力欄などの部品を入れる（言語によって語順が変わるため、
  * 部品の並びは訳文の側で決まる）。文字の部分は <span> になる
  */
 export function Phrase({ text, parts }: { text: string; parts: Record<string, ReactNode> }) {

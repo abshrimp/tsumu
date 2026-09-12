@@ -3,7 +3,7 @@ import type { SiteDoc } from "../lib/types";
 import { makeBox } from "../lib/presets";
 import { generateExportProject } from "../lib/export-formats";
 
-/** Exercise the generated HTML, JSON loader and DOM runtime in real Chromium. */
+/** 生成した HTML・JSON の読み込み・DOM のランタイムを、実際の Chromium で動かす。 */
 test("standalone HTML fetches JSON, transforms it, and renders live text and list rows", async ({ page }) => {
   const title = { ...makeBox(), id: "counter", attrId: "result-count",
     text: { heading: 1, content: "Found {total} items" } };
@@ -54,7 +54,7 @@ test("standalone HTML fetches JSON, transforms it, and renders live text and lis
   await expect(page.locator('[data-client-list] [data-row]')).toHaveCount(2);
   await expect(page.locator('[data-client-list] [data-row]').first()).toContainText("Alpha");
   await expect(page.locator('[data-client-list] [data-row]').last()).toContainText("Beta");
-  // HTML pages must not ship bundler source or editor signatures.
+  // HTML のページに、バンドラーのソースやエディタの署名を含めてはならない。
   expect(project.files["package.json"]).toBeUndefined();
   expect(project.files["index.html"]).not.toMatch(/tsumu/i);
 });
@@ -244,7 +244,7 @@ test("standalone HTML uses form and query operands and clears missing transform 
     { subject: "var", left: "", and: false },
     { subject: "var", op: "eq", value: "31", and: true },
   ]);
-  // Both comparisons refer to the same typed, exported variable.
+  // 2つの比較は、どちらも同じ、型のある、書き出した変数を参照する。
   const secondCondition = grouped[0].conditions![1] as { left: { inputRef: string } };
   expect(secondCondition.left.inputRef).toMatch(/^[a-zA-Z0-9_]+$/);
   expect(grouped[0].cond).toMatchObject({ left: secondCondition.left });

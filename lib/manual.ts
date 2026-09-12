@@ -1,5 +1,5 @@
 /**
- * Webマニュアル（Q&A）の型と、検索・おすすめの仕組み。
+ * ウェブのマニュアル（Q&A）の型と、検索・おすすめの仕組み。
  * 記事の中身は lib/manualTopics.ts に書く
  */
 
@@ -12,7 +12,7 @@ export type EditorState = ReturnType<typeof useEditor.getState>;
 type LeftTab = EditorState["leftTab"];
 type RightTab = EditorState["rightTab"];
 
-/** 1 = 入門（Webを初めて触る）/ 2 = 基本 / 3 = 応用 / 4 = 上級 */
+/** 1 = 入門（ウェブに初めて触れる）/ 2 = 基本 / 3 = 応用 / 4 = 上級 */
 export type Level = 1 | 2 | 3 | 4;
 
 export const LEVELS: Record<Level, { label: string; desc: string }> = {
@@ -60,12 +60,12 @@ export const CATEGORIES: Category[] = [
 ];
 
 /**
- * 記事の本文の部品。文の中では **強調**・`コード`・[[記事ID|リンクの文字]] が使える
+ * 記事の本文の部品。文の中では **強調**・`コード`・[[記事ID|リンクの文字]] を使える
  */
 export type Block =
   | { p: string }
   | { list: string[]; ordered?: boolean }
-  /** Webデザインの慣例・コツ（「なぜそうするか」） */
+  /** ウェブデザインの慣例やコツ（「なぜそうするか」） */
   | { rule: string; title?: string }
   | { note: string }
   | { warn: string }
@@ -80,7 +80,7 @@ export type Block =
 export type SelectionNeed = "any" | "text" | "image" | "container";
 
 export interface GuideStep {
-  /** 示す場所（data-tutorial の値）。{mobile} はいちばん小さいブレークポイントのID */
+  /** 示す場所（data-tutorial の値）。{mobile} は、最も小さいブレークポイントの ID */
   target?: string;
   /** 何をするか */
   text: string;
@@ -88,26 +88,26 @@ export interface GuideStep {
   hint?: string;
   /** この手順の前に、要素を選んでいる必要がある（選んでいなければ先に選ぶよう案内する） */
   needs?: SelectionNeed;
-  /** 手順を始めるときに整える画面 */
+  /** 手順を始めるときに整える画面の状態 */
   prepare?: {
     left?: LeftTab;
     right?: RightTab;
     /** 開いておくセクション（data-tutorial の値） */
     section?: string;
-    /** 選択を外す（ページ設定を出す） */
+    /** 選択を外す（ページの設定を表示する） */
     deselect?: boolean;
     /** デザイン画面に戻す */
     design?: boolean;
-    /** スクリプト画面を閉じる */
+    /** スクリプトの画面を閉じる */
     closeScripts?: boolean;
   };
-  /** 操作が済んだか（済んだら自動で次の手順へ） */
+  /** 操作が済んだか（済んだら、自動で次の手順に進む） */
   done?: (s: EditorState) => boolean;
 }
 
 /**
  * 記事が関係する場面。いま選んでいる要素や編集中の状態から、
- * ヘルプの「いまの作業に関係する質問」に出す
+ * ヘルプの「いまの作業に関係する質問」に表示する
  */
 export type TopicContext =
   | "none"
@@ -145,7 +145,7 @@ export const TOPIC_BY_ID: Record<string, Topic> = Object.fromEntries(
   TOPICS.map((t) => [t.id, t])
 );
 
-/** 本文の書式記号を除いた文字（検索用） */
+/** 本文の書式の記号を除いた文字（検索用） */
 function plain(s: string): string {
   return s.replace(/\*\*|`/g, "").replace(/\[\[[^\]|]+\|([^\]]+)\]\]/g, "$1");
 }
@@ -162,7 +162,7 @@ function blockText(b: Block): string {
   return "";
 }
 
-/** 全角英数・カタカナの違いを吸収して比べる */
+/** 全角の英数字やカタカナの違いを吸収して比べる */
 function norm(s: string): string {
   return s
     .normalize("NFKC")
@@ -179,7 +179,7 @@ const INDEX = TOPICS.map((t) => ({
   ),
 }));
 
-/** 言葉で記事を探す（質問・言い換えに当たるものを先に） */
+/** 言葉で記事を探す（質問や言い換えに当たるものを先に並べる） */
 export function searchTopics(query: string): Topic[] {
   const words = norm(query).split(" ").filter(Boolean);
   if (!words.length) return [];
@@ -215,7 +215,7 @@ export function currentContexts(s: EditorState): TopicContext[] {
   return out;
 }
 
-/** いまの作業に関係する記事（やさしいものから） */
+/** いまの作業に関係する記事（やさしいものから順に） */
 export function topicsFor(contexts: TopicContext[], limit = 6): Topic[] {
   const rank = (t: Topic) => {
     const i = contexts.findIndex((c) => t.ctx?.includes(c));

@@ -16,7 +16,7 @@ export function aiChatDoc(): SiteDoc {
   };
 }
 
-/** 非公開の送信入口だけを公開し、通信以外は実際のチャット・編集・履歴処理を使う。 */
+/** 非公開の送信の入り口だけを公開し、通信以外は、実際のチャット・編集・履歴の処理を使う。 */
 export function aiChatFixture() {
   const source = readFileSync("components/AiChat.tsx", "utf8") + "\nexport { ask as askForTest }; export const cancelForTest = () => pendingRequest?.abort();";
   const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;

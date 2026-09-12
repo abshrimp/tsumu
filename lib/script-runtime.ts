@@ -1,5 +1,5 @@
 /**
- * スクリプトの実行ランタイム（プレビューと書き出したサイトで共用）と、使う機能だけを残す書き出し
+ * スクリプトの実行ランタイム（プレビューと書き出したサイトで共用する）と、使う機能だけを残す書き出しの処理
  */
 
 import { NAVIGATION_RUNTIME } from "./url-policy";
@@ -16,13 +16,13 @@ import { formatValueText } from "./value-text";
 /* ---------- 実行ランタイム ---------- */
 
 /**
- * プレビューと書き出しサイトで共用するランタイム（素のJS）。
- * `(SCRIPT_RUNTIME)(env).install(root)` で data-scripts を持つ要素のスクリプトを動かす。
+ * プレビューと書き出したサイトで共用するランタイム（素の JS）。
+ * `(SCRIPT_RUNTIME)(env).install(root)` で、data-scripts を持つ要素のスクリプトを動かす。
  * env: showDisplay(el) / openPage(step) / openUrl(url, newTab) / setValue(id, v) / touch(el)
  *   / setVar(name, v) / storePrefix
  *
- * `/*#名前*\/ … /*\/名前*\/` で囲んだ部分は、書き出し時にその機能を使っていなければ削る
- * （`a|b` はどちらかを使っていれば残す）。プレビューでは単なるコメントとして全部動く。
+ * `/*#名前*\/ … /*\/名前*\/` で囲んだ部分は、書き出すときにその機能を使っていなければ削る
+ * （`a|b` は、どちらかを使っていれば残す）。プレビューでは単なるコメントになり、すべて動く。
  */
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
@@ -1947,25 +1947,25 @@ export const SCRIPT_RUNTIME = `function (env) {
   };
 }`;
 
-/** ランタイムの差し替え口（省略時は素のDOM・画面遷移で動く） */
+/** ランタイムの差し替え口（省略すると、素の DOM と通常の画面遷移で動く） */
 export interface ScriptEnv {
-  /** 表示に戻すときの display 値 */
+  /** 表示に戻すときの display の値 */
   showDisplay?: (el: HTMLElement) => string;
   openPage?: (step: { pageId: string; href: string; newTab?: boolean }) => void;
   openUrl?: (url: string, newTab: boolean) => void;
-  /** true を返すと値の設定を引き受けたことになる */
+  /** true を返すと、値の設定を引き受けたことになる */
   setValue?: (id: string, value: string) => boolean;
-  /** 表示を変えた要素（プレビュー終了時の掃除用） */
+  /** 表示を変えた要素（プレビューを終えるときの後始末に使う） */
   touch?: (el: HTMLElement) => void;
-  /** Current server-step results, including data refreshed after the preview opened. */
+  /** サーバー側の手順の現在の結果（プレビューを開いた後に更新したデータを含む）。 */
   getPageData?: () => Record<string, unknown>;
-  /** Updated root, including its unchanged siblings after a nested write. */
+  /** 更新したルートの値（入れ子への書き込みの後も、変わっていない兄弟を含む）。 */
   setVar?: (name: string, value: unknown) => void;
-  /** ストレージのキーの前に付ける文字（プレビューでエディタ自身の保存と混ざらないように） */
+  /** ストレージのキーの前に付ける文字（プレビューで、エディタ自身の保存と混ざらないようにする） */
   storePrefix?: string;
-  /** 共有ストレージのクッキーのドメイン（このドメインかそのサブドメインで開いたときだけ付ける） */
+  /** 共有ストレージのクッキーのドメイン（このドメインか、そのサブドメインで開いたときだけ付ける） */
   sharedDomain?: string;
-  /** ページ遷移を使わずブラウザの通常の移動にするURLのパターン（正規表現の文字列。hardNavPatterns） */
+  /** ページ遷移を使わず、ブラウザの通常の移動にする URL のパターン（正規表現の文字列。hardNavPatterns） */
   hardNav?: string[];
 }
 
@@ -1975,7 +1975,7 @@ export function createScriptRuntime(env: ScriptEnv): {
   return new Function(`return (${SCRIPT_RUNTIME})`)()(env);
 }
 
-/** ランタイムの機能名（SCRIPT_RUNTIME 内の `/*#名前*\/` と対応） */
+/** ランタイムの機能の名前（SCRIPT_RUNTIME の中の `/*#名前*\/` と対応する） */
 type RuntimeFeature =
   | "env"
   | "live"
@@ -2043,7 +2043,7 @@ const TRIGGER_FEATURE: Record<ScriptTrigger, RuntimeFeature> = {
 };
 
 /**
- * 入力欄の値を {ID} で使う文字・入力欄があるか（公開サイトでは、入力するたびにブラウザで書き直す）
+ * 入力欄の値を {ID} で使う文字や入力欄があるか（公開したサイトでは、入力するたびにブラウザで書き直す）
  */
 export function usesLiveFields(doc: SiteDoc): boolean {
   for (const page of Object.values(doc.pages)) {
@@ -2114,7 +2114,7 @@ function pickFeatures(src: string, on: Set<string>): string {
   );
 }
 
-/** 行コメント・インデント・空行を落とす（文の区切りは改行のまま残す） */
+/** 行コメント・インデント・空行を取り除く（文の区切りの改行は残す） */
 export function compactJs(src: string): string {
   return src
     .split("\n")
@@ -2123,11 +2123,11 @@ export function compactJs(src: string): string {
     .join("\n");
 }
 
-/** 書き出しサイト用の /scripts.js（サイトで使う機能だけを含める） */
+/** 書き出したサイト用の /scripts.js（サイトで使う機能だけを含める） */
 export function scriptsFile(doc: SiteDoc, clientData = false): string {
   const features = runtimeFeatures(doc);
   if (clientData) {
-    // HTML and native framework exports read data before installing listeners.
+    // HTML と各フレームワークの書き出しでは、リスナーを登録する前にデータを読む。
     features.add("clist");
     features.add("live");
     features.add("scan");
@@ -2146,7 +2146,7 @@ export function scriptsFile(doc: SiteDoc, clientData = false): string {
   return compactJs(start) + "\n";
 }
 
-/** 共有ストレージのクッキーのドメイン（公開URLのホスト。先頭の www. は除く） */
+/** 共有ストレージのクッキーのドメイン（公開 URL のホスト。先頭の www. は除く） */
 export function sharedCookieDomain(doc: SiteDoc): string {
   try {
     const host = new URL(doc.siteUrl ?? "").hostname;

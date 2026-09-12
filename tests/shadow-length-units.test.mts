@@ -19,8 +19,8 @@ test("editing one shadow dimension preserves the other dimensions", () => {
   assert.equal(serializeShadow({ ...parsed, x: 4 }), "4px 1rem 2vh 3vw #123");
 });
 
-// Exercise the actual cards: parser-only coverage would miss a px suffix added
-// by the input field or text-shadow's separate serializer.
+// 実際のカードを動かす。パーサーだけを確かめても、入力欄や、text-shadow の別の直列化で
+// 付く px の接尾辞を見逃してしまう。
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";

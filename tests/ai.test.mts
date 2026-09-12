@@ -19,7 +19,7 @@ const turns = [{ role: "user" as const, text: "ヒーローを作って" }];
 const tool = (args: unknown, id = "call1", extra = {}) => ({ id, type: "function", function: { name: "edit_site", arguments: JSON.stringify(args) }, ...extra });
 const completion = (message: unknown, finish_reason = "stop") => Response.json({ choices: [{ message, finish_reason }] });
 
-// Use complete request/response contracts; no external keys or network required.
+// 完全なリクエストと応答の取り決めを使う。外部のキーもネットワークも要らない。
 test("Gemini keeps thought signatures, repairs tool errors, and replays exact node IDs with one undo", async (t) => {
   const original = fixture();
   const context = buildAiContext(original, target);

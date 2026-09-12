@@ -5,7 +5,7 @@ import {transformSync} from 'esbuild';
 import {generateProject} from '../lib/generator';
 import type {SiteDoc} from '../lib/types';
 const require=createRequire(import.meta.url);
-// This marker has no runtime behavior. Keep the actual Next metadata resolver.
+// この印には、実行時の動作が無い。Next.js の実際のメタデータの解決はそのまま使う。
 const Module=require('node:module'),originalLoad=Module._load;
 let accumulateMetadata:any;
 try {

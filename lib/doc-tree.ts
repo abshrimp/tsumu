@@ -5,14 +5,14 @@ import {
   validPageAdditionalFields, validSiteAdditionalFields,
 } from "./document-value-shapes";
 
-// The editor and generators recursively render child IDs from a flat map.
-// Detached nodes are valid, but every node must belong to a finite tree.
+// エディタと生成処理は、平らなマップから子の ID をたどって再帰的に描画する。
+// どこにもつながっていないノードは許すが、すべてのノードは有限のツリーに属していなければならない。
 export const MAX_NODE_DEPTH = 256;
 
-/** Map IDs become object property names throughout the editor. */
+/** マップの ID は、エディタ全体でオブジェクトのプロパティ名として使われる。 */
 const safeCollectionId = isDocumentId;
 
-/** Height of the deepest root tree, counting a leaf as one node. Invalid input cannot fit. */
+/** 最も深いルートのツリーの高さ（末端を1つのノードとして数える）。不正な入力は上限に収まらないものとする。 */
 export function maxSubtreeDepth(
   nodes: Record<string, { children: string[] }>,
   rootIds: readonly string[],
@@ -60,7 +60,7 @@ const NODE_TYPES = new Set(["box", "image", "divider", "code", "instance", "icon
 const SEMANTICS = new Set(["auto", "form", "button", "div", "section", "header", "footer", "nav", "main", "article", "span", "custom"]);
 const FIELD_KINDS = new Set(["input", "textarea", "select", "checkbox", "radio", "file", "submit"]);
 
-/** The saved editor shape must be consumable by Canvas and code generators. */
+/** 保存したエディタのデータの形は、キャンバスとコードの生成処理で扱えるものでなければならない。 */
 export function validStyleDefinitions(value: unknown): boolean {
   if (!isObject(value)) return false;
   for (const states of Object.values(value)) {
@@ -73,7 +73,7 @@ export function validStyleDefinitions(value: unknown): boolean {
   return true;
 }
 
-/** Shared by full saves, local-cache recovery and structural PATCH validation. */
+/** 全体の保存・ローカルのキャッシュからの復旧・構造を変える差分の検証で共有する。 */
 export function validDocNodeShape(value: unknown): boolean {
   if (!isObject(value) || !NODE_TYPES.has(value.type as string) ||
       typeof value.name !== "string" || !SEMANTICS.has(value.semantic as string) ||
@@ -161,8 +161,8 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
   }
   if (visited !== edges.size) return false;
 
-  // Clipboard fragments can be validated without their component definitions.
-  // Complete documents pass an explicit component map, including an empty one.
+  // クリップボードの断片は、コンポーネントの定義なしで検証できる。
+  // 完全な文書では、空のものも含めて、コンポーネントのマップを明示的に渡す。
   if (components == null) return true;
   if (typeof components !== "object" || Array.isArray(components)) return false;
   const definitions = components as Record<string, unknown>;
@@ -175,8 +175,8 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
     dependencies.set(id, new Set());
   }
 
-  // A master tree belongs to exactly one component. In particular, a second
-  // master must not be nested under the first (both would render the same nodes).
+  // マスターのツリーは、ちょうど1つのコンポーネントに属する。特に、2つ目のマスターを
+  // 1つ目の下に入れ子にしてはいけない（どちらも同じノードを描画してしまう）。
   for (const root of roots.keys()) {
     let ancestor = parentOf.get(root);
     while (ancestor) {
@@ -192,9 +192,8 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
     }
   }
 
-  // Component instances introduce a second directed graph, independent of the
-  // ordinary parent/child tree. Walk it iteratively so deep, valid documents
-  // do not exhaust the JS call stack.
+  // コンポーネントのインスタンスは、通常の親子のツリーとは別の有向グラフを作る。
+  // 深くても正しい文書で JS のコールスタックを使い切らないよう、反復でたどる。
   for (const [root, owner] of roots) {
     const pending = [root];
     while (pending.length) {
@@ -221,7 +220,7 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
   return processed === dependencies.size;
 }
 
-/** Shared integrity check for server saves and browser-cache reopening. */
+/** サーバーでの保存と、ブラウザのキャッシュから開き直すときに共通の整合性の検査。 */
 export function validSiteDoc(parsed: unknown): boolean {
   const record = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value);
@@ -239,8 +238,8 @@ export function validSiteDoc(parsed: unknown): boolean {
     return false;
   }
 
-  // Folder ownership is editorial metadata, but a missing/duplicate folder
-  // makes pages disappear from the intended folder after reopening.
+  // フォルダの所属は編集上の情報だが、フォルダが欠けていたり重複していたりすると、
+  // 開き直したときにページが意図したフォルダから消えてしまう。
   const folderIds = new Set<string>();
   if (parsed.pageFolders != null) {
     if (!Array.isArray(parsed.pageFolders)) return false;

@@ -1,11 +1,11 @@
 /**
  * カスタムキーフレーム（@keyframes の中身）の読み書き。
- * キーフレーム編集画面は、不透明度・移動・拡大・回転を項目として編集し、
+ * キーフレームの編集画面は、不透明度・移動・拡大・回転を項目として編集し、
  * それ以外の宣言は「そのほかのCSS」として文字のまま持つ
  */
 
 export interface Keyframe {
-  /** 画面の中で区別するためのID（CSSには出さない） */
+  /** 画面の中で区別するための ID（CSS には出力しない） */
   id: string;
   /** 0〜100（%） */
   offset: number;
@@ -17,7 +17,7 @@ export interface Keyframe {
   scale?: number;
   /** 回転（deg） */
   rotate?: number;
-  /** 上の項目にない宣言（"filter: blur(4px); color: red;" など） */
+  /** 上の項目に無い宣言（"filter: blur(4px); color: red;" など） */
   extra: string;
 }
 
@@ -38,7 +38,7 @@ function parseLength(v: string): number | null {
   const m = new RegExp(`^(${NUM})(px)?$`, "i").exec(v.trim());
   if (!m) return null;
   const n = Number(m[1]);
-  // 単位なしは 0 だけ許される
+  // 単位の無い値は、0 だけが許される
   if (!Number.isFinite(n) || (!m[2] && n !== 0)) return null;
   return n;
 }
@@ -61,8 +61,8 @@ function parseNumber(v: string): number | null {
 }
 
 /**
- * transform の値を項目に分ける。項目にない関数を含む・順番が違う
- * （回転してから移動するなど、項目に分けると見た目が変わる）ときは null
+ * transform の値を項目に分ける。項目に無い関数を含む場合や、順序が違う場合
+ * （回転してから移動するなど、項目に分けると見た目が変わる）は null を返す
  */
 function parseTransform(value: string): Partial<Record<TransformKey, number>> | null {
   const v = value.trim();
@@ -105,7 +105,7 @@ function parseTransform(value: string): Partial<Record<TransformKey, number>> | 
       if (n === null || out.rotate !== undefined) return null;
       out.rotate = n;
     } else {
-      // 縦横で違う拡大は項目で表せない
+      // 縦と横で異なる拡大は、項目では表せない
       const nums = args.map(parseNumber);
       if (nums.length > 2 || nums.some((n) => n === null) || out.scale !== undefined) return null;
       if (nums.length === 2 && nums[0] !== nums[1]) return null;
@@ -152,7 +152,7 @@ function splitDecls(body: string): string[] {
   return out.map((d) => d.trim()).filter(Boolean);
 }
 
-/** コメントだけを除き、文字列内の /* やエスケープした引用符はそのまま残す。 */
+/** コメントだけを取り除き、文字列の中の /* やエスケープした引用符はそのまま残す。 */
 function stripComments(css: string): string | null {
   let out = "";
   let quote = "";
@@ -167,7 +167,7 @@ function stripComments(css: string): string | null {
     else if (ch === "/" && css[i + 1] === "*") {
       const end = css.indexOf("*/", i + 2);
       if (end < 0) return null;
-      // コメントの両側を連結して別の識別子や数値にしない。
+      // コメントの両側をつないで、別の識別子や数値にしない。
       out += " ";
       i = end + 1;
       continue;
@@ -178,15 +178,15 @@ function stripComments(css: string): string | null {
 }
 
 /**
- * @keyframes の中身を読む。読めない書き方（入れ子・セレクタの誤りなど）なら null。
- * 「0%, 50% { ... }」のようにまとめて書いたものは1つずつに分け、同じ位置は1つにまとめる
+ * @keyframes の中身を読む。読めない書き方（入れ子やセレクターの誤りなど）なら null を返す。
+ * 「0%, 50% { ... }」のようにまとめて書いたものは1つずつに分け、同じ位置のものは1つにまとめる
  */
 export function parseKeyframes(css: string): Keyframe[] | null {
   const src = stripComments(css);
   if (src === null) return null;
   const byOffset = new Map<number, Keyframe>();
   const declarations = new Map<number, { prop: string; value: string }[]>();
-  /** transform: none と書かれたキーフレーム（ほかで使っている変形だけを初期値にする） */
+  /** transform: none と書かれたキーフレーム（他で使っている変形だけを初期値にする） */
   const nones = new Set<Keyframe>();
   const re = /([^{}]+)\{([^{}]*)\}/g;
   for (const m of src.matchAll(re)) {
@@ -198,7 +198,7 @@ export function parseKeyframes(css: string): Keyframe[] | null {
         const i = decl.indexOf(":");
         if (i <= 0) return null;
         const name = decl.slice(0, i).trim();
-        // カスタムプロパティ名は大文字・小文字を区別する。
+        // カスタムプロパティの名前は、大文字と小文字を区別する。
         const prop = name.startsWith("--") || name.includes("\\") ? name : name.toLowerCase();
         const value = decl.slice(i + 1).trim();
         items.push({ prop, value });
@@ -213,12 +213,12 @@ export function parseKeyframes(css: string): Keyframe[] | null {
     const extras: string[] = [];
     const counts = new Map<string, number>();
     for (const { prop } of items) counts.set(prop, (counts.get(prop) ?? 0) + 1);
-    // エスケープされた名前は opacity や --customName と同じ名前を表すことがある。
-    // CSSの識別子を不完全に解釈せず、この位置の宣言はすべて順番どおり保持する。
+    // エスケープした名前は、opacity や --customName と同じ名前を表すことがある。
+    // CSS の識別子を不完全に解釈せず、この位置の宣言はすべて順序どおりに残す。
     const escapedName = items.some(({ prop }) => prop.includes("\\"));
     for (const { prop, value } of items) {
-      // 同じ宣言の代替指定は順番も意味を持つ。項目と raw CSS に分けて並べ替えず、
-      // 同じ位置の別ルールにあるものも含めて「そのほかのCSS」にそのまま残す。
+      // 同じ宣言の代わりの指定は、順序にも意味がある。項目と生の CSS に分けて並べ替えず、
+      // 同じ位置の別のルールにあるものも含めて、「そのほかのCSS」にそのまま残す。
       const hasAlias = items.some((item) => item.prop.endsWith(`-${prop}`) && item.prop.startsWith("-"));
       if (counts.get(prop) === 1 && !counts.has("all") && !hasAlias && !escapedName) {
         if (prop === "opacity" && !/!important/i.test(value)) {
@@ -251,8 +251,8 @@ export function parseKeyframes(css: string): Keyframe[] | null {
   return list;
 }
 
-// Preserve parsed precision on Apply; rounding belongs to explicit editor gestures,
-// not serialization (nearby offsets can represent an intentional instant jump).
+// 適用するときは、読み取った精度を保つ。丸めるのはエディタでの明示的な操作のときで、
+// 直列化のときではない（近い位置どうしで、意図した瞬間的な変化を表していることがある）。
 const fmt = (n: number) => String(n);
 
 function selector(offset: number): string {
@@ -264,8 +264,8 @@ function selector(offset: number): string {
 const hasTransform = (kf: Keyframe) => TRANSFORM_KEYS.some((k) => kf[k] !== undefined);
 
 /**
- * CSS に書き出す。transform を持つキーフレームは、どれかのキーフレームで使っている変形を
- * すべて同じ順で書き、未設定のものは等倍・0 で埋める（関数の並びをそろえると、なめらかにつながる）
+ * CSS に書き出す。transform を持つキーフレームでは、どれかのキーフレームで使っている変形を
+ * すべて同じ順序で書き、未設定のものは等倍や 0 で埋める（関数の並びをそろえると、なめらかにつながる）
  */
 export function serializeKeyframes(list: Keyframe[]): string {
   const used = new Set<TransformKey>();

@@ -22,7 +22,7 @@ test("safe imported HTML attributes preserve original CSS and accessibility hook
     lang: "ja",
     tabIndex: "0",
   });
-  // The same attributes must remain valid when read again from a SiteDoc.
+  // 同じ属性は、SiteDoc から読み直したときにも正しくなければならない。
   assert.deepEqual(importedAttributes(attrs), attrs);
   assert.equal(importedClass("  btn  sm:hover:bg-gray-100  "), "btn  sm:hover:bg-gray-100");
 });

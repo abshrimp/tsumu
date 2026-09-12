@@ -1,9 +1,9 @@
 import { PAGE_DATA_RUNTIME } from "./browser-data";
 
 /**
- * Extract the proven browser data evaluator into an environment-neutral ESM
- * module. The same interpreter runs in Vue and in Nuxt/SvelteKit SSR loads.
- * The generated module contains no window, document, or HTML DOM dependency.
+ * 実績のあるブラウザのデータの評価器を、環境に依存しない ESM のモジュールとして取り出す。
+ * Vue と、Nuxt / SvelteKit の SSR での読み込みで、同じインタープリターが動く。
+ * 生成するモジュールは、window・document・HTML の DOM に依存しない。
  */
 export function nativeDataModule(): string {
   const start = PAGE_DATA_RUNTIME.indexOf("  // Shared pure page-data helpers");

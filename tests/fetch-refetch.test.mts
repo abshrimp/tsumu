@@ -17,7 +17,7 @@ import * as scriptContexts from "../components/script-editor/context";
 const { ScriptNodeCtx, ScriptOwnerCtx, LoopCtx } = scriptContexts;
 import { fetchRefetchBundle, fetchRefetchDoc } from "./helpers/fetch-refetch";
 
-// 実ソースの FetchBody の入力確定と useRefetch を動かす。DOM の代わりにフックの状態を保持する。
+// 実際のソースの FetchBody の入力の確定と useRefetch を動かす。DOM の代わりに、フックの状態を持つ。
 function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loops?: any[]; owner?: { scriptId: string; nodeId: string | null } } = {}) {
   useEditor.getState().replaceDoc(options.doc ?? fetchRefetchDoc());
   let nodeId = options.nodeId ?? "";
@@ -256,7 +256,7 @@ test("Undo and external source changes hide late errors from the abandoned reque
       const mounted = mount();
       mounted.commitUrl("https://example.test/slow"); void mounted.run();
       change();
-      // React の再描画より先に応答が返る場合も、旧設定の状態を表示しない。
+      // React の再描画より先に応答が返る場合も、古い設定の状態を表示しない。
       if (renderBeforeResponse) assert.deepEqual(mounted.status(), { busy: false, error: null });
       const saved = structuredClone(useEditor.getState().doc);
       const future = structuredClone(useEditor.getState().future);
@@ -475,7 +475,7 @@ test("inline runtime inputs enable the one send action and reach the result with
   const view = mounted.result()();
   assert.equal(view.props.children[1].props.children[1].props.children, "https://example.test/001");
   await mounted.finish(0, latest);
-  // 取得時刻の数字に偶然 "001" が含まれても、テスト値の保存とは判定しない。
+  // 取得した時刻の数字に偶然 "001" が含まれても、テストの値を保存したとは判定しない。
   const { fetchedAt, ...saved } = mounted.step()!.preview!;
   assert.equal(typeof fetchedAt, "number");
   assert.equal(JSON.stringify(saved).includes("001"), false);

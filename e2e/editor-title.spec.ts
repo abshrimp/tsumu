@@ -21,7 +21,7 @@ for (const source of ["server", "local"] as const) {
     const title = `${source === "server" ? "Server" : "Local"} title | Tsumu`;
     await expect(page.locator("[data-editor-ready]")).toBeVisible();
     await expect(page).toHaveTitle(title);
-    // Resolve the metadata later in a separate Suspense boundary, as Next.js does.
+    // Next.js と同じように、メタデータは後から、別の Suspense の境界で解決する。
     await page.evaluate(() => (window as any).finishMetadata());
     await expect.poll(() => page.evaluate(() => (window as any).metadataReady)).toBe(true);
     await expect(page).toHaveTitle(title);

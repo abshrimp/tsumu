@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
-/** 実際の数値欄を、保存値と外部更新を確かめられる小さな画面で使う。 */
+/** 実際の数値の欄を、保存した値と外からの更新を確かめられる、小さな画面で使う。 */
 export async function numberFieldBundle() {
   return (await build({
     stdin: {
@@ -38,7 +38,7 @@ createRoot(document.getElementById("app")).render(<Example />);
   })).outputFiles[0].text;
 }
 
-/** 書き込み先の切り替えを、実際のインスペクタとストアで確かめる。 */
+/** 書き込み先の切り替えを、実際のインスペクターとストアで確かめる。 */
 export async function inspectorNumberBundle() {
   return (await build({
     stdin: {

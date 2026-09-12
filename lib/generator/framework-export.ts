@@ -7,9 +7,9 @@ import { usedGoogleFonts } from "./css";
 import { applyNativeFramework } from "./native-scaffold";
 
 /**
- * Vue, Nuxt and SvelteKit run the existing browser-only data and event
- * engine inside framework components. The app/route markup is rendered by
- * the framework, not a hidden Next.js or React project.
+ * Vue・Nuxt・SvelteKit では、既存のブラウザ専用のデータとイベントの仕組みを、
+ * フレームワークのコンポーネントの中で動かす。アプリとルートのマークアップは、
+ * 隠れた Next.js や React のプロジェクトではなく、そのフレームワークが描画する。
  */
 export type AdditionalFramework = "vue" | "nuxt" | "sveltekit";
 
@@ -21,7 +21,7 @@ function json(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** Quote a font name as a single CSS string token. */
+/** フォント名を、1つの CSS の文字列の字句として引用符で囲む。 */
 function cssQuoted(value: string): string {
   return '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
     "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
@@ -108,14 +108,14 @@ export function buildAdditionalFramework(
         allowImportingTsExtensions: true, noEmit: true, lib: ["ES2022", "DOM"] },
       include: ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"],
     });
-    // Vite provides *.module.css ambient types. Without this reference,
-    // Vue TS projects fail vue-tsc when CSS Modules are selected.
+    // Vite は *.module.css の環境の型を提供する。この参照が無いと、CSS Modules を選んだ
+    // Vue の TS のプロジェクトで vue-tsc が失敗する。
     if (ts) files["src/env.d.ts"] = '/// <reference types="vite/client" />\n';
   } else if (framework === "nuxt") {
     files["app/assets/globals.css"] = common.baseCss;
     files["app/assets/site.css"] = common.siteCss;
-    // Nuxt has no HTML entry file for the shared preview postprocessor.
-    // Put the directive in its global head so every SSR route receives it.
+    // Nuxt には、共通のプレビューの後処理で使う HTML の入口のファイルが無い。
+    // すべての SSR のルートが受け取れるよう、全体の head に指定を置く。
     const meta = [{ name: "description", content: "" }, ...(target === "test"
       ? [{ name: "robots", content: "noindex, nofollow, noarchive, nosnippet, noimageindex" }] : [])];
     files["nuxt.config." + ext] = [
@@ -130,7 +130,7 @@ export function buildAdditionalFramework(
       scripts: { dev: "nuxt dev", build: "nuxt build", generate: "nuxt generate",
         preview: "nuxt preview", postinstall: "nuxt prepare" },
       dependencies: { nuxt: "^4.6.4", vue: "^3.5.25" },
-      // Bypass vulnerable older transitive glob/minimatch releases in Nuxt tooling.
+      // Nuxt のツールが使う、脆弱性のある古い glob / minimatch の間接的な依存を避ける。
       overrides: { glob: "^14.0.2", minimatch: "^11.0.1" },
       devDependencies: ts ? { typescript: "^5.9.3" } : {},
     });

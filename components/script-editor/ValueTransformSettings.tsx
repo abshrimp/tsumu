@@ -1,6 +1,6 @@
 "use client";
 
-/** Pure value-operation controls for ordinary script blocks. */
+/** 通常のスクリプトのブロックで使う、値を加工する純粋な処理の設定欄。 */
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
@@ -39,7 +39,7 @@ const MATH: readonly { value: NumericOperation; label: () => string }[] = [
   { value: "remainder", label: () => tr("Remainder") },
 ];
 
-/** Native select sized to the longest translated option, regardless of the selected value. */
+/** 選択中の値にかかわらず、訳した選択肢のうち最も長いものに合わせた幅の標準の選択欄。 */
 function FixedOptionSelect({ children, ...props }: ComponentProps<"select">) {
   const selectRef = useRef<HTMLSelectElement>(null);
   useLayoutEffect(() => {
@@ -55,11 +55,11 @@ function FixedOptionSelect({ children, ...props }: ComponentProps<"select">) {
         ctx.measureText(option.textContent ?? "").width));
       const box = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
         + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
-      // Subpixel rounding and native select minimums can otherwise resize the control.
+      // こうしないと、サブピクセルの丸めや標準の選択欄の最小幅で、部品の大きさが変わってしまう。
       select.style.width = `${Math.ceil(longest + box + 1)}px`;
     };
     measure();
-    // Font loading may change the measured width after the initial render.
+    // フォントの読み込みで、最初の描画の後に測った幅が変わることがある。
     void document.fonts.ready.then(measure);
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
@@ -67,7 +67,7 @@ function FixedOptionSelect({ children, ...props }: ComponentProps<"select">) {
   return <select {...props} className="se-in se-fixed-select" ref={selectRef}>{children}</select>;
 }
 
-/** Field names and variable-token suggestions use the same editable input. */
+/** 項目名と変数の候補は、同じ入力欄で編集する。 */
 function fieldSuggestions(options: string[], samples: Record<string, unknown>, excludedVariableName?: string): string[] {
   const out = new Set(options);
   const visit = (value: unknown, name: string, depth: number) => {
@@ -102,7 +102,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
   const [showAll, setShowAll] = useState(true);
   const [active, setActive] = useState(0);
   const [position, setPosition] = useState<CSSProperties | null>(null);
-  // Hidden pickers should not enumerate every variable in a workspace.
+  // 隠れている選択欄では、ワークスペースのすべての変数を列挙しない。
   const choices = useMemo(() => open && samples
     ? fieldSuggestions(options, samples, excludedVariableName) : options,
     [open, options, samples, excludedVariableName]);
@@ -180,7 +180,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
           setOpen(true);
         }}
         onKeyDown={(event) => {
-          // IME変換中は候補の確定・移動・終了を入力メソッドに任せる。
+          // IME で変換している間は、候補の確定・移動・終了を入力メソッドに任せる。
           if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           if (event.key === "Escape" && open) {
             event.preventDefault();
@@ -351,7 +351,7 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
 }
 
 
-/** Standalone controls for a block on the script canvas, not a modal recipe. */
+/** スクリプトのキャンバス上のブロックに置く、独立した設定欄（モーダルではない）。 */
 export function ValueTransformSettings({ transform, options, onChange, samples, excludedVariableName }: {
   transform: ValueTransform;
   options: string[];

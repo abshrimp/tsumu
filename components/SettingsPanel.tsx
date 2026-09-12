@@ -44,7 +44,7 @@ import { AssetGrid } from "./ImagePicker";
 import { scriptsOf } from "../lib/script";
 import { tr } from "../lib/i18n";
 
-// lucide全アイコンを含むため遅延読み込み
+// lucide のすべてのアイコンを含むため、遅延読み込みにする
 const IconPicker = dynamic(() => import("./IconPicker"), {
   loading: () => <p className="hint">{tr("Loading icons…")}</p>,
 });
@@ -101,17 +101,17 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
   const node = doc.nodes[nodeId];
   if (!node) return null;
 
-  /** 複製・削除の対象（複数選んでいて、この要素も含まれていれば選択中の全要素） */
+  /** 複製・削除の対象（複数を選んでいて、この要素も含まれていれば、選択中のすべての要素） */
   const targetIds =
     selectedIds.length > 1 && selectedIds.includes(nodeId) ? selectedIds : [nodeId];
   const isSlugPg = !!doc.pages[activePageId]?.slug.includes("[slug]");
   const inComponent = !!componentOf(doc, nodeId);
-  /** URL入力などの {変数} 予測変換の候補 */
+  /** URL の入力などで使う、{変数} の予測変換の候補 */
   const varNames = varNamesAt(doc, activePageId, nodeId);
   const varSamples =
     node.type === "image" ? varSamplesAt(doc, activePageId, nodeId) : undefined;
 
-  /** 同じページ内でのID属性の重複数（自身含む） */
+  /** 同じページ内で ID 属性が重複している数（自身を含む） */
   let dupIdCount = 0;
   if (node.attrId) {
     const seen = new Set<string>();
@@ -170,7 +170,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               className="input"
               value={node.attrId ?? ""}
               placeholder={tr("Anchor / {variable} name")}
-              // {ID} の変数・スクリプトの対象として使える名前にそろえる（ラジオのグループ名と同じ規則。
+              // {ID} の変数やスクリプトの対象として使える名前にそろえる（ラジオのグループ名と同じ規則。
               // 空白・引用符・「.」（中の項目をたどる記号）などを含むと、{ID} に値が入らない）
               onCommit={(v) => updateNode(nodeId, { attrId: cleanVarName(v.trim()) || undefined })}
               onKeyDown={(e) => {
@@ -301,10 +301,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           <div className="sec-body">
             {(() => {
               const from = node.list.from ?? "";
-              // 選べるのは、スクリプトで変数・リストに入れた一覧だけ
-              //（取得したデータの中を自動で探した一覧は出さない）
+              // 選べるのは、スクリプトで変数やリストに入れた一覧だけ
+              //（取得したデータの中から自動で探した一覧は表示しない）
               const arrays = pageArrays(doc, activePageId);
-              // 入れ子のリストでは、外側のリスト表示の項目が持つ一覧（各商品の tags など）も並べられる
+              // 入れ子のリストでは、外側のリストの項目が持つ一覧（各商品の tags など）も並べられる
               const outerItem = scopeAt(doc, activePageId, nodeId, { inside: false }).item;
               const nested = outerItem
                 ? findItemsCandidates(outerItem).filter(
@@ -518,8 +518,8 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 nodeId={nodeId}
                 onCommit={(v) => {
                   const src = v.trim();
-                  // VarInput also commits an untouched empty asset placeholder on blur.
-                  // Keep that asset, but allow an explicitly cleared external URL.
+                  // VarInput は、手を付けていない空のアセットの欄も blur で確定する。
+                  // そのアセットは残し、外部の URL を明示的に消した場合だけ空にできるようにする。
                   if (src || !node.image!.assetId)
                     updateNode(nodeId, {
                       image: { ...node.image!, src, assetId: undefined, assetSuffix: undefined },
@@ -836,7 +836,7 @@ function CheckRow({ checked, label, onChange }: { checked: boolean; label: strin
   );
 }
 
-/** 入力欄の種類ごとの設定（初期値・案内文・範囲・必須など。文字の欄は {変数} を使える） */
+/** 入力欄の種類ごとの設定（初期値・案内文・範囲・必須など。文字の欄では {変数} を使える） */
 function FieldSettings({
   nodeId,
   field: f,
@@ -1066,7 +1066,7 @@ function FieldSettings({
 
 /* ---------- リンク ---------- */
 
-/** 押したときに開くURL・ページ（スクリプトの「クリックしたとき → 開く」と同じもの） */
+/** 押したときに開く URL やページ（スクリプトの「クリックしたとき → 開く」と同じもの） */
 function LinkSettings({
   nodeId,
   link,

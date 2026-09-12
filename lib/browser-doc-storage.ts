@@ -1,6 +1,6 @@
 /**
- * Browser-only site documents are stored in IndexedDB.
- * Site lists and small UI preferences stay in localStorage.
+ * ブラウザ内だけに保存するサイトの文書は IndexedDB に保存する。
+ * サイトの一覧と、画面の小さな設定は localStorage に置く。
  */
 const DB_NAME = "tsumu-documents";
 const STORE_NAME = "documents";
@@ -45,7 +45,7 @@ export async function readBrowserDoc(id: string): Promise<string | null> {
 
 export type BrowserDocWriteResult = "saved" | "conflict";
 
-/** An atomic compare-and-write prevents stale tabs overwriting newer snapshots. */
+/** 比較してから書き込む操作を原子的に行い、古いタブが新しい内容を上書きしないようにする。 */
 export async function writeBrowserDoc(
   id: string, raw: string, expected: string | null,
 ): Promise<BrowserDocWriteResult> {
@@ -67,7 +67,7 @@ export async function writeBrowserDoc(
   });
 }
 
-/** A site creation must not overwrite a preexisting or orphaned document. */
+/** サイトの作成で、既存の文書や、持ち主のいない文書を上書きしてはいけない。 */
 export async function createBrowserDoc(id: string, raw: string): Promise<boolean> {
   const db = await openDatabase();
   return new Promise<boolean>((resolve, reject) => {
@@ -97,7 +97,7 @@ export async function deleteBrowserDoc(id: string): Promise<void> {
   });
 }
 
-/** Asset references in other sites must be considered before remote assets are deleted. */
+/** サーバー上のアセットを削除する前に、他のサイトでの参照を考慮する必要がある。 */
 export async function otherBrowserDocs(excludedId: string): Promise<string[]> {
   const db = await openDatabase();
   return new Promise<string[]>((resolve, reject) => {

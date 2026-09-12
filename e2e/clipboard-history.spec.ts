@@ -11,7 +11,7 @@ test("Pasting a copied node via keyboard still works after undoing component cre
   await expect(page.getByText("サーバー保存済み")).toBeVisible();
 
   const canvas = page.locator('[data-tutorial="canvas"]');
-  // The preset heading includes another line of instructions after this string.
+  // プリセットの見出しには、この文字列の後に、説明の行がもう1つ続く。
   const content = canvas.getByText("見出しをここに");
   await expect(content).toHaveCount(1);
   await page.locator('[data-tutorial="layers-panel"]').getByText("ヒーロー", { exact: true }).click({ button: "right" });
@@ -25,7 +25,7 @@ test("Pasting a copied node via keyboard still works after undoing component cre
   await expect(content).toHaveCount(2);
   await expect(canvas.getByText("（コンポーネントが見つかりません）", { exact: true })).toHaveCount(0);
 
-  // The whole paste, including dependencies, undoes in one step and survives redo and reload after saving.
+  // 依存するものを含む貼り付けの全体が、1回で元に戻り、やり直しや、保存後の再読み込みの後も残る。
   await page.keyboard.press("ControlOrMeta+z");
   await expect(content).toHaveCount(1);
   await expect(canvas.locator("[data-instance]")).toHaveCount(0);

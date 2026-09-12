@@ -3,7 +3,7 @@ import type { ActivityUser } from "./activity";
 
 /**
  * エディタのコメント（ページの要素に付けるメモと、その返信）。
- * 編集データ（公開・元に戻すの対象）とは分けて、D1 の comment_threads / comment_messages に保存する。
+ * 編集データ（公開や元に戻す操作の対象）とは分けて、D1 の comment_threads / comment_messages に保存する。
  * D1 が無いときは、ブラウザ側（lib/comment-store.ts）が同じ形でこのブラウザに保存する
  */
 
@@ -32,7 +32,7 @@ export interface CommentThread {
   messages: CommentMessage[];
 }
 
-/** コメントの操作（API の POST と、ブラウザ保存で共通） */
+/** コメントの操作（API の POST と、ブラウザ内への保存で共通） */
 export type CommentAction =
   | { action: "create"; id: string; pageId: string; nodeId: string | null; x: number; y: number; bp: string; body: string }
   | { action: "reply"; threadId: string; id: string; body: string }
@@ -47,7 +47,7 @@ const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const num01 = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : null);
 const text = (v: unknown) => {
   const body = typeof v === "string" ? v.trim() : "";
-  // 長文を黙って切り捨てると、成功応答のあとに元の入力を失う。
+  // 長文を黙って切り捨てると、成功の応答の後で元の入力を失ってしまう。
   return body.length <= MAX_COMMENT_LENGTH ? body : "";
 };
 
@@ -102,10 +102,10 @@ export const isAuthor = (author: ActivityUser, user: ActivityUser | null) =>
 
 const ANON: ActivityUser = { email: "", name: null, image: null };
 
-/** 返信の再送は同じスレッド・投稿者のメール・本文だけを認める。表示名や画像は変わってもよい。 */
+/** 返信の再送として認めるのは、同じスレッド・投稿者のメールアドレス・本文のものだけ。表示名や画像は変わってもよい。 */
 export function hasCommentIdConflict(threads: CommentThread[], a: CommentAction, user: ActivityUser | null): boolean {
   if (a.action === "create") {
-    // 先頭コメントも返信と同じID空間を使う。D1と同様に衝突した作成は保存しない。
+    // 最初のコメントも、返信と同じ ID の空間を使う。D1 と同じく、ID が衝突した作成は保存しない。
     return threads.some(t => t.id === a.id || t.messages.some(m => m.id === `${a.id}-0`));
   }
   if (a.action === "reply") {
@@ -116,8 +116,8 @@ export function hasCommentIdConflict(threads: CommentThread[], a: CommentAction,
 }
 
 /**
- * 操作をコメントの一覧に当てはめる（ブラウザ保存で使う。threads を書き換えずに新しい一覧を返す）。
- * 他人のコメントの編集・削除はしない（スレッドの削除は最初のコメントを書いた人だけ）
+ * 操作をコメントの一覧に適用する（ブラウザ内への保存で使う。threads を書き換えずに新しい一覧を返す）。
+ * 他人のコメントは編集・削除しない（スレッドを削除できるのは、最初のコメントを書いた人だけ）
  */
 export function applyCommentAction(
   threads: CommentThread[],
@@ -186,7 +186,7 @@ const userOf = (r: Record<string, unknown>, prefix = ""): ActivityUser => ({
   image: r[`${prefix}image`] == null ? null : String(r[`${prefix}image`]),
 });
 
-/** 一覧は作成順の安定したカーソルで区切る。返信・解決で境界は動かさない。 */
+/** 一覧は、作成順の安定したカーソルで区切る。返信や解決では、区切りの位置を動かさない。 */
 export const COMMENT_PAGE_SIZE = 1000;
 export interface CommentCursor { createdAt: number; id: string }
 export function parseCommentCursor(value: string | null): CommentCursor | null {
@@ -201,7 +201,7 @@ export interface CommentPage {
   nextCursor: string | null;
   total: number;
   unresolvedCount: number;
-  /** 一覧の範囲外でも、閲覧中の詳細を独立して返す。null は削除済み。 */
+  /** 一覧の範囲外でも、閲覧中の詳細は別に返す。null は削除済みを表す。 */
   focusedThread: CommentThread | null;
 }
 
@@ -211,7 +211,7 @@ export async function listCommentPage(
   const where = `site_id = ?${before ? " AND (created_at < ? OR (created_at = ? AND id < ?))" : ""}`;
   const args = before ? [siteId, before.createdAt, before.createdAt, before.id] : [siteId];
   const select = `SELECT id FROM comment_threads WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ${COMMENT_PAGE_SIZE}`;
-  // 同じスナップショットで件数・一覧・本文を読む。ほかの一覧ページの本文は取得しない。
+  // 件数・一覧・本文は、同じスナップショットで読む。他の一覧のページの本文は取得しない。
   const [threads, messages, focused, counts] = await db.batch([
     { sql: `SELECT * FROM comment_threads WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ${COMMENT_PAGE_SIZE + 1}`, args },
     {
@@ -251,7 +251,7 @@ export async function listCommentPage(
   };
 }
 
-/** 操作を D1 に当てはめる。他人の変更は false、削除済みのサイトは site-missing、返信先は missing、返信IDの衝突は conflict。 */
+/** 操作を D1 に適用する。他人の変更なら false、削除済みのサイトなら site-missing、返信先が無ければ missing、返信の ID が衝突すれば conflict を返す。 */
 export async function runCommentAction(
   db: Db,
   siteId: string,
@@ -282,11 +282,11 @@ export async function runCommentAction(
           args: [`${a.id}-0`, a.id, siteId, me.email, me.name, me.image, a.body, now, a.id, siteId],
         },
       ]);
-      // 削除と競合して作成されなかった場合は、成功扱いで入力を消さない。
+      // 削除と競合して作成されなかった場合は、成功として扱って入力を消すことはしない。
       return thread.rowsAffected > 0 ? true : "site-missing";
     }
     case "reply": {
-      // 存在確認と書き込みを同じSQLで行い、削除と競合しても返信だけを残さない。
+      // 存在の確認と書き込みを同じ SQL で行い、削除と競合しても返信だけが残らないようにする。
       const results = await db.batch([
         {
           sql: `INSERT INTO comment_messages (id, thread_id, site_id, email, name, image, body, at)
@@ -296,12 +296,12 @@ export async function runCommentAction(
           args: [a.id, a.threadId, siteId, me.email, me.name, me.image, a.body, now, a.threadId, siteId],
         },
         {
-          // 同じトランザクションの直前のINSERTが成功したときだけ更新する。再送・衝突は変更しない。
+          // 同じトランザクションの直前の INSERT が成功したときだけ更新する。再送や衝突では変更しない。
           sql: "UPDATE comment_threads SET updated_at = ? WHERE id = ? AND site_id = ? AND changes() > 0",
           args: [now, a.threadId, siteId],
         },
         {
-          // 再送の判定も同じスナップショットで行う。他サイトの本文・投稿者は取得しない。
+          // 再送かどうかの判定も、同じスナップショットで行う。他のサイトの本文や投稿者は取得しない。
           sql: `SELECT t.id, m.id AS message_id, m.email, m.body FROM comment_threads t
             LEFT JOIN comment_messages m ON m.id = ? AND m.thread_id = t.id AND m.site_id = t.site_id
             WHERE t.id = ? AND t.site_id = ?`,
@@ -319,7 +319,7 @@ export async function runCommentAction(
       if (!isAuthor(m.author, user)) return false;
       const [updated] = await db.batch([
         {
-          // 読み取り後に削除・別ID所有者への置換があっても、成功扱いで編集中の本文を捨てない。
+          // 読み取った後に削除されたり、別の ID の持ち主に置き換わったりしても、成功として扱って編集中の本文を捨てることはしない。
           sql: `UPDATE comment_messages SET body = ?, edited_at = ?
             WHERE id = ? AND site_id = ? AND thread_id = ? AND (? OR email = '' OR email = ?)`,
           args: [a.body, now, a.messageId, siteId, m.thread, user === null ? 1 : 0, me.email],
@@ -369,9 +369,9 @@ export async function runCommentAction(
       if (rs.rows[0] && !isAuthor(userOf(rs.rows[0]), user)) return false;
       const [deleted, , remaining] = await db.batch([
         {
-          // Removing the first message can transfer ownership while the
-          // preliminary read is in flight. Authorize against this transaction's
-          // current first message, then remove its replies only if authorized.
+          // 事前の読み取りの間に最初のコメントが削除され、持ち主が移ることがある。
+          // このトランザクションの時点の最初のコメントで権限を確かめ、
+          // 許可された場合だけ、その返信を削除する。
           sql: `DELETE FROM comment_threads WHERE id = ? AND site_id = ?
             AND (? OR COALESCE((SELECT email FROM comment_messages
               WHERE thread_id = comment_threads.id AND site_id = comment_threads.site_id

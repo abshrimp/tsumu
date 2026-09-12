@@ -59,8 +59,8 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
 
 test("a revoked user with an unexpired cookie can reach login after an API 401", async () => {
   const f = fixture();
-  // ホームは /api/sites が 401 を返すと /login へ移動する。
-  // 古い Cookie は middleware の検証を通るが、API の現在の権限確認では拒否される。
+  // ホームは、/api/sites が 401 を返すと /login へ移動する。
+  // 古い Cookie は middleware の検証を通るが、API での現在の権限の確認で拒否される。
   assert.equal((await f.request("/")).status, 200);
   assert.equal((await f.requireAuth()).status, 401);
   const loginResponse = await f.request("/login");

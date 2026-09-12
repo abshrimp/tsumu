@@ -13,8 +13,8 @@ export function isPortableOutputPath(path: string): boolean {
 }
 
 /**
- * Ensure every export is extractable on case-insensitive Windows/macOS filesystems.
- * No generated path may escape the output root or turn a file into a directory.
+ * どの書き出しも、大文字と小文字を区別しない Windows や macOS のファイルシステムに展開できるようにする。
+ * 生成したパスが出力のルートの外に出たり、ファイルをディレクトリに変えたりしてはならない。
  */
 export function assertGeneratedPaths(project: GeneratedProject, reservedPaths: readonly string[] = []): void {
   const paths = new Set<string>();
@@ -24,7 +24,7 @@ export function assertGeneratedPaths(project: GeneratedProject, reservedPaths: r
     ["text", project.files],
     ["binary", project.binaries],
     ["remote", project.remoteAssets],
-    // ZIP-only entries must also participate in collision detection.
+    // ZIP にだけ入る項目も、衝突の検出に含める。
     ["reserved", Object.fromEntries(reservedPaths.map((path) => [path, ""]))],
   ] as const) {
     for (const path of Object.keys(records)) {

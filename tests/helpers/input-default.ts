@@ -10,7 +10,7 @@ export function inputDefaultDoc(field: FieldContent, query = ""): SiteDoc {
   return doc;
 }
 
-/** 本物の設定欄で初期値を編集し、Canvasと公開用React出力を比較する。 */
+/** 実際の設定の欄で初期値を編集し、Canvas と公開用の React の出力を比べる。 */
 export async function inputDefaultBundle(doc: SiteDoc) {
   return (await build({
     stdin: { contents: `

@@ -6,7 +6,7 @@ import { zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
 
 export interface ResolvedZipCss {
   css: string;
-  /** Rules that could not safely be expanded and must remain in custom code. */
+  /** 安全に展開できず、カスタムコードに残す必要のあるルール。 */
   unresolved: string[];
 }
 
@@ -18,7 +18,7 @@ interface ImportStatement {
   raw: string;
 }
 
-/** Read top-level CSS imports, ignoring strings, comments and nested rules. */
+/** 最上位の CSS の import を読む。文字列・コメント・入れ子のルールは無視する。 */
 function findImports(css: string): ImportStatement[] {
   const out: ImportStatement[] = [];
   let depth = 0;
@@ -74,7 +74,7 @@ function findImports(css: string): ImportStatement[] {
   return out;
 }
 
-/** Represent supported @import layer and media modifiers without inventing a media query. */
+/** 対応している @import の layer と media の修飾子を表す。メディアクエリを作り出すことはしない。 */
 function importConditions(condition: string): { media: string; layer?: string } | null {
   let media = condition.trim();
   let layer: string | undefined;
@@ -91,9 +91,9 @@ function importConditions(condition: string): { media: string; layer?: string } 
 }
 
 /**
- * Recursively inline CSS from a local HTML ZIP while preserving media query
- * conditions and resolving url() against the *owning* stylesheet. No network
- * request, DOM mutation, or script execution is performed here.
+ * ローカルの HTML の ZIP の CSS を、メディアクエリの条件を保ったまま再帰的にインラインにし、
+ * url() はそれを *持つ* スタイルシートを基準に解決する。ここではネットワークへの
+ * リクエスト、DOM の変更、スクリプトの実行は行わない。
  */
 export function expandZipCss(
   input: string,

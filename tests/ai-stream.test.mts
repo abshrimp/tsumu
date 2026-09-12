@@ -15,7 +15,7 @@ function streamed(text: string, type = "text/event-stream") {
   return new Response(new ReadableStream({
     pull(controller) {
       if (offset === bytes.length) return controller.close();
-      // Deliberately split Japanese characters, JSON and SSE frame boundaries.
+      // 日本語の文字、JSON、SSE のフレームの境界を、わざと分割する。
       controller.enqueue(bytes.slice(offset, offset += Math.min(7, bytes.length - offset)));
     },
   }), { headers: { "Content-Type": type } });

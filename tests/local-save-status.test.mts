@@ -24,7 +24,7 @@ const messages = {
 for (const cloudState of ["local", "error", "synced", "saving", "checking"] as const) {
   for (const localSaveState of ["pending", "saved", "error", "deleted"] as const) {
     test(`${cloudState}/${localSaveState}: the footer reports the current browser save result`, () => {
-      // SSRではZustandが初期スナップショットを読むので、検証用の初期値を指定する。
+      // SSR では Zustand が初期のスナップショットを読むため、検証用の初期値を指定する。
       Object.assign(useEditor.getInitialState(), { cloudState, savedAt: 1, cloudSavedAt: 1, cloudError: null });
       const html = renderToStaticMarkup(createElement(Footer, { localSaveState, onRetryLocalSave() {} })).replaceAll("&#x27;", "'").replaceAll("&#39;", "'");
       const expected = cloudState === "local" || cloudState === "error"

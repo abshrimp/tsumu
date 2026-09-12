@@ -10,7 +10,7 @@ import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { userMessage } from "../lib/errors";
 import { tr } from "../lib/i18n";
 
-/** ページを、ほかのサイトへコピーする（コピー先を選ぶダイアログ） */
+/** ページを他のサイトへコピーする（コピー先を選ぶダイアログ） */
 export default function CopyToSiteModal({ pageIds, onClose }: { pageIds: string[]; onClose: () => void }) {
   const doc = useEditor((s) => s.doc);
   const [sites, setSites] = useState<SiteRecord[] | null>(null);

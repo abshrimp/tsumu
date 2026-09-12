@@ -26,7 +26,7 @@ for (const declared of [false, true]) {
       },
     });
     const request = original.clone();
-    // もう一方の読み手を待つキャンセル処理が、エラー応答を止めないことを確かめる。
+    // もう一方の読み手を待つ取り消しの処理が、エラーの応答を止めないことを確かめる。
     t.after(() => { void original.body?.cancel().catch(() => {}); });
     await assert.rejects(withoutCleanupWait(readJsonLimited(request, 4)), JsonBodyTooLargeError);
     assert.equal(request.bodyUsed, true);

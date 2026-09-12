@@ -6,7 +6,7 @@ import { tr } from "../../lib/i18n";
 import { PaletteLabel } from "./blocks";
 import { CAT_INFO, CAT_ORDER, findPaletteItems, Ico, type Payload } from "./palette";
 
-/** Own search state and keyboard interaction without rerendering the workspace. */
+/** 検索の状態とキーボード操作を自身で持ち、ワークスペースを描画し直さない。 */
 export function ScriptPalette({ begin }: {
   begin: (event: PointerEvent, make: () => Payload) => void;
 }) {

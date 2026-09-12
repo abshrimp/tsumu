@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * スクリプト画面のブロックの分類・アイコン・色と、パレットに並べるブロックの一覧
+ * スクリプトの画面のブロックの分類・アイコン・色と、パレットに並べるブロックの一覧
  */
 
 import { type CSSProperties } from "react";
@@ -155,7 +155,7 @@ export interface PaletteItem {
   key: string;
   cat: Cat;
   icon: LucideIcon;
-  /** ［］で囲んだ部分は入力欄として表示する */
+  /** ［］で囲んだ部分は、入力欄として表示する */
   label: string;
   make: () => Payload;
 }
@@ -329,7 +329,7 @@ export const PALETTE: PaletteItem[] = [
 ];
 
 
-/** Search uses plain-language synonyms; labels and saved step kinds stay unchanged. */
+/** 検索では、日常的な言い換えの語も使う。表示名と保存する手順の種類は変えない。 */
 const SEARCH_TERMS: Record<string, string> = {
   click: "押す 押したとき ボタンを押す ボタン押下 押下 クリック クリックする タップ タップする タッチ 触る 選択したとき クリックイベント onclick click tap press",
   "hover-start": "マウスを乗せる マウスを重ねる カーソルを合わせる ポインターを乗せる ホバー ホバー開始 マウスオーバー マウスが乗ったとき mouseover mouseenter pointerenter hover enter",
@@ -364,7 +364,7 @@ const SEARCH_TERMS: Record<string, string> = {
 
 const normalizeSearch = (text: string) => text.normalize("NFKC").toLocaleLowerCase();
 
-/** Search the action palette by its current labels and keywords. */
+/** 動作のパレットを、現在の表示名とキーワードで検索する。 */
 export function findPaletteItems(query: string): PaletteItem[] {
   const words = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
   if (!words.length) return PALETTE;

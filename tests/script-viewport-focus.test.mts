@@ -7,9 +7,9 @@ import { transformSync } from "esbuild";
 import * as React from "react";
 import type { ScriptStep } from "../lib/types";
 
-// Run the real chunk/stack effects and shared viewport observer. Only React's
-// scheduling and the host's geometry/focus events are controlled here; browser
-// draft commits and DOM unmounting are covered in script-large-workspace.spec.ts.
+// 実際のまとまり・並びの effect と、共有の表示範囲の監視を動かす。ここで制御するのは、React の
+// スケジュールと、ホストの寸法・フォーカスのイベントだけ。ブラウザでの下書きの確定と
+// DOM の取り外しは、script-large-workspace.spec.ts で確かめる。
 function mount(kind: "chunk" | "stack") {
   const workspace = {};
   const field = {};

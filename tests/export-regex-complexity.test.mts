@@ -28,7 +28,7 @@ function site(): SiteDoc {
   };
 }
 
-/** Extract the evaluator that survived code generation and pruning for this format. */
+/** この形式で、コードの生成と機能の削除の後に残った評価器を取り出す。 */
 function emittedEvaluator(source: string): string {
   const pending: unknown[] = [parse(source, { ecmaVersion: "latest", sourceType: "module" })];
   while (pending.length) {
@@ -48,7 +48,7 @@ function emittedEvaluator(source: string): string {
   assert.fail("export did not include its recipe evaluator");
 }
 
-// Each field starts with its first choice; each choice within a field has a distinct initial.
+// 各項目は最初の選択肢から始まり、1つの項目の中の選択肢は、それぞれ先頭の文字が異なる。
 const catalogFields = [
   ["Mon", "Tue", "Wed"], ["red", "blue", "green"], ["small", "medium", "large"],
   ["east", "west", "north"], ["yes", "no", "later"], ["bus", "rail", "walk"],
@@ -72,8 +72,8 @@ for (const [framework, path] of [
   test(`${framework} published evaluator applies regex budgets to ordinary catalog values`, () => {
     const files = generateExportProject(site(), framework).files;
     assert.ok(files[path], path);
-    // Next.js emits TypeScript, whereas the other formats emit JavaScript.
-    // Strip type-only syntax before parsing or executing the evaluator in Acorn/vm.
+    // Next.js は TypeScript を、他の形式は JavaScript を出力する。
+    // Acorn や vm で評価器を解析・実行する前に、型だけの構文を取り除く。
     const runtimeSource = path.endsWith(".ts")
       ? transformSync(files[path], { loader: "ts", target: "es2022" }).code
       : files[path];

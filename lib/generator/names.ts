@@ -6,7 +6,7 @@ import type { SiteDoc } from "../types";
 
 /* ---------- クラス名 ---------- */
 
-/** 既定の日本語要素名 → 読めるクラス名 */
+/** 既定の日本語の要素名 → 読めるクラス名 */
 const NAME_DICT: [RegExp, string][] = [
   [/^ボックス/, "box"],
   [/^テキスト(?!エリア)/, "text"],
@@ -39,7 +39,7 @@ const NAME_DICT: [RegExp, string][] = [
   [/^ヘッダー/, "header"],
 ];
 
-/** 重複時の続き番号を保持し、同名要素が多くても先頭から探し直さない。 */
+/** 重複したときの続き番号を覚えておき、同じ名前の要素が多くても、先頭から探し直さない。 */
 function nameAllocator(reserved: Iterable<string> = [], separator = "-", forbidden?: (name: string) => boolean) {
   const used = new Set(Array.from(reserved, (name) => name.toLowerCase()));
   const nextSuffix = new Map<string, number>();
@@ -104,7 +104,7 @@ const MIME_EXT: Record<string, string> = {
   "application/javascript": ".js",
 };
 
-/** MIMEタイプ（無ければ dataURL の先頭）から拡張子を決める */
+/** MIME タイプ（無ければ data URL の先頭）から拡張子を決める */
 function extFromMime(mimeType?: string, dataUrl?: string): string {
   const mime = (mimeType || /^data:([^;,]+)/.exec(dataUrl ?? "")?.[1] || "")
     .toLowerCase()
@@ -113,19 +113,19 @@ function extFromMime(mimeType?: string, dataUrl?: string): string {
 }
 
 /**
- * アセットの出力ファイル名（public/assets/ 内）。
- * 同名ファイルをアップロードしても上書きされないよう一意化する
+ * アセットの出力ファイル名（public/assets/ の中）。
+ * 同じ名前のファイルをアップロードしても上書きされないよう、一意にする
  */
 export function buildAssetNames(doc: SiteDoc): Map<string, string> {
-  // ZIPs are frequently extracted to case-insensitive filesystems. Keep the
-  // original spelling, but assign a suffix when names differ only by case.
+  // ZIP は、大文字と小文字を区別しないファイルシステムに展開されることが多い。
+  // 元の綴りは保ち、大文字と小文字だけが違う名前には接尾辞を付ける。
   const allocate = nameAllocator();
   const map = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
-    // 公開URL・CSSの url() でそのまま使えるよう、アップロード時と同じ規則で安全な名前にする
-    //（表示名は日本語・空白・# などを含むことがある）
-    // 拡張子は別に扱う。「ロゴ.svg」→「-.svg」の先頭記号を削ると拡張子まで消え、
-    // 拡張子なしのファイルは application/octet-stream で配信されて画像が表示されない
+    // 公開 URL や CSS の url() でそのまま使えるよう、アップロード時と同じ規則で安全な名前にする
+    //（表示名は日本語・空白・# などを含むことがある）。
+    // 拡張子は別に扱う。「ロゴ.svg」→「-.svg」の先頭の記号を削ると拡張子まで消え、
+    // 拡張子の無いファイルは application/octet-stream で配信されて、画像が表示されない
     const raw = (asset.name || "").replace(/[^a-zA-Z0-9.\-_]/g, "-");
     const extMatch = /\.[a-zA-Z0-9]{1,5}$/.exec(raw);
     const safeExt =
@@ -138,12 +138,12 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
         .replace(/-{2,}/g, "-")
         .replace(/^[.-]+/, "")
         .replace(/\.+$/g, "")
-        // Keep exported asset paths usable on filesystems with 255-byte
-        // filename components, retaining room for extensions and suffixes.
+        // ファイル名の部分が255バイトまでのファイルシステムでも書き出したアセットのパスを使えるよう、
+        // 拡張子と接尾辞の余地を残して切り詰める。
         .slice(0, 120)
         .replace(/[.-]+$/g, "") || "image";
-    // Windows reserves these device names with or without an extension.
-    // Rename valid uploaded assets rather than failing the entire export.
+    // Windows は、拡張子の有無にかかわらず、これらのデバイス名を予約している。
+    // 書き出し全体を失敗させずに、有効なアップロード済みのアセットの名前を変える。
     const base = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(originalBase)
       ? "_" + originalBase : originalBase;
     map.set(asset.id, allocate(base, ext));
@@ -152,11 +152,11 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
 }
 
 export function buildComponentNames(doc: SiteDoc): Map<string, string> {
-  // ページ・コンポーネントに生成する関数、import、型と衝突させない。
+  // ページやコンポーネントに生成する関数・import・型と衝突させない。
   const allocate = nameAllocator([
     "Page", "Image", "Link", "Fragment", "SmartLink", "SearchForm", "SiteLoadingScreen", "PageHtml",
     "Metadata", "Vars", "Item",
-    // データ取得・リスト・ローディング画面で参照する組み込みオブジェクトと型。
+    // データの取得・リスト・ローディング画面で参照する、組み込みのオブジェクトと型。
     "Object", "Array", "Promise", "Record", "JSON", "Error", "Number", "String", "Boolean",
     "Proxy", "RegExp", "Math", "Date", "Set", "Map", "URL", "URLSearchParams", "RequestInit", "React",
   ], "", (name) => /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name));
@@ -176,11 +176,11 @@ export function buildComponentNames(doc: SiteDoc): Map<string, string> {
       .split(/\s+/)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join("")
-      // ファイル名の255バイト制限に、拡張子と重複時の番号の余地を残す。
+      // ファイル名の255バイトの制限に、拡張子と、重複したときの番号の余地を残す。
       .slice(0, 120);
     if (!ident || /^\d/.test(ident)) ident = "Section";
-    // Component filenames must remain distinct on macOS/Windows as well as
-    // Linux. Valid user labels must not make portable-path validation fail.
+    // コンポーネントのファイル名は、Linux だけでなく macOS や Windows でも区別できなければならない。
+    // 有効な利用者のラベルで、移植できるパスかの検証を失敗させてはいけない。
     map.set(comp.id, allocate(ident));
   }
   return map;

@@ -1,8 +1,8 @@
-/** ブラウザが制御文字を取り除く前に検査し、リンクからのスクリプト実行を防ぐ。 */
+/** ブラウザが制御文字を取り除く前に検査し、リンクからスクリプトが実行されるのを防ぐ。 */
 export function safeNavigationUrl(value: string): string {
   const url = value.trim();
-  // 制御文字（ブラウザが取り除く）と「\」（「/」として読む。/\evil.com が別サイトになる）は、
-  // スキーム・ホスト・パスを変えられる位置（クエリ・フラグメントより前）だけで拒む
+  // 制御文字（ブラウザが取り除く）と「\」（「/」として読まれ、/\evil.com が別のサイトになる）は、
+  // スキーム・ホスト・パスを変えられる位置（クエリやフラグメントより前）でだけ拒否する
   const beforeQuery = url.split(/[?#]/, 1)[0];
   if (!url || /[\u0000-\u001f\u007f\\]/.test(beforeQuery) || url.startsWith("//")) return "#";
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1]?.toLowerCase();
@@ -11,7 +11,7 @@ export function safeNavigationUrl(value: string): string {
   return url;
 }
 
-/** Preserve supported inline image/audio/video resources while rejecting executable URL schemes. */
+/** 対応しているインラインの画像・音声・動画のリソースは残し、実行できる URL のスキームは拒否する。 */
 export function safeResourceUrl(value: string): string {
   const url = value.trim();
   if (/^data:(?:image|video|audio)\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+(?:#[^\u0000-\u001f\u007f]*)?$/i.test(url)) return url;
@@ -19,7 +19,7 @@ export function safeResourceUrl(value: string): string {
   return safeNavigationUrl(url);
 }
 
-/** ブラウザ用の素のJS。生成サイトとエディタの判定の一致はテストで確認する。 */
+/** ブラウザ用の素の JS。生成したサイトとエディタで判定が一致することは、テストで確かめる。 */
 export const NAVIGATION_RUNTIME = String.raw`function safeNavigationUrl(value) {
   var url = value.trim();
   var beforeQuery = url.split(/[?#]/, 1)[0];

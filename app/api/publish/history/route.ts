@@ -36,8 +36,8 @@ const MAX_ROLLBACK_REQUEST_BYTES = 128 * 1024;
 
 const isSha = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{40}$/i.test(s);
 
-/** A SHA from a different branch (or an unreachable commit) is not a history
- * entry for the selected publication target, even when GitHub can read it. */
+/** 別のブランチの SHA（または到達できないコミット）は、GitHub から読めても、
+ * 選択した公開先の履歴には含めない。 */
 async function belongsToHistory(
   gh: (path: string) => Promise<Response>,
   fail: (step: string, response: Response) => Promise<never>,
@@ -50,7 +50,7 @@ async function belongsToHistory(
   if (res.status === 404 || res.status === 422) return false;
   if (!res.ok) await fail(tr("Fetching the selected version"), res);
   const data = (await res.json()) as { merge_base_commit?: { sha?: unknown } };
-  // Merely existing in the repository does not authorize restoration.
+  // リポジトリに存在するだけでは、その版への復元を許可しない。
   return data.merge_base_commit?.sha === sha;
 }
 
@@ -59,8 +59,8 @@ function parseTarget(v: unknown): PublishTarget {
 }
 
 /**
- * 公開の履歴（公開先ブランチのコミット）。
- * ?target=production|test で一覧、&doc=<sha> でその版の編集データを返す
+ * 公開の履歴（公開先のブランチのコミット）。
+ * ?target=production|test で一覧を、&doc=<sha> でその版の編集データを返す
  */
 export async function GET(req: Request) {
   const tr = await serverTr();
@@ -93,7 +93,7 @@ export async function GET(req: Request) {
       if (!current || !(await belongsToHistory(gh, fail, tr, docSha, current))) {
         return NextResponse.json({ error: tr("This version doesn't include editor data") }, { status: 404 });
       }
-      // raw で受け取り、パースせずにそのまま返す（大きな編集データでもCPU時間を使わない）
+      // raw 形式で受け取り、パースせずにそのまま返す（大きな編集データでも CPU 時間を使わない）
       const res = await gh(`/contents/${DOC_PATH}?ref=${docSha}`, {
         accept: "application/vnd.github.raw+json",
       });
@@ -134,8 +134,8 @@ export async function GET(req: Request) {
 }
 
 /**
- * ロールバック: 指定した版と同じ内容のコミットを、いまの先端の上に積む。
- * 履歴を消さない（force push しない）ので、ロールバック自体もあとから戻せる
+ * ロールバック: 指定した版と同じ内容のコミットを、現在の先端の上に積む。
+ * 履歴を消さない（force push しない）ため、ロールバック自体も後から戻せる
  */
 export async function POST(req: Request) {
   const tr = await serverTr();
@@ -183,9 +183,9 @@ export async function POST(req: Request) {
     const srcRes = await gh(`/git/commits/${sha}`);
     if (!srcRes.ok) await fail(tr("Fetching the selected version"), srcRes);
     const src = (await srcRes.json()) as { tree: { sha: string }; message: string };
-    // A rollback replaces the generated site, not manually maintained files.
-    // Compare full snapshots and keep manual files added after the old commit.
-    // Refuse partial trees, since an omitted file could otherwise be deleted.
+    // ロールバックで戻すのは生成したサイトで、手動で管理しているファイルは対象外。
+    // 両方の版の全体を比べ、古いコミットより後に手動で追加したファイルは残す。
+    // 省かれたファイルを削除してしまわないよう、一部しか読めないツリーは受け付けない。
     const readTree = async (commit: string): Promise<TreeEntry[]> => {
       const res = await gh(`/git/trees/${commit}?recursive=1`);
       if (!res.ok) await fail(tr("Fetching the tree"), res);
@@ -199,8 +199,8 @@ export async function POST(req: Request) {
     const [sourceEntries, currentEntries] = await Promise.all([
       readTree(src.tree.sha), readTree(current),
     ]);
-    // A rollback is also a publication. It must not reintroduce credential
-    // settings from an older editable document that normal publishing rejects.
+    // ロールバックも公開の一種。通常の公開では拒否する認証情報の設定を、
+    // 古い編集データから持ち込まないようにする。
     const sourceDoc = sourceEntries.find(entry => entry.path === DOC_PATH && entry.type === "blob");
     if (sourceDoc?.sha) {
       const docRes = await gh(`/git/blobs/${sourceDoc.sha}`);
@@ -234,9 +234,9 @@ export async function POST(req: Request) {
     const currentBlobs = blobsOf(currentEntries);
     const sourceBlobs = blobsOf(sourceEntries);
 
-    // Read ownership metadata for both revisions. Never infer that every
-    // historical file was generated: a user may have deleted a manual file
-    // after the chosen snapshot, and rollback must respect that deletion.
+    // 両方の版について、どのファイルを生成したかの記録を読む。過去のファイルを
+    // すべて生成物とみなしてはいけない。選んだ版より後に手動のファイルを削除している
+    // 場合があり、ロールバックではその削除も尊重する。
     const readGenerated = async (blobs: Record<string, string>): Promise<Record<string, string> | null> => {
       const sha = blobs[GENERATED_MANIFEST_PATH];
       if (!sha) return null;
@@ -256,9 +256,8 @@ export async function POST(req: Request) {
     const manual = planPublish(currentBlobs, generated, []);
     const keptPaths = Object.keys(manual.kept).filter(path => !isProtectedPath(path));
     const kept = keptTreeEntries(currentEntries, keptPaths);
-    // When the older generated-file manifest exists, retain current deletions
-    // of files that were manually owned in the historical tree. Generated
-    // files absent from the current tree must still be restored.
+    // 古い版の生成ファイルの一覧があれば、過去のツリーで手動のファイルだったものは、
+    // 現在の削除をそのまま残す。現在のツリーにない生成ファイルは復元する。
     const deletedManual = sourceGenerated
       ? leaf(sourceEntries).filter(entry =>
           !isProtectedPath(entry.path) && !entry.path.startsWith("_tsumu/") &&
@@ -271,12 +270,12 @@ export async function POST(req: Request) {
     ])) {
       return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 409 });
     }
-    // Preserve .github as a whole subtree. Do not also write its nested files
-    // in this Git Trees API request; that could replace the subtree.
+    // .github はサブツリーごと残す。この Git Trees API のリクエストで、その中のファイルを
+    // 個別に書き込むと、サブツリーが置き換わってしまうため書き込まない。
     const sourceRoot = sourceEntries.filter(entry => !entry.path.includes("/"));
     const currentRoot = currentEntries.filter(entry => !entry.path.includes("/"));
     const sourceByPath = new Map(sourceEntries.map(entry => [entry.path, entry]));
-    // 手動ファイルとディレクトリを入れ替えた場合は、古いパスを先に別ツリーから除く。
+    // 手動のファイルとディレクトリが入れ替わった場合は、古いパスを先に別のツリーで取り除く。
     // 親と子の編集を同時に渡さず、最後のコミットまでブランチの先端は動かさない。
     const pruneFirst = !!conflictingCommitPaths([
       ...sourcePaths.filter(path => !isProtectedPath(path)), ...keptPaths,
@@ -292,9 +291,9 @@ export async function POST(req: Request) {
         return !prior || prior.sha !== entry.sha || prior.mode !== entry.mode || prior.type !== entry.type;
       }),
     ];
-    // A retained manual file may reuse a formerly generated path. Restoring
-    // its old ownership would let the next publish delete it, even when its
-    // content and Git attributes happen to match the historical version.
+    // 残す手動ファイルが、以前は生成ファイルだったパスを使っている場合がある。
+    // 古い所有の情報を戻すと、内容や Git の属性が過去の版と一致していても、
+    // 次の公開でそのファイルを削除してしまう。
     if (sourceGenerated && keptPaths.some(path => Object.hasOwn(sourceGenerated, path))) {
       const retained = new Set(keptPaths);
       edits.push({
@@ -332,8 +331,8 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
-    // GitHub's ref has already moved. A bookkeeping outage must not report
-    // that rollback failed and encourage a duplicate rollback commit.
+    // GitHub のブランチはすでに更新されている。記録の保存に失敗しても、
+    // ロールバックの失敗として報告し、重複したロールバックのコミットを促すことはしない。
     try {
       await recordPublish(siteId, target, dest.roomKey);
     } catch {

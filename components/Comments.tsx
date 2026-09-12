@@ -18,11 +18,11 @@ import { ContextMenu } from "./NodeContextMenu";
 function anchorOf(frame: HTMLElement, nodeId: string | null): HTMLElement | null {
   if (!nodeId) return frame.querySelector<HTMLElement>(".cv-root");
   const el = frame.querySelector<HTMLElement>(`[data-node="${CSS.escape(nodeId)}"]`);
-  // 非表示の画面幅などで大きさが無ければ、置く場所が無いものとする
+  // 非表示の画面幅などで大きさが無い場合は、ピンを置く場所が無いものとする
   return el && (el.offsetWidth || el.offsetHeight) ? el : null;
 }
 
-/** 開いているページの、表示するスレッド（作った順。番号はこの順） */
+/** 開いているページで表示するスレッド（作成した順。番号もこの順に振る） */
 export function usePageThreads(): CommentThread[] {
   const threads = useComments((s) => s.threads);
   const showResolved = useComments((s) => s.showResolved);
@@ -88,7 +88,7 @@ function Composer({
       const ok = await onSubmit(text);
       if (ok) {
         setBodyState("");
-        // A remounted composer may already own a newer draft for this thread.
+        // 再マウントした入力欄が、このスレッドのより新しい下書きを持っている場合があるため、同じものだけを消す。
         if (draftKey && unsentBodies.get(draftKey) === draft) unsentBodies.delete(draftKey);
       }
     } finally {
@@ -101,20 +101,20 @@ function Composer({
       <textarea
         ref={ref}
         value={body}
-        // 保存中の本文はコピーできるが変更させず、成功時に新しい入力を消さない。
+        // 保存中の本文はコピーできるが変更はさせない。保存に成功しても、その後の新しい入力は消さない。
         readOnly={busy}
         rows={Math.min(6, Math.max(2, body.split("\n").length))}
         placeholder={placeholder}
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
-          // 変換の確定・取り消しを、送信や下書きのキャンセルとして扱わない。
+          // 変換の確定や取り消しを、送信や下書きのキャンセルとして扱わない。
           if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             void submit();
           } else if (e.key === "Escape" && onCancel) {
             e.stopPropagation();
-            // 明示的なキャンセルはボタンと同じく下書きを破棄する。返信は親のEscで閉じる。
+            // 明示的なキャンセルは、ボタンと同じく下書きを破棄する。返信欄は親の Esc で閉じる。
             if (draftKey) unsentBodies.delete(draftKey);
             onCancel();
           }
@@ -144,7 +144,7 @@ function Composer({
 
 /* ---------- スレッド ---------- */
 
-/** Confirmation belongs to the mounted discussion, not a later panel or edit. */
+/** 削除の確認は、表示中のスレッドに対して行う（後から開いたパネルや、後の編集には引き継がない）。 */
 function useCommentDeletion(scope: string, disabled: boolean) {
   const pending = useRef<object | null>(null);
   useLayoutEffect(() => {
@@ -167,7 +167,7 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
   const run = useComments((s) => s.run);
   const [editing, setEditing] = useState(false);
   const editSession = useRef(0);
-  /** 「…」メニューの位置（スクロールする一覧に隠れないよう、画面に固定して出す） */
+  /** 「…」メニューの位置（スクロールする一覧に隠れないよう、画面に固定して表示する） */
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const mine = isAuthor(m.author, user);
   const first = thread.messages[0]?.id === m.id;
@@ -360,8 +360,8 @@ export function CommentLayer(props: CommentLayerProps) {
 }
 
 /**
- * コメントモードでキャンバスに重ねる層。クリックした要素にコメントを置き、
- * 付いているコメントをピンで見せる（位置は要素の中の割合なので、幅を変えてもついてくる）
+ * コメントモードでキャンバスに重ねる層。クリックした要素にコメントを付け、
+ * 付いているコメントをピンで示す（位置は要素の中の割合で持つため、幅を変えても追従する）
  */
 function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
   const pageId = useEditor((s) => s.activePageId);
@@ -378,7 +378,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
   const [draftPos, setDraftPos] = useState<{ left: number; top: number } | null>(null);
   const [hover, setHover] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
-  // ほかの人のコメントも見えるよう、開いている間はときどき読み込み直す
+  // 他の人のコメントも見えるよう、開いている間は定期的に読み込み直す
   useEffect(() => {
     const id = setInterval(() => {
       if (!document.hidden) void load();
@@ -386,7 +386,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
     return () => clearInterval(id);
   }, [load]);
 
-  // Esc: 書きかけ・開いているスレッドを閉じ、何も無ければコメントモードを終える
+  // Esc: 書きかけのコメントや開いているスレッドを閉じる。何も無ければコメントモードを終える
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.isComposing || e.keyCode === 229 || document.querySelector(".modal-backdrop")) return;
@@ -400,7 +400,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Windows では Alt を単独で離すとブラウザのメニューに移るので止める
+      // Windows では Alt を単独で離すとブラウザのメニューにフォーカスが移るため、それを止める
       if (e.type === "keyup" && e.key === "Alt") e.preventDefault();
       setPeeking(e.altKey && !e.metaKey && !e.ctrlKey);
     };
@@ -415,7 +415,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
     };
   }, []);
 
-  // ピンの位置（スクロール・拡大・幅の変更についていくため、毎フレーム測る）
+  // ピンの位置（スクロール・拡大・幅の変更に追従するため、毎フレーム測る）
   useEffect(() => {
     let raf = 0;
     const tick = () => {
@@ -490,7 +490,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
         onMouseLeave={() => setHover(null)}
         onClick={(e) => {
           e.stopPropagation();
-          // 書きかけ・開いているスレッドがあれば、まず閉じる
+          // 書きかけのコメントや開いているスレッドがあれば、まずそれを閉じる
           const s = useComments.getState();
           if (s.draft || s.openId) {
             s.open(null);
@@ -576,7 +576,7 @@ export function CommentsPanel() {
   const { open, setDraft, run, setPinsHidden } = useComments.getState();
   const [allPages, setAllPages] = useState(false);
   const targetOf = useMemo(() => commentTargetResolver(doc, bp), [doc, bp]);
-  // 閲覧中のスレッドはページ・絞り込み・ピン位置から独立させ、共同編集の削除でも入力を保つ。
+  // 閲覧中のスレッドは、ページ・絞り込み・ピンの位置とは無関係に表示し続け、共同編集による削除でも入力内容を残す。
   const openThread = openId ? (focusedThread?.id === openId ? focusedThread : threads.find(t => t.id === openId)) : undefined;
   useEffect(() => {
     if (openId && !openThread) open(null);
@@ -586,7 +586,7 @@ export function CommentsPanel() {
   const shown = visible
     .filter((t) => allPages || targetOf(t).pageId === activePageId)
     .sort((a, b) => b.updatedAt - a.updatedAt);
-  // 削除されたページのコメントは「このページ」には出ないので、あることだけ知らせる
+  // 削除されたページのコメントは「このページ」には表示されないため、あることだけを知らせる
   const onDeletedPages = allPages ? 0 : visible.filter((t) => targetOf(t).kind === "deleted-page").length;
   const pageThreads = visible
     .filter((t) => targetOf(t).pageId === activePageId)
@@ -605,7 +605,7 @@ export function CommentsPanel() {
     const s = useEditor.getState();
     const pageId = targetOf(t).pageId;
     if (pageId !== s.activePageId && s.doc.pages[pageId]) s.setActivePage(pageId);
-    // 付けたときの画面幅で見せる（その幅で非表示の要素もあるため）
+    // コメントを付けたときの画面幅で表示する（その幅でしか表示されない要素もあるため）
     if (BP_INFO[t.bp] && s.breakpoint !== t.bp) s.setBreakpoint(t.bp);
     useComments.getState().open(t.id);
   };

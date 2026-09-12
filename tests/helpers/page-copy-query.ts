@@ -44,7 +44,7 @@ export function queryCopyFixture() {
   return { source, target };
 }
 
-/** Run the generated page rather than only checking source fragments. */
+/** ソースの断片を確かめるだけでなく、生成したページを実行する。 */
 export function renderQueryCopyExport(doc: SiteDoc) {
   const source = generateProject(doc).files["app/page.tsx"];
   const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;

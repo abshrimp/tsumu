@@ -16,7 +16,7 @@ function evaluate(source: string, overrides: Record<string, unknown> = {}) {
   return mod.exports;
 }
 
-// 型・キー・位置が同じフォームは再利用される。入力の現在値と ref を描画間で保持する。
+// 型・キー・位置が同じフォームは使い回される。入力の現在値と ref を、描画の間で保つ。
 function mount() {
   const ref = { current: null as any };
   let effect: (() => void) | undefined;
@@ -42,7 +42,7 @@ function mount() {
     options = ["A", "B", "C"].map((value) => ({ value, defaultSelected: value === "B", selected: value === "B" }));
   }
   const select = new Select();
-  // 選択状態は実DOM同様に1つだけにする。
+  // 実際の DOM と同じく、選択の状態は1つだけにする。
   for (const option of select.options) {
     let selected = option.selected;
     Object.defineProperty(option, "selected", {

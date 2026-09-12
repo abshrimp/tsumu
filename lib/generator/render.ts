@@ -1,5 +1,5 @@
 /**
- * 要素の木を JSX に書き出す
+ * 要素のツリーを JSX に書き出す
  */
 
 import { assetMediaUrl } from "../assets";
@@ -30,7 +30,7 @@ import {
 import { EMPTY_GIF } from "./templates";
 import { cssValue } from "./css";
 
-/** 文字列で参照する値だけを代替値として残す。項目の値はブラウザで優先する。 */
+/** 文字列として参照する値だけを、代替値として残す。項目の値は、ブラウザで優先する。 */
 function textParts(value: string, base: string, url = false, isLive?: (name: string) => boolean): string {
   const parts: string[] = [];
   let end = 0;
@@ -48,42 +48,42 @@ function textParts(value: string, base: string, url = false, isLive?: (name: str
   return `[${parts.join(", ")}]`;
 }
 
-/* ---------- JSX生成 ---------- */
+/* ---------- JSX の生成 ---------- */
 
 export interface JsxContext {
   doc: SiteDoc;
-  /** Component root receiving per-instance visibility without an extra DOM wrapper. */
+  /** 余分な DOM の包みを作らずに、インスタンスごとの表示の切り替えを受け取るコンポーネントのルート。 */
   componentRootId?: string;
-  /** リストを含む部品はページのデータスコープで展開する。 */
+  /** リストを含む部品は、ページのデータの範囲で展開する。 */
   inlineComponents?: Set<string>;
-  /** 展開中の使用箇所。通常の部品ファイルは従来どおり props を使う。 */
+  /** 展開している使用箇所。通常の部品のファイルでは props を使う。 */
   inlineInstance?: { visibilityClass: string; anchor?: string };
   classNames: Map<string, string>;
-  /** コンポーネントID → 出力コンポーネント名（PascalCase） */
+  /** コンポーネントの ID → 出力するコンポーネント名（PascalCase） */
   componentNames: Map<string, string>;
   usesImage: boolean;
   usesLink: boolean;
-  /** 表示するときの値で Link / a を選ぶリンク（{変数} 入りのURL）を使ったか */
+  /** 表示するときの値で Link か a かを選ぶリンク（{変数} を含む URL）を使ったか */
   usesSmartLink?: boolean;
-  /** リストの項目を Fragment で並べた（react から import する） */
+  /** リストの項目を Fragment で並べたか（react から import する） */
   usesFragment?: boolean;
   usesSearchForm: boolean;
   usedComponents: Set<string>;
-  /** スクリプトで表示される対象のID属性（data-toggle-show の出力先） */
+  /** スクリプトで表示される対象の ID 属性（data-toggle-show の出力先） */
   toggleTargets: Set<string>;
   /** スクリプトで絞り込む配列の名前 → 項目名 */
   listFilterFields: Map<string, Set<string>>;
-  /** スクリプトの {変数} のうち、画面上で値を入れるもの（ページを配信するときは残す） */
+  /** スクリプトの {変数} のうち、画面上で値を入れるもの（ページを配信するときも残す） */
   isLive: (name: string, usage?: "length") => boolean;
   /** 検索フォームの中を描いているか（中のボタンを送信ボタンにする） */
   inForm?: boolean;
-  /** アセットID → 一意化した出力ファイル名 */
+  /** アセットの ID → 一意にした出力ファイル名 */
   assetNames: Map<string, string>;
-  /** 変数解決に使うオブジェクト式（ページ = "vars"、リスト内 = "iv"） */
+  /** 変数の解決に使うオブジェクトの式（ページでは "vars"、リストの中では "iv"） */
   varsExpr?: string;
-  /** 配信前に確定した項目だけのスコープ（ページ変数は含めない）。 */
+  /** 配信する前に確定した項目だけの範囲（ページの変数は含めない）。 */
   serverItemScope?: { expr: string; used: boolean };
-  /** interpolate ランタイムを使ったか */
+  /** interpolate のランタイムを使ったか */
   usesInterpolate: boolean;
   /** スクリプトの値に lookupVar を使ったか */
   usesLookup?: boolean;
@@ -95,15 +95,15 @@ export interface JsxContext {
   renderPath?: Set<string>;
   /**
    * ブラウザで並べるリストのお手本の中を描いているか（varsExpr は templateVars の Proxy。
-   * 展開（{ ...iv }）すると、項目の {名前} を残す働きが消える）
+   * 展開する（{ ...iv }）と、項目の {名前} を残す働きが失われる）
    */
   inTemplate?: boolean;
   /**
-   * リストノードID → 生成コード内の項目スコープ変数名と並べる配列（ページ外では未設定）。
+   * リストのノードの ID → 生成するコードの中の、項目の範囲を表す変数名と、並べる配列（ページの外では未設定）。
    * client = 画面上で値が決まる配列（ブラウザでお手本を複製して並べる）
    */
   listVars?: Map<string, { ivar: string; from: string; client: boolean }>;
-  /** 配列の名前 → ページを開いたときのスクリプトで決まる絞り込み・並べ替え（ページ外では未設定） */
+  /** 配列の名前 → ページを開いたときのスクリプトで決まる絞り込みと並べ替え（ページの外では未設定） */
   listOps?: Map<string, ListOp[]>;
 }
 
@@ -113,7 +113,7 @@ export function renderNode(
   indent: string,
   isTop: boolean
 ): string {
-  // 壊れた文書（要素が自分の中に入っている）でも、描き続けて止まらなくならないようにする
+  // 壊れた文書（要素が自分の中に入っている）でも、描き続けて止まらなくなることがないようにする
   const path = (ctx.renderPath ??= new Set());
   if (path.has(id)) return "";
   path.add(id);
@@ -142,11 +142,11 @@ function renderNodeInner(
       : visibilityClass ? ` hiddenClassName=${jsxString(visibilityClass)}` : "";
     const master = ctx.doc.components?.[node.componentId ?? ""];
     const root = master ? ctx.doc.nodes[master.rootId] : undefined;
-    // ページ上の使用箇所のアンカー。マスター自身のID・入れ子の参照は変えない。
+    // ページ上の使用箇所のアンカー。マスター自身の ID と入れ子の参照は変えない。
     const anchor = !ctx.componentRootId && node.attrId && root && root.type !== "instance" && !root.attrId
       ? ` instanceId=${jsxString(node.attrId)}` : "";
-    // 部品内のリストも、置かれたページ・外側の項目の変数と実行計画を使う。
-    // 新しいデータ props を作らず、通常の部品の出力とローディング画面は変えない。
+    // 部品の中のリストも、置かれたページや外側の項目の変数と、実行の計画を使う。
+    // 新しいデータの props は作らず、通常の部品の出力とローディング画面は変えない。
     if (root && ctx.listVars && ctx.inlineComponents?.has(node.componentId!)) {
       const previousRoot = ctx.componentRootId;
       const previousInstance = ctx.inlineInstance;
@@ -184,7 +184,7 @@ function renderNodeInner(
       : " data-instance-hidden={hiddenClassName || undefined}"
     : "";
 
-  // スクリプト: 実行側は data-scripts、表示される側は表示に戻すdisplay値を出力
+  // スクリプト: 実行する側には data-scripts を、表示される側には表示に戻すときの display の値を出力する
   const toggleAttrs =
     scriptsAttr(ctx, node) +
     ((node.attrId && ctx.toggleTargets.has(node.attrId)) || showsSelf(node)
@@ -195,14 +195,14 @@ function renderNodeInner(
           : ` data-toggle-show={instanceId ? ${JSON.stringify(toggleShowDisplay(node))} : undefined}`
         : "");
 
-  // 「画面に入ったとき」は data-inview を見張って .is-inview で再生する（リストにも付ける）
+  // 「画面に入ったとき」は data-inview を見張り、.is-inview で再生する（リストにも付ける）
   const inViewAttr = node.motions?.some((m) => m.trigger === "in-view") ? " data-inview" : "";
 
   if (node.type === "list" && node.list) {
     const lv = ctx.listVars?.get(id);
     if (!lv) return "";
     const { ivar } = lv;
-    // 外側の項目がブラウザで決まるなら、項目内の配列も配信前には展開しない。
+    // 外側の項目がブラウザで決まるなら、項目の中の配列も、配信する前には展開しない。
     const client = lv.client || !!ctx.inTemplate;
     const base = ctx.varsExpr ?? "vars";
     const filterFields = [...(ctx.listFilterFields.get(lv.from) ?? [])];
@@ -235,7 +235,7 @@ function renderNodeInner(
             .map((f) => `${JSON.stringify(f)}: ${fieldExpr("item", f)}`)
             .join(", ")} })}`
         : "";
-      // 項目の中にスクリプトがあれば、項目ごとに包む（IDの指す要素を同じ項目の中から探すため）
+      // 項目の中にスクリプトがあれば、項目ごとに包む（ID が指す要素を、同じ項目の中から探すため）
       return `${indent}  {${itemsExpr}.map((item, i) => {
 ${indent}    const ${ivar} = { ...${base}, ...item };${itemScope.used ? `\n${indent}    const ${itemScope.expr} = { ${prevItem ? `...${prevItem.expr}, ` : ""}...item };` : ""}
 ${indent}    return (
@@ -246,19 +246,19 @@ ${indent}    );
 ${indent}  })}`;
     };
     if (client) {
-      // ページではブラウザの配列でも、配信済みの親項目が同じ根を持つときは項目を優先する。
-      // 行そのものを配信し、生の配列・未使用の項目をブラウザへ渡さない。
+      // ページではブラウザが持つ配列でも、配信済みの親の項目が同じルートを持つときは、項目を優先する。
+      // 行そのものを配信し、生の配列や使わない項目はブラウザへ渡さない。
       const itemScope = !ctx.inTemplate ? ctx.serverItemScope : undefined;
       const owned = itemScope ? `Object.prototype.hasOwnProperty.call(${itemScope.expr}, ${JSON.stringify(lv.from)}) || Object.prototype.hasOwnProperty.call(${itemScope.expr}, ${JSON.stringify(lv.from.split(".")[0])})` : "";
       if (itemScope) itemScope.used = true;
       const ownedRows = owned ? serverItems() : "";
       // ブラウザで並べる: お手本を {名前} を残したまま出力し、項目ごとに複製して置き換える
       const l = node.list;
-      // 項目に配列が無いときは、従来の配信済み表示を使う。
-      // 生の取得配列は渡さず、以前から表示する項目だけをお手本に残す。
+      // 項目に配列が無いときは、配信済みの表示を使う。
+      // 取得した生の配列は渡さず、もともと表示する項目だけをお手本に残す。
       const fallback = ctx.inTemplate && !lv.client ? serverItems(true) : "";
       const ops = ctx.listOps?.get(lv.from) ?? [];
-      // 項目の値を優先し、配信時の代替値は文字列として保持する（波括弧を再解決しない）。
+      // 項目の値を優先し、配信するときの代替値は文字列として保つ（波括弧を解決し直さない）。
       const filterParts = (value: string) => {
         const whole = /^(?:\{([^{}\s"'<>`]+)\}|\[slug\])$/.exec(value.trim());
         if (whole) {
@@ -345,22 +345,22 @@ ${indent}</div>`;
       const base = ctx.varsExpr ?? "vars";
       srcAttr = `src={interpolate(${JSON.stringify(src)}, ${base}) || "${EMPTY_GIF}"}`;
       if (ctx.inTemplate) {
-        // 項目が届いてから一度だけ解決する。代替値に含まれる波括弧は文字として残す。
+        // 項目が届いてから一度だけ解決する。代替値に含まれる波括弧は、文字として残す。
         srcAttr += ` data-image-src-parts={JSON.stringify(${textParts(src, base)})}`;
       }
     }
-    // Next.js 16 では priority が非推奨なので preload を使い、取得の優先度も上げる
+    // Next.js 16 では priority が非推奨のため、preload を使い、取得の優先度も上げる
     const priority = (pad: string) =>
       node.image!.priority ? `\n${pad}preload\n${pad}fetchPriority="high"` : "";
     const crisp = crispSvgSize(ctx.doc, node);
     if (crisp) {
-      // iOS SafariはSVGのfilterを低解像度で描くため、2倍で描いて0.5倍に縮める。
-      // 元画像と同じ実寸・縦横比を持つ透明なsvgで箱の大きさを決め、レイアウトは変えない
-      //（前後の位置指定の要素との重なりは raiseOverCrispSvg で合わせてある）
+      // iOS Safari は SVG の filter を低い解像度で描くため、2倍で描いて 0.5倍に縮める。
+      // 元の画像と同じ実際の大きさ・縦横比を持つ透明な svg で箱の大きさを決め、レイアウトは変えない
+      //（前後の位置を指定した要素との重なりは、raiseOverCrispSvg で合わせてある）
       const { width: w, height: h } = crisp;
       return `${indent}<span${idAttr}\n${indent}  className=${jsxString("crisp-svg " + cls)}\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
     }
-    // 実寸が分からない画像（読み込み前など）でも next/image の width・height は必須
+    // 実際の大きさが分からない画像（読み込む前など）でも、next/image の width と height は必須
     return `${indent}<Image${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className=${jsxString(cls)}${priority(indent + "  ")}\n${indent}/>`;
   }
 
@@ -368,7 +368,7 @@ ${indent}</div>`;
     return `${indent}<hr${idAttr} className=${jsxString(cls)} />`;
   }
 
-  // ブラウザで並べるリストのお手本では、HTMLの中身を {名前} の置き換えから外す（data-raw）
+  // ブラウザで並べるリストのお手本では、HTML の中身を {名前} の置き換えの対象から外す（data-raw）
   const rawAttr = ctx.inTemplate ? " data-raw" : "";
 
   if (node.type === "icon" && node.icon) {
@@ -379,13 +379,13 @@ ${indent}</div>`;
   if (node.type === "field" && node.field) {
     const f = node.field;
     const base = ctx.varsExpr ?? "vars";
-    /** 文字の式（{変数} は配信するときに置き換える） */
+    /** 文字の式（{変数} は、配信するときに置き換える） */
     const textExpr = (v: string): string => {
       if (!hasVars(v)) return JSON.stringify(v);
       ctx.usesInterpolate = true;
       return `interpolate(${JSON.stringify(v)}, ${base})`;
     };
-    /** 画面上で値が決まる {変数}（入力欄の値など）を含むなら、ブラウザで書き直すための属性 */
+    /** 画面上で値が決まる {変数}（入力欄の値など）を含むなら、ブラウザで書き直すための属性を返す */
     const liveOf = (name: string, v: string | undefined): string => {
       if (ctx.inTemplate || !v || !livesHere(ctx) || !hasVars(v)) return "";
       const keep = keepTokens(v, ctx.isLive);
@@ -393,7 +393,7 @@ ${indent}</div>`;
       ctx.usesInterpolate = true;
       return ` ${name}={interpolate(${JSON.stringify(v)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
     };
-    // お手本には元の区切りを残し、値・案内文・選択肢を項目の値で一度だけ解決する。
+    // お手本には元の区切りを残し、値・案内文・選択肢を、項目の値で一度だけ解決する。
     const partsOf = (name: string, v: string | undefined, force = false): string => {
       if (!ctx.inTemplate || v == null || (!force && !hasVars(v))) return "";
       ctx.usesInterpolate = true;
@@ -403,7 +403,7 @@ ${indent}</div>`;
       if (!v) return "";
       return hasVars(v) ? ` ${name}={${textExpr(v)}}` + partsOf(name === "defaultValue" ? "value" : name, v) : ` ${name}=${jsxString(v)}`;
     };
-    // ID属性（ラジオはグループ名）がフォーム送信時の項目名（= {変数} 名）を兼ねる
+    // ID 属性（ラジオではグループ名）が、フォームを送信するときの項目名（= {変数} の名前）を兼ねる
     const fieldName = fieldVarName(node);
     const nameAttr = fieldName ? ` name=${jsxString(fieldName)}` : "";
     const reqAttr = (f.required ? " required" : "") + (f.disabled ? " disabled" : "");
@@ -425,8 +425,8 @@ ${indent}</div>`;
       return `${indent}<select${idAttr} className=${jsxString(cls)}${nameAttr}${defaultValueAttr}${reqAttr}>\n${opts}\n${indent}</select>`;
     }
     if (f.kind === "checkbox" || f.kind === "radio") {
-      // ラジオは表示テキストを値にする（プレビューの {変数} と揃える）
-      // チェックボックスは送信するとき「true」になる（{ID} の値とそろえる）
+      // ラジオは表示テキストを値にする（プレビューの {変数} とそろえる）。
+      // チェックボックスは、送信するときに「true」になる（{ID} の値とそろえる）
       const valueAttr =
         f.kind === "radio"
           ? (attr("value", f.label ?? "") || ` value=""`) + liveOf("data-live-value", f.label)
@@ -450,7 +450,7 @@ ${indent}</div>`;
     const ranged = RANGED_INPUTS.has(type);
     const rangeAttr = ranged ? attr("min", f.min) + attr("max", f.max) + attr("step", f.step) : "";
     const textLen = TEXT_INPUTS.has(type) ? lenAttr : "";
-    // 色・範囲は空の値を持てないため、案内文は出さない
+    // 色と範囲は空の値を持てないため、案内文は出さない
     const ph = type === "color" || type === "range" ? "" : phAttr;
     return `${indent}<input${idAttr} type=${jsxString(type)} className=${jsxString(cls)}${nameAttr}${ph}${defaultValueAttr}${rangeAttr}${textLen}${reqAttr} />`;
   }
@@ -498,10 +498,10 @@ ${indent}</div>`;
   }
 
   let tag = resolveTag(node, isTop);
-  // フォームの中のフォームはブラウザが無視して食い違うため、外側のフォームの一部として <div> で出す
+  // フォームの中のフォームはブラウザが無視して食い違うため、外側のフォームの一部として <div> で出力する
   if (tag === "form" && ctx.inForm) tag = "div";
-  // <p> の中にブロック要素（ボックス・見出しなど）があると、ブラウザが <p> を途中で閉じて
-  // サーバーの HTML と React の描画が食い違う（ハイドレーションエラー）。そのときは <div> で出し、
+  // <p> の中にブロック要素（ボックス・見出しなど）があると、ブラウザが <p> を途中で閉じて、
+  // サーバーの HTML と React の描画が食い違う（ハイドレーションエラー）。その場合は <div> で出力し、
   // data-p で <p> と同じ見た目（改行を保つ・余白なし）を当てる
   let pAttr = "";
   if (tag === "p" && hasBlockDescendant(ctx.doc, node)) {
@@ -518,12 +518,12 @@ ${indent}</div>`;
       ctx.usesInterpolate = true;
       const base = ctx.varsExpr ?? "vars";
       if (ctx.inTemplate) {
-        // 最初のテキストだけを埋める。子要素は壊さず、データ中の波括弧も再解決しない。
+        // 最初のテキストだけを埋める。子要素は壊さず、データの中の波括弧も解決し直さない。
         liveAttr = ` data-text-parts={JSON.stringify(${textParts(node.text.content, base)})}`;
       }
       inner.push(`${indent}  {interpolate(${JSON.stringify(node.text.content)}, ${base})}`);
       // 画面上で値が決まる {変数}（件数など）は、値が変わるたびにブラウザで書き直す
-      //（リストの項目内はお手本の複製で埋めるので対象外）
+      //（リストの項目の中はお手本の複製で埋めるため、対象外）
       const keep = livesHere(ctx) ? keepTokens(node.text.content, ctx.isLive) : {};
       if (Object.keys(keep).length) {
         liveAttr = ` data-live={interpolate(${JSON.stringify(node.text.content)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
@@ -559,12 +559,12 @@ ${indent}</div>`;
     const base = ctx.varsExpr ?? "vars";
     const href = `{safeNavigationUrl(interpolateUrl(${JSON.stringify(node.link.url)}, ${base}))}`;
     if (ctx.inTemplate) {
-      // URL の元の境界と参照した値だけを残し、行の値で一度だけ解決する。
+      // URL の元の区切りと参照した値だけを残し、行の値で一度だけ解決する。
       attrs += ` data-href-parts={JSON.stringify(${textParts(node.link.url!, base, true)})}`;
     }
     if (!node.link.newTab) {
-      // 行き先は値が入るまで分からない（{link} が外部URLのこともある）ため、
-      // 表示するときの値でサイト内のページなら Link、それ以外は a にする
+      // 行き先は値が入るまで分からない（{link} が外部の URL のこともある）ため、
+      // 表示するときの値がサイト内のページなら Link に、それ以外なら a にする
       ctx.usesSmartLink = true;
       openTag = `SmartLink href=${href}`;
       closeTag = "SmartLink";
@@ -579,8 +579,8 @@ ${indent}</div>`;
         : (node.link.url || "#");
     const href = safeNavigationUrl(rawHref);
     if (ctx.inTemplate) attrs += ` data-href-parts={JSON.stringify([${JSON.stringify(href)}])}`;
-    // サイト内の Next.js のページ（/〜）は Link にしてページ遷移を速くする。リダイレクト・中継・
-    // HTMLページは Next.js のページではなく、先読みが別ドメインへ転送されて失敗するため a にする
+    // サイト内の Next.js のページ（/〜）は Link にして、ページの遷移を速くする。リダイレクト・中継・
+    // HTMLページは Next.js のページではなく、先読みが別のドメインへ転送されて失敗するため、a にする
     if (!node.link.newTab && isNextPageUrl(ctx, href)) {
       ctx.usesLink = true;
       openTag = `Link href=${jsxString(href)}`;

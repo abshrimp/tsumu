@@ -1,5 +1,5 @@
-/** CSS shorthand components are separated by top-level whitespace, not the
- * spaces inside calc(), var() fallbacks, or quoted strings. */
+/** CSS の一括指定の値は、最上位の空白で区切る。calc()、var() の代替値、
+ * 引用符で囲んだ文字列の中の空白では区切らない。 */
 export function cssValueParts(value: string): string[] {
   const parts: string[] = [];
   let token = "", depth = 0, quote = "";

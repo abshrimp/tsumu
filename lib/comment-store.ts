@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * エディタのコメントモードと、コメントの一覧（サーバー = /api/comments、D1 が無ければこのブラウザ）
+ * エディタのコメントモードと、コメントの一覧（サーバー = /api/comments。D1 が無ければこのブラウザ）
  */
 
 import { create } from "zustand";
@@ -63,7 +63,7 @@ function assertLocalSiteAvailable(id: string) {
 }
 function readLocal(id = currentSiteId()): CommentThread[] {
   assertLocalSiteAvailable(id);
-  // 読めなかった一覧を空扱いすると、次の投稿で以前のコメントを上書きしてしまう。
+  // 読めなかった一覧を空として扱うと、次の投稿で以前のコメントを上書きしてしまう。
   const v = JSON.parse(window.localStorage.getItem(siteKey(LOCAL_KEY, id)) ?? "[]");
   if (!Array.isArray(v)) throw new Error("Invalid local comment list");
   assertLocalSiteAvailable(id);
@@ -71,7 +71,7 @@ function readLocal(id = currentSiteId()): CommentThread[] {
 }
 
 function writeLocal(id: string, threads: CommentThread[]) {
-  // 待機中や別タブでの削除を、保存の直前・直後にも確認する。
+  // 待機中や別のタブでの削除を、保存の直前と直後にも確認する。
   const raw = JSON.stringify(threads);
   assertLocalSiteAvailable(id);
   window.localStorage.setItem(siteKey(LOCAL_KEY, id), raw);
@@ -81,17 +81,17 @@ function writeLocal(id: string, threads: CommentThread[]) {
     if (error instanceof LocalSiteDeletedError) {
       try { window.localStorage.removeItem(siteKey(LOCAL_KEY, id)); } catch { /* 削除記録により表示・再保存は防ぐ。 */ }
     }
-    // 保存後でも削除と重なった場合は失敗を返し、投稿・返信・編集の入力を残す。
+    // 保存した後でも削除と重なった場合は失敗を返し、投稿・返信・編集の入力を残す。
     throw error;
   }
 }
 
-/** スレッド・コメントのID */
+/** スレッドとコメントの ID */
 export function commentId(): string {
   return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** Accept only the complete current API response; never infer totals from a partial page. */
+/** 現在の API の完全な応答だけを受け付ける。一部のページから合計を推測しない。 */
 function isCommentPage(value: unknown): value is CommentPage {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const data = value as Partial<CommentPage>;
@@ -115,7 +115,7 @@ function focusSnapshot(data: Pick<CommentPage, "threads" | "focusedThread">, id:
   if (!id) return { focusedThread: null, threadUnavailable: false };
   const found = data.focusedThread?.id === id ? data.focusedThread : data.threads.find(t => t.id === id);
   if (found) return { focusedThread: found, threadUnavailable: false };
-  // 閲覧中のスレッドが削除されても、入力をコピーできるよう詳細だけを閉じるまで残す。
+  // 閲覧中のスレッドが削除されても、入力をコピーできるよう、詳細だけは閉じるまで残す。
   const focusedThread = previous?.id === id ? previous : null;
   return { focusedThread, threadUnavailable: !!focusedThread };
 }
@@ -125,7 +125,7 @@ function localSnapshot(threads: CommentThread[], state: CommentsState) {
     ...focusSnapshot({ threads, focusedThread: threads.find(t => t.id === state.openId) ?? null }, state.openId, focusOf(state)) };
 }
 
-// POST は返却された一覧をそのまま反映するため、同じブラウザの操作は順に確定する。
+// POST は返された一覧をそのまま反映するため、同じブラウザでの操作は順に確定させる。
 // 読み込みは待たせず、より新しい読み込みや保存が始まったら古い応答を捨てる。
 let readRequest = 0;
 let pageRequest: number | null = null;
@@ -157,7 +157,7 @@ export const useComments = create<CommentsState>((set, get) => ({
   open: (id) => {
     const state = get();
     set({ openId: id, draft: null, threadUnavailable: !!id && state.threadUnavailable && state.focusedThread?.id === id, focusedThread: id ? state.threads.find(t => t.id === id) ?? (state.focusedThread?.id === id ? state.focusedThread : null) : null });
-    // 次のポーリングは、この一覧ページから外れた詳細も独立して更新する。
+    // 次のポーリングでは、この一覧のページから外れた詳細も別に更新する。
   },
   setDraft: (d) => set({ draft: d, openId: null, focusedThread: null, threadUnavailable: false }),
   setShowResolved: (v) => set({ showResolved: v }),
@@ -170,7 +170,7 @@ export const useComments = create<CommentsState>((set, get) => ({
     else if (direction === "newest") await state.load({ cursor: null, previousCursors: [] });
   },
   load: async (page) => {
-    // 背景の定期更新で、ユーザーが要求した一覧移動を取り消さない。
+    // 背景での定期的な更新で、利用者が求めた一覧の移動を取り消さない。
     if (pendingWrites || (!page && pageRequest !== null)) return;
     const request = ++readRequest;
     if (page) pageRequest = request;
@@ -204,7 +204,7 @@ export const useComments = create<CommentsState>((set, get) => ({
     }
   },
   run: (a) => {
-    // ローカル保存でもサーバーと同じ上限を守り、失敗時は入力・保存済み一覧を残す。
+    // ブラウザ内への保存でもサーバーと同じ上限を守り、失敗したときは入力と保存済みの一覧を残す。
     if ("body" in a && a.body.trim().length > MAX_COMMENT_LENGTH) {
       set({ error: tr("Comments must be {max} characters or fewer.", { max: MAX_COMMENT_LENGTH }) });
       return Promise.resolve(false);
@@ -222,7 +222,7 @@ export const useComments = create<CommentsState>((set, get) => ({
           throw new Error(tr("The discussion you are replying to has been deleted."));
         }
         if (a.action === "edit" && !existing.some(t => t.messages.some(m => m.id === a.messageId))) {
-          // 古い表示は入力のコピー用に残し、削除された本文への編集を成功としない。
+          // 古い表示は入力をコピーできるよう残し、削除された本文への編集を成功として扱わない。
           throw new Error(tr("The comment you are editing has been deleted."));
         }
         if (hasCommentIdConflict(existing, a, null)) {
@@ -241,14 +241,14 @@ export const useComments = create<CommentsState>((set, get) => ({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(a),
         });
-        // 初回の一覧より先に投稿した場合も、保存先が無ければ同じブラウザ保存へ切り替える。
+        // 最初の一覧を読み込む前に投稿した場合も、保存先が無ければ、同じブラウザ内への保存に切り替える。
         if (res.status === 503) return local();
         const data = await res.json().catch(() => null);
         if (res.status === 404 && data?.code === "comment_thread_missing" && a.action === "reply") {
           const state = get();
-          // 詳細キャッシュは件数より古い場合があるため、同じ一覧にある行だけを差し引く。
+          // 詳細のキャッシュは件数より古い場合があるため、同じ一覧にある行だけを差し引く。
           const removed = state.threads.find(t => t.id === a.threadId);
-          // 削除確定の項目を一覧・ピンからも除き、次の定期更新が失敗しても再操作させない。
+          // 削除が確定した項目を一覧とピンからも除き、次の定期的な更新が失敗しても、もう一度操作させない。
           set({ threads: state.threads.filter(t => t.id !== a.threadId),
             total: Math.max(0, state.total - (removed ? 1 : 0)),
             unresolvedCount: Math.max(0, state.unresolvedCount - (removed && !removed.resolvedAt ? 1 : 0)),
@@ -276,19 +276,19 @@ export const useComments = create<CommentsState>((set, get) => ({
   },
 }));
 
-/** 投稿中に別のスレッド・下書きへ移った場合、その選択を上書きしない。 */
+/** 投稿の途中で別のスレッドや下書きに移った場合は、その選択を上書きしない。 */
 export function openPostedComment(draft: CommentDraft, id: string) {
   const state = useComments.getState();
   if (state.active && state.draft === draft) state.open(id);
 }
 
-/** 削除の完了で、その間に選んだ別のスレッドを閉じない。 */
+/** 削除が完了しても、その間に選んだ別のスレッドは閉じない。 */
 export function closeCommentIfOpen(id: string) {
   const state = useComments.getState();
   if (state.openId === id) state.open(null);
 }
 
-/** コメントモードを切り替える（始めるときはデザイン画面にして選択を外し、右パネルに一覧を出す） */
+/** コメントモードを切り替える（始めるときは、デザイン画面にして選択を外し、右パネルに一覧を表示する） */
 export function toggleCommentMode(on?: boolean) {
   const c = useComments.getState();
   const next = on ?? !c.active;

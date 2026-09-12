@@ -1,9 +1,9 @@
-/** 実際のクリップボードには触れず、貼り付けハンドラーへ渡る文字列を確かめる。 */
+/** 実際のクリップボードには触れずに、貼り付けのハンドラーへ渡る文字列を確かめる。 */
 export function dispatchTextPaste(el: HTMLElement, text: string) {
   const clipboardData = new DataTransfer();
   clipboardData.setData("text/plain", text);
   const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData });
-  // Firefox はコンストラクターのデータを空にするため、他の貼り付けテストと同様に明示する。
+  // Firefox はコンストラクターに渡したデータを空にするため、他の貼り付けのテストと同じく、明示的に設定する。
   // https://bugzilla.mozilla.org/show_bug.cgi?id=2027025
   Object.defineProperty(event, "clipboardData", { value: clipboardData });
   let receivedText: string | null = null;

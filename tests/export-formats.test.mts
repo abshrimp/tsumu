@@ -121,7 +121,7 @@ test("client-only variables do not force a server-only export error", () => {
   const react = generateExportProject(doc, "react");
   assert.match(react.files["src/pages/Page0.tsx"], /export default function Page/);
   assert.match(react.files["src/pages/Page0.tsx"], /new URLSearchParams\(window\.location\.search\)/);
-  // A standalone page can update client text from the visitor's query.
+  // 単独のページでも、訪問者のクエリから、クライアントの文字を更新できる。
   const html = generateExportProject(doc, "html").files["index.html"];
   assert.match(html, /data-live="Hello \{username\}"/);
 });

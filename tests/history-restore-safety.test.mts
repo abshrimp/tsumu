@@ -85,7 +85,7 @@ test("obsolete restore completions cannot clear the newer request's busy state, 
     const active = busy;
     first.resolve(false); await older;
     assert.equal(busy, active, `${kind}: an older completion must not unlock newer work`);
-    // Restoring the document changes historyRevision before finally runs.
+    // 文書を復元すると、finally が動く前に historyRevision が変わる。
     generation++;
     second.resolve(true); await newer;
     assert.equal(busy, null, `${kind}: successful restore still clears its own busy state`);
@@ -100,8 +100,8 @@ test("untrusted GitHub history inline SVG is sanitized before it enters the edit
   page.children.push(icon.id);
   icon.icon!.svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">' +
     '<script>alert(2)</script><circle cx="3" cy="3" r="2"/></svg>';
-  // The browser import validator permits structurally valid SVG for DOM-based
-  // sanitization, whereas its Node variant rejects unsafe bytes immediately.
+  // ブラウザでの取り込みの検証は、DOM を使った無害化のため、構造が正しい SVG を許す。
+  // 一方、Node.js 版の検証は、安全でないバイト列をすぐに拒否する。
   const browserValidator = ((input: unknown): SiteDoc => {
     const valid = structuredClone(input as SiteDoc);
     valid.nodes[icon.id].icon!.svg = '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="3" cy="3" r="2"/></svg>';

@@ -35,8 +35,8 @@ useEditor.getState().replaceDoc(${JSON.stringify(scriptDataPickerDoc())});
 window.dataPickerStore=useEditor;
 window.dataPickerProject=()=>generateProject(useEditor.getState().doc);
 window.fetch=()=>{throw new Error("No network expected in data picker fixture");};
-// Match the real app: load the locale before importing UI modules that
-// calculate translated labels when their module is first evaluated.
+// 実際のアプリに合わせる。最初に評価されるときに翻訳した表示名を計算する UI のモジュールを
+// import する前に、言語を読み込む。
 void loadLocale().then(async () => {
   const { default: ScriptEditor } = await import("./components/ScriptEditor");
   createRoot(document.getElementById("app")).render(<ScriptEditor onClose={()=>{}}/>);

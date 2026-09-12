@@ -71,7 +71,7 @@ test('references preserve own null roots, literal dotted keys and only the refer
   ];
   doc.nodes['raw-result'].text!.content = '{rawChosen}';
   const html = await publishedClientNested(doc, 'app/page.tsx', items);
-  // 入力配列自体は明示的にブラウザで使う。参照の代替値には兄弟の秘密の値を含めない。
+  // 入力の配列そのものは、明示的にブラウザで使う。参照の代わりの値には、兄弟の秘密の値を含めない。
   const runtime = listRuntimeDom(html, scriptsFile(doc));
   await runtime.click('reload');
   const serialized = runtime.active('#act').map(n => n.getAttribute('data-scripts')).join('');

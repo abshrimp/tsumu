@@ -1,7 +1,7 @@
 import { makeBox, makeText } from "../../lib/presets";
 import type { DocNode, SiteDoc } from "../../lib/types";
 
-/** 実際のフォーム、リンク、ページスクリプトで再取得するプレビュー。取得先はテストで置き換える。 */
+/** 実際のフォーム、リンク、ページのスクリプトで再取得するプレビュー。取得先はテストで置き換える。 */
 export function previewRefreshDoc(): SiteDoc {
   const nodes: DocNode[] = [
     { ...makeText("{response.label}: {total}"), id: "result" },

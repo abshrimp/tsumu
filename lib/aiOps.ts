@@ -1,10 +1,10 @@
 /**
- * AIによる編集の「操作」と、その適用。
+ * AI による編集の「操作」と、その適用。
  *
- * AIは編集データを直接書き換えず、下の AiOp の並びを返す。サーバーは送られてきた
- * ページの部分コピーに適用して誤り（存在しない要素など）をAIへ返し、直させる。
- * うまく適用できた操作（新しい要素のIDを確定させたもの）をブラウザへ返し、
- * ブラウザは同じ関数で今の編集データへ1回の「元に戻す」で戻せる変更として適用する。
+ * AI は編集データを直接書き換えず、下の AiOp の並びを返す。サーバーは送られてきた
+ * ページの部分コピーに操作を適用し、誤り（存在しない要素など）を AI へ返して直させる。
+ * 適用できた操作（新しい要素の ID を確定させたもの）をブラウザへ返し、
+ * ブラウザは同じ関数で、今の編集データに1回の「元に戻す」で戻せる変更として適用する。
  */
 
 import type { DocNode, NodeStyles, Page, SiteDoc, StyleMap, StyleState, Script } from "./types";
@@ -16,20 +16,20 @@ import { walkSteps } from "./script";
 
 /** AIが作る要素 */
 export interface AiNodeSpec {
-  /** 同じ返答の中のあとの操作から参照するための仮の名前 */
+  /** 同じ返答の中の後の操作から参照するための、仮の名前 */
   ref?: string;
-  /** 確定したID（サーバーが付ける。AIは指定しない） */
+  /** 確定した ID（サーバーが付ける。AI は指定しない） */
   id?: string;
   type: "box" | "text" | "heading" | "button" | "image" | "divider" | "code";
   name?: string;
   text?: string;
   /** 見出しの段（1〜6） */
   level?: number;
-  /** ボックスの意味付け */
+  /** ボックスの意味付け（出力する HTML のタグ） */
   tag?: string;
   /** すべての画面幅のスタイル */
   styles?: AiStyles;
-  /** ブレークポイントのID → その幅以下のスタイル（配列なら { breakpoint, styles } の並び） */
+  /** ブレークポイントの ID → その幅以下でのスタイル（配列なら { breakpoint, styles } の並び） */
   responsive?: Record<string, AiStyles> | { breakpoint: string; styles: AiStyles }[];
   /** ホバー時のスタイル */
   hover?: AiStyles;
@@ -41,9 +41,9 @@ export interface AiNodeSpec {
 }
 
 /**
- * スタイルの指定。camelCase の CSS プロパティ → 値のまとまりか、
+ * スタイルの指定。camelCase の CSS プロパティ → 値のオブジェクトか、
  * "font-size: 18px; color: #111" のような CSS の宣言の文字列
- * （自由なキーのまとまりを引数にできない API でも使えるように）
+ * （キーが自由なオブジェクトを引数にできない API でも使えるように）
  */
 export type AiStyles = Record<string, unknown> | string;
 
@@ -54,7 +54,7 @@ export interface AiLink {
 }
 
 interface Place {
-  /** 親の要素ID、または "page"（ページ直下） */
+  /** 親の要素の ID、または "page"（ページの直下） */
   parent?: string;
   index?: number;
   after?: string;
@@ -75,15 +75,15 @@ export type AiOp =
   | { op: "update_page"; title?: string; description?: string; name?: string };
 
 export interface ApplyResult {
-  /** 適用できた操作（insert / duplicate は確定したIDつき） */
+  /** 適用できた操作（insert / duplicate には、確定した ID を付ける） */
   applied: AiOp[];
-  /** 適用できなかった操作の理由（AIへ返す） */
+  /** 適用できなかった操作の理由（AI へ返す） */
   errors: string[];
 }
 
 export interface ApplyTarget {
   pageId: string;
-  /** コンポーネントの編集中ならそのルート要素（"page" をこの要素として扱う） */
+  /** コンポーネントの編集中なら、そのルート要素（"page" をこの要素として扱う） */
   rootId?: string | null;
 }
 
@@ -126,7 +126,7 @@ function parseDeclarations(css: string): Record<string, unknown> {
   return out;
 }
 
-/** "background-color" → "backgroundColor"、数値は px を付けた文字列に */
+/** "background-color" を "backgroundColor" に、数値は px を付けた文字列にする */
 export function normalizeStyles(raw: AiStyles | undefined): Record<string, string | null> {
   const out: Record<string, string | null> = {};
   const map = typeof raw === "string" ? parseDeclarations(raw) : (raw ?? {});
@@ -171,7 +171,7 @@ function linkFrom(link: AiLink | null | undefined, doc: SiteDoc): DocNode["link"
   return null;
 }
 
-/** 要素の設計図から DocNode を作る（子孫も含めて nodes に足し、ルートのIDを返す） */
+/** 要素の設計図から DocNode を作る（子孫も含めて nodes に追加し、ルートの ID を返す） */
 function buildNode(
   spec: AiNodeSpec,
   doc: SiteDoc,
@@ -249,7 +249,7 @@ function buildNode(
         image: {
           src: spec.src || "https://picsum.photos/seed/editor/800/500",
           alt: String(spec.alt ?? ""),
-          // 実寸はキャンバスで読み込んだときに更新される
+          // 実際の大きさは、キャンバスで読み込んだときに更新される
           width: 800,
           height: 500,
         },
@@ -299,7 +299,7 @@ function buildNode(
       children.push(built);
     }
   }
-  // 確定したIDで返す（ブラウザで同じIDのまま作り直せるように）
+  // 確定した ID で返す（ブラウザで同じ ID のまま作り直せるように）
   const { ref: _ref, ...rest } = spec;
   return { ...rest, id, ...(children.length ? { children } : { children: undefined }) };
 }
@@ -322,7 +322,7 @@ function descendants(doc: SiteDoc, id: string, seen = new Set<string>()): string
   return out;
 }
 
-/** 部分コピーと文書全体で同じIDを作る。省略された要素と衝突した場合は再生を中止する。 */
+/** 部分コピーと文書全体で同じ ID を作る。省いた要素と衝突した場合は、再生を中止する。 */
 function duplicateIdFactory(doc: SiteDoc, copyId: string) {
   const used = new Set<string>();
   const collectScripts = (scripts: Script[] = []) => {
@@ -343,7 +343,7 @@ function duplicateIdFactory(doc: SiteDoc, copyId: string) {
   let n = 0;
   return (prefix: "attr" | "sc" | "st") => {
     const id = `${prefix}_${copyId}_${++n}`;
-    // 空き番号を探すと、サーバーにないページやマスターの内容によって再生結果が変わってしまう。
+    // 空いている番号を探すと、サーバーに無いページやマスターの内容によって再生の結果が変わってしまう。
     if (used.has(id)) throw new Error("duplicate identity already exists");
     used.add(id);
     return id;
@@ -352,7 +352,7 @@ function duplicateIdFactory(doc: SiteDoc, copyId: string) {
 
 /**
  * 操作を順に適用する（doc を直接書き換える）。
- * 1つの操作が失敗しても、ほかの操作は続ける
+ * 1つの操作が失敗しても、他の操作は続ける
  */
 function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<string, string>): ApplyResult {
   const applied: AiOp[] = [];
@@ -442,7 +442,7 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             break;
           }
           if (node.children.length) {
-            // 一部をspanに分けたテキストは、まとめて1つの文に戻す
+            // 一部を span に分けたテキストは、まとめて1つの文に戻す
             for (const c of node.children) for (const d of descendants(doc, c)) delete doc.nodes[d];
             node.children = [];
           }
@@ -600,7 +600,7 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             errors.push("update_page: the page was not found");
             break;
           }
-          // タイトルを指定せずに名前だけ変えたときは、まだ決まっていないタイトルも合わせる
+          // タイトルを指定せずに名前だけを変えたときは、まだ決まっていないタイトルも名前に合わせる
           if (typeof op.name === "string" && op.name.trim()) {
             if (typeof op.title === "string") page.name = op.name.trim();
             else renamePage(page, op.name.trim());
@@ -620,7 +620,7 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
   return { applied, errors };
 }
 
-/** Upper bound on element growth within one AI tool call. */
+/** 1回のツール呼び出しで増やせる要素の数の上限。 */
 export const MAX_AI_ADDED_NODES = 2_000;
 
 /** 操作は1つずつ確かめてから確定する。refs（仮の名前 → ID）は、同じリクエストのツール呼び出しをまたいで引き継ぐ */
@@ -658,8 +658,8 @@ function validNodeId(id: string): boolean {
 
 const RESERVED_TARGETS = new Set(["page", "body", BODY_NODE_ID]);
 
-// Refs disappear from the replay log. Keep them disjoint from concrete IDs and
-// special targets so validation and client replay always address the same node.
+// 仮の名前は再生の記録には残らない。検証とクライアントでの再生が必ず同じノードを指すよう、
+// 実際の ID や特別な対象と重ならないようにする。
 function validateNewRef(ref: string | undefined, doc: SiteDoc, refs: Map<string, string>) {
   if (ref === undefined) return;
   if (typeof ref !== "string" || !ref.trim()) throw new Error("ref must be a non-empty string");
@@ -695,7 +695,7 @@ function validateOperation(op: AiOp) {
 
 /* ---------- AIに見せる編集中の状態 ---------- */
 
-/** AIへ送る、いま開いているページ（またはコンポーネント）の部分コピーと説明 */
+/** AI へ送る、いま開いているページ（またはコンポーネント）の部分コピーと説明 */
 export interface AiContext {
   /** サーバーで操作を試すための、編集データの部分コピー */
   doc: SiteDoc;
@@ -706,7 +706,7 @@ export interface AiContext {
 
 /**
  * いま編集している範囲だけを切り出す（全体を送るとリクエストが大きくなるため）。
- * ほかのページは名前とURLだけ残す
+ * 他のページは名前と URL だけを残す
  */
 export function buildAiContext(
   doc: SiteDoc,
@@ -723,8 +723,8 @@ export function buildAiContext(
       id: p.id, name: p.name, slug: p.slug, title: "", description: "", children: [],
     };
   }
-  // Keep the AI request snapshot independent from subsequent in-place editor edits.
-  // A shallow copy would share node/page/style objects and could mask a replay conflict.
+  // AI へのリクエストの時点の内容を、その後のエディタでの直接の編集から切り離す。
+  // 浅い複製では、ノード・ページ・スタイルのオブジェクトを共有し、再生時の競合を見逃すおそれがある。
   const part: SiteDoc = structuredClone({
     schemaVersion: 1, siteName: doc.siteName, lang: doc.lang,
     pages,

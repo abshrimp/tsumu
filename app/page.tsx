@@ -3,7 +3,7 @@
 import { type ComponentType, useEffect, useState } from "react";
 import { loadLocale } from "../lib/i18n";
 
-/** 読み込み中（ホームと同じ配置の骨組み） */
+/** 読み込み中の表示（ホームと同じ配置の骨組み） */
 function HomeLoading() {
   return (
     <div className="home" aria-busy>
@@ -28,7 +28,7 @@ type HomeState =
   | { kind: "failed"; error: unknown };
 
 /**
- * ホーム本体を読み込む。表示のたびに読み込み直すので、
+ * ホームの本体を読み込む。表示するたびに読み込み直すため、
  * エラー画面の「もう一度表示する」で読み込みからやり直せる
  */
 function useHome(): HomeState {
@@ -50,7 +50,7 @@ function useHome(): HomeState {
   return state;
 }
 
-/** ホーム: サイトの一覧（サイトを開くと /sites/<id> のエディタへ） */
+/** ホーム: サイトの一覧（サイトを開くと /sites/<id> のエディタへ移動する） */
 export default function Page() {
   const state = useHome();
   if (state.kind === "loading") return <HomeLoading />;

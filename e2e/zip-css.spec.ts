@@ -21,9 +21,9 @@ async function expectStylesAndResources(target: Page | Frame) {
     await image.decode();
     return [image.naturalWidth, image.naturalHeight];
   })).toEqual([11, 4]);
-  // The repeated high-layer import must win over the intervening low-layer sheet.
+  // くり返した上位のレイヤーの @import が、間にある下位のレイヤーのシートに勝たなければならない。
   await expect(target.locator("#import-order")).toHaveCSS("color", "rgb(11, 22, 33)");
-  // Each sheet declares the same namespace prefix differently. Flattening breaks this.
+  // それぞれのシートが、同じ名前空間の接頭辞を別々に宣言している。1つに展開すると、これが壊れる。
   await expect(target.locator("#namespace-scope")).toHaveCSS("color", "rgb(12, 34, 56)");
   await expect(target.locator("#svg-rect")).toHaveCSS("fill", "rgb(24, 57, 91)");
   await expect(target.locator("#svg-rect")).toHaveAttribute("filter", "url(#identity)");
@@ -77,7 +77,7 @@ async function expectLinkSemantics(page: Page, target: Page | Frame) {
 for (const storage of ["local", "remote"] as const) {
   test(`ZIP inline CSS ${storage}: quoted assets survive native import, preview and route export`, async ({ page }) => {
     const fixture = await zipCssBrowser(page, storage);
-    // The editor retains authored quotes, entities, asset paths and formatting.
+    // エディタは、書いたままの引用符・文字参照・アセットのパス・書式を残す。
     expect(fixture.doc.pages.p.rawHtml).toContain('id="inline-double" style=\'background-image:url("images/background.svg")\'');
     expect(fixture.doc.pages.p.rawHtml).toContain('id="inline-numeric" style="background-image:url(&#34;images/background.svg&#34;)"');
     expect(fixture.doc.pages.p.rawHtml).toContain('href="css/main.css?version=3#sheet"');
@@ -142,8 +142,8 @@ for (const storage of ["local", "remote"] as const) {
       const fontRequest = fixture.resources.find((request) => new URL(request.url).searchParams.get("path") === font);
       expect(fontRequest).toBeDefined();
       expect(await frame.evaluate(() => self.origin)).toBe("null");
-      // WebKit can omit Origin from this intercepted font request. When the
-      // browser reports the header, it must agree with the sandbox's origin.
+      // WebKit は、横取りしたこのフォントのリクエストで Origin を省くことがある。
+      // ブラウザがヘッダーを報告するときは、サンドボックスのオリジンと一致しなければならない。
       if (browserName !== "webkit" || fontRequest!.origin !== undefined) expect(fontRequest!.origin).toBe("null");
       expect(new URL(fontRequest!.url).searchParams.get("font")).toBe("2");
       const backgroundRequest = fixture.resources.find((request) => new URL(request.url).searchParams.get("path") === background);
@@ -230,7 +230,7 @@ test("ZIP preview discards a delayed signer result after switching pages", async
   await expect(frame.locator("#background")).toHaveCSS("background-image", /sig=fixture-2/);
   fixture.signatures[0].release();
   await fixture.signatures[0].settled;
-  // Flush the released network response and React work before checking the current page.
+  // 現在のページを確かめる前に、解放したネットワークの応答と React の処理を済ませる。
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
   await expect(frame.locator("#version")).toHaveText("New page");
   await expect(frame.locator("#background")).toHaveCSS("background-image", /sig=fixture-2/);
@@ -268,8 +268,8 @@ for (const mode of ["local", "public", "raw-html"] as const) {
     fixture.control.publicAssets = mode === "public";
     const doc = structuredClone(fixture.doc);
     if (mode === "raw-html") {
-      // Raw HTML uses signed asset links without requiring imported CSS.
-      // Use an anchor so its initial unsigned URL cannot trigger an irrelevant image load.
+      // 生の HTML は、取り込んだ CSS を必要とせず、署名付きのアセットのリンクを使う。
+      // 最初の署名の無い URL で無関係な画像が読み込まれないよう、アンカーを使う。
       const path = fixtureAsset(doc, "site/images/background.svg").path!;
       doc.pages.p.rawHtml = `<!doctype html><input id="draft"><div id="version">Raw HTML</div><a id="asset-link" href="/api/assets/file?path=${encodeURIComponent(path)}">Asset</a>`;
     }

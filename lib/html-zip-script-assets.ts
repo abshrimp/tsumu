@@ -28,7 +28,7 @@ export function scriptLiterals(body: string, type: string): Literal[] {
     }
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error;
-    // No partial edits to a script with invalid JavaScript.
+    // 不正な JavaScript を含むスクリプトは、一部だけを書き換えることはしない。
     literals.length = 0;
   }
 
@@ -42,13 +42,13 @@ export function quotedScriptUrl(literal: Literal, resolved: string) {
     : JSON.stringify(resolved).replaceAll("<", "\\u003c");
 }
 
-// Only executable inline scripts: preserve comments, regex, interpolated
-// templates, scripts with src, and data scripts such as JSON-LD.
+// 対象は実行されるインラインのスクリプトだけ。コメント、正規表現、差し込みのあるテンプレート、
+// src を持つスクリプト、JSON-LD のようなデータのスクリプトはそのまま残す。
 function eachScriptLiteral(source: string, path: string, urls: Map<string, string>,
     visit: (literal: Literal, resolved: string) => void): void {
   const { elements, baseElement } = htmlZipElements(source);
   const base = archiveBaseUrl(path, baseElement?.attrs.find(attr => attr.name === "href")?.value);
-  // Relative fetches and module imports with an external base stay on that origin.
+  // 外部の base がある相対的な取得やモジュールの import は、そのオリジンのまま残す。
   if (base && base.protocol !== "file:") return;
   const resolve = archiveResolver(path, base, urls);
   for (const node of elements) {
@@ -78,7 +78,7 @@ function archiveUrls(zip: HtmlZipPage, assets: Record<string, Asset>, url: (asse
   return result;
 }
 
-/** Map file URL literals in a derived HTML preview/export, never the editable source. */
+/** 派生した HTML のプレビュー・書き出しで、ファイルの URL のリテラルを対応付ける。編集用のソースは変えない。 */
 export function rewriteHtmlZipScriptUrls(
   source: string, zip: HtmlZipPage | undefined, assets: Record<string, Asset>,
   resourceUrl: (asset: Asset) => string,
@@ -104,7 +104,7 @@ export function rewriteHtmlZipScriptUrls(
 const mediaName = /(?:^|\/)[^/?#\s<>]+\.(?:png|jpe?g|gif|webp|avif|svg|ico|mp3|wav|ogg|m4a|aac|flac|mp4|webm|mov|woff2?|ttf|otf)(?:[?#]|$)/i;
 const external = /^(?:[a-z][a-z0-9+.-]*:|\/\/|\/assets\/|\/api\/)/i;
 
-/** Find media file names used in inline JavaScript but absent from its ZIP. */
+/** インラインの JavaScript で使われているのに、ZIP に無いメディアのファイル名を探す。 */
 export function missingHtmlZipScriptAssets(source: string, zip: HtmlZipPage | undefined, assets: Record<string, Asset>): string[] {
   if (!zip || !/<script[\s>]/i.test(source)) return [];
   const urls = archiveUrls(zip, assets, asset => asset.id);

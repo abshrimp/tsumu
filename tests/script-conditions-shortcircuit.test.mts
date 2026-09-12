@@ -4,8 +4,8 @@ import { runInNewContext } from "node:vm";
 import { SCRIPT_RUNTIME } from "../lib/script-runtime";
 import { PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
 
-// Exercise the exact predicate embedded in the browser/standalone export.
-// Keep the injected dependencies tiny so the number of field reads is visible.
+// ブラウザ用と単独の書き出しに埋め込む条件の判定そのものを動かす。
+// 項目を読んだ回数が見えるよう、差し込む依存は小さくしておく。
 function exportedFilter() {
   const start = SCRIPT_RUNTIME.indexOf("function passOne(conds, item)");
   const end = SCRIPT_RUNTIME.indexOf("function passes(fs, item)", start);

@@ -5,7 +5,7 @@ import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { renderLeafNode } from "../components/canvas/render";
 import { publishedScriptInputValue, scriptInputValueBundle, scriptInputValueDoc } from "./helpers/script-input-value";
 
-/** setterの結果は外から渡す。DOMの正規化自体はnative e2eで検証する。 */
+/** setter の結果は外から渡す。DOM の正規化そのものは、ネイティブの e2e で検証する。 */
 function assignments(preview: boolean, initial: string, requested: string[], accepted: string[]) {
   const doc = scriptInputValueDoc({ kind: "input", inputType: "number", defaultValue: initial }, "", "");
   const script = { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: requested.map((value, i) => ({ id: `set-${i}`, kind: "set-value", target: "entry", value })) };
@@ -80,7 +80,7 @@ for (const kind of ["input", "textarea"] as const) {
     const leaf = render();
     assert.equal(typeof leaf.props.onInputCapture, "function");
     leaf.props.onInputCapture({ currentTarget: { value: "typed" } });
-    // スクリプトによる再描画がbubbleのonChangeより前でも、入力値を保持する。
+    // スクリプトによる再描画が bubble の onChange より前でも、入力値を保つ。
     assert.equal(render().props.value, "typed");
     leaf.props.onChange({ target: { value: "typed" } });
     assert.equal(render().props.value, "typed");

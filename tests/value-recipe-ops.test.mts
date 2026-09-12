@@ -197,7 +197,7 @@ test("math operands can resolve nested variables and safely parse numeric form s
   ], {}), { kind: "error", code: "type-mismatch" });
   assert.deepEqual(evaluateValueRecipe(12, [
     { kind: "math", operation: "add", operand: 3 },
-  ]), val(15)); // The default operand is interpreted as a number.
+  ]), val(15)); // 既定の被演算子は、数値として解釈する。
 });
 
 
@@ -228,7 +228,7 @@ test("string replacements refuse expansion beyond 100KB without allocating huge 
 });
 
 test("dynamic regex replacements reject catastrophic patterns and ambiguous quantifiers", () => {
-  // A naive replace with (a+)+$ on this input causes exponential backtracking.
+  // この入力に (a+)+$ で単純に置換すると、指数的なバックトラックが起きる。
   const input = "a".repeat(28) + "!";
   for (const pattern of ["(a+)+$", "((a+))+$", "((a|aa))+$", "(a|aa)+$", "a+a+$", ".*.*$", "([ab]+)([abc]+)$"]) {
     const result = evaluateValueRecipe(input, [{

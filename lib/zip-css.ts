@@ -3,8 +3,8 @@ import type { Asset, ZipAssetMetadata } from "./types";
 import { iterateCssAssetReferences, rewriteCssAssetUrls } from "./css-assets";
 import { appendAssetSuffix, zipDependency } from "./zip-references";
 
-// CSS is embedded in separate data URLs, not flattened into the importing sheet.
-// Bounds cover both individual results and aggregate work, including ancestor-dependent variants.
+// CSS は、取り込む側のスタイルシートに展開せず、別々の data URL に埋め込む。
+// 上限は、個々の結果と全体の処理量の両方にかかる（祖先によって変わる派生も含む）。
 export const ZIP_CSS_LIMITS = { source: 2 * 1024 * 1024, output: 8 * 1024 * 1024, work: 64 * 1024 * 1024, variants: 4096, assets: 2000 };
 const limitError = () => new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
 export const zipCssUrl = (id: string) => `tsumu-zip-css:${encodeURIComponent(id)}`;
@@ -36,7 +36,7 @@ export function zipStylesheet(asset: Asset | undefined): ZipAssetMetadata["style
   return sheet;
 }
 
-/** Called after all IDs are known. No CSS is changed or uploaded a second time. */
+/** すべての ID が分かった後で呼ぶ。CSS を変更したり、もう一度アップロードしたりはしない。 */
 export function attachZipDependencies(assets: Asset[]): void {
   const ids = new Map(assets.filter((a) => a.zip).map((a) => [a.zip!.path, a.id]));
   for (const asset of assets) {
@@ -65,7 +65,7 @@ export function zipAssetClosure(assets: Record<string, Asset>, roots: Iterable<s
   return found;
 }
 
-/** A cache query is preserved in exports, but must not become part of an opaque data payload. */
+/** キャッシュ用のクエリは書き出しでは残すが、中身の見えない data のペイロードの一部にしてはならない。 */
 export function zipCssPreviewUrls(
   assets: Record<string, Asset>, roots: Iterable<string>, resourceUrl: (asset: Asset) => string,
   options: { baseUrl?: string } = {}
@@ -105,8 +105,8 @@ export function zipCssPreviewUrls(
       const ref = refs.get(url);
       const dependency = ref ? assets[ref.assetId] : undefined;
       if (!ref) {
-        // A data stylesheet has no hierarchical base. Preserve the original editor-origin
-        // meaning of archive-external root/protocol-relative URLs in preview only.
+        // data のスタイルシートには、階層のある基準の URL が無い。アーカイブの外を指すルート相対や
+        // プロトコル相対の URL は、プレビューに限り、エディタのオリジンでの元の意味を保つ。
         if (url.startsWith("/") && options.baseUrl) {
           try { return new URL(url, options.baseUrl).href; } catch { /* Invalid URLs remain unchanged. */ }
         }
@@ -131,7 +131,7 @@ export function zipCssPreviewUrls(
   return out;
 }
 
-/** Each exported sheet stays separate. Native imports retain cycles, conditions and namespace scope. */
+/** 書き出すスタイルシートは、それぞれ別に保つ。ネイティブの @import は、循環・条件・名前空間の範囲を保つ。 */
 export function exportZipStylesheet(asset: Asset, names: Map<string, string>): string | undefined {
   const sheet = zipStylesheet(asset);
   if (!sheet) {

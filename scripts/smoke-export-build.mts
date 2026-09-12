@@ -65,7 +65,7 @@ const doc: SiteDoc = {
   assets: { clip: { id: "clip", name: "clip.mp4", dataUrl: "data:video/mp4;base64,AQID",
     mimeType: "video/mp4", width: 1, height: 1 } },
 };
-// Exercise the complete user-facing export pipeline (including JS conversion).
+// 利用者が使う書き出しの処理の全体（JS への変換を含む）を通して動かす。
 const project = await prepareExportProject(doc, options);
 if (framework === "react" && language === "javascript" && !project.files["src/App.jsx"]) {
   throw new Error("JavaScript export must emit JSX rather than TypeScript");

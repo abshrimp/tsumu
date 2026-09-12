@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
-/** Mount the real modal and controls; the fixture owns only Apply/Cancel state. */
+/** 実際のモーダルと操作部品を取り付ける。この準備が持つのは、適用と取り消しの状態だけ。 */
 export async function motionEditorBundle(initialCss = "0% { opacity: 0; } 50% { opacity: 0.5; } 100% { opacity: 1; }") {
   return (await build({
     stdin: {
@@ -35,7 +35,7 @@ createRoot(document.getElementById("app")).render(<Fixture />);
   })).outputFiles[0].text;
 }
 
-/** Real easing modal with a CSS probe to compare unchanged Apply and reopen. */
+/** 実際のイージングのモーダル。CSS を調べる仕組みで、変更せずに適用した場合と開き直した場合を比べる。 */
 export async function easingEditorBundle(initial = "cubic-bezier(0.123456, 0.000001, 0.876543, 1.234567)") {
   return (await build({
     stdin: {

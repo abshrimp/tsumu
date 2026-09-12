@@ -60,8 +60,8 @@ export function withVueSsr(
     '}',
     "",
   ].join("\n");
-  // The Vite SSR process uses Node's HTTP server; dev serves module transforms,
-  // production imports a compiled SSR entry and serves the built client assets.
+  // Vite の SSR のプロセスは Node.js の HTTP サーバーを使う。開発時はモジュールの変換を配信し、
+  // 本番ではコンパイルした SSR の入口を読み込んで、ビルドしたクライアントのアセットを配信する。
   files["server.mjs"] = [
     'import { createServer } from "node:http";',
     'import { readFile, stat } from "node:fs/promises";',

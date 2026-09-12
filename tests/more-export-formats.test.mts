@@ -129,7 +129,7 @@ test("single HTML checks a declared oversized asset before reading it", async ()
     }, async () => response),
     /Resource exceeds single HTML size limit/,
   );
-  // The stream can be pulled once by the Response constructor, but not consumed.
+  // ストリームは Response のコンストラクターが1回だけ読み出せるが、読み切ってはいない。
   assert.ok(reads <= 1);
 });
 

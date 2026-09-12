@@ -20,7 +20,7 @@ export const maxDuration = 30;
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** 認証・D1・サイトIDを確かめて、対象のサイトを返す（だめならレスポンス） */
+/** 認証・D1・サイトIDを確かめ、対象のサイトを返す（確かめられなければエラーのレスポンスを返す） */
 async function load(ctx: Ctx) {
   const tr = await serverTr();
   const denied = await requireAuth();
@@ -49,7 +49,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 }
 
-/** サイト名・公開先を変える（送った項目だけ） */
+/** サイト名や公開先を変更する（送られた項目だけ） */
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const r = await load(ctx);
@@ -73,8 +73,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const latest = await getSite(r.db, current.id);
       if (!latest) return NextResponse.json({ error: r.tr("Site not found") }, { status: 404 });
       if (saved) return NextResponse.json({ site: latest });
-      // Reapply only the submitted fields to the new settings. In particular,
-      // branch/previewBranch must be validated together after a competing edit.
+      // 送られた項目だけを新しい設定に適用し直す。特に、他の人の変更と競合した後は、
+      // branch と previewBranch を組み合わせて検証し直す必要がある。
       current = latest;
     }
     return NextResponse.json({ error: r.tr("Couldn't save") }, { status: 409 });
@@ -84,7 +84,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 }
 
-/** サイトを消す（編集データ・自動バックアップも消える。公開済みのリポジトリはそのまま） */
+/** サイトを削除する（編集データと自動バックアップも削除する。公開済みのリポジトリはそのまま残す） */
 export async function DELETE(_req: Request, ctx: Ctx) {
   try {
     const r = await load(ctx);
@@ -93,10 +93,10 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     if (r.db.backend === "d1" && !roomKey) {
       return NextResponse.json({ error: r.tr("The site's document storage was not found.") }, { status: 409 });
     }
-    // The D1 transaction also queues cleanup of this exact DO generation.
+    // D1 のトランザクションで、この Durable Object の世代の後片付けも予約する。
     await deleteSite(r.db, r.site.id, roomKey ?? undefined);
     if (roomKey) {
-      // Cleanup errors do not undo the already committed site deletion.
+      // 後片付けに失敗しても、確定したサイトの削除は取り消さない。
       await eraseSiteDocument(roomKey).catch(() => undefined);
       await cleanupAbandonedDocuments(r.db, 1).catch(() => undefined);
     }

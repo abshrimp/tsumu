@@ -115,7 +115,7 @@ test("Inspector suggestions dismiss outside but not on scrolling inside the menu
   await page.locator("#outside").click();
   await expect(menu).toHaveCount(0);
 
-  // The user's edit is not modified by dismissing completion.
+  // 補完を閉じても、利用者の編集は変わらない。
   await expect(source(page)).toHaveValue("");
   await source(page).focus();
   await source(page).press("Control+/");

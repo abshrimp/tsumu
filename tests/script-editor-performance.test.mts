@@ -82,7 +82,7 @@ test("spatial hit testing agrees with the original full DOM slot scan", () => {
     }
   }
   const index = new SlotIndex(slots);
-  // Probe cell boundaries, negative coordinates, overlaps and near misses.
+  // マスの境界、負の座標、重なり、わずかな外れを調べる。
   for (let y = -60; y < 4600; y += 83) {
     for (let x = -100; x < 4700; x += 187) {
       for (const kind of ["step", "head"] as const) {

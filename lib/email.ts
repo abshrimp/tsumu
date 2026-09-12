@@ -1,4 +1,4 @@
-// Bound untrusted input and validate fixed-size components (no repeated regex groups).
+// 信頼できない入力の長さを制限し、固定長の部分ごとに検証する（繰り返しのある正規表現のグループは使わない）。
 export function isValidEmail(email: unknown): email is string {
   if (typeof email !== "string" || email.length < 3 || email.length > 254) return false;
   const at = email.indexOf("@");

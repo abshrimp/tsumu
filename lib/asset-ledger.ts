@@ -1,32 +1,31 @@
 import type { Db } from "./db";
 
 /**
- * D1 ledger of the files stored in Workers KV (`asset_objects`).
+ * Workers KV に保存したファイルの D1 上の台帳（`asset_objects`）。
  *
- * The asset tab's storage meter reads this instead of adding up the files the
- * site documents reference, because KV also holds files that no document
- * references any more: removed assets waiting for GC, failed uploads and the
- * files of deleted sites.
+ * アセットタブの使用量の表示は、サイトの文書が参照するファイルを合計する代わりに、これを読む。
+ * KV には、どの文書からも参照されなくなったファイル（GC を待っている削除済みのアセット、
+ * アップロードに失敗したファイル、削除したサイトのファイル）も残っているため。
  */
 
-/** Paths with unknown size returned to the browser, which may know their size. */
+/** 大きさの分からないパスをブラウザに返す上限の数（ブラウザ側で大きさが分かることがある）。 */
 const UNKNOWN_PATHS_LIMIT = 1000;
 
 export interface AssetLedgerSummary {
-  /** Every key has been listed at least once since the ledger was created. */
+  /** 台帳を作ってから、すべてのキーを少なくとも一度は列挙した。 */
   complete: boolean;
   count: number;
-  /** Sum of known sizes. */
+  /** 大きさの分かっているファイルの合計。 */
   bytes: number;
-  /** Files whose size is unknown (uploaded before sizes were recorded). */
+  /** 大きさの分からないファイルの数（大きさを記録するようになる前にアップロードしたもの）。 */
   unknownCount: number;
   unknownPaths: string[];
-  /** Files registered for deletion by GC (removed from the editor). */
+  /** GC による削除に登録したファイルの数（エディタで削除したもの）。 */
   pendingCount: number;
   pendingBytes: number;
 }
 
-/** Record an upload. Failure is repaired by the weekly KV inventory. */
+/** アップロードを記録する。失敗しても、週1回の KV の棚卸しで補われる。 */
 export async function recordUploadedAsset(db: Db, path: string, bytes: number, now = Date.now()): Promise<void> {
   if (db.backend !== "d1") return;
   await db.execute({

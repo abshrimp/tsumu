@@ -20,7 +20,7 @@ export const IS_MAC =
       navigator.userAgent
   );
 
-/** 記号の文字はフォントによって形がまちまちなので、アイコンで描く */
+/** 記号の文字はフォントによって形が異なるため、アイコンで描く */
 const GLYPHS: Record<string, { Icon: LucideIcon; label: string }> = {
   "⇧": { Icon: ArrowBigUp, label: "Shift" },
   "⌘": { Icon: Command, label: "Command" },
@@ -33,7 +33,7 @@ const GLYPHS: Record<string, { Icon: LucideIcon; label: string }> = {
 
 const RE = /([⇧⌘⌥↑↓←→])/;
 
-/** Windows などでの修飾キーの呼び名と、並べる順番（Ctrl+Alt+Shift+キー） */
+/** Windows などでの修飾キーの呼び名と、並べる順序（Ctrl+Alt+Shift+キー） */
 const PC_NAME: Record<string, string> = { "⌘": "Ctrl", "⌃": "Ctrl", "⌥": "Alt", "⇧": "Shift" };
 const PC_ORDER = ["Ctrl", "Alt", "Shift"];
 
@@ -49,7 +49,7 @@ export function keyText(text: string): string {
     );
     const next = text.charAt(offset + mods.length);
     const after = text.charAt(offset + mods.length + 1);
-    // 続く文字がキーなら「+」でつなぐ（「⌘+」の + はキーそのもの、「⌘+スクロール」の + はつなぎ）
+    // 続く文字がキーなら「+」でつなぐ（「⌘+」の + はキーそのもの、「⌘+スクロール」の + はつなぎの記号）
     const key = /[A-Za-z0-9[\]/=.,;`'\\-]/.test(next) || (next === "+" && !/\S/.test(after));
     return names.join("+") + (key ? "+" : "");
   });

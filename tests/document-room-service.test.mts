@@ -6,7 +6,7 @@ import { transformSync } from "esbuild";
 import type { SaveDocResult } from "../lib/doc-storage";
 import { recordSiteSavedAt } from "../lib/sites";
 
-/** Exercise the real Cloudflare routing module without requiring a Worker. */
+/** Worker を必要とせずに、実際の Cloudflare の振り分けのモジュールを動かす。 */
 function fixture(options: { local?: boolean; missingBinding?: boolean } = {}) {
   const url = new URL("../lib/site-document-service.ts", import.meta.url);
   const require = createRequire(url);

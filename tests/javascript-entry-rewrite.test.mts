@@ -48,7 +48,7 @@ for (const src of [
     assert.ok(output.files["src/main.jsx"]);
     assert.equal(output.files["src/main.tsx"], undefined);
     assert.ok(output.files["index.html"].includes(`src="${src.replace(/\.tsx(?=[?#]|$)/, ".jsx")}" data-authored="yes"`));
-    // 実際のHTML解析後も、モジュールが存在する生成ファイルを参照することを確かめる。
+    // 実際に HTML を解析した後も、モジュールが存在する生成したファイルを参照することを確かめる。
     const pending: Html.Node[] = [parse(output.files["index.html"])];
     while (pending.length) {
       const node = pending.pop()!;
@@ -96,7 +96,7 @@ for (const href of ["/", "/nested/", "https://cdn.example/app/"]) {
       pageOrder: ["home"], nodes: {}, assets: {},
     }, "react");
     const output = await toJavaScriptProject(source, "react");
-    // Vite の入力はbaseではなくindex.html基準。相対パスをルート相対に変えない。
+    // Vite の入力は、base ではなく index.html が基準。相対パスを、ルートからの相対パスに変えない。
     assert.ok(output.files["index.html"].includes(base + external));
     assert.ok(output.files["index.html"].includes('src="./src/main.jsx?v=1#boot" data-authored="yes"'));
     assert.ok(output.files["index.html"].includes('src="/src/main.jsx"'));

@@ -9,8 +9,8 @@ import { StackView } from "../components/script-editor/blocks";
 import { Ctx, type EdCtx } from "../components/script-editor/context";
 import { insertAt, listIn, parseSlot, slotKey, takeAt } from "../components/script-editor/step-tree";
 
-// Imported documents accept nonempty string IDs, including these separators.
-// Editor addresses must not reinterpret part of an ID as a script/list/index.
+// 取り込んだ文書は、これらの区切りを含む、空でない文字列の ID を受け付ける。
+// エディタでの位置の指定で、ID の一部をスクリプト・リスト・インデックスとして読み替えてはならない。
 for (const id of ["script|root|0", "a:b|c", 'quote"\\line\n', "日本語%7C", "\ud800"]) {
   test(`slot addresses preserve the accepted ID ${JSON.stringify(id)}`, () => {
     for (const list of ["root", "head", `${id}:then`, `${id}:else`]) {

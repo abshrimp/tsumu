@@ -6,8 +6,8 @@ import { nativeDataModule } from "./native-data";
 import { withVueSsr } from "./vue-ssr";
 
 type Framework = "vue" | "nuxt" | "sveltekit";
-// Data inserted into SFC <script> and template expressions must not contain
-// literal tag delimiters or the template interpolation sentinels.
+// SFC の <script> やテンプレートの式に入れるデータには、文字どおりのタグの区切りや、
+// テンプレートの差し込みの目印が含まれていてはならない。
 const json = (value: unknown) => JSON.stringify(value)
   .replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
 
@@ -15,7 +15,7 @@ function routesFile(pages: ReturnType<typeof generateNativeFiles>["pages"]): str
   const plain = pages.map(({ id, name, title, description, slug, query, language, plan }) =>
     ({ id, name, title, description, path: "/" + slug.replace(/^\/+|\/+$/g, ""), query: Object.entries(query), language, plan }));
   return [
-    // __proto__ も条件の名前として保持し、オブジェクト初期化子の特別な構文にしない。
+    // __proto__ も条件の名前として保ち、オブジェクトの初期化子の特別な構文にしない。
     "export const pages = " + json(plain) + ".map(page => ({ ...page, query: Object.fromEntries(page.query) }));",
     "export function selectPage(pathname, query) {",
     "  let path;",
@@ -294,7 +294,7 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
     '  <meta name="description" content={data.description} />',
     '</svelte:head>',
     ...pages.map((page, i) => (i ? "{:else if " : "{#if ") + "data.id === " + json(page.id) + "}",
-      // Note that Svelte's template syntax requires 'if' after ':else'.
+      // Svelte のテンプレートの構文では、':else' の後に 'if' が必要になる点に注意。
     ).flatMap((condition, i) => [condition, "<" + pages[i].name + " {scope} />"]),
     '{:else}<h1>Not Found</h1>{/if}',
     "",
@@ -368,7 +368,7 @@ export function applyNativeFramework(
     ].join("\n");
   }
   if (framework === "sveltekit") {
-    // Kit 3 uses the package import map instead of the removed $lib alias.
+    // Kit 3 では、廃止された $lib の別名の代わりに、パッケージの import map を使う。
     for (const [path, source] of Object.entries(files)) {
       if (/\.(?:js|ts|svelte)$/.test(path) && source.includes("$lib/")) {
         files[path] = source.replaceAll("$lib/", "#lib/");

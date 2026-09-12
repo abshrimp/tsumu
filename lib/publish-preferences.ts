@@ -13,7 +13,7 @@ export const DEFAULT_PUBLISHED_EXPORT_OPTIONS: PublishedExportOptions = {
   style: DEFAULT_EXPORT_OPTIONS.style,
 };
 
-/** Accept only export settings the publish dialog can actually produce. */
+/** 公開のダイアログが実際に作れる書き出しの設定だけを受け付ける。 */
 export function parsePublishedExportOptions(value: unknown): PublishedExportOptions | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const options = value as Record<string, unknown>;
@@ -31,7 +31,7 @@ export function parsePublishedExportOptions(value: unknown): PublishedExportOpti
   };
 }
 
-/** The DB is authoritative; no preference is written to browser storage. */
+/** 正となるのは DB の値。ブラウザの保存領域には、設定を書き込まない。 */
 export async function readPublishedExportOptions(db: Db, siteId: string): Promise<PublishedExportOptions> {
   const result = await db.execute({
     sql: "SELECT framework, language, style FROM site_publish_options WHERE site_id = ?",
@@ -40,7 +40,7 @@ export async function readPublishedExportOptions(db: Db, siteId: string): Promis
   return parsePublishedExportOptions(result.rows[0]) ?? { ...DEFAULT_PUBLISHED_EXPORT_OPTIONS };
 }
 
-/** Only the successful server-side GitHub commit path may call this. */
+/** この関数を呼んでよいのは、サーバー側で GitHub へのコミットに成功した経路だけ。 */
 export async function savePublishedExportOptions(
   db: Db,
   siteId: string,

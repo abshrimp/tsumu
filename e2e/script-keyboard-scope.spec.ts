@@ -4,7 +4,7 @@ import { scriptKeyboardBundle } from "../tests/helpers/script-keyboard";
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptKeyboardBundle({ localized: true }); });
 test.beforeEach(async ({ page }) => {
-  // Use an ordinary origin so the language cookie and dictionary load as in production.
+  // 言語のクッキーと辞書が本番と同じように読み込まれるよう、普通のオリジンを使う。
   await page.goto("/robots.txt");
   await page.setContent('<html><body><div id="app"></div></body></html>');
   await page.addScriptTag({ content: bundle });
@@ -21,7 +21,7 @@ const selected = (page: Page, kind: "step" | "script") => kind === "step" ? bloc
 
 for (const kind of ["step", "script"] as const) for (const key of ["Backspace", "Delete"]) {
   test(`${kind}: a closed focused native select does not delete its selected block with ${key}`, async ({ page }) => {
-    // Select a block with the real pointer, then focus the native select without opening its popup.
+    // 実際のポインターでブロックを選び、ポップアップを開かずに、ネイティブの select にフォーカスする。
     await block(page, kind).locator(".se-ico").first().click();
     await expect(selected(page, kind)).toHaveClass(/is-selected/);
     await select(page, kind).focus();
@@ -34,7 +34,7 @@ for (const kind of ["step", "script"] as const) for (const key of ["Backspace", 
 }
 
 test("clicking a native select and accepting its option keeps Delete inside the select", async ({ page }) => {
-  // Pointerdown on the select also selects its parent block.
+  // select での pointerdown は、その親のブロックも選ぶ。
   await select(page, "step").click();
   await page.keyboard.press("Enter");
   await expect(select(page, "step")).toBeFocused();

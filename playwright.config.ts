@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * 画面を通しで確かめるテスト（e2e/）。ビルド済みのエディタを Node.js で起動し、
- * 使い捨ての保存先（.e2e-data）とログインなしで動かす。
+ * 使い捨ての保存先（.e2e-data）で、ログインなしで動かす。
  *   npm run build && npm run test:e2e
  */
 const PORT = Number(process.env.E2E_PORT ?? 3210);
@@ -12,7 +12,7 @@ export default defineConfig({
   testDir: "e2e",
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  // 1つのサーバーと保存先を共有するので、順に動かす
+  // 1つのサーバーと保存先を共有するため、順に動かす
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
@@ -22,8 +22,8 @@ export default defineConfig({
     viewport,
     trace: "retain-on-failure",
   },
-  // Keep the full Chromium suite; run the same core UI smoke cases on the other
-  // engines. CDP multitouch tests remain in the full Chromium suite.
+  // Chromium ではすべてのテストを動かし、他のエンジンでは、同じ中心的な画面の確認だけを動かす。
+  // CDP を使う複数の指での操作のテストは、Chromium のテストにだけ含める。
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport } },
     { name: "firefox", grep: /@(?:core-editing|form-values)\b/, use: { ...devices["Desktop Firefox"], viewport } },
@@ -34,7 +34,7 @@ export default defineConfig({
     url: `http://localhost:${PORT}/robots.txt`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
-    // 手元の .env.local やシェルの GITHUB_TOKEN・AI の設定に左右されないよう、公開と AI は未設定にする
+    // 手元の .env.local やシェルの GITHUB_TOKEN、AI の設定に左右されないよう、公開と AI は未設定にする
     env: {
       TSUMU_DATA_DIR: ".e2e-data", ALLOW_ANONYMOUS: "true", NODE_OPTIONS: "--disable-warning=ExperimentalWarning",
       GITHUB_TOKEN: "", AI_ENABLED: "",

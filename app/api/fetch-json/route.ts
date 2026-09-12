@@ -9,7 +9,7 @@ export const maxDuration = 30;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 
-/** エディタからのデータソース取得（CORS回避のためサーバー経由） */
+/** エディタからデータソースを取得する（CORS を避けるため、サーバーを経由する） */
 export async function POST(req: Request) {
   const tr = await serverTr();
   const denied = await requireAuth();
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   if (headers && typeof headers === "object") {
     const entries = Object.entries(headers as Record<string, unknown>).slice(0, 50);
     for (const [k, v] of entries) {
-      // 中継先の決め方に関わるヘッダーは送らない
+      // 中継先の決定に影響するヘッダーは送らない
       if (typeof v !== "string" || !/^[\w!#$%&'*+.^`|~-]+$/.test(k)) continue;
       if (["host", "content-length", "connection", "transfer-encoding"].includes(k.toLowerCase())) continue;
       sendHeaders[k] = v;
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    // SSRF対策: 内部の宛先（リダイレクト先・名前解決した先も）には送らない。本文は上限まで読む
+    // SSRF 対策: 内部の宛先（リダイレクト先や、名前解決した先を含む）には送らない。本文は上限まで読む
     const res = await fetchPublic(url, {
       method: verb,
       cache: "no-store",
@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) {
-      // Error reporting must not wait for a cloned response's other reader.
+      // エラーを報告するときに、複製した応答のもう一方の読み手を待たないようにする。
       void res.body?.cancel().catch(() => {});
       return NextResponse.json(
         { error: tr("Couldn't load (HTTP {status})", { status: res.status }) },

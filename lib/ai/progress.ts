@@ -10,7 +10,7 @@ export type AiStreamEvent = AiProgress | { type: "result"; result: AiResult } | 
 export const AI_STREAM_TYPE = "application/x-ndjson";
 export const MAX_AI_STREAM_BYTES = 8 * 1024 * 1024;
 
-/** ブラウザへ送るのは、画面に出す説明と実行の経過だけ（AIの思考や署名は送らない） */
+/** ブラウザへ送るのは、画面に表示する説明と実行の経過だけ（AI の思考や署名は送らない） */
 export function aiStreamResponse(
   work: (emit: (event: AiProgress) => void, signal: AbortSignal) => Promise<AiResult>,
   errorMessage: (error: unknown) => string,
@@ -62,7 +62,7 @@ export function aiStreamResponse(
   } });
 }
 
-/** 受信の区切りが文字や行の途中でも、UTF-8 を正しく1行ずつ読む */
+/** 受信の区切りが文字や行の途中にあっても、UTF-8 を正しく1行ずつ読む */
 export async function* readLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -86,8 +86,8 @@ export async function* readLines(body: ReadableStream<Uint8Array>): AsyncGenerat
     }
     if (pending) yield pending.replace(/\r$/, "");
   } finally {
-    // A terminal result or error must not wait for upstream cancellation,
-    // which can remain pending while another response clone is unread.
+    // 最終的な結果やエラーを返すときに、上流の取り消しを待たない。
+    // 応答のもう一方の複製が読まれていない間、取り消しが終わらないことがある。
     void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
@@ -112,7 +112,7 @@ export async function readAiResponse(res: Response, onProgress: (event: AiProgre
     }
     if (["phase", "text", "operations"].includes(event.type)) onProgress(event as AiProgress);
   }
-  // 経過だけ届いて結果が無いときは、途中までの編集を適用しない
+  // 経過だけが届いて結果が無いときは、途中までの編集を適用しない
   throw new Error("AI response ended before completion");
 }
 

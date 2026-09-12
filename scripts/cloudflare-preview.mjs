@@ -1,4 +1,4 @@
-/** Hosted Worker Previews, distinct from OpenNext's local `preview` command. */
+/** クラウドで動かす Worker のプレビュー。OpenNext のローカルの `preview` コマンドとは別のもの。 */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -8,7 +8,7 @@ import { parseJsonc, storageBindings, wranglerConfigPath } from "./cloudflare.mj
 
 const LOCAL_DO = { name: "COLLAB_ROOM", class_name: "CollaborationRoom" };
 
-/** Pure transformation. Never provision storage or copy production bindings/vars. */
+/** 純粋な変換。保存先を作成したり、本番のバインディングや変数を写したりはしない。 */
 export function isolatedPreviewConfig(config, env = {}) {
   const result = structuredClone(config);
   const previews = result.previews ?? {};
@@ -17,7 +17,7 @@ export function isolatedPreviewConfig(config, env = {}) {
   for (const key of Object.keys(previews)) {
     if (!supported.has(key)) throw new Error(`Preview ${key} needs a separate isolation review before using this helper.`);
   }
-  // Do not let named environments or CLI overrides select a different binding set.
+  // 名前付きの環境やコマンドラインでの上書きで、別のバインディングの組を選ばせない。
   delete result.env;
   if (Object.values(result.exports ?? {}).some(
     (entry) => entry?.type === "durable-object" && entry.state && entry.state !== "created"
@@ -35,7 +35,7 @@ export function isolatedPreviewConfig(config, env = {}) {
     ["d1_databases", "database_id", "PREVIEW_D1_DATABASE_ID", "D1_DATABASE_ID", { binding: "DB", database_name: "tsumu-preview" }],
     ["kv_namespaces", "id", "PREVIEW_KV_NAMESPACE_ID", "KV_NAMESPACE_ID", { binding: "ASSETS_KV" }],
   ]) {
-    // Explicit Preview configuration wins. Missing Preview IDs mean browser-only storage.
+    // プレビュー用の明示的な設定を優先する。プレビュー用の ID が無ければ、ブラウザの中にだけ保存する。
     previews[key] ??= env[envKey] ? [{ ...fallback, [idKey]: env[envKey] }] : [];
     const productionIds = new Set(productionConfigs.flatMap((scope) => (scope[key] ?? []).map((b) => b[idKey])).concat(env[productionEnv] ?? [])
       .filter((id) => typeof id === "string").map((id) => id.trim().toLowerCase()));
@@ -51,21 +51,21 @@ export function isolatedPreviewConfig(config, env = {}) {
   if (storage.db && !storage.doc) {
     throw new Error("Preview DB requires a local DOC_STORE binding to the SQLite-backed DocumentRoom export.");
   }
-  // Wrangler "vars" are plain-text configuration, not encrypted secrets.
-  // Do not let a public, anonymous Preview accidentally publish credential-like
-  // values through its Preview configuration.
+  // Wrangler の "vars" は平文の設定で、暗号化したシークレットではない。
+  // 公開された匿名のプレビューが、そのプレビューの設定を通して、認証情報のような値を
+  // 誤って公開しないようにする。
   for (const name of Object.keys(previews.vars ?? {})) {
     if (/(?:TOKEN|SECRET|PASSWORD|PRIVATE_KEY|API_KEY|^ANTHROPIC_|^OPENAI_|^GITHUB_)/i.test(name)) {
       throw new Error(`Preview ${name} must be configured as a secret, not a plain-text variable.`);
     }
   }
-  // Explicit empty bindings remove old Preview storage too. Base settings are not inherited.
+  // 明示的に空にしたバインディングは、古いプレビューの保存先も取り除く。基本の設定は引き継がない。
   previews.vars ??= {};
   result.previews = previews;
   return result;
 }
 
-/** Only metadata flags: no config/environment, source, variable or secret-file overrides. */
+/** メタデータのフラグだけを許す。設定・環境・ソース・変数・シークレットのファイルの上書きは許さない。 */
 export function previewArguments(args) {
   const accepted = [];
   for (let i = 0; i < args.length; i++) {
@@ -104,8 +104,8 @@ export function previewLaunch(configPath, workerName, flags, env = {}) {
   }
   return {
     args: ["preview", "--config", configPath, "--env", "", "--ignore-base-config", ...flags],
-    // Wrangler loads dotenv files itself. Pin the verified identity so a later
-    // dotenv value cannot silently select another parent Worker.
+    // Wrangler は dotenv のファイルを自分で読み込む。確かめた名前を固定し、後から読まれた
+    // dotenv の値で、別の親の Worker が気づかないうちに選ばれないようにする。
     env: { ...env, WRANGLER_CI_OVERRIDE_NAME: workerName },
   };
 }
@@ -116,17 +116,17 @@ export async function main(args = process.argv.slice(2)) {
   const config = isolatedPreviewConfig(parseJsonc(readFileSync(source, "utf8")), process.env);
   const generated = join(dirname(source), "wrangler.preview.generated.jsonc");
   const launch = previewLaunch(generated, config.name, flags, process.env);
-  // The editor currently uses dummy caches. Fail before deployment if future adapter
-  // settings require populate-cache/skew operations rather than silently skipping them.
+  // エディタは現在、何もしないキャッシュを使っている。今後のアダプターの設定で
+  // populate-cache や skew の処理が必要になったときは、黙って飛ばさず、デプロイの前に失敗させる。
   const compiled = resolve(".open-next/.build/open-next.config.edge.mjs");
   if (!existsSync(compiled) || !existsSync(".open-next/worker.js") || !existsSync(".open-next/assets")) {
     throw new Error("Run npm run build:worker before deploying a hosted Preview.");
   }
   assertSupportedOpenNextConfig((await import(pathToFileURL(compiled).href)).default);
-  // Keep paths relative to the source config, including WRANGLER_CONFIG outside cwd.
+  // 元の設定からの相対パスを保つ（作業ディレクトリの外にある WRANGLER_CONFIG の場合も含む）。
   writeFileSync(generated, JSON.stringify(config, null, "\t") + "\n");
   console.error(`Using ${generated}; this creates or updates a hosted Worker Preview, not production.`);
-  // Use the installed CLI directly: no package install and no shell interpolation of names.
+  // インストール済みの CLI を直接使う。パッケージのインストールも、名前のシェルでの展開も行わない。
   const require = createRequire(import.meta.url);
   const wranglerPackage = require.resolve("wrangler/package.json");
   const cli = join(dirname(wranglerPackage), JSON.parse(readFileSync(wranglerPackage, "utf8")).bin.wrangler);

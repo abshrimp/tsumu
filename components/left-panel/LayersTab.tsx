@@ -40,7 +40,7 @@ function LayerRow({
   id: string;
   depth: number;
   isTop: boolean;
-  /** Complete visual order, including rows outside the mounted window. */
+  /** 表示上の順序の全体（マウントしていない範囲の行も含む）。 */
   visibleIds: readonly string[];
   drag: DragState;
   setDrag: (d: DragState) => void;
@@ -94,7 +94,7 @@ function LayerRow({
         style={
           {
             paddingLeft: layerIndent(depth),
-            // ホバー外でも見せるボタンの分だけ右余白を確保（左のロックがオンなら2つ分）
+            // ホバーしていなくても表示するボタンの分だけ、右の余白を確保する（左のロックがオンなら2つ分）
             "--acts": node.locked ? 2 : hiddenHere || hiddenElsewhere.length ? 1 : 0,
           } as CSSProperties
         }
@@ -104,10 +104,10 @@ function LayerRow({
             toggleSelection(id);
             return;
           }
-          // Shift: 主選択からクリックした行まで、表示中の行を範囲選択
+          // Shift: 主に選んでいる要素から、クリックした行までの表示中の行を範囲選択する
           const anchor = useEditor.getState().selection;
-          // Virtualization only mounts nearby rows: select across the full visible
-          // hierarchy, including rows currently outside the viewport.
+          // 仮想化しているため、マウントしているのは近くの行だけ。画面の外の行も含め、
+          // 表示中の階層全体から範囲を選ぶ。
           const rows = e.shiftKey ? visibleIds : [];
           const from = anchor ? rows.indexOf(anchor) : -1;
           const to = rows.indexOf(id);
@@ -120,7 +120,7 @@ function LayerRow({
         }}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";
-          // 複数選択中の要素をつかんだら、選択中の要素をまとめて動かす
+          // 複数選択中の要素をつかんだら、選択中の要素をまとめて動かす。
           // ロック中の要素は動かさない
           const dragIds =
             selectedIds.length > 1 && selectedIds.includes(id)
@@ -141,7 +141,7 @@ function LayerRow({
           e.stopPropagation();
           const r = e.currentTarget.getBoundingClientRect();
           const y = (e.clientY - r.top) / r.height;
-          // 中へ入れられるのはコンテナとして出力されるボックスのみ（キャンバスと同条件）
+          // 中に入れられるのは、コンテナとして出力されるボックスだけ（キャンバスと同じ条件）
           let pos: DropPos =
             canContainElements(node)
               ? y < 0.3
@@ -152,14 +152,14 @@ function LayerRow({
               : y < 0.5
                 ? "before"
                 : "after";
-          // 展開中のコンテナの下端は、見た目どおり先頭の子の前に入れる
+          // 展開中のコンテナの下端に落とした場合は、見た目どおり先頭の子の前に入れる
           if (pos === "after" && hasChildren && !isCollapsed) pos = "start";
           if (drag.overId !== id || drag.pos !== pos || drag.files !== files) {
             setDrag({ ...drag, overId: id, pos, files });
           }
         }}
         onDrop={(e) => {
-          // ファイルはパネル側でアップロードして、この行の位置へ挿入する
+          // ファイルはパネル側でアップロードし、この行の位置に挿入する
           if (isFileDrag(e)) return;
           e.preventDefault();
           e.stopPropagation();
@@ -313,7 +313,7 @@ export function LayersTab() {
   const [drag, setDrag] = useState<DragState>(NO_DRAG);
   const { uploading, dropFiles } = useImageDrop();
   const autoScroll = useDragAutoScroll();
-  // 折りたたみはページ（編集中のコンポーネント）ごとに覚えておく。
+  // 折りたたみの状態は、ページ（または編集中のコンポーネント）ごとに覚えておく。
   // タブを切り替えてこのパネルが作り直されても、閉じた状態のまま戻る
   const collapseKey = editingComponentId ? `c:${editingComponentId}` : activePageId;
   const [collapsedState, setCollapsedState] = useState(() => ({
@@ -322,7 +322,7 @@ export function LayersTab() {
   }));
   const collapsed =
     collapsedState.key === collapseKey ? collapsedState.set : loadCollapsed(collapseKey);
-  // 更新関数は React が2回呼ぶことがあるため、副作用（保存）は持たせない
+  // 更新関数は React が2回呼ぶことがあるため、副作用（保存）を持たせない
   const setCollapsed = (fn: (prev: Set<string>) => Set<string>) =>
     setCollapsedState((st) => {
       const prev = st.key === collapseKey ? st.set : loadCollapsed(collapseKey);
@@ -358,8 +358,8 @@ export function LayersTab() {
   const [windowRange, setWindowRange] = useState({ start: 0, end: 48 });
   const editingMaster = !!editingComp;
 
-  // The outer panel owns scrolling. Account for the body row and any headers
-  // before converting its scrollTop to a row index.
+  // スクロールするのは外側のパネル。scrollTop を行の番号に変換する前に、
+  // 本体の行と見出しの分を差し引く。
   const updateViewport = useCallback(() => {
     const panel = panelRef.current;
     const list = listRef.current;
@@ -401,7 +401,7 @@ export function LayersTab() {
     updateViewport();
   }, [selection, visibleIds, editingMaster, updateViewport]);
 
-  // 要素を選択したら、折りたたまれた祖先を展開して行が見える位置までスクロールする
+  // 要素を選択したら、折りたたまれた祖先を展開し、行が見える位置までスクロールする
   //（パネルを開き直しただけのときは、同じ選択でもう一度展開しない）
   useEffect(() => {
     if (!selection) return;
@@ -434,7 +434,7 @@ export function LayersTab() {
       ref={panelRef}
       onScroll={updateViewport}
       data-tutorial="layers-panel"
-      // 行は dragover を止めるので、パネルでは先に受け取ってスクロールする
+      // 各行は dragover を止めるため、パネルで先に受け取ってスクロールする
       onDragOverCapture={(e) => {
         if (drag.dragIds.length || isFileDrag(e)) autoScroll(e);
       }}
@@ -447,7 +447,7 @@ export function LayersTab() {
         }
         if (!drag.dragIds.length) return;
         e.preventDefault();
-        // 落とせる行の外（空き領域・動かしている行の上）では挿入線を消す
+        // ドロップできる行の外（空いた領域や、動かしている行の上）では、挿入線を消す
         if (drag.overId) setDrag({ ...drag, overId: null, pos: null });
       }}
       onDragLeave={(e) => {
@@ -458,7 +458,7 @@ export function LayersTab() {
       onDrop={(e) => {
         e.preventDefault();
         if (isFileDrag(e)) {
-          // 行の上 = その位置へ、空き領域 = 末尾へ
+          // 行の上ならその位置へ、空いた領域なら末尾へ
           const point =
             (drag.overId && drag.pos && layerDropPoint(doc, drag.overId, drag.pos)) ||
             (editingComp
@@ -468,7 +468,7 @@ export function LayersTab() {
           void dropFiles(e.dataTransfer.files, point);
           return;
         }
-        // 空き領域へのドロップ = ページ直下の末尾へ
+        // 空いた領域へのドロップ = ページの直下の末尾へ入れる
         if (drag.dragIds.length && !drag.overId && !editingComp) {
           moveNodes(
             drag.dragIds,
@@ -554,7 +554,7 @@ export function LayersTab() {
 
 const COLLAPSED_KEY = storageKey("collapsed-v1");
 const collapsedCache = new Map<string, Set<string>>();
-/** 最後に「祖先を展開して見せた」選択（パネルを開き直したときに再展開しない） */
+/** 最後に「祖先を展開して見せた」選択（パネルを開き直したときに、もう一度展開しない） */
 let revealedSelection: string | null = null;
 
 function loadCollapsed(key: string): Set<string> {
@@ -565,7 +565,7 @@ function loadCollapsed(key: string): Set<string> {
     const all = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "{}") as Record<string, string[]>;
     if (Array.isArray(all[key])) set = new Set(all[key]);
   } catch {
-    // 読めなければ全部開いた状態
+    // 読めなければ、すべて開いた状態にする
   }
   collapsedCache.set(key, set);
   return set;
@@ -579,6 +579,6 @@ function saveCollapsed(key: string, set: Set<string>) {
     else delete all[key];
     window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify(all));
   } catch {
-    // 保存できなくても折りたたみ自体は動く
+    // 保存できなくても、折りたたみ自体は動く
   }
 }

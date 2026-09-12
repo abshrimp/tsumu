@@ -145,7 +145,7 @@ for (const route of ["fetch-json", "ai"] as const) {
 
   test(`${route} rejects wrong MIME and malformed JSON without downstream requests`, async () => {
     const f = fixture(route);
-    // エディタの JSON ヘッダーと異なる MIME は、従来の不正入力応答と同じ 400 にする。
+    // エディタの JSON のヘッダーと異なる MIME には、他の不正な入力への応答と同じ 400 を返す。
     for (const mime of ["text/plain", "application/x-www-form-urlencoded", "application/problem+json"]) {
       assert.equal((await f.POST(request(route, JSON.stringify(inputs[route]), { "Content-Type": mime }))).status, 400);
     }

@@ -10,7 +10,7 @@ import { removeKeys } from "../components/script-editor/step-tree";
 import type { ScriptEditorLatest } from "../components/ScriptEditor";
 import { scriptKeyboardBundle, scriptKeyboardDoc } from "./helpers/script-keyboard";
 
-// 実キー操作フックとストアで確認する。実際の選択欄へのフォーカス・キー伝播はE2Eでも確認する。
+// 実際のキー操作のフックとストアで確かめる。実際の選択欄へのフォーカスとキーの伝播は、E2E でも確かめる。
 function mount(selected = ["step:open"]) {
   useEditor.getState().replaceDoc(scriptKeyboardDoc());
   useEditor.getState().setActivePage("p");
@@ -58,8 +58,8 @@ function mount(selected = ["step:open"]) {
 }
 const snapshot = () => structuredClone({ doc: useEditor.getState().doc, past: useEditor.getState().past, future: useEditor.getState().future });
 
-// NodePicker portals contain tabbable buttons as well as the search input.
-// Native-input detection alone must not expose the selected workspace behind them.
+// NodePicker のポータルには、検索の入力欄だけでなく、Tab で移れるボタンも含まれる。
+// ネイティブの入力欄かどうかの判定だけで、その後ろにある選択済みの画面を操作させてはならない。
 for (const key of ["Backspace", "Delete"]) test(`an open picker owns ${key} after focus moves to a button`, () => {
   const f = mount(["script:script"]);
   try {

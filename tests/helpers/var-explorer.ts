@@ -22,7 +22,7 @@ export function varExplorerDoc(): SiteDoc {
   };
 }
 
-/** 実際の設定パネルから変数を挿入し、保存・履歴も確かめる。取得は見本だけを使う。 */
+/** 実際の設定のパネルから変数を挿入し、保存と履歴も確かめる。取得には見本だけを使う。 */
 export async function varExplorerBundle() {
   return (await build({
     stdin: {

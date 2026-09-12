@@ -15,18 +15,18 @@ import { tr } from "./i18n";
 import { extractVars, hasVars } from "./vars";
 import { singleValueReference } from "./variable-choice";
 
-/** src が空のときに出す透明の1×1画像（壊れた画像の枠を出さない） */
+/** src が空のときに表示する、透明な 1×1 の画像（壊れた画像の枠を表示しない） */
 export const EMPTY_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 let seq = 0;
 export function scriptUid(prefix = "sc"): string {
   seq += 1;
-  // 共同編集で別の人の作ったIDと重ならないよう、ランダムな部分も付ける（lib/presets.ts の genId と同じ）
+  // 共同編集で別の人が作った ID と重ならないよう、ランダムな部分も付ける（lib/presets.ts の genId と同じ）
   const rand = Array.from(crypto.getRandomValues(new Uint8Array(3)), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
   return `${prefix}_${Date.now().toString(36)}${seq.toString(36)}${rand}`;
 }
 
-/** node.link をエディタ上で表すスクリプトのID（`link_<ノードID>`） */
+/** node.link をエディタ上で表すスクリプトの ID（`link_<ノードID>`） */
 const LINK_PREFIX = "link_";
 export const isLinkScriptId = (id: string) => id.startsWith(LINK_PREFIX);
 
@@ -48,9 +48,9 @@ export const TRIGGER_ORDER: ScriptTrigger[] = [
   "in-view",
 ];
 
-/* ---------- link <-> スクリプト ---------- */
+/* ---------- link とスクリプトの相互変換 ---------- */
 
-/** 「クリックしたとき → 開く」1つだけのスクリプトなら link として表せる */
+/** 「クリックしたとき → 開く」だけを持つスクリプトなら、link として表せる */
 function linkOfScript(s: Script): LinkSetting | null {
   if (s.trigger !== "click" || s.steps.length !== 1) return null;
   const st = s.steps[0];
@@ -68,7 +68,7 @@ function linkOfScript(s: Script): LinkSetting | null {
   return null;
 }
 
-/** エディタに並べるスクリプト一覧（link は「クリックしたとき → 開く」として先頭に） */
+/** エディタに並べるスクリプトの一覧（link は「クリックしたとき → 開く」として先頭に置く） */
 export function scriptsOf(node: DocNode): Script[] {
   const out: Script[] = [];
   if (node.link) {
@@ -117,8 +117,8 @@ export function cloneSteps(steps: ScriptStep[], makeId = () => scriptUid("st")):
 }
 
 /**
- * エディタのスクリプト一覧を保存形式へ分ける。
- * allowLink なら最初の「クリックしたとき → 開く」だけのものを link（a タグ）にする
+ * エディタのスクリプトの一覧を、保存する形に分ける。
+ * allowLink のときは、最初の「クリックしたとき → 開く」だけのものを link（a タグ）にする
  */
 export function splitScripts(
   scripts: Script[],
@@ -133,7 +133,7 @@ export function splitScripts(
       link = l;
       continue;
     }
-    // link 由来の予約IDは、通常のスクリプトになった時点で振り直す
+    // link から来た予約の ID は、通常のスクリプトになった時点で振り直す
     let fromLink = isLinkScriptId(s.id);
     walkSteps(s.steps, (st) => {
       if (isLinkScriptId(st.id)) fromLink = true;
@@ -145,19 +145,19 @@ export function splitScripts(
   return { link, scripts: rest.length ? rest : undefined };
 }
 
-/* ---------- ページ単位のスクリプト画面 ---------- */
+/* ---------- ページ単位のスクリプトの画面 ---------- */
 
 /**
- * ページのスクリプト画面での1件。
- * nodeId = きっかけの要素（PAGE_TARGET = このページ / null = 要素未選択）
+ * ページのスクリプトの画面での1件。
+ * nodeId = きっかけの要素（PAGE_TARGET = このページ / null = 要素を選んでいない）
  */
 export interface PageScript extends Script {
   nodeId: string | null;
 }
 
 /**
- * ページ内の要素ID（インスタンスはコンポーネントのマスターを辿る）。
- * ID属性の重複を調べるときは、使用箇所自身のIDも含める。
+ * ページの中の要素の ID（インスタンスは、コンポーネントのマスターをたどる）。
+ * ID 属性の重複を調べるときは、使用箇所自身の ID も含める。
  */
 export function pageNodeIds(
   doc: SiteDoc,
@@ -199,7 +199,7 @@ export function visitPageNodes(
   }
 }
 
-/** Reuse immutable view wrappers for unchanged scripts across editor updates. */
+/** エディタが更新されても、変わっていないスクリプトには、変更しない表示用の包みを使い回す。 */
 const scriptViewCache = new WeakMap<Script, Map<string, PageScript>>();
 function scriptView(script: Script, nodeId: string | null): PageScript {
   let byNode = scriptViewCache.get(script);
@@ -218,7 +218,7 @@ function scriptView(script: Script, nodeId: string | null): PageScript {
   return view;
 }
 
-/** ページ内の全要素のスクリプト + 要素につながっていないブロック */
+/** ページの中のすべての要素のスクリプトと、要素につながっていないブロック */
 export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): PageScript[] {
   const out: PageScript[] = [];
   for (const id of nodeIds) {
@@ -229,12 +229,12 @@ export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): 
     out.push(scriptView(s, PAGE_TARGET));
   }
   for (const s of doc.pages[pageId]?.scripts ?? []) out.push(scriptView(s, null));
-  // Only examine nearby positions when avoiding overlaps. A full scan made
-  // opening a workspace with many separate script stacks quadratic.
+  // 重なりを避けるときは、近くの位置だけを調べる。全体を走査していたときは、
+  // 別々のスクリプトの並びが多い画面を開く処理が、数の2乗に比例して遅くなっていた。
   const cellSize = 48;
   const placed = new Map<string, ScriptPos[]>();
-  // All earlier candidate rows for one original position remain occupied.
-  // Skip them on the next collision instead of repeatedly rescanning.
+  // 1つの元の位置について、それより前に試した行はすべて埋まったまま。
+  // 次に衝突したときは、何度も調べ直さずにそれらを飛ばす。
   const nextCollisionY = new Map<string, number>();
   const key = (x: number, y: number) =>
     `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}`;
@@ -265,7 +265,7 @@ export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): 
   });
 }
 
-/** Partition the workspace once; both mutable import writes and editor commits use it. */
+/** 画面の内容を1回だけ振り分ける。取り込みでの書き換えとエディタの確定の両方で使う。 */
 function groupPageScripts(doc: SiteDoc, nodeIds: string[], views: PageScript[]) {
   const byNode = new Map<string, Script[]>();
   const validNodeIds = new Set(nodeIds);
@@ -285,7 +285,7 @@ function groupPageScripts(doc: SiteDoc, nodeIds: string[], views: PageScript[]) 
   return { byNode, loose, own };
 }
 
-/** スクリプト画面の内容を、各要素（link / scripts）とページ（未接続分）へ書き戻す */
+/** スクリプトの画面の内容を、各要素（link / scripts）とページ（つながっていない分）に書き戻す */
 export function applyPageScripts(
   doc: SiteDoc,
   pageId: string,
@@ -296,7 +296,7 @@ export function applyPageScripts(
   for (const id of nodeIds) {
     const n = doc.nodes[id];
     if (!n) continue;
-    // リンク（aタグ）にできるのはボックスだけ
+    // リンク（a タグ）にできるのは、ボックスだけ
     const r = splitScripts(byNode.get(id) ?? [], n.type === "box");
     n.link = r.link;
     if (r.scripts) n.scripts = r.scripts;
@@ -312,11 +312,11 @@ export function applyPageScripts(
 }
 
 /**
- * Apply workspace edits without cloning the entire site (including its assets
- * and unrelated pages). Undo snapshots can safely share the untouched branches.
+ * サイト全体（アセットや関係の無いページを含む）を複製せずに、画面での編集を反映する。
+ * 元に戻すためのスナップショットは、触れていない枝を安全に共有できる。
  *
- * pageScriptsOf() creates display wrappers, so comparing only object identity
- * would turn an unchanged script into a new document/history entry.
+ * pageScriptsOf() は表示用の包みを作るため、オブジェクトの同一性だけで比べると、
+ * 変わっていないスクリプトが新しい文書や履歴の項目になってしまう。
  */
 function sameScript(a: Script, b: Script): boolean {
   return a === b || (
@@ -336,7 +336,7 @@ function sameScriptList(a: Script[] | undefined, b: Script[] | undefined): boole
   return (a ?? []).every((script, i) => sameScript(script, b![i]));
 }
 
-/** Reuse stable script objects even when another script on the same node changes. */
+/** 同じノードの別のスクリプトが変わっても、変わっていないスクリプトのオブジェクトは使い回す。 */
 function reuseUnchangedScripts(before: Script[] | undefined, after: Script[] | undefined): Script[] | undefined {
   if (!after || !before) return after;
   return after.map((script, i) => before[i] && sameScript(before[i], script) ? before[i] : script);
@@ -349,7 +349,7 @@ function sameLink(a: LinkSetting | null, b: LinkSetting | null): boolean {
     !!a.newTab === !!b.newTab && a.pos?.x === b.pos?.x && a.pos?.y === b.pos?.y;
 }
 
-/** Pure, copy-on-write counterpart to applyPageScripts for frequent editor commits. */
+/** applyPageScripts の、純粋でコピーオンライトの版。エディタで頻繁に確定するときに使う。 */
 export function withPageScripts(
   doc: SiteDoc,
   pageId: string,
@@ -364,7 +364,7 @@ export function withPageScripts(
   for (const id of nodeIds) {
     const previous = doc.nodes[id];
     if (!previous) continue;
-    // Only allocate a node when its own script or link data actually changes.
+    // ノードを新しく作るのは、そのノード自身のスクリプトやリンクのデータが実際に変わったときだけ。
     const updated = splitScripts(byNode.get(id) ?? [], previous.type === "box");
     const sameLinkValue = sameLink(previous.link, updated.link);
     if (sameLinkValue && sameScriptList(previous.scripts, updated.scripts)) continue;
@@ -397,7 +397,7 @@ export function withPageScripts(
 
 /* ---------- 走査 ---------- */
 
-/** 実行されるスクリプトすべて（要素のもの + 「このページ」のもの） */
+/** 実行されるすべてのスクリプト（要素のものと「このページ」のもの） */
 export function allScripts(doc: SiteDoc): Script[] {
   return [
     ...Object.values(doc.nodes).flatMap((n) => n.scripts ?? []),
@@ -417,7 +417,7 @@ export function walkSteps(steps: ScriptStep[], fn: (st: ScriptStep) => void) {
   }
 }
 
-/** スクリプトが参照するID属性（SELF_TARGET は要素自身のIDに解決） */
+/** スクリプトが参照する ID 属性（SELF_TARGET は、要素自身の ID に解決する） */
 export function scriptTargetIds(
   node: Pick<DocNode, "scripts" | "attrId">,
   kinds?: ScriptStep["kind"][]
@@ -440,7 +440,7 @@ export function scriptTargetIds(
   return [...out];
 }
 
-/** 画面上で動くスクリプトを持つか（きっかけ + データの取得以外の動作がある） */
+/** 画面上で動くスクリプトを持つか（きっかけと、データの取得以外の動作がある） */
 export function hasRunnableScripts(node: Pick<DocNode, "scripts">): boolean {
   return !!node.scripts?.some(
     (s) => s.trigger &&
@@ -460,22 +460,22 @@ export interface RuntimeScript {
 }
 
 /**
- * 実行用に変換する（ID・位置を落とし、ページはURLパスへ）。
+ * 実行用に変換する（ID や位置を除き、ページは URL のパスにする）。
  * データの取得はページを配信する前に済ませるため、ここでは除く。
- * str: URL・値の文字列を差し替える（{変数} の解決など）
- * withPageId: ページIDも残す（プレビューはIDでページを切り替える。書き出しはURLだけ使う）
+ * str: URL や値の文字列を差し替える（{変数} の解決など）
+ * withPageId: ページの ID も残す（プレビューは ID でページを切り替え、書き出しは URL だけを使う）
  */
 export function compileScripts(
   node: Pick<DocNode, "scripts">,
   pageHref: (pageId: string) => string,
-  /** item は対象配列の項目を実行時に読む式。項目なしで値を確定しない。 */
+  /** item は、対象の配列の項目を実行時に読む式。項目が無い状態で値を確定しない。 */
   str: (s: string, kind: "url" | "value", item?: boolean) => string = (s) => s,
   withPageId = true,
-  /** 配信する前に済ませるため除くブロックのID（ページを開いたときの分解・配列の〜） */
+  /** 配信する前に済ませるため、ここでは除くブロックの ID（ページを開いたときの分解や、配列の〜） */
   skip?: Set<string>,
   /**
-   * 「［{名前}］を変数［］とする」で、配信前に値が決まる変数の値をそのまま渡す
-   * （配列を文字にしない）。画面上で値が決まる変数なら undefined
+   * 「［{名前}］を変数［］とする」で、配信する前に値が決まる変数の値をそのまま渡す
+   * （配列を文字にしない）。画面上で値が決まる変数なら undefined を返す。
    * item が true のときは配列の各項目が優先されるため、参照を残す。
    */
   raw?: (name: string, item?: boolean, usage?: "length") => unknown
@@ -539,8 +539,8 @@ export function compileScripts(
         }
         case "transform": {
           const { id: _id, ...rest } = st;
-          // Provide an SSR fallback only. A preceding browser-side assignment
-          // takes priority at runtime, allowing several blocks to rewrite one variable.
+          // SSR での代わりの値だけを渡す。実行時は、前にあるブラウザ側の代入が優先されるため、
+          // 複数のブロックで1つの変数を書き換えられる。
           const v = st.source ? raw?.(st.source, undefined, st.transform.kind === "length" ? "length" : undefined) : undefined;
           return v !== undefined ? { ...rest, raw: v } : rest;
         }
@@ -578,7 +578,7 @@ export function compileScripts(
     .filter((s) => s.steps.length);
 }
 
-/** 画面上で絞り込み・並べ替え・件数取得に使う配列の名前 → 項目名（書き出しで項目ごとに持たせる値） */
+/** 画面上で絞り込み・並べ替え・件数の取得に使う配列の名前 → 項目の名前（書き出しで項目ごとに持たせる値） */
 export function listFilterFields(doc: SiteDoc): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   for (const s of allScripts(doc)) {
@@ -593,7 +593,7 @@ export function listFilterFields(doc: SiteDoc): Map<string, Set<string>> {
   return out;
 }
 
-/** A write replaces its descendants and changes the value of its ancestors. */
+/** 書き込みは、その子孫を置き換え、祖先の値を変える。 */
 export function matchVariableWrites(writes: Set<string>, assignments = writes) {
   const parents = new Set<string>();
   const countParents = new Set<string>();
@@ -610,8 +610,8 @@ export function matchVariableWrites(writes: Set<string>, assignments = writes) {
       if (/^(0|[1-9]\d*|-1)$/.test(part)) indexedParents.add(parent);
       if (part === "-1") lastItemParents.add(parent);
       parents.add(parent);
-      // An assignment may create a field. List edits require an existing list,
-      // so modifying a nested list cannot add keys to its ancestors.
+      // 代入は項目を作ることがある。リストの編集は既存のリストを必要とするため、
+      // 入れ子のリストを変えても、祖先にキーは増えない。
       if (assignments.has(path)) countParents.add(parent);
     }
   }
@@ -629,7 +629,7 @@ export function matchVariableWrites(writes: Set<string>, assignments = writes) {
 }
 
 /**
- * 文字列中の {変数} のうち、画面上で値が決まるものを
+ * 文字列の中の {変数} のうち、画面上で値が決まるものを
  * そのまま残すための値（{ "名前": "{名前}" }）。ページを配信するときの置き換えに混ぜて使う
  */
 export function keepTokens(str: string, isLive: (name: string) => boolean): Record<string, string> {

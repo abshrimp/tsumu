@@ -23,7 +23,7 @@ import { matchesValueCondition, parseValueLiteral, setVarPath } from "./value-se
 import { runPurePageSteps } from "./page-load-steps";
 import { formatValueText } from "./value-text";
 
-/** "data.items" のようなパスでオブジェクトを掘る（配列の "-1" は最後の要素） */
+/** "data.items" のようなパスでオブジェクトの中をたどる（配列の "-1" は最後の要素） */
 export function digPath(root: unknown, path: string | undefined): unknown {
   if (!path?.trim()) return root;
   let cur = root;
@@ -40,7 +40,7 @@ export function digPath(root: unknown, path: string | undefined): unknown {
 /** 文字や数値の配列をリストで並べるとき、各要素を入れる項目名（{値}） */
 export const ITEM_VALUE = "値";
 
-/** Shared display row for the canvas and generated scripts. The latter embed the function source. */
+/** キャンバスと生成したスクリプトで共通の、表示用の行。生成したスクリプトには、この関数のソースを埋め込む。 */
 export function toListItem(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown> : { "値": value };
@@ -50,22 +50,22 @@ export function toListItems(value: unknown): Record<string, unknown>[] {
   return value && typeof value === "object" ? Object.values(value).map(toListItem) : [];
 }
 
-/** Return the first list record for an editor suggestion without expanding the whole list. */
+/** エディタの候補のために、リスト全体を展開せずに最初の項目を返す。 */
 export function firstListItem(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object") return undefined;
-  // The common dense-array case never needs to enumerate the remaining keys.
+  // よくある要素の詰まった配列なら、残りのキーを列挙する必要はない。
   if (Array.isArray(value) && Object.prototype.propertyIsEnumerable.call(value, 0)) {
     return toListItem(value[0]);
   }
-  // Object.entries(value) would allocate every record even though previews
-  // inspect only the first own enumerable entry.
+  // Object.entries(value) はすべての項目を作ってしまうが、プレビューで見るのは
+  // 最初の列挙可能な自身の項目だけ。
   for (const key in value) {
     if (Object.hasOwn(value, key)) return toListItem((value as Record<string, unknown>)[key]);
   }
   return undefined;
 }
 
-/** 一覧の項目名（先頭10件にある項目をすべて） */
+/** 一覧の項目名（先頭の10件にある項目をすべて） */
 export function detectFields(items: Record<string, unknown>[]): string[] {
   const fields = new Set<string>();
   for (const item of items.slice(0, 10)) {
@@ -75,14 +75,14 @@ export function detectFields(items: Record<string, unknown>[]): string[] {
 }
 
 /**
- * 絞り込みの比較（スクリプトの「配列を絞り込む」。ブラウザ実行時・書き出し（filterPredicate）と同じく
- * lib/value-semantics.ts の matchesValueCondition の規則）
+ * 絞り込みの比較（スクリプトの「配列を絞り込む」）。ブラウザでの実行時や書き出し（filterPredicate）と同じく、
+ * lib/value-semantics.ts の matchesValueCondition の規則に従う
  */
 export function matchOp(v: unknown, op: ScriptOp | undefined, w: unknown): boolean {
   return matchesValueCondition(v, op ?? "eq", w);
 }
 
-/** Coerce fetched JSON without invoking custom or shadowed toString methods. */
+/** 取得した JSON を、独自の toString や上書きされた toString を呼ばずに文字列にする。 */
 function safeCompareText(value: unknown): string {
   return formatValueText(value, true);
 }
@@ -90,8 +90,8 @@ function safeCompareText(value: unknown): string {
 let listCollator: Intl.Collator | undefined;
 
 /**
- * 並べ替えの比較。数値どうしは数値で、それ以外は数字を数値として比べる文字列比較
- * （ブラウザ実行時の order・書き出しの listItemsExpr と同じ規則）
+ * 並べ替えの比較。数値どうしは数値で比べ、それ以外は数字を数値として比べる文字列の比較を使う
+ * （ブラウザでの実行時の order と、書き出しの listItemsExpr と同じ規則）
  */
 export function compareValues(a: unknown, b: unknown): number {
   if (typeof a === "number" && typeof b === "number") return a - b;
@@ -99,7 +99,7 @@ export function compareValues(a: unknown, b: unknown): number {
   return listCollator.compare(safeCompareText(a), safeCompareText(b));
 }
 
-/** 「配列を絞り込む」の条件（最初の条件 + 「かつ」「または」の条件。項目未選択は除く） */
+/** 「配列を絞り込む」の条件（最初の条件 + 「かつ」「または」の条件。項目を選んでいないものは除く） */
 export function filterConds(
   st: Extract<ScriptStep, { kind: "list-display" }>
 ): FilterCond[] {
@@ -109,8 +109,8 @@ export function filterConds(
   all.forEach((condition, index) => {
     if (index > 0 && !("and" in condition && condition.and)) pendingOr = true;
     if (!condition.field) return;
-    // Keep an OR boundary introduced by an unfinished clause:
-    // A OR [empty field] AND C must still mean A OR C.
+    // 書きかけの条件があっても、そこにある「または」の区切りは残す。
+    // A または［空の項目］かつ C は、A または C の意味のままでなければならない。
     const join = result.length > 0 && !pendingOr && "and" in condition && !!condition.and;
     result.push({ ...condition, ...(result.length ? { and: join } : {}) });
     pendingOr = false;
@@ -118,7 +118,7 @@ export function filterConds(
   return result;
 }
 
-/** 条件を「かつ」でつないだ組に分ける（組のどれか1つを満たせばよい） */
+/** 条件を「かつ」でつないだ組に分ける（どれか1つの組を満たせばよい） */
 export function condGroups<T extends { and?: boolean }>(conds: T[]): T[][] {
   const out: T[][] = [];
   conds.forEach((c, i) => {
@@ -128,31 +128,31 @@ export function condGroups<T extends { and?: boolean }>(conds: T[]): T[][] {
   return out;
 }
 
-/** リストの項目に適用する絞り込み・並べ替え（ページを開いたときのスクリプトから決まる分） */
+/** リストの項目に適用する絞り込みと並べ替え（ページを開いたときのスクリプトから決まる分） */
 export type ListOp =
   /**
    * conds（「かつ」でつないだ組）のどれか1つを満たす項目を残す。
-   * 複数の絞り込みは並んだ順に join（かつ / または）でつなぐ
+   * 複数の絞り込みは、並んだ順に join（かつ / または）でつなぐ
    */
   | {
       kind: "filter";
-      // Transient Canvas evaluation state; never written to the document.
+      // キャンバスでの評価に使う一時的な状態。文書には書き込まない。
       conds: (FilterCond & { resolvedValue?: { value: unknown } })[];
       no?: number;
       join?: "and" | "or";
     }
   | { kind: "sort"; field: string; dir: "asc" | "desc" };
 
-/** 絞り込み（value の {変数} は解決済み）だけを項目配列に適用 */
+/** 絞り込み（value の {変数} は解決済み）だけを、項目の配列に適用する */
 export function filterItems(
   items: Record<string, unknown>[],
   ops: ListOp[]
 ): Record<string, unknown>[] {
-  // 絞り込みは、並んだ順に「かつ」「または」でつないだ1つの条件にする
+  // 絞り込みは、並んだ順に「かつ」「または」でつないで1つの条件にする
   const filters = ops.filter((o): o is Extract<ListOp, { kind: "filter" }> => o.kind === "filter");
   if (!filters.length) return items;
-  // 条件の組み分けと定数の解析は行数によらず1回だけ行う。
-  // 呼び出しごとに作り直し、編集や変数の変更を次のプレビューに反映する。
+  // 条件の組み分けと定数の解析は、行の数によらず1回だけ行う。
+  // 呼び出すたびに作り直し、編集や変数の変更を次のプレビューに反映する。
   const prepared = filters.map((o) => ({
     join: o.join,
     groups: condGroups(o.conds).map((group) => group.map((condition) => ({
@@ -163,7 +163,7 @@ export function filterItems(
     o.groups.some((g) =>
       g.every((entry) => {
         const c = entry.condition;
-        // 短絡評価で使われない値は解析しない。
+        // 短絡評価で使われない値は、解析しない。
         if (!entry.ready) {
           entry.right = c.resolvedValue ? c.resolvedValue.value : parseValueLiteral(c.value);
           entry.ready = true;
@@ -180,7 +180,7 @@ export function filterItems(
   );
 }
 
-/** 絞り込み・並べ替え（value の {変数} は解決済み）と表示件数を項目配列に適用 */
+/** 絞り込みと並べ替え（value の {変数} は解決済み）、表示件数を、項目の配列に適用する */
 export function applyList(
   items: Record<string, unknown>[],
   list: ListContent,
@@ -202,8 +202,8 @@ export function applyList(
 }
 
 /**
- * ノードのテキストテンプレート。span分割された親は
- * 自身の内容（空）に直下の子spanのテキストを連結して返す
+ * ノードのテキストのテンプレート。span に分けた親では、
+ * 自身の内容（空）に、直下の子の span のテキストをつないで返す
  */
 export function nodeTextTemplate(doc: SiteDoc, node: DocNode): string {
   let out = node.text?.content ?? "";
@@ -217,9 +217,9 @@ export function nodeTextTemplate(doc: SiteDoc, node: DocNode): string {
 }
 
 /**
- * ページ内のID付き要素が提供する {変数}
+ * ページ内の ID 付きの要素が提供する {変数}
  * （フォーム部品は入力値、テキストを持つ要素はその内容。
- * リスト内のテキストは項目ごとに変わるため対象外）
+ * リストの中のテキストは項目ごとに変わるため対象外）
  */
 export function idVarNodesOf(doc: SiteDoc, pageId: string): DocNode[] {
   const out: DocNode[] = [];
@@ -242,14 +242,14 @@ export function idVarNodesOf(doc: SiteDoc, pageId: string): DocNode[] {
   return out;
 }
 
-/** ID付きの要素が提供する変数の名前（ラジオはグループ名があればそれ） */
+/** ID 付きの要素が提供する変数の名前（ラジオは、グループ名があればそれを使う） */
 export function idVarName(n: DocNode): string {
   return n.type === "field" ? fieldVarName(n) : (n.attrId ?? "");
 }
 
 /**
- * ノードの位置で使える {変数} 名の候補
- * （slug / 取得したデータ / 属するリストの項目 / ページ内のID付き要素）
+ * ノードの位置で使える {変数} の名前の候補
+ * （slug / 取得したデータ / 属するリストの項目 / ページ内の ID 付きの要素）
  */
 export function varNamesAt(
   doc: SiteDoc,
@@ -269,7 +269,7 @@ export function varNamesAt(
   return [...new Set(names)];
 }
 
-/** ページのスクリプトで作る変数・配列の名前（ブロックの入れ子の中も含む） */
+/** ページのスクリプトで作る変数と配列の名前（ブロックの入れ子の中も含む） */
 export function scriptVarNames(doc: SiteDoc, pageId: string): string[] {
   return [...dataVarNames(doc, pageId)].filter((n) => n !== ITEM_VALUE && n !== "slug");
 }
@@ -277,7 +277,7 @@ export function scriptVarNames(doc: SiteDoc, pageId: string): string[] {
 /** 「変数を探す」に表示する変数の分類 */
 export interface VarGroup {
   key: "item" | "data" | "url" | "element" | "script" | "state";
-  /** 「変数を探す」で「詳細」を開いたときだけ出す */
+  /** 「変数を探す」で「詳細」を開いたときだけ表示する */
   advanced?: boolean;
   label: string;
   /** 変数名 → 見本の値（undefined = 見本なし） */
@@ -387,7 +387,7 @@ export function varSamplesAt(
 
 /** ページを配信する前（サーバー側）にだけ動くブロック（データの取得） */
 export type DataStep = Extract<ScriptStep, { kind: "fetch" }>;
-/** リストの各要素を処理するブロック（純粋な処理なら配信前にも実行する）。 */
+/** リストの各要素を処理するブロック（純粋な処理なら、配信する前にも実行する）。 */
 export type ForEachStep = Extract<ScriptStep, { kind: "for-each" }>;
 export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
 export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
@@ -402,12 +402,12 @@ export function setVarSource(st: SetVarStep): string | null {
 }
 export type FetchStep = Extract<ScriptStep, { kind: "fetch" }>;
 
-/** データのブロックか（ページを配信する前に動き、画面上のスクリプトには含めない） */
+/** データのブロックか（ページを配信する前に動き、画面上で動くスクリプトには含めない） */
 export function isDataStep(st: ScriptStep): st is DataStep {
   return st.kind === "fetch";
 }
 
-/** 変数名に使えない文字を落とす（{ } . 空白 引用符など） */
+/** 変数名に使えない文字を取り除く（{ } . 空白 引用符など） */
 export function cleanVarName(name: string): string {
   return name.replace(/[\s{}.,"'<>`\[\]()#]/g, "");
 }
@@ -426,7 +426,7 @@ function walkAll(steps: ScriptStep[], fn: (st: ScriptStep) => void) {
   }
 }
 
-/** ページ内の要素のスクリプトと、ページのスクリプトすべて */
+/** ページ内の要素のスクリプトと、ページのスクリプトのすべて */
 function scriptsInPage(doc: SiteDoc, pageId: string, runnableOnly = false): ScriptStep[][] {
   const page = doc.pages[pageId];
   const out: ScriptStep[][] = [];
@@ -457,19 +457,19 @@ function scriptsInPage(doc: SiteDoc, pageId: string, runnableOnly = false): Scri
 }
 
 export interface PagePlan {
-  /** ページを開いたときに、配信する前に実行するブロック（実行順） */
+  /** ページを開いたときに、配信する前に実行するブロック（実行する順） */
   steps: ServerStep[];
-  /** steps のうち、画面上のスクリプトから除く分岐ブロック（分解・配列の〜）のID */
+  /** steps のうち、画面上で動くスクリプトから除く分岐ブロック（分解・配列の〜）の ID */
   serverIds: Set<string>;
   /** 画面上（ブラウザ）で値が決まる変数・配列の名前 */
   clientVars: Set<string>;
-  /** Exact destinations, used to distinguish mutable paths from their server-only siblings. */
+  /** 代入先の正確な位置。書き換えられる位置と、サーバー側だけで決まる隣の位置を区別するために使う。 */
   clientAssignmentPaths: Set<string>;
-  /** Exact list paths mutated by browser actions, for initializing their runtime values. */
+  /** ブラウザでの操作が書き換えるリストの正確な位置。実行時の値を初期化するために使う。 */
   clientListTargets: Set<string>;
   /**
-   * 配列の名前 → 配信する前にリストへ適用する絞り込み・並べ替え（実行順。value は未解決）。
-   * 該当するブロックのIDは serverIds にも入る
+   * 配列の名前 → 配信する前にリストへ適用する絞り込みと並べ替え（実行する順。value は未解決）。
+   * 該当するブロックの ID は serverIds にも入る
    */
   listOps: Map<string, ListOp[]>;
   /**
@@ -477,10 +477,10 @@ export interface PagePlan {
 }
 
 /**
- * Page-load control structures are eligible for SSR only when every nested
- * step is data-only. Browser actions are never swallowed by server evaluation.
+ * ページを開いたときの制御のブロックを事前描画（SSR）で実行できるのは、入れ子のすべての
+ * 手順がデータだけを扱うときに限る。ブラウザでの操作を、サーバーでの評価に取り込んではいけない。
  */
-/** References inside user-written text parameters also determine server/client placement. */
+/** 利用者が書いたテキストの引数の中の参照も、サーバーとクライアントのどちらで実行するかを決める。 */
 function transformReferences(transform: TransformStep["transform"]): string[] {
   const refs = (text: string) => extractVars(text);
   let fields: string[] = [];
@@ -524,9 +524,9 @@ function pureLoadStep(st: ScriptStep, inLoop = false): boolean {
 }
 
 /**
- * ページのデータのブロックを、配信する前に動くものと画面上で動くものに分ける。
- * 「このページ｜ページを開いたとき」の直下にあるデータのブロックだけが配信前に動き、
- * 分解・配列の〜は、使う値がストレージや入力欄によらなければ配信前に動く
+ * ページのデータのブロックを、配信する前に動くものと、画面上で動くものに分ける。
+ * 「このページ｜ページを開いたとき」の直下にあるデータのブロックだけが配信する前に動き、
+ * 分解・配列の〜は、使う値がストレージや入力欄に左右されなければ、配信する前に動く
  */
 export function pagePlan(
   doc: SiteDoc, pageId: string, idVarNodes = idVarNodesOf(doc, pageId),
@@ -568,8 +568,8 @@ export function pagePlan(
     walkAll(steps, (st) => {
       const name = writeTarget(st);
       if (!name) return;
-      // A watched assignment must run with the handler installed, even for
-      // constants in page-load scripts that could otherwise be precomputed.
+      // 見張られている代入は、事前に計算できるページを開いたときの定数であっても、
+      // 処理を登録した状態で実行しなければならない。
       if (watchedRoots.has(rootName(name)) || !mayRunOnServer(st) || st.kind === "store-load" ||
           (st.kind === "set-var" && loadRoot.has(st) && !setVarSource(st) && extractVars(st.value).length) ||
           (st.kind === "transform" && !st.source)) {
@@ -578,8 +578,8 @@ export function pagePlan(
     });
   }
   const isClient = (name: string) => clientVars.has(rootName(name)) || fieldIds.has(rootName(name));
-  // 「ページを開いたとき」の直下以外でも絞り込み・並べ替えをする配列は、
-  // 後から解除・変更できるよう画面上で扱う
+  // 「ページを開いたとき」の直下以外でも絞り込みや並べ替えをする配列は、
+  // 後から解除・変更できるよう、画面上で扱う
   const dynamicArrays = new Set<string>();
   for (const steps of runtimeScripts) {
     walkAll(steps, (st) => {
@@ -594,7 +594,7 @@ export function pagePlan(
   const steps: ServerStep[] = [];
   const serverIds = new Set<string>();
   const listOps = new Map<string, ListOp[]>();
-  // 同じ番号の絞り込みはもう一度動かすと置き換わる
+  // 同じ番号の絞り込みは、もう一度動かすと置き換わる
   const addOp = (array: string, op: ListOp) => {
     const cur = listOps.get(array) ?? [];
     const i =
@@ -638,7 +638,7 @@ export function pagePlan(
       if (isDataStep(st)) {
         steps.push(st);
       } else if (st.kind === "set-var" || st.kind === "transform") {
-        // A load-time, pure value chain or constant assignment can run on the server.
+        // ページを開いたときの、純粋な値の加工の連なりや定数の代入は、サーバーで実行できる。
         const src = st.kind === "transform" ? st.source : setVarSource(st);
         if (!st.into || (!src && !(st.kind === "set-var" && !extractVars(st.value).length))) continue;
         const clientParameter = st.kind === "transform" &&
@@ -685,7 +685,7 @@ export function pagePlan(
         !isClient(st.array) &&
         !dynamicArrays.has(st.array)
       ) {
-        // 配信前に解除まで済む（番号を指定すればその絞り込みだけ、なければすべて）
+        // 配信する前に解除まで済ませる（番号を指定すればその絞り込みだけを、なければすべてを解除する）
         const cur = listOps.get(st.array) ?? [];
         listOps.set(
           st.array,
@@ -699,7 +699,7 @@ export function pagePlan(
 }
 
 /**
- * ページを開いたときに配信する前に実行するブロック（実行順）。
+ * ページを開いたときに、配信する前に実行するブロック（実行する順）。
  * 「このページ｜ページを開いたとき」の直下にあるものだけが動く
  */
 export function pageDataSteps(doc: SiteDoc, pageId: string): ServerStep[] {
@@ -713,12 +713,12 @@ export function stepOutName(st: ScriptStep): string | null {
   return null;
 }
 
-/** Index script variable producers once for the editor's many input fields. */
+/** エディタのたくさんの入力欄のために、スクリプトの変数を作る手順の索引を一度だけ作る。 */
 export interface PageVariableIndex {
   names: string[];
-  /** How many steps produce each name (reserved values are accounted for separately). */
+  /** それぞれの名前を作る手順の数（予約された値は別に数える）。 */
   counts: Map<string, number>;
-  /** Names produced by a step; repeated IDs may occur in imported data. */
+  /** 手順が作る名前。取り込んだデータでは、同じ ID が重複することがある。 */
   byStep: Map<string, Map<string, number>>;
   hasOther: (name: string, stepId: string) => boolean;
 }
@@ -745,7 +745,7 @@ export function pageVariableIndex(doc: SiteDoc, pageId: string): PageVariableInd
   };
 }
 
-/** ページのスクリプトで使っている変数名（名前の重複チェック用） */
+/** ページのスクリプトで使っている変数名（名前の重複の確認に使う） */
 export function dataVarNames(doc: SiteDoc, pageId: string, exceptStepId?: string): Set<string> {
   const out = new Set<string>(["slug", ITEM_VALUE]);
   for (const steps of scriptsInPage(doc, pageId)) {
@@ -757,7 +757,7 @@ export function dataVarNames(doc: SiteDoc, pageId: string, exceptStepId?: string
   return out;
 }
 
-/** Locate the script containing each step once per immutable document. */
+/** 変更されない文書ごとに一度だけ、各手順を含むスクリプトを探す。 */
 type InputStepOwner = {
   where: "page" | "node";
   id: string;
@@ -795,7 +795,7 @@ function ownersOfInputSteps(doc: SiteDoc): Map<string, InputStepOwner[]> {
   return index;
 }
 
-/** 候補用の文書。編集中のブロック自身を実行・列挙せず、同名の別producerやフォームは保つ。 */
+/** 候補を作るための文書。編集中のブロック自身は実行・列挙せず、同じ名前を作る別の手順やフォームは残す。 */
 export function scriptInputDoc(doc: SiteDoc, stepId?: string): SiteDoc {
   if (!stepId) return doc;
   const owners = ownersOfInputSteps(doc).get(stepId);
@@ -883,7 +883,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
   const { clientVars } = pagePlan(doc, pageId);
   const out: PageArray[] = [];
   const seen = new Set<string>();
-  // 「［{配列}］を変数［］とする」で配列をそのまま入れた変数も配列として扱う
+  // 「［{配列}］を変数［］とする」で配列をそのまま入れた変数も、配列として扱う
   const copies: { name: string; src: string }[] = [];
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
@@ -895,7 +895,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
     let samples: Record<string, unknown> | null = null;
     const isArray = (name: string) =>
       seen.has(name) ||
-      // 見本に値が無いもの（取得し直す前に増えた項目など）も、配列かもしれないので選べるようにする
+      // 見本に値の無いもの（取得し直す前に増えた項目など）も、配列かもしれないので選べるようにする
       sampleArray(doc, pageId, (samples ??= previewDataVars(doc, pageId)), name) !== null;
     // 変数から変数へ入れ直した場合もたどる
     for (let added = true; added; ) {
@@ -908,8 +908,8 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
       }
     }
   }
-  // New ordinary transform blocks can also create list variables. Keep their
-  // results selectable even before runtime data is available.
+  // 新しい通常の加工のブロックも、リストの変数を作ることがある。
+  // 実行時のデータが無くても、その結果を選べるようにしておく。
   let transformedSamples: Record<string, unknown> | undefined;
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
@@ -923,7 +923,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
       out.push({ name: st.into, client: clientVars.has(rootName(st.into)) });
     });
   }
-  // Lists may have either numeric or named keys.
+  // リストのキーは、数値のことも名前のこともある。
   const visitedLists = new Set<unknown>();
   const visit = (value: unknown, name: string, depth: number) => {
     if (!value || typeof value !== "object" || visitedLists.has(value) || depth > 4) return;
@@ -933,8 +933,8 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
       out.push({ name, client: clientVars.has(name.split(".")[0]) });
     }
     if (depth < 4) {
-      // List samples can contain 20 records, but their picker only needs the
-      // first record to discover nested paths. Other indexes remain writable.
+      // リストの見本には20件の項目があることがあるが、選択欄が入れ子の位置を見つけるには
+      // 最初の項目だけで足りる。他の番号にも書き込める。
       const children = Array.isArray(value)
         ? value.length ? [["0", value[0]] as const] : []
         : Object.entries(value).slice(0, 50);
@@ -955,7 +955,7 @@ export function listFromOf(node: DocNode): string | undefined {
   return node.list?.from || undefined;
 }
 
-/** 取得結果を見本として保存できる大きさにする（配列は先頭だけ） */
+/** 取得結果を、見本として保存できる大きさにする（配列は先頭だけを残す） */
 export function trimSample(
   value: unknown,
   max = 20,
@@ -975,7 +975,7 @@ export function trimSample(
   );
 }
 
-/** 取得したJSONを見本にする（切り詰めた配列の元の件数も返す） */
+/** 取得した JSON を見本にする（切り詰めた配列の元の件数も返す） */
 export function makeSample(json: unknown): { sample: unknown; totals?: Record<string, number> } {
   const totals: Record<string, number> = {};
   const sample = trimSample(json, 20, 0, totals);
@@ -983,9 +983,9 @@ export function makeSample(json: unknown): { sample: unknown; totals?: Record<st
 }
 
 /**
- * A slug-aware record can be selected using an ordinary list loop:
- * for each entry -> if {ループ.値.field} equals {slug} -> set selected = {ループ.値}, break.
- * No special search transformation is required.
+ * slug に合う項目は、通常のリストのループで選べる:
+ * 各項目について → もし {ループ.値.field} が {slug} と同じなら → selected = {ループ.値} として、ループを抜ける。
+ * 特別な検索の加工は必要ない。
  */
 function slugSelectorOf(steps: readonly ServerStep[]): {
   loop: ForEachStep; field: string; selected: SetVarStep;
@@ -1031,7 +1031,7 @@ export function primaryDataStep(
   return null;
 }
 
-/** Preview candidates used by slug-aware loops. */
+/** slug に合う項目を探すループで使う、プレビューの候補。 */
 export function primaryCandidates(
   doc: SiteDoc, pageId: string, live?: Record<string, unknown>, previewPlan?: PreviewDataPlan,
 ): { field: string; items: Record<string, unknown>[] } | null {
@@ -1042,12 +1042,12 @@ export function primaryCandidates(
   return { field: selection.field, items: toListItems(lookupVar(vars, selection.loop.array)) };
 }
 
-/** 一覧の1件の、見分ける項目の値（"category.slug" のような位置も使える） */
+/** 一覧の1件の、見分けるための項目の値（"category.slug" のような位置も使える） */
 export function keyOfItem(item: Record<string, unknown>, field: string): unknown {
   return Object.prototype.hasOwnProperty.call(item, field) ? item[field] : digPath(item, field);
 }
 
-/** 「探す」ブロックの照合（URLの値はエンコードされていることがある） */
+/** 「探す」ブロックの照合（URL の値はエンコードされていることがある） */
 export function sameKey(value: unknown, key: string): boolean {
   const v = String(value ?? "");
   return v === key || encodeURIComponent(v) === key;
@@ -1056,13 +1056,13 @@ export function sameKey(value: unknown, key: string): boolean {
 export interface PreviewOpts {
   /** 中心になるデータで表示する項目の番号（プレビューバー） */
   index?: number;
-  /** ページURLの [slug] の値 */
+  /** ページの URL の [slug] の値 */
   slug?: string;
-  /** 再取得したデータ（取得ブロックのID → JSON） */
+  /** 取得し直したデータ（取得ブロックの ID → JSON） */
   live?: Record<string, unknown>;
-  /** 再取得したデータで切り詰めた配列の元の件数（取得ブロックのID → 位置 → 件数） */
+  /** 取得し直したデータで切り詰めた配列の元の件数（取得ブロックの ID → 位置 → 件数） */
   liveTotals?: Record<string, Record<string, number>>;
-  /** {変数} の解決に使うページの変数（クエリ・入力値など） */
+  /** {変数} の解決に使う、ページの変数（クエリ・入力値など） */
   vars?: Record<string, unknown>;
 }
 
@@ -1138,7 +1138,7 @@ export function previewDataVars(
           const origin = originFor(src);
           if (origin) setOrigin(st.into, origin);
         } else if (!extractVars(st.value).length) {
-          // Infer only unambiguous JSON literals; preserve ordinary text.
+          // 明確な JSON のリテラルだけを型として解釈し、通常のテキストはそのまま残す。
           save(st.into, parseValueLiteral(interpolate(st.value, scope())));
           delete origins[st.into];
         }
@@ -1168,7 +1168,7 @@ export function previewDataVars(
             setOrigin(st.into, { totals: origin.totals, path: fieldPath });
           } else delete origins[st.into];
         } else if (result.kind === "missing") {
-          // Avoid reusing the result from a previous run in a connected block.
+          // つながったブロックで、前回の実行の結果を使い回さないようにする。
           save(st.into, undefined);
           delete origins[st.into];
         }
@@ -1177,8 +1177,8 @@ export function previewDataVars(
       case "for-each":
       case "if":
       case "repeat": {
-        // Run the same interpreter as exported pages; nested source fields
-        // override outer values, while assignments persist in the page vars.
+        // 書き出したページと同じインタープリターで実行する。入れ子の元の値の項目は
+        // 外側の値より優先し、代入した値はページの変数に残る。
         const selectedSlug = st.kind === "for-each" && primarySelector?.loop.id === st.id &&
           opts.index !== undefined && opts.slug === undefined
           ? keyOfItem(toListItems(lookupVar(scope(), st.array))[opts.index] ?? {}, primarySelector.field)
@@ -1214,7 +1214,7 @@ export function namedVars(vars: Record<string, unknown>): Record<string, unknown
   return Object.fromEntries(Object.entries(vars).filter(([k]) => !k.startsWith("#")));
 }
 
-/** 祖先（自身含む）のリスト要素を、外側から順に返す */
+/** 祖先（自身を含む）のリストの要素を、外側から順に返す */
 function listChainOf(doc: SiteDoc, nodeId: string): DocNode[] {
   if (!doc.nodes[nodeId]) return [];
   const parents = new Map<string, string>();
@@ -1236,9 +1236,9 @@ function listChainOf(doc: SiteDoc, nodeId: string): DocNode[] {
 }
 
 /**
- * ノードの位置での変数（エディタ表示用）。
- * pageVars = 取得したデータ / item = 属するリストの1件目（入れ子は内側が優先）
- * inside = false ならノード自身がリストでも、その外側の位置として扱う
+ * ノードの位置での変数（エディタでの表示用）。
+ * pageVars = 取得したデータ / item = 属するリストの1件目（入れ子では内側を優先）
+ * inside = false なら、ノード自身がリストでも、その外側の位置として扱う
  */
 export function scopeAt(
   doc: SiteDoc,
@@ -1264,8 +1264,8 @@ export function scopeAt(
   };
   const pageVars = previewDataVars(doc, pageId, opts);
   const item = itemOf(pageVars);
-  // [slug] を決めずに見るときは、1件目で空なら [slug] のほかの見本で探す
-  //（「大分類」のように一部の件にだけある一覧も、項目の候補を出せるように）
+  // [slug] を決めずに見るときは、1件目で空なら、[slug] の他の見本で探す
+  //（「大分類」のように一部の項目にだけある一覧も、項目の候補に出せるように）
   if (!item && chain.length && opts.index === undefined) {
     for (const vars of previewVarsBySlug(doc, pageId)) {
       const other = itemOf(vars);
@@ -1275,16 +1275,16 @@ export function scopeAt(
   return { pageVars, item };
 }
 
-/** [slug] の見本の2件目以降を順に当てはめたページの変数（1件目に無い値を探すため） */
+/** [slug] の見本の2件目以降を順に当てはめた、ページの変数（1件目に無い値を探すため） */
 function* previewVarsBySlug(doc: SiteDoc, pageId: string): Generator<Record<string, unknown>> {
   const n = Math.min(primaryCandidates(doc, pageId)?.items.length ?? 0, 20);
   for (let i = 1; i < n; i++) yield previewDataVars(doc, pageId, { index: i });
 }
 
 /**
- * 見本で配列になる変数か（[slug] のページは、1件目で配列でなければほかの見本でも調べる）。
- * 配列ならその配列、どの見本にも値が無ければ undefined（見本が古いなど。配列かもしれない）、
- * 配列でない値があれば null
+ * 見本で配列になる変数か（[slug] のページでは、1件目で配列でなければ他の見本でも調べる）。
+ * 配列ならその配列を、どの見本にも値が無ければ undefined（見本が古いなど。配列かもしれない）を、
+ * 配列でない値があれば null を返す
  */
 function sampleArray(
   doc: SiteDoc,
@@ -1318,7 +1318,7 @@ export function findItemsCandidates(json: unknown): ItemsCandidate[] {
   const out: ItemsCandidate[] = [];
   const walk = (value: unknown, path: string, depth: number) => {
     if (Array.isArray(value)) {
-      // リストは文字・数値・真偽値も「値」として並べられる。空でも取得後に使える。
+      // リストには文字・数値・真偽値も「値」として並べられる。空でも、取得した後に使える。
       if (!value.length || toListItems(value).length) {
         out.push({ path, count: value.length });
       }
@@ -1342,14 +1342,14 @@ export function looksLikeImage(value: unknown): boolean {
   );
 }
 
-/** 要素の位置で使えるデータ項目と、確認用の値（リストの項目・読み込んだデータから） */
+/** 要素の位置で使えるデータの項目と、確認用の値（リストの項目や、読み込んだデータから） */
 export interface FieldOption {
   field: string;
   /** 1件目の値（見本として表示する） */
   sample: unknown;
 }
 
-/** 配列の番号・入れ子の項目名を、画面に出す名前にする（例: images.0 → images › 1番目） */
+/** 配列の番号や入れ子の項目名を、画面に表示する名前にする（例: images.0 → images › 1番目） */
 export function fieldLabel(path: string): string {
   return path
     .split(".")
@@ -1359,7 +1359,7 @@ export function fieldLabel(path: string): string {
 
 /**
  * 1件分のデータから、表示に使える項目をすべて取り出す。
- * 配列は「すべて」と先頭要素の見本、入れ子はその中の項目まで展開する
+ * 配列は「すべて」と先頭の要素の見本、入れ子はその中の項目まで展開する
  */
 export function flattenFields(
   item: Record<string, unknown>,
@@ -1389,7 +1389,7 @@ export function flattenFields(
   return out;
 }
 
-/* ---------- {変数} の書き換え（移行・変数名の変更） ---------- */
+/* ---------- {変数} の書き換え（変数名の変更など） ---------- */
 
 /** テンプレート中の {名前} を fn の結果に置き換える（null ならそのまま） */
 export function mapVarTokens(
@@ -1406,7 +1406,7 @@ export function mapVarTokens(
 
 function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null) {
   for (const st of steps) {
-    // 配列・取得したデータの名前での参照
+    // 配列や取得したデータの名前での参照
     if ("array" in st && st.array) st.array = fn(st.array) ?? st.array;
     if (st.kind === "set-list-item" || st.kind === "remove-list-item") {
       st.list = fn(st.list) ?? st.list;
@@ -1494,7 +1494,7 @@ export function renameVarFn(from: string, to: string) {
     name === from ? to : name.startsWith(`${from}.`) ? to + name.slice(from.length) : null;
 }
 
-/** ページ内で変数の名前を変えたとき、使っている箇所もまとめて書き換える */
+/** ページ内で変数の名前を変えたときに、使っている箇所もまとめて書き換える */
 export function renameVarInPage(doc: SiteDoc, pageId: string, from: string, to: string) {
   if (!from || from === to) return;
   const fn = renameVarFn(from, to);
@@ -1523,9 +1523,9 @@ export function renameVarInPage(doc: SiteDoc, pageId: string, from: string, to: 
 }
 
 /**
- * 公開用に、スクリプトで作る変数（取得したデータ・配列・件数など）の名前を
- * 意味のない短い名前に付け替えた複製を返す（配信するHTML・スクリプトに名前を出さない）。
- * 要素のID・リストの項目名・URLのクエリと同じ名前は、参照先が変わらないようそのまま残す
+ * 公開用に、スクリプトで作る変数（取得したデータ・配列・件数など）の名前を、
+ * 意味の無い短い名前に付け替えた複製を返す（配信する HTML やスクリプトに名前を出さないため）。
+ * 要素の ID・リストの項目名・URL のクエリと同じ名前は、参照先が変わらないようそのまま残す
  */
 export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
   const out: SiteDoc = structuredClone(doc);
@@ -1574,7 +1574,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
         }
       }
       if (st.kind === "open-url") addQueryKeys(st.url);
-      // A dotted assignment updates a field of its root variable.
+      // ドットを含む代入は、その元の変数の項目を書き換える。
       if ("into" in st && st.into) defined.add(rootName(st.into));
     });
   }

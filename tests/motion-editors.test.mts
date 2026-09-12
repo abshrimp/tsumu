@@ -10,7 +10,7 @@ test("easing keywords and cubic-bezier values round-trip", () => {
   assert.deepEqual(parseEasing("ease-out"), { kind: "bezier", b: [0, 0, 0.58, 1] });
   assert.equal(easingValue({ kind: "bezier", b: [0.42, 0, 0.58, 1] }), "ease-in-out");
   assert.equal(easingValue({ kind: "bezier", b: [0.123, 0.5, 0.456, 1.2] }), "cubic-bezier(0.123, 0.5, 0.456, 1.2)");
-  // プリセットと同じ曲線は、プリセットの書き方に戻す（ドロップダウンで選択中として出る）
+  // プリセットと同じ曲線は、プリセットの書き方に戻す（ドロップダウンで選択中として表示される）
   assert.equal(easingValue(parseEasing("cubic-bezier(0.340, 1.56, 0.64, 1.0)")!), "cubic-bezier(0.34, 1.56, 0.64, 1)");
 });
 
@@ -43,7 +43,7 @@ test("bezier evaluation matches known points", () => {
   const ease = parseEasing("ease-in-out")!;
   close(easeAt(ease, 0.5), 0.5);
   assert.ok(easeAt(parseEasing("ease-in")!, 0.25) < 0.25);
-  // 行き過ぎる曲線は 1 を超える
+  // 行き過ぎる曲線は、1 を超える
   assert.ok(easeAt(parseEasing("cubic-bezier(0.34, 1.56, 0.64, 1)")!, 0.6) > 1);
 });
 
@@ -65,7 +65,7 @@ test("grouped selectors become separate keyframes and the same offset is merged"
 });
 
 test("transforms that would change meaning stay as raw CSS", () => {
-  // 回転してから移動すると、項目に分けた順（移動→回転）とは見た目が変わる
+  // 回転してから移動すると、項目に分けた順（移動 → 回転）とは見た目が変わる
   const list = parseKeyframes("to { transform: rotate(45deg) translateX(10px); }")!;
   assert.equal(list[0].x, undefined);
   assert.equal(list[0].extra, "transform: rotate(45deg) translateX(10px);");
@@ -100,7 +100,7 @@ test("every built-in keyframe preset parses and keeps its meaning", () => {
   for (const kf of KEYFRAMES) {
     const list = parseKeyframes(kf.css);
     assert.ok(list, kf.key);
-    // 書き出したものをもう一度読んでも同じ内容になる
+    // 書き出したものをもう一度読んでも、同じ内容になる
     const again = parseKeyframes(serializeKeyframes(list!))!;
     const strip = (l: typeof list) => l!.map(({ id: _id, ...rest }) => rest);
     assert.deepEqual(strip(again), strip(list), kf.key);

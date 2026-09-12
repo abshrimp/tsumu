@@ -77,7 +77,7 @@ const CONTEXT_LABEL: Record<string, string> = {
   site: tr("Site settings"),
 };
 
-/** ヘルプを閉じても、選んだ難易度・カテゴリは覚えておく */
+/** ヘルプを閉じても、選んだ難易度とカテゴリは覚えておく */
 let rememberedLevel: Level | 0 = 0;
 let rememberedCat: CategoryId | null = null;
 
@@ -111,7 +111,7 @@ function LevelBadge({ level }: { level: Level }) {
   return <span className={`help-level is-l${level}`}>{LEVELS[level].label}</span>;
 }
 
-/** 検索語に一致した部分に印をつける */
+/** 検索語に一致した部分に印を付ける */
 function Highlight({ text, query }: { text: string; query?: string }) {
   const words = (query ?? "")
     .trim()
@@ -131,7 +131,7 @@ function TopicRow({
 }: {
   topic: Topic;
   showCat?: boolean;
-  /** 難易度ごとに分けて並べているときは、行ごとのバッジを出さない */
+  /** 難易度ごとに分けて並べているときは、行ごとのバッジを表示しない */
   hideLevel?: boolean;
   query?: string;
 }) {
@@ -248,7 +248,7 @@ function BlockView({ block, onStartTutorial }: { block: Block; onStartTutorial: 
 
 function Article({ topic, onStartTutorial }: { topic: Topic; onStartTutorial: () => void }) {
   const related = (topic.see ?? []).map((id) => TOPIC_BY_ID[id]).filter(Boolean);
-  // 本文の最初の図は、答えのすぐ下（案内ボタンの前）に出す
+  // 本文の最初の図は、答えのすぐ下（案内のボタンの前）に表示する
   const lead = topic.body[0] && "fig" in topic.body[0] ? topic.body[0] : null;
   const rest = lead ? topic.body.slice(1) : topic.body;
   return (
@@ -347,7 +347,7 @@ function Home({
   onOpenCat: (id: CategoryId) => void;
   onStartTutorial: () => void;
 }) {
-  // いま選んでいる要素・表示している画面に関係する質問
+  // いま選んでいる要素や、表示している画面に関係する質問
   const contexts = useEditor((s) => currentContexts(s).join(","));
   const suggestions = useMemo(
     () => topicsFor(contexts.split(",") as Parameters<typeof topicsFor>[0], 5),
@@ -479,7 +479,7 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
     return level ? found.filter((t) => t.level === level) : found;
   }, [query, level]);
 
-  // 記事・カテゴリを切り替えたら、先頭から読めるようにする
+  // 記事やカテゴリを切り替えたら、先頭から読めるようにスクロールを戻す
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: 0 });
   }, [topicId, cat, open]);
@@ -502,7 +502,7 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
   };
   const showBack = !!topic || !!query || !!cat;
 
-  // ヘッダーのパンくず: ヘルプ › カテゴリ（記事・カテゴリを開いているとき）
+  // ヘッダーのパンくず: ヘルプ › カテゴリ（記事かカテゴリを開いているとき）
   const crumbCat = topic ? topic.cat : !query.trim() ? cat : null;
   const crumbLabel = crumbCat ? CATEGORIES.find((c) => c.id === crumbCat)?.label : null;
   const atHome = !topic && !query.trim() && !cat;
@@ -511,7 +511,7 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
     setCat(id);
     useHelp.setState({ topicId: null, back: [] });
   };
-  // 表示を切り替えたときだけ、本文をふわっと出し直す
+  // 表示を切り替えたときだけ、本文をフェードインで表示し直す
   const viewKey = topic ? `t:${topic.id}` : query.trim() ? "search" : cat ? `c:${cat}` : "home";
 
   return (
@@ -647,7 +647,7 @@ export function HelpLink({
 }: {
   topicId: string;
   label?: string;
-  /** 開く前にすること（モーダルを閉じる など） */
+  /** 開く前に行う処理（モーダルを閉じる など） */
   onBefore?: () => void;
   children?: ReactNode;
 }) {

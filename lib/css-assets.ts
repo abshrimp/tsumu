@@ -1,10 +1,10 @@
 import { tr } from "./i18n";
 import { decodeCssEscapes as decode } from "./css-escape";
 
-/** HTML style and SVG presentation attributes whose values can contain CSS resource URLs. */
+/** 値に CSS のリソースの URL を含み得る、HTML の style 属性と SVG の表示属性。 */
 export const CSS_ASSET_ATTRIBUTES = ["style", "fill", "stroke", "filter", "clip-path", "mask", "marker", "marker-start", "marker-mid", "marker-end", "cursor"];
 
-/** CSSのURLだけを扱い、コメントや通常の文字列、別URLの一部分は変更しない。 */
+/** CSS の URL だけを扱い、コメント・通常の文字列・別の URL の一部は変更しない。 */
 type Reference = { start: number; end: number; url: string; quote: string; isImport: boolean };
 const space = (c: string) => /[\t\n\f\r ]/.test(c);
 const nameChar = (c: string) => /[\w\u0080-\uFFFF-]/.test(c);
@@ -28,7 +28,7 @@ export function cssAssetReferences(css: string): Reference[] {
 
 export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Generator<Reference> {
   let atRuleTarget: "import" | "namespace" | undefined;
-  // One byte per parenthesis. Deep or unbalanced CSS cannot allocate an object per token.
+  // 括弧1つにつき1バイトだけ使う。深い CSS や、括弧の対応が取れていない CSS でも、字句ごとにオブジェクトを作らない。
   const other = 0, imageSet = 1, imageCandidate = 2;
   let stack = new Uint8Array(16);
   let depth = 0;
@@ -93,7 +93,7 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
       const name = decode(css.slice(start, i)).toLowerCase();
       if (parent === imageCandidate) stack[depth - 1] = imageSet;
       if (css[i] !== "(") {
-        // @namespace may have an identifier prefix before its URI.
+        // @namespace では、URI の前に識別子の接頭辞が付くことがある。
         if (atRuleTarget !== "namespace") atRuleTarget = undefined;
         continue;
       }
@@ -112,7 +112,7 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
         from++;
       } else {
         while (end < css.length && css[end] !== ")" && !space(css[end])) {
-          // 無引用URL内の引用符・括弧・制御文字は不正。安全のため置換しない。
+          // 引用符の無い URL の中の引用符・括弧・制御文字は不正。安全のため置き換えない。
           if (/["'(\u0000-\u0008\u000b\u000e-\u001f\u007f]/.test(css[end])) break;
           if (css[end] === "\\" && /[\n\r\f]/.test(css[end + 1] ?? "")) break;
           end = css[end] === "\\" ? escapeEnd(css, end) : end + 1;
@@ -123,7 +123,7 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
         if (atRuleTarget !== "namespace") yield { start: from, end, url: decode(css.slice(from, end)), quote, isImport: atRuleTarget === "import" };
         i = close + 1;
       } else {
-        // 不正なurl()の内部を別の参照として解釈しない。
+        // 不正な url() の中を、別の参照として解釈しない。
         const close = css.indexOf(")", end);
         i = close < 0 ? css.length : close + 1;
       }
@@ -139,13 +139,13 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
   }
 }
 
-/** 完全一致を優先し、SVG等のフラグメントだけは元の参照から引き継ぐ。 */
+/** 完全一致を優先し、SVG などのフラグメントだけは元の参照から引き継ぐ。 */
 function replacement(
   url: string, sources: ReadonlyMap<string, string>, proxyQueries = false
 ): string | undefined {
   if (sources.has(url)) return sources.get(url);
-  // ZIPから読み込んだプロキシURLの追加クエリを、書き出すファイルへ引き継ぐ。
-  // パスの一部が同じ別アセットやdata URLには適用しない。
+  // ZIP から読み込んだプロキシの URL の追加のクエリを、書き出すファイルへ引き継ぐ。
+  // パスの一部が同じ別のアセットや、data URL には適用しない。
   if (proxyQueries && url.startsWith("/api/assets/file?path=")) {
     const suffix = url.search(/[&#]/);
     if (suffix >= 0 && url[suffix] === "&") {
@@ -159,7 +159,7 @@ function replacement(
   return target === undefined ? undefined : target + url.slice(hash);
 }
 
-/** Keep authored CSS text inside its HTML style element, preserving case and CSS string values. */
+/** 書かれた CSS を HTML の style 要素の中に収める。大文字・小文字と CSS の文字列の値は変えない。 */
 export function escapeStyleContent(css: string): string {
   return css.replace(/<\/(?=style)/gi, "<\\/");
 }
@@ -195,7 +195,7 @@ export function cssUsesAssetUrl(css: string, source: string): boolean {
   return false;
 }
 
-/** Rewrite only actual CSS resource tokens; imported rules retain their syntax and conditions. */
+/** 実際の CSS のリソースの字句だけを書き換える。読み込んだルールの構文と条件は変えない。 */
 export function rewriteCssAssetUrls(
   css: string, resolve: (url: string) => string | undefined, maxLength = Infinity
 ): string {
@@ -210,7 +210,7 @@ export function rewriteCssAssetUrls(
   for (const ref of iterateCssAssetReferences(css)) {
     const target = resolve(ref.url);
     if (target === undefined || target === ref.url) continue;
-    // Check before CSS-escaping, which can allocate up to several times the URL length.
+    // CSS のエスケープは URL の長さの数倍のメモリを使うことがあるため、エスケープの前に確かめる。
     if (length + ref.start - from + target.length > maxLength) {
       throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
     }

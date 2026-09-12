@@ -1,4 +1,4 @@
-/** 2列のアセットカード。画像比率・名前/詳細欄の高さはglobals.cssと揃える。 */
+/** 2列のアセットカード。画像の比率や、名前・詳細の欄の高さは globals.css とそろえる。 */
 export const ASSET_WINDOW_THRESHOLD = 100;
 export function assetWindow(count: number, width: number, height: number, scrollTop: number, pinned: number[] = []) {
   const rowHeight = Math.max(1, (width - 34) / 2) * 3 / 4 + 50;

@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { runInNewContext } from "node:vm";
 const { parse } = createRequire(import.meta.url)("next/dist/compiled/node-html-parser");
 
-/** 生成済みHTMLのDOM操作を記録するモデル。ネイティブDOM・イベントの証明は e2e/ で別に行う。 */
+/** 生成した HTML への DOM の操作を記録するモデル。ネイティブの DOM とイベントでの確認は、e2e/ で別に行う。 */
 export class ListDomNode {
   childNodes: ListDomNode[] = [];
   attrs: Record<string, string> = {};

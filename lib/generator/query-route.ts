@@ -1,8 +1,8 @@
 /**
- * Static URL query variants. One physical HTML file can display multiple
- * authored pages based on the browser's URLSearchParams, without a server.
- * The selected fragment must be ready (including its authored scripts) before
- * the generated data loader and event runtime are started.
+ * 静的なページでの URL のクエリ違いの振り分け。1つの HTML ファイルで、サーバーを使わずに、
+ * ブラウザの URLSearchParams に応じて、書かれた複数のページを表示し分ける。
+ * 生成したデータの読み込みとイベントのランタイムを始める前に、選んだ断片（書かれたスクリプトを
+ * 含む）の準備を終えておく必要がある。
  */
 export const QUERY_VARIANT_RUNTIME = [
   "(function () {",

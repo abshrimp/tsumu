@@ -22,7 +22,7 @@ export function textBytes(text: string): number {
   return /[^\x00-\x7f]/.test(text) ? encoder.encode(text).length : text.length;
 }
 
-/** Check before joining repeated replacements into a potentially much larger string. */
+/** 置き換えを何度もつないで、ずっと大きくなり得る文字列にする前に、大きさを確かめる。 */
 export class HtmlOutput {
   private parts: string[] = [];
   private size = 0;
@@ -57,7 +57,7 @@ export type ResourceRequest = (url: string, init: RequestInit) => Promise<Respon
 type Resource = { bytes: Uint8Array<ArrayBuffer>; mime: string; base: URL; charset?: string };
 
 function httpCharset(contentType: string): string | undefined {
-  // 他の引用符付きパラメーター内にある charset はヘッダー指定とみなさない。
+  // 他の引用符付きのパラメーターの中にある charset は、ヘッダーでの指定とみなさない。
   const parameters = /;[\t ]*([^;=\t ]+)[\t ]*=[\t ]*(?:"((?:[^"\\]|\\[\s\S])*)"|([^;]*))/g;
   for (const match of contentType.matchAll(parameters)) {
     if (match[1].toLowerCase() === "charset") {
@@ -73,13 +73,13 @@ function decoderForLabel(label: string | undefined): TextDecoder | undefined {
 
 function stylesheetDecoder(item: Resource, environmentEncoding: string): TextDecoder {
   const bytes = item.bytes;
-  // BOM は HTTP、@charset、親シートの文字コードより優先する。
+  // BOM は、HTTP、@charset、親のシートの文字コードより優先する。
   if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return decoder;
   if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le");
   if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be");
   const transport = decoderForLabel(item.charset);
   if (transport) return transport;
-  // CSS Syntax の宣言は先頭1024バイト内の厳密な ASCII 構文だけを認める。
+  // CSS Syntax の宣言では、先頭の1024バイトの中にある、厳密な ASCII の構文だけを認める。
   const prefix = String.fromCharCode(...bytes.subarray(0, 1024));
   const label = /^@charset "([\x00-\x21\x23-\x7f]*)";/.exec(prefix)?.[1];
   const declared = decoderForLabel(label);
@@ -119,7 +119,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       const text = source.files[path];
       check(inputBytes + textBytes(text));
       bytes = encoder.encode(text);
-      // 生成済みの文字列は元バイト列ではなく、ここで UTF-8 に符号化する。
+      // 生成した文字列は、元のバイト列ではなく、ここで UTF-8 に符号化する。
       charset = "utf-8";
     } else if (local && Object.hasOwn(source.binaries, path)) {
       const encoded = source.binaries[path];
@@ -159,7 +159,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
 
   function remember(cache: Map<string, string>, key: string, value: string) {
     cacheBytes += textBytes(value);
-    // Bound all cached derivatives even when they never reach the final markup.
+    // 最終的なマークアップに入らない派生物も含め、キャッシュしたものすべての大きさを制限する。
     if (cacheBytes > 2 * SINGLE_HTML_LIMIT) throw new Error("Single HTML resource cache exceeds the size limit.");
     cache.set(key, value);
     return value;
@@ -177,8 +177,8 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     const item = await load(url);
     await verifyIntegrity(item.bytes, integrity);
     if (script) checkScriptType(item);
-    // classic script の HTTP charset を残し、文字列の破損を防ぐ。元バイト列と SRI は変更しない。
-    // 有効な文字コードラベルは ASCII トークンなので、他の MIME パラメーターは持ち込まない。
+    // classic script の HTTP の charset を残し、文字列が壊れるのを防ぐ。元のバイト列と SRI は変えない。
+    // 有効な文字コードのラベルは ASCII の字句なので、他の MIME のパラメーターは持ち込まない。
     const charset = script ? item.charset?.replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, "") : undefined;
     const mime = charset && /^[a-z0-9._:-]+$/i.test(charset) ? item.mime + ";charset=" + charset : item.mime;
     const key = keyOf(url) + "\0" + mime;
@@ -197,7 +197,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     }
     if (item.bytes.length > 4 * 1024 * 1024) throw new Error("Module exceeds 4 MB. Use the HTML ZIP format.");
     const rewritten = await moduleText(decoder.decode(item.bytes), item.base, new Set([...parents, url.href]));
-    // Distinguish equal source bytes without publishing the original URL or its signed query.
+    // 元の URL や署名付きのクエリを公開せずに、同じ内容のバイト列を区別する。
     const result = dataUrl(encoder.encode(rewritten), item.mime) + "#" + modules.size;
     return remember(modules, url.href, result);
   }
@@ -222,7 +222,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
         throw new Error("Cannot resolve a bare module specifier. Use the HTML ZIP format.");
       }
       const child = await embedModule(new URL(ref.n, base), "", parents);
-      // Static offsets exclude quotes. Dynamic offsets include the entire string literal.
+      // 静的な位置は引用符を含まない。動的な位置は、文字列リテラル全体を含む。
       const quoted = JSON.stringify(child).replaceAll("'", "\\u0027");
       output.append(sourceText.slice(cursor, ref.s));
       output.append(ref.d === -1 ? quoted.slice(1, -1) : quoted);
@@ -270,7 +270,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     return result.join();
   }
 
-  // 再符号化した本文は元の @charset や親シートにかかわらず UTF-8 で読む。
+  // 符号化し直した本文は、元の @charset や親のシートにかかわらず、UTF-8 で読む。
   const cssUrl = (text: string) => dataUrl(encoder.encode(text), "text/css;charset=utf-8");
   return { css, stylesheet, embed, embedModule, inlineModule: moduleText, cssUrl };
 }

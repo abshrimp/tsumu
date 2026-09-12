@@ -24,7 +24,7 @@ export function aiCloneDoc(): SiteDoc {
   };
 }
 
-/** 通信だけを置き換え、実際のAI操作・チャット・スクリプト画面・プレビューを使う。 */
+/** 通信だけを置き換え、実際の AI の操作・チャット・スクリプトの画面・プレビューを使う。 */
 export async function aiCloneBundle() {
   return (await build({
     stdin: { contents: `

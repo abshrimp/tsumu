@@ -116,7 +116,7 @@ test("raw HTML ZIP import validates all stylesheets before uploading other asset
 test("ZIPs with duplicate physical names cannot hide a record in JSZip's normalized file map", async () => {
   const zip = new JSZip().file("index.html", "<main></main>").file("a.txt", "one").file("b.txt", "two");
   const bytes = await zip.generateAsync({ type: "uint8array" });
-  // Both names now have the same bytes in the local headers and central directory.
+  // これで、ローカルヘッダーとセントラルディレクトリの両方で、2つの名前が同じバイト列になる。
   const duplicated = Buffer.from(Buffer.from(bytes).toString("latin1").replaceAll("b.txt", "a.txt"), "latin1");
   await assert.rejects(readHtmlZip(duplicated), /duplicate file paths/);
 });

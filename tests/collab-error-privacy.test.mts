@@ -65,7 +65,7 @@ for (const scenario of ["load-props", "load-entry", "patch-props", "patch-node",
       : { type: "patch", base: scenario.endsWith("conflict") ? "9" : "1", patch:
         scenario === "patch-node" ? [{ path: ["nodes", Object.keys(original.nodes)[0]], value: Object.values(original.nodes)[0] }]
         : scenario === "patch-structural" ? [{ path: ["pages"], value: original.pages }] : patch };
-    // 実際の保存層で発生した例外を確認し、ハンドラのモック例外だけに依存しない。
+    // ハンドラーの模擬の例外だけに頼らず、実際の保存の層で起きた例外を確かめる。
     const operation = () => input.type === "load" ? h.store.snapshot()
       : input.type === "save" ? h.store.replace(JSON.stringify(edit), input.base!)
       : h.store.patch(input.patch!, input.base!);

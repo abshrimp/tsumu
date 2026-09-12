@@ -49,7 +49,7 @@ test("outside pointer closes element picker even when the clicked row stops prop
 
   await trigger(page).click();
   await expect(menu(page)).toBeVisible();
-  // Touch pointerdown does not produce a mouse mousedown. It must still dismiss.
+  // タッチの pointerdown では、マウスの mousedown が発生しない。それでも閉じなければならない。
   await workspace.evaluate((el) => el.dispatchEvent(new PointerEvent("pointerdown", {
     bubbles: true, pointerId: 31, pointerType: "touch", button: 0, buttons: 1,
   })));
@@ -78,7 +78,7 @@ test("search matches a parent collapsed; expansion reveals all children includin
   await row(page, "詳細").getByRole("button", { name: "開く" }).click();
   await expect(row(page, "商品名")).toBeVisible();
 
-  // Select a child that did not contain the search term.
+  // 検索した言葉を含んでいなかった子を選ぶ。
   await row(page, "金額").click();
   await expect(menu(page)).toHaveCount(0);
   expect(await picked(page)).toBeTruthy();

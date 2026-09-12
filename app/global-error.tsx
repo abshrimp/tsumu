@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { tr } from "../lib/i18n";
 
-/** レイアウトごと表示できないときの画面（globals.css も読めないため最低限のスタイルで出す） */
+/** レイアウトごと表示できないときの画面（globals.css も読めないため、最低限のスタイルで表示する） */
 export default function GlobalError({ error }: { error: Error }) {
   useEffect(() => {
     console.error(error);

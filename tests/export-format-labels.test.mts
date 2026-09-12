@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { EXPORT_FRAMEWORK_OPTIONS } from "../lib/export-formats";
 import { LOCALES } from "../lib/locales";
 
-// Dynamic format labels are not visible to the static i18n checker.
+// 動的な形式の表示名は、静的な i18n の点検では見えない。
 test("all export format labels are English source text with Japanese translations", async () => {
   const ja = await LOCALES.ja!();
   for (const { label } of EXPORT_FRAMEWORK_OPTIONS) {

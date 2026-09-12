@@ -134,7 +134,7 @@ test("mixed templates and generated code survive exploring, cancelling and save/
 
 test("filter field dropdown marks nested Japanese category arrays as lists", async ({ page }) => {
   const filter = block(page, "category-filter");
-  // The list-source control also uses se-pm-btn. Select only the field path control.
+  // リストの出どころの操作部品も se-pm-btn を使う。項目の位置の操作部品だけを選ぶ。
   const fieldPicker = filter.locator(".se-pm-btn:not(.se-list-choice)");
   await fieldPicker.click();
   const menu = page.locator(".se-pm");
@@ -237,7 +237,7 @@ test("if conditions allow nested list variables and choose meaningful operators"
   cond = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "if-categories").cond;
   expect(cond.left).toBe("{data.rows.0.categories.出展カテゴリ}");
 
-  // The comparison value can also hold a raw list reference, for deep equality.
+  // 比べる値には、深い比較のため、生のリストの参照も入れられる。
   await operation.selectOption("eq");
   const input = b.locator("input").last();
   await input.focus();

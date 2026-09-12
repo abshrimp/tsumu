@@ -57,7 +57,7 @@ async function setup(store: "server" | "local" | null = "local") {
     duringRead: (callback: () => void) => { onCommentRead = callback; },
     duringWrite: (callback: () => void) => { onCommentWrite = callback; },
     async remove(id = source.id, name = source.name) { home.remove(id); home.answer(name); await home.flush(); },
-    // 別タブの削除をストレージ呼び出しの間に挟む。確認UIを通る通常経路は remove() で別途検証する。
+    // 別のタブでの削除を、ストレージの呼び出しの間に挟む。確認の UI を通る通常の経路は、remove() で別に検証する。
     concurrentDelete() { deleteLocalSite(source.id); for (const key of SITE_SCOPED_KEYS) storage.removeItem(siteKey(key, source.id)); },
   };
 }

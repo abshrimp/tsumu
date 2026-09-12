@@ -2,11 +2,11 @@ import { assetSrc } from "./assets";
 import { iterateCssAssetReferences } from "./css-assets";
 import type { Asset, NodeStyles } from "./types";
 
-/** CSSをアセット数だけ読み直さず、各ノード・ページから使用中のIDを一度ずつ取り出す。 */
+/** アセットの数だけ CSS を読み直さず、各ノードとページから、使用中の ID を一度ずつ取り出す。 */
 export function createCssAssetFinder(assets: Record<string, Asset>) {
   const bySrc = new Map<string, string[]>();
   for (const asset of Object.values(assets)) {
-    // Match stored CSS aliases as strings only; they are never fetched here.
+    // 保存した CSS の別名は文字列として照合するだけで、ここで取得はしない。
     const src = asset.path ? assetSrc(asset) : asset.dataUrl;
     if (!src) continue;
     const ids = bySrc.get(src) ?? [];
@@ -17,11 +17,11 @@ export function createCssAssetFinder(assets: Record<string, Asset>) {
     const hits = new Set<string>();
     const scan = (css: string) => {
       for (const { url } of iterateCssAssetReferences(css)) {
-        // 同じファイルを指す別IDと、SVG等のフラグメントを除いた元画像も残す。
+        // 同じファイルを指す別の ID と、SVG などのフラグメントを除いた元の画像も残す。
         const exact = bySrc.get(url);
         for (const id of exact ?? []) hits.add(id);
-        // 書き出しと同じく、プロキシURLの追加クエリは元ファイルを指す。
-        // 完全一致を優先し、パスの接頭辞やdata URLには適用しない。
+        // 書き出しと同じく、プロキシの URL に付いた追加のクエリは元のファイルを指すものとして扱う。
+        // 完全一致を優先し、パスの接頭辞や data URL には適用しない。
         if (!exact && url.startsWith("/api/assets/file?path=")) {
           const suffix = url.search(/[&#]/);
           const ids = suffix >= 0 && url[suffix] === "&" ? bySrc.get(url.slice(0, suffix)) : undefined;

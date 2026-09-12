@@ -51,7 +51,7 @@ test("ZIP export preserves the editable SiteDoc and archive asset IDs for direct
 test("HTML, Vue and SvelteKit ZIP exports round-trip editable data and asset IDs", async () => {
   const doc = createInitialDoc();
   doc.siteName = "Format roundtrip";
-  // The starter includes a dynamic route that static frameworks intentionally reject.
+  // 初期のサイトには、静的なフレームワークが意図的に拒否する動的なルートが含まれている。
   for (const page of Object.values(doc.pages)) {
     if (/\[[^\]]+\]/.test(page.slug)) page.unpublished = true;
   }

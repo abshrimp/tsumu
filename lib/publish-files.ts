@@ -1,33 +1,33 @@
 /**
- * 公開先のリポジトリで、Tsumu が書き出したファイルと手で追加したファイルを見分ける。
+ * 公開先のリポジトリで、Tsumu が書き出したファイルと、手動で追加したファイルを見分ける。
  *
- * 公開のたびに、書き出したファイルの一覧（パス → blob SHA）を GENERATED_MANIFEST_PATH に
- * 同梱する。次の公開では、この一覧に無いファイルを手で追加したものとしてそのまま残し、
- * 一覧と SHA が違うファイルを GitHub 上で直接編集されたものとして公開前に知らせる。
+ * 公開のたびに、書き出したファイルの一覧（パス → blob の SHA）を GENERATED_MANIFEST_PATH に
+ * 含める。次の公開では、この一覧に無いファイルを手動で追加したものとしてそのまま残し、
+ * 一覧と SHA が違うファイルを、GitHub 上で直接編集されたものとして公開の前に知らせる。
  */
 
-/** エディタが管理するファイルの置き場所（手で追加したファイルとしては扱わない） */
+/** エディタが管理するファイルの置き場所（手動で追加したファイルとしては扱わない） */
 const MANAGED_DIR = "_tsumu/";
 /** 復元用の編集データ */
 export const DOC_PATH = `${MANAGED_DIR}doc.json`;
-/** アセットの取得元（KV キー）→ blob SHA の対応表 */
+/** アセットの取得元（KV のキー）→ blob の SHA の対応表 */
 export const ASSET_MANIFEST_PATH = `${MANAGED_DIR}assets.json`;
-/** 書き出したファイルのパス → blob SHA の一覧 */
+/** 書き出したファイルのパス → blob の SHA の一覧 */
 export const GENERATED_MANIFEST_PATH = `${MANAGED_DIR}generated.json`;
 
 export interface PublishPlan {
-  /** 前回の公開のあとに直接編集された、書き出したファイル（今回の公開で上書きされる） */
+  /** 前回の公開の後に直接編集された、書き出したファイル（今回の公開で上書きされる） */
   edited: string[];
-  /** 手で追加したファイルのうち、今回書き出すファイルと同じパスのもの（上書きされる） */
+  /** 手動で追加したファイルのうち、今回書き出すファイルと同じパスのもの（上書きされる） */
   clashing: string[];
-  /** 手で追加したファイル（パス → blob SHA）。今回のコミットにそのまま残す */
+  /** 手動で追加したファイル（パス → blob の SHA）。今回のコミットにそのまま残す */
   kept: Record<string, string>;
 }
 
 /**
- * @param blobs 公開先のブランチにあるファイル（パス → blob SHA）
+ * @param blobs 公開先のブランチにあるファイル（パス → blob の SHA）
  * @param generated 前回の公開で書き出したファイルの一覧。初回は null。
- *   一覧に無いファイルは手で追加したものとして保持し、同じパスへの書き出しは確認する
+ *   一覧に無いファイルは手動で追加したものとして残し、同じパスへの書き出しは確認する
  * @param output 今回書き出すファイルのパス
  */
 export function planPublish(
@@ -38,7 +38,7 @@ export function planPublish(
   const plan: PublishPlan = { edited: [], clashing: [], kept: {} };
   const outputs = new Set(output);
   for (const [path, sha] of Object.entries(blobs)) {
-    // Tsumu's publication metadata is managed by the editor, not a user-authored file.
+    // Tsumu の公開用のメタデータはエディタが管理するもので、利用者が書いたファイルではない。
     if (!isSafeCommitPath(path) || path.startsWith(MANAGED_DIR)) continue;
     if (generated && Object.hasOwn(generated, path)) {
       if (generated[path] !== sha) plan.edited.push(path);
@@ -53,17 +53,17 @@ export function planPublish(
   return plan;
 }
 
-/** コミットしてよいパスか（先頭の「/」・「.」「..」・空の区切り・バックスラッシュを含まない） */
+/** コミットしてよいパスか（先頭の「/」、「.」「..」、空の区切り、バックスラッシュを含まない） */
 export function isSafeCommitPath(path: string): boolean {
   if (!path || path.includes("\\") || path.includes("\0")) return false;
   return path.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
 }
 
 /**
- * A Git tree cannot contain both a file and a child of that file, e.g.
- * `public/assets` (symlink) alongside `public/assets/logo.svg`.
- * GitHub's nested-tree API may replace one with the other depending on
- * entry ordering, so reject prefix conflicts before constructing a tree.
+ * Git のツリーには、ファイルと、そのファイルの子を同時に置けない。たとえば
+ * `public/assets`（シンボリックリンク）と `public/assets/logo.svg` は共存できない。
+ * GitHub の入れ子のツリーの API は、項目の順序によってどちらかを置き換えることがあるため、
+ * ツリーを組み立てる前に、接頭辞の衝突を拒否する。
  */
 export function conflictingCommitPaths(paths: Iterable<string>): [string, string] | null {
   const all = new Set(paths);
@@ -77,7 +77,7 @@ export function conflictingCommitPaths(paths: Iterable<string>): [string, string
 }
 
 /**
- * 書き出しには使わず、手で追加したものをそのまま引き継ぐときだけコミットを許す場所。
+ * 書き出しには使わず、手動で追加したものをそのまま引き継ぐときだけコミットを許す場所。
  * .github/ のワークフローはリポジトリのシークレットで動くため、エディタの利用者が
  * サーバーのトークンで書き込めないようにする
  */
@@ -95,9 +95,9 @@ export interface TreeEntry {
 }
 
 /**
- * ロールバック先のツリー（src）の .github/ を、いまの先端（head）のものに置き換える項目。
- * ロールバックは任意のコミット（ほかのブランチ・フォークのものも指せる）の内容を積むため、
- * そのままでは .github/ の保護（isProtectedPath）を迂回してワークフローを書き込めてしまう。
+ * ロールバック先のツリー（src）の .github/ を、現在の先端（head）のものに置き換える項目。
+ * ロールバックは任意のコミット（他のブランチやフォークのものも指せる）の内容を積むため、
+ * そのままでは .github/ の保護（isProtectedPath）を迂回して、ワークフローを書き込めてしまう。
  * 置き換えが要らなければ空（src のツリーをそのまま使える）
  */
 export function protectedTreeEdits(src: TreeEntry[], head: TreeEntry[]): TreeEntry[] {
@@ -115,7 +115,7 @@ export function protectedTreeEdits(src: TreeEntry[], head: TreeEntry[]): TreeEnt
   return edits;
 }
 
-/** 書き出したファイルの一覧（JSON）を読む。壊れているか未対応の版なら null */
+/** 書き出したファイルの一覧（JSON）を読む。壊れているか、対応していない版なら null を返す */
 export function parseGeneratedManifest(text: string): Record<string, string> | null {
   try {
     const data = JSON.parse(text) as unknown;
@@ -140,7 +140,7 @@ export function serializeGeneratedManifest(files: Record<string, string>): strin
   return JSON.stringify({ version: 1, files: sorted }, null, 2) + "\n";
 }
 
-/** 手で追加したファイル・シンボリックリンク・サブモジュールを、Git の属性ごと引き継ぐ。 */
+/** 手動で追加したファイル・シンボリックリンク・サブモジュールを、Git の属性ごと引き継ぐ。 */
 export function keptTreeEntries(entries: TreeEntry[], paths: string[]): TreeEntry[] | null {
   const byPath = new Map(entries.map((entry) => [entry.path, entry]));
   const kept: TreeEntry[] = [];

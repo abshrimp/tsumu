@@ -31,8 +31,8 @@ function canvasMarkup(doc: SiteDoc, preview = true) {
   } }, doc.pages.p.children.map(id => createElement(mod.exports.NodeView, { id, key: id, isTop: true }))));
 }
 
-// 実際の React 出力を読み、ランタイムが使う DOM 操作だけを再現する。
-// 実ブラウザのキャンバス・スクリプト画面・イベントは e2e/ で確かめる。
+// 実際の React の出力を読み、ランタイムが使う DOM の操作だけを再現する。
+// 実際のブラウザでのキャンバス・スクリプトの画面・イベントは、e2e/ で確かめる。
 class Element {
   attrs: Record<string, string>;
   children: Element[];

@@ -14,8 +14,8 @@ const runbook = readFileSync(new URL("../docs/releasing.md", import.meta.url), "
 const integrityScript = runbook.match(/<!-- restore-integrity-check -->\n```sh\n([\s\S]*?)```/)?.[1];
 assert.ok(integrityScript, "runbook must provide the disposable restore check");
 
-// Execute the actual documented shell block, but never contact a Docker daemon.
-// A normal interactive shell does not inherit `set -e` from the documentation.
+// 文書に書いた実際のシェルのブロックを実行するが、Docker のデーモンには決して接続しない。
+// 通常の対話的なシェルは、文書から `set -e` を引き継がない。
 function dockerBackup(scenario: string, check: (result: ReturnType<typeof spawnSync>, calls: string[][]) => void) {
   const dir = mkdtempSync(join(tmpdir(), "tsumu-release-"));
   try {
@@ -120,8 +120,8 @@ for (const scenario of ["unset", "missing", "corrupt"]) {
 }
 
 test("documented archive and restore check preserve a stopped SQLite fixture and asset metadata", () => {
-  // Docker orchestration is simulated above; run its actual archive payload here
-  // with host tar and disposable paths, then extract only into a fresh directory.
+  // Docker の操作は上で模擬した。ここでは、その実際のアーカイブの中身を、ホストの tar と
+  // 使い捨てのパスで実行し、展開は新しいディレクトリの中だけで行う。
   let payload = "";
   dockerBackup("success", (result, calls) => {
     assert.equal(result.status, 0);
@@ -140,7 +140,7 @@ test("documented archive and restore check preserve a stopped SQLite fixture and
       db.exec("PRAGMA journal_mode = WAL; CREATE TABLE docs (id TEXT PRIMARY KEY, rev INTEGER, body TEXT)");
       db.prepare("INSERT INTO docs VALUES (?, ?, ?)").run("fixture", 7, '{"siteName":"Release fixture"}');
     } finally {
-      db.close(); // All fixture writers are stopped before the documented copy.
+      db.close(); // 文書に書いたコピーの前に、準備で書き込むものをすべて止める。
     }
     writeFileSync(join(source, "assets/data/fixture.svg"), "<svg/>");
     writeFileSync(join(source, "assets/meta/fixture.svg"), '{"contentType":"image/svg+xml"}');

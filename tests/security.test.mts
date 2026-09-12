@@ -125,10 +125,10 @@ test("pasted clipboard data that this editor did not write needs confirmation fo
     assert.ok(payload);
     assert.equal(isOwnClip(raw), false);
     assert.deepEqual(activeContentNames(payload), ["Widget"]);
-    // エディタがコピーしたときの控えと同じなら信用する
+    // エディタがコピーしたときの控えと同じなら、信用する
     store.set("tsumu-clipboard-v1", raw);
     assert.equal(isOwnClip(raw), true);
-    // 子の参照が欠けた・形の崩れたデータは読まない
+    // 子の参照が欠けたデータや、形の崩れたデータは読まない
     assert.equal(parseClipPayload(JSON.stringify({ v: 1, nodes: [{ ...code, children: ["missing"] }], rootIds: ["c"], assets: {} })), null);
     assert.equal(parseClipPayload(JSON.stringify({ v: 1, nodes: [{ id: "x" }], rootIds: ["x"], assets: {} })), null);
   } finally {
@@ -216,7 +216,7 @@ test("signed asset URLs are tied to the path and expire", async () => {
     assert.equal(await verifyAssetToken("assets/a.png", q.get("exp"), q.get("sig"), now + ASSET_TOKEN_TTL + 1), false);
     assert.equal(await verifyAssetToken("assets/a.png", String(now + 10 * ASSET_TOKEN_TTL), q.get("sig"), now), false);
     assert.equal(await verifyAssetToken("assets/a.png", q.get("exp"), "AAAA", now), false);
-    // ログインを使っていない（鍵が無い）ときは署名しない
+    // ログインを使っていない（鍵が無い）ときは、署名しない
     delete process.env.AUTH_SECRET;
     assert.equal(await signAssetPath("assets/a.png", now), null);
     assert.equal(await verifyAssetToken("assets/a.png", q.get("exp"), q.get("sig"), now), false);
@@ -235,9 +235,9 @@ test("API writes from another site are refused, the editor's own requests pass",
   assert.equal(isCrossSiteWrite(req("DELETE", { "sec-fetch-site": "same-site" })), true);
   assert.equal(isCrossSiteWrite(req("POST", { origin: "https://editor.example.com", "sec-fetch-site": "same-origin" })), false);
   assert.equal(isCrossSiteWrite(req("GET", { origin: "https://evil.example", "sec-fetch-site": "cross-site" })), false);
-  // リバースプロキシが Host を書き換えていても、ブラウザが同じオリジンと言うなら通す
+  // リバースプロキシが Host を書き換えていても、ブラウザが同じオリジンだと示すなら通す
   assert.equal(isCrossSiteWrite({ ...req("POST", { origin: "https://editor.example.com", "sec-fetch-site": "same-origin" }), headers: new Headers({ host: "localhost:3000", origin: "https://editor.example.com", "sec-fetch-site": "same-origin" }) }), false);
-  // ブラウザ以外（Origin なし）は CSRF にならない
+  // ブラウザ以外（Origin が無い）からのリクエストは、CSRF にならない
   assert.equal(isCrossSiteWrite(req("POST", {})), false);
 });
 
@@ -256,13 +256,13 @@ test("document values never become code or paths outside the exported project", 
   const { files } = generateProject(doc as never);
   assert.doesNotMatch(files["app/layout.tsx"], /from "fs"/);
   assert.ok(Object.keys(files).every((path) => !path.split("/").includes("..")), Object.keys(files).join(","));
-  // head の属性名に JSX の式を書いても、属性として出さない
+  // head の属性名に JSX の式を書いても、属性としては出力しない
   assert.doesNotMatch(headHtmlToJsx(`<meta x-{...globalThis.y} content="a">`, ""), /globalThis/);
 });
 
 test("embed URLs refuse javascript/data schemes and spoofed Google Maps origins", async () => {
   const { embedSrc } = await import("../lib/embed");
-  // Googleマップの埋め込みを装った javascript: / data: / 外部ドメインはそのまま iframe に渡さない
+  // Google マップの埋め込みを装った javascript: / data: / 外部のドメインは、そのまま iframe に渡さない
   for (const malicious of [
     "javascript:alert(1)//google.com/maps/embed",
     "data:text/html,<script>alert(1)</script>?google.com/maps/embed",
@@ -276,7 +276,7 @@ test("embed URLs refuse javascript/data schemes and spoofed Google Maps origins"
     embedSrc({ kind: "map", src: "https://www.google.com/maps/embed?pb=!1m18" }),
     "https://www.google.com/maps/embed?pb=!1m18"
   );
-  // URL埋め込みは http(s) のみ許可し、javascript: や data: は null にする
+  // URL の埋め込みでは http(s) だけを許し、javascript: や data: は null にする
   assert.equal(embedSrc({ kind: "url", src: "javascript:alert(1)" }), null);
   assert.equal(embedSrc({ kind: "url", src: "data:text/html,<script>alert(1)</script>" }), null);
   assert.equal(embedSrc({ kind: "url", src: "https://example.com/widget" }), "https://example.com/widget");
@@ -285,7 +285,7 @@ test("embed URLs refuse javascript/data schemes and spoofed Google Maps origins"
 test("URL interpolation and exported links refuse data:text/html, javascript: and protocol-relative redirects", async () => {
   const { interpolateUrl } = await import("../lib/vars");
   const { generateProject } = await import("../lib/generator");
-  // data:text/html・data:image/svg+xml・//evil.example は URL そのものとして通さずエンコードする
+  // data:text/html・data:image/svg+xml・//evil.example は、URL そのものとしては通さず、エンコードする
   for (const unsafe of [
     "data:text/html,<script>alert(1)</script>",
     "data:image/svg+xml,<svg onload=alert(1)>",
@@ -298,7 +298,7 @@ test("URL interpolation and exported links refuse data:text/html, javascript: an
   assert.equal(interpolateUrl("{u}", { u: "https://example.com/a" }), "https://example.com/a");
   assert.equal(interpolateUrl("{u}", { u: "data:image/png;base64,AAAA" }), "data:image/png;base64,AAAA");
 
-  // 「\」・制御文字はパスまでの中では拒み、クエリ・フラグメントの中はそのまま通す（生成サイトのランタイムも同じ）
+  // 「\」と制御文字は、パスまでの部分では拒否し、クエリやフラグメントの中ではそのまま通す（生成したサイトのランタイムも同じ）
   const { safeNavigationUrl, NAVIGATION_RUNTIME } = await import("../lib/url-policy");
   const runtime = new Function(`${NAVIGATION_RUNTIME}\nreturn safeNavigationUrl;`)() as (u: string) => string;
   for (const [url, expected] of [
@@ -314,7 +314,7 @@ test("URL interpolation and exported links refuse data:text/html, javascript: an
     assert.equal(runtime(url), expected, url);
   }
 
-  // 要素のリンクに javascript: や data: が入っていても書き出しコードでは # に無害化される
+  // 要素のリンクに javascript: や data: が入っていても、書き出したコードでは # に無害化される
   const linkNode = {
     ...makeBox(),
     id: "l1",
@@ -348,7 +348,7 @@ test("SSRF guards block multi-dot internal hosts, [slug] dynamic origins, and pr
   assert.equal(dynamicOrigin("https://expected.com@[slug]/api"), true);
   assert.equal(dynamicOrigin("https://api.example.com/[slug]"), false);
 
-  // 書き出したサイトも同じ assertPublicUrl（lib/safe-fetch.ts の写し）で宛先を確かめる
+  // 書き出したサイトも、同じ assertPublicUrl（lib/safe-fetch.ts の写し）で宛先を確かめる
   for (const blocked of [
     "http://localhost./",
     "http://localhost../",
@@ -402,14 +402,14 @@ test("clipboard assets and exported asset names refuse HTML files and style tag 
   });
   assert.deepEqual(Object.keys(doc.assets), ["goodPng"]);
 
-  // 万一 doc.assets に .html 名のアセットが入っていても公開ファイル名に .html を使わない
+  // 万一 doc.assets に .html の名前のアセットが入っていても、公開するファイル名に .html を使わない
   const names = buildAssetNames({
     ...doc,
     assets: { x: { id: "x", name: "page.html", mimeType: "image/png", dataUrl: "data:image/png;base64,AAAA", width: 1, height: 1 } },
   } as never);
   assert.equal(names.get("x"), "page.png");
 
-  // bodyStyles や htmlBackground に </style> が含まれても <style> タグを脱出できない
+  // bodyStyles や htmlBackground に </style> が含まれても、<style> タグから抜け出せない
   const rawOut = rawHtmlWithBodyStyles(doc as never, doc.pages.p as never, "<head></head><body></body>", new Map());
   assert.doesNotMatch(rawOut, /<\/style><script>/);
   const previewOut = previewHtmlWithBodyStyles(

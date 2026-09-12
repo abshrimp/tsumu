@@ -38,7 +38,7 @@ function assertCopied(doc: SiteDoc) {
 
 test("page copy retains ZIP module siblings and resource paths referenced only inside script bytes", () => {
   const { doc, code } = fixture();
-  // ページ設定内のモジュールも、要素のコピーと同じ依存関係を保持する。
+  // ページの設定の中のモジュールも、要素のコピーと同じ依存関係を保つ。
   doc.pages[doc.pageOrder[0]].customEndHtml = code.code!.html;
   doc.pages[doc.pageOrder[0]].children = [];
   delete doc.nodes[code.id];
@@ -105,7 +105,7 @@ test("ZIP module dependencies sharing bytes at different relative paths retain b
   for (const a of [doc.assets.picture, doc.assets.alias]) {
     assert.equal(project.remoteAssets[importedAssetPath(a)!], a.path);
   }
-  // 同じ ZIP の同じ場所なら再度貼り付けてもアセットを増やさない。
+  // 同じ ZIP の同じ場所のものなら、もう一度貼り付けても、アセットを増やさない。
   const before = structuredClone(target.assets);
   assert.equal(mergeClipDeps(target, payload).assetIds.size, 0);
   assert.deepEqual(target.assets, before);
@@ -146,7 +146,7 @@ test("copied raw ZIP pages keep their archive paths and remap destination asset 
   assert.equal(copied.rawHtml, page.rawHtml);
   assert.equal(htmlZipSource(copied.rawHtml!, copied.htmlZip, target.assets, a => a.path!),
     '<img src="assets/picture">');
-  // A second copy reuses the destination ID assigned on the first transfer.
+  // 2回目のコピーでは、最初の転送で割り当てたコピー先の ID を使い回す。
   const assets = structuredClone(target.assets);
   applyPagePayload(target, payload);
   assert.deepEqual(target.assets, assets);

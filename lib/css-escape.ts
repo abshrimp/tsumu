@@ -1,4 +1,4 @@
-/** Decode CSS escapes without parsing or loading the editor UI. */
+/** エディタの画面を読み込まずに、CSS のエスケープをデコードする。 */
 export function decodeCssEscapes(css: string): string {
   return css.replace(/\\([0-9a-f]{1,6}(?:\r\n|[\t\n\f\r ])?|\r\n|[\s\S])/gi, (_, value: string) => {
     if (/^[0-9a-f]/i.test(value)) {

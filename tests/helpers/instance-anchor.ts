@@ -23,7 +23,7 @@ export function anchorFixture(): SiteDoc {
   };
 }
 
-/** ソースの文字列比較だけでなく、生成したReactコンポーネントを実行する。 */
+/** ソースの文字列を比べるだけでなく、生成した React のコンポーネントを実行する。 */
 export function renderAnchorExport(doc: SiteDoc) {
   const { files } = generateProject(doc);
   const cache = new Map<string, any>();

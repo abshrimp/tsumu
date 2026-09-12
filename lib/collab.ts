@@ -83,8 +83,8 @@ export function collabRoomAvailable(): boolean {
 
 /**
  * 編集データの保存（Cloudflare は DocumentRoom、Node.js・Docker は SQLite）が完了したことを、
- * 接続中の共同編集クライアントへ通知する。
- * WebSocket/DOが未設定でも保存自体は成功させる。
+ * 接続中の共同編集のクライアントへ通知する。
+ * WebSocket や Durable Object が未設定でも、保存自体は成功させる。
  * Durable Object の無い環境（Node.js・Docker・next dev）では、同じプロセスの
  * /api/collab/events の接続へ届ける（lib/collab-events.ts）
  */
@@ -98,7 +98,7 @@ export function notifyDocUpdated(siteId: string, message: DocChangeMessage, room
       | undefined;
     if (!namespace || !roomKey) return;
 
-    // A collaboration room is scoped to one creation of a site ID.
+    // 同時編集の部屋は、サイト ID の1回の作成ごとに分かれる。
     const stub = namespace.get(namespace.idFromName(roomKey));
     const notification = stub
       .fetch("https://collab.internal/broadcast", {
@@ -111,6 +111,6 @@ export function notifyDocUpdated(siteId: string, message: DocChangeMessage, room
 
     cloudflare.ctx.waitUntil(notification);
   } catch {
-    // next devやDO未設定時は、/api/collab/events（無ければポーリング）で届ける
+    // next dev や Durable Object が未設定のときは、/api/collab/events（無ければポーリング）で届ける
   }
 }

@@ -14,17 +14,17 @@ import { isBreakpointId } from "./breakpoint-id";
 
 export interface BpInfo {
   label: string;
-  /** ヘッダーの切替ボタンに出す短い名前 */
+  /** ヘッダーの切り替えボタンに表示する短い名前 */
   short: string;
-  /** 切り替えたときのキャンバス幅（パソコンは表示幅、ほかは区切りの幅 maxWidth ちょうど） */
+  /** 切り替えたときのキャンバスの幅（パソコンは表示幅、他は区切りの幅 maxWidth ちょうど） */
   width: number;
   /** この幅以下の画面に効く（CSS のメディアクエリの区切り） */
   maxWidth: number | null;
-  /** この表示で編集したときに反映される範囲（初心者向けの説明） */
+  /** この表示で編集したときに反映される範囲（初めての人向けの説明） */
   scope: string;
 }
 
-/** 既定のブレークポイント（サイト設定で未設定のとき）。名前は保存される値なので日本語のまま持ち、表示するときに訳す */
+/** 既定のブレークポイント（サイトの設定で未設定のとき）。名前は保存される値なので日本語のまま持ち、表示するときに訳す */
 export const DEFAULT_BREAKPOINTS: BreakpointDef[] = [
   { id: "lg", label: "タブレット", maxWidth: 1024 },
   { id: "md", label: "スマホ横向き", maxWidth: 767 },
@@ -33,7 +33,7 @@ export const DEFAULT_BREAKPOINTS: BreakpointDef[] = [
 export const DEFAULT_BASE_WIDTH = 1280;
 /** 追加できるブレークポイントの数 */
 export const MAX_BREAKPOINTS = 6;
-/** Default persisted breakpoint names are data, so translate their labels at display time. */
+/** 既定のブレークポイントの名前は保存されるデータなので、表示するときに訳す。 */
 function breakpointLabel(label: string): string {
   switch (label) {
     case "タブレット": return tr("Tablet");
@@ -44,13 +44,13 @@ function breakpointLabel(label: string): string {
 }
 
 /**
- * 表示中のブレークポイントの並び（"base" が先頭、あとは幅の大きい順）と、その情報。
- * サイトの設定に合わせて applyBreakpoints が中身を書き換える
+ * 表示中のブレークポイントの並び（"base" が先頭、その後は幅の大きい順）と、その情報。
+ * サイトの設定に合わせて、applyBreakpoints が中身を書き換える
  */
 export const BP_ORDER: Breakpoint[] = [];
 export const BP_INFO: Record<Breakpoint, BpInfo> = {};
 
-/** 設定値を、幅の大きい順・重ならない幅・重複の無いIDにそろえる */
+/** 設定の値を、幅の大きい順で、幅が重ならず、ID が重複しないようにそろえる */
 export function normalizeBreakpoints(raw: unknown): BreakpointDef[] {
   let list: BreakpointDef[];
   if (Array.isArray(raw)) {
@@ -92,13 +92,13 @@ export const DEVICE_WIDTHS: { width: number; label: string }[] = [
   { width: 1920, label: tr("Large desktop") },
 ];
 
-/** パソコン表示のキャンバス幅（いちばん大きいブレークポイントより広くする） */
+/** パソコン表示のキャンバスの幅（いちばん大きいブレークポイントより広くする） */
 export function normalizeBaseWidth(raw: unknown, list: BreakpointDef[]): number {
   const v = Math.round(Number(raw)) || DEFAULT_BASE_WIDTH;
   return Math.max((list[0]?.maxWidth ?? 0) + 1, Math.min(3000, v));
 }
 
-/** ブレークポイントの絵柄（幅から選ぶ） */
+/** ブレークポイントのアイコン（幅から選ぶ） */
 export function bpIconKind(bp: Breakpoint): "monitor" | "tablet" | "mobileL" | "mobile" {
   if (bp === "base") return "monitor";
   const w = BP_INFO[bp]?.maxWidth ?? 0;
@@ -107,7 +107,7 @@ export function bpIconKind(bp: Breakpoint): "monitor" | "tablet" | "mobileL" | "
 
 /**
  * サイトのブレークポイントを反映する（BP_ORDER / BP_INFO を書き換える）。
- * エディタはドキュメントが変わるたび、書き出しは生成の最初に呼ぶ
+ * エディタは文書が変わるたびに、書き出しは生成の最初に呼ぶ
  */
 export function applyBreakpoints(cfg: { breakpoints?: unknown; baseWidth?: unknown } | undefined) {
   const list = normalizeBreakpoints(cfg?.breakpoints);
@@ -126,7 +126,7 @@ export function applyBreakpoints(cfg: { breakpoints?: unknown; baseWidth?: unkno
     BP_INFO[b.id] = {
       label: breakpointLabel(b.label),
       short: breakpointLabel(b.label),
-      // 区切りの幅ちょうどで見せる（その画面用のスタイルが効くいちばん広い幅。崩れやすい幅を確かめられる）
+      // 区切りの幅ちょうどで表示する（その画面用のスタイルが効く、いちばん広い幅。崩れやすい幅を確かめられる）
       width: b.maxWidth,
       maxWidth: b.maxWidth,
       scope: smaller
@@ -136,10 +136,10 @@ export function applyBreakpoints(cfg: { breakpoints?: unknown; baseWidth?: unkno
   });
 }
 
-// 読み込んだ時点では既定のブレークポイント
+// 読み込んだ時点では、既定のブレークポイントを使う
 applyBreakpoints(undefined);
 
-/** 画面幅から、その幅で編集するブレークポイント（その幅を含むいちばん小さいもの） */
+/** 画面幅から、その幅で編集するブレークポイントを選ぶ（その幅を含む、いちばん小さいもの） */
 export function breakpointForWidth(width: number): Breakpoint {
   for (let i = BP_ORDER.length - 1; i > 0; i--) {
     const bp = BP_ORDER[i];
@@ -162,14 +162,14 @@ export function styleStateLabel(state: StyleState): string {
   return STATE_INFO[state as keyof typeof STATE_INFO].label;
 }
 
-/** 指定ブレークポイントまでのカスケードチェーン（base → bp） */
+/** 指定したブレークポイントまでのカスケードの連鎖（base → bp） */
 export function bpChain(bp: Breakpoint): Breakpoint[] {
   return BP_ORDER.slice(0, BP_ORDER.indexOf(bp) + 1);
 }
 
 /**
- * キャンバス表示用にスタイルを解決する。
- * default をカスケードで合成し、state 指定時はその state を上に重ねる。
+ * キャンバスに表示するためにスタイルを解決する。
+ * default をカスケードで合成し、state を指定したときは、その state を上に重ねる。
  */
 export function resolveStyleMap(
   styles: NodeStyles | undefined,
@@ -178,8 +178,8 @@ export function resolveStyleMap(
 ): StyleMap {
   const out: StyleMap = {};
   const chain = bpChain(bp);
-  // 後から効く値をキーの並びでも後ろに置く（キャンバスのインライン style は並び順に当てるため、
-  // 大きい画面の padding-top → 小さい画面の padding → さらに小さい画面の padding-top が CSS と同じに効く）
+  // 後から効く値は、キーの並びでも後ろに置く（キャンバスのインラインの style は並び順に適用されるため、
+  // 大きい画面の padding-top → 小さい画面の padding → さらに小さい画面の padding-top が、CSS と同じように効く）
   const put = (map: StyleMap | undefined) => {
     for (const [k, v] of Object.entries(map ?? {})) {
       delete out[k];
@@ -193,7 +193,7 @@ export function resolveStyleMap(
   return out;
 }
 
-/** 実効値がカスケードのどの段から来ているか（大きいほど後。未設定は -1）。まとめ指定と個別指定の優先を決めるのに使う */
+/** 実効値がカスケードのどの段から来ているか（大きいほど後。未設定は -1）。一括指定と個別の指定の優先を決めるのに使う */
 function cascadeLayer(
   styles: NodeStyles | undefined,
   bp: Breakpoint,
@@ -226,8 +226,8 @@ export function bpRangeQuery(bp: Breakpoint): string {
   const i = BP_ORDER.indexOf(bp);
   const max = BP_INFO[bp].maxWidth;
   const smaller = BP_ORDER[i + 1];
-  // 下の範囲は「max-width: Npx」まで。拡大縮小で画面幅が N.5px のような小数になっても
-  // どちらかの範囲に入るよう、N+1 ではなく N をわずかに超えたところから始める
+  // 下の範囲は「max-width: Npx」まで。拡大・縮小で画面幅が N.5px のような小数になっても
+  // どちらかの範囲に入るよう、N+1 ではなく、N をわずかに超えたところから始める
   const min = smaller ? BP_INFO[smaller].maxWidth! + 0.02 : null;
   return [
     min !== null ? `(min-width: ${min}px)` : "",
@@ -237,14 +237,14 @@ export function bpRangeQuery(bp: Breakpoint): string {
     .join(" and ");
 }
 
-/** 指定デバイスで非表示になっているか */
+/** 指定したデバイスで非表示になっているか */
 export function isHiddenAt(node: DocNode, bp: Breakpoint): boolean {
   return !!node.hiddenOn?.includes(bp);
 }
 
 /**
- * デバイス別の表示を切り替えたあとの hiddenOn を返す（空なら undefined）。
- * andSmaller のときは、スタイル編集と同じく小さい画面にも同じ設定を広げる
+ * デバイスごとの表示を切り替えた後の hiddenOn を返す（空なら undefined）。
+ * andSmaller のときは、スタイルの編集と同じく、小さい画面にも同じ設定を広げる
  */
 export function nextHiddenOn(
   node: DocNode,
@@ -259,7 +259,7 @@ export function nextHiddenOn(
   return out.length ? out : undefined;
 }
 
-/** 表示切替ボタン・メニューの文言（表示中のデバイスに合わせる） */
+/** 表示を切り替えるボタンとメニューの文言（表示中のデバイスに合わせる） */
 export function hideToggleLabel(hiddenHere: boolean, bp: Breakpoint): string {
   if (bp === "base") return hiddenHere ? tr("Show", "show_variant_2") : tr("Hide", "hide_variant_2");
   const name = BP_INFO[bp].label;
@@ -267,15 +267,15 @@ export function hideToggleLabel(hiddenHere: boolean, bp: Breakpoint): string {
 }
 
 /**
- * 表示切替で「表示」に戻すときの display 値。
- * いずれかのブレークポイントの既定スタイルから none 以外を探す
+ * 表示の切り替えで「表示」に戻すときの display の値。
+ * どれかのブレークポイントの既定のスタイルから、none 以外の値を探す
  */
 export function toggleShowDisplay(node: DocNode): string {
   for (const bp of BP_ORDER) {
     const d = node.styles[bp]?.default?.display;
     if (d && d !== "none") return d;
   }
-  // none しか無い場合はレイアウト系プロパティから推測する
+  // none しか無い場合は、レイアウトに関わるプロパティから推測する
   for (const bp of BP_ORDER) {
     const m = node.styles[bp]?.default;
     if (!m) continue;
@@ -288,8 +288,8 @@ export function toggleShowDisplay(node: DocNode): string {
 }
 
 /**
- * テキスト選択（::selection）用の仮想プロパティを map から取り出す。
- * 取り出したプロパティは map から削除される
+ * テキストの選択（::selection）用の仮想のプロパティを、map から取り出す。
+ * 取り出したプロパティは、map から削除される
  */
 export function extractSelectionStyles(map: StyleMap): StyleMap | null {
   const out: StyleMap = {};
@@ -304,23 +304,23 @@ export function extractSelectionStyles(map: StyleMap): StyleMap | null {
   return Object.keys(out).length ? out : null;
 }
 
-/** プレースホルダーのセレクタ（要素自身と、中にある入力欄） */
+/** プレースホルダーのセレクター（要素自身と、中にある入力欄） */
 export function placeholderSelector(sel: string): string {
   return `${sel}::placeholder, ${sel} ::placeholder`;
 }
 
-/** 入力欄の一部（疑似要素）に当てる仮想プロパティ → 実際のプロパティ */
+/** 入力欄の一部（疑似要素）に適用する仮想のプロパティ → 実際のプロパティ */
 const PART_PROPS: {
   selector: (sel: string) => string;
   props: Record<string, string>;
-  /** 一緒に入れる宣言（設定したプロパティの名前 → 宣言） */
+  /** 一緒に加える宣言（設定したプロパティの名前 → 宣言） */
   extra?: Record<string, StyleMap>;
 }[] = [
   { selector: placeholderSelector, props: { placeholderColor: "color" }, extra: { placeholderColor: { opacity: "1" } } },
   {
     selector: (sel) => `${sel}::file-selector-button, ${sel} ::file-selector-button`,
     props: { fileButtonBackground: "backgroundColor", fileButtonColor: "color", fileButtonRadius: "borderRadius" },
-    // 背景色を付けたら、ブラウザ標準の枠を消して押しやすい余白にする
+    // 背景色を付けたら、ブラウザの標準の枠を消し、押しやすい余白にする
     extra: { fileButtonBackground: { border: "none", padding: "6px 12px", cursor: "pointer" } },
   },
   {
@@ -331,8 +331,8 @@ const PART_PROPS: {
 ];
 
 /**
- * 入力欄の一部（::placeholder・::file-selector-button）に当てる仮想プロパティを map から取り出し、
- * 当てる先ごとにまとめて返す（取り出したプロパティは map から削除される）
+ * 入力欄の一部（::placeholder・::file-selector-button）に適用する仮想のプロパティを map から取り出し、
+ * 適用する先ごとにまとめて返す（取り出したプロパティは、map から削除される）
  */
 export function extractPartStyles(map: StyleMap): { selector: (sel: string) => string; map: StyleMap }[] {
   const out: { selector: (sel: string) => string; map: StyleMap }[] = [];
@@ -350,33 +350,33 @@ export function extractPartStyles(map: StyleMap): { selector: (sel: string) => s
 }
 
 export interface PropInfo {
-  /** カスケード解決後の実効値 */
+  /** カスケードを解決した後の実効値 */
   value: string | undefined;
   /** 現在の (bp, state) に直接設定されているか */
   setHere: boolean;
   /**
    * 変更済みとして色を付けるか（setHere で、かつ比べる相手と値が違う）。
-   * パソコンの既定 = 既定値と、他の画面幅 = 1つ大きい画面幅の値と、ホバー等 = 通常時の値と比べる
+   * パソコンの既定は既定値と、他の画面幅は1つ大きい画面幅の値と、ホバーなどは通常時の値と比べる
    */
   changed: boolean;
   /**
-   * 比べる相手の値（ホバー等 = 通常時、他の画面幅 = 1つ大きい画面幅で効いている値）。
+   * 比べる相手の値（ホバーなどは通常時の値、他の画面幅は1つ大きい画面幅で効いている値）。
    * パソコンの既定では undefined
    */
   baseline: string | undefined;
-  /** どこかで（継承含め）設定されているか */
+  /** どこかで（継承を含めて）設定されているか */
   set: boolean;
   /** 実効値がカスケードのどの段から来ているか（大きいほど後。未設定は -1） */
   layer: number;
   /**
-   * ここで設定しなかったときに効く値（上位の設定）。比べる相手の値・要素の既定値・
-   * 親で効いている値（受け継ぐプロパティ）・CSS の初期値の順に決める（分からなければ undefined）。
+   * ここで設定しなかったときに効く値（上位の設定）。比べる相手の値、要素の既定値、
+   * 親で効いている値（受け継ぐプロパティ）、CSS の初期値の順に決める（分からなければ undefined）。
    * 欄の表示の状態（自動 / カスタムなど）が上位と違うかを比べるのに使う
    */
   reference: string | undefined;
 }
 
-/** スタイルパネル用：1プロパティの実効値と設定状態を返す */
+/** スタイルのパネル用: 1つのプロパティの実効値と、設定の状態を返す */
 export function getProp(
   node: DocNode,
   bp: Breakpoint,
@@ -417,16 +417,16 @@ function referenceValue(
   return initialValueOf(prop);
 }
 
-/** 2つの値が同じか（"0px" と "0"、空白・大文字の違いは同じとみなす。両方未設定も同じ） */
+/** 2つの値が同じか（"0px" と "0"、空白や大文字の違いは同じとみなす。両方とも未設定の場合も同じ） */
 export function sameValue(a: string | undefined, b: string | undefined): boolean {
   if (a === undefined || b === undefined) return a === b;
   return normValue(a) === normValue(b);
 }
 
 /**
- * 欄を空にしたときに書き込む値。パソコン幅以外の通常時は、消すと大きい画面の値が出てくるため、
- * 大きい画面で初期値以外が効いているときだけ CSS の初期値で上書きする（null = 設定を消す）。
- * ホバー等は消せば通常時の値に戻るので、常に消す
+ * 欄を空にしたときに書き込む値。パソコン以外の幅の通常時は、消すと大きい画面の値が効くため、
+ * 大きい画面で初期値以外が効いているときだけ、CSS の初期値で上書きする（null = 設定を消す）。
+ * ホバーなどは、消せば通常時の値に戻るため、常に消す
  */
 export function clearedValue(
   node: DocNode,
@@ -440,14 +440,14 @@ export function clearedValue(
   return initialValueOf(prop) ?? null;
 }
 
-/** 比べるための正規化（"0px" と "0"、空白・大文字の違いなど） */
+/** 比べるための正規化（"0px" と "0"、空白や大文字の違いなど） */
 function normValue(v: string): string {
   const t = v.trim().toLowerCase().replace(/\s+/g, " ");
   if (/^-?0*\.?0+(px|em|rem|%|deg|vw|vh|s|ms)?$/.test(t)) return "0";
   return t;
 }
 
-/** CSS の初期値（何も設定しないときの値）。複数あるものはどれでも既定とみなす */
+/** CSS の初期値（何も設定しないときの値）。複数あるものは、どれでも既定とみなす */
 const INITIAL_VALUES: Record<string, string[]> = {
   padding: ["0"], paddingTop: ["0"], paddingRight: ["0"], paddingBottom: ["0"], paddingLeft: ["0"],
   margin: ["0"], marginTop: ["0"], marginRight: ["0"], marginBottom: ["0"], marginLeft: ["0"],
@@ -466,7 +466,7 @@ const INITIAL_VALUES: Record<string, string[]> = {
   WebkitBoxOrient: ["horizontal"],
   position: ["static"],
   zIndex: ["auto"],
-  // 「カスタム」「追従」を選んだときに入る 0 も既定とみなす（位置の切り替え自体は position で分かる）
+  // 「カスタム」「追従」を選んだときに入る 0 も、既定とみなす（位置の切り替えそのものは position で分かる）
   top: ["auto", "0"], right: ["auto", "0"], bottom: ["auto", "0"], left: ["auto", "0"],
   width: ["auto"], height: ["auto"],
   minWidth: ["auto", "0"], minHeight: ["auto", "0"],
@@ -518,7 +518,7 @@ export function initialValueOf(prop: string): string | undefined {
   return INITIAL_VALUES[prop]?.[0];
 }
 
-/** 値が未設定か CSS の初期値と同じか（隠れた設定に値が入っているかの判定に使う） */
+/** 値が未設定か、CSS の初期値と同じか（隠れた設定に値が入っているかの判定に使う） */
 export function isInitialValue(prop: string, value: string | undefined): boolean {
   if (value === undefined) return true;
   const initial = INITIAL_VALUES[prop];
@@ -540,10 +540,10 @@ function baselineValue(
   state: StyleState,
   prop: string
 ): string | undefined {
-  // ホバー等は、同じ画面幅の通常時の値と比べる
+  // ホバーなどは、同じ画面幅の通常時の値と比べる
   if (state !== "default") return resolveStyles(node, bp, "default")[prop];
   if (bp === "base") return undefined;
-  // 画面幅別は、1つ大きい画面幅で効いている値と比べる（パソコンと同じなら色を付けない）
+  // 画面幅ごとの値は、1つ大きい画面幅で効いている値と比べる（パソコンと同じなら色を付けない）
   const larger = BP_ORDER[BP_ORDER.indexOf(bp) - 1] ?? "base";
   return resolveStyles(node, larger, "default")[prop];
 }
@@ -562,7 +562,7 @@ export function isChangedValue(
   if (baseline !== undefined) return normValue(baseline) !== v;
   const preset = presetDefault(node, prop);
   if (preset !== undefined) return normValue(preset) !== v;
-  // 親から受け継ぐプロパティは、親で効いている値と比べる（初期値でも親と違えば変更）
+  // 親から受け継ぐプロパティは、親で効いている値と比べる（初期値でも、親と違えば変更とみなす）
   if (INHERITED_PROPS.has(prop)) {
     const inherited = parentValue?.(prop);
     if (inherited !== undefined) return normValue(inherited) !== v;
@@ -581,7 +581,7 @@ export function parseNumeric(
   return { num: parseFloat(m[1]), unit: m[2] || "" };
 }
 
-/** 括弧の中を無視してトップレベルのカンマで分割（box-shadow等） */
+/** かっこの中を無視して、最も外側のコンマで分割する（box-shadow など） */
 export function splitTopLevel(value: string): string[] {
   const parts: string[] = [];
   let depth = 0;
@@ -600,7 +600,7 @@ export function splitTopLevel(value: string): string[] {
   return parts;
 }
 
-/** transform の分解（位置・エフェクトパネル用）。移動は単位付きの文字（"12px" / "50%"） */
+/** transform を分解したもの（位置とエフェクトのパネル用）。移動は単位付きの文字（"12px" / "50%"） */
 export interface TransformParts {
   x: string;
   y: string;
@@ -612,7 +612,7 @@ export interface TransformParts {
   skewX: number;
   /** deg */
   skewY: number;
-  /** 読み取れなかった関数（matrix・3D など）。書き直してもそのまま残す */
+  /** 読み取れなかった関数（matrix や 3D など）。書き直してもそのまま残す */
   rest: string;
 }
 
@@ -637,14 +637,14 @@ function toDeg(v: string): number | null {
   return Math.round(deg * 100) / 100;
 }
 
-/** 長さ（px / % / em など。単位の無い 0 は 0px） */
+/** 長さ（px / % / em など。単位の無い 0 は 0px にする） */
 function toLen(v: string): string | null {
   const t = v.trim();
   if (/^-?\d*\.?\d+$/.test(t)) return parseFloat(t) === 0 ? "0px" : null;
   return /^-?\d*\.?\d+(px|%|em|rem|vw|vh)$/i.test(t) ? t : null;
 }
 
-/** CSS scale accepts numbers and percentages (100% = 1), never lengths. */
+/** CSS の scale は、数値と百分率（100% = 1）を受け付け、長さは受け付けない。 */
 function toScale(v: string): number | null {
   const m = /^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(%)?$/i.exec(v.trim());
   if (!m) return null;
@@ -742,21 +742,21 @@ export function serializeTransform(p: TransformParts): string | null {
   return parts.length ? parts.join(" ") : null;
 }
 
-/** filter プロパティの分解（エフェクトパネル用）。値は既定値なら出力しない */
+/** filter プロパティを分解したもの（エフェクトのパネル用）。既定値の項目は出力しない */
 export interface FilterParts {
   /** px */
   blur: number;
-  /** %（既定 100） */
+  /** %（既定は 100） */
   brightness: number;
-  /** %（既定 100） */
+  /** %（既定は 100） */
   contrast: number;
-  /** %（既定 100） */
+  /** %（既定は 100） */
   saturate: number;
-  /** %（既定 0） */
+  /** %（既定は 0） */
   grayscale: number;
-  /** %（既定 0） */
+  /** %（既定は 0） */
   sepia: number;
-  /** deg（既定 0） */
+  /** deg（既定は 0） */
   hueRotate: number;
 }
 
@@ -780,7 +780,7 @@ export function parseFilter(value: string | undefined): FilterParts {
     return m ? parseFloat(m[1]) : undefined;
   };
   out.blur = num("blur", /blur\(\s*(-?\d*\.?\d+)px\s*\)/i) ?? out.blur;
-  // These CSS filters accept either a number (1 = 100%) or a percentage.
+  // これらの CSS のフィルターは、数値（1 = 100%）と百分率のどちらも受け付ける。
   const strength = (name: string): number | undefined => {
     const m = new RegExp(`${name}\\(\\s*([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[-+]?\\d+)?)(%)?\\s*\\)`, "i").exec(first(name));
     if (!m) return undefined;
@@ -808,7 +808,7 @@ export function serializeFilter(p: FilterParts): string | null {
   return parts.length ? parts.join(" ") : null;
 }
 
-/** エディタ内蔵フォント。google が真なら next/font 経由で出力 */
+/** エディタに組み込みのフォント。google が true なら、next/font を通して出力する */
 export const FONTS: {
   label: string;
   value: string;
@@ -856,19 +856,19 @@ export interface FontOption {
   google?: { importName: string; cssVar: string; weights?: string[] };
 }
 
-/** ファミリー名から next/font 用メタデータを導出 */
+/** ファミリー名から、next/font 用のメタデータを導く */
 export function googleFontMeta(
   font: CustomFont
 ): NonNullable<FontOption["google"]> {
   return {
     importName: font.family.replace(/\s+/g, "_"),
     cssVar: `--font-${font.family.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")}`,
-    // 可変フォントは next/font で weight 指定不要
+    // 可変フォントでは、next/font で weight を指定しなくてよい
     weights: font.weights === "variable" ? undefined : font.weights,
   };
 }
 
-/** 内蔵フォント + docに追加されたカスタムGoogle Fonts */
+/** 組み込みのフォントと、文書に追加したカスタムの Google Fonts */
 export function allFonts(customFonts: CustomFont[] | undefined): FontOption[] {
   const custom = (customFonts ?? [])
     .filter((f) => !FONTS.some((b) => b.value === f.family))
@@ -880,7 +880,7 @@ export function allFonts(customFonts: CustomFont[] | undefined): FontOption[] {
   return [...FONTS, ...custom];
 }
 
-/** css2 URL のfamilyトークン（プレビュー読み込み用） */
+/** css2 の URL の family のトークン（プレビューでの読み込み用） */
 export function css2FamilyToken(font: CustomFont): string {
   const name = encodeURIComponent(font.family).replace(/%20/g, "+");
   if (font.weights === "variable") return `family=${name}:wght@100..900`;
@@ -890,5 +890,5 @@ export function css2FamilyToken(font: CustomFont): string {
   return `family=${name}:wght@${font.weights.join(";")}`;
 }
 
-/** モーションのイージングのプリセット（右パネルのドロップダウン。編集画面と同じ一覧） */
+/** モーションのイージングのプリセット（右のパネルのドロップダウン。編集画面と同じ一覧） */
 export const EASINGS: { label: string; value: string }[] = EASING_PRESETS.map(({ label, value }) => ({ label, value }));

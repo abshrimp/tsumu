@@ -1,9 +1,9 @@
-// Limit the entire multipart stream before the platform builds its FormData.
-// A file-size check alone cannot bound other fields or a chunked request.
+// プラットフォームが FormData を組み立てる前に、multipart のストリーム全体に上限をかける。
+// ファイルの大きさを確かめるだけでは、他の項目や chunked のリクエストを抑えられない。
 export async function readAssetForm(req: Request, maxBytes: number): Promise<FormData | null> {
   if (Number(req.headers.get("content-length")) > maxBytes) {
-    // A cloned request cannot finish cancellation until its other branch ends.
-    // Stop receiving this branch without holding the oversized-upload response.
+    // 複製したリクエストは、もう一方の分岐が終わるまで取り消しを完了できない。
+    // 大きすぎるアップロードへの応答を止めたままにせず、こちらの受信だけを止める。
     void req.body?.cancel().catch(() => {});
     throw new RangeError("Upload too large");
   }

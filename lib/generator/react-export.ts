@@ -16,21 +16,21 @@ const esc = (value: string) =>
   value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);
 
 /**
- * Adapt only synchronous Next.js-generated JSX. Server components and advanced
- * routing are explicitly rejected by exportLimitations before calling this.
+ * 同期的に動く、Next.js 向けに生成した JSX だけを変換する。サーバーコンポーネントや高度な
+ * ルーティングは、この関数を呼ぶ前に exportLimitations が明示的に拒否する。
  */
 export function reactSource(source: string): string {
-  // Generated declarations start on LF-delimited lines; authored strings use
-  // JSON/JSX escaping. Do not interpret text inside those strings as source
-  // (including literal Unicode line separators, which /m also treats as lines).
+  // 生成した宣言は LF で区切った行から始まり、書かれた文字列は JSON や JSX の形でエスケープされている。
+  // その文字列の中のテキストを、ソースとして解釈してはいけない（/m が行として扱う
+  // Unicode の行区切りの文字そのものも含む）。
   const result = source
     .replace(/(^|\n)import type \{ Metadata \} from "next";\r?\n/g, "$1")
     .replace(/(^|\n)export const metadata: Metadata = \{[\s\S]*?\n\};[ \t\r\n]*/g, "$1")
     .replace(/(^|\n)import (?:Link|Image) from "next\/(?:link|image)";(?=\r?\n|$)/g, "$1")
     .replace(/(^|\n)export default async function Page\([\s\S]*?\)\s*\{/g, "$1export default function Page() {")
     .replace(/(^|\n)([ \t]*)const sp = await searchParams;/g, "$1$2const sp = Object.fromEntries(new URLSearchParams(window.location.search));")
-    // Skip generated string literals and comments when adapting inline JSX.
-    // Raw HTML and text examples can contain the very same tag spellings.
+    // インラインの JSX を変換するときは、生成した文字列リテラルとコメントを飛ばす。
+    // 生の HTML やテキストの例には、まったく同じタグの綴りが含まれることがある。
     .replace(/"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`|\/\/[^\r\n]*|\/\*[\s\S]*?\*\/|<(\/?)(Link|Image)(?=[\s/>])/g,
       (whole, closing: string | undefined, tag: string | undefined) =>
         tag ? "<" + closing + (tag === "Link" ? "a" : "img") : whole)
@@ -116,8 +116,8 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
 
   const loading = Boolean(files["src/components/SiteLoadingScreen.tsx"]);
   if (loading) imports.push('import SiteLoadingScreen from "./components/SiteLoadingScreen";');
-  // A browser runtime is installed after the initial React mount so the
-  // script DOM queries see actual elements.
+  // スクリプトの DOM の検索が実際の要素を見つけられるよう、ブラウザのランタイムは
+  // React の最初のマウントの後に登録する。
   const scripts = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"].filter((name) => !!files["public/" + name]);
   const app = [
     'import { useEffect, type ComponentType } from "react";',
@@ -198,7 +198,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   const assetNames = buildAssetNames(doc);
   const favicon = imageRefSrc(assetNames, doc.favicon);
   const appleIcon = imageRefSrc(assetNames, doc.appleTouchIcon);
-  // Manifest and SW are public assets in Vite, no Next.js route needed.
+  // Vite ではマニフェストと Service Worker は public のアセットなので、Next.js のルートは不要。
   if (doc.pwa?.enabled) {
     const pwa = doc.pwa;
     const iconRef = [pwa.icon, doc.appleTouchIcon, doc.favicon].find((ref) => imageRefSrc(assetNames, ref));

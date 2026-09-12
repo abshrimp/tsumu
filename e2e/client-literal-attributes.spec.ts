@@ -27,7 +27,7 @@ test(`component literal attributes persist through editor save, preview and expo
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.addScriptTag({ content: await componentListBundle(doc, 'picture') });
-  // Make the change through the real Settings panel.
+  // 変更は、実際の設定のパネルから行う。
   const altInput = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^(代替テキスト|Alt text)$/ }) }).locator('input');
   await expect(altInput).toHaveValue('Before');
   const before = await snapshot(page);

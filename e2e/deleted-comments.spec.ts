@@ -34,7 +34,7 @@ for (const target of ["element", "page"] as const) test(`remote ${target} deleti
   const { site, doc } = await openSite(page);
   const input = detail(page).getByPlaceholder("返信", { exact: true });
   await input.fill("Reply typed before deletion");
-  // Another client writes the real document API. The editor must receive its normal collaboration update.
+  // 別のクライアントが、実際の文書の API に書き込む。エディタは、通常の共同編集の更新として受け取らなければならない。
   const deleted = structuredClone(doc);
   delete deleted.nodes.parent; delete deleted.nodes.target;
   if (target === "page") { delete deleted.pages.p; deleted.pageOrder = ["q"]; }
@@ -44,7 +44,7 @@ for (const target of ["element", "page"] as const) test(`remote ${target} deleti
   await expect(input).toHaveValue("Reply typed before deletion");
   await expect(detail(page).locator(".cm-msg-body")).toHaveText("Original discussion");
   await expect(page.locator(".cm-pin:not(.is-draft)")).toHaveCount(0);
-  // Returning to the list still finds deleted-target comments and retains unfinished replies.
+  // 一覧に戻っても、対象が削除されたコメントが見つかり、書きかけの返信も残っている。
   await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   if (target === "page") {
     await expect(page.locator(".cm-item")).toHaveCount(0);
@@ -94,7 +94,7 @@ test("local subtree delete, undo and redo retain comment identity and do not mis
   await page.locator('[data-tutorial="breakpoint-sm"]').click();
   await expect(detail(page).getByRole("status")).toHaveText("対象の要素はこの画面幅では非表示です。", { timeout: 20_000 });
   await expect(page.locator(".cm-pin:not(.is-draft)")).toHaveCount(0);
-  // A target hidden only at a breakpoint must not be treated as deleted.
+  // あるブレークポイントで非表示になっているだけの対象を、削除されたものとして扱ってはならない。
   await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   await expect(page.locator(".cm-item-meta")).toContainText("この画面幅では非表示");
   await expect(page.locator(".cm-item-place.is-deleted")).toHaveCount(0);

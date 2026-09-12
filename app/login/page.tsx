@@ -10,7 +10,7 @@ export async function generateMetadata() {
   return { title: tr("Sign in | Tsumu") };
 }
 
-/** ログイン画面の左に出す、エディタの画面の見本（飾り） */
+/** ログイン画面の左に表示する、エディタの画面の見本（飾り） */
 function EditorPreview() {
   return (
     <div className="login-mock" aria-hidden>
@@ -70,7 +70,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  // Edge の Cookie 検証と異なり、auth() は現在の許可リストも確認する。
+  // Edge での Cookie の検証と違い、auth() は現在の許可リストも確認する。
   if (authConfigured() && await auth()) redirect("/");
 
   const { error } = await searchParams;

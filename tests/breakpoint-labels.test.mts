@@ -26,8 +26,8 @@ test("translation uses only own entries while retaining dictionary priority and 
 
 for (const lang of ["ja", "en"]) {
   test(`${lang}: custom breakpoint labels remain renderable after editing and document reload`, () => {
-    // Locale detection and translated constants run at module initialization.
-    // Use a fresh process for each supported editor language, as a reload does.
+    // 言語の判定と、翻訳した定数は、モジュールの初期化のときに決まる。
+    // 再読み込みと同じく、対応するエディタの言語ごとに、新しいプロセスを使う。
     const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `
       import assert from "node:assert/strict";
       import { createElement } from "react";

@@ -14,8 +14,8 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     ? { title: "スクリプト", search: "操作を探す", clear: "検索をクリア", empty: "一致する操作がありません" }
     : { title: "Scripts", search: "Find an action", clear: "Clear search", empty: "No matching actions" };
   test.beforeEach(async ({ page }) => {
-    // Locale loading writes its cookie, so use an intercepted origin instead
-    // of about:blank. No application server or external request is needed.
+    // 言語の読み込みはクッキーを書くため、about:blank ではなく、横取りしたオリジンを使う。
+    // アプリのサーバーも、外部へのリクエストも必要ない。
     await page.route("http://script-keyboard.test/", (route) => route.fulfill({
       contentType: "text/html", body: '<html><body><div id="app"></div></body></html>',
     }));
@@ -42,11 +42,11 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     await expect(page.getByRole("button", { name: labels.clear })).toHaveCount(0);
     if (selected) await expect(block).toHaveClass(/is-selected/);
     expect(await snapshot(page)).toEqual(before);
-    // Repeated Escape still belongs to the focused search, even when empty.
+    // Escape を続けて押しても、フォーカスのある検索の欄が受け取る（欄が空でも同じ）。
     await search.press("Escape");
     await expect(search).toBeFocused();
     if (selected) await expect(block).toHaveClass(/is-selected/);
-    // The workspace fallback still clears selection before dismissing.
+    // 画面の側の処理でも、閉じる前に選択を解除する。
     await search.blur();
     if (selected) {
       await page.keyboard.press("Escape");
@@ -60,7 +60,7 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     const search = page.getByRole("searchbox", { name: labels.search });
     await search.fill("変換中");
     const before = await snapshot(page);
-    // Synthetic composition flags test routing; OS candidate UI is not emulated.
+    // 作った変換中のフラグで振り分けを試す。OS の候補の画面は再現しない。
     const prevented = await search.evaluate((element, init) => {
       const event = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true, ...init });
       element.dispatchEvent(event);

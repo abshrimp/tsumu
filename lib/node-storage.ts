@@ -1,11 +1,11 @@
 /**
  * Cloudflare の外（Node.js・Docker）で動かすときの保存先。
  * 環境変数 TSUMU_DATA_DIR を指定すると、D1 の代わりに <dir>/tsumu.db（SQLite）を、
- * Workers KV の代わりに <dir>/assets/ を使う。Cloudflare のバインディングがあればそちらを優先する。
+ * Workers KV の代わりに <dir>/assets/ を使う。Cloudflare のバインディングがあれば、そちらを優先する。
  *
- * node:sqlite・node:fs は process.getBuiltinModule で実行時に読み込む。静的に import すると、
+ * node:sqlite と node:fs は、process.getBuiltinModule で実行時に読み込む。静的に import すると、
  * このファイルを含む middleware（Edge）や Cloudflare Workers のビルドが通らないため。
- * node:sqlite は Node.js 22.16 以上が必要。
+ * node:sqlite は、このリポジトリが求める Node.js（26.12.1 以上）で使える。
  */
 
 import type { D1LikeDatabase } from "./db";
@@ -23,7 +23,7 @@ function builtin<T>(id: string): T | null {
   }
 }
 
-/** 保存先のフォルダ（未設定・Node.js 以外なら null） */
+/** 保存先のフォルダ（未設定か、Node.js 以外なら null） */
 export function nodeDataDir(): string | null {
   const dir = globalThis.process?.env?.TSUMU_DATA_DIR;
   return dir ? dir.replace(/\/+$/, "") || "/" : null;
@@ -53,9 +53,9 @@ interface FsSync {
 function runOne(db: SqliteDatabase, sql: string, args: unknown[]) {
   const stmt = db.prepare(sql);
   if (stmt.columns().length) {
-    // RETURNING produces columns too. Execute only once, then read SQLite's
-    // direct change count (like run()). A SELECT leaves changes() unchanged,
-    // so first check whether this statement changed the connection's total.
+    // RETURNING も列を返す。文は1回だけ実行し、その後で SQLite の直接の変更件数を
+    // （run() と同じように）読む。SELECT は changes() を変えないため、まずこの文が
+    // 接続全体の変更件数を変えたかを確かめる。
     const counters = db.prepare("SELECT total_changes() AS total, changes() AS direct");
     const before = counters.all()[0].total;
     const results = stmt.all(...args);
@@ -98,7 +98,7 @@ const cache = globalThis as typeof globalThis & {
   __tsumuAssets?: { dir: string; store: KVLikeNamespace };
 };
 
-/** SQLite のデータベース（TSUMU_DATA_DIR が無い・使えない環境なら null） */
+/** SQLite のデータベース（TSUMU_DATA_DIR が無いか、使えない環境なら null） */
 export function nodeDatabase(): D1LikeDatabase | null {
   const dir = nodeDataDir();
   if (!dir) return null;
@@ -135,8 +135,8 @@ interface NodeCrypto {
 
 /**
  * キーを1つのファイル名にする（「/」も符号化するため、フォルダの外を指せない）。
- * 長すぎる名前（日本語は1文字が9バイトになる）はハッシュにする。符号化した名前に
- * 「%h」は現れないので、ハッシュの名前と重ならない
+ * 長すぎる名前（日本語は符号化すると1文字が9バイトになる）はハッシュにする。符号化した名前に
+ * 「%h」は現れないため、ハッシュの名前と重ならない
  */
 export function assetFileName(key: string): string {
   const name = encodeURIComponent(key);
@@ -149,7 +149,7 @@ export function assetFileName(key: string): string {
 
 const isMissing = (e: unknown) => (e as { code?: string })?.code === "ENOENT";
 
-/** アセットの保存先（TSUMU_DATA_DIR が無い・使えない環境なら null） */
+/** アセットの保存先（TSUMU_DATA_DIR が無いか、使えない環境なら null） */
 export function nodeAssetStore(): KVLikeNamespace | null {
   const dir = nodeDataDir();
   if (!dir) return null;

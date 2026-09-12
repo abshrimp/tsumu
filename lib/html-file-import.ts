@@ -11,7 +11,7 @@ export function isHtmlFile(name: string): boolean {
   return /\.html?$/i.test(name);
 }
 
-/** An import that produces no editable elements must not erase the target page. */
+/** 編集可能な要素が1つもできない取り込みで、取り込み先のページを消してはいけない。 */
 export function requireEditableHtmlContent(result: HtmlConversion): HtmlConversion {
   for (const id of result.doc.pageOrder) {
     if (!result.doc.pages[id]?.children.length) {
@@ -22,8 +22,8 @@ export function requireEditableHtmlContent(result: HtmlConversion): HtmlConversi
 }
 
 /**
- * Inspect only the archive's file names before routing ZIP imports. An editable
- * Tsumu ZIP is restored losslessly; a regular website ZIP is converted to nodes.
+ * ZIP の取り込み先を決める前に、アーカイブのファイル名だけを調べる。編集可能な Tsumu の
+ * ZIP は損なわずに復元し、通常のウェブサイトの ZIP はノードに変換する。
  */
 export async function isEditableSiteZip(data: Uint8Array): Promise<boolean> {
   const zip = await openImportZip(data, IMPORT_LIMITS.entries);
@@ -39,7 +39,7 @@ export async function convertHtmlFile(
   if (!file.size) throw new Error(tr("The file is empty."));
   if (file.name.toLowerCase().endsWith(".zip")) {
     if (file.size > IMPORT_LIMITS.zipBytes) throw new Error(tr("The import file is too large."));
-    // readHtmlZip/readHtmlZipPages share strict path and expansion checks before uploads.
+    // readHtmlZip / readHtmlZipPages は、アップロードの前に、同じ厳格なパスと展開の検査を行う。
     options.progress?.(tr("Reading HTML and assets…"));
     return withImportUploads(async paths => {
       if (!options.allPages) {
@@ -60,8 +60,8 @@ export async function convertHtmlFile(
 }
 
 /**
- * Create one editable Tsumu page per HTML entry. The ZIP entry point is first;
- * sibling .html and nested index.html files become separate pages.
+ * HTML のファイルごとに、編集可能な Tsumu のページを1つずつ作る。ZIP の入口のファイルが最初で、
+ * 同じ階層の .html と、入れ子の index.html は、それぞれ別のページになる。
  */
 function convertHtmlPages(
   pages: { name: string; html: string }[],
@@ -117,8 +117,8 @@ function convertHtmlPages(
     if (!result.siteName) result.siteName = doc.siteName;
   }
   if (result.pageOrder.length > 1) {
-    // Rewrite local page links to Tsumu page IDs. External URLs and fragments
-    // remain untouched, and suffixes are kept as explicit site-relative URLs.
+    // ローカルのページへのリンクを、Tsumu のページ ID に書き換える。外部の URL とフラグメントは
+    // そのまま残し、続く部分は、サイト内の明示的な相対 URL として保つ。
     const visit = (id: string, filename: string) => {
       const node = result.nodes[id];
       if (!node) return;
@@ -127,11 +127,11 @@ function convertHtmlPages(
         if (!/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) {
           const m = /^([^?#]*)([?#].*)?$/.exec(href);
           let relative = m?.[1] || "";
-          // URLのパスだけを一度復号し、ZIP内の元のファイル名と照合する。
+          // URL のパスだけを一度デコードし、ZIP の中の元のファイル名と照合する。
           try { relative = decodeURIComponent(relative); } catch { /* 不正なエスケープは元の表記を保つ。 */ }
           const suffix = m?.[2] || "";
           const folder = filename.slice(0, filename.lastIndexOf("/") + 1);
-          // パスのないクエリは親フォルダではなく、現在のHTMLページを指す。
+          // パスの無いクエリは、親のフォルダではなく、現在の HTML のページを指す。
           const candidate = canonical(relative
             ? relative.startsWith("/") ? prefix + relative : folder + relative
             : filename);

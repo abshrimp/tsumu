@@ -6,16 +6,16 @@ export type RecipeEvaluation =
   | { kind: "error"; code: string };
 
 /**
- * Pure, self-contained evaluator shared by editor samples, SSR and client JS.
- * Do not capture imports or local helpers: the exported site embeds this function.
- * Undefined is missing; null is a real value. No input object is mutated.
+ * エディタの見本・SSR・クライアントの JS で共有する、純粋で自己完結した評価器。
+ * import やローカルの補助を取り込んではいけない。書き出したサイトに、この関数をそのまま埋め込む。
+ * undefined は値が無いことを、null は実際の値を表す。入力のオブジェクトは書き換えない。
  */
 export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransform[], variables: Record<string, unknown> = {}): RecipeEvaluation {
   const failure = (code: string): RecipeEvaluation => ({ kind: "error", code });
   const missing: RecipeEvaluation = { kind: "missing" };
   if (!Array.isArray(steps) || steps.length > 32) return failure("invalid-recipe");
 
-  // Self-contained: this function is serialized into published browser/SSR code.
+  // 自己完結させる。この関数は直列化され、公開したサイトのブラウザ用と SSR 用のコードに入る。
   const owns = (obj: object, key: string | number) => Object.prototype.hasOwnProperty.call(obj, key);
   const valueAt = (item: unknown, path: string): unknown => {
     if (!path) return item;
@@ -49,13 +49,13 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
   const scalar = (value: unknown): value is string | number | boolean | null =>
     value === null || typeof value === "string" || typeof value === "boolean" ||
       (typeof value === "number" && Number.isFinite(value));
-  // Text transformations accept scalar inputs but never mutate the source value.
+  // 文字の加工は単一の値を受け付けるが、元の値は決して書き換えない。
   const textScalar = (value: unknown): string | undefined =>
     typeof value === "string" || typeof value === "boolean" ||
       (typeof value === "number" && Number.isFinite(value)) ? String(value) : undefined;
-  // A single text field accepts ordinary text, {variable.path}, or a mixture.
-  // Whole references preserve the source value (including numbers, lists, null).
-  // Escaped \{ starts a literal brace. No eval or dynamic code is involved.
+  // 1つの文字の欄には、普通の文字、{variable.path}、またはその組み合わせを書ける。
+  // 参照だけを書いた場合は、元の値（数値・リスト・null を含む）をそのまま保つ。
+  // エスケープした \{ は、文字としての波かっこになる。eval や動的なコードは使わない。
   const interpolateText = (template: string, max: number, regexPattern = false):
     { ok: true; value: unknown } | { ok: false } => {
     if (typeof template !== "string" || template.length > max) return { ok: false };
@@ -109,24 +109,23 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     const value = valueAt(variables, step.operand);
     return value === undefined ? { ok: false } : { ok: true, value };
   };
-  // Numeric operations accept finite numbers and decimal strings (such as form inputs).
-  // Comparison remains type-aware; numeric conversion is explicit to the math operation.
+  // 数値の演算は、有限の数値と、10進数の文字列（フォームの入力など）を受け付ける。
+  // 比較は型を区別したまま行う。数値への変換は、計算の操作の中でだけ明示的に行う。
   const numberLike = (input: unknown): number | undefined => {
     if (typeof input === "number") return Number.isFinite(input) ? input : undefined;
     if (typeof input !== "string" || !/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(input.trim())) return undefined;
     const number = Number(input.trim());
     return Number.isFinite(number) ? number : undefined;
   };
-  // JavaScript RegExp may backtrack exponentially on external data.
-  // The generated browser and server code embed this evaluator verbatim.
+  // JavaScript の RegExp は、外から来たデータに対して指数的にバックトラックすることがある。
+  // 生成するブラウザ用とサーバー用のコードには、この評価器がそのまま入る。
   const safeRegex = (pattern: string, sourceLength: number): boolean => {
     if (pattern.length > 256) return false;
-    // Alternatives add within a choice and multiply when groups are joined.
-    // Even without quantifiers, many ambiguous groups can backtrack exponentially.
-    // A repeated prefix can replay every following atom, including fixed-count
-    // suffixes and group exits. Keep those input-dependent choices separate from
-    // fixed expansion. Long expressions with several repeats may exceed this
-    // conservative budget even when their character classes do not overlap.
+    // 選択肢（|）の数は、1つの選択の中では足し算になり、グループをつなぐと掛け算になる。
+    // 量指定子が無くても、あいまいなグループが多いと指数的にバックトラックすることがある。
+    // 繰り返す前置部分は、その後のすべての要素（回数を固定した後ろの部分や、グループの出口を含む）を
+    // やり直させることがある。入力によって変わる選択は、固定の展開と分けて数える。
+    // 繰り返しを複数含む長い式は、文字クラスが重ならなくても、この控えめな上限を超えることがある。
     const MAX_REGEX_PATHS = 256;
     const MAX_REGEX_EXPANSION = 4096;
     const MAX_REGEX_WORK = 2 ** 24;
@@ -178,8 +177,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     const addAtom = (category: string | null, group?: Scope): Atom | null => {
       const scope = scopes[scopes.length - 1];
       if (group) scope.branchPaths *= group.paths + group.branchPaths;
-      // Entering and leaving groups costs work even when their bodies are empty.
-      // Exits can run once per inner match choice during backtracking.
+      // グループに入ること・出ることには、中身が空でも処理がかかる。
+      // バックトラックの間、出口は内側の一致の選択ごとに1回ずつ実行されることがある。
       const choices = group ? group.choices + group.branchChoices : 1;
       const atom = {
         category, group, choices,
@@ -198,8 +197,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       if (char === "\\") {
         if (i + 1 >= pattern.length || /[1-9]/.test(pattern[i + 1]) ||
             pattern[i + 1] === "k") return false;
-        // Consume multi-character escapes as one atom. Its trailing digit or
-        // letter is not the character that the regex engine will repeat.
+        // 複数の文字から成るエスケープは、1つの要素として読む。末尾の数字や英字は、
+        // 正規表現のエンジンが繰り返す文字ではない。
         const escape = pattern[i + 1];
         if (escape === "x" || escape === "u" || escape === "c") {
           const token = /^(?:x[0-9a-f]{2}|u[0-9a-f]{4}|c[a-z])/i.exec(pattern.slice(i + 1));
@@ -240,8 +239,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       if (char === ")") {
         if (scopes.length <= 1) return false;
         const completed = scopes.pop()!;
-        // Repetition or alternation can be nested in otherwise unquantified
-        // groups; retain those flags when validating an outer group quantifier.
+        // 量指定子の無いグループの中にも、繰り返しや選択が入れ子になっていることがある。
+        // 外側のグループの量指定子を検証するときのため、その情報を引き継ぐ。
         scopes[scopes.length - 1].repeats ||= completed.repeats;
         scopes[scopes.length - 1].alternation ||= completed.alternation;
         last = addAtom(null, completed);
@@ -347,8 +346,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           break;
         case "parse":
           if (absent) break;
-          // Already-parsed JSON values pass through without changing their type.
-          // This also lets typed variable assignments feed existing parse chains.
+          // すでに解析済みの JSON の値は、型を変えずにそのまま通す。
+          // これにより、型のある変数の代入を、既存の解析の連鎖に渡すこともできる。
           if (typeof current !== "string") {
             if (current === null || typeof current === "boolean" ||
                 typeof current === "number" && Number.isFinite(current) ||
@@ -427,7 +426,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             if (source.length > 2048 || !safeRegex(needle.value, source.length)) return failure("invalid-regex");
             let pattern: RegExp;
             try { pattern = new RegExp(needle.value, "g"); } catch { return failure("invalid-regex"); }
-            // Bound potentially expanded capture and surrounding-context substitutions.
+            // キャプチャや前後の文脈の置換で大きくなりうる長さを、上限で抑える。
             let projected = source.length;
             const captures = replacement.value.match(/\$(?:&|[1-9]\d?)/g)?.length ?? 0;
             const contexts = replacement.value.match(/\$(?:'|`)/g)?.length ?? 0;
@@ -478,16 +477,16 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           }
           const collator = keyType === "string" ? new Intl.Collator("ja", { numeric: true }) : undefined;
           pairs.sort((a, b) => {
-            // The list-display block uses natural Japanese collation for text
-            // (so "2" precedes "10"), while numeric fields use arithmetic.
+            // リストの表示のブロックでは、文字は日本語の自然な順序で並べ（"2" が "10" より前）、
+            // 数値の項目は数値として比べる。
             let order = typeof a.key === "number" && typeof b.key === "number"
               ? a.key - b.key
               : collator!.compare(String(a.key), String(b.key));
             if (step.direction === "desc") order *= -1;
             return order || a.order - b.order;
           });
-          // A dictionary cannot preserve arbitrary sort order in numeric-like keys.
-          // Return explicit key/value rows; an array retains its original element shape.
+          // 辞書（オブジェクト）では、数値のように見えるキーの任意の並び順を保てない。
+          // キーと値の組の行を明示的に返す。配列なら、元の要素の形のまま返す。
           current = array ? pairs.map((p) => p.item) :
             pairs.map((p) => ({ "キー": p.sourceKey, "値": p.item }));
           break;

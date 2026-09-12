@@ -43,7 +43,7 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 - **Lists** render a template child for each item in an array or dictionary. Data may come from a fetch step or a script, and each item can have its own detail page (such as `/news/[slug]`).
 
 > [!IMPORTANT]
-> Node IDs are stable and unique within a doc. Merging, undo, comments and AI ops all key on them, so never reuse or renumber an ID. `lib/cloneIds.ts` is the only safe way to copy a subtree.
+> Node IDs are stable and unique within a doc. Merging, undo, comments and AI ops all key on them, so never reuse or renumber an ID. Always copy a subtree with `lib/cloneIds.ts`.
 
 ## Where things live
 
@@ -91,7 +91,7 @@ This section covers sites whose records are kept in the browser.
 - If the marker can't be read, writes fail, but the site is not reported as deleted.
 - Successful server operations remain authoritative.
 
-**What this does and doesn't guarantee.** Deletion always wins for what the user can *see*. It does not promise that every stored byte is removed at once: a stale tab may stop between writing and its post-write check, or cleanup may fail. This design adds no cross-tab locking and doesn't change document autosave.
+**What this does and doesn't guarantee.** Deletion always wins for what the user can *see*. It does not promise that every stored byte is removed at once: a stale tab may stop between writing and its post-write check, or cleanup may fail. The cross-tab lock (`lib/local-site-lock.ts`) covers only reads and writes of the site list; comment writes and document autosave happen outside it.
 
 ## Publishing
 
@@ -120,7 +120,7 @@ Rollback (`app/api/publish/history/route.ts`) commits an older tree again on top
 `prepareExportProject(doc, options, target)` in `lib/export-formats.ts` is the single pipeline behind both publishing and the zip export, so the two always produce the same files.
 
 1. **Scope.** `exportScopeDoc` narrows the doc to the current page or the selected element when asked. The narrowed doc keeps only the nodes, components and assets that scope uses, so a partial export never carries other pages' content.
-2. **Limitations.** `exportLimitations` lists the features the chosen format can't express (dynamic paths, redirects, raw HTML pages, credentials in fetches, and so on). The dialogs show them as errors and won't continue.
+2. **Limitations.** `exportLimitations` lists the features the chosen format can't express (dynamic paths, redirects, raw HTML pages, and so on). Credentials in data fetches are an error in every format. The dialogs show them as errors and won't continue.
 3. **Next.js first.** `generateProject` always runs. The other formats are built from its output and the doc:
 
 | Format | Files |
@@ -137,23 +137,28 @@ Generated server code that fetches external data embeds the editor's own SSRF pr
 
 ## Imports
 
-`createSiteFromFile` in `lib/import-site-file.ts` prepares everything before it creates the site, then saves the doc to the server or to the browser. Server imports commit the site and its first document in one database transaction. A lost response is checked using the allocated ID. Newly uploaded assets are rolled back on a confirmed failure and retained when the save outcome is unknown. Local imports, site creation, duplication, settings, deletion, and edit timestamps take the same cross-tab lock when updating the browser’s site list.
+`createSiteFromFile` in `lib/import-site-file.ts` prepares everything before it creates the site, then saves the doc to the server or to the browser.
+
+- **Server storage.** The site and its first document are committed in one database transaction. If the response is lost, the document is checked using the already allocated ID. Newly uploaded assets are kept while the outcome is unknown and rolled back once a failure is confirmed.
+- **Browser storage.** Imports, site creation, duplication, settings changes, deletion and edit-timestamp updates all take the same cross-tab lock before they write the site list, so changes made in another open tab aren't lost.
+
+Each kind of file is handled as follows.
 
 - **Tsumu zip or `doc.json`** (`lib/site-import.ts`). A zip must contain exactly one `_tsumu/doc.json`; `_tsumu/assets.json` maps original asset IDs to files in the archive. A `doc.json` may be plain JSON or the compact gzip+Base64 envelope from `lib/portable-doc.ts`. The doc is validated, and its assets are uploaded again with their original IDs. Paths aren't guessed: an asset that the manifest doesn't list, and that has no data URL, becomes a warning. Archive names that escape the root are rejected.
 - **HTML file or website zip** (`lib/html-to-site.ts`). Every page is converted into editable nodes. Classes and a short list of safe attributes are kept (`lib/imported-html-attrs.ts`); event handlers, URL-bearing attributes and Tsumu's internal `data-*` markers never are.
 - **Limits** (`IMPORT_LIMITS`): 100 MB per zip, 12 MB per `doc.json` or HTML file, 1,500 entries and 300 MB after expansion.
 
-A page's settings in the editor can also load HTML into one page, either converted into nodes or kept as a raw HTML page; the latter is described next.
+A page's settings in the editor can also load HTML into one page, either converted into nodes or kept as a raw HTML page. The next section describes how a ZIP is handled when it is kept as is.
 
 ### HTML ZIP imports
 
-`lib/html-zip.ts` imports a site packaged as a ZIP (up to 200 files). The original files are stored unchanged. For each CSS file, `lib/zip-css.ts` additionally records the archive paths of the files it depends on: relative `url()` resources, `image-set()` images and `@import`s, resolved against the stylesheet's own directory (`lib/zip-references.ts`). Only new imports carry this metadata; older imports aren't migrated, so re-import an old ZIP to get it.
+`lib/html-zip.ts` imports a site packaged as a ZIP (up to 200 files). The original files are stored unchanged. For each CSS file, `lib/zip-css.ts` additionally records the archive paths of the files it depends on: relative `url()` resources, `image-set()` images and `@import`s, resolved against the stylesheet's own directory (`lib/zip-references.ts`). Only ZIPs imported since this was introduced carry the metadata; older imports aren't migrated, so re-import an old ZIP if you need it.
 
-- **Preview.** Each stylesheet stays a separate sheet, so import order, conditions and layers are kept. Dependencies are served as signed URLs from remote storage, or as data URLs in the local fallback. Only an `@import` that points back at one of its own ancestors is replaced with an empty sheet. A preview whose signed URLs are about to expire offers a refresh instead of reloading itself, because a reload resets forms and scripts.
-- **Export.** Each CSS file is written as its own UTF-8 file, with references pointing at the generated asset filenames. Integrity hashes are dropped only from links to imported local CSS, whose bytes change.
+- **Preview.** Each stylesheet stays a separate sheet, so import order, conditions and layers are kept. Dependencies are served as signed URLs from server storage, or as data URLs when the files are kept in the browser. Only an `@import` that points back at one of its own ancestors is replaced with an empty sheet. A preview whose signed URLs are about to expire offers a refresh instead of reloading itself, because a reload resets forms and scripts.
+- **Export.** Each CSS file is written as its own UTF-8 file, with references pointing at the generated asset filenames. Integrity hashes are dropped only from links to imported local CSS whose bytes change when references are rewritten.
 - **Copying and cleanup.** Copying a page copies every stylesheet dependency with it, and unused-asset cleanup keeps the dependencies of referenced stylesheets.
 - **Left as is.** JavaScript module imports, references to missing files and external URLs aren't rewritten. Root- and protocol-relative URLs outside the archive are made absolute in the preview only.
-- **Limits** (`ZIP_CSS_LIMITS`): UTF-8 CSS only; 2 MiB of CSS per import and per preview graph, 8 MiB of preview output, 64 MiB of total variant work, 4,096 variants and 200 nested sheets. A preview over the limits shows an error.
+- **Limits** (`ZIP_CSS_LIMITS`): UTF-8 CSS only; 2 MiB of CSS per import and per preview graph, 8 MiB of preview output, 64 MiB of total variant work, 4,096 variants and 200 levels of nested `@import`. A preview over the limits shows an error.
 
 ## AI edits
 
@@ -167,9 +172,9 @@ If the user edited the same page while the AI was working, the AI's change is dr
 
 ## Conventions
 
-- **Language.** Comments are in Japanese and `tr()` uses English source strings. Japanese translations are checked strictly (`npm run i18n:check -- --strict ja`); new language dictionaries are auto-discovered and may be partial.
+- **Language.** Comments are written in Japanese. UI strings are English source strings wrapped in `tr()`; when you add one, add its Japanese translation to `lib/locales/ja.ts` too. Japanese translations are checked strictly (`npm run i18n:check -- --strict ja`); new language dictionaries are discovered automatically and may be partial.
 - **Readable output.** Generated code should look hand-written. Output a developer wouldn't write by hand is a bug.
-- **Formats.** Browser state uses `tsumu-` keys, and clipboard data uses the `application/x-tsumu+json` type. The format is defined by the current document schema.
+- **Formats.** Browser state uses `tsumu-` keys, and clipboard data uses the `application/x-tsumu+json` type. Both follow the current document schema.
 - **Tests.** New behavior needs a test.
   - Unit tests live in `tests/`. They use Node's built-in test runner through `tsx` and import modules from `lib/` directly.
   - UI flows live in `e2e/` (Playwright). They start the built editor on Node.js with a throwaway `TSUMU_DATA_DIR` and `ALLOW_ANONYMOUS=true`.

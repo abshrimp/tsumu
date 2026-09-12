@@ -4,18 +4,18 @@ import { applyDocPatch, docPatchSqlPath, isDocPatch, type DocPatch } from "./doc
 import type { SiteDoc } from "./types";
 
 /**
- * Node.js / Docker用ローカルSQLiteの文書保存。
- * 1サイトを docs テーブルの1行として保存し、保存先の容量制限は実際のSQLiteエラーで判定する。
+ * Node.js・Docker 用の、ローカルの SQLite への文書の保存。
+ * 1つのサイトを docs テーブルの1行として保存し、保存先の容量の上限は、実際の SQLite のエラーで判定する。
  */
 
-/** 保存先に入りきらない編集データ（API は 413 で返す） */
+/** 保存先に入りきらない編集データ（API は 413 を返す） */
 export class DocTooLargeError extends Error {
   constructor() {
     super("ドキュメントが大きすぎて、保存先に入りきりません");
   }
 }
 
-/** A delta would make the document impossible to reopen. */
+/** 差分を適用すると、文書を開き直せなくなる。 */
 export class InvalidDocPatchError extends Error {
   constructor() { super("不正なリクエスト"); }
 }
@@ -29,10 +29,10 @@ export interface CurrentDoc {
 export type SaveDocResult =
   | { kind: "saved"; rev: string; savedAt: number }
   | { kind: "conflict"; current: CurrentDoc }
-  /** サイトが無い（ほかのタブ・人が消した）。編集データを作り直さない */
+  /** サイトが無い（他のタブや他の人が削除した）。編集データを作り直さない */
   | { kind: "missing" };
 
-/** 本文の形を確かめる（大きさは保存するときに、保存先の上限で確かめる） */
+/** 本文の形を確かめる（大きさは、保存するときに保存先の上限で確かめる） */
 export function validateDocBody(raw: string): string | null {
   try { return validateDocValue(JSON.parse(raw)); }
   catch { return "JSONが壊れています"; }
@@ -42,7 +42,7 @@ export function validateDocValue(parsed: unknown): string | null {
   return validSiteDoc(parsed) ? null : "不正なリクエスト";
 }
 
-/** SQLiteのサイズ制限エラーをAPIに伝えるための保存処理。 */
+/** SQLite の大きさの上限のエラーを API に伝えるための、保存の処理。 */
 async function write(db: Db, stmt: Parameters<Db["execute"]>[0]): Promise<ResultSet> {
   try {
     return await db.execute(stmt);
@@ -61,7 +61,7 @@ export async function readCurrentDoc(db: Db, siteId: string): Promise<CurrentDoc
   });
   const row = rs.rows[0];
   if (!row) return null;
-  // The Node SQLite backend must enforce the same read invariant as DO snapshots.
+  // Node.js の SQLite でも、Durable Object のスナップショットと同じ読み取り時の条件を守る。
   if (validateDocBody(String(row.body))) {
     throw new Error("保存済み編集データが破損しています");
   }
@@ -73,14 +73,14 @@ export async function readCurrentDoc(db: Db, siteId: string): Promise<CurrentDoc
 }
 
 /**
- * 日次バックアップ（曜日で7世代ローテーション）。日付（UTC）が変わってから最初の保存の直前に、
+ * 日次バックアップ（曜日ごとの7世代をローテーションする）。日付（UTC）が変わってから最初の保存の直前に、
  * それまでの内容（前に編集した日の最後の内容）を、その日の曜日の枠へ残す。
- * 保存した後の内容を残すと、その日最初の保存で壊したときに壊れた内容しか残らないため
+ * 保存した後の内容を残すと、その日の最初の保存で壊したときに、壊れた内容しか残らないため
  */
 async function backupPreviousDay(db: Db, siteId: string, now: number) {
   try {
     const dayStart = Math.floor(now / 86_400_000) * 86_400_000;
-    // 本文をWorkerへ取り出さずDB内でコピーする。並行保存でも、より新しい内容でだけ上書きする。
+    // 本文を Worker へ取り出さずに、DB の中でコピーする。並行して保存されても、より新しい内容でだけ上書きする。
     await db.execute({
       sql: `INSERT INTO site_backups (site_id, day, saved_at, body)
         SELECT id, CAST(strftime('%w', saved_at / 1000, 'unixepoch') AS INTEGER), saved_at, body
@@ -90,7 +90,7 @@ async function backupPreviousDay(db: Db, siteId: string, now: number) {
       args: [siteId, dayStart],
     });
   } catch {
-    // バックアップの失敗は保存自体に影響させない
+    // バックアップの失敗は、保存そのものには影響させない
   }
 }
 
@@ -100,8 +100,8 @@ export async function saveCurrentDoc(
   raw: string,
   base: string | null
 ): Promise<SaveDocResult> {
-  // Do not rely on the HTTP caller to validate a persisted document.
-  // Direct storage consumers, imports and copies must obey the same invariant.
+  // 保存する文書の検証を、HTTP の呼び出し側に任せない。
+  // 保存先を直接使う処理・インポート・複製も、同じ条件を守らなければならない。
   const invalid = validateDocBody(raw);
   if (invalid) throw new Error(invalid);
   if (base !== null && (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
@@ -122,10 +122,10 @@ export async function saveCurrentDoc(
     return { kind: "missing" };
   }
 
-  // サイトの一覧に無い編集データは作らない（消したサイトを開いたままのタブが保存すると、
-  // 一覧に出ないデータが残り、そのアセットも「ほかのサイトが使用中」として消せなくなる）
+  // サイトの一覧に無い編集データは作らない（削除したサイトを開いたままのタブが保存すると、
+  // 一覧に表示されないデータが残り、そのアセットも「他のサイトが使用中」として消せなくなる）
   const rs = await write(db, {
-    // base の無い保存は初回作成だけ。読み込み失敗や同時作成でも既存データを上書きしない。
+    // base の無い保存は、初回の作成だけ。読み込みの失敗や同時の作成でも、既存のデータを上書きしない。
     sql: "INSERT INTO docs (id, rev, saved_at, body) SELECT ?, 1, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?) ON CONFLICT(id) DO NOTHING RETURNING rev",
     args: [siteId, now, raw, siteId],
   });
@@ -136,13 +136,13 @@ export async function saveCurrentDoc(
   return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
 }
 
-/** 本文を取得せず、版の照合と差分反映を1つのSQLで原子的に行う。 */
+/** 本文を取得せずに、版の照合と差分の反映を1つの SQL で原子的に行う。 */
 export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base: string): Promise<SaveDocResult> {
   if (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)) || !isDocPatch(patch)) {
     throw new Error("不正なリクエスト");
   }
-  // Validate changed page definitions without reading the entire stored document.
-  // Ordinary element/style patches retain the existing SQL-only fast path.
+  // 変更したページの定義は、保存した文書全体を読まずに検証する。
+  // 通常の要素やスタイルの差分は、SQL だけで済む高速な経路のまま扱う。
   for (const op of patch) {
     const collection = op.path[0];
     if (!["pages", "nodes", "assets", "components"].includes(collection) || !("value" in op)) continue;
@@ -158,16 +158,15 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
       if (!valid) throw new InvalidDocPatchError();
     }
   }
-  // An ordinary leaf/property edit stays on the SQL-only fast path. Changes
-  // to a component definition, instance, or non-empty child list can create a
-  // second-order reference cycle even when the ordinary node tree is valid.
-  // Validate those against the exact optimistic-lock base revision first.
-  // The UPDATE below still has WHERE rev = base: a concurrent write between
-  // this read and the UPDATE cannot bypass the check.
+  // 通常の末端や項目の編集は、SQL だけで済む高速な経路のまま扱う。コンポーネントの定義、
+  // インスタンス、空でない子の一覧を変更すると、通常のノードのツリーが正しくても、
+  // 間接的な参照の循環が生じることがある。それらは先に、楽観ロックの基準の版と照らして検証する。
+  // 下の UPDATE にも WHERE rev = base が付いているため、この読み取りと UPDATE の間に
+  // 別の書き込みがあっても、検証をすり抜けることはない。
   const referenceSensitive = patch.some(op => {
-    // SQL-only updates validate page/node/asset shapes and page ordering, but
-    // other site-level fields have no SQL type checks. Use the canonical
-    // SiteDoc validator for those updates before changing persisted JSON.
+    // SQL だけの更新でも、ページ・ノード・アセットの形とページの並びは検証するが、
+    // サイト全体の他の項目には SQL での型の検査が無い。そうした項目を更新するときは、
+    // 保存した JSON を変える前に、正規の SiteDoc の検証を通す。
     if (op.path.length === 1 &&
         !["siteName", "pageOrder", "pages", "nodes", "assets", "components"].includes(op.path[0])) {
       return true;
@@ -205,7 +204,7 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
     op.path[0] === "pages" || op.path[0] === "pageOrder");
   const args: (string | number | null)[] = [];
   let body = "body";
-  // SQLのバインド変数数を抑えるため、json_setは最大12組ずつ適用する。
+  // SQL のバインド変数の数を抑えるため、json_set は最大12組ずつ適用する。
   for (let i = 0; i < patch.length; i += 12) {
     const chunk = patch.slice(i, i + 12);
     const sets: string[] = [];
@@ -236,8 +235,8 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
         )
       )
   )` : "";
-  // Only a changed child list, addition or removal needs the full forest check.
-  // Both the fast path and the walk below inspect the same revision as the write.
+  // ツリー全体の検査が必要なのは、子の一覧の変更・追加・削除だけ。
+  // 高速な経路でも下のたどる処理でも、書き込みと同じ版を調べる。
   const individual = treeOps.length > 0 && treeOps.every(op => op.path[0] !== "components" && op.path.length === 2 && "value" in op);
   const sameChildren = individual ? `NOT EXISTS (
     SELECT 1 FROM json_each(?) AS p, patched

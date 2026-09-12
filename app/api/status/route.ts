@@ -7,9 +7,9 @@ import { envVar } from "../../../lib/env";
 import type { AssetDeletion } from "../../../lib/status";
 
 /**
- * What happens to a stored file when an asset is deleted in the editor.
- * Cloudflare only schedules deletion; the GC deletes it after the grace
- * period, and only when ASSET_GC_ENABLED=true (otherwise files stay).
+ * エディタでアセットを削除したときに、保存したファイルがどうなるか。
+ * Cloudflare では削除を予約するだけで、猶予期間の後に GC が削除する。
+ * それも ASSET_GC_ENABLED=true のときだけで、それ以外はファイルが残る。
  */
 async function assetDeletion(): Promise<AssetDeletion | null> {
   if (assetStore() === null) return null;
@@ -20,7 +20,7 @@ async function assetDeletion(): Promise<AssetDeletion | null> {
   return { mode: "scheduled", days: Number.isSafeInteger(days) && days >= 1 && days <= 3650 ? days : 7 };
 }
 
-/** サーバーの設定状況（ログインの有無・保存先）。画面の出し分けに使う */
+/** サーバーの設定状況（ログインの有無・保存先）。画面の表示を切り替えるために使う */
 export async function GET() {
   const user = await requireAuth("user");
   if (user instanceof NextResponse) return user;
@@ -29,7 +29,7 @@ export async function GET() {
     db: dbConfigured(),
     assets: assetStore() !== null,
     assetDeletion: await assetDeletion(),
-    // ログインしている人（コメントで、自分の書いたものを見分ける）
+    // ログインしている人（コメントのうち、自分が書いたものを見分けるために使う）
     user,
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

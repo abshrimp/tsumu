@@ -28,7 +28,7 @@ export interface CloudSaveTransport {
   savedAt: () => number | null;
 }
 
-/** ドキュメントをサーバーへ保存する（WebSocket を優先し、だめなら HTTP の API） */
+/** 文書をサーバーへ保存する（WebSocket を優先し、使えなければ HTTP の API を使う） */
 export async function sendCloudDoc(
   t: CloudSaveTransport,
   snapshot: SiteDoc,
@@ -39,7 +39,7 @@ export async function sendCloudDoc(
   if (patch?.length === 0) {
     return { ok: true, status: 200, data: { rev: base, savedAt: t.savedAt() } };
   }
-  // A committed write advances the optimistic lock by one on both storage backends.
+  // どちらの保存先でも、書き込みが確定すると楽観ロックの版が1つ進む。
   const expectedRev = String(Number(base) + 1);
   if (t.collabSocket.current?.readyState === WebSocket.OPEN) {
     try {
@@ -54,7 +54,7 @@ export async function sendCloudDoc(
       }
       if (message.type === "error") throw new Error(message.message);
     } catch {
-      // タイムアウト・切断時は HTTP の API へフォールバック
+      // タイムアウトや切断のときは、HTTP の API に切り替える
     }
   }
 
@@ -106,23 +106,23 @@ export interface CloudAutosave {
   setUnsyncedFlag: (on: boolean) => void;
   /** 変更が無くても自動保存をもう一度動かす */
   requestRetry: () => void;
-  /** 回線・サーバーの一時的な失敗のあと、間隔をあけて保存し直す */
+  /** 回線やサーバーの一時的な失敗の後に、間隔をあけて保存し直す */
   retryLater: () => void;
 }
 
-/** サーバーが返した、保存できなかった理由（右下の保存状態に出す） */
+/** サーバーが返した、保存できなかった理由（右下の保存の状態に表示する） */
 export function errorOf(res: CloudRequestResult): string | undefined {
   return typeof res.data?.error === "string" ? res.data.error : undefined;
 }
 
-/** 時間をおけば通る見込みのある失敗か（大きすぎる・サイトが無いなどは、やり直しても同じ） */
+/** 時間をおけば成功する見込みのある失敗か（大きすぎる・サイトが無いなどは、やり直しても同じ） */
 const isTransient = (status: number) => status >= 500 || status === 408 || status === 429;
 
-/** doc の変更を受けて自動保存を予約する（デバウンス付き）。戻り値は予約の取り消し。 */
+/** doc の変更を受けて、自動保存を予約する（デバウンス付き）。戻り値は予約の取り消し。 */
 export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) | undefined {
   const changed = a.observedDoc.current !== doc;
   a.observedDoc.current = doc;
-  // サーバーから取り込んだ変更は保存し直さない（編集者間のエコー防止）
+  // サーバーから取り込んだ変更は保存し直さない（編集者の間で同じ変更を送り返し合わないため）
   if (a.skipNextCloudSave.current) {
     a.skipNextCloudSave.current = false;
     return;
@@ -134,15 +134,15 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
     }
     return;
   }
-  // A server-acknowledged initial snapshot is not an edit. In particular,
-  // never leave an unsynced flag behind just because the loading gate opened.
-  // Explicit retries still work while an actual unsaved edit is pending.
+  // サーバーが受け付けた最初のスナップショットは、編集ではない。特に、読み込み画面が
+  // 閉じたというだけで、未同期のフラグを残してはいけない。
+  // 本当に未保存の編集があるときは、明示的な再試行はそのまま動く。
   if (!changed && !a.cloudDirty.current) return;
   const s = a.getState();
   if (s.cloudState === "local") return;
   a.cloudDirty.current = true;
   a.setUnsyncedFlag(true);
-  // デバウンス待ちも未保存。直前の版の「保存済み」を残すと、保存前に閉じてしまう。
+  // デバウンスを待っている間も未保存。直前の版の「保存済み」の表示を残すと、保存される前にページを閉じられてしまう。
   if (doc !== a.lastSyncedDoc.current && s.cloudState === "synced") s.setCloud("saving");
   if (a.cloudTimer.current) clearTimeout(a.cloudTimer.current);
   a.cloudTimer.current = setTimeout(() => {
@@ -156,12 +156,12 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
       try {
         const deferred = a.deferredCloudConflict.current;
         if (deferred) {
-          // 入力中は競合と送信時の版を保ち、何度保存を予約しても上書きしない。
+          // 入力中は、競合と送信したときの版を保ち、保存を何度予約しても上書きしない。
           if (st.editingText) {
             a.retrySaveAfterEdit.current = true;
             return;
           }
-          // 再読み込みなどで同期済みの版が変わった場合、古い競合は適用しない。
+          // 再読み込みなどで同期済みの版が変わった場合は、古い競合を適用しない。
           if (a.lastSyncedRev.current === deferred.base && a.lastSyncedDoc.current === deferred.baseDoc) {
             const merged = reconcileConflict(deferred, st.doc);
             st.applyRemoteDoc(merged);
@@ -169,7 +169,7 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
             a.lastSyncedRev.current = deferred.remoteRev;
             a.lastSyncedDoc.current = deferred.remoteDoc;
           }
-          // 合成・適用に失敗した場合は、送信時の版を残して安全に再試行する。
+          // 合成や適用に失敗した場合は、送信したときの版を残して安全に再試行する。
           a.deferredCloudConflict.current = null;
           a.retrySaveAfterEdit.current = false;
         }
@@ -184,7 +184,7 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
         if (snapshot === baseDoc) {
           a.cloudDirty.current = false;
           a.setUnsyncedFlag(false);
-          // 保存に失敗したあと、元に戻すなどで同期済みの内容へ戻ったときは表示も戻す
+          // 保存に失敗した後、元に戻すなどで同期済みの内容に戻ったときは、表示も戻す
           if (st.cloudState === "error" || st.cloudState === "saving") st.setCloud("synced");
           return;
         }
@@ -195,40 +195,40 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
           const data = res.data;
           a.lastSyncedRev.current = data.rev ?? a.lastSyncedRev.current;
           a.lastSyncedDoc.current = snapshot;
-          // 保存中にさらに編集されていなければ「未保存の変更なし」に戻す
+          // 保存中にさらに編集されていなければ、「未保存の変更なし」に戻す
           if (a.getState().doc === snapshot) {
             a.cloudDirty.current = false;
             a.setUnsyncedFlag(false);
           }
           st.setCloud(a.cloudDirty.current ? "saving" : "synced", data.savedAt ?? Date.now());
         } else if (res.status === 409) {
-          // 競合: 相手の最新と三方向マージして、次の自動保存で保存し直す
+          // 競合: 相手の最新版と3方向マージし、次の自動保存で保存し直す
           const data = res.data;
           const now = a.getState();
           if (data?.doc && baseDoc && now.editingText) {
-            // 入力を失わないよう確定後に合成する。送信中や確定待ちの Undo も
-            // 戻せるよう、送信時の版と受け取った競合を一緒に残す。
+            // 入力を失わないよう、確定した後に合成する。送信中や確定を待っている間の元に戻す操作も
+            // 戻せるよう、送信したときの版と受け取った競合を一緒に残す。
             a.deferredCloudConflict.current = {
               base, baseDoc, snapshot, remoteDoc: data.doc, remoteRev: data.rev ?? base,
             };
             a.retrySaveAfterEdit.current = true;
             st.setCloud("saving");
           } else if (data?.doc && baseDoc) {
-            // The attempted snapshot may already have committed (for example,
-            // a lost WebSocket acknowledgment followed by an HTTP 409). First
-            // reconcile that attempt, then replay edits made while it was in
-            // flight. Comparing only now.doc with baseDoc would mistake Undo
-            // back to the base for "no local change" and resurrect the edit.
+            // 送ろうとしたスナップショットは、すでに確定していることがある（たとえば、
+            // WebSocket の受領の通知が失われた後に、HTTP で 409 が返った場合）。まず
+            // その送信の結果と照合し、それから送信中に行った編集を再生する。
+            // now.doc と baseDoc だけを比べると、base まで元に戻した操作を「手元の変更なし」と
+            // 取り違え、その編集を復活させてしまう。
             const merged = reconcileConflict({
               base, baseDoc, snapshot, remoteDoc: data.doc, remoteRev: data.rev ?? base,
             }, now.doc);
             a.lastSyncedRev.current = data.rev ?? a.lastSyncedRev.current;
             a.lastSyncedDoc.current = data.doc;
-            // dirty のまま適用 → 保存エフェクトが再スケジュールされる
+            // 未保存のまま適用する → 保存の effect が予約し直される
             st.applyRemoteDoc(merged);
             st.setCloud("saving");
           } else {
-            // ベース不明のまま最新版の番号だけ採用すると、次の保存が全体を上書きする。
+            // 基準が分からないまま最新版の番号だけを採用すると、次の保存が全体を上書きしてしまう。
             a.cloudReady.current = false;
             st.setCloud("error");
           }
@@ -244,7 +244,7 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
       a.activeCloudSave.current = null;
       if (a.cloudSaveQueued.current) {
         a.cloudSaveQueued.current = false;
-        // テキストの確定待ちは専用の再保存処理へ任せる。
+        // テキストの確定を待っている場合は、専用の保存し直しの処理に任せる。
         if (a.cloudReady.current && !a.retrySaveAfterEdit.current) {
           a.requestRetry();
         }

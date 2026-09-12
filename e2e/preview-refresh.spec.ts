@@ -22,8 +22,8 @@ async function setup(page: Page, doc = previewRefreshDoc()) {
     canvas, requests,
     async finish(index: number, label: string, length = 30, status = 200) {
       const request = requests[index].request();
-      // A newer refresh actively aborts obsolete requests. Both browser outcomes
-      // settle the route; an aborted request must not be awaited as a success.
+      // 新しい更新は、古いリクエストを能動的に中断する。ブラウザでの結果がどちらでもルートは
+      // 決着する。中断されたリクエストを、成功として待ってはならない。
       if (!request.failure()) {
         const settled = new Promise<void>((resolve) => {
           const done = (completed: Request) => {
@@ -38,7 +38,7 @@ async function setup(page: Page, doc = previewRefreshDoc()) {
         await requests[index].fulfill({ status, contentType: "application/json", body: JSON.stringify({ json: previewRows(label, length) }) });
         await settled;
       }
-      // Do not mistake the still-stale screen for success immediately after an old response arrives.
+      // 古い応答が届いた直後の、まだ古いままの画面を、成功と取り違えない。
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     },
     async unchanged() {

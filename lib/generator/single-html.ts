@@ -43,8 +43,8 @@ export async function toSingleHtmlProject(
       },
     },
   });
-  // Source offsets let us copy unmodified comments, script bodies, quoted text,
-  // and other authored markup verbatim, even when HTML parsing reparents nodes.
+  // ソース上の位置を使えば、HTML の解析で親が変わっても、変更していないコメント・
+  // スクリプトの本文・引用符で囲んだテキストなどの書かれたマークアップを、そのまま写せる。
   const elements: Html.Element[] = [];
   const pending: { node: Html.Node; inert: boolean }[] = [{ node: doc, inert: false }];
   let base = EXPORT_BASE;
@@ -104,7 +104,7 @@ export async function toSingleHtmlProject(
         const css = await resources.stylesheet(new URL(href, base), new Set(), get("integrity"));
         if (rel.includes("alternate") || attrs.has("disabled") || attrs.has("title")) {
           set("href", resources.cssUrl(css));
-          attrs.delete("integrity"); // The original bytes were verified before rewriting CSS.
+          attrs.delete("integrity"); // 元のバイト列は、CSS を書き換える前に検証済み。
         } else {
           for (const key of ["rel", "href", "integrity", "crossorigin", "referrerpolicy"]) attrs.delete(key);
           replacement = startTag("style", attrs) + "\n" + escapeStyleContent(css) + "\n</style>";
@@ -116,10 +116,10 @@ export async function toSingleHtmlProject(
         replacement = ""; end = loc.endOffset;
       } else if (get("type").trim().toLowerCase() === "module" && url.protocol !== "data:") {
         set("src", await resources.embedModule(url, get("integrity")));
-        attrs.delete("integrity"); // The original bytes were verified before rewriting module specifiers.
+        attrs.delete("integrity"); // 元のバイト列は、モジュールの指定子を書き換える前に検証済み。
       } else if (!get("type") || /^(?:module|application\/(?:x-)?(?:javascript|ecmascript)|text\/(?:(?:x-)?(?:javascript|ecmascript)|javascript1\.[0-5]|jscript|livescript))$/i.test(get("type").trim())) {
-        // A data URL retains external-script parsing, defer/async, and any native
-        // integrity enforcement without introducing a network dependency.
+        // data URL にすると、外部スクリプトとしての解析、defer / async、標準の integrity の
+        // 検証を保ったまま、ネットワークへの依存を持ち込まずに済む。
         set("src", await resources.embed(get("src"), base, get("integrity"), true));
       }
     } else if (htmlTag && name === "script" && !attrs.has("src") && executableScriptType(get("type").trim())) {
@@ -142,7 +142,7 @@ export async function toSingleHtmlProject(
         rewritten = embedded.join();
       }
       if (rewritten !== content) {
-        // Only embedded module and media URLs replace executable literals.
+        // 実行されるリテラルを置き換えるのは、埋め込んだモジュールとメディアの URL だけ。
         replacement = (modified ? startTag(name, attrs) : original) + rewritten;
         end = stop;
       }
@@ -163,7 +163,7 @@ export async function toSingleHtmlProject(
         set("srcset", rewriteSrcsetUrls(get("srcset"), ref => urls.get(ref)!, SINGLE_HTML_LIMIT));
       }
     } else if (node.namespaceURI === "http://www.w3.org/2000/svg" && (name === "image" || name === "feImage")) {
-      // SVG の画像・フィルター画像は href を使い、旧 xlink:href より優先する。
+      // SVG の画像やフィルターの画像は href を使い、古い xlink:href より優先する。
       const key = attrs.has("href") ? "href" : "xlink:href";
       if (get(key)) set(key, await resources.embed(get(key), base));
     } else if (name === "style") {

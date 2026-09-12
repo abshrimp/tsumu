@@ -3,8 +3,8 @@ import type { GeneratedProject } from "../generator";
 import type { ExportFormat } from "../export-formats";
 
 /**
- * TypeScript -> JavaScript is a real syntax transformation, not regex stripping.
- * Load the compiler only when JavaScript is selected in the export dialog.
+ * TypeScript から JavaScript への変換は、正規表現で取り除くのではなく、実際の構文の変換で行う。
+ * コンパイラは、書き出しの画面で JavaScript を選んだときだけ読み込む。
  */
 export async function toJavaScriptProject(
   project: GeneratedProject,
@@ -39,7 +39,7 @@ export async function toJavaScriptProject(
     files[outPath] = result.outputText;
   }
 
-  // Keep the original framework tooling, but replace source language configs.
+  // 元のフレームワークのツールは残し、ソースの言語の設定だけを置き換える。
   if (files["tsconfig.json"]) {
     const tsconfig = JSON.parse(files["tsconfig.json"]) as {
       compilerOptions?: { paths?: Record<string, string[]> };
@@ -59,8 +59,8 @@ export async function toJavaScriptProject(
     devDependencies?: Record<string, string>;
   };
   if (framework === "react") {
-    // Vite reads this entry from index.html; transpiling main.tsx to main.jsx
-    // without rewriting the entry leaves a ZIP that cannot be built.
+    // Vite はこの入口を index.html から読む。main.tsx を main.jsx に変換して
+    // 入口を書き換えなければ、ビルドできない ZIP になってしまう。
     if (files["index.html"]) {
       const { parse } = await import("parse5");
       const html = files["index.html"];
@@ -75,11 +75,11 @@ export async function toJavaScriptProject(
           !node.attrs.some(attr => attr.name === "vite-ignore")) {
           const src = node.attrs.find(attr => attr.name === "src")?.value;
           const location = node.sourceCodeLocation?.attrs?.src;
-          // Every executable reference follows the renamed file. Comments,
-          // script bodies and inert template content are never rewritten.
-          // Vite のローカル入力は index.html 基準で解決され、base 要素の影響を受けない。
-          // パスの表記とクエリ・フラグメントは維持し、外部URLには触れない。
-          // vite-ignore の参照はVite入力ではないため、ブラウザーに元のURLを渡す。
+          // 実行される参照は、すべて名前を変えたファイルに合わせる。コメント、
+          // スクリプトの本文、動作しないテンプレートの中身は、決して書き換えない。
+          // Vite のローカルの入力は index.html を基準に解決され、base 要素の影響を受けない。
+          // パスの書き方とクエリ・フラグメントは保ち、外部の URL には手を付けない。
+          // vite-ignore の参照は Vite の入力ではないため、ブラウザーには元の URL を渡す。
           if (location && src && /^(?:\/|\.\/)?src\/main\.tsx(?:[?#]|$)/.test(src)) {
             entries.push({ ...location, src: src.replace(/\.tsx(?=[?#]|$)/, ".jsx") });
           }
@@ -88,7 +88,7 @@ export async function toJavaScriptProject(
       }
       let rewritten = html;
       for (const entry of entries.sort((a, b) => b.startOffset - a.startOffset)) {
-        // parse5 が復号した属性値を、二重引用符付きのHTML属性として安全に戻す。
+        // parse5 がデコードした属性の値を、二重引用符付きの HTML の属性として安全に戻す。
         const escaped = entry.src.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
         rewritten = rewritten.slice(0, entry.startOffset) +
           'src="' + escaped + '"' + rewritten.slice(entry.endOffset);

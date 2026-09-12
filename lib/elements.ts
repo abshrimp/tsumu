@@ -26,7 +26,7 @@ export interface ElementDef {
   make: () => DocNode | PresetResult;
 }
 
-/** make() の戻りを { root, nodes } に正規化 */
+/** make() の戻り値を { root, nodes } の形にそろえる */
 export function normalizeMade(
   made: DocNode | PresetResult
 ): { root: DocNode; nodes: DocNode[] } {
@@ -148,7 +148,7 @@ export const ELEMENT_SECTIONS: { title: string; items: ElementDef[] }[] = [
   },
 ];
 
-/** D&D用のMIMEタイプ */
+/** ドラッグ＆ドロップ用の MIME タイプ */
 export const ELEMENT_DRAG_TYPE = "application/x-tsumu-element";
 
 export function makeElementByKey(

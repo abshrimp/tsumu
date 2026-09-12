@@ -29,7 +29,7 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
     const template = JSON.stringify(tree(runtime.root.querySelector('[data-tpl]')!));
     for (let i = 0; i < 2; i++) {
       await runtime.click('reload'); assert.deepEqual(attributes(s => runtime.active(s)), expected);
-      // 動的画像の URL は引き続き項目ごとに解決する。
+      // 動的な画像の URL は、引き続き項目ごとに解決する。
       assert.deepEqual(runtime.active('#picture').map(n => n.getAttribute('src')), ['/images/First.png', '/images/Second.png', '/images/First.png']);
     }
     assert.equal(JSON.stringify(tree(runtime.root.querySelector('[data-tpl]')!)), template);

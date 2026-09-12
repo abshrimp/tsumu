@@ -1,6 +1,6 @@
 import { readLines } from "./progress";
 
-/** ストリームの途中で上流が返したエラー（HTTPの状態は200のまま届く） */
+/** ストリームの途中で上流が返したエラー（HTTP の状態は 200 のまま届く） */
 export class ModelStreamError extends Error {
   constructor(readonly status: number | undefined, message: string) {
     super(message);
@@ -46,7 +46,7 @@ export async function readCompletionStream(res: Response, onText: (text: string)
       if (part.type) current.type = part.type;
       if (typeof part.function?.name === "string") current.function.name += part.function.name;
       if (typeof part.function?.arguments === "string") current.function.arguments += part.function.arguments;
-      // 署名などの追加情報はツール呼び出しに付ける（画面に出す文には混ぜない）
+      // 署名などの追加情報は、ツール呼び出しに付ける（画面に表示する文には混ぜない）
       if (part.extra_content) current.extra_content = mergeMetadata(current.extra_content, part.extra_content);
       calls.set(index, current);
     }

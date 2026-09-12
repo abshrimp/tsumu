@@ -93,7 +93,7 @@ window.disposeTitleFixture = () => root.unmount();
     plugins: [{
       name: "title-fixture",
       setup(build) {
-        // Next のクライアントビルドと同じ、サーバー専用ストレージのブラウザ版を使う。
+        // Next.js のクライアントのビルドと同じく、サーバー専用のストレージのブラウザ版を使う。
         build.onResolve({ filter: /\/server-async-storage$/ }, () => ({
           path: require.resolve("next/dist/client/components/server-async-storage.browser"),
         }));
@@ -128,7 +128,7 @@ export default function Editor({ onReady }) {
   })).outputFiles[0].text;
 }
 
-/** 実際の読み込み画面を SSR し、同じページとレイアウトをブラウザで hydration する。 */
+/** 実際の読み込みの画面を SSR し、同じページとレイアウトをブラウザでハイドレーションする。 */
 export async function editorTitleHydrationHtml() {
   const { Layout } = await editorTitleFixture();
   const { default: Page } = evaluate(pageSource, {

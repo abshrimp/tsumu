@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
-/** 実際の Canvas・FrameStage・ストアを使い、外部データなしで幅変更を確かめる。 */
+/** 実際の Canvas・FrameStage・ストアを使い、外部のデータ無しで幅の変更を確かめる。 */
 export async function frameResizeBundle() {
   return (await build({
     stdin: {

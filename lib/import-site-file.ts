@@ -40,8 +40,8 @@ async function localWrite(doc: string, name: string): Promise<string> {
 
 async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promise<string> {
   const id = newSiteId();
-  // The ID is known even if the response is lost. The server exclusively inserts
-  // the site and revision 1 in the same transaction.
+  // 応答が失われても ID は分かる。サーバーは、サイトと版1の文書を、
+  // 同じトランザクションで排他的に追加する。
   const response = await fetch("/api/sites", {
     method: "POST", credentials: "same-origin", redirect: "error", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: doc.siteName, importId: id, initialDoc: doc }),
@@ -53,13 +53,13 @@ async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promis
   }
   const saved = await fetch("/api/doc?site=" + id, { credentials: "same-origin", redirect: "error" }).then(res => res.ok ? res.json() : null).catch(() => null);
   if (saved?.exists && JSON.stringify(saved.doc) === raw) return id;
-  // A transport or proxy failure does not prove the transaction rolled back.
-  // Do not delete uploaded bytes which the in-flight or already edited site may use.
+  // 通信やプロキシの失敗は、トランザクションが取り消されたことの証明にはならない。
+  // 処理中のサイトや、すでに編集されたサイトが使うかもしれない、アップロードしたバイト列は削除しない。
   uploads.length = 0;
   throw new Error(tr("Could not confirm the save. Check the site list on the home screen."));
 }
 
-/** Prepare everything before creating the site, then commit its document. */
+/** サイトを作る前にすべてを準備し、それから文書を確定する。 */
 export async function createSiteFromFile(
   file: File,
   mode: SaveMode,
@@ -98,7 +98,7 @@ export async function createSiteFromFile(
     try {
       window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));
     } catch {
-      // The completed import is still usable without a session warning.
+      // 完了した取り込みは、セッションの警告が無くても使える。
       if (warnings.length) console.warn("Import warnings:", warnings);
     }
     return { id, warnings };

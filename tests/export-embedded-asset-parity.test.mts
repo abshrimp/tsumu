@@ -46,8 +46,8 @@ async function pageMarkup(files: Record<string, string>, framework: string, lang
   }
   const path = framework === "vue" ? "src/pages/Page0.vue"
     : framework === "nuxt" ? "app/generated/pages/Page0.vue" : "src/lib/pages/Page0.svelte";
-  // These constants are the exact HTML passed to v-html / {@html}; evaluate
-  // the emitted literals to check runtime values, including SFC escaping.
+  // これらの定数は、v-html / {@html} に渡す HTML そのもの。出力したリテラルを評価して、
+  // SFC のエスケープを含めた実行時の値を確かめる。
   return [...files[path].matchAll(/const rawBlock\d+ = ("(?:\\.|[^"\\])*");/g)]
     .map(match => JSON.parse(match[1])).join("\n");
 }
@@ -70,8 +70,8 @@ for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit"] as const
         const doc = fixture(), before = structuredClone(doc);
         const project = await prepareExportProject(doc, { framework, language, style, scope: "page", pageId: "p" });
         const root = framework === "sveltekit" ? "static/" : "public/";
-        // Scoped asset discovery may change collision suffix assignment; the
-        // URLs must point to the correct bytes in the resulting resource map.
+        // 範囲を絞ったアセットの探索では、重複を避ける接尾辞の割り当てが変わることがある。
+        // 結果のリソースの対応表で、URL が正しいバイト列を指していなければならない。
         const [remote] = Object.keys(project.remoteAssets);
         const [embedded] = Object.keys(project.binaries);
         assert.ok(remote.startsWith(root + "assets/"));

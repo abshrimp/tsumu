@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-// Exercise the production checker against an isolated source tree.
+// 本番の点検を、切り離したソースのツリーに対して動かす。
 function check(source: string, dict: Record<string, string> = {}, args = ["--strict", "ja"], extra: Record<string, Record<string, string>> = {}) {
   const root = mkdtempSync(join(tmpdir(), "tsumu-i18n-check-"));
   try {

@@ -8,7 +8,7 @@ import { readJsonLimited } from "../api-json";
 export const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const record = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
 
-/** 形の崩れた要素の木は、たどる前に弾く。AIに見せる状態は、送られてきた編集データから作り直す */
+/** 形の崩れた要素の木は、たどる前に拒否する。AI に見せる状態は、送られてきた編集データから作り直す */
 export function parseAiRequest(body: unknown): { turns: ChatTurn[]; context: AiContext } {
   const invalid = () => { throw new Error("Invalid AI request"); };
   if (!record(body) || !Array.isArray(body.messages) || !record(body.context)) return invalid();
@@ -53,7 +53,7 @@ export function parseAiRequest(body: unknown): { turns: ChatTurn[]; context: AiC
     breakpoint: typeof input.breakpoint === "string" ? input.breakpoint : "base",
   });
   const last = turns[turns.length - 1];
-  // Prevent a site element from forging closing tags and impersonating a chat instruction.
+  // サイトの要素が閉じタグを偽造して、チャットの指示になりすますのを防ぐ。
   const safeSummary = summarizeContext(context, componentId).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
   last.text = `<editor_state>\n${safeSummary}\n</editor_state>\n\n${last.text}`;
   return { turns, context };
@@ -61,7 +61,7 @@ export function parseAiRequest(body: unknown): { turns: ChatTurn[]; context: AiC
 
 const MAX_TEXT = 400;
 
-/** 要素を、AIが読みやすい短い形にする */
+/** 要素を、AI が読みやすい短い形にする */
 function outline(doc: SiteDoc, id: string, depth: number): unknown {
   const n = doc.nodes[id];
   if (!n) return null;
@@ -95,7 +95,7 @@ function summarizeContext(context: AiContext, componentId?: string): string {
   const bps = normalizeBreakpoints(doc.breakpoints);
   const summary = {
     site: doc.siteName,
-    // 新しく書く文章の言語（編集中のページの言語。コンポーネントはサイトの言語）
+    // 新しく書く文章の言語（編集中のページの言語。コンポーネントではサイトの言語）
     language: comp ? siteLangOf(doc) : pageLangOf(doc, page),
     breakpoints: [
       { id: "base", appliesTo: "all widths (desktop design)" },
@@ -117,7 +117,7 @@ function summarizeContext(context: AiContext, componentId?: string): string {
   return JSON.stringify(summary);
 }
 
-/** AI requests share the same streaming byte bound as other untrusted JSON inputs. */
+/** AI へのリクエストにも、他の信頼できない JSON の入力と同じく、ストリームのバイト数の上限をかける。 */
 export async function readAiRequest(req: Request): Promise<unknown> {
   return readJsonLimited(req, MAX_REQUEST_BYTES);
 }

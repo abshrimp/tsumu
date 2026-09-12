@@ -7,10 +7,10 @@ import EditorLoading from "../../../components/EditorLoading";
 import { loadLocale, tr } from "../../../lib/i18n";
 import { currentSiteId, loadLocalSites } from "../../../lib/site";
 
-// 文言を作る前に言語の辞書を読み込む（モジュールの読み込み時に訳す文言があるため）
+// 文言を作る前に言語の辞書を読み込む（モジュールを読み込む時点で訳す文言があるため）
 const loadEditor = () => loadLocale().then(() => import("../../../components/Editor"));
 
-/** サイトが見つからないとき（消されたサイト・URLの打ち間違い） */
+/** サイトが見つからないときの画面（削除されたサイトや、URL の打ち間違い） */
 function SiteNotFound() {
   return (
     <div className="boot">
@@ -33,9 +33,9 @@ type SiteState =
   | { kind: "failed"; error: unknown };
 
 /**
- * 開く前に、サイトがあるか確かめる（無いサイトの編集データを作らないように）。
- * サーバーに一覧が無い（D1 が無い）ときはブラウザ内の一覧を見る。通信の失敗では止めない。
- * エディタ本体は確認と並行して読み込み、両方そろってから開く（読み込み画面を1回で済ませるため）
+ * 開く前に、サイトがあるかを確かめる（存在しないサイトの編集データを作らないため）。
+ * サーバーに一覧が無い（D1 が無い）ときは、ブラウザ内の一覧を見る。通信に失敗しても止めない。
+ * エディタの本体は確認と並行して読み込み、両方が揃ってから開く（読み込み画面を1回で済ませるため）
  */
 function useSiteCheck(): SiteState {
   const [state, setState] = useState<SiteState>({ kind: "checking" });
@@ -43,7 +43,7 @@ function useSiteCheck(): SiteState {
     let alive = true;
     const id = currentSiteId();
     const editor = loadEditor();
-    // サイトが無くて待たなかったときの失敗は捨てる（待つときは下で受け取る）
+    // サイトが無く、本体の読み込みを待たなかった場合の失敗は捨てる（待つ場合は下で受け取る）
     editor.catch(() => {});
     void (async () => {
       let result: "ok" | "missing" = "ok";
@@ -59,7 +59,7 @@ function useSiteCheck(): SiteState {
           else result = "missing";
         }
       } catch {
-        // 通信できなくても、手元の保存で編集を続けられるようにする
+        // 通信できなくても、ブラウザ内の保存で編集を続けられるようにする
       }
       await loadLocale();
       if (result === "missing") {
@@ -70,7 +70,7 @@ function useSiteCheck(): SiteState {
         const { default: Editor } = await editor;
         if (alive) setState({ kind: "ok", Editor });
       } catch (error) {
-        // 読み込めなかったら（デプロイ直後の古いチャンクなど）エラー画面に任せる
+        // 読み込めなかった場合（デプロイ直後の古いチャンクなど）は、エラー画面に任せる
         if (alive) setState({ kind: "failed", error });
       }
     })();
@@ -87,7 +87,7 @@ export default function SitePage() {
   const onReady = useCallback(() => setReady(true), []);
   if (state.kind === "missing") return <SiteNotFound />;
   if (state.kind === "failed") throw state.error;
-  // サイト確認・本体の読み込み・最初の文書取得を通して、ヒントと登場アニメーションを保つ。
+  // サイトの確認、本体の読み込み、最初の文書の取得のあいだ、ヒントと登場のアニメーションを保つ。
   return (
     <>
       {!ready && <EditorLoading />}

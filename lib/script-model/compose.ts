@@ -1,11 +1,11 @@
-/** Pure data transformations used by script "値を加工する" blocks. */
+/** スクリプトの「値を加工する」ブロックで使う、純粋なデータの加工。 */
 export type NumericOperation = "add" | "subtract" | "multiply" | "divide" | "remainder";
 export type SortDirection = "asc" | "desc";
 export type ValueOperandType = "text" | "number" | "boolean" | "null" | "variable";
 
 /**
- * One editable operand field supports typed literals and variable references.
- * Quotes preserve numeric-looking strings. Actual values remain typed at runtime.
+ * 1つの編集できる値の欄で、型のあるリテラルと変数の参照の両方を扱う。
+ * 引用符で囲めば、数値に見える文字列も文字列のまま。実際の値は、実行時も型を保つ。
  */
 const NUMERIC_LITERAL = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 const inferredLiteral = (text: string) =>

@@ -4,7 +4,7 @@ import { loadLocale } from "../lib/i18n";
 import type { SiteDoc } from "../lib/types";
 import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
 
-// The fixture uses Japanese labels to find and replace the starter heading.
+// この準備では、日本語の表示名を使って、初期の見出しを探して置き換える。
 test.beforeAll(async () => { await loadLocale(); });
 
 const canvas = (page: Page) => page.locator('[data-tutorial="canvas"]');
@@ -114,7 +114,7 @@ for (const cached of [false, true]) {
       await page.goto(`/sites/${id}`);
       await expectPending(page, pending);
       await expect(page.getByText("Stale cached heading", { exact: true })).toHaveCount(0);
-      // Global edit shortcuts must not modify the hidden, temporary document.
+      // 全体に効く編集のショートカットで、隠れた一時的な文書を変更してはならない。
       await page.keyboard.press("ControlOrMeta+a");
       await page.keyboard.press("Delete");
       await page.waitForTimeout(650);
@@ -162,7 +162,7 @@ for (const mode of ["offline", "error", "network", "invalid"] as const) {
       await expect(canvas(page).getByText("Unsaved offline heading", { exact: true })).toBeVisible();
       await expect(page.locator(".boot")).toHaveCount(0);
       expect(pending.writes).toEqual([]);
-      // A later reconnection must retain the mounted canvas instead of hiding/remounting it.
+      // 後で接続し直したときも、取り付け済みのキャンバスを隠したり取り付け直したりせず、そのまま保つ。
       await page.evaluate(() => { (window as any).initialCanvas = document.querySelector('[data-tutorial="canvas"]'); });
       await page.evaluate(() => window.dispatchEvent(new Event("cloud-sync-retry")));
       await expect(canvas(page)).toBeVisible();

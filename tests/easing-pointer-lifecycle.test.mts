@@ -19,8 +19,8 @@ function fixture() {
   react.useLayoutEffect = react.useEffect;
   const mod = { exports: {} as any };
   const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
-  // The tracker uses window too; execute its real implementation in the same
-  // isolated EventTarget instead of attaching listeners to a test global.
+  // 追跡の処理も window を使う。テスト用のグローバルにリスナーを付けず、
+  // 同じ切り離した EventTarget の中で、実際の実装を実行する。
   const tracker = { exports: {} as any };
   const trackerCode = transformSync(readFileSync(resolve("lib/motion-pointer-drag.ts"), "utf8"), { loader: "ts", format: "cjs" }).code;
   new Function("module", "exports", "window", trackerCode)(tracker, tracker.exports, events);

@@ -24,18 +24,18 @@ import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "..
 
 export const maxDuration = 30;
 
-// Large documents remain supported, but a malformed client cannot stream an unbounded body.
+// 大きな文書も受け付けるが、不正なクライアントが際限なく本文を送り続けることは許さない。
 const MAX_DOC_REQUEST_BYTES = 64 * 1024 * 1024;
 const PRIVATE_CACHE = { "Cache-Control": "private, no-store" } as const;
 
 /**
- * Cloudflare上の編集データはサイトごとのDocumentRoom内SQLiteに保存する。
- * revは単調増加し、メタデータと変更行を同期トランザクションで確定する。
+ * Cloudflare 上の編集データは、サイトごとの DocumentRoom 内の SQLite に保存する。
+ * rev は単調に増え、メタデータと変更した行は同期トランザクションで同時に確定する。
  */
 
 /**
- * 最新のドキュメントを返す（なければ exists: false）。
- * ?meta=1 なら本体を除いた版情報のみ（通知後の確認・フォールバック用）
+ * 最新の文書を返す（なければ exists: false）。
+ * ?meta=1 のときは本体を除いた版の情報だけを返す（通知を受けた後の確認や、代替の取得に使う）
  */
 export async function GET(req: Request) {
   const tr = await serverTr();
@@ -61,14 +61,14 @@ export async function GET(req: Request) {
 
     const cur = await readSiteDocument(db, siteId);
     if (!cur) return NextResponse.json({ exists: false }, { headers: PRIVATE_CACHE });
-    // body は保存済みJSONなので、パースし直さず文字列結合で返す
-    //（Workers無料プランのCPU時間制限対策）
+    // body は保存済みの JSON なので、パースし直さずに文字列をつないで返す
+    //（Workers 無料プランの CPU 時間の制限への対策）
     return new NextResponse(
       `{"exists":true,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
       { headers: { "Content-Type": "application/json", ...PRIVATE_CACHE } }
     );
   } catch {
-    // 例外には保存済みの本文や接続情報が含まれ得るため、ログにも応答にも渡さない。
+    // 例外には保存済みの本文や接続情報が含まれることがあるため、ログにも応答にも出さない。
     console.error("[api/doc GET] document read failed");
     return NextResponse.json(
       { error: tr("Couldn't load") },
@@ -78,9 +78,9 @@ export async function GET(req: Request) {
 }
 
 /**
- * ドキュメントを保存。base が無ければ新規作成のみ。既存データには ?base=<rev> が必要:
- * 最新の版が base と違えば保存せず、409 で最新ドキュメントを返す
- * （クライアントがマージして再保存する）
+ * 文書を保存する。base が無い場合は新規作成だけを受け付ける。既存のデータの保存には ?base=<rev> が必要で、
+ * 最新の版が base と異なれば保存せず、409 で最新の文書を返す
+ * （クライアントがマージしてから保存し直す）
  */
 export async function PUT(req: Request) {
   return save(req, false);
@@ -122,8 +122,8 @@ async function save(req: Request, partial: boolean) {
   if (partial && (!base || !/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
     return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
   }
-  // SQLite reads the first repeated JSON key; JSON.parse reads the last.
-  // Store the same object that was validated and will be broadcast to editors.
+  // キーが重複した JSON では、SQLite は最初の値を、JSON.parse は最後の値を読む。
+  // 食い違わないよう、検証済みでエディタに配信するのと同じオブジェクトを保存する。
   let raw = "";
   if (!partial) {
     try { raw = JSON.stringify(input); } catch {
@@ -153,14 +153,14 @@ async function save(req: Request, partial: boolean) {
         { status: 409, headers: { "Content-Type": "application/json", ...PRIVATE_CACHE } }
       );
     }
-    // 右下の「保存」にホバーしたときに出す、最近編集した人
+    // 右下の「保存」にホバーしたときに表示する、最近編集した人を記録する
     await recordActivity(db, siteId, "edit", user, result.savedAt, roomKey);
     const metadata = {
       rev: result.rev,
       savedAt: result.savedAt,
       senderId,
     };
-    // 保存した世代だけに通知し、通知の失敗で確定済みの保存を失敗扱いにしない。
+    // 保存した世代だけに通知する。通知に失敗しても、確定した保存を失敗扱いにはしない。
     try {
       if (db.backend !== "d1" || roomKey) {
         notifyDocUpdated(siteId, partial && isDocPatch(patch)
@@ -180,12 +180,12 @@ async function save(req: Request, partial: boolean) {
       (e instanceof Error && /^(不正なリクエスト|JSONが壊れています|Invalid request|Invalid JSON)$/.test(e.message))) {
       return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
     }
-    // 大きさの上限は決め打ちせず、保存先が拒んだときに返す
+    // 大きさの上限はここでは決めず、保存先が拒否したときにそのエラーを返す
     if (e instanceof DocTooLargeError ||
       (e instanceof Error && /too big|大きすぎ|SQLITE_TOOBIG/i.test(e.message))) {
       return NextResponse.json({ error: tr("The document is too large for the storage") }, { status: 413 });
     }
-    // 例外には保存済みの本文や接続情報が含まれ得るため、ログにも応答にも渡さない。
+    // 例外には保存済みの本文や接続情報が含まれることがあるため、ログにも応答にも出さない。
     console.error("[api/doc] document save failed");
     return NextResponse.json(
       { error: tr("Couldn't save") },

@@ -59,12 +59,12 @@ export function LayoutSec() {
   const dir = dirInfo.value ?? "row";
   const isFlex = display === "flex" || display === "inline-flex";
   const isGrid = display === "grid" || display === "inline-grid";
-  // フローは表示している状態（自動 / 縦 / 横 / グリッド）で比べる
-  // （「省略」の折り返しで付く -webkit-box などは「自動」のまま）
+  // フローは、表示している状態（自動 / 縦 / 横 / グリッド）で比べる
+  // （「省略」の折り返しで付く -webkit-box などは「自動」のままとする）
   const flowChanged =
     (displayInfo.setHere || dirInfo.setHere) &&
     flowMode(display, dirInfo.value) !== flowMode(displayInfo.reference, dirInfo.reference);
-  // 「省略」の折り返しが一緒に付ける overflow: hidden には色を付けない
+  // 「省略」の折り返しが一緒に付ける overflow: hidden には、色を付けない
   const overflowInfo = insp.get("overflow");
   const overflowChanged =
     overflowInfo.changed &&
@@ -72,7 +72,7 @@ export function LayoutSec() {
   const spaceBetween = (insp.get("justifyContent").value ?? "").startsWith(
     "space"
   );
-  /** 均等配置を外す値（消しても大きい画面・通常時の均等配置が残るときだけ左寄せを書き込む） */
+  /** 均等配置を外す値（消しても大きい画面や通常時の均等配置が残るときだけ、左寄せを書き込む） */
   const unsetSpace = () =>
     insp.get("justifyContent").baseline?.startsWith("space") ? "flex-start" : null;
 
@@ -211,7 +211,7 @@ export function LayoutSec() {
                   }
                   onChange={(v) => {
                     const props: Record<string, string | null> = { gap: v };
-                    // 数値を入れたら「自動（均等配置）」は解除する
+                    // 数値を入れたら、「自動（均等配置）」は解除する
                     if (spaceBetween) props.justifyContent = unsetSpace();
                     insp.set(props);
                   }}
@@ -247,7 +247,7 @@ export function LayoutSec() {
           <div className="grid2">
             <Grp
               label={tr("Columns")}
-              // グリッドを選んだときに入る2列とは比べない（上位が未設定なら2列と比べる）
+              // グリッドを選んだときに入る2列とは比べない（上位が未設定なら、2列と比べる）
               setHere={differsFrom(insp.get("gridTemplateColumns"), GRID_DEFAULT_COLUMNS)}
               onReset={() => insp.set({ gridTemplateColumns: null })}
             >
@@ -345,25 +345,25 @@ export function LayoutSec() {
   );
 }
 
-/* ---------- グリッドの間隔（横 = 列の間 / 縦 = 行の間） ---------- */
+/* ---------- グリッドの間隔（横 = 列の間、縦 = 行の間） ---------- */
 
 function GridGap() {
   const insp = useInspector();
   const gap = insp.get("gap");
   const col = insp.get("columnGap");
   const row = insp.get("rowGap");
-  // gap は「縦 横」または1つの値
+  // gap は「縦 横」、または1つの値
   const gapPart = (i: 0 | 1) => {
     const parts = gap.value ? cssValueParts(gap.value) : undefined;
     return parts ? parts[Math.min(i, parts.length - 1)] : undefined;
   };
-  // 個別指定とまとめ指定は、カスケードで後から効く方を見せる
+  // 個別の指定とまとめた指定のうち、CSS の優先順位で後から効く方を表示する
   const rowValue = row.layer >= gap.layer ? (row.value ?? gapPart(0)) : (gapPart(0) ?? row.value);
   const colValue = col.layer >= gap.layer ? (col.value ?? gapPart(1)) : (gapPart(1) ?? col.value);
 
   const write = (patch: { rowGap?: string | null; columnGap?: string | null }) => {
     const out: Record<string, string | null> = {};
-    // まとめ指定 gap がこの画面幅にあれば、個別指定に置き換える（同じルール内での上書き順を避ける）
+    // まとめた指定の gap がこの画面幅にあれば、個別の指定に置き換える（同じルールの中での上書きの順序に頼らない）
     if (gap.setHere) {
       out.rowGap = row.setHere ? row.value ?? null : gapPart(0) ?? null;
       out.columnGap = col.setHere ? col.value ?? null : gapPart(1) ?? null;

@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-// Run without a server or browser installation:
+// サーバーもブラウザのインストールも無しで実行する:
 // node --import tsx --test e2e/browser-projects.check.mts
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -40,7 +40,7 @@ test("all three engines discover the same core editing smoke tests", () => {
     for (const child of suite.suites ?? []) visit(child);
   }
   for (const suite of report.suites) visit(suite);
-  // Guard against an empty/mis-spelled tag making a green but empty matrix.
+  // タグが空だったり綴りを誤っていたりして、中身の無い組み合わせのまま成功するのを防ぐ。
   assert.equal(smoke.get("editor.spec.ts")?.size, 6);
   assert.equal(smoke.get("text-editing.spec.ts")?.size, 3);
   assert.equal(smoke.size, 2);

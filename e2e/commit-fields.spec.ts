@@ -3,8 +3,8 @@ import { commitFieldsBundle, commitFieldsDoc, commitPageFieldsBundle } from "../
 
 const seoField = (page: Page, field: "title" | "description") => page.locator(`[data-tutorial="page-seo"] ${field === "title" ? ".row > input.input" : "textarea"}`);
 
-// The store-level suite exercises the full field × editing-state matrix.
-// Use the browser/server path for both native field types and all distinct edit states.
+// 欄の種類 × 編集の状態の組み合わせ全体は、ストアの単位のテストで確かめる。
+// ここでは、ネイティブの2種類の欄と、異なるすべての編集の状態について、ブラウザとサーバーの経路を通す。
 const serverEditingCases = {
   title: ["fresh", "pending"],
   description: ["previously-committed", "pending"],
@@ -25,7 +25,7 @@ for (const field of ["title", "description"] as const) {
       const input = seoField(page, field);
       await expect(input).toHaveValue(`Original ${field}`);
       if (editing === "previously-committed") {
-        // Reuse a native input whose dirty-value flag is set, then refocus without typing.
+        // dirty value のフラグが立ったネイティブの入力欄を使い回し、入力せずにもう一度フォーカスする。
         await input.fill("Earlier local edit");
         await input.blur();
         await expect.poll(async () => (await (await page.request.get(endpoint)).json()).doc.pages.p[field]).toBe("Earlier local edit");
@@ -39,7 +39,7 @@ for (const field of ["title", "description"] as const) {
       remote.pages.p[field] = "Collaborator value";
       remote.pages.p.name = "Collaborator page";
       expect((await page.request.put(`${endpoint}&base=${current.rev}`, { data: remote })).ok()).toBeTruthy();
-      // Prove that the real editor received the remote change without mutating the store from the test.
+      // テストからストアを書き換えずに、実際のエディタが相手の変更を受け取ったことを確かめる。
       await expect(page.locator('[data-tutorial="tutorial-page-name"]')).toHaveValue("Collaborator page");
       await expect(input).toBeFocused();
       expect(await input.evaluate(el => el === (window as any).focusedCommitField)).toBe(true);
@@ -57,7 +57,7 @@ for (const field of ["title", "description"] as const) {
         await expect(input).toHaveValue("Deliberate local draft");
         await expect.poll(async () => (await (await page.request.get(endpoint)).json()).doc).toEqual(expected);
       }
-      // Re-read the saved document after blur to catch older values written by a delayed save.
+      // 遅れた保存が古い値を書き込んでいないか確かめるため、blur の後に保存された文書を読み直す。
       await page.waitForTimeout(1200);
       expect((await (await page.request.get(endpoint)).json()).doc).toEqual(expected);
       await page.reload();

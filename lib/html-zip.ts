@@ -48,7 +48,7 @@ export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<s
 }
 
 
-/** Verify each archive-local resource before its bytes are uploaded or its CSS transformed. */
+/** アーカイブ内の各リソースを、アップロードや CSS の変換の前に検証する。 */
 async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: import("jszip").JSZipObject[],
     sourceBytes: Map<string, Uint8Array<ArrayBuffer>>) {
   const verify = createIntegrityVerifier();
@@ -82,7 +82,7 @@ async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: i
       const metadata = node.attrs.find(attr => attr.name === "integrity")?.value;
       const ref = node.attrs.find(attr => attr.name === (node.tagName === "link" ? "href" : "src"))?.value;
       if (!metadata || !ref) continue;
-      // An authored URL with this scheme is never an archive reference.
+      // このスキームを持つ書かれた URL は、アーカイブ内の参照ではない。
       const target = /^zip-member:(\d+)(?:[?#]|$)/.exec(resolve(ref));
       if (!target || /^[a-z][a-z0-9+.-]*:/i.test(ref.trim())) continue;
       const entry = assetEntries[Number(target[1])];
@@ -105,7 +105,7 @@ async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: i
   }
 }
 
-/** Existing pages can still reference the previous ZIP after a page is duplicated. */
+/** ページを複製した後も、既存のページが前の ZIP を参照していることがある。 */
 function bindZipDependencies(assets: Asset[], existing: Asset[]): void {
   attachZipDependencies(assets);
   if (!existing.length) return;
@@ -113,8 +113,8 @@ function bindZipDependencies(assets: Asset[], existing: Asset[]): void {
   const membersChanged = existing.length !== assets.length || assets.some(asset => !previous.has(asset.id));
   if (!membersChanged) return;
 
-  // Modules resolve siblings by directory at runtime. Keep each version's entire
-  // directory together, while continuing to share the uploaded file bytes.
+  // モジュールは実行時にディレクトリを基準に隣のファイルを解決する。アップロードした
+  // ファイルの内容は共有しつつ、版ごとにディレクトリ全体をまとめて残す。
   const newGroup = (assets.some(isZipJavascript) || existing.some(isZipJavascript)) ? genId("zip") : undefined;
   const byId = Object.fromEntries(assets.map(asset => [asset.id, asset]));
   const changedSheets = new Set(assets.filter(asset => {
@@ -126,7 +126,7 @@ function bindZipDependencies(assets: Asset[], existing: Asset[]): void {
   for (const asset of assets) {
     if (newGroup) asset.zip!.group = newGroup;
     if (!previous.has(asset.id)) continue;
-    // An unchanged @import can point to another stylesheet whose dependencies changed.
+    // 変わっていない @import でも、依存関係が変わった別のスタイルシートを指していることがある。
     if (newGroup || (changedSheets.size && zipStylesheet(asset) &&
         [...zipAssetClosure(byId, [asset.id])].some(id => changedSheets.has(id)))) {
       asset.id = genId("asset");
@@ -135,7 +135,7 @@ function bindZipDependencies(assets: Asset[], existing: Asset[]): void {
   if (newGroup || changedSheets.size) attachZipDependencies(assets);
 }
 
-/** Reuse document identities only after checking the current document at commit time. */
+/** 確定する時点の現在の文書を確かめてから、文書の識別子を使い回す。 */
 export function applyHtmlZipPage(doc: SiteDoc, pageId: string, imported: { assets: Asset[]; source: string; zip: HtmlZipPage }): void {
   const page = doc.pages[pageId];
   if (!page) return;
@@ -150,7 +150,7 @@ export function applyHtmlZipPage(doc: SiteDoc, pageId: string, imported: { asset
   }
   const groups = new Set(old.map(asset => asset.zip!.group));
   const all = Object.values(doc.assets);
-  // Older reimports could leave different module dependencies at a single alias.
+  // 以前に読み込み直したことで、1つの別名に異なるモジュールの依存関係が残っていることがある。
   const conflicts = old.some(isZipJavascript) && all.some(asset => {
     const zip = asset.zip, other = zip && oldByPath.get(zip.path);
     return zip && other && other.zip!.group === zip.group && !oldIds.has(asset.id) &&
@@ -161,8 +161,8 @@ export function applyHtmlZipPage(doc: SiteDoc, pageId: string, imported: { asset
     const reused = new Set([...sameBytes.values()].map(asset => asset.id));
     const outside = assetUsage({ ...doc, pages: { ...doc.pages,
       [pageId]: { ...page, rawHtml: imported.source, htmlZip: undefined } } });
-    // A replaced or previously retained script can still be selected in the asset
-    // panel. Keep its module directory, and preserve old stylesheet dependencies.
+    // 置き換えたスクリプトや、以前から残しているスクリプトは、アセットのパネルで選ばれることがある。
+    // そのモジュールのディレクトリを残し、古いスタイルシートの依存関係も残す。
     const preserve = old.some(asset => outside.has(asset.id)) || all.some(asset => !reused.has(asset.id) &&
       ((isZipJavascript(asset) && groups.has(asset.zip!.group)) ||
         zipStylesheet(asset)?.references.some(ref => reused.has(ref.assetId))));
@@ -183,7 +183,7 @@ export function applyHtmlZipPage(doc: SiteDoc, pageId: string, imported: { asset
   page.htmlZip = { path: imported.zip.path, assetIds: assets.map(asset => asset.id) };
 }
 
-/** Preflight the archive before uploading anything; JavaScript dependencies are not resolved. */
+/** 何かをアップロードする前に、アーカイブを事前に確認する。JavaScript の依存関係は解決しない。 */
 async function prepareHtmlZip(
   file: File | Uint8Array, progress: (message: string) => void, paths: string[],
   existing: Asset[] = [],
@@ -196,8 +196,8 @@ async function prepareHtmlZip(
   const zip = await openImportZip(bytes, HTML_ZIP_LIMITS.entries);
   const { htmlEntries, htmlEntry, assetEntries } = inspectHtmlZip(zip);
 
-  // Verify HTML and CSS bytes before starting an upload. A malformed stylesheet
-  // must not leave behind assets uploaded earlier in the same import.
+  // アップロードを始める前に、HTML と CSS のバイト列を検証する。不正なスタイルシートがあっても、
+  // 同じ取り込みで先にアップロードしたアセットが残ってしまわないようにする。
   const htmlText = new Map<string, string>();
   for (const entry of htmlEntries) {
     const bytes = await readZipEntryLimited(entry, HTML_ZIP_LIMITS.htmlBytes);
@@ -218,14 +218,14 @@ async function prepareHtmlZip(
     stylesheets.set(entry.name, { bytes, source });
   }
 
-  // Integrity validation may remove CSS SRI for a converted page. The raw HTML
-  // editor must keep the original source, including SRI, comments and formatting.
+  // 整合性の検証で、変換したページの CSS の SRI が取り除かれることがある。生の HTML の
+  // エディタでは、SRI・コメント・書式も含めて、元のソースを残す必要がある。
   const pristineHtmlText = new Map(htmlText);
   const checkedBytes = new Map([...stylesheets].map(([path, sheet]) => [path, sheet.bytes]));
   await verifyZipIntegrity(htmlText, assetEntries, checkedBytes);
   for (const entry of assetEntries) {
-    // Prove the remaining members are intact before the first upload without
-    // retaining up to the whole expanded archive in the editor's memory.
+    // 展開したアーカイブ全体をエディタのメモリに抱えずに、最初のアップロードの前に、
+    // 残りのファイルが壊れていないことを確かめる。
     if (!checkedBytes.has(entry.name)) await verifyZipEntry(entry, HTML_ZIP_LIMITS.assetBytes);
   }
 
@@ -239,7 +239,7 @@ async function prepareHtmlZip(
     const sheet = stylesheets.get(entry.name);
     const bytes = checkedBytes.get(entry.name) ?? await readZipEntryLimited(entry, HTML_ZIP_LIMITS.assetBytes);
     const mime = zipMime(path);
-    // Preserve original bytes, including UTF-8 BOM; CSS references are metadata.
+    // 元のバイト列（UTF-8 の BOM も含む）を残す。CSS の参照は付随する情報として持つ。
     const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
     const sha256 = Array.from(hash, byte => byte.toString(16).padStart(2, "0")).join("");
     const previous = existing.find(asset => asset.zip?.path === path && asset.zip.sha256 === sha256);
@@ -258,7 +258,7 @@ async function prepareHtmlZip(
   return { assets, htmlEntries, htmlEntry, urls, htmlText, pristineHtmlText };
 }
 
-/** Existing raw-HTML page import: keep its single index.html behavior unchanged. */
+/** HTMLページへの取り込み: index.html を1つだけ読み込む。 */
 export async function readHtmlZip(
   file: File | Uint8Array, progress: (message: string) => void = () => {},
   uploaded?: string[], existing: Asset[] = [], sourceOnly = false,
@@ -269,8 +269,8 @@ export async function readHtmlZip(
     const path = cleanZipPath(htmlEntry.name);
     const source = pristineHtmlText.get(htmlEntry.name) ?? "";
     if (!source.trim()) throw new Error(tr("The HTML file in the ZIP is empty. The existing page has not been replaced."));
-    // HTML-mode imports never parse/serialize the authored source.
-    // Visual-node imports still need resolved references for conversion.
+    // HTML モードでの取り込みでは、書かれたソースを解析・直列化しない。
+    // 視覚的なノードへの取り込みでは、変換のために解決した参照が必要になる。
     const html = sourceOnly ? source : rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", path, urls);
     return {
       assets, html, source,
@@ -279,7 +279,7 @@ export async function readHtmlZip(
   }, uploaded);
 }
 
-/** Editable site import: import every HTML page while uploading assets only once. */
+/** 編集可能なサイトへの取り込み: アセットは1回だけアップロードしながら、すべての HTML のページを取り込む。 */
 export async function readHtmlZipPages(file: File | Uint8Array, progress: (message: string) => void = () => {}, uploaded?: string[]) {
   return withImportUploads(async paths => {
     const { assets, htmlEntries, htmlEntry, urls, htmlText } = await prepareHtmlZip(file, progress, paths);

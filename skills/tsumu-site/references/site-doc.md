@@ -19,6 +19,8 @@ The importer accepts both an ordinary `SiteDoc` and the following wrapper:
 
 The wrapper's `version` identifies the portable file contract. Only version `1` with `gzip+base64` is accepted. Plain `SiteDoc` JSON uses the same canonical schema. The `payload` decompresses to the `SiteDoc` structure described below. Unknown versions or codecs are rejected.
 
+All editable documents use the single canonical schema (`schemaVersion: 1`). Imports reject documents that do not match this schema.
+
 Use this Python recipe when generating a standalone `doc.json`:
 
 ```python
@@ -27,8 +29,6 @@ import gzip
 import json
 
 # doc is a complete SiteDoc dictionary.
-
-All editable documents use the single canonical schema (`schemaVersion: 1`). Imports reject documents that do not match this schema.
 plain = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 packed = json.dumps({
     "format": "tsumu-doc",
@@ -43,7 +43,7 @@ with open("doc.json", "wb") as output:
 
 This approach picks the smaller representation. Do not shorten property names, discard values, generate numeric node keys, or remove apparently redundant fields without a reversible and versioned mapping: the current editor expects the full `SiteDoc` on import. ZIP exports should instead store **plain minified** `_tsumu/doc.json` and apply ZIP-level DEFLATE, avoiding redundant compression.
 
-A compressed `doc.json` is not directly human-editable until decompressed. For manual authoring or debugging, use plain `SiteDoc` JSON; both forms can be imported by this PR.
+A compressed `doc.json` is not directly human-editable until decompressed. For manual authoring or debugging, use plain `SiteDoc` JSON; both forms can be imported.
 
 ## Minimum document
 
@@ -51,6 +51,7 @@ A complete minimal site needs these fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
+| `schemaVersion` | `1` | Document schema version; any other value is rejected |
 | `siteName` | nonempty string | Site name |
 | `pages` | object keyed by page ID | Page definitions |
 | `pageOrder` | nonempty array of page IDs | Order of the pages shown in the editor |
@@ -241,7 +242,7 @@ Follow `validateImportedDoc()` in `lib/site-import.ts` plus a stricter self-chec
 - Tree children must not create cycles or accidentally assign the same ordinary node to multiple parents.
 - Avoid unsupported node types, script step kinds, invalid breakpoint keys, invalid HTML/CSS values, and unsafe references.
 - ZIP paths must be relative and safe, without `..`, leading slashes, repeated ambiguous entries or multiple editable documents.
-- Current local import implementation: ZIP file ≤100 MiB; standalone JSON ≤12 MiB compressed **and** after decompression; expanded ZIP total ≤300 MiB; ≤500 ZIP entries, ≤250 asset entries/records, each asset ≤25 MiB; browser-only fallback for each stored asset is more restrictive (2 MiB).
+- Current local import implementation: ZIP file ≤100 MiB; standalone JSON ≤12 MiB compressed **and** after decompression; expanded ZIP total ≤300 MiB; ≤1,500 ZIP entries, ≤1,000 asset entries/records, each asset ≤25 MiB; browser-only fallback for each stored asset is more restrictive (2 MiB).
 - Tsumu's importer checks some structural properties but does not guarantee every script, design or asset renders correctly. Run a real import and preview if possible. Never treat a shallow shape check as full validation.
 
-These rules match the PR implementing local imports; recheck `lib/types.ts` and `lib/site-import.ts` if those files change.
+These rules follow `IMPORT_LIMITS` in `lib/site-import-format.ts` and the checks in `lib/site-import.ts`; recheck those files and `lib/types.ts` when they change.

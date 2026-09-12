@@ -8,7 +8,7 @@ import { fakeIndexedDB } from "./fake-indexeddb";
 const require = createRequire(resolve("package.json"));
 const repo = resolve(".");
 
-/** ホームの操作と保存処理は実物を使い、認証・設定表示だけを切り離す。 */
+/** ホームの操作と保存の処理は実物を使い、認証と設定の表示だけを切り離す。 */
 const homeMocks: Plugin = {
   name: "home-site-storage",
   setup(build) {
@@ -28,7 +28,7 @@ const homeMocks: Plugin = {
   },
 };
 
-/** フックの状態だけを保持し、実 Home が SiteDialog に渡す onSave を直接実行する。 */
+/** フックの状態だけを持ち、実際の Home が SiteDialog に渡す onSave を直接実行する。 */
 export async function homeSiteFixture(storage: Storage) {
   const result = await build({
     stdin: {
@@ -131,7 +131,7 @@ export async function homeSiteFixture(storage: Storage) {
   };
 }
 
-/** 同じホームを、ブラウザの本物のダイアログ・ボタンで操作する。 */
+/** 同じホームを、ブラウザの実際のダイアログとボタンで操作する。 */
 export async function homeSiteStorageBundle() {
   return (await build({
     stdin: {

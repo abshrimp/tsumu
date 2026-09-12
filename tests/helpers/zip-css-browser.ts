@@ -6,8 +6,8 @@ import type { Page } from "@playwright/test";
 import { generateProject } from "../../lib/generator";
 import type { Asset, SiteDoc } from "../../lib/types";
 
-// Original, synthetic TrueType font: only X, a rectangle with a 1000-unit advance.
-// The font is deliberately valid so the browser must decode it, not accept a fake fetch.
+// 独自に作った合成の TrueType フォント: 1000 単位の送り幅を持つ長方形の X だけを含む。
+// 偽の取得を受け入れるのではなく、ブラウザが実際にデコードするよう、意図的に正しいフォントにしている。
 const PROBE_FONT = "AAEAAAAKAIAAAwAgT1MvMkU3R2wAAAEoAAAAYGNtYXAADACrAAABkAAAADRnbHlmVT97EgAAAcwAAAAaaGVhZFtJpQAAAACsAAAANmhoZWEH0QROAAAA5AAAACRobXR4BEwAAAAAAYgAAAAGbG9jYQANAAAAAAHEAAAABm1heHAABAAGAAABCAAAACBuYW1lHKYFLwAAAegAAAF9cG9zdAA/AAAAAANoAAAAJgABAAAAAQAAZ9m3RF8PPPUAAwPoAAAAAHwlsIAAAAAAfCWwgABkAAADhAMgAAAAAwACAAAAAAAAAAEAAAPoAAAAAAPoAGQAZAOEAAEAAAAAAAAAAAAAAAAAAAABAAEAAAACAAQAAQAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAwPoAZAABQAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAPz8/PwAAAFgAWAPoAAAAAAPoAAAAAAAAAAAAAAAAAAAAAAAgAAAD6AAAAGQAAAAAAAIAAAADAAAAFAADAAEAAAAUAAQAIAAAAAQABAABAAAAWP//AAAAWP///6kAAQAAAAAAAAAAAA0AAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAAAAAAMAJYAAQAAAAAAAQAPAAAAAQAAAAAAAgAHAA8AAQAAAAAAAwAVABYAAQAAAAAABAAXACsAAQAAAAAABQALAEIAAQAAAAAABgAVABYAAwABBAkAAQAeAE0AAwABBAkAAgAOAGsAAwABBAkAAwAqAHkAAwABBAkABAAuAKMAAwABBAkABQAWANEAAwABBAkABgAqAHlUc3VtdSBDU1MgUHJvYmVSZWd1bGFyVHN1bXVDU1NQcm9iZS1SZWd1bGFyVHN1bXUgQ1NTIFByb2JlIFJlZ3VsYXJWZXJzaW9uIDEuMABUAHMAdQBtAHUAIABDAFMAUwAgAFAAcgBvAGIAZQBSAGUAZwB1AGwAYQByAFQAcwB1AG0AdQBDAFMAUwBQAHIAbwBiAGUALQBSAGUAZwB1AGwAYQByAFQAcwB1AG0AdQAgAEMAUwBTACAAUAByAG8AYgBlACAAUgBlAGcAdQBsAGEAcgBWAGUAcgBzAGkAbwBuACAAMQAuADAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAOwAA";
 
 const fixtureFiles: Record<string, string | Buffer> = {
@@ -57,7 +57,7 @@ const fixtureFiles: Record<string, string | Buffer> = {
     font-family: "Tsumu CSS Probe";
     src: url("../../fonts/probe.ttf?font=2#face") format("truetype");
   }`,
-  // Keep namespace ordering separate from layer-order tests: only imports precede it.
+  // 名前空間の順序は、レイヤーの順序のテストと分けておく。その前に置くのは @import だけ。
   "site/css/namespaces.css": `@import "nested/namespace.css";
     @namespace h url("http://www.w3.org/1999/xhtml");
     h|div#namespace-scope { color: rgb(12, 34, 56); }`,
@@ -73,7 +73,7 @@ const fixtureFiles: Record<string, string | Buffer> = {
   "site/fonts/probe.ttf": Buffer.from(PROBE_FONT, "base64"),
 };
 
-/** Use the actual importer and React hook, not a copy of the CSS transformation. */
+/** CSS の変換の写しではなく、実際の取り込みの処理と React のフックを使う。 */
 export const zipCssBrowserBundle = buildSync({
   stdin: {
     contents: `
@@ -128,7 +128,7 @@ export const zipCssBrowserBundle = buildSync({
 type Uploaded = { name: string; mimeType: string; body: Buffer };
 export type Signature = { paths: string[]; token: string; release: () => void; settled: Promise<void> };
 
-/** Every HTTP request is intercepted; neither editor accounts nor the network are used. */
+/** HTTP のリクエストはすべて横取りする。エディタのアカウントもネットワークも使わない。 */
 export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
   const uploaded = new Map<string, Uploaded>();
   const signatures: Signature[] = [];
@@ -176,7 +176,7 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
         if (control.failSignatures) return await route.fulfill({ status: 503, json: { error: "Fixture signer unavailable" } });
         const expires = await page.evaluate(() => Date.now() + 60 * 60 * 1000);
         const urls = Object.fromEntries(paths.map((path) => [path, `/api/assets/file?path=${encodeURIComponent(path)}${control.publicAssets ? "" : `&exp=${expires}&sig=${signature.token}`}`]));
-        // A previous hook invocation may abort while its response is deliberately delayed.
+        // 前回のフックの呼び出しは、意図的に遅らせた応答の途中で中断することがある。
         await route.fulfill({ json: { urls } }).catch((error) => {
           if (!request.failure()) throw error;
         });
@@ -208,8 +208,8 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
     return route.fulfill({ status: 404, body: "Unexpected fixture request" });
   });
   await page.goto("https://zip-editor.test/");
-  // WebKit's intercepted request omits file-backed multipart bytes. Materialize
-  // the browser's actual multipart body before the test's HTTP storage mock reads it.
+  // WebKit の横取りしたリクエストには、ファイルを元にした multipart のバイト列が含まれない。
+  // テストの HTTP の保存先の模擬が読む前に、ブラウザの実際の multipart の本文を作っておく。
   await page.evaluate(() => {
     const send = window.fetch.bind(window);
     window.fetch = async (url, init) => {
@@ -241,7 +241,7 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
   };
 }
 
-/** Execute the actual generated Route Handler, then serve its public files verbatim. */
+/** 実際に生成した Route Handler を実行し、その公開ファイルをそのまま配信する。 */
 export async function renderZipExport(doc: SiteDoc) {
   const output = generateProject(doc);
   const code = transformSync(output.files["app/route.ts"], { loader: "ts", format: "cjs" }).code;

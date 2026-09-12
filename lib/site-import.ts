@@ -19,7 +19,7 @@ export interface ArchiveAssetMap {
 
 export interface SiteImport {
   doc: SiteDoc;
-  /** Original asset ID -> bytes from the archive, if present. */
+  /** 元のアセットの ID → アーカイブの中のバイト列（ある場合）。 */
   assets: Map<string, Uint8Array>;
   warnings: string[];
 }
@@ -74,7 +74,8 @@ export async function parseSiteImport(
   const canonicalPaths = new Set<string>();
   for (const entry of entries) {
     if (!pathOK(entry.name)) throw new Error(tr("The ZIP contains an unsafe path."));
-    // ZIP members must be unambiguous on case-insensitive and Unicode-normalizing hosts.
+    // 大文字と小文字を区別しない環境や、Unicode を正規化する環境でも、ZIP の中の項目が
+    // 一意に決まらなければならない。
     const canonical = entry.name.normalize("NFC").toLowerCase();
     if (canonicalPaths.has(canonical)) throw new Error(tr("The ZIP contains duplicate file paths."));
     canonicalPaths.add(canonical);
@@ -93,7 +94,7 @@ export async function parseSiteImport(
   const doc = validateImportedDoc(await decodePortableDoc(jsonText(docBytes), IMPORT_LIMITS.docBytes));
   const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
-  // Asset paths are read from the archive's explicit mapping file.
+  // アセットのパスは、アーカイブの中の明示的な対応表のファイルから読む。
   const mapEntry = zip.file(parent + "assets.json");
   if (!mapEntry) throw new Error(tr("The ZIP is missing _tsumu/assets.json."));
   const metadata = jsonText(await readZipEntryLimited(mapEntry, IMPORT_LIMITS.docBytes));
@@ -136,7 +137,7 @@ export async function parseSiteImport(
   return { doc, assets, warnings };
 }
 
-/** Preserve every asset ID: only its storage location is replaced. */
+/** アセットの ID はすべて保つ。置き換えるのは保存場所だけ。 */
 export async function restoreImportAssets(
   imported: SiteImport,
   progress: (message: string) => void = () => {},
@@ -175,7 +176,7 @@ export async function restoreImportAssets(
         };
       } catch (e) {
         warnings.push(tr("Could not save {name} ({reason})", { name: asset.name, reason: String(e instanceof Error ? e.message : e) }));
-        // The manifest bytes take precedence over an older embedded copy.
+        // 対応表のバイト列を、埋め込まれた古い写しより優先する。
         if (archived) delete asset.dataUrl;
         delete asset.path;
         if (bytes.byteLength <= IMPORT_LIMITS.localAssetBytes && !asset.dataUrl) {
@@ -188,10 +189,10 @@ export async function restoreImportAssets(
     }
     delete asset.dataUrl;
     if (!bytes) warnings.push(tr("Could not retrieve the asset: {name}", { name: asset.name }));
-    // Do not point at an unrelated asset key in the destination installation.
+    // 取り込み先の環境の、関係の無いアセットのキーを指さないようにする。
     if (asset.path) delete asset.path;
   }
-  // History restoration and file imports use the same SVG sanitization policy.
+  // 履歴からの復元とファイルの取り込みで、同じ SVG の無害化の方針を使う。
   sanitizeImportedInlineIcons(doc);
   rebindImportedAssetUrls(imported.doc, doc);
   return { doc, warnings: [...new Set(warnings)], createdPaths };

@@ -35,7 +35,7 @@ test("srcset rewriting does not reinterpret missing or external candidates", () 
 test("the HTML ZIP rewrite applies candidate parsing to img and source without changing data URLs", () => {
   const { parse } = createRequire(import.meta.url)("next/dist/compiled/node-html-parser");
   const previous = Object.getOwnPropertyDescriptor(globalThis, "DOMParser");
-  // The native regression covers actual browser parsing; this adapter exercises the importer locally.
+  // 実際のブラウザでの解析は、ネイティブの回帰テストで確かめる。この代わりの部品で、取り込みの処理を手元で動かす。
   Object.defineProperty(globalThis, "DOMParser", { configurable: true, value: class {
     parseFromString(html: string) {
       const root = parse(html);

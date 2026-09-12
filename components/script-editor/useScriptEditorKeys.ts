@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * スクリプト画面のキー操作（Esc・削除・選択・拡大縮小・履歴・ブロックのコピー / 貼り付け）
+ * スクリプトの画面のキー操作（Esc・削除・選択・拡大と縮小・履歴・ブロックのコピーと貼り付け）
  */
 import { useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useEditor } from "../../lib/store";
@@ -28,10 +28,10 @@ export function useScriptEditorKeys({
   setPeekId,
   setSelectedList,
 }: UseScriptEditorKeysDeps) {
-  // キー操作: Esc / Backspace・Delete / ⌘A / 取り消し・やり直し
+  // キー操作: Esc / Backspace・Delete / ⌘A / 元に戻す・やり直す
   useEffect(() => {
-    // Escape は入力欄・候補メニューが先に処理する。capture で止めると、
-    // 検索のクリアなどに届かず、背後の選択解除・画面終了になってしまう。
+    // Escape は、入力欄や候補のメニューが先に処理する。capture で止めてしまうと、
+    // 検索語の消去などに届かず、背後の選択の解除や画面の終了になってしまう。
     const onEscape = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
       if (document.querySelector(".dialog-backdrop:not(.is-leaving), [data-se-popover]")) return;
@@ -48,8 +48,8 @@ export function useScriptEditorKeys({
       const t = e.target as HTMLElement;
       const typing =
         t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable;
-      // Pickers also contain focusable buttons. Keep workspace shortcuts out
-      // of them even after focus leaves their search input (as with Escape).
+      // 選択欄にもフォーカスできるボタンがある。検索の入力欄からフォーカスが外れた後も
+      // （Escape と同じく）ワークスペースのショートカットを選択欄の中では動かさない。
       if (document.querySelector(".dialog-backdrop:not(.is-leaving), [data-se-popover]")) return;
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
@@ -62,7 +62,7 @@ export function useScriptEditorKeys({
         return;
       }
       if (mod && (key === "z" || key === "y")) {
-        // 入力中の文字の取り消しはブラウザに任せる
+        // 入力中の文字の取り消しは、ブラウザに任せる
         if (typing) return;
         e.preventDefault();
         e.stopPropagation();
@@ -84,9 +84,9 @@ export function useScriptEditorKeys({
         latest.current.deleteSelected();
       }
     };
-    // Clipboard events preserve native copy/paste inside all text fields.
-    // In the workspace, transfer structured blocks instead of the stale
-    // canvas-element selection behind this dialog.
+    // クリップボードのイベントでは、すべての文字の入力欄で標準のコピーと貼り付けを残す。
+    // ワークスペースでは、このダイアログの背後にある古いキャンバスの要素の選択ではなく、
+    // 構造を持つブロックを受け渡す。
     const textEditing = (event: Event) => {
       const target = event.target as HTMLElement;
       return target.tagName === "INPUT" || target.tagName === "TEXTAREA" ||
@@ -103,7 +103,7 @@ export function useScriptEditorKeys({
       if (!copied) return false;
       const raw = JSON.stringify(copied);
       event.clipboardData.setData(SCRIPT_CLIP_MIME, raw);
-      // Text fallback survives browsers which strip custom OS clipboard types.
+      // 独自の形式を OS のクリップボードから取り除くブラウザでも、テキストの形式なら残る。
       event.clipboardData.setData("text/plain", SCRIPT_CLIP_PREFIX + raw);
       lastScriptClipboard = { raw, value: copied };
       event.preventDefault();
@@ -122,8 +122,8 @@ export function useScriptEditorKeys({
       const plain = data?.getData("text/plain") ?? "";
       const raw = data?.getData(SCRIPT_CLIP_MIME) ||
         (plain.startsWith(SCRIPT_CLIP_PREFIX) ? plain.slice(SCRIPT_CLIP_PREFIX.length) : "");
-      // Never interpret arbitrary external clipboard text as editor scripts.
-      // The empty clipboard fallback is only for an editor-owned prior copy.
+      // 外部から来た任意のクリップボードのテキストを、エディタのスクリプトとして解釈しない。
+      // クリップボードが空のときに使う控えは、以前にエディタ自身がコピーしたものに限る。
       const copied = raw === lastScriptClipboard.raw ||
         (!raw && data?.types.length === 0)
         ? lastScriptClipboard.value : null;

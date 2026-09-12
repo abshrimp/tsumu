@@ -63,14 +63,14 @@ function readFlag(key: string): boolean {
   }
 }
 
-/** サーバーへ未保存の変更が残っているか（ブラウザを閉じても残るフラグ） */
+/** サーバーに保存していない変更が残っているか（ブラウザを閉じても残るフラグ） */
 const UNSYNCED_KEY = siteKey(storageKey("unsynced-v1"));
-/** 同時編集の WebSocket がつながるまで待つ時間（過ぎたら打ち切り、SSE・ポーリングで受け取る） */
+/** 同時編集の WebSocket がつながるまで待つ時間（過ぎたら打ち切り、SSE やポーリングで受け取る） */
 const WS_OPEN_TIMEOUT_MS = 5000;
 /** 一時的な失敗で保存できなかったときに、自動で保存し直すまでの間隔（失敗が続くと倍にしていく） */
 const SAVE_RETRY_MIN_MS = 3000;
 const SAVE_RETRY_MAX_MS = 60_000;
-/** ヘルプを一度でも自動で開いたか（はじめての人にだけ開く） */
+/** ヘルプを一度でも自動で開いたか（初めての人にだけ開くため） */
 const HELP_SEEN_KEY = storageKey("help-seen-v1");
 
 function setUnsyncedFlag(on: boolean) {
@@ -78,13 +78,13 @@ function setUnsyncedFlag(on: boolean) {
     if (on) window.localStorage.setItem(UNSYNCED_KEY, "1");
     else window.localStorage.removeItem(UNSYNCED_KEY);
   } catch {
-    // 保存できなくても同期自体には影響しない
+    // 保存できなくても、同期そのものには影響しない
   }
 }
 
 /**
- * パネル間のつまみ。ドラッグで幅を変える（最小幅より狭くはならない。閉じるのはヘッダーのボタン・⌘[ ⌘]）。
- * dir は「右へ動かすとパネルが広がる」なら 1、狭まるなら -1。
+ * パネルの間のつまみ。ドラッグで幅を変える（最小幅より狭くはならない。閉じるのはヘッダーのボタンか ⌘[ ⌘]）。
+ * dir は、右へ動かすとパネルが広がるなら 1、狭まるなら -1。
  */
 function PanelResizer({
   width,
@@ -125,8 +125,8 @@ function PanelResizer({
 export type EditorProps = { onReady?: () => void };
 
 export default function Editor({ onReady }: EditorProps = {}) {
-  // モジュール内の仮の初期データを見せず、最初の読み込み結果が決まるまで準備画面を保つ。
-  // 再接続や保存中には戻さない（入力欄やキャンバスをアンマウントしない）。
+  // モジュール内の仮の初期データは見せず、最初の読み込み結果が決まるまで準備画面を表示し続ける。
+  // 再接続や保存の途中では準備画面に戻さない（入力欄やキャンバスをアンマウントしないため）。
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   useEffect(() => {
     if (!initialLoadComplete) return;
@@ -146,18 +146,18 @@ export default function Editor({ onReady }: EditorProps = {}) {
       title: tr("Import notices"),
     });
   }, [initialLoadComplete]);
-  // ページが準備画面を持つ場合は、描画前に完了を伝えて同じ画面を一度だけ閉じる。
+  // ページ側が準備画面を持っている場合は、描画の前に完了を伝え、同じ準備画面を一度だけ閉じる。
   useLayoutEffect(() => {
     if (initialLoadComplete) onReady?.();
   }, [initialLoadComplete, onReady]);
   const doc = useEditor((s) => s.doc);
   const markSaved = useEditor((s) => s.markSaved);
-  // 保存した版を覚え、次の編集を前の「保存済み」と取り違えない。
+  // 保存した版を覚えておき、次の編集を前回の「保存済み」と取り違えないようにする。
   const [localSave, setLocalSave] = useState<LocalSaveSnapshot | null>(null);
   const localSiteDeleted = useRef(false);
   const browserSaveState = localSaveState(localSave, doc);
   const cloudState = useEditor((s) => s.cloudState);
-  // DB未設定と一時的な503を区別する。判定できない間は安全側で離脱を保護する。
+  // D1 が未設定の場合と、一時的な 503 を区別する。判定できない間は、安全側に倒してページを離れるときの保護を有効にする。
   const browserOnly = useServerStatus()?.db === false;
   const localSaveQueue = useRef<Promise<void>>(Promise.resolve());
   const saveLocalDoc = useCallback((snapshot: SiteDoc) => {
@@ -169,7 +169,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       else useEditor.setState({ savedAt: null });
       setLocalSave({ doc: snapshot, result });
     };
-    // Serialize attempts so every write uses the last committed baseline.
+    // 保存を1つずつ順に行い、どの書き込みも直前に確定した内容を基準にする。
     localSaveQueue.current = localSaveQueue.current.then(run, run);
   }, [markSaved]);
   useEffect(() => watchLocalSaveBlock((result) => {
@@ -182,7 +182,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const scriptEditor = useEditor((s) => s.scriptEditor);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** 保存の応答を反映し終わるまで、次の保存は開始しない。 */
+  /** 保存の応答を反映し終えるまで、次の保存は始めない。 */
   const activeCloudSave = useRef<Promise<void> | null>(null);
   const cloudSaveQueued = useRef(false);
   const collabClientId = useRef(
@@ -202,24 +202,24 @@ export default function Editor({ onReady }: EditorProps = {}) {
     >()
   );
   const cloudReady = useRef(false);
-  /** サーバー未保存のローカル変更があるか（ポーリング取り込みの抑止に使う） */
+  /** サーバーに保存していない手元の変更があるか（ポーリングでの取り込みを止めるために使う） */
   const cloudDirty = useRef(false);
-  /** 初回同期が完了する前の編集も未保存として残す。 */
+  /** 最初の同期が終わる前の編集も、未保存の変更として残す。 */
   const observedDoc = useRef(doc);
-  /** Hydration is a baseline read, not a new user edit. */
+  /** ブラウザ内の保存からの読み込みは、基準となる内容の読み込みで、利用者の新しい編集ではない。 */
   const initialBrowserDocObserved = useRef(false);
-  /** 最後に同期した版の識別子（自分の保存分を見分ける） */
+  /** 最後に同期した版の識別子（自分の保存を見分けるために使う） */
   const lastSyncedRev = useRef<string | null>(null);
-  /** 最後に同期した時点のドキュメント（三方向マージのベース） */
+  /** 最後に同期した時点の文書（3方向マージの基準） */
   const lastSyncedDoc = useRef<SiteDoc | null>(null);
-  /** リモート取り込みによる doc 変更では自動保存（エコー）をしない */
+  /** 他の人の変更を取り込んだことによる doc の変更では、自動保存（同じ内容の送り返し）をしない */
   const skipNextCloudSave = useRef(false);
-  /** テキスト編集中に競合したため、編集の確定後に保存し直す */
+  /** テキストの編集中に競合したため、編集を確定した後に保存し直す */
   const retrySaveAfterEdit = useRef(false);
   const deferredCloudConflict = useRef<DeferredCloudConflict | null>(null);
-  /** 変更が無くても自動保存をもう一度動かすための番号 */
+  /** 変更が無くても、自動保存をもう一度動かすための番号 */
   const [saveRetry, setSaveRetry] = useState(0);
-  /** 一時的な失敗のあとの、自動の保存し直しの予約と次の間隔 */
+  /** 一時的な失敗の後に、自動で保存し直す予約と、次の間隔 */
   const saveRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveRetryDelay = useRef(SAVE_RETRY_MIN_MS);
   const retrySaveNow = useCallback(() => {
@@ -232,7 +232,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     saveRetryTimer.current = setTimeout(retrySaveNow, saveRetryDelay.current);
     saveRetryDelay.current = Math.min(saveRetryDelay.current * 2, SAVE_RETRY_MAX_MS);
   }, [retrySaveNow]);
-  /** 起動時に検出した、ローカル未同期の変更とサーバー内容の競合 */
+  /** 起動時に見つけた、手元の未同期の変更とサーバーの内容との競合 */
   const [conflict, setConflict] = useState<{
     doc: SiteDoc;
     rev: string | null;
@@ -244,10 +244,10 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const [panelR, setPanelR] = useState(() =>
     clampPanel(Number(readLocalStorage("panel-r-w")) || 288, "r")
   );
-  /** 左右パネルを閉じているか */
+  /** 左右のパネルを閉じているか */
   const [closedL, setClosedL] = useState(() => readFlag("panel-l-closed"));
   const [closedR, setClosedR] = useState(() => readFlag("panel-r-closed"));
-  /** 開閉の切り替え直後だけ幅をアニメーションする（ドラッグ中は追従を優先） */
+  /** 開閉を切り替えた直後だけ、幅をアニメーションさせる（ドラッグ中は追従を優先する） */
   const [panelAnim, setPanelAnim] = useState(false);
   const animTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const togglePanel = useCallback((side: "l" | "r", open?: boolean) => {
@@ -273,7 +273,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
 
   useEffect(() => installNoDblClickSelect(), []);
 
-  // 操作ガイドが案内する場所のあるパネルを開く（detail = "l" | "r"）
+  // 操作ガイドが案内する場所を含むパネルを開く（detail = "l" | "r"）
   useEffect(() => {
     const open = (e: Event) => {
       const side = (e as CustomEvent<"l" | "r">).detail;
@@ -283,9 +283,9 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return () => window.removeEventListener("tsumu-open-panel", open);
   }, [togglePanel]);
 
-  // 入力中の欄の外を押したら、先に確定させる。
-  // キャンバスはフォーム部品へのフォーカスを止めるため mousedown の既定動作を取り消しており、
-  // そのままだと入力欄が blur されず、選択が変わったときに入力した値が失われる
+  // 入力中の欄の外を押したら、先に入力を確定させる。
+  // キャンバスはフォーム部品へのフォーカスを防ぐために mousedown の既定の動作を取り消しており、
+  // そのままでは入力欄が blur されず、選択が変わったときに入力した値が失われる
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
       const active = document.activeElement as HTMLElement | null;
@@ -295,7 +295,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       if (!editable) return;
       const t = e.target as Element | null;
       if (!t || active.contains(t)) return;
-      // 変数の候補など、入力欄にフォーカスを残したまま押すもの
+      // 変数の候補など、入力欄にフォーカスを残したまま押す部品
       if (t.closest?.(".var-comp, [data-keep-focus]")) return;
       active.blur();
     };
@@ -303,7 +303,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return () => window.removeEventListener("pointerdown", onDown, true);
   }, []);
 
-  // はじめてエディタを開いたときは、使い方を探せるヘルプを開いておく
+  // 初めてエディタを開いたときは、使い方を探せるヘルプを開いておく
   useEffect(() => {
     if (!initialLoadComplete) return;
     try {
@@ -311,7 +311,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     } catch {
       return;
     }
-    // 開いたことを記録するのは実際に開くとき（開発時の StrictMode で effect が2回動いても開くように）
+    // 開いたことを記録するのは、実際に開くとき（開発時の StrictMode で effect が2回動いても開くように）
     const timer = window.setTimeout(() => {
       try {
         window.localStorage.setItem(HELP_SEEN_KEY, "1");
@@ -323,7 +323,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return () => window.clearTimeout(timer);
   }, [initialLoadComplete]);
 
-  // ⌘[ / ⌘] で左右のパネルを開閉
+  // ⌘[ / ⌘] で左右のパネルを開閉する
   useEffect(() => {
     if (!initialLoadComplete) return;
     const onKey = (e: KeyboardEvent) => {
@@ -346,7 +346,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
     window.addEventListener("tsumu-internal-copy", ownClipboard);
     window.addEventListener("blur", releaseClipboard);
-    // テキストをコピーしたら、次の貼り付けはそのテキストにする
+    // テキストをコピーしたら、次の貼り付けではそのテキストを使う
     window.addEventListener("copy", releaseClipboard);
     window.addEventListener("cut", releaseClipboard);
     return () => {
@@ -378,8 +378,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
       ) {
         return;
       }
-      // ネイティブの貼り付けも、ショートカットと同じく編集中の画面だけを対象にする。
-      // Ctrl+Vを横取りしないプレビュー・モーダルで、背後の文書を変更しない。
+      // 標準の貼り付けも、ショートカットと同じく編集中の画面だけを対象にする。
+      // Ctrl+V を横取りしないプレビューやモーダルでは、背後の文書を変更しない。
       if (
         useEditor.getState().mode !== "design" ||
         document.querySelector(".se-backdrop, .modal-backdrop:not(.is-leaving)")
@@ -387,14 +387,14 @@ export default function Editor({ onReady }: EditorProps = {}) {
       const data = event.clipboardData;
       if (!data) return;
       const own = ++latestPaste;
-      // Clipboard API が利用できずコピー形式が空の場合だけ、エディタ内の控えを使う。
-      // 画像や外部テキストを持つ貼り付けは必ずOS側の内容を優先する。
+      // Clipboard API が使えず、コピーした内容の形式が空の場合だけ、エディタ内の控えを使う。
+      // 画像や外部のテキストを含む貼り付けでは、必ず OS 側の内容を優先する。
       if (data.types.length === 0 && internalClipboardOwned.current && useEditor.getState().clipboard) {
         event.preventDefault();
         useEditor.getState().pasteClipboard();
         return;
       }
-      // エディタでコピーした要素（ほかのサイト・タブでコピーしたものも）
+      // エディタでコピーした要素（他のサイトやタブでコピーしたものも含む）
       const clip = clipboardPayload(data);
       if (clip) {
         const { payload: copied, raw } = clip;
@@ -403,8 +403,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
           useEditor.getState().pasteClipboard(copied);
           if (copied.site !== currentSiteId()) setPasteNotice(tr("Pasted elements from another site"));
         };
-        // このブラウザのエディタでコピーしたものでなければ（ほかのWebサイトが書き込んだかもしれない）、
-        // 貼り付けるとすぐ動く HTML（カスタムコード・アイコン）を含むときは確かめる
+        // このブラウザのエディタでコピーしたものでなければ（他のウェブサイトが書き込んだかもしれない）、
+        // 貼り付けるとすぐに動く HTML（カスタムコード・アイコン）を含む場合は、確認してから貼り付ける
         const active = isOwnClip(raw) ? [] : activeContentNames(copied);
         if (!active.length) {
           paste();
@@ -436,7 +436,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       }
       event.preventDefault();
       setPasteNotice(tr("Pasting design…"));
-      // SVG・ファイル・data URLの読み取りを待つ前に、貼り付け先を確定する。
+      // SVG・ファイル・data URL の読み取りを待つ前に、貼り付け先を確定する。
       const state = useEditor.getState();
       const { doc, selection, activePageId, editingComponentId } = state;
       const component = editingComponentId ? doc.components?.[editingComponentId] : null;
@@ -470,7 +470,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
   }, [initialLoadComplete]);
 
-  // カスタムGoogle Fontsをエディタのプレビュー用に読み込む
+  // 追加した Google Fonts を、エディタのプレビュー用に読み込む
   useEffect(() => {
     const families = doc.customFonts ?? [];
     const id = "custom-google-fonts";
@@ -491,7 +491,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     if (link.href !== href) link.href = href;
   }, [doc.customFonts]);
 
-  // 自動保存（500msデバウンス、IndexedDB）
+  // ブラウザ内（IndexedDB）への自動保存（500ms のデバウンス）
   useEffect(() => {
     if (!initialLoadComplete) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -544,7 +544,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
         if (message.type === "snapshot") return message;
         if (message.type === "error") throw new Error(message.message);
       } catch {
-        // 接続が切れた場合はHTTPへフォールバック
+        // 接続が切れた場合は HTTP に切り替える
       }
     }
     const response = await fetch(siteApi("/api/doc"));
@@ -567,13 +567,13 @@ export default function Editor({ onReady }: EditorProps = {}) {
     [requestViaWebSocket]
   );
 
-  // 起動時：サーバーのドキュメントを取得（あれば正とする）
+  // 起動時: サーバーの文書を取得する（あれば、そちらを正とする）
   const runSyncFromServer = useCallback(async () => {
     await hydrateBrowserDoc();
     const s = useEditor.getState();
     const localBeforeLoad = s.doc;
-    // IndexedDB hydration changes the store reference, but is not an unsynced edit.
-    // Observe it before reconciliation, without clearing a genuine unsynced flag.
+    // IndexedDB からの読み込みでストアの参照は変わるが、未同期の編集ではない。
+    // 照合の前に基準として記録する。本当に未同期のフラグが立っている場合は、それを消さない。
     if (!initialBrowserDocObserved.current) {
       observedDoc.current = localBeforeLoad;
       initialBrowserDocObserved.current = true;
@@ -582,11 +582,11 @@ export default function Editor({ onReady }: EditorProps = {}) {
     if (cloudTimer.current) clearTimeout(cloudTimer.current);
     s.setCloud("checking");
     try {
-      // 再接続時も、進行中の保存が確定してから最新版を読み込む。
+      // 再接続のときも、進行中の保存が確定してから最新版を読み込む。
       await activeCloudSave.current;
       const data = await loadCloudDoc();
       if (data.exists === true) {
-        // 壊れた応答を「サーバーが空」と扱って初期データを保存しない。
+        // 壊れた応答を「サーバーが空」と見なして、初期データを保存しない。
         if (!data.rev || !data.doc?.pages || !data.doc?.nodes || !data.doc?.pageOrder?.length) {
           throw new Error("Invalid document snapshot");
         }
@@ -603,8 +603,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
         ) {
           const baseDoc = lastSyncedDoc.current;
           if (!baseDoc) {
-            // 前回のローカル変更がサーバー未保存のまま残っていて、どの版から編集したか
-            // 分からなければ、どちらを使うかユーザーに選ばせる（cloudReady は選択まで立てない）
+            // 前回の手元の変更がサーバーに保存されないまま残っていて、どの版から編集したかが
+            // 分からなければ、どちらを使うかを利用者に選んでもらう（選ぶまで cloudReady は立てない）
             setConflict({
               doc: data.doc,
               rev: data.rev ?? null,
@@ -612,7 +612,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
             });
             return;
           }
-          // 同期した版が分かっていれば（編集中の再接続など）、自動保存の競合と同じく三方向マージする。
+          // 同期した版が分かっていれば（編集中の再接続など）、自動保存の競合と同じく3方向マージする。
           // 二択にすると、他の人の変更を上書きで消すか、自分の変更を捨てるしかなくなる
           lastSyncedRev.current = data.rev;
           lastSyncedDoc.current = data.doc;
@@ -628,7 +628,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
           s.setCloud("synced", data.savedAt);
         }
       } else if (data.exists === false) {
-        // サーバーが空 → 手元のドキュメントを初回アップロード
+        // サーバーが空 → 手元の文書を最初にアップロードする
         const snapshot = useEditor.getState().doc;
         const put = await saveCloudDoc(snapshot, null);
         if (put.ok) {
@@ -639,7 +639,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
           s.setCloud("synced", put.data.savedAt ?? Date.now());
           if (cloudDirty.current) setSaveRetry((n) => n + 1);
         } else if (put.status === 409 && put.data.doc && put.data.rev) {
-          // 空であることを確認した後、他の編集者が先に保存した。
+          // 空であることを確認した後に、他の編集者が先に保存した。
           setConflict({ doc: put.data.doc, rev: put.data.rev, savedAt: put.data.savedAt });
           return;
         } else {
@@ -658,16 +658,16 @@ export default function Editor({ onReady }: EditorProps = {}) {
             ? "local"
             : "error"
         );
-      // 読み込み失敗後は版が不明なため、自動保存を許可しない。
+      // 読み込みに失敗した後は版が分からないため、自動保存を許可しない。
     } finally {
-      // オフライン・取得失敗・競合でも、手元の内容と既存の復旧操作は使えるようにする。
+      // オフラインや取得の失敗、競合のときも、手元の内容と既存の復旧の操作は使えるようにする。
       setInitialLoadComplete(true);
     }
   }, [loadCloudDoc, saveCloudDoc]);
 
-  /** 実行中の起動時同期（重ねて呼ばれたら同じものを待つ） */
+  /** 実行中の起動時の同期（重ねて呼ばれたら、同じものを待つ） */
   const syncing = useRef<Promise<void> | null>(null);
-  // 2つ目が後から終わると、1つ目の取り込み後に始まった保存を「未保存の変更」と
+  // 2つ目が後から終わると、1つ目の取り込みの後に始まった保存を「未保存の変更」と
   // 取り違えて競合の確認を出してしまうため、同時には1つだけ動かす
   //（開発時の StrictMode では起動時の処理が2回呼ばれる）
   const syncFromServer = useCallback((): Promise<void> => {
@@ -677,7 +677,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return syncing.current;
   }, [runSyncFromServer]);
 
-  /** 競合の解決: ローカルを正としてサーバーへ保存 or サーバー内容で置き換え */
+  /** 競合の解決: 手元を正としてサーバーへ保存するか、サーバーの内容で置き換える */
   const resolveConflict = useCallback(
     async (which: "local" | "remote") => {
       if (!conflict) return;
@@ -697,7 +697,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       }
       s.setCloud("saving");
       try {
-        // 確認画面を開いた後の他の編集も、版の照合で保護する。
+        // 確認画面を開いた後に他の人が行った編集も、版の照合で守る。
         if (!conflict.rev) throw new Error("Missing document revision");
         const snapshot = useEditor.getState().doc;
         const res = await saveCloudDoc(snapshot, conflict.rev);
@@ -726,7 +726,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
   useEffect(() => {
     void syncFromServer();
     const onRetry = () => {
-      // 同期した版が分かっていれば読み込み直さず、保存だけやり直す（他の人の変更とは409で自動マージする）
+      // 同期した版が分かっていれば読み込み直さず、保存だけをやり直す（他の人の変更とは 409 を受けて自動でマージする）
       if (cloudReady.current && lastSyncedRev.current && lastSyncedDoc.current) retrySaveNow();
       else void syncFromServer();
     };
@@ -734,8 +734,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return () => window.removeEventListener("cloud-sync-retry", onRetry);
   }, [syncFromServer, retrySaveNow]);
 
-  // 変更をサーバーへ自動保存（800msデバウンス）。
-  // 起動時のIndexedDB読込とサーバーからの初期取得は、ユーザー編集ではない。
+  // 変更をサーバーへ自動保存する（800ms のデバウンス）。
+  // 起動時の IndexedDB からの読み込みと、サーバーからの最初の取得は、利用者の編集として扱わない。
   useEffect(() => {
     if (!initialLoadComplete) return;
     return scheduleCloudSave({
@@ -747,7 +747,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     }, doc);
   }, [doc, initialLoadComplete, saveCloudDoc, saveRetry, retrySaveLater]);
 
-  // 回線が戻ったら待たずに保存し直す。保存できたら、自動の保存し直しを取りやめて間隔を最初に戻す
+  // 回線が戻ったら、待たずに保存し直す。保存できたら、自動の保存し直しを取りやめ、間隔を最初に戻す
   useEffect(() => {
     const onOnline = () => {
       if (saveRetryTimer.current) retrySaveNow();
@@ -767,7 +767,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
   }, [retrySaveNow]);
 
-  // 競合でテキスト編集の確定を待っていた保存を、編集を終えたら（文字を変えていなくても）やり直す
+  // 競合のためにテキスト編集の確定を待っていた保存を、編集が終わったら（文字を変えていなくても）やり直す
   useEffect(
     () =>
       useEditor.subscribe((s, prev) => {
@@ -779,9 +779,9 @@ export default function Editor({ onReady }: EditorProps = {}) {
     []
   );
 
-  // ブラウザ内に埋め込んだ画像など（画像の保存先に置けなかったもの）を整理して、編集データを小さく保つ。
-  // 要素の src への複製を外し、保存先が使えるならアップロードしてパスに置き換える。
-  // 読み込みが済んで同期した（またはブラウザ内保存に決まった）ときに確かめる
+  // ブラウザ内に埋め込んだ画像など（画像の保存先に置けなかったもの）を整理し、編集データを小さく保つ。
+  // 要素の src に複製した分を外し、保存先が使えるならアップロードしてパスに置き換える。
+  // 読み込みが済んで同期したとき（またはブラウザ内に保存すると決まったとき）に確かめる
   useEffect(() => {
     let running = false;
     /** 画像の保存先（KV など）があるか。分からなければ null（次の機会に確かめ直す） */
@@ -801,7 +801,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
           const path = await uploadEmbeddedAsset(asset).catch(() => null);
           if (!path) return;
           useEditor.getState().updateDoc((d) => {
-            // アップロード中に差し替え・削除されていたら触らない
+            // アップロードの間に差し替えや削除があった場合は、手を付けない
             if (d.assets[asset.id]?.dataUrl === asset.dataUrl) replaceEmbeddedAsset(d, asset.id, path);
           }, { history: false });
         }
@@ -814,11 +814,11 @@ export default function Editor({ onReady }: EditorProps = {}) {
     });
   }, []);
 
-  // 読込・保存・更新受信をWebSocketで行い、切断中だけHTTPへフォールバックする。
-  // WebSocket が使えない環境（Node.js・Docker）では、更新の受信を Server-Sent Events で行う
+  // 読み込み・保存・更新の受信は WebSocket で行い、切断中だけ HTTP に切り替える。
+  // WebSocket が使えない環境（Node.js・Docker）では、更新を Server-Sent Events で受け取る
   useEffect(() => {
     let stopped = false;
-    /** 更新の通知（/api/collab/events）。WebSocket に一度も繋がらなかったときだけ開く */
+    /** 更新の通知（/api/collab/events）。WebSocket に一度もつながらなかったときだけ開く */
     let events: EventSource | null = null;
     let eventsOpen = false;
     let inFlight = false;
@@ -846,14 +846,14 @@ export default function Editor({ onReady }: EditorProps = {}) {
         return false;
       }
       const baseDoc = lastSyncedDoc.current;
-      // 全体で届いた版は、どの要素も新しい参照になる。履歴があるときは、手元と同じ内容の要素を
-      // 手元の参照にそろえ、履歴（最大100件）の付け替えが変わった要素だけを比べれば済むようにする
+      // 全体が届いた版では、すべての要素が新しい参照になる。履歴がある場合は、手元と同じ内容の要素を
+      // 手元の参照にそろえ、履歴（最大100件）を付け替えるときに、変わった要素だけを比べれば済むようにする
       const incomingDoc = message.type === "doc-updated"
         ? (state.past.length || state.future.length ? shareUnchangedDoc(state.doc, message.doc) : message.doc)
         : applyDocPatchAtRevision(baseDoc, lastSyncedRev.current, message.base, message.patch);
       if (!incomingDoc) {
         if (!pendingRemote || Number(pendingRemote.rev) < incomingRev) pendingRemote = message;
-        // 差分が欠けた場合だけ全体を取得する。版が違う差分を無理に適用しない。
+        // 差分が欠けた場合だけ、全体を取得する。版の異なる差分を無理に適用しない。
         void pullFallback();
         return false;
       }
@@ -871,7 +871,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     const pullFallback = async () => {
       if (stopped || inFlight || !cloudReady.current) return;
       const s = useEditor.getState();
-      // ローカルに未保存の変更がある間・テキスト編集中・保存中は取り込まない
+      // 手元に未保存の変更がある間、テキストの編集中、保存中は取り込まない
       if (s.cloudState === "local" || s.cloudState === "checking") return;
       if (cloudDirty.current || s.cloudState === "saving") return;
       if (s.editingText) return;
@@ -888,7 +888,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
         ) {
           return;
         }
-        // 新しいスナップショットがある → 全体を取得して反映
+        // 新しいスナップショットがある → 全体を取得して反映する
         const res = await fetch(siteApi("/api/doc"));
         if (!res.ok) return;
         const data = await res.json();
@@ -898,13 +898,13 @@ export default function Editor({ onReady }: EditorProps = {}) {
         if (stopped) return;
         applyRemote({ type: "doc-updated", rev: data.rev, savedAt: data.savedAt, doc: data.doc });
       } catch {
-        // 失敗は無視して次回に再試行
+        // 失敗は無視し、次の機会に再試行する
       } finally {
         inFlight = false;
       }
     };
 
-    /** 更新がすぐ届く接続があるか（無ければポーリングで確認する） */
+    /** 更新がすぐに届く接続があるか（無ければポーリングで確認する） */
     const liveConnected = () =>
       collabSocket.current?.readyState === WebSocket.OPEN || eventsOpen;
 
@@ -924,7 +924,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       events = source;
       source.addEventListener("open", () => {
         eventsOpen = true;
-        // つながる前（再接続の間）の保存を取りこぼさないよう、一度確認する
+        // つながる前（再接続の間）に行われた保存を取りこぼさないよう、一度確認する
         void pullFallback();
       });
       source.addEventListener("message", (event) => {
@@ -937,7 +937,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       });
       source.addEventListener("error", () => {
         eventsOpen = false;
-        // 使えない環境（204 など）では閉じたままにし、ポーリングで確認する
+        // SSE が使えない環境（204 が返る場合など）では閉じたままにし、ポーリングで確認する
         if (source.readyState === EventSource.CLOSED && events === source) events = null;
       });
     };
@@ -968,7 +968,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       const nextSocket = new WebSocket(url);
       collabSocket.current = nextSocket;
       let opened = false;
-      // WebSocket を受け付けないサーバー（next start）は応答せず、接続中のまま止まるので打ち切る
+      // WebSocket を受け付けないサーバー（next start）は応答せず、接続中のまま止まるため、打ち切る
       const openTimer = setTimeout(() => {
         if (!opened) nextSocket.close();
       }, WS_OPEN_TIMEOUT_MS);
@@ -1029,7 +1029,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
           pending.reject(new Error("WebSocket disconnected"));
           collabRequests.current.delete(requestId);
         }
-        // WebSocket を受け付けないサーバー（Node.js・Docker）なら、更新の通知を SSE で受け取る
+        // WebSocket を受け付けないサーバー（Node.js・Docker）では、更新の通知を SSE で受け取る
         if (!opened) openEvents();
         scheduleReconnect();
       });
@@ -1040,7 +1040,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
 
     connect();
 
-    // 保留中のリモート変更を再試行し、WebSocket・SSE のどちらも無いときだけ10秒間隔でHTTP確認する
+    // 保留中の他の人の変更を再試行する。WebSocket と SSE のどちらも無いときだけ、10秒間隔で HTTP で確認する
     const id = setInterval(() => {
       if (pendingRemote) applyRemote(pendingRemote);
       fallbackTick = (fallbackTick + 1) % 5;
@@ -1049,7 +1049,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       }
     }, 2000);
 
-    // タブがアクティブに戻ったときは再接続して即時チェック
+    // タブがアクティブに戻ったときは、再接続してすぐに確認する
     const onVisible = () => {
       if (!document.hidden) {
         connect();
@@ -1076,18 +1076,18 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
   }, [requestViaWebSocket]);
 
-  // 未同期の変更・削除されたブラウザ保存先にしかない内容を、離脱前に知らせる
+  // 未同期の変更や、削除されたブラウザ内の保存先にしかない内容があれば、ページを離れる前に知らせる
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       const state = useEditor.getState();
-      // ブラウザのみが保存先なら、現在の版がブラウザへ保存済みかで判断する。
-      // DBがある（または設定状況を取得できない）場合は未同期の変更を保護する。
+      // 保存先がブラウザだけの場合は、現在の版をブラウザに保存済みかで判断する。
+      // D1 がある（または設定状況を取得できない）場合は、未同期の変更を守る。
       const warn = browserOnly
         ? browserSaveState !== "saved"
         : cloudDirty.current || state.cloudState === "saving" || warnForDeletedLocalSave(browserSaveState, state.cloudState);
       if (warn) {
         e.preventDefault();
-        // Chrome向け（preventDefaultだけでは無効なバージョンがある）
+        // Chrome 向け（preventDefault だけでは効かないバージョンがある）
         e.returnValue = "";
       }
     };
@@ -1111,7 +1111,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       const s = useEditor.getState();
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
-      // ?（Shift+/）でヘルプを開け閉めする
+      // ?（Shift+/）でヘルプを開閉する
       if (e.key === "?" && !mod && !e.altKey) {
         e.preventDefault();
         toggleHelp();
@@ -1122,13 +1122,13 @@ export default function Editor({ onReady }: EditorProps = {}) {
         const sel = window.getSelection();
         if (sel && !sel.isCollapsed && sel.toString()) return;
       }
-      // スクリプトエディタを開いている間・プレビュー中は、取り消し / やり直し以外の要素操作をしない
-      //（プレビューでは選択枠が見えないまま、選んでいた要素を Delete などで消してしまう）
+      // スクリプトエディタを開いている間とプレビュー中は、元に戻す・やり直す以外の要素の操作をしない
+      //（プレビューでは選択枠が見えないまま、選んでいた要素を Delete などで消してしまうため）
       const isUndoKey = mod && (key === "z" || (key === "y" && !e.metaKey));
       if ((document.querySelector(".se-backdrop") || s.mode === "preview") && !isUndoKey) {
         return;
       }
-      // 公開・設定などのモーダルを開いている間は、後ろの要素を操作しない
+      // 公開や設定などのモーダルを開いている間は、後ろの要素を操作しない
       if (document.querySelector(".modal-backdrop:not(.is-leaving)")) return;
 
       // C でコメントモードを切り替える
@@ -1149,7 +1149,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       } else if (mod && key === "d") {
         if (s.selection && s.doc.nodes[s.selection]) {
           e.preventDefault();
-          // 複数選んでいれば、まとめて複製する（コピー・削除と同じく選択中の全要素が対象）
+          // 複数を選んでいれば、まとめて複製する（コピー・削除と同じく、選択中のすべての要素が対象）
           s.duplicateNodes(s.selectedIds.length > 1 ? s.selectedIds : [s.selection]);
         }
       } else if (mod && key === "c") {
@@ -1164,7 +1164,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
           s.deleteNodes(s.selectedIds.length > 1 ? s.selectedIds : [s.selection]);
         }
       } else if (e.key === "Backspace" || e.key === "Delete") {
-        // 複数選んでいれば、まとめて消す
+        // 複数を選んでいれば、まとめて削除する
         const ids = s.selectedIds.length > 1 ? s.selectedIds : s.selection ? [s.selection] : [];
         if (ids.some((id) => s.doc.nodes[id] && !s.doc.nodes[id].locked)) {
           e.preventDefault();
@@ -1176,7 +1176,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
           closeHelp();
           return;
         }
-        // ドロップダウン等のポップアップが開いている間は選択を保持
+        // ドロップダウンなどのポップアップが開いている間は、選択を残す
         if (!document.querySelector(".dd-menu, .color-pop, .modal")) {
           if (!s.selection && s.editingComponentId) {
             s.setEditingComponent(null);

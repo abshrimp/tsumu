@@ -4,9 +4,9 @@ import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
 /**
- * Real Chromium must execute authored scripts after selecting the
- * requested HTML variant, and only then install its generated page runtime.
- * The fixture is served from in-memory generated files, not an editor preview.
+ * 実際の Chromium で、要求された HTML の派生を選んだ後に、利用者が書いたスクリプトを実行し、
+ * その後でだけ、生成したページのランタイムを登録しなければならない。
+ * この準備は、エディタのプレビューではなく、メモリの中に生成したファイルから配信する。
  */
 test("generated HTML query variants execute authored scripts and initialize page data in order", async ({ page }) => {
   const doc: SiteDoc = {
@@ -39,7 +39,7 @@ test("generated HTML query variants execute authored scripts and initialize page
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url());
     if (url.hostname === "assets.export.test" && url.pathname === "/first.js") {
-      // Exercise the case where the authored script does not load immediately.
+      // 利用者が書いたスクリプトが、すぐには読み込まれない場合を試す。
       await new Promise((resolve) => setTimeout(resolve, 75));
       await route.fulfill({ status: 200, contentType: "application/javascript",
         body: "window.__externalReady = true;" });
@@ -62,9 +62,9 @@ test("generated HTML query variants execute authored scripts and initialize page
   const results = await page.evaluate(async () => ({
     order: (window as any).__authorOrder,
     end: (window as any).__endScriptRan,
-    // The page-data promise is resolved before DOM event scripts run. A
-    // load-triggered set-var therefore updates the visible heading but does
-    // not retroactively mutate the original page-data result.
+    // ページのデータの Promise は、DOM のイベントのスクリプトが動く前に解決される。
+    // そのため、読み込み時の set-var は表示中の見出しを更新するが、
+    // 元のページのデータの結果をさかのぼって書き換えることはない。
     pageDataInitialized: typeof (await (window as any).__pageDataReady) === "object",
     activePlanCount: document.querySelectorAll("script[data-page-plan]").length,
   }));

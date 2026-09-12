@@ -1,4 +1,4 @@
-/** One panel resize per pointer. Remove global listeners on cancellation or unmount. */
+/** パネルの大きさの変更はポインターごとに1つ。取り消しやアンマウントのときは、グローバルなリスナーを外す。 */
 let activePanelResizes = 0;
 
 export function trackPanelResize(
@@ -30,7 +30,7 @@ export function trackPanelResize(
   };
   const onMove = (event: PointerEvent) => {
     if (event.pointerId !== pointerId) return;
-    // Returning to the window after releasing the button cannot resume an old drag.
+    // ボタンを離した後にウィンドウへ戻っても、古いドラッグを再開することはできない。
     if (!(event.buttons & 1)) cleanup();
     else resize(width + (event.clientX - startX) * direction);
   };

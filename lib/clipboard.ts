@@ -1,8 +1,8 @@
 import { tr } from "./i18n";
 import DOMPurify from "dompurify";
-/** Figma / Illustratorなどから渡されたSVGを安全な画像として扱える形にする。 */
+/** Figma や Illustrator などから渡された SVG を、安全な画像として扱える形にする。 */
 export function sanitizeClipboardSvg(source: string): string {
-  // Reject XML entity declarations before parsing and bound oversized paste payloads.
+  // パースする前に XML の実体宣言を拒否し、大きすぎる貼り付けのデータを制限する。
   if (source.length > 2 * 1024 * 1024 || /<!\s*(?:doctype|entity)\b/i.test(source)) {
     throw new Error(tr("The SVG data is corrupted"));
   }
@@ -11,13 +11,13 @@ export function sanitizeClipboardSvg(source: string): string {
   if (start < 0 || end < start) throw new Error(tr("Couldn't read the SVG data"));
 
   const raw = source.slice(start, end + 6);
-  // DOMPurify sanitizes unsafe SVG markup before we apply the editor's stricter
-  // attribute and CSS policy. Avoid parsing untrusted XML with DOMParser.
+  // エディタのより厳しい属性と CSS の規則を当てる前に、DOMPurify で危険な SVG の
+  // マークアップを取り除く。信頼できない XML は DOMParser で解析しない。
   const cleaned = DOMPurify.sanitize(raw, {
     RETURN_DOM: true,
     USE_PROFILES: { svg: true, svgFilters: true },
-    // Figma can place artwork in <defs> and render it with <use href="#...">.
-    // DOMPurify omits <use> by default; enforce fragment-only references below.
+    // Figma は、図形を <defs> に置き、<use href="#..."> で描画することがある。
+    // DOMPurify は既定で <use> を取り除くため、下で文書内の ID への参照だけに制限する。
     ADD_TAGS: ["use"],
     FORBID_TAGS: [
       "script", "foreignObject", "iframe", "object", "embed", "applet",
@@ -61,8 +61,8 @@ export function sanitizeClipboardSvg(source: string): string {
       } else if (name === "style") {
         element.setAttribute(attr.name, safeCss(value));
       } else if (name === "href" || name === "xlink:href" || name === "src") {
-        // <use> must never load another SVG document, even a data: image.
-        // Only references to IDs inside this sanitized SVG are permitted.
+        // <use> で別の SVG 文書を読み込ませてはいけない（data: の画像であっても）。
+        // 許すのは、この無害化した SVG の中の ID への参照だけ。
         if (isUse ? !/^#[A-Za-z0-9_.:-]+$/.test(value)
           : !value.startsWith("#") && !safeDataImage.test(value)) {
           element.removeAttribute(attr.name);
@@ -71,7 +71,7 @@ export function sanitizeClipboardSvg(source: string): string {
         element.removeAttribute(attr.name);
       }
     }
-    // A <use> with no local target renders nothing and need not survive.
+    // 文書内に参照先の無い <use> は何も描かないため、残す必要は無い。
     if (isUse && !element.getAttribute("href") && !element.getAttribute("xlink:href")) {
       element.remove();
     }
@@ -104,8 +104,8 @@ export function hasClipboardArtwork(data: DataTransfer): boolean {
 }
 
 function dataUrlFile(dataUrl: string): File {
-  // Clipboard images are local bytes, not network URLs. Decode only bounded
-  // base64 image data rather than passing arbitrary clipboard input to fetch().
+  // クリップボードの画像はネットワーク上の URL ではなく、手元のバイト列。任意のクリップボードの
+  // 入力を fetch() に渡さず、大きさを制限した base64 の画像データだけをデコードする。
   const match = /^data:image\/(png|jpe?g|gif|webp|avif|bmp);base64,([A-Za-z0-9+/]*={0,2})$/i.exec(dataUrl);
   if (!match || match[2].length > 24 * 1024 * 1024) {
     throw new Error(tr("Couldn't read the SVG data"));
@@ -116,7 +116,7 @@ function dataUrlFile(dataUrl: string): File {
   return new File([bytes], `pasted-artwork.${ext}`, { type: `image/${mime}` });
 }
 
-/** クリップボードから、アップロード可能な安全な画像ファイルを1件取り出す。 */
+/** クリップボードから、アップロードできる安全な画像ファイルを1件取り出す。 */
 export async function clipboardArtworkFile(data: DataTransfer): Promise<File | null> {
   const svg = svgText(data);
   if (svg) {

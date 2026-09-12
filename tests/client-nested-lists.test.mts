@@ -112,7 +112,7 @@ test('newly deferred global sources keep literals and item roots shadow fallback
     { id: 'fallback-value', kind: 'set-var', value: 'a"{literal},b', into: 'tags' },
     { id: 'fallback', kind: 'transform', source: 'tags', into: 'tags', transform: { kind: 'split', separator: ',' } },
   ];
-  // 配信前の分解でも文字としての波括弧を保つ。
+  // 配信する前の分解でも、文字としての波かっこを保つ。
   (doc.pages.p.pageScripts![0].steps[1] as Extract<import('../lib/types').ScriptStep, { kind: 'set-var' }>).value = 'a"\\{literal},b';
   doc.nodes.detail.text!.content = '{name}:{値}{label}';
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));

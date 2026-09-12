@@ -32,7 +32,7 @@ import { readClipMirror } from "../lib/clip-transfer";
 
 /* ---------- 要素の右クリックメニュー（キャンバス・レイヤー共通） ---------- */
 
-/** 画像・動画・音声の要素が使っているアセット（assetId が無ければ src が同じもの） */
+/** 画像・動画・音声の要素が使っているアセット（assetId が無ければ、src が同じもの） */
 function assetIdOf(doc: SiteDoc, node: DocNode): string | null {
   const ref = node.image ?? node.media;
   if (!ref) return null;
@@ -71,7 +71,7 @@ export default function NodeContextMenu({
 }) {
   const doc = useEditor((s) => s.doc);
   const clipboard = useEditor((s) => s.clipboard);
-  // 最後にコピーした要素（ほかのサイト・タブでコピーしたものも含む。アセットなどを添えた控え）
+  // 最後にコピーした要素（他のサイトやタブでコピーしたものも含む。アセットなども添えた控え）
   const copied = useMemo(() => readClipMirror(), []);
   const breakpoint = useEditor((s) => s.breakpoint);
 
@@ -161,7 +161,7 @@ export default function NodeContextMenu({
         label: tr("Cut"),
         icon: <Scissors size={14} />,
         kbd: "⌘X",
-        // ロック中の要素は消せない（コピーだけされて残るのを防ぐ）
+        // ロック中の要素は削除できない（コピーだけされて残るのを防ぐ）
         disabled: !!node.locked,
         onClick: run(() => {
           const st = s();
@@ -219,7 +219,7 @@ export default function NodeContextMenu({
           label: tr("Move down", "move_down_variant_1"),
           icon: <ArrowDown size={14} />,
           disabled: !!node.locked || idx < 0 || idx >= siblings.length - 1,
-          // moveNode の index は移動前の並びでの位置
+          // moveNode の index は、移動前の並びでの位置
           onClick: run(() => s().moveNode(node.id, parent, idx + 2)),
         }
       );
@@ -255,7 +255,7 @@ export default function NodeContextMenu({
         kbd: "Del",
         danger: true,
         disabled: !!node.locked,
-        // 複数選んでいる要素の上で開いたときは、選んでいる要素をまとめて消す
+        // 複数を選んでいる要素の上で開いたときは、選んでいる要素をまとめて削除する
         onClick: run(() => {
           const st = s();
           st.deleteNodes(
@@ -269,7 +269,7 @@ export default function NodeContextMenu({
   return <ContextMenu x={menu.x} y={menu.y} items={items} onClose={onClose} />;
 }
 
-/** 右クリックメニューの見た目と閉じ方（要素・ページ一覧で共通。画面からはみ出さないよう位置を直す） */
+/** 右クリックメニューの見た目と閉じ方（要素とページ一覧で共通。画面からはみ出さないよう位置を直す） */
 export function ContextMenu({
   x,
   y,
@@ -303,7 +303,7 @@ export function ContextMenu({
     };
   }, [onClose]);
 
-  // 画面からはみ出さないよう、実寸を測って位置を調整
+  // 画面からはみ出さないよう、実際の大きさを測って位置を調整する
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -316,14 +316,14 @@ export function ContextMenu({
     setPos({ left, top });
   }, [x, y]);
 
-  // 先頭・末尾・連続の区切り線を除く
+  // 先頭・末尾の区切り線と、連続する区切り線を除く
   const cleaned = items.filter(
     (it, i, arr) =>
       it !== "sep" || (i > 0 && i < arr.length - 1 && arr[i - 1] !== "sep")
   );
   if (!cleaned.some((it) => it !== "sep")) return null;
 
-  // 親に transform があっても画面の位置に出るよう、body の直下に描く
+  // 親に transform があっても画面上の位置に表示されるよう、body の直下に描画する
   return createPortal(
     <div
       ref={ref}

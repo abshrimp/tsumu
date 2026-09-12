@@ -16,7 +16,7 @@ export function canvasMoveDoc(): SiteDoc {
   };
 }
 
-/** 実際の Canvas・ストア・CSSを使い、ドラッグの中断と履歴を確認する。 */
+/** 実際の Canvas・ストア・CSS を使い、ドラッグの中断と履歴を確かめる。 */
 export async function canvasMoveBundle() {
   return (await build({
     stdin: {

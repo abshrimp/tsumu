@@ -1,6 +1,6 @@
 import type { ScriptStep } from "../../lib/types";
 
-/** Keep small scripts completely mounted; window only large step lists. */
+/** 小さなスクリプトは全体をマウントし、大きな手順の一覧だけを表示範囲に絞る。 */
 export const SCRIPT_STEP_WINDOW_THRESHOLD = 128;
 export const SCRIPT_STEP_CHUNK_SIZE = 48;
 
@@ -10,8 +10,8 @@ export interface StepChunk {
   estimatedHeight: number;
 }
 
-// Placeholders preserve the scroll extent until their actual size is measured.
-// A separate estimate per branch avoids treating a nested loop like one row.
+// 代わりの要素は、実際の大きさを測るまでスクロールの範囲を保つ。
+// 入れ子のループを1行のように扱わないよう、分岐ごとに見積もる。
 function estimateStepHeight(step: ScriptStep, depth = 0): number {
   if (depth >= 12) return 52;
   if (step.kind === "if") {
@@ -31,7 +31,7 @@ function estimateStepsHeight(steps: ScriptStep[], depth: number): number {
   return height;
 }
 
-/** Preserve original list indices, including insertion slots, across windows. */
+/** 表示範囲を分けても、差し込み位置を含めて、元の一覧での番号を保つ。 */
 export function chunkScriptSteps(steps: ScriptStep[]): StepChunk[] {
   const chunks: StepChunk[] = [];
   for (let start = 0; start < steps.length; start += SCRIPT_STEP_CHUNK_SIZE) {
@@ -41,7 +41,7 @@ export function chunkScriptSteps(steps: ScriptStep[]): StepChunk[] {
   return chunks;
 }
 
-/** Approximate an offscreen script's full footprint before it has been measured. */
+/** 画面の外にあるスクリプトの、測る前の全体の大きさを見積もる。 */
 export function estimateScriptStackHeight(steps: ScriptStep[]): number {
   return Math.max(72, 42 + estimateStepsHeight(steps, 0));
 }

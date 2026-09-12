@@ -7,7 +7,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { splitVarTokens } from "../lib/vars";
 
-// このモデルはeditableTextの走査だけに使う。Selection・IMEなどブラウザの編集動作は再現しない。
+// このモデルは editableText の走査にだけ使う。Selection や日本語入力など、ブラウザの編集の動作は再現しない。
 class TextNode {
   nodeType = 3;
   constructor(public data: string) {}
@@ -56,7 +56,7 @@ function begin(content: string | null) {
 }
 function commit(content: string) {
   useEditor.getState().setEditingText("text");
-  // SSRの購読先は初期スナップショットなので、実ストアの現在値を合わせてから描画する。
+  // SSR の購読先は初期のスナップショットなので、実際のストアの現在値を合わせてから描画する。
   Object.assign(useEditor.getInitialState(), useEditor.getState());
   renderToStaticMarkup(React.createElement(NodeView, { id: "text", isTop: true }));
   const el = editableDom(content);

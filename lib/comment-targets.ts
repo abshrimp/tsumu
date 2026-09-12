@@ -8,7 +8,7 @@ export interface CommentTarget {
   hidden: boolean;
 }
 
-/** DOMの有無ではなく文書で判定する。画面幅の非表示・未描画を削除と取り違えない。 */
+/** DOM の有無ではなく、文書をもとに判定する。画面幅での非表示や未描画を、削除と取り違えない。 */
 export function commentTargetResolver(doc: SiteDoc, bp: Breakpoint) {
   const locations = new Map<string, { pageId: string; hidden: boolean }>();
   const visit = (id: string, pageId: string, hidden: boolean) => {

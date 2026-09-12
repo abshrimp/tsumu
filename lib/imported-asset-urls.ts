@@ -5,7 +5,7 @@ import { IMPORT_LIMITS } from "./site-import-format";
 import { rewriteSrcsetUrls } from "./srcset";
 import type { SiteDoc } from "./types";
 
-/** A restored asset keeps its ID, but its old editor URL belongs to the source installation. */
+/** 復元したアセットは ID を保つが、古いエディタの URL は、取り込み元の環境のもの。 */
 export function rebindImportedAssetUrls(original: SiteDoc, doc: SiteDoc) {
   const sources = new Map<string, string>();
   let growth = 0, elements = 0;

@@ -1,7 +1,7 @@
 /**
- * Audit translations for one language or all discovered dictionaries.
- * Missing entries warn by default (English source is the runtime fallback).
- * Use --strict to enforce complete translations, e.g. for Japanese CI.
+ * 1つの言語、または見つかったすべての辞書の訳を点検する。
+ * 訳が欠けた項目は、既定では警告にとどめる（実行時は英語の原文で表示する）。
+ * 訳がそろっていることを強制するには --strict を使う（日本語の CI など）。
  *
  * npm run i18n:check -- fr
  * npm run i18n:check -- --strict ja
@@ -24,8 +24,8 @@ const selected = args.filter((arg) => !arg.startsWith("--"));
 if ((all && selected.length) || selected.length > 1) {
   throw new Error("Specify either one language or --all");
 }
-// Read files directly rather than importing the generated registry: the
-// checker must also run against isolated test trees and incomplete locales.
+// 生成した登録の一覧を import せず、ファイルを直接読む。
+// この点検は、切り離したテスト用のツリーや、訳が途中の言語に対しても動く必要があるため。
 const localeDir = path.join(root, "lib", "locales");
 const available = new Map<string, string>();
 for (const name of fs.readdirSync(localeDir)) {
@@ -53,14 +53,14 @@ files.push(path.join(root, "auth.ts"), path.join(root, "middleware.ts"));
 const literal = (node: ts.Node | undefined): string | undefined =>
   node && ts.isStringLiteralLike(node) ? node.text : undefined;
 
-// Collect callsite keys once, including context-specific lookups. Dynamic keys
-// still require manual tests; the runtime falls back to English for those too.
+// 呼び出し箇所のキーを1回で集める（文脈ごとの参照も含む）。動的なキーは、
+// 引き続き手動でのテストが必要。それらも、実行時は英語で表示する。
 const required = new Map<string, Set<string>>();
 for (const file of files) {
   if (file.endsWith(path.join("lib", "i18n.ts"))) continue;
   const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest);
   const found = new Set<string>();
-  // Phrase inserts interactive controls into a translated script-block label.
+  // Phrase は、訳したスクリプトのブロックの文言に、操作できる部品を挿入する。
   const collectPhrase = (text: ts.Node | undefined): void => {
     if (!text) return;
     if (ts.isJsxExpression(text)) collectPhrase(text.expression);

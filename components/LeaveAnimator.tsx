@@ -6,8 +6,8 @@ import { useEffect } from "react";
 const SELECTOR = ".modal-backdrop, .se-backdrop";
 
 /**
- * モーダルは state で即座に取り除かれるため、取り除かれた瞬間の見た目を複製して
- * 同じ位置に置き、短いフェードアウトを再生してから消す（操作は受け付けない）。
+ * モーダルは state によってすぐに取り除かれるため、取り除かれた瞬間の見た目を複製して
+ * 同じ位置に置き、短いフェードアウトを再生してから消す（複製は操作を受け付けない）。
  */
 export default function LeaveAnimator() {
   useEffect(() => {
@@ -21,7 +21,7 @@ export default function LeaveAnimator() {
       ghost.setAttribute("aria-hidden", "true");
       ghost.removeAttribute("id");
       ghost.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
-      // 入力欄の値は複製されないので写しておく
+      // 入力欄の値は複製されないため、写しておく
       const src = el.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
       const dst = ghost.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
       src.forEach((s, i) => {
@@ -32,7 +32,7 @@ export default function LeaveAnimator() {
       el.querySelectorAll<HTMLElement>("*").forEach((n, i) => {
         if (n.scrollTop || n.scrollLeft) scrolled.push([i, n.scrollTop, n.scrollLeft]);
       });
-      // React が管理する要素の中には差し込まず、body の末尾に置く（どれも position: fixed）
+      // React が管理する要素の中には差し込まず、body の末尾に置く（どれも position: fixed で表示する）
       document.body.appendChild(ghost);
       if (scrolled.length) {
         const all = ghost.querySelectorAll<HTMLElement>("*");

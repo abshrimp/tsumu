@@ -1,5 +1,5 @@
 /**
- * JSX の書き出しで使う補助（ページ・アセットの参照、重なりの判定、スクリプト・リストの式、文字列の書き方）
+ * JSX の書き出しで使う補助（ページやアセットの参照、重なりの判定、スクリプトやリストの式、文字列の書き方）
  */
 
 import type {
@@ -29,7 +29,7 @@ export function assetPath(ctx: JsxContext, assetId: string): string {
   return name ? `/assets/${name}` : "";
 }
 
-/** 子ノードID → 親の children（ページ直下はページの children） */
+/** 子ノードの ID → 親の children（ページの直下では、ページの children） */
 const siblingCache = new WeakMap<SiteDoc, Map<string, { parent: string | null; list: string[] }>>();
 
 function siblingsOf(doc: SiteDoc, id: string) {
@@ -48,8 +48,8 @@ function siblingsOf(doc: SiteDoc, id: string) {
 }
 
 /**
- * 後ろの要素に重なりうる position を持つ（z-index が auto・0 = 後ろの要素と同じ層で重なる順が決まる）。
- * relative はずらしていなければ自分の場所にとどまるので含めない
+ * 後ろの要素に重なり得る position を持つか（z-index が auto か 0 = 後ろの要素と同じ層で重なる順が決まる）。
+ * relative はずらしていなければ自分の場所にとどまるため含めない
  */
 function isPositionedAuto(node: DocNode): boolean {
   if (isOwnLayer(node)) return false;
@@ -61,7 +61,7 @@ function isPositionedAuto(node: DocNode): boolean {
   });
 }
 
-/** position と 0 以外の z-index を持つ（中身はその要素の層に閉じ込められる） */
+/** position と 0 以外の z-index を持つか（中身はその要素の層に閉じ込められる） */
 function isOwnLayer(node: DocNode): boolean {
   const styles = Object.values(node.styles).map((bp) => bp?.default);
   return (
@@ -73,7 +73,7 @@ function isOwnLayer(node: DocNode): boolean {
   );
 }
 
-/** 位置指定した要素か（absolute の子があると relative になる）= absolute の子はこの中に収まる */
+/** 位置を指定した要素か（absolute の子があると relative になる）= absolute の子はこの中に収まる */
 function isContainer(doc: SiteDoc, node: DocNode): boolean {
   return (
     Object.values(node.styles).some((bp) => bp?.default?.position && bp.default.position !== "static") ||
@@ -84,8 +84,8 @@ function isContainer(doc: SiteDoc, node: DocNode): boolean {
 }
 
 /**
- * 重なり順が auto のまま位置指定された要素を集める。独自の重なりを作る要素と、
- * 位置指定した要素の中（absolute はその中に収まる）はたどらない
+ * 重なり順が auto のまま位置を指定した要素を集める。独自の重なりを作る要素と、
+ * 位置を指定した要素の中（absolute はその中に収まる）はたどらない
  */
 function collectPositionedAuto(doc: SiteDoc, id: string, out: Set<string>, seen = new Set<string>()) {
   const n = doc.nodes[id];
@@ -101,8 +101,8 @@ function collectPositionedAuto(doc: SiteDoc, id: string, out: Set<string>, seen 
 }
 
 /**
- * シャドウ付きSVGをiOS Safari向けに2倍で描いて縮める（crisp-svg）ときの実寸。対象外なら null。
- * 画像側に実寸が無ければアセットの実寸を使う
+ * 影付きの SVG を iOS Safari 向けに2倍で描いて縮める（crisp-svg）ときの実際の大きさ。対象外なら null を返す。
+ * 画像側に実際の大きさが無ければ、アセットの実際の大きさを使う
  */
 export function crispSvgSize(doc: SiteDoc, node: DocNode): { width: number; height: number } | null {
   const img = node.image;
@@ -115,10 +115,10 @@ export function crispSvgSize(doc: SiteDoc, node: DocNode): { width: number; heig
 }
 
 /**
- * crisp-svg の画像は transform を使うため、位置指定した要素（z-index: auto・0）と同じ層で描かれ、
- * 前にある位置指定の要素（画像に重ねた文字など）より前面に出てしまう。
- * エディタ（通常の画像）と同じ重なりにするため、同じ層で比べ合う位置指定の要素に z-index: 1 を付ける
- *（前後どちらも上げるので、位置指定の要素どうしの順番は変わらない）。書き出し用に複製した doc を書き換える
+ * crisp-svg の画像は transform を使うため、位置を指定した要素（z-index: auto・0）と同じ層で描かれ、
+ * 前にある位置を指定した要素（画像に重ねた文字など）より前面に出てしまう。
+ * エディタ（通常の画像）と同じ重なりにするため、同じ層で比べ合う位置を指定した要素に z-index: 1 を付ける
+ *（前後どちらも上げるため、位置を指定した要素どうしの順序は変わらない）。書き出し用に複製した doc を書き換える
  */
 export function raiseOverCrispSvg(doc: SiteDoc): void {
   const raise = new Set<string>();
@@ -131,7 +131,7 @@ export function raiseOverCrispSvg(doc: SiteDoc): void {
       if (!sib) break;
       for (const cid of sib.list) if (cid !== cur) collectPositionedAuto(doc, cid, raise);
       const parent = sib.parent ? doc.nodes[sib.parent] : null;
-      // 位置指定した親の中身は親の順番で描かれるので、そこより外は比べなくてよい
+      // 位置を指定した親の中身は親の順序で描かれるため、そこより外は比べなくてよい
       if (!parent || isContainer(doc, parent)) break;
       cur = parent.id;
     }
@@ -149,7 +149,7 @@ export function raiseOverCrispSvg(doc: SiteDoc): void {
   }
 }
 
-/** 項目がまだないお手本では、参照名と必要な代替値だけを渡す。 */
+/** 項目がまだ無いお手本では、参照の名前と、必要な代替値だけを渡す。 */
 function scriptReference(ctx: JsxContext, token: string, raw: boolean): string {
   const base = ctx.varsExpr ?? "vars";
   const name = codeLiteral(token), head = codeLiteral(token.split(".")[0]);
@@ -174,8 +174,8 @@ function scriptExpression(ctx: JsxContext, value: string): string {
 }
 
 /**
- * スクリプトの data-scripts 属性。配信前の値は描画時に解決する。
- * ブラウザで並べる項目内は式を渡し、画面上の変数・入力欄も実行時に読む。
+ * スクリプトの data-scripts 属性。配信する前に決まる値は、描画するときに解決する。
+ * ブラウザで並べる項目の中では式を渡し、画面上の変数や入力欄も実行時に読む。
  */
 export function scriptsAttr(
   ctx: JsxContext,
@@ -210,7 +210,7 @@ export function scriptsAttr(
         exprs.push(scriptReference(ctx, name, true));
         return `__script_raw_ref_${exprs.length - 1}__`;
       }
-      // Edits to a nested list do not change the length of its containing array.
+      // 入れ子のリストを編集しても、それを含む配列の長さは変わらない。
       if (ctx.isLive(name, usage)) return undefined;
       ctx.usesLookup = true;
       exprs.push(`lookupVar(${ctx.varsExpr ?? "vars"}, ${codeLiteral(name)}) ?? null`);
@@ -218,12 +218,12 @@ export function scriptsAttr(
     }
   );
   if (!compiled.length) return "";
-  // Server-side list lengths can be sent as scalars. Never serialize a whole
-  // fetched array just to compute its length after a click.
+  // サーバー側のリストの長さは、単一の値として送れる。クリックの後に長さを求めるためだけに、
+  // 取得した配列全体を直列化してはいけない。
   const prepareServerFallbacks = (steps: Array<Record<string, unknown>>) => {
     for (const step of steps) {
-      // An immutable sibling can share its root with a partially hydrated list.
-      // A row-local input still takes precedence over this server fallback.
+      // 変わらない隣の値が、一部だけを渡したリストと同じルートを共有することがある。
+      // その場合でも、行ごとの入力はこのサーバー側の代替値より優先する。
       if (step.kind === "transform" && !ctx.inTemplate && "raw" in step) step.serverSource = true;
       if (step.kind === "transform" && (step.transform as { kind?: string } | undefined)?.kind === "length" &&
           typeof step.raw === "string") {
@@ -249,7 +249,7 @@ export function scriptsAttr(
   return ` data-scripts={JSON.stringify(${code})}`;
 }
 
-/** 自身を表示・切替するスクリプトを持つか（data-toggle-show が要る） */
+/** 自身を表示・切り替えするスクリプトを持つか（data-toggle-show が必要になる） */
 export function showsSelf(node: DocNode): boolean {
   let found = false;
   for (const sc of node.scripts ?? []) {
@@ -270,11 +270,11 @@ export function fieldExpr(item: string, field: string): string {
     : `(Object.prototype.hasOwnProperty.call(${item}, ${key}) ? ${item}[${key}] : undefined)`;
 }
 
-/** Safely coerce JSON values in emitted code without invoking object toString. */
+/** 出力するコードで、オブジェクトの toString を呼ばずに JSON の値を安全に文字列にする。 */
 function safeFieldTextExpr(valueExpr: string): string {
-  // Emit valid JS as well as TSX: this expression is also used by plain-JS
-  // condition previews. Iterate instead of calling potentially unsafe
-  // toString methods on nested objects from external JSON.
+  // TSX としてだけでなく、正しい JS としても出力する。この式は、プレーンな JS の
+  // 条件のプレビューでも使う。外部の JSON の入れ子のオブジェクトにある、安全でないかもしれない
+  // toString を呼ぶ代わりに、たどって処理する。
   return `(() => {
     const pending = [${valueExpr}];
     let result = "";
@@ -293,9 +293,9 @@ function safeFieldTextExpr(valueExpr: string): string {
   })()`;
 }
 
-/** 絞り込みの条件式（item を項目とする。絞り込みが無ければ null） */
+/** 絞り込みの条件式（item を項目とする。絞り込みが無ければ null を返す） */
 export function filterPredicate(ops: ListOp[], base: string): string | null {
-  // 絞り込みは、並んだ順に「かつ」「または」でつないだ1つの条件にする
+  // 絞り込みは、並んだ順に「かつ」「または」でつないで1つの条件にする
   const filters = ops.filter((o): o is Extract<ListOp, { kind: "filter" }> => o.kind === "filter");
   if (!filters.length) return null;
   const expr = (c: FilterCond) => {
@@ -304,9 +304,9 @@ export function filterPredicate(ops: ListOp[], base: string): string | null {
       : codeLiteral(c.value);
     const reference = /^(?:\{([^{}\s"'<>`]+)\}|(\[slug\]))$/.exec(c.value.trim());
     const rawValue = reference ? `lookupVar(${base}, ${codeLiteral(reference[1] ?? "slug")})` : null;
-    // No function parameters or external helpers: valid in strict TS and plain JS.
-    // Keep the generated predicate's 10,000-step safety budget in addition to
-    // the shared 16-level depth limit; oversized comparisons may fail closed.
+    // 関数の引数も外部の補助も使わないため、厳格な TS でもプレーンな JS でも有効。
+    // 共通の16段の深さの制限に加え、生成する条件式で10,000手順の安全のための上限を保つ。
+    // 大きすぎる比較は、安全側に倒して失敗させてよい。
     const positive = "(() => { const left = " + fieldExpr("item", c.field) +
       "; const raw = " + (rawValue ? '""' : text) + "; let op = " + codeLiteral(c.op) + ";" +
       "\nconst trimmed = raw.trim();\nconst right = " + (rawValue ?? "(() => {\n  if (trimmed === \"true\" || trimmed === \"false\" || trimmed === \"null\" ||\n      trimmed.startsWith(\"[\") || trimmed.startsWith(\"{\") ||\n      /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/.test(trimmed) ||\n      (trimmed.length >= 2 && trimmed.startsWith('\"') && trimmed.endsWith('\"'))) {\n    try { return JSON.parse(trimmed); } catch {}\n  }\n  return raw;\n})()") + ";\nlet candidate = left, target = right;\nconst same = () => {\n  const stack = [[candidate, target, 0]];\n  let steps = 0;\n  while (stack.length) {\n    if (++steps > 10000) return false;\n    const pair = stack.pop();\n    if (!pair) continue;\n    const a = pair[0], b = pair[1], depth = pair[2];\n    if (typeof a === \"number\" && !Number.isFinite(a) || typeof b === \"number\" && !Number.isFinite(b)) return false;\n    if (a === b) continue;\n    if (typeof a === \"string\" && (typeof b === \"boolean\" || typeof b === \"number\")) { if (a === String(b)) continue; return false; }\n    if (typeof b === \"string\" && (typeof a === \"boolean\" || typeof a === \"number\")) { if (String(a) === b) continue; return false; }\n    if (Number(depth) >= 16) return false;\n    if (a === null || b === null || typeof a !== \"object\" || typeof b !== \"object\") return false;\n    const keysA = Object.keys(a), keysB = Object.keys(b);\n    if (keysA.length !== keysB.length || keysA.length > 10000) return false;\n    for (const key of keysA) {\n      if (!Object.prototype.hasOwnProperty.call(b, key)) return false;\n      stack.push([Reflect.get(a, key), Reflect.get(b, key), Number(depth) + 1]);\n    }\n  }\n  return true;\n};\nif (op === \"eq\") return same();\nif (op === \"has-key\") return left !== null && typeof left === \"object\" &&\n  right !== null && right !== undefined && (right === null || typeof right !== \"object\") &&\n  Object.prototype.propertyIsEnumerable.call(left, String(right));\nif (op === \"empty\") return left === null || left === undefined || left === \"\" ||\n  (left !== null && typeof left === \"object\" && Object.keys(left).length === 0);\nif (op === \"contains\") {\n  if (left !== null && typeof left === \"object\") {\n    for (const entry of Object.values(left)) {\n      candidate = entry;\n      if (same()) return true;\n    }\n    return false;\n  }\n  return left !== undefined && left !== null && (right === null || typeof right !== \"object\") &&\n    String(left).includes(String(right));\n}\nif (op === \"starts-with\" || op === \"ends-with\") {\n  if (left === null || left === undefined || typeof left === \"object\" || (right !== null && typeof right === \"object\")) return false;\n  return op === \"starts-with\" ? String(left).startsWith(String(right)) : String(left).endsWith(String(right));\n}\nif (op === \"in\") {\n  if (right !== null && typeof right === \"object\") {\n    for (const entry of Object.values(right)) {\n      target = entry;\n      if (same()) return true;\n    }\n    return false;\n  }\n  if (typeof right !== \"string\") return false;\n  return right.split(\",\").some((part) => {\n    target = part.trim();\n    return same();\n  });\n}\nif (op === \"gt\" || op === \"gte\" || op === \"lt\" || op === \"lte\") {\n  const nLeft = typeof left === \"number\" ? String(left) : typeof left === \"string\" ? left.trim() : \"\";\n  const nRight = typeof right === \"number\" ? String(right) : typeof right === \"string\" ? right.trim() : \"\";\n  const numeric = /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/;\n  if (!numeric.test(nLeft) || !numeric.test(nRight)) return false;\n  const first = Number(nLeft), second = Number(nRight);\n  if (!Number.isFinite(first) || !Number.isFinite(second)) return false;\n  return op === \"gt\" ? first > second : op === \"gte\" ? first >= second :\n    op === \"lt\" ? first < second : first <= second;\n}\nreturn false;\n" + "})()";
@@ -327,14 +327,14 @@ export function filterPredicate(ops: ListOp[], base: string): string | null {
 }
 
 /**
- * 取得するURLのホストが {変数} や [slug] で決まるか（"{api}/items" や "https://{host}/"、"http://[slug]/"）。
- * 変数がURLのクエリ等から来ると、訪問者がサイトのサーバーに内部の宛先を取得させられる
+ * 取得する URL のホストが、{変数} や [slug] で決まるか（"{api}/items" や "https://{host}/"、"http://[slug]/"）。
+ * 変数が URL のクエリなどから来ると、訪問者がサイトのサーバーに内部の宛先を取得させられる
  */
 export function dynamicOrigin(url: string): boolean {
   return !/^https?:\/\/[^/?#{}\[\]@\\]+(?:[/?#]|$)/i.test(url.trim());
 }
 
-/** 取得ブロックのリクエストの設定を、生成コードの式にする（すべて既定なら null） */
+/** 取得ブロックのリクエストの設定を、生成するコードの式にする（すべて既定なら null を返す） */
 export function fetchInitExpr(st: Extract<ScriptStep, { kind: "fetch" }>): string | null {
   const method = st.method && st.method !== "GET" ? st.method : undefined;
   const str = (v: string) => (hasVars(v) ? `interpolate(${codeLiteral(v)}, vars)` : codeLiteral(v));
@@ -356,7 +356,7 @@ export function fetchInitExpr(st: Extract<ScriptStep, { kind: "fetch" }>): strin
   return `{ ${parts.join(", ")} }`;
 }
 
-/** リストで並べる項目の式（変数から一覧を取り出し、絞り込み・並べ替え・件数を適用） */
+/** リストで並べる項目の式（変数から一覧を取り出し、絞り込み・並べ替え・件数を適用する） */
 export function listItemsExpr(
   l: ListContent,
   base: string,
@@ -381,7 +381,7 @@ export function listItemsExpr(
   return code;
 }
 
-/** 部品の参照もたどり、リストを含む木か調べる（循環する参照は打ち切る）。 */
+/** 部品の参照もたどり、リストを含むツリーかを調べる（循環する参照は打ち切る）。 */
 export function hasListsInside(doc: SiteDoc, id: string, seen = new Set<string>()): boolean {
   const n = doc.nodes[id];
   if (!n || seen.has(id)) return false;
@@ -409,14 +409,14 @@ export function hasScriptsInside(doc: SiteDoc, id: string, inlineComponents?: Se
 
 /**
  * 画面上で値が決まる {変数} を、ブラウザで書き直す属性（data-live など）にする位置か。
- * ページ（vars）とコンポーネント・ローディング画面（{}）。リストの項目の中は項目ごとに値が変わるので除く
+ * ページ（vars）とコンポーネント・ローディング画面（{}）が対象。リストの項目の中は項目ごとに値が変わるため除く
  */
 export function livesHere(ctx: JsxContext): boolean {
   const base = ctx.varsExpr ?? "vars";
   return base === "vars" || base === "{}";
 }
 
-/** JSX の引用符属性は JavaScript の文字列ではない（バックスラッシュでエスケープできない）。 */
+/** JSX の引用符で囲んだ属性は、JavaScript の文字列ではない（バックスラッシュでエスケープできない）。 */
 export function jsxHtmlString(value: string): string {
   const escapes: Record<string, string> = {
     '"': "&quot;", "<": "&lt;", ">": "&gt;", "\r": "&#13;", "\n": "&#10;", "\t": "&#9;",
@@ -424,17 +424,17 @@ export function jsxHtmlString(value: string): string {
   return `"${value.replace(/["<>\r\n\t]/g, (char) => escapes[char])}"`;
 }
 
-/** 通常の入力値は &copy; なども文字列のまま保持する。 */
+/** 通常の入力値は、&copy; なども文字列のまま保つ。 */
 export function jsxString(value: string): string {
   return jsxHtmlString(value.replace(/&/g, "&amp;"));
 }
 
-/** サイト内の Next.js のページへのURLか（/ から始まり、リダイレクト・中継・HTMLページに当たらない） */
+/** サイト内の Next.js のページへの URL か（/ から始まり、リダイレクト・中継・HTMLページに当たらない） */
 export function isNextPageUrl(ctx: JsxContext, url: string): boolean {
   return /^\/(?!\/)/.test(url) && !matchesHardNav(url, hardNavPatterns(Object.values(ctx.doc.pages)));
 }
 
-/** 表示するときの値で Link / a を選ぶリンク（{変数} 入りのURL用） */
+/** 表示するときの値で Link か a かを選ぶリンク（{変数} を含む URL 用） */
 export function smartLinkComponent(doc: SiteDoc): string {
   const patterns = hardNavPatterns(Object.values(doc.pages));
   return `import Link from "next/link";
@@ -454,17 +454,17 @@ export default function SmartLink({ href, ...rest }: Omit<ComponentPropsWithoutR
 `;
 }
 
-/** <p> の中に置くと、ブラウザが <p> を閉じてしまうタグ（HTML の構文解析の規則） */
+/** <p> の中に置くと、ブラウザが <p> を閉じてしまうタグ（HTML の構文解析の規則による） */
 const P_CLOSING_TAGS = new Set([
   "address", "article", "aside", "blockquote", "center", "dd", "details", "dialog", "dir", "div",
   "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5",
   "h6", "header", "hgroup", "hr", "li", "listing", "main", "menu", "nav", "ol", "p", "plaintext",
   "pre", "search", "section", "summary", "table", "ul", "xmp",
-  // 中身が決まらない・ブロックで出すもの（コンポーネント・リスト・HTMLコード・埋め込み）
+  // 中身が決まらないもの・ブロックとして出力するもの（コンポーネント・リスト・HTML のコード・埋め込み）
   "comp", "list", "SearchForm",
 ]);
 
-/** 子孫に <p> の中に置けないタグで出す要素があるか */
+/** 子孫に、<p> の中に置けないタグで出力する要素があるか */
 export function hasBlockDescendant(doc: SiteDoc, node: DocNode, seen = new Set<string>([node.id])): boolean {
   return node.children.some((id) => {
     const child = doc.nodes[id];
@@ -475,7 +475,7 @@ export function hasBlockDescendant(doc: SiteDoc, node: DocNode, seen = new Set<s
   });
 }
 
-/** ImageRef → サイト内パス or 外部URL（アセットは public/assets/ に同梱される） */
+/** ImageRef をサイト内のパスか外部の URL にする（アセットは public/assets/ に含める） */
 export function imageRefSrc(
   assetNames: Map<string, string>,
   ref: ImageRef | null | undefined

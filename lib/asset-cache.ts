@@ -1,15 +1,15 @@
 /**
- * Browser caching for `/api/assets/file`.
+ * `/api/assets/file` のブラウザのキャッシュ。
  *
- * Stored asset paths are immutable: every upload gets a new path with a
- * timestamp and random suffix, and nothing overwrites an existing key. So a
- * browser may keep the bytes and skip the Worker request and the KV read on
- * every editor load (Workers Free: 100,000 requests and 100,000 KV reads/day).
+ * 保存したアセットのパスは変わらない。アップロードのたびに、時刻と乱数を付けた新しいパスに
+ * 保存し、既存のキーを上書きすることはない。そのため、ブラウザは内容をキャッシュして、
+ * エディタを読み込むたびの Worker へのリクエストと KV の読み取りを省ける
+ * （Workers の無料プラン: 1日あたり 100,000 リクエスト・100,000 回の KV 読み取り）。
  *
- * `private` keeps shared caches out. The trade-off is that someone whose
- * access is revoked can still see files already cached in their browser.
- * A signed preview URL is cached only until its own expiry, so the cache
- * never outlives the access the signature granted.
+ * `private` により、共有のキャッシュには保存させない。その代わりに、アクセスを取り消された人も、
+ * すでにブラウザにキャッシュしたファイルは見られる。
+ * 署名付きのプレビュー用 URL は、その有効期限までしかキャッシュしないため、
+ * 署名で与えたアクセスより長くキャッシュが残ることはない。
  */
 export const ASSET_CACHE_MAX_AGE = 365 * 24 * 60 * 60;
 

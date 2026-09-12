@@ -16,7 +16,7 @@ export function scriptKeyboardDoc(): SiteDoc {
   };
 }
 
-/** 実際のスクリプト画面・ストア・CSSで、選択欄のキー操作と履歴を確かめる。 */
+/** 実際のスクリプトの画面・ストア・CSS で、選択欄のキー操作と履歴を確かめる。 */
 export async function scriptKeyboardBundle({ localized = false } = {}) {
   return (await build({
     stdin: {

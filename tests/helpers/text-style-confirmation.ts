@@ -17,7 +17,7 @@ export function textStyleConfirmationDoc(): SiteDoc {
   };
 }
 
-/** 実際の選択範囲・Canvas・書式パネル・確認ダイアログで非同期の編集を確かめる。 */
+/** 実際の選択範囲・Canvas・書式のパネル・確認のダイアログで、非同期の編集を確かめる。 */
 export async function textStyleConfirmationBundle() {
   return (await build({
     stdin: { contents: `

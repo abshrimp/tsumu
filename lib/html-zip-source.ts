@@ -28,9 +28,9 @@ export function htmlZipElements(source: string) {
 }
 
 /**
- * Rewrite only resource references in a derived preview/export copy.
- * Source offsets keep authored markup, comments (including before <html>),
- * whitespace, doctype, scripts, and unrelated attributes byte-for-byte.
+ * 派生したプレビュー・書き出しの写しで、リソースの参照だけを書き換える。
+ * ソース上の位置を使い、書かれたマークアップ、コメント（<html> の前のものも含む）、
+ * 空白、doctype、スクリプト、無関係な属性は、1バイトも変えずに残す。
  */
 export function rewriteHtmlZipSource(source: string, htmlPath: string, urls: Map<string, string>): string {
   if (!urls.size) return source;
@@ -62,7 +62,7 @@ export function rewriteHtmlZipSource(source: string, htmlPath: string, urls: Map
       edits.push({ start: loc.startOffset, end: loc.endOffset, value: key + '="' + escapeAttribute(next) + '"' });
       if (el.tagName === "link" && key === "href" && next.startsWith("tsumu-zip-css:")) stylesheetChanged = true;
     }
-    // CSS bytes can differ in preview/export, so its original SRI no longer applies.
+    // プレビューや書き出しでは CSS のバイト列が変わることがあるため、元の SRI はもう当てはまらない。
     if (stylesheetChanged) {
       const integrity = location.attrs?.integrity;
       if (integrity) edits.push({ start: integrity.startOffset, end: integrity.endOffset, value: "" });

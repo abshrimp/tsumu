@@ -4,8 +4,8 @@ import { dialogFocusBundle } from "../tests/helpers/dialog-focus";
 let bundle: string;
 test.beforeAll(async () => { bundle = await dialogFocusBundle(); });
 test.beforeEach(async ({ page }) => {
-  // loadLocale writes a language cookie; about:blank has an opaque origin.
-  // Use the running test server's plain-text endpoint before injecting the fixture.
+  // loadLocale は言語のクッキーを書くが、about:blank のオリジンは中身が見えない。
+  // 準備のコードを入れる前に、動いているテスト用サーバーのテキストのエンドポイントを開く。
   await page.goto("/robots.txt");
   await page.setContent('<div id="app"></div>');
   await page.addScriptTag({ content: bundle });

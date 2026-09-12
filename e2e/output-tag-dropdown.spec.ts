@@ -17,17 +17,17 @@ for (const width of [240, 288]) {
     const trigger = page.locator('[data-tutorial="settings-semantic"] .dd');
     const menu = page.locator(".dd-menu");
     const openMenu = async () => {
-      // Position the list first so Playwright's automatic scrolling does not close it via a scroll event.
+      // Playwright の自動スクロールで発生する scroll のイベントで一覧が閉じないよう、先に位置を合わせる。
       await trigger.scrollIntoViewIfNeeded();
       await trigger.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       await trigger.click();
       await expect(menu).toBeVisible();
-      // Measure spacing after the opening animation settles, not from intermediate coordinates.
+      // 間隔は、途中の座標ではなく、開くアニメーションが落ち着いた後に測る。
       await menu.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
     };
     await openMenu();
 
-    // Long descriptions stay on one line while every item retains spacing, full text, and selection behavior.
+    // 長い説明は1行のままで、どの項目も、間隔・全文・選択の動作を保つ。
     const items = menu.locator(".dd-item");
     await expect(items).toHaveCount(12);
     const measurements = await items.evaluateAll((buttons) => buttons.map((button) => {
@@ -69,7 +69,7 @@ for (const width of [240, 288]) {
     await expect(trigger.locator(".dd-label")).toHaveCSS("white-space", "nowrap");
     await expect(trigger.locator(".dd-label")).toHaveCSS("text-overflow", "ellipsis");
 
-    // Reopening shows the selection, and Escape, outside clicks, and re-selection keep working.
+    // 開き直すと選択が表示され、Escape・外側のクリック・選び直しも引き続き動く。
     await openMenu();
     await expect(menu.locator(".is-sel")).toContainText(label);
     await page.keyboard.press("Escape");

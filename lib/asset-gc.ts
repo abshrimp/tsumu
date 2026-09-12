@@ -2,14 +2,14 @@ import type { Db } from "./db";
 import type { KVLikeNamespace } from "./kv";
 import { assetUploadedAt, planAssetGc, type GcCandidate } from "./asset-gc-plan";
 
-/** GC only enumerates and deletes asset keys. */
+/** GC が行うのは、アセットのキーの列挙と削除だけ。 */
 export type AssetGcKv = Pick<KVLikeNamespace, "delete" | "list">;
 
 /**
- * Deletion events register candidates immediately. The daily cron handles only
- * expired candidates; a separate weekly inventory discovers orphaned uploads
- * and assets of removed sites. Historical editor backups, GitHub history and
- * offline drafts are intentionally outside the seven-day retention policy.
+ * 削除の操作があると、すぐに候補として登録する。毎日の cron は期限切れの候補だけを処理し、
+ * 別の週1回の棚卸しで、孤立したアップロードと、削除したサイトのアセットを見つける。
+ * 過去のエディタのバックアップ、GitHub の履歴、オフラインの下書きは、意図的に
+ * 7日間の保持期間の判定に含めていない。
  */
 export interface AssetGcDocumentNamespace {
   idFromName(name: string): unknown;
@@ -23,9 +23,9 @@ export interface AssetGcDependencies {
   now?: number;
   graceDays?: number;
   maxDeletes?: number;
-  /** Explicit opt-in for physical deletion; the default is dry-run. */
+  /** 物理的な削除を明示的に許可する指定。既定は削除しない試行（dry-run）。 */
   dryRun?: boolean;
-  /** Weekly reconciliation, not part of the daily scheduled sweep. */
+  /** 週1回の照合（毎日の定期処理には含めない）。 */
   discoverUntracked?: boolean;
 }
 
@@ -41,7 +41,7 @@ export interface AssetGcReport {
   deleted: number;
   deletedBytesKnown: number;
   deletedPaths: string[];
-  /** Eligible paths, subject to a final current-site reference recheck. */
+  /** 削除できる見込みのあるパス。最後に、現在のサイトの参照をもう一度確かめる。 */
   potentialDeletePaths: string[];
   potentialDeleteBytesKnown: number;
   previewTruncated: boolean;
@@ -70,7 +70,7 @@ async function siteRoomMapping(db: Db): Promise<SiteRoom[]> {
   });
 }
 
-/** Scan every site's current saved doc. Any RPC/generation failure aborts. */
+/** すべてのサイトの、現在保存されている文書を調べる。RPC や世代の確認に1件でも失敗したら中止する。 */
 export async function collectAllAssetReferences(
   db: Db, rooms: AssetGcDocumentNamespace,
 ): Promise<Set<string>> {
@@ -97,9 +97,9 @@ export async function collectAllAssetReferences(
   return referenced;
 }
 
-/** Start/restart the seven-day clock when the editor explicitly removes an asset.
- * A failed save is harmless: the nightly sweep rechecks every current site.
- * DO NOT use this function during weekly inventory (which preserves the clock).
+/** エディタでアセットを明示的に削除したときに、7日間の計測を始める（やり直す）。
+ * 保存に失敗しても害は無い。毎晩の処理で、すべての現在のサイトを確認し直す。
+ * 週1回の棚卸しでは、この関数を使ってはいけない（棚卸しは計測の時刻を変えない）。
  */
 export async function recordAssetGcCandidates(
   db: Db, paths: readonly string[], now = Date.now(),
@@ -110,7 +110,7 @@ export async function recordAssetGcCandidates(
     typeof path === "string" && assetUploadedAt(path) !== null))];
   if (!valid.length) return 0;
   let registered = 0;
-  // A single SQL statement records hundreds of paths without per-file D1 RPCs.
+  // 1つの SQL 文で数百のパスを記録し、ファイルごとに D1 の RPC を呼ばない。
   for (let i = 0; i < valid.length; i += 200) {
     const rs = await db.execute({
       sql: `INSERT INTO asset_gc_candidates(path,first_unreferenced_at,last_seen_at,bytes)
@@ -140,21 +140,21 @@ async function finishRun(db: Db, id: number, fields: {
   });
 }
 
-// Workers KV returns at most 1,000 keys per list call; one call per weekly run.
+// Workers KV の list は1回で最大1,000個のキーを返す。週1回の処理で呼ぶのは1回だけ。
 const PAGE_LIMIT = 1000;
 const LEASE_MS = 20 * 60 * 1000;
 const PREVIEW_LIMIT = 2000;
 /**
- * Workers Free allows 1,000 subrequests to Cloudflare services (D1, KV, DO)
- * per invocation. Keep 10% for the caller (the admin route's auth checks).
- * Each physical delete costs a D1 recheck, a KV delete and a D1 delete, and
- * the run always needs its final count, run log and lease release.
+ * Workers の無料プランでは、1回の呼び出しで Cloudflare のサービス（D1・KV・DO）への
+ * サブリクエストを1,000回まで行える。10% は呼び出し側（管理用ルートの認証の確認）のために残す。
+ * 物理的な削除1件ごとに、D1 での再確認・KV の削除・D1 の削除がかかり、
+ * さらに処理の最後に件数の記録・実行ログ・リースの解放が必ず必要になる。
  */
 export const GC_INTERNAL_SUBREQUEST_BUDGET = 900;
 const SUBREQUESTS_PER_DELETE = 3;
 const SUBREQUESTS_TO_FINISH = 3;
 
-/** Count every Cloudflare-service call so deletion stops inside the budget. */
+/** Cloudflare のサービスへの呼び出しをすべて数え、予算の範囲内で削除を止める。 */
 function countSubrequests(db: Db, kv: AssetGcKv, rooms: AssetGcDocumentNamespace) {
   let used = 0;
   return {
@@ -163,7 +163,7 @@ function countSubrequests(db: Db, kv: AssetGcKv, rooms: AssetGcDocumentNamespace
       execute: (stmt) => { used++; return db.execute(stmt); },
       batch: (stmts) => { used++; return db.batch(stmts); },
     } satisfies Db,
-    // Call through the binding itself: platform bindings reject other receivers.
+    // バインディング自身を通して呼ぶ。プラットフォームのバインディングは、別のレシーバーからの呼び出しを拒否する。
     kv: {
       delete: (key: string) => { used++; return kv.delete(key); },
       ...(kv.list ? { list: (options: Parameters<NonNullable<KVLikeNamespace["list"]>>[0]) => {
@@ -192,8 +192,8 @@ function candidateFromRow(row: Record<string, unknown>): GcCandidate {
   };
 }
 
-/** Scan one KV page for paths missed by client-side deletion events.
- * Called weekly, never on daily Cron.
+/** クライアント側の削除の操作で漏れたパスを、KV の1ページ分から探す。
+ * 週1回だけ呼び、毎日の cron では呼ばない。
  */
 async function discoverOrphans(
   db: Db, kv: AssetGcKv, refs: ReadonlySet<string>,
@@ -210,7 +210,7 @@ async function discoverOrphans(
   }
   const seen = new Set<string>();
   const candidates: Array<{ path: string; bytes: number | null }> = [];
-  // Every listed key belongs in the storage ledger, referenced or not.
+  // 列挙したキーは、参照されているかにかかわらず、すべて保存先の台帳に載せる。
   const objects: Array<{ path: string; bytes: number | null; uploadedAt: number }> = [];
   for (const item of page.keys) {
     const path = item?.name;
@@ -229,8 +229,8 @@ async function discoverOrphans(
   if (!page.list_complete && (!next || previousCursor === next)) {
     throw new Error("KV pagination did not advance");
   }
-  // Inventory never resets the first-observation time from a delete action.
-  // Candidate writes and cursor advancement are committed atomically.
+  // 棚卸しでは、削除の操作で記録した最初の観測時刻を決して変えない。
+  // 候補の書き込みとカーソルの前進は、原子的に確定する。
   await db.batch([
     { sql: `INSERT INTO asset_gc_candidates(path,first_unreferenced_at,last_seen_at,bytes)
         SELECT json_extract(value,'$.path'), ?, ?, json_extract(value,'$.bytes')
@@ -249,15 +249,15 @@ async function discoverOrphans(
       args: [next, page.list_complete ? null : scanStarted, token] },
   ]);
   if (page.list_complete) {
-    // Only completed inventories know which objects are no longer in KV.
-    // New delete events and uploads after scan start must not be discarded.
+    // どのオブジェクトが KV から消えたかが分かるのは、完了した棚卸しだけ。
+    // 調査を始めた後に行われた削除の操作やアップロードを捨ててはいけない。
     await db.batch([
       { sql: "DELETE FROM asset_gc_candidates WHERE last_seen_at < ? AND first_unreferenced_at < ?",
         args: [scanStarted, scanStarted] },
       { sql: "DELETE FROM asset_objects WHERE last_seen_at < ? AND uploaded_at < ?",
         args: [scanStarted, scanStarted] },
-      // Keys that existed before the ledger may have been missed by a scan
-      // that was already under way; only a later scan proves completeness.
+      // 台帳より前からあったキーは、すでに進行中だった調査で見落とされた可能性がある。
+      // 完全であることを示せるのは、その後に始めた調査だけ。
       { sql: "UPDATE asset_ledger_state SET complete_at=? WHERE id=1 AND created_at <= ?",
         args: [now, scanStarted] },
     ]);
@@ -265,9 +265,9 @@ async function discoverOrphans(
   return { scanned: page.keys.length, complete: page.list_complete };
 }
 
-/** Run daily expiry cleanup; optionally reconcile a bounded KV page weekly.
- * Only expired candidates trigger a scan of all current site documents.
- * Failure to read any site aborts physical deletion.
+/** 毎日の期限切れの片付けを行う。週1回は、範囲を限った KV の1ページ分の照合も行う。
+ * 現在のすべてのサイトの文書を調べるのは、期限切れの候補があるときだけ。
+ * どれか1つのサイトでも読めなければ、物理的な削除は中止する。
  */
 export async function runAssetGc({
   db: rawDb, kv: rawKv, rooms: rawRooms, now = Date.now(), graceDays, maxDeletes, dryRun = true,
@@ -313,7 +313,7 @@ export async function runAssetGc({
       scanned = inventory.scanned;
       scanComplete = inventory.complete;
     }
-    // No KV.list on the daily route: only the oldest expired D1 candidates.
+    // 毎日の処理では KV.list を呼ばず、最も古い期限切れの D1 の候補だけを扱う。
     const due = await db.execute({
       sql: `SELECT path,first_unreferenced_at,last_seen_at,bytes FROM asset_gc_candidates
         WHERE first_unreferenced_at <= ?
@@ -330,9 +330,9 @@ export async function runAssetGc({
     let eligible = plan.eligible;
     if (eligible.length) {
       stage = "references";
-      // Required even in dry-run so the run log counts only currently unused keys.
-      // The weekly inventory just scanned every site in this run; reuse it to
-      // save one Durable Object call per site. Deletion still rescans below.
+      // 削除しない試行でも、実行ログに現在使われていないキーだけを数えるため必要。
+      // 週1回の棚卸しはこの実行ですべてのサイトを調べたばかりなので、その結果を使い回し、
+      // サイトごとの Durable Object の呼び出しを1回省く。削除の前には、下で改めて調べる。
       if (!refs) {
         try { refs = await collectAllAssetReferences(db, rooms); }
         catch { throw new AssetGcAbortedError("Unable to read current documents"); }
@@ -348,8 +348,8 @@ export async function runAssetGc({
       eligible = eligible.filter(item => !refs!.has(item.path));
       if (!dryRun && eligible.length) {
         stage = "sweep";
-        // Recheck after candidate selection and D1 writes, immediately before
-        // the physical sweep. A site read failure prevents any new KV deletion.
+        // 候補を選んで D1 に書き込んだ後、物理的な削除の直前にもう一度確かめる。
+        // サイトを1つでも読めなければ、新しい KV の削除は行わない。
         let lastRefs: Set<string>;
         try { lastRefs = await collectAllAssetReferences(db, rooms); }
         catch { throw new AssetGcAbortedError("Final reference scan failed"); }
@@ -362,10 +362,10 @@ export async function runAssetGc({
           });
         }
         eligible = eligible.filter(item => !lastRefs.has(item.path));
-        // KV deletion can outlive D1 logging. Retained candidates are safe to
-        // retry because deleting an already-missing KV key is idempotent.
-        // The site scans above cost one DO call per site, so the number of
-        // deletes that fit depends on the deployment; stop before the limit.
+        // KV の削除は、D1 への記録より後まで残ることがある。すでに存在しない KV のキーを
+        // 削除しても結果は変わらないため、残った候補は安全に再試行できる。
+        // 上のサイトの調査ではサイトごとに Durable Object の呼び出しが1回かかるため、
+        // 削除できる件数はデプロイの規模によって変わる。上限の前で止める。
         for (const item of eligible) {
           if (used() + SUBREQUESTS_PER_DELETE + SUBREQUESTS_TO_FINISH > GC_INTERNAL_SUBREQUEST_BUDGET) break;
           const check = await db.execute({
@@ -377,7 +377,7 @@ export async function runAssetGc({
           deleted++;
           deletedBytesKnown += item.bytes ?? 0;
           deletedPaths.push(item.path);
-          // One batch keeps the cost at three subrequests per delete.
+          // 1回のバッチにまとめ、削除1件あたりのサブリクエストを3回に抑える。
           await db.batch([
             { sql: "DELETE FROM asset_gc_candidates WHERE path=? AND first_unreferenced_at=?",
               args: [item.path, item.firstUnreferencedAt] },

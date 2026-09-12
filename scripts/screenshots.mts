@@ -1,15 +1,15 @@
 /**
  * README のスクリーンショット（docs/screenshots/<言語>/*.png）を撮り直す。
- * サンプルのサイト・コメント・入力する文は docs/screenshots/sample/<言語>.json にある。
+ * サンプルのサイト・コメント・入力する文は、docs/screenshots/sample/<言語>.json にある。
  *
- * 1. 使い捨ての保存先で、公開とAIを仮の値で有効にしてエディタを起動する。
+ * 1. 使い捨ての保存先で、公開と AI を仮の値で有効にして、エディタを起動する。
  *    画面を開くだけなので、GitHub や AI のサービスには何も送らない。
  *      npm run build
  *      TSUMU_DATA_DIR=$(mktemp -d) ALLOW_ANONYMOUS=true AI_ENABLED=true \
  *        ANTHROPIC_API_KEY=placeholder GITHUB_TOKEN=placeholder npx next start -p 3000
- * 2. 別の端末で撮影する（初回は npx playwright install chromium）。
+ * 2. 別の端末で撮影する（初回は npx playwright install chromium を実行する）。
  *      node --import tsx scripts/screenshots.mts [--base http://localhost:3000] [--lang ja,en] [--only editor,ai]
- *    Playwright の Chromium の代わりに手元の Chrome を使う場合は CHROME_PATH を指定する。
+ *    Playwright の Chromium の代わりに手元の Chrome を使う場合は、CHROME_PATH を指定する。
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -31,7 +31,7 @@ const base = values.base!;
 const root = resolve(import.meta.dirname, "..");
 const SHOTS = ["editor", "ai", "publish", "comments", "help", "responsive", "scripts"] as const;
 
-/** サンプルのサイトを新しく作り、コメントを付けてエディタで開く */
+/** サンプルのサイトを新しく作り、コメントを付けて、エディタで開く */
 async function openSample(page: Page, sample: Sample) {
   const created = await page.request.post(`${base}/api/sites`, { data: { name: sample.site.name, repo: sample.site.repo } });
   if (!created.ok()) throw new Error(`サイトを作れませんでした（${created.status()}）。エディタを起動しているか確認してください`);
@@ -42,7 +42,7 @@ async function openSample(page: Page, sample: Sample) {
   if (!saved.ok()) throw new Error(`サンプルを保存できませんでした（${saved.status()}）`);
   const pageId = sample.doc.pageOrder[0];
   for (const [i, c] of sample.comments.entries()) {
-    // コメントのIDはサイトをまたいで一意にする
+    // コメントの ID は、サイトをまたいで一意にする
     const id = `sample_${i}_${site.id}`;
     await page.request.post(api("/api/comments"), { data: { action: "create", id, pageId, nodeId: c.node, x: c.x, y: c.y, bp: "base", body: c.body } });
     for (const [j, body] of (c.replies ?? []).entries()) {
@@ -63,7 +63,7 @@ const headline = (sample: Sample) => {
 
 const take: Record<(typeof SHOTS)[number], (page: Page, sample: Sample) => Promise<void>> = {
   async editor(page, sample) {
-    // キャンバスでは外側の要素から選ばれるので、レイヤーから見出しを選ぶ
+    // キャンバスでは外側の要素から選ばれるため、レイヤーから見出しを選ぶ
     const name = sample.doc.nodes[headline(sample)].name;
     await tool(page, "layers-panel").locator(".layer-name").filter({ hasText: new RegExp(`^${escape(name)}$`) }).click();
   },
@@ -91,11 +91,11 @@ const take: Record<(typeof SHOTS)[number], (page: Page, sample: Sample) => Promi
     await tool(page, "breakpoint-sm").click();
   },
   async scripts(page, sample) {
-    // データの取得とクリック時の移動がある、商品一覧のページ
+    // データの取得と、クリックしたときの移動がある、商品の一覧のページ
     await tool(page, "pages").click();
     await page.getByText("/catalog", { exact: true }).click();
     const edit = page.getByRole("button", { name: sample.labels.editScripts, exact: true });
-    // 右パネルのスクリプト欄が閉じていれば開く
+    // 右のパネルのスクリプトの欄が閉じていれば開く
     if (!(await edit.isVisible())) await tool(page, "page-scripts").locator("button").first().click();
     await edit.click();
     await page.waitForTimeout(800);
@@ -117,7 +117,7 @@ async function main() {
         await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
         await openSample(page, sample);
         await take[shot](page, sample);
-        // ホバーの強調やツールチップを写さない
+        // ホバーの強調表示やツールチップを写さない
         await page.mouse.move(800, 990);
         await page.waitForTimeout(500);
         await page.screenshot({ path: resolve(root, `docs/screenshots/${lang}/${shot}.png`) });

@@ -225,7 +225,7 @@ test("class styles are distributed to element controls and per-element custom CS
   expect(card.customCss).toContain("--brand-color: #123456;");
   expect(card.customCss).toContain("clip-path: circle(50%);");
   expect(card.styles.base.default.clipPath).toBeUndefined();
-  // CSSOM may serialize the same authored hex color as rgb().
+  // CSSOM は、書いた16進数の同じ色を rgb() として直列化することがある。
   expect(title.styles.base.default.color).toMatch(/^(?:#123456|rgb\(18,\s*52,\s*86\))$/);
   const breakpoint = doc.breakpoints.find((bp: any) => bp.maxWidth === 768);
   expect(card.styles[breakpoint.id].default.gap).toBe("4px");
@@ -313,7 +313,7 @@ test("linked CSS @imports and external JS module files are preserved and resolve
   expect(generated.binaries[importedAssetPath(chunk)!]).toBeTruthy();
   expect(generated.binaries[importedAssetPath(main)!]).toBeTruthy();
 
-  // The URL changes before the editor loads the imported site and shows its notices.
+  // エディタが取り込んだサイトを読み込み、お知らせを表示するより前に、URL が変わる。
   await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
   const notice = page.locator(".dialog-backdrop");
   await expect(notice).toContainText("インポート時の注意事項");

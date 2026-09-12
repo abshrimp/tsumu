@@ -1,6 +1,6 @@
 /**
  * Enter が押されたか（日本語入力の変換を確定する Enter は除く）。
- * 変換確定の Enter で blur などをすると、確定した文字が二重に入ることがある
+ * 変換を確定する Enter で blur などをすると、確定した文字が二重に入ることがある
  */
 export function isEnterKey(e: {
   key: string;

@@ -3,7 +3,7 @@ import { createInitialDoc } from "../lib/presets";
 import { loadLocale } from "../lib/i18n";
 import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
 
-// Presets created on the Node side must use the same locale as the browser.
+// Node.js 側で作るプリセットは、ブラウザと同じ言語を使わなければならない。
 test.beforeAll(async () => { await loadLocale(); });
 
 const status = (page: Page) => page.locator('[data-tutorial="save-status"]');

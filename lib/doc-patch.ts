@@ -2,22 +2,22 @@ import type { SiteDoc } from "./types";
 import { isDocumentId } from "./document-id";
 import { sameJson } from "./doc-share";
 
-/** 設定は項目単位、ページ・要素・画像・コンポーネントはID単位で置き換える。 */
+/** 設定は項目ごとに、ページ・要素・画像・コンポーネントは ID ごとに置き換える。 */
 export type DocPatchOp =
   | { path: string[]; value: unknown }
   | { path: string[]; remove: true };
 export type DocPatch = DocPatchOp[];
-// 1回の差分保存で扱う操作数の上限。大規模な置き換えは全体保存を使う。
+// 1回の差分保存で扱う操作の数の上限。大規模な置き換えには、全体の保存を使う。
 export const MAX_PATCH_OPS = 32;
 
-/** Canonical SQLite JSON path for patch targets. All segments are validated IDs. */
+/** 差分の対象を表す、正規化した SQLite の JSON パス。すべての部分は検証済みの ID。 */
 export function docPatchSqlPath(path: readonly string[]): string {
   if (!path.length || !path.every(isDocumentId)) throw new Error("Invalid document path");
   return "$" + path.map(part => `."${part}"`).join("");
 }
 const COLLECTIONS = new Set(["pages", "nodes", "assets", "components"]);
 const REQUIRED = new Set(["schemaVersion", "pages", "nodes", "assets", "pageOrder", "siteName"]);
-/** Only fields declared by the persisted SiteDoc schema may be patched. */
+/** 差分で変更できるのは、保存する SiteDoc のスキーマで宣言された項目だけ。 */
 const ROOT_FIELDS = new Set([
   "siteName", "lang", "colorPalette", "siteUrl", "dataRevalidate", "hosting",
   "favicon", "appleTouchIcon", "ogImage", "loadingScreen", "pwa",
@@ -36,7 +36,7 @@ export function isDocPatch(value: unknown): value is DocPatch {
     const path = op.path as string[];
     if (!ROOT_FIELDS.has(path[0])) return false;
     if (path.length !== 1 && !(path.length === 2 && COLLECTIONS.has(path[0]))) return false;
-    // 同じ場所や親子を同時に操作させず、SQLとブラウザで適用順が変わらないようにする。
+    // 同じ場所や親子を同時に操作させず、SQL とブラウザで適用の順序が変わらないようにする。
     if (paths.some((other) => other[0] === path[0] &&
       (other.length === 1 || path.length === 1 || other[1] === path[1]))) return false;
     paths.push(path);
@@ -55,7 +55,7 @@ export function isDocPatch(value: unknown): value is DocPatch {
   return true;
 }
 
-/** null は全体保存へのフォールバック、空配列は変更なし。 */
+/** null は全体の保存に切り替えることを、空の配列は変更なしを表す。 */
 export function createDocPatch(base: SiteDoc, next: SiteDoc): DocPatch | null {
   const ops: DocPatch = [];
   const diff = (before: Record<string, unknown>, after: Record<string, unknown>, prefix: string[] = []) => {
@@ -74,7 +74,7 @@ export function createDocPatch(base: SiteDoc, next: SiteDoc): DocPatch | null {
   return !ops.length || isDocPatch(ops) ? ops : null;
 }
 
-/** 入力の同期ベース・履歴を変更せず、差分の対象だけコピーする。 */
+/** 入力の同期の基準と履歴は変えず、差分の対象だけを複製する。 */
 export function applyDocPatch(base: SiteDoc, patch: DocPatch): SiteDoc {
   if (!isDocPatch(patch)) throw new Error("Invalid document patch");
   const out = { ...base } as unknown as Record<string, unknown>;
@@ -91,8 +91,8 @@ export function applyDocPatch(base: SiteDoc, patch: DocPatch): SiteDoc {
       target = out[parent] as Record<string, unknown>;
     }
     const key = op.path[op.path.length - 1];
-    // Even if an untrusted patch bypasses an upstream validation layer,
-    // define own properties without invoking prototype mutation.
+    // 信頼できない差分が、前段の検証を通り抜けてきた場合でも、
+    // プロトタイプを書き換えずに自身のプロパティとして定義する。
     if (!safeKey(key)) throw new Error("Invalid patch key");
     if ("remove" in op) Reflect.deleteProperty(target, key);
     else Object.defineProperty(target, key, {
@@ -102,7 +102,7 @@ export function applyDocPatch(base: SiteDoc, patch: DocPatch): SiteDoc {
   return out as unknown as SiteDoc;
 }
 
-/** 版が一致する場合だけ適用する。通知の欠落・逆順は全体の再取得で解消する。 */
+/** 版が一致する場合だけ適用する。通知の欠落や順序の逆転は、全体を取得し直して解消する。 */
 export function applyDocPatchAtRevision(
   doc: SiteDoc | null, rev: string | null, base: string, patch: DocPatch
 ): SiteDoc | null {

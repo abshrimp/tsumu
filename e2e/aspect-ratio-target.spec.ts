@@ -31,12 +31,12 @@ async function expectDiscarded(page: Page, before: unknown, past: number) {
 
 test("Removing the edited breakpoint remotely does not commit an unfinished aspect ratio to the desktop breakpoint", async ({ page }) => {
   await draft(page);
-  // Remote collaboration switches to the base breakpoint without pointerdown or blur when the edited breakpoint disappears.
+  // 編集中のブレークポイントが共同編集で消えたときは、pointerdown や blur が無くても base のブレークポイントに切り替わる。
   await page.evaluate(() => (window as any).removeRemoteBreakpoint());
   expect(await page.evaluate(() => (window as any).ratioEditor.getState().breakpoint)).toBe("base");
   await expectDiscarded(page, await doc(page), await history(page));
   await expect(renderedRatio(page)).toHaveCSS("aspect-ratio", "16 / 9");
-  // New input and its undo history remain usable after the interrupted edit.
+  // 中断された編集の後も、新しい入力と、その「元に戻す」の履歴が使える。
   const before = await doc(page);
   await ratio(page).fill("3 / 2");
   await page.keyboard.press("Enter");
@@ -88,7 +88,7 @@ test("Unrelated remote edits preserve an input on the same target, which can sti
   await ratio(page).fill("");
   await page.keyboard.press("Enter");
   await expect(renderedRatio(page)).toHaveCSS("aspect-ratio", "auto");
-  // Right-click reset to inherited values remains available.
+  // 右クリックで、受け継いだ値に戻す操作も引き続き使える。
   await page.locator('.grp-label').filter({ hasText: /^縦横比$/ }).click({ button: "right" });
   await expect(ratio(page)).toHaveValue("16 / 9");
   await expect(renderedRatio(page)).toHaveCSS("aspect-ratio", "16 / 9");

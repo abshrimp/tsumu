@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ワークスペースに並ぶブロックの見た目（きっかけ・動作・繰り返し・差し込み位置）
+ * ワークスペースに並ぶブロックの見た目（きっかけ・動作・くり返し・差し込み位置）
  */
 
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -49,8 +49,8 @@ function ForEachView({
     );
     return [{ array: step.array, fields, roots: [...Object.keys(item ?? {}), "ループ"], samples }, ...outer];
   }, [sample, step.array, outer]);
-  // The pre-rendering plan does not run for-each. Warn only for a page-load script,
-  // not for click/change handlers that can iterate client-side lists.
+  // 事前描画の処理では、くり返しを実行しない。警告するのはページを開いたときのスクリプトだけで、
+  // 画面上のリストをくり返せるクリック時や変更時のスクリプトでは警告しない。
   const stuck = ctx.pageLoadScriptIds.has(loc.scriptId) && !ctx.serverStepIds.has(step.id);
   return (
     <div className={`se-c${sel}`} {...handlers}>
@@ -292,9 +292,9 @@ function Slot({ loc, empty }: { loc: Loc; empty?: boolean }) {
 }
 
 /**
- * For large workspaces, mount only nearby rows. Every placeholder retains the
- * list's total scroll height; its measured size replaces the estimate once seen.
- * Block IDs and insertion-slot indices always use the original, unfiltered list.
+ * 大きなワークスペースでは、近くの行だけをマウントする。どの代わりの要素も
+ * 一覧全体のスクロールの高さを保ち、一度表示されたら見積もりの代わりに測った大きさを使う。
+ * ブロックの ID と挿入位置の番号には、常に絞り込む前の元の一覧を使う。
  */
 function StepChunkView({ scriptId, list, chunk }: {
   scriptId: string; list: string; chunk: StepChunk;
@@ -416,7 +416,7 @@ export function HatView({
   onChange?: (t: ScriptTrigger) => void;
   keepOnShown?: boolean;
   onKeepOnShownChange?: (v: boolean) => void;
-  /** Defined (including empty) means this is a variable-change trigger. */
+  /** 定義されていれば（空でも）、変数の変更をきっかけにするスクリプトであることを表す。 */
   changeVariable?: string;
   onChangeVariable?: (name: string) => void;
   onChangeSource?: (source: "element" | "variable") => void;
@@ -445,7 +445,7 @@ export function HatView({
           onCommit={(input) => {
             const raw = input.trim();
             const selected = singleValueReference(raw);
-            // The trigger watches exactly one variable path, not mixed text.
+            // このきっかけが見張るのは、変数の位置1つだけで、文字が混じったものは扱わない。
             const name = selected ?? (!/[{}\s"'<>`]/.test(raw) ? raw : null);
             if (name !== null) onChangeVariable?.(name);
           }} />
@@ -586,7 +586,7 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
               : (id) =>
                   ctx.updateScript(script.id, {
                     nodeId: id,
-                    // このページのきっかけは「ページを開いたとき」だけ
+                    // 「このページ」のきっかけは「ページを開いたとき」だけ
                     ...(id === PAGE_TARGET ? { trigger: "load" as const } : {}),
                   })
           }
@@ -633,7 +633,7 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
   );
 }
 
-/** 取得したデータを表で見る小窓 */
+/** 取得したデータを表で確認する小窓 */
 export function PeekModal({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
   return <FetchResult step={step} scope={scope} onClose={onClose} />;
 }

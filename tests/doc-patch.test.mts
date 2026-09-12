@@ -130,7 +130,7 @@ test("the first save of a day keeps the previous day's final content as that day
 
     const yesterday = Date.now() - 86_400_000;
     await db.execute({ sql: "UPDATE docs SET saved_at = ? WHERE id = 's1'", args: [yesterday] });
-    // 翌日最初の保存で壊しても、前日の最後の内容が残る
+    // 翌日の最初の保存で壊しても、前日の最後の内容が残る
     const broken = { ...evening, nodes: {}, pages: { home: { ...evening.pages.home, children: [] } } };
     assert.equal((await saveDocPatch(db, "s1", createDocPatch(evening, broken)!, "2")).kind, "saved");
     let rows = await backups();
@@ -139,7 +139,7 @@ test("the first save of a day keeps the previous day's final content as that day
     assert.equal(Number(rows[0].saved_at), yesterday);
     assert.deepEqual(JSON.parse(String(rows[0].body)), evening);
 
-    // 同じ日の2回目以降の保存では書き換えない
+    // 同じ日の2回目以降の保存では、書き換えない
     assert.equal((await saveCurrentDoc(db, "s1", JSON.stringify({ ...broken, siteName: "Later" }), "3")).kind, "saved");
     rows = await backups();
     assert.equal(rows.length, 1);
@@ -151,13 +151,13 @@ test("large documents save until the storage itself rejects them as too large", 
   await database(async (real) => {
     const base = doc();
     await saveCurrentDoc(real, "s1", JSON.stringify(base), null);
-    // 大きさの上限は決め打ちしない。D1 の公称2MBも、以前の10MBも超えて保存できる
+    // 大きさの上限は決め打ちしない。D1 の公称の 2MB も、以前の 10MB も超えて保存できる
     const large = structuredClone(base);
     large.nodes["node-1"].text!.content = "z".repeat(12 * 1024 * 1024);
     assert.equal((await saveCurrentDoc(real, "s1", JSON.stringify(large), "1")).kind, "saved");
     const edited = { ...large, siteName: "Edited" };
     assert.equal((await saveDocPatch(real, "s1", createDocPatch(large, edited)!, "2")).kind, "saved");
-    // 保存先（D1）が大きすぎると拒んだときは、大きさのエラーとして返す
+    // 保存先（D1）が大きすぎるとして拒否したときは、大きさのエラーとして返す
     const d1: Db = { ...real, execute: async (stmt) => {
       if (typeof stmt !== "string" && /^(UPDATE docs|WITH patched)/.test(stmt.sql)) {
         throw new Error("D1_ERROR: string or blob too big: SQLITE_TOOBIG");

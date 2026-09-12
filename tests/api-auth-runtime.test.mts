@@ -23,7 +23,7 @@ class NextResponse extends Response {
   }
 }
 
-/** Import the actual route handlers but replace server boundaries with a denied session. */
+/** 実際のルートのハンドラーを読み込み、サーバーとの境界だけを、拒否されたセッションに置き換える。 */
 function deniedRoute(path: string, status: number) {
   const code = transformSync(readFileSync(path, "utf8"), {
     loader: "ts", format: "cjs", target: "es2022",
@@ -61,7 +61,7 @@ test("all API handlers reject unauthenticated sessions before reading or writing
   let verified = 0;
   for (const file of routes(apiDir)) {
     const name = relative(apiDir, file).replaceAll("\\", "/");
-    if (name === "auth/[...nextauth]/route.ts") continue; // login and OAuth callbacks are public
+    if (name === "auth/[...nextauth]/route.ts") continue; // ログインと OAuth のコールバックは公開されている
     const route = deniedRoute(file, 401);
     const methods = Object.keys(route.handlers).filter(m => ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(m));
     assert.ok(methods.length > 0, name + " must expose an HTTP method");

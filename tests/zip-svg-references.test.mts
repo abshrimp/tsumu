@@ -10,7 +10,7 @@ const { parse } = createRequire(import.meta.url)("next/dist/compiled/node-html-p
 
 test("ZIP SVG image and sprite references follow uploaded assets through export", async () => {
   const originals = Object.getOwnPropertyDescriptors(globalThis);
-  // Node adapters test the real ZIP importer/exporter, not native SVG rendering.
+  // Node.js の代わりの部品で、ネイティブの SVG の描画ではなく、実際の ZIP の取り込みと書き出しを試す。
   Object.assign(globalThis, {
     DOMParser: class {
       parseFromString(html: string) {

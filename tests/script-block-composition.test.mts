@@ -137,7 +137,7 @@ test("untrusted JSON objects cannot crash preview or emitted filter/sort compari
   const rendered = new Function("vars", "toItems", "lookupVar", `return (${sort});`);
   const sorted = rendered({ rows }, (value: unknown) => value, lookupVar);
   assert.deepEqual(sorted, [...rows].sort((a, b) => compareValues(a.meta, b.meta)));
-  // Nested array text also matches scalar-filter equality semantics.
+  // 入れ子の配列の文字も、単一の値の絞り込みでの等しさの意味と一致する。
   const nested = [{ meta: [[1, 2], [3, 4]] }];
   assert.deepEqual(filterItems(nested, [{ kind: "filter", conds: [
     { field: "meta", op: "eq", value: "1,2,3,4" },
@@ -159,8 +159,8 @@ declare function interpolate(value: string, vars: Vars): string;
 declare function toItems(value: unknown): Item[];
 const filtered: Item[] = ${expression};
 `;
-  // TypeScript 7 uses the native CLI instead of exposing the old JS compiler
-  // API. Check the emitted expression through the actual project compiler.
+  // TypeScript 7 は、古い JS のコンパイラーの API を公開せず、ネイティブの CLI を使う。
+  // 出力した式は、実際のプロジェクトのコンパイラーで確かめる。
   const folder = mkdtempSync(join(tmpdir(), "tsumu-generated-filter-"));
   try {
     const sourceFile = join(folder, "generated.ts");

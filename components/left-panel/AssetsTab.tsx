@@ -63,7 +63,7 @@ function formatBytes(n: number): string {
   return `${n} B`;
 }
 
-/** Non-media files are shown as identifiable files, never as broken images. */
+/** メディア以外のファイルは、壊れた画像としてではなく、見分けの付くファイルとして表示する。 */
 function StaticAssetThumb({ asset, kind }: { asset: Asset; kind: AssetDisplayKind }) {
   const FileIcon = kind === "css" || kind === "javascript" ? FileCode
     : kind === "json" ? FileJson
@@ -108,7 +108,7 @@ const STATIC_MIME: Record<string, string> = {
   md: "text/markdown", xml: "application/xml", csv: "text/csv",
 };
 
-/** 使用量の元データを取りに行く（サーバーで数えられなければ、このブラウザに保存しているほかのサイトから数える） */
+/** 使用量の元データを取得する（サーバーで数えられなければ、このブラウザに保存している他のサイトから数える） */
 async function fetchStorageUsage(): Promise<StorageUsageResponse> {
   try {
     const res = await fetch(siteApi("/api/assets"));
@@ -130,27 +130,27 @@ async function fetchStorageUsage(): Promise<StorageUsageResponse> {
   return { others: [...others].map(([path, bytes]) => ({ path, bytes })) };
 }
 
-/** 保存先（KV）があるときだけ使用量を出す（無ければアセットはサイトの中に保存され、KVの容量は使わない） */
+/** 保存先（KV）があるときだけ使用量を表示する（無ければアセットはサイトの中に保存され、KV の容量は使わない） */
 function StorageUsage() {
   const status = useServerStatus();
   return status?.assets ? <StorageUsageMeter deletion={status.assetDeletion ?? null} /> : null;
 }
 
 /**
- * サーバー保存済みアセットの使用量。保存先（KV）は全サイト共通なので、全サイトの合計を出す。
- * Cloudflare では KV に置いたファイルの台帳（D1）から数えるので、削除待ちのファイルも含めて
+ * サーバーに保存したアセットの使用量。保存先（KV）は全サイト共通のため、全サイトの合計を表示する。
+ * Cloudflare では KV に置いたファイルの台帳（D1）から数えるため、削除待ちのファイルも含めて
  * KV の実際の使用量と一致する（台帳が揃うまでは、サイトが使っているファイルだけを数える）。
  */
 function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
   const doc = useEditor((s) => s.doc);
   const [response, setResponse] = useState<StorageUsageResponse | null>(null);
   const own = Object.values(doc.assets).filter((a) => a.path);
-  // 台帳はアップロード・削除で変わるので、このサイトのファイルが変わったら取り直す（連続した変更はまとめる）
+  // 台帳はアップロードや削除で変わるため、このサイトのファイルが変わったら取得し直す（続けて変わった場合はまとめる）
   const ownKey = own.map((a) => a.path).sort().join("\n");
   const exact = !!response?.ledger?.complete;
   const loaded = response !== null;
   useEffect(() => {
-    // 台帳が揃っていないときは、このサイトの分を編集中の内容から足すので取り直さない
+    // 台帳が揃っていないときは、このサイトの分を編集中の内容から足すため、取得し直さない
     if (loaded && !exact) return;
     let alive = true;
     const timer = setTimeout(() => {
@@ -211,7 +211,7 @@ function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
   );
 }
 
-/** 連続編集とアップロードのUndoを混ぜず、履歴や移行元が変わった場合は待機を終える。 */
+/** 連続した編集とアップロードを同じ取り消し単位に混ぜない。履歴や移行元が変わった場合は、待つのをやめる。 */
 async function waitForAssetGesture(current: () => boolean) {
   while (current() && useEditor.getState().gestureActive) {
     await new Promise<void>((resolve) => {
@@ -227,7 +227,7 @@ async function waitForAssetGesture(current: () => boolean) {
 /** アセット一覧のスクロール位置（他のタブを開いて戻ってきても保つ） */
 let assetScrollTop = 0;
 
-/** 同じIDでも、確認中にファイルやZIPの内容が差し替わったものは削除しない。 */
+/** ID が同じでも、確認している間にファイルや ZIP の内容が差し替わったものは削除しない。 */
 function sameAssetFile(current: Asset | undefined, approved: Asset): boolean {
   return !!current && current.id === approved.id && current.path === approved.path &&
     current.dataUrl === approved.dataUrl && JSON.stringify(current.zip) === JSON.stringify(approved.zip);
@@ -247,7 +247,7 @@ function serverFileNotice(deletion: AssetDeletion | null | undefined, several: b
     : tr("The file on the server will also be deleted.");
 }
 
-/** 別IDで残るアセットの保存先を守り、同じファイルを二重に削除しない。 */
+/** 別の ID で残るアセットの保存先は消さず、同じファイルを二重に削除しない。 */
 function deleteRemovedAssetFiles(removed: Asset[]) {
   const retained = new Set(Object.values(useEditor.getState().doc.assets).map((a) => a.path));
   for (const asset of removed) {
@@ -304,7 +304,7 @@ export function AssetsTab() {
     return () => { mounted.current = false; };
   }, []);
 
-  /** 別サイト・文書への移動、履歴操作、パネルを閉じた後に古い確認を反映しない。 */
+  /** 別のサイトや文書への移動、履歴の操作、パネルを閉じた後には、古い確認の結果を反映しない。 */
   const removalScope = () => {
     const site = currentSiteId();
     const history = useEditor.getState().historyRevision;
@@ -314,7 +314,7 @@ export function AssetsTab() {
   const [query, setQuery] = useState("");
   const [renaming, setRenaming] = useState<string | null>(null);
 
-  // 右クリックの「アセットを表示」: 検索を外してそのアセットまでスクロールし、少しのあいだ目立たせる
+  // 右クリックの「アセットを表示」: 検索を解除してそのアセットまでスクロールし、少しの間だけ目立たせる
   const revealAssetId = useEditor((s) => s.revealAssetId);
   const revealAsset = useEditor((s) => s.revealAsset);
   const [revealed, setRevealed] = useState<string | null>(null);
@@ -330,7 +330,7 @@ export function AssetsTab() {
     return () => window.clearTimeout(t);
   }, [revealed]);
 
-  /** 名前を変える（空なら元のまま。拡張子が消えたら元の拡張子を付け直す） */
+  /** 名前を変える（空なら元のまま。拡張子が消えた場合は、元の拡張子を付け直す） */
   const renameAsset = (asset: Asset, raw: string) => {
     let name = raw.trim();
     if (!name || name === asset.name) return;
@@ -342,7 +342,7 @@ export function AssetsTab() {
     });
   };
 
-  // タブを閉じても追加・移行は続ける。古い処理で新しい処理の表示を上書きしない。
+  // タブを閉じても、追加と移行は続ける。古い処理で、新しい処理の表示を上書きしない。
   const beginUpload = () => {
     const revision = ++errorRevision.current;
     const history = useEditor.getState().historyRevision;
@@ -365,7 +365,7 @@ export function AssetsTab() {
       await downloadAsset(asset);
     } catch {
       const latest = useEditor.getState().doc.assets[asset.id];
-      // 新しい操作、文書・ファイルの差し替え、パネルを閉じた後に古い失敗を表示しない。
+      // 新しい操作、文書やファイルの差し替え、パネルを閉じた後には、古い失敗を表示しない。
       if (inScope() && errorRevision.current === revision && latest && assetSrc(latest) === src) {
         setError(tr("Could not download the asset."));
       }
@@ -395,7 +395,7 @@ export function AssetsTab() {
     setViewport((v) => v.top === top ? v : { ...v, top });
   };
   useLayoutEffect(() => {
-    // 検索・削除・パネル幅の変更でも、表示領域を実際の一覧の範囲に収める。
+    // 検索・削除・パネルの幅の変更があっても、表示する範囲を実際の一覧の範囲に収める。
     const list = listRef.current;
     if (!list || !windowed) return;
     list.scrollTop = layout.top;
@@ -441,7 +441,7 @@ export function AssetsTab() {
     if (!current()) return;
     const removed: Asset[] = [];
     updateDoc((d) => {
-      // 確認待ちの共同編集を含め、最新の文書で使用状況を調べ直す。対象は確認したものだけ。
+      // 確認待ちの共同編集の変更も含め、最新の文書で使用状況を調べ直す。削除するのは確認したものだけ。
       const usage = assetUsage(d);
       for (const a of unused) {
         if (usage.has(a.id) || !sameAssetFile(d.assets[a.id], a)) continue;
@@ -458,8 +458,8 @@ export function AssetsTab() {
       let fellBack = false;
       for (const file of Array.from(files)) {
         const type = assetDisplayKind({ name: file.name, mimeType: file.type });
-        // Full HTML/XML documents belong to the site's HTML import path, not
-        // static asset storage (the upload API rejects executable documents).
+        // HTML や XML の完全な文書は、静的なアセットの保存先ではなく、サイトの HTML の取り込みで扱う
+        //（アップロードの API は、実行可能な文書を受け付けない）。
         if (/\.(?:html?|xml)$/i.test(file.name)) continue;
         if (!isVisualAsset({ name: file.name, mimeType: file.type }) &&
             !["css", "javascript", "font", "json", "document"].includes(type)) continue;
@@ -471,7 +471,7 @@ export function AssetsTab() {
           ? await uploadAsset(normalized) : await uploadStaticAsset(normalized);
         if (!asset.path) fellBack = true;
         await waitForAssetGesture(() => !request.historyChanged());
-        // Undo/Redoや文書置換後も完了したファイルを残し、やり直す編集は消さない。
+        // 元に戻す・やり直す操作や文書の置き換えの後も、アップロードが完了したファイルは残し、やり直せる編集は消さない。
         if (request.historyChanged()) useEditor.getState().retainUploadedAssets([asset]);
         else updateDoc((d) => void (d.assets[asset.id] = asset));
       }
@@ -487,7 +487,7 @@ export function AssetsTab() {
     }
   };
 
-  /** ローカル（dataURL）のアセットをサーバーへ移行する */
+  /** ブラウザ内（data URL）のアセットを、サーバーへ移す */
   const migrateAsset = async (asset: Asset) => {
     if (!asset.dataUrl) return;
     const request = beginUpload();
@@ -497,7 +497,7 @@ export function AssetsTab() {
     };
     try {
       const path = await uploadEmbeddedAsset(asset);
-      // 待機中に履歴・同じIDのファイルが変わったら、古い内容へ差し戻さない。
+      // 待っている間に履歴や同じ ID のファイルが変わったら、古い内容に戻さない。
       if (!current()) return;
       if (!path) {
         if (!request.current()) return;
@@ -517,7 +517,7 @@ export function AssetsTab() {
     }
   };
 
-  /** クリック: 選択中が画像ならその画像を差し替え、そうでなければ新規挿入 */
+  /** クリック: 選択中の要素が画像ならその画像を差し替え、そうでなければ新しく挿入する */
   const useAsset = (asset: Asset) => {
     const sel = selection ? doc.nodes[selection] : null;
     const kind = assetKind(asset);
@@ -525,7 +525,7 @@ export function AssetsTab() {
       void download(asset);
       return;
     }
-    // 何も選んでいなければ、編集中のコンポーネント（なければページ）の末尾へ
+    // 何も選んでいなければ、編集中のコンポーネント（無ければページ）の末尾に入れる
     const editingComp = editingComponentId ? doc.components?.[editingComponentId] : null;
     const fallback: ParentRef = editingComp
       ? { kind: "node", id: editingComp.rootId }
@@ -586,7 +586,7 @@ export function AssetsTab() {
       return;
     }
     if (!current() || !sameAssetFile(useEditor.getState().doc.assets[asset.id], asset)) return;
-    // 未使用として確認した後に使われ始めた場合、参照を外すことまでは承認されていない。
+    // 未使用だと確認した後に使われ始めた場合、その参照を外すことまでは承認されていない。
     if (!used && assetUsage(useEditor.getState().doc).has(asset.id)) return;
     updateDoc((d) => {
       const src = assetSrc(asset);
@@ -778,7 +778,7 @@ export function AssetsTab() {
               if (target !== (e.shiftKey ? controls[0] : controls[controls.length - 1])) return;
               const index = shown.findIndex((a) => a.id === card.dataset.assetId) + (e.shiftKey ? -1 : 1);
               if (index < 0 || index >= shown.length) return;
-              // DOMにまだ無い隣のカードにも、従来どおりTab/Shift+Tabで順番に移動する。
+              // DOM にまだ無い隣のカードにも、Tab / Shift+Tab で順番に移動できるようにする。
               e.preventDefault();
               const id = shown[index].id;
               focusRequest.current = { id, last: e.shiftKey };

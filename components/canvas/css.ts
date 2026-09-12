@@ -1,5 +1,5 @@
 /**
- * キャンバスに当てるCSS（要素のスタイル・画面幅・状態）と、HTMLページのプレビュー用の本文スタイル
+ * キャンバスに当てる CSS（要素のスタイル・画面幅・状態）と、HTMLページのプレビュー用の本文のスタイル
  */
 
 import { escapeStyleContent } from "../../lib/css-assets";
@@ -19,7 +19,7 @@ import {
 
 /* ---------- キャンバス用CSS生成 ---------- */
 
-/** Shared declaration validator keeps Canvas and exported-site CSS in sync. */
+/** 宣言の検証を共通にして、キャンバスと書き出したサイトの CSS を食い違わせない。 */
 function cssBody(map: Record<string, string>): string {
   return Object.entries(map)
     .flatMap(([key, value]) => {
@@ -50,7 +50,7 @@ interface NodeCss {
   customKeyframes: { name: string; css: string }[];
 }
 
-/** Keep only the last rendered rules for each node on the current canvas. */
+/** 現在のキャンバスで、ノードごとに最後に描画したルールだけを残す。 */
 export type CanvasCssCache = Map<string, {
   node: DocNode;
   context: string;
@@ -68,11 +68,11 @@ function buildNodeCss(
   hasAbsChild: boolean
 ): NodeCss {
   const rules: string[] = [];
-  // 通常の data-node と、インスタンス内の data-ghost の両方に効かせる
+  // 通常の data-node と、インスタンス内の data-ghost の両方に適用する
   const safeId = cssQuotedAttributeValue(id);
   const sel = `.cv-root :is([data-node=${safeId}], [data-ghost=${safeId}])`;
 
-  // モーション（transitionは常時、animationはプレビュー時のみ・画面内トリガーは即時再生）
+  // モーション（transition は常に、animation はプレビューのときだけ。画面に入ったときのきっかけは即座に再生する）
   const mCss = motionCss(node.motions, "run", node.id);
   const motionBase =
     mode === "preview"
@@ -85,7 +85,7 @@ function buildNodeCss(
     }
   }
 
-  // 生CSS宣言（波括弧はルール破壊防止のため除去）
+  // 直接書いた CSS の宣言（ルールを壊さないよう、波括弧は取り除く）
   const raw = node.customCss?.replace(/[{}]/g, " ").trim() ?? "";
   const extra = raw ? ` ${raw}${raw.endsWith(";") ? "" : ";"}` : "";
 
@@ -143,7 +143,7 @@ export function buildCanvasCss(
   bodyStyles?: NodeStyles,
   cache?: CanvasCssCache
 ): string {
-  // Custom breakpoint ordering can change the cascade without replacing a node.
+  // 独自のブレークポイントの順序を変えると、ノードを置き換えなくても CSS の優先順位が変わる。
   const chain = bpChain(bp);
   const context = JSON.stringify([mode, bp, ...chain]);
   const rules: string[] = [];
@@ -155,7 +155,7 @@ export function buildCanvasCss(
     walked.add(id);
     const node = doc.nodes[id];
     if (!node) return;
-    // インスタンス → マスターのツリーのCSSも生成
+    // インスタンス → マスターのツリーの CSS も生成する
     if (node.type === "instance") {
       const comp = doc.components?.[node.componentId ?? ""];
       if (comp) walk(comp.rootId);
@@ -165,7 +165,7 @@ export function buildCanvasCss(
       }
       return;
     }
-    // A direct absolute child makes this node its containing block.
+    // 直下に絶対配置の子がある場合、このノードがその配置の基準になる。
     const hasAbsChild = node.children.some((cid) => {
       const styles = doc.nodes[cid]?.styles;
       for (let i = chain.length - 1; i >= 0; i--) {

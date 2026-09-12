@@ -68,7 +68,7 @@ try {
   await check("Alpha row", () => page.getByText("Alpha", { exact: true }).first().waitFor({ timeout: 7000 }));
   await check("Beta row", () => page.getByText("Beta", { exact: true }).first().waitFor({ timeout: 7000 }));
   await check("button", () => page.getByRole("button", { name: "Tap" }).waitFor({ timeout: 7000 }));
-  // Event runtimes install after hydration and script loading, not just DOM readiness.
+  // イベントのランタイムは、DOM の準備ができた時点ではなく、ハイドレーションとスクリプトの読み込みの後に登録される。
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: "Tap" }).click();
   await check("status after click", () => page.getByText("Status: done", { exact: true }).first().waitFor({ timeout: 7000 }));

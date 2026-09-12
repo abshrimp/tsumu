@@ -14,7 +14,7 @@ import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "..
 
 export const maxDuration = 30;
 
-/** 認証済みの自分のメールアドレスを返す。使えない場合はレスポンスを返す */
+/** 認証済みの自分のメールアドレスを返す。確認できない場合はエラーのレスポンスを返す */
 async function requireMe(): Promise<string | NextResponse> {
   const tr = await serverTr();
   if (!authConfigured()) {

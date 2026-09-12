@@ -1,6 +1,6 @@
 import type { EmbedContent } from "./types";
 
-/** ユーザー入力から iframe の src を組み立てる。未入力・解釈不能なら null */
+/** 利用者の入力から iframe の src を組み立てる。未入力か、解釈できなければ null を返す */
 export function embedSrc(embed: EmbedContent): string | null {
   const src = embed.src.trim();
   if (!src) return null;
@@ -20,13 +20,13 @@ export function embedSrc(embed: EmbedContent): string | null {
   }
 
   if (embed.kind === "map") {
-    // 共有メニューの埋め込みURL（https://www.google.com/maps/embed?... など）はそのまま使う
+    // 共有メニューの埋め込み用の URL（https://www.google.com/maps/embed?... など）は、そのまま使う
     if (isGoogleMapsEmbedUrl(src)) return src;
-    // 住所・場所名・通常のマップURLは検索埋め込みに変換
+    // 住所・場所の名前・通常の地図の URL は、検索の埋め込みに変換する
     return `https://www.google.com/maps?q=${encodeURIComponent(src)}&output=embed`;
   }
 
-  // javascript: などの危険なスキームや壊れたURLは埋め込まない
+  // javascript: などの危険なスキームや、壊れた URL は埋め込まない
   if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(src) && !/^https?:\/\//i.test(src)) return null;
   const candidate = /^https?:\/\//i.test(src) ? src : `https://${src.replace(/^\/+/, "")}`;
   try {
@@ -38,7 +38,7 @@ export function embedSrc(embed: EmbedContent): string | null {
   }
 }
 
-/** Googleマップの共有メニューが発行する埋め込み専用URLか */
+/** Google マップの共有メニューが発行する、埋め込み専用の URL か */
 function isGoogleMapsEmbedUrl(src: string): boolean {
   try {
     const u = new URL(src);
@@ -54,6 +54,6 @@ function isGoogleMapsEmbedUrl(src: string): boolean {
   }
 }
 
-/** iframe に付与する許可属性（YouTube用） */
+/** iframe に付ける許可の属性（YouTube 用） */
 export const YOUTUBE_ALLOW =
   "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";

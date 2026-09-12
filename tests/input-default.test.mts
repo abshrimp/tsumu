@@ -11,7 +11,7 @@ import { useEditor } from "../lib/store";
 import type { FieldContent } from "../lib/types";
 import { inputDefaultBundle, inputDefaultDoc, publishedInputDefault } from "./helpers/input-default";
 
-/** DOMの返す値は外から指定する。ブラウザの正規化アルゴリズムを再実装しない。 */
+/** DOM が返す値は外から指定する。ブラウザの正規化のアルゴリズムは再実装しない。 */
 function nativeValues(accepted: () => string, run: (reads: Record<string, string>[]) => void) {
   const old = Object.getOwnPropertyDescriptor(globalThis, "document");
   const oldElement = Object.getOwnPropertyDescriptor(globalThis, "HTMLElement");
@@ -38,7 +38,7 @@ function nativeValues(accepted: () => string, run: (reads: Record<string, string
   }
 }
 
-/** 実データフックの計算を動かす。ReactのcommitとDOMはnative e2eで確かめる。 */
+/** 実際のデータのフックの計算を動かす。React の commit と DOM は、ネイティブの e2e で確かめる。 */
 function canvasData() {
   const slots: any[] = [];
   let cursor = 0;
@@ -163,8 +163,8 @@ for (const source of ["settings", "remote"] as const) test(`manual input is owne
         onField: (name, value) => current.setFieldValues((prev: object) => ({ ...prev, [name]: value })),
       }) as any;
     };
-    // ネイティブinputの伝播順をモデル化する。captureの後、フレームの変更スクリプトが
-    // Reactへ変数を書き戻す。rootのonChangeより前に再描画されても、入力値を失わない。
+    // ネイティブの input での伝播の順序を再現する。capture の後、フレームの変更のスクリプトが
+    // React へ変数を書き戻す。root の onChange より前に再描画されても、入力値を失わない。
     const input = { value: "7" };
     leaf().props.onInputCapture?.({ currentTarget: input });
     data.setClientValues({ changes: 1 });
@@ -173,7 +173,7 @@ for (const source of ["settings", "remote"] as const) test(`manual input is owne
     assert.equal(render().pageVars.entry, "7");
     assert.equal(render().pageVars.changes, 1);
     assert.deepEqual(snapshot(), saved);
-    // さらに同じイベントのスクリプトが値を変えた場合も、後続の描画で元へ戻さない。
+    // さらに同じイベントのスクリプトが値を変えた場合も、続く描画で元に戻さない。
     render().setFieldValues({ entry: "8" });
     assert.equal(leaf().props.value, "8");
     assert.equal(render().pageVars.entry, "8");

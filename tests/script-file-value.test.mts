@@ -6,7 +6,7 @@ import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 import { publishedScriptFileValue, scriptFileValueBundle } from "./helpers/script-file-value";
 
-/** DOMの正規化を模倣せず、runtimeからsetter・preview状態・通知への呼び出しだけを記録する。 */
+/** DOM の正規化は真似せず、ランタイムから setter・プレビューの状態・通知への呼び出しだけを記録する。 */
 function runAssignment(initial: string, value: string, preview: boolean, type = "file") {
   const script = { id: "load", trigger: "load" as const, pos: { x: 0, y: 0 }, steps: [{ id: "set", kind: "set-value" as const, target: "upload", value }] };
   const doc: SiteDoc = {

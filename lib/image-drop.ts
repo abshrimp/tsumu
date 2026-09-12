@@ -14,14 +14,14 @@ import type { Asset, SiteDoc, DocNode } from "./types";
 export interface ImageDropPoint { parent: ParentRef; index?: number }
 let latestDrop = 0;
 
-/** 落とした位置を保ったまま読み込み、画像とアセットを1回の操作として追加する。 */
+/** ドロップした位置を保ったまま読み込み、画像とアセットを1回の操作として追加する。 */
 export function startImageDrop(files: Iterable<File>, point: ImageDropPoint) {
   const images = Array.from(files).filter((file) => file.type.startsWith("image/"));
   if (!images.length) return { done: Promise.resolve(), cancel: () => {} };
   return startImageInsertion(() => images, point);
 }
 
-/** クリップボードのデコードや画像アップロードの前に、配置先と履歴を確定する。 */
+/** クリップボードのデコードや画像のアップロードの前に、配置先と履歴を確定する。 */
 export function startImageInsertion(
   loadFiles: () => Iterable<File> | Promise<Iterable<File>>,
   point: ImageDropPoint,
@@ -35,8 +35,8 @@ export function startImageInsertion(
     if (point.parent.kind === "page") return !componentId && !!doc.pages[point.parent.id];
     const parent = doc.nodes[point.parent.id];
     if (!parent || !canContainElements(parent)) return false;
-    // Uploads may complete after the target is moved deeper. Keep the uploaded
-    // asset, but never insert a leaf beyond the persisted document depth limit.
+    // アップロードが終わるまでに、配置先がより深い位置へ移動していることがある。アップロードした
+    // アセットは残すが、保存できる文書の深さの上限を超えて末端の要素を挿入することはしない。
     if (ancestorsOf(doc, parent.id).length + 2 > MAX_NODE_DEPTH) return false;
     const roots = componentId
       ? (doc.components?.[componentId]?.rootId === rootId && rootId ? [rootId] : [])
@@ -54,7 +54,7 @@ export function startImageInsertion(
   let mounted = true;
   let wakePlacement: (() => void) | undefined;
   const unsubscribe = useEditor.subscribe((next, previous) => {
-    // 再描画を待たずに記録する。別の場所を選んで戻っても、古い完了で選択を奪わない。
+    // 再描画を待たずに記録する。別の場所を選んで戻っても、古い完了の処理で選択を奪わない。
     if (next.activePageId !== previous.activePageId || next.editingComponentId !== previous.editingComponentId ||
         next.selection !== previous.selection || next.selectedIds !== previous.selectedIds ||
         next.mode !== previous.mode || next.editingText !== previous.editingText) select = false;
@@ -81,7 +81,7 @@ export function startImageInsertion(
         assets.push(await uploadAsset(file));
         if (cancelled || !place) break;
       }
-      // ドラッグ編集中の履歴へ混ぜない。終了通知の後のmicrotaskで、現在の文書へ配置する。
+      // ドラッグでの編集の履歴には混ぜない。終了の通知の後の microtask で、現在の文書に配置する。
       while (!cancelled && place && useEditor.getState().gestureActive) {
         await new Promise<void>((resolve) => { wakePlacement = resolve; });
         wakePlacement = undefined;
@@ -104,7 +104,7 @@ export function startImageInsertion(
           for (const asset of assets) doc.assets[asset.id] = asset;
           for (const node of nodes) doc.nodes[node.id] = node;
           const list = children(doc)!;
-          // 待っている間の追加・並べ替えで数値位置がずれても、元の隣接要素に寄せる。
+          // 待っている間の追加や並べ替えで数値の位置がずれても、元の隣の要素の位置に合わせる。
           const before = beforeId ? list.indexOf(beforeId) : -1;
           const after = afterId ? list.indexOf(afterId) : -1;
           const index = point.index === undefined ? list.length : before >= 0 ? before : after >= 0 ? after + 1 : Math.min(point.index, list.length);
@@ -122,7 +122,7 @@ export function startImageInsertion(
   return { done, cancel };
 }
 
-/** 複数のdropが重なっても、先に終わった処理で読み込み表示を消さない。 */
+/** 複数のドロップが重なっても、先に終わった処理で読み込み中の表示を消さない。 */
 export function useImageDrop() {
   const pending = useRef(new Set<ReturnType<typeof startImageDrop>>());
   const mounted = useRef(true);

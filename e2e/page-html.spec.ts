@@ -3,7 +3,7 @@ import { buildSync } from "esbuild";
 import { resolve } from "node:path";
 import { PAGE_HTML_COMPONENT } from "../lib/generator/templates";
 
-// Bundle the actual exported component with React to test real hydration.
+// 実際のハイドレーションを試すため、実際に書き出したコンポーネントを React と一緒にバンドルする。
 const bundle = buildSync({
   stdin: {
     contents: `

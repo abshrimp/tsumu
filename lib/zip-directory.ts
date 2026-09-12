@@ -2,7 +2,7 @@ import { tr } from "./i18n";
 import JSZip from "jszip";
 import { IMPORT_LIMITS } from "./site-import-format";
 
-// JSZip replaces a validated zero-length CompressedObject with a promise for "".
+// JSZip は、検証済みの長さ 0 の CompressedObject を、"" を返す Promise に置き換える。
 const emptyEntries = new WeakSet<JSZip.JSZipObject>();
 export function zipEntrySize(entry: JSZip.JSZipObject): number | null {
   const size = (entry as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize;
@@ -20,8 +20,8 @@ function member(view: DataView, pos: number, directory: number, centralEnd: numb
   const next = endExtra + u16(pos + 32);
   if (!nameLength || next > centralEnd) throw invalid();
   let size = u32(pos + 24), compressed = u32(pos + 20), offset = u32(pos + 42), disk = u16(pos + 34);
-  // JSZip's 64-bit reads use 32-bit arithmetic. Validate the original fields
-  // before truncated sizes or offsets can change which member the library sees.
+  // JSZip の 64 ビットの読み取りは、32 ビットの演算を使う。切り詰められた大きさや位置で、
+  // ライブラリが見る項目が変わる前に、元の欄を検証する。
   let hasZip64 = false;
   for (let p = extra; p < endExtra;) {
     if (p + 4 > endExtra) throw invalid();
@@ -58,7 +58,7 @@ function member(view: DataView, pos: number, directory: number, centralEnd: numb
   return { start, data, end: data + compressed, size, method: u16(pos + 10), next };
 }
 
-/** JSZip drops compressed bytes for a declared-empty entry; check them before this happens. */
+/** JSZip は、空と宣言された項目の圧縮済みのバイト列を捨てる。そうなる前に確かめる。 */
 async function verifyEmptyStream(bytes: Uint8Array) {
   const reader = new Blob([new Uint8Array(bytes)]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
   try {
@@ -73,8 +73,8 @@ async function verifyEmptyStream(bytes: Uint8Array) {
   } finally { reader.releaseLock(); }
 }
 
-// JSZip first materializes every physical entry and then indexes it by its
-// normalized name. Count central records before either allocation or deduplication.
+// JSZip は、まず物理的なすべての項目を実体化し、その後で正規化した名前で索引を作る。
+// そのどちらの割り当てや重複の除去よりも前に、セントラルディレクトリの記録を数える。
 export async function openImportZip(bytes: Uint8Array, maxFiles: number): Promise<JSZip> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const u16 = (i: number) => view.getUint16(i, true);
@@ -90,7 +90,7 @@ export async function openImportZip(bytes: Uint8Array, maxFiles: number): Promis
 
   if (records === 0xffff || size === 0xffffffff || offset === 0xffffffff ||
       u16(end + 4) === 0xffff || u16(end + 6) === 0xffff || u16(end + 8) === 0xffff) {
-    // Bounded, single-volume ZIP64. JSZip does not support ZIP64 extensions.
+    // 上限があり、単一のボリュームの ZIP64 だけを扱う。JSZip は ZIP64 の拡張に対応していない。
     const locator = end - 20;
     centralEnd = locator - 56;
     if (centralEnd < 0 || u32(locator) !== 0x07064b50 ||
@@ -105,7 +105,7 @@ export async function openImportZip(bytes: Uint8Array, maxFiles: number): Promis
   } else if (u16(end + 4) !== 0 || u16(end + 6) !== 0 || u16(end + 8) !== records) throw invalid();
   const start = centralEnd - size;
   if (start < 0 || offset > start) throw invalid();
-  // Allow explicit directory records in addition to the format's file limit.
+  // 形式のファイル数の上限に加えて、明示的なディレクトリの記録も許す。
   const maxRecords = maxFiles * 4;
   if (records > maxRecords) throw new Error(tr("The ZIP contains too many files."));
   const members: ReturnType<typeof member>[] = [];
@@ -124,8 +124,8 @@ export async function openImportZip(bytes: Uint8Array, maxFiles: number): Promis
     previousEnd = m.end;
     if (!m.size && m.method === 8) await verifyEmptyStream(bytes.subarray(m.data, m.end));
   }
-  // Pass the validated, representable directory as a single-volume EOCD. The
-  // parser must never select a different ZIP64 locator or an EOCD in a comment.
+  // 検証済みで表現できるディレクトリを、単一のボリュームの EOCD として渡す。
+  // パーサーが、別の ZIP64 のロケーターや、コメントの中の EOCD を選ぶことがあってはならない。
   let input = bytes;
   if (centralEnd !== end || end + 22 !== bytes.length) {
     input = new Uint8Array(centralEnd + 22);

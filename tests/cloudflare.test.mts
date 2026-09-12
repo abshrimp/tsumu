@@ -18,7 +18,7 @@ function generatedConfig(src: string, workersBuildsName?: string) {
   if (workersBuildsName !== undefined) env.WRANGLER_CI_OVERRIDE_NAME = workersBuildsName;
   try {
     writeFileSync(join(dir, "wrangler.jsonc"), src);
-    // CLI の引数や作業ディレクトリをテスト本体と分離する。
+    // CLI の引数や作業ディレクトリを、テストの本体と分ける。
     execFileSync(
       process.execPath,
       ["--input-type=module", "-e",
@@ -50,7 +50,7 @@ test("Cloudflare 設定の文字列内にあるカンマと閉じ括弧を保持
 
 test("Cloudflare 設定のコメントと末尾カンマを除き、文字列を保持する", () => {
   const src = `{
-    // オブジェクトと配列の両方に末尾カンマを含む
+    // オブジェクトと配列の両方に、末尾のコンマを含む
     "vars": {
       "TEXT": "a,]b, }c",
       "COMMENT": "/* not a comment,} */ //,]",

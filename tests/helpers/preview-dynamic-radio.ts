@@ -6,7 +6,7 @@ import { generateProject } from "../../lib/generator";
 import { makeBox, makeText } from "../../lib/presets";
 import type { DocNode, SiteDoc } from "../../lib/types";
 
-/** ラジオの値になるラベルをクエリまたはJSONから差し込む。 */
+/** ラジオボタンの値になるラベルを、クエリか JSON から差し込む。 */
 export function previewDynamicRadioDoc(source: "query" | "data" | "literal" = "query"): SiteDoc {
   const prefix = source === "data" ? "response." : "";
   const radio = (id: string, label: string, checked = false): DocNode => ({
@@ -60,7 +60,7 @@ export function previewDynamicRadioDoc(source: "query" | "data" | "literal" = "q
   };
 }
 
-/** 実際のCanvasとstoreを使い、プレビュー中の変更が保存文書や履歴を汚さないかも確認する。 */
+/** 実際の Canvas と store を使い、プレビュー中の変更が、保存する文書や履歴を汚さないかも確かめる。 */
 export async function previewDynamicRadioBundle(source: "query" | "data" | "literal") {
   return (await build({
     stdin: { contents: `
@@ -83,7 +83,7 @@ createRoot(document.getElementById("app")).render(<Canvas />);
   })).outputFiles[0].text;
 }
 
-/** 公開用のReactページを実行する。取得するJSONだけを置き換え、外部へは通信しない。 */
+/** 公開用の React のページを実行する。取得する JSON だけを置き換え、外部へは通信しない。 */
 export async function publishedDynamicRadio(source: "query" | "data", labels = { smallLabel: "S", mediumLabel: "M" }) {
   const doc = previewDynamicRadioDoc(source);
   const { files } = generateProject(doc);

@@ -34,22 +34,22 @@ import { safeResourceUrl } from "../../lib/url-policy";
 /* ---------- 変数コンテキスト ---------- */
 
 export interface CanvasVars {
-  /** ページ変数（slug / フォーム値） */
+  /** ページの変数（slug・フォームの値） */
   pageVars: Record<string, unknown>;
   fieldValues: FieldValues;
   setFieldValue: (name: string, v: string) => void;
-  /** 送信ボタン: ページのJSONを取り直す */
+  /** 送信ボタン: ページの JSON を取得し直す */
   refresh: () => void;
   preview: boolean;
-  /** プレビュー時のリンク移動（サイト内パスならページ切替に解決する） */
+  /** プレビューでのリンクの移動（サイト内のパスなら、ページの切り替えとして扱う） */
   navigate: (url: string) => void;
   /** 画面上（ブラウザ）で値が決まる変数・配列の名前 */
   clientVars: Set<string>;
-  /** 配列の名前 → ページを開いたときのスクリプトで決まる絞り込み・並べ替え */
+  /** 配列の名前 → ページを開いたときのスクリプトで決まる、絞り込みと並べ替え */
   listOps: Map<string, ListOp[]>;
 }
 
-/** リストに適用する絞り込み・並べ替え（値の {変数} をページの変数で解決する） */
+/** リストに適用する絞り込みと並べ替え（値の {変数} をページの変数で解決する） */
 export function resolvedListOps(
   listOps: Map<string, ListOp[]>,
   from: string,
@@ -82,11 +82,11 @@ export const VarsCtx = createContext<CanvasVars>({
 
 /**
  * 描画中のインスタンスがたどってきたコンポーネント（外側から順）。
- * コンポーネントが自分自身を含んでいると無限に描画し続けて画面が固まるため、2度目は描かない
+ * コンポーネントが自分自身を含んでいると、無限に描画し続けて画面が固まるため、2度目は描かない
  */
 export const InstanceChainCtx = createContext<string[]>([]);
 
-/** 自分自身を含むコンポーネントの代わりに出す表示 */
+/** 自分自身を含むコンポーネントの代わりに表示するもの */
 export function recursiveInstance(common: Record<string, unknown>): ReactNode {
   return createElement("div", {
     ...common,
@@ -95,26 +95,26 @@ export function recursiveInstance(common: Record<string, unknown>): ReactNode {
   });
 }
 
-/** テンプレートを表示用に解決する（プレビューだけ値を差し込む） */
+/** テンプレートを表示用に解決する（値を差し込むのはプレビューのときだけ） */
 export function renderTpl(
   tpl: string,
   vars: Record<string, unknown>,
   preview: boolean
 ): ReactNode {
   if (preview) return interpolate(tpl, vars);
-  // デザイン画面では {名前} を普通の文字と同じに見せ（リストでもそのまま複製する）、値はプレビューで出す
+  // デザイン画面では {名前} を普通の文字と同じように表示し（リストでもそのまま複製する）、値はプレビューで表示する
   return tpl;
 }
 
-/** ページごとのキャンバスのスクロール位置（ページID → [上, 左]） */
+/** ページごとのキャンバスのスクロール位置（ページ ID → [上, 左]） */
 export const SCROLL_KEY = storageKey("scroll-v1");
 
-/** 「変数を探す」を開いている間、テキスト編集の blur で確定・終了しない */
+/** 「変数を探す」を開いている間は、テキスト編集の blur で確定・終了しない */
 export const holdEditing = { current: false };
 
 /* ---------- スクリプト（プレビュー） ---------- */
 
-/** プレビュー時: 実行用に変換したスクリプトを data-scripts として props に載せる */
+/** プレビュー時: 実行用に変換したスクリプトを、data-scripts として props に載せる */
 export function applyScriptsAttr(
   node: Pick<DocNode, "scripts">,
   common: Record<string, unknown>,
@@ -148,8 +148,8 @@ export function applyScriptsAttr(
 /* ---------- ノード描画 ---------- */
 
 /**
- * <button> の要素。フォームの中で押すと送信する（プレビューではページのデータを取り直す）。
- * 「クリックしたとき」のスクリプトがあるボタンは送信しない（書き出しと同じ）
+ * <button> の要素。フォームの中で押すと送信する（プレビューではページのデータを取得し直す）。
+ * 「クリックしたとき」のスクリプトがあるボタンは送信しない（書き出したサイトと同じ）
  */
 export function applyButton(
   node: Pick<DocNode, "scripts">,
@@ -167,18 +167,18 @@ export function applyButton(
 }
 
 interface LeafOpts {
-  /** 動画・音声のアセットを引く編集データ */
+  /** 動画・音声のアセットを探す編集データ */
   doc?: SiteDoc;
-  /** プレビュー時: フォーム部品を操作可能にする */
+  /** プレビュー時: フォーム部品を操作できるようにする */
   interactive?: boolean;
-  /** プレビュー時: 案内文・初期値などの {変数} を置き換える値 */
+  /** プレビュー時: 案内文や初期値などの {変数} を置き換える値 */
   vars?: Record<string, unknown>;
   fieldValues?: FieldValues;
   onField?: (name: string, v: string) => void;
   onSubmit?: () => void;
 }
 
-/** icon / field / media / embed の実DOM描画（NodeView / GhostView 共用） */
+/** icon / field / media / embed を実際の DOM で描画する（NodeView と GhostView で共用） */
 export function renderLeafNode(
   node: DocNode,
   common: Record<string, unknown>,
@@ -193,11 +193,11 @@ export function renderLeafNode(
 
   if (node.type === "field" && node.field) {
     const f = node.field;
-    // ID属性（ラジオはグループ名）がフォームの項目名（= {変数} 名）を兼ねる
+    // ID 属性（ラジオではグループ名）が、フォームの項目名（= {変数} の名前）を兼ねる
     const name = fieldVarName(node);
     const live = opts.interactive && name;
     const disabled = f.disabled || undefined;
-    // デザイン画面では {名前} をそのまま見せ、プレビューで値を差し込む（テキストと同じ）
+    // デザイン画面では {名前} をそのまま表示し、プレビューで値を差し込む（テキストと同じ）
     const fill = (v: string | undefined) => (v && opts.vars && hasVars(v) ? interpolate(v, opts.vars) : (v ?? ""));
     const stored = opts.fieldValues?.[name];
     const value = stored === undefined ? fieldInitialValue(f, opts.vars) : (stored ?? "");
@@ -213,7 +213,7 @@ export function renderLeafNode(
         ...(live
           ? {
               value,
-              // ネイティブの変更スクリプトが再描画する前に、入力した値をReactへ渡す。
+              // 標準の変更スクリプトが描画し直す前に、入力した値を React に渡す。
               onInputCapture: (e: React.FormEvent<HTMLTextAreaElement>) =>
                 opts.onField?.(name, e.currentTarget.value),
               onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) =>
@@ -236,7 +236,7 @@ export function renderLeafNode(
           ...(live
             ? {
                 value: unselected ? "" : value,
-                // Reactは一致しない値を先頭へ戻すため、選択解除をcommit後にも保つ。
+                // React は一致しない値を先頭の選択肢に戻すため、選択の解除をコミットの後にも保つ。
                 ref: (el: HTMLSelectElement | null) => {
                   if (el && unselected) el.selectedIndex = -1;
                 },
@@ -254,7 +254,7 @@ export function renderLeafNode(
         createElement("input", {
           key: "input",
           type: f.kind,
-          // ラジオは表示テキストが値（書き出しと揃える）
+          // ラジオは表示テキストを値にする（書き出したサイトとそろえる）
           ...(f.kind === "radio" ? { value: label, name: name || undefined } : { value: "true" }),
           required,
           disabled,
@@ -270,7 +270,7 @@ export function renderLeafNode(
       ]);
     }
     if (f.kind === "submit") {
-      // 表示切替などで既にonClickが付いていれば合成する
+      // 表示の切り替えなどですでに onClick が付いていれば、合成する
       const prev = common.onClick as ((e: React.MouseEvent) => void) | undefined;
       return createElement(
         "button",
@@ -298,7 +298,7 @@ export function renderLeafNode(
         multiple: f.multiple || undefined,
         required,
         disabled,
-        // デザイン画面では、クリックでファイル選択が開かないようにする
+        // デザイン画面では、クリックでファイルの選択画面が開かないようにする
         ...(live ? {} : { tabIndex: -1, onClick: (e: React.MouseEvent) => e.preventDefault() }),
       });
     }
@@ -315,13 +315,13 @@ export function renderLeafNode(
       ...(live
         ? {
             value,
-            // Canvasのネイティブinputリスナーより先に記録し、古い値への巻き戻しを防ぐ。
+            // キャンバスの標準の input リスナーより先に記録し、古い値に戻ってしまうのを防ぐ。
             onInputCapture: (e: React.FormEvent<HTMLInputElement>) =>
               opts.onField?.(name, e.currentTarget.value),
             onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
               opts.onField?.(name, e.target.value),
           }
-        : // 色・範囲は空の値を持てないため、初期値が無ければ値を渡さない
+        : // 色と範囲は空の値を持てないため、初期値が無ければ値を渡さない
           { readOnly: true, value: fill(f.defaultValue) || (type === "color" || type === "range" ? undefined : ""), onChange: () => {} }),
     });
   }

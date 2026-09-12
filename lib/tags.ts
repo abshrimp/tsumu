@@ -37,7 +37,7 @@ export const SEMANTIC_OPTIONS: {
 ];
 
 /**
- * カスタムに指定できないタグ。中身を持てない要素・ページ構造を壊す要素・
+ * カスタムに指定できないタグ。中身を持てない要素、ページの構造を壊す要素、
  * スクリプトを実行できる要素と、専用の要素（画像・入力欄など）で作るもの
  */
 const BLOCKED_CUSTOM_TAGS = new Set([
@@ -48,7 +48,7 @@ const BLOCKED_CUSTOM_TAGS = new Set([
   "table", "thead", "tbody", "tfoot", "tr", "td", "th", "caption", "colgroup",
 ]);
 
-/** カスタムタグ名を正規化する。使えない名前なら空文字 */
+/** カスタムのタグ名を正規化する。使えない名前なら空文字を返す */
 export function normalizeCustomTag(raw: string | undefined): string {
   const tag = (raw ?? "").trim().replace(/^<\/?|\/?>$/g, "").trim().toLowerCase();
   if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(tag)) return "";
@@ -73,7 +73,7 @@ function hasTextContent(node: DocNode): boolean {
   return !!node.text && (node.text.content.length > 0 || node.children.length > 0);
 }
 
-/** 要素を出力するHTMLタグ（意味付けが「自動」なら、リンク・テキスト・位置から決める） */
+/** 要素を出力する HTML のタグ（意味付けが「自動」なら、リンク・テキスト・位置から決める） */
 export function resolveTag(node: DocNode, isTopLevel: boolean): string {
   if (node.type === "instance") return "comp";
   if (node.type === "list") return "list";
@@ -94,7 +94,7 @@ export function resolveTag(node: DocNode, isTopLevel: boolean): string {
   if (node.link) return "a";
   if (node.semantic === "custom") return normalizeCustomTag(node.customTag) || "div";
   if (node.semantic !== "auto") return SEMANTIC_TAGS.has(node.semantic) ? node.semantic : "div";
-  // 子を持つ場合もテキスト情報があれば p / h#（テキストをspan分割した親）
+  // 子を持つ場合も、テキストの情報があれば p / h#（テキストを span に分割した親）
   if (node.text && hasTextContent(node)) {
     return Number.isInteger(node.text.heading) && node.text.heading >= 1 && node.text.heading <= 6 ? `h${node.text.heading}` : "p";
   }
@@ -102,7 +102,7 @@ export function resolveTag(node: DocNode, isTopLevel: boolean): string {
   return "div";
 }
 
-/** レイアウト要素を中に追加できるボックスか。 */
+/** 中にレイアウトの要素を追加できるボックスか。 */
 export function canContainElements(node: DocNode): boolean {
   if (node.type !== "box" || hasTextContent(node)) return false;
   if (node.semantic === "custom" && !node.link) return true;

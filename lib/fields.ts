@@ -1,7 +1,7 @@
 import type { DocNode, FieldContent } from "./types";
 import { hasVars, interpolate } from "./vars";
 
-/** プレビュー専用の入力値。null はセレクトの選択解除（空文字の選択肢とは別）。 */
+/** プレビュー専用の入力値。null はセレクトの選択の解除（空文字の選択肢とは別）を表す。 */
 export type FieldValues = Record<string, string | null>;
 
 /** 最小値・最大値・刻みを持てる入力欄の type */
@@ -10,8 +10,8 @@ export const RANGED_INPUTS = new Set(["number", "range", "date", "time", "dateti
 export const TEXT_INPUTS = new Set(["text", "email", "password", "tel", "url", "search"]);
 
 /**
- * 入力欄の値の名前（送信するときの name・{変数} の名前）。
- * ラジオはグループ名、ほかは ID属性
+ * 入力欄の値の名前（送信するときの name と、{変数} の名前）。
+ * ラジオはグループ名、他は ID 属性
  */
 export function fieldVarName(n: Pick<DocNode, "attrId" | "field">): string {
   if (n.field?.kind === "radio") return n.field.group?.trim() || "";
@@ -35,21 +35,21 @@ export function truthy(v: unknown): boolean {
   return t !== "" && t !== "off" && t !== "false" && t !== "0" && t !== "no";
 }
 
-/** グループ名と別のIDを持つラジオボタン（{ID} は、そのボタンを選んでいるかの true / false） */
+/** グループ名とは別の ID を持つラジオボタン（{ID} は、そのボタンを選んでいるかの true / false） */
 export function isRadioItem(n: Pick<DocNode, "attrId" | "field">): boolean {
   return n.field?.kind === "radio" && !!n.attrId && n.attrId !== (n.field.group?.trim() || "");
 }
 
 /**
- * 入力欄の最初の値（{ID} 変数の値。公開サイトのブラウザでの値と同じ形）。
+ * 入力欄の最初の値（{ID} の変数の値。公開サイトのブラウザでの値と同じ形）。
  * チェックボックスは「true」/「false」、ラジオはチェックしていれば表示テキスト、セレクトは初期値か最初の選択肢
  */
 export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown>): string {
   switch (f.kind) {
     case "input": {
       const value = fill(f.defaultValue, vars);
-      // サーバーでは文字を保ち、ブラウザでは公開サイトと同じネイティブの初期値を読む。
-      // 数値・日付・色・範囲などの正規化を独自実装せず、保存値や操作済みの値は書き換えない。
+      // サーバーでは文字のまま保ち、ブラウザでは公開サイトと同じ標準の初期値を読む。
+      // 数値・日付・色・範囲などの正規化を独自に実装せず、保存した値や操作した後の値は書き換えない。
       if (typeof document === "undefined") return value;
       const input = document.createElement("input");
       input.type = f.inputType ?? "text";
@@ -59,7 +59,7 @@ export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown
           if (bound) input.setAttribute(key, bound);
         }
       }
-      // value属性はrangeの刻みの基準にもなる。範囲を設定した後、空の初期値も渡す。
+      // value 属性は range の刻みの基準にもなる。範囲を設定した後に、空の初期値も渡す。
       input.defaultValue = value;
       return input.value;
     }
@@ -77,7 +77,7 @@ export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown
     case "select": {
       const options = (f.options ?? []).map((option) => fill(option.value, vars));
       const value = fill(f.defaultValue, vars);
-      // 初期値が選択肢に無ければブラウザと同じく先頭を選ぶ。変数が空に解決する場合も比較する。
+      // 初期値が選択肢に無ければ、ブラウザと同じく先頭を選ぶ。変数が空に解決される場合も比べる。
       return f.defaultValue && options.includes(value) ? value : (options[0] ?? "");
     }
     case "file":
@@ -88,12 +88,12 @@ export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown
   }
 }
 
-/** HTML IDs and radio group names may also match Object.prototype keys. */
+/** HTML の ID やラジオのグループ名は、Object.prototype のキーと同じ名前のこともある。 */
 function setFieldValue(out: Record<string, string>, name: string, value: string) {
   Object.defineProperty(out, name, { value, enumerable: true, writable: true, configurable: true });
 }
 
-/** ページの入力欄（ID付き）の最初の値（同じグループのラジオは、チェックしているボタンの値） */
+/** ページの入力欄（ID 付き）の最初の値（同じグループのラジオは、チェックしているボタンの値） */
 export function fieldDefaults(fields: DocNode[], vars?: Record<string, unknown>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const n of fields) {
@@ -101,11 +101,11 @@ export function fieldDefaults(fields: DocNode[], vars?: Record<string, unknown>)
     if (n.type !== "field" || !n.field || !name) continue;
     const v = fieldInitialValue(n.field, vars);
     if (n.field.kind === "radio") {
-      // HTML radio groups select the last checked item in document order.
-      // A later unchecked item must not clear that initial selection.
+      // HTML のラジオのグループでは、文書の順で最後にチェックされた項目が選ばれる。
+      // 後にあるチェックされていない項目で、その最初の選択を消してはいけない。
       if (!Object.hasOwn(out, name) || n.field.checked) setFieldValue(out, name, v);
     } else if (!Object.hasOwn(out, name) || (!out[name] && v)) {
-      // 同じ名前のほかの部品は、値のあるものを優先する。
+      // 同じ名前の他の部品は、値のあるものを優先する。
       setFieldValue(out, name, v);
     }
   }
@@ -113,8 +113,8 @@ export function fieldDefaults(fields: DocNode[], vars?: Record<string, unknown>)
 }
 
 /**
- * 入力欄の状態を表す変数（{ID.checked} など）の説明。「変数を探す」の詳細に出す。
- * 値は公開サイトのブラウザでは "true" / "false"・数字の文字になる
+ * 入力欄の状態を表す変数（{ID.checked} など）の説明。「変数を探す」の詳細に表示する。
+ * 値は公開サイトのブラウザでは "true" / "false" か、数字の文字になる
  */
 export function fieldStateNotes(fields: DocNode[], tr: (s: string) => string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -172,7 +172,7 @@ export function fieldStateValues(
 
 /**
  * プレビューで、スクリプトが {名前} の入力欄に値を入れたときの、入力欄の値の変化（無ければ null）。
- * 名前は ID属性 かラジオのグループ名。グループのボタン1つには true / false で選ぶ・外す
+ * 名前は ID 属性か、ラジオのグループ名。グループのボタン1つには、true / false で選択・解除する
  */
 export function fieldValuePatch(
   fields: DocNode[],
@@ -191,7 +191,7 @@ export function fieldValuePatch(
   }
   const hit = fields.find((n) => n.type === "field" && fieldVarName(n) === name);
   if (!hit) return null;
-  // 初期値と違い、選択肢にない値の代入は選択を外す（HTMLSelectElement.value と同じ）。
+  // 初期値と違い、選択肢に無い値を代入すると選択を外す（HTMLSelectElement.value と同じ）。
   if (hit.field?.kind === "select") {
     return { [name]: (hit.field.options ?? []).some((o) => fill(o.value, vars) === v) ? v : null };
   }

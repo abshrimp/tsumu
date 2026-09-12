@@ -45,7 +45,7 @@ for (const split of [true, false]) test(`After remote text changes, stale partia
   remote.nodes.a.text.content = "echo gone";
   remote.nodes.b.name = "Collaborator kept this";
   expect((await page.request.put(`${endpoint}&base=${current.rev}`, { data: remote })).ok()).toBeTruthy();
-  // Wait for remote collaboration to reach the real Canvas before accepting the stale dialog.
+  // 古いダイアログを受け入れる前に、共同編集の変更が実際の Canvas に届くのを待つ。
   await expect.poll(() => page.locator('[data-node="a"]').textContent()).toBe("echo gone");
   await page.getByRole("dialog").getByRole("button", { name: split ? "分割して適用" : "全体に適用", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -87,7 +87,7 @@ test.describe("Partial text styling confirmation target and lifetime", () => {
         if (interruption === "unmount") (window as any).hideTextStylePanel();
       }, interruption);
       if (interruption.endsWith("return")) {
-        // Render an intermediate screen before returning to the same target; the original request must not revive.
+        // 同じ対象に戻る前に、途中の画面を描画する。元の要求が復活してはならない。
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
         await page.evaluate(interruption => {
           const s = (window as any).textStyleEditor.getState();
@@ -139,7 +139,7 @@ test.describe("Partial text styling confirmation target and lifetime", () => {
   for (const content of ["new echo echo", "Hello {name} world"]) test(`Commit freshly entered ${content} before styling only the selected range`, async ({ page }) => {
     const start = content.startsWith("Hello") ? 6 : 9;
     await selectSecondOccurrence(page, content, start, content.length);
-    // Re-notifying an unchanged selection after blur saves text must not invalidate its confirmation.
+    // blur でテキストを保存した後に、変わっていない選択を知らせ直しても、その確認を無効にしてはならない。
     await page.evaluate(() => {
       const s = (window as any).textStyleEditor.getState();
       s.setTextSel({ ...s.textSel });

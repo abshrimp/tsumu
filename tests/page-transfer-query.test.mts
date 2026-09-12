@@ -28,7 +28,7 @@ test("query matching ignores parameter order and equivalent encoding, but not va
     const { source, target } = queryCopyFixture();
     source.pages["source-news"].query = from;
     target.pages.news.query = to;
-    // Make a same-slug, different-query page the last entry.
+    // slug が同じでクエリが違うページを、最後の項目にする。
     delete target.pages.default;
     target.pageOrder = ["news", "archive"];
     applyPagePayload(target, buildPagePayload(source, ["home"]));

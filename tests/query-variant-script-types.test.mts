@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { QUERY_VARIANT_RUNTIME } from '../lib/generator/query-route';
 
-// HTML Standard's script type uses an essence *match*, not MIME parsing.
-// Parameters such as text/javascript;charset=utf-8 are inert data blocks.
+// HTML Standard の script の type は、MIME の解析ではなく、本質の部分の *一致* で判定する。
+// text/javascript;charset=utf-8 のようにパラメーターの付いたものは、実行されないデータのブロックになる。
 // https://html.spec.whatwg.org/multipage/scripting.html#attr-script-type
 async function bootstrap(type:string | null, browserExecutes:boolean, language?:string) {
   const inserted:string[]=[];

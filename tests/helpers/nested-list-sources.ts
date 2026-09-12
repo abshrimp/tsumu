@@ -26,7 +26,7 @@ export function nestedListSourcesDoc(): SiteDoc {
   };
 }
 
-/** 実際のリスト化・配列選択・キャンバス描画を、保存済みの見本で確かめる。 */
+/** 実際のリストへの変換・配列の選択・キャンバスの描画を、保存済みの見本で確かめる。 */
 export async function nestedListSourcesBundle() {
   return (await build({
     stdin: {
