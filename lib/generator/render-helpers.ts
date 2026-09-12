@@ -107,7 +107,8 @@ function collectPositionedAuto(doc: SiteDoc, id: string, out: Set<string>, seen 
 export function crispSvgSize(doc: SiteDoc, node: DocNode): { width: number; height: number } | null {
   const img = node.image;
   const asset = img?.assetId ? doc.assets[img.assetId] : null;
-  if (!img || !asset?.svgFilter || img.crispShadow === false) return null;
+  if (!img || !asset || img.crispShadow === false || (!asset.svgFilter && img.crispShadow !== true)) return null;
+  if (asset.mimeType !== "image/svg+xml" && !/\.svg$/i.test(asset.name)) return null;
   const valid = (v: number | undefined) => (Number.isFinite(v) && v! > 0 ? v! : 0);
   const width = valid(img.width) && valid(img.height) ? img.width : asset.width;
   const height = valid(img.width) && valid(img.height) ? img.height : asset.height;

@@ -560,7 +560,7 @@ export interface Asset {
   mimeType?: string;
   width: number;
   height: number;
-  /** SVG が <filter>（シャドウなど）を含むか。まだ判定していなければ undefined */
+  /** 実際に描画される影・ぼかしがSVGに含まれるか。 */
   svgFilter?: boolean;
   zip?: ZipAssetMetadata;
 }

@@ -589,7 +589,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               />
               {tr("Load first (for images visible on page load)")}
             </label>
-            {node.image.assetId && doc.assets[node.image.assetId]?.svgFilter && (
+            {node.image.assetId && (
+              doc.assets[node.image.assetId]?.mimeType === "image/svg+xml" ||
+              /\.svg$/i.test(doc.assets[node.image.assetId]?.name ?? "")
+            ) && (
               <label
                 className="lbl"
                 style={{ display: "flex", alignItems: "center", gap: 6 }}
@@ -597,12 +600,12 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 <input
                   id={`settings-${nodeId}-image-crisp`}
                 type="checkbox"
-                  checked={node.image.crispShadow !== false}
+                  checked={node.image.crispShadow ?? !!doc.assets[node.image.assetId]?.svgFilter}
                   onChange={(e) =>
                     updateNode(nodeId, {
                       image: {
                         ...node.image!,
-                        crispShadow: e.target.checked ? undefined : false,
+                        crispShadow: e.target.checked,
                       },
                     })
                   }

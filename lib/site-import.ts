@@ -171,7 +171,7 @@ export async function restoreImportAssets(
           ...asset, ...result, id, name: asset.name,
           width: asset.width > 0 ? asset.width : result.width,
           height: asset.height > 0 ? asset.height : result.height,
-          svgFilter: asset.svgFilter ?? result.svgFilter,
+          svgFilter: result.svgFilter,
           ...(result.path ? { dataUrl: undefined } : { path: undefined }),
         };
       } catch (e) {
