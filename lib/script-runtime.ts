@@ -33,10 +33,12 @@ export const SCRIPT_RUNTIME = `function (env) {
   var formatValueText = (${formatValueText.toString()});
   // esbuild may annotate nested functions embedded via toString().
   var __name = function (fn) { return fn; };
-  /*#setvar*/
+  /*#transform*/
   var evalRecipe = (${evaluateValueRecipe.toString()});
+  /*/transform*/
+  /*#remove-list-item*/
   var removeItem = (${removeListItem.toString()});
-  /*/setvar*/
+  /*/remove-list-item*/
   /*#env*/
   env = env || {};
   function touch(el) {
@@ -386,11 +388,12 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/keep*/
           pageGeneration++;
           pageBody = body;
-        }
-        if (pid !== pageId || newData) {
           pageSeeds = seedData;
           if (pageId !== null) {
             vars = Object.create(null);
+            /*#load|inview*/
+            if (changed) seen = new WeakSet();
+            /*/load|inview*/
             /*#clist*/
             rendered = new WeakSet();
             /*/clist*/
@@ -416,7 +419,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         return pageGeneration;
       }
       // 待機・くり返しは、開始したページを離れたら続けない。
-      function activeRun() {
+      function activeRun(cause) {
         var generation = syncPage(true);
         // One user event must not monopolize the browser through deeply
         // nested finite loops. An actual wait yields and starts a new budget.
@@ -430,7 +433,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           return true;
         };
         active.resetBudget = function () { stepsRun = 0; };
-        active.variableScripts = firingVariableScripts;
+        active.cause = cause;
         return active;
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
@@ -603,6 +606,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         );
       }
       // 画面上で値が決まる {変数} を含む文字（data-live）・入力欄の案内文と初期値を書き直す
+      /*#live|clist*/
       function refreshLive() {
         root.querySelectorAll("[data-live]").forEach(function (el) {
           if (inTpl(el)) return;
@@ -645,6 +649,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         });
         /*/clist*/
       }
+      /*/live|clist*/
       /*#live*/
       function onLiveInput(e) {
         if (e.isTrusted && e.target && e.target.setAttribute) e.target.setAttribute("data-edited", "");
@@ -653,6 +658,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*/live*/
       function setVar(name, v, editingList) {
         if (typeof name !== "string" || !name || Object.is(getVar(name, missingVar), v)) return;
+        /*#watch*/
         // Variable-change scripts live on the page marker, not on an element.
         // Snapshot the watched paths before writing so unchanged nested fields
         // do not fire when their parent is reassigned.
@@ -666,8 +672,11 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (watched.split(".")[0] === changedRoot)
             watching.push({ script: s, name: watched, before: getVar(watched) });
         });
+        /*/watch*/
         if (!writeVar(name, v, editingList)) return;
+        /*#live|clist*/
         refreshLive();
+        /*/live|clist*/
         /*#clist*/
         var rk = name.split(".")[0];
         root.querySelectorAll("[data-client-list]").forEach(function (list) {
@@ -675,15 +684,13 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (a === name || a.indexOf(name + ".") === 0 || a === rk || a.indexOf(rk + ".") === 0) renderList(list);
         });
         /*/clist*/
+        /*#watch*/
         watching.forEach(function (entry) {
           if (Object.is(entry.before, getVar(entry.name)) ||
-              !alive || owner !== root.querySelector("[data-page-body]") ||
-              (firingVariableScripts && firingVariableScripts.has(entry.script))) return;
-          var run = activeRun();
-          run.variableScripts = new Set(firingVariableScripts);
-          run.variableScripts.add(entry.script);
-          runSteps(entry.script.steps || [], owner, undefined, run);
+              !alive || owner !== root.querySelector("[data-page-body]")) return;
+          runTriggered(entry.script.steps, owner, entry.script, currentCause);
         });
+        /*/watch*/
       }
       // Inputs can contain a literal value, a list, one raw reference, or mixed text.
       function readInput(raw, self, scope) {
@@ -836,12 +843,11 @@ export const SCRIPT_RUNTIME = `function (env) {
         }
       }
       // 数値どうしは数値で、それ以外は数字を数値として比べる（エディタの compareValues と同じ）
+      var listCollator;
       function order(x, y) {
-        return typeof x === "number" && typeof y === "number"
-          ? x - y
-          : filterText(x).localeCompare(filterText(y), "ja", {
-              numeric: true,
-            });
+        if (typeof x === "number" && typeof y === "number") return x - y;
+        if (!listCollator) listCollator = new Intl.Collator("ja", { numeric: true });
+        return listCollator.compare(filterText(x), filterText(y));
       }
       // 配信済みのリスト: 項目（data-item）の並びを入れ替える
       function applySort(list) {
@@ -1197,17 +1203,20 @@ export const SCRIPT_RUNTIME = `function (env) {
           // The preview's delayed change event belongs to this page instance.
           // Navigation can complete before the callback is delivered.
           var changeGeneration = syncPage();
+          var cause = currentCause;
           setTimeout(function () {
             if (!alive || changeGeneration !== syncPage()) return;
-            els.forEach(function (el) {
-              fire(el, "change");
+            changed.forEach(function (input) {
+              chain(input).forEach(function (el) { fire(el, "change", undefined, cause); });
             });
           }, 0);
           return;
         }
         /*/env*/
         // ラジオを外すだけなら通知する入力欄はないが、参照している表示は更新する
+        /*#live|clist*/
         if (!changed.length) refreshLive();
+        /*/live|clist*/
         changed.forEach(function (input) {
           input.dispatchEvent(new Event("input", { bubbles: true }));
           input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -1235,7 +1244,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         for (k in b || {}) if (has(b, k)) o[k] = b[k];
         return o;
       }
-      /*#setvar*/
+      /*#transform*/
       // Runtime data transforms also accept form values and URL parameters.
       // Collect only actual variable tokens; do not turn unknown names into empty
       // strings, since a missing whole-value reference must remain missing.
@@ -1279,7 +1288,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           include(transform.operand);
         return scope;
       }
-      /*/setvar*/
+      /*/transform*/
       function exec(st, self, cx) {
         var sc = scopeOf(cx);
         switch (st.kind) {
@@ -1353,7 +1362,9 @@ export const SCRIPT_RUNTIME = `function (env) {
                 c.disabled = st.op === "toggle" ? !c.disabled : st.op === "disable";
               });
             });
+            /*#live|clist*/
             refreshLive();
+            /*/live|clist*/
             break;
           /*/set*/
           /*#filter*/
@@ -1400,7 +1411,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             setVar(st.into, st.key ? storeGet(st.key, !!st.shared) : undefined);
             break;
           /*/store*/
-          /*#setvar*/
+          /*#transform*/
           case "transform": {
             if (!st.source || !st.into || !st.transform || typeof st.transform !== "object") break;
             var inputValue = sc && (has(sc, st.source) ? sc[st.source] : dig(sc, st.source));
@@ -1429,6 +1440,8 @@ export const SCRIPT_RUNTIME = `function (env) {
               console.warn("Value transform failed:", transformed.code, st.transform.kind, st.source, st.into);
             break;
           }
+          /*/transform*/
+          /*#set-list-item*/
           case "set-list-item": {
             if (!st.list || typeof st.list !== "string") break;
             var sourceList = getVar(st.list);
@@ -1455,6 +1468,8 @@ export const SCRIPT_RUNTIME = `function (env) {
             }
             break;
           }
+          /*/set-list-item*/
+          /*#remove-list-item*/
           case "remove-list-item": {
             if (!st.list || typeof st.list !== "string" ||
                 !configuredInput(st.value)) break;
@@ -1463,6 +1478,8 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (remaining !== undefined) setVar(st.list, remaining, true);
             break;
           }
+          /*/remove-list-item*/
+          /*#set-var*/
           case "set-var": {
             /*#clist*/
             if (st.rawRef) {
@@ -1481,7 +1498,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             setVar(st.into, sv ? lookup(sv[1].trim(), self, sc) : readInput(st.value, self, sc));
             break;
           }
-          /*/setvar*/
+          /*/set-var*/
           /*#copy*/
           case "copy": {
             var tx = resolve(st.value, self, sc);
@@ -1538,7 +1555,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         var depth = loopDepth || 0;
         var i = 0;
         function next() {
-          while (active() && i < steps.length) {
+          while (i < steps.length) {
             if (!active.consume()) return Promise.resolve();
             var st = steps[i++];
             if (!st || typeof st !== "object" || typeof st.kind !== "string") continue;
@@ -1580,43 +1597,33 @@ export const SCRIPT_RUNTIME = `function (env) {
               return each(st, self, cx, 0, active, null, depth, nesting || 0).then(next);
             }
             /*/each*/
-            // Restore the watcher chain for each continuation after an if, loop or wait.
-            // Independent events can still run the same watcher while one is waiting.
-            var previous = firingVariableScripts;
-            firingVariableScripts = active.variableScripts;
+            var previous = currentCause;
+            currentCause = active.cause;
             try { exec(st, self, cx); }
-            finally { firingVariableScripts = previous; }
+            finally { currentCause = previous; }
           }
           return Promise.resolve();
         }
         return next();
       }
+      // 待機やプレビューの遅延通知を挟んでも、同じ操作から始まった変更通知の循環を止める。
+      var currentCause;
+      function runTriggered(steps, owner, trigger, parent) {
+        for (var cause = parent; cause; cause = cause.parent) {
+          if (cause.owner === owner && cause.trigger === trigger) return;
+        }
+        runSteps(steps, owner, undefined, activeRun({ owner: owner, trigger: trigger, parent: parent }));
+      }
       // keep: 省略 = すべて / true・false = 「表示した要素の上も含める」のもの・それ以外だけ
-      // Programmatic input/change events can synchronously call back into the
-      // same handler (e.g. two set-value blocks alternating between values).
-      // Allow distinct triggers, but prevent a synchronous recursion cycle.
-      var firingTriggers = new WeakMap();
-      var firingVariableScripts;
-      function fire(el, trigger, keep) {
-        var running = firingTriggers.get(el);
-        if (!running) {
-          running = new Set();
-          firingTriggers.set(el, running);
-        }
-        if (running.has(trigger)) return;
-        running.add(trigger);
-        try {
-          parse(el).forEach(function (s) {
-            if (s.trigger !== trigger ||
-                (trigger === "change" && typeof s.changeVariable === "string")) return;
-            /*#keep*/
-            if (keep !== undefined && !!s.keep !== keep) return;
-            /*/keep*/
-            runSteps(s.steps || [], el, undefined, activeRun());
-          });
-        } finally {
-          running.delete(trigger);
-        }
+      function fire(el, trigger, keep, cause) {
+        parse(el).forEach(function (s) {
+          if (s.trigger !== trigger ||
+              (trigger === "change" && typeof s.changeVariable === "string")) return;
+          /*#keep*/
+          if (keep !== undefined && !!s.keep !== keep) return;
+          /*/keep*/
+          runTriggered(s.steps, el, trigger, cause || currentCause);
+        });
       }
       function chain(t) {
         var out = [];
@@ -1802,7 +1809,9 @@ export const SCRIPT_RUNTIME = `function (env) {
           : null;
       /*/inview*/
       /*#scan*/
+      /*#load|inview*/
       var seen = new WeakSet();
+      /*/load|inview*/
       function scan() {
         if (!alive) return;
         // 前のページの変数・絞り込み・並べ替えと、待機中のスクリプトを引き継がない。
@@ -1827,6 +1836,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           });
         }
         /*/filter*/
+        /*#load|inview*/
         root.querySelectorAll("[data-scripts]").forEach(function (el) {
           if (seen.has(el) || inTpl(el)) return;
           seen.add(el);
@@ -1842,6 +1852,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           }
           /*/inview*/
         });
+        /*/load|inview*/
       }
       var queued = false;
       var mo = new MutationObserver(function () {
@@ -1859,7 +1870,6 @@ export const SCRIPT_RUNTIME = `function (env) {
         attributes: true,
         attributeFilter: ["data-scripts", "data-page-body", "data-list-seeds"],
       });
-      scan();
       /*/scan*/
       /*#click*/
       root.addEventListener("click", onClickCapture, true);
@@ -1875,8 +1885,11 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*#live*/
       // 入力欄の値を使う {ID} の文字を、入力するたびに書き直す
       root.addEventListener("input", onLiveInput);
-      refreshLive();
       /*/live*/
+      /*#scan*/
+      // 初回表示のスクリプトによる入力変更も受け取るため、イベント登録後に実行する。
+      scan();
+      /*/scan*/
       return function dispose() {
         alive = false;
         /*#wait|repeat*/
@@ -1953,6 +1966,7 @@ type RuntimeFeature =
   | "hover"
   | "keep"
   | "change"
+  | "watch"
   | "load"
   | "inview"
   | "scan"
@@ -1964,7 +1978,10 @@ type RuntimeFeature =
   | "wait"
   | "if"
   | "store"
-  | "setvar"
+  | "set-var"
+  | "set-list-item"
+  | "remove-list-item"
+  | "transform"
   | "copy"
   | "repeat"
   | "each"
@@ -1987,11 +2004,11 @@ const STEP_FEATURE: Record<
   "list-display": "filter",
   "store-save": "store",
   "store-load": "store",
-  "set-var": "setvar",
-  "set-list-item": "setvar",
-  "remove-list-item": "setvar",
+  "set-var": "set-var",
+  "set-list-item": "set-list-item",
+  "remove-list-item": "remove-list-item",
   "break-loop": "repeat",
-  transform: "setvar",
+  transform: "transform",
   copy: "copy",
   wait: "wait",
   if: "if",
@@ -2043,7 +2060,7 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
   if (usesLiveFields(doc)) out.add("live");
   for (const s of allScripts(doc)) {
     if (!s.trigger || !s.steps.some((st) => !isDataStep(st))) continue;
-    out.add(TRIGGER_FEATURE[s.trigger]);
+    out.add(s.trigger === "change" && s.changeVariable !== undefined ? "watch" : TRIGGER_FEATURE[s.trigger]);
     if (s.trigger === "hover-end" && s.keepOnShown) out.add("keep");
     walkSteps(s.steps, (st) => {
       if (isDataStep(st)) return;

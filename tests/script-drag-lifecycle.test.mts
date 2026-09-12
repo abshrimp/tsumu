@@ -5,8 +5,8 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { transformSync } from "esbuild";
 import { useEditor } from "../lib/store";
-import { applyPageScripts, pageScriptsOf } from "../lib/script";
-import { slotKey } from "../components/script-editor/step-tree";
+import { pageScriptsOf } from "../lib/script";
+import { slotKey, takeAt } from "../components/script-editor/step-tree";
 import { validDocumentScripts } from "../lib/document-validation";
 import type { Drag, Marquee, ScriptEditorLatest } from "../components/ScriptEditor";
 import { scriptDragBundle, scriptDragDoc } from "./helpers/script-drag";
@@ -41,7 +41,7 @@ function mount(targetSlot?: string, inputDoc = scriptDragDoc(), slotKind = "step
   const scripts = () => pageScriptsOf(useEditor.getState().doc, [], useEditor.getState().activePageId);
   const latest = { current: {
     get scripts() { return scripts(); }, focusNodeId: null,
-    commit: (next) => useEditor.getState().updateDoc((d) => applyPageScripts(d, useEditor.getState().activePageId, [], next)),
+    commit: (next) => useEditor.getState().updatePageScripts(useEditor.getState().activePageId, [], next),
     selectedList: [], peekId: null, onClose: () => { ui.closed = true; },
     setZoom() {}, stepZoom() {}, deleteSelected() {}, selectAll() {},
   } as ScriptEditorLatest };
@@ -60,8 +60,10 @@ function mount(targetSlot?: string, inputDoc = scriptDragDoc(), slotKind = "step
   const start = (kind = "script", move = true) => {
     if (kind === "marquee") marqueeRef.current = { pointerId: 1, x0: 500, y0: 100, x: 500, y: 100, base: [] };
     else {
-      const script = scripts()[0];
-      const payload = kind === "step" ? { type: "steps", steps: script.steps, from: { scriptId: "script", list: "root", index: 0 } } :
+      const current = scripts();
+      const script = current[0];
+      const loc = { scriptId: script.id, list: "root", index: 0 };
+      const payload = kind === "step" ? { type: "steps", steps: script.steps, from: { loc, remaining: takeAt(current, loc)[0] } } :
         kind === "palette" ? { type: "steps", steps: [{ id: "palette-wait", kind: "wait", seconds: 1 }] } :
         kind === "trigger" ? { type: "trigger", trigger: "click" } : { type: "script", script, group: [script] };
       dragRef.current = { pointerId: 1, make: () => payload as any, payload: null, started: false, sx: 340, sy: 40, x: 340, y: 40, ox: 8, oy: 8, h: 40 };
@@ -218,5 +220,35 @@ for (const kind of ["step", "palette", "trigger"]) test(`${kind}: delimiter IDs 
     const after = snapshot();
     state().undo(); assert.deepEqual(snapshot().doc, before.doc);
     state().redo(); assert.deepEqual(snapshot().doc, after.doc);
+  } finally { m.close(); }
+});
+
+test("dropping a chain back in its original slot preserves the redo history", () => {
+  const m = mount(slotKey({ scriptId: "script", list: "root", index: 0 }));
+  try {
+    state().updatePage("p", { title: "Redo this edit" });
+    state().undo();
+    const before = snapshot();
+    m.start("step");
+    m.pointer("pointerup", { buttons: 0 });
+    assert.deepEqual(snapshot(), before);
+  } finally { m.close(); }
+});
+
+test("moving a group against a workspace edge keeps the spacing between scripts", () => {
+  const doc = scriptDragDoc();
+  const scripts = doc.pages.p.pageScripts!;
+  scripts.push({ id: "grabbed", trigger: "load", pos: { x: 300, y: 300 }, steps: [] });
+  const m = mount(undefined, doc);
+  try {
+    m.start("script", false);
+    const group = pageScriptsOf(state().doc, [], "p");
+    m.dragRef.current!.make = () => ({ type: "script", script: group[1], group });
+    m.pointer("pointermove");
+    m.pointer("pointerup", { x: 310, y: 20, buttons: 0 });
+    const moved = state().doc.pages.p.pageScripts!;
+    assert.deepEqual(moved.map(script => script.pos), [{ x: 8, y: 8 }, { x: 276, y: 276 }]);
+    state().undo();
+    assert.deepEqual(state().doc.pages.p.pageScripts, scripts);
   } finally { m.close(); }
 });

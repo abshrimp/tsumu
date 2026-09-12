@@ -371,10 +371,13 @@ export function listItemsExpr(
       continue;
     } else {
       // 数値どうしは数値で、それ以外は数字を数値として比べる文字列比較（エディタの compareValues と同じ）
-      code += `.sort((a, b) => { const x = ${fieldExpr("a", o.field)}, y = ${fieldExpr("b", o.field)}; return (typeof x === "number" && typeof y === "number" ? x - y : ${safeFieldTextExpr("x")}.localeCompare(${safeFieldTextExpr("y")}, "ja", { numeric: true }))${o.dir === "desc" ? " * -1" : ""}; })`;
+      code += `.sort((a, b) => { const x = ${fieldExpr("a", o.field)}, y = ${fieldExpr("b", o.field)}; return (typeof x === "number" && typeof y === "number" ? x - y : collator.compare(${safeFieldTextExpr("x")}, ${safeFieldTextExpr("y")}))${o.dir === "desc" ? " * -1" : ""}; })`;
     }
   }
   if (l.limit && l.limit > 0) code += `.slice(0, ${l.limit})`;
+  if (ops.some((o) => o.kind === "sort")) {
+    return `(() => { const collator = new Intl.Collator("ja", { numeric: true }); return ${code}; })()`;
+  }
   return code;
 }
 

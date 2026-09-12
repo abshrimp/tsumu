@@ -18,7 +18,8 @@ function harness(steps: ScriptStep[], opts: { trigger?: ScriptTrigger; preview?:
     nodes: { start: { ...makeBox(), id: "start", scripts: [{ id: "script", trigger, pos: { x: 0, y: 0 }, steps }] } },
   };
   let pageId = "a";
-  let marker: { getAttribute: () => string } | null = opts.preview ? null : { getAttribute: () => pageId };
+  const pageMarker = () => ({ getAttribute: (name: string) => name === "data-page-body" ? pageId : null });
+  let marker = opts.preview ? null : pageMarker();
   const timers = new Map<number, () => void>();
   let seq = 0;
   let triggerRemoved = false;
@@ -52,7 +53,7 @@ function harness(steps: ScriptStep[], opts: { trigger?: ScriptTrigger; preview?:
     scan() { mutation(); while (frames.length) frames.shift()!(); },
     navigate(id: string, replaceMarker = false) {
       pageId = id;
-      if (replaceMarker) marker = { getAttribute: () => pageId };
+      if (replaceMarker) marker = pageMarker();
     },
     removeTrigger() { triggerRemoved = true; },
     async tick() {
@@ -112,6 +113,29 @@ test("replacing a page with another instance of the same page cancels old work",
   h.navigate("a", true);
   await h.tick();
   assert.equal(h.target.style.display, "");
+});
+
+test("a fresh instance of a page without seeds starts with fresh script variables", () => {
+  const h = harness([
+    { id: "check", kind: "if", cond: { subject: "var", target: "", left: "{count}", op: "eq", value: "1" }, then: [hide] },
+    { id: "write", kind: "set-var", into: "count", value: "1" },
+  ], { trigger: "click" });
+  h.click();
+  h.navigate("a", true);
+  h.scan();
+  h.click();
+  assert.equal(h.target.style.display, "");
+  h.click();
+  assert.equal(h.target.style.display, "none");
+});
+
+test("a reused element runs its load script once per page visit", () => {
+  const h = harness([wait]);
+  assert.equal(h.pending(), 1);
+  h.navigate("b"); h.scan();
+  assert.equal(h.pending(), 0);
+  h.navigate("a"); h.scan(); h.scan();
+  assert.equal(h.pending(), 1);
 });
 
 test("unrelated mutations and removal of the trigger do not cancel same-page actions", async () => {

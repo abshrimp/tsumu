@@ -87,13 +87,16 @@ function safeCompareText(value: unknown): string {
   return formatValueText(value, true);
 }
 
+let listCollator: Intl.Collator | undefined;
+
 /**
  * 並べ替えの比較。数値どうしは数値で、それ以外は数字を数値として比べる文字列比較
  * （ブラウザ実行時の order・書き出しの listItemsExpr と同じ規則）
  */
 export function compareValues(a: unknown, b: unknown): number {
   if (typeof a === "number" && typeof b === "number") return a - b;
-  return safeCompareText(a).localeCompare(safeCompareText(b), "ja", { numeric: true });
+  listCollator ??= new Intl.Collator("ja", { numeric: true });
+  return listCollator.compare(safeCompareText(a), safeCompareText(b));
 }
 
 /** 「配列を絞り込む」の条件（最初の条件 + 「かつ」「または」の条件。項目未選択は除く） */
@@ -1088,7 +1091,8 @@ export function previewDataVars(
     return root ? { totals: root.totals, path: [root.path, ...tail].filter(Boolean).join(".") } : null;
   };
   const primarySelector = slugSelectorOf(doc, pageId);
-  const scope = () => ({ ...opts.vars, slug: opts.slug, ...out });
+  const scope = () => opts.vars || opts.slug !== undefined
+    ? { ...opts.vars, slug: opts.slug, ...out } : out;
   const plan = pagePlan(doc, pageId);
   for (const st of plan.steps) {
     switch (st.kind) {
@@ -1127,15 +1131,16 @@ export function previewDataVars(
         const result = evaluateValueRecipe(lookupVar(vars, st.source), [st.transform], vars);
         if (result.kind === "value") {
           const origin = originFor(st.source);
+          const fieldPath = st.transform.kind === "field" && origin
+            ? [origin.path, interpolate(st.transform.key, vars)].filter(Boolean).join(".") : undefined;
           if (st.transform.kind === "length" && origin?.totals &&
               Object.hasOwn(origin.totals, origin.path)) {
             save(st.into, origin.totals[origin.path]);
           } else {
             save(st.into, result.value);
           }
-          if (st.transform.kind === "field" && origin) {
-            setOrigin(st.into, { totals: origin.totals,
-              path: [origin.path, interpolate(st.transform.key, vars)].filter(Boolean).join(".") });
+          if (fieldPath !== undefined && origin) {
+            setOrigin(st.into, { totals: origin.totals, path: fieldPath });
           } else delete origins[st.into];
         } else if (result.kind === "missing") {
           // Avoid reusing the result from a previous run in a connected block.
@@ -1161,21 +1166,25 @@ export function previewDataVars(
   }
   // 「［{名前}］を変数［］とする」は画面上で動くが、見本ではそのまま入れておく
   //（リストの項目・変数の候補に中身を出すため。変数から変数へ入れ直した場合もたどる）
-  const copies: { into: string; src: string }[] = [];
+  let pending: { into: string; src: string }[] = [];
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
-      const src = st.kind === "set-var" && st.into && !hasSavedPath(st.into) ? setVarSource(st) : null;
-      if (src) copies.push({ into: (st as SetVarStep).into, src });
+      if (st.kind !== "set-var" || !st.into || hasSavedPath(st.into)) return;
+      const src = setVarSource(st);
+      if (src) pending.push({ into: st.into, src });
     });
   }
-  for (let added = true; added; ) {
-    added = false;
-    for (const copy of copies) {
+  while (pending.length) {
+    let added = false;
+    const unresolved: typeof pending = [];
+    for (const copy of pending) {
       if (hasSavedPath(copy.into)) continue;
       const value = lookupVar(scope(), copy.src);
-      if (value === undefined || save(copy.into, value) === undefined) continue;
-      added = true;
+      if (value === undefined || save(copy.into, value) === undefined) unresolved.push(copy);
+      else added = true;
     }
+    if (!added) break;
+    pending = unresolved;
   }
   return out;
 }
@@ -1189,20 +1198,23 @@ export function namedVars(vars: Record<string, unknown>): Record<string, unknown
 
 /** 祖先（自身含む）のリスト要素を、外側から順に返す */
 function listChainOf(doc: SiteDoc, nodeId: string): DocNode[] {
-  const parentOf = (id: string): string | null => {
-    for (const n of Object.values(doc.nodes)) {
-      if (n.children.includes(id)) return n.id;
+  if (!doc.nodes[nodeId]) return [];
+  const parents = new Map<string, string>();
+  for (const node of Object.values(doc.nodes)) {
+    for (const child of node.children) {
+      if (!parents.has(child)) parents.set(child, node.id);
     }
-    return null;
-  };
-  const out: DocNode[] = [];
-  let cur: string | null = nodeId;
-  while (cur) {
-    const node = doc.nodes[cur];
-    if (node?.type === "list" && node.list) out.unshift(node);
-    cur = parentOf(cur);
   }
-  return out;
+  const out: DocNode[] = [];
+  const seen = new Set<string>();
+  let cur: string | undefined = nodeId;
+  while (cur && !seen.has(cur)) {
+    seen.add(cur);
+    const node = doc.nodes[cur];
+    if (node?.type === "list" && node.list) out.push(node);
+    cur = parents.get(cur);
+  }
+  return out.reverse();
 }
 
 /**
@@ -1221,10 +1233,11 @@ export function scopeAt(
     chain = chain.slice(0, -1);
   }
   const itemOf = (pageVars: Record<string, unknown>) => {
-    let scope: Record<string, unknown> = { ...pageVars };
+    if (!chain.length) return undefined;
+    let scope = pageVars;
     let item: Record<string, unknown> | undefined;
     for (const l of chain) {
-      const first = toListItems(lookupVar(scope, listFromOf(l) ?? ""))[0];
+      const first = firstListItem(lookupVar(scope, listFromOf(l) ?? ""));
       if (!first) return undefined;
       item = { ...(item ?? {}), ...first };
       scope = { ...scope, ...first };

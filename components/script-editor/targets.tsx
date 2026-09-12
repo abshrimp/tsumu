@@ -4,6 +4,7 @@
  * 動作の対象にする要素の選び方（一覧・キャンバスから選ぶ・ID属性の付与）
  */
 
+import { visitPageNodes } from "../../lib/script";
 import { isEnterKey } from "../../lib/keys";
 import {
   useContext,
@@ -57,27 +58,34 @@ export interface TreeRow {
   hasChildren: boolean;
 }
 
-/** ページの要素を、入れ子の深さ付きで上から順に並べる（nodeIds の範囲だけ） */
-export function buildTree(doc: SiteDoc, nodeIds: string[]): TreeRow[] {
-  const inSet = new Set(nodeIds);
-  const parent = new Map<string, string>();
-  for (const id of nodeIds) {
-    for (const c of doc.nodes[id]?.children ?? []) if (inSet.has(c)) parent.set(c, id);
-  }
-  return nodeIds.map((id) => {
-    const n = doc.nodes[id];
-    let depth = 0;
-    for (let p = parent.get(id); p; p = parent.get(p)) depth++;
-    return {
-      id,
-      depth,
-      name: n.name,
-      attrId: n.attrId || undefined,
-      tag: resolveTag(n, depth === 0),
-      field: n.type === "field" && n.field?.kind !== "submit",
-      hasChildren: (n.children ?? []).some((c) => inSet.has(c)),
-    };
+/** スクリプトの対象要素をツリーの深さとともに表示順に並べる。 */
+export function buildTree(doc: SiteDoc, pageId: string, extraRootIds: string[]): TreeRow[] {
+  const rows: TreeRow[] = [];
+  visitPageNodes(doc, pageId, extraRootIds, (id, node, depth) => {
+    const previous = rows[rows.length - 1];
+    if (previous && depth > previous.depth) previous.hasChildren = true;
+    rows.push({
+      id, depth, name: node.name, attrId: node.attrId || undefined,
+      tag: resolveTag(node, depth === 0),
+      field: node.type === "field" && node.field?.kind !== "submit",
+      hasChildren: false,
+    });
   });
+  return rows;
+}
+
+/** 下からたどり、直後に残した行より浅ければ、その祖先として残す。 */
+function matchingBranches(rows: readonly TreeRow[], matches: (row: TreeRow) => boolean): Set<string> {
+  const keep = new Set<string>();
+  let depth = -1;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i];
+    if (row.depth < depth || matches(row)) {
+      keep.add(row.id);
+      depth = row.depth;
+    }
+  }
+  return keep;
 }
 
 /** A search retains the ancestor path to each match without automatically
@@ -98,23 +106,9 @@ export function searchNodePickerRows(
   ).map((row) => row.id));
   if (!matched.size) return { rows: [], autoOpen: new Set() };
 
-  // Input rows are preorder with depth; keep all ancestors of each result.
-  const relevant = new Set(matched);
-  const ancestors = new Set<string>();
-  const parents: TreeRow[] = [];
-  for (const row of rows) {
-    while (parents.length && parents[parents.length - 1].depth >= row.depth) parents.pop();
-    if (matched.has(row.id)) {
-      for (const parent of parents) {
-        relevant.add(parent.id);
-        ancestors.add(parent.id);
-      }
-    }
-    parents.push(row);
-  }
-  // A non-matching ancestor must open to make its matched descendants visible.
-  // A matching parent starts collapsed even if some descendant also matches.
-  const autoOpen = new Set([...ancestors].filter((id) =>
+  const relevant = matchingBranches(rows, (row) => matched.has(row.id));
+  // 自身も一致した親は、子が一致していても最初は閉じる。
+  const autoOpen = new Set([...relevant].filter((id) =>
     !matched.has(id) && !manuallyClosed.has(id)
   ));
   const shown: TreeRow[] = [];
@@ -292,16 +286,7 @@ export function NodePicker({
   // 選べる要素を含む枝だけを残す
   const visible = useMemo(() => {
     if (!open) return [];
-    const keep = new Set<string>();
-    const stack: TreeRow[] = [];
-    for (const r of rows) {
-      while (stack.length && stack[stack.length - 1].depth >= r.depth) stack.pop();
-      if (pickable(r)) {
-        keep.add(r.id);
-        stack.forEach((a) => keep.add(a.id));
-      }
-      stack.push(r);
-    }
+    const keep = matchingBranches(rows, pickable);
     return rows.filter((r) => keep.has(r.id));
   }, [open, rows, pickable]);
 
