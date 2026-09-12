@@ -2,6 +2,7 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "No editing data was found in the ZIP. The HTML will be converted and imported.": "ZIPに編集データが見つかりませんでした。HTMLを変換して読み込みます。",
   "The ZIP contains multiple editor documents.": "ZIPに複数の編集データが見つかりました。",
   "The ZIP contains duplicate file paths.": "ZIPに重複したファイルパスがあります。",
   "A file in the ZIP has an invalid size.": "ZIP内のファイルサイズが正しくありません。",

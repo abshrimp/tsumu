@@ -64,6 +64,7 @@ export async function createSiteFromFile(
   file: File,
   mode: SaveMode,
   progress: (message: string) => void = () => {},
+  onMissingEditData: () => Promise<void> = async () => {},
 ): Promise<{ id: string; warnings: string[] }> {
   return withImportUploads(async paths => {
     const kind = importFileKind(file);
@@ -76,6 +77,7 @@ export async function createSiteFromFile(
     const source = kind === "html" ? null : new Uint8Array(await file.arrayBuffer());
     const html = kind === "html" || (kind === "zip" && source && !(await isEditableSiteZip(source)));
     if (html) {
+      if (kind === "zip") await onMissingEditData();
       const converted = await convertHtmlFile(file, { progress, allPages: true }, paths);
       doc = validateImportedDoc(converted.doc);
       warnings = converted.warnings;
