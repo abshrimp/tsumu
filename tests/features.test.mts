@@ -8,6 +8,7 @@ import { applyCommentAction, parseCommentAction, type CommentThread } from "../l
 import { obfuscateVarNames, varNamesAt } from "../lib/data";
 import { refreshClonedIds } from "../lib/cloneIds";
 import { generateProject } from "../lib/generator";
+import { generateStandaloneHtml } from "../lib/generator/html-export";
 import { runChecks } from "../lib/generator/checks";
 import { makeBox, makeField, makeImage, makeSwitch } from "../lib/presets";
 import { mediaSrc, nodeAssetSrc, replaceEmbeddedAsset } from "../lib/assets";
@@ -373,9 +374,18 @@ test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of
   const { files } = generateProject(doc);
   const page = Object.entries(files).find(([p]) => p.endsWith("page.tsx"))![1];
   assert.match(page, /className="crisp-svg [^"]*"/);
-  assert.match(page, /viewBox="0 0 120 40"/);
+  assert.match(page, /\["--crisp-svg-width"\]: "120px"/);
+  assert.match(page, /\["--crisp-svg-ratio"\]: "120 \/ 40"/);
+  assert.doesNotMatch(page, /<svg aria-hidden="true"/);
   assert.match(page, /width=\{240\}\s+height=\{80\}/);
   assert.match(files["app/globals.css"], /transform: scale\(0\.5\)/);
+  assert.match(files["app/globals.css"], /aspect-ratio: var\(--crisp-svg-ratio\)/);
+  assert.match(files["app/globals.css"], /\.crisp-svg > img \{[\s\S]*?position: absolute;/);
+  // HTML 書き出しにも同じレイアウトを適用し、透明な SVG を出力しない。
+  const html = generateStandaloneHtml(doc, generateProject(doc)).files["index.html"];
+  assert.match(html, /class="crisp-svg [^"]*"/);
+  assert.match(html, /style="--crisp-svg-width:120px;--crisp-svg-ratio:120\/40"/);
+  assert.doesNotMatch(html, /<svg aria-hidden="true"/);
   // 前後の位置指定の要素は z-index: 1 になり、自分の z-index を持つ要素はそのまま
   assert.equal((files["styles/site.css"].match(/z-index: 1;/g) ?? []).length, 2);
   assert.match(files["styles/site.css"], /z-index: 5;/);

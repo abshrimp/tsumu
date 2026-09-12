@@ -657,26 +657,23 @@ img {
   }
 }
 
-/* シャドウ付きSVGのiOS Safari向けぼやけ対策（要素側のスタイルが優先されるよう詳細度0）。
-   position を付けると後ろの兄弟より前面に描かれてしまうため、グリッドで重ねる。
-   hidden だとフレックス内で縮んでしまうため clip（縮小後の画像は箱に収まるので非対応環境でも見た目は同じ） */
+/* iOS Safari の SVG フィルターを2倍で描き、元の大きさに縮小する。
+   元の大きさと比率は要素のカスタムプロパティから求める。画像は絶対配置するため、
+   show/hide スクリプトによる display:block と干渉せず、空の SVG も不要。
+   詳細度0にして、要素が指定した位置・サイズ・display を優先する。 */
 :where(.crisp-svg) {
-  display: grid;
+  display: block;
+  position: relative;
+  width: var(--crisp-svg-width);
+  max-width: 100%;
+  aspect-ratio: var(--crisp-svg-ratio);
   overflow: clip;
 }
 
-.crisp-svg > svg {
-  grid-area: 1 / 1;
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-/* contain: size と aspect-ratio: auto で画像自身の大きさを箱の大きさに影響させない */
 .crisp-svg > img {
-  grid-area: 1 / 1;
-  contain: size;
-  aspect-ratio: auto;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 200%;
   height: 200%;
   max-width: none;
