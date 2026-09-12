@@ -9,7 +9,7 @@ const optional = (v: unknown, test: (v: unknown) => boolean) => v === undefined 
 const bool = (v: unknown) => typeof v === "boolean";
 const oneOf = (v: unknown, choices: readonly string[]) => str(v) && choices.includes(v);
 const scriptOps: readonly ScriptOp[] = [
-  "eq", "contains", "starts-with", "ends-with", "gt", "gte", "lt", "lte", "empty", "has-key", "in",
+  "eq", "contains", "contains-any", "starts-with", "ends-with", "gt", "gte", "lt", "lte", "empty", "has-key", "in",
 ];
 const validCond = (v: unknown, joined = false): boolean =>
   record(v) && oneOf(v.subject, ["value", "checked", "visible", "hovered", "var"]) &&

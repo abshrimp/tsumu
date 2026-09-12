@@ -40,6 +40,16 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
     if (record(left)) return Object.keys(left).length === 0;
     return false;
   }
+  if (operator === "contains-any") {
+    // Compare against a list (including a variable holding a list) or comma-separated values.
+    const candidates = record(right)
+      ? Object.keys(right).map((key) => (right as Record<string, unknown>)[key])
+      : typeof right === "string" ? right.split(",").map((part) => part.trim()) : [right];
+    if (record(left)) return Object.keys(left).some((key) =>
+      candidates.some((candidate) => same((left as Record<string, unknown>)[key], candidate)));
+    return typeof left === "string" && candidates.some((candidate) =>
+      !record(candidate) && candidate !== undefined && candidate !== null && left.includes(String(candidate)));
+  }
   if (operator === "contains") {
     if (record(left)) return Object.keys(left).some((key) =>
       same((left as Record<string, unknown>)[key], right));

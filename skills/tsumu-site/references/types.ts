@@ -196,6 +196,7 @@ export interface ScriptPos {
 export type ScriptOp =
   | "eq"
   | "contains"
+  | "contains-any"
   | "starts-with"
   | "ends-with"
   | "gt"

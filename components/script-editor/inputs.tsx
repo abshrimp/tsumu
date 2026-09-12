@@ -334,6 +334,7 @@ const COND_SUBJECTS: { value: string; label: string }[] = [
 export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string }[] = [
   { value: "eq", label: trc("condition_comparison", "equal to") },
   { value: "contains", label: trc("condition_comparison", "contain") },
+  { value: "contains-any", label: tr("Contains any") },
   { value: "starts-with", label: trc("condition_comparison", "start with") },
   { value: "ends-with", label: trc("condition_comparison", "end with") },
   { value: "gt", label: trc("condition_comparison", "greater than") },
@@ -352,7 +353,7 @@ export function NegationSelect({ not, onChange, operation }: {
   operation?: ScriptOp;
 }) {
   // 文脈付きの翻訳にして、言語ごとに適切な補助動詞を選べるようにする。
-  const context = operation === "contains" || operation === "starts-with" || operation === "ends-with"
+  const context = operation === "contains" || operation === "contains-any" || operation === "starts-with" || operation === "ends-with"
     ? "condition_check_verb" : "condition_check";
   return (
     <select className="se-in se-fixed-select" aria-label={tr("Condition polarity")}

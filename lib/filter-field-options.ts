@@ -14,7 +14,7 @@ export function filterFieldKind(sample: unknown): FilterFieldKind {
 export function filterFieldOperators(sample: unknown): readonly ScriptOp[] | undefined {
   switch (filterFieldKind(sample)) {
     case "record": return ["has-key", "empty", "eq"];
-    case "array": return ["contains", "empty", "eq"];
+    case "array": return ["contains", "contains-any", "empty", "eq"];
     default: return undefined;
   }
 }

@@ -23,6 +23,8 @@ function opText(subject: string, op: ScriptOp | undefined, value: string): strin
   switch (op) {
     case "contains":
       return tr("{subject} contains {v}", { subject, v });
+    case "contains-any":
+      return tr("{subject} contains any of {v}", { subject, v });
     case "starts-with":
       return tr("{subject} starts with {v}", { subject, v });
     case "ends-with":
