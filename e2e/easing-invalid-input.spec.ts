@@ -39,7 +39,7 @@ for (const value of ["constructor", "__proto__", "steps(3, jump-end, ignored)"])
     const input = page.locator('.ee-modal input.mono');
     await input.fill(value);
     await input.press("Tab");
-    await expect(page.getByText("グラフで表せない値です。この値のまま使えます。", { exact: true })).toBeVisible();
+    await expect(page.getByText("グラフでは表せない値ですが、この値のまま使えます。", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "適用", exact: true }).click();
     await expect(page.locator("#saved")).toHaveText(value);
     await page.locator("#reopen").click();

@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("The comment you are editing has been deleted."), code: "comment_message_missing" }, { status: 404 });
     }
     if (ok === "conflict") {
-      return NextResponse.json({ error: tr("This comment ID is already in use. Please send again."), code: "comment_id_conflict" }, { status: 409 });
+      return NextResponse.json({ error: tr("This comment ID is already in use. Send it again."), code: "comment_id_conflict" }, { status: 409 });
     }
     if (!ok) {
       return NextResponse.json({ error: tr("You can't change other people's comments") }, { status: 403 });

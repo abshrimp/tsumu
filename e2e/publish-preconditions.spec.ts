@@ -26,7 +26,7 @@ test(`${drift} drift fails closed, then reopening requires a fresh plan and conf
     } else if (body.action === "upload") {
       await route.fulfill({ json: { sha: "asset" } });
     } else if (body.expected?.branch !== branch || body.expectedHead !== head) {
-      await route.fulfill({ status: 409, json: { error: "公開先の設定または内容が変更されました。画面を閉じて開き直し、公開先と変更内容を確認してから、もう一度お試しください" } });
+      await route.fulfill({ status: 409, json: { error: "公開先の設定か内容が変わりました。この画面を閉じて開き直し、公開先と変更の内容を確認してから、もう一度試してください" } });
     } else {
       await route.fulfill({ json: { commitUrl: "https://example.com/commit" } });
     }
@@ -44,7 +44,7 @@ test(`${drift} drift fails closed, then reopening requires a fresh plan and conf
   if (drift === "destination") branch = "release";
   else head = fresh;
   await page.getByRole("button", { name: "上書きして公開", exact: true }).click();
-  await expect(page.locator(".pub-modal")).toContainText("公開先の設定または内容が変更されました");
+  await expect(page.locator(".pub-modal")).toContainText("公開先の設定か内容が変わりました");
   await expect(page.getByRole("button", { name: "再試行", exact: true })).toBeDisabled();
   expect(requests.filter(r => r.action === "commit")).toHaveLength(1);
   expect(requests.find(r => r.action === "commit")).toMatchObject({ site: site.id, expectedHead: old, expected: { branch: "main", site: site.id } });
@@ -75,7 +75,7 @@ for (const drift of ["destination", "head"] as const) {
     let succeeded = false;
     const rollbacks: any[] = [];
     const historyReads: { expected: any; head: string }[] = [];
-    const conflictMessage = "公開先の設定または内容が変更されました。画面を閉じて開き直し、公開先と変更内容を確認してから、もう一度お試しください";
+    const conflictMessage = "公開先の設定か内容が変わりました。この画面を閉じて開き直し、公開先と変更の内容を確認してから、もう一度試してください";
     await page.route("**/api/publish**", async route => {
       const url = new URL(route.request().url());
       if (!url.pathname.endsWith("/history")) {
@@ -123,7 +123,7 @@ for (const drift of ["destination", "head"] as const) {
     await openHistory();
     await expect(page.getByText("Stale history version", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "サイトを戻す", exact: true }).click();
-    const confirmation = page.getByRole("dialog", { name: "公開サイトをこの版に戻しますか？" });
+    const confirmation = page.getByRole("dialog", { name: "公開したサイトを、この版に戻しますか？" });
     await expect(confirmation).toBeVisible();
     expect(rollbacks).toHaveLength(0);
     changed = true;

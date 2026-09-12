@@ -54,10 +54,10 @@ export async function POST(req: Request) {
   const failure = (e: unknown): string => {
     if (e instanceof AiApiError) {
       console.error("AI request failed", { kind: e.kind, status: e.status });
-      if (e.kind === "timeout") return tr("The AI response timed out. Please try again.");
+      if (e.kind === "timeout") return tr("The AI response timed out. Try again.");
       if (e.kind === "incomplete") return tr("The AI couldn't complete the edit. No changes were applied. Try a smaller request.");
-      if (e.kind === "auth") return tr("Couldn't connect to the AI service. Contact your administrator");
-      if (e.kind === "rate") return tr("AI is busy right now. Please try again in a moment");
+      if (e.kind === "auth") return tr("Couldn't connect to the AI service. Contact your administrator.");
+      if (e.kind === "rate") return tr("AI is busy right now. Try again in a moment.");
       return tr("Couldn't reach AI ({status})", { status: e.status ?? "?" });
     }
     console.error("AI request failed unexpectedly", { kind: e instanceof Error ? e.name : typeof e });

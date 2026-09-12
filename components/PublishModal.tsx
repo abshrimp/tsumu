@@ -224,7 +224,7 @@ function usePublishConfig(): PublishConfig | null | "error" {
 const SITE = {
   test: {
     label: () => tr("Test site"),
-    desc: () => tr("For checking. Published so that search engines skip it"),
+    desc: () => tr("For checking. Published so that search engines skip it."),
     action: () => tr("Publish to test"),
     icon: FlaskConical,
   },
@@ -309,7 +309,7 @@ export default function PublishModal({
     // 公開ディレクトリの設定も、選んだ形式に合わせる必要がある。
     if (site === "production" && format !== "nextjs") {
       const accepted = await showConfirm(
-        tr("Pushing this format to GitHub changes the published file structure. Check that the hosting build and output-directory settings match the selected format. Continue?"),
+        tr("Pushing this format to GitHub changes the structure of the published files. Check that the hosting build and output-directory settings match the selected format. Continue?"),
         { title: tr("Check the hosting settings"), okLabel: tr("Push this format"), danger: true }
       );
       if (!accepted) return;
@@ -329,7 +329,7 @@ export default function PublishModal({
     try {
       target = await docWithSvgFilters();
       if (hasPublishCredentials(target)) {
-        throw new Error(tr("Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead."));
+        throw new Error(tr("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."));
       }
       const { files, binaries, remoteAssets } = await prepareExportProject(target, options, site);
       // 編集データも一緒に含める（バックアップを兼ね、履歴から編集内容を戻すときに使う）
@@ -524,16 +524,16 @@ export default function PublishModal({
               {format === "html" || format === "single-html"
                 ? format === "single-html"
                   ? tr("Push one HTML file with embedded CSS, JavaScript and images to GitHub. Configure static hosting to serve the repository root.")
-                  : tr("Push ready-to-deploy HTML, CSS, JavaScript, and images to GitHub, without a build step. To host a static site, configure your provider to serve the repository root.")
+                  : tr("Push ready-to-deploy HTML, CSS, JavaScript and images to GitHub, with no build step. For a static site, configure your hosting to serve the repository root.")
                 : format === "react"
-                  ? tr("Push {framework} source to GitHub. Configure hosting to build the project and serve the dist directory.", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
+                  ? tr("Push the {framework} source to GitHub. Configure your hosting to build the project and serve the dist directory.", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
                   : format === "vue"
-                    ? tr("Push the Vue 3 + Vite project to GitHub. It renders on the server, so configure hosting to build it and then start the Node.js server with npm start.")
+                    ? tr("Push the Vue 3 + Vite project to GitHub. It renders on the server, so configure your hosting to build it and then start the Node.js server with npm start.")
                   : format === "sveltekit"
                     ? tr("Push the SvelteKit project to GitHub. Its build output is in the build directory.")
                     : format === "nuxt"
-                      ? tr("Push the Nuxt project to GitHub. Nuxt-specific build settings are required for hosting.")
-                      : tr("Push a Next.js project to GitHub. Changes appear on the live site once your hosting provider finishes its build.")}
+                      ? tr("Push the Nuxt project to GitHub. Your hosting needs Nuxt-specific build settings.")
+                      : tr("Push the Next.js project to GitHub. Changes appear on the live site when your hosting finishes the build.")}
             </p>
             <fieldset className="export-options pub-export-options" disabled={!targets}>
               <div className="export-option">
@@ -589,10 +589,10 @@ export default function PublishModal({
             <p className="hint export-note">
               {format === "html" || format === "single-html"
                 ? tr("HTML output uses JavaScript and CSS. Fetching external data requires the API to allow CORS.")
-                : tr("GitHub Push sends source files. Hosting build settings depend on the format; a commit alone does not guarantee a successful deployment.")}
+                : tr("Pushing to GitHub sends source files. The hosting build settings depend on the format, and a commit alone does not guarantee a successful deployment.")}
               {tr(" The entire project will be published.")}
             </p>
-            <p className="hint export-note">{tr("Pushing to GitHub also includes editable data, unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.")}</p>
+            <p className="hint export-note">{tr("Pushing to GitHub also sends the editable data, including unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.")}</p>
             <CheckList checks={checks} onClose={onClose} />
             <div className="pub-cards">
               {SITE_ORDER.filter((t) => t === "production" || configuredTargets.previewEnabled).map((t) => {
@@ -655,7 +655,7 @@ export default function PublishModal({
                 : tr("Pushed to GitHub. Verify your hosting provider's build and publish settings.")}
             </div>
             {result.optionsSaved === false && (
-              <p className="hint export-note">{tr("Published to GitHub, but the output format preferences could not be saved to the database.")}</p>
+              <p className="hint export-note">{tr("Published to GitHub, but the output format settings could not be saved to the database.")}</p>
             )}
             {!!result.warnings?.length && (
               <ul className="check-list">
@@ -748,7 +748,7 @@ async function restoreFrom(url: string, label: string, current: () => boolean): 
   // 明示的な doc.json のインポートと同じ検証で、循環・プロトタイプのキー・不正なリンクを拒否する。
   const data = sanitizeImportedInlineIcons(validateImportedDoc(untrusted));
   const ok = await showConfirm(
-    tr("Your current edits will be replaced with the content from \"{label}\". It's saved to the server too, but Undo (⌘Z) brings back what you have now.", { label }),
+    tr("Your current edits will be replaced with the content from \"{label}\". This is saved to the server too, but Undo (⌘Z) brings back what you have now.", { label }),
     { title: tr("Restore the edits from this version?"), okLabel: tr("Restore this version") }
   );
   if (!ok || !current()) return false;
@@ -808,7 +808,7 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
 
   const rollback = async (c: PublishCommit) => {
     const ok = await showConfirm(
-      tr("The {site} returns to what was published on {date}. It's added as a new commit, so you can undo this later too.", {
+      tr("The {site} returns to what was published on {date}. This is added as a new commit, so you can undo it later too.", {
         site: SITE[target].label(),
         date: formatDate(c.date),
       }),
@@ -820,7 +820,7 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
     try {
       await postPublish(conf, target, { target, sha: c.sha, expectedHead: state?.head }, tr("Couldn't roll back"), "/api/publish/history");
       await load();
-      void showAlert(tr("It goes live once your hosting service finishes building."), { title: tr("Rolled back") });
+      void showAlert(tr("It goes live when your hosting service finishes the build."), { title: tr("Rolled back") });
     } catch (e) {
       if (e instanceof PublishConflictError) { setState(null); setError(e.message); }
       void showAlert(userMessage(e, tr("Couldn't roll back")), { title: tr("Couldn't roll back") });
@@ -943,7 +943,7 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
   return (
     <>
       <p className="hint" style={{ margin: "0 0 10px" }}>
-        {tr("For each day you edit, the server automatically keeps that day's final content (seven days, one per weekday; it is kept at the first save after the date changes).")}
+        {tr("For each day you edit, the server automatically keeps that day's final content. It keeps seven days, one per weekday, and saves a day's copy at the first save after the date changes.")}
       </p>
       {error ? (
         <ul className="check-list">

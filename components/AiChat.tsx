@@ -201,7 +201,7 @@ async function ask(text: string) {
         { role: "assistant", text: controller.signal.aborted
           ? tr("The AI request was stopped. No changes were applied.")
           : e instanceof AiEditConflict
-            ? tr("The document changed while waiting, so the AI edits were not applied. Please ask again.")
+            ? tr("The document changed while waiting, so the AI edits were not applied. Ask again.")
             : userMessage(e, tr("Couldn't reach AI")), error: true, activity: st.activity },
       ],
     }));
@@ -279,7 +279,7 @@ export default function AiChat() {
         {!messages.length && (
           <div className="ai-empty">
             <p>
-              {tr("Describe what you want and AI edits the page. You can always undo the result with Undo (⌘Z).")}
+              {tr("Describe what you want, and AI edits the page. You can always undo the result with Undo (⌘Z).")}
             </p>
             <div className="ai-suggest">
               {SUGGESTIONS().map((s) => (
@@ -346,7 +346,7 @@ export default function AiChat() {
                 <Square size={12} />
               </button>
             </div>
-            <p className="ai-activity-note">{tr("Changes will be applied together when complete.")}</p>
+            <p className="ai-activity-note">{tr("Changes are applied together when the edit is complete.")}</p>
             <AiActivity events={activity} live />
             {elapsed >= 20 && <p className="ai-activity-note">{tr("Waiting for the response. You can keep waiting or stop the request.")}</p>}
           </div>

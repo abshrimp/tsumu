@@ -412,7 +412,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
         }
         const destination = useEditor.getState();
         void showConfirm(
-          tr("The elements you're pasting contain content that runs as HTML ({names}), and they weren't copied in this editor. Only paste data you copied from a source you trust.", {
+          tr("The elements you're pasting contain content that runs as HTML ({names}), and they weren't copied in this editor. Only paste data that you copied from a source you trust.", {
             names: active.slice(0, 3).join(tr(", ")) + (active.length > 3 ? tr("and {count} more", { count: active.length - 3 }) : ""),
           }),
           { title: tr("Paste this content?"), okLabel: tr("Paste", "paste_variant_1"), danger: true }

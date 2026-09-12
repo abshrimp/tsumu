@@ -181,7 +181,7 @@ function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
         }),
   ];
   if (usage.pendingCount && deletion?.mode === "scheduled") {
-    lines.push(tr("{count} of them ({size}) are scheduled for deletion and leave the server {days} days after they were deleted.", {
+    lines.push(tr("{count} of them ({size}) are scheduled for deletion and will be removed from the server {days} days after they were deleted.", {
       count: usage.pendingCount, size: formatBytes(usage.pendingBytes), days: deletion.days,
     }));
   } else if (usage.pendingCount && deletion?.mode === "kept") {
@@ -190,9 +190,9 @@ function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
     }));
   }
   if (response?.ledger && !usage.exact) {
-    lines.push(tr("Until the weekly server-wide check finishes, only files used by sites are counted."));
+    lines.push(tr("Until the weekly server-wide check finishes, only the files that sites use are counted."));
   }
-  lines.push(tr("1 GB is the Workers KV free allowance. On a paid plan, storage beyond it is billed by usage."));
+  lines.push(tr("1 GB is the Workers KV free allowance. On a paid plan, storage beyond that is billed by usage."));
   return (
     <div className="storage-usage" data-tip={lines.join("\n")}>
       <div className="storage-bar">
@@ -239,9 +239,9 @@ function sameAssetFile(current: Asset | undefined, approved: Asset): boolean {
  */
 function serverFileNotice(deletion: AssetDeletion | null | undefined, several: boolean): string {
   if (deletion?.mode === "scheduled") {
-    return tr("The file stored on the server will be deleted in {days} days (it is kept if you undo before then or another site uses it).", { days: deletion.days });
+    return tr("The file stored on the server will be deleted in {days} days. It is kept if you undo before then or if another site uses it.", { days: deletion.days });
   }
-  if (deletion?.mode === "kept") return tr("The file stored on the server is kept and not deleted.");
+  if (deletion?.mode === "kept") return tr("The file stored on the server is kept, not deleted.");
   return several
     ? tr("Files on the server will also be deleted. This can't be undone.")
     : tr("The file on the server will also be deleted.");

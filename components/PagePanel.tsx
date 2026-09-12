@@ -224,7 +224,7 @@ export default function PagePanel() {
       if (
         page.children.length &&
         !(await showConfirm(
-          tr("This page's elements will no longer be shown or editable (they're kept, so switching back restores them)."),
+          tr("This page's elements will no longer be shown or editable. They are kept, so switching back restores them."),
           {
             title: kind === "html" ? tr("Switch to an HTML page?") : tr("Switch to a redirect page?"),
             okLabel: tr("Toggle"),
@@ -536,7 +536,7 @@ export default function PagePanel() {
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info" htmlFor={`page-${page.id}-redirect`}>
             {tr("301 redirect target")}
-            <InfoTip text={tr("Permanently sends visitors of this page to the target. Redirect pages can't be edited on the canvas.")} />
+            <InfoTip text={tr("Permanently redirects visitors of this page to the destination. Redirect pages can't be edited on the canvas.")} />
           </label>
           <input
             key={`${page.id}-redirect-${page.redirectTo ?? "empty"}`}
@@ -561,7 +561,7 @@ export default function PagePanel() {
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info" htmlFor={`page-${page.id}-rewrite`}>
             {tr("Show an external site (reverse proxy)")}
-            <InfoTip text={tr("Shows the external site's content at this URL without changing the address bar. Under the home page (/), this site's pages and files take priority. Only unmatched paths are forwarded. If the destination URL contains ? or #, only paths matching this page's URL are forwarded. Can't be combined with a 301 redirect.")} />
+            <InfoTip text={tr("Shows the external site's content at this URL without changing the address bar. Under the home page (/), this site's pages and files take priority, and only paths with no match are forwarded. If the destination URL contains ? or #, only paths that match this page's URL are forwarded. This can't be combined with a 301 redirect.")} />
           </label>
           <input
             key={`${page.id}-rewrite-${page.rewriteTo ?? "empty"}`}
@@ -595,7 +595,7 @@ export default function PagePanel() {
             <button
               className="btn btn-sm"
               disabled={zipBusy}
-              data-tip={tr("Loads index.html first. Bundled files are uploaded as assets and paths in the HTML are rewritten automatically")}
+              data-tip={tr("Loads index.html first. Bundled files are uploaded as assets, and paths in the HTML are rewritten automatically.")}
               onClick={() => htmlZipRef.current?.click()}
             >
               <FileUp size={12} />
@@ -679,7 +679,7 @@ export default function PagePanel() {
             <div className="code-field-heading">
               <label className="lbl lbl-info" htmlFor={`page-${page.id}-top`}>
                 {tr("Head code (this page only)")}
-                <InfoTip text={tr("Inserted at the start or end of this page's HTML. Use it for page-specific tracking tags, structured data (JSON-LD) and so on. Set the title and description under \"Search & sharing\".")} />
+                <InfoTip text={tr("Inserted at the start or end of this page's HTML. Use it for page-specific tracking tags, structured data (JSON-LD) and similar code. Set the title and description under \"Search & sharing\".")} />
               </label>
               <CodeEditorButton label={tr("Head code (this page only)")} onClick={() => setCodeEditorOpen({ pageId: page.id, field: "top" })} />
             </div>
@@ -700,7 +700,7 @@ export default function PagePanel() {
             <div className="code-field-heading">
               <label className="lbl lbl-info" htmlFor={`page-${page.id}-end`}>
                 {tr("End code (this page only)")}
-                <InfoTip text={tr("Inserted at the start or end of this page's HTML. Use it for page-specific tracking tags, structured data (JSON-LD) and so on. Set the title and description under \"Search & sharing\".")} />
+                <InfoTip text={tr("Inserted at the start or end of this page's HTML. Use it for page-specific tracking tags, structured data (JSON-LD) and similar code. Set the title and description under \"Search & sharing\".")} />
               </label>
               <CodeEditorButton label={tr("End code (this page only)")} onClick={() => setCodeEditorOpen({ pageId: page.id, field: "end" })} />
             </div>

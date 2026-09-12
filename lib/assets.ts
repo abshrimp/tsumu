@@ -99,7 +99,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
 
   if (file.size > MAX_LOCAL_ASSET_BYTES) {
     throw new Error(
-      tr("Can't add it because server storage isn't available. Files saved in this browser are limited to 2MB each.")
+      tr("This can't be added because server storage isn't available. Files saved in this browser are limited to 2MB each.")
     );
   }
   const dataUrl = await readAsDataUrl(file);
@@ -359,8 +359,8 @@ export async function withSignedAssetUrls(
     try { return !!base && new URL(prefix, base).origin === new URL(base).origin; }
     catch { return false; }
   };
-  if (roots.some((id) => !zipStylesheet(assets[id]))) throw new Error(tr("The ZIP stylesheet data could not be read. Reimport the ZIP."));
-  if (roots.length && html.length > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
+  if (roots.some((id) => !zipStylesheet(assets[id]))) throw new Error(tr("The ZIP stylesheet data could not be read. Import the ZIP again."));
+  if (roots.length && html.length > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and import the ZIP again."));
   const reachable = zipAssetClosure(assets, roots);
   const paths = new Set<string>();
   for (const m of html.matchAll(ASSET_URL_RE)) {
@@ -425,7 +425,7 @@ export async function withSignedAssetUrls(
   const bounded = (url: string) => {
     const target = resolve(url);
     inserted += target?.length ?? 0;
-    if (inserted > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
+    if (inserted > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and import the ZIP again."));
     return target;
   };
   for (const el of Array.from(parsed.querySelectorAll("[href],[src],[poster]"))) {
@@ -447,7 +447,7 @@ export async function withSignedAssetUrls(
     el.textContent = rewriteCssAssetUrls(el.textContent ?? "", bounded, ZIP_CSS_LIMITS.output);
   }
   output = `<!DOCTYPE html>\n${parsed.documentElement.outerHTML}`;
-  if (output.length > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
+  if (output.length > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and import the ZIP again."));
   if (Number.isFinite(expiresAt)) options.onExpiresAt?.(expiresAt);
   return output;
 }

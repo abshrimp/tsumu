@@ -176,7 +176,7 @@ export async function POST(req: Request) {
     }
     if (hasPublishCredentials(document as Parameters<typeof hasPublishCredentials>[0])) {
       return NextResponse.json({
-        error: tr("Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead."),
+        error: tr("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."),
       }, { status: 400 });
     }
     return null;
@@ -215,7 +215,7 @@ export async function POST(req: Request) {
       throw new Error(tr("Asset source not allowed: {source}", { source }));
     }
     const store = assetStore();
-    if (!store) throw new Error(tr("Asset storage isn't configured. Contact your administrator"));
+    if (!store) throw new Error(tr("Asset storage isn't configured. Contact your administrator."));
     const data = await store.get(source, { type: "arrayBuffer" });
     if (!data) throw new MissingAssetError(tr("Couldn't load asset: {path}", { path }));
     return data;

@@ -11,7 +11,7 @@ export default function ErrorPage({ error, reset }: { error: Error; reset: () =>
   return (
     <div className="safe-page">
       <h1>{tr("Something went wrong")}</h1>
-      <p>{tr("Your work has been saved. Try again, or reload the page.")}</p>
+      <p>{tr("Your work has been saved. Try again or reload the page.")}</p>
       <div className="safe-fallback-actions">
         <button className="btn" onClick={reset}>
           {tr("Try again")}

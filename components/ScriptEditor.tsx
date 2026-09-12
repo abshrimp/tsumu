@@ -1057,7 +1057,7 @@ function ScriptEditorInner({
                   {trNodes("Example: \"［Button］ When clicked\" {arrow} \"Open ［page］\"", { arrow: glyphs("→") })}
                 </p>
                 <p>
-                  {tr("To show data, attach \"Set variable ［］ to ［value］\" under \"Fetch data from ［URL］ as ［name］\" to pull out what you need (it runs when the page opens). Choose a variable holding a list in a List display element's settings to show each item.")}
+                  {tr("To show data, attach \"Set variable ［］ to ［value］\" under \"Fetch data from ［URL］ as ［name］\" to pull out what you need (this runs when the page opens). Then select a variable that holds a list in a List display element's settings to show each item.")}
                 </p>
               </div>
             )}
@@ -1083,7 +1083,7 @@ function ScriptEditorInner({
           </span>
           <InfoTip
             style={{ marginLeft: "auto" }}
-            text={tr("Scripts that only open a page or URL \"When clicked\" are output as links (a tags).\nStorage uses localStorage, then a cookie for this site only, then memory (lost when the page closes), whichever is available.")}
+            text={tr("Scripts that only open a page or URL \"When clicked\" are output as links (a tags).\nStorage uses localStorage, then a cookie for this site only, then memory (cleared when the page closes), whichever is available first.")}
           />
         </div>
         {peekStep && (

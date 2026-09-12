@@ -379,7 +379,7 @@ function PwaSettings() {
           <div className="stack" style={{ gap: 4 }}>
             <span className="lbl lbl-info">
               {tr("Icon")}
-              <InfoTip text={tr("A 512×512px square PNG is recommended. Falls back to the home screen icon, then the favicon.")} />
+              <InfoTip text={tr("A 512×512px square PNG is recommended. If not set, the home screen icon is used, then the favicon.")} />
             </span>
             <ImagePicker value={pwa.icon} onChange={(v) => set({ icon: v })} />
           </div>
@@ -417,7 +417,7 @@ function PwaSettings() {
             <div className="stack" style={{ gap: 4 }}>
               <span className="lbl lbl-info">
                 {tr("Background color")}
-                <InfoTip text={tr("The screen color shown while the app starts. Also used around the icon.")} />
+                <InfoTip text={tr("The screen color shown while the app starts. It is also used around the icon.")} />
               </span>
               <FillControl
                 value={pwa.backgroundColor}
@@ -484,7 +484,7 @@ function BreakpointSettings() {
         tutorialTarget="site-breakpoints"
         help="resp-breakpoints"
         info={
-          tr("Breakpoints let you change styles by screen width. Each one applies to screens at or below its width (smaller ones take priority).\n\"Desktop\" is the width shown on the canvas. You can rename, add and remove breakpoints.")
+          tr("Breakpoints let you change styles by screen width. Each one applies to screens at or below its width, and smaller ones take priority.\n\"Desktop\" is the width shown on the canvas. You can rename, add and remove breakpoints.")
         }
       >
         <div className="bp-edit">
@@ -649,7 +649,7 @@ export default function SitePanel() {
         <div className="row">
           <label className="lbl-info" htmlFor={`site-url`}>
             {tr("Site URL")}
-            <InfoTip text={tr("Your published site's address (e.g. https://example.com). Used for things like share image URLs.")} />
+            <InfoTip text={tr("Your published site's address (e.g. https://example.com). It is used for things like the URLs of share images.")} />
           </label>
           <input
             key={doc.siteUrl ?? "_"}
@@ -699,7 +699,7 @@ export default function SitePanel() {
         <div className="stack" style={{ gap: 4 }}>
           <span className="lbl lbl-info">
             {tr("Default share image (OGP)")}
-            <InfoTip text={tr("Used when a page doesn't set its own. 1200×630px is recommended.")} />
+            <InfoTip text={tr("Used when a page doesn't set its own image. 1200×630px is recommended.")} />
           </span>
           <ImagePicker
             value={doc.ogImage}
@@ -752,7 +752,7 @@ export default function SitePanel() {
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info" htmlFor={`site-data-revalidate`}>
             {tr("Data refresh interval (seconds)")}
-            <InfoTip text={tr("How often pages that use external JSON fetch it again. In between, the prebuilt page (on Cloudflare, the fetched JSON) is reused to keep server load down. Set 0 to fetch on every request (always fresh, but heavier).")} />
+            <InfoTip text={tr("How often pages that use external JSON fetch it again. In between, the prebuilt page (on Cloudflare, the fetched JSON) is reused to reduce server load. Set 0 to fetch on every request (always fresh, but heavier).")} />
           </label>
           <input
             key={doc.dataRevalidate ?? "_"}
@@ -823,7 +823,7 @@ export default function SitePanel() {
         title={tr("Backup")}
         tutorialTarget="site-backup"
         help="pub-backup"
-        info={tr("Save or restore the whole site's data as a backup file. You can also load the _tsumu/doc.json saved to the repository when publishing.")}
+        info={tr("Save or restore the whole site's data as a backup file. You can also load the _tsumu/doc.json that publishing saves to the repository.")}
         defaultOpen={false}
       >
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

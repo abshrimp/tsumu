@@ -50,17 +50,17 @@ export function configError(dest: SiteDest, target: PublishTarget, tr: Tr): stri
   }
   if (!conf.token) {
     console.warn("Publishing is unavailable: GITHUB_TOKEN is not set");
-    return tr("Publishing to GitHub isn't configured. Contact your administrator");
+    return tr("Publishing to GitHub isn't configured. Contact your administrator.");
   }
   if (!conf.repo) {
-    return tr("This site has no repository to publish to. Set one in the site settings on the home screen");
+    return tr("This site has no repository to publish to. Set one in the site settings on the home screen.");
   }
   // 保存済みの古い設定でも、API の別のパスへ抜けるような名前は使わない
   if (!isSafeRepo(conf.repo) || !isSafeBranch(conf.branch)) {
     return tr("Invalid repository (use the owner/name format): {repo}", { repo: conf.repo });
   }
   if (sameDestination(targetConfig(dest, "test"), targetConfig(dest, "production"))) {
-    return tr("The test site and live site point to the same repository and branch. Use a different branch");
+    return tr("The test site and live site point to the same repository and branch. Use a different branch.");
   }
   return null;
 }
@@ -119,10 +119,10 @@ export function githubClient(conf: TargetConfig, tr: Tr) {
     // 付けたリクエストの横に、応答の本文をログに出してはいけない。
     console.error("GitHub API request failed", { repo: conf.repo, step, status: res.status });
     if (res.status === 401) {
-      throw new Error(tr("Couldn't connect to GitHub. Contact your administrator"));
+      throw new Error(tr("Couldn't connect to GitHub. Contact your administrator."));
     }
     if (res.status === 403 || res.status === 404) {
-      throw new Error(tr("{step} failed ({status}). Writing to the site repository may not be allowed. Contact your administrator", { step, status: res.status }));
+      throw new Error(tr("{step} failed ({status}). Writing to the site repository may not be allowed. Contact your administrator.", { step, status: res.status }));
     }
     throw new Error(tr("{step} failed ({status})", { step, status: res.status }));
   };

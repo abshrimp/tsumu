@@ -41,7 +41,7 @@ test("大文字だけ違う転送を公開・書き出し前に止め、別の�
   await expect.poll(async () => (await (await page.request.get(`/api/doc?site=${site.id}`)).json()).doc.pages.old.slug).toBe("About");
 
   await page.locator('[data-tutorial="publish"]').click();
-  await expect(page.locator(".pub-modal .check-list .is-error")).toContainText("転送が繰り返される");
+  await expect(page.locator(".pub-modal .check-list .is-error")).toContainText("転送がくり返される");
   await expect(page.locator(".pub-modal .check-list .is-error")).toContainText("Old URL");
   for (const name of ["本番に公開", "テストに公開"]) {
     await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
@@ -54,7 +54,7 @@ test("大文字だけ違う転送を公開・書き出し前に止め、別の�
   };
   await openExport();
   await expect(page.locator(".export-modal .check-list .is-error")
-    .filter({ hasText: "転送が繰り返される" })).toHaveCount(1);
+    .filter({ hasText: "転送がくり返される" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "zipをダウンロード", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "キャンセル", exact: true }).click();
 

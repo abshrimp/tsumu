@@ -181,7 +181,7 @@ export function exportLimitations(
       /^(?:metadata-flavor|x-metadata-token)$/i.test(header.name.trim()))
   ));
   if (hasPublishCredentials(doc) || metadataHeaders) {
-    return [tr("The fetch settings contain credentials, a secret API key, or an unsupported internal-service header. Even server-side Next.js output can expose these values in generated source files or the editable ZIP. Remove sensitive values and use server environment variables or a secure API proxy.")];
+    return [tr("The fetch settings contain credentials, a secret API key, or an internal-service header that is not allowed. Even with server-side Next.js output, these values can appear in the generated source files or the editable ZIP. Remove the sensitive values and use server environment variables or a secure API proxy.")];
   }
   if (options.framework === "nextjs") {
     // 取り込んだ HTML のルートハンドラーは、page.tsx と同じ Next.js のパスを使えない。
@@ -204,7 +204,7 @@ export function exportLimitations(
   }
   const reasons: string[] = [];
   if (pages.some((p) => /\[[^\]]+\]/.test(p.slug))) {
-    reasons.push(tr("Dynamic paths such as [slug] require a static host that can serve arbitrary URLs. Use a fixed path or export to Next.js."));
+    reasons.push(tr("Dynamic paths such as [slug] need a static host that can serve any URL. Use a fixed path or export to Next.js."));
   }
   if (pages.some((p) => p.rewriteTo !== undefined || p.redirectTo !== undefined)) {
     reasons.push(tr("Redirects and reverse proxies require a server. Link directly to the destination or export to Next.js."));
@@ -229,7 +229,7 @@ export function exportLimitations(
     reasons.push(tr("A single HTML file can contain only one page. Select the current page or export an HTML ZIP."));
   }
   if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework) && /<script\b/i.test(doc.customBodyEndHtml ?? "")) {
-    reasons.push(tr("Custom scripts at the end of the body execute at a different time during navigation. Export to HTML or move the scripts into framework-specific code."));
+    reasons.push(tr("Custom scripts at the end of the body run at a different time when navigating between pages. Export to HTML or move the scripts into framework-specific code."));
   }
   if (["vue", "nuxt", "sveltekit"].includes(options.framework)) {
     // 今のところ、フレームワーク固有のコンポーネントはページのノードしか描画しない。書かれた
@@ -252,10 +252,10 @@ export function exportLimitations(
   }
   if (["html", "single-html"].includes(options.framework)) {
     if (options.style === "css-modules") {
-      reasons.push(tr("CSS Modules require a build step. Select CSS for a build-free HTML export."));
+      reasons.push(tr("CSS Modules require a build step. For an HTML export that needs no build, select CSS."));
     }
     if (options.style === "tailwind") {
-      reasons.push(tr("Tailwind CSS requires a build step to generate utilities. Select CSS for a build-free HTML export."));
+      reasons.push(tr("Tailwind CSS needs a build step to generate its utilities. For an HTML export that needs no build, select CSS."));
     }
   }
   return reasons;

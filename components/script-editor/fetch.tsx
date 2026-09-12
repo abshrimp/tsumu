@@ -182,7 +182,7 @@ export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
       if (!isCurrent()) return false;
       const msg = userMessage(e, tr("Couldn't load"));
       requestErrors.set(owner, { key, message: msg.includes(tr("Couldn't parse it as JSON"))
-        ? tr("Couldn't read the data. Make sure the URL returns JSON, not a web page") : msg });
+        ? tr("Couldn't read the data. Make sure the URL returns JSON, not a web page.") : msg });
       return false;
     } finally {
       unsubscribe();
@@ -304,7 +304,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
       {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("Result request destination")}: {resultSource.method} {resultSource.url}</p>}
       {!hasCurrentSample(step) && <p className="se-badge is-warn">{tr("This sample has not been verified with the current settings.")}</p>}
       {!full && <p className="hint">{truncatedSample
-        ? tr("Only the first 20 items of each list are saved in the sample. To view all items, use Fetch again in the top-right corner.")
+        ? tr("The sample saves only the first 20 items of each list. To view all items, use Fetch again in the top-right corner.")
         : tr("Showing the saved sample.")}</p>}
       <JsonPeek value={full ? wholeCache.get(key) : step.preview?.sample} />
     </>}
@@ -915,7 +915,7 @@ export function VarNameIn({
       {overwrite && (
         <span
           className="se-badge"
-          data-tip={tr("Another block uses the same variable name. Whichever block runs last wins")}
+          data-tip={tr("Another block uses the same variable name. The value from whichever block runs last is used.")}
         >
           {tr("Overwrites")}
         </span>

@@ -71,7 +71,7 @@ async function seedDoc(id: string, name: string): Promise<boolean> {
 }
 
 function localSaveError() {
-  return new Error(tr("Could not save changes in this browser. Check your browser's storage capacity and settings, then try again."));
+  return new Error(tr("Could not save changes in this browser. Check your browser's storage space and settings, then try again."));
 }
 
 function localDuplicateError() {
@@ -309,7 +309,7 @@ function SiteDialog({
           {site
             ? tr("Change the site name and the GitHub repository it publishes to.")
             : copyOf
-              ? tr("Creates a new site with the same pages, elements and settings as “{name}”. The publishing destination isn't copied, so set it if you need one.", { name: copyOf.name })
+              ? tr("Creates a new site with the same pages, elements and settings as “{name}”. The publishing destination isn't copied, so set one if you need it.", { name: copyOf.name })
               : tr("Creates an empty site and opens it in the editor.")}
         </p>
 

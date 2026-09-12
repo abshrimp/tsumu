@@ -271,7 +271,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
         results.push({
           help: "page-redirect",
           level: "error",
-          message: tr("The 301 target \"{destination}\" of redirect page \"{name}\" matches its own source URL, causing a redirect loop. Change it to a different path.", { name: page.name, destination: page.redirectTo!.trim() }),
+          message: tr("The 301 target \"{destination}\" of redirect page \"{name}\" matches its own source URL, which causes a redirect loop. Change it to a different path.", { name: page.name, destination: page.redirectTo!.trim() }),
         });
       } else if (
         page.rewriteTo?.trim() &&
@@ -527,7 +527,7 @@ function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
     out.push({
       help: "d-units",
       level: "warn",
-      message: tr("{p2} in \"{name}\" has a fixed width of {width}px and overflows phone screens (about {PHONE_WIDTH}px wide). Use a % width or add a max width", { name: page.name, p2: namesText(wide.map((w) => w.name)), width: wide[0].width, PHONE_WIDTH }),
+      message: tr("{p2} in \"{name}\" has a fixed width of {width}px and overflows phone screens (about {PHONE_WIDTH}px wide). Use a % width or add a max width.", { name: page.name, p2: namesText(wide.map((w) => w.name)), width: wide[0].width, PHONE_WIDTH }),
     });
   }
   const h1 = headings.filter((h) => h === 1).length;
@@ -554,8 +554,8 @@ function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
       level: "warn",
       message:
         vague.length > 1
-          ? tr("A link in \"{name}\" says \"{text}\" (and {n} more). Use words that describe where it goes", { name: page.name, text: vague[0].text, n: vague.length - 1 })
-          : tr("A link in \"{name}\" says \"{text}\". Use words that describe where it goes", { name: page.name, text: vague[0].text }),
+          ? tr("A link in \"{name}\" says \"{text}\" (and {n} more). Use words that describe where it goes.", { name: page.name, text: vague[0].text, n: vague.length - 1 })
+          : tr("A link in \"{name}\" says \"{text}\". Use words that describe where it goes.", { name: page.name, text: vague[0].text }),
     });
   }
   return out;
@@ -600,6 +600,6 @@ function componentCycleChecks(doc: SiteDoc, published: string[]): CheckResult[] 
   return cyclic.map((c) => ({
     help: "reuse-component",
     level: used.has(c.id) ? ("error" as const) : ("warn" as const),
-    message: tr("Component \"{name}\" contains itself (it would nest forever). Remove its own instance from the main component", { name: c.name }),
+    message: tr("Component \"{name}\" contains itself, so it would nest forever. Remove its own instance from the main component.", { name: c.name }),
   }));
 }

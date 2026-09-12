@@ -173,7 +173,7 @@ for (const location of ["node.styles", "node.customCss", "page.bodyStyles"] as c
     const before = await doc(page);
     await expect(page.locator(".asset-count")).toContainText("未使用 1件");
     await begin(page);
-    await expect(page.getByRole("dialog")).toContainText("使用していないアセット 1件");
+    await expect(page.getByRole("dialog")).toContainText("使っていないアセット 1件");
     await finish(page);
     await expect.poll(() => deleted).toEqual([spare.path]);
     await expect(page.locator(`[data-asset-id="${candidate.id}"]`)).toBeVisible();

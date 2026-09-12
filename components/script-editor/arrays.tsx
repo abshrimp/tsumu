@@ -142,7 +142,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
       <span className="se-line">
         <span
           className="se-filter-no"
-          data-tip={tr("Filter number (automatic). Choose it in \"Clear filters\" to remove just this filter")}
+          data-tip={tr("Filter number (automatic). Select it in \"Clear filters\" to remove only this filter.")}
         >
           {tr("Filter {n}", { n: step.no ?? "?" })}
         </span>

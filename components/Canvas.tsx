@@ -809,13 +809,13 @@ export default function Canvas() {
             {mode === "design" ? (
               <div className="cv-placeholder" style={{ minHeight: 320 }}>
                 {page.rawHtml.trim()
-                  ? tr("This is an HTML page. Edit its code in the right panel and test it in preview mode.")
+                  ? tr("This is an HTML page. Edit its code in the right panel and check how it works in preview mode.")
                   : tr("Enter HTML code in the right panel, or load a file")}
               </div>
             ) : (
               <>
                 {needsRefresh && <div role="status" className="cv-placeholder">
-                  {tr("The preview asset URLs will expire soon. Refreshing resets form entries and the page's current state.")}
+                  {tr("The preview asset URLs will expire soon. Refreshing resets form entries and the current state of the page.")}
                   <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("Refresh preview")}</button>
                 </div>}
                 {rawHtmlError ? <div role="alert" className="cv-placeholder">

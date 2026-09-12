@@ -52,7 +52,7 @@ for (const failure of ["read", "json", "shape", "dangling", "missing", "breakpoi
     await expect(button.locator(".copy-site-name")).toHaveText("Destination");
     await button.click();
     await expect(page.locator(".copy-site-error")).toContainText(
-      failure === "breakpoints" ? "画面幅設定が一致しない" : "コピー先の編集データを読み込めませんでした"
+      failure === "breakpoints" ? "画面幅の設定が違う" : "コピー先のサイトの編集データを読み込めませんでした"
     );
     await expect(page.locator(".copy-site-done")).toHaveCount(0);
     expect(await browserDoc(page, "destination").catch(() => bad)).toBe(bad);

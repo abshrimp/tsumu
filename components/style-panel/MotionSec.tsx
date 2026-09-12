@@ -106,7 +106,7 @@ export function MotionSec({ node }: { node: DocNode }) {
               m.trigger === "state"
                 ? tr("Smooths out style changes. Switch the State at the top of the panel to set the style to change to.")
                 : m.trigger === "in-view"
-                  ? tr("Plays once when the element scrolls into view (plays immediately on the canvas).")
+                  ? tr("Plays once when the element scrolls into view. On the canvas, it plays immediately.")
                   : undefined
             }
           >

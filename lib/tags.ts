@@ -15,7 +15,7 @@ export const SEMANTIC_OPTIONS: {
   {
     value: "button",
     label: tr("Button"),
-    desc: tr("A pressable button. Inside a search form it submits the form"),
+    desc: tr("A button that can be pressed. Inside a search form, it submits the form."),
   },
   { value: "section", label: tr("Section"), desc: tr("A distinct section of the page") },
   { value: "header", label: tr("Header"), desc: tr("The top of the page, with the logo and navigation") },
