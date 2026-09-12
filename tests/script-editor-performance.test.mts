@@ -104,6 +104,24 @@ test("spatial hit testing preserves DOM order for exactly tied slots", () => {
   assert.equal(index.nearest("step", 500, 500), null);
 });
 
+test("wide insertion rows remain hittable on the right without capturing other stacks or rows", () => {
+  const slots: SlotPoint[] = [
+    { key: "wide", kind: "step", x: 20, y: 40, width: 420 },
+    { key: "other", kind: "step", x: 560, y: 40, width: 200 },
+    { key: "nested", kind: "step", x: 60, y: 100, width: 300 },
+    { key: "trigger", kind: "head", x: 20, y: 40, width: 420 },
+  ];
+  const index = new SlotIndex(slots);
+  assert.equal(index.nearest("step", 385, 40), "wide");
+  assert.equal(index.nearest("step", 430, 55), "wide");
+  assert.equal(index.nearest("step", 675, 40), "other");
+  assert.equal(index.nearest("step", 250, 100), "nested");
+  assert.equal(index.nearest("step", 480, 100), null);
+  assert.equal(index.nearest("head", 385, 40), "trigger");
+  assert.equal(index.nearest("head", 385, 100), null);
+  assert.equal(index.nearest("step", 850, 40), null);
+});
+
 test("editing a single deep block keeps unrelated blocks and scripts by reference", () => {
   const steps: ScriptStep[] = Array.from({ length: 4000 }, (_, i) => ({
     id: `wait-${i}`, kind: "wait", seconds: i + 1,

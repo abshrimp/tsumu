@@ -108,7 +108,7 @@ export function useScriptDrag({
           slotElements.set(key, el);
           const r = el.getBoundingClientRect();
           slots.push({ key, kind: type, x: r.left - wr.left + ws.scrollLeft,
-            y: r.top - wr.top + ws.scrollTop });
+            y: r.top - wr.top + ws.scrollTop, width: r.width });
         });
         slotIndex = new SlotIndex(slots);
         slotZoom = z;
