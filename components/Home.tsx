@@ -28,7 +28,6 @@ import AllowedAccounts from "./AllowedAccounts";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
-import { createSiteFromFile } from "../lib/import-site-file";
 import { createBrowserDoc, deleteBrowserDoc, readBrowserDoc } from "../lib/browser-doc-storage";
 import {
   SITE_SCOPED_KEYS,
@@ -501,6 +500,7 @@ export default function Home() {
     importActive.current = true;
     setImportStatus({ kind: "loading", message: tr("Reading edit data…") });
     try {
+      const { createSiteFromFile } = await import("../lib/import-site-file");
       const { id } = await createSiteFromFile(file, store,
         (message) => setImportStatus({ kind: "loading", message }));
       window.location.assign(sitePath(id));

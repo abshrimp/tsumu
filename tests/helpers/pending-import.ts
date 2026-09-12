@@ -56,7 +56,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
     const code = transformSync(readFileSync(resolve(path), "utf8") + append, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
     const module = { exports: {} as any };
     new Function("require", "module", "exports", code)((name: string) => {
-      if (name === "react") return hooks;
+      if (name === "react") return { ...require("react"), ...hooks };
       if (name.endsWith("/use-document-confirmation")) return evaluate("lib/use-document-confirmation.ts");
       if (name.endsWith("/use-pending-import")) return evaluate("lib/use-pending-import.ts");
       if (name.endsWith("/store")) return { ...editorStore, useEditor: Object.assign((select: (s: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState, subscribe: useEditor.subscribe }) };
@@ -69,7 +69,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
         showConfirm: () => new Promise<boolean>(resolve => { confirmations.push({ resolve }); }),
       };
       if (["/NodeContextMenu", "/CopyToSite", "/exportZip", "/export-formats", "/AiChat", "/HelpCenter", "/Tutorial", "/GuideOverlay"].some(x => name.endsWith(x))) return {};
-      if (name.endsWith("/PublishModal")) return { useEscapeToClose() {} };
+      if (name.endsWith("/use-escape-to-close")) return { useEscapeToClose() {} };
       if (name.endsWith("/drag")) return { useDragAutoScroll: () => ({}) };
       if (name.endsWith("/BackgroundSec") || name.endsWith("/shared")) return {};
       return name.startsWith(".") ? require(resolve(path, "..", name)) : require(name);

@@ -2,7 +2,7 @@
  * ページ1枚分のファイル（page.tsx と、URLの値で切り替えるページ）の書き出し
  */
 
-import type { DocNode, ScriptStep, SiteDoc } from "../types";
+import type { DocNode, Page, ScriptStep, SiteDoc } from "../types";
 import { pageLangOf, siteLangOf } from "../site-lang";
 import { fieldVarNames } from "../fields";
 import { sendsBody } from "../fetch-request";
@@ -46,6 +46,25 @@ export function writesNestedPageValue(step: ScriptStep): boolean {
 export function needsPageStepRunner(step: ScriptStep): boolean {
   return step.kind === "for-each" || step.kind === "if" || step.kind === "repeat" ||
     step.kind === "set-list-item" || step.kind === "remove-list-item";
+}
+
+/** 同じパスのページを配信時の判定順にまとめ、各ページの位置をIDで引けるようにする。 */
+export function indexQueryVariants(pages: readonly Page[]) {
+  const groups = new Map<string, Page[]>();
+  for (const page of pages) {
+    if (page.redirectTo !== undefined || page.rewriteTo !== undefined || page.rawHtml?.trim() ||
+        page.slug.replace(/^\/+|\/+$/g, "") === "404") continue;
+    const dir = routeDir(page.slug);
+    const group = groups.get(dir);
+    if (group) group.push(page);
+    else groups.set(dir, [page]);
+  }
+  const variants = new Map<string, { index: number; group: Page[] }>();
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.forEach((page, index) => variants.set(page.id, { index, group }));
+  }
+  return variants;
 }
 
 /**
@@ -136,9 +155,10 @@ export function generatePageFile(
   ctx.inTemplate = false;
   ctx.usedComponents = new Set();
   ctx.varsExpr = "vars";
-  const plan = pagePlan(doc, pageId);
+  const idVarNodes = idVarNodesOf(doc, pageId);
+  const plan = pagePlan(doc, pageId, idVarNodes);
   const writes = new Set([...plan.clientAssignmentPaths, ...plan.clientListTargets]);
-  for (const n of idVarNodesOf(doc, pageId)) if (n.type === "field") fieldVarNames(n).forEach((v) => writes.add(v));
+  for (const n of idVarNodes) if (n.type === "field") fieldVarNames(n).forEach((v) => writes.add(v));
   const loads = nf ? [] : plan.steps.filter((st) => st.kind !== "fetch" || st.url.trim());
   const fetchedRoots = new Set(loads.flatMap(step => step.kind === "fetch" && step.as ? [step.as.split(".")[0]] : []));
   const seedPaths = new Set([...plan.clientListTargets].filter(path => fetchedRoots.has(path.split(".")[0])));
@@ -183,7 +203,7 @@ export function generatePageFile(
   );
   const hasPurePageControls = loads.some(needsPageStepRunner);
   /** [slug]ページのメタデータ・404判定に使うデータ */
-  const primary = nf ? null : (primaryDataStep(doc, pageId)?.step ?? null);
+  const primary = nf ? null : (primaryDataStep(doc, pageId, plan.steps)?.step ?? null);
 
   const rendered = page.children
     .map((id) => renderNode(ctx, id, "      ", true))
@@ -316,7 +336,7 @@ ${body}
   // URL のクエリをサーバー側で使うページ（検索フォームの送信先など）は作り置きできない
   const revalidate = nf ? 0 : dataRevalidateOf(doc);
   const cacheable =
-    revalidate > 0 && !pageHasSearchForm(doc, pageId) && !pageReadsQuery(doc, pageId, plan);
+    revalidate > 0 && !pageHasSearchForm(doc, pageId) && !pageReadsQuery(doc, pageId, plan, idVarNodes);
   // Cloudflare Workers（OpenNext）は追加の設定（R2・キュー）なしでは ISR の作り直しが動かないため、
   // ページは毎回描画し、取得したJSONだけを Cloudflare のキャッシュに置く
   const edgeCache = cacheable && doc.hosting === "cloudflare";
@@ -503,7 +523,7 @@ function templateVars(vars: Vars): Vars {
 }`;
 
   // ID付きテキスト要素の内容を {ID} 変数にする（リスト内は項目ごとのため除外）
-  const textVarNodes = idVarNodesOf(doc, pageId).filter(
+  const textVarNodes = idVarNodes.filter(
     (n) => n.type !== "field"
   );
   const textVarsPrep = textVarNodes
@@ -661,7 +681,7 @@ function dataRevalidateOf(doc: SiteDoc): number {
  * ページを配信する前（サーバー側）に URL のクエリの値を使うか。
  * 使うページはアクセスごとに作る必要があり、作り置き（ISR）にできない
  */
-function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pagePlan>): boolean {
+function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pagePlan>, idVarNodes: DocNode[]): boolean {
   const page = doc.pages[pageId];
   if (Object.keys(pageQueryVars(page.query)).length) return true;
 
@@ -694,7 +714,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     }
   };
   for (const s of [...(page.pageScripts ?? []), ...(page.scripts ?? [])]) addDefined(s.steps);
-  for (const n of idVarNodesOf(doc, pageId)) {
+  for (const n of idVarNodes) {
     if (n.type === "field") fieldVarNames(n).forEach((v) => known.add(v));
     else if (n.attrId) known.add(n.attrId);
   }

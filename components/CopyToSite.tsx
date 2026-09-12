@@ -6,7 +6,7 @@ import { useEditor } from "../lib/store";
 import { currentSiteId, loadLocalSites, sitePath } from "../lib/site";
 import type { SiteRecord } from "../lib/sites";
 import { buildPagePayload, copyPagesToSite } from "../lib/page-transfer";
-import { useEscapeToClose } from "./PublishModal";
+import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { userMessage } from "../lib/errors";
 import { tr } from "../lib/i18n";
 

@@ -3,10 +3,11 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { test } from "node:test";
+import { runInNewContext } from "node:vm";
 import { transformSync } from "esbuild";
 import * as React from "react";
 import { useEditor, type EditorMode } from "../lib/store";
-import { makeSample } from "../lib/data";
+import { makeSample, previewDataVars } from "../lib/data";
 import { previewRefreshDoc, previewRows } from "./helpers/preview-refresh";
 
 // 実フックの状態と依存配列を保持する。実際の Canvas/DOM の操作は e2e でも検証する。
@@ -356,4 +357,52 @@ test("an obsolete response is skipped before JSON parsing", async () => {
   assert.equal(parsed, false);
   assert.equal(m.render().refreshing, true);
   m.unmount();
+});
+
+test("preview variable copies follow same-page script edits and Undo", () => {
+  const m = mount("design");
+  try {
+    assert.equal(m.render().pageVars.copied, undefined);
+    const state = useEditor.getState();
+    state.updateNode("result", { scripts: [{
+      id: "click-copy", trigger: "click", pos: { x: 0, y: 0 },
+      steps: [{ id: "copy", kind: "set-var", value: "{response.label}", into: "copied" }],
+    }] });
+    assert.equal(m.render().pageVars.copied, "home saved");
+    state.undo();
+    assert.equal(m.render().pageVars.copied, undefined);
+  } finally {
+    m.unmount();
+  }
+});
+
+test("preview copies resolve nested destinations and backward references without retrying forever", () => {
+  const doc = previewRefreshDoc();
+  const copies = [
+    ["result", "nested.value"],
+    ["nested.value", "later"],
+    ["later", "response.label"],
+    ["nested.value", "response.rows"],
+    ["response.rows.5", "response.label"],
+    ["response.label", "response.rows"],
+    ["__proto__", "response.label"],
+    ["constructor", "response.rows"],
+    ["missing", "otherMissing"],
+    ["otherMissing", "missing"],
+  ];
+  doc.nodes.result.scripts = [{
+    id: "copies", trigger: "click", pos: { x: 0, y: 0 },
+    steps: copies.map(([into, src], i) => ({ id: String(i), kind: "set-var", into, value: `{${src}}` })),
+  }];
+  // 同期ループが再発してもテストプロセス全体を停止させない。
+  const vars = runInNewContext('previewDataVars(doc, "home")', { previewDataVars, doc }, { timeout: 2000 });
+  assert.deepEqual(vars.nested.value, [{ id: "saved" }], "first available source wins");
+  assert.deepEqual(vars.result, vars.nested.value, "earlier steps see later destinations");
+  assert.equal(vars.response.label, "home saved", "keep existing nested values");
+  assert.deepEqual(vars.response.rows, [{ id: "saved" }], "invalid array writes stay unapplied");
+  assert.equal(Object.getPrototypeOf(vars), Object.prototype);
+  assert.ok(Object.hasOwn(vars, "__proto__") && Object.hasOwn(vars, "constructor"));
+  assert.equal(vars.__proto__, "home saved");
+  assert.deepEqual(vars.constructor, [{ id: "saved" }]);
+  assert.ok(!Object.hasOwn(vars, "missing") && !Object.hasOwn(vars, "otherMissing"));
 });

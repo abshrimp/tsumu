@@ -33,10 +33,17 @@ const object = (value: unknown): value is Record<string, unknown> =>
 function checkedJson(value: unknown): string {
   const text = JSON.stringify(value);
   if (typeof text !== "string") throw new Error("不正なリクエスト");
-  if (new TextEncoder().encode(text).length > MAX_ROW_BYTES) {
+  // UTF-16の1コード単位はUTF-8で最大3バイト。確実に収まる行はエンコードを省く。
+  if (text.length * 3 > MAX_ROW_BYTES &&
+      (text.length > MAX_ROW_BYTES || new TextEncoder().encode(text).length > MAX_ROW_BYTES)) {
     throw new Error("編集データの1項目が大きすぎます");
   }
   return text;
+}
+function parseProps(raw: unknown): Record<string, unknown> {
+  const props: unknown = JSON.parse(String(raw));
+  if (!object(props)) throw new Error("保存済み編集データが破損しています");
+  return props;
 }
 function parseDoc(raw: string): SiteDoc {
   let doc: unknown;
@@ -63,6 +70,11 @@ function items(doc: SiteDoc, bucket: Bucket): Record<string, unknown> {
   return bucket === "components"
     ? object(doc.components) ? doc.components : {}
     : doc[bucket] as Record<string, unknown>;
+}
+function serializedBucket(doc: SiteDoc, bucket: Bucket): Map<string, string> {
+  const rows = new Map<string, string>();
+  for (const [id, item] of Object.entries(items(doc, bucket))) rows.set(id, checkedJson(item));
+  return rows;
 }
 
 /**
@@ -122,8 +134,11 @@ export class StructuredDocumentStore {
     if (this.sealed()) return null;
     const row = this.query("SELECT rev,saved_at,props FROM document_meta WHERE id=1")[0];
     if (!row) return null;
-    const props: unknown = JSON.parse(String(row.props));
-    if (!object(props)) throw new Error("保存済み編集データが破損しています");
+    const doc = this.readDocument(parseProps(row.props));
+    return { body: JSON.stringify(doc), rev: String(row.rev), savedAt: Number(row.saved_at) };
+  }
+
+  private readDocument(props: Record<string, unknown>): SiteDoc {
     const doc: Record<string, unknown> = { ...props, pages: {}, nodes: {}, assets: {} };
     if (object(props.components)) doc.components = {};
     for (const entry of this.query("SELECT bucket,entry_id,body FROM document_entries")) {
@@ -137,7 +152,7 @@ export class StructuredDocumentStore {
       });
     }
     if (!validSiteDoc(doc)) throw new Error("保存済み編集データが破損しています");
-    return { body: JSON.stringify(doc), rev: String(row.rev), savedAt: Number(row.saved_at) };
+    return doc as unknown as SiteDoc;
   }
 
   /**
@@ -209,13 +224,20 @@ export class StructuredDocumentStore {
     }
   }
 
+  private advanceRevision(now: number, props?: Record<string, unknown>): void {
+    if (props) {
+      this.query("UPDATE document_meta SET rev=rev+1,saved_at=?,props=? WHERE id=1", now, checkedJson(props));
+    } else {
+      this.query("UPDATE document_meta SET rev=rev+1,saved_at=? WHERE id=1", now);
+    }
+  }
+
   /** Full initialization/import or a fallback snapshot save. */
   replace(raw: string, base: string | null): SiteSaveResult {
     const doc = parseDoc(raw);
     const expected = revision(base);
     const props = checkedJson(documentProps(doc));
-    const entries = buckets.flatMap(bucket => Object.entries(items(doc, bucket))
-      .map(([id, value]) => [bucket, id, checkedJson(value)] as const));
+    const entries = buckets.map(bucket => [bucket, serializedBucket(doc, bucket)] as const);
     const now = Date.now();
     const outcome = this.storage.transactionSync(() => {
       if (this.sealed()) return "missing" as const;
@@ -225,9 +247,7 @@ export class StructuredDocumentStore {
       }
       if (!current && expected !== null) return "missing" as const;
       if (current) this.preservePreviousDay(current.savedAt, now);
-      for (const bucket of buckets) {
-        this.syncBucket(bucket, new Map(entries.filter(entry => entry[0] === bucket).map(([, id, body]) => [id, body])));
-      }
+      for (const [bucket, rows] of entries) this.syncBucket(bucket, rows);
       const stale = this.query("SELECT DISTINCT bucket FROM document_entries").map(row => String(row.bucket));
       for (const bucket of stale) {
         if (!bucketsSet.has(bucket)) this.query("DELETE FROM document_entries WHERE bucket=?", bucket);
@@ -263,8 +283,7 @@ export class StructuredDocumentStore {
       if (!current) return "missing" as const;
       if (Number(current.rev) !== expected) return "conflict" as const;
       this.preservePreviousDay(Number(current.saved_at), now);
-      const props = JSON.parse(String(current.props)) as Record<string, unknown>;
-      if (!object(props)) throw new Error("保存済み編集データが破損しています");
+      const props = parseProps(current.props);
       const prepared: Array<{ id: string; body: string }> = [];
       let fast = patch.every(op =>
         op.path.length === 1 && op.path[0] === "siteName" &&
@@ -293,30 +312,27 @@ export class StructuredDocumentStore {
             }
           }
           if (!fast) break;
-          prepared.push({ id, body: checkedJson(next) });
+          const body = checkedJson(next);
+          if (body !== old.body) prepared.push({ id, body });
         }
       }
       if (fast) {
-        const updatedProps = { ...props };
-        for (const op of patch) if (op.path[0] === "siteName" && "value" in op) updatedProps.siteName = op.value;
         for (const row of prepared) {
           this.query("UPDATE document_entries SET body=? WHERE bucket='nodes' AND entry_id=?", row.body, row.id);
         }
-        this.query("UPDATE document_meta SET rev=rev+1,saved_at=?,props=? WHERE id=1",
-          now, checkedJson(updatedProps));
+        const rename = patch.find(op => op.path[0] === "siteName");
+        this.advanceRevision(now, rename && "value" in rename && rename.value !== props.siteName
+          ? { ...props, siteName: rename.value } : undefined);
         return "saved" as const;
       }
-      const oldSnapshot = this.snapshot();
-      if (!oldSnapshot) return "missing" as const;
-      const updated = applyDocPatch(JSON.parse(oldSnapshot.body) as SiteDoc, patch);
+      const updated = applyDocPatch(this.readDocument(props), patch);
       if (!validSiteDoc(updated)) throw new Error("不正なリクエスト");
       for (const op of patch) {
         const [name, id] = op.path;
         if (!bucketsSet.has(name)) continue;
         const bucket = name as Bucket;
         if (id === undefined) {
-          this.syncBucket(bucket, new Map(Object.entries(items(updated, bucket))
-            .map(([entryId, value]) => [entryId, checkedJson(value)])));
+          this.syncBucket(bucket, serializedBucket(updated, bucket));
         } else if ("remove" in op) {
           this.query("DELETE FROM document_entries WHERE bucket=? AND entry_id=?", bucket, id);
         } else {
@@ -324,8 +340,10 @@ export class StructuredDocumentStore {
             bucket, id, checkedJson(op.value));
         }
       }
-      this.query("UPDATE document_meta SET rev=rev+1,saved_at=?,props=? WHERE id=1",
-        now, checkedJson(documentProps(updated)));
+      // 要素・ページなどの行は別テーブルに保存する。文書設定とcomponentsの有無だけがメタデータに影響する。
+      const changesProps = patch.some(({ path }) => path.length === 1 &&
+        (!bucketsSet.has(path[0]) || path[0] === "components"));
+      this.advanceRevision(now, changesProps ? documentProps(updated) : undefined);
       return "saved" as const;
     });
     if (outcome === "conflict") {

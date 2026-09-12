@@ -4,7 +4,7 @@
  */
 import type { DocNode, Page, SiteDoc } from "../types";
 import type { GeneratedProject } from "../generator";
-import { obfuscateVarNames } from "../data";
+import { obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";
@@ -22,7 +22,7 @@ import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { EMPTY_GIF, pwaIconType } from "./templates";
 import { scriptsFile } from "../script-runtime";
-import { PAGE_DATA_RUNTIME, pageDataPlan, pageDataServerIds } from "./browser-data";
+import { PAGE_DATA_RUNTIME, serializePageDataPlan } from "./browser-data";
 import { QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
@@ -396,8 +396,9 @@ function render(ctx: Context, id: string, top: boolean): string {
  * React can mount it through a component, and static HTML can embed it directly.
  */
 function pageFragment(ctx: Context, page: Page): string {
-  const dataPlan = JSON.stringify(pageDataPlan(ctx.doc, page)).replace(/</g, "\\u003c");
-  const pageScripts = compiledAttr(ctx, { scripts: page.pageScripts }, pageDataServerIds(ctx.doc, page));
+  const plan = pagePlan(ctx.doc, page.id);
+  const dataPlan = JSON.stringify(serializePageDataPlan(plan)).replace(/</g, "\\u003c");
+  const pageScripts = compiledAttr(ctx, { scripts: page.pageScripts }, plan.serverIds);
   const body = page.children.map((id) => render(ctx, id, true)).join("\n");
   return [
     "<span hidden" + attr("data-page-body", page.id) + pageScripts + "></span>",
@@ -408,16 +409,13 @@ function pageFragment(ctx: Context, page: Page): string {
   ].filter(Boolean).join("\n");
 }
 
-export function reactClientPageFragment(doc: SiteDoc, page: Page): string {
+function prepareHtmlExport(doc: SiteDoc) {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);
   applyBreakpoints(normalized);
   raiseOverCrispSvg(normalized);
-  const ctx: Context = {
+  return {
     doc: normalized,
-    page: normalized.pages[page.id],
-    prefix: "/",
-    single: false,
     classes: buildClassNames(normalized),
     assets: buildAssetNames(normalized),
     scriptSources: importedScriptSources(normalized),
@@ -426,11 +424,17 @@ export function reactClientPageFragment(doc: SiteDoc, page: Page): string {
       ...Object.values(normalized.pages).flatMap((p) =>
         scriptTargetIds({ scripts: p.pageScripts }, ["show", "toggle"])),
     ]),
-    seen: new Set(),
-    form: false,
-    template: false,
   };
-  return pageFragment(ctx, ctx.page);
+}
+
+export function createReactPageRenderer(doc: SiteDoc) {
+  const shared = prepareHtmlExport(doc);
+  return (pageId: string) => {
+    const page = shared.doc.pages[pageId];
+    return pageFragment({
+      ...shared, page, prefix: "/", single: false, seen: new Set(), form: false, template: false,
+    }, page);
+  };
 }
 
 /** Quote a font name as a single CSS string token. */
@@ -453,13 +457,8 @@ function fontsCss(doc: SiteDoc): string {
 }
 
 export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): GeneratedProject {
-  const normalized = obfuscateVarNames(doc);
-  unnestLinks(normalized);
-  applyBreakpoints(normalized);
-  raiseOverCrispSvg(normalized);
-  const classes = buildClassNames(normalized);
-  const assets = buildAssetNames(normalized);
-  const scriptSources = importedScriptSources(normalized);
+  const shared = prepareHtmlExport(doc);
+  const { doc: normalized, assets, scriptSources } = shared;
   const files: Record<string, string> = {};
   const binaries: Record<string, string> = {};
   const remoteAssets: Record<string, string> = {};
@@ -526,11 +525,6 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     else groups.set(key, [page]);
   }
   const outputPaths = new Set<string>();
-  const toggles = new Set([
-    ...Object.values(normalized.nodes).flatMap((n) => scriptTargetIds(n, ["show", "toggle"])),
-    ...Object.values(normalized.pages).flatMap((p) =>
-      scriptTargetIds({ scripts: p.pageScripts }, ["show", "toggle"])),
-  ]);
   for (const group of groups.values()) {
     const page = group[0];
     const path = pageFilename(page, single);
@@ -559,7 +553,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       continue;
     }
     const ctx: Context = {
-      doc: normalized, page, prefix, single, staticRoutes: groups, classes, assets, scriptSources, toggles,
+      ...shared, page, prefix, single, staticRoutes: groups,
       seen: new Set(), form: false, template: false,
     };
     const body = group.length === 1

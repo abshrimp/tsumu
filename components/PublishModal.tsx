@@ -13,6 +13,7 @@ import {
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
+import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
 import { HelpLink } from "./HelpCenter";
@@ -40,18 +41,6 @@ import {
   conflictingCommitPaths,
   serializeGeneratedManifest,
 } from "../lib/publish-files";
-
-/** Esc でモーダルを閉じる（確認ダイアログを開いていれば、そちらが先に受け取って閉じる） */
-export function useEscapeToClose(onClose: () => void, enabled = true) {
-  useEffect(() => {
-    if (!enabled) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, enabled]);
-}
 
 /** 未判定のSVGアセットのシャドウ有無（と実寸が 0 なら viewBox の大きさ）を調べて記録し、書き出しに使う最新の編集データを返す */
 export async function docWithSvgFilters(): Promise<SiteDoc> {
