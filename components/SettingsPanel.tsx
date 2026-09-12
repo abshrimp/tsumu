@@ -83,7 +83,7 @@ const INPUT_TYPE_OPTIONS: { value: InputType; label: string }[] = [
 
 export default function SettingsPanel({ nodeId }: { nodeId: string }) {
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
-  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
+  const [codeEditorOpen, setCodeEditorOpen] = useState<string | null>(null);
   const scriptEditorOpen = useEditor((s) => !!s.scriptEditor);
   const openScriptEditor = useEditor((s) => s.openScriptEditor);
   const doc = useEditor((s) => s.doc);
@@ -794,11 +794,15 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           <div className="sec-head is-open">
             <span className="sec-title">{tr("Custom code (HTML)")}</span>
             <InfoTip text={tr("Embedded as HTML as is.")} />
-            <CodeEditorButton onClick={() => setCodeEditorOpen(true)} />
           </div>
           <div className="sec-body">
+            <div className="code-field-heading">
+              <label className="lbl lbl-info" htmlFor={`${nodeId}-html-code`}>{tr("HTML code")}</label>
+              <CodeEditorButton label={tr("HTML code")} onClick={() => setCodeEditorOpen(nodeId)} />
+            </div>
             <CommitTextarea
               key={`${nodeId}-code`}
+              id={`${nodeId}-html-code`}
               className="textarea mono"
               rows={10}
               value={node.code.html}
@@ -807,14 +811,13 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           </div>
         </div>
       )}
-      {codeEditorOpen && node.type === "code" && node.code && (
+      {codeEditorOpen === nodeId && node.type === "code" && node.code && (
         <CustomCodeEditorModal
-          title={tr("Custom code (HTML)")}
-          fields={[{ id: "html", label: tr("HTML code"), value: node.code.html }]}
-          onApply={(changes) => {
-            if (changes.html !== undefined) updateNode(nodeId, { code: { html: changes.html } });
-          }}
-          onClose={() => setCodeEditorOpen(false)}
+          key={nodeId}
+          title={tr("HTML code")}
+          value={node.code.html}
+          onApply={(value) => updateNode(nodeId, { code: { html: value } })}
+          onClose={() => setCodeEditorOpen(null)}
         />
       )}
     </div>

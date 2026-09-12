@@ -581,7 +581,7 @@ export default function SitePanel() {
   const restoreDoc = useEditor((s) => s.restoreDoc);
   const docFileRef = useRef<HTMLInputElement>(null);
   const pendingBackup = usePendingImport("site-backup");
-  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
+  const [codeEditorOpen, setCodeEditorOpen] = useState<"head" | "body" | null>(null);
 
   const exportDocJson = async () => {
     let serialized: string;
@@ -778,13 +778,15 @@ export default function SitePanel() {
         defaultOpen={false}
         tutorialTarget="site-code"
         help="page-code-snippet"
-        tools={<CodeEditorButton onClick={() => setCodeEditorOpen(true)} />}
       >
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info" htmlFor={`site-head-code`}>
-            {tr("Head code")}
-            <InfoTip text={tr("Inserted into <head> on every page.")} />
-          </label>
+          <div className="code-field-heading">
+            <label className="lbl lbl-info" htmlFor="site-head-code">
+              {tr("Head code")}
+              <InfoTip text={tr("Inserted into <head> on every page.")} />
+            </label>
+            <CodeEditorButton label={tr("Head code")} onClick={() => setCodeEditorOpen("head")} />
+          </div>
           <CommitTextarea
             id="site-head-code"
             className="textarea mono"
@@ -796,10 +798,13 @@ export default function SitePanel() {
           />
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info" htmlFor={`site-body-code`}>
-            {tr("End of body code")}
-            <InfoTip text={tr("Inserted just before </body> on every page.")} />
-          </label>
+          <div className="code-field-heading">
+            <label className="lbl lbl-info" htmlFor="site-body-code">
+              {tr("End of body code")}
+              <InfoTip text={tr("Inserted just before </body> on every page.")} />
+            </label>
+            <CodeEditorButton label={tr("End of body code")} onClick={() => setCodeEditorOpen("body")} />
+          </div>
           <CommitTextarea
             id="site-body-code"
             className="textarea mono"
@@ -858,18 +863,15 @@ export default function SitePanel() {
       </Sec>
       {codeEditorOpen && (
         <CustomCodeEditorModal
-          title={tr("Custom code (all pages)")}
-          fields={[
-            { id: "head", label: tr("Head code"), value: doc.customHeadHtml ?? "",
-              placeholder: '<meta name="description" content="...">' },
-            { id: "body", label: tr("End of body code"), value: doc.customBodyEndHtml ?? "",
-              placeholder: "<script>...</script>" },
-          ]}
-          onApply={(changes) => updateDoc((d) => {
-            if (changes.head !== undefined) d.customHeadHtml = changes.head.trim() || undefined;
-            if (changes.body !== undefined) d.customBodyEndHtml = changes.body.trim() || undefined;
+          key={codeEditorOpen}
+          title={codeEditorOpen === "head" ? tr("Head code") : tr("End of body code")}
+          value={codeEditorOpen === "head" ? doc.customHeadHtml ?? "" : doc.customBodyEndHtml ?? ""}
+          placeholder={codeEditorOpen === "head" ? '<meta name="description" content="...">' : "<script>...</script>"}
+          onApply={(value) => updateDoc((d) => {
+            if (codeEditorOpen === "head") d.customHeadHtml = value.trim() || undefined;
+            else d.customBodyEndHtml = value.trim() || undefined;
           })}
-          onClose={() => setCodeEditorOpen(false)}
+          onClose={() => setCodeEditorOpen(null)}
         />
       )}
     </div>
