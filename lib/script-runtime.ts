@@ -45,25 +45,42 @@ export const SCRIPT_RUNTIME = `function (env) {
     if (env.touch) env.touch(el);
   }
   /*/env*/
+  // Live previews and collaboration can replace data-scripts repeatedly.
+  // Bound parsed scripts by count and total raw-text size; retain recently used
+  // entries instead of leaking every historical version for the page's lifetime.
   var cache = new Map();
+  var cacheChars = 0;
+  var cacheMaxChars = 8 * 1024 * 1024;
+  var cacheMaxEntries = 256;
   function parse(el) {
     var raw = el.getAttribute("data-scripts") || "[]";
     if (raw.length > 5 * 1024 * 1024) return [];
     var v = cache.get(raw);
-    if (!v) {
-      try {
-        v = JSON.parse(raw);
-      } catch (e) {
-        v = [];
-      }
-      // Imported or manually edited documents must not crash all event
-      // listeners when data-scripts contains a non-array or invalid entries.
-      if (!Array.isArray(v)) v = [];
-      else v = v.filter(function (entry) {
-        return entry && typeof entry === "object" &&
-          typeof entry.trigger === "string" && Array.isArray(entry.steps);
-      });
+    if (v) {
+      cache.delete(raw);
       cache.set(raw, v);
+      return v;
+    }
+    try {
+      v = JSON.parse(raw);
+    } catch (e) {
+      v = [];
+    }
+    // Imported or manually edited documents must not crash all event
+    // listeners when data-scripts contains a non-array or invalid entries.
+    if (!Array.isArray(v)) v = [];
+    else v = v.filter(function (entry) {
+      return entry && typeof entry === "object" &&
+        typeof entry.trigger === "string" && Array.isArray(entry.steps);
+    });
+    if (raw.length <= cacheMaxChars) {
+      while (cache.size && (cache.size >= cacheMaxEntries || cacheChars + raw.length > cacheMaxChars)) {
+        var oldest = cache.keys().next().value;
+        cacheChars -= oldest.length;
+        cache.delete(oldest);
+      }
+      cache.set(raw, v);
+      cacheChars += raw.length;
     }
     return v;
   }

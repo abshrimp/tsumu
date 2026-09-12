@@ -50,11 +50,15 @@ export function useScriptDrag({
     if (!dragRef.current && !marqueeRef.current) return false;
     dragRef.current = null;
     marqueeRef.current = null;
+    // A cancelled drag must also remove the palette's trash-hover state.
+    // Normal pointerup handles this already, but Escape, blur and document
+    // changes all bypass the drop path.
+    paletteRef.current?.classList?.remove("is-trash");
     setDrag(null);
     setMarquee(null);
     setActiveSlot(null);
     return true;
-  }, [dragRef, marqueeRef, setDrag, setMarquee, setActiveSlot]);
+  }, [dragRef, marqueeRef, paletteRef, setDrag, setMarquee, setActiveSlot]);
 
   // ドラッグ（パレット → ワークスペース / ワークスペース内の移動）と範囲選択
   useEffect(() => {
