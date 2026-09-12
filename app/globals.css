@@ -12664,3 +12664,30 @@ select.se-in.se-fixed-select,
 @media (max-width: 540px) {
   .se-transform-settings { margin-left: 0; }
 }
+
+
+/* サイト・ページ・HTML要素共通の拡大コード編集画面 */
+.code-editor-button { opacity: 0.85; flex: none; }
+.code-editor-button:hover, .code-editor-button:focus-visible { opacity: 1; }
+.custom-code-modal {
+  width: min(960px, calc(100vw - 32px));
+  max-width: none;
+  height: min(82dvh, 820px);
+  max-height: calc(100dvh - 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+.custom-code-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.custom-code-header h2 { margin: 0; }
+.custom-code-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.custom-code-tabs button { padding: 8px 12px; border-bottom: 2px solid transparent; color: var(--text-2); }
+.custom-code-tabs button.is-active { color: var(--text); border-bottom-color: var(--accent); }
+.custom-code-input {
+  flex: 1; min-height: 0; resize: none; overflow: auto;
+  font-size: 13px !important; line-height: 1.65 !important;
+  tab-size: 2; white-space: pre;
+}
+.custom-code-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.custom-code-footer .hint { margin: 0; }

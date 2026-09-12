@@ -38,6 +38,7 @@ import type { FieldContent, InputType, LinkSetting, Semantic } from "../lib/type
 import { fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../lib/fields";
 import { Icon } from "./icons";
 import { CommitInput, CommitTextarea, Dropdown, InfoTip, Seg, VarInput } from "./controls";
+import { CodeEditorButton, CustomCodeEditorModal } from "./CustomCodeEditor";
 import { ScriptSummary } from "./ScriptEditor";
 import { AssetGrid } from "./ImagePicker";
 import { scriptsOf } from "../lib/script";
@@ -82,6 +83,7 @@ const INPUT_TYPE_OPTIONS: { value: InputType; label: string }[] = [
 
 export default function SettingsPanel({ nodeId }: { nodeId: string }) {
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const scriptEditorOpen = useEditor((s) => !!s.scriptEditor);
   const openScriptEditor = useEditor((s) => s.openScriptEditor);
   const doc = useEditor((s) => s.doc);
@@ -792,6 +794,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
           <div className="sec-head is-open">
             <span className="sec-title">{tr("Custom code (HTML)")}</span>
             <InfoTip text={tr("Embedded as HTML as is.")} />
+            <CodeEditorButton onClick={() => setCodeEditorOpen(true)} />
           </div>
           <div className="sec-body">
             <CommitTextarea
@@ -803,6 +806,16 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             />
           </div>
         </div>
+      )}
+      {codeEditorOpen && node.type === "code" && node.code && (
+        <CustomCodeEditorModal
+          title={tr("Custom code (HTML)")}
+          fields={[{ id: "html", label: tr("HTML code"), value: node.code.html }]}
+          onApply={(changes) => {
+            if (changes.html !== undefined) updateNode(nodeId, { code: { html: changes.html } });
+          }}
+          onClose={() => setCodeEditorOpen(false)}
+        />
       )}
     </div>
   );

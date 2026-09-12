@@ -1,7 +1,7 @@
 "use client";
 
 import { isEnterKey } from "../lib/keys";
-import { useId, useRef } from "react";
+import { useId, useRef, useState } from "react";
 import {
   AppWindow,
   FileDown,
@@ -29,6 +29,7 @@ import {
   type PwaSetting,
 } from "../lib/types";
 import ImagePicker from "./ImagePicker";
+import { CodeEditorButton, CustomCodeEditorModal } from "./CustomCodeEditor";
 import SiteLanguageSelect from "./SiteLanguageSelect";
 import { BpIcon, CommitTextarea, FillControl, InfoTip, NumField, Section, Seg } from "./controls";
 import {
@@ -580,6 +581,7 @@ export default function SitePanel() {
   const restoreDoc = useEditor((s) => s.restoreDoc);
   const docFileRef = useRef<HTMLInputElement>(null);
   const pendingBackup = usePendingImport("site-backup");
+  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
 
   const exportDocJson = async () => {
     let serialized: string;
@@ -776,6 +778,7 @@ export default function SitePanel() {
         defaultOpen={false}
         tutorialTarget="site-code"
         help="page-code-snippet"
+        tools={<CodeEditorButton onClick={() => setCodeEditorOpen(true)} />}
       >
         <div className="stack" style={{ gap: 4 }}>
           <label className="lbl lbl-info" htmlFor={`site-head-code`}>
@@ -853,6 +856,22 @@ export default function SitePanel() {
           />
         </div>
       </Sec>
+      {codeEditorOpen && (
+        <CustomCodeEditorModal
+          title={tr("Custom code (all pages)")}
+          fields={[
+            { id: "head", label: tr("Head code"), value: doc.customHeadHtml ?? "",
+              placeholder: '<meta name="description" content="...">' },
+            { id: "body", label: tr("End of body code"), value: doc.customBodyEndHtml ?? "",
+              placeholder: "<script>...</script>" },
+          ]}
+          onApply={(changes) => updateDoc((d) => {
+            if (changes.head !== undefined) d.customHeadHtml = changes.head.trim() || undefined;
+            if (changes.body !== undefined) d.customBodyEndHtml = changes.body.trim() || undefined;
+          })}
+          onClose={() => setCodeEditorOpen(false)}
+        />
+      )}
     </div>
   );
 }
