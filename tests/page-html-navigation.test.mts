@@ -5,6 +5,7 @@ import { transformSync } from "esbuild";
 import * as React from "react";
 import { generateProject } from "../lib/generator";
 import { PAGE_HTML_COMPONENT } from "../lib/generator/templates";
+import { deferRunnableScripts } from "../lib/generator/defer-scripts";
 import type { SiteDoc } from "../lib/types";
 
 const require = createRequire(import.meta.url);
@@ -88,10 +89,15 @@ function mount(fromServer: boolean) {
   function render(html: string, replay = false) {
     cursor = 0;
     effect = undefined;
-    const element = Component({ html });
+    const element = Component({ html, staticHtml: deferRunnableScripts(html) });
     element.props.ref.current = {
       querySelectorAll: () => scriptFixtures(html).map((part) => ({
-        attributes: part.src ? [{ name: "src", value: part.src }] : [],
+        attributes: [
+          { name: "type", value: "application/x-tsumu-deferred" },
+          { name: "data-tsumu-deferred", value: "" },
+          ...(part.src ? [{ name: "src", value: part.src }] : []),
+        ],
+        getAttribute: () => null,
         text: part.text,
         replaceWith(script: any) {
           if (script.src) pending.push(script);
@@ -137,20 +143,20 @@ test("query variants reuse the generated PageHtml component position", async () 
   assert.equal(first.key, second.key);
   const mounted = mount(true);
   mounted.render(first.props.html, true);
-  assert.deepEqual(mounted.executed, []); // サーバーの HTML のスクリプトはブラウザが実行済み。
+  assert.deepEqual(mounted.executed, ["a"]); // 最初のスクリプトも hydration 後に初めて実行する。
   mounted.render(second.props.html);
-  assert.deepEqual(mounted.executed, ["b"]);
+  assert.deepEqual(mounted.executed, ["a", "b"]);
 });
 
-test("hydration and effect replay skip server scripts, but later changes including the initial HTML run", () => {
+test("hydration runs initial scripts once, even with effect replay; later changes rerun", () => {
   const mounted = mount(true);
   mounted.render(inline("a"), true);
-  mounted.render(inline("a")); // useSyncExternalStore がブラウザ側の値に切り替わる。
-  assert.deepEqual(mounted.executed, []);
+  mounted.render(inline("a")); // 同じHTMLを再描画しても再実行しない。
+  assert.deepEqual(mounted.executed, ["a"]);
   for (const name of ["b", "a", "c"]) mounted.render(inline(name));
-  assert.deepEqual(mounted.executed, ["b", "a", "c"]);
+  assert.deepEqual(mounted.executed, ["a", "b", "a", "c"]);
   mounted.render(inline("c"));
-  assert.deepEqual(mounted.executed, ["b", "a", "c"]);
+  assert.deepEqual(mounted.executed, ["a", "b", "a", "c"]);
 });
 
 test("client-only mounts still execute scripts on mount and prop changes", () => {
@@ -168,13 +174,13 @@ test("navigation cancels the old external-script sequence and preserves new scri
   assert.equal(mounted.pending.length, 2);
   mounted.pending[0].onload!();
   await Promise.resolve();
-  assert.deepEqual(mounted.executed, []);
+  assert.deepEqual(mounted.executed, ["server"]);
   mounted.pending[1].onload!();
   await Promise.resolve();
-  assert.deepEqual(mounted.executed, ["new tail"]);
+  assert.deepEqual(mounted.executed, ["server", "new tail"]);
   mounted.render('<script src="/last.js"></script>' + inline("unmounted tail"));
   mounted.unmount();
   mounted.pending[2].onload!();
   await Promise.resolve();
-  assert.deepEqual(mounted.executed, ["new tail"]);
+  assert.deepEqual(mounted.executed, ["server", "new tail"]);
 });
