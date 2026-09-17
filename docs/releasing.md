@@ -33,7 +33,7 @@ npm audit --audit-level=high
 
 Then check by hand:
 
-- Follow the setup instructions in the [English](../README.md) and [Japanese](../README.ja.md) READMEs.
+- Follow the setup instructions in the [English](user-guide.md) and [Japanese](user-guide.ja.md) guides.
 - Without any credentials, create a new site, edit it and reopen it.
 - Export it as a zip in a format other than Next.js, then import that zip on the home screen and confirm the site comes back intact.
 - Confirm that a production instance refuses access until either sign-in or anonymous access has been explicitly configured.
