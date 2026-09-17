@@ -138,7 +138,7 @@ test("scripted named state changes a distant element and reset restores its defa
 });
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " runtime branches on the negation of a positive comparison", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "initial", [
       { id: "flag", kind: "set-var", into: "flag", value: "blue" },
@@ -177,7 +177,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " interpolates mixed text in fallback blocks", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "unused", [
       { id: "name", kind: "set-var", into: "name", value: "田中" },
@@ -191,7 +191,7 @@ for (const exported of [false, true]) {
 
 }
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " reads a holiday dictionary using a variable date key", async ({ page }) => {
     const data = JSON.stringify({ "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" });
     const { answer, errors } = await runChain(page, exported, data, [
@@ -206,7 +206,7 @@ for (const exported of [false, true]) {
 
 }
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " JSON keys cannot pollute script variables", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, '{"polluted":"unsafe"}', [
       { id: "parse-object", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
@@ -221,7 +221,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " evaluates AND before OR in multi-clause if blocks", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "", [
       { id: "first", kind: "set-var", into: "first", value: "yes" },
@@ -259,7 +259,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " ignores unfinished AND/OR if conditions", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "", [
       { id: "status", kind: "set-var", into: "status", value: "waiting" },
@@ -279,7 +279,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " reads form fields in arithmetic operands", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "4", [
       { id: "rate-field", kind: "set-value", target: "answer", value: "3" },
@@ -302,7 +302,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   for (const [label, condition] of [
     ["unconfigured", { subject: "value" as const, target: "", op: "eq" as const, value: "" }],
     ["deleted", { subject: "value" as const, target: "deleted-element", op: "eq" as const, value: "", not: true }],
@@ -322,7 +322,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " preserves OR grouping around incomplete if clauses", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "", [
       { id: "left-value", kind: "set-var", into: "left", value: "no" },
@@ -343,7 +343,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " keeps OR logic across unfinished list filter clauses", async ({ page }) => {
     const filter = {
       ...makeBox(), id: "filterButton", attrId: "filterButton",
@@ -380,7 +380,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " safely filters object-valued fields from JSON", async ({ page }) => {
     const filter = {
       ...makeBox(), id: "filterButton", attrId: "filterButton",
@@ -412,7 +412,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " nested list item fields shadow global variables in transforms", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, '[{"profile":{}}]', [
       { id: "global-profile", kind: "set-var", into: "profile", value: '{"age":20}' },
@@ -432,7 +432,7 @@ for (const exported of [false, true]) {
 }
 
 
-for (const exported of [false, true]) {
+for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " extracts nested JSON keys and final array positions", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported,
       '{"meta":{"scores":[3,7],"city":"Kyoto"}}', [

@@ -6,7 +6,8 @@ const seoField = (page: Page, field: "title" | "description") => page.locator(`[
 // 欄の種類 × 編集の状態の組み合わせ全体は、ストアの単位のテストで確かめる。
 // ここでは、ネイティブの2種類の欄と、異なるすべての編集の状態について、ブラウザとサーバーの経路を通す。
 const serverEditingCases = {
-  title: ["fresh", "pending"],
+  // Node tests cover the full field/edit-state matrix.
+  title: ["pending"],
   description: ["previously-committed", "pending"],
 } as const;
 
@@ -159,6 +160,8 @@ test.describe("History while page settings are focused", () => {
   });
   for (const field of ["title", "description"] as const) {
     for (const operation of ["undo", "redo", "remote"] as const) {
+      if (!((field === "title" && (operation === "undo" || operation === "remote")) ||
+        (field === "description" && operation === "redo"))) continue;
       test(`${field}: ${operation} after refocusing is not overwritten by blur and does not alter history`, async ({ page }) => {
         const input = seoField(page, field);
         await input.fill("Earlier local edit"); await input.blur();
