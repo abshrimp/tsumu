@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { middlewareAuth, authConfigured } from "./auth";
+import { proxyAuth, authConfigured } from "./auth";
 import { langOfRequest } from "./lib/lang";
 import { isCrossSiteWrite } from "./lib/csrf";
 import { anonymousAllowed } from "./lib/anonymous";
 
-export default async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   // 辞書を読み込むと大きくなるため、ここで表示する文だけを持つ（日本語以外は英語）
   const en = langOfRequest(req) !== "ja";
   const { pathname } = req.nextUrl;
@@ -28,7 +28,7 @@ export default async function middleware(req: NextRequest) {
   // ログイン画面のサーバー処理で現在の権限を確かめてからリダイレクトする。
   if (pathname === "/login") return NextResponse.next();
 
-  const session = await middlewareAuth();
+  const session = await proxyAuth();
 
   if (!session) {
     // API には、リダイレクトではなく、JSON で 401 を返す

@@ -16,7 +16,7 @@ function check(source: string, dict: Record<string, string> = {}, args = ["--str
     writeFileSync(join(root, "package.json"), '{"type":"module"}');
     writeFileSync(join(root, "app/page.tsx"), source);
     writeFileSync(join(root, "auth.ts"), "");
-    writeFileSync(join(root, "middleware.ts"), "");
+    writeFileSync(join(root, "proxy.ts"), "");
     writeFileSync(join(root, "lib/locales/ja.ts"), `export default ${JSON.stringify(dict)};`);
     for (const [lang, translations] of Object.entries(extra)) {
       writeFileSync(join(root, `lib/locales/${lang}.ts`), `export default ${JSON.stringify(translations)};`);

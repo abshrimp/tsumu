@@ -37,8 +37,8 @@ test("every API route has a declared authorization boundary", () => {
 });
 
 test("HTTP and WebSocket public entrypoints keep separate CSRF/origin checks", () => {
-  const middleware = readFileSync(join(root, "middleware.ts"), "utf8");
+  const proxy = readFileSync(join(root, "proxy.ts"), "utf8");
   const worker = readFileSync(join(root, "custom-worker.ts"), "utf8");
-  assert.match(middleware, /pathname\.startsWith\("\/api\/"\)\s*&&\s*isCrossSiteWrite\s*\(/);
+  assert.match(proxy, /pathname\.startsWith\("\/api\/"\)\s*&&\s*isCrossSiteWrite\s*\(/);
   assert.match(worker, /request\.headers\.get\("Origin"\)\s*!==\s*url\.origin/);
 });

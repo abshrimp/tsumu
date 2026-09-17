@@ -194,7 +194,7 @@ test("standalone HTML uses form and query operands and clears missing transform 
           { id: "missing", kind: "transform", source: "records.0", into: "chosen",
             transform: { kind: "field", key: "absent" } },
           { id: "fallback", kind: "transform", source: "chosen", into: "chosen",
-            transform: { kind: "fallback", text: "not found" } },
+            transform: { kind: "fallback", when: "missing", text: "not found" } },
           { id: "conditional", kind: "if",
             cond: { subject: "var", left: "{total}", op: "gte", value: "31" },
             conditions: [{ subject: "var", left: "", op: "eq", value: "", not: true, and: true }],

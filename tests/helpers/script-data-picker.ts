@@ -16,7 +16,7 @@ export function scriptDataPickerDoc(): SiteDoc {
         } } },
         { id: "value", kind: "set-var", value: "Value {data.name}", into: "chosen" },
         { id: "copy", kind: "copy", value: "" },
-        { id: "numeric", kind: "transform", source: "data.price", into: "total", transform: { kind: "math", operation: "add", operand: 0 } },
+        { id: "numeric", kind: "transform", source: "data.price", into: "total", transform: { kind: "math", operation: "add", operandType: "number", operand: 0 } },
         { id: "dynamic", kind: "store-load", key: "dynamic", into: "later" },
         { id: "category-filter", kind: "list-display", mode: "filter",
           array: "data.rows", field: "", op: "eq", value: "物販", dir: "asc" },

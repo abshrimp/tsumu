@@ -62,7 +62,7 @@
 | 同時編集 | `custom-worker.ts`：サイトの作成世代ごとに独立した、WebSocket 用の Durable Object<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker における Server-Sent Events<br>`lib/collab.ts`：送受信するメッセージ<br>`lib/merge.ts`：3方向マージ。ノードの ID で照合し、次に項目の単位で照合します。配列は全体を1つの値として扱います。 |
 | AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数） |
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |
-| 認証 | `auth.ts`、`middleware.ts`、`lib/allowlist.ts`。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` の実行時か `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
+| 認証 | `auth.ts`、`proxy.ts`、`lib/allowlist.ts`。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` の実行時か `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
 | 多言語対応 | `lib/i18n.ts`。原文は英語で記述し、`tr("…")` で囲みます。日本語訳は `lib/locales/ja.ts` に配置します。 |
 | ヘルプとチュートリアル | `lib/manualTopics.ts`、`components/HelpCenter.tsx`、`HelpFigures.tsx`、`Tutorial.tsx` |
 
@@ -160,7 +160,7 @@
 
 ### HTML ZIP の読み込み
 
-`lib/html-zip.ts` は、ZIP にまとめたサイト（200ファイルまで）を読み込みます。元のファイルはそのまま保存し、それとは別に、`lib/zip-css.ts` が CSS ファイルごとに、依存するファイルのアーカイブ内のパスを記録します。記録の対象は相対パスの `url()`、`image-set()` の画像、`@import` で、いずれもスタイルシートのあるディレクトリを基準に解決します（`lib/zip-references.ts`）。この記録は、この仕組みを導入した後に読み込んだ ZIP にしかありません。以前に読み込んだ ZIP は移行していないため、必要に応じて読み込み直してください。
+`lib/html-zip.ts` は、ZIP にまとめたサイト（200ファイルまで）を読み込みます。元のファイルはそのまま保存し、それとは別に、`lib/zip-css.ts` が CSS ファイルごとに、依存するファイルのアーカイブ内のパスを記録します。記録の対象は相対パスの `url()`、`image-set()` の画像、`@import` で、いずれもスタイルシートのあるディレクトリを基準に解決します（`lib/zip-references.ts`）。
 
 - **プレビュー**：スタイルシートを個別に扱うため、読み込みの順序・条件・レイヤーが保たれます。依存ファイルは、サーバーの保存先にある場合は署名付き URL で、ブラウザ内の保存先にある場合は data URL で渡します。空のシートに置き換えるのは、自身の祖先を参照する `@import` だけです。署名付き URL の期限が近づくと、自動では再読み込みせず、更新を促す表示を出します。再読み込みすると、フォームやスクリプトの状態が失われるためです。
 - **書き出し**：CSS ファイルはそれぞれ UTF-8 の個別ファイルとして出力し、参照先を生成したアセットのファイル名に書き換えます。integrity のハッシュを削除するのは、読み込んだローカルの CSS のうち、書き換えで内容が変わるものへのリンクだけです。

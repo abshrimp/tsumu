@@ -18,7 +18,7 @@ export function scriptSelectValueDoc(options = ["A", "B"]): SiteDoc {
     }] };
   }
   doc.nodes.choice.scripts = [{ id: "changed", trigger: "change", pos: { x: 32, y: 220 }, steps: [
-    { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "count", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operand: 1 } },
+    { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "count", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
   ] }];
   doc.nodes.result.text!.content = "value={choice}; index={choice.index}; changes={changes}";
   doc.pages.home.children = ["choice", ...actions.map(([id]) => id), "result"];

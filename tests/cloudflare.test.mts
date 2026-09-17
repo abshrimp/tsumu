@@ -158,7 +158,7 @@ test("deployment rejects loss of any existing server storage bindings", () => {
 });
 
 
-test("repository Worker config declares both live SQLite classes without legacy migrations", () => {
+test("repository Worker config declares both SQLite Durable Object classes without unnecessary migrations", () => {
   const config = parseJsonc(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
   assert.equal(config.main, "custom-worker.ts");
   assert.equal(config.migrations, undefined);
