@@ -47,3 +47,46 @@ test("server conflict rechecks screen widths before attempting another write", a
   } finally { globalThis.fetch = oldFetch; }
 });
 
+
+test("a lost server copy reply is confirmed from the new page IDs without repeating the write", async t => {
+  for (const reply of ["network", "server", "truncated", "not-saved"] as const) {
+    await t.test(reply, async t => {
+      let destination = createInitialDoc(), reads = 0, writes = 0;
+      const initialCount = destination.pageOrder.length;
+      t.mock.method(globalThis, "fetch", async (_input: unknown, init?: RequestInit) => {
+        if (!init) {
+          reads++;
+          return Response.json({ exists: true, rev: String(reads), doc: destination });
+        }
+        writes++;
+        if (reply !== "not-saved") {
+          destination = JSON.parse(String(init.body));
+          destination.siteName = "Concurrent rename after the copy";
+        }
+        if (reply === "network") throw new TypeError("Connection reset after sending");
+        if (reply === "server") return Response.json({ error: "Error after write" }, { status: 502 });
+        return new Response('{"ok":');
+      });
+      if (reply === "not-saved") await assert.rejects(copyPagesToSite(target, payload, "server"));
+      else await copyPagesToSite(target, payload, "server");
+      assert.equal(reads, 2);
+      assert.equal(writes, 1);
+      assert.equal(destination.pageOrder.length, initialCount + (reply === "not-saved" ? 0 : payload.pages.length));
+    });
+  }
+});
+
+test("an unreadable destination or conflict cannot initiate a copy into a blank site", async t => {
+  for (const conflict of [false, true]) {
+    await t.test(conflict ? "invalid conflict" : "invalid read", async t => {
+      let writes = 0;
+      t.mock.method(globalThis, "fetch", async (_input: unknown, init?: RequestInit) => {
+        if (!init) return conflict ? Response.json({ exists: true, rev: "1", doc: createInitialDoc() }) : new Response("");
+        writes++;
+        return Response.json({}, { status: 409 });
+      });
+      await assert.rejects(copyPagesToSite(target, payload, "server"));
+      assert.equal(writes, conflict ? 1 : 0);
+    });
+  }
+});

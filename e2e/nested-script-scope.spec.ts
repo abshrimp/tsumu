@@ -19,6 +19,7 @@ for (const preview of [true, false]) test(`${preview ? "preview" : "exported"}: 
   }
   const before = await snapshot(page);
   const detail = (label: string) => page.locator('[id="detail"]').filter({ hasText: new RegExp(`:${label}$`) });
+  const product = (label: string) => page.locator('[id="product-name"]').filter({ hasText: label });
   const visible = async (hidden: string[]) => {
     for (const label of ["red", "blue", "green", "yellow"]) {
       if (hidden.includes(label)) await expect(detail(label)).toBeHidden();
@@ -28,10 +29,14 @@ for (const preview of [true, false]) test(`${preview ? "preview" : "exported"}: 
   await visible([]);
   await page.getByRole("button", { name: "hide red", exact: true }).click();
   await visible(["red"]);
+  await expect(product("First")).toBeHidden();
+  await expect(product("Second")).toBeVisible();
   await page.getByRole("button", { name: "hide green", exact: true }).click();
   await visible(["red", "green"]);
   await page.getByRole("button", { name: "show green", exact: true }).click();
   await visible(["red"]);
+  await expect(product("First")).toBeHidden();
+  await expect(product("Second")).toBeVisible();
   await page.getByRole("button", { name: "hide yellow", exact: true }).click();
   await visible(["red", "yellow"]);
   await page.getByRole("button", { name: "show red", exact: true }).click();

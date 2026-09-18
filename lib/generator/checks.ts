@@ -5,13 +5,12 @@
 import type { DocNode, Page, SiteDoc } from "../types";
 import { BP_ORDER, isHiddenAt, resolveStyles } from "../style";
 import { tr } from "../i18n";
-import { validateSlugUsage } from "../vars";
+import { normalizeQuery, validateSlugUsage } from "../vars";
 import { isDataStep, listFromOf, pageDataSteps } from "../data";
 import { isAutomaticPageTitle } from "../pageTitle";
 import { walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
-import { normalizeQuery, routeDir } from "./page";
-import { pageQueryConditions } from "../page-query";
+import { pageQueryKey, routeDir } from "../page-query";
 import { missingHtmlZipScriptAssets } from "../html-zip-script-assets";
 
 /* ---------- 公開前チェック ---------- */
@@ -87,7 +86,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
     // [slug] を含む URL は固有のルートとして扱う（/events と /events/[slug] は共存できる）
     const route = page.slug.replace(/^\/+|\/+$/g, "");
     const query = normalizeQuery(page.query);
-    const conditions = normalizeQuery(new URLSearchParams(pageQueryConditions(page.query)).toString());
+    const conditions = pageQueryKey(page.query);
     // 生成処理は空の区切りをまとめ、ファイルシステムで特別な意味を持つ名前をエスケープする。
     // 2つのエディタの URL が同じファイルを上書きしないよう、実際に出力するルートで比べる。
     // 通常の特別な 404 のページは /404 のルートではなく、not-found.tsx に書き出す。

@@ -510,14 +510,15 @@ export const SCRIPT_RUNTIME = `function (env) {
         } catch (e) {
           return [];
         }
-        // リストの項目の中から動かしたときは、同じ項目の中の要素を先に使う
-        //（リストでは同じIDが項目の数だけ並ぶため）
-        var row = self && self.closest && self.closest("[data-row],[data-item]");
-        if (row) {
-          var mine = els.filter(function (el) {
-            return row.contains(el);
-          });
-          if (mine.length) return mine;
+        // 同じ ID が繰り返されるときは、内側の項目から外側の項目の順に対象を探す。
+        if (els.length > 1) {
+          var rowSelector = "[data-row],[data-item]";
+          var row = self && self.closest && self.closest(rowSelector);
+          while (row) {
+            var mine = els.filter(function (el) { return row.contains(el); });
+            if (mine.length) return mine;
+            row = row.parentElement && row.parentElement.closest(rowSelector);
+          }
         }
         return els;
       }
@@ -1369,20 +1370,25 @@ export const SCRIPT_RUNTIME = `function (env) {
           case "set-value":
             setValue(self, st.target, resolve(st.value, self, sc));
             break;
-          case "set-enabled":
-            // 入力欄（ラジオはグループごと）・ボタンを操作できる / できない状態にする
-            (find(self, st.target).length ? find(self, st.target) : groupOf(st.target)).forEach(function (el) {
+          case "set-enabled": {
+            // グループ名で取得したラジオはすでに全件そろっている。各入力を1回だけ切り替える。
+            var targets = find(self, st.target);
+            var controls = new Set(targets.length ? [] : groupOf(st.target));
+            targets.forEach(function (el) {
               var ctl = el.matches("button") ? el : inputOf(el);
               if (!ctl) return;
-              var list = ctl.type === "radio" && !isRadioItem(el, ctl) ? radiosOf(ctl) : [ctl];
-              list.forEach(function (c) {
-                c.disabled = st.op === "toggle" ? !c.disabled : st.op === "disable";
-              });
+              if (ctl.type === "radio" && !isRadioItem(el, ctl)) {
+                radiosOf(ctl).forEach(function (c) { controls.add(c); });
+              } else controls.add(ctl);
+            });
+            controls.forEach(function (c) {
+              c.disabled = st.op === "toggle" ? !c.disabled : st.op === "disable";
             });
             /*#live|clist*/
             refreshLive();
             /*/live|clist*/
             break;
+          }
           /*/set*/
           /*#filter*/
           case "list-display": {

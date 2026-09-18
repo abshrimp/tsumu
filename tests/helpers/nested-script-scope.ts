@@ -10,13 +10,17 @@ export const nestedScopeItems = [
 export function nestedScopeDoc(): SiteDoc {
   const doc = emptyListDoc(nestedScopeItems);
   doc.nodes.card.children = ["name", "tags"];
+  doc.nodes.name.attrId = "product-name";
   delete doc.nodes.tag;
   doc.nodes.tags = { ...makeBox(), id: "tags", type: "list", list: { from: "tags" }, children: ["row"] };
   doc.nodes.row = { ...makeBox(), id: "row", children: ["hide", "show", "detail"] };
   doc.nodes.detail = { ...makeText("Detail {name}:{label}"), id: "detail", attrId: "detail" };
   for (const kind of ["hide", "show"] as const) doc.nodes[kind] = {
     ...makeText(`${kind} {label}`), id: kind, attrId: kind, semantic: "button", scripts: [{
-      id: `${kind}-script`, trigger: "click", pos: { x: 20, y: 20 }, steps: [{ id: `${kind}-detail`, kind, target: "detail" }],
+      id: `${kind}-script`, trigger: "click", pos: { x: 20, y: 20 }, steps: [
+        { id: `${kind}-detail`, kind, target: "detail" },
+        { id: `${kind}-product`, kind, target: "product-name" },
+      ],
     }],
   };
   return doc;

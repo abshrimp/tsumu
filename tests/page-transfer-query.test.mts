@@ -97,3 +97,31 @@ test("query-aware relinking covers page scripts and new masters without changing
   assert.deepEqual(target.nodes.master, existing);
   assert.deepEqual(payload, original);
 });
+
+test("copied pages keep compatible query routes and reserve exclusive or equivalent routes", () => {
+  const { source, target } = queryCopyFixture();
+  // A matching display name alone must not change the public URL.
+  target.pages.news.name = source.pages["source-news"].name;
+  target.pages.news.query = "view=other";
+  source.pages.archive = { ...source.pages["source-news"], id: "archive", name: "Another archive", query: "view=new" };
+  source.pageOrder.push("archive");
+  applyPagePayload(target, buildPagePayload(source, ["source-news", "archive"]));
+  const added = target.pageOrder.slice(-2).map(id => target.pages[id]);
+  assert.deepEqual(added.map(p => [p.slug, p.query]), [["blog", "tab=news"], ["blog", "view=new"]]);
+  assert.notEqual(added[0].name, target.pages.news.name);
+
+  for (const existing of [
+    { slug: "blog/", query: "tab=news&tab=unused" },
+    { slug: "blog", query: "different=yes", rawHtml: "<p>Keep me</p>" },
+    { slug: "blog", redirectTo: "/about" },
+    { slug: "blog", rewriteTo: "https://example.org/" },
+    { slug: "404", query: "other=page" },
+  ]) {
+    const { source, target } = queryCopyFixture();
+    target.pages = { news: { ...target.pages.news, ...existing } };
+    target.pageOrder = ["news"];
+    source.pages["source-news"].slug = existing.slug === "404" ? "404" : "blog";
+    applyPagePayload(target, buildPagePayload(source, ["source-news"]));
+    assert.equal(target.pages[target.pageOrder[1]].slug, source.pages["source-news"].slug + "-copy");
+  }
+});

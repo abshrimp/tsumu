@@ -23,7 +23,7 @@ for (const laterEdit of ["undo", "rename", "none"] as const) {
     const socket = ref<{ readyState: number } | null>({ readyState: WebSocket.OPEN });
     const scope: CloudAutosave = {
       observedDoc: ref(original), cloudReady: ref(true), cloudDirty: ref(false),
-      skipNextCloudSave: ref(false), cloudTimer: ref(null),
+      cloudTimer: ref(null),
       activeCloudSave: ref(null), cloudSaveQueued: ref(false),
       lastSyncedRev: ref("1"), lastSyncedDoc: ref(original), retrySaveAfterEdit: ref(false),
       deferredCloudConflict: ref(null),

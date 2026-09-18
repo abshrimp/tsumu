@@ -10,7 +10,7 @@ import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } fr
 import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from "./clip-transfer";
 import { createInitialDoc, genId } from "./presets";
 import { cloneSteps, scriptUid } from "./script";
-import { copySlug, uniquePageNaming } from "./store";
+import { createPageNaming } from "./page-naming";
 import { isLocalSiteDeleted, loadLocalSites } from "./site";
 import { validSiteDoc } from "./doc-tree";
 import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
@@ -44,7 +44,8 @@ function descendants(doc: SiteDoc, id: string, out: DocNode[]): void {
 
 /** コピーするページ（並び順どおり。ローディング画面は除く）をまとめる */
 export function buildPagePayload(doc: SiteDoc, pageIds: string[]): PagePayload {
-  const ids = doc.pageOrder.filter((id) => pageIds.includes(id));
+  const selected = new Set(pageIds);
+  const ids = doc.pageOrder.filter((id) => selected.has(id));
   const pages = ids.map((id) => structuredClone(doc.pages[id]));
   const nodes: DocNode[] = [];
   for (const p of pages) for (const c of p.children) descendants(doc, c, nodes);
@@ -162,16 +163,12 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     d.nodes[n.id] = n;
   }
 
+  const naming = createPageNaming(d.pages);
   for (const raw of p.pages) {
     const page = remapAssetIds(structuredClone(raw), assetMap);
     if (page.htmlZip) page.htmlZip.assetIds = page.htmlZip.assetIds.map(id => assetMap.get(id) ?? id);
     const id = pageMap.get(raw.id)!;
-    const { name, slug } = uniquePageNaming(
-      d,
-      (n) => (n === 0 ? raw.name : n > 1 ? tr("{name} copy {n}", { name: raw.name, n }) : tr("{name} copy", { name: raw.name })),
-      (n) => (n === 0 ? raw.slug : copySlug(raw.slug, n)),
-      0
-    );
+    const { name, slug } = naming.copy(raw, "transfer");
     page.id = id;
     if (page.scripts) page.scripts = cloneScripts(page.scripts);
     if (page.pageScripts) page.pageScripts = cloneScripts(page.pageScripts);
@@ -208,6 +205,16 @@ async function readJson(res: Response): Promise<Record<string, any>> {
   return data ?? {};
 }
 
+async function destinationSnapshot(res: Response): Promise<{ doc: SiteDoc; rev: string } | null> {
+  const data = await readJson(res);
+  if (res.ok && data.exists === false) return null;
+  if ((res.status === 409 ? data.conflict === true : data.exists === true) &&
+      typeof data.rev === "string" && /^[1-9]\d*$/.test(data.rev) && validSiteDoc(data.doc)) {
+    return { doc: data.doc, rev: data.rev };
+  }
+  throw new Error(tr("Could not read the destination site’s document. Check the destination site and try again."));
+}
+
 /**
  * ページを他のサイトへコピーする。
  * server = サーバーに保存しているサイト（他の人が編集中でも、版を確かめて書き足す）、
@@ -218,6 +225,7 @@ export async function copyPagesToSite(
   payload: PagePayload,
   store: "server" | "local"
 ): Promise<void> {
+  if (!payload.pages.length) throw new Error(tr("Page not found"));
   if (store === "local") {
     let doc: SiteDoc;
     let expected: string | null;
@@ -254,27 +262,35 @@ export async function copyPagesToSite(
   }
 
   const q = (extra: Record<string, string> = {}) => new URLSearchParams({ site: target.id, ...extra }).toString();
-  let data = await readJson(await fetch(`/api/doc?${q()}`));
-  // 他の人が同時に保存したときは、新しい版に書き足し直す
+  const loadDestination = async () => destinationSnapshot(await fetch(`/api/doc?${q()}`));
+  let snapshot = await loadDestination();
+  // 他の人が同時に保存したときは、新しい版に書き足し直す。
   for (let attempt = 0; attempt < 4; attempt++) {
-    let doc: SiteDoc;
-    let base: string | null = null;
-    if (data.exists || data.conflict) {
-      doc = data.doc as SiteDoc;
-      base = String(data.rev);
-    } else {
-      // まだ一度も開いていないサイト（開いたときと同じ初期の内容に追加する）
-      doc = createInitialDoc();
-      doc.siteName = target.name;
-    }
+    const doc = snapshot?.doc ?? createInitialDoc();
+    if (!snapshot) doc.siteName = target.name;
+    const start = doc.pageOrder.length;
     applyPagePayload(doc, payload);
-    const res = await fetch(`/api/doc?${q(base ? { base } : {})}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(doc),
-    });
-    data = await readJson(res);
-    if (res.ok) return;
+    let res: Response | undefined;
+    try {
+      res = await fetch(`/api/doc?${q(snapshot ? { base: snapshot.rev } : {})}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(doc),
+      });
+      if (res.status === 409) {
+        snapshot = await destinationSnapshot(res);
+        continue;
+      }
+      if ((await readJson(res)).ok !== true) throw new Error(tr("Couldn't copy"));
+      return;
+    } catch (error) {
+      // 保存後に応答だけが失われることがある。再送する前に、この操作で追加したページを確かめる。
+      if (!res || res.ok || res.status >= 500) {
+        const saved = await loadDestination().catch(() => null);
+        if (saved && doc.pageOrder.slice(start).every(id => Object.hasOwn(saved.doc.pages, id))) return;
+      }
+      throw error;
+    }
   }
   throw new Error(tr("Couldn't copy because someone else saved at the same time. Try again."));
 }

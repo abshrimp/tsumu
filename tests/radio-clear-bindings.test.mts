@@ -27,6 +27,7 @@ function harness(options: { preview?: boolean; clearOnChange?: boolean; live?: b
     name = "";
     value = "";
     placeholder = "";
+    disabled = false;
     private selected = false;
     constructor(public id: string, public tagName = "DIV") { elements.push(this); }
     get checked() { return this.selected; }
@@ -130,6 +131,22 @@ for (const preview of [false, true]) {
     });
   }
 }
+
+test("toggling a named radio group changes each control once and preserves unrelated controls", () => {
+  for (const preview of [false, true]) {
+    const h = harness({ preview });
+    h.input("medium").disabled = true;
+    h.click("toggle-sizes");
+    assert.equal(h.input("small").disabled, true);
+    assert.equal(h.input("medium").disabled, false);
+    assert.equal(h.input("red").disabled, false);
+    h.click("toggle-sizes");
+    assert.equal(h.input("small").disabled, false);
+    assert.equal(h.input("medium").disabled, true);
+    assert.deepEqual(h.events, []);
+    h.dispose();
+  }
+});
 
 test("changing the selection fires only the newly selected radio, in either DOM order", () => {
   const h = harness();

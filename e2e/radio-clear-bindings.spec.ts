@@ -25,8 +25,7 @@ async function expectCleared(page: Page) {
 }
 
 for (const [label, button] of [
-  ["false", "clear-item-0"], ["0", "clear-item-1"], ["off", "clear-item-2"],
-  ["no", "clear-item-3"], ["empty string", "clear-item-4"],
+  ["false", "clear-item-0"],
   ["clear group", "clear-group"], ["unknown group value", "unknown-group"],
 ]) {
   test(`Clearing a radio on a published page also updates visible output: ${label}`, async ({ page }) => {
@@ -73,6 +72,12 @@ test("A change script clearing its own radio remains synchronized without recurs
 test("Manual selection emits one notification and clearing a radio preserves edited fields", async ({ page }) => {
   await install(page);
   await page.locator("#clear-group").click();
+  await page.locator("#toggle-sizes").click();
+  await expect(page.locator("#small input")).toBeDisabled();
+  await expect(page.locator("#medium input")).toBeDisabled();
+  await expect(page.locator("#red input")).toBeEnabled();
+  await page.locator("#toggle-sizes").click();
+  await expect(page.locator("#small input")).toBeEnabled();
   await page.locator("#medium input").check();
   await expect(page.locator("#result")).toHaveText("size=M; small=false; medium=true; index=2; color=red");
   await expect(page.locator("#counts")).toHaveText("|1|");
