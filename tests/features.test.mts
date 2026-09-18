@@ -381,7 +381,14 @@ test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of
   assert.match(page, /width=\{240\}\s+height=\{80\}/);
   assert.match(files["app/globals.css"], /transform: scale\(0\.5\)/);
   assert.match(files["app/globals.css"], /aspect-ratio: var\(--crisp-svg-ratio\)/);
-  assert.match(files["app/globals.css"], /\.crisp-svg > img \{[\s\S]*?position: absolute;/);
+  // The scaled SVG must remain in normal flow, so shrink-to-fit parents retain their width.
+  const crispImageRule = files["app/globals.css"].match(/\.crisp-svg > img \{([^}]+)\}/)?.[1];
+  assert.ok(crispImageRule);
+  assert.match(crispImageRule, /display: block;/);
+  assert.match(crispImageRule, /flex-shrink: 0;/);
+  assert.match(crispImageRule, /width: 200%;/);
+  assert.match(crispImageRule, /height: 200%;/);
+  assert.doesNotMatch(crispImageRule, /position: absolute;/);
   // HTML 書き出しにも同じレイアウトを適用し、透明な SVG を出力しない。
   const html = generateStandaloneHtml(doc, generateProject(doc)).files["index.html"];
   assert.match(html, /class="crisp-svg [^"]*"/);
