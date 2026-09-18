@@ -553,13 +553,14 @@ export function PathMenu({
   /** 開いている階層の位置 */
   const [at, setAt] = useState("");
   const [manual, setManual] = useState("");
+  const [search, setSearch] = useState("");
   const [pos, setPos] = useState<CSSProperties>({});
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: PointerEvent) => {
       const t = e.target as Node;
       if (!menuRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false);
     };
@@ -572,12 +573,12 @@ export function PathMenu({
     const onUserScroll = (e: Event) => {
       if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
     };
-    window.addEventListener("mousedown", onDown);
+    window.addEventListener("pointerdown", onDown, true);
     window.addEventListener("keydown", onKey);
     window.addEventListener("wheel", onUserScroll, { capture: true, passive: true });
     window.addEventListener("touchmove", onUserScroll, { capture: true, passive: true });
     return () => {
-      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("pointerdown", onDown, true);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("wheel", onUserScroll, true);
       window.removeEventListener("touchmove", onUserScroll, true);
@@ -607,7 +608,9 @@ export function PathMenu({
   // 最初の描画で閉じたままのドロップダウンすべてに対しては行わない。
   const levelValue = open ? (at ? digPath(root, at) : root) : undefined;
   const rows = !open ? [] : (!known ? (at ? [] : UNKNOWN_ITEMS) : childOptions(levelValue))
-    .filter((option) => at || option.key !== excludeRootKey);
+    .filter((option) => at || option.key !== excludeRootKey)
+    .filter((option) => !search || option.label.toLocaleLowerCase().includes(search.toLocaleLowerCase()) ||
+      option.key.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   const join = (key: string) => (at ? `${at}.${key}` : key);
   /** 文字と数値だけのリスト（比べるときは「,」でつないだ文字列になる） */
   const primitiveList = (v: unknown) =>
@@ -637,6 +640,7 @@ export function PathMenu({
     const segs = path ? path.split(".") : [];
     setAt(known ? segs.slice(0, -1).join(".") : "");
     setManual("");
+    setSearch("");
     setOpen(true);
   };
   const pick = (p: string) => {
@@ -689,13 +693,20 @@ export function PathMenu({
               />
               <button type="submit" disabled={!manual.trim()}>{tr("Use path")}</button>
             </form>
+            <input
+              className="se-in"
+              aria-label={tr("Search by name or value")}
+              placeholder={tr("Search by name or value")}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
             {at && (
               <div className="se-pm-head">
                 <button
                   type="button"
                   className="se-pm-back"
                   aria-label={tr("Up one level")}
-                  onClick={() => setAt(at.split(".").slice(0, -1).join("."))}
+                  onClick={() => { setAt(at.split(".").slice(0, -1).join(".")); setSearch(""); }}
                 >
                   <ChevronLeft size={13} />
                 </button>
@@ -733,7 +744,7 @@ export function PathMenu({
                       type="button"
                       className="se-pm-enter"
                       aria-label={tr("Look inside {label}", { label: o.label })}
-                      onClick={() => setAt(full)}
+                      onClick={() => { setAt(full); setSearch(""); }}
                     >
                       <ChevronRight size={13} />
                     </button>
