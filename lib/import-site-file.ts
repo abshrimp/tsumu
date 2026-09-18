@@ -3,8 +3,9 @@ import { withImportUploads } from "./import-uploads";
 import { emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, withLocalSiteListLock } from "./site";
 import { createBrowserDoc, deleteBrowserDoc } from "./browser-doc-storage";
 import { newSiteId, type SiteRecord } from "./sites";
-import { IMPORT_LIMITS, parseSiteImport, restoreImportAssets, validateImportedDoc } from "./site-import";
-import { convertHtmlFile, isEditableSiteZip, isHtmlFile } from "./html-file-import";
+import { IMPORT_LIMITS, isEditorDocument, parseEditableZip, parseSiteImport, restoreImportAssets, validateImportedDoc } from "./site-import";
+import { convertHtmlFile, convertHtmlZipSite, isHtmlFile } from "./html-file-import";
+import { openImportZip } from "./zip-directory";
 import type { SiteDoc } from "./types";
 import { storageKey } from "./storage-keys";
 
@@ -74,16 +75,17 @@ export async function createSiteFromFile(
     progress(tr("Reading edit data…"));
     let doc: SiteDoc;
     let warnings: string[];
-    const source = kind === "html" ? null : new Uint8Array(await file.arrayBuffer());
-    const html = kind === "html" || (kind === "zip" && source && !(await isEditableSiteZip(source)));
-    if (html) {
-      if (kind === "zip") await onMissingEditData();
-      const converted = await convertHtmlFile(file, { progress, allPages: true }, paths);
+    const zip = kind === "zip" ? await openImportZip(file, IMPORT_LIMITS.entries) : undefined;
+    if (kind === "html" || (zip && !Object.values(zip.files).some(isEditorDocument))) {
+      if (zip) await onMissingEditData();
+      const converted = zip
+        ? await convertHtmlZipSite(zip, progress, paths)
+        : await convertHtmlFile(file, { progress }, paths);
       doc = validateImportedDoc(converted.doc);
       warnings = converted.warnings;
     } else {
       progress(tr("Validating edit data…"));
-      const parsed = await parseSiteImport(source!, kind as "zip" | "doc");
+      const parsed = zip ? await parseEditableZip(zip) : await parseSiteImport(new Uint8Array(await file.arrayBuffer()), "doc");
       progress(tr("Restoring images and other assets…"));
       const restored = await restoreImportAssets(parsed, progress, paths);
       doc = restored.doc;

@@ -42,20 +42,24 @@ import {
   serializeGeneratedManifest,
 } from "../lib/publish-files";
 
-/** 未判定のSVGアセットのシャドウ有無（と実寸が 0 なら viewBox の大きさ）を調べて記録し、書き出しに使う最新の編集データを返す */
-export async function docWithSvgFilters(): Promise<SiteDoc> {
-  const found = await detectSvgFilters(useEditor.getState().doc.assets);
-  if (Object.keys(found).length) {
-    useEditor.getState().updateDoc(
-      (d) => {
-        for (const [id, value] of Object.entries(found)) {
-          if (d.assets[id]) Object.assign(d.assets[id], value);
-        }
-      },
-      { history: false }
-    );
+/** チェックした文書に SVG の判定を反映する。処理中の共同編集は今回の出力に含めない。 */
+export async function docWithSvgFilters(doc: SiteDoc): Promise<SiteDoc> {
+  const found = await detectSvgFilters(doc.assets);
+  let assets = doc.assets;
+  for (const [id, analysis] of Object.entries(found)) {
+    const asset = doc.assets[id];
+    if (!asset || (asset.svgFilter === analysis.svgFilter &&
+        (analysis.width === undefined || asset.width === analysis.width) &&
+        (analysis.height === undefined || asset.height === analysis.height))) continue;
+    if (assets === doc.assets) assets = { ...assets };
+    assets[id] = { ...asset, ...analysis };
   }
-  return useEditor.getState().doc;
+  if (assets === doc.assets) return doc;
+  // 同じ ID の画像が差し替えられていても、古い内容から判定した値を書き戻さない。
+  if (useEditor.getState().doc === doc) {
+    useEditor.getState().updateDoc(draft => { draft.assets = assets; }, { history: false });
+  }
+  return { ...doc, assets };
 }
 
 /** 公開前チェックの結果 */
@@ -129,7 +133,7 @@ function confirmOverwrite(paths: string[]): Promise<boolean> {
   const rest = paths.length - OVERWRITE_LIST_LIMIT;
   const list = rest > 0 ? `${listed}\n${tr("and {count} more", { count: rest })}` : listed;
   return showConfirm(
-    tr("These files were edited on GitHub after the last publish, or were added by hand with the same name as a generated file. Publishing replaces them with the editor's version (the previous content stays in the Git history).\n\n{list}", { list }),
+    tr("These files were edited or deleted on GitHub after the last publish, or were added by hand with the same name as a generated file. Publishing applies the editor's changes to these paths. Previous versions remain in Git history.\n\n{list}", { list }),
     { title: tr("Overwrite changes made on GitHub?"), okLabel: tr("Overwrite and publish"), danger: true }
   );
 }
@@ -325,9 +329,8 @@ export default function PublishModal({
       });
     }
     // 公開中に編集されても、実際に公開した内容で公開済み判定する
-    let target = doc;
     try {
-      target = await docWithSvgFilters();
+      const target = await docWithSvgFilters(doc);
       if (hasPublishCredentials(target)) {
         throw new Error(tr("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."));
       }

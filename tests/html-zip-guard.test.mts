@@ -73,11 +73,15 @@ test("streamed decompression rejects real expansion beyond the advertised limit"
   assert.deepEqual(await readZipEntryLimited(entry, original.length), original);
 });
 
-test("HTML ZIP rejects more than 200 files", async () => {
+test("HTML ZIP enforces both file and directory record limits", async () => {
   const input = new JSZip().file("index.html", "safe");
   for (let i = 0; i < HTML_ZIP_LIMITS.entries; i++) input.file("assets/" + i + ".txt", "x");
   const zip = await reopen(input);
   assert.throws(() => inspectHtmlZip(zip), /up to 200 files/);
+  const directories = new JSZip().file("index.html", "home");
+  for (let i = 0; i < HTML_ZIP_LIMITS.entries * 4; i++) directories.folder("folder-" + i);
+  const opened = await reopen(directories);
+  assert.throws(() => inspectHtmlZip(opened), /too many files/);
 });
 
 test("raw HTML ZIP import rejects oversized HTML without starting uploads", async () => {

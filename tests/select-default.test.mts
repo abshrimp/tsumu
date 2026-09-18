@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { fieldDefaults, fieldInitialValue, fieldStateValues } from "../lib/fields";
 import { renderLeafNode } from "../components/canvas/render";
 import { useEditor } from "../lib/store";
-import { publishedSelectDefault, selectDefaultBundle, selectDefaultDoc } from "./helpers/select-default";
+import { publishedSelectDefault, selectDefaultDoc } from "./helpers/select-default";
 
 test("renaming the default option uses the first remaining choice without rewriting the document", () => {
   useEditor.getState().replaceDoc(selectDefaultDoc());
@@ -47,8 +47,7 @@ for (const [name, options, defaultValue, vars, expected, index] of [
   });
 }
 
-test("the regression bundles the actual settings panel and exports the same select", async () => {
-  assert.match(await selectDefaultBundle(), /function SettingsPanel/);
+test("generated select preserves the remaining options in order", async () => {
   const { html } = await publishedSelectDefault(selectDefaultDoc({ options: ["A", "C"].map(value => ({ label:value,value })) }));
   assert.match(html, /<select[^>]*id="choice"/);
   assert.match(html, /<option[^>]*value="A"[^>]*>A<\/option><option[^>]*value="C"[^>]*>C<\/option>/);

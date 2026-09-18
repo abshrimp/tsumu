@@ -3,7 +3,7 @@ import { buildSync } from "esbuild";
 import { resolve } from "node:path";
 
 // 実際のストアとキャンバスで、複製したサイトへの貼り付けを試す。外部へのリクエストは行わない。
-const bundle = buildSync({
+const buildFixture = () => buildSync({
   stdin: {
     contents: `
 import { createElement } from "react";
@@ -81,7 +81,7 @@ test("Editing, deleting, and undoing components pasted into a copied site does n
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });
   await page.setContent('<div id="app"></div>');
-  await page.addScriptTag({ content: bundle });
+  await page.addScriptTag({ content: buildFixture() });
   const canvas = page.locator("#canvas");
   const original = canvas.getByText("Destination original", { exact: true });
   const imported = canvas.getByText("Imported master content", { exact: true });

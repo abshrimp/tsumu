@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { easingEditorBundle } from "../tests/helpers/motion-editor-browser";
-const bundle = easingEditorBundle("cubic-bezier(0.25, 0.25, 0.75, 0.75)");
+let bundle: string;
+test.beforeAll(async () => { bundle = await easingEditorBundle("cubic-bezier(0.25, 0.25, 0.75, 0.75)"); });
 test.beforeEach(async ({ page }) => {
   await page.setContent('<div id="app"></div>');
   await page.addStyleTag({ path: "app/globals.css" });
@@ -11,7 +12,7 @@ test.beforeEach(async ({ page }) => {
     window.addEventListener = ((type: string, fn: any, opts: any) => { if (type === "pointermove") listeners.add(fn); add(type, fn, opts); }) as any;
     window.removeEventListener = ((type: string, fn: any, opts: any) => { if (type === "pointermove") listeners.delete(fn); remove(type, fn, opts); }) as any;
   });
-  await page.addScriptTag({ content: await bundle });
+  await page.addScriptTag({ content: bundle });
   await expect(page.locator(".ee-modal")).toBeVisible();
   await page.locator(".ee-modal").evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
 });

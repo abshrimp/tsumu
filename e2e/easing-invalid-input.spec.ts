@@ -2,9 +2,11 @@ import { expect, test } from "@playwright/test";
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
-const bundle = build({
-  stdin: {
-    contents: `
+let bundle: string;
+test.beforeAll(async () => {
+  const result = await build({
+    stdin: {
+      contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { loadLocale } from "./lib/i18n";
@@ -23,11 +25,13 @@ function Fixture() {
 }
 createRoot(document.getElementById("app")).render(<Fixture />);
 });`,
-    resolveDir: resolve("."), loader: "tsx", sourcefile: "easing-input-fixture.tsx",
-  },
-  bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
-  define: { "process.env.NODE_ENV": '"development"' },
-}).then(result => result.outputFiles[0].text);
+      resolveDir: resolve("."), loader: "tsx", sourcefile: "easing-input-fixture.tsx",
+    },
+    bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"development"' },
+  });
+  bundle = result.outputFiles[0].text;
+});
 
 for (const value of ["constructor", "__proto__", "steps(3, jump-end, ignored)"]) {
   test(`raw easing ${value} survives apply and reopening without errors`, async ({ page }) => {
@@ -35,7 +39,7 @@ for (const value of ["constructor", "__proto__", "steps(3, jump-end, ignored)"])
     page.on("pageerror", error => errors.push(error.message));
     await page.setContent('<div id="app"></div>');
     await page.addStyleTag({ path: "app/globals.css" });
-    await page.addScriptTag({ content: await bundle });
+    await page.addScriptTag({ content: bundle });
     const input = page.locator('.ee-modal input.mono');
     await input.fill(value);
     await input.press("Tab");

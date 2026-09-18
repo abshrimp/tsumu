@@ -41,22 +41,23 @@ function pathOK(path: string): boolean {
     !/[\u0000-\u001f\u007f]/.test(path) &&
     path.split("/").every((part) => part && part !== "." && part !== "..");
 }
-function findEditDoc(entries: JSZip.JSZipObject[]) {
-  return entries.find((entry) => /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name));
+export function isEditorDocument(entry: JSZip.JSZipObject): boolean {
+  return !entry.dir && /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name);
 }
 
 export async function parseSiteImport(
   bytes: Uint8Array,
   mode: "zip" | "doc",
 ): Promise<SiteImport> {
-  if (bytes.byteLength > (mode === "zip" ? IMPORT_LIMITS.zipBytes : IMPORT_LIMITS.docBytes)) {
+  if (mode === "zip") return parseEditableZip(await openImportZip(bytes, IMPORT_LIMITS.entries));
+  if (bytes.byteLength > IMPORT_LIMITS.docBytes) {
     throw new Error(tr("The import file is too large."));
   }
-  if (mode === "doc") {
-    return { doc: validateImportedDoc(await decodePortableDoc(jsonText(bytes), IMPORT_LIMITS.docBytes)),
-      assets: new Map(), warnings: [] };
-  }
-  const zip = await openImportZip(bytes, IMPORT_LIMITS.entries);
+  return { doc: validateImportedDoc(await decodePortableDoc(jsonText(bytes), IMPORT_LIMITS.docBytes)),
+    assets: new Map(), warnings: [] };
+}
+
+export async function parseEditableZip(zip: JSZip): Promise<SiteImport> {
   const entries = Object.values(zip.files).filter((entry) => !entry.dir);
   if (entries.length > IMPORT_LIMITS.entries) throw new Error(tr("The ZIP contains too many files."));
   for (const entry of entries) {
@@ -65,8 +66,7 @@ export async function parseSiteImport(
       throw new Error(tr("The ZIP contains an unsafe path."));
     }
   }
-  const editableDocs = entries.filter((entry) =>
-    /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name));
+  const editableDocs = entries.filter(isEditorDocument);
   if (editableDocs.length > 1) {
     throw new Error(tr("The ZIP contains multiple editor documents."));
   }
@@ -85,7 +85,7 @@ export async function parseSiteImport(
       throw new Error(tr("The ZIP expands beyond the size limit."));
     }
   }
-  const documentEntry = findEditDoc(entries);
+  const documentEntry = editableDocs[0];
   if (!documentEntry) {
     throw new Error(tr("The ZIP does not contain _tsumu/doc.json. Importing a plain HTML ZIP is a separate feature."));
   }

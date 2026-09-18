@@ -4,7 +4,8 @@ import { createRequire } from "node:module";
 import JSZip from "jszip";
 import { assetUsage } from "../lib/asset-usage";
 import { assetSrc, mediaSrc } from "../lib/assets";
-import { convertHtmlFile } from "../lib/html-file-import";
+import { createSiteFromFile } from "../lib/import-site-file";
+import type { SiteDoc } from "../lib/types";
 import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
 import { exportProjectZip } from "../lib/exportZip";
 import { buildAssetNames } from "../lib/generator/names";
@@ -44,11 +45,12 @@ function parseDocument(html: string) {
     documentElement: root.querySelector("html"), querySelectorAll: root.querySelectorAll };
 }
 
-for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes with ${local ? "embedded" : "uploaded"} assets`, async () => {
+for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes with ${local ? "embedded" : "uploaded"} assets`, async (t) => {
   const originals = Object.getOwnPropertyDescriptors(globalThis);
   let uploads = 0, embed = local;
   const stored = new Map<string, File>();
   let download: Blob | undefined;
+  let importedDoc: SiteDoc | undefined;
   const createUrl = URL.createObjectURL;
   URL.createObjectURL = blob => {
     download = blob;
@@ -70,6 +72,11 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
       }); }
     },
     fetch: async (input: string, init?: RequestInit) => {
+      if (input === "/api/sites") {
+        const { importId, initialDoc } = JSON.parse(String(init?.body));
+        importedDoc = initialDoc;
+        return Response.json({ site: { id: importId } });
+      }
       if (input.startsWith("data:")) return originals.fetch.value(input, init);
       if (input.startsWith("/api/assets/file?")) {
         const file = stored.get(new URL(input, "https://import.test").searchParams.get("path")!);
@@ -94,7 +101,15 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
     .file("clip.mp4", "video fixture").file("sound.mp3", "audio fixture");
 
     const bytes = await zip.generateAsync({ type: "uint8array" });
-    const { doc, warnings } = await convertHtmlFile(new File([bytes], "site.zip"), { allPages: true });
+    const file = new File([bytes], "site.zip");
+    const reads = t.mock.method(file, "arrayBuffer");
+    const opens = t.mock.method(JSZip, "loadAsync");
+    const { warnings } = await createSiteFromFile(file, "server");
+    assert.equal(reads.mock.callCount(), 1);
+    assert.equal(opens.mock.callCount(), 1);
+    opens.mock.restore();
+    const doc = importedDoc!;
+    assert.ok(doc);
     const plain = Object.values(doc.nodes).find(node => node.attrId === "plain")!;
     assert.equal(plain.type, "image");
     assert.ok(plain.image?.assetId);
