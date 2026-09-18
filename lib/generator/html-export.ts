@@ -310,6 +310,8 @@ function render(ctx: Context, id: string, top: boolean): string {
       const crisp = crispSvgSize(ctx.doc, n);
       if (crisp) return "<span" + commonAttrs.replace(attr("class", cls), attr("class", "crisp-svg " + cls)) +
         attr("style", "--crisp-svg-width:" + crisp.width + "px;--crisp-svg-ratio:" + crisp.width + "/" + crisp.height) + ">" +
+        '<svg aria-hidden="true"' + attr("width", crisp.width) + attr("height", crisp.height) +
+        attr("viewBox", "0 0 " + crisp.width + " " + crisp.height) + "></svg>" +
         "<img" + imageAttrs + attr("width", crisp.width * 2) + attr("height", crisp.height * 2) + "></span>";
       return "<img" + commonAttrs + imageAttrs +
         attr("width", im.width || 800) + attr("height", im.height || 500) +

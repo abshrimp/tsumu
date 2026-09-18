@@ -377,16 +377,18 @@ test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of
   assert.match(page, /\["--crisp-svg-width"\]: "120px"/);
   assert.match(page, /\["--crisp-svg-ratio"\]: "120 \/ 40"/);
   assert.match(page, /\} as import\("react"\)\.CSSProperties\}/);
-  assert.doesNotMatch(page, /<svg aria-hidden="true"/);
+  // 画像は絶対配置なので、実寸の透明な svg で枠の中身の大きさを決める
+  assert.match(page, /<svg aria-hidden="true" width=\{120\} height=\{40\} viewBox="0 0 120 40" \/>/);
   assert.match(page, /width=\{240\}\s+height=\{80\}/);
   assert.match(files["app/globals.css"], /transform: scale\(0\.5\)/);
   assert.match(files["app/globals.css"], /aspect-ratio: var\(--crisp-svg-ratio\)/);
   assert.match(files["app/globals.css"], /\.crisp-svg > img \{[\s\S]*?position: absolute;/);
-  // HTML 書き出しにも同じレイアウトを適用し、透明な SVG を出力しない。
+  assert.match(files["app/globals.css"], /\.crisp-svg > svg \{[\s\S]*?display: block;[\s\S]*?width: 100%;/);
+  // HTML 書き出しにも同じレイアウトを適用する。
   const html = generateStandaloneHtml(doc, generateProject(doc)).files["index.html"];
   assert.match(html, /class="crisp-svg [^"]*"/);
   assert.match(html, /style="--crisp-svg-width:120px;--crisp-svg-ratio:120\/40"/);
-  assert.doesNotMatch(html, /<svg aria-hidden="true"/);
+  assert.match(html, /<svg aria-hidden="true" width="120" height="40" viewBox="0 0 120 40"><\/svg><img/);
   // 前後の位置指定の要素は z-index: 1 になり、自分の z-index を持つ要素はそのまま
   assert.equal((files["styles/site.css"].match(/z-index: 1;/g) ?? []).length, 2);
   assert.match(files["styles/site.css"], /z-index: 5;/);
