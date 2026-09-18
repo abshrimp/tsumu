@@ -53,7 +53,7 @@ export function nativeDataModule(): string {
     "}",
     "export function selectedOption(options, initial, vars, ...items) {",
     "  if (!options.length) return -1;",
-    "  if (!initial) return 0;",
+    "  if (initial == null) return 0;",
     "  const scope = scopeOf(vars, ...items);",
     "  const value = resolveText(initial, scope);",
     "  const index = options.findIndex(option => resolveText(option, scope) === value);",

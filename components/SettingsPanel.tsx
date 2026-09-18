@@ -871,24 +871,27 @@ function FieldSettings({
       onCommit={(v) => onChange({ [key]: v || undefined })}
     />
   );
-  const num = (key: "maxLength" | "rows", placeholder: string) => (
-    <CommitInput
-      key={`${nodeId}-${key}-${f[key] ?? ""}`}
-      id={`field-${nodeId}-${key}`}
-      className="input"
-      type="number"
-      min={1}
-      value={f[key] ? String(f[key]) : ""}
-      placeholder={placeholder}
-      onCommit={(v) => {
-        const n = Math.round(Number(v));
-        onChange({ [key]: n > 0 ? n : undefined });
-      }}
-      onKeyDown={(e) => {
-        if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
-      }}
-    />
-  );
+  const num = (key: "maxLength" | "rows", placeholder: string) => {
+    const minimum = key === "rows" ? 1 : 0;
+    return (
+      <CommitInput
+        key={`${nodeId}-${key}-${f[key] ?? ""}`}
+        id={`field-${nodeId}-${key}`}
+        className="input"
+        type="number"
+        min={minimum}
+        value={String(f[key] ?? "")}
+        placeholder={placeholder}
+        onCommit={(v) => {
+          const n = Math.round(Number(v));
+          onChange({ [key]: v.trim() && Number.isSafeInteger(n) && n >= minimum ? n : undefined });
+        }}
+        onKeyDown={(e) => {
+          if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
+        }}
+      />
+    );
+  };
   const rangePh =
     type === "date" ? "2026-01-01" : type === "time" ? "09:00" : type === "month" ? "2026-01" : type === "week" ? "2026-W01" : type === "datetime-local" ? "2026-01-01T09:00" : "";
   return (

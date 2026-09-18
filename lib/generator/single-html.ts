@@ -78,6 +78,16 @@ export async function toSingleHtmlProject(
   const resources = singleHtmlResources(source, request, hasImportMap);
   const result = new HtmlOutput();
   let cursor = 0, srcsetCandidates = 0;
+  const embedSrcset = async (value: string) => {
+    const urls = new Map<string, string>();
+    rewriteSrcsetUrls(value, ref => {
+      if (++srcsetCandidates > 100000) throw new Error("Too many single HTML srcset candidates.");
+      urls.set(ref, ref);
+      return ref;
+    });
+    for (const ref of urls.keys()) urls.set(ref, await resources.embed(ref, base));
+    return rewriteSrcsetUrls(value, ref => urls.get(ref)!, SINGLE_HTML_LIMIT);
+  };
   for (const node of elements.sort((a, b) => a.sourceCodeLocation!.startOffset - b.sourceCodeLocation!.startOffset)) {
     const loc = node.sourceCodeLocation!, start = loc.startTag!;
     if (start.startOffset < cursor) continue;
@@ -109,6 +119,9 @@ export async function toSingleHtmlProject(
           for (const key of ["rel", "href", "integrity", "crossorigin", "referrerpolicy"]) attrs.delete(key);
           replacement = startTag("style", attrs) + "\n" + escapeStyleContent(css) + "\n</style>";
         }
+      } else if (rel.includes("preload") && get("as").toLowerCase() === "image") {
+        if (href) set("href", await resources.embed(href, base, get("integrity")));
+        if (get("imagesrcset")) set("imagesrcset", await embedSrcset(get("imagesrcset")));
       } else if (href && rel.includes("icon")) set("href", await resources.embed(href, base));
     } else if (htmlTag && name === "script" && get("src")) {
       const url = new URL(get("src"), base);
@@ -153,14 +166,7 @@ export async function toSingleHtmlProject(
         if (get(key)) set(key, await resources.embed(get(key), base));
       }
       if ((name === "img" || name === "source") && get("srcset")) {
-        const urls = new Map<string, string>();
-        rewriteSrcsetUrls(get("srcset"), ref => {
-          if (++srcsetCandidates > 100000) throw new Error("Too many single HTML srcset candidates.");
-          urls.set(ref, ref);
-          return ref;
-        });
-        for (const ref of urls.keys()) urls.set(ref, await resources.embed(ref, base));
-        set("srcset", rewriteSrcsetUrls(get("srcset"), ref => urls.get(ref)!, SINGLE_HTML_LIMIT));
+        set("srcset", await embedSrcset(get("srcset")));
       }
     } else if (node.namespaceURI === "http://www.w3.org/2000/svg" && (name === "image" || name === "feImage")) {
       // SVG の画像やフィルターの画像は href を使い、古い xlink:href より優先する。

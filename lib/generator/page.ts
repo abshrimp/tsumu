@@ -19,6 +19,7 @@ import {
   primaryDataStep,
   setVarSource,
 } from "../data";
+import { submissionAttributes } from "../imported-form";
 import { resolveTag } from "../tags";
 import { compileScripts, matchVariableWrites } from "../script";
 import { DEFAULT_DATA_REVALIDATE } from "../types";
@@ -665,7 +666,7 @@ function pageHasSearchForm(doc: SiteDoc, pageId: string): boolean {
       const comp = doc.components?.[n.componentId ?? ""];
       return !!comp && walk(comp.rootId);
     }
-    return resolveTag(n, false) === "form" || n.children.some(walk);
+    return (resolveTag(n, false) === "form" && !submissionAttributes(n.htmlAttrs, "form").method) || n.children.some(walk);
   };
   return doc.pages[pageId]?.children.some(walk) ?? false;
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
@@ -13,7 +13,8 @@ const bundled = await build({
   bundle: true, platform: "node", format: "cjs", packages: "external", write: false,
 });
 
-async function fixture(stale = false, raw?: string | null) {
+async function fixture(t: TestContext, stale = false, raw?: string | null) {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const doc = createInitialDoc();
   const firstPage = doc.pages[doc.pageOrder[0]];
   doc.pages.second = { ...firstPage, id: "second", slug: "second", children: [] };
@@ -32,6 +33,10 @@ async function fixture(stale = false, raw?: string | null) {
   const uiKey = "tsumu-ui-v1:hydration";
   const values = new Map([[pageKey, stale ? "removed" : "second"], [uiKey, JSON.stringify(ui)]]);
   const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, "window", previous);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
   Object.defineProperty(globalThis, "window", { configurable: true, value: {
     indexedDB: fakeIndexedDB(), location: { pathname: "/sites/hydration" },
     localStorage: {
@@ -45,71 +50,55 @@ async function fixture(stale = false, raw?: string | null) {
   );
   const api = module.exports;
   if (raw !== null) await api.createBrowserDoc("hydration", raw ?? JSON.stringify(doc));
-  return {
-    ...api, doc, ui, values, pageKey, uiKey,
-    async dispose() {
-      // window を置き換える前に、実際の、間引いて書く設定の保存を終わらせる。
-      await new Promise(resolve => setTimeout(resolve, 250));
-      if (previous) Object.defineProperty(globalThis, "window", previous);
-      else Reflect.deleteProperty(globalThis, "window");
-    },
-  };
+  return { ...api, doc, ui, values, pageKey, uiKey };
 }
 
-test("the starter document cannot overwrite the remembered page before IndexedDB hydration", async () => {
-  const f = await fixture();
-  try {
-    assert.equal(f.values.get(f.pageKey), "second");
-    await f.hydrateBrowserDoc();
-    assert.equal(f.useEditor.getState().activePageId, "second");
-    assert.deepEqual(f.useEditor.getState().doc, f.doc);
-  } finally { await f.dispose(); }
+test("the starter document cannot overwrite the remembered page before IndexedDB hydration", async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.values.get(f.pageKey), "second");
+  await f.hydrateBrowserDoc();
+  assert.equal(f.useEditor.getState().activePageId, "second");
+  assert.deepEqual(f.useEditor.getState().doc, f.doc);
 });
 
-test("hydration validates saved editor position against the persisted document and its breakpoints", async () => {
-  const f = await fixture();
-  try {
-    await f.hydrateBrowserDoc();
-    for (const [key, value] of Object.entries(f.ui)) {
-      assert.deepEqual(f.useEditor.getState()[key as keyof typeof f.ui], value, key);
-    }
-    assert.equal(await f.persistDoc(f.doc), "saved");
-    assert.equal(await f.readBrowserDoc("hydration"), JSON.stringify(f.doc));
-    f.useEditor.getState().replaceDoc(structuredClone(f.doc));
-    assert.equal(f.useEditor.getState().selection, "master", "cloud reconciliation preserves restored selection");
-    f.useEditor.getState().select(null);
-    await f.hydrateBrowserDoc();
-    assert.equal(f.useEditor.getState().selection, null, "reconnect does not replay startup preferences");
-  } finally { await f.dispose(); }
+test("hydration validates saved editor position against the persisted document and its breakpoints", async (t) => {
+  const f = await fixture(t);
+  await f.hydrateBrowserDoc();
+  for (const [key, value] of Object.entries(f.ui)) {
+    assert.deepEqual(f.useEditor.getState()[key as keyof typeof f.ui], value, key);
+  }
+  assert.equal(await f.persistDoc(f.doc), "saved");
+  assert.equal(await f.readBrowserDoc("hydration"), JSON.stringify(f.doc));
+  f.useEditor.getState().replaceDoc(structuredClone(f.doc));
+  assert.equal(f.useEditor.getState().selection, "master", "cloud reconciliation preserves restored selection");
+  f.useEditor.getState().select(null);
+  await f.hydrateBrowserDoc();
+  assert.equal(f.useEditor.getState().selection, null, "reconnect does not replay startup preferences");
 });
 
-test("hydration discards stale page, node, component and breakpoint references", async () => {
-  const f = await fixture(true);
-  try {
-    await f.hydrateBrowserDoc();
-    const state = f.useEditor.getState();
-    assert.equal(state.activePageId, f.doc.pageOrder[0]);
-    assert.equal(state.selection, null);
-    assert.deepEqual(state.selectedIds, []);
-    assert.equal(state.editingComponentId, null);
-    assert.deepEqual(state.scriptEditor, { focusNodeId: null });
-    assert.equal(state.breakpoint, "base");
-  } finally { await f.dispose(); }
+test("hydration discards stale page, node, component and breakpoint references", async (t) => {
+  const f = await fixture(t, true);
+  await f.hydrateBrowserDoc();
+  const state = f.useEditor.getState();
+  assert.equal(state.activePageId, f.doc.pageOrder[0]);
+  assert.equal(state.selection, null);
+  assert.deepEqual(state.selectedIds, []);
+  assert.equal(state.editingComponentId, null);
+  assert.deepEqual(state.scriptEditor, { focusNodeId: null });
+  assert.equal(state.breakpoint, "base");
 });
 
 for (const raw of [null, "{broken"]) {
-  test(`editor position remains writable after ${raw === null ? "empty" : "failed"} cache hydration`, async () => {
-    const f = await fixture(false, raw);
-    try {
-      await f.hydrateBrowserDoc();
-      // ブラウザのキャッシュを使えなくても、サーバーのスナップショットは読み込めることがある。
-      f.useEditor.getState().replaceDoc(f.doc);
-      f.useEditor.getState().setActivePage(f.doc.pageOrder[0]);
-      f.useEditor.getState().select("master");
-      await new Promise(resolve => setTimeout(resolve, 250));
-      assert.equal(f.values.get(f.pageKey), f.doc.pageOrder[0]);
-      assert.equal(JSON.parse(f.values.get(f.uiKey)!).selection, "master");
-      assert.equal(await f.readBrowserDoc("hydration"), raw, "preferences do not modify cached document data");
-    } finally { await f.dispose(); }
+  test(`editor position remains writable after ${raw === null ? "empty" : "failed"} cache hydration`, async (t) => {
+    const f = await fixture(t, true, raw);
+    await f.hydrateBrowserDoc();
+    // ブラウザのキャッシュを使えなくても、サーバーのスナップショットは読み込めることがある。
+    f.useEditor.getState().replaceDoc(f.doc);
+    f.useEditor.getState().setActivePage(f.doc.pageOrder[0]);
+    f.useEditor.getState().select("master");
+    t.mock.timers.runAll();
+    assert.equal(f.values.get(f.pageKey), f.doc.pageOrder[0]);
+    assert.equal(JSON.parse(f.values.get(f.uiKey)!).selection, "master");
+    assert.equal(await f.readBrowserDoc("hydration"), raw, "preferences do not modify cached document data");
   });
 }

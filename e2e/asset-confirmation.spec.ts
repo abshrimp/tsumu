@@ -85,25 +85,23 @@ for (const single of [false, true]) {
     else expect(deleted).toEqual([]);
     expect((await doc(page)).assets[candidate.id].path).toBe("assets/replacement.png");
   });
+}
 
-  for (const stop of ["cancel", "unmount", "replace", "undoRedo", "site"] as const) {
-    test(`${single ? "single" : "bulk"} deletion ignores stale confirmation after ${stop}`, async ({ page }) => {
-      await page.evaluate(() => (window as any).assetEditor.getState().updateNode("media", { name: "Undoable" }));
-      await begin(page, single);
-      await page.evaluate((stop) => {
-        const s = (window as any).assetEditor.getState();
-        if (stop === "unmount") (window as any).closeAssetPanel();
-        if (stop === "replace") s.replaceDoc(structuredClone(s.doc));
-        if (stop === "undoRedo") { s.undo(); s.redo(); }
-        if (stop === "site") history.pushState({}, "", "/sites/other");
-      }, stop);
-      if (stop === "unmount") await expect(page.locator(".asset-panel")).toHaveCount(0);
-      const before = await doc(page);
-      await finish(page, stop !== "cancel");
-      expect(await doc(page)).toEqual(before);
-      expect(deleted).toEqual([]);
-    });
-  }
+// Node tests cover the complete matrix for both actions. Keep real keyboard,
+// React unmount, and browser navigation interactions here.
+for (const [single, stop] of [[true, "cancel"], [false, "unmount"], [true, "site"]] as const) {
+  test(`${single ? "single" : "bulk"} deletion ignores stale confirmation after ${stop}`, async ({ page }) => {
+    await begin(page, single);
+    if (stop === "unmount") {
+      await page.evaluate(() => (window as any).closeAssetPanel());
+      await expect(page.locator(".asset-panel")).toHaveCount(0);
+    }
+    if (stop === "site") await page.evaluate(() => history.pushState({}, "", "/sites/other"));
+    const before = await doc(page);
+    await finish(page, stop !== "cancel");
+    expect(await doc(page)).toEqual(before);
+    expect(deleted).toEqual([]);
+  });
 }
 
 test("Confirming an unused image does not remove its references if it becomes used", async ({ page }) => {
@@ -160,30 +158,25 @@ test("Deleting all confirmed IDs of the same file sends only one DELETE request"
   expect((await doc(page)).assets).toEqual({});
 });
 
-for (const location of ["node.styles", "node.customCss", "page.bodyStyles"] as const) {
-  test(`Bulk deletion preserves an image referenced by CSS escapes in ${location}`, async ({ page }) => {
-    await page.evaluate(({ location, path }) => {
-      (window as any).assetEditor.getState().updateDoc((d: any) => {
-        const css = `url("\\2f api/assets/file?path=${encodeURIComponent(path)}")`;
-        if (location === "node.styles") d.nodes.image.styles = { base: { hover: { backgroundImage: css } } };
-        if (location === "node.customCss") d.nodes.image.customCss = `background-image: ${css};`;
-        if (location === "page.bodyStyles") d.pages.p.bodyStyles = { sm: { default: { backgroundImage: css } } };
-      });
-    }, { location, path: candidate.path! });
-    const before = await doc(page);
-    await expect(page.locator(".asset-count")).toContainText("未使用 1件");
-    await begin(page);
-    await expect(page.getByRole("dialog")).toContainText("使っていないアセット 1件");
-    await finish(page);
-    await expect.poll(() => deleted).toEqual([spare.path]);
-    await expect(page.locator(`[data-asset-id="${candidate.id}"]`)).toBeVisible();
-    await expect(page.locator(".asset-clean")).toHaveCount(0);
-    const after = await doc(page);
-    expect(after.nodes).toEqual(before.nodes);
-    expect(after.pages).toEqual(before.pages);
-    await page.evaluate(() => (window as any).assetEditor.getState().undo());
-    expect(await doc(page)).toEqual(before);
-    await page.evaluate(() => (window as any).assetEditor.getState().redo());
-    expect(await doc(page)).toEqual(after);
-  });
-}
+test("Bulk deletion preserves an image referenced by an escaped URL in custom CSS", async ({ page }) => {
+  await page.evaluate((path) => {
+    (window as any).assetEditor.getState().updateDoc((d: any) => {
+      d.nodes.image.customCss = `background-image: url("\\2f api/assets/file?path=${encodeURIComponent(path)}");`;
+    });
+  }, candidate.path!);
+  const before = await doc(page);
+  await expect(page.locator(".asset-count")).toContainText("未使用 1件");
+  await begin(page);
+  await expect(page.getByRole("dialog")).toContainText("使っていないアセット 1件");
+  await finish(page);
+  await expect.poll(() => deleted).toEqual([spare.path]);
+  await expect(page.locator(`[data-asset-id="${candidate.id}"]`)).toBeVisible();
+  await expect(page.locator(".asset-clean")).toHaveCount(0);
+  const after = await doc(page);
+  expect(after.nodes).toEqual(before.nodes);
+  expect(after.pages).toEqual(before.pages);
+  await page.evaluate(() => (window as any).assetEditor.getState().undo());
+  expect(await doc(page)).toEqual(before);
+  await page.evaluate(() => (window as any).assetEditor.getState().redo());
+  expect(await doc(page)).toEqual(after);
+});

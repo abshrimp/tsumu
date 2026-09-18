@@ -45,7 +45,9 @@ test.describe("Canvas movement fixture", () => {
     await expect(node(page, "c")).toBeVisible();
   });
 
-  for (const end of ["pointercancel", "blur", "hidden", "released-outside", "escape", "unmount"]) {
+  // Node covers all synthetic interruption events. Exercise keyboard and React
+  // cleanup here alongside the trusted touch cancellation below.
+  for (const end of ["escape", "unmount"] as const) {
     test(`${end} clears the drag and preserves document, undo, and redo through a late release`, async ({ page }) => {
       await page.evaluate(() => {
         const s = (window as any).canvasMoveEditor.getState(); s.updatePage("p", { title: "Undoable" }); s.undo();
@@ -53,16 +55,8 @@ test.describe("Canvas movement fixture", () => {
       const before = await snapshot(page);
       await start(page);
       const release = await point(page, "c", true);
-      if (end === "pointercancel") await pointer(page, "pointercancel", { buttons: 0 });
-      if (end === "blur") await page.evaluate(() => window.dispatchEvent(new Event("blur")));
-      if (end === "hidden") await page.evaluate(() => {
-        Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
-        document.dispatchEvent(new Event("visibilitychange"));
-        delete (document as any).visibilityState;
-      });
-      if (end === "released-outside") await pointer(page, "pointermove", { buttons: 0 });
       if (end === "escape") await page.keyboard.press("Escape");
-      if (end === "unmount") await page.evaluate(() => (window as any).showCanvas(false));
+      else await page.evaluate(() => (window as any).showCanvas(false));
       await cleared(page);
       await pointer(page, "pointermove", release); await pointer(page, "pointerup", { ...release, buttons: 0 });
       expect(await snapshot(page)).toEqual(before);
@@ -76,24 +70,19 @@ test.describe("Canvas movement fixture", () => {
     });
   }
 
-  for (const change of ["undo", "redo", "page", "remote", "replace", "selection", "style", "mode", "text"]) {
+  // Keep cases that replace the displayed page, document or editing surface.
+  // The Node suite checks the full store matrix for pending and active drags.
+  for (const change of ["page", "remote", "replace", "mode"] as const) {
     test(`${change} invalidates the pending drop before the owner releases`, async ({ page }) => {
-      await page.evaluate((change) => {
-        const s = (window as any).canvasMoveEditor.getState(); s.updatePage("p", { title: "Changed" }); if (change === "redo") s.undo();
-      }, change);
+      await page.evaluate(() => (window as any).canvasMoveEditor.getState().updatePage("p", { title: "Changed" }));
       await start(page);
       const release = await point(page, "c", true);
       await page.evaluate((change) => {
         const s = (window as any).canvasMoveEditor.getState();
-        if (change === "undo") s.undo();
-        if (change === "redo") s.redo();
         if (change === "page") s.setActivePage("q");
         if (change === "replace") s.replaceDoc(structuredClone(s.doc));
         if (change === "remote") { const doc = structuredClone(s.doc); doc.nodes.b.name = "Remote"; s.applyRemoteDoc(doc); }
-        if (change === "selection") s.selectMany(["b", "c"], "b");
-        if (change === "style") s.setStyleState("hover");
         if (change === "mode") s.setMode("preview");
-        if (change === "text") s.setEditingText("b");
       }, change);
       await cleared(page);
       const interrupted = await snapshot(page);

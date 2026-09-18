@@ -2,6 +2,7 @@
  * ビルド不要の HTML / CSS / JavaScript の書き出し。フレームワークのソースは含めない。
  * Next.js の書き出しと同じ、正規化した文書と、生成した CSS・アセットを使う。
  */
+import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
 import type { DocNode, Page, SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import { obfuscateVarNames, pagePlan } from "../data";
@@ -16,7 +17,7 @@ import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
-import { fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
@@ -28,7 +29,7 @@ import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { rewriteCssAssetUrls } from "../css-assets";
 import { rewriteSrcsetUrls } from "../srcset";
-import { archiveBaseUrl } from "../zip-references";
+import { archiveBaseUrl, archiveFileUrl } from "../zip-references";
 import { parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
@@ -78,38 +79,42 @@ function rewriteCssRootUrls(source: string, prefix: string): string {
   );
 }
 
-function importedScriptSources(doc: SiteDoc): Map<string, string> {
-  const sources = new Map<string, string>();
+function exportedAssetSources(doc: SiteDoc, names: Map<string, string>) {
+  const files = new Map<string, string>();
+  const scripts = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
-    if (!isZipJavascript(asset)) continue;
-    const url = importedAssetUrl(asset), src = assetSrc(asset);
-    if (url && src) sources.set(src, sources.has(src) && sources.get(src) !== url ? "" : url);
+    const src = assetSrc(asset);
+    const name = names.get(asset.id);
+    if (!src || !name) continue;
+    files.set(src, "/assets/" + name);
+    const alias = isZipJavascript(asset) && importedAssetUrl(asset);
+    if (alias) scripts.set(src, scripts.has(src) && scripts.get(src) !== alias ? "" : alias);
   }
-  return sources;
+  return { files, scripts };
 }
 
 /**
  * 実際の HTML の属性とインラインの CSS だけを書き換える。スクリプトの本文、コメント、
  * テキストノード、たまたまマークアップを含む無関係な属性の値は、決して書き換えない。
  */
-function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<string, string>): string {
+function rewriteRootUrls(source: string, prefix: string, sources: ReturnType<typeof exportedAssetSources>): string {
+  const resource = (value: string, script = false) => {
+    const suffix = value.startsWith("/api/assets/file?path=") ? value.search(/[&#]/) : value.indexOf("#");
+    const key = suffix < 0 ? value : value.slice(0, suffix);
+    const mapped = (script ? sources.scripts.get(key) : undefined) ?? sources.files.get(key);
+    if (mapped === "") throw new Error("Ambiguous ZIP script location. Give the imported entry scripts distinct URLs.");
+    if (mapped) {
+      const tail = suffix < 0 ? "" : value.slice(suffix).replace(/^&(?:amp;)?/, "?");
+      return prefix + mapped.slice(1) + tail;
+    }
+    return value.startsWith("/") && !value.startsWith("//") ? prefix + value.slice(1) : value;
+  };
   const rewriteTag = (tag: string) => tag.replace(
     /(\s)([^\s=/>]+)(\s*=\s*)(["'])([\s\S]*?)\4/g,
     (whole, space: string, name: string, eq: string, quote: string, value: string) => {
       const attribute = name.toLowerCase();
-      if (attribute === "src" && /^<script(?=[\t\n\f\r />])/i.test(tag)) {
-        const suffix = value.startsWith("/api/assets/file?path=") ? value.search(/[&#]/) : value.indexOf("#");
-        const source = suffix < 0 ? value : value.slice(0, suffix);
-        const mapped = scriptSources.get(source);
-        if (mapped === "") throw new Error("Ambiguous ZIP script location. Give the imported entry scripts distinct URLs.");
-        if (mapped) {
-          const tail = suffix < 0 ? "" : value.slice(suffix).replace(/^&(?:amp;)?/, "?");
-          return space + name + eq + quote + prefix + mapped.slice(1) + tail + quote;
-        }
-      }
       if (attribute === "srcset" || attribute === "imagesrcset") {
-        const rewritten = rewriteSrcsetUrls(value, url =>
-          url.startsWith("/") && !url.startsWith("//") ? prefix + url.slice(1) : url);
+        const rewritten = rewriteSrcsetUrls(value, url => resource(url));
         return rewritten === value ? whole : space + name + eq + quote + rewritten + quote;
       }
       if (attribute === "style") {
@@ -120,10 +125,9 @@ function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<stri
         const rewritten = rewriteCssRootUrls(decoded, prefix);
         return rewritten === decoded ? whole : space + name + eq + quote + escapeHtml(rewritten) + quote;
       }
-      const next = (attribute === "src" || attribute === "href" || attribute === "xlink:href" || attribute === "poster") &&
-          value.startsWith("/") && !value.startsWith("//")
-          ? prefix + value.slice(1)
-          : value;
+      const next = attribute === "src" || attribute === "href" || attribute === "xlink:href" || attribute === "poster"
+        ? resource(value, attribute === "src" && /^<script(?=[\t\n\f\r />])/i.test(tag))
+        : value;
       return next === value ? whole : space + name + eq + quote + next + quote;
     },
   );
@@ -160,7 +164,7 @@ type Context = {
   single: boolean;
   classes: Map<string, string>;
   assets: Map<string, string>;
-  scriptSources: Map<string, string>;
+  assetSources: ReturnType<typeof exportedAssetSources>;
   toggles: Set<string>;
   seen: Set<string>;
   form: boolean;
@@ -174,15 +178,20 @@ function resource(ctx: Context, assetId?: string): string {
   return name ? ctx.prefix + "assets/" + name : "";
 }
 
-function href(ctx: Context, value: string): string {
+function href(ctx: Context, value: string, formAction = false): string {
   const safe = safeNavigationUrl(value);
-  if (!ctx.staticRoutes || !/^\/(?!\/)/.test(safe)) return safe;
+  if (!ctx.staticRoutes) return safe;
+  if (!safe.startsWith("/")) {
+    if (!formAction || /^(?:[a-z][a-z0-9+.-]*:|[?#])/i.test(safe)) return safe;
+    // The model uses a clean route. Static HTML may be one directory deeper or a single index.html.
+    return ctx.prefix + new URL(safe, archiveFileUrl(ctx.page.slug)).href.slice("file:///".length);
+  }
   const match = /^([^?#]*)(.*)$/.exec(safe);
   const slug = (match?.[1] ?? safe).replace(/^\/+|\/+$/g, "");
   const route = ctx.staticRoutes.get(slug);
   // URL のリンクは、クエリ違いのページが出力ファイルを共有していても、自身のクエリを持つ。
   if (route) return ctx.prefix + pageFilename(route[0], ctx.single) + (match?.[2] ?? "");
-  return ctx.prefix + safe.replace(/^\/+/, "");
+  return formAction ? safe : ctx.prefix + safe.replace(/^\/+/, "");
 }
 
 /** メディアのソースは、インラインのデータか、サイト内のファイルに限る。動作するような URL のスキームは使わない。 */
@@ -227,13 +236,15 @@ function common(ctx: Context, n: DocNode, cls: string): string {
 
 function field(ctx: Context, n: DocNode, attrs: string): string {
   const f = n.field!;
-  const name = fieldVarName(n);
-  const shared = attr("name", name || undefined) + flag("required", f.required) + flag("disabled", f.disabled);
+  const name = f.name ?? fieldVarName(n);
+  const formAttrs = Object.entries(fieldSubmissionAttributes(n, action => href(ctx, action, true)))
+    .map(([key, value]) => attr(key, value)).join("");
+  const shared = formAttrs + attr("name", name || undefined) + flag("required", f.required) + flag("disabled", f.disabled);
   const dynamic = (key: string, value?: string) => value && hasVars(value)
     ? attr("data-live-" + key, value) : "";
   if (f.kind === "submit") {
-    const label = f.label || "送信";
-    return "<button" + attrs + ' type="submit"' + shared +
+    const label = f.label ?? "送信";
+    return "<button" + attrs + ' type="submit"' + attr("value", f.submitValue) + shared +
       (hasVars(label) ? attr("data-live", label) : "") + ">" + escapeHtml(label) + "</button>";
   }
   if (f.kind === "textarea") {
@@ -246,10 +257,10 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
   }
   if (f.kind === "select") {
     const values = f.options || [];
-    const selected = f.defaultValue && values.some((o) => o.value === f.defaultValue)
-      ? f.defaultValue : values[0]?.value;
-    return "<select" + attrs + shared + ">" + values.map((o) =>
-      "<option" + attr("value", o.value) + flag("selected", o.value === selected) +
+    const initial = selectDefaultValue(f);
+    const selected = Math.max(0, values.findIndex((o) => o.value === initial));
+    return "<select" + attrs + shared + ">" + values.map((o, index) =>
+      "<option" + attr("value", o.value) + flag("selected", index === selected) +
       (hasVars(o.value) ? attr("data-live-value", o.value) : "") +
       (hasVars(o.value) && ctx.template ? attr("data-field-value-parts", templateParts(o.value)) : "") +
       (hasVars(o.label) ? attr("data-static-option", o.label) : "") +
@@ -258,9 +269,11 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
   }
   if (f.kind === "checkbox" || f.kind === "radio") {
     const text = f.label || "";
-    return "<label" + attrs + "><input" + attr("type", f.kind) + shared +
-      attr("value", f.kind === "checkbox" ? "true" : text) + flag("checked", f.checked) + ">" +
-      "<span" + (hasVars(text) ? attr("data-live", text) : "") +
+    const bare = f.submitValue !== undefined && !f.label;
+    const input = "<input" + (bare ? attrs : "") + attr("type", f.kind) + shared +
+      attr("value", f.submitValue ?? (f.kind === "checkbox" ? "true" : text)) + flag("checked", f.checked) + ">";
+    if (bare) return input;
+    return "<label" + attrs + ">" + input + "<span" + (hasVars(text) ? attr("data-live", text) : "") +
       (hasVars(text) && ctx.template ? attr("data-field-text-parts", templateParts(text)) : "") + ">" +
       escapeHtml(text) + "</span></label>";
   }
@@ -320,12 +333,12 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "code" && n.code) {
       const html = cssValue(ctx.doc, "rawHtml", n.code.html, ctx.assets);
       return "<div" + commonAttrs + ' data-raw="">' +
-        rewriteRootUrls(html, ctx.prefix, ctx.scriptSources) + "</div>";
+        rewriteRootUrls(html, ctx.prefix, ctx.assetSources) + "</div>";
     }
     if (n.type === "icon" && n.icon) {
       const html = cssValue(ctx.doc, "rawHtml", n.icon.svg, ctx.assets);
       return "<span" + commonAttrs + ' data-raw="" aria-hidden="true">' +
-        rewriteRootUrls(html, ctx.prefix, ctx.scriptSources) + "</span>";
+        rewriteRootUrls(html, ctx.prefix, ctx.assetSources) + "</span>";
     }
     if (n.type === "media" && n.media) {
       const media = n.media;
@@ -370,8 +383,10 @@ function render(ctx: Context, id: string, top: boolean): string {
     const text = n.text?.content || "";
     if (hasVars(text)) extra += ctx.template
       ? attr("data-text-parts", templateParts(text)) : attr("data-live", text);
-    if (tag === "form") extra += ' method="get"';
-    if (tag === "button") extra += attr("type",
+    const submission = submissionAttributes(n.htmlAttrs, tag, action => href(ctx, action, true));
+    for (const [key, value] of Object.entries(submission)) extra += attr(key, value);
+    if (tag === "form" && !submission.method) extra += ' method="get"';
+    if (tag === "button" && !submission.type) extra += attr("type",
       ctx.form && !n.scripts?.some((s) => s.trigger === "click") ? "submit" : "button");
     if (n.link) {
       tag = "a";
@@ -404,9 +419,9 @@ function pageFragment(ctx: Context, page: Page): string {
   return [
     "<span hidden" + attr("data-page-body", page.id) + pageScripts + "></span>",
     '<script type="application/json" data-page-plan>' + dataPlan + "</script>",
-    page.customTopHtml ? rewriteRootUrls(page.customTopHtml, ctx.prefix, ctx.scriptSources) : "",
+    page.customTopHtml ? rewriteRootUrls(page.customTopHtml, ctx.prefix, ctx.assetSources) : "",
     body,
-    page.customEndHtml ? rewriteRootUrls(page.customEndHtml, ctx.prefix, ctx.scriptSources) : "",
+    page.customEndHtml ? rewriteRootUrls(page.customEndHtml, ctx.prefix, ctx.assetSources) : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -415,11 +430,12 @@ function prepareHtmlExport(doc: SiteDoc) {
   unnestLinks(normalized);
   applyBreakpoints(normalized);
   raiseOverCrispSvg(normalized);
+  const assets = buildAssetNames(normalized);
   return {
     doc: normalized,
     classes: buildClassNames(normalized),
-    assets: buildAssetNames(normalized),
-    scriptSources: importedScriptSources(normalized),
+    assets,
+    assetSources: exportedAssetSources(normalized, assets),
     toggles: new Set([
       ...Object.values(normalized.nodes).flatMap((n) => scriptTargetIds(n, ["show", "toggle"])),
       ...Object.values(normalized.pages).flatMap((p) =>
@@ -459,7 +475,7 @@ function fontsCss(doc: SiteDoc): string {
 
 export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, target: PublishTarget = "production"): GeneratedProject {
   const shared = prepareHtmlExport(doc);
-  const { doc: normalized, assets, scriptSources } = shared;
+  const { doc: normalized, assets, assetSources } = shared;
   const files: Record<string, string> = {};
   const binaries: Record<string, string> = {};
   const remoteAssets: Record<string, string> = {};
@@ -469,7 +485,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
     const output = path.slice(7);
     // Service Worker は file:// からは使えない。それ以外は、そのまま読める。
     files[output] = output.endsWith(".css")
-      ? rewriteCssRootUrls(source, output.startsWith("assets/") ? "./" : "../") : source;
+      ? rewriteCssRootUrls(source, pagePrefix(output)) : source;
   }
   for (const [path, binary] of Object.entries(next.binaries)) {
     if (path.startsWith("public/")) binaries[path.slice(7)] = binary;
@@ -550,7 +566,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
         htmlWithScriptAssets = htmlWithScriptAssets.slice(0, updated.location.startOffset) +
           'href="' + escapeHtml(base.href) + '"' + htmlWithScriptAssets.slice(updated.location.endOffset);
       }
-      files[path] = rewriteRootUrls(htmlWithScriptAssets, assetPrefix, scriptSources);
+      files[path] = rewriteRootUrls(htmlWithScriptAssets, assetPrefix, assetSources);
       continue;
     }
     const ctx: Context = {
@@ -605,10 +621,10 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
     files[path] = [
       "<!doctype html>",
       '<html lang="' + escapeHtml(page.lang || normalized.lang || "ja") + '">',
-      "<head>", rewriteRootUrls(head, prefix, scriptSources), "</head>",
+      "<head>", rewriteRootUrls(head, prefix, assetSources), "</head>",
       "<body>",
       body,
-      normalized.customBodyEndHtml ? rewriteRootUrls(normalized.customBodyEndHtml, prefix, scriptSources) : "",
+      normalized.customBodyEndHtml ? rewriteRootUrls(normalized.customBodyEndHtml, prefix, assetSources) : "",
       scripts, "</body>", "</html>", "",
     ].join("\n");
   }

@@ -9,7 +9,7 @@ import { nodeDatabase } from "../lib/node-storage";
 import { createInitialDoc } from "../lib/presets";
 import * as sites from "../lib/sites";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
-import { readTextLimited, TooLargeError } from "../lib/safe-fetch";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
 import { userMessage } from "../lib/errors";
 
@@ -38,9 +38,9 @@ function api(db: Db, read = readCurrentDoc) {
     getSiteRoomKey: sites.getSiteRoomKey,
     cleanupAbandonedDocuments: async () => undefined,
     eraseSiteDocument: async () => undefined,
-    validateImportedDoc, IMPORT_LIMITS, readTextLimited, TooLargeError };
+    validateImportedDoc, IMPORT_LIMITS, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError };
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected));
-  return (input: unknown = { name: "Copy", copyFrom: "source" }) => post(new Request("https://example.test/api/sites", { method: "POST", body: JSON.stringify(input) })) as Promise<Response>;
+  return (input: unknown = { name: "Copy", copyFrom: "source" }) => post(new Request("https://example.test/api/sites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })) as Promise<Response>;
 }
 
 test("copying a source deleted before its document is read does not create a blank copy", async () => database(async db => {

@@ -19,6 +19,7 @@ import {
   type FieldValues,
   fieldInitialValue,
   fieldVarName,
+  radioValue,
   truthy,
   RANGED_INPUTS,
   TEXT_INPUTS,
@@ -207,7 +208,7 @@ export function renderLeafNode(
         ...common,
         placeholder: fill(f.placeholder),
         rows: f.rows || undefined,
-        maxLength: f.maxLength || undefined,
+        maxLength: f.maxLength,
         required,
         disabled,
         ...(live
@@ -250,24 +251,24 @@ export function renderLeafNode(
     }
     if (f.kind === "checkbox" || f.kind === "radio") {
       const label = fill(f.label);
-      return createElement("label", common, [
-        createElement("input", {
-          key: "input",
-          type: f.kind,
-          // ラジオは表示テキストを値にする（書き出したサイトとそろえる）
-          ...(f.kind === "radio" ? { value: label, name: name || undefined } : { value: "true" }),
-          required,
-          disabled,
-          ...(live
-            ? {
-                checked: f.kind === "checkbox" ? truthy(value) : value === label,
-                onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
-                  opts.onField?.(name, f.kind === "checkbox" ? String(e.target.checked) : label),
-              }
-            : { readOnly: true, checked: !!f.checked, onChange: () => {} }),
-        }),
-        label,
-      ]);
+      const choice = f.kind === "radio" ? radioValue(f, opts.vars) : (f.submitValue ?? "true");
+      const bare = f.submitValue !== undefined && !f.label;
+      const input = createElement("input", {
+        ...(bare ? common : { key: "input" }),
+        type: f.kind,
+        name: (f.name ?? name) || undefined,
+        value: choice,
+        required,
+        disabled,
+        ...(live
+          ? {
+              checked: f.kind === "checkbox" ? truthy(value) : value === choice,
+              onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+                opts.onField?.(name, f.kind === "checkbox" ? String(e.target.checked) : choice),
+            }
+          : { readOnly: true, checked: !!f.checked, onChange: () => {} }),
+      });
+      return bare ? input : createElement("label", common, [input, label]);
     }
     if (f.kind === "submit") {
       // 表示の切り替えなどですでに onClick が付いていれば、合成する
@@ -311,7 +312,7 @@ export function renderLeafNode(
       required,
       disabled,
       ...(ranged ? { min: fill(f.min) || undefined, max: fill(f.max) || undefined, step: fill(f.step) || undefined } : {}),
-      ...(TEXT_INPUTS.has(type) && f.maxLength ? { maxLength: f.maxLength } : {}),
+      ...(TEXT_INPUTS.has(type) ? { maxLength: f.maxLength } : {}),
       ...(live
         ? {
             value,

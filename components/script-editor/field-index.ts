@@ -2,7 +2,7 @@
  * スクリプトのすべての入力欄で共有する、入力欄の情報。ワークスペースには条件のブロックが
  * たくさんあることがあるため、一度だけ索引を作り、入力欄ごとにすべてのノードを調べないようにする。
  */
-import { fieldVarName, isRadioItem } from "../../lib/fields";
+import { fieldVarName, isRadioItem, radioValue } from "../../lib/fields";
 import type { DocNode, FieldContent, SiteDoc } from "../../lib/types";
 import type { TreeRow } from "./targets";
 
@@ -30,7 +30,7 @@ export function indexFieldTargets(
   for (const node of nodes) {
     if (node.field?.kind !== "radio") continue;
     const group = fieldVarName(node);
-    const label = node.field.label ?? "";
+    const label = radioValue(node.field);
     if (!group || !label) continue;
     const seen = radioSeen.get(group) ?? new Set<string>();
     if (seen.has(label)) continue;

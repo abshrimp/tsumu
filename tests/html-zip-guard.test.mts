@@ -100,6 +100,18 @@ test("raw HTML ZIP import rejects oversized HTML without starting uploads", asyn
   }
 });
 
+test("invalid HTML encoding and an empty ZIP entry page fail before uploading assets", async t => {
+  const fetch = t.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected upload"); });
+  for (const [index, about, reason] of [
+    ["<p>home</p>", Uint8Array.of(0xff), /about.htm.*UTF-8/],
+    [" \n", "<p>about</p>", /HTML file in the ZIP is empty/],
+  ] as const) {
+    const zip = new JSZip().file("index.html", index).file("about.htm", about).file("style.css", "p{}");
+    await assert.rejects(readHtmlZip(await zip.generateAsync({ type: "uint8array" })), reason);
+  }
+  assert.equal(fetch.mock.callCount(), 0);
+});
+
 test("raw HTML ZIP import validates all stylesheets before uploading other assets", async () => {
   const input = new JSZip()
     .file("index.html", "<link rel=\"stylesheet\" href=\"bad.css\">")

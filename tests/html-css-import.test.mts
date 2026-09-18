@@ -18,11 +18,11 @@ test("recursively resolves CSS @imports, media conditions and child-relative URL
     width: 16, height: 16, path: "assets/icon",
     zip: { version: 1, group, path: "images/icon.svg" },
   };
-  const mobile = css("mobile", "css/mobile.css",
-    ".card { gap: 4px; }");
+  const mobile = css("mobile", "css/nested/mobile.css",
+    '.card { gap: 4px; mask: url("../images/icon.svg#mark"); }');
   const base = css("base", "css/base.css",
-    '@import url("mobile.css") screen and (max-width: 768px); .card { background-image: url("../images/icon.svg#mark"); }',
-    [{ url: "mobile.css", assetId: "mobile", suffix: "" },
+    '@import url("nested/mobile.css") screen and (max-width: 768px); .card { background-image: url("../images/icon.svg#mark"); }',
+    [{ url: "nested/mobile.css", assetId: "mobile", suffix: "" },
      { url: "../images/icon.svg#mark", assetId: "image", suffix: "#mark" }]);
   const main = css("main", "css/main.css",
     '@import "./base.css"; .card { display: grid; }',
@@ -32,6 +32,8 @@ test("recursively resolves CSS @imports, media conditions and child-relative URL
     (msg) => warnings.push(msg), main);
   assert.match(resolved.css, /@media screen and \(max-width: 768px\)/);
   assert.match(resolved.css, /gap: 4px/);
+  assert.ok(resolved.css.includes('mask: url("../images/icon.svg#mark")'),
+    "a missing child-relative file cannot resolve against a parent stylesheet");
   assert.match(resolved.css, /display: grid/);
   assert.match(resolved.css, /background-image: url\("\/api\/assets\/file\?path=assets%2Ficon#mark"\)/);
   assert.deepEqual(resolved.unresolved, []);

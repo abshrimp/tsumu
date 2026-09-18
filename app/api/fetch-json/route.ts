@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     }
   }
   const sendBody = typeof body === "string" && verb !== "GET" && verb !== "DELETE" ? body : undefined;
-  if (sendBody && sendBody.length > 1024 * 1024) {
+  if (sendBody && new TextEncoder().encode(sendBody).byteLength > 1024 * 1024) {
     return NextResponse.json({ error: tr("The request body is too large (up to 1 MB)") }, { status: 400 });
   }
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) {

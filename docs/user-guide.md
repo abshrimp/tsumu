@@ -282,13 +282,17 @@ On the home screen, click **Import** or drop a file onto the page to create a ne
 |---|---|
 | A zip exported from Tsumu (it contains `_tsumu/doc.json`) | The site is restored, with its images and other assets. |
 | A `doc.json` | The site is restored. Assets embedded as data URLs are uploaded. |
-| An HTML file, or a zip of a website | Every HTML page is converted into editable elements. The zip's other files are uploaded as assets and the HTML's paths are rewritten. |
+| An HTML file, or a zip of a website | Every HTML page is converted into editable elements. Links between those pages follow the source HTML’s base URL, including query strings and fragments. The zip's other files are uploaded as assets and the HTML's paths are rewritten. |
 
-If you drop a ZIP without editing data onto the home screen, Tsumu alerts you before converting its HTML. Warnings about assets that could not be restored appear once the new site opens.
+If you drop a ZIP without editing data onto the home screen, Tsumu alerts you before converting its HTML. Warnings about assets that could not be restored appear once the new site opens. If the connection drops during a server import and Tsumu cannot confirm the save, check the home screen for the new site before importing again.
 
 In the editor, a page's settings can also load an HTML file or a zip into that page. A normal page converts the HTML into editable elements, asking before it replaces the page's current elements. An HTML page uses the HTML as is. From a zip, `index.html` is loaded first.
 
-Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A zip of a website can hold up to 200 files and 2 MB of CSS, which must be UTF-8.
+Editable forms retain their submission method, action URL, field names and submit-button overrides. Serve the exported site with the endpoint that handles the form. Number and date fields retain their limits, and file fields retain their allowed file types and multiple-file setting.
+
+When converted to an editable image, a plain `<img>` keeps its `src` and drops `srcset` and `sizes`. Use an HTML page to preserve its responsive image candidates. A `<picture>` is retained as a custom code element.
+
+Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A zip of a website can hold up to 200 files and 2 MB of CSS. Save HTML and CSS files in the zip as UTF-8.
 
 > [!TIP]
 > `skills/tsumu-site/` is an agent skill that describes the `doc.json` format, so an AI agent can generate a site you then import and keep editing.

@@ -2,6 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { scriptsFile } from "../lib/script-runtime";
 import { listActions, nestedOperationsBundle, publishedNestedOperations } from "../tests/helpers/nested-list-operations";
 
+let bundle: string;
+test.beforeAll(async () => { bundle = await nestedOperationsBundle(true); });
+
 const snapshot = (page: Page) => page.evaluate(() => {
   const { doc, past, future } = (window as any).nestedOperationsStore.getState();
   return { doc, past, future };
@@ -41,7 +44,7 @@ async function runOperations(page: Page) {
 test(`component-contained lists: select script arrays, sort, filter, clear and reopen preview`, async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
+  await page.addScriptTag({ content: bundle });
   for (const action of listActions) {
     await page.getByRole("button", { name: `Edit ${action}`, exact: true }).click();
     const choice = page.locator(`.se-ws [data-sel-key="step:${action}-step"] button.se-list-choice`);
@@ -78,7 +81,7 @@ test(`component-contained lists: select script arrays, sort, filter, clear and r
 test("script list chooser filters candidates, supports the keyboard, and dismisses without changing the list", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
+  await page.addScriptTag({ content: bundle });
   await page.getByRole("button", { name: "Edit descending", exact: true }).click();
   const choice = page.locator('.se-ws [data-sel-key="step:descending-step"] button.se-list-choice');
   await expect(choice).toHaveAttribute("aria-haspopup", "listbox");
@@ -108,7 +111,7 @@ test("script list chooser filters candidates, supports the keyboard, and dismiss
 
 test("list selection menu shows the first sampled row, not all 20 records", async ({ page }) => {
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
+  await page.addScriptTag({ content: bundle });
   await page.evaluate(() => (window as any).nestedOperationsStore.getState().updateDoc((doc: any) => {
     doc.pages.p.pageScripts[0].steps[0].preview.sample = Array.from({ length: 20 }, (_, index) => ({
       name: "Row " + index,
@@ -131,7 +134,7 @@ test("list selection menu shows the first sampled row, not all 20 records", asyn
 
 test("custom list picker accepts a path absent from the sample choices", async ({ page }) => {
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
+  await page.addScriptTag({ content: bundle });
   await page.getByRole("button", { name: "Edit descending", exact: true }).click();
   const choice = page.locator('.se-ws [data-sel-key="step:descending-step"] button.se-list-choice');
   await choice.click();

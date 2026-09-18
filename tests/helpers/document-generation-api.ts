@@ -13,7 +13,6 @@ import { createInitialDoc } from "../../lib/presets";
 import { isDocPatch } from "../../lib/doc-patch";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../lib/api-json";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../lib/site-import-format";
-import { readTextLimited, TooLargeError } from "../../lib/safe-fetch";
 import { userMessage } from "../../lib/errors";
 
 class NextResponse extends Response {
@@ -28,12 +27,22 @@ export const original = createInitialDoc(); original.siteName = "Synthetic origi
 export const replacement = createInitialDoc(); replacement.siteName = "Synthetic replacement content";
 export const edit = { ...original, siteName: "Synthetic edited content" };
 
+// Reuse the compiled source, but evaluate a fresh module with each fixture's bindings.
+const compiledSources = new Map<string, string>();
+function moduleSource(path: string) {
+  let code = compiledSources.get(path);
+  if (code === undefined) {
+    const source = readFileSync(new URL(path, import.meta.url), "utf8");
+    code = transformSync(source, { loader: "ts", format: "cjs", target: "es2022" }).code;
+    compiledSources.set(path, code);
+  }
+  return code;
+}
+
 export function load(path: string, injected: Record<string, unknown>) {
-  const url = new URL(path, import.meta.url);
-  const require = createRequire(url);
-  const code = transformSync(readFileSync(url, "utf8"), { loader: "ts", format: "cjs", target: "es2022" }).code;
+  const require = createRequire(new URL(path, import.meta.url));
   const module = { exports: {} as Record<string, any> };
-  new Function("require", "module", "exports", code)(
+  new Function("require", "module", "exports", moduleSource(path))(
     (name: string) => Object.hasOwn(injected, name) ? injected[name] : require(name), module, module.exports,
   );
   return module.exports;
@@ -122,7 +131,7 @@ export async function setup(t: TestContext) {
   const shared = {
     ...sites, ...docStorage, ...services, NextResponse, recordActivity, isDocPatch,
     JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
-    IMPORT_LIMITS, validateImportedDoc, readTextLimited, TooLargeError, userMessage,
+    IMPORT_LIMITS, validateImportedDoc, userMessage,
     newSiteId: () => "destination",
     getDb: async () => db, dbConfigured: () => true, requireAuth: async () => null, sessionUser: async () => null,
     serverTr: async () => (value: string) => value,
@@ -130,8 +139,7 @@ export async function setup(t: TestContext) {
     notifyDocUpdated: (id: string, message: unknown, roomKey: unknown) => { hooks.beforeNotify?.(); notifications.push({ id, message, roomKey }); },
   };
   const route = (name: string) => {
-    const source = readFileSync(new URL(`../../app/api/${name}/route.ts`, import.meta.url), "utf8");
-    const code = transformSync(source, { loader: "ts", format: "cjs", target: "es2022" }).code;
+    const code = moduleSource(`../../app/api/${name}/route.ts`);
     const module = { exports: {} as Record<string, (req: Request) => Promise<Response>> };
     new Function("require", "module", "exports", code)(
       () => shared, module, module.exports,

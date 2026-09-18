@@ -30,7 +30,7 @@ function validField(value: unknown): boolean {
     "text", "email", "password", "number", "tel", "url", "search",
     "date", "time", "datetime-local", "month", "week", "color", "range",
   ])) &&
-    ["label", "defaultValue", "placeholder", "group", "min", "max",
+    ["name", "submitValue", "label", "defaultValue", "placeholder", "group", "min", "max",
       "step", "accept"].every(key => optional(value[key], str)) &&
     ["checked", "disabled", "required", "multiple"].every(key => optional(value[key], bool)) &&
     optional(value.maxLength, integer) && optional(value.rows, integer) &&

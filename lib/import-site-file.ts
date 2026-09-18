@@ -1,4 +1,5 @@
 import { tr } from "./i18n";
+import { createDocPatch } from "./doc-patch";
 import { withImportUploads } from "./import-uploads";
 import { emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, withLocalSiteListLock } from "./site";
 import { createBrowserDoc, deleteBrowserDoc } from "./browser-doc-storage";
@@ -39,24 +40,24 @@ async function localWrite(doc: string, name: string): Promise<string> {
   }
 }
 
-async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promise<string> {
+async function serverWrite(doc: SiteDoc, uploads: string[]): Promise<string> {
   const id = newSiteId();
-  // 応答が失われても ID は分かる。サーバーは、サイトと版1の文書を、
-  // 同じトランザクションで排他的に追加する。
+  // 応答が失われても、指定した ID で初版の保存を確認できる。
   const response = await fetch("/api/sites", {
     method: "POST", credentials: "same-origin", redirect: "error", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: doc.siteName, importId: id, initialDoc: doc }),
   }).catch(() => null);
   const data = await response?.json().catch(() => null);
   if (response?.ok && data?.site?.id === id) return id;
-  if (response && response.status >= 400 && response.status < 500) {
-    throw new Error(data?.error || tr("Could not create the site."));
+  // API の明示的な拒否ならアップロードを取り消せる。プロキシの 408 などは保存後にも届き得る。
+  if (response && [400, 401, 403, 404, 409, 413, 415].includes(response.status) && typeof data?.error === "string") {
+    throw new Error(data.error || tr("Could not create the site."));
   }
-  const saved = await fetch("/api/doc?site=" + id, { credentials: "same-origin", redirect: "error" }).then(res => res.ok ? res.json() : null).catch(() => null);
-  if (saved?.exists && JSON.stringify(saved.doc) === raw) return id;
-  // 通信やプロキシの失敗は、トランザクションが取り消されたことの証明にはならない。
-  // 処理中のサイトや、すでに編集されたサイトが使うかもしれない、アップロードしたバイト列は削除しない。
+  // 確認中に処理が失敗しても、サーバーで確定済みかもしれないアセットを削除しない。
   uploads.length = 0;
+  const saved = await fetch("/api/doc?site=" + id, { credentials: "same-origin", redirect: "error" }).then(res => res.ok ? res.json() : null).catch(() => null);
+  // DocumentRoom は保存した行から文書を組み直すため、設定や ID の並びは変わり得る。
+  if (saved?.exists && saved.doc && createDocPatch(doc, saved.doc)?.length === 0) return id;
   throw new Error(tr("Could not confirm the save. Check the site list on the home screen."));
 }
 
@@ -97,7 +98,7 @@ export async function createSiteFromFile(
       throw new Error(tr("The edit data exceeds the size limit."));
     }
     const id = mode === "server"
-      ? await serverWrite(doc, raw, paths)
+      ? await serverWrite(doc, paths)
       : await localWrite(raw, doc.siteName);
     try {
       window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));

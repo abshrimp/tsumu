@@ -10,12 +10,12 @@ export const RANGED_INPUTS = new Set(["number", "range", "date", "time", "dateti
 export const TEXT_INPUTS = new Set(["text", "email", "password", "tel", "url", "search"]);
 
 /**
- * 入力欄の値の名前（送信するときの name と、{変数} の名前）。
- * ラジオはグループ名、他は ID 属性
+ * 入力欄をプレビューやスクリプトから参照する名前。
+ * ラジオはグループ名、他は ID 属性か、取り込んだ入力欄の name。
  */
 export function fieldVarName(n: Pick<DocNode, "attrId" | "field">): string {
   if (n.field?.kind === "radio") return n.field.group?.trim() || "";
-  return n.attrId || "";
+  return n.attrId || n.field?.name || "";
 }
 
 /** 入力欄が提供する {変数} の名前（ラジオはグループ名と、グループのボタン1つの ID） */
@@ -28,6 +28,16 @@ export function fieldVarNames(n: Pick<DocNode, "attrId" | "field">): string[] {
 
 const fill = (v: string | undefined, vars?: Record<string, unknown>) =>
   v && vars && hasVars(v) ? interpolate(v, vars) : (v ?? "");
+
+/** 取り込んだラジオは元の value、エディタで作成したラジオは表示テキストを使う。 */
+export function radioValue(f: FieldContent, vars?: Record<string, unknown>): string {
+  return f.submitValue ?? fill(f.label, vars);
+}
+
+/** 編集画面の空欄は初期値なし。HTML で選択された value="" は明示的な初期値。 */
+export function selectDefaultValue(f: FieldContent): string | undefined {
+  return f.name !== undefined ? f.defaultValue : f.defaultValue || undefined;
+}
 
 /** 真偽として読む（空・off・false・0・no はオフ。公開サイトのランタイムと同じ） */
 export function truthy(v: unknown): boolean {
@@ -73,12 +83,13 @@ export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown
     case "checkbox":
       return f.checked ? "true" : "false";
     case "radio":
-      return f.checked ? fill(f.label, vars) : "";
+      return f.checked ? radioValue(f, vars) : "";
     case "select": {
       const options = (f.options ?? []).map((option) => fill(option.value, vars));
-      const value = fill(f.defaultValue, vars);
+      const initial = selectDefaultValue(f);
+      const value = fill(initial, vars);
       // 初期値が選択肢に無ければ、ブラウザと同じく先頭を選ぶ。変数が空に解決される場合も比べる。
-      return f.defaultValue && options.includes(value) ? value : (options[0] ?? "");
+      return initial !== undefined && options.includes(value) ? value : (options[0] ?? "");
     }
     case "file":
     case "submit":
@@ -150,12 +161,12 @@ export function fieldStateValues(
     if (f.kind === "radio") {
       // グループのボタン1つの {ID} は、そのボタンを選んでいるか
       if (isRadioItem(n)) {
-        setFieldValue(out, n.attrId!, String(name ? !!v && v === fill(f.label, vars) : !!f.checked));
+        setFieldValue(out, n.attrId!, String(name ? !!v && v === radioValue(f, vars) : !!f.checked));
         out[`${n.attrId!}.disabled`] = String(!!f.disabled);
       }
       if (!name) continue;
       const group = fields.filter((x) => x.field?.kind === "radio" && fieldVarName(x) === name);
-      const at = group.findIndex((x) => fill(x.field!.label, vars) === v);
+      const at = group.findIndex((x) => radioValue(x.field!, vars) === v);
       out[`${name}.index`] = at < 0 ? "" : String(at + 1);
     }
     if (!name) continue;
@@ -185,9 +196,9 @@ export function fieldValuePatch(
   if (item) {
     const group = fieldVarName(item);
     if (!group) return null;
-    const label = fill(item.field!.label, vars);
-    if (truthy(v)) return { [group]: label };
-    return values[group] === label ? { [group]: "" } : {};
+    const selected = radioValue(item.field!, vars);
+    if (truthy(v)) return { [group]: selected };
+    return values[group] === selected ? { [group]: "" } : {};
   }
   const hit = fields.find((n) => n.type === "field" && fieldVarName(n) === name);
   if (!hit) return null;

@@ -44,6 +44,9 @@ export interface FieldOption {
 
 export interface FieldContent {
   kind: FieldKind;
+  /** HTML から取り込んだ項目名と、チェックボックス・ラジオ・送信ボタンの送信値。 */
+  name?: string;
+  submitValue?: string;
   /** kind="input" のときの HTML の input type */
   inputType?: InputType;
   /** checkbox / radio の隣に表示するテキスト（{変数} を使える） */

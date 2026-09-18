@@ -48,13 +48,17 @@ export function appendAssetSuffix(url: string, suffix: string): string {
   return url + (suffix.startsWith("?") && url.includes("?") ? `&${suffix.slice(1)}` : suffix);
 }
 
+export function archiveFileUrl(path: string): URL {
+  return new URL(path.split("/").map(encodeURIComponent).join("/"), "file:///");
+}
+
 // 外部を基準とする参照は、外部のまま保つ。ローカルの基準はアーカイブの中で解決し、
 // 相対 URL をエディタのオリジンを基準に解釈することはしない。
 export function archiveBaseUrl(htmlPath: string, href: string | undefined | null): URL | undefined {
   if (href) {
     try {
       const text = href.trim();
-      const value = new URL(/^[\\/]{2}/.test(text) ? "https:" + text : text, new URL(htmlPath.split("/").map(encodeURIComponent).join("/"), "file:///"));
+      const value = new URL(/^[\\/]{2}/.test(text) ? "https:" + text : text, archiveFileUrl(htmlPath));
       if (["http:", "https:"].includes(value.protocol) ||
           (value.protocol === "file:" && !/^[a-z][a-z0-9+.-]*:/i.test(href.trim()))) return value;
     } catch { /* Invalid bases use the HTML entry's directory. */ }

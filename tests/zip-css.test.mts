@@ -9,6 +9,7 @@ import { buildClipPayload, mergeClipDeps, remapAssetIds } from "../lib/clip-tran
 import { buildPagePayload, applyPagePayload } from "../lib/page-transfer";
 import { createInitialDoc } from "../lib/presets";
 import { generateProject } from "../lib/generator";
+import { generateExportProject } from "../lib/export-formats";
 import { assetUsage } from "../components/left-panel/AssetsTab";
 import type { Asset, DocNode } from "../lib/types";
 
@@ -102,6 +103,27 @@ test("export rewrites source bytes once, retains native cycles, and never emits 
   }
   assert.ok(Object.values(project.files).some((s) => s.includes("/assets/css-a.css?v=1#theme")));
   assert.ok(Object.values(project.files).every((s) => !s.includes("tsumu-zip-css:")));
+});
+
+test("page export keeps query-bearing ZIP styles and standalone CSS resolves from its emitted file", () => {
+  const doc = createInitialDoc();
+  const a = sheet("base", "css/base.css", '@import "theme.css";');
+  const b = sheet("theme", "css/theme.css", '.one{background:url("../images/photo.svg")}.two{mask:url("/assets/images-photo.svg?rev=2#mask")}');
+  const photo = image();
+  attachZipDependencies([a, b, photo]);
+  doc.assets = record([a, b, photo, image("unused", "unused.svg")]);
+  const pageId = doc.pageOrder[0];
+  doc.pages[pageId].rawHtml = `<link rel="stylesheet" href="${zipCssUrl(a.id)}?rev=1#screen">`;
+  const options = { framework: "html", language: "javascript", style: "css", scope: "page", pageId } as const;
+  const project = generateExportProject(doc, options);
+  assert.ok(project.files["index.html"].includes('href="./assets/css-base.css?rev=1#screen"'));
+  assert.equal(project.files["assets/css-base.css"], '@import "css-theme.css";');
+  const sheetFile = "assets/css-theme.css";
+  const urls = cssAssetReferences(project.files[sheetFile]).map(ref =>
+    new URL(ref.url, "https://example.test/subsite/" + sheetFile));
+  assert.deepEqual(urls.map(url => url.pathname), ["/subsite/assets/images-photo.svg", "/subsite/assets/images-photo.svg"]);
+  assert.equal(urls[1].search + urls[1].hash, "?rev=2#mask");
+  assert.deepEqual(project.remoteAssets, { "assets/images-photo.svg": photo.path });
 });
 
 test("copy collects transitive local CSS, dedupes binary assets across archive groups and remaps edges only", () => {
