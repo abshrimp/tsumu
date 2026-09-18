@@ -22,12 +22,16 @@ const snapshot = () => structuredClone({
   selection: state().selection, selectedIds: state().selectedIds,
   editingText: state().editingText, textSel: state().textSel,
 });
-const cases: { name: string; setup?: (doc: SiteDoc, depth: number) => void; run: (depth: number) => unknown }[] = [
+const cases: { name: string; setup?: (doc: SiteDoc, depth: number) => void; select?: (depth: number) => string; run: (depth: number) => unknown }[] = [
   { name: "moving", run: () => state().moveNode("n1", { kind: "node", id: "host" }, 0) },
   { name: "inserting", run: depth => {
     const node = { ...makeBox(), id: "extra" };
     state().insertNodes([node], node.id, { kind: "node", id: `n${depth}` });
   } },
+  { name: "inserting a component instance", setup: doc => {
+    doc.nodes.master = { ...makeBox(), id: "master" };
+    doc.components = { c: { id: "c", name: "Component", rootId: "master" } };
+  }, select: depth => `n${depth}`, run: () => state().insertInstance("c") },
   { name: "wrapping in a list", run: () => state().createList("n1") },
   { name: "detaching a component", setup: doc => {
     doc.pages.p.children = ["host"];
@@ -52,6 +56,7 @@ for (const action of cases) for (const allowed of [false, true]) {
     state().select("host");
     state().updateNode("host", { name: "Temporary" });
     state().undo();
+    if (action.select) state().select(action.select(depth));
     const before = snapshot();
     action.run(depth);
     if (!allowed) {

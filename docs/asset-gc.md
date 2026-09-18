@@ -2,8 +2,9 @@
 
 ## Policy
 
-The Cloudflare editor removes unused uploaded KV assets **seven days after an
-asset removal event** (or after an orphan is first found by reconciliation).
+Unused Cloudflare KV uploads become eligible for deletion **seven days after
+the last removal event** (or after reconciliation first finds an orphan).
+The default run reports eligible files. Set `ASSET_GC_ENABLED=true` to delete them.
 Deleting an asset from one site does not immediately remove the shared KV
 object. Multiple sites can reference the same immutable asset path.
 
@@ -68,7 +69,9 @@ assets that are waiting for GC, failed uploads and the files of deleted sites.
 When an asset is deleted, the confirmation dialog states what happens to the
 stored file (`/api/status` → `assetDeletion`): deleted after
 `ASSET_GC_GRACE_DAYS` days when `ASSET_GC_ENABLED=true`, kept otherwise, and
-deleted immediately on Node.js and Docker.
+deleted immediately on Node.js and Docker when no other saved site references
+the file. A direct image URL in another site’s HTML or CSS also counts as a
+reference.
 
 ## Limits, storage and recovery
 

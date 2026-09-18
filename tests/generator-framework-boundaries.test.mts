@@ -113,6 +113,33 @@ test("imported HTML has output parity with published HTML using only shared styl
   assert.deepEqual(doc, before);
 });
 
+test("raw-page styles and robots metadata preserve authored head text and the doctype", async () => {
+  const doc = fixture();
+  doc.pages.home.noindex = true;
+  const comment = "<!-- header example: <head> -->";
+  const script = '<script>const headEnd = "</head>";</script>';
+  for (const source of [
+    comment + '<!doctype html><html><head>' + script + '</head><body>Page</body></html>',
+    comment + '<!doctype html>' + script + '<main>Page</main>',
+  ]) {
+    doc.pages.home.rawHtml = source;
+    const next = generateProject(doc);
+    const production = generateExportProject(doc, "html");
+    const preview = await prepareExportProject(doc, "html", "test");
+    for (const [output, target] of [
+      [await routeHtml(next.files["app/route.ts"]), "production"],
+      [production.files["index.html"], "production"], [preview.files["index.html"], "test"],
+    ]) {
+      assert.ok(output.startsWith(comment + "<!doctype html>"));
+      assert.ok(output.includes(script));
+      assert.match(output, /<style data-editor-body-style>/);
+      const robots = output.match(/<meta name="robots" content="([^"]+)">/g) ?? [];
+      assert.equal(robots.length, 1);
+      assert.match(robots[0], target === "test" ? /noarchive/ : /noindex,\s*nofollow/);
+    }
+  }
+});
+
 test("test-target HTML is independent of Next.js publication route removal", async () => {
   const doc = fixture("robots.txt");
   doc.pages.home.rawHtml = '<html><head></head><body>Authored page</body></html>';

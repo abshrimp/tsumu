@@ -195,6 +195,7 @@ test("HTML supports query-based page variants without a server rewrite", () => {
     ...makeBox(), id: "other-text", text: { content: "Second tab", heading: 1 },
   };
   doc.pageOrder.push("other");
+  doc.pages.home.noindex = true;
   doc.nodes.hero.link = { kind: "page", pageId: "other" };
   assert.deepEqual(exportLimitations(doc, "html"), []);
   const html = generateExportProject(doc, "html");
@@ -203,6 +204,9 @@ test("HTML supports query-based page variants without a server rewrite", () => {
   assert.match(html.files["index.html"], /query-router\.js/);
   assert.match(html.files["index.html"], /index\.html\?tab=2/);
   assert.match(html.files["index.html"], /Second tab/);
+  assert.doesNotMatch(html.files["index.html"].split("</head>")[0], /name="robots"/);
+  doc.pages.other.noindex = true;
+  assert.match(generateExportProject(doc, "html").files["index.html"].split("</head>")[0], /name="robots" content="noindex,nofollow"/);
   assert.equal(Object.keys(html.files).filter((name) => name.endsWith("index.html")).length, 1);
 });
 

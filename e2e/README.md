@@ -52,6 +52,9 @@ exactly one shard; the durations file only influences load balancing.
 - Do not delete a browser test merely because its filename also exists in
   `tests/`. Compare its assertions and unique browser behavior first.
   Preserve the multi-engine smoke tags when changing test selection.
+- Run preview navigation and script lifecycle cases once when they only inspect
+  document state. Exercise both Japanese and English when checking translated
+  labels, accessible names and palette search.
 
 The four shards use `scripts/e2e-shard-durations.json` as an estimate, not
 as a test manifest. It records the sum of Playwright-reported case durations

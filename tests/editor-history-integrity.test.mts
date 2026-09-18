@@ -93,3 +93,41 @@ test("duplicated nodes keep unique IDs through undo, redo and deletion", () => {
     assertTree(state().doc, caseIndex);
   }
 });
+
+test("duplicating a selection of pages commits one undoable change", () => {
+  const state = useEditor.getState;
+  const doc = fixture();
+  doc.pages.about = { ...doc.pages.home, id: "about", slug: "about", name: "About", children: ["about-root"] };
+  doc.nodes["about-root"] = { ...makeBox(), id: "about-root", children: ["about-child"] };
+  doc.nodes["about-child"] = { ...makeBox(), id: "about-child" };
+  doc.pageOrder.push("about");
+  state().replaceDoc(doc);
+  const notifications: SiteDoc[] = [];
+  const stop = useEditor.subscribe((s, previous) => {
+    if (s.doc !== previous.doc) notifications.push(s.doc);
+  });
+  try {
+    state().duplicatePages(["about", "missing", "home", "about"]);
+  } finally {
+    stop();
+  }
+  const after = state().doc;
+  const [home, homeCopy, about, aboutCopy] = after.pageOrder;
+  assert.deepEqual(after.pageOrder.map(id => after.pages[id].slug), ["", "copy", "about", "about-copy"]);
+  assert.equal(after.pages[home], doc.pages.home);
+  assert.equal(after.pages[about], doc.pages.about);
+  assert.notEqual(after.pages[homeCopy].children[0], "original");
+  const root = after.pages[aboutCopy].children[0];
+  assert.notEqual(root, "about-root");
+  assert.notEqual(after.nodes[root].children[0], "about-child");
+  assert.equal(state().activePageId, aboutCopy);
+  assert.deepEqual(notifications, [after]);
+  assert.deepEqual(state().past, [doc]);
+  state().undo();
+  assert.equal(state().doc, doc);
+  const undone = state();
+  state().duplicatePages(["missing"]);
+  assert.equal(state(), undone);
+  state().redo();
+  assert.equal(state().doc, after);
+});

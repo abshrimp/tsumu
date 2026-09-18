@@ -365,7 +365,7 @@ export const TOPICS: Topic[] = [
         },
       },
       { rule: tr("Give each page its own title. If every page has the same title, people can't tell them apart in search results."), title: tr("A different title for each page") },
-      { note: tr("Tabs and search results show \"Title | Site name\". With \"Hide from search results\" on, only people who know the URL can open it.") },
+      { note: tr("Tabs and search results show \"Title | Site name\". With \"Hide from search results\" on, the page asks search engines to omit it from results. Anyone can still open the published page.") },
     ],
     guide: [
       { target: "page-seo", text: tr("Open \"Search & sharing (SEO)\" and enter the title, description and share image."), prepare: { deselect: true, section: "page-seo" } },

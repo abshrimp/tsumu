@@ -265,7 +265,9 @@ Formats other than Next.js can't express everything. The dialog lists what the s
 
 Data fetches that carry credentials (an `Authorization` header, an API key in the URL or body, and so on) can't be exported or published in any format, Next.js included, because the values would end up in the generated source and in the zip's editing data. Keep credentials in server environment variables or behind an API proxy.
 
-**Publishing** always covers the whole project. Publishing a format other than Next.js to the live site asks for confirmation first, because the repository layout changes and the host's build and output settings must match. Test publishes in every format are kept out of search engines.
+**Publishing** always covers the whole project. Publishing a format other than Next.js to the live site asks for confirmation first, because the repository layout changes and the host's build and output settings must match.
+
+In a production publish, **Search & sharing (SEO) → Hide from search results** sets `noindex` for the selected page. React applies this tag in the browser. Static HTML also applies it in the browser when pages sharing a path have different settings for different query strings. The published page remains accessible by link. Test publishes apply `noindex` to the whole site.
 
 **Exporting a zip** can also cover just the **current page** or the **selected component** (the selected element and its children, as a page of their own). Single HTML always exports one page. The zip includes `_tsumu/doc.json` and `_tsumu/assets.json` — the editing data for what you exported — so you can [import](#importing) it again. Don't upload `_tsumu/` to your web server.
 

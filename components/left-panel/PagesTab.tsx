@@ -69,6 +69,7 @@ export function PagesTab() {
   const setActivePage = useEditor((s) => s.setActivePage);
   const addPage = useEditor((s) => s.addPage);
   const duplicatePage = useEditor((s) => s.duplicatePage);
+  const duplicatePages = useEditor((s) => s.duplicatePages);
   const deletePage = useEditor((s) => s.deletePage);
   const updatePage = useEditor((s) => s.updatePage);
   const placePage = useEditor((s) => s.placePage);
@@ -277,10 +278,7 @@ export function PagesTab() {
         key: "dup",
         label: many ? tr("Duplicate {n} pages", { n: ids.length }) : tr("Duplicate"),
         icon: <CopyPlus size={14} />,
-        onClick: run(() => {
-          // 下から順に複製すると、それぞれの複製が元のすぐ後ろに並ぶ
-          for (const x of [...ids].reverse()) duplicatePage(x);
-        }),
+        onClick: run(() => duplicatePages(ids)),
       },
       {
         key: "copy-site",

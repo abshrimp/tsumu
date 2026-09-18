@@ -1,3 +1,5 @@
+import type { PublishTarget } from "../generator";
+import { insertIntoHtmlHead } from "./head";
 import { zipCssUrl, zipStylesheet } from "../zip-css";
 import { importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { tr } from "../i18n";
@@ -393,7 +395,8 @@ export function rawHtmlWithBodyStyles(
   doc: SiteDoc,
   page: Page,
   html: string,
-  assetNames: Map<string, string>
+  assetNames: Map<string, string>,
+  target: PublishTarget
 ): string {
   const base: string[] = [];
   const responsive: string[] = [];
@@ -416,11 +419,11 @@ export function rawHtmlWithBodyStyles(
     }
   }
   const css = escapeStyleContent([...base, ...responsive].join("\n\n"));
-  if (!css) return html;
-  const style = `<style data-editor-body-style>\n${css}\n</style>`;
-  return /<\/head>/i.test(html)
-    ? html.replace(/<\/head>/i, (end) => `${style}\n${end}`)
-    : `${style}\n${html}`;
+  const head = [
+    css ? `<style data-editor-body-style>\n${css}\n</style>` : "",
+    target === "production" && page.noindex ? '<meta name="robots" content="noindex, nofollow">' : "",
+  ].filter(Boolean).join("\n");
+  return head ? insertIntoHtmlHead(html, head) : html;
 }
 
 /**

@@ -20,7 +20,7 @@ const doc: SiteDoc = {
   siteName: "Build smoke {1 + 2} test",
   pageOrder: ["home"],
   pages: {
-    home: { id: "home", name: "Home", slug: "", title: "Home", description: "",
+    home: { id: "home", name: "Home", slug: "", title: "Home", description: "", noindex: true,
       children: ["heading", "literal-text", "picture", "media-sources", "search", "disabled-submit", "items", "action-button", "status-text", "component-instance"],
       pageScripts: [{
         id: "load", trigger: "load", pos: { x: 0, y: 0 },

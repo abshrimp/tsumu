@@ -3,6 +3,8 @@ import { test } from "node:test";
 import { useEditor } from "../lib/store";
 import { closeDialog, useDialogs } from "../lib/dialog";
 import { assetSrc } from "../lib/assets";
+import { createBrowserDoc } from "../lib/browser-doc-storage";
+import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 import { assetConfirmationCallbacks, assetConfirmationDoc, candidate, spare } from "./helpers/asset-confirmation";
 import type { SiteDoc } from "../lib/types";
 
@@ -244,4 +246,35 @@ test("cleanup deletes an approved shared path once when none of its aliases rema
     assert.deepEqual(state().doc.assets, {});
     assert.deepEqual(f.deleted, [candidate.path]);
   } finally { f.close(); }
+});
+
+test("unused cleanup checks all removed files in one browser scan bound to the original site", async t => {
+  const previous = globalThis.window;
+  const indexedDB = fakeIndexedDB();
+  const location = { pathname: "/sites/original" };
+  globalThis.window = { indexedDB, location } as Window & typeof globalThis;
+  const f = fixture();
+  try {
+    const opens = t.mock.method(indexedDB, "open");
+    // A copied URL in HTML can reference the file without a library record in this site.
+    const markup = `<img src="${assetSrc(candidate)}"><img src="${assetSrc(spare)}.backup">`;
+    await createBrowserDoc("other", JSON.stringify({ pages: { main: { rawHtml: markup } } }));
+    await createBrowserDoc("original", JSON.stringify({ assets: { spare } }));
+    const db = opens.mock.calls[0].result!.result;
+    const transaction = db.transaction.bind(db);
+    const scans = t.mock.method(db, "transaction", (...args: Parameters<typeof transaction>) => {
+      location.pathname = "/sites/other";
+      return transaction(...args);
+    });
+    const requests: (string | null)[][] = [];
+    globalThis.fetch = async url => {
+      const params = new URL(String(url), "https://synthetic.test").searchParams;
+      requests.push([params.get("site"), params.get("path"), params.get("browserReferenced")]);
+      return Response.json({ ok: true });
+    };
+    f.begin();
+    await f.finish();
+    assert.deepEqual(requests, [["original", candidate.path, "1"], ["original", spare.path, null]]);
+    assert.equal(scans.mock.callCount(), 1);
+  } finally { globalThis.window = previous; f.close(); }
 });

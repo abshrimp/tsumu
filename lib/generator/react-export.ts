@@ -3,7 +3,7 @@ import { pagePlan } from "../data";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME } from "./browser-data";
 import { createReactPageRenderer } from "./html-export";
-import type { GeneratedProject } from "../generator";
+import type { GeneratedProject, PublishTarget } from "../generator";
 import { usedGoogleFonts } from "./css";
 import { buildAssetNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
@@ -46,7 +46,7 @@ export function needsReactPageRuntime(doc: SiteDoc, pageId: string): boolean {
 }
 
 /** Output a client-rendered Vite application with static client routes and assets. */
-export function buildReactProject(doc: SiteDoc, next: GeneratedProject): GeneratedProject {
+export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: PublishTarget): GeneratedProject {
   const files: Record<string, string> = {};
   for (const [path, source] of Object.entries(next.files)) {
     if (path.startsWith("public/")) files[path] = source;
@@ -106,6 +106,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
       ", query: Object.fromEntries(" + JSON.stringify(query) + ")" +
       ", title: " + JSON.stringify(page.title || page.name) +
       ", description: " + JSON.stringify(page.description) +
+      ", noindex: " + (target === "production" && !!page.noindex) +
       ", lang: " + JSON.stringify(page.lang || doc.lang || "ja") +
       ", Component: Page" + i + " },");
   }
@@ -124,7 +125,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
     ...imports, "",
     "const SITE_NAME = " + JSON.stringify(doc.siteName) + ";",
     "const scripts: string[] = " + JSON.stringify(scripts.map((name) => "/" + name)) + ";",
-    "type Route = { path: string; query: Record<string, string>; title: string; description: string; lang: string; Component: ComponentType };",
+    "type Route = { path: string; query: Record<string, string>; title: string; description: string; noindex: boolean; lang: string; Component: ComponentType };",
     "const routes: Route[] = [", ...entries, "];", "",
     "export default function App() {",
     '  const pathname = (() => {',
@@ -163,6 +164,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
     '  return (',
     '    <>',
     loading ? '      <SiteLoadingScreen />' : '',
+    '      {route?.noindex && <meta name="robots" content="noindex, nofollow" />}',
     '      <Page />',
     doc.customBodyEndHtml?.trim() ? '      <div dangerouslySetInnerHTML={{ __html: ' + JSON.stringify(doc.customBodyEndHtml) + ' }} />' : '',
     '    </>',

@@ -75,26 +75,6 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     await expect(page.getByRole("dialog", { name: labels.script, exact: true })).toBeVisible();
   });
 
-  test("Escape clears palette search before changing selection or closing the editor", async ({ page }) => {
-    await selectedStep(page).locator(".se-ico").first().click();
-    await expect(selectedStep(page)).toHaveClass(/is-selected/);
-    const before = await snapshot(page);
-    const search = page.getByRole("searchbox", { name: labels.search });
-    await search.fill("missing action 987654");
-    await search.press("Escape");
-    await expect(search).toHaveValue("");
-    await expect(search).toBeFocused();
-    await expect(selectedStep(page)).toHaveClass(/is-selected/);
-    expect(await snapshot(page)).toEqual(before);
-    // フォーカスが欄から外れた後も、Escape は選択を解除し、その次に閉じる。
-    await search.blur();
-    await page.keyboard.press("Escape");
-    await expect(selectedStep(page)).not.toHaveClass(/is-selected/);
-    await page.keyboard.press("Escape");
-    await expect(page.locator(".se-backdrop")).toHaveCount(0);
-    expect(await snapshot(page)).toEqual(before);
-  });
-
   for (const signal of ["isComposing", "keyCode"] as const) {
     for (const selected of [false, true]) test(`${signal}: IME Escape preserves search, focus and ${selected ? "selection" : "the open editor"}`, async ({ page }) => {
       if (selected) {

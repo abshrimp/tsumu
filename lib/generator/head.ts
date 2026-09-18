@@ -2,9 +2,21 @@
  * カスタムコード（<head> に入れる HTML）を JSX に変換する
  */
 
-import { parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
+import { parse, parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
 import { jsxString } from "./render-helpers";
 import { codeLiteral } from "./code-literal";
+
+/** 元のマークアップを再直列化せず、実際の head に差し込む。省略時も doctype の後に置く。 */
+export function insertIntoHtmlHead(html: string, markup: string): string {
+  const { childNodes } = parse(html, { sourceCodeLocationInfo: true });
+  const root = childNodes.find((node): node is Html.Element => "tagName" in node && node.tagName === "html");
+  const head = root?.childNodes.find((node): node is Html.Element => "tagName" in node && node.tagName === "head");
+  const location = head?.sourceCodeLocation;
+  const offset = location?.endTag?.startOffset ?? location?.startTag?.endOffset ??
+    root?.sourceCodeLocation?.startTag?.endOffset ??
+    childNodes.find((node) => node.nodeName === "#documentType")?.sourceCodeLocation?.endOffset ?? 0;
+  return html.slice(0, offset) + markup + "\n" + html.slice(offset);
+}
 
 /** HTML の属性名 → React の属性名（head に書かれるもの） */
 const HEAD_ATTR_NAMES: Record<string, string> = {

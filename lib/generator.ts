@@ -164,7 +164,7 @@ export function generateProject(
       const path = dir ? `app/${dir}/route.ts` : "app/route.ts";
       const source = htmlZipSource(page.rawHtml, page.htmlZip, doc.assets,
         asset => htmlZipExportSource(asset, assetNames));
-      const htmlWithAssets = rawHtmlWithBodyStyles(doc, page, cssValue(doc, "rawHtml", source, assetNames), assetNames);
+      const htmlWithAssets = rawHtmlWithBodyStyles(doc, page, cssValue(doc, "rawHtml", source, assetNames), assetNames, target);
       const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets,
         asset => htmlZipExportUrl(asset, assetNames));
       files[path] = `const html = ${JSON.stringify(htmlWithScriptAssets)};

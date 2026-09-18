@@ -65,6 +65,7 @@ try {
   await check("heading", () => page.getByText("Smoke test", { exact: true }).first().waitFor({ timeout: 7000 }));
   await page.getByText("Literal {1 + 2} and {{ 3 + 4 }}", { exact: true })
     .first().waitFor({ timeout: 15000 });
+  await check("page robots", () => page.locator('head meta[name="robots"][content*="noindex"]').first().waitFor({ state: "attached" }));
   await check("Alpha row", () => page.getByText("Alpha", { exact: true }).first().waitFor({ timeout: 7000 }));
   await check("Beta row", () => page.getByText("Beta", { exact: true }).first().waitFor({ timeout: 7000 }));
   await check("button", () => page.getByRole("button", { name: "Tap" }).waitFor({ timeout: 7000 }));
