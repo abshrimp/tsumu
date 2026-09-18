@@ -173,7 +173,7 @@ const ja: Dict = {
   "This field name cannot be used.": "この項目名は使用できません",
   "The data is too large to process.": "データが大きすぎるため加工できません",
   "Calculate a number": "数値を計算する",
-  "Split text": "文字列を分割する",
+  "Split text": "文字列を分割してリストに",
   "Join a list as text": "リストを文字列につなぐ",
   "Replace text": "文字列を置き換える",
   "Sort a list": "リストを並べ替える",
