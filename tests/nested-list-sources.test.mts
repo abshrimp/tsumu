@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { findItemsCandidates, pagePlan, previewDataVars, scopeAt } from "../lib/data";
 import { useEditor } from "../lib/store";
 import { generateProject } from "../lib/generator";
-import { nestedListProducts, nestedListSourcesBundle, nestedListSourcesDoc } from "./helpers/nested-list-sources";
+import { nestedListProducts, nestedListSourcesDoc } from "./helpers/nested-list-sources";
 
 const state = () => useEditor.getState();
 function nodes(tree: any): any[] {
@@ -61,6 +61,11 @@ test("nested source candidates include renderable primitive arrays and empty arr
     { path: "nulls", count: 1 }, { path: "arrays", count: 1 }, { path: "object.tags", count: 1 },
   ]);
   assert.deepEqual(input, before);
+  const large = Array.from({ length: 10_000 }, (_, i) => i);
+  let reads = 0;
+  Object.defineProperty(large, 0, { get() { reads++; return 0; } });
+  assert.deepEqual(findItemsCandidates({ large }), [{ path: "large", count: 10_000 }]);
+  assert.equal(reads, 0, "counting a list does not read its entries");
   assert.deepEqual(findItemsCandidates({ a: { b: { c: { tags: ["deep"] } } } }), [], "the existing depth bound remains");
 });
 
@@ -96,10 +101,6 @@ test("outer item paths remain distinct from page arrays and changing the source 
   assert.deepEqual(scope.item?.tags, ["red", "blue"]);
   f.dropdown().onChange("scores"); assert.equal(f.preview(), "First product03Second product2");
   state().undo(); assert.deepEqual(state().doc, before); assert.equal(f.preview(), "First productredblueSecond productgreen");
-});
-
-test("the actual settings and NodeView fixture bundles for Chromium", async () => {
-  assert.match(await nestedListSourcesBundle(), /nestedListStore/);
 });
 
 async function publishedText() {

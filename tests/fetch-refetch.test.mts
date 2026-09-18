@@ -15,7 +15,7 @@ import { PAGE_TARGET, type ScriptStep, type SiteDoc } from "../lib/types";
 import { makeText, makeBox } from "../lib/presets";
 import * as scriptContexts from "../components/script-editor/context";
 const { ScriptNodeCtx, ScriptOwnerCtx, LoopCtx } = scriptContexts;
-import { fetchRefetchBundle, fetchRefetchDoc } from "./helpers/fetch-refetch";
+import { fetchRefetchDoc } from "./helpers/fetch-refetch";
 
 // 実際のソースの FetchBody の入力の確定と useRefetch を動かす。DOM の代わりに、フックの状態を持つ。
 function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loops?: any[]; owner?: { scriptId: string; nodeId: string | null } } = {}) {
@@ -404,12 +404,6 @@ test("null, empty, boolean and numeric samples keep their type on fetch, viewing
     useEditor.getState().replaceDoc(JSON.parse(JSON.stringify(useEditor.getState().doc)));
     assert.deepEqual(mounted.step()!.preview?.sample, sample);
   }
-});
-
-test("the browser regression fixture bundles the real script editor", async () => {
-  const bundle = await fetchRefetchBundle();
-  assert.match(bundle, /function ScriptEditorInner/);
-  assert.match(bundle, /function FetchBody/);
 });
 
 

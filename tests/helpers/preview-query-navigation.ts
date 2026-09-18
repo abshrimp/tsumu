@@ -53,11 +53,12 @@ export async function previewNavigationFixture() {
   const module = { exports: {} as any };
   new Function("require", "module", "exports", result.outputFiles[0].text)(createRequire(resolve("package.json")), module, module.exports);
   const { useCanvasData, useEditor } = module.exports;
-  return (doc: SiteDoc, url: string) => {
+  return (doc: SiteDoc, url: string, activePageId = "home") => {
     useEditor.getState().replaceDoc(doc);
+    useEditor.getState().setActivePage(activePageId);
     let data: any;
     function Harness() {
-      data = useCanvasData({ page: doc.pages.home, doc, activePageId: "home", previewIndex: 0, mode: "design", setPreviewIndex: () => {} });
+      data = useCanvasData({ page: doc.pages[activePageId], doc, activePageId, previewIndex: 0, mode: "design", setPreviewIndex: () => {} });
       return null;
     }
     renderToString(createElement(Harness));

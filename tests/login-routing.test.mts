@@ -34,7 +34,6 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
   const serverTr = async () => (s: string) => s;
   const proxy = load("../proxy.ts", {
     "next/server": { NextResponse }, "./auth": auth,
-    "./lib/lang": { langOfRequest: () => "en" },
     "./lib/anonymous": { anonymousAllowed: () => anonymous },
   }).proxy;
   const redirect = (destination: string) => { throw new Error(`redirect:${destination}`); };
@@ -89,7 +88,12 @@ test("signed-out users still see login and protected pages/API requests remain b
 });
 
 test("login routing retains anonymous/setup behavior and cross-site write protection", async () => {
-  assert.equal((await fixture({ configured: false }).request("/login")).status, 503);
+  const setup = fixture({ configured: false });
+  for (const [lang, guide] of [["en", "user-guide.md#google-sign-in"], ["ja", "user-guide.ja.md#googleログイン"]]) {
+    const response = await setup.request("/login", "GET", { "accept-language": lang });
+    assert.equal(response.status, 503);
+    assert.ok((await response.text()).includes(`href="https://github.com/abshrimp/tsumu/blob/main/docs/${guide}"`));
+  }
   assert.equal((await fixture({ configured: false, anonymous: true }).request("/login")).headers.get("location"), "https://editor.example/");
   assert.equal((await fixture({ allowed: true }).request("/api/sites", "POST", { "sec-fetch-site": "cross-site" })).status, 403);
 });

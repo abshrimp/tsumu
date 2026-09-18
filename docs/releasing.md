@@ -110,7 +110,7 @@ save means a daily backup was created.
    live database and its WAL is unsafe even if both files are included. Never
    remove WAL files to make a backup look complete.
 3. For Node.js, copy the entire stopped directory into a new, separate backup
-   directory. For Docker, use the checked [README backup block](../README.md#docker)
+   directory. For Docker, use the checked [Docker backup commands](user-guide.md#docker)
    with the actual container and volume names. A failed stop, copy, archive or
    verification blocks this backup from use; preserve the error and inspect the
    service state before deliberately restarting it. Restart after a successful

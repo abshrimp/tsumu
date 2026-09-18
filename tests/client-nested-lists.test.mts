@@ -8,7 +8,7 @@ import { makeBox, makeText } from "../lib/presets";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { useEditor } from "../lib/store";
 import { Ctx, type EdCtx } from "../components/script-editor/context";
-import { clientNestedDoc, clientNestedCanvas, clientNestedBundle, loadNestedUi, publishedClientNested } from "./helpers/client-nested-lists";
+import { clientNestedDoc, clientNestedCanvas, loadNestedUi, publishedClientNested } from "./helpers/client-nested-lists";
 import { listRuntimeDom } from "./helpers/list-runtime-dom";
 import { nestedScopeItems } from "./helpers/nested-script-scope";
 const { parse } = createRequire(import.meta.url)("next/dist/compiled/node-html-parser");
@@ -147,11 +147,6 @@ test('page navigation discards old rows and temporary nested operations', async 
   runtime.navigate(html); assert.deepEqual(details(runtime), []);
   await runtime.click('reload'); assert.deepEqual(details(runtime), canvasDetails(doc));
   runtime.dispose();
-});
-
-test('native fixture bundles SettingsPanel, ScriptEditor, Canvas and production runtime', async () => {
-  const bundle = await clientNestedBundle();
-  for (const name of ['SettingsPanel', 'ScriptEditor', 'Canvas', 'GhostView', 'createScriptRuntime']) assert.match(bundle, new RegExp(`function ${name}`));
 });
 
 test('server fallback exposes only rendered fields and supports count without activating hidden scripts', async () => {

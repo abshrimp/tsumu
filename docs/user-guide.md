@@ -28,7 +28,7 @@ There are three moving parts:
 
 ## What you need
 
-Every setting below is **optional**. The editor opens and lets you edit even when something is missing; you just lose the feature that depends on it.
+Local development works with no environment variables. In production, configure Google sign-in or explicitly allow anonymous access. Storage, publishing and AI each have their own settings.
 
 | Setting | Without it | With it |
 |---|---|---|
@@ -56,7 +56,7 @@ Open http://localhost:3000 to see the home screen, which lists your sites. Click
 A few things to know about `npm run dev`:
 
 - It emulates Cloudflare's D1 and KV locally, based on `wrangler.jsonc`. Data goes to `.wrangler/state`, even if `TSUMU_DATA_DIR` is set.
-- It needs no environment variables, and it skips sign-in. This applies to `npm run dev` only. To skip sign-in under `npm run preview`, put `ALLOW_ANONYMOUS=true` in `.dev.vars`.
+- With Google sign-in unconfigured, it allows anonymous access. To use the same mode under `npm run preview`, put `ALLOW_ANONYMOUS=true` in `.dev.vars`.
 - Collaborators' changes arrive through Server-Sent Events (SSE), because WebSocket is not available. If SSE is also unavailable, the editor falls back to polling every 10 seconds. To try the real-time WebSocket connection, use `npm run preview`.
 
 ## Deploying the editor
@@ -92,7 +92,7 @@ Accounts listed in `ALLOWED_EMAILS` can always sign in. To allow more accounts, 
 
 #### GitHub token
 
-Create a **fine-grained personal access token** with **Contents: Read and write** on every repository you publish to. All sites share this one token, so when you add a site, give the token access to its repository too — or give the token access to "All repositories" up front.
+Create a **fine-grained personal access token** with **Contents: Read and write** on every repository you publish to. All sites share this one token, so when you add a site, give the token access to its publishing repository too.
 
 You choose each site's repository on the home screen, under the site's **… → Settings** (see [Publish targets](#publish-targets)).
 
@@ -282,7 +282,7 @@ On the home screen, click **Import** or drop a file onto the page to create a ne
 | A `doc.json` | The site is restored. Assets embedded as data URLs are uploaded. |
 | An HTML file, or a zip of a website | Every HTML page is converted into editable elements. The zip's other files are uploaded as assets and the HTML's paths are rewritten. |
 
-Any warnings, such as assets that couldn't be restored, appear once the new site opens.
+If you drop a ZIP without editing data onto the home screen, Tsumu alerts you before converting its HTML. Warnings about assets that could not be restored appear once the new site opens.
 
 In the editor, a page's settings can also load an HTML file or a zip into that page. A normal page converts the HTML into editable elements, asking before it replaces the page's current elements. An HTML page uses the HTML as is. From a zip, `index.html` is loaded first.
 

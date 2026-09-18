@@ -8,21 +8,17 @@ import { tr } from "./i18n";
 import type { Page } from "./types";
 
 /** ページを追加したときに付ける名前（タイトルも同じ） */
-export const NEW_PAGE_NAME = "ページ {n}";
+export function newPageName(n: number | string): string {
+  return tr("Page {n}", { n });
+}
 
-/**
- * 自動で付けた文字か（ページの追加で付く「ページ 3」など）。
- * 作ったときの表示言語で保存されるため、日本語の形といまの言語の形の両方を見る
- */
-export function autoNamed(value: string, template: string): boolean {
-  const mark = "\u0000";
-  return [template.replace("{n}", mark), tr(template, { n: mark })].some((form) => {
-    const re = form
-      .split(mark)
-      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-      .join("\\d+");
-    return new RegExp(`^${re}$`).test(value.trim());
-  });
+/** 編集言語を変えても、英語・日本語で付けた名前と現在の言語の名前を判定できる。 */
+export function isAutomaticPageTitle(value: string): boolean {
+  const title = value.trim();
+  if (/^(?:Page|ページ) \d+$/.test(title)) return true;
+  const [prefix, suffix] = newPageName("\u0000").split("\u0000");
+  return suffix !== undefined && title.startsWith(prefix) && title.endsWith(suffix) &&
+    /^\d+$/.test(title.slice(prefix.length, title.length - suffix.length));
 }
 
 /**

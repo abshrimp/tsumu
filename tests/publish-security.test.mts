@@ -19,6 +19,7 @@ const siteWithFetch = (url: string, headers?: { name: string; value: string }[],
 test("GitHub Push blocks literal API credentials in full editable document", () => {
   assert.equal(hasPublishCredentials(siteWithFetch("https://public.example/data?api_key=top-secret")), true);
   assert.equal(hasPublishCredentials(siteWithFetch("https://user:password@public.example/data")), true);
+  assert.equal(hasPublishCredentials(siteWithFetch("//user:password@public.example/data")), true);
   assert.equal(hasPublishCredentials(siteWithFetch("https://public.example/data",
     [{ name: "Authorization", value: "Bearer top-secret" }])), true);
   assert.equal(hasPublishCredentials(siteWithFetch("https://public.example/data",
@@ -47,6 +48,23 @@ test("credential detection visits deep scripts and decoded query, form and JSON 
   assert.equal(hasPublishCredentials(siteWithFetch(url, [], "mode=test&client%5Fsecret=literal")), true);
   assert.equal(hasPublishCredentials(siteWithFetch(url, [], '{"nested":{"pass\\u0077ord":"literal"}}')), true);
   assert.equal(hasPublishCredentials(siteWithFetch(url + "?%61pi_key=%7Bkey%7D")), false);
+  for (const [target, body] of [
+    ["/data?refresh_token=?sample", undefined],
+    [url + "#/callback?id_token=sample", undefined],
+    [url, "grant_type=refresh_token&refresh_token=sample"],
+    [url, '{"nested":{"idToken":"sample"}}'],
+    [url, '{"refresh_token":"sample","payload":{value}}'],
+  ] as const) {
+    const doc = siteWithFetch(target, undefined, body);
+    assert.equal(hasPublishCredentials(doc), true);
+    assert.ok(exportLimitations(doc, "nextjs").some(reason => reason.includes("secret API key")));
+  }
+  assert.equal(hasPublishCredentials(siteWithFetch("//public.example/data?refresh_token=%7Btoken%7D",
+    undefined, '{"id_token":"{identity}"}')), false);
+  const slugReference = siteWithFetch(url + "?refresh_token=[slug]", undefined, '{"id_token":"[slug]"}');
+  assert.deepEqual(exportLimitations(slugReference, "nextjs"), []);
+  assert.equal(hasPublishCredentials(siteWithFetch(url + "?refresh_token=[slug]-suffix")), true);
+  assert.equal(hasPublishCredentials(siteWithFetch(url, [{ name: "Authorization", value: "[slug]" }])), true);
   const doc = siteWithFetch(url + "?token=literal");
   const steps = doc.pages[doc.pageOrder[0]].pageScripts![0].steps;
   let nested = steps.splice(0);

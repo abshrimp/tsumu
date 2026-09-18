@@ -49,7 +49,9 @@ function setupRequired(pathname: string, en: boolean): NextResponse {
     return NextResponse.json({ error: message }, { status: 503 });
   }
   const title = en ? "Sign-in is not configured" : "ログインが設定されていません";
-  const html = `<!doctype html><html lang="${en ? "en" : "ja"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Tsumu</title><style>body{font:15px/1.7 system-ui,sans-serif;max-width:560px;margin:15vh auto;padding:0 20px;color:#1f1f1f}h1{font-size:20px}code{background:#f1f3f4;padding:1px 5px;border-radius:4px}a{color:#0b57d0}</style></head><body><h1>${title}</h1><p>${message.replace(/(AUTH_[A-Z_]+|ALLOW_ANONYMOUS=true)/g, "<code>$1</code>")}</p><p><a href="https://github.com/abshrimp/tsumu${en ? "#google-sign-in" : "/blob/main/README.ja.md#googleログイン"}">README</a></p></body></html>`;
+  const guide = en ? "user-guide.md#google-sign-in" : "user-guide.ja.md#googleログイン";
+  const linkText = en ? "Set up Google sign-in" : "Google ログインの設定手順";
+  const html = `<!doctype html><html lang="${en ? "en" : "ja"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Tsumu</title><style>body{font:15px/1.7 system-ui,sans-serif;max-width:560px;margin:15vh auto;padding:0 20px;color:#1f1f1f}h1{font-size:20px}code{background:#f1f3f4;padding:1px 5px;border-radius:4px}a{color:#0b57d0}</style></head><body><h1>${title}</h1><p>${message.replace(/(AUTH_[A-Z_]+|ALLOW_ANONYMOUS=true)/g, "<code>$1</code>")}</p><p><a href="https://github.com/abshrimp/tsumu/blob/main/docs/${guide}">${linkText}</a></p></body></html>`;
   return new NextResponse(html, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 

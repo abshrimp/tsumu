@@ -8,7 +8,7 @@ import { useEditor } from "../lib/store";
 import { applyPageScripts, pageScriptsOf } from "../lib/script";
 import { removeKeys } from "../components/script-editor/step-tree";
 import type { ScriptEditorLatest } from "../components/ScriptEditor";
-import { scriptKeyboardBundle, scriptKeyboardDoc } from "./helpers/script-keyboard";
+import { scriptKeyboardDoc } from "./helpers/script-keyboard";
 
 // 実際のキー操作のフックとストアで確かめる。実際の選択欄へのフォーカスとキーの伝播は、E2E でも確かめる。
 function mount(selected = ["step:open"]) {
@@ -136,9 +136,4 @@ for (const selected of [["step:open"], ["script:script"]]) test(`${selected[0]}:
     assert.equal(f.key("y", "BODY", true), true);
     assert.deepEqual(useEditor.getState().doc, after.doc);
   } finally { f.cleanup(); }
-});
-test("the browser fixture bundles the real script editor and keyboard hook", async () => {
-  const bundle = await scriptKeyboardBundle();
-  assert.match(bundle, /function ScriptEditorInner/);
-  assert.match(bundle, /function useScriptEditorKeys/);
 });

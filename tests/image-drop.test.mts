@@ -244,14 +244,6 @@ test("invalid files or destinations do not steal selection from an earlier valid
   assert.equal(pending.length, 1);
 });
 
-test("browser fixture bundles the actual Canvas, layer panel and drop implementation", async () => {
-  const { imageDropBundle } = await import("./helpers/image-drop");
-  const bundle = await imageDropBundle();
-  assert.match(bundle, /function Canvas/);
-  assert.match(bundle, /function LayersTab/);
-  assert.match(bundle, /function startImageDrop/);
-});
-
 for (const reason of ["unmount", "undo", "deleted target"] as const) {
   test(`${reason} releases the pending store subscription before the network completes`, async () => {
     const subscribe = useEditor.subscribe;

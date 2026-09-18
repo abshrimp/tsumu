@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference } from "../lib/variable-choice";
 import { flattenFields, setVarSource } from "../lib/data";
-import { scriptDataPickerBundle } from "./helpers/script-data-picker";
 
 for (const v of [undefined, null, false, true, 0, "001", [], ["red"], {}, { title: "Nested" }]) {
   test(`raw value picker retains ${JSON.stringify(v)}`, () => assert.equal(canPickVariable(v, "value"), true));
@@ -19,10 +18,6 @@ test("reference view preserves the exact meaning of entered variable expressions
   for (const value of ["{data}", " { data.name } ", "Hello {data}", "\\{data}", "001", "false", "", "{a}{b}"]) {
     assert.equal(singleValueReference(value), setVarSource({ id: "s", kind: "set-var", value, into: "out" }));
   }
-});
-test("real script editor picker fixture compiles for native CI", async () => {
-  const bundle = await scriptDataPickerBundle();
-  assert.ok(bundle.includes("dataPickerStore"));
 });
 
 test("JSON roundtrip preserves typed samples, expressions and generated project", async () => {

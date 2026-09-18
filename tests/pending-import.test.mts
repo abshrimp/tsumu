@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { useEditor } from "../lib/store";
 import { makeText } from "../lib/presets";
-import { elements, importCallbacks, pendingImportBundle } from "./helpers/pending-import";
+import { elements, importCallbacks } from "./helpers/pending-import";
 import type { Asset, ImageRef } from "../lib/types";
 
 const state = () => useEditor.getState();
@@ -317,11 +317,4 @@ test("font validation cannot add a font after unrelated Undo or document replace
       assert.deepEqual(state().future, future);
     } finally { f.close(); }
   }
-});
-
-test("pending import browser fixture bundles the actual inspector and upload path", async () => {
-  const bundle = await pendingImportBundle();
-  assert.match(bundle, /function RightPanel/);
-  assert.match(bundle, /function uploadStaticAsset/);
-  assert.match(bundle, /importEditor/);
 });

@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { transformSync } from "esbuild";
 import { useEditor } from "../lib/store";
 import type { UseCanvasDragDeps } from "../components/canvas/useCanvasDrag";
-import { canvasMoveBundle, canvasMoveDoc } from "./helpers/canvas-move";
+import { canvasMoveDoc } from "./helpers/canvas-move";
 
 const state = () => useEditor.getState();
 const snapshot = () => structuredClone({ doc: state().doc, past: state().past, future: state().future });
@@ -254,9 +254,4 @@ test("unrelated store updates do not invalidate movement", () => {
     assert.ok(m.ui.drag); m.pointer("pointerup", { buttons: 0 });
     assert.deepEqual(state().doc.pages.p.children, ["b", "c", "a"]);
   } finally { m.close(); }
-});
-
-test("the browser fixture bundles the actual Canvas and movement hook", async () => {
-  const bundle = await canvasMoveBundle();
-  assert.match(bundle, /function Canvas/); assert.match(bundle, /function useCanvasDrag/);
 });

@@ -50,7 +50,7 @@ For server-backed test editing, follow the [Preview storage setup](docs/worker-p
 - **AI provider keys stay on the server.** Turning AI on sends the editing context to the provider you selected.
 - **Keep private files out of shared places.** Data directories, database exports, environment files and local Cloudflare configuration can contain private information. Keep them out of commits, container build contexts and release archives.
 - **Editing data travels with the site.** Every publish commits the full editing data to `_tsumu/doc.json`, including unpublished pages and settings, and an exported zip contains the editing data for what it exports. In a public repository anyone can read it, and `_tsumu/` shouldn't be uploaded to a web server.
-- **Credentials don't belong in the document.** If a data fetch contains a literal credential, such as an `Authorization` header or an API key in the URL or body, the site can't be published or exported in any format: the value would end up in the generated source and the editing data, and formats other than Next.js would also expose it to visitors.
+- **Credentials don't belong in the document.** If a data fetch contains a literal credential, such as an `Authorization` header, an API key, or an OAuth `refresh_token` or `id_token` in the URL or request body, the site can't be published or exported in any format: the value would end up in the generated source and the editing data, and formats other than Next.js would also expose it to visitors.
 
 ### Exported sites
 

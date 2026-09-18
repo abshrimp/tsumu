@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { useEditor } from "../lib/store";
 import { assetSrc, replaceEmbeddedAsset } from "../lib/assets";
 import type { Asset, SiteDoc } from "../lib/types";
-import { assetLibraryBundle, assetLibraryCallbacks, assetLibraryDoc } from "./helpers/asset-library";
+import { assetLibraryCallbacks, assetLibraryDoc } from "./helpers/asset-library";
 import { elements } from "./helpers/pending-import";
 
 const state = () => useEditor.getState();
@@ -209,8 +209,3 @@ for (const kind of ["upload", "migration"]) {
     });
   }
 }
-
-test("the browser fixture bundles the real React AssetsTab and upload functions", async () => {
-  const bundle = await assetLibraryBundle();
-  assert.match(bundle, /function AssetsTab/); assert.match(bundle, /function uploadStaticAsset/); assert.match(bundle, /function uploadEmbeddedAsset/);
-});

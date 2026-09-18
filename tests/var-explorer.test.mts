@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { transformSync } from "esbuild";
 import * as React from "react";
 import { useEditor } from "../lib/store";
-import { varExplorerBundle, varExplorerDoc } from "./helpers/var-explorer";
+import { varExplorerDoc } from "./helpers/var-explorer";
 
 const state = () => useEditor.getState();
 const snapshot = () => structuredClone({ doc: state().doc, past: state().past, future: state().future });
@@ -137,8 +137,4 @@ test("nested expand-button keys do not select the parent, while row keys and cli
   assert.equal(nodes(draw()).find(n => n.type === "button").props["aria-expanded"], true);
   key("Enter", parent, { nativeEvent: { isComposing: true } }); assert.deepEqual(h.picks, []);
   key("Enter"); row().onClick(); assert.deepEqual(h.picks, ["product", "product"]);
-});
-
-test("the actual settings-panel keyboard fixture bundles for Chromium", async () => {
-  assert.match(await varExplorerBundle(), /pickerStore/);
 });

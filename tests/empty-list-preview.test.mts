@@ -9,7 +9,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { pagePlan, previewDataVars } from "../lib/data";
 import { useEditor } from "../lib/store";
-import { emptyListBundle, emptyListDoc, publishedEmptyList } from "./helpers/empty-list-preview";
+import { emptyListDoc, publishedEmptyList } from "./helpers/empty-list-preview";
 
 const state = () => useEditor.getState();
 function nodes(tree: any): any[] {
@@ -84,10 +84,4 @@ test("an empty outer array adds no preview row and recovers when data returns", 
   assert.equal(plain(await publishedEmptyList(state().doc, [])), "Unchanged");
   state().undo(); assert.deepEqual(state().doc, saved);
   assert.equal(plain(f.render()), "FirstTag: redSecond");
-});
-test("native regression bundles the actual settings panel and production list renderers", async () => {
-  const bundle = await emptyListBundle([{ name: "First", tags: [] }, { name: "Second", tags: [] }]);
-  assert.match(bundle, /function SettingsPanel/);
-  assert.match(bundle, /function NodeView/);
-  assert.match(bundle, /function GhostView/);
 });

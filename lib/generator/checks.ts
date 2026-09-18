@@ -7,7 +7,7 @@ import { BP_ORDER, isHiddenAt, resolveStyles } from "../style";
 import { tr } from "../i18n";
 import { validateSlugUsage } from "../vars";
 import { isDataStep, listFromOf, pageDataSteps } from "../data";
-import { autoNamed, NEW_PAGE_NAME } from "../pageTitle";
+import { isAutomaticPageTitle } from "../pageTitle";
 import { walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
 import { normalizeQuery, routeDir } from "./page";
@@ -168,7 +168,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
     // 転送と HTMLページでは、タイトルを出さない
     if (page.redirectTo !== undefined || page.rewriteTo !== undefined || page.rawHtml?.trim()) continue;
     const title = (page.title || page.name).trim();
-    if (autoNamed(title, NEW_PAGE_NAME)) {
+    if (isAutomaticPageTitle(title)) {
       results.push({
         help: "page-seo",
         level: "warn",

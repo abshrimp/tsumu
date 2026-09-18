@@ -17,7 +17,7 @@ export function scriptKeyboardDoc(): SiteDoc {
 }
 
 /** 実際のスクリプトの画面・ストア・CSS で、選択欄のキー操作と履歴を確かめる。 */
-export async function scriptKeyboardBundle({ localized = false } = {}) {
+export async function scriptKeyboardBundle() {
   return (await build({
     stdin: {
       contents: `
@@ -31,7 +31,7 @@ useEditor.getState().replaceDoc(${JSON.stringify(scriptKeyboardDoc())});
 useEditor.getState().setActivePage("p");
 window.scriptKeyboardEditor = useEditor;
 async function start() {
-  ${localized ? "await loadLocale();" : ""}
+  await loadLocale();
   const { default: ScriptEditor } = await import("./components/ScriptEditor");
   function Fixture() {
     const [open, setOpen] = useState(true);

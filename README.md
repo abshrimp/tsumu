@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Design freely. Build openly.</strong><br>
-  An open-source visual website builder.
+  An open-source, no-code website editor.
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@ Tsumu lets you design websites on a canvas and export or publish them as standar
 - **GitHub publishing:** Push generated code to a repository for each site, keep production and preview branches separate, and preserve files added by hand.
 - **Pre-publish checks and rollback:** Detect broken links, missing image alt text, heading-order issues, and mobile layout problems. Restore earlier published versions.
 - **Real-time collaboration:** Merge changes property by property, leave comments on the canvas, and view edit and publish activity.
-- **Optional AI editing:** Describe page changes in plain language and undo the result in one step. Supports Claude, Gemini, OpenAI, and compatible APIs.
+- **Optional AI editing:** Describe page changes in plain language. Supports Claude, Gemini, OpenAI, and compatible APIs.
 - **Multiple sites:** Keep each site's editing data and publishing repository separate, and copy pages or elements between sites.
 - **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker, configuring external services only as needed.
 - **Help and languages:** Built-in tutorials, illustrated Q&A, guided tours, and English/Japanese UI.
@@ -72,12 +72,12 @@ Open [http://localhost:3000](http://localhost:3000) and create a site. Local dev
 
 ## Publishing and deployment
 
-To publish, create a GitHub repository, set `GITHUB_TOKEN` to a fine-grained token with **Contents: Read and write** access, then select the repository in the site's settings. You can also export a ZIP without a token.
+To push a site from Tsumu, create a GitHub repository, give a fine-grained token **Contents: Read and write** access to that repository, and set it as `GITHUB_TOKEN`. Select the repository in the site's settings. You can also export a ZIP without a token.
 
 The editor runs on **Cloudflare Workers**, **Node.js** or **Docker**. For persistent storage, configure D1, Durable Objects and KV on Cloudflare, or `TSUMU_DATA_DIR` on Node.js/Docker. Without server storage, site data is stored only in the browser.
 
 > [!IMPORTANT]
-> Configure Google sign-in before exposing the editor publicly. `npm run dev` skips sign-in; `ALLOW_ANONYMOUS=true` also allows anyone with the URL to edit and publish. Use anonymous access only locally or for an isolated demo.
+> Configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. When sign-in is unconfigured, `npm run dev` and `ALLOW_ANONYMOUS=true` both grant anonymous access. Anyone who can reach that instance can edit and, if a GitHub token is configured, publish.
 
 See the [detailed guide](docs/user-guide.md) for deployment commands, authentication, publishing formats, environment variables, backups and limitations.
 
