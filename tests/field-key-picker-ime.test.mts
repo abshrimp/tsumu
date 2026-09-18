@@ -6,7 +6,7 @@ import { transformSync } from "esbuild";
 
 function mountPicker() {
   const source = readFileSync("components/script-editor/ValueTransformSettings.tsx", "utf8");
-  const picker = source.slice(source.indexOf("function fieldSuggestions("), source.indexOf("function ValueOperandEditor("));
+  const picker = source.slice(source.indexOf("function fieldSuggestions("), source.indexOf("function RecipeStepSettings("));
   const slots: any[] = [];
   let cursor = 0, value = "商品";
   const changes: string[] = [];

@@ -446,14 +446,6 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (typeof current !== "string" || current.length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
           break;
         }
-        case "append": {
-          if (absent) break;
-          if (!Array.isArray(current) || current.length >= 10000) return failure("type-mismatch");
-          const rhs = argument(step);
-          if (!rhs.ok) return failure("invalid-literal");
-          current = [...current, rhs.value];
-          break;
-        }
         case "sort": {
           if (absent) break;
           const field = textParam(step.field, 256);

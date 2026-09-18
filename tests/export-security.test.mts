@@ -8,7 +8,6 @@ import { generateExportProject } from "../lib/export-formats";
 import { toSingleHtmlProject } from "../lib/generator/single-html";
 import { nativeDataModule } from "../lib/generator/native-data";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
-import { parseValueOperandInput } from "../lib/script-model/compose";
 import { matchesValueCondition } from "../lib/value-semantics";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
@@ -219,15 +218,6 @@ test("export validation checks targets in every joined if condition", () => {
 
 
 
-test("JSON-quoted variable-looking strings stay literal in list operations", () => {
-  const input = parseValueOperandInput('"{name}"');
-  assert.equal(input.operandType, "text");
-  assert.equal(input.operand, "\\{name}");
-  const computed = evaluateValueRecipe([], [{
-    kind: "append", operand: input.operand, operandType: input.operandType,
-  }], { name: "not-the-same" });
-  assert.deepEqual(computed, { kind: "value", value: ["{name}"] });
-});
 test("filters, sorts and generated expressions avoid unsafe object coercion", () => {
   const objectWithShadowedToString = JSON.parse('{"toString":"not a function"}');
   const items = [
