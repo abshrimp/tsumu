@@ -24,12 +24,14 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     { path: "vendor", mode: "160000", type: "commit", sha: "submodule" },
     { path: ".github/workflows/ci.yml", mode: "100644", type: "blob", sha: "workflow" },
   ];
-  const trees: { tree: helpers.TreeEntry[] }[] = [];
+  const trees: { tree: helpers.TreeEntry[]; base_tree?: string }[] = [];
+  const treeSnapshots = new Map<string, Map<string, helpers.TreeEntry>>();
+  const commitTrees: string[] = [];
   const writes: string[] = [];
   const refUpdates: { sha: string; force: boolean }[] = [];
   const uploaded: { content: string; encoding: string }[] = [];
   let recorded = false;
-  let treeRejection: { body: object; headers?: Record<string, string> } | null = null;
+  let treeRejection: { body: object; headers?: Record<string, string>; when?: (items: helpers.TreeEntry[]) => boolean } | null = null;
   const gh = async (path: string, options: { body?: string } = {}) => {
     if (options.body) writes.push(path);
     if (path.startsWith("/git/ref/heads/")) return NextResponse.json({ object: { sha: "head" } });
@@ -42,11 +44,21 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
       return NextResponse.json({ sha: "uploaded-blob" });
     }
     if (path === "/git/trees") {
-      trees.push(JSON.parse(options.body!));
-      if (treeRejection) return NextResponse.json(treeRejection.body, { status: 422, headers: treeRejection.headers });
-      return NextResponse.json({ sha: "new-tree" });
+      const request = JSON.parse(options.body!) as { tree: helpers.TreeEntry[]; base_tree?: string };
+      trees.push(request);
+      if (treeRejection && (!treeRejection.when || treeRejection.when(request.tree))) {
+        return NextResponse.json(treeRejection.body, { status: 422, headers: treeRejection.headers });
+      }
+      const sha = treeRejection?.when ? `tree-${trees.length}` : "new-tree";
+      const snapshot = new Map(request.base_tree ? treeSnapshots.get(request.base_tree) : []);
+      for (const entry of request.tree) snapshot.set(entry.path, entry);
+      treeSnapshots.set(sha, snapshot);
+      return NextResponse.json({ sha });
     }
-    if (path === "/git/commits") return NextResponse.json({ sha: "new-commit" });
+    if (path === "/git/commits") {
+      commitTrees.push(JSON.parse(options.body!).tree);
+      return NextResponse.json({ sha: "new-commit" });
+    }
     if (path.startsWith("/git/refs/heads/")) refUpdates.push(JSON.parse(options.body!));
     return NextResponse.json({});
   };
@@ -89,8 +101,9 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", exportOptions: { framework: "nextjs", language: "typescript", style: "css" }, ...body, site: "site", target: "production" }),
   }));
   return {
-    entries, trees, writes, refUpdates, uploaded, send,
+    entries, trees, treeSnapshots, commitTrees, writes, refUpdates, uploaded, send,
     rejectTree(body: object, headers?: Record<string, string>) { treeRejection = { body, headers }; },
+    rejectTreeWhen(body: object, when: (items: helpers.TreeEntry[]) => boolean) { treeRejection = { body, when }; },
     get recorded() { return recorded; },
   };
 }
@@ -503,4 +516,72 @@ test("unrecognized GitHub 422 errors report the tree batch without revealing unt
   assert.match(message, /batch 1 of 1/);
   assert.doesNotMatch(message, /sensitive user data/);
   assert.deepEqual(f.refUpdates, []);
+});
+
+
+test("generic 422 validation is subdivided and succeeds without losing a single file", async () => {
+  const f = fixture();
+  // Simulate a remote per-request batch limit. An ordinary 9-entry tree is
+  // rejected, but the same entries are accepted in smaller tree operations.
+  f.rejectTreeWhen({ message: "Validation Failed", errors: [] }, items => items.length > 2);
+  const response = await f.send({ action: "commit", files: {
+    "a.txt": "a", "b.txt": "b", "c.txt": "c", "d.txt": "d", "e.txt": "e",
+  } });
+  assert.equal(response.status, 200);
+  assert.ok(f.trees.length > 1);
+  assert.equal(f.commitTrees.length, 1);
+  const result = f.treeSnapshots.get(f.commitTrees[0]);
+  assert.ok(result, "the new commit must refer to the complete assembled tree");
+  for (const name of ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt",
+    "script.sh", "link", "vendor", ".github/workflows/ci.yml"]) {
+    assert.ok(result.has(name), `missing ${name} from the subdivided tree`);
+  }
+  const protectedEntry = result.get(".github/workflows/ci.yml");
+  assert.equal(protectedEntry?.sha, "workflow");
+  assert.equal(f.recorded, true);
+  assert.deepEqual(f.refUpdates, [{ sha: "new-commit", force: false }]);
+});
+
+test("generic validation error isolates a single invalid file and never moves the branch", async () => {
+  const f = fixture();
+  f.rejectTreeWhen({ message: "Validation Failed", errors: [] },
+    items => items.some(item => item.path === "b.txt"));
+  const response = await f.send({ action: "commit", files: {
+    "a.txt": "a", "b.txt": "bad", "c.txt": "c",
+  } });
+  assert.equal(response.status, 422);
+  const body = await response.json();
+  assert.equal(body.treeError.path, "b.txt");
+  assert.equal(f.commitTrees.length, 0);
+  assert.deepEqual(f.refUpdates, []);
+  assert.equal(f.recorded, false);
+});
+
+test("unclassified and rate-limited 422 responses are not automatically retried", async () => {
+  for (const [body, headers, expectedStatus] of [
+    [{ message: "Unrecognized provider response" }, undefined, 422],
+    [{ message: "Validation Failed" }, { "Retry-After": "90" }, 429],
+    [{ message: "secondary rate limit exceeded" }, undefined, 429],
+  ] as const) {
+    const f = fixture();
+    f.rejectTree(body, headers);
+    const response = await f.send({ action: "commit", files: { "a.txt": "a", "b.txt": "b" } });
+    assert.equal(response.status, expectedStatus);
+    assert.equal(f.trees.length, 1, "potential throttling must not be amplified by extra requests");
+    assert.deepEqual(f.refUpdates, []);
+  }
+});
+
+test("validation subdivision stops after a bounded number of GitHub writes", async () => {
+  const f = fixture();
+  f.rejectTree({ message: "Validation Failed", errors: [] });
+  const files: Record<string, string> = {};
+  for (let i = 0; i < 200; i++) files[`item-${i}.txt`] = String(i);
+  const response = await f.send({ action: "commit", files });
+  assert.equal(response.status, 422);
+  // Initial POST plus at most eight subdivisions; each failed left half only
+  // consumes one additional write on this all-rejected fixture.
+  assert.ok(f.trees.length <= 1 + 8);
+  assert.deepEqual(f.refUpdates, []);
+  assert.equal(f.recorded, false);
 });

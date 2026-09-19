@@ -39,6 +39,8 @@ export const maxDuration = 60;
 /** ツリーを作るリクエスト1回あたりの上限（項目数と、インラインで送る本文の文字数） */
 const TREE_CHUNK_ITEMS = 200;
 const TREE_CHUNK_BYTES = 512 * 1024;
+/** 422の検証失敗を小分けで確認する上限。無制限のGitHub書き込み再試行を禁止する。 */
+const MAX_TREE_SUBDIVISIONS = 8;
 const MAX_DOC_BYTES = 12 * 1024 * 1024;
 // 25 MiB のアセットは base64 で約 34 MiB になる。JSON のストリーム全体の大きさを制限する。
 const MAX_PUBLISH_REQUEST_BYTES = 48 * 1024 * 1024;
@@ -100,7 +102,7 @@ async function describeTreeRejection(
   batch: number,
   total: number,
   tr: (key: string, values?: Record<string, string | number>) => string
-): Promise<{ message: string; rateLimited: boolean; retryAfter: string | null; path: string | null }> {
+): Promise<{ message: string; rateLimited: boolean; validation: boolean; retryAfter: string | null; path: string | null }> {
   let payload: unknown;
   try { payload = await res.clone().json(); } catch { /* HTML/non-JSON API error */ }
   const body = payload && typeof payload === "object" && !Array.isArray(payload)
@@ -109,8 +111,16 @@ async function describeTreeRejection(
   const errors = Array.isArray(body?.errors) ? body.errors : [];
   const retryHeader = res.headers.get("retry-after");
   const retryAfter = retryHeader && /^[0-9]{1,4}$/.test(retryHeader) ? retryHeader : null;
-  const rateLimited = !!retryAfter ||
-    /secondary rate limit|abuse detection|too many requests|endpoint has been spammed|temporarily blocked/i.test(upstreamMessage);
+  const rateLimited = !!retryAfter || res.headers.get("x-ratelimit-remaining") === "0" ||
+    /rate limit|abuse detection|too many requests|endpoint has been spammed|temporarily blocked/i.test(upstreamMessage);
+  // Only retry a response that GitHub identifies as a validation error.
+  // An unidentified 422 might be request throttling; splitting it would amplify the failure.
+  const validation = !rateLimited && (
+    /validation failed|invalid tree entry/i.test(upstreamMessage) ||
+    errors.some(item => !!item && typeof item === "object" &&
+      typeof (item as { code?: unknown }).code === "string" &&
+      ["invalid", "missing", "unprocessable"].includes((item as { code: string }).code))
+  );
 
   let invalidIndex = -1;
   const diagnostics: { field?: string; code?: string; index?: number }[] = [];
@@ -137,7 +147,7 @@ async function describeTreeRejection(
   }
   console.warn("GitHub rejected a publish tree", {
     status: res.status, batch, total, entries: chunk.length,
-    reason: rateLimited ? "rate-limit" : "validation",
+    reason: rateLimited ? "rate-limit" : validation ? "validation" : "unknown",
     invalidIndex: invalidIndex < 0 ? undefined : invalidIndex,
     diagnostics,
   });
@@ -146,14 +156,18 @@ async function describeTreeRejection(
     return {
       message: tr("GitHub is temporarily limiting publishing requests. Wait before trying again."),
       rateLimited: true,
+      validation: false,
       retryAfter,
       path: null,
     };
   }
+  // Once a validated failure is narrowed to one entry, the path is known even if
+  // GitHub returned only a generic "Validation Failed" response without an index.
+  if (invalidIndex < 0 && validation && chunk.length === 1) invalidIndex = 0;
   const message = invalidIndex >= 0
     ? tr("GitHub rejected the published file {path} (422). Check its path and contents.", { path: chunk[invalidIndex].path })
     : tr("GitHub rejected publish tree batch {batch} of {total} (422). Check the generated files.", { batch, total });
-  return { message, rateLimited: false, retryAfter: null, path: invalidIndex >= 0 ? chunk[invalidIndex].path : null };
+  return { message, rateLimited: false, validation, retryAfter: null, path: invalidIndex >= 0 ? chunk[invalidIndex].path : null };
 }
 
 /** 公開先の設定状況（?site= のサイト。公開ダイアログの表示に使う） */
@@ -594,30 +608,44 @@ export async function POST(req: Request) {
     if (current.length) chunks.push(current);
 
     let treeSha: string | undefined;
-    for (const [index, chunk] of chunks.entries()) {
-      const treeRes = await gh(`/git/trees`, {
+    let subdivisions = 0;
+    // GitHub sometimes returns a generic validation failure for an entire batch.
+    // Retry ONLY that validation case by dividing the batch, keeping the exact
+    // entry order and chaining base_tree. A successful smaller batch is part of
+    // the final tree; an invalid single entry is reported by path.
+    const buildChunk = async (items: TreeItem[], base: string | undefined,
+      batch: number): Promise<string | Response> => {
+      const treeRes = await gh("/git/trees", {
         method: "POST",
-        body: JSON.stringify(
-          treeSha ? { base_tree: treeSha, tree: chunk } : { tree: chunk }
-        ),
+        body: JSON.stringify(base ? { base_tree: base, tree: items } : { tree: items }),
       });
-      if (treeRes.status === 422) {
-        const issue = await describeTreeRejection(treeRes, chunk, index + 1, chunks.length, tr);
-        return NextResponse.json({
-          error: issue.message,
-          treeError: {
-            kind: issue.rateLimited ? "rate-limit" : "validation",
-            path: issue.path,
-            batch: index + 1,
-            total: chunks.length,
-          },
-        }, {
-          status: issue.rateLimited ? 429 : 422,
-          headers: issue.retryAfter ? { "Retry-After": issue.retryAfter } : undefined,
-        });
+      if (treeRes.ok) return (await treeRes.json()).sha as string;
+      if (treeRes.status !== 422) await fail(tr("Creating the tree"), treeRes);
+      const issue = await describeTreeRejection(treeRes, items, batch, chunks.length, tr);
+      if (issue.validation && !issue.path && items.length > 1 && subdivisions < MAX_TREE_SUBDIVISIONS) {
+        subdivisions++;
+        const middle = Math.floor(items.length / 2);
+        const left = await buildChunk(items.slice(0, middle), base, batch);
+        if (typeof left !== "string") return left;
+        return buildChunk(items.slice(middle), left, batch);
       }
-      if (!treeRes.ok) await fail(tr("Creating the tree"), treeRes);
-      treeSha = (await treeRes.json()).sha as string;
+      return NextResponse.json({
+        error: issue.message,
+        treeError: {
+          kind: issue.rateLimited ? "rate-limit" : "validation",
+          path: issue.path,
+          batch,
+          total: chunks.length,
+        },
+      }, {
+        status: issue.rateLimited ? 429 : 422,
+        headers: issue.retryAfter ? { "Retry-After": issue.retryAfter } : undefined,
+      });
+    };
+    for (const [index, chunk] of chunks.entries()) {
+      const result = await buildChunk(chunk, treeSha, index + 1);
+      if (typeof result !== "string") return result;
+      treeSha = result;
     }
 
     // 3. コミットを作る
