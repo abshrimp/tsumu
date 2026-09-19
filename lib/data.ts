@@ -1062,6 +1062,8 @@ export interface PreviewOpts {
   liveTotals?: Record<string, Record<string, number>>;
   /** {変数} の解決に使う、ページの変数（クエリ・入力値など） */
   vars?: Record<string, unknown>;
+  /** 取得した見本が示すリストの元の要素数。表示用であり実行時の値ではない。 */
+  listCounts?: Record<string, number>;
 }
 
 interface PreviewDataPlan {
@@ -1201,6 +1203,29 @@ export function previewDataVars(
     }
     if (!added) break;
     pending = unresolved;
+  }
+  if (opts.listCounts) {
+    for (const [name, origin] of Object.entries(origins)) {
+      const value = lookupVar(out, name);
+      const totals = origin.totals;
+      const count = (path: string, list: unknown) => {
+        if (!Array.isArray(list)) return;
+        const fullPath = [origin.path, path].filter(Boolean).join(".");
+        const total = totals?.[fullPath];
+        opts.listCounts![path ? `${name}.${path}` : name] = total ?? list.length;
+      };
+      count("", value);
+      if (value && typeof value === "object") {
+        for (const [key, child] of Object.entries(value)) count(key, child);
+      }
+      if (totals) {
+        for (const path of Object.keys(totals)) {
+          if (origin.path && path !== origin.path && !path.startsWith(`${origin.path}.`)) continue;
+          const relative = origin.path ? path.slice(origin.path.length).replace(/^\./, "") : path;
+          count(relative, relative ? digPath(value, relative) : value);
+        }
+      }
+    }
   }
   return out;
 }

@@ -898,3 +898,29 @@ test("fetched sample totals are preserved through aliases in composition without
     liveTotals: { fetch: { tags: 42 } },
   }).total, 42);
 });
+
+
+test("script editor list counts use source totals rather than truncated samples", () => {
+  const doc = scriptDataPickerDoc();
+  const fetch = doc.pages.p.pageScripts![0].steps[0];
+  if (fetch.kind !== "fetch") throw new Error("Expected fetch fixture");
+  fetch.preview ??= {};
+  fetch.preview.sample = { tags: Array.from({ length: 20 }, (_, i) => i) };
+  fetch.preview.totals = { tags: 150 };
+  doc.pages.p.pageScripts![0].steps.push({
+    id: "alias", kind: "set-var", value: "{data.tags}", into: "selectedTags",
+  });
+  const listCounts: Record<string, number> = {};
+  const values = previewDataVars(doc, "p", { listCounts });
+  assert.equal((values.data as { tags: number[] }).tags.length, 20);
+  assert.equal(listCounts["data.tags"], 150);
+  assert.equal(listCounts.selectedTags, 150);
+  assert.equal(listCounts.data, undefined);
+});
+
+test("script editor list counts are omitted for non-fetch and unresolved values", () => {
+  const doc = scriptDataPickerDoc();
+  const counts: Record<string, number> = {};
+  previewDataVars(doc, "p", { listCounts: counts });
+  assert.equal(counts.unknown, undefined);
+});

@@ -386,7 +386,7 @@ function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page
 
 /** 固定の文字、変数を差し込んだ文字、または変数の値そのものを保存する。 */
 function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }) {
-  const { doc, pageId, updateStep, samples, renameVar } = useContext(Ctx);
+  const { doc, pageId, updateStep, samples, listCounts, renameVar } = useContext(Ctx);
   const src = setVarSource(step);
   const value = src ? lookupVar(samples, src) : undefined;
   return (
@@ -404,7 +404,9 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
       }} />
       {step.into && value !== undefined && value !== null && (
         <span className="se-blk-note">{Array.isArray(value)
-          ? tr("List · {length} items (can be shown in a list display)", { length: value.length })
+          ? listCounts && src && listCounts[src] !== undefined
+            ? tr("List · {length} elements", { length: listCounts[src] })
+            : tr("List", "list_variant_1")
           : isNested(value)
             ? tr("Use it in elements like {{into}.field}", { into: step.into })
             : tr("Sample: {p1}", { p1: readableValue(value) })}</span>

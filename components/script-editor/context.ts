@@ -69,6 +69,8 @@ export interface EdCtx {
   arrays: PageArray[];
   /** 見本で実行したときの変数の値（配列の中身を選ぶときに使う） */
   samples: Record<string, unknown>;
+  /** 取得時に確認できたリストの要素数。 */
+  listCounts?: Record<string, number>;
   beginSteps: (e: React.PointerEvent, loc: Loc, stepId: string) => void;
   beginScript: (e: React.PointerEvent, script: PageScript) => void;
   openMenu: (e: React.MouseEvent, target: MenuTarget, key: string) => void;
