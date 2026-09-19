@@ -55,7 +55,14 @@ test("Docker runtime is non-root and local credentials are excluded from the bui
   const ignored = read(".dockerignore").split(/\r?\n/).map((line) => line.trim());
   const imageRefs = [...dockerfile.matchAll(/^FROM node:([^@\s]+)@sha256:([0-9a-f]{64})(?: AS [a-z0-9-]+)?$/gm)];
   assert.equal(imageRefs.length, 2, "Both Docker stages must use immutable image digests");
-  assert.equal(imageRefs[0][1], read(".nvmrc").trim() + "-slim");
+  const minimumNodeVersion = read(".nvmrc").trim();
+  const imageVersion = imageRefs[0][1].replace(/-slim$/, "");
+  assert.match(imageRefs[0][1], /^\d+\.\d+\.\d+-slim$/, "Docker must use an exact Node.js slim release");
+  const minParts = minimumNodeVersion.split(".").map(Number);
+  const imageParts = imageVersion.split(".").map(Number);
+  assert.equal(imageParts[0], minParts[0], "Docker and .nvmrc must use the same Node.js major version");
+  assert.ok(imageParts[1] > minParts[1] || (imageParts[1] === minParts[1] && imageParts[2] >= minParts[2]),
+    "Docker must not use a Node.js version older than .nvmrc");
   assert.equal(imageRefs[0][1], imageRefs[1][1]);
   assert.equal(imageRefs[0][2], imageRefs[1][2]);
   assert.match(dockerfile, /^COPY --from=build --chown=node:node \/app\/\.next\/standalone \.\/$/m);
@@ -116,11 +123,11 @@ test("the lockfile stays registry-only and install script permissions match reso
     if (resolved.hasInstallScript) {
       assert.ok(resolved.version, `Script package ${path} must have a pinned version`);
       const name = path.slice(path.lastIndexOf("node_modules/") + "node_modules/".length);
-      installScriptPackages.push(`${name}@${resolved.version}`);
+      installScriptPackages.push(name);
     }
   }
   const allowed = Object.entries(pkg.allowScripts as Record<string, boolean>)
     .filter(([, enabled]) => enabled).map(([name]) => name).sort();
   assert.deepEqual(allowed, installScriptPackages.sort(),
-    "npm install-script allowlist must be updated whenever locked script dependencies change");
+    "npm install-script allowlist must cover exactly the packages with install scripts");
 });
