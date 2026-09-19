@@ -22,7 +22,7 @@ import {
   TRIGGER_ICON,
   type Payload,
 } from "./script-editor/palette";
-import { insertAt, listIn, mapStep, numberFilters, removeKeys, takeAt } from "./script-editor/step-tree";
+import { insertAt, listIn, mapStep, numberFilters, removeKeys, takeSelectedSteps } from "./script-editor/step-tree";
 import { copyScriptBlocks, pasteScriptBlocks, type ScriptBlockClipboard } from "./script-editor/clipboard";
 import { buildTree, collectTargets, type MenuTarget } from "./script-editor/targets";
 import { useScriptDrag } from "./script-editor/useScriptDrag";
@@ -626,22 +626,16 @@ function ScriptEditorInner({
             dragRef.current!.previewNodes = nodes;
           }
         } else if (payload.type === "steps" && payload.from) {
-          const item = target.closest<HTMLElement>(".se-item");
-          const count = Math.min(8, payload.steps.length);
-          // 手順の一覧では、ドロップ先の枠と項目が交互に並ぶ。実際のブロックだけを索引にし、
-          // 仮想化したチャンクの中で表示されている項目も含める。こうすることで、連なったブロックを
-          // ドラッグしたときもすべての実際のブロックを写し取り、気づかないうちに別の読み取り専用の
-          // 描画に切り替わることがない。
-          const list = item?.closest<HTMLElement>(".se-list");
-          const siblings = list ? Array.from(list.querySelectorAll<HTMLElement>(
-            ":scope > .se-item, :scope > .se-virtual-chunk > .se-item"
-          )) : [];
-          const index = item ? siblings.indexOf(item) : -1;
-          if (index >= 0) {
-            const nodes = siblings.slice(index, index + count).map(cloneDragElement);
-            if (nodes.length === count && nodes.every((node): node is HTMLElement => node !== null)) {
-              dragRef.current!.previewNodes = nodes;
-            }
+          // 選択された手順は隣接するとは限らず、つかんだ手順より前にもある。
+          // 実際の移動順と同じ ID で、表示中のブロックだけを写し取る。
+          const nodes = payload.steps.slice(0, 8).map((step) => {
+            const element = wsRef.current?.querySelector<HTMLElement>(
+              `[data-sel-key="step:${CSS.escape(step.id)}"]`
+            )?.closest<HTMLElement>(".se-item");
+            return element ? cloneDragElement(element) : null;
+          });
+          if (nodes.every((node): node is HTMLElement => node !== null)) {
+            dragRef.current!.previewNodes = nodes;
           }
         }
         return payload;
@@ -734,7 +728,10 @@ function ScriptEditorInner({
       begin(
         e,
         () => {
-          const [remaining, steps] = takeAt(latest.current.scripts, loc);
+          const selectedIds = new Set([...selectedRef.current]
+            .filter((key) => key.startsWith("step:"))
+            .map((key) => key.slice("step:".length)));
+          const [remaining, steps] = takeSelectedSteps(latest.current.scripts, loc, selectedIds);
           return { type: "steps", steps, from: { loc, remaining } };
         },
         `step:${stepId}`

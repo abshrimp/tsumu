@@ -292,13 +292,20 @@ test("drag preview keeps the original input controls and appears above every scr
   await input.fill("Current unsaved input");
   const before = {
     value: await input.inputValue(),
-    className: await original.getAttribute("class"),
     controls: await original.locator("input,select,textarea").count(),
   };
-  await start(page, "step");
+  const rect = (await original.boundingBox())!;
+  await original.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "touch", button: 0, buttons: 1,
+    clientX: rect.x + 6, clientY: rect.y + 6,
+  });
+  await expect(original).toHaveClass(/is-selected/);
+  const selectedClassName = await original.getAttribute("class");
+  const p = await point(page);
+  await pointer(page, "pointermove", { x: p.x - 50, y: p.y - 50 });
   const preview = page.locator('.se-ghost [data-sel-key="step:value"]');
   await expect(preview).toBeVisible();
-  expect(await preview.getAttribute("class")).toBe(before.className);
+  expect(await preview.getAttribute("class")).toBe(selectedClassName);
   expect(await preview.locator("input,select,textarea").count()).toBe(before.controls);
   await expect(preview.locator("input").first()).toHaveValue(before.value);
   expect(await page.locator(".se-ghost").evaluate((el) => Number(getComputedStyle(el).zIndex))).toBeGreaterThan(20);
@@ -432,7 +439,8 @@ for (const hasTrailingBlock of [false, true]) {
     const ghost = page.locator('.se-ghost [data-sel-key="step:condition"]');
     await expect(ghost).toBeVisible();
     if (hasTrailingBlock) {
-      await expect(page.locator('.se-ghost [data-sel-key="step:after-condition"]')).toBeVisible();
+      await expect(page.locator('.se-ghost [data-sel-key="step:after-condition"]')).toHaveCount(0);
+      await expect(page.locator('.se-ws [data-sel-key="step:after-condition"]')).toBeVisible();
     }
     const after = await appearance('.se-ghost [data-sel-key="step:condition"]');
     expect(after.controls).toEqual(before.controls);
@@ -526,4 +534,36 @@ test("duplicating from an open menu follows its block after another edit shifts 
   expect(steps.map((step: { seconds: number }) => step.seconds)).toEqual([9, 1, 1]);
   expect(steps[1].id).toBe("wait");
   expect(steps[2].id).not.toBe("wait");
+});
+
+test("nonadjacent selected blocks keep their own previews when dragging the last selection", async ({ page }) => {
+  await page.evaluate(() => (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
+    doc.pages.p.pageScripts[0].steps.push(
+      { id: "middle", kind: "wait", seconds: 2 },
+      { id: "last", kind: "wait", seconds: 3 },
+    );
+  }));
+  const before = await snapshot(page);
+  for (const id of ["wait", "last"]) {
+    const block = page.locator(`.se-ws [data-sel-key="step:${id}"]`);
+    const r = (await block.boundingBox())!;
+    await block.dispatchEvent("pointerdown", {
+      pointerId: 1, pointerType: "mouse", button: 0, buttons: 1, ctrlKey: true,
+      clientX: r.x + 6, clientY: r.y + 6,
+    });
+    await expect(block).toHaveClass(/is-selected/);
+  }
+  const last = page.locator('.se-ws [data-sel-key="step:last"]');
+  const r = (await last.boundingBox())!;
+  await last.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "touch", button: 0, buttons: 1,
+    clientX: r.x + 6, clientY: r.y + 6,
+  });
+  await pointer(page, "pointermove");
+  await expect(page.locator('.se-ghost [data-sel-key="step:wait"] input')).toHaveValue("1");
+  await expect(page.locator('.se-ghost [data-sel-key="step:last"] input')).toHaveValue("3");
+  await expect(page.locator('.se-ghost [data-sel-key="step:middle"]')).toHaveCount(0);
+  await expect(page.locator('.se-ws [data-sel-key="step:middle"]')).toBeVisible();
+  await pointer(page, "pointercancel", { buttons: 0 });
+  expect(await snapshot(page)).toEqual(before);
 });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { connectNewTransform, insertAt, listIn, takeAt } from "../components/script-editor/step-tree";
+import { connectNewTransform, insertAt, listIn, takeAt, takeSelectedSteps } from "../components/script-editor/step-tree";
 import type { Script, ScriptStep } from "../lib/types";
 
 function fixture(): Script[] {
@@ -104,4 +104,36 @@ test("a missing first duplicate else branch is not silently redirected to the ne
   assert.deepEqual(listIn(next[0], "duplicate:else")?.map((step) => step.id), ["new-else"]);
   assert.equal(next[0].steps[1], scripts[0].steps[1]);
   assert.deepEqual(scripts, original);
+});
+
+test("dragging one middle block keeps both adjacent blocks connected", () => {
+  const scripts: Script[] = [{
+    id: "s", trigger: "click", pos: { x: 0, y: 0 },
+    steps: ["a", "b", "c", "d"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
+  }];
+  const original = structuredClone(scripts);
+  const [remaining, taken] = takeSelectedSteps(scripts, { scriptId: "s", list: "root", index: 1 }, new Set(["b"]));
+  assert.deepEqual(taken.map((step) => step.id), ["b"]);
+  assert.deepEqual(remaining[0].steps.map((step) => step.id), ["a", "c", "d"]);
+  assert.deepEqual(scripts, original);
+});
+
+test("dragging multiple selected blocks leaves unselected blocks in order", () => {
+  const scripts: Script[] = [{
+    id: "s", trigger: "click", pos: { x: 0, y: 0 },
+    steps: ["a", "b", "c", "d"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
+  }];
+  const [remaining, taken] = takeSelectedSteps(scripts, { scriptId: "s", list: "root", index: 1 }, new Set(["b", "d"]));
+  assert.deepEqual(taken.map((step) => step.id), ["b", "d"]);
+  assert.deepEqual(remaining[0].steps.map((step) => step.id), ["a", "c"]);
+});
+
+test("dragging an unselected block does not pull along the previous selection", () => {
+  const scripts: Script[] = [{
+    id: "s", trigger: "click", pos: { x: 0, y: 0 },
+    steps: ["a", "b", "c"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
+  }];
+  const [remaining, taken] = takeSelectedSteps(scripts, { scriptId: "s", list: "root", index: 2 }, new Set(["a", "b"]));
+  assert.deepEqual(taken.map((step) => step.id), ["c"]);
+  assert.deepEqual(remaining[0].steps.map((step) => step.id), ["a", "b"]);
 });
