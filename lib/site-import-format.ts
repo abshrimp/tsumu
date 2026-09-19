@@ -113,6 +113,14 @@ export function validateImportedDoc(value: unknown): SiteDoc {
       folderIds.add(folder.id);
     }
   }
+  for (const folder of doc.pageFolders ?? []) {
+    if (folder.beforePageId === undefined) continue;
+    if (typeof folder.beforePageId !== "string") throw new Error(tr("Page folders are invalid."));
+    const page = doc.pages[folder.beforePageId];
+    if (!isImportObject(page) || page.folderId !== undefined) {
+      throw new Error(tr("Page folders are invalid."));
+    }
+  }
   for (const page of Object.values(doc.pages)) {
     if (isImportObject(page) && page.folderId !== undefined &&
         (typeof page.folderId !== "string" || !folderIds.has(page.folderId))) {

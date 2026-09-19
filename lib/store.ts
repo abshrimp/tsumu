@@ -45,6 +45,7 @@ import { storageKey } from "./storage-keys";
 import { withPageScripts, type PageScript } from "./script";
 import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 import { sameDocContent, shareUnchangedDoc } from "./doc-share";
+import { placePageFolder, retainPageFolderSlots, type FolderPlacement } from "./page-panel-order";
 
 const PUBLISHED_KEY = siteKey(storageKey("published-v1"));
 const PUBLISHED_HASH_KEY = siteKey(storageKey("published-hash-v1"));
@@ -561,8 +562,8 @@ export interface EditorStore {
     folderId: string | null,
     anchor?: { before?: string; after?: string }
   ) => void;
-  /** フォルダを並べ替える（index は、移動する前の並びでの位置） */
-  moveFolder: (folderId: string, index: number) => void;
+  /** Drag a folder before or after a top-level page or folder, or to the end. */
+  moveFolder: (folderId: string, target: FolderPlacement) => void;
   duplicatePage: (id: string) => void;
   duplicatePages: (ids: string[]) => void;
   deletePage: (id: string) => void;
@@ -1720,6 +1721,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       get().updateDoc((d) => {
         const page = d.pages[pageId];
         if (!page) return;
+        if (!page.folderId) retainPageFolderSlots(d, new Set([pageId]));
         if (folderId && d.pageFolders?.some((f) => f.id === folderId)) page.folderId = folderId;
         else delete page.folderId;
         const order = d.pageOrder.filter((id) => id !== pageId);
@@ -1742,18 +1744,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       });
     },
 
-    moveFolder: (folderId, index) => {
-      const list = get().doc.pageFolders ?? [];
-      const from = list.findIndex((f) => f.id === folderId);
-      if (from < 0) return;
-      const to = index > from ? index - 1 : index;
-      if (to === from) return;
-      get().updateDoc((d) => {
-        const folders = [...(d.pageFolders ?? [])];
-        const [f] = folders.splice(from, 1);
-        folders.splice(to, 0, f);
-        d.pageFolders = folders;
-      });
+    moveFolder: (folderId, target) => {
+      get().updateDoc((d) => placePageFolder(d, folderId, target));
     },
 
     duplicatePage: (id) => get().duplicatePages([id]),
@@ -1798,6 +1790,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (ids.size >= doc.pageOrder.length) ids.delete(doc.pageOrder.find((id) => !ids.has(id)) ?? doc.pageOrder[0]);
       if (!ids.size) return;
       get().updateDoc((d) => {
+        retainPageFolderSlots(d, ids);
         for (const pageId of ids) {
           const page = d.pages[pageId];
           if (!page) continue;
@@ -1831,6 +1824,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         const target = folderId && d.pageFolders?.some((f) => f.id === folderId) ? folderId : null;
         const ids = d.pageOrder.filter((id) => pageIds.includes(id));
         if (!ids.length) return;
+        retainPageFolderSlots(d, new Set(ids));
         const rest = d.pageOrder.filter((id) => !ids.includes(id));
         for (const id of ids) {
           if (target) d.pages[id].folderId = target;

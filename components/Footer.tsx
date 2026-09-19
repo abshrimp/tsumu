@@ -18,6 +18,15 @@ import { relativeTime } from "../lib/time";
 import type { ActivityEntry, SiteActivity } from "../lib/activity";
 import UserAvatar from "./UserAvatar";
 
+/** Avoid ambiguous time-only save labels when the editor stays open across midnight. */
+function savedTimeLabel(at: number, now: number): string {
+  const saved = new Date(at);
+  if (saved.toDateString() === new Date(now).toDateString()) return saved.toLocaleTimeString(getLang());
+  return saved.toLocaleString(getLang(), {
+    year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
 /* ---------- 最近の編集・最後の公開（ホバーで出すカード） ---------- */
 
 /** サーバーの記録（D1 が無いときは null。読み込み中は undefined） */
@@ -131,6 +140,11 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
   const savedAt = useEditor((s) => s.savedAt);
   const cloudState = useEditor((s) => s.cloudState);
   const cloudSavedAt = useEditor((s) => s.cloudSavedAt);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const cloudError = useEditor((s) => s.cloudError);
   const publishedAt = useEditor((s) => s.publishedAt);
   const publishedFingerprint = useEditor((s) => s.publishedFingerprint);
@@ -285,7 +299,7 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
               <CloudCheck size={13} />
               {tr("Saved to server")}
               {cloudSavedAt &&
-                ` ${new Date(cloudSavedAt).toLocaleTimeString(getLang())}`}
+                ` ${savedTimeLabel(cloudSavedAt, clockNow)}`}
             </>
           )}
           {cloudState === "local" && (
@@ -296,7 +310,7 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
                 : localSaveState === "error"
                   ? tr("Couldn't save in this browser")
                   : localSaveState === "pending" ? tr("Saving in this browser…") : tr("Saved in this browser only")}
-              {localSaveState === "saved" && savedAt && ` ${new Date(savedAt).toLocaleTimeString(getLang())}`}
+              {localSaveState === "saved" && savedAt && ` ${savedTimeLabel(savedAt, clockNow)}`}
             </>
           )}
           {cloudState === "error" && (

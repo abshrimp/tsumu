@@ -78,6 +78,20 @@ function StaticAssetThumb({ asset, kind }: { asset: Asset; kind: AssetDisplayKin
   );
 }
 
+/** Search common Japanese type names as well as localized labels and file names. */
+const ASSET_SEARCH_ALIASES: Partial<Record<AssetDisplayKind, string>> = {
+  image: "画像 写真 イラスト",
+  video: "動画 映像",
+  audio: "音声 音楽",
+  css: "スタイル シート",
+  javascript: "スクリプト",
+  font: "フォント 書体",
+  json: "データ",
+  document: "文書 書類",
+  archive: "圧縮",
+  file: "ファイル",
+};
+
 function staticAssetLabel(kind: AssetDisplayKind): string {
   switch (kind) {
     case "css": return "CSS";
@@ -378,8 +392,15 @@ export function AssetsTab() {
   const usage = useMemo(() => assetUsage(doc), [doc]);
   const usedBy = (asset: Asset) => usage.get(asset.id) ?? 0;
   const unused = useMemo(() => assets.filter((a) => !usage.has(a.id)), [assets, usage]);
-  const q = query.trim().toLowerCase();
-  const shown = useMemo(() => q ? assets.filter((a) => a.name.toLowerCase().includes(q)) : assets, [assets, q]);
+  const q = query.trim().normalize("NFKC").toLowerCase();
+  const shown = useMemo(() => q ? assets.filter((asset) => {
+    const kind = assetDisplayKind(asset);
+    const searchable = [
+      asset.name, asset.mimeType ?? "", assetExtensionLabel(asset),
+      kind, staticAssetLabel(kind), ASSET_SEARCH_ALIASES[kind] ?? "",
+    ].join(" ").normalize("NFKC").toLowerCase();
+    return searchable.includes(q);
+  }) : assets, [assets, q]);
   const windowed = shown.length > ASSET_WINDOW_THRESHOLD;
   const pinnedIndices = [focusedAsset, renaming, draggedAsset].map((id) => id ? shown.findIndex((a) => a.id === id) : -1);
   const layout = assetWindow(shown.length, viewport.width, viewport.height, viewport.top, pinnedIndices);

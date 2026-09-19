@@ -2,6 +2,7 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Rename page": "ページ名を変更",
   "GitHub is temporarily limiting publishing requests. Wait before trying again.": "GitHubの一時的な利用制限に達しました。時間を空けてから再度公開してください。",
   "GitHub rejected the published file {path} (422). Check its path and contents.": "GitHubが公開ファイル {path} を受け付けませんでした（422）。ファイル名と内容を確認してください。",
   "GitHub rejected publish tree batch {batch} of {total} (422). Check the generated files.": "GitHubが公開用ツリーの{batch}/{total}番目のまとまりを受け付けませんでした（422）。書き出すファイルを確認してください。",

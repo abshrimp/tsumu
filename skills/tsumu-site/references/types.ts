@@ -478,6 +478,7 @@ export interface Page {
 export interface PageFolder {
   id: string;
   name: string;
+  beforePageId?: string;
 }
 
 export interface CustomFont {

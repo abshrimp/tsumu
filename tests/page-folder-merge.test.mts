@@ -48,7 +48,7 @@ for (const localReorder of [false, true]) {
   test(`folder rename and ${localReorder ? "local" : "remote"} reorder remain independent`, () => {
     const base = pageFolderFixture();
     const renamed = edit(base, () => useEditor.getState().renamePageFolder("first", "Renamed"));
-    const reordered = edit(base, () => useEditor.getState().moveFolder("third", 0));
+    const reordered = edit(base, () => useEditor.getState().moveFolder("third", { kind: "folder", id: "first", after: false }));
     const merged = mergeDocs(base, localReorder ? reordered : renamed, localReorder ? renamed : reordered);
     assert.deepEqual(order(merged), ["third", "first", "second"]);
     assert.equal(names(merged).first, "Renamed");
@@ -166,8 +166,8 @@ for (const localDelete of [false, true]) {
 
 test("concurrent folder reorder conflicts still prefer the local order", () => {
   const base = pageFolderFixture();
-  const local = edit(base, () => useEditor.getState().moveFolder("third", 0));
-  const remote = edit(base, () => useEditor.getState().moveFolder("second", 0));
+  const local = edit(base, () => useEditor.getState().moveFolder("third", { kind: "folder", id: "first", after: false }));
+  const remote = edit(base, () => useEditor.getState().moveFolder("second", { kind: "folder", id: "first", after: false }));
   assert.deepEqual(order(mergeDocs(base, local, remote)), order(local));
 });
 

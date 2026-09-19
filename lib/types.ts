@@ -514,6 +514,8 @@ export interface Page {
 export interface PageFolder {
   id: string;
   name: string;
+  /** The next loose page in the page panel; absent means after all loose pages. */
+  beforePageId?: string;
 }
 
 /** 追加した Google Font。weights が "variable" なら可変フォント */

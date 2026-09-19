@@ -32,6 +32,7 @@ import { showConfirm } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
 import { useDragAutoScroll } from "./drag";
 import { storageKey } from "../../lib/storage-keys";
+import { pagePanelItems } from "../../lib/page-panel-order";
 
 /* ============ ページ ============ */
 
@@ -91,6 +92,7 @@ export function PagesTab() {
   const [drop, setDrop] = useState<PageDrop | null>(null);
   const [closed, setClosed] = useState<Set<string>>(loadClosedFolders);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [renamingPage, setRenamingPage] = useState<string | null>(null);
   /** ページの右クリックメニュー */
   const [ctx, setCtx] = useState<{ x: number; y: number; id: string } | null>(null);
   /** 他のサイトへコピーするページ（ダイアログを開いている間） */
@@ -108,6 +110,10 @@ export function PagesTab() {
     }
     return { loose, byFolder };
   }, [folders, pageOrder, pages]);
+  const topLevel = useMemo(
+    () => pagePanelItems({ pageOrder: loose, pages, pageFolders: folders }),
+    [loose, pages, folders]
+  );
   const folderOf = (id: string) => {
     const folder = pages[id]?.folderId;
     return folder && byFolder.has(folder) ? folder : null;
@@ -140,37 +146,40 @@ export function PagesTab() {
     setDrop(null);
   };
 
-  const applyDrop = () => {
-    if (!drag || !drop) return;
+  const applyDrop = (target: PageDrop) => {
+    if (!drag) return;
     if (drag.kind === "page") {
       // 選んでいるページをつかんだら、選んだページをまとめて動かす
       if (livePicked.length > 1 && pickedIds.has(drag.id)) {
-        if (drop.kind === "page") {
-          if (pickedIds.has(drop.id)) return;
-          movePagesToFolder(livePicked, folderOf(drop.id), drop.after ? { after: drop.id } : { before: drop.id });
-        } else if (drop.kind === "folder") {
-          movePagesToFolder(livePicked, drop.id);
-          toggleFolder(drop.id, true);
+        if (target.kind === "page") {
+          if (pickedIds.has(target.id)) return;
+          movePagesToFolder(livePicked, folderOf(target.id), target.after ? { after: target.id } : { before: target.id });
+        } else if (target.kind === "folder") {
+          movePagesToFolder(livePicked, target.id);
+          toggleFolder(target.id, true);
         } else {
           movePagesToFolder(livePicked, null);
         }
         return;
       }
-      if (drop.kind === "page") {
-        if (drop.id === drag.id) return;
-        placePage(drag.id, folderOf(drop.id), drop.after ? { after: drop.id } : { before: drop.id });
-      } else if (drop.kind === "folder") {
-        placePage(drag.id, drop.id);
-        toggleFolder(drop.id, true);
+      if (target.kind === "page") {
+        if (target.id === drag.id) return;
+        placePage(drag.id, folderOf(target.id), target.after ? { after: target.id } : { before: target.id });
+      } else if (target.kind === "folder") {
+        placePage(drag.id, target.id);
+        toggleFolder(target.id, true);
       } else {
         placePage(drag.id, null);
       }
       return;
     }
-    // フォルダの並べ替え（フォルダの行の前後にだけドロップできる）
-    if (drop.kind === "folder" && drop.pos !== "inside" && drop.id !== drag.id) {
-      const index = folders.findIndex((f) => f.id === drop.id) + (drop.pos === "after" ? 1 : 0);
-      moveFolder(drag.id, index);
+    // フォルダもトップレベルの1行。フォルダ外のページの前後にも移動できる。
+    if (target.kind === "page" && !folderOf(target.id)) {
+      moveFolder(drag.id, { kind: "page", id: target.id, after: target.after });
+    } else if (target.kind === "folder" && target.pos !== "inside" && target.id !== drag.id) {
+      moveFolder(drag.id, { kind: "folder", id: target.id, after: target.pos === "after" });
+    } else if (target.kind === "loose") {
+      moveFolder(drag.id, { kind: "end" });
     }
   };
 
@@ -198,7 +207,9 @@ export function PagesTab() {
     const toggle = e.metaKey || e.ctrlKey || (selecting && !e.shiftKey);
     if (e.shiftKey) {
       // 閉じたフォルダの中も含め、一覧の表示順に範囲選択する。
-      const visibleOrder = loose.concat(Array.from(byFolder.values()).flat());
+      const visibleOrder = topLevel.flatMap((item) =>
+        item.kind === "page" ? [item.id] : byFolder.get(item.id) ?? []
+      );
       const from = pickAnchor.current ?? activePageId;
       const a = visibleOrder.indexOf(from);
       const b = visibleOrder.indexOf(id);
@@ -348,10 +359,12 @@ export function PagesTab() {
 
   const pageRow = (id: string, nested: boolean) => {
     const p = pages[id];
-    const over = drop?.kind === "page" && drop.id === id && drag?.kind === "page" && drag.id !== id;
+    const over = drop?.kind === "page" && drop.id === id &&
+      (drag?.kind === "page" ? drag.id !== id : drag?.kind === "folder" && !nested);
     return (
       <div
         key={id}
+        data-page-id={id}
         className={`page-row${id === activePageId ? " is-on" : ""}${
           p.unpublished ? " is-unpublished" : ""
         }${
@@ -366,7 +379,7 @@ export function PagesTab() {
             "--acts": p.unpublished ? 1 : 0,
           } as CSSProperties
         }
-        draggable
+        draggable={renamingPage !== id}
         onClick={(e) => clickPage(e, id)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -376,12 +389,18 @@ export function PagesTab() {
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = "move";
           e.stopPropagation();
+          e.dataTransfer.setData("text/plain", `page:${id}`);
           setDrag({ kind: "page", id });
         }}
         onDragOver={(e) => {
-          if (drag?.kind !== "page") return;
+          if (!drag) return;
           e.preventDefault();
           e.stopPropagation();
+          // A folder cannot be inserted between the children of another folder.
+          if (drag.kind === "folder" && nested) {
+            setDrop(null);
+            return;
+          }
           const r = e.currentTarget.getBoundingClientRect();
           const after = e.clientY - r.top >= r.height / 2;
           if (drop?.kind !== "page" || drop.id !== id || drop.after !== after) {
@@ -391,7 +410,10 @@ export function PagesTab() {
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          applyDrop();
+          if (drag?.kind !== "folder" || !nested) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            applyDrop({ kind: "page", id, after: e.clientY - rect.top >= rect.height / 2 });
+          }
           endDrag();
         }}
         onDragEnd={endDrag}
@@ -414,23 +436,61 @@ export function PagesTab() {
         ) : (
           <Icon name="page" size={13} />
         )}
-        <span
-          className="page-label"
-          style={{
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {p.name}{" "}
-          <span className="page-slug">
-            /{p.slug}
-            {p.query ? `?${p.query}` : ""}
+        {renamingPage === id ? (
+          <input
+            className="folder-rename"
+            autoFocus
+            defaultValue={p.name}
+            aria-label={tr("Rename")}
+            onFocus={(e) => e.currentTarget.select()}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={(e) => {
+              const name = e.currentTarget.value.trim();
+              if (name && name !== p.name) updatePage(id, { name });
+              setRenamingPage(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                e.currentTarget.value = p.name;
+                e.currentTarget.blur();
+              } else if (isEnterKey(e)) e.currentTarget.blur();
+            }}
+          />
+        ) : (
+          <span
+            className="page-label"
+            title={tr("Double-click to rename")}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setRenamingPage(id);
+            }}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {p.name}{" "}
+            <span className="page-slug">
+              /{p.slug}
+              {p.query ? `?${p.query}` : ""}
+            </span>
           </span>
-        </span>
+        )}
         <div className="row-acts">
+          <button
+            className="row-act"
+            data-tip={tr("Rename page")}
+            aria-label={tr("Rename page")}
+            onClick={(e) => {
+              e.stopPropagation();
+              setRenamingPage(id);
+            }}
+          >
+            <Pencil size={12} />
+          </button>
           <button
             className="row-act"
             data-tip={tr("Duplicate")}
@@ -546,7 +606,12 @@ export function PagesTab() {
           className="icon-btn"
           aria-label={tr("Select pages")}
           data-tip={tr("Select several pages to move to a folder or delete together (⌘-click and Shift-click work too)")}
-          onClick={() => setPicking(true)}
+          onClick={() => {
+            const first = pageOrder.includes(activePageId) ? activePageId : pageOrder[0];
+            setPicked(first ? [first] : []);
+            pickAnchor.current = first ?? null;
+            setPicking(true);
+          }}
         >
           <ListChecks size={14} />
         </button>
@@ -573,19 +638,19 @@ export function PagesTab() {
       </div>
       )}
       <div
-        className={`panel-body${drop?.kind === "loose" && drag?.kind === "page" ? " is-file-over" : ""}`}
+        className={`panel-body${drop?.kind === "loose" && drag ? " is-file-over" : ""}`}
         onDragOverCapture={(e) => {
           if (drag) autoScroll(e);
         }}
         onDragOver={(e) => {
-          // 行の外（一覧の下の空いた領域）= フォルダの外の末尾
-          if (drag?.kind !== "page") return;
+          // 行の外（一覧の下の空いた領域）= トップレベル末尾
+          if (!drag) return;
           e.preventDefault();
           if (drop?.kind !== "loose") setDrop({ kind: "loose" });
         }}
         onDrop={(e) => {
           e.preventDefault();
-          applyDrop();
+          if (drag) applyDrop({ kind: "loose" });
           endDrag();
         }}
       >
@@ -601,8 +666,10 @@ export function PagesTab() {
               </span>
             </div>
           )}
-          {loose.map((id) => pageRow(id, false))}
-          {folders.map((f) => {
+          {topLevel.map((item) => {
+            if (item.kind === "page") return pageRow(item.id, false);
+            const f = folders.find((folder) => folder.id === item.id);
+            if (!f) return null;
             const pages = byFolder.get(f.id)!;
             const isClosed = closed.has(f.id);
             const target = drop?.kind === "folder" && drop.id === f.id ? drop.pos : null;
@@ -618,6 +685,8 @@ export function PagesTab() {
                   onClick={() => toggleFolder(f.id)}
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", `folder:${f.id}`);
+                    e.stopPropagation();
                     setDrag({ kind: "folder", id: f.id });
                   }}
                   onDragOver={(e) => {
@@ -636,7 +705,12 @@ export function PagesTab() {
                   onDrop={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    applyDrop();
+                    if (drag) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const y = (e.clientY - rect.top) / rect.height;
+                      const pos = drag.kind === "page" ? "inside" : y < 0.5 ? "before" : "after";
+                      applyDrop({ kind: "folder", id: f.id, pos });
+                    }
                     endDrag();
                   }}
                   onDragEnd={endDrag}

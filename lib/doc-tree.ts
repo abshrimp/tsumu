@@ -249,6 +249,13 @@ export function validSiteDoc(parsed: unknown): boolean {
       folderIds.add(folder.id);
     }
   }
+  for (const folder of parsed.pageFolders ?? []) {
+    const anchor = folder.beforePageId;
+    if (anchor === undefined) continue;
+    if (typeof anchor !== "string" || !Object.hasOwn(parsed.pages as object, anchor)) return false;
+    const page = (parsed.pages as Record<string, unknown>)[anchor];
+    if (!record(page) || page.folderId !== undefined) return false;
+  }
   const assetRefValid = (value: unknown): boolean => {
     if (!record(value) || value.assetId === undefined) return true;
     return typeof value.assetId === "string" && Object.hasOwn(parsed.assets as object, value.assetId);

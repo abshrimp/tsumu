@@ -620,5 +620,17 @@ function mergeOnce(
   for (const page of Object.values(merged.pages)) {
     if (page.folderId && !folderIds.has(page.folderId)) delete page.folderId;
   }
+  // Concurrent moves can turn a loose-page anchor into a folder child.
+  // Keep all folders while discarding anchors that no longer point to a loose page.
+  const looseIds = new Set(merged.pageOrder.filter((id) =>
+    merged.pages[id] && !merged.pages[id].folderId));
+  if (merged.pageFolders) {
+    merged.pageFolders = merged.pageFolders.map((folder) => {
+      if (!folder.beforePageId || looseIds.has(folder.beforePageId)) return folder;
+      const clean = { ...folder };
+      delete clean.beforePageId;
+      return clean;
+    });
+  }
   return merged;
 }
