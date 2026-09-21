@@ -19,6 +19,7 @@ import {
   makeSample,
 } from "../../lib/data";
 import { hasVars, interpolate, interpolateUrl, isSlugPage, pageQueryVars } from "../../lib/vars";
+import { pageQueryConditions } from "../../lib/page-query";
 import { fieldDefaults, fieldStateValues, type FieldValues } from "../../lib/fields";
 import { fetchRequestOf } from "../../lib/fetch-request";
 import type { Page, SiteDoc } from "../../lib/types";
@@ -28,7 +29,7 @@ function queryPage(pages: Page[], query: URLSearchParams): Page | undefined {
   let best = pages[0];
   let score = -1;
   for (const page of pages) {
-    const conditions = Object.entries(pageQueryVars(page.query));
+    const conditions = pageQueryConditions(page.query);
     if (conditions.length > score && conditions.every(([key, value]) => query.get(key) === value)) {
       best = page;
       score = conditions.length;
