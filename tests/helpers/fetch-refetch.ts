@@ -1,5 +1,6 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
+import { makeBox, makeText } from "../../lib/presets";
 import type { SiteDoc } from "../../lib/types";
 
 export function fetchRefetchDoc(): SiteDoc {
@@ -13,6 +14,33 @@ export function fetchRefetchDoc(): SiteDoc {
       ] }],
     } },
   };
+}
+
+/** 行・くり返しとページに同じ名前がある、実際の文書形式の見本。 */
+export function fetchScopeDoc(mode: "node" | "loop"): SiteDoc {
+  const doc = fetchRefetchDoc();
+  const scoped = { id: "scoped", kind: "fetch" as const, as: "result", method: "POST" as const,
+    url: mode === "node" ? "https://example.test/{details.id}" : "https://example.test/{details.id}/{empty}/{tags}",
+    body: '{"raw":{details}}', sample: { ok: true }, fetchedAt: 1 };
+  doc.pages.p.query = "details.id=PAGE-DOTTED&empty=PAGE-EMPTY&tags=PAGE-TAGS";
+  doc.pages.p.pageScripts![0].steps = [
+    { id: "rows", kind: "fetch", as: "rows", url: "https://example.test/rows", sample: [
+      { details: { id: "ROW-ID" }, empty: {}, tags: [] },
+    ] },
+    { id: "global", kind: "fetch", as: "details", url: "https://example.test/global", sample: { id: "PAGE-ID" } },
+  ];
+  if (mode === "loop") {
+    doc.pages.p.pageScripts![0].steps.push({ id: "each", kind: "for-each", array: "rows", then: [
+      { id: "repeat", kind: "repeat", times: 1, then: [scoped] },
+    ] });
+  } else {
+    doc.pages.p.children = ["list"];
+    doc.nodes.list = { ...makeBox(), id: "list", type: "list", list: { from: "rows" }, children: ["act"] };
+    doc.nodes.act = { ...makeText("Act"), id: "act", semantic: "button", scripts: [{
+      id: "act-script", trigger: "click", pos: { x: 32, y: 32 }, steps: [scoped],
+    }] };
+  }
+  return doc;
 }
 
 /** 実際のスクリプト画面・ストア・変数の見本を使い、API の応答順だけを操作する。 */

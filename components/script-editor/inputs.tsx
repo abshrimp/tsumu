@@ -7,12 +7,14 @@
 import { isEnterKey } from "../../lib/keys";
 import { Fragment, useContext, useMemo, useState, type ReactNode } from "react";
 import { VarInput } from "../controls";
-import { dataVarNames, ITEM_VALUE, varNamesAt, varSamplesAt } from "../../lib/data";
-import { splitRegexVars } from "../../lib/vars";
+import { dataVarNames, fieldLabel, flattenFields, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
+import { lookupVar, splitRegexVars } from "../../lib/vars";
+import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
+import { readableValue } from "../DataView";
 import { fieldVarName, isRadioItem } from "../../lib/fields";
 import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
 import { tr, trNodes } from "../../lib/i18n";
-import { Ctx, LoopCtx, ScriptNodeCtx } from "./context";
+import { Ctx, LoopCtx, ScriptNodeCtx, ScriptStepCtx } from "./context";
 import { TargetSelect } from "./targets";
 
 export function TextIn({
@@ -24,6 +26,7 @@ export function TextIn({
   vars,
   itemFields,
   itemSamples,
+  valueContext = "text",
 }: {
   value: string;
   onCommit: (v: string) => void;
@@ -35,6 +38,7 @@ export function TextIn({
   /** 候補の先頭に出す、配列の要素の項目名（とその見本） */
   itemFields?: string[];
   itemSamples?: Record<string, string>;
+  valueContext?: ValueContext;
 }) {
   if (vars && type === "text") {
     return (
@@ -45,6 +49,7 @@ export function TextIn({
         width={width}
         itemFields={itemFields}
         itemSamples={itemSamples}
+        valueContext={valueContext}
       />
     );
   }
@@ -75,6 +80,7 @@ function VarTextIn({
   width,
   itemFields,
   itemSamples,
+  valueContext = "text",
 }: {
   value: string;
   onCommit: (v: string) => void;
@@ -82,8 +88,11 @@ function VarTextIn({
   width?: number;
   itemFields?: string[];
   itemSamples?: Record<string, string>;
+  valueContext?: ValueContext;
 }) {
-  const { doc, pageId, readOnly } = useContext(Ctx);
+  const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
+  const stepId = useContext(ScriptStepCtx);
+  const doc = useMemo(() => scriptInputDoc(savedDoc, stepId), [savedDoc, stepId]);
   const nodeId = useContext(ScriptNodeCtx);
   const loops = useContext(LoopCtx);
   // 候補: 配列の要素の項目 + くり返し中の要素の項目 + その位置で使える変数 + スクリプトで作る変数
@@ -92,17 +101,21 @@ function VarTextIn({
     const made = [...dataVarNames(doc, pageId)].filter(
       (n) => n !== ITEM_VALUE && n !== "slug" && !at.includes(n)
     );
-    const item = [...new Set([...(itemFields ?? []), ...loops.flatMap((l) => l.fields)])];
+    const item = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
+    const raw = variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), item);
+    // 取得したデータの項目と親のまとまりも、同じスコープの見本から選べるようにする。
+    const nested = localVariableNames(flattenFields(raw, 4).map((field) => field.field));
+    const available = [...new Set([...at, ...made, ...nested])];
     return {
-      names: [...item, ...[...at, ...made].filter((n) => !item.includes(n))],
+      names: [...item, ...available.filter((n) => !item.includes(n) && canPickVariable(lookupVar(raw, n), valueContext))],
       samples: {
-        ...varSamplesAt(doc, pageId, nodeId),
+        ...Object.fromEntries(Object.entries(varSamplesAt(doc, pageId, nodeId)).filter(([name]) => !item.some((n) => n.split(".")[0] === name.split(".")[0]))),
         ...Object.assign({}, ...[...loops].reverse().map((l) => l.samples)),
         ...itemSamples,
       },
       extra: made.filter((n) => !item.includes(n)),
     };
-  }, [doc, pageId, nodeId, itemFields, itemSamples, loops]);
+  }, [doc, pageId, nodeId, itemFields, itemSamples, loops, valueContext]);
   if (readOnly) {
     return (
       <span className={`se-in se-in-fake${value ? "" : " is-empty"}`} style={{ width }}>
@@ -120,13 +133,43 @@ function VarTextIn({
       names={names}
       samples={samples}
       nodeId={nodeId}
+      sourceStepId={stepId}
       extraNames={extra}
+      localNames={localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])])}
+      valueContext={valueContext}
       eager
       onCommit={(v) => {
         if (v !== value) onCommit(v);
       }}
     />
   );
+}
+
+/** 単独参照は値をそのまま渡し、文章は既存の文字列テンプレートとして編集する。 */
+export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 }: {
+  value: string; onCommit: (v: string) => void; itemFields?: string[];
+  itemSamples?: Record<string, string>; width?: number;
+}) {
+  const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
+  const stepId = useContext(ScriptStepCtx);
+  const doc = useMemo(() => scriptInputDoc(savedDoc, stepId), [savedDoc, stepId]);
+  const nodeId = useContext(ScriptNodeCtx);
+  const loops = useContext(LoopCtx);
+  const source = singleValueReference(value);
+  const local = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
+  const sample = source ? lookupVar(variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), local), source) : undefined;
+  const kind = sample === undefined ? tr("実行時") : sample === null ? "null" : Array.isArray(sample) ? tr("リスト") :
+    typeof sample === "object" ? tr("項目付きデータ") : typeof sample === "boolean" ? tr("はい／いいえ") :
+    typeof sample === "number" ? tr("数値") : tr("文字列");
+  if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
+  return <span className="se-value-choice">
+    <TextIn value={value} onCommit={onCommit} vars valueContext="value" width={width}
+      itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("値 / {変数}")} />
+    {source && <span className="se-value-info">
+      <span className="vx-kind">{kind}</span>
+      {(typeof sample === "number" || typeof sample === "boolean") && <span className="se-value-sample">{readableValue(sample)}</span>}
+    </span>}
+  </span>;
 }
 
 /** 対象（ID属性 / きっかけの要素）の入力欄の設定と、選べる値（ラジオは同じIDのボタンの文字） */
@@ -211,7 +254,7 @@ export function FieldValueIn({
           {c.label}
         </option>
       ))}
-      <option value={OTHER_VALUE}>{tr("その他（変数・文字）…")}</option>
+      <option value={OTHER_VALUE}>{tr("その他（変数・文字列）…")}</option>
     </select>
   );
 }
