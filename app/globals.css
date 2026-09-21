@@ -1029,6 +1029,19 @@ textarea {
   gap: 12px;
 }
 
+/* 設定パネルの要素操作は、サイドバーの幅に合わせて行を増やす。 */
+.settings-node-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.settings-node-actions > .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 /* ラベルを左に置く行（設定パネル・ページ設定用） */
 .row {
   display: grid;
