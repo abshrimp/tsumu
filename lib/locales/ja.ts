@@ -2,6 +2,12 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Search results": "検索結果",
+  "Search page text": "本文を検索",
+  "Search text across all pages": "全ページの本文を検索",
+  "Enter words to search page content": "検索する文字列を入力してください",
+  "No matching page text": "一致する本文がありません",
+  "{n} matches": "{n}件の一致",
   "Rename page": "ページ名を変更",
   "GitHub is temporarily limiting publishing requests. Wait before trying again.": "GitHubの一時的な利用制限に達しました。時間を空けてから再度公開してください。",
   "GitHub rejected the published file {path} (422). Check its path and contents.": "GitHubが公開ファイル {path} を受け付けませんでした（422）。ファイル名と内容を確認してください。",

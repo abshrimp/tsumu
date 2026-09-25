@@ -22,6 +22,7 @@ import {
   Play,
   Redo2,
   RotateCcw,
+  Search,
   Settings,
   Smartphone,
   Sparkles,
@@ -44,6 +45,7 @@ import { getLang, LANGS, setLang, tr, type Lang } from "../lib/i18n";
 
 const ExportModal = lazy(() => import("./ExportModal"));
 const PublishModal = lazy(() => import("./PublishModal"));
+const BodySearch = lazy(() => import("./BodySearch"));
 const HistoryModal = lazy(() => import("./PublishModal").then((m) => ({ default: m.HistoryModal })));
 
 function ModalLoading({ onClose }: { onClose: () => void }) {
@@ -208,6 +210,7 @@ export default function Header({
   const zoom = useEditor((s) => s.zoom);
   const setZoom = useEditor((s) => s.setZoom);
   const [exporting, setExporting] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
@@ -236,6 +239,21 @@ export default function Header({
     closeHelp();
     open(true);
   };
+
+  useEffect(() => {
+    const onFind = (event: KeyboardEvent) => {
+      if (mode !== "design" || !(event.metaKey || event.ctrlKey) || event.shiftKey ||
+          event.altKey || event.key.toLowerCase() !== "f" || event.isComposing) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")) return;
+      if (document.querySelector(".se-backdrop, .modal-backdrop, .dialog-backdrop")) return;
+      event.preventDefault();
+      closeHelp();
+      setSearchOpen(true);
+    };
+    window.addEventListener("keydown", onFind);
+    return () => window.removeEventListener("keydown", onFind);
+  }, [mode]);
 
   const closeDeferredModal = () => {
     setExporting(false);
@@ -440,6 +458,21 @@ export default function Header({
           <MessageSquare size={15} />
           {openComments > 0 && <span className="hdr-badge">{openComments > 99 ? "99+" : openComments}</span>}
         </button>
+        {mode === "design" && (
+          <button
+            className={`icon-btn${searchOpen ? " is-on" : ""}`}
+            aria-label={tr("Search page text")}
+            data-tip={tr("Search text across all pages")}
+            data-tip-kbd="⌘F"
+            aria-pressed={searchOpen}
+            onClick={() => {
+              closeHelp();
+              setSearchOpen(true);
+            }}
+          >
+            <Search size={15} />
+          </button>
+        )}
         <button
           className={`icon-btn${helpOpen ? " is-on" : ""}`}
           data-tutorial="help"
@@ -504,6 +537,13 @@ export default function Header({
         )}
       </div>
 
+      {searchOpen && mode === "design" && (
+        <SafeBoundary label={tr("Search page text")} onClose={() => setSearchOpen(false)}>
+          <Suspense fallback={<ModalLoading onClose={() => setSearchOpen(false)} />}>
+            <BodySearch onClose={() => setSearchOpen(false)} />
+          </Suspense>
+        </SafeBoundary>
+      )}
       {logoutOpen && <LogoutModal onClose={() => setLogoutOpen(false)} />}
       {(exporting || publishing || historyOpen) && (
         <SafeBoundary onClose={closeDeferredModal}>

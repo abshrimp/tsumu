@@ -6250,6 +6250,186 @@ body {
   margin-left: auto;
 }
 
+/* ---------- 本文検索: 変数検索と同じパネル構造 ---------- */
+.modal.body-search {
+  display: flex;
+  flex-direction: column;
+  width: 620px;
+  height: min(560px, calc(100dvh - 32px));
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  padding: 18px 8px 12px;
+  overflow: hidden;
+}
+
+.body-search-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px 0 16px;
+}
+
+.body-search-head h2 {
+  margin: 0 !important;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.body-search-head .icon-btn {
+  flex: none;
+}
+
+.body-search-field {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  margin: 14px 12px 8px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--field);
+  color: var(--text-3);
+  transition: background 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+.body-search-field:focus-within {
+  background: var(--panel);
+  box-shadow: 0 0 0 2px var(--accent);
+  color: var(--accent);
+}
+
+.body-search-field > svg {
+  flex: none;
+}
+
+.body-search-field input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.body-search-field input::-webkit-search-cancel-button,
+.body-search-field input::-webkit-search-decoration {
+  appearance: none;
+}
+
+.body-search-clear {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.body-search-clear:hover,
+.body-search-clear:focus-visible {
+  background: var(--field);
+  color: var(--text);
+}
+
+.body-search-meta {
+  flex: none;
+  min-height: 24px;
+  padding: 0 20px 8px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.body-search-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 8px 8px;
+}
+
+.body-search-result {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.body-search-result:hover,
+.body-search-result:focus-visible {
+  outline: 0;
+  background: var(--field);
+}
+
+.body-search-result:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.body-search-result-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.body-search-result-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.body-search-empty {
+  margin: 0;
+  padding: 36px 16px;
+  color: var(--text-3);
+  text-align: center;
+  line-height: 1.7;
+  font-size: 12px;
+}
+
+@media (max-width: 520px) {
+  .modal.body-search {
+    width: calc(100vw - 24px);
+    height: min(520px, calc(100dvh - 24px));
+    border-radius: 18px;
+  }
+  .body-search-field {
+    margin-inline: 8px;
+  }
+  .body-search-result {
+    padding: 12px 8px;
+  }
+}
+
 /* ---------- 変数を探す ---------- */
 
 .modal.vx {
