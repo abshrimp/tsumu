@@ -22,7 +22,7 @@ Local development needs no API keys. Keep your environment variables in `.env.lo
 
 - **Keep each pull request focused** on one problem, and explain the behavior that results.
 - **Add a regression test** when you change behavior. Unit tests go in `tests/`, browser tests in `e2e/`.
-- **Use English source strings in `tr()` and write code comments in Japanese.** Add Japanese translations to `lib/locales/ja.ts`; new languages only need a dictionary file.
+- **Use English source strings in `tr()`. Code comments may be in English or Japanese.** Japanese translations in `lib/locales/ja.ts` are welcome but **not required for a PR**. Missing translations fall back to English and are reported as CI warnings. New languages only need a dictionary file.
 - **Keep the types, the editor, the generated code and the tests in agreement** about Tsumu's data model and runtime behavior.
 - **Preserve user-authored files when publishing a site.** `_tsumu/` is reserved for Tsumu's document and publish manifests.
 
@@ -31,12 +31,13 @@ Before opening a pull request, run:
 ```sh
 npm run typecheck
 npm test
-npm run i18n:check -- --strict ja
-npm run i18n:check -- --all   # warnings for incomplete additional languages
+npm run i18n:check -- --all   # non-blocking warnings for incomplete translations
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
+
+If you want to verify full Japanese translation coverage separately, run `npm run i18n:check -- --strict ja` (optional).
 
 If you change the Cloudflare integration, also run `npm run build:worker`. None of these checks deploy anything; deployment is a separate step.
 

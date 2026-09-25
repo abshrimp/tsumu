@@ -30,7 +30,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: node --import tsx --test e2e/browser-projects.check.mts
-      - run: npm run i18n:check -- --strict ja
+      # Untranslated UI copy falls back to English; contributors need not know Japanese.
       - run: npm run i18n:check -- --all
       - name: Verify Docker build context isolation
         env:
