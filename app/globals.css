@@ -11988,24 +11988,69 @@ a.btn {
   line-height: 16px;
 }
 
+/* スレッドを開くと一覧と入れ替わり、パネルの高さをすべて使う */
 .cm-detail {
   display: flex;
   flex-direction: column;
-  flex: 2;
-  min-height: 180px;
-  max-height: 65%;
+  flex: 1;
+  min-height: 0;
   gap: 10px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border);
+  padding: 4px 16px 16px;
   background: var(--panel);
   color: var(--text);
   font-size: 12px;
   overflow-y: auto;
 }
 
-.cm-detail > .cm-compose,
-.cm-detail > .cm-pop-head {
+.cm-detail > * {
   flex: none;
+}
+
+/* 長いスレッドは本文だけをスクロールし、返信欄は常に見えるようにする */
+.cm-detail > .cm-msgs {
+  flex: 0 1 auto;
+}
+
+/* 戻る・場所・操作の行は見出しとして、下のメッセージと線で分ける */
+.cm-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -16px;
+  padding: 2px 10px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cm-detail-head .cm-resolved,
+.cm-detail-head .cm-detail-context {
+  margin: 0 0 0 30px;
+}
+
+.cm-detail-context {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-detail .cm-pop-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--field);
+  color: var(--text-2);
+  font-size: 10px;
+}
+
+.cm-target-notice.is-alert {
+  color: var(--danger);
 }
 
 .cm-target-notice {
@@ -12022,7 +12067,8 @@ a.btn {
 }
 
 .cm-pop-title {
-  margin-right: auto;
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
 }
 
@@ -12136,12 +12182,14 @@ a.btn {
 
 .cm-panel-hint {
   margin: 0;
-  padding: 0 16px;
+  padding: 0 16px 8px;
 }
 
-/* 絞り込みの下線の直後に来る注意書きは、線に貼り付かないよう上を空ける */
-.cm-panel-filters + .cm-panel-hint {
-  padding-top: 10px;
+.cm-panel-foot {
+  flex: none;
+  margin: 0;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
 }
 
 .cm-panel-filters {
@@ -12159,11 +12207,15 @@ a.btn {
 }
 
 .cm-pagination {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px 6px 16px;
+  border-top: 1px solid var(--border);
 }
-.cm-pagination p { margin: 0 0 6px; }
-.cm-pagination-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.cm-pagination-actions { display: flex; gap: 2px; }
 .cm-list {
   flex: 1;
   min-height: 0;
@@ -12172,9 +12224,27 @@ a.btn {
 }
 
 .cm-empty {
-  margin: 24px 8px;
+  margin: 32px 12px;
   color: var(--text-3);
   text-align: center;
+}
+.cm-empty p { margin: 0; }
+.cm-empty .hint { margin-top: 6px; }
+
+.cm-list-notice {
+  display: block;
+  width: 100%;
+  margin: 2px 0 6px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: left;
+}
+.cm-list-notice:hover {
+  background: var(--state-hover);
 }
 
 .cm-item {
@@ -12189,10 +12259,6 @@ a.btn {
 
 .cm-item:hover {
   background: var(--state-hover);
-}
-
-.cm-item.is-on {
-  background: var(--accent-soft);
 }
 
 .cm-item.is-resolved {
@@ -12244,8 +12310,18 @@ a.btn {
 }
 
 .cm-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
   color: var(--text-3);
   font-size: 11px;
+}
+.cm-item-meta > span + span::before {
+  content: "·";
+  margin-right: 6px;
+}
+.cm-item-place.is-deleted {
+  color: var(--warn);
 }
 
 /* 変形の基準点（3×3 の点から選ぶ） */
