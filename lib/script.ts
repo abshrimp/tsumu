@@ -511,6 +511,12 @@ export function compileScripts(
             url: str(st.url, "url"),
             ...(st.newTab ? { newTab: true } : {}),
           };
+        case "dialog":
+          return {
+            kind: st.kind, mode: st.mode, message: str(st.message, "value"),
+            ...(st.mode === "prompt" ? { defaultValue: str(st.defaultValue ?? "", "value") } : {}),
+            ...(st.mode !== "alert" && st.into ? { into: st.into } : {}),
+          };
         case "set-value":
           return { kind: st.kind, target: st.target, value: str(st.value, "value") };
         case "list-display":

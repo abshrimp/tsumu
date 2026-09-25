@@ -257,6 +257,8 @@ export type ScriptStep = { id: string } & (
   | { kind: "set-state"; target: string; state: string }
   | { kind: "open-page"; pageId: string; newTab?: boolean }
   | { kind: "open-url"; url: string; newTab?: boolean }
+  /** Browser-native alert, confirm, or prompt. Results use true/false or string/null. */
+  | { kind: "dialog"; mode: "alert" | "confirm" | "prompt"; message: string; into?: string; defaultValue?: string }
   | { kind: "scroll-to"; target: string }
   | { kind: "set-value"; target: string; value: string }
   /** 入力欄やボタンを、操作できる / できない状態にする（disabled） */

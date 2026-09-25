@@ -124,6 +124,68 @@ export function StepBody({ step }: { step: ScriptStep }) {
           />
         </>
       );
+    case "dialog":
+      return (
+        <>
+          <Phrase
+            text="Show {kind} with {message}"
+            parts={{
+              kind: (
+                <select
+                  className="se-in"
+                  value={step.mode}
+                  aria-label={tr("Dialog type")}
+                  onChange={(e) => {
+                    const mode = e.target.value as "alert" | "confirm" | "prompt";
+                    set(() => ({
+                      id: step.id, kind: "dialog", mode, message: step.message,
+                      ...(mode === "alert" ? {} : { into: step.into ?? "" }),
+                      ...(mode === "prompt" ? { defaultValue: step.defaultValue ?? "" } : {}),
+                    }));
+                  }}
+                >
+                  <option value="alert">{tr("Alert")}</option>
+                  <option value="confirm">{tr("Confirm")}</option>
+                  <option value="prompt">{tr("Prompt")}</option>
+                </select>
+              ),
+              message: (
+                <TextIn
+                  value={step.message}
+                  placeholder={tr("string / {variable}")}
+                  vars
+                  width={180}
+                  onCommit={(message) => set((s) => ({ ...s, message }) as ScriptStep)}
+                />
+              ),
+            }}
+          />
+          {step.mode === "prompt" && (
+            <Phrase
+              text="Default input {value}"
+              parts={{
+                value: (
+                  <TextIn
+                    value={step.defaultValue ?? ""}
+                    placeholder={tr("string / {variable}")}
+                    vars
+                    width={150}
+                    onCommit={(defaultValue) => set((s) => ({ ...s, defaultValue }) as ScriptStep)}
+                  />
+                ),
+              }}
+            />
+          )}
+          {step.mode !== "alert" && (
+            <Phrase
+              text="Save dialog result to variable {into}"
+              parts={{
+                into: <VarNameIn stepId={step.id} value={step.into ?? ""} placeholder={tr("Variable name")} />,
+              }}
+            />
+          )}
+        </>
+      );
     case "scroll-to":
       return (
         <Phrase

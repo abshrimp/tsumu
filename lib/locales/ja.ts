@@ -2,6 +2,16 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Show ［Alert / Confirm / Prompt］ ［message］": "［アラート／確認／入力］を表示［メッセージ］",
+  "Show {kind} with {message}": "{kind}を表示 {message}",
+  "Dialog type": "ダイアログの種類",
+  "Alert": "アラート",
+  "Prompt": "入力",
+  "Default input {value}": "初期入力 {value}",
+  "Save dialog result to variable {into}": "結果を変数 {into} に保存",
+  "Ask for confirmation \"{message}\" and save into {into}": "「{message}」の確認結果を変数 {into} に保存",
+  "Ask for input \"{message}\" and save into {into}": "「{message}」の入力結果を変数 {into} に保存",
+  "Show alert \"{message}\"": "アラートを表示「{message}」",
   "Delete permanently": "完全に削除",
   "Delete \"{name}\" permanently?": "「{name}」を完全に削除しますか？",
   "The file will be permanently deleted from the server without waiting seven days. This cannot be undone.": "7日間の猶予を待たずに、サーバーからファイルを完全に削除します。この操作は取り消せません。",

@@ -87,6 +87,74 @@ for (const published of [false, true]) {
     await expect(page.locator("#banner")).toBeHidden();
   });
 
+  test(mode + ": alert shows resolved variables and continues after dismissal", async ({ page }) => {
+    const entries: Entry[] = [{
+      trigger: "click",
+      steps: [
+        { id: "set", kind: "set-var", into: "customer", value: "田中" },
+        { id: "dialog", kind: "dialog", mode: "alert", message: "こんにちは {customer}" },
+        { id: "hide", kind: "hide", target: "result" },
+      ],
+    }];
+    await page.setContent('<main data-page-body="a"><button id="trigger">Open alert</button><div id="result">Result</div></main>');
+    await attach(page, "#trigger", entries);
+    await install(page, published, entries);
+    const messages: string[] = [];
+    page.on("dialog", async (dialog) => {
+      expect(dialog.type()).toBe("alert");
+      messages.push(dialog.message());
+      await dialog.accept();
+    });
+    await page.locator("#trigger").click();
+    await expect.poll(() => messages).toEqual(["こんにちは 田中"]);
+    await expect(page.locator("#result")).toBeHidden();
+  });
+
+  for (const scenario of [
+    { mode: "confirm" as const, accepted: true, value: true },
+    { mode: "confirm" as const, accepted: false, value: false },
+    { mode: "prompt" as const, accepted: true, value: "入力した文字列" },
+    { mode: "prompt" as const, accepted: false, value: null },
+  ]) {
+    test(mode + ": " + scenario.mode + (scenario.accepted ? " accepted" : " cancelled") +
+      " saves the correct result and continues", async ({ page }) => {
+      const entries: Entry[] = [{
+        trigger: "click",
+        steps: [
+          { id: "seed", kind: "set-var", into: "seed", value: "初期値" },
+          { id: "dialog", kind: "dialog", mode: scenario.mode, message: "確認しますか {seed}",
+            defaultValue: "{seed}", into: "answer" },
+          { id: "after", kind: "set-var", into: "after", value: "continued" },
+        ],
+      }];
+      await page.setContent('<main data-page-body="a"><button id="trigger">Show dialog</button></main>');
+      await attach(page, "#trigger", entries);
+      await page.evaluate(() => {
+        (window as any).__dialogWrites = [];
+        (window as any).__siteVarsOnChange = (key: string, value: unknown) => {
+          (window as any).__dialogWrites.push([key, value]);
+        };
+      });
+      await install(page, published, entries);
+      const dialogs: string[] = [];
+      page.on("dialog", async (dialog) => {
+        dialogs.push(dialog.message());
+        expect(dialog.type()).toBe(scenario.mode);
+        if (scenario.mode === "prompt") expect(dialog.defaultValue()).toBe("初期値");
+        if (scenario.accepted) await dialog.accept(scenario.mode === "prompt" ? "入力した文字列" : undefined);
+        else await dialog.dismiss();
+      });
+      await page.locator("#trigger").click();
+      await expect.poll(() => dialogs).toEqual(["確認しますか 初期値"]);
+      await expect.poll(() => page.evaluate(() => (window as any).__dialogWrites)).toContainEqual(
+        ["answer", scenario.value]
+      );
+      await expect.poll(() => page.evaluate(() => (window as any).__dialogWrites)).toContainEqual(
+        ["after", "continued"]
+      );
+    });
+  }
+
   test(mode + ": denied Clipboard API does not invoke deprecated DOM copy", async ({ page }) => {
     const entries: Entry[] = [
       { trigger: "click", steps: [{ id: "copy", kind: "copy", value: "fallback content" }] },

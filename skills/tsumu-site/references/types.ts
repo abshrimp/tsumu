@@ -246,6 +246,7 @@ export type ScriptStep = { id: string } & (
   | { kind: "set-state"; target: string; state: string }
   | { kind: "open-page"; pageId: string; newTab?: boolean }
   | { kind: "open-url"; url: string; newTab?: boolean }
+  | { kind: "dialog"; mode: "alert" | "confirm" | "prompt"; message: string; into?: string; defaultValue?: string }
   | { kind: "scroll-to"; target: string }
   | { kind: "set-value"; target: string; value: string }
   

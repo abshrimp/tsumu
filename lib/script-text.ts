@@ -115,6 +115,12 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
         : tr("Load storage key \"{key}\" into variable {{into}}", { key: st.key || tr("no key"), into: st.into || "?" });
     case "copy":
       return tr("Copy \"{value}\"", { value: st.value });
+    case "dialog":
+      return st.mode === "alert"
+        ? tr("Show alert \"{message}\"", { message: st.message })
+        : st.mode === "confirm"
+          ? tr("Ask for confirmation \"{message}\" and save into {into}", { message: st.message, into: st.into || "?" })
+          : tr("Ask for input \"{message}\" and save into {into}", { message: st.message, into: st.into || "?" });
     case "set-var":
       return tr("Set variable {{p2}} to \"{value}\"", { value: st.value, p2: st.into || "?" });
     case "set-list-item":

@@ -1347,6 +1347,24 @@ export const SCRIPT_RUNTIME = `function (env) {
           }
 
           /*/show*/
+          /*#dialog*/
+          case "dialog": {
+            // Native dialogs block until dismissed. Browsers may suppress
+            // unsolicited dialogs, so failures do not crash the script.
+            var message = resolve(st.message, self, sc);
+            try {
+              if (st.mode === "alert") window.alert(message);
+              else if (st.mode === "confirm") {
+                var accepted = window.confirm(message);
+                if (st.into) setVar(st.into, accepted);
+              } else if (st.mode === "prompt") {
+                var answer = window.prompt(message, resolve(st.defaultValue || "", self, sc));
+                if (st.into) setVar(st.into, answer);
+              }
+            } catch (e) {}
+            break;
+          }
+          /*/dialog*/
           /*#scroll*/
           case "scroll-to": {
             var el = find(self, st.target)[0];
@@ -2004,6 +2022,7 @@ type RuntimeFeature =
   | "inview"
   | "scan"
   | "show"
+  | "dialog"
   | "scroll"
   | "go"
   | "set"
@@ -2029,6 +2048,7 @@ const STEP_FEATURE: Record<
   "set-state": "show",
   hide: "show",
   toggle: "show",
+  dialog: "dialog",
   "scroll-to": "scroll",
   "open-page": "go",
   "open-url": "go",

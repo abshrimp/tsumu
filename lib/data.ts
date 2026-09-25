@@ -740,6 +740,7 @@ export function pageDataSteps(doc: SiteDoc, pageId: string): ServerStep[] {
 /** ブロックが作る変数・配列・取得したデータの名前 */
 export function stepOutName(st: ScriptStep): string | null {
   if (st.kind === "fetch") return st.as || null;
+  if (st.kind === "dialog" && st.mode === "alert") return null;
   if ("into" in st) return st.into || null;
   return null;
 }
@@ -1488,6 +1489,12 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       }
       if (t.kind === "sort") next.field = mapVarTokens(t.field, fn);
       st.transform = next as typeof st.transform;
+    }
+    else if (st.kind === "dialog") {
+      st.message = mapVarTokens(st.message, fn);
+      if (st.mode === "prompt" && st.defaultValue !== undefined) {
+        st.defaultValue = mapVarTokens(st.defaultValue, fn);
+      }
     }
     else if (
       st.kind === "copy" ||
