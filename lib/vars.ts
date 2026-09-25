@@ -7,6 +7,7 @@
 import { NAVIGATION_RUNTIME } from "./url-policy";
 import { tr } from "./i18n";
 import { formatValueText } from "./value-text";
+import { systemVariable } from "./system-time";
 
 const TOKEN_RE = /\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g;
 
@@ -26,6 +27,7 @@ export type Vars = Record<string, unknown>;
  * 「.」で配列の何番目かや、入れ子の項目をたどれる（配列の "-1" は最後の要素）
  */
 export function lookupVar(vars: Vars, name: string): unknown {
+  if (name === "system" || name.startsWith("system.")) return systemVariable(name);
   const owns = (value: object, key: string | number) =>
     Object.prototype.hasOwnProperty.call(value, key);
   if (owns(vars, name)) return vars[name];
@@ -370,11 +372,58 @@ const KEEP_ESCAPES = "\\u0000keepEscapes";
 
 export type Vars = Record<string, unknown>;
 
+// Typed helpers are emitted into standalone generated-site TypeScript.
+function systemTimeValues(now: Date = new Date()) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  const second = now.getSeconds();
+  const date = year + "-" + pad(month) + "-" + pad(day);
+  const time = pad(hour) + ":" + pad(minute) + ":" + pad(second);
+  return {
+    now: date + " " + time, date, time, iso: now.toISOString(),
+    timestamp: now.getTime(), unix: Math.floor(now.getTime() / 1000),
+    year, month, day, hour, minute, second, weekday: now.getDay(),
+  };
+}
+function systemVariable(name: string): unknown {
+  if (name !== "system" && !name.startsWith("system.")) return undefined;
+  switch (name) {
+    case "system.random": return Math.random();
+    case "system.randomInt": return Math.floor(Math.random() * 100) + 1;
+    case "system.randomBoolean": return Math.random() < 0.5;
+    case "system.uuid": return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID() : undefined;
+    case "system.page.url": return typeof location === "undefined" ? undefined : location.href;
+    case "system.page.path": return typeof location === "undefined" ? undefined : location.pathname;
+    case "system.page.query": return typeof location === "undefined" ? undefined : location.search.slice(1);
+    case "system.page.hash": return typeof location === "undefined" ? undefined : location.hash;
+    case "system.page.title": return typeof document === "undefined" ? undefined : document.title;
+    case "system.browser.language": return typeof navigator === "undefined" ? undefined : navigator.language;
+    case "system.browser.timeZone": return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    case "system.browser.online": return typeof navigator === "undefined" ? undefined : navigator.onLine;
+    case "system.viewport.width": return typeof window === "undefined" ? undefined : window.innerWidth;
+    case "system.viewport.height": return typeof window === "undefined" ? undefined : window.innerHeight;
+    case "system.viewport.pixelRatio": return typeof window === "undefined" ? undefined : window.devicePixelRatio;
+    case "system.page.scrollX": return typeof window === "undefined" ? undefined : window.scrollX;
+    case "system.page.scrollY": return typeof window === "undefined" ? undefined : window.scrollY;
+  }
+  const values = systemTimeValues();
+  if (name === "system") return values;
+  const key = name.slice("system.".length);
+  return Object.prototype.hasOwnProperty.call(values, key)
+    ? values[key as keyof typeof values] : undefined;
+}
+
 /**
  * 変数の値を取り出す。"images.0" や "meta.createdAt" のように
  * 「.」で配列の何番目・入れ子の項目をたどれる（配列の "-1" は最後の要素）
  */
 export function lookupVar(vars: Vars, name: string): unknown {
+  if (name === "system" || name.startsWith("system.")) return systemVariable(name);
   const owns = (value: object, key: string | number) =>
     Object.prototype.hasOwnProperty.call(value, key);
   if (owns(vars, name)) return vars[name];

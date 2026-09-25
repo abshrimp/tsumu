@@ -162,3 +162,39 @@ for (const width of [1440, 375, 320]) {
     await expect(page.getByRole("dialog", { name: "変数を探す" })).toHaveCount(0);
   });
 }
+
+
+test("system date, browser and random variables are shown only after enabling details", async ({ page }) => {
+  await openPicker(page);
+  const dialog = page.getByRole("dialog", { name: "変数を探す" });
+  await expect(dialog.locator(".vx-group h3").filter({ hasText: "現在の日付と時刻" })).toHaveCount(0);
+  await expect(dialog.locator(".vx-group h3").filter({ hasText: "ランダムな値" })).toHaveCount(0);
+  const search = page.getByPlaceholder("変数名・値で検索");
+  await search.fill("system.randomInt");
+  await expect(dialog.locator(".vx-row")).toHaveCount(0);
+  await page.getByRole("button", { name: "詳細を表示", exact: true }).click();
+  await expect(dialog.locator(".vx-row")).toHaveCount(1);
+  await expect(dialog.locator(".vx-row .vx-tok")).toHaveText("{system.randomInt}");
+  await search.fill("");
+  for (const heading of ["現在の日付と時刻", "ページとブラウザ", "ランダムな値"]) {
+    await expect(dialog.locator(".vx-group h3").filter({ hasText: heading })).toHaveCount(1);
+  }
+  await search.fill("system.randomInt");
+  await dialog.locator(".vx-row").click();
+  await expect(dialog).toHaveCount(0);
+  await expect(source(page)).toHaveValue("{system.randomInt}");
+  await page.locator("#outside").click();
+  expect((await snapshot(page)).doc.nodes.target.field.defaultValue).toBe("{system.randomInt}");
+});
+
+test("advanced toggle can hide built-in matches without modifying the document", async ({ page }) => {
+  await openPicker(page);
+  const before = await snapshot(page);
+  await page.getByRole("button", { name: "詳細を表示", exact: true }).click();
+  const search = page.getByPlaceholder("変数名・値で検索");
+  await search.fill("system.page.url");
+  await expect(page.locator(".vx-row .vx-tok")).toHaveText("{system.page.url}");
+  await page.getByRole("button", { name: "詳細を隠す", exact: true }).click();
+  await expect(page.locator(".vx-row")).toHaveCount(0);
+  expect(await snapshot(page)).toEqual(before);
+});

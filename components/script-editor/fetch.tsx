@@ -212,7 +212,7 @@ function useFetchValues(step: FetchStep, scope: FetchPreviewScope) {
     }
   }, [owner, key, readOnly]);
   const values = snapshot?.values ?? EMPTY_VALUES;
-  const samples = variableChoiceSamples(varGroupsAt(doc, pageId, scope.nodeId), scope.localNames);
+  const samples = variableChoiceSamples(varGroupsAt(doc, pageId, scope.nodeId).filter((group) => !group.advanced), scope.localNames);
   const inputs = fetchPreviewInputs(step.url, step, samples);
   const vars: Vars = { ...samples };
   // 一時的な入力は、今も解決していない項目にだけ使う。入力欄が消えた値は、最新の見本に従う。

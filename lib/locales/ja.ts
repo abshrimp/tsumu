@@ -2,6 +2,15 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Page and browser": "ページとブラウザ",
+  "Random values": "ランダムな値",
+  "Read when used on the page": "ページで使用するときに取得",
+  "Random number from 0 up to but not including 1": "0以上1未満の乱数",
+  "Random integer from 1 to 100": "1〜100のランダムな整数",
+  "Random true or false": "trueまたはfalseをランダムに生成",
+  "Random UUID (requires a secure context)": "ランダムなUUID（安全な接続が必要）",
+  "Also show system variables and field states": "システム変数や入力欄の状態なども表示",
+  "Current date and time": "現在の日付と時刻",
   "Search results": "検索結果",
   "Search page text": "本文を検索",
   "Search text across all pages": "全ページの本文を検索",

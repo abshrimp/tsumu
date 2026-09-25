@@ -311,7 +311,7 @@ export default function VarExplorer({
               type="button"
               className={`btn btn-sm${advanced ? " is-on" : ""}`}
               aria-pressed={advanced}
-              data-tip={tr("Also show field states such as disabled, length and index")}
+              data-tip={tr("Also show system variables and field states")}
               onClick={() => setAdvanced((v) => !v)}
             >
               <SlidersHorizontal size={12} />

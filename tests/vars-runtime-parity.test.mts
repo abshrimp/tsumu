@@ -55,3 +55,20 @@ test("plain and URL interpolation retain editor/runtime escaping and KEEP_ESCAPE
     }
   }
 });
+
+
+test("generated-site interpolation resolves built-in timestamps and random values without browser globals", () => {
+  for (const lookup of [lookupVar, generated.lookupVar as typeof lookupVar]) {
+    const unix = lookup({}, "system.unix");
+    const random = lookup({}, "system.random");
+    const integer = lookup({}, "system.randomInt");
+    assert.equal(typeof unix, "number");
+    assert.ok(unix > 1_700_000_000);
+    assert.equal(typeof random, "number");
+    assert.ok(random >= 0 && random < 1);
+    assert.ok(Number.isInteger(integer) && integer >= 1 && integer <= 100);
+    assert.equal(typeof lookup({}, "system.randomBoolean"), "boolean");
+    assert.equal(lookup({}, "system.page.url"), undefined);
+  }
+  assert.match(generated.interpolate("{system.date}", {}), /^\d{4}-\d{2}-\d{2}$/);
+});

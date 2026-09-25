@@ -134,7 +134,7 @@ function VarTextIn({
       (n) => n !== ITEM_VALUE && n !== "slug" && !at.includes(n)
     );
     const item = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
-    const raw = variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), item);
+    const raw = variableChoiceSamples(varGroupsAt(doc, pageId, nodeId).filter((group) => !group.advanced), item);
     // 取得したデータの項目と、その親のまとまりも、同じ範囲の見本から選べるようにする。
     const nested = localVariableNames(flattenFields(raw, 4).map((field) => field.field));
     const available = [...new Set([...at, ...made, ...nested])];

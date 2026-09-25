@@ -22,6 +22,12 @@ import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { matchesValueCondition, parseValueLiteral, setVarPath } from "./value-semantics";
 import { runPurePageSteps } from "./page-load-steps";
 import { formatValueText } from "./value-text";
+import {
+  systemTimeValues,
+  SYSTEM_TIME_VARIABLE_NAMES,
+  SYSTEM_BROWSER_VARIABLE_NAMES,
+  SYSTEM_RANDOM_VARIABLE_NAMES,
+} from "./system-time";
 
 /** "data.items" のようなパスでオブジェクトの中をたどる（配列の "-1" は最後の要素） */
 export function digPath(root: unknown, path: string | undefined): unknown {
@@ -276,7 +282,7 @@ export function scriptVarNames(doc: SiteDoc, pageId: string): string[] {
 
 /** 「変数を探す」に表示する変数の分類 */
 export interface VarGroup {
-  key: "item" | "data" | "url" | "element" | "script" | "state";
+  key: "item" | "data" | "url" | "element" | "script" | "state" | "system";
   /** 「変数を探す」で「詳細」を開いたときだけ表示する */
   advanced?: boolean;
   label: string;
@@ -352,6 +358,33 @@ export function varGroupsAt(doc: SiteDoc, pageId: string, nodeId: string): VarGr
       notes: Object.fromEntries(made.map((n) => [n, tr("Set when the script runs")])),
     });
   }
+  // Built-ins are available from "Show advanced" in Find a variable, not mixed
+  // into ordinary data and form fields. Runtime-only values have no fixed preview.
+  const time = systemTimeValues();
+  groups.push({
+    key: "system", advanced: true,
+    label: tr("Current date and time"),
+    vars: Object.fromEntries(SYSTEM_TIME_VARIABLE_NAMES.map((name) => [
+      name, time[name.slice("system.".length) as keyof typeof time],
+    ])),
+  });
+  groups.push({
+    key: "system", advanced: true,
+    label: tr("Page and browser"),
+    vars: Object.fromEntries(SYSTEM_BROWSER_VARIABLE_NAMES.map((name) => [name, undefined])),
+    notes: Object.fromEntries(SYSTEM_BROWSER_VARIABLE_NAMES.map((name) => [name, tr("Read when used on the page")])),
+  });
+  groups.push({
+    key: "system", advanced: true,
+    label: tr("Random values"),
+    vars: Object.fromEntries(SYSTEM_RANDOM_VARIABLE_NAMES.map((name) => [name, undefined])),
+    notes: {
+      "system.random": tr("Random number from 0 up to but not including 1"),
+      "system.randomInt": tr("Random integer from 1 to 100"),
+      "system.randomBoolean": tr("Random true or false"),
+      "system.uuid": tr("Random UUID (requires a secure context)"),
+    },
+  });
   return groups;
 }
 

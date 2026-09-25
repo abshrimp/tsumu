@@ -12,6 +12,7 @@ import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { parseValueLiteral, matchesValueCondition, removeListItem, setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { codeLiteral } from "./generator/code-literal";
 import { formatValueText } from "./value-text";
+import { systemTimeValues, systemVariable } from "./system-time";
 
 /* ---------- 実行ランタイム ---------- */
 
@@ -31,6 +32,8 @@ export const SCRIPT_RUNTIME = `function (env) {
   var matchValueCondition = (${matchesValueCondition.toString()});
   var parseValueLiteral = (${parseValueLiteral.toString()});
   var formatValueText = (${formatValueText.toString()});
+  var systemTimeValues = (${systemTimeValues.toString()});
+  var systemVariable = (${systemVariable.toString()});
   // esbuild may annotate nested functions embedded via toString().
   var __name = function (fn) { return fn; };
   /*#transform*/
@@ -530,6 +533,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       // {名前} の値: リストの項目 → 画面上の変数 → 同じIDの要素の値 → URLの検索パラメータ
       function lookup(name, self, item) {
+        if (name === "system" || name.indexOf("system.") === 0) return systemVariable(name);
         var dot = name.indexOf(".");
         var head = dot < 0 ? name : name.slice(0, dot);
         // Presence (including undefined) takes precedence. Otherwise a missing
@@ -562,6 +566,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (!ref || typeof ref !== "object" ||
             typeof ref.name !== "string" || !ref.name) return undefined;
         var name = ref.name, head = name.split(".")[0];
+        if (head === "system") return systemVariable(name);
         if (item && (has(item, name) || has(item, head))) {
           return has(item, name) ? item[name] : dig(item, name);
         }
