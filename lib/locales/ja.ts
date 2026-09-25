@@ -2,6 +2,21 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Delete permanently": "完全に削除",
+  "Delete \"{name}\" permanently?": "「{name}」を完全に削除しますか？",
+  "The file will be permanently deleted from the server without waiting seven days. This cannot be undone.": "7日間の猶予を待たずに、サーバーからファイルを完全に削除します。この操作は取り消せません。",
+  "Couldn't delete permanently": "完全に削除できませんでした",
+  "The asset is still used by a saved site and cannot be permanently deleted.": "保存済みのサイトで使用されているため、完全に削除できません。",
+  "Site changed. Try again.": "サイトが変更されました。再度お試しください。",
+  "Load more": "さらに表示",
+  "The server file moves to Trash and is permanently deleted after {days} days unless restored or used by another site.": "サーバー上のファイルはゴミ箱に移動し、復元するか別のサイトで使用しない限り{days}日後に完全削除されます。",
+  "Move to trash": "ゴミ箱に移動",
+  "Trash": "ゴミ箱",
+  "Restore": "復元",
+  "Assets in trash are permanently deleted after {days} days unless restored.": "ゴミ箱内のファイルは復元しない場合、{days}日後にサーバーから完全に削除されます。",
+  "Trash is available for Cloudflare server storage.": "ゴミ箱はCloudflareのサーバーストレージで利用できます。",
+  "Trash is empty.": "ゴミ箱は空です。",
+  "Couldn't restore": "復元できませんでした",
   "Page and browser": "ページとブラウザ",
   "Random values": "ランダムな値",
   "Read when used on the page": "ページで使用するときに取得",

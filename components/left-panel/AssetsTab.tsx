@@ -48,6 +48,7 @@ import {
 } from "../../lib/assets";
 import { makeImage, makeMedia } from "../../lib/presets";
 import { Icon } from "../icons";
+import AssetTrash from "../AssetTrash";
 import { userMessage } from "../../lib/errors";
 import { showConfirm } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
@@ -145,9 +146,9 @@ async function fetchStorageUsage(): Promise<StorageUsageResponse> {
 }
 
 /** 保存先（KV）があるときだけ使用量を表示する（無ければアセットはサイトの中に保存され、KV の容量は使わない） */
-function StorageUsage() {
+function StorageUsage({ onOpenTrash, refreshToken }: { onOpenTrash: () => void; refreshToken: number }) {
   const status = useServerStatus();
-  return status?.assets ? <StorageUsageMeter deletion={status.assetDeletion ?? null} /> : null;
+  return status?.assets ? <StorageUsageMeter deletion={status.assetDeletion ?? null} onOpenTrash={onOpenTrash} refreshToken={refreshToken} /> : null;
 }
 
 /**
@@ -155,7 +156,9 @@ function StorageUsage() {
  * Cloudflare では KV に置いたファイルの台帳（D1）から数えるため、削除待ちのファイルも含めて
  * KV の実際の使用量と一致する（台帳が揃うまでは、サイトが使っているファイルだけを数える）。
  */
-function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
+function StorageUsageMeter({ deletion, onOpenTrash, refreshToken }: {
+  deletion: AssetDeletion | null; onOpenTrash: () => void; refreshToken: number;
+}) {
   const doc = useEditor((s) => s.doc);
   const [response, setResponse] = useState<StorageUsageResponse | null>(null);
   const own = Object.values(doc.assets).filter((a) => a.path);
@@ -163,9 +166,12 @@ function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
   const ownKey = own.map((a) => a.path).sort().join("\n");
   const exact = !!response?.ledger?.complete;
   const loaded = response !== null;
+  const lastRefresh = useRef(refreshToken);
   useEffect(() => {
-    // 台帳が揃っていないときは、このサイトの分を編集中の内容から足すため、取得し直さない
-    if (loaded && !exact) return;
+    // An incomplete ledger normally needs no refetch on editing, but Trash
+    // changes are server mutations and must refresh the pending total.
+    if (loaded && !exact && lastRefresh.current === refreshToken) return;
+    lastRefresh.current = refreshToken;
     let alive = true;
     const timer = setTimeout(() => {
       void fetchStorageUsage().then((r) => {
@@ -177,7 +183,7 @@ function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ownKey]);
+  }, [ownKey, refreshToken]);
   const usage = computeStorageUsage(response, own);
   /** Workers KV の無料枠（有料プランでも 1GB までは料金に含まれ、超えた分は従量課金） */
   const limit = 1024 * 1024 * 1024;
@@ -221,6 +227,12 @@ function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
       <span className="hint">
         {tr("Usage (all sites)")} {formatBytes(usage.bytes)} / {tr("{size} free", { size: formatBytes(limit) })}
       </span>
+      {(deletion?.mode === "scheduled" || deletion?.mode === "kept") && (
+        <button type="button" className="hint" onClick={onOpenTrash}
+          style={{ display: "block", marginTop: 7, textAlign: "left", border: 0, background: "none", cursor: "pointer", textDecoration: "underline" }}>
+          {tr("Trash")}: {usage.pendingCount} · {formatBytes(usage.pendingBytes)}
+        </button>
+      )}
     </div>
   );
 }
@@ -253,7 +265,7 @@ function sameAssetFile(current: Asset | undefined, approved: Asset): boolean {
  */
 function serverFileNotice(deletion: AssetDeletion | null | undefined, several: boolean): string {
   if (deletion?.mode === "scheduled") {
-    return tr("The file stored on the server will be deleted in {days} days. It is kept if you undo before then or if another site uses it.", { days: deletion.days });
+    return tr("The server file moves to Trash and is permanently deleted after {days} days unless restored or used by another site.", { days: deletion.days });
   }
   if (deletion?.mode === "kept") return tr("The file stored on the server is kept, not deleted.");
   return several
@@ -328,6 +340,8 @@ export function AssetsTab() {
   };
 
   const [query, setQuery] = useState("");
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashRefresh, setTrashRefresh] = useState(0);
   const [renaming, setRenaming] = useState<string | null>(null);
 
   // 右クリックの「アセットを表示」: 検索を解除してそのアセットまでスクロールし、少しの間だけ目立たせる
@@ -455,7 +469,7 @@ export function AssetsTab() {
     if (
       !(await showConfirm(serverFileNotice(serverStatusSnapshot()?.assetDeletion, true), {
         title: tr("Delete {length} unused assets?", { length: unused.length }),
-        okLabel: tr("Delete"),
+        okLabel: serverStatusSnapshot()?.assetDeletion?.mode === "scheduled" ? tr("Move to trash") : tr("Delete"),
         danger: true,
       }))
     ) {
@@ -603,7 +617,8 @@ export function AssetsTab() {
         used
           ? tr("Used in {used} places. It will also be removed from the elements that use it. ", { used }) + notice
           : notice,
-        { title: tr("Delete \"{name}\"?", { name: asset.name }), okLabel: tr("Delete"), danger: true }
+        { title: tr("Delete \"{name}\"?", { name: asset.name }),
+          okLabel: serverStatusSnapshot()?.assetDeletion?.mode === "scheduled" && !!asset.path ? tr("Move to trash") : tr("Delete"), danger: true }
       ))
     ) {
       return;
@@ -934,8 +949,8 @@ export function AssetsTab() {
                 </button>
                 <button
                   className="layer-act is-active asset-del"
-                  data-tip={tr("Delete")}
-                  aria-label={tr("Delete")}
+                  data-tip={asset.path && serverStatusSnapshot()?.assetDeletion?.mode === "scheduled" ? tr("Move to trash") : tr("Delete")}
+                  aria-label={asset.path && serverStatusSnapshot()?.assetDeletion?.mode === "scheduled" ? tr("Move to trash") : tr("Delete")}
                   onClick={() => removeAsset(asset)}
                 >
                   <Icon name="trash" size={12} />
@@ -955,7 +970,18 @@ export function AssetsTab() {
           )
         )}
       </div>
-      <StorageUsage />
+      <StorageUsage onOpenTrash={() => setTrashOpen(true)} refreshToken={trashRefresh} />
+      {trashOpen && (
+        <AssetTrash onClose={() => setTrashOpen(false)}
+          onRestore={(asset) => {
+            if (!Object.values(useEditor.getState().doc.assets).some((current) => current.path === asset.path)) {
+              updateDoc((doc) => { doc.assets[asset.id] = asset; });
+            }
+            setTrashRefresh((value) => value + 1);
+          }}
+          onDelete={() => setTrashRefresh((value) => value + 1)}
+        />
+      )}
     </div>
   );
 }
