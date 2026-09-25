@@ -30,7 +30,7 @@ import { showAlert, showConfirm } from "./dialog";
 import { refreshClonedIds } from "./cloneIds";
 import { tr } from "./i18n";
 import { readLocalStorage } from "./local-storage";
-import { currentSiteId, siteKey, touchLocalSite } from "./site";
+import { currentSiteId, loadLocalSites, siteKey, touchLocalSite } from "./site";
 import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
 import { localSaveBlock, type LocalSaveResult } from "./local-save";
 import {
@@ -365,6 +365,8 @@ function loadActivePageId(doc: SiteDoc): string {
 
 export interface EditorStore {
   doc: SiteDoc;
+  /** Only local content edits increment this value, never hydration or remote document sync. */
+  docEditRevision: number;
   /** 文書を読み替えるときに更新する、保存しない ID。非同期の処理を、別の文書へ持ち越さないために使う。 */
   documentSession: number;
   past: SiteDoc[];
@@ -658,7 +660,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       : current.doc;
     // 同期的な購読者に知らせる前に、保留中の時点を使い切る。
     // 購読者自身が文書を編集したり、別の操作を始めたりすることがあるため。
-    set({ doc: next, ...(snapshot ? historyFor(snapshot) : {}) });
+    set({ doc: next, docEditRevision: current.docEditRevision + 1, ...(snapshot ? historyFor(snapshot) : {}) });
   };
 
   /**
@@ -692,6 +694,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
   return {
     doc: initialDoc,
+    docEditRevision: 0,
     documentSession: 0,
     past: [],
     future: [],
@@ -924,6 +927,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({
         ...historyFor(current),
         doc,
+        docEditRevision: get().docEditRevision + 1,
         // 履歴は残すが、復元する前の非同期の処理や一時的な入力は引き継がない。
         documentSession: get().documentSession + 1,
         historyRevision: get().historyRevision + 1,
@@ -1337,6 +1341,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const selectedIds = validSelectedIds(prev, get().selectedIds);
       set({
         doc: prev,
+        docEditRevision: get().docEditRevision + 1,
         past,
         future: [doc, ...get().future],
         historyRevision: get().historyRevision + 1,
@@ -1380,6 +1385,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const selectedIds = validSelectedIds(next, get().selectedIds);
       set({
         doc: next,
+        docEditRevision: get().docEditRevision + 1,
         past: [...get().past.slice(-HISTORY_LIMIT + 1), doc],
         future,
         historyRevision: get().historyRevision + 1,
@@ -1953,7 +1959,11 @@ export function hydrateBrowserDoc(): Promise<void> {
       const position = { ...loadUi(doc), activePageId: loadActivePageId(doc) };
       useEditor.getState().replaceDoc(doc);
       browserPositionReady = true;
-      useEditor.setState(position);
+      const cachedTime = loadLocalSites().find((site) => site.id === currentSiteId());
+      useEditor.setState({
+        ...position,
+        savedAt: cachedTime?.savedAt ?? cachedTime?.updatedAt ?? null,
+      });
     } catch (error) {
       // 読み込めなかった文書は、決して上書きしない。
       browserSnapshotUnavailable = true;
@@ -1967,7 +1977,7 @@ export function hydrateBrowserDoc(): Promise<void> {
 }
 
 /** ブラウザのタブをまたいで、版を不可分に確かめながら自動保存する。 */
-export async function persistDoc(doc: SiteDoc): Promise<LocalSaveResult> {
+export async function persistDoc(doc: SiteDoc, recordEdit = false): Promise<LocalSaveResult> {
   try {
     const blocked = localSaveBlock();
     if (blocked) return blocked;
@@ -1977,11 +1987,12 @@ export async function persistDoc(doc: SiteDoc): Promise<LocalSaveResult> {
     if (result === "conflict") return "error";
     // 続く削除の記録の読み取りに失敗しても、IndexedDB への書き込みは確定している。
     // 基準を保ち、後の編集や「元に戻す」で安全に再試行できるようにする。
-    const changed = lastKnownBrowserRaw !== json;
     lastKnownBrowserRaw = json;
     const deleted = localSaveBlock();
     if (deleted) return deleted;
-    if (changed) touchLocalSite();
+    // Cache repair and remote snapshots never change the last-edited timestamp.
+    // A real user edit (including an Undo back to identical content) does.
+    if (recordEdit) touchLocalSite();
     return "saved";
   } catch (error) {
     console.error("[Tsumu] Failed to save browser document", error);

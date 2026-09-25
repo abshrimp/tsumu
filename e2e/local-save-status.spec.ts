@@ -156,3 +156,69 @@ test("a deleted site cannot be silently recreated by its open editor", async ({ 
     await editor.close();
   }
 });
+
+
+test("opening a browser-only site does not change its latest edit timestamp", async ({ page }) => {
+  const id = await newSite(page);
+  await page.goto("/");
+  const doc = createInitialDoc();
+  const raw = JSON.stringify(doc);
+  const oldTime = Date.now() - 2 * 86_400_000;
+  await setBrowserDoc(page, id, raw);
+  await page.evaluate(({ id, oldTime }) => {
+    localStorage.setItem("tsumu-sites-v1", JSON.stringify([{
+      id, name: "Browser document", createdAt: oldTime - 60_000,
+      updatedAt: oldTime, savedAt: oldTime,
+      repo: null, branch: "main", previewBranch: "preview",
+      siteUrl: null, previewUrl: null,
+    }]));
+  }, { id, oldTime });
+  await localOnly(page);
+  await page.goto(`/sites/${id}`);
+  await expect(status(page)).toContainText("このブラウザにのみ保存");
+  // Wait past the initial autosave debounce. The timestamp must not change
+  // merely because the same IndexedDB document was opened.
+  await page.waitForTimeout(900);
+  expect(await browserDoc(page, id)).toBe(raw);
+  const editedAt = () => page.evaluate((id) => {
+    const list = JSON.parse(localStorage.getItem("tsumu-sites-v1") ?? "[]");
+    const site = list.find((entry: { id: string }) => entry.id === id);
+    return { updatedAt: site?.updatedAt, savedAt: site?.savedAt };
+  }, id);
+  await expect.poll(editedAt).toEqual({ updatedAt: oldTime, savedAt: oldTime });
+  await removeHero(page);
+  await expect.poll(async () => (await editedAt()).savedAt).toBeGreaterThan(oldTime);
+  const record = await editedAt();
+  expect(record.updatedAt).toBe(record.savedAt);
+});
+
+test("loading a newer server document only refreshes the browser cache, not local editedAt", async ({ page }) => {
+  const id = await newSite(page);
+  const doc = createInitialDoc();
+  doc.siteName = "Server revision";
+  expect((await page.request.put(`/api/doc?site=${id}`, { data: doc })).ok()).toBeTruthy();
+  await page.goto("/");
+  const cached = createInitialDoc();
+  cached.siteName = "Older cached revision";
+  await setBrowserDoc(page, id, JSON.stringify(cached));
+  const oldTime = Date.now() - 2 * 86_400_000;
+  await page.evaluate(({ id, oldTime }) => {
+    localStorage.setItem("tsumu-sites-v1", JSON.stringify([{
+      id, name: "Cloud document", createdAt: oldTime - 60_000,
+      updatedAt: oldTime, savedAt: oldTime,
+      repo: null, branch: "main", previewBranch: "preview",
+      siteUrl: null, previewUrl: null,
+    }]));
+    localStorage.setItem("tsumu-help-seen-v1", "1");
+  }, { id, oldTime });
+  await page.goto(`/sites/${id}`);
+  await expect(status(page)).toContainText("サーバー保存済み");
+  await expect.poll(async () => (await browserDoc(page, id)) === JSON.stringify(doc)).toBe(true);
+  await page.waitForTimeout(800);
+  const saved = await page.evaluate((id) => {
+    const list = JSON.parse(localStorage.getItem("tsumu-sites-v1") ?? "[]");
+    const site = list.find((entry: { id: string }) => entry.id === id);
+    return { updatedAt: site?.updatedAt, savedAt: site?.savedAt };
+  }, id);
+  expect(saved).toEqual({ updatedAt: oldTime, savedAt: oldTime });
+});

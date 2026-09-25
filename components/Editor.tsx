@@ -160,13 +160,22 @@ export default function Editor({ onReady }: EditorProps = {}) {
   // D1 が未設定の場合と、一時的な 503 を区別する。判定できない間は、安全側に倒してページを離れるときの保護を有効にする。
   const browserOnly = useServerStatus()?.db === false;
   const localSaveQueue = useRef<Promise<void>>(Promise.resolve());
+  // Remote snapshots and browser hydration do not count as local edits.
+  // Capture the local revision with the document, before entering the save queue.
+  const lastSavedLocalEditRevision = useRef(0);
   const saveLocalDoc = useCallback((snapshot: SiteDoc) => {
+    const revision = useEditor.getState().docEditRevision;
     const run = async () => {
-      const attempt = localSiteDeleted.current ? "deleted" : await persistDoc(snapshot);
+      const edited = revision > lastSavedLocalEditRevision.current;
+      const attempt = localSiteDeleted.current ? "deleted" : await persistDoc(snapshot, edited);
       const result = localSiteDeleted.current ? "deleted" : attempt;
       if (result === "deleted") localSiteDeleted.current = true;
-      if (result === "saved") markSaved();
-      else useEditor.setState({ savedAt: null });
+      if (result === "saved") {
+        if (edited) {
+          lastSavedLocalEditRevision.current = revision;
+          markSaved();
+        }
+      } else useEditor.setState({ savedAt: null });
       setLocalSave({ doc: snapshot, result });
     };
     // 保存を1つずつ順に行い、どの書き込みも直前に確定した内容を基準にする。
