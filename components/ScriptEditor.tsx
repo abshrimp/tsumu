@@ -415,6 +415,7 @@ function ScriptEditorInner({
   }, []);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [selectedList, setSelectedList] = useState<string[]>([]);
+  const historyRevision = useEditor((state) => state.historyRevision);
   const selected = useMemo(() => new Set(selectedList), [selectedList]);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
@@ -433,6 +434,34 @@ function ScriptEditorInner({
   }, [selectedList, stepOwners]);
   /** 最後に選んだスクリプトほど後ろに置く（= 手前に描く）。重なったブロックを選んだら、前に出す */
   const [front, setFront] = useState<string[]>([]);
+  const hiddenUndoSelection = useRef<string[] | null>(null);
+  const previousHistoryRevision = useRef(historyRevision);
+  // Document history and UI selection are separate. Hide an undone clone's
+  // selection while it does not exist, but restore it on redo so that copy/cut
+  // continues to target the same block.
+  useEffect(() => {
+    const historyChanged = historyRevision !== previousHistoryRevision.current;
+    previousHistoryRevision.current = historyRevision;
+    const ids = new Set(scripts.map((script) => script.id));
+    const exists = (key: string) => key.startsWith("script:") ? ids.has(key.slice(7))
+      : key.startsWith("step:") && stepOwners.has(key.slice(5));
+    const valid = selectedList.filter(exists);
+    if (valid.length !== selectedList.length) {
+      if (historyChanged) hiddenUndoSelection.current = selectedList;
+      setSelectedList(valid);
+    } else if (historyChanged && !selectedList.length &&
+               hiddenUndoSelection.current?.every(exists)) {
+      setSelectedList(hiddenUndoSelection.current);
+      hiddenUndoSelection.current = null;
+    }
+    setMenu((previous) => previous && !exists(previous.key) ? null : previous);
+    setFront((previous) => {
+      const next = previous.filter((id) => ids.has(id));
+      return next.length === previous.length ? previous : next;
+    });
+    // History changes are the only trigger for restoring an undone selection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyRevision, scripts, stepOwners]);
   useEffect(() => {
     if (!selectedList.length) return;
     const ids = new Set(selectedList.flatMap((key) => key.startsWith("script:") ? [key.slice(7)] :
