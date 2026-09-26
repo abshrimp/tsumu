@@ -33,7 +33,7 @@ for (const edited of ["{missing}", ""]) test(`ScriptEditor free value ${JSON.str
   const before = await snapshot(page);
   await page.getByRole("button", { name: "Edit assignment", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "スクリプト", exact: true });
-  const step = dialog.locator('.se-ws [data-sel-key="step:assign-choice-set-0"]');
+  const step = dialog.locator('.se-flow [data-step-id="assign-choice-set-0"]');
   await step.locator("select").last().selectOption({ label: "その他（変数・文字列）…" });
   await step.locator("input.se-in").fill(edited);
   await step.locator("input.se-in").blur();

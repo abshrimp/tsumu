@@ -11,7 +11,7 @@ export const radioState = "size={size}; small={small}; medium={medium}; index={s
 export function radioClearDoc(clearOnChange = false): SiteDoc {
   const radio = (id: string, group: string, label: string, checked = false): DocNode => ({
     ...makeBox(), id, attrId: id, type: "field", field: { kind: "radio", label, group, checked },
-    scripts: [{ id: `${id}-change`, trigger: "change", pos: { x: 0, y: 0 }, steps: [
+    scripts: [{ id: `${id}-change`, trigger: "change", steps: [
       { id: `default-${id}`, kind: "transform", source: `${id}Changes`, into: `${id}Changes`, transform: { kind: "fallback", when: "missing", text: "0" } },
       { id: `parse-${id}`, kind: "transform", source: `${id}Changes`, into: `${id}Changes`, transform: { kind: "parse" } }, { id: `${id}-count`, kind: "transform", source: `${id}Changes`, into: `${id}Changes`, transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       ...(clearOnChange && id === "small" ? [{ id: "self-clear", kind: "set-value", target: "small", value: "false" } as ScriptStep] : []),
@@ -19,8 +19,7 @@ export function radioClearDoc(clearOnChange = false): SiteDoc {
   });
   const button = (id: string, target: string, value: string): DocNode => ({
     ...makeText(id), id, attrId: id, semantic: "button", scripts: [{
-      id: `${id}-script`, trigger: "click", pos: { x: 0, y: 0 },
-      steps: [{ id: `${id}-set`, kind: "set-value", target, value }],
+      id: `${id}-script`, trigger: "click",      steps: [{ id: `${id}-set`, kind: "set-value", target, value }],
     }],
   });
   const radios = [radio("small", "size", "S", true), radio("medium", "size", "M"), radio("red", "color", "red", true)];
@@ -34,7 +33,7 @@ export function radioClearDoc(clearOnChange = false): SiteDoc {
     button("clear-group", "size", ""), button("unknown-group", "size", "unknown"),
     button("select-small", "small", "true"), button("select-medium", "size", "M"),
     { ...makeText("Toggle sizes"), id: "toggle-sizes", attrId: "toggle-sizes", semantic: "button", scripts: [{
-      id: "toggle-sizes-script", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+      id: "toggle-sizes-script", trigger: "click", steps: [
         { id: "toggle-size-group", kind: "set-enabled", target: "size", op: "toggle" },
       ],
     }] },

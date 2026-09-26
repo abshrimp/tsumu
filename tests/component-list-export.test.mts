@@ -110,7 +110,7 @@ test("shared list components resolve each page and each placement's own data and
   doc.nodes.products.children.push("copy");
   doc.nodes.secondUse = { ...instance, id: "secondUse" };
   doc.pages.second = { ...structuredClone(doc.pages.p), id: "second", slug: "second", children: ["secondUse"], pageScripts: [{
-    id: "second-load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+    id: "second-load", trigger: "load", steps: [
       { id: "second-fetch", kind: "fetch", url: "https://example.com/data", as: "tags", preview: { sample: [] } },
       { id: "second-sort", kind: "list-display", mode: "sort", array: "tags", field: "label", dir: "desc", op: "eq", value: "" },
     ],
@@ -130,8 +130,7 @@ test("exported list template proxies preserve placeholders under own-only lookup
   const doc = componentListDoc();
   doc.pages.p.children = ["card"];
   doc.pages.p.pageScripts = [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "load-tags", kind: "store-load", key: "tags", into: "tags" }],
+    id: "load", trigger: "load",    steps: [{ id: "load-tags", kind: "store-load", key: "tags", into: "tags" }],
   }];
   const source = generateProject(doc).files["app/page.tsx"];
   const helper = source.match(/^function templateVars\(vars: Vars\): Vars \{[\s\S]*?^\}/m)?.[0];
@@ -155,7 +154,7 @@ test("exported list template proxies preserve placeholders under own-only lookup
 test("client-list templates retain placeholders and raw content through conversion", async () => {
   const doc = componentListDoc();
   doc.pages.p.children = ["card"];
-  doc.pages.p.pageScripts = [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+  doc.pages.p.pageScripts = [{ id: "load", trigger: "load", steps: [
     { id: "load-tags", kind: "store-load", key: "tags", into: "tags" },
   ] }];
   doc.nodes.row.children.push("raw");
@@ -233,7 +232,7 @@ test("converted server and client list projects typecheck", () => {
   const doc = convert(componentListDoc());
   doc.nodes.clientUse = { ...doc.nodes[doc.nodes.products.children[0]], id: "clientUse" };
   doc.pages.client = { ...structuredClone(doc.pages.p), id: "client", slug: "client", children: ["clientUse"], pageScripts: [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+    id: "load", trigger: "load", steps: [
       { id: "load-raw", kind: "store-load", key: "raw-tags", into: "rawTags" },
       { id: "split-tags", kind: "transform", source: "rawTags", into: "tags", transform: { kind: "split", separator: "," } },
     ],

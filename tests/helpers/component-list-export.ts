@@ -17,7 +17,7 @@ export function componentListDoc() {
   doc.nodes.name.attrId = "product-name";
   doc.nodes.card.children.unshift("hide-product");
   doc.nodes["hide-product"] = { ...makeText("Hide {name}"), id: "hide-product", semantic: "button", scripts: [{
-    id: "hide-product-script", trigger: "click", pos: { x: 0, y: 0 }, steps: [{ id: "hide-product-step", kind: "hide", target: "product-name" }],
+    id: "hide-product-script", trigger: "click", steps: [{ id: "hide-product-step", kind: "hide", target: "product-name" }],
   }] };
   return doc;
 }

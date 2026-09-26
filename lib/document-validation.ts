@@ -109,10 +109,9 @@ export function validDocumentScripts(value: unknown): boolean {
   const count = { value: 0 };
   for (const script of value) {
     if (!record(script) || !str(script.id) || !script.id ||
-        !record(script.pos) || !finite(script.pos.x) || !finite(script.pos.y) ||
-        !optional(script.trigger, x => oneOf(x, [
+        !oneOf(script.trigger, [
           "click", "hover-start", "hover-end", "change", "load", "in-view",
-        ])) || !optional(script.changeVariable, str) ||
+        ]) || !optional(script.changeVariable, str) ||
         !optional(script.keepOnShown, bool) ||
         !validSteps(script.steps, 0, count)) return false;
   }

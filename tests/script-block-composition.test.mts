@@ -15,7 +15,7 @@ import { makeBox } from "../lib/presets";
 import { cloneSteps, compileScripts, scriptTargetIds } from "../lib/script";
 import { scriptsFile } from "../lib/script-runtime";
 import { scriptDataPickerDoc } from "./helpers/script-data-picker";
-import { findPaletteItems, PALETTE } from "../components/script-editor/palette";
+import { ACTIONS, findActions } from "../components/script-editor/catalog";
 import { connectNewTransform } from "../components/script-editor/step-tree";
 import type { ScriptStep } from "../lib/types";
 
@@ -73,7 +73,7 @@ test("literal JSON in set-var is not misclassified as a full variable reference"
   const set: ScriptStep = { id: "json-value", kind: "set-var", into: "holidayJSON", value: json };
   assert.equal(setVarSource(set), null);
   const compiled = compileScripts({ scripts: [{
-    id: "json-script", trigger: "click", pos: { x: 0, y: 0 }, steps: [set],
+    id: "json-script", trigger: "click", steps: [set],
   }] }, () => "/");
   assert.equal(compiled[0].steps[0].value, json);
   const vars: Record<string, unknown> = {};
@@ -83,7 +83,7 @@ test("literal JSON in set-var is not misclassified as a full variable reference"
     into: "holidayName", value: "{date}" };
   assert.equal(setVarSource(reference), "date");
   assert.equal(compileScripts({ scripts: [{
-    id: "ref-script", trigger: "click", pos: { x: 0, y: 0 }, steps: [reference],
+    id: "ref-script", trigger: "click", steps: [reference],
   }] }, () => "/")[0].steps[0].value, "{date}");
 });
 
@@ -103,20 +103,16 @@ test("JSON lookup resolves own keys without traversing inherited prototypes", ()
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
 });
 
-test("every supported palette action is visible in the editor", () => {
-  assert.equal(PALETTE.length, 28);
-  assert.equal(findPaletteItems("").length, 28);
-  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 22);
-  assert.ok(PALETTE.some(item => item.key === "transform"));
-  assert.ok(PALETTE.some(item => item.key === "list-display"));
-  assert.ok(PALETTE.some(item => item.key === "set-state"));
-  assert.ok(PALETTE.some(item => item.key === "dialog"));
-  assert.ok(PALETTE.some(item => item.key === "break-loop"));
-  assert.ok(PALETTE.some(item => item.key === "set-list-item"));
-  assert.ok(PALETTE.some(item => item.key === "remove-list-item"));
-  assert.ok(findPaletteItems("値で削除", "ja").some(item => item.key === "remove-list-item"));
-  assert.ok(PALETTE.some(item => item.key === "make-list"));
-  assert.ok(findPaletteItems("値を加工", "ja").some(item => item.key === "transform"));
+test("every supported action can be picked in the editor", () => {
+  assert.equal(ACTIONS.length, 22);
+  assert.equal(findActions("").length, 22);
+  for (const key of ["transform", "list-display", "set-state", "dialog", "break-loop", "set-list-item", "remove-list-item", "make-list"]) {
+    assert.ok(ACTIONS.some(item => item.key === key), key);
+  }
+  assert.ok(findActions("値で削除", "ja").some(item => item.key === "remove-list-item"));
+  assert.ok(findActions("値を加工", "ja").some(item => item.key === "transform"));
+  // 一覧に出す名前は短く、どの言語でも検索の対象になる
+  for (const item of ACTIONS) assert.ok(findActions(item.title).includes(item), item.key);
 });
 
 test("untrusted JSON objects cannot crash preview or emitted filter/sort comparisons", () => {
@@ -353,14 +349,14 @@ test("cloning and renaming scripts preserve every joined if condition", () => {
   assert.notStrictEqual(cloned.conditions, original.conditions);
   assert.deepEqual(cloned.conditions, original.conditions);
   assert.deepEqual(scriptTargetIds({ attrId: "", scripts: [{
-    id: "s", trigger: "click", pos: { x: 0, y: 0 }, steps: [original],
+    id: "s", trigger: "click", steps: [original],
   }] }), ["field-id"]);
   renameVarInPage(doc, "p", "old", "current");
   assert.equal(original.cond.left, "{current.score}");
   assert.equal(original.conditions?.[0].left, "{current.name}");
   assert.equal(original.conditions?.[1].value, "{current.expected}");
   const script = compileScripts({ scripts: [{
-    id: "s", trigger: "click", pos: { x: 0, y: 0 }, steps: [original],
+    id: "s", trigger: "click", steps: [original],
   }] }, () => "/")[0];
   const serialized = script.steps[0];
   assert.ok(Array.isArray(serialized.conditions));
@@ -840,7 +836,7 @@ test("page-load nested loops read the nearest item's fields and preserve the out
 test("a canvas transform chain serializes to the browser runtime without losing step order", () => {
   const doc = scriptDataPickerDoc();
   const node = { ...makeBox(), id: "action", attrId: "action", scripts: [{
-    id: "click", trigger: "click" as const, pos: { x: 0, y: 0 }, steps: [
+    id: "click", trigger: "click" as const, steps: [
       { id: "input", kind: "set-var" as const, into: "number", value: "4" },
       { id: "parse", kind: "transform" as const, source: "number", into: "number", transform: { kind: "parse" as const } },
       { id: "math", kind: "transform" as const, source: "number", into: "number",

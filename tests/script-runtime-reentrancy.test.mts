@@ -6,7 +6,7 @@ import { makeBox } from "../lib/presets";
 import type { Script, ScriptStep, SiteDoc } from "../lib/types";
 
 function script(trigger: Script["trigger"], steps: ScriptStep[]): Script {
-  return { id: trigger, trigger, pos: { x: 0, y: 0 }, steps };
+  return { id: trigger, trigger, steps };
 }
 
 const assignments: ScriptStep[] = [

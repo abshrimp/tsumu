@@ -6,7 +6,7 @@ import type { DocNode, SiteDoc } from "../lib/types";
 
 const node = (id: string): DocNode => ({
   ...makeText(id), id, attrId: id,
-  scripts: [{ id: `${id}-click`, trigger: "click", pos: { x: 0, y: 0 }, steps: [
+  scripts: [{ id: `${id}-click`, trigger: "click", steps: [
     { id: `${id}-state`, kind: "set-state", target: id, state: "clicked" },
   ] }],
 });
@@ -14,7 +14,7 @@ const doc: SiteDoc = {
   schemaVersion: 1, siteName: "Canvas preview visits", assets: {},
   nodes: { a: node("a"), b: node("b"), delay: {
     ...makeText("Delayed navigation"), id: "delay", scripts: [{
-      id: "delayed", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+      id: "delayed", trigger: "click", steps: [
         { id: "wait", kind: "wait", seconds: 1 },
         { id: "navigate", kind: "open-page", pageId: "html" },
       ],
@@ -26,7 +26,7 @@ const doc: SiteDoc = {
     ...(id === "html" ? { rawHtml: "<p>HTML</p>" } : {}),
     ...(id === "redirect" ? { redirectTo: "/a" } : {}),
     ...(id === "rewrite" ? { rewriteTo: "https://example.test/" } : {}),
-    pageScripts: [{ id: `${id}-load`, trigger: "load", pos: { x: 0, y: 0 }, steps: [
+    pageScripts: [{ id: `${id}-load`, trigger: "load", steps: [
       { id: `${id}-loaded`, kind: "set-state", target: id, state: "loaded" },
     ] }],
   }])),

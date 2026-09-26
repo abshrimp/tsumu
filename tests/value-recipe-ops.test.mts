@@ -43,16 +43,14 @@ test("numeric operations accept number-like input, reject invalid coercions, and
 test("math transforms require an explicit operand type", () => {
   const malformed = { kind: "math", operation: "add", operand: 1 } as ValueTransform;
   assert.deepEqual(run(5, [malformed]), { kind: "error", code: "invalid-recipe" });
-  assert.equal(validDocumentScripts([{ id: "s", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "op", kind: "transform", source: "value", into: "value", transform: malformed }] }]), false);
+  assert.equal(validDocumentScripts([{ id: "s", trigger: "load",    steps: [{ id: "op", kind: "transform", source: "value", into: "value", transform: malformed }] }]), false);
   assert.deepEqual(run(5, [{ kind: "math", operation: "add", operandType: "number", operand: 1 }]), val(6));
 });
 
 test("fallback transforms require an explicit missing or nullish policy", () => {
   const malformed = { kind: "fallback", text: "replacement" } as ValueTransform;
   assert.deepEqual(run(undefined, [malformed]), { kind: "error", code: "invalid-recipe" });
-  assert.equal(validDocumentScripts([{ id: "s", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "op", kind: "transform", source: "value", into: "value", transform: malformed }] }]), false);
+  assert.equal(validDocumentScripts([{ id: "s", trigger: "load",    steps: [{ id: "op", kind: "transform", source: "value", into: "value", transform: malformed }] }]), false);
   assert.deepEqual(run(undefined, [{ kind: "fallback", when: "missing", text: "replacement" }]), val("replacement"));
 });
 

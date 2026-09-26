@@ -28,7 +28,7 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 ## 特徴
 
 - **ビジュアル編集**：Web の知識ゼロで、スタイル、ホバーなどでの状態変化、アニメーションまで編集できます。
-- **ノーコードのスクリプト**：直感的なブロックの組み立てだけで JavaScript のコードが構築できます。
+- **ノーコードのスクリプト**：「いつ」と「すること」を上から順に並べるだけで、JavaScript のコードが構築できます。
 - **外部データ連携**：API から JSON を取得して利用できます。
 - **インポート**：Tsumu の ZIP や `doc.json` からサイトを復元できます。ホーム画面に HTML ファイルやウェブサイトの ZIP をドロップすると、各ページを編集可能な要素に変換します。フォームの送信方式と項目名も引き継ぎます。
 - **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・HTML への出力に対応。TypeScript・JavaScript、CSS の形式も選択可能。
@@ -51,7 +51,7 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/ja/responsive.png" alt="スマホの見た目を編集"><br><sub><b>画面幅ごとの編集</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/ja/scripts.png" alt="クリック時とページを開いたときのブロックを並べたスクリプト編集画面"><br><sub><b>ノーコードのスクリプト</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/scripts.png" alt="「いつ」と「すること」をカードで並べたスクリプト編集画面"><br><sub><b>ノーコードのスクリプト</b></sub></td>
   </tr>
 </table>
 

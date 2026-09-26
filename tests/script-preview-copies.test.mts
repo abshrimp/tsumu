@@ -18,10 +18,10 @@ function preview(copies: [string, string][], initial: Record<string, unknown>) {
     siteName: "", pages: { p: {
       id: "p", name: "", title: "", description: "", slug: "", children: [],
       pageScripts: [
-        { id: "load", pos: { x: 0, y: 0 }, trigger: "load", steps: Object.entries(initial).map(([into, value]) => ({
+        { id: "load", trigger: "load", steps: Object.entries(initial).map(([into, value]) => ({
           id: "init-" + into, kind: "fetch", as: into, method: "GET", url: "/data", preview: { sample: value },
         })) },
-        { id: "click", pos: { x: 0, y: 100 }, trigger: "click", steps },
+        { id: "click", trigger: "click", steps },
       ],
     } }, pageOrder: ["p"], nodes: {}, assets: {},
   };

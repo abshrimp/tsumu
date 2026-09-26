@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Ctx, type EdCtx } from '../components/script-editor/context';
-import { pageArrays, previewDataVars } from '../lib/data';
+import { pageArrays, pageVariableIndex, previewDataVars } from '../lib/data';
 import { makeText } from '../lib/presets';
 import { scriptsFile } from '../lib/script-runtime';
 import { useEditor } from '../lib/store';
@@ -29,7 +29,7 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   const { StepBody } = loadNestedUi('components/script-editor/StepBody.tsx');
   for (const step of [doc.pages.p.pageScripts![0].steps.at(-1)!, doc.nodes.reload.scripts![0].steps[0]]) {
     const html = renderToStaticMarkup(React.createElement(Ctx.Provider, { value: {
-      doc, pageId: 'p', samples: previewDataVars(doc, 'p'), arrays: pageArrays(doc, 'p'), updateStep() {}, renameVar() {},
+      doc, pageId: 'p', samples: previewDataVars(doc, 'p'), arrays: pageArrays(doc, 'p'), variableIndex: pageVariableIndex(doc, 'p'), transformSources: {}, targetLookup: { firstByAttr: new Map(), firstNodeIds: new Set() }, updateStep() {}, renameVar() {},
     } as unknown as EdCtx }, React.createElement(StepBody, { step })));
     assert.equal(parse(html).querySelector(".se-value-choice input")?.getAttribute("value"), (step as any).value);
     assert.ok(html.includes(`value="${(step as any).into}"`));

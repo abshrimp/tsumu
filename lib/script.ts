@@ -5,7 +5,6 @@ import {
   type LinkSetting,
   type Script,
   type ScriptCond,
-  type ScriptPos,
   type ScriptStep,
   type ScriptTrigger,
   type SiteDoc,
@@ -55,15 +54,10 @@ function linkOfScript(s: Script): LinkSetting | null {
   if (s.trigger !== "click" || s.steps.length !== 1) return null;
   const st = s.steps[0];
   if (st.kind === "open-page") {
-    return {
-      kind: "page",
-      pageId: st.pageId,
-      ...(st.newTab ? { newTab: true } : {}),
-      pos: s.pos,
-    };
+    return { kind: "page", pageId: st.pageId, ...(st.newTab ? { newTab: true } : {}) };
   }
   if (st.kind === "open-url") {
-    return { kind: "url", url: st.url, newTab: !!st.newTab, pos: s.pos };
+    return { kind: "url", url: st.url, newTab: !!st.newTab };
   }
   return null;
 }
@@ -77,7 +71,6 @@ export function scriptsOf(node: DocNode): Script[] {
     out.push({
       id,
       trigger: "click",
-      pos: l.pos ?? { x: 32, y: 32 },
       steps: [
         l.kind === "page"
           ? {
@@ -149,10 +142,10 @@ export function splitScripts(
 
 /**
  * ページのスクリプトの画面での1件。
- * nodeId = きっかけの要素（PAGE_TARGET = このページ / null = 要素を選んでいない）
+ * nodeId = きっかけの要素（PAGE_TARGET = このページ）
  */
 export interface PageScript extends Script {
-  nodeId: string | null;
+  nodeId: string;
 }
 
 /**
@@ -201,98 +194,61 @@ export function visitPageNodes(
 
 /** エディタが更新されても、変わっていないスクリプトには、変更しない表示用の包みを使い回す。 */
 const scriptViewCache = new WeakMap<Script, Map<string, PageScript>>();
-function scriptView(script: Script, nodeId: string | null): PageScript {
+function scriptView(script: Script, nodeId: string): PageScript {
   let byNode = scriptViewCache.get(script);
   if (!byNode) {
     byNode = new Map();
     scriptViewCache.set(script, byNode);
   }
-  const key = nodeId ?? "";
-  const saved = byNode.get(key);
+  const saved = byNode.get(nodeId);
   if (saved && saved.id === script.id && saved.steps === script.steps &&
-      saved.pos === script.pos && saved.trigger === script.trigger &&
+      saved.trigger === script.trigger &&
       saved.changeVariable === script.changeVariable &&
       saved.keepOnShown === script.keepOnShown) return saved;
   const view: PageScript = { ...script, nodeId };
-  byNode.set(key, view);
+  byNode.set(nodeId, view);
   return view;
 }
 
-/** ページの中のすべての要素のスクリプトと、要素につながっていないブロック */
+/**
+ * ページのスクリプトを、画面に並べる順に返す。
+ * 「このページ」のものが先で、続けて要素のものをページ内の表示順に並べる。
+ */
 export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): PageScript[] {
   const out: PageScript[] = [];
+  for (const s of doc.pages[pageId]?.pageScripts ?? []) out.push(scriptView(s, PAGE_TARGET));
   for (const id of nodeIds) {
     const n = doc.nodes[id];
     if (n) for (const s of scriptsOf(n)) out.push(scriptView(s, id));
   }
-  for (const s of doc.pages[pageId]?.pageScripts ?? []) {
-    out.push(scriptView(s, PAGE_TARGET));
-  }
-  for (const s of doc.pages[pageId]?.scripts ?? []) out.push(scriptView(s, null));
-  // 重なりを避けるときは、近くの位置だけを調べる。全体を走査していたときは、
-  // 別々のスクリプトの並びが多い画面を開く処理が、数の2乗に比例して遅くなっていた。
-  const cellSize = 48;
-  const placed = new Map<string, ScriptPos[]>();
-  // 1つの元の位置について、それより前に試した行はすべて埋まったまま。
-  // 次に衝突したときは、何度も調べ直さずにそれらを飛ばす。
-  const nextCollisionY = new Map<string, number>();
-  const key = (x: number, y: number) =>
-    `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}`;
-  const overlaps = (pos: ScriptPos) => {
-    const x = Math.floor(pos.x / cellSize);
-    const y = Math.floor(pos.y / cellSize);
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        for (const p of placed.get(`${x + dx}:${y + dy}`) ?? []) {
-          if (Math.abs(p.x - pos.x) < 48 && Math.abs(p.y - pos.y) < 48) return true;
-        }
-      }
-    }
-    return false;
-  };
-  return out.map((s) => {
-    const pos = { ...s.pos };
-    const originalKey = `${pos.x}:${pos.y}`;
-    const nextY = nextCollisionY.get(originalKey);
-    if (nextY !== undefined) pos.y = nextY;
-    while (overlaps(pos)) pos.y += 150;
-    nextCollisionY.set(originalKey, pos.y + 150);
-    const cell = key(pos.x, pos.y);
-    const list = placed.get(cell) ?? [];
-    list.push(pos);
-    placed.set(cell, list);
-    return pos.y === s.pos.y ? s : { ...s, pos };
-  });
+  return out;
 }
 
-/** 画面の内容を1回だけ振り分ける。取り込みでの書き換えとエディタの確定の両方で使う。 */
+/** 画面の内容を、きっかけの要素ごとに振り分ける。存在しない要素を指すものは保存しない。 */
 function groupPageScripts(doc: SiteDoc, nodeIds: string[], views: PageScript[]) {
   const byNode = new Map<string, Script[]>();
   const validNodeIds = new Set(nodeIds);
-  const loose: Script[] = [];
   const own: Script[] = [];
   for (const { nodeId, ...s } of views) {
-    if (nodeId === PAGE_TARGET && s.trigger) {
+    if (nodeId === PAGE_TARGET) {
       own.push(s);
-    } else if (nodeId && s.trigger && validNodeIds.has(nodeId) && doc.nodes[nodeId]) {
+    } else if (validNodeIds.has(nodeId) && doc.nodes[nodeId]) {
       const group = byNode.get(nodeId);
       if (group) group.push(s);
       else byNode.set(nodeId, [s]);
-    } else {
-      loose.push(s);
     }
   }
-  return { byNode, loose, own };
+  return { byNode, own };
 }
 
-/** スクリプトの画面の内容を、各要素（link / scripts）とページ（つながっていない分）に書き戻す */
+/** スクリプトの画面の内容を、各要素（link / scripts）とページに書き戻す */
 export function applyPageScripts(
   doc: SiteDoc,
   pageId: string,
   nodeIds: string[],
   views: PageScript[]
 ) {
-  const { byNode, loose, own } = groupPageScripts(doc, nodeIds, views);
+  const { byNode, own } = groupPageScripts(doc, nodeIds, views);
   for (const id of nodeIds) {
     const n = doc.nodes[id];
     if (!n) continue;
@@ -304,8 +260,6 @@ export function applyPageScripts(
   }
   const page = doc.pages[pageId];
   if (page) {
-    if (loose.length) page.scripts = loose;
-    else delete page.scripts;
     if (own.length) page.pageScripts = own;
     else delete page.pageScripts;
   }
@@ -324,9 +278,7 @@ function sameScript(a: Script, b: Script): boolean {
     a.trigger === b.trigger &&
     a.changeVariable === b.changeVariable &&
     a.keepOnShown === b.keepOnShown &&
-    a.steps === b.steps &&
-    a.pos.x === b.pos.x &&
-    a.pos.y === b.pos.y
+    a.steps === b.steps
   );
 }
 
@@ -346,7 +298,7 @@ function sameLink(a: LinkSetting | null, b: LinkSetting | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return a.kind === b.kind && a.url === b.url && a.pageId === b.pageId &&
-    !!a.newTab === !!b.newTab && a.pos?.x === b.pos?.x && a.pos?.y === b.pos?.y;
+    !!a.newTab === !!b.newTab;
 }
 
 /** applyPageScripts の、純粋でコピーオンライトの版。エディタで頻繁に確定するときに使う。 */
@@ -359,7 +311,7 @@ export function withPageScripts(
   const page = doc.pages[pageId];
   if (!page) return doc;
 
-  const { byNode, loose, own } = groupPageScripts(doc, nodeIds, views);
+  const { byNode, own } = groupPageScripts(doc, nodeIds, views);
   let nodes: SiteDoc["nodes"] | null = null;
   for (const id of nodeIds) {
     const previous = doc.nodes[id];
@@ -379,15 +331,12 @@ export function withPageScripts(
     nodes[id] = copy;
   }
 
-  const changedPage = !sameScriptList(page.scripts, loose) ||
-    !sameScriptList(page.pageScripts, own);
+  const changedPage = !sameScriptList(page.pageScripts, own);
   if (!nodes && !changedPage) return doc;
 
   let pages = doc.pages;
   if (changedPage) {
     const updated = { ...page };
-    if (loose.length) updated.scripts = reuseUnchangedScripts(page.scripts, loose);
-    else delete updated.scripts;
     if (own.length) updated.pageScripts = reuseUnchangedScripts(page.pageScripts, own);
     else delete updated.pageScripts;
     pages = { ...doc.pages, [pageId]: updated };
@@ -443,8 +392,7 @@ export function scriptTargetIds(
 /** 画面上で動くスクリプトを持つか（きっかけと、データの取得以外の動作がある） */
 export function hasRunnableScripts(node: Pick<DocNode, "scripts">): boolean {
   return !!node.scripts?.some(
-    (s) => s.trigger &&
-      (s.trigger !== "change" || s.changeVariable === undefined || !!s.changeVariable.trim()) &&
+    (s) => (s.trigger !== "change" || s.changeVariable === undefined || !!s.changeVariable.trim()) &&
       s.steps.some((st) => !isDataStep(st))
   );
 }
@@ -573,10 +521,10 @@ export function compileScripts(
       }
     });
   return (node.scripts ?? [])
-    .filter((s) => s.trigger && s.steps.length &&
+    .filter((s) => s.steps.length &&
       (s.trigger !== "change" || s.changeVariable === undefined || !!s.changeVariable.trim()))
     .map((s) => ({
-      trigger: s.trigger!,
+      trigger: s.trigger,
       steps: conv(s.steps),
       ...(s.trigger === "change" && s.changeVariable ? { changeVariable: s.changeVariable } : {}),
       ...(s.trigger === "hover-end" && s.keepOnShown ? { keep: true as const } : {}),

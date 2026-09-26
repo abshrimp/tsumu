@@ -1,21 +1,22 @@
 "use client";
 
 /**
- * 動作ブロックの中身（種類ごとの入力欄）
+ * 動作のカードの中身（種類ごとの文と入力欄）
  */
 
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { readableValue } from "../DataView";
 import { sharedCookieDomain } from "../../lib/script-runtime";
-import { dataVarNames, setVarSource, uniqueVarName } from "../../lib/data";
+import { setVarSource, uniqueVarName } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
-import { type ScriptStep } from "../../lib/types";
+import { SELF_TARGET, type ScriptStep } from "../../lib/types";
+import { customStateName, customStatesForNode } from "../../lib/custom-states";
 import { filterNumbersOf } from "./step-tree";
 import { defaultTransform, type ValueTransformKind } from "../../lib/script-model/compose";
 import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
 import { tr } from "../../lib/i18n";
 import { AnyArraySelect, ArraySelect, FilterArrayBody, SortArrayBody } from "./arrays";
-import { Ctx } from "./context";
+import { Ctx, ScriptNodeCtx } from "./context";
 import { FetchBody, PathMenu, VarNameIn, isNested, nameFromPath } from "./fetch";
 import { FieldValueIn, NewTabCheck, NumericVariableIn, Phrase, TextIn, ValueIn } from "./inputs";
 import { ValueTransformSettings, VALUE_TRANSFORM_GROUPS, VALUE_TRANSFORM_LABELS } from "./ValueTransformSettings";
@@ -108,7 +109,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               url: (
                 <TextIn
                   value={step.url}
-                  placeholder={tr("https://~ / #ID / {variable}")}
+                  placeholder={tr("Web address (https://…)")}
                   vars
                   width={180}
                   onCommit={(v) => set((s) => ({ ...s, url: v.trim() }) as ScriptStep)}
@@ -128,7 +129,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
       return (
         <>
           <Phrase
-            text="Show {kind} with {message}"
+            text="{kind} saying {message}"
             parts={{
               kind: (
                 <select
@@ -144,15 +145,15 @@ export function StepBody({ step }: { step: ScriptStep }) {
                     }));
                   }}
                 >
-                  <option value="alert">{tr("Alert")}</option>
-                  <option value="confirm">{tr("Confirm")}</option>
-                  <option value="prompt">{tr("Prompt")}</option>
+                  <option value="alert">{tr("Show a notice")}</option>
+                  <option value="confirm">{tr("Ask yes or no")}</option>
+                  <option value="prompt">{tr("Ask for an answer")}</option>
                 </select>
               ),
               message: (
                 <TextIn
                   value={step.message}
-                  placeholder={tr("string / {variable}")}
+                  placeholder={tr("Message to show")}
                   vars
                   width={180}
                   onCommit={(message) => set((s) => ({ ...s, message }) as ScriptStep)}
@@ -210,11 +211,8 @@ export function StepBody({ step }: { step: ScriptStep }) {
                 onChange={(target) => set((s) => ({ ...s, target }) as ScriptStep)} />
             ),
             state: (
-              <TextIn value={step.state} width={120}
-                placeholder={tr("State name (default to reset)")}
-                onCommit={(state) => set((s) => ({
-                  ...s, state: state.trim().slice(0, 40),
-                }) as ScriptStep)} />
+              <StateIn target={step.target} value={step.state}
+                onCommit={(state) => set((s) => ({ ...s, state }) as ScriptStep)} />
             ),
           }}
         />
@@ -328,7 +326,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
         }} />
       );
     case "break-loop":
-      return <span>{tr("Break out of loop")}</span>;
+      return <span>{tr("Stop repeating and continue after the repeat")}</span>;
     case "store-save":
       return (
         <>
@@ -338,7 +336,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               key: (
                 <TextIn
                   value={step.key}
-                  placeholder={tr("Key")}
+                  placeholder={tr("Name to save under")}
                   width={96}
                   onCommit={(v) => set((s) => ({ ...s, key: v.trim() }) as ScriptStep)}
                 />
@@ -366,7 +364,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               key: (
                 <TextIn
                   value={step.key}
-                  placeholder={tr("Key")}
+                  placeholder={tr("Name it was saved under")}
                   width={96}
                   onCommit={(v) => {
                     const key = v.trim();
@@ -465,7 +463,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
         into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("Name")} />,
       }} />
       {step.into && value !== undefined && value !== null && (
-        <span className="se-blk-note">{Array.isArray(value)
+        <span className="se-note">{Array.isArray(value)
           ? listCounts && src && listCounts[src] !== undefined
             ? tr("List · {length} elements", { length: listCounts[src] })
             : tr("List", "list_variant_1")
@@ -479,18 +477,12 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
 
 /** 1つのブロックが1つの純粋な処理を行う。ブロックを積み重ねると処理を組み合わせられる。 */
 function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform" }> }) {
-  const { doc, pageId, updateStep, samples, variableIndex, transformSources } = useContext(Ctx);
+  const { updateStep, samples, variableIndex, transformSources } = useContext(Ctx);
   const set = (patch: Partial<typeof step>) => updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
-  const sourceValues = transformSources ?? (() => {
-    const available = new Set([...dataVarNames(doc, pageId, step.id), ...Object.keys(samples).filter((key) => !key.startsWith("#"))]);
-    return Object.fromEntries([
-      ...Object.entries(samples).filter(([name]) => !name.startsWith("#")),
-      ...[...available].filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined]),
-    ]);
-  })();
+  const sourceValues = transformSources;
   // ブロックが、まだ使えない自分自身の出力を候補に出してはいけない。
   // 共有している値の候補のオブジェクトはそのままにし、開いたメニューでだけその名前を除く。
-  const excludedSourceName = variableIndex && step.into &&
+  const excludedSourceName = step.into &&
     !variableIndex.hasOther(step.into, step.id) && !Object.hasOwn(samples, step.into)
       ? step.into : undefined;
   const sample = step.source ? lookupVar(samples, step.source) : undefined;
@@ -529,18 +521,18 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
           into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("Variable name")} />,
         }}
       />
-      <div className="se-transform-settings">
+      <div className="se-transform-settings se-row">
         <ValueTransformSettings transform={step.transform} options={options} samples={sourceValues}
           excludedVariableName={excludedSourceName}
           onChange={(transform) => set({ transform })} />
       </div>
       {preview?.kind === "value" && (
-        <span className="se-blk-note">
-          {tr("Sample: {p1}", { p1: typeof preview.value === "object"
+        <span className="se-note">
+          {tr("Example result: {p1}", { p1: typeof preview.value === "object"
             ? JSON.stringify(preview.value).slice(0, 90) : String(preview.value) })}
         </span>
       )}
-      {preview?.kind === "error" && <span className="se-blk-note">{tr("Cannot process sample value ({code})", { code: preview.code })}</span>}
+      {preview?.kind === "error" && <span className="se-note is-warn">{tr("Cannot process sample value ({code})", { code: preview.code })}</span>}
     </>
   );
 }
@@ -562,8 +554,42 @@ function SharedCheck({ step }: { step: Extract<ScriptStep, { kind: "store-save" 
         {domain ? tr("Share with all subdomains of {domain}", { domain }) : tr("Share with subdomains")}
       </label>
       {step.shared && !domain && (
-        <span className="se-badge is-warn">{tr("Set the site URL in Site settings to enable sharing")}</span>
+        <span className="se-note is-warn" role="status">{tr("Set the site URL in Site settings to enable sharing")}</span>
       )}
     </>
+  );
+}
+
+/** 「その他」を選んだことを表す印 */
+const NEW_STATE = "\u0000new";
+
+/**
+ * 切り替える状態。その要素にデザインで作ってある状態から選べる。
+ * まだ無い名前を入力すれば、その名前の状態を後からデザインできる。
+ */
+function StateIn({ target, value, onCommit }: {
+  target: string; value: string; onCommit: (state: string) => void;
+}) {
+  const { doc, targetLookup } = useContext(Ctx);
+  const selfId = useContext(ScriptNodeCtx);
+  const [free, setFree] = useState(false);
+  const nodeId = target === SELF_TARGET ? selfId : targetLookup.firstByAttr.get(target)?.id ?? "";
+  const names = nodeId
+    ? customStatesForNode(doc, nodeId).map((state) => customStateName(state)).filter((name): name is string => !!name)
+    : [];
+  const commit = (state: string) => onCommit(state.trim().slice(0, 40));
+  if (free || !names.length || (value && value !== "default" && !names.includes(value))) {
+    return <TextIn value={value} width={120} placeholder={tr("State name (default to reset)")} onCommit={commit} />;
+  }
+  return (
+    <select className="se-in" aria-label={tr("State")} value={value || "default"}
+      onChange={(event) => {
+        if (event.target.value === NEW_STATE) setFree(true);
+        else commit(event.target.value);
+      }}>
+      <option value="default">{tr("the normal look")}</option>
+      {names.map((name) => <option key={name} value={name}>{name}</option>)}
+      <option value={NEW_STATE}>{tr("A new state…")}</option>
+    </select>
   );
 }

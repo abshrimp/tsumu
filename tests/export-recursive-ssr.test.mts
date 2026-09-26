@@ -9,8 +9,7 @@ test("generated Vue/Nuxt/SvelteKit SSR cannot recursively fetch its own page rou
     siteName: "Guard self-fetch", pageOrder: ["home", "about"],
     pages: {
       home: { id: "home", name: "Home", title: "Home", slug: "", description: "",
-        children: ["box"], pageScripts: [{ id: "load", trigger: "load", pos: { x: 0, y: 0 },
-          steps: [{ id: "f", kind: "fetch", url: "/api/items", as: "items" }] }] },
+        children: ["box"], pageScripts: [{ id: "load", trigger: "load",          steps: [{ id: "f", kind: "fetch", url: "/api/items", as: "items" }] }] },
       about: { id: "about", name: "About", title: "About", slug: "about",
         description: "", children: [] },
     },

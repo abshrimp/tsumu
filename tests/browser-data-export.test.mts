@@ -15,7 +15,7 @@ function fixture(steps: ScriptStep[]): SiteDoc {
     pages: {
       main: {
         id: "main", name: "Home", slug: "", title: "Home", description: "", children: ["title", "list"],
-        pageScripts: [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps }],
+        pageScripts: [{ id: "load", trigger: "load", steps }],
       },
     },
     pageOrder: ["main"],
@@ -104,7 +104,7 @@ test("published HTML keeps dictionary list filters and sorting when a script upd
   doc.nodes.list.list!.limit = 2;
   for (const [id, rank] of [["refresh", 8], ["change", 0]] as const) {
     doc.nodes[id] = { ...makeText(id), id, attrId: id, semantic: "button", scripts: [
-      { id: id + "-click", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+      { id: id + "-click", trigger: "click", steps: [
         { id: id + "-set", kind: "set-list-item", list: "rows", key: "8", value: JSON.stringify({ rank }) },
       ] },
     ] };

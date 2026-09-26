@@ -47,7 +47,7 @@ test("master IDs and authored references take priority over conflicting instance
   doc.nodes.root.attrId = "master";
   doc.nodes.root.children = ["child", "custom"];
   doc.nodes.root.customCss = "--anchor-note: master; color: red";
-  doc.nodes.child = { ...makeBox(), id: "child", link: { kind: "url", url: "#master" }, scripts: [{ id: "hide", trigger: "click", pos: { x: 0, y: 0 }, steps: [{ id: "hide-step", kind: "hide", target: "master" }] }] };
+  doc.nodes.child = { ...makeBox(), id: "child", link: { kind: "url", url: "#master" }, scripts: [{ id: "hide", trigger: "click", steps: [{ id: "hide-step", kind: "hide", target: "master" }] }] };
   doc.nodes.custom = { ...makeBox(), id: "custom", type: "code", code: { html: '<span data-note="master"><style>#master { color: red; }</style></span>' } };
   const before = structuredClone(doc);
   const output = renderAnchorExport(doc);

@@ -76,10 +76,6 @@
           {
             "id": "sc_mw6254vh1kbz2g",
             "trigger": "load",
-            "pos": {
-              "x": 32,
-              "y": 32
-            },
             "steps": [
               {
                 "id": "st_mw6254vh1lnt3r",
@@ -157,10 +153,6 @@
           {
             "id": "sc_mw6254vg1594jq",
             "trigger": "load",
-            "pos": {
-              "x": 32,
-              "y": 32
-            },
             "steps": [
               {
                 "id": "st_mw6254vh16lqu5",
@@ -317,10 +309,6 @@
           {
             "id": "sc_mw6254vg7x1yc",
             "trigger": "click",
-            "pos": {
-              "x": 32,
-              "y": 32
-            },
             "steps": [
               {
                 "id": "st_mw6254vg8ybb6",

@@ -57,7 +57,7 @@ test('live field tokens continue reading current values without reparsing data o
     doc.nodes[id].field!.defaultValue = '{name}: {live}';
     doc.nodes[id].field!.placeholder = '{name}: {live}';
   }
-  doc.nodes.change = { ...makeText('Change live'), id: 'change', attrId: 'change', scripts: [{ id: 'change-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [
+  doc.nodes.change = { ...makeText('Change live'), id: 'change', attrId: 'change', scripts: [{ id: 'change-script', trigger: 'click', steps: [
     { id: 'change-live', kind: 'set-var', into: 'live', value: 'Later \\{name}' },
   ] }] };
   doc.pages.p.children.unshift('change');
@@ -93,7 +93,7 @@ test('no-collision input, static controls and server-only rendering retain their
 test('live select options refresh before default values and same-script reads', async () => {
   const doc = clientFieldDoc();
   doc.nodes.choice.field!.options = ['Other', '{name}: {live}'].map(value => ({label:value,value})); doc.nodes.choice.field!.defaultValue = '{name}: {live}';
-  doc.nodes.change = { ...makeText('Change'), id: 'change', attrId: 'change', scripts: [{ id: 'change-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [
+  doc.nodes.change = { ...makeText('Change'), id: 'change', attrId: 'change', scripts: [{ id: 'change-script', trigger: 'click', steps: [
     { id: 'change-live', kind: 'set-var', into: 'live', value: 'Later' },
     { id: 'read-choice', kind: 'set-var', into: 'observed', value: '{choice}' },
   ] }] };

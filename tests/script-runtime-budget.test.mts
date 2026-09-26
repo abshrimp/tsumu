@@ -12,7 +12,7 @@ function mount(steps: ScriptStep[], generated: boolean) {
     siteName: "Runtime budget", assets: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Page", slug: "", title: "", description: "", children: ["node"] } },
     nodes: { node: { ...makeBox(), id: "node", scripts: [
-      { id: "script", trigger: "click", pos: { x: 0, y: 0 }, steps },
+      { id: "script", trigger: "click", steps },
     ] } },
   };
   let writes = 0;

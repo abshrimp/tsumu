@@ -7,8 +7,8 @@ export function scriptKeyboardDoc(): SiteDoc {
     schemaVersion: 1, siteName: "Script keyboard scope", assets: {}, nodes: {}, pageOrder: ["p", "q", "r"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "", description: "", children: [], pageScripts: [
-        { id: "script", trigger: "load", pos: { x: 32, y: 32 }, steps: [{ id: "open", kind: "open-page", pageId: "q" }] },
-        { id: "other", trigger: "load", pos: { x: 32, y: 220 }, steps: [{ id: "wait", kind: "wait", seconds: 1 }] },
+        { id: "script", trigger: "load", steps: [{ id: "open", kind: "open-page", pageId: "q" }] },
+        { id: "other", trigger: "load", steps: [{ id: "wait", kind: "wait", seconds: 1 }] },
       ] },
       q: { id: "q", name: "Q", slug: "q", title: "", description: "", children: [] },
       r: { id: "r", name: "R", slug: "r", title: "", description: "", children: [] },

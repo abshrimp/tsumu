@@ -130,8 +130,7 @@ test("React uses the same browser data loader for API calls and transformations"
   const doc = fixture();
   doc.nodes.hero.text!.content = "Found {total} records";
   doc.pages.home.pageScripts = [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [
+    id: "load", trigger: "load",    steps: [
       { id: "fetch", kind: "fetch", url: "https://example.com/data.json?tab={tab}", as: "results" },
       { id: "count", kind: "count", array: "results", into: "total" },
     ],
@@ -150,8 +149,7 @@ test("React uses the same browser data loader for API calls and transformations"
 test("React preserves list-display operations even without a fetch", () => {
   const doc = fixture();
   doc.pages.home.pageScripts = [{
-    id: "filter-on-load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "filter", kind: "list-display", mode: "filter",
+    id: "filter-on-load", trigger: "load",    steps: [{ id: "filter", kind: "list-display", mode: "filter",
       array: "products", field: "status", op: "eq",
       value: "published", dir: "asc" }],
   }] as unknown as typeof doc.pages.home.pageScripts;

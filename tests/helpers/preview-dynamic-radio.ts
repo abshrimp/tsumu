@@ -14,8 +14,7 @@ export function previewDynamicRadioDoc(source: "query" | "data" | "literal" = "q
   });
   const sequence = (id: string, assignments: [string, string][]): DocNode => ({
     ...makeText(id), id, semantic: "button", scripts: [{
-      id: `${id}-script`, trigger: "click", pos: { x: 0, y: 0 },
-      steps: assignments.map(([target, value], index) => ({ id: `${id}-set-${index}`, kind: "set-value", target, value })),
+      id: `${id}-script`, trigger: "click",      steps: assignments.map(([target, value], index) => ({ id: `${id}-set-${index}`, kind: "set-value", target, value })),
     }],
   });
   const button = (id: string, target: string, value: string) => sequence(id, [[target, value]]);
@@ -50,7 +49,7 @@ export function previewDynamicRadioDoc(source: "query" | "data" | "literal" = "q
       query: source === "query" ? "smallLabel=S&mediumLabel=M" : "",
       children: nodes.map((node) => node.id),
       ...(source === "data" ? { pageScripts: [{
-        id: "load", trigger: "load" as const, pos: { x: 0, y: 0 }, steps: [{
+        id: "load", trigger: "load" as const, steps: [{
           id: "fetch", kind: "fetch" as const, url: "https://example.test/sizes", as: "response",
           preview: { sample: { smallLabel: "S", mediumLabel: "M" } },
         }],

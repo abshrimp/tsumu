@@ -15,14 +15,17 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, Search } from "lucide-react";
+import {
+  ChevronRight, Code2, Component, Crosshair, Globe, Image as ImageIcon, List, Minus, MousePointerClick,
+  PlayCircle, Search, Sparkles, Square, TextCursorInput, Type, type LucideIcon,
+} from "lucide-react";
 import { useEditor } from "../../lib/store";
 import { anchoredMenuPos } from "../controls";
-import { SELF_TARGET, type SiteDoc } from "../../lib/types";
+import { SELF_TARGET, type DocNode, type SiteDoc } from "../../lib/types";
 import { resolveTag } from "../../lib/tags";
 import { tr } from "../../lib/i18n";
 import { Ctx } from "./context";
-import { type Loc } from "./step-tree";
+import { canPickOnCanvas, pickOnCanvas } from "./pick-on-canvas";
 
 export interface Target {
   id: string;
@@ -54,8 +57,44 @@ export interface TreeRow {
   name: string;
   attrId?: string;
   tag: string;
+  /** HTML のタグ名の代わりに表示する、要素の種類 */
+  kind: ElementKind;
   field: boolean;
   hasChildren: boolean;
+}
+
+export type ElementKind =
+  | "text" | "box" | "button" | "image" | "field" | "icon" | "list" | "media" | "embed" | "code" | "divider" | "component";
+
+export const ELEMENT_KIND: Record<ElementKind, { label: string; icon: LucideIcon }> = {
+  text: { label: tr("Text"), icon: Type },
+  box: { label: tr("Box"), icon: Square },
+  button: { label: tr("Button"), icon: MousePointerClick },
+  image: { label: tr("Image"), icon: ImageIcon },
+  field: { label: tr("Input field"), icon: TextCursorInput },
+  icon: { label: tr("Icon"), icon: Sparkles },
+  list: { label: tr("List", "list_variant_1"), icon: List },
+  media: { label: tr("Video / audio"), icon: PlayCircle },
+  embed: { label: tr("Embed"), icon: Globe },
+  code: { label: tr("Code"), icon: Code2 },
+  divider: { label: tr("Divider"), icon: Minus },
+  component: { label: tr("Component"), icon: Component },
+};
+
+/** 作っている人が見て分かる言葉で、要素の種類を返す（タグ名は使わない）。 */
+export function elementKindOf(node: DocNode, tag: string): ElementKind {
+  switch (node.type) {
+    case "image": return "image";
+    case "icon": return "icon";
+    case "list": return "list";
+    case "media": return "media";
+    case "embed": return "embed";
+    case "code": return "code";
+    case "divider": return "divider";
+    case "instance": return "component";
+    case "field": return node.field?.kind === "submit" ? "button" : "field";
+    default: return tag === "button" ? "button" : node.text ? "text" : "box";
+  }
 }
 
 /** スクリプトの対象要素をツリーの深さとともに表示順に並べる。 */
@@ -64,9 +103,10 @@ export function buildTree(doc: SiteDoc, pageId: string, extraRootIds: string[]):
   visitPageNodes(doc, pageId, extraRootIds, (id, node, depth) => {
     const previous = rows[rows.length - 1];
     if (previous && depth > previous.depth) previous.hasChildren = true;
+    const tag = resolveTag(node, depth === 0);
     rows.push({
       id, depth, name: node.name, attrId: node.attrId || undefined,
-      tag: resolveTag(node, depth === 0),
+      tag, kind: elementKindOf(node, tag),
       field: node.type === "field" && node.field?.kind !== "submit",
       hasChildren: false,
     });
@@ -125,10 +165,6 @@ export function searchNodePickerRows(
   return { rows: shown, autoOpen };
 }
 
-export type MenuTarget =
-  | { type: "step"; loc: Loc }
-  | { type: "script"; scriptId: string };
-
 /* ---------- 入力部品 ---------- */
 
 export function TargetSelect({
@@ -141,22 +177,14 @@ export function TargetSelect({
   /** field = 入力欄だけ / control = 入力欄とボタン */
   only?: "field" | "control";
 }) {
-  const { tree, targets, targetLookup } = useContext(Ctx);
-  // 共有の索引を使い回す。閉じている数千の対象の入力欄が、今のラベルを表示するためだけに
-  // それぞれノードのツリー全体を調べ直してはいけない。
-  const firstOfId = targetLookup?.firstNodeIds ?? new Set(
-    targets.map((target) => tree.find((row) => row.attrId === target.id)?.id).filter((id): id is string => !!id)
-  );
+  const { tree, targetLookup } = useContext(Ctx);
+  // 同じ ID 属性を持つ要素が複数あるときは、最初の1つだけを選べるようにする。
   const pickable = (r: TreeRow) =>
-    (!r.attrId || firstOfId.has(r.id)) &&
+    (!r.attrId || targetLookup.firstNodeIds.has(r.id)) &&
     (only !== "field" || r.field) &&
-    (only !== "control" || r.field || r.tag === "button");
-  const cur = targetLookup
-    ? targetLookup.firstByAttr.get(value)
-    : tree.find((r) => r.attrId === value && firstOfId.has(r.id));
-  const known =
-    value === "" || (!only && value === SELF_TARGET) ||
-    (targetLookup ? targetLookup.firstByAttr.has(value) : targets.some((t) => t.id === value));
+    (only !== "control" || r.field || r.kind === "button");
+  const cur = targetLookup.firstByAttr.get(value);
+  const known = value === "" || (!only && value === SELF_TARGET) || targetLookup.firstByAttr.has(value);
   return (
     <NodePicker
       rows={tree}
@@ -178,9 +206,9 @@ export function TargetSelect({
               ? tr("#{value} (not found)", { value })
               : null
       }
-      sub={cur ? `#${cur.attrId}` : undefined}
+      kind={value === SELF_TARGET ? undefined : cur?.kind}
+      missing={!!value && !known}
       placeholder={only ? tr("Select a field", "select_a_field_variant_1") : tr("Select an element")}
-      hint={tr("Elements without an ID get one automatically when selected")}
     />
   );
 }
@@ -218,10 +246,11 @@ export function NodePicker({
   onSpecial,
   onPick,
   label,
-  sub,
+  kind,
+  missing,
   placeholder,
-  hint,
-  strong,
+  autoOpen,
+  onDismiss,
 }: {
   rows: TreeRow[];
   pickable: (r: TreeRow) => boolean;
@@ -232,10 +261,15 @@ export function NodePicker({
   onPick: (r: TreeRow) => void;
   /** ボタンに表示する名前（null = 未選択） */
   label: string | null;
-  sub?: string;
+  /** ボタンに添える、選択中の要素の種類 */
+  kind?: ElementKind;
+  /** 選んであった要素が、もうページに無い */
+  missing?: boolean;
   placeholder: string;
-  hint?: string;
-  strong?: boolean;
+  /** 表示と同時に一覧を開く（きっかけを選んだ直後に、続けて要素を選ばせる） */
+  autoOpen?: boolean;
+  /** 何も選ばずに閉じたとき */
+  onDismiss?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -258,17 +292,17 @@ export function NodePicker({
     const onDown = (e: PointerEvent) => {
       // スクリプトの行（や他の React のポータル）がイベントの伝搬を止める前に受け取る。
       // mousedown と違い、ペンやタッチの操作にも対応できる。
-      if (outside(e.target)) setOpen(false);
+      if (outside(e.target)) dismissRef.current();
     };
     const onFocus = (e: FocusEvent) => {
       // Tab で別の部品に移ったときも、ポップアップを閉じる。
-      if (outside(e.target)) setOpen(false);
+      if (outside(e.target)) dismissRef.current();
     };
     // クリックによって、キャンバスやフォーカスしたブロックがプログラムでスクロールされることがある。
     // 閉じるのは、メニューの外で利用者がスクロールしたときだけで、
     // 選択欄を開く途中で発生したスクロールのイベントでは閉じない。
     const onUserScroll = (e: Event) => {
-      if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
+      if (!menuRef.current?.contains(e.target as Node)) dismissRef.current();
     };
     document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("focusin", onFocus, true);
@@ -347,10 +381,19 @@ export function NodePicker({
       list.scrollTop += itemBounds.bottom - listBounds.bottom;
   }, [key, open]);
 
+  const picking = useRef<(() => void) | null>(null);
+  const dismiss = () => {
+    // ページの上で選んでいる間は、一覧が閉じても選ぶのをやめたことにしない
+    if (picking.current) return;
+    setOpen(false);
+    onDismiss?.();
+  };
+  const dismissRef = useRef(dismiss);
+  dismissRef.current = dismiss;
   const show = () => {
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
-    setPos(anchoredMenuPos(r, 300, 360));
+    setPos(anchoredMenuPos(r, 320, 380));
     setQuery("");
     setSearchOpen(new Set());
     setSearchClosed(new Set());
@@ -396,17 +439,48 @@ export function NodePicker({
     else onPick(c.r);
   };
   const keyOf = (r: TreeRow) => keyByRowId.get(r.id) ?? -1;
+  useEffect(() => {
+    if (autoOpen) show();
+    // 表示した直後に一度だけ開く
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const KindIcon = kind ? ELEMENT_KIND[kind].icon : null;
+  // ページの上で直接クリックして選ぶ
+  useEffect(() => () => picking.current?.(), []);
+  const byId = useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows]);
+  const canvasPickable = (nodeId: string) => {
+    const row = byId.get(nodeId);
+    return !!row && pickable(row);
+  };
+  const pickFromPage = () => {
+    setOpen(false);
+    picking.current = pickOnCanvas({
+      pickable: canvasPickable,
+      onPick: (nodeId) => {
+        picking.current = null;
+        onPick(byId.get(nodeId)!);
+        btnRef.current?.focus();
+      },
+      onCancel: () => {
+        picking.current = null;
+        onDismiss?.();
+        btnRef.current?.focus();
+      },
+    });
+  };
 
   return (
     <>
       <button
         ref={btnRef}
         type="button"
-        className={`se-in se-pm-btn np-btn${label ? "" : " is-empty"}${open ? " is-open" : ""}${strong ? " se-in-strong" : ""}`}
-        onClick={() => (open ? setOpen(false) : show())}
+        className={`se-in se-pm-btn np-btn${label ? "" : " is-empty"}${open ? " is-open" : ""}${missing ? " is-missing" : ""}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => (open ? dismiss() : show())}
       >
+        {KindIcon && <KindIcon size={13} aria-hidden="true" />}
         <span>{label ?? placeholder}</span>
-        {sub && <small className="np-sub">{sub}</small>}
       </button>
       {open &&
         createPortal(
@@ -414,15 +488,23 @@ export function NodePicker({
             ref={menuRef}
             className="dd-menu se-pm np"
             style={pos}
+            role="dialog"
+            aria-label={placeholder}
             data-se-popover=""
             onPointerDown={(e) => e.stopPropagation()}
           >
+            {canPickOnCanvas(canvasPickable) && (
+              <button type="button" className="np-pick" onClick={pickFromPage} data-pick-on-page="">
+                <Crosshair size={15} aria-hidden="true" />
+                {tr("Click it on the page")}
+              </button>
+            )}
             <label className="np-search">
               <Search size={12} />
               <input
                 autoFocus
                 value={query}
-                placeholder={tr("Search by name or ID")}
+                placeholder={tr("Search elements by name")}
                 onChange={(e) => {
                   setQuery(e.target.value);
                   setSearchOpen(new Set());
@@ -448,7 +530,7 @@ export function NodePicker({
                   } else if (e.key === "Escape") {
                     e.preventDefault();
                     e.stopPropagation();
-                    setOpen(false);
+                    dismiss();
                     btnRef.current?.focus();
                   }
                 }}
@@ -479,7 +561,6 @@ export function NodePicker({
                     style={{ paddingLeft: 6 + r.depth * 14 }}
                     onMouseEnter={() => k >= 0 && setKey(k)}
                     onClick={() => k >= 0 ? choose(k) : r.hasChildren && toggleRow(r)}
-                    data-tip={ok ? (r.attrId ? undefined : hint) : undefined}
                   >
                     {r.hasChildren ? (
                       <button
@@ -497,15 +578,15 @@ export function NodePicker({
                     ) : (
                       <span className="np-chev" />
                     )}
+                    <NodeKindIcon kind={r.kind} />
                     <span className="np-name">{r.name}</span>
-                    {r.attrId && <span className="np-id">#{r.attrId}</span>}
-                    <span className="np-tag">{r.tag}</span>
+                    <span className="np-tag">{ELEMENT_KIND[r.kind].label}</span>
                   </div>
                 );
               })}
               {!shown.length && (
                 <div className="se-pm-none">
-                  {q ? tr("No elements match \"{p1}\"", { p1: query.trim() }) : (hint ?? tr("No elements to choose from"))}
+                  {q ? tr("No elements match \"{p1}\"", { p1: query.trim() }) : tr("No elements to choose from")}
                 </div>
               )}
             </div>
@@ -514,4 +595,9 @@ export function NodePicker({
         )}
     </>
   );
+}
+
+function NodeKindIcon({ kind }: { kind: ElementKind }) {
+  const KindIcon = ELEMENT_KIND[kind].icon;
+  return <span className="np-kind" aria-hidden="true"><KindIcon size={13} /></span>;
 }

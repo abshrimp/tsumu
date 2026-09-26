@@ -485,7 +485,6 @@ function scriptsInPage(doc: SiteDoc, pageId: string, runnableOnly = false): Scri
   };
   page?.children.forEach(walk);
   page?.pageScripts?.forEach(collect);
-  if (!runnableOnly) page?.scripts?.forEach(collect);
   return out;
 }
 
@@ -793,7 +792,6 @@ export function dataVarNames(doc: SiteDoc, pageId: string, exceptStepId?: string
 type InputStepOwner = {
   where: "page" | "node";
   id: string;
-  field: "pageScripts" | "scripts";
   index: number;
 };
 const inputStepOwners = new WeakMap<SiteDoc, Map<string, InputStepOwner[]>>();
@@ -817,11 +815,10 @@ function ownersOfInputSteps(doc: SiteDoc): Map<string, InputStepOwner[]> {
     });
   };
   for (const [id, page] of Object.entries(doc.pages)) {
-    add(page.pageScripts, { where: "page", id, field: "pageScripts" });
-    add(page.scripts, { where: "page", id, field: "scripts" });
+    add(page.pageScripts, { where: "page", id });
   }
   for (const [id, node] of Object.entries(doc.nodes)) {
-    add(node.scripts, { where: "node", id, field: "scripts" });
+    add(node.scripts, { where: "node", id });
   }
   inputStepOwners.set(doc, index);
   return index;
@@ -877,10 +874,10 @@ export function scriptInputDoc(doc: SiteDoc, stepId?: string): SiteDoc {
     if (owner.where === "page") {
       const page = (pages ?? doc.pages)[owner.id];
       if (!page) continue;
-      const updated = rewrite(page[owner.field], owner.index);
+      const updated = rewrite(page.pageScripts, owner.index);
       if (!updated) continue;
       pages ??= { ...doc.pages };
-      pages[owner.id] = { ...page, [owner.field]: updated };
+      pages[owner.id] = { ...page, pageScripts: updated };
     } else {
       const node = (nodes ?? doc.nodes)[owner.id];
       if (!node) continue;
@@ -1575,7 +1572,7 @@ export function renameVarInPage(doc: SiteDoc, pageId: string, from: string, to: 
   };
   const page = doc.pages[pageId];
   page?.children.forEach(walk);
-  for (const s of [...(page?.pageScripts ?? []), ...(page?.scripts ?? [])]) {
+  for (const s of page?.pageScripts ?? []) {
     if (s.changeVariable !== undefined)
       s.changeVariable = fn(s.changeVariable) ?? s.changeVariable;
     mapStepTokens(s.steps, fn);
@@ -1591,7 +1588,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
   const out: SiteDoc = structuredClone(doc);
   const stepLists: ScriptStep[][] = [];
   for (const p of Object.values(out.pages)) {
-    for (const s of [...(p.pageScripts ?? []), ...(p.scripts ?? [])]) stepLists.push(s.steps);
+    for (const s of p.pageScripts ?? []) stepLists.push(s.steps);
   }
   for (const n of Object.values(out.nodes)) {
     for (const s of n.scripts ?? []) stepLists.push(s.steps);
@@ -1659,7 +1656,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
     if (n.list?.from) n.list.from = fn(n.list.from) ?? n.list.from;
   }
   for (const p of Object.values(out.pages)) {
-    for (const s of [...(p.pageScripts ?? []), ...(p.scripts ?? [])]) {
+    for (const s of p.pageScripts ?? []) {
       if (s.changeVariable !== undefined)
         s.changeVariable = fn(s.changeVariable) ?? s.changeVariable;
       mapStepTokens(s.steps, fn);

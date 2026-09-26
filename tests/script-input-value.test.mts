@@ -8,7 +8,7 @@ import { publishedScriptInputValue, scriptInputValueDoc } from "./helpers/script
 /** setter の結果は外から渡す。DOM の正規化そのものは、ネイティブの e2e で検証する。 */
 function assignments(preview: boolean, initial: string, requested: string[], accepted: string[]) {
   const doc = scriptInputValueDoc({ kind: "input", inputType: "number", defaultValue: initial }, "", "");
-  const script = { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: requested.map((value, i) => ({ id: `set-${i}`, kind: "set-value", target: "entry", value })) };
+  const script = { id: "load", trigger: "load", steps: requested.map((value, i) => ({ id: `set-${i}`, kind: "set-value", target: "entry", value })) };
   doc.nodes.entry.scripts = [script as any];
   doc.pages.home.children = ["entry"];
   doc.pages.home.pageScripts = undefined;

@@ -31,7 +31,7 @@ function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loop
   let selected = "fetch";
   const opened: any[] = [];
   const context = {
-    doc: useEditor.getState().doc, pageId: "p", scriptRootIds: options.roots ?? [], readOnly: false, renameVar() {}, openPeek(...args: any[]) { opened.push(args); },
+    doc: useEditor.getState().doc, pageId: "p", scriptRootIds: options.roots ?? [], variableIndex: { names: [], byStep: new Map(), hasOther: () => false }, renameVar() {}, openPeek(...args: any[]) { opened.push(args); },
     updateStep(id: string, fn: (step: ScriptStep) => ScriptStep) {
       const scripts = numberFilters(mapStep(pageScriptsOf(useEditor.getState().doc, [], "p"), id, fn));
       useEditor.getState().updateDoc((doc) => applyPageScripts(doc, "p", [], scripts));
@@ -46,6 +46,7 @@ function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loop
       if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial;
       return [slots[index], (next: any) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
+    useId() { return "test-id"; },
     useRef(initial: any) { return current.slots[cursor++] ??= { current: initial }; },
     useEffect(effect: () => void | (() => void), deps: unknown[]) {
       const index = cursor++;
@@ -74,7 +75,7 @@ function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loop
   );
   const step = (id = "fetch") => {
     const doc = useEditor.getState().doc;
-    const scripts = nodeId ? doc.nodes[nodeId]?.scripts ?? [] : scriptOwner?.nodeId === null ? doc.pages.p.scripts ?? [] : doc.pages.p.pageScripts ?? [];
+    const scripts = nodeId ? doc.nodes[nodeId]?.scripts ?? [] : doc.pages.p.pageScripts ?? [];
     let found: FetchStep | undefined;
     for (const script of scripts) walkSteps(script.steps, (s) => { if (s.id === id && s.kind === "fetch") found = s; });
     return found;
@@ -88,29 +89,14 @@ function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loop
   };
   const render = () => renderInstance(root, () => mod.exports.FetchBody({ step: step(selected) }).props.children);
   const hook = () => renderInstance(runner, () => mod.exports.useRefetch(step(selected)));
-  const peek = { exports: {} as any };
-  const blocksCode = transformSync(readFileSync("components/script-editor/blocks.tsx", "utf8"), {
-    loader: "tsx", jsx: "automatic", format: "cjs",
-  }).code;
-  new Function("require", "module", "exports", blocksCode)(
-    (id: string) => id === "react" ? hooks : id === "./fetch" ? mod.exports : require(id), peek, peek.exports,
-  );
   return {
     requests, step, render, opened, browserDocument,
-    action: () => render()[1],
+    action: () => render()[2],
     currentSample: () => mod.exports.hasCurrentSample(step()),
     values: () => render().find((v: any) => v?.type?.name === "FetchValues")?.props.state,
     compose(active: boolean) {
       const view = renderInstance(root, () => mod.exports.FetchBody({ step: step(selected) }));
       view.props[active ? "onCompositionStartCapture" : "onCompositionEndCapture"]();
-    },
-    dragRemount() {
-      unmount(root);
-      const source = step(); const savedScope = { nodeId, loops, scriptOwner };
-      context.readOnly = true; nodeId = ""; loops = []; scriptOwner = undefined;
-      const ghost = instance(); renderInstance(ghost, () => mod.exports.FetchBody({ step: source })); unmount(ghost);
-      context.readOnly = false; ({ nodeId, loops, scriptOwner } = savedScope);
-      root = instance(); render();
     },
     result(scope?: any) {
       const owner = instance();
@@ -127,10 +113,7 @@ function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loop
         const { busy, error } = draw(); return { busy, error };
       } };
     },
-    openPeek() {
-      const owner = instance();
-      return renderInstance(owner, () => peek.exports.PeekModal({ step: step(), scope: { nodeId: "", localNames: [] }, onClose() {} }));
-    },
+    openPeek() { return this.result({ nodeId: "", localNames: [] })(); },
     cached: () => mod.exports.wholeCache.get(mod.exports.wholeKey(step())),
     select(id: string) { selected = id; },
     commitUrl(url: string) { render()[0].props.parts.url.props.onCommit(url); },
@@ -513,19 +496,6 @@ test("result refresh also refuses a partially composed test value", () => {
 });
 
 
-test("visual drag unmounts never abandon a transmitted POST or silently turn viewing into resending", async () => {
-  for (const error of [undefined, "POSTの取得に失敗しました"]) {
-    const mounted = mount(); mounted.setOptions({ method: "POST" });
-    mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
-    mounted.dragRemount(); assert.equal(mounted.action().props.children[1], "Sending…");
-    await mounted.finish(0, latest, error);
-    assert.deepEqual(mounted.step()!.preview?.sample, error ? [{ name: "Initial" }] : latest);
-    assert.equal(mounted.action().props.children[1], "View data");
-    mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
-    if (error) assert.equal(mounted.result()().props.children.find((v: any) => v?.props?.role === "alert").props.children, error);
-  }
-});
-
 test("identical page and step IDs in a replacement document cannot inherit pending writes, errors, or attempts", async () => {
   for (const error of [undefined, "old document failed"]) {
     const mounted = mount(); mounted.setOptions({ method: "POST" }); mounted.action().props.onClick();
@@ -629,30 +599,6 @@ test("deleting and undo-restoring a pending block rejects its late result but re
   assert.match(mounted.status().error!, /request was sent/);
 });
 
-test("modal runtime edits and result provenance persist across closing, reopening and block remount", async () => {
-  const mounted = mount(); mounted.commitUrl("https://example.test/{missing}");
-  mounted.values().setValue("missing", "A"); mounted.action().props.onClick(); await mounted.finish(0, { result: "A" });
-  const first = mounted.result();
-  const state = (view: any) => view.props.children.find((v: any) => v?.type?.name === "FetchValues").props.state;
-  state(first()).setValue("missing", "B");
-  assert.equal(first().props.children[1].props.children[1].props.children, "https://example.test/B");
-  const oldResult = first().props.children.at(-1).props.children[0];
-  first().props.children[0].props.children[1].props.onClick();
-  assert.equal(mounted.requests[1].input.url, "https://example.test/B"); await mounted.finish(1, { result: "B" });
-  mounted.action().props.onClick();
-  const reopened = mounted.result();
-  assert.equal(state(reopened()).values.missing, "B");
-  assert.ok(/"https:\/\/example\.test\/A"/.test(JSON.stringify(oldResult)), "old result provenance does not follow the unsent draft");
-  assert.equal(reopened().props.children[1].props.children[1].props.children, "https://example.test/B");
-  assert.equal(reopened().props.children.at(-1).props.children[0], false, "the same destination is not repeated");
-  assert.deepEqual(mounted.step()!.preview?.sample, { result: "B" });
-  mounted.dragRemount(); mounted.action().props.onClick();
-  const afterDrag = mounted.result(); assert.equal(state(afterDrag()).values.missing, "B");
-  afterDrag().props.children[0].props.children[1].props.onClick();
-  assert.equal(mounted.requests[2].input.url, "https://example.test/B"); await mounted.finish(2, { result: "B" });
-  assert.equal(JSON.stringify(mounted.step()).includes('"missing":"B"'), false);
-});
-
 test("temporary values clear for request, scope and document changes", () => {
   const mounted = mount(); mounted.commitUrl("https://example.test/{missing}");
   mounted.values().setValue("missing", "A");
@@ -669,7 +615,7 @@ test("temporary values clear for request, scope and document changes", () => {
 function nodeFetchDoc(): SiteDoc {
   const doc = fetchRefetchDoc();
   const fetch = doc.pages.p.pageScripts![0].steps.shift()!;
-  doc.nodes.act = { ...makeText("Act"), id: "act", scripts: [{ id: "node-script", trigger: "click", pos: { x: 32, y: 32 }, steps: [fetch] }] };
+  doc.nodes.act = { ...makeText("Act"), id: "act", scripts: [{ id: "node-script", trigger: "click", steps: [fetch] }] };
   doc.pages.p.children = ["act"];
   return doc;
 }
@@ -745,16 +691,6 @@ for (const target of ["url", "body"] as const) {
   }
 }
 
-test("a read-only standalone drag ghost cannot erase the real loop's temporary runtime inputs", () => {
-  const doc = fetchRefetchDoc(); (doc.pages.p.pageScripts![0].steps[0] as FetchStep).url = "https://example.test/{local}";
-  delete (doc.pages.p.pageScripts![0].steps[0] as FetchStep).preview?.fetchedAt;
-  const mounted = mount({ doc, loops: [{ array: "rows", fields: ["local"], samples: {} }] });
-  mounted.values().setValue("local", "LOCAL"); mounted.dragRemount();
-  assert.equal(mounted.values().values.local, "LOCAL");
-  assert.equal(mounted.action().props.disabled, false);
-});
-
-
 test("same-page nodes with copied identical script and step IDs remain separate request owners", async () => {
   const mounted = mount({ doc: nodeFetchDoc(), nodeId: "act", owner: { nodeId: "act", scriptId: "node-script" } });
   useEditor.getState().duplicatePage("p");
@@ -766,20 +702,6 @@ test("same-page nodes with copied identical script and step IDs remain separate 
   void mounted.run(); await mounted.finish(0, latest);
   assert.deepEqual(mounted.step()!.preview?.sample, latest); assert.deepEqual(useEditor.getState().doc.nodes[copiedNode], copy);
 });
-
-test("page-load and unconnected page scripts with identical step IDs are distinct owners", async () => {
-  for (const nodeId of [PAGE_TARGET, null]) {
-    const doc = fetchRefetchDoc();
-    const loose = structuredClone(doc.pages.p.pageScripts![0]); loose.id = "loose";
-    (loose.steps[0] as FetchStep).preview!.sample = [{ name: "Loose" }]; doc.pages.p.scripts = [loose];
-    const mounted = mount({ doc, owner: { nodeId, scriptId: nodeId === null ? "loose" : "script" } });
-    void mounted.run(); await mounted.finish(0, latest);
-    const actual = useEditor.getState().doc.pages.p;
-    assert.deepEqual((actual.pageScripts![0].steps[0] as FetchStep).preview?.sample, nodeId === null ? [{ name: "Initial" }] : latest);
-    assert.deepEqual((actual.scripts![0].steps[0] as FetchStep).preview?.sample, nodeId === null ? latest : [{ name: "Loose" }]);
-  }
-});
-
 
 test("view pointer activation commits a draft on click without becoming a send or losing the viewer", async () => {
   for (const field of ["url", "body"] as const) {

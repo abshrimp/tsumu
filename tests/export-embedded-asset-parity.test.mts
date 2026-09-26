@@ -98,8 +98,7 @@ test("React browser-data rendering keeps embedded assets portable", async () => 
   const doc = fixture();
   doc.nodes.live = { ...makeBox(), id: "live", text: { content: "Hello {visitor}", heading: 0 } };
   doc.pages.p.children.push("live");
-  doc.pages.p.pageScripts = [{ id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "visitor", kind: "set-var", into: "visitor", value: "Guest" }] }];
+  doc.pages.p.pageScripts = [{ id: "load", trigger: "load",    steps: [{ id: "visitor", kind: "set-var", into: "visitor", value: "Guest" }] }];
   const project = await prepareExportProject(doc, "react");
   assert.ok(project.files["public/data-loader.js"]);
   assertMarkup(await pageMarkup(project.files, "react", "typescript"), "/");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference } from "../lib/variable-choice";
-import { flattenFields, setVarSource } from "../lib/data";
+import { flattenFields, pageVariableIndex, setVarSource } from "../lib/data";
 
 for (const v of [undefined, null, false, true, 0, "001", [], ["red"], {}, { title: "Nested" }]) {
   test(`raw value picker retains ${JSON.stringify(v)}`, () => assert.equal(canPickVariable(v, "value"), true));
@@ -68,7 +68,7 @@ test("real raw chip uses node samples and treats loop roots as runtime values", 
   assert.equal(variableChoiceSamples(varGroupsAt(doc, "p", "button")).price, false);
   const { ValueIn } = loadNestedUi("components/script-editor/inputs.tsx");
   const render = (value: string, loops: any[] = []) => renderToStaticMarkup(React.createElement(Ctx.Provider, { value: {
-    doc, pageId: "p", samples: previewDataVars(doc, "p"),
+    doc, pageId: "p", samples: previewDataVars(doc, "p"), variableIndex: pageVariableIndex(doc, "p"),
   } as any }, React.createElement(ScriptNodeCtx.Provider, { value: "button" }, React.createElement(LoopCtx.Provider, { value: loops }, React.createElement(ValueIn, { value, onCommit() {} })))));
   const nodeChip = render("{price}");
   assert.match(nodeChip, /Value/);

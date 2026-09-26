@@ -116,8 +116,7 @@ test("single HTML preserves srcset data URLs and filenames containing commas", a
 test("generated SSR request policy blocks reserved hosts, sensitive headers and Host-origin bypass", async () => {
   const site = doc();
   site.pages.home.pageScripts = [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "fetch", kind: "fetch", as: "data",
+    id: "load", trigger: "load",    steps: [{ id: "fetch", kind: "fetch", as: "data",
       url: "http://100.100.100.200/latest" }],
   }];
   const project = generateExportProject(site, "sveltekit");
@@ -205,8 +204,7 @@ test("export validation checks targets in every joined if condition", () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
   const node = doc.nodes[page.children[0]];
-  node.scripts = [{ id: "check-all", trigger: "click", pos: { x: 0, y: 0 },
-    steps: [{ id: "cond", kind: "if",
+  node.scripts = [{ id: "check-all", trigger: "click",    steps: [{ id: "cond", kind: "if",
       cond: { subject: "var", target: "", left: "1", op: "eq", value: "1" },
       conditions: [{ subject: "visible", target: "missing-joined-target", and: true }],
       then: [],

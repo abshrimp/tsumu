@@ -8,7 +8,7 @@ export function fetchRefetchDoc(): SiteDoc {
     schemaVersion: 1, siteName: "Fetch requests", assets: {}, nodes: {}, pageOrder: ["p"],
     pages: { p: {
       id: "p", name: "Home", slug: "", title: "Home", description: "", children: [],
-      pageScripts: [{ id: "script", trigger: "load", pos: { x: 32, y: 32 }, steps: [
+      pageScripts: [{ id: "script", trigger: "load", steps: [
         { id: "fetch", kind: "fetch", as: "products", url: "https://example.test/initial", preview: { sample: [{ name: "Initial" }], fetchedAt: 1 } },
         { id: "other", kind: "fetch", as: "other", url: "https://example.test/other", preview: { sample: [{ name: "Other" }], fetchedAt: 1 } },
       ] }],
@@ -37,7 +37,7 @@ export function fetchScopeDoc(mode: "node" | "loop"): SiteDoc {
     doc.pages.p.children = ["list"];
     doc.nodes.list = { ...makeBox(), id: "list", type: "list", list: { from: "rows" }, children: ["act"] };
     doc.nodes.act = { ...makeText("Act"), id: "act", semantic: "button", scripts: [{
-      id: "act-script", trigger: "click", pos: { x: 32, y: 32 }, steps: [scoped],
+      id: "act-script", trigger: "click", steps: [scoped],
     }] };
   }
   return doc;

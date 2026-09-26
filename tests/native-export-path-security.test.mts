@@ -13,8 +13,7 @@ function fixture(slug: string): SiteDoc {
         id: "home", name: "Home", title: "Home", slug,
         description: "", children: ["content"],
         pageScripts: [{
-          id: "load", trigger: "load", pos: { x: 0, y: 0 },
-          steps: [{ id: "get", kind: "fetch", url: "https://api.example.test/data", as: "records" }],
+          id: "load", trigger: "load",          steps: [{ id: "get", kind: "fetch", url: "https://api.example.test/data", as: "records" }],
         }],
       },
     },

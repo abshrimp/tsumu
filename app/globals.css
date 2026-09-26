@@ -1426,14 +1426,6 @@ textarea {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
-.se-modal .data-table-wrap {
-  max-height: 360px;
-}
-
-.se-modal .data-detail {
-  max-height: none;
-}
-
 .data-thumb {
   display: block;
   width: 28px;
@@ -3906,882 +3898,6 @@ textarea {
   word-break: break-all;
 }
 
-/* 画面の枠 */
-
-.se-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-}
-
-.se {
-  position: relative;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  width: min(1180px, calc(100vw - 48px));
-  height: min(760px, calc(100dvh - 48px));
-  overflow: hidden;
-  background: var(--panel);
-  box-shadow: var(--shadow-pop);
-}
-
-.se.is-dragging {
-  cursor: grabbing;
-  user-select: none;
-}
-
-.se-header {
-  display: flex;
-  align-items: center;
-  padding: 12px 14px 12px 18px;
-  border-bottom: 1px solid var(--border);
-}
-
-.se-header h2 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.se-header p {
-  margin: 2px 0 0;
-  color: var(--text-2);
-}
-
-.se-tools {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.se-sel-count {
-  margin-right: 8px;
-  color: var(--text-2);
-}
-
-.se-tools-sep {
-  width: 1px;
-  height: 16px;
-  margin: 0 6px;
-  background: var(--border);
-}
-
-.se-close {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  color: var(--text-2);
-}
-
-.se-close:hover:not(:disabled) {
-  background: var(--field);
-  color: var(--text);
-}
-
-.se-close:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.se-main {
-  display: grid;
-  min-height: 0;
-}
-
-.se-footer {
-  border-top: 1px solid var(--border);
-  color: var(--text-3);
-  line-height: 1.5;
-}
-
-/* パレット */
-
-/* スクロールしても削除エリアがパレット全体を覆うよう、外側に重ねる */
-.se-pal-wrap {
-  position: relative;
-  display: grid;
-  min-height: 0;
-  border-right: 1px solid var(--border);
-  background: var(--panel);
-}
-
-.se-palette {
-  min-height: 0;
-  overflow-y: auto;
-  padding: 10px 12px 16px;
-}
-
-.se-pal-search {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  height: 36px;
-  margin-bottom: 12px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-s);
-  background: var(--panel);
-  color: var(--text-2);
-}
-
-.se-pal-search:focus-within {
-  border-color: var(--accent);
-}
-
-.se-pal-search-input {
-  flex: 1;
-  min-width: 0;
-  width: 100%;
-  height: 100%;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  appearance: none;
-  -webkit-appearance: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-}
-
-/* Keep the custom clear button as the only X, including in WebKit. */
-.se-pal-search-input::-webkit-search-cancel-button,
-.se-pal-search-input::-webkit-search-decoration {
-  display: none;
-  -webkit-appearance: none;
-}
-
-/* Override the later global :focus-visible outline; the wrapper owns the focus border. */
-.se-pal-search-input:focus-visible {
-  outline: none;
-}
-
-.se-pal-search-clear {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-s);
-  color: var(--text-2);
-}
-
-.se-pal-search-clear:hover {
-  background: var(--field);
-}
-
-.se-pal-empty {
-  margin: 10px 0 0;
-  color: var(--text-2);
-  font-size: 12px;
-}
-
-.se-pal-group + .se-pal-group {
-  margin-top: 12px;
-}
-
-.se-pal-title {
-  margin: 0 0 6px 2px;
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.se-pal-item {
-  width: 100%;
-  margin-bottom: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  cursor: grab;
-}
-
-.se-pal-item:hover {
-  border-color: var(--border-strong);
-  background: var(--bg);
-}
-
-.se-pal-text {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-}
-
-.se-trash {
-  position: absolute;
-  inset: 0;
-  display: none;
-  place-items: center;
-  /* 下のブロック一覧が透けて文字が重ならないよう不透明にする */
-  background: linear-gradient(rgba(220, 38, 38, 0.05), rgba(220, 38, 38, 0.05)),
-    var(--panel);
-  border: 1.5px dashed rgba(220, 38, 38, 0.35);
-  color: var(--danger);
-  font-weight: 600;
-  pointer-events: none;
-}
-
-.se-pal-wrap.is-trash-ready .se-trash {
-  display: grid;
-}
-
-.se-pal-wrap.is-trash .se-trash {
-  background: linear-gradient(rgba(220, 38, 38, 0.1), rgba(220, 38, 38, 0.1)),
-    var(--panel);
-  border-color: var(--danger);
-}
-
-/* ワークスペース */
-
-.se-ws {
-  position: relative;
-  overflow: auto;
-  background-color: var(--bg-canvas);
-  background-image: radial-gradient(rgba(0, 0, 0, 0.09) 1px, transparent 1px);
-  /* Keep the dots anchored to the script content as the workspace scrolls. */
-  background-attachment: local;
-  background-size: 16px 16px;
-}
-
-.se-ws-inner {
-  position: relative;
-}
-
-.se-empty {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  max-width: 420px;
-  text-align: center;
-  color: var(--text-2);
-  line-height: 1.8;
-  pointer-events: none;
-}
-
-.se-empty p {
-  margin: 0;
-}
-
-.se-marquee {
-  position: fixed;
-  z-index: 2;
-  border: 1px solid var(--accent);
-  background: rgba(13, 153, 255, 0.08);
-  pointer-events: none;
-}
-
-/* スクリプト（カード） */
-
-.se-stack {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  min-width: 260px;
-  border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  /* Hover backgrounds must respect the rounded outer border, including the bottom row. */
-  overflow: clip;
-  background: var(--panel);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.se-stack.is-idle {
-  border-style: dashed;
-  box-shadow: none;
-}
-
-.se-stack.is-idle > .se-list {
-  opacity: 0.6;
-}
-
-.se-stack.is-selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent), 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-/* 要素設定から開いたときの、その要素のスクリプト */
-.se-stack.is-focus:not(.is-selected) {
-  box-shadow: 0 0 0 3px var(--accent-soft), 0 2px 8px rgba(0, 0, 0, 0.06);
-  border-color: var(--accent-border);
-}
-
-.se-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.se-item {
-  display: flex;
-  flex-direction: column;
-}
-
-/* Rows outside the viewport are represented by measured-height placeholders.
-   Keep the mounted rows in the same column layout as an ordinary step list. */
-.se-virtual-chunk {
-  display: flex;
-  flex-direction: column;
-}
-
-/* 1行のブロック */
-
-.se-blk {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 5px 10px 5px 8px;
-  color: var(--text);
-  font-weight: 500;
-  white-space: nowrap;
-  cursor: grab;
-  user-select: none;
-}
-
-.se-stack .se-item + .se-item > .se-blk,
-.se-stack .se-item + .se-item > .se-c > .se-c-head,
-.se-hat + .se-list > .se-item:first-of-type > .se-blk,
-.se-hat + .se-list > .se-item:first-of-type > .se-c > .se-c-head,
-.se-stack .se-virtual-chunk + .se-virtual-chunk > .se-item:first-child > .se-blk,
-.se-stack .se-virtual-chunk + .se-virtual-chunk > .se-item:first-child > .se-c > .se-c-head,
-.se-hat + .se-list > .se-slot + .se-virtual-chunk > .se-item:first-child > .se-blk,
-.se-hat + .se-list > .se-slot + .se-virtual-chunk > .se-item:first-child > .se-c > .se-c-head {
-  border-top: 1px solid var(--border);
-}
-
-.se-stack .se-blk:hover {
-  background: var(--bg);
-}
-
-.se-blk.is-selected,
-.se-stack .se-blk.is-selected:hover,
-.se-c.is-selected > .se-c-head,
-.se-c.is-selected > .se-c-mid {
-  background: var(--accent-soft);
-}
-
-.se-hat {
-  min-height: 40px;
-  border-radius: 9px 9px 0 0;
-  background: #fbfbfc;
-  font-weight: 600;
-}
-
-.se-hat-slot {
-  padding: 8px 12px;
-  border-bottom: 1px dashed var(--border-strong);
-  border-radius: 9px 9px 0 0;
-  color: var(--text-3);
-  font-size: 11px;
-}
-
-.se-hat-slot.is-active {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.se-ico {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--blk) 12%, transparent);
-  color: var(--blk);
-}
-
-.se-badge {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.se-badge.is-warn {
-  background: #fffbeb;
-  color: var(--warn);
-}
-
-/* ブロック内の入力部品 */
-
-.se-in {
-  box-sizing: border-box;
-  height: 24px;
-  max-width: 220px;
-  padding: 0 7px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-s);
-  background-color: var(--field);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: normal;
-  outline: none;
-  cursor: pointer;
-}
-
-/* Native selects and popover buttons must look like the same dropdown. */
-select.se-in,
-button.se-pm-btn {
-  appearance: none;
-  -webkit-appearance: none;
-  min-width: 0;
-  /* 10px arrow + 8px edge + 12px separation from the longest label. */
-  padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' fill='none' stroke='%236f6f78' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 10px 10px;
-  text-align: left;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.se-in:hover {
-  background-color: var(--field-hover);
-}
-
-input.se-in {
-  cursor: text;
-}
-
-.se-in:focus {
-  border-color: var(--accent);
-  background-color: var(--panel);
-}
-
-.se-in.is-empty {
-  color: var(--text-3);
-}
-
-.se-in-strong {
-  font-weight: 600;
-}
-
-.se-in-fake {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  color: var(--text-2);
-  cursor: inherit;
-}
-
-/* List picker allows literal names/paths even without any sample arrays. */
-.se-list-custom {
-  flex: none;
-  width: 100%;
-  min-height: 30px;
-  padding: 5px 8px;
-  border-top: 1px solid var(--border);
-  color: var(--accent);
-  overflow-wrap: anywhere;
-}
-.se-list-custom:hover { background: var(--field-hover); }
-
-/* Direct path entry is anchored above the tree of available sample fields. */
-.se-path-direct {
-  display: flex;
-  align-items: center;
-  flex: none;
-  gap: 5px;
-  min-width: 0;
-  padding: 4px 4px 8px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border);
-}
-.se-path-direct input {
-  box-sizing: border-box;
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-s);
-  background: var(--field);
-  color: var(--text);
-  font: inherit;
-  outline: none;
-}
-.se-path-direct input:focus { border-color: var(--accent); }
-.se-path-direct button {
-  flex: none;
-  padding: 5px 8px;
-  border-radius: var(--radius-s);
-  background: var(--field);
-  color: var(--text);
-  white-space: nowrap;
-}
-.se-path-direct button:disabled { opacity: 0.4; cursor: default; }
-.se-path-direct button:not(:disabled):hover { background: var(--field-hover); }
-
-/* 位置を選ぶメニュー（取得したデータの［…］・配列の［…］） */
-
-.se-pm-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.se-pm-btn > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.se-pm-btn.is-open {
-  border-color: var(--accent);
-  background-color: var(--panel);
-}
-
-.se-pm {
-  font-size: 12px;
-}
-
-.se-pm-head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 4px 6px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-2);
-}
-
-.se-pm-back {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-s);
-  color: var(--text-2);
-}
-
-.se-pm-back:hover {
-  background: var(--field-hover);
-}
-
-.se-pm-crumb {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 600;
-}
-
-.se-pm-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.se-pm-row > .dd-item,
-.se-pm > .dd-item {
-  flex: 1;
-  min-width: 0;
-  gap: 8px;
-  padding-left: 8px;
-}
-
-.se-pm .dd-item.is-sel {
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.se-pm .dd-item:disabled {
-  color: var(--text-3);
-  background: none;
-  cursor: default;
-}
-
-.se-pm-key {
-  flex: none;
-  max-width: 55%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.se-pm-val {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-3);
-  font-size: 11px;
-  text-align: right;
-}
-
-.se-pm .dd-item:not(:disabled):hover .se-pm-val {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.se-pm-enter {
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 28px;
-  border-radius: var(--radius-s);
-  color: var(--text-3);
-}
-
-.se-pm-enter:hover {
-  background: var(--field-hover);
-  color: var(--text);
-}
-
-.se-pm-none {
-  padding: 6px 8px;
-  color: var(--text-3);
-  font-size: 11px;
-}
-
-.se-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--text-2);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-/* もし〜なら */
-
-.se-c {
-  display: flex;
-  flex-direction: column;
-}
-
-.se-c-mid {
-  min-height: 30px;
-  padding-left: 38px;
-  border-top: 1px solid var(--border);
-  color: var(--text-2);
-}
-
-.se-if-conditions {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.se-if-condition-line {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.se-if-conditions > .se-composer-condition-actions { margin-top: 1px; }
-
-.se-c-body {
-  display: flex;
-  flex-direction: column;
-  margin: 0 10px 8px 18px;
-  padding-left: 10px;
-  border-left: 2px solid color-mix(in srgb, #52525b 22%, transparent);
-}
-
-.se-c-body .se-blk {
-  padding-left: 4px;
-  border-radius: var(--radius-s);
-}
-
-/* 差し込み位置 */
-
-.se-slot {
-  position: relative;
-  height: 0;
-}
-
-.se-slot.is-empty {
-  display: flex;
-  align-items: center;
-  height: 28px;
-  margin: 4px 0;
-  padding: 0 10px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-s);
-  color: var(--text-3);
-  font-size: 11px;
-}
-
-.se-slot.is-active::after {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  left: 6px;
-  right: 6px;
-  top: -1px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--accent);
-}
-
-.se-slot.is-empty.is-active {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.se-slot.is-empty.is-active::after {
-  display: none;
-}
-
-/* ドラッグ中の見た目 */
-
-.se-ghost {
-  position: fixed;
-  /* Above every script stack, palette and header while dragging. */
-  z-index: 1000;
-  pointer-events: none;
-  will-change: transform;
-}
-
-.se-ghost .se-stack {
-  position: static;
-  /* Frozen widths are outer widths, including the 1px borders. */
-  box-sizing: border-box;
-}
-
-.se-ghost-item {
-  position: absolute;
-}
-
-.se-ghost-item .se-stack {
-  position: static;
-}
-
-/* 右クリックメニュー */
-
-/* データのブロック */
-
-.se-mini {
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-s);
-  color: var(--text-2);
-}
-
-.se-mini:hover {
-  background: var(--field);
-  color: var(--text);
-}
-
-.se-blk-note {
-  flex-basis: 100%;
-  padding-left: 28px;
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.5;
-  white-space: normal;
-}
-
-/* ブロック内の改行（「または」の条件などを次の段に下げる） */
-.se-br {
-  flex-basis: 100%;
-  height: 0;
-  margin-top: -6px; /* 改行用の空行に付く gap を打ち消す */
-}
-
-.se-indent {
-  margin-left: 28px;
-}
-
-.se-mini.se-mini-text {
-  display: inline-flex;
-  gap: 4px;
-  width: auto;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.se-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: grid;
-  place-items: center;
-  background: rgba(24, 24, 27, 0.25);
-}
-
-.se-modal {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: min(760px, calc(100% - 32px));
-  max-height: calc(100% - 48px);
-  overflow-y: auto;
-  padding: 16px;
-  background: var(--panel);
-  box-shadow: var(--shadow-pop);
-}
-
-.se-modal-head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.se-modal-head h3 {
-  flex: 1;
-  margin: 0;
-  font-size: 14px;
-}
-
-.se-modal .hint.is-error {
-  color: var(--danger, #dc2626);
-}
-
-.se-menu {
-  position: fixed;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  min-width: 170px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  box-shadow: var(--shadow-pop);
-}
-
-.se-menu button {
-  padding: 7px 10px;
-  border-radius: var(--radius-s);
-  text-align: left;
-}
-
-.se-menu button:hover {
-  background: var(--field);
-}
-
-.se-menu button.is-danger {
-  color: var(--danger);
-}
-
 /* 表示エラーの代わりの案内（エラーの中身は出さない） */
 
 .safe-fallback {
@@ -5729,129 +4845,10 @@ body {
 .canvas-area,
 .modal,
 .dd-menu,
-.se-palette,
-.se-ws,
-.se-modal,
 .asset-grid,
 .data-table-wrap,
 .data-detail {
   overscroll-behavior: contain;
-}
-
-/* ---------- スクリプト画面 ---------- */
-
-.se-backdrop {
-  background: rgba(32, 33, 36, 0.4);
-  animation: fade-in 180ms var(--ease);
-}
-
-.se {
-  border-radius: 24px;
-  animation: modal-in 240ms var(--ease);
-}
-
-.se-header {
-  justify-content: flex-start;
-  gap: 8px;
-  padding-left: 10px;
-}
-
-.se-title {
-  flex: 1;
-  min-width: 0;
-}
-
-.se-close {
-  border-radius: 999px;
-}
-
-.se-main {
-  position: relative;
-  grid-template-columns: var(--se-pal-w, 248px) 1fr;
-}
-
-.se-main.is-pal-anim {
-  transition: grid-template-columns 240ms var(--ease);
-}
-
-.se-pal-wrap {
-  overflow: hidden;
-}
-
-.se-pal-wrap > * {
-  min-width: var(--se-pal-full, 248px);
-}
-
-.se-main.is-pal-closed .se-pal-wrap {
-  visibility: hidden;
-  border-right: none;
-}
-
-.se-pal-resizer {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: calc(var(--se-pal-w) - 4px);
-  width: 8px;
-  z-index: 6;
-  cursor: col-resize;
-  touch-action: none;
-}
-
-.se-pal-resizer::after {
-  content: "";
-  position: absolute;
-  inset: 0 3px;
-  border-radius: 2px;
-  transition: background 160ms var(--ease);
-}
-
-.se-pal-resizer:hover::after,
-.se-pal-resizer:active::after {
-  background: var(--accent);
-}
-
-.se-pal-resizer.is-collapse::after {
-  background: var(--text-3);
-}
-
-.se-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 16px;
-  padding: 8px 14px 8px 18px;
-}
-
-.se-footer > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-}
-
-.se-footer kbd {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  min-width: 18px;
-  height: 18px;
-  justify-content: center;
-  padding: 0 5px;
-  border-radius: 5px;
-  background: var(--field);
-  color: var(--text-2);
-  font-family: inherit;
-  font-size: 10.5px;
-}
-
-.se-modal-backdrop {
-  animation: fade-in 160ms var(--ease);
-}
-
-.se-modal {
-  border-radius: 16px;
-  animation: modal-in 200ms var(--ease);
 }
 
 /* ---------- 閉じるときのアニメーション（LeaveAnimator の複製） ---------- */
@@ -5861,8 +4858,7 @@ body {
   animation: fade-out 150ms var(--ease) forwards !important;
 }
 
-.is-leaving > .modal,
-.is-leaving > .se {
+.is-leaving > .modal {
   animation: modal-out 150ms var(--ease) forwards !important;
 }
 
@@ -6107,122 +5103,6 @@ body {
   color: #b45309;
   background: rgba(245, 158, 11, 0.1);
   box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.4);
-}
-
-/* ---------- 設定パネルのスクリプト一覧 ---------- */
-
-.ss {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ss-card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-  padding: 8px 8px 6px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  text-align: left;
-  color: inherit;
-  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease),
-    background 160ms var(--ease);
-}
-
-.ss-card:not(:disabled) {
-  cursor: pointer;
-}
-
-.ss-card:not(:disabled):hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-.ss-item.is-idle .ss-card {
-  border-style: dashed;
-  opacity: 0.7;
-}
-
-.ss-when {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-weight: 500;
-  color: var(--text);
-}
-
-.ss-el {
-  flex: none;
-  max-width: 45%;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--field);
-  color: var(--text-2);
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ss-trig {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 動作はきっかけの下に、縦の線でつないで並べる */
-.ss-steps {
-  list-style: none;
-  margin: 2px 0 0 10px;
-  padding: 0 0 0 12px;
-  border-left: 1.5px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.ss-steps li {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  min-width: 0;
-  color: var(--text-2);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
-.ss-steps .se-ico {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-}
-
-.ss-steps .se-ico svg {
-  width: 11px;
-  height: 11px;
-}
-
-.ss-text {
-  min-width: 0;
-  padding-top: 1px;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.ss-more {
-  color: var(--text-3) !important;
-  font-size: 11px !important;
 }
 
 .var-comp-none {
@@ -6642,208 +5522,6 @@ button.vx-chev:hover {
 
 .vx-body.is-search .vx-row:hover:not(.is-key) .vx-tok {
   opacity: 0;
-}
-
-/* ---------- 複数行のブロック（条件を足した絞り込みなど） ---------- */
-
-.se-line {
-  display: contents;
-}
-
-.se-blk.has-lines {
-  display: grid;
-  grid-template-columns: auto auto;
-  justify-content: start;
-  align-items: center;
-  column-gap: 6px;
-  row-gap: 6px;
-}
-
-.se-blk.has-lines > .se-ico {
-  grid-row: 1;
-}
-
-.se-blk.has-lines > :not(.se-ico) {
-  grid-column: 2;
-}
-
-.se-blk.has-lines .se-line {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.se-blk.has-lines .se-indent {
-  margin-left: 0;
-  min-width: 38px;
-  color: var(--text-2);
-}
-
-.se-blk.has-lines > .se-composer-condition-actions {
-  grid-column: 2;
-  justify-self: start;
-  padding-left: 0;
-}
-
-/* スクリプト画面の表示倍率 */
-.se-zoom {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-}
-
-.se-zoom-val {
-  min-width: 48px;
-  height: 28px;
-  padding: 0 4px;
-  border-radius: 999px;
-  color: var(--text-2);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-  transition: background 160ms var(--ease);
-}
-
-.se-zoom-val:hover {
-  background: var(--state-hover);
-  color: var(--text);
-}
-
-/* ---------- 要素の選択（階層） ---------- */
-
-.np-btn {
-  max-width: 220px;
-}
-
-.np-sub {
-  flex: none;
-  color: var(--text-3);
-  font-size: 10.5px;
-  font-weight: 400;
-}
-
-.np {
-  display: flex;
-  flex-direction: column;
-  max-height: 360px;
-  padding: 6px;
-}
-
-.np-search {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-  height: 30px;
-  margin-bottom: 4px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: var(--field);
-  color: var(--text-3);
-}
-
-.np-search:focus-within {
-  background: var(--panel);
-  box-shadow: 0 0 0 2px var(--accent);
-  color: var(--accent);
-}
-
-.np-search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-}
-
-.np-list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-/* Give the first special target ("このページ" / trigger element) room below search. */
-.np-list > .np-special:first-child {
-  margin-top: 5px;
-}
-
-.np-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 28px;
-  padding-right: 8px;
-  border-radius: 8px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-button.np-row {
-  width: 100%;
-  padding-left: 10px;
-}
-
-.np-row.is-key {
-  background: var(--state-hover);
-}
-
-.np-row.is-sel {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-
-.np-row.is-struct {
-  color: var(--text-3);
-  cursor: default;
-}
-
-.np-chev {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  color: var(--text-3);
-}
-
-button.np-chev:hover {
-  background: var(--state-press);
-}
-
-.np-chev svg {
-  transition: rotate 160ms var(--ease);
-}
-
-.np-chev.is-open svg {
-  rotate: 90deg;
-}
-
-.np-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.np-id {
-  flex: none;
-  color: var(--accent);
-  font-size: 10.5px;
-}
-
-.np-row.is-struct .np-id {
-  color: var(--text-3);
-}
-
-.np-tag {
-  flex: none;
-  margin-left: auto;
-  padding-left: 8px;
-  color: var(--text-3);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 10px;
 }
 
 /* ---------- {変数} は普通の文字と同じに見せる ---------- */
@@ -7384,16 +6062,6 @@ body.is-scrubbing * {
 .size-fill.is-on.is-set {
   background: var(--field-set);
   color: var(--set-color);
-}
-
-.se-filter-no {
-  flex: none;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, #db2777 12%, transparent);
-  color: #be185d;
-  font-size: 11px;
-  font-weight: 600;
 }
 
 /* ---------- PWA設定のプレビュー ---------- */
@@ -11926,89 +10594,6 @@ a.btn {
   color: var(--danger);
 }
 
-/* ---------- データの取得ブロック: リクエストの設定 ---------- */
-
-.se-fetch-opts {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-basis: 100%;
-  max-width: 440px;
-  margin: 2px 0 4px 28px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  cursor: default;
-  white-space: normal;
-}
-
-.se-fetch-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.se-fetch-row.is-top {
-  align-items: flex-start;
-}
-
-.se-fetch-label {
-  flex: none;
-  width: 64px;
-  padding-top: 4px;
-  color: var(--text-2);
-  font-size: 11px;
-}
-
-.se-fetch-row:not(.is-top) .se-fetch-label {
-  padding-top: 0;
-}
-
-.se-fetch-list {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  min-width: 0;
-}
-
-.se-fetch-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.se-in.se-fetch-body {
-  width: 300px;
-  max-width: 300px;
-  height: auto;
-  padding: 6px 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.5;
-  resize: vertical;
-  cursor: text;
-}
-
-.se-in.se-fetch-body.is-error {
-  border-color: var(--warn);
-}
-
-.se-fetch-hint {
-  margin: 0;
-  color: var(--text-3);
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.5;
-}
-
-.se-mini.se-mini-text.is-on {
-  border-color: var(--accent-border);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-
 /* 長い一覧の続きを出す */
 .data-more {
   display: flex;
@@ -12637,20 +11222,7 @@ a.btn {
   overflow: hidden;
   clip-path: inset(50%);
 }
-
-/* データ取得のテストは設定編集と分け、送る先と値をまとめて確認する。 */
-.se-fetch-test { width: min(560px, calc(100vw - 32px)); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
-.se-fetch-destination { display: flex; gap: 10px; align-items: baseline; word-break: break-all; }
-.se-fetch-test-value { display: flex; align-items: center; gap: 12px; }
-.se-fetch-test-value code { min-width: 100px; overflow-wrap: anywhere; }
-.se-fetch-test-value .se-in { flex: 1; min-width: 0; }
-.se-fetch-test-actions { display: flex; gap: 8px; justify-content: flex-end; }
-
-/* スクリプトの値選択。既存のテンプレートを変えず、参照を直接選ぶ。 */
-.se-value-choice { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; flex-wrap: wrap; }
-.se-value-info { display: inline-flex; align-items: center; gap: 6px; }
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
-.se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }
  
 /* ファイルをドラッグしている間だけ表示する。通常のホーム画面には場所を取らない。 */
 .home-drop-overlay {
@@ -12687,174 +11259,6 @@ a.btn {
   text-align: center;
 }
 .home-drop-overlay-content svg { color: var(--accent); }
-
-.se-quantity { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
-.se-quantity > .se-fixed-select { flex: none; width: max-content; min-width: max-content; }
-.se-quantity > .se-in { flex: none; }
-
-/* Inline value operations in ordinary script blocks. */
-.se-transform-settings {
-  flex-basis: 100%;
-  display: flex;
-  min-width: 0;
-  margin-left: 26px;
-  align-items: center;
-}
-.se-transform-settings > .se-composer-step-settings {
-  flex: 1;
-  max-width: 650px;
-}
-.se-composer-step-settings {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
-.se-composer-step-settings > .se-in,
-.se-composer-step-settings > input:not([type="checkbox"]),
-.se-composer-step-settings .se-composer-operand > .se-in,
-.se-composer-step-settings .se-composer-operand > input {
-  flex: 1 1 90px;
-  min-width: 0;
-  max-width: 225px;
-  height: 24px;
-  padding: 0 7px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-s);
-  background-color: var(--field);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-}
-.se-composer-step-settings > .se-in:focus,
-.se-composer-step-settings .se-composer-operand > .se-in:focus,
-.se-composer-step-settings > input:not([type="checkbox"]):focus,
-.se-composer-step-settings .se-composer-operand > input:focus {
-  border-color: var(--accent);
-  background-color: var(--panel);
-  outline: none;
-}
-/* Width uses the longest translated option plus the dedicated arrow area above. */
-select.se-in.se-fixed-select,
-.se-composer-step-settings > select.se-in.se-fixed-select,
-.se-composer-step-settings .se-composer-operand > select.se-in.se-fixed-select {
-  box-sizing: border-box;
-  flex: none;
-  width: max-content;
-  min-width: 0;
-  max-width: none;
-  /* Fixed-option controls measure the longest option, arrow and padding in React. */
-  padding-left: 7px;
-  padding-right: 30px;
-}
-
-/* Multiple conditions keep the same row/connector layout as if and list filters. */
-.se-composer-conditions { align-items: stretch; flex-direction: column; gap: 7px; }
-.se-composer-condition-line {
-  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
-  min-width: 0; width: 100%;
-}
-.se-composer-condition-line > .se-in { flex: none; }
-.se-composer-condition-line > .se-composer-operand { flex: 1 1 180px; }
-.se-composer-condition-line > .se-composer-field { flex: 1 1 125px; }
-.se-composer-condition-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.se-composer-operand:has(> .se-fixed-select) {
-  flex: 0 1 auto;
-}
-
-.se-composer-operand {
-  display: flex;
-  flex: 2 1 180px;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.se-composer-operand > .se-in {
-  flex: 0 1 90px;
-}
-.se-composer-operand > .se-pm-btn {
-  flex: 1 1 120px;
-}
-.se-composer-operand > input {
-  flex: 1 1 90px;
-}
-.se-composer-field {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1 1 145px;
-  min-width: 0;
-  max-width: 225px;
-}
-.se-composer-field > input {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  height: 24px;
-  min-height: 24px;
-  padding: 0 30px 0 7px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-s);
-  background: var(--field);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  outline: none;
-}
-.se-composer-field > input:hover { background: var(--field-hover); }
-.se-composer-field > input:focus { border-color: var(--accent); background: var(--panel); }
-.se-composer-field-toggle {
-  position: absolute;
-  top: 50%;
-  right: 4px;
-  display: grid;
-  place-items: center;
-  height: 20px;
-  width: 20px;
-  transform: translateY(-50%);
-  border-radius: var(--radius-s);
-  color: var(--text-2);
-}
-.se-composer-field-toggle:hover { background: var(--field); }
-.se-composer-field-menu {
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 4px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: var(--panel);
-  box-shadow: var(--shadow-pop);
-}
-.se-composer-field-menu > button {
-  flex: none;
-  min-height: 30px;
-  padding: 6px 9px;
-  border-radius: 5px;
-  font-size: 12px;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-.se-composer-field-menu > button:hover,
-.se-composer-field-menu > button.is-active { background: var(--field); }
-.se-composer-field-menu > button[aria-selected="true"] { font-weight: 600; }
-.se-composer-field-empty { margin: 0; padding: 10px 8px; color: var(--text-2); font-size: 12px; }
-.se-composer-regex {
-  display: inline-flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-  color: var(--text-2);
-  font-size: 11px;
-}
-.se-composer-regex input { accent-color: var(--accent); }
-@media (max-width: 540px) {
-  .se-transform-settings { margin-left: 0; }
-}
 
 
 /* A separate expansion control beside each custom-code textarea label. */
@@ -12919,4 +11323,2143 @@ select.se-in.se-fixed-select,
 @media (max-width: 600px) {
   .modal.custom-code-modal { width: calc(100vw - 12px); height: calc(100dvh - 12px); }
   .custom-code-highlight, .modal .custom-code-input { padding: 10px; font-size: 12px; }
+}
+
+/* =====================================================================
+   スクリプトの画面
+   左に一覧、右に「いつ → すること」の流れ。動作は上から順にカードで並べる。
+   ===================================================================== */
+
+.se-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  background: rgba(32, 33, 36, 0.4);
+  animation: fade-in 180ms var(--ease);
+}
+
+.se {
+  --se-rail: 27px;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1120px, calc(100vw - 48px));
+  height: min(800px, calc(100dvh - 48px));
+  overflow: hidden;
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+  font-size: 13px;
+  overscroll-behavior: contain;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .se {
+    animation: modal-in 240ms var(--ease);
+  }
+}
+
+.se.is-reordering,
+.se.is-reordering * {
+  cursor: grabbing !important;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------- 見出しと足元 ---------- */
+
+.se-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 12px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.se-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.se-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--field);
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.se-title h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+
+.se-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.se-tools-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--border);
+}
+
+.se-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  color: var(--text-2);
+  transition: background 120ms var(--ease);
+}
+
+.se-icon-btn:hover:not(:disabled) {
+  background: var(--state-hover);
+  color: var(--text);
+}
+
+.se-icon-btn:active:not(:disabled) {
+  background: var(--state-press);
+}
+
+.se-icon-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+
+
+
+
+.se-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.se-main {
+  display: grid;
+  grid-template-columns: 272px minmax(0, 1fr);
+  min-height: 0;
+}
+
+/* ---------- 左の一覧 ---------- */
+
+.se-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.se-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  height: 40px;
+  margin: 14px 14px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  transition: background 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+
+.se-new:hover {
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-1);
+}
+
+.se-new.is-on {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  box-shadow: none;
+}
+
+.se-side-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 8px 16px;
+}
+
+.se-side-group + .se-side-group {
+  margin-top: 10px;
+}
+
+.se-side-owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 10px 4px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.se-side-owner > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.se-side-group.is-focus .se-side-owner {
+  color: var(--accent);
+}
+
+.se-side-group ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.se-side-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 12px;
+}
+
+.se-side-item:hover {
+  background: var(--state-hover);
+}
+
+.se-side-item.is-open {
+  background: var(--accent-soft);
+}
+
+.se-side-open {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px 8px 10px;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.se-side-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.se-side-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.se-side-item.is-open .se-side-name {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.se-side-sum {
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.se-side-warn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--warn);
+}
+
+.se-side-more {
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  opacity: 0;
+}
+
+.se-side-item:hover .se-side-more,
+.se-side-item:focus-within .se-side-more,
+.se-side-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+/* ホバーの無い端末では、隠した操作に手が届かなくなるため常に表示する */
+@media (hover: none) {
+  .se-side-more {
+    opacity: 1;
+  }
+}
+
+.se-side-empty {
+  margin: 0;
+  padding: 16px 10px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ---------- 右の流れ ---------- */
+
+.se-flow {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-canvas);
+  scroll-padding: 24px;
+}
+
+.se-flow-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 760px;
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 22px 28px 72px;
+}
+
+.se-section-title {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.se,
+.ss {
+  --cat: var(--text-2);
+}
+
+.se-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--cat) 13%, var(--panel));
+  color: var(--cat);
+}
+
+/* いつ */
+
+.se-when {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 20px;
+}
+
+/* 「いつ」から「すること」へつなぐ線 */
+.se-when::after {
+  content: "";
+  position: absolute;
+  left: var(--se-rail);
+  bottom: 0;
+  width: 2px;
+  height: 20px;
+  background: var(--border-strong);
+}
+
+.se-when-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px 14px 13px;
+  border: 1px solid color-mix(in srgb, var(--cat) 30%, var(--border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--cat) 5%, var(--panel));
+}
+
+.se-when-card > .se-ico {
+  width: 30px;
+  height: 30px;
+}
+
+.se-when-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.se-when-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+}
+
+.se-when-label {
+  color: var(--text-2);
+}
+
+.se-when-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--panel);
+  color: var(--text-2);
+  font-weight: 500;
+}
+
+.se-when .se-in {
+  height: 30px;
+  background-color: var(--panel);
+  border-color: var(--border);
+  font-weight: 600;
+}
+
+.se-when-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* すること */
+
+.se-do {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.se-do-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.se-do > .se-section-title {
+  align-self: flex-start;
+}
+
+.se-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.se-status.is-ready {
+  color: #137333;
+}
+
+
+/* ---------- 動作の並び ---------- */
+
+.se-steps {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* カードの間。線でつなぎ、近づくと「＋」が現れる */
+.se-gap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 14px;
+}
+
+.se-gap::before {
+  content: "";
+  position: absolute;
+  left: var(--se-rail);
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-strong);
+}
+
+.se-steps > .se-gap:first-child,
+.se-steps > .se-chunk:first-child > .se-gap:first-child {
+  height: 0;
+}
+
+.se-steps > .se-gap:first-child::before,
+.se-steps > .se-chunk:first-child > .se-gap:first-child::before {
+  display: none;
+}
+
+.se-gap-btn {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 3px var(--bg-canvas);
+  opacity: 0;
+  scale: 0.8;
+  transition: opacity 120ms var(--ease), scale 120ms var(--ease);
+}
+
+/* 押せる範囲は、見た目より広くする */
+.se-gap-btn::before {
+  content: "";
+  position: absolute;
+  inset: -6px -40px;
+}
+
+.se-gap:hover .se-gap-btn,
+.se-gap-btn:focus-visible,
+.se-gap-btn[aria-expanded="true"] {
+  opacity: 1;
+  scale: 1;
+}
+
+@media (hover: none) {
+  .se-gap {
+    height: 26px;
+  }
+
+  .se-gap-btn {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+.se.is-reordering .se-gap-btn {
+  visibility: hidden;
+}
+
+.se-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  margin-top: 14px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 14px;
+  color: var(--text-2);
+  font-weight: 500;
+  transition: border-color 120ms var(--ease), color 120ms var(--ease), background 120ms var(--ease);
+}
+
+.se-steps.is-empty > .se-add {
+  margin-top: 0;
+}
+
+.se-steps:not(.is-nested).is-empty > .se-add {
+  height: 64px;
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--panel));
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.se-add:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--panel));
+  color: var(--accent);
+}
+
+.se-steps.is-nested > .se-add {
+  height: 32px;
+  margin-top: 8px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.se-chunk {
+  display: flex;
+  flex-direction: column;
+  /* 画面の外にある分の描画を省く。高さは、一度描画したときの値を覚えておく */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 2000px;
+}
+
+/* ---------- 動作のカード ---------- */
+
+.se-card {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  scroll-margin: 16px;
+  transition: border-color 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+
+.se-card:hover {
+  border-color: var(--border-strong);
+}
+
+.se-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* フォーカスの枠は、つまみではなくカード全体に出す */
+.se-card:has(> .se-card-head > .se-grip:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.se-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 8px 10px 0;
+}
+
+.se-grip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 28px;
+  margin-right: -4px;
+  border-radius: 6px;
+  color: var(--text-3);
+  cursor: grab;
+  opacity: 0.45;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: opacity 120ms var(--ease), background 120ms var(--ease);
+}
+
+.se-grip:focus-visible {
+  outline: none;
+}
+
+.se-card:hover > .se-card-head > .se-grip,
+.se-grip:is(:hover, :focus-visible) {
+  opacity: 1;
+}
+
+.se-grip:is(:hover, :focus-visible) {
+  background: var(--state-hover);
+  color: var(--text);
+}
+
+.se-card-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  min-height: 28px;
+  line-height: 1.5;
+}
+
+.se-card-body > span {
+  white-space: nowrap;
+}
+
+.se-card-more {
+  width: 28px;
+  height: 28px;
+}
+
+/* 持ち上げて動かしている間 */
+.se-card[data-drag="lifted"] {
+  z-index: 5;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-pop);
+  pointer-events: none;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .se-card[data-drag="lifted"] {
+    scale: 1.015;
+  }
+}
+
+.se-card[data-drag="moving"] {
+  opacity: 0.4;
+}
+
+.se-drop-line {
+  --drop-color: var(--accent);
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 300;
+  height: 3px;
+  margin-top: -1.5px;
+  border-radius: 3px;
+  background: var(--drop-color);
+  pointer-events: none;
+}
+
+.se-drop-line::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--drop-color);
+  border-radius: 50%;
+  background: var(--panel);
+}
+
+@media (forced-colors: active) {
+  .se-drop-line {
+    --drop-color: Highlight;
+  }
+}
+
+/* 中に動作を入れられるカード（もし・くり返す） */
+
+.se-branch {
+  margin: 0 10px 10px calc(var(--se-rail) - 14px);
+  padding: 2px 0 2px 14px;
+  border-left: 2px solid color-mix(in srgb, var(--cat) 30%, transparent);
+}
+
+.se-branch .se-gap::before {
+  display: none;
+}
+
+.se-branch .se-gap {
+  height: 8px;
+}
+
+.se-branch .se-gap-btn {
+  box-shadow: 0 0 0 3px var(--panel);
+}
+
+.se-branch .se-card {
+  background: color-mix(in srgb, var(--bg-canvas) 45%, var(--panel));
+}
+
+.se-else {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 8px calc(var(--se-rail) + 16px);
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.se-else-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: -2px 10px 10px calc(var(--se-rail) + 2px);
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.se-else-add:hover {
+  background: var(--state-hover);
+  color: var(--accent);
+}
+
+.se-conds {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 100%;
+}
+
+.se-cond-line,
+.se-line,
+.se-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.se-line,
+.se-row,
+.se-cond-actions {
+  flex-basis: 100%;
+}
+
+.se-cond-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.se-row-item {
+  display: inline-flex;
+}
+
+/* ---------- カードの中の入力欄 ---------- */
+
+.se-in {
+  height: 28px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background-color: var(--field);
+  color: var(--text);
+  font: inherit;
+  appearance: none;
+  transition: background-color 120ms var(--ease), border-color 120ms var(--ease);
+}
+
+/* 入力した内容に合わせて、幅を伸び縮みさせる（対応していないブラウザでは決まった幅のまま） */
+input.se-in,
+select.se-in {
+  field-sizing: content;
+  min-inline-size: 7ch;
+  max-inline-size: 34ch;
+}
+
+/* 「▾」を消さないよう、状態ごとの色は background-color だけを変える */
+.se-in:hover {
+  background-color: var(--field-hover);
+}
+
+.se-in:focus,
+.se-in:focus-visible,
+.se-in.is-open {
+  outline: none;
+  border-color: var(--accent);
+  background-color: var(--panel);
+}
+
+/* まだ決めていない欄は、次に触る場所だと分かるようにする */
+.se-in.is-empty {
+  border-color: var(--accent-border);
+  border-style: dashed;
+  background-color: color-mix(in srgb, var(--accent-soft) 30%, var(--panel));
+}
+
+.se-in.is-empty::placeholder,
+button.se-in.is-empty {
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.se-in.is-missing {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.se-in::placeholder {
+  color: var(--text-3);
+}
+
+/* 選択欄も、一覧を開くボタンも、同じ「▾」付きの見た目にする */
+select.se-in,
+button.se-pm-btn {
+  padding-right: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%23444746' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1 1 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  cursor: pointer;
+}
+
+.se-in-name {
+  width: 10ch;
+  font-weight: 600;
+}
+
+input.se-in-name {
+  min-inline-size: 9ch;
+}
+
+.se-pm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  cursor: pointer;
+}
+
+.se-pm-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.se-pm-btn > svg {
+  flex: none;
+  color: var(--text-2);
+}
+
+.se-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.se-check input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.se-mini {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--text-2);
+}
+
+.se-mini:hover:not(:disabled) {
+  background: var(--state-hover);
+  color: var(--text);
+}
+
+.se-mini:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.se-mini.se-mini-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.se-mini.is-on {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.se-text-btn {
+  align-self: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.se-text-btn:hover {
+  background: var(--state-hover);
+}
+
+.se-note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal !important;
+}
+
+.se-note.is-warn {
+  color: var(--warn);
+}
+
+.se-issue {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.se-issue > svg {
+  flex: none;
+}
+
+.se-badge {
+  flex: none;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--field);
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.se-badge.is-warn {
+  margin: 0;
+  background: color-mix(in srgb, var(--warn) 12%, var(--panel));
+  color: var(--warn);
+}
+
+.se-br {
+  flex-basis: 100%;
+  height: 0;
+}
+
+.se-filter-no {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cat) 12%, transparent);
+  color: var(--cat);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.se-value-choice,
+.se-value-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+/* 候補付きの入力欄（項目名） */
+
+.se-combo {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.se-combo > input {
+  height: 28px;
+  width: 170px;
+  min-width: 0;
+  padding: 0 28px 0 9px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--field);
+  font: inherit;
+}
+
+.se-combo > input:hover {
+  background: var(--field-hover);
+}
+
+.se-combo > input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
+.se-combo-toggle {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: var(--text-2);
+}
+
+.se-combo-toggle:hover {
+  background: var(--state-hover);
+}
+
+.se-combo-menu {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+  font-size: 12px;
+}
+
+.se-combo-menu > button {
+  flex: none;
+  min-height: 30px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.se-combo-menu > button:hover,
+.se-combo-menu > button.is-active {
+  background: var(--state-hover);
+}
+
+.se-combo-menu > button[aria-selected="true"] {
+  font-weight: 600;
+}
+
+.se-combo-empty {
+  margin: 0;
+  padding: 10px 8px;
+  color: var(--text-2);
+}
+
+/* データの取得 */
+
+.se-fetch-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-basis: 100%;
+  max-width: 460px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.se-fetch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.se-fetch-row.is-top {
+  align-items: flex-start;
+}
+
+.se-fetch-label {
+  flex: none;
+  width: 72px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.se-fetch-row.is-top .se-fetch-label {
+  padding-top: 5px;
+}
+
+.se-fetch-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.se-fetch-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+textarea.se-in.se-fetch-body {
+  field-sizing: content;
+  width: 300px;
+  height: auto;
+  min-block-size: 4lh;
+  max-block-size: 12lh;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+textarea.se-in.se-fetch-body.is-error {
+  border-color: var(--warn);
+}
+
+.se-fetch-hint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.se-fetch-test-value {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-basis: 100%;
+}
+
+.se-fetch-test-value code {
+  min-width: 90px;
+  overflow-wrap: anywhere;
+}
+
+.se-fetch-test-value .se-in {
+  flex: 1;
+  min-width: 0;
+  max-inline-size: none;
+}
+
+/* 取得したデータの小窓（モーダル。背後の操作やフォーカスの閉じ込めはブラウザが受け持つ） */
+
+dialog.se-modal {
+  flex-direction: column;
+  gap: 12px;
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  padding: 18px;
+  border: none;
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+dialog.se-modal[open] {
+  display: flex;
+}
+
+dialog.se-modal:modal {
+  overscroll-behavior: contain;
+}
+
+dialog.se-modal::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(32, 33, 36, 0.4);
+}
+
+.se-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.se-modal-head h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.se-modal p {
+  margin: 0;
+}
+
+.se-modal .hint {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.se-fetch-status:empty {
+  display: none;
+}
+
+.se-fetch-destination {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  word-break: break-all;
+}
+
+.se-fetch-destination small {
+  flex: none;
+  color: var(--text-3);
+}
+
+.se-fetch-payload pre {
+  max-height: 200px;
+  margin: 6px 0 0;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.se-modal .data-table-wrap {
+  max-height: 46dvh;
+}
+
+/* ---------- そばに開くパネル（動作を選ぶ・メニュー） ---------- */
+
+.se-pop {
+  position: fixed;
+  inset: auto;
+  z-index: 300;
+  flex-direction: column;
+  margin: 0;
+  padding: 6px;
+  border: none;
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+/* Popover API が無いブラウザでは、そのまま表示する。あるブラウザでは、開いている間だけ表示する */
+.se-pop:not([popover]),
+.se-pop:popover-open {
+  display: flex;
+}
+
+@supports not selector(:popover-open) {
+  .se-pop {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .se-pop:popover-open {
+    opacity: 1;
+    translate: 0 0;
+    transition: opacity 140ms var(--ease), translate 140ms var(--ease);
+  }
+
+  @starting-style {
+    .se-pop:popover-open {
+      opacity: 0;
+      translate: 0 -4px;
+    }
+  }
+}
+
+.se-picker {
+  gap: 6px;
+  padding: 8px;
+}
+
+.se-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--field);
+  color: var(--text-2);
+}
+
+.se-picker-search:focus-within {
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
+.se-picker-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+}
+
+.se-picker-search input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.se-picker-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.se-picker-cat {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 8px 4px;
+  background: var(--panel);
+  color: var(--cat);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.se-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.se-picker-item.is-key,
+.se-trigger-menu .se-picker-item:hover,
+.se-trigger-menu .se-picker-item:focus-visible {
+  background: var(--state-hover);
+}
+
+.se-picker-item.is-current {
+  background: var(--accent-soft);
+}
+
+.se-picker-item:active {
+  background: var(--state-press);
+}
+
+.se-picker-item.is-blocked {
+  cursor: default;
+}
+
+.se-picker-item.is-blocked .se-ico,
+.se-picker-item.is-blocked .se-picker-title {
+  opacity: 0.45;
+}
+
+
+.se-picker-title {
+  font-weight: 600;
+}
+
+
+.se-picker-none {
+  margin: 0;
+  padding: 20px 12px;
+  color: var(--text-2);
+  text-align: center;
+}
+
+.se-trigger-menu {
+  overflow-y: auto;
+}
+
+.se-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.se-menu button:hover:not(:disabled),
+.se-menu button:focus-visible {
+  background: var(--state-hover);
+}
+
+.se-menu button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.se-menu button.is-danger {
+  color: var(--danger);
+}
+
+/* ---------- 新しいスクリプト（きっかけを選ぶ） ---------- */
+
+.se-chooser {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: auto 0;
+  padding: 8px 0 24px;
+}
+
+.se-chooser h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+
+.se-chooser-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.se-chooser-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  text-align: left;
+  transition: border-color 120ms var(--ease), box-shadow 120ms var(--ease), translate 120ms var(--ease);
+}
+
+.se-chooser-item:hover {
+  border-color: var(--cat);
+  box-shadow: var(--shadow-1);
+}
+
+.se-chooser-item:active {
+  background: color-mix(in srgb, var(--cat) 6%, var(--panel));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .se-chooser-item:hover {
+    translate: 0 -1px;
+  }
+}
+
+.se-chooser-item .se-ico {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+}
+
+.se-chooser-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+
+/* ---------- 位置を選ぶメニュー・要素を選ぶ一覧（body に出す） ---------- */
+
+.se-pm {
+  padding: 6px;
+  font-size: 12px;
+}
+
+.se-pm-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 4px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.se-pm-back {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+}
+
+.se-pm-back:hover,
+.se-pm-enter:hover {
+  background: var(--state-hover);
+}
+
+.se-pm-crumb {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.se-pm-row {
+  display: flex;
+  align-items: center;
+}
+
+.se-pm-row > .dd-item,
+.se-pm > .dd-item {
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+}
+
+.se-pm .dd-item.is-sel {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.se-pm .dd-item:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.se-pm-key {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.se-pm-val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+  text-align: right;
+}
+
+.se-pm-enter {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--text-2);
+}
+
+.se-pm-none {
+  padding: 12px 10px;
+  color: var(--text-3);
+}
+
+.se-pm > input.se-in {
+  flex: none;
+  width: auto;
+  max-inline-size: none;
+  margin: 0 0 4px;
+  field-sizing: fixed;
+}
+
+.se-path-direct {
+  display: flex;
+  gap: 6px;
+  flex: none;
+  margin-bottom: 6px;
+}
+
+.se-path-direct input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  font: inherit;
+}
+
+.se-path-direct input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.se-path-direct button {
+  flex: none;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--field);
+  font-weight: 500;
+}
+
+.se-path-direct button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.se-list-custom {
+  flex: none;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  color: var(--accent);
+}
+
+.np {
+  padding: 8px;
+  max-height: none;
+  overflow: hidden;
+}
+
+.np-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  height: 34px;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--field);
+  color: var(--text-2);
+}
+
+.np-search:focus-within {
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
+.np-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+}
+
+.np-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.np-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px 0 6px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.np-row.is-key {
+  background: var(--state-hover);
+}
+
+.np-row.is-sel {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.np-row.is-struct {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.np-chev {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--text-3);
+}
+
+button.np-chev:hover {
+  background: var(--state-press);
+}
+
+.np-chev svg {
+  transition: rotate 120ms var(--ease);
+}
+
+.np-chev.is-open svg {
+  rotate: 90deg;
+}
+
+.np-kind {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--text-2);
+}
+
+.np-row.is-struct .np-kind {
+  color: var(--text-3);
+}
+
+.np-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-tag {
+  flex: none;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+/* ---------- 設定パネルのスクリプト一覧 ---------- */
+
+.ss {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ss-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 8px 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  text-align: left;
+  color: inherit;
+  transition: border-color 160ms var(--ease), box-shadow 160ms var(--ease);
+}
+
+.ss-card:not(:disabled) {
+  cursor: pointer;
+}
+
+.ss-card:not(:disabled):hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.ss-when {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.ss .se-ico {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.ss .se-ico svg {
+  width: 12px;
+  height: 12px;
+}
+
+.ss-el {
+  flex: none;
+  max-width: 45%;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--field);
+  color: var(--text-2);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-trig {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 動作はきっかけの下に、縦の線でつないで並べる */
+.ss-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 2px 0 0 9px;
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--border);
+  list-style: none;
+}
+
+.ss-steps li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.ss-steps .se-ico {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+}
+
+.ss-steps .se-ico svg {
+  width: 10px;
+  height: 10px;
+}
+
+.ss-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-more {
+  color: var(--text-3);
+}
+
+/* ---------- 狭い画面 ---------- */
+
+@media (max-width: 760px) {
+  .se {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .se-main {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .se-side {
+    max-height: 34dvh;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .se-flow-inner {
+    padding: 16px 14px 56px;
+  }
+
+}
+
+/* ---------- 言葉の説明に頼らないための部品 ---------- */
+
+.se-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* カードの間の線には矢印を付けて、上から下へ進むことを形で示す */
+.se-gap::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--se-rail) - 3px);
+  bottom: 0;
+  width: 8px;
+  height: 5px;
+  background: var(--border-strong);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.se-steps > .se-gap:first-child::after,
+.se-steps > .se-chunk:first-child > .se-gap:first-child::after,
+.se-branch .se-gap::after {
+  display: none;
+}
+
+.se-when::after {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5px), 250% calc(100% - 5px), 50% 100%, -150% calc(100% - 5px), 0 calc(100% - 5px));
+  overflow: visible;
+}
+
+/* まだ決めていない欄があるカードの印（文は出さず、空の欄そのものを目立たせる） */
+.se-todo {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--warn) 14%, var(--panel));
+  color: var(--warn);
+}
+
+.se-do.is-waiting {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.se-do.is-waiting .se-add {
+  margin-top: 0;
+}
+
+.se-status {
+  font-weight: 600;
+}
+
+/* メニューの右端に、同じ操作のキーを添える */
+.se-menu kbd {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11px;
+}
+
+/* 動作を選ぶパネル：分類ごとに2列で、アイコンと名前だけを並べる */
+.se-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.se-picker-item {
+  min-height: 40px;
+}
+
+.se-picker-title {
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.se-trigger-menu .se-picker-title {
+  font-weight: 500;
+}
+
+/* きっかけを選ぶ：絵と名前だけの大きなボタン */
+.se-chooser {
+  gap: 20px;
+}
+
+.se-chooser-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.se-chooser-item {
+  align-items: center;
+  gap: 12px;
+  padding: 22px 12px 16px;
+  text-align: center;
+}
+
+.se-art {
+  width: 99px;
+  height: 63px;
+  color: var(--text-2);
+  overflow: visible;
+}
+
+.se-chooser-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.se-chooser-name svg {
+  color: var(--cat);
+}
+
+@media (max-width: 760px) {
+  .se-chooser-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 要素をページの上でクリックして選ぶ */
+.np-pick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: none;
+  height: 38px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.np-pick:hover {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+}
+
+.se-picking .se-backdrop,
+.se-picking .se-pop,
+.se-picking .dd-menu {
+  visibility: hidden;
+}
+
+.se-picking,
+.se-picking * {
+  cursor: crosshair !important;
+}
+
+.se-pick-frame {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 9000;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+}
+
+.se-pick-bar {
+  position: fixed;
+  left: 50%;
+  top: 16px;
+  z-index: 9001;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 18px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--panel);
+  box-shadow: var(--shadow-pop);
+  font-size: 13px;
+  font-weight: 600;
+  translate: -50% 0;
+}
+
+.se-pick-bar button {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 18%, transparent);
+  color: inherit;
+  cursor: pointer !important;
 }

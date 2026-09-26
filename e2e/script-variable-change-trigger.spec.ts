@@ -9,13 +9,11 @@ test.beforeAll(async () => {
   doc.nodes.target = {
     ...makeBox(), id: "target", name: "Entry",
     scripts: [{
-      id: "element-change", trigger: "change", pos: { x: 32, y: 240 },
-      steps: [{ id: "set-count", kind: "set-var", into: "count", value: "1" }],
+      id: "element-change", trigger: "change",      steps: [{ id: "set-count", kind: "set-var", into: "count", value: "1" }],
     }],
   };
   doc.pages.p.pageScripts = [{
     id: "variable-change", trigger: "change", changeVariable: "count",
-    pos: { x: 32, y: 32 },
     steps: [{ id: "record", kind: "set-var", into: "seen", value: "{count}" }],
   }];
   bundle = await scriptDragBundle(doc);
@@ -27,36 +25,60 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
 });
 
-const hat = (page: Page, id: string) => page.locator('.se-stack[data-script-id="' + id + '"] .se-hat');
+const when = (page: Page) => page.locator(".se-when");
+const watch = (page: Page) => when(page).getByRole("combobox", { name: "変化を見張る対象" });
+async function open(page: Page, id: string) {
+  await page.locator(`.se-side-open[data-script-id="${id}"]`).click();
+  await expect(page.locator(`.se-side-open[data-script-id="${id}"]`)).toHaveAttribute("aria-current", "true");
+}
 async function saved(page: Page) {
   return page.evaluate(() => JSON.parse(JSON.stringify((window as any).scriptDragEditor.getState().doc)));
 }
 
-test("old change triggers select an element without new settings", async ({ page }) => {
-  await expect(hat(page, "element-change").locator("select").first()).toHaveValue("element");
-  await expect(hat(page, "element-change").locator(".np-btn")).toContainText("Entry");
+test("element change triggers show the element without variable settings", async ({ page }) => {
+  await open(page, "element-change");
+  await expect(watch(page)).toHaveValue("element");
+  await expect(when(page).locator(".np-btn")).toContainText("Entry");
   const doc = await saved(page);
   expect(doc.nodes.target.scripts[0]).not.toHaveProperty("changeVariable");
   expect(doc.pages.p.pageScripts[0].changeVariable).toBe("count");
 });
 
-test("source switch saves a page-scoped variable watcher and returns to element selection", async ({ page }) => {
-  await hat(page, "element-change").locator("select").first().selectOption("variable");
+test("switching to a variable saves a page-scoped watcher; switching back waits for an element", async ({ page }) => {
+  await open(page, "element-change");
+  await watch(page).selectOption("variable");
   let doc = await saved(page);
   const moved = doc.pages.p.pageScripts.find((script: any) => script.id === "element-change");
   expect(moved).toBeDefined();
   expect(moved.changeVariable).toBe("");
   expect(doc.nodes.target.scripts ?? []).toHaveLength(0);
+  // まだ見張る変数を選んでいないので、動かないことを印で示す
+  await expect(page.locator('.se-side-open[data-script-id="element-change"] .se-side-warn')).toBeVisible();
 
-  const input = hat(page, "element-change").getByPlaceholder("変数を選択");
+  const input = when(page).getByPlaceholder("変数を選択");
   await input.fill("{count}");
   await input.blur();
   doc = await saved(page);
   expect(doc.pages.p.pageScripts.find((script: any) => script.id === "element-change").changeVariable).toBe("count");
-  await expect(hat(page, "element-change").locator("select").first()).toHaveValue("variable");
+  await expect(watch(page)).toHaveValue("variable");
 
-  await hat(page, "element-change").locator("select").first().selectOption("element");
+  // 入力欄に戻すと、要素を選ぶまでは保存せず（変数の見張りのまま）、要素の一覧を開く
+  await watch(page).selectOption("element");
+  await expect(page.locator(".np.dd-menu")).toBeVisible();
+  expect(await saved(page)).toEqual(doc);
+  await page.locator(".np.dd-menu .np-row", { hasText: "Entry" }).click();
   doc = await saved(page);
-  expect(doc.pages.p.scripts.find((script: any) => script.id === "element-change")).not.toHaveProperty("changeVariable");
-  await expect(hat(page, "element-change").getByText("要素を選ぶまで実行されません")).toBeVisible();
+  expect(doc.pages.p.pageScripts.find((script: any) => script.id === "element-change")).toBeUndefined();
+  expect(doc.nodes.target.scripts.find((script: any) => script.id === "element-change")).not.toHaveProperty("changeVariable");
+});
+
+test("closing the element list without choosing keeps the variable watcher", async ({ page }) => {
+  await open(page, "variable-change");
+  const before = await saved(page);
+  await watch(page).selectOption("element");
+  await expect(page.locator(".np.dd-menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".np.dd-menu")).toHaveCount(0);
+  await expect(watch(page)).toHaveValue("variable");
+  expect(await saved(page)).toEqual(before);
 });

@@ -15,7 +15,7 @@ function harness(steps: ScriptStep[], opts: { trigger?: ScriptTrigger; preview?:
     pages: Object.fromEntries(["a", "b"].map((id) => [id, {
       id, name: id, slug: id === "a" ? "" : "second", title: id, description: "", children: id === "a" ? ["start"] : [],
     }])),
-    nodes: { start: { ...makeBox(), id: "start", scripts: [{ id: "script", trigger, pos: { x: 0, y: 0 }, steps }] } },
+    nodes: { start: { ...makeBox(), id: "start", scripts: [{ id: "script", trigger, steps }] } },
   };
   let pageId = "a";
   const pageMarker = () => ({ getAttribute: (name: string) => name === "data-page-body" ? pageId : null });

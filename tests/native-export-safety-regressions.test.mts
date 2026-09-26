@@ -156,7 +156,7 @@ test("HTML media paths are not page routes even when the asset path matches a sl
 test("Nuxt client navigation uses browser fetch without bypassing the SSR origin allowlist", async () => {
   const doc = fixture();
   doc.pages.home.pageScripts = [{
-    id: "page-data", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+    id: "page-data", trigger: "load", steps: [
       { id: "request", kind: "fetch", url: "https://api.example/public", as: "records" },
     ],
   }];

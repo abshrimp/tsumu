@@ -180,8 +180,6 @@ export interface LinkSetting {
   url?: string;
   pageId?: string;
   newTab?: boolean;
-  /** スクリプトの画面での位置（「クリックしたとき → 開く」として表示する） */
-  pos?: ScriptPos;
 }
 
 /* ---------- スクリプト（きっかけ → 動作） ---------- */
@@ -199,11 +197,6 @@ export type ScriptTrigger =
   | "change"
   | "load"
   | "in-view";
-
-export interface ScriptPos {
-  x: number;
-  y: number;
-}
 
 export type ScriptOp =
   | "eq"
@@ -383,14 +376,12 @@ export interface FetchHeader {
 
 export interface Script {
   id: string;
-  /** 未設定なら、きっかけの無いブロックの集まり（実行されない） */
-  trigger?: ScriptTrigger;
+  trigger: ScriptTrigger;
   /** trigger が "change" のとき、変数の位置を明示すれば、要素ではなくスクリプトが代入した値を見張る。 */
   changeVariable?: string;
   /** hover-end: 「ホバーし始めたとき」に表示した要素の上にいる間は、外れたとみなさない */
   keepOnShown?: boolean;
   steps: ScriptStep[];
-  pos: ScriptPos;
 }
 
 export interface TextContent {
@@ -505,8 +496,6 @@ export interface Page {
   rewriteTo?: string;
   /** OGP 画像（SNS でシェアしたときのプレビュー） */
   ogImage?: ImageRef | null;
-  /** スクリプトの画面に置いた、要素につながっていないブロック（実行されない） */
-  scripts?: Script[];
   /** きっかけが「このページ」のスクリプト（ページを開いたとき。データの取得もここに置く） */
   pageScripts?: Script[];
   children: string[];

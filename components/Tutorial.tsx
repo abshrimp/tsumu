@@ -377,7 +377,7 @@ const ALL_STEPS: TutorialStep[] = [
     placement: "left",
     chapter: tr("Add interaction"),
     title: tr("Make it open another page when clicked"),
-    body: tr("Open \"Edit page scripts\", drag \"When clicked\" onto the workspace, and attach \"Open ［page］\" below it. The trigger element is already this button. Choose a page other than the practice page to open."),
+    body: tr("Open \"Edit page scripts\" and choose \"When clicked\". Then press \"Add the first action\", pick \"Open a page or link\", and choose a page other than the practice page. The script is already attached to this button."),
     why: tr("Interactions combine a trigger (like \"When clicked\") with actions (like \"Open page\"). Once you know this pattern, toggling visibility, scrolling and showing data all work the same way."),
     task: "link-button",
     taskLabel: tr("Link to an existing page"),

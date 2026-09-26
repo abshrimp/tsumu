@@ -27,7 +27,7 @@ export function queryCopyFixture() {
       button: {
         ...makeBox(), id: "button", attrId: "news-button", semantic: "button",
         text: { content: "News script", heading: 0 },
-        scripts: [{ id: "click", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+        scripts: [{ id: "click", trigger: "click", steps: [
           { id: "open", kind: "open-page", pageId: "source-news" },
         ] }],
       },

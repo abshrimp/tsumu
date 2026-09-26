@@ -77,7 +77,7 @@ test("ScriptEditor numeric assignment preserves the document and undo history wh
   const before = await snapshot(page);
   await page.getByRole("button", { name: "Edit assignment", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "スクリプト", exact: true });
-  const input = dialog.locator('.se-ws [data-sel-key="step:assign-input-set-0"] input.se-in');
+  const input = dialog.locator('.se-flow [data-step-id="assign-input-set-0"] input.se-in');
   await input.fill("not-a-number");
   await input.blur();
   await dialog.getByRole("button", { name: "閉じる", exact: true }).click();

@@ -59,7 +59,7 @@ test("editing a copied script block does not change the original and Undo/Redo p
   await page.getByRole("button", { name: "Edit copied script", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "スクリプト", exact: true });
   const stepId = button.scripts[0].steps[1].id;
-  const input = dialog.locator(`.se-ws [data-sel-key="step:${stepId}"] input.se-in`);
+  const input = dialog.locator(`.se-flow [data-step-id="${stepId}"] input.se-in`);
   await input.fill("Copy only");
   await input.blur();
   await dialog.getByRole("button", { name: "閉じる", exact: true }).click();

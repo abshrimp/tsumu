@@ -57,7 +57,7 @@ export function customStatesForNode(doc: SiteDoc, nodeId: string): StyleState[] 
     for (const script of other.scripts ?? []) walk(script.steps, id === nodeId);
   }
   for (const page of Object.values(doc.pages)) {
-    for (const script of [...(page.pageScripts ?? []), ...(page.scripts ?? [])]) {
+    for (const script of page.pageScripts ?? []) {
       walk(script.steps, false);
     }
   }

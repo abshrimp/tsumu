@@ -66,7 +66,7 @@ test("pages copied together take priority over matching destination URLs", () =>
 
 test("query-aware relinking covers page scripts and new masters without changing existing masters", () => {
   const { source, target } = queryCopyFixture();
-  const scripts: Script[] = [{ id: "nested", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+  const scripts: Script[] = [{ id: "nested", trigger: "click", steps: [
     { id: "if", kind: "if", cond: { subject: "var", target: "", left: "yes", op: "eq", value: "yes" }, then: [
       { id: "repeat", kind: "repeat", times: 1, then: [
         { id: "open", kind: "open-page", pageId: "source-news" },
@@ -75,7 +75,6 @@ test("query-aware relinking covers page scripts and new masters without changing
       { id: "otherwise", kind: "open-page", pageId: "source-news" },
     ] }] },
   ] }];
-  source.pages.home.scripts = structuredClone(scripts);
   source.pages.home.pageScripts = structuredClone(scripts);
   source.nodes.master = { ...makeBox(), id: "master", link: { kind: "page", pageId: "source-news" }, scripts };
   source.nodes.instance = { ...makeBox(), id: "instance", type: "instance", componentId: "header" };
@@ -86,7 +85,7 @@ test("query-aware relinking covers page scripts and new masters without changing
   applyPagePayload(target, payload);
   const home = target.pages[target.pageOrder.at(-1)!];
   assert.equal(target.nodes.master.link?.pageId, "news");
-  for (const script of [...home.scripts!, ...home.pageScripts!, ...target.nodes.master.scripts!]) {
+  for (const script of [...home.pageScripts!, ...target.nodes.master.scripts!]) {
     walkSteps(script.steps, (step) => {
       if (step.kind === "open-page") assert.equal(step.pageId, "news");
     });

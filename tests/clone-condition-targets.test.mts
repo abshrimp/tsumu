@@ -19,7 +19,7 @@ function fixture(): SiteDoc {
     nodes[id].type = "field";
     nodes[id].field = { kind: "checkbox" };
   }
-  nodes.button.scripts = [{ id: "script", trigger: "click", pos: { x: 0, y: 0 }, steps: [{
+  nodes.button.scripts = [{ id: "script", trigger: "click", steps: [{
     id: "condition", kind: "if", cond: { subject: "checked", target: "first" },
     conditions: [{ subject: "checked", target: "second", and: true }],
     then: [{ id: "hide", kind: "hide", target: "result" }],

@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { connectNewTransform, insertAt, listIn, takeAt, takeSelectedSteps } from "../components/script-editor/step-tree";
+import { connectNewTransform, insertAt, listIn, takeSelectedSteps } from "../components/script-editor/step-tree";
 import type { Script, ScriptStep } from "../lib/types";
 
 function fixture(): Script[] {
   return [{
-    id: "script", pos: { x: 0, y: 0 }, steps: [{
+    id: "script", steps: [{
       id: "decision", kind: "if",
       cond: { subject: "var", target: "", left: "ready", op: "eq", value: "true" },
       then: [{ id: "yes", kind: "wait", seconds: 1 }],
@@ -27,7 +27,7 @@ test("looking up an absent else branch does not mutate the source script", () =>
   const connected = connectNewTransform(scripts, elseLocation, pending);
   assert.deepEqual(connected, pending);
   assert.deepEqual(scripts, initial);
-  const [remaining, removed] = takeAt(scripts, elseLocation);
+  const [remaining, removed] = takeSelectedSteps(scripts, elseLocation, new Set());
   assert.deepEqual(remaining, scripts);
   assert.deepEqual(removed, []);
   assert.deepEqual(scripts, initial);
@@ -83,7 +83,7 @@ test("duplicate branch IDs resolve the first owner in both reads and edits", () 
   assert.equal(next[0].steps[1], scripts[0].steps[1], "later duplicate branch remains shared");
   assert.deepEqual(scripts, original, "the original document is never mutated");
 
-  const [afterRemoval, removed] = takeAt(next, { scriptId: "script", list: "duplicate:then", index: 1 });
+  const [afterRemoval, removed] = takeSelectedSteps(next, { scriptId: "script", list: "duplicate:then", index: 1 }, new Set());
   assert.deepEqual(removed.map((step) => step.id), ["inserted"]);
   assert.deepEqual(listIn(afterRemoval[0], "duplicate:then")?.map((step) => step.id), ["first-child"]);
 });
@@ -108,8 +108,7 @@ test("a missing first duplicate else branch is not silently redirected to the ne
 
 test("dragging one middle block keeps both adjacent blocks connected", () => {
   const scripts: Script[] = [{
-    id: "s", trigger: "click", pos: { x: 0, y: 0 },
-    steps: ["a", "b", "c", "d"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
+    id: "s", trigger: "click",    steps: ["a", "b", "c", "d"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
   }];
   const original = structuredClone(scripts);
   const [remaining, taken] = takeSelectedSteps(scripts, { scriptId: "s", list: "root", index: 1 }, new Set(["b"]));
@@ -120,8 +119,7 @@ test("dragging one middle block keeps both adjacent blocks connected", () => {
 
 test("dragging multiple selected blocks leaves unselected blocks in order", () => {
   const scripts: Script[] = [{
-    id: "s", trigger: "click", pos: { x: 0, y: 0 },
-    steps: ["a", "b", "c", "d"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
+    id: "s", trigger: "click",    steps: ["a", "b", "c", "d"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
   }];
   const [remaining, taken] = takeSelectedSteps(scripts, { scriptId: "s", list: "root", index: 1 }, new Set(["b", "d"]));
   assert.deepEqual(taken.map((step) => step.id), ["b", "d"]);
@@ -130,8 +128,7 @@ test("dragging multiple selected blocks leaves unselected blocks in order", () =
 
 test("dragging an unselected block does not pull along the previous selection", () => {
   const scripts: Script[] = [{
-    id: "s", trigger: "click", pos: { x: 0, y: 0 },
-    steps: ["a", "b", "c"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
+    id: "s", trigger: "click",    steps: ["a", "b", "c"].map((id) => ({ id, kind: "wait" as const, seconds: 1 })),
   }];
   const [remaining, taken] = takeSelectedSteps(scripts, { scriptId: "s", list: "root", index: 2 }, new Set(["a", "b"]));
   assert.deepEqual(taken.map((step) => step.id), ["c"]);

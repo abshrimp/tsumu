@@ -97,19 +97,9 @@ function spliceScriptList(
   return [updated, removed];
 }
 
-/** loc 以降の手順を取り出す（下につながるブロックごと動かす） */
-export function takeAt(scripts: PageScript[], loc: Loc): [PageScript[], ScriptStep[]] {
-  const [next, taken] = spliceScriptList(scripts, loc, Infinity, []);
-  const script = next.find((item) => item.id === loc.scriptId);
-  if (next !== scripts && loc.list === "root" && script && !script.trigger && !script.steps.length) {
-    return [next.filter((item) => item.id !== script.id), taken];
-  }
-  return [next, taken];
-}
-
 /**
- * ドラッグでは選択したブロックだけを取り出し、後続のブロックは元の並びに残す。
- * 親の条件・ループを選択したときはその内側もまとめて1ブロックとして扱う。
+ * 並べ替えでは選択した動作だけを取り出し、後続の動作は元の並びに残す。
+ * 親の条件・くり返しを選択したときは、その内側もまとめて1つとして扱う。
  */
 export function takeSelectedSteps(
   scripts: PageScript[], loc: Loc, selectedIds: ReadonlySet<string>
@@ -132,13 +122,7 @@ export function takeSelectedSteps(
   };
   collect(script.steps);
   if (!taken.length) return [scripts, []];
-  const remaining = removeKeys(scripts, taken.map((step) => `step:${step.id}`));
-  const source = remaining.find((item) => item.id === script.id);
-  return [
-    !script.trigger && source && !source.steps.length
-      ? remaining.filter((item) => item.id !== script.id) : remaining,
-    taken,
-  ];
+  return [removeKeys(scripts, taken.map((step) => `step:${step.id}`)), taken];
 }
 
 export function insertAt(
@@ -212,10 +196,6 @@ export function removeKeys(scripts: PageScript[], keys: string[]): PageScript[] 
       continue;
     }
     const steps = stepIds.size ? prune(script.steps) : script.steps;
-    if (steps !== script.steps && !script.trigger && !steps.length) {
-      result ??= scripts.slice(0, i);
-      continue;
-    }
     const next = steps === script.steps ? script : { ...script, steps };
     if (result) result.push(next);
     else if (next !== script) {
@@ -357,6 +337,86 @@ export function filterNumbersOf(scripts: PageScript[], array: string): number[] 
   }
   // 呼び出すたびに新しい配列を返す、という戻り値の約束を守る。
   return [...(index.get(array) ?? [])];
+}
+
+/** 動作のある位置（どの並びの何番目か）を探す。 */
+export function findStepLoc(script: PageScript, stepId: string): Loc | null {
+  const search = (steps: ScriptStep[], list: string): Loc | null => {
+    for (let index = 0; index < steps.length; index++) {
+      const step = steps[index];
+      if (step.id === stepId) return { scriptId: script.id, list, index };
+      if (!("then" in step)) continue;
+      const found = search(step.then, `${step.id}:then`) ??
+        (step.kind === "if" && step.else ? search(step.else, `${step.id}:else`) : null);
+      if (found) return found;
+    }
+    return null;
+  };
+  return search(script.steps, "root");
+}
+
+/** 並びを囲んでいる「くり返し」があるか（「くり返しを抜ける」を置ける位置か）。 */
+export function listInsideLoop(script: PageScript, list: string): boolean {
+  const search = (steps: ScriptStep[], name: string, inLoop: boolean): boolean | null => {
+    if (name === list) return inLoop;
+    for (const step of steps) {
+      if (!("then" in step)) continue;
+      const loop = inLoop || step.kind === "repeat" || step.kind === "for-each";
+      const found = search(step.then, `${step.id}:then`, loop) ??
+        (step.kind === "if" && step.else ? search(step.else, `${step.id}:else`, inLoop) : null);
+      if (found !== null) return found;
+    }
+    return null;
+  };
+  return search(script.steps, "root", false) ?? false;
+}
+
+/**
+ * 選択した動作を、target の並びの beforeId の直前（null なら末尾）へ動かす。
+ * 動かす動作自身の内側へは入れられない。位置が変わらなければ、同じ配列を返す。
+ */
+export function moveSteps(
+  scripts: PageScript[],
+  from: Loc,
+  selectedIds: ReadonlySet<string>,
+  target: { list: string; beforeId: string | null }
+): PageScript[] {
+  const [remaining, taken] = takeSelectedSteps(scripts, from, selectedIds);
+  if (!taken.length) return scripts;
+  const script = remaining.find((item) => item.id === from.scriptId);
+  const list = script && listIn(script, target.list);
+  // 行き先の並びが、取り出した動作の内側にあった
+  if (!script || !list) return scripts;
+  const at = target.beforeId === null ? list.length : list.findIndex((step) => step.id === target.beforeId);
+  if (at < 0) return scripts;
+  const next = insertAt(remaining, { scriptId: script.id, list: target.list, index: at }, taken);
+  const before = scripts.find((item) => item.id === from.scriptId);
+  const after = next.find((item) => item.id === from.scriptId);
+  return before && after && sameOrder(before.steps, after.steps) ? scripts : next;
+}
+
+function sameOrder(a: ScriptStep[], b: ScriptStep[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((step, i) => {
+    const other = b[i];
+    if (step.id !== other.id) return false;
+    if (!("then" in step) || !("then" in other)) return true;
+    if (!sameOrder(step.then, other.then)) return false;
+    const stepElse = step.kind === "if" ? step.else : undefined;
+    const otherElse = other.kind === "if" ? other.else : undefined;
+    return !stepElse === !otherElse && (!stepElse || sameOrder(stepElse, otherElse!));
+  });
+}
+
+/** 同じ並びの中で、1つ上（-1）か下（+1）へ動かす。端では何もしない。 */
+export function nudgeStep(scripts: PageScript[], loc: Loc, direction: -1 | 1): PageScript[] {
+  const script = scripts.find((item) => item.id === loc.scriptId);
+  const list = script && listIn(script, loc.list);
+  const step = list?.[loc.index];
+  const to = loc.index + direction;
+  if (!script || !list || !step || to < 0 || to >= list.length) return scripts;
+  const [removed] = spliceScriptList(scripts, loc, 1, []);
+  return insertAt(removed, { ...loc, index: to }, [step]);
 }
 
 // このキーは画面上の差し込み位置を指すだけで、保存するデータには使わない。タプルにすることで、

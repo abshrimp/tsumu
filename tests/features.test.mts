@@ -128,7 +128,6 @@ test("variables made inside an if block are suggested in text", () => {
       {
         id: "s",
         trigger: "change",
-        pos: { x: 0, y: 0 },
         steps: [
           {
             id: "if",
@@ -148,7 +147,7 @@ test("publish checks validate targets in every AND/OR if clause", () => {
   const button: DocNode = {
     ...makeBox(), id: "trigger", attrId: "trigger",
     scripts: [{
-      id: "on-click", trigger: "click", pos: { x: 0, y: 0 }, steps: [{
+      id: "on-click", trigger: "click", steps: [{
         id: "if-joined", kind: "if",
         cond: { subject: "var", target: "", left: "{flag}", op: "eq", value: "ready" },
         conditions: [
@@ -244,7 +243,6 @@ test("pageReadsQuery detects POST body variables and preserves explicit list tra
     {
       id: "ps",
       trigger: "load",
-      pos: { x: 0, y: 0 },
       steps: [
         { id: "f1", kind: "fetch", url: "https://api.example.com/items", as: "items", preview: { sample: [{ id: 1 }] } },
         { id: "af", kind: "transform", source: "items", into: "count", transform: { kind: "length" } },
@@ -259,7 +257,6 @@ test("pageReadsQuery detects POST body variables and preserves explicit list tra
     {
       id: "ps2",
       trigger: "load",
-      pos: { x: 0, y: 0 },
       steps: [
         { id: "f2", kind: "fetch", url: "https://api.example.com/search", method: "POST", body: '{"q": "{q}"}', as: "res" },
       ],
@@ -288,7 +285,6 @@ test("slug page generateMetadata preserves description, noindex and openGraph", 
           {
             id: "s",
             trigger: "load",
-            pos: { x: 0, y: 0 },
             steps: [
               { id: "f", kind: "fetch", url: "https://api.example.com/posts", as: "posts", preview: { sample: [{ slug: "a", title: "Hello" }] } },
               { id: "post-init", kind: "set-var", into: "post", value: "null" },
@@ -323,7 +319,6 @@ test("obfuscateVarNames renames variable tokens and cloning renames grouped radi
     {
       id: "ps",
       trigger: "load",
-      pos: { x: 0, y: 0 },
       steps: [
         { id: "f1", kind: "fetch", url: "https://api.example.com/items", as: "items" },
         { id: "af", kind: "transform", source: "items", into: "count", transform: { kind: "length" } },

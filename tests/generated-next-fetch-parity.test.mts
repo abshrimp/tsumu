@@ -29,7 +29,7 @@ test("the emitted Next page sends the same JSON and headers as the editor, using
   const doc: SiteDoc = {
     siteName: "Request parity", assets: {}, nodes: { box: node }, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: ["box"],
-      pageScripts: [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [options] }] } },
+      pageScripts: [{ id: "load", trigger: "load", steps: [options] }] } },
   };
   const project = generateProject(doc);
   const sent: Array<{ url: string; init: any }> = [];
@@ -59,7 +59,7 @@ for (const mutation of [
     const doc: SiteDoc = {
       siteName: "List operations", assets: {}, nodes: {}, pageOrder: ["p"],
       pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: [],
-        pageScripts: [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+        pageScripts: [{ id: "load", trigger: "load", steps: [
           { id: "seed", kind: "set-var", into: "items", value: '["B","A"]' },
           mutation,
           { id: "request", kind: "fetch", as: "result", url: "https://example.com/{items.0}" },
@@ -85,12 +85,12 @@ function fetchedListDoc(steps: ScriptStep[]): SiteDoc {
   return {
     siteName: "Fetched list", assets: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: ["act", "list"],
-      pageScripts: [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+      pageScripts: [{ id: "load", trigger: "load", steps: [
         { id: "fetch", kind: "fetch", url: "https://example.com/catalogue", as: "data" },
       ] }] } },
     nodes: {
       act: { ...makeText("Run"), id: "act", attrId: "act", semantic: "button", scripts: [
-        { id: "click", trigger: "click", pos: { x: 0, y: 0 }, steps },
+        { id: "click", trigger: "click", steps },
       ] },
       list: { ...makeBox(), id: "list", type: "list", list: { from: "data.0.rows" }, children: ["name"] },
       name: { ...makeText("{値}"), id: "name", attrId: "item" },

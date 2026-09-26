@@ -10,8 +10,7 @@ import { validateImportedDoc } from "../lib/site-import";
 const siteWithFetch = (url: string, headers?: { name: string; value: string }[], body?: string) => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
-  page.pageScripts = [{ id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "get", kind: "fetch", as: "data", url, ...(headers ? { headers } : {}),
+  page.pageScripts = [{ id: "load", trigger: "load",    steps: [{ id: "get", kind: "fetch", as: "data", url, ...(headers ? { headers } : {}),
       ...(body ? { body } : {}) }] }];
   return doc;
 };
@@ -36,8 +35,7 @@ test("GitHub Push can include public data sources and placeholder variables", ()
 test("credential scanner also visits scripts attached to elements", () => {
   const doc = createInitialDoc();
   const node = doc.nodes[doc.pages[doc.pageOrder[0]].children[0]];
-  node.scripts = [{ id: "node-event", trigger: "click", pos: { x: 0, y: 0 },
-    steps: [{ id: "fetch", kind: "fetch", as: "private", url: "https://api.example/secret?token=abc" }],
+  node.scripts = [{ id: "node-event", trigger: "click",    steps: [{ id: "fetch", kind: "fetch", as: "private", url: "https://api.example/secret?token=abc" }],
   }];
   assert.equal(hasPublishCredentials(doc), true);
 });

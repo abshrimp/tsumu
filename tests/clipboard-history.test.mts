@@ -101,7 +101,7 @@ test("internal paste restores image, script and font dependencies removed by und
     doc.nodes.photo = {
       ...makeImage(), id: "photo", styles: { base: { default: { fontFamily: "Lora" } } },
       image: { src: "", assetId: image.id, alt: "Copied photograph", width: 1, height: 1 },
-      scripts: [{ id: "script", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+      scripts: [{ id: "script", trigger: "click", steps: [
         { id: "step", kind: "open-url", url: assetSrc(scriptAsset) },
       ] }],
     };

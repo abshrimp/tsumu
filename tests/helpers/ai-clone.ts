@@ -10,7 +10,7 @@ export function aiCloneDoc(): SiteDoc {
     nodes: {
       group: { ...makeBox(), id: "group", children: ["button", "menu", "entry", "readout", "jump"] },
       button: { ...makeText("Toggle menu"), id: "button", attrId: "button", semantic: "button", scripts: [{
-        id: "original-script", trigger: "click", pos: { x: 32, y: 32 }, steps: [
+        id: "original-script", trigger: "click", steps: [
           { id: "original-toggle", kind: "toggle", target: "menu" },
           { id: "original-value", kind: "set-value", target: "entry", value: "Changed" },
         ],

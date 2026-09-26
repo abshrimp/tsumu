@@ -185,7 +185,7 @@ for (const kind of ["node", "attr", "radio", "script", "step", "page-script", "p
     if (kind === "node") original.nodes.copy_2 = { ...makeBox(), id: "copy_2" };
     if (kind === "attr") hidden.attrId = menu.attrId;
     if (kind === "radio") { hidden.type = "field"; hidden.field = { kind: "radio", group: menu.attrId }; }
-    const script = { id: kind.includes("script") ? button.scripts![0].id : "hidden-script", trigger: "click" as const, pos: { x: 0, y: 0 }, steps: [
+    const script = { id: kind.includes("script") ? button.scripts![0].id : "hidden-script", trigger: "click" as const, steps: [
       { id: kind.includes("step") ? button.scripts![0].steps[0].id : "hidden-step", kind: "wait" as const, seconds: 1 },
     ] };
     if (kind === "script" || kind === "step") hidden.scripts = [script];

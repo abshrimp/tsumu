@@ -1,55 +1,39 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Undo2, X, Zap } from "lucide-react";
+import {
+  ArrowDown, ArrowUp, CircleCheck, Copy, FileText, Plus, Redo2, Trash2, TriangleAlert, Undo2, X, Zap,
+} from "lucide-react";
 import { componentOf, useEditor } from "../lib/store";
-import { trackPanelResize } from "../lib/panel-resize";
 import SafeBoundary from "./SafeBoundary";
 import { glyphs } from "./Glyph";
-import { InfoTip } from "./controls";
-import { applyPageScripts, cloneSteps, pageScriptsOf, scriptUid, walkSteps, TRIGGER_LABELS, type PageScript } from "../lib/script";
+import {
+  applyPageScripts, cloneSteps, isLinkScriptId, pageScriptsOf, scriptUid, walkSteps,
+  TRIGGER_LABELS, type PageScript,
+} from "../lib/script";
 import { stepText } from "../lib/script-text";
 import { pageArrays, pagePlan, pageVariableIndex, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
-import { PAGE_TARGET, type Script, type ScriptStep } from "../lib/types";
-import { tr, trNodes } from "../lib/i18n";
-import { HatView, PeekModal, StackView, StepList } from "./script-editor/blocks";
-import { Ctx, type EdCtx, type FetchPreviewScope } from "./script-editor/context";
-import { indexFieldTargets } from "./script-editor/field-index";
-import {
-  CAT_OF,
-  Ico,
-  STEP_ICON,
-  TRIGGER_ICON,
-  type Payload,
-} from "./script-editor/palette";
-import { insertAt, listIn, mapStep, numberFilters, removeKeys, takeSelectedSteps } from "./script-editor/step-tree";
+import { PAGE_TARGET, type Script, type ScriptStep, type ScriptTrigger } from "../lib/types";
+import { tr } from "../lib/i18n";
+import { ActionPicker } from "./script-editor/ActionPicker";
+import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON, isPageTrigger } from "./script-editor/catalog";
 import { copyScriptBlocks, pasteScriptBlocks, type ScriptBlockClipboard } from "./script-editor/clipboard";
-import { buildTree, collectTargets, type MenuTarget } from "./script-editor/targets";
-import { useScriptDrag } from "./script-editor/useScriptDrag";
-import { useScriptEditorKeys } from "./script-editor/useScriptEditorKeys";
-import { ScriptPalette } from "./script-editor/ScriptPalette";
-
-// 選択したブロックが1つ変わるだけで、エディタ全体の context は変わってしまう。選択と重なり順を
-// スクリプトごとに分け、他のブロックのツリーを描画し直さないようにする。
-const EMPTY_SCRIPT_KEYS: readonly string[] = [];
-const ScopedStackView = memo(function ScopedStackView({
-  script, shared, selectedKeys, zIndex, frozenWidth,
-}: {
-  script: PageScript;
-  shared: EdCtx;
-  selectedKeys: readonly string[];
-  zIndex?: number;
-  frozenWidth?: number;
-}) {
-  const selected = useMemo(() => new Set(selectedKeys), [selectedKeys]);
-  const context = useMemo<EdCtx>(() => ({
-    ...shared,
-    selected,
-    zOrder: zIndex === undefined ? new Map<string, number>() : new Map([[script.id, zIndex]]),
-  }), [shared, selected, script.id, zIndex]);
-  return <Ctx.Provider value={context}><StackView script={script} fixedWidth={frozenWidth} /></Ctx.Provider>;
-});
+import { Ctx, ScriptNodeCtx, ScriptOwnerCtx, type EdCtx, type FetchPreviewScope } from "./script-editor/context";
+import { FetchResult } from "./script-editor/fetch";
+import { indexFieldTargets } from "./script-editor/field-index";
+import { FlowCtx, SelectionCtx, StepList, type FlowActions } from "./script-editor/Flow";
+import { scriptStatus } from "./script-editor/issues";
+import { Popover } from "./script-editor/Popover";
+import { ScriptList } from "./script-editor/ScriptList";
+import {
+  connectNewTransform, findStepLoc, insertAt, listIn, listInsideLoop, mapStep, nudgeStep,
+  numberFilters, removeKeys, type Loc,
+} from "./script-editor/step-tree";
+import { buildTree, collectTargets } from "./script-editor/targets";
+import { TriggerCard, TriggerChooser, type TriggerValue } from "./script-editor/TriggerCard";
+import { useEditorKeys, type EditorKeyState } from "./script-editor/useEditorKeys";
+import { useStepDrag } from "./script-editor/useStepDrag";
 
 /* ---------- 設定パネル用の一覧 ---------- */
 
@@ -69,9 +53,9 @@ export function ScriptSummary({
   return (
     <ul className="ss">
       {items.map(({ script: s, element }) => {
-        const TrigIcon = s.trigger ? TRIGGER_ICON[s.trigger] : Zap;
+        const TrigIcon = TRIGGER_ICON[s.trigger] ?? Zap;
         return (
-          <li key={s.id} className={`ss-item${s.trigger ? "" : " is-idle"}`}>
+          <li key={s.id} className="ss-item">
             <button
               type="button"
               className="ss-card"
@@ -84,9 +68,7 @@ export function ScriptSummary({
                 {s.trigger === "change" && s.changeVariable !== undefined
                   ? <span className="ss-el">{s.changeVariable || tr("Select a variable")}</span>
                   : element && <span className="ss-el">{element}</span>}
-                <span className="ss-trig">
-                  {s.trigger ? TRIGGER_LABELS[s.trigger] : tr("No trigger (won't run)")}
-                </span>
+                <span className="ss-trig">{TRIGGER_LABELS[s.trigger]}</span>
               </span>
               <ol className="ss-steps">
                 {s.steps.slice(0, MAX).map((step) => (
@@ -110,74 +92,10 @@ export function ScriptSummary({
 
 /* ---------- 本体 ---------- */
 
-export interface Drag {
-  pointerId: number;
-  make: () => Payload;
-  payload: Payload | null;
-  started: boolean;
-  sx: number;
-  sy: number;
-  x: number;
-  y: number;
-  /** つかんだ位置（ブロックの左上からのずれ） */
-  ox: number;
-  oy: number;
-  h: number;
-  /** ドラッグを始める前のブロックの幅（倍率 1 での値） */
-  w?: number;
-  /** モーダルの登場アニメーション中もプレビューの見た目の倍率を揃える。 */
-  modalScale?: number;
-  /** ブロックを取り除いた後も、元のスタックの幅を保つ */
-  sourceStackWidth?: number;
-  /** 複数のスタックをドラッグするときは、各スタックの幅を保つ */
-  scriptWidths?: Record<string, number>;
-  /** 実際の DOM の写しを使い、ドラッグ中も表示中の部品と行の折り返しを変えないようにする。 */
-  previewNodes?: HTMLElement[];
-  sourceStackIdle?: boolean;
-  /** 複数選択中のブロックをクリックしただけで離したら、そのブロックだけを選択する */
-  clickKey?: string;
-}
-
-/** 範囲選択（画面上の座標） */
-export interface Marquee {
-  pointerId: number;
-  x0: number;
-  y0: number;
-  x: number;
-  y: number;
-  /** Shift / ⌘ を押していれば、既存の選択に追加する */
-  base: string[];
-}
-
-export interface Menu {
-  x: number;
-  y: number;
-  target: MenuTarget;
-  key: string;
-}
-
-/** キー操作やドラッグのイベントから参照する、ScriptEditor の最新の状態 */
-export interface ScriptEditorLatest {
-  setZoom: (next: number, anchor?: { x: number; y: number }) => void;
-  stepZoom: (dir: 1 | -1) => void;
-  scripts: PageScript[];
-  commit: (next: PageScript[]) => void;
-  focusNodeId: string | null;
-  onClose: () => void;
-  selectedList: string[];
-  deleteSelected: () => void;
-  selectAll: () => void;
-  copySelection: () => ScriptBlockClipboard | null;
-  pasteSelection: (copied: ScriptBlockClipboard) => void;
-  peekId: string | null;
-}
-
-const isModifier = (e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) =>
-  e.shiftKey || e.metaKey || e.ctrlKey;
-
 /**
- * ページのスクリプトの画面。ページ内のすべての要素のスクリプトを、1つのワークスペースに並べる。
- * focusNodeId: 要素の設定から開いたときの要素（強調表示し、新しいきっかけの要素にする）
+ * ページのスクリプトの画面。左にページ内のスクリプトの一覧、右に選んだスクリプトの
+ * 「いつ」と「すること」を上から順に並べる。
+ * focusNodeId: 要素の設定から開いたときの要素（新しいスクリプトのきっかけの要素にする）
  */
 export default function ScriptEditor(props: {
   focusNodeId?: string | null;
@@ -191,13 +109,21 @@ export default function ScriptEditor(props: {
   );
 }
 
+interface AnchoredMenu<T> {
+  anchor: { current: HTMLElement | null };
+  value: T;
+}
+
+const reducedMotion = () =>
+  typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 function ScriptEditorInner({
   focusNodeId = null,
   focusScriptId = null,
   onClose,
 }: {
   focusNodeId?: string | null;
-  /** 開いたときに選択して表示するスクリプト */
+  /** 開いたときに表示するスクリプト */
   focusScriptId?: string | null;
   onClose: () => void;
 }) {
@@ -211,34 +137,13 @@ function ScriptEditorInner({
   const page = doc.pages[activePageId];
 
   // コンポーネント編集中・コンポーネント内の要素から開いたときは、そのマスターも含める
-  // Component ownership indexes the node tree. Recompute it only when the
-  // document or editor focus changes, never on every drag/selection render.
   const extraRootIds = useMemo(() => [
     editingComponentId ? doc.components?.[editingComponentId]?.rootId : null,
-    focusNodeId
-      ? doc.components?.[componentOf(doc, focusNodeId) ?? ""]?.rootId
-      : null,
-  ]
-    .filter((id): id is string => !!id), [doc, editingComponentId, focusNodeId]);
+    focusNodeId ? doc.components?.[componentOf(doc, focusNodeId) ?? ""]?.rootId : null,
+  ].filter((id): id is string => !!id), [doc, editingComponentId, focusNodeId]);
   const tree = useMemo(() => buildTree(doc, activePageId, extraRootIds), [doc, activePageId, extraRootIds]);
   const nodeIds = useMemo(() => tree.map((row) => row.id), [tree]);
-  const scripts = useMemo(
-    () => pageScriptsOf(doc, nodeIds, activePageId),
-    [doc, nodeIds, activePageId]
-  );
-  const stepOwners = useMemo(() => {
-    const owners = new Map<string, string[]>();
-    for (const script of scripts) {
-      walkSteps(script.steps, (step) => {
-        const matches = owners.get(step.id) ?? [];
-        if (!matches.includes(script.id)) {
-          matches.push(script.id);
-          owners.set(step.id, matches);
-        }
-      });
-    }
-    return owners;
-  }, [scripts]);
+  const scripts = useMemo(() => pageScriptsOf(doc, nodeIds, activePageId), [doc, nodeIds, activePageId]);
   const pageLoadScriptIds = useMemo(() => new Set(
     scripts.filter((s) => s.nodeId === PAGE_TARGET && s.trigger === "load").map((s) => s.id)
   ), [scripts]);
@@ -261,8 +166,7 @@ function ScriptEditorInner({
     return { samples: previewDataVars(doc, activePageId, { listCounts }), listCounts };
   }, [doc, activePageId]);
   const variableIndex = useMemo(() => pageVariableIndex(doc, activePageId), [doc, activePageId]);
-  // 値の加工のブロックは、すべて同じ値の候補を使う。ブロックごとにページの全変数の
-  // オブジェクトを作り直すと、大きなワークスペースで処理量が2乗に増えてしまう。
+  // 値の加工は、すべて同じ値の候補を使う。動作ごとにページの全変数のオブジェクトを作り直さない。
   const transformSources = useMemo(() => {
     const values: Record<string, unknown> = {};
     for (const [name, value] of Object.entries(samples)) {
@@ -277,218 +181,80 @@ function ScriptEditorInner({
     }
     return values;
   }, [samples, variableIndex]);
-  const elements = useMemo(
-    () =>
-      nodeIds.map((id) => {
-        const n = doc.nodes[id];
-        return { id, label: n.attrId ? tr("{name} (#{attrId})", { name: n.name, attrId: n.attrId }) : n.name };
-      }),
-    [doc, nodeIds]
-  );
 
-  const wsRef = useRef<HTMLDivElement>(null);
-  const paletteRef = useRef<HTMLDivElement>(null);
-  /** ワークスペースの表示倍率（ブラウザに保存しておく） */
-  const [zoom, setZoomState] = useState(() => {
-    try {
-      return clampZoom(Number(window.localStorage.getItem("se-zoom")) || 1);
-    } catch {
-      return 1;
-    }
-  });
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("se-zoom", String(zoom));
-    } catch {
-      // 保存できなくても、表示には影響しない
-    }
-  }, [zoom]);
-  /** 倍率を変える。anchor（画面上の点）の位置にある内容が動かないよう、スクロールを合わせる */
-  const setZoom = useCallback((next: number, anchor?: { x: number; y: number }) => {
-    const ws = wsRef.current;
-    const prev = zoomRef.current;
-    const z = clampZoom(next);
-    if (z === prev) return;
-    if (ws) {
-      const r = ws.getBoundingClientRect();
-      const ax = anchor ? anchor.x - r.left : ws.clientWidth / 2;
-      const ay = anchor ? anchor.y - r.top : ws.clientHeight / 2;
-      const cx = (ws.scrollLeft + ax) / prev;
-      const cy = (ws.scrollTop + ay) / prev;
-      requestAnimationFrame(() => {
-        ws.scrollLeft = cx * z - ax;
-        ws.scrollTop = cy * z - ay;
-      });
-    }
-    zoomRef.current = z;
-    setZoomState(z);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const flowRef = useRef<HTMLDivElement>(null);
+  const lineRef = useRef<HTMLDivElement>(null);
+  const liveRef = useRef<HTMLParagraphElement>(null);
+  const announce = useCallback((text: string) => {
+    const live = liveRef.current;
+    if (!live) return;
+    // 同じ文が続いても読み上げられるよう、いったん空にしてから入れる
+    live.textContent = "";
+    requestAnimationFrame(() => { live.textContent = text; });
   }, []);
-  const stepZoom = useCallback(
-    (dir: 1 | -1) => {
-      const cur = zoomRef.current;
-      const next =
-        dir > 0
-          ? (ZOOM_STEPS.find((v) => v > cur + 0.001) ?? ZOOM_MAX)
-          : ([...ZOOM_STEPS].reverse().find((v) => v < cur - 0.001) ?? ZOOM_MIN);
-      setZoom(next);
-    },
-    [setZoom]
-  );
-  // ⌘ / Ctrl + スクロール（トラックパッドのピンチも含む）で、カーソルの位置を中心に拡大・縮小する
+
+  /* ---------- 開いているスクリプト ---------- */
+
+  const [openId, setOpenId] = useState<string | null>(() =>
+    (focusScriptId && scripts.some((s) => s.id === focusScriptId) ? focusScriptId : null) ??
+    (focusNodeId ? scripts.find((s) => s.nodeId === focusNodeId)?.id : undefined) ??
+    (focusNodeId ? null : scripts[0]?.id ?? null));
+  /** 作り始めたが、まだ要素を選んでいないスクリプト（保存しない） */
+  const [draft, setDraft] = useState<TriggerValue | null>(null);
+  const [choosing, setChoosing] = useState(() => openId === null);
+  const open = scripts.find((s) => s.id === openId) ?? null;
+
+  // 「クリックしたとき → 開く」だけのスクリプトは保存するとリンクになり、ID が変わる。
+  // 開いていたスクリプトを見失ったら、同じ要素の新しい ID のもの（無ければ同じ順番のもの）を開く。
+  const seen = useRef<{ ids: Set<string>; nodeId: string; ordinal: number } | null>(null);
   useEffect(() => {
-    const ws = wsRef.current;
-    if (!ws) return;
-    const onWheel = (e: WheelEvent) => {
-      if (!e.metaKey && !e.ctrlKey) return;
-      e.preventDefault();
-      // マウスホイールの1目盛り（大きな deltaY）でも変わりすぎないよう、変化量を抑える
-      const factor = Math.exp(-Math.max(-50, Math.min(50, e.deltaY)) * 0.006);
-      setZoom(Math.round(zoomRef.current * factor * 100) / 100, { x: e.clientX, y: e.clientY });
-    };
-    ws.addEventListener("wheel", onWheel, { passive: false });
-    return () => ws.removeEventListener("wheel", onWheel);
-  }, [setZoom]);
-  /** パレット（左のブロック一覧）の幅と開閉の状態。ブラウザに保存しておく */
-  const [palW, setPalW] = useState(() => {
-    try {
-      return clampPal(Number(window.localStorage.getItem("se-pal-w")) || 248);
-    } catch {
-      return 248;
-    }
-  });
-  const [palOpen, setPalOpen] = useState(() => {
-    try {
-      return window.localStorage.getItem("se-pal-closed") !== "1";
-    } catch {
-      return true;
-    }
-  });
-  const [palAnim, setPalAnim] = useState(false);
-  const paletteResize = useRef<(() => void) | null>(null);
-  const paletteResizerRef = useCallback((element: HTMLDivElement | null) => {
-    if (!element) paletteResize.current?.();
-  }, []);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("se-pal-w", String(palW));
-      window.localStorage.setItem("se-pal-closed", palOpen ? "0" : "1");
-    } catch {
-      // 保存できなくても、表示には影響しない
-    }
-  }, [palW, palOpen]);
-  useEffect(() => {
-    if (!palAnim) return;
-    const t = setTimeout(() => setPalAnim(false), 260);
-    return () => clearTimeout(t);
-  }, [palAnim]);
-  const togglePal = () => {
-    setPalAnim(true);
-    setPalOpen((o) => !o);
-  };
-  const dragRef = useRef<Drag | null>(null);
-  const marqueeRef = useRef<Marquee | null>(null);
-  const marqueeElRef = useRef<HTMLDivElement>(null);
-  const [drag, setDrag] = useState<Drag | null>(null);
-  const [marquee, setMarquee] = useState<Marquee | null>(null);
-  const ghostRef = useRef<HTMLDivElement>(null);
-  const highlightedSlotRef = useRef<HTMLElement | null>(null);
-  // 1回のドラッグで数百の挿入位置をまたぐことがある。変わった DOM ノードだけを強調表示し、
-  // ポインターが動くたびにブロックエディタ全体を描画し直すことはしない。
-  const setActiveSlot = useCallback((key: string | null, measuredElement?: HTMLElement | null) => {
-    const old = highlightedSlotRef.current;
-    if (old && (old.dataset.slot !== key || !old.isConnected)) {
-      old.classList.remove("is-active");
-      highlightedSlotRef.current = null;
-    }
-    if (!key) {
-      old?.classList.remove("is-active");
-      highlightedSlotRef.current = null;
+    if (open) {
+      const siblings = scripts.filter((s) => s.nodeId === open.nodeId);
+      seen.current = { ids: new Set(scripts.map((s) => s.id)), nodeId: open.nodeId, ordinal: siblings.indexOf(open) };
       return;
     }
-    if (highlightedSlotRef.current?.classList.contains("is-active")) return;
-    // ドロップ先が変わるたびにワークスペース全体を検索せず、
-    // ドラッグの当たり判定の索引にある DOM 要素を使い回す。
-    const el = measuredElement?.isConnected && measuredElement.dataset.slot === key
-      ? measuredElement
-      : wsRef.current?.querySelector<HTMLElement>(
-          `[data-slot="${CSS.escape(key)}"]`
-        );
-    el?.classList.add("is-active");
-    highlightedSlotRef.current = el ?? null;
-  }, []);
-  const [menu, setMenu] = useState<Menu | null>(null);
-  const [selectedList, setSelectedList] = useState<string[]>([]);
-  const historyRevision = useEditor((state) => state.historyRevision);
-  const selected = useMemo(() => new Set(selectedList), [selectedList]);
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
-  const scopedSelections = useMemo(() => {
-    const byScript = new Map<string, string[]>();
-    for (const key of selectedList) {
-      const owners = key.startsWith("script:") ? [key.slice(7)] :
-        key.startsWith("step:") ? (stepOwners.get(key.slice(5)) ?? []) : [];
-      for (const owner of owners) {
-        const values = byScript.get(owner) ?? [];
-        values.push(key);
-        byScript.set(owner, values);
-      }
-    }
-    return byScript;
-  }, [selectedList, stepOwners]);
-  /** 最後に選んだスクリプトほど後ろに置く（= 手前に描く）。重なったブロックを選んだら、前に出す */
-  const [front, setFront] = useState<string[]>([]);
-  const hiddenUndoSelection = useRef<string[] | null>(null);
-  const previousHistoryRevision = useRef(historyRevision);
-  // Document history and UI selection are separate. Hide an undone clone's
-  // selection while it does not exist, but restore it on redo so that copy/cut
-  // continues to target the same block.
+    const previous = seen.current;
+    if (!openId || !previous) return;
+    const siblings = scripts.filter((s) => s.nodeId === previous.nodeId);
+    // 消えた（元に戻す・削除など）ときは、同じ要素の近くのもの、無ければページの最初のものを開く
+    const next = siblings.find((s) => !previous.ids.has(s.id)) ??
+      siblings[Math.min(previous.ordinal, siblings.length - 1)] ?? scripts[0] ?? null;
+    seen.current = null;
+    setOpenId(next?.id ?? null);
+    if (!next) setChoosing(true);
+  }, [scripts, open, openId]);
+
+  const [selected, setSelected] = useState<string[]>([]);
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  // 元に戻す操作や共同編集で消えた動作を、選択に残さない
   useEffect(() => {
-    const historyChanged = historyRevision !== previousHistoryRevision.current;
-    previousHistoryRevision.current = historyRevision;
-    const ids = new Set(scripts.map((script) => script.id));
-    const exists = (key: string) => key.startsWith("script:") ? ids.has(key.slice(7))
-      : key.startsWith("step:") && stepOwners.has(key.slice(5));
-    const valid = selectedList.filter(exists);
-    if (valid.length !== selectedList.length) {
-      if (historyChanged) hiddenUndoSelection.current = selectedList;
-      setSelectedList(valid);
-    } else if (historyChanged && !selectedList.length &&
-               hiddenUndoSelection.current?.every(exists)) {
-      setSelectedList(hiddenUndoSelection.current);
-      hiddenUndoSelection.current = null;
-    }
-    setMenu((previous) => previous && !exists(previous.key) ? null : previous);
-    setFront((previous) => {
-      const next = previous.filter((id) => ids.has(id));
-      return next.length === previous.length ? previous : next;
-    });
-    // History changes are the only trigger for restoring an undone selection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyRevision, scripts, stepOwners]);
-  useEffect(() => {
-    if (!selectedList.length) return;
-    const ids = new Set(selectedList.flatMap((key) => key.startsWith("script:") ? [key.slice(7)] :
-      key.startsWith("step:") ? (stepOwners.get(key.slice(5)) ?? []) : []));
-    const owners = scripts.filter((script) => ids.has(script.id)).map((script) => script.id);
-    if (!owners.length) return;
-    setFront((prev) => {
-      const next = [...prev.filter((id) => !ids.has(id)), ...owners];
-      return next.length === prev.length && next.every((id, i) => id === prev[i]) ? prev : next;
-    });
-    // 選択が変わったときだけ並べ替える（スクリプトの編集では動かさない）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedList]);
-  const zOrder = useMemo(() => new Map(front.map((id, i) => [id, i + 1])), [front]);
-  /** 取得したデータを表で確認する小窓（取得ブロックの ID） */
+    if (!selected.length) return;
+    const ids = new Set<string>();
+    if (open) walkSteps(open.steps, (step) => { ids.add(step.id); });
+    const valid = selected.filter((id) => ids.has(id));
+    if (valid.length !== selected.length) setSelected(valid);
+  }, [open, selected]);
+
+  const [picker, setPicker] = useState<AnchoredMenu<Loc> | null>(null);
+  const [stepMenu, setStepMenu] = useState<AnchoredMenu<{ loc: Loc; stepId: string }> | null>(null);
+  const [scriptMenu, setScriptMenu] = useState<AnchoredMenu<string> | null>(null);
+  // 外側を押して閉じた直後の同じクリックで、同じボタンから開き直さない
+  const closed = useRef<{ anchor: HTMLElement | null; at: number }>({ anchor: null, at: 0 });
+  const reopening = (anchor: HTMLElement) =>
+    closed.current.anchor === anchor && performance.now() - closed.current.at < 250;
+  const noteClosed = (menu: AnchoredMenu<unknown> | null) => {
+    closed.current = { anchor: menu?.anchor.current ?? null, at: performance.now() };
+  };
+
+  /** 取得したデータを確認する小窓（取得の動作の ID） */
   const [peekId, setPeekId] = useState<string | null>(null);
   const [peekScope, setPeekScope] = useState<FetchPreviewScope>({ nodeId: "", localNames: [] });
   const peekStep = useMemo(() => {
+    if (!peekId) return null;
     for (const sc of scripts) {
       const owner = peekScope.owner;
       if (owner && (sc.id !== owner.scriptId || sc.nodeId !== owner.nodeId)) continue;
-      if (!owner && peekScope.nodeId && sc.nodeId !== peekScope.nodeId) continue;
       let found: FetchStep | null = null;
       walkSteps(sc.steps, (step) => {
         if (step.kind === "fetch" && step.id === peekId) found = step;
@@ -498,214 +264,237 @@ function ScriptEditorInner({
     return null;
   }, [scripts, peekId, peekScope]);
 
+  /* ---------- 編集 ---------- */
+
   const commit = useCallback((next: PageScript[]) => {
     updatePageScripts(activePageId, nodeIds, numberFilters(next));
   }, [updatePageScripts, activePageId, nodeIds]);
-  const deleteSelected = () => {
-    if (!selectedList.length) return;
-    commit(removeKeys(scripts, selectedList));
-    setSelectedList([]);
-  };
-  const copySelection = () => copyScriptBlocks(scripts, selectedList);
-  const pasteSelection = (copied: ScriptBlockClipboard) => {
-    const result = pasteScriptBlocks(scripts, selectedList, copied);
-    if (!result) return;
-    commit(result.scripts);
-    setSelectedList(result.selection);
-  };
-  /** ⌘A: きっかけのあるスクリプトと、きっかけの無いブロックの集まりをすべて選ぶ */
-  const selectAll = () =>
-    setSelectedList(
-      scripts.flatMap((s) =>
-        s.trigger ? [`script:${s.id}`] : s.steps.map((x) => `step:${x.id}`)
-      )
-    );
-  // ウィンドウのイベントから、最新の状態を参照する
-  const latest = useRef<ScriptEditorLatest>({
-    setZoom,
-    stepZoom,
-    scripts,
-    commit,
-    focusNodeId,
-    onClose,
-    selectedList,
-    deleteSelected,
-    selectAll,
-    copySelection,
-    pasteSelection,
-    peekId,
-  });
-  latest.current = {
-    setZoom,
-    stepZoom,
-    scripts,
-    commit,
-    focusNodeId,
-    onClose,
-    selectedList,
-    deleteSelected,
-    selectAll,
-    copySelection,
-    pasteSelection,
-    peekId,
-  };
+  const scriptsRef = useRef(scripts);
+  scriptsRef.current = scripts;
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
 
-  // 要素の設定から開いたときは、その要素のスクリプトが見える位置までスクロールする
-  useEffect(() => {
-    // 一覧から選んだスクリプトがあれば、それを選択して中央に表示する
-    if (focusScriptId) {
-      const el = wsRef.current?.querySelector<HTMLElement>(
-        `[data-script-id="${CSS.escape(focusScriptId)}"]`
-      );
-      if (el) {
-        setSelectedList([`script:${focusScriptId}`]);
-        el.scrollIntoView({ block: "center", inline: "center" });
-        return;
-      }
-    }
-    if (!focusNodeId) return;
-    const el = wsRef.current?.querySelector<HTMLElement>(
-      `[data-script-node="${CSS.escape(focusNodeId)}"]`
-    );
-    el?.scrollIntoView({ block: "center", inline: "center" });
-    // 開いたときだけ
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // 並びが変わったカードを、元の位置から新しい位置へ動いて見せる（FLIP）
+  const layout = useRef<Map<string, number> | null>(null);
+  const captureLayout = useCallback(() => {
+    const flow = flowRef.current;
+    if (!flow || reducedMotion()) return;
+    const tops = new Map<string, number>();
+    flow.querySelectorAll<HTMLElement>("[data-step-id]").forEach((card) => {
+      tops.set(card.dataset.stepId!, card.getBoundingClientRect().top);
+    });
+    layout.current = tops;
   }, []);
+  useLayoutEffect(() => {
+    const before = layout.current;
+    const flow = flowRef.current;
+    layout.current = null;
+    if (!before || !flow) return;
+    flow.querySelectorAll<HTMLElement>("[data-step-id]").forEach((card) => {
+      const from = before.get(card.dataset.stepId!);
+      if (from === undefined) return;
+      const distance = from - card.getBoundingClientRect().top;
+      // 親のカードと一緒に動く分は、親のアニメーションに任せる
+      const parent = card.parentElement?.closest<HTMLElement>("[data-step-id]");
+      const parentFrom = parent ? before.get(parent.dataset.stepId!) : undefined;
+      const parentDistance = parent && parentFrom !== undefined ? parentFrom - parent.getBoundingClientRect().top : 0;
+      const own = distance - parentDistance;
+      if (Math.abs(own) < 1) return;
+      card.animate([{ translate: `0 ${own}px` }, { translate: "0 0" }], {
+        duration: 220, easing: "cubic-bezier(0.2, 0, 0, 1)",
+      });
+    });
+  }, [scripts]);
 
-  const cancelGesture = useScriptDrag({
-    wsRef,
-    zoomRef,
-    marqueeRef,
-    setMarquee,
-    setSelectedList,
-    dragRef,
-    setMenu,
-    setActiveSlot,
-    setDrag,
-    latest,
-    paletteRef,
-    ghostRef,
-    marqueeElRef,
-  });
-  useScriptEditorKeys({ dragRef, cancelGesture, latest, setPeekId, setSelectedList });
+  const openScript = (id: string | null) => {
+    setOpenId(id);
+    setDraft(null);
+    setChoosing(id === null);
+    setSelected([]);
+    flowRef.current?.scrollTo({ top: 0 });
+  };
 
-  /**
-   * ブロックを押したときの処理。key があれば選択も更新する
-   * （Shift / ⌘ では選択の追加・解除だけを行い、選択済みのブロックはそのまま複数でドラッグする）
-   */
-  const begin = useCallback((e: React.PointerEvent, make: () => Payload, key?: string) => {
-    if (e.button !== 0 || dragRef.current || marqueeRef.current) return;
-    const t = e.target as HTMLElement;
-    e.stopPropagation();
-    if (key && isModifier(e)) {
-      e.preventDefault();
-      setSelectedList((prev) =>
-        prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-      );
-      return;
+  const createScript = (value: TriggerValue & { nodeId: string }) => {
+    const id = scriptUid();
+    const { nodeId, ...rest } = value;
+    commit([...scriptsRef.current, { id, steps: [], ...rest, nodeId }]);
+    openScript(id);
+    announce(tr("Created a script. Add the first action."));
+  };
+  const startScript = (trigger: ScriptTrigger) => {
+    if (isPageTrigger(trigger)) createScript({ trigger, nodeId: PAGE_TARGET });
+    else if (focusNodeId && nodeIds.includes(focusNodeId)) createScript({ trigger, nodeId: focusNodeId });
+    else {
+      setChoosing(false);
+      setOpenId(null);
+      setDraft({ trigger, nodeId: null });
     }
-    if (key && !selectedRef.current.has(key)) setSelectedList([key]);
-    if (!key) setSelectedList([]);
-    // 入力欄の操作はドラッグとして扱わない
-    if (t.closest("input, select, textarea, button, label")) return;
-    e.preventDefault();
-    // 入力欄にフォーカスが残っていると Backspace が文字の削除になるため、フォーカスを外す
-    (document.activeElement as HTMLElement | null)?.blur?.();
-    const target = e.currentTarget as HTMLElement;
-    const r = target.getBoundingClientRect();
-    // つかんだ位置は倍率 1 での大きさで持つ（ワークスペースの中には表示倍率がかかっている）
-    const z = wsRef.current?.contains(target) ? zoomRef.current : 1;
-    // エディタの登場アニメーションは DOM 全体を拡大・縮小する。getBoundingClientRect の矩形には
-    // その一時的な倍率が含まれるため、それを CSS の幅として保存すると、ドラッグ中にゴーストが
-    // さらに縮み、元のスタックも誤った大きさで固定されてしまう。
-    // offsetWidth はレイアウト上の幅を測るため、モーダルの拡大アニメーションにも、
-    // ワークスペースの CSS の倍率にも左右されない。
-    const sourceStack = target.closest<HTMLElement>(".se-stack");
-    const sourceStackWidth = sourceStack?.offsetWidth;
-    // ドラッグ用の層はモーダルの外へ出すため、登場アニメーション中の
-    // scale を別途引き継ぐ。元のブロックとプレビューの大きさを揃える。
-    const dialog = target.closest<HTMLElement>(".se");
-    const modalScale = dialog?.offsetWidth
-      ? dialog.getBoundingClientRect().width / dialog.offsetWidth
-      : 1;
-    const sourceStackIdle = sourceStack?.classList.contains("is-idle") ?? false;
-    let scriptWidths: Record<string, number> | undefined;
-    if (key?.startsWith("script:") && selectedRef.current.has(key)) {
-      const ids = new Set([...selectedRef.current]
-        .filter((selectedKey) => selectedKey.startsWith("script:"))
-        .map((selectedKey) => selectedKey.slice("script:".length)));
-      if (ids.size > 1) {
-        scriptWidths = {};
-        wsRef.current?.querySelectorAll<HTMLElement>(".se-stack[data-script-id]").forEach((stack) => {
-          const id = stack.dataset.scriptId;
-          if (id && ids.has(id)) scriptWidths![id] = stack.offsetWidth;
-        });
-      }
-    }
-    dragRef.current = {
-      pointerId: e.pointerId,
-      make: () => {
-        const payload = make();
-        // エディタがブロックを一時的に取り除く前に、実際のブロックの DOM を写し取る。
-        // 読み取り専用のプレビューを作り直すと、データが変わっていなくても、
-        // ドロップダウン・入力欄・条件の行の見た目が変わってしまう。
-        if (payload.type === "script") {
-          const nodes = payload.group.slice(0, 8).map((script) => {
-            const element = wsRef.current?.querySelector<HTMLElement>(
-              `.se-stack[data-script-id="${CSS.escape(script.id)}"]`
-            );
-            return element ? cloneDragElement(element) : null;
-          });
-          if (nodes.every((node): node is HTMLElement => node !== null)) {
-            dragRef.current!.previewNodes = nodes;
-          }
-        } else if (payload.type === "steps" && payload.from) {
-          // 選択された手順は隣接するとは限らず、つかんだ手順より前にもある。
-          // 実際の移動順と同じ ID で、表示中のブロックだけを写し取る。
-          const nodes = payload.steps.slice(0, 8).map((step) => {
-            const element = wsRef.current?.querySelector<HTMLElement>(
-              `[data-sel-key="step:${CSS.escape(step.id)}"]`
-            )?.closest<HTMLElement>(".se-item");
-            return element ? cloneDragElement(element) : null;
-          });
-          if (nodes.every((node): node is HTMLElement => node !== null)) {
-            dragRef.current!.previewNodes = nodes;
-          }
+  };
+  const changeTrigger = (script: PageScript, value: TriggerValue & { nodeId: string }) => {
+    const { id, steps } = script;
+    commit(scriptsRef.current.map((s) => s.id === id ? { id, steps, ...value } : s));
+  };
+  const deleteScript = (id: string) => {
+    const list = scriptsRef.current;
+    const index = list.findIndex((s) => s.id === id);
+    commit(removeKeys(list, [`script:${id}`]));
+    if (id === openId) openScript(list[index + 1]?.id ?? list[index - 1]?.id ?? null);
+    announce(tr("Deleted the script. Press Undo to bring it back."));
+  };
+  const duplicateScript = (id: string) => {
+    const source = scriptsRef.current.find((s) => s.id === id);
+    if (!source) return;
+    const copy = { ...source, id: scriptUid(), steps: cloneSteps(source.steps) };
+    commit([...scriptsRef.current, copy]);
+    openScript(copy.id);
+  };
+
+  const deleteSteps = (ids: readonly string[]) => {
+    if (!ids.length) return;
+    commit(removeKeys(scriptsRef.current, ids.map((id) => `step:${id}`)));
+    setSelected([]);
+    announce(ids.length > 1
+      ? tr("Deleted {n} actions. Press Undo to bring them back.", { n: ids.length })
+      : tr("Deleted the action. Press Undo to bring it back."));
+  };
+  /** 選んだ動作のうち、他の選んだ動作の中に入っていないものだけを、それぞれの直後に複製する。 */
+  const duplicateSteps = (ids: readonly string[]) => {
+    if (!open || !ids.length) return;
+    let next = scriptsRef.current;
+    const made: string[] = [];
+    const chosen = new Set(ids);
+    const roots: string[] = [];
+    const collect = (steps: ScriptStep[]) => {
+      for (const step of steps) {
+        if (chosen.has(step.id)) roots.push(step.id);
+        else if ("then" in step) {
+          collect(step.then);
+          if (step.kind === "if" && step.else) collect(step.else);
         }
-        return payload;
-      },
-      payload: null,
-      started: false,
-      sx: e.clientX,
-      sy: e.clientY,
-      x: e.clientX,
-      y: e.clientY,
-      ox: (e.clientX - r.left) / z,
-      oy: (e.clientY - r.top) / z,
-      h: r.height / z,
-      // プレビューは左右に 1px ずつ枠線を加える。一時的にアニメーションしている矩形ではなく、
-      // ドラッグした行の、倍率のかかっていないレイアウト上の幅を使う。
-      w: sourceStackWidth ?? target.offsetWidth + 2,
-      modalScale,
-      sourceStackWidth,
-      sourceStackIdle,
-      scriptWidths,
-      clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
+      }
+    };
+    collect(open.steps);
+    for (const id of roots) {
+      const script = next.find((s) => s.id === open.id);
+      const loc = script && findStepLoc(script, id);
+      const source = loc && listIn(script, loc.list)?.[loc.index];
+      if (!loc || !source) continue;
+      const [copy] = cloneSteps([source]);
+      next = insertAt(next, { ...loc, index: loc.index + 1 }, [copy]);
+      made.push(copy.id);
+    }
+    if (!made.length) return;
+    captureLayout();
+    commit(next);
+    setSelected(made);
+  };
+  const nudge = (loc: Loc, stepId: string, direction: -1 | 1) => {
+    const next = nudgeStep(scriptsRef.current, loc, direction);
+    if (next === scriptsRef.current) return;
+    captureLayout();
+    commit(next);
+    setSelected([stepId]);
+    refocus.current = { stepId, selector: ".se-grip" };
+    announce(direction < 0
+      ? tr("Moved up to position {n}.", { n: loc.index })
+      : tr("Moved down to position {n}.", { n: loc.index + 2 }));
+  };
+
+  /** 追加や移動の後に、描画し直されたカードへフォーカスを戻す */
+  const refocus = useRef<{ stepId: string; selector: string } | null>(null);
+  useEffect(() => {
+    const target = refocus.current;
+    if (!target) return;
+    refocus.current = null;
+    const card = flowRef.current?.querySelector<HTMLElement>(`[data-step-id="${CSS.escape(target.stepId)}"]`);
+    if (!card) return;
+    card.scrollIntoView({ block: "nearest", inline: "nearest" });
+    card.querySelector<HTMLElement>(target.selector)?.focus({ preventScroll: true });
+  }, [scripts]);
+
+  const addStep = (loc: Loc, step: ScriptStep) => {
+    const steps = connectNewTransform(scriptsRef.current, loc, [step]);
+    captureLayout();
+    commit(insertAt(scriptsRef.current, loc, steps));
+    setPicker(null);
+    setSelected([steps[0].id]);
+    // まだ決めていない欄（要素やリストを選ぶボタン）があれば、そこから続けて選べるようにする。
+    // 文字の入力欄には移さない（フォーカスしただけで候補の一覧が開き、次の操作の邪魔になる）。
+    refocus.current = { stepId: steps[0].id, selector: ".se-card-body button.se-in.is-empty" };
+    announce(tr("Added the action. Fill in its settings."));
+  };
+
+  const copySelection = (): ScriptBlockClipboard | null =>
+    copyScriptBlocks(scriptsRef.current, selectedRef.current.map((id) => `step:${id}`));
+  const pasteSelection = (copied: ScriptBlockClipboard) => {
+    const result = pasteScriptBlocks(scriptsRef.current,
+      selectedRef.current.map((id) => `step:${id}`), copied, openId);
+    if (!result) return;
+    captureLayout();
+    commit(result.scripts);
+    setSelected(result.selection.filter((key) => key.startsWith("step:")).map((key) => key.slice(5)));
+  };
+
+  const drag = useStepDrag({
+    rootRef, flowRef, lineRef,
+    getScripts: () => scriptsRef.current,
+    getSelected: () => selectedRef.current,
+    setSelected,
+    commit,
+    captureLayout,
+    announce,
+  });
+
+  const keys = useRef<EditorKeyState>(null!);
+  keys.current = {
+    selected,
+    cancelDrag: drag.cancel,
+    dragging: drag.active,
+    clearSelection: () => setSelected([]),
+    deleteSelected: () => deleteSteps(selected),
+    duplicateSelected: () => duplicateSteps(selected),
+    selectAll: () => setSelected(open ? open.steps.map((step) => step.id) : []),
+    copySelection,
+    pasteSelection,
+    onClose,
+  };
+  useEditorKeys(keys);
+  // キャンバスの選択枠などを、この画面を開閉した後の大きさに合わせ直させる
+  useEffect(() => {
+    const opened = setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
+    return () => {
+      clearTimeout(opened);
+      setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
     };
   }, []);
 
-  const view = useMemo(() => {
-    const p = drag?.payload;
-    if (!p) return scripts;
-    if (p.type === "steps" && p.from) return p.from.remaining;
-    if (p.type === "script") {
-      const ids = new Set(p.group.map((s) => s.id));
-      return scripts.filter((s) => !ids.has(s.id));
-    }
-    return scripts;
-  }, [scripts, drag?.payload]);
+  const flow = useMemo<FlowActions>(() => ({
+    select: (event, stepId) => {
+      // 入力欄にフォーカスが残っていると Backspace が文字の削除になるため、フォーカスを外す
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      if (event.shiftKey || event.metaKey || event.ctrlKey) {
+        setSelected((previous) => previous.includes(stepId)
+          ? previous.filter((id) => id !== stepId) : [...previous, stepId]);
+      } else setSelected([stepId]);
+    },
+    grab: drag.grab,
+    nudge: (loc, stepId, direction) => nudgeRef.current(loc, stepId, direction),
+    openPicker: (anchor, loc) => {
+      if (reopening(anchor)) return;
+      setPicker({ anchor: { current: anchor }, value: loc });
+    },
+    openMenu: (anchor, loc, stepId) => {
+      if (reopening(anchor)) return;
+      setSelected((previous) => previous.includes(stepId) ? previous : [stepId]);
+      setStepMenu({ anchor: { current: anchor }, value: { loc, stepId } });
+    },
+    // drag.grab は変わらない。メニューを開き直さない判定は ref を読む。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [drag.grab]);
+  const nudgeRef = useRef(nudge);
+  nudgeRef.current = nudge;
 
-  const sharedCtx = useMemo<EdCtx>(() => ({
+  const ctx = useMemo<EdCtx>(() => ({
     doc,
     pageId: activePageId,
     scriptRootIds: extraRootIds,
@@ -714,32 +503,15 @@ function ScriptEditorInner({
     targetLookup,
     fieldLookup,
     scripts,
-    // ツリー全体をもう一度たどらず、手順を持つ要素の数を数えて判定する。
-    virtualizeStacks: scripts.length > 40 || stepOwners.size > 320,
     variableIndex,
     transformSources,
     listCounts,
     pageLoadScriptIds,
     serverStepIds,
-    elements,
-    focusNodeId,
-    readOnly: false,
-    activeSlot: null,
-    selected: new Set<string>(),
-    zOrder: new Map<string, number>(),
     // 取得のように後から呼ばれることがあるため、描画した時点ではなく最新の状態に適用する
     updateStep: (stepId, fn) =>
-      commit(
-        mapStep(
-          pageScriptsOf(useEditor.getState().doc, nodeIds, activePageId),
-          stepId,
-          fn
-        )
-      ),
-    updateScript: (scriptId, patch) =>
-      commit(scripts.map((s) => (s.id === scriptId ? { ...s, ...patch } : s))),
+      commit(mapStep(pageScriptsOf(useEditor.getState().doc, nodeIds, activePageId), stepId, fn)),
     isPageLoadRoot: (loc) => loc.list === "root" && pageLoadScriptIds.has(loc.scriptId),
-    // 取得のように後から呼ばれることがあるため、最新の状態に適用する
     renameVar: (stepId, from, to) =>
       updateDoc((d) => {
         applyPageScripts(
@@ -758,157 +530,20 @@ function ScriptEditorInner({
     },
     arrays,
     samples,
-    beginSteps: (e, loc, stepId) =>
-      begin(
-        e,
-        () => {
-          const selectedIds = new Set([...selectedRef.current]
-            .filter((key) => key.startsWith("step:"))
-            .map((key) => key.slice("step:".length)));
-          const [remaining, steps] = takeSelectedSteps(latest.current.scripts, loc, selectedIds);
-          return { type: "steps", steps, from: { loc, remaining } };
-        },
-        `step:${stepId}`
-      ),
-    beginScript: (e, script) =>
-      begin(
-        e,
-        () => {
-          // 選択中のスクリプトがあれば一緒に動かす
-          // 選択数がプレビューの表示上限を超えても、つかんだブロックは必ず表示する。
-          const group = [script, ...latest.current.scripts.filter(
-            (s) => s.id !== script.id && selectedRef.current.has(`script:${s.id}`)
-          )];
-          return { type: "script", script, group };
-        },
-        `script:${script.id}`
-      ),
-    openMenu: (e, target, key) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!selectedRef.current.has(key)) setSelectedList([key]);
-      setMenu({ x: e.clientX, y: e.clientY, target, key });
-    },
   }), [doc, activePageId, extraRootIds, targets, tree, targetLookup, fieldLookup, scripts,
-    stepOwners, variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId,
-    commit, updateDoc, nodeIds, arrays, samples, listCounts, begin]);
-  const ctx = useMemo<EdCtx>(() => ({ ...sharedCtx, selected, zOrder }),
-    [sharedCtx, selected, zOrder]);
-
-  const runMenu = (action: "delete" | "duplicate") => {
-    if (!menu) return;
-    const t = menu.target;
-    setMenu(null);
-    if (action === "delete") {
-      // 右クリックしたブロックが選択に含まれていれば、選択中のものをまとめて削除する
-      const keys = selected.has(menu.key) ? selectedList : [menu.key];
-      commit(removeKeys(scripts, keys));
-      setSelectedList([]);
-      return;
-    }
-    if (t.type === "script") {
-      const s = scripts.find((x) => x.id === t.scriptId);
-      if (!s) return;
-      const id = scriptUid();
-      commit([
-        ...scripts,
-        {
-          ...s,
-          id,
-          steps: cloneSteps(s.steps),
-          pos: { x: s.pos.x + 32, y: s.pos.y + 32 },
-        },
-      ]);
-      setSelectedList([`script:${id}`]);
-      return;
-    }
-    const script = scripts.find((x) => x.id === t.loc.scriptId);
-    const list = script && listIn(script, t.loc.list);
-    if (!list) return;
-    // A collaborative edit can insert or remove siblings while the menu is open.
-    const stepId = menu.key.slice("step:".length);
-    const index = list[t.loc.index]?.id === stepId
-      ? t.loc.index : list.findIndex((step) => step.id === stepId);
-    if (index < 0) return;
-    const [copy] = cloneSteps([list[index]]);
-    commit(insertAt(scripts, { ...t.loc, index: index + 1 }, [copy]));
-    setSelectedList([`step:${copy.id}`]);
-  };
-
-  const wsSize = useMemo(() => scripts.reduce(
-    (acc, s) => ({
-      w: Math.max(acc.w, s.pos.x + 900),
-      h: Math.max(acc.h, s.pos.y + 700),
-    }),
-    { w: 1600, h: 1000 }
-  ), [scripts]);
-
-  const ghost = drag?.payload ? (
-    <div
-      ref={ghostRef}
-      className="se-ghost"
-      aria-hidden="true"
-      inert
-      style={{ left: 0, top: 0,
-        transform: `translate3d(${drag.x - drag.ox * zoom}px, ${drag.y - drag.oy * zoom}px, 0)` }}
-    >
-      <div style={{ zoom, scale: drag.modalScale ?? 1, transformOrigin: "top left" }}>
-      <Ctx.Provider value={{ ...ctx, readOnly: true, activeSlot: null }}>
-        {drag.payload.type === "trigger" ? (
-          <div className="se-stack" style={{ width: drag.w }}>
-            <HatView trigger={drag.payload.trigger} />
-          </div>
-        ) : drag.payload.type === "script" ? (
-          (() => {
-            const main = drag.payload.script;
-            return drag.payload.group.slice(0, 8).map((s, i) => (
-              <div
-                key={s.id}
-                className="se-ghost-item"
-                style={{
-                  left: s.pos.x - main.pos.x,
-                  top: s.pos.y - main.pos.y,
-                  width: drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined),
-                }}
-              >
-                {drag.previewNodes?.[i] ? (
-                  <div ref={(host) => {
-                    const node = drag.previewNodes?.[i];
-                    if (host && node && host.firstChild !== node) host.replaceChildren(node);
-                  }} />
-                ) : (
-                  <StackView script={{ ...s, steps: ghostPreviewSteps(s.steps) }}
-                    fixedWidth={drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined)} />
-                )}
-              </div>
-            ));
-          })()
-        ) : (
-          <div className={`se-stack${drag.sourceStackIdle ? " is-idle" : ""}`} style={{ width: drag.w }}>
-            {drag.previewNodes?.length ? (
-              <div className="se-list" ref={(host) => {
-                if (host && host.firstChild !== drag.previewNodes?.[0]) {
-                  host.replaceChildren(...(drag.previewNodes ?? []));
-                }
-              }} />
-            ) : (
-              <StepList scriptId="__ghost" list="root" steps={ghostPreviewSteps(drag.payload.steps)} />
-            )}
-            {drag.payload.steps.length > 8 && (
-              <span className="se-ghost-more">
-                {tr("and {n} more actions", { n: drag.payload.steps.length - 8 })}
-              </span>
-            )}
-          </div>
-        )}
-      </Ctx.Provider>
-      </div>
-    </div>
-  ) : null;
-
-  const menuCount = menu && selected.has(menu.key) ? selectedList.length : 1;
+    variableIndex, transformSources, pageLoadScriptIds, serverStepIds, commit, updateDoc,
+    nodeIds, arrays, samples, listCounts]);
 
   if (!page) return null;
+
+  const status = open ? scriptStatus(open) : null;
+  const menuStep = stepMenu && open ? listIn(open, stepMenu.value.loc.list)?.[stepMenu.value.loc.index] : null;
+  const menuList = stepMenu && open ? listIn(open, stepMenu.value.loc.list) : null;
+  const menuCount = stepMenu && selected.includes(stepMenu.value.stepId) ? selected.length : 1;
+  const closeStepMenu = () => {
+    noteClosed(stepMenu);
+    setStepMenu(null);
+  };
 
   return createPortal(
     <div
@@ -918,396 +553,195 @@ function ScriptEditorInner({
       }}
     >
       <div
-        className={`se${drag?.payload ? " is-dragging" : ""}`}
+        ref={rootRef}
+        className="se"
         data-tutorial="settings-link"
         role="dialog"
-        aria-label={tr("Scripts")}
-        onClick={() => setMenu(null)}
+        aria-modal="true"
+        aria-labelledby="se-title"
       >
-        <div className="se-header">
-          <button
-            className="se-close se-pal-toggle"
-            onClick={togglePal}
-            aria-label={palOpen ? tr("Close block list") : tr("Open block list")}
-            aria-pressed={palOpen}
-            data-tip={palOpen ? tr("Close block list") : tr("Open block list")}
-          >
-            {palOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
-          </button>
+        <header className="se-header">
           <div className="se-title">
-            <h2>{tr("Scripts")}</h2>
-            <p>{tr("Scripts for all elements on \"{name}\"", { name: page.name })}</p>
+            <h2 id="se-title">{tr("Scripts")}</h2>
+            <span className="se-page"><FileText size={12} aria-hidden="true" />{page.name}</span>
           </div>
           <div className="se-tools">
-            {selectedList.length > 1 && (
-              <span className="se-sel-count">{tr("{n} selected", "n_selected_variant_1", { n: selectedList.length })}</span>
-            )}
-            <div className="se-zoom" role="group" aria-label={tr("Zoom")}>
-              <button
-                className="se-close"
-                onClick={() => stepZoom(-1)}
-                disabled={zoom <= ZOOM_MIN}
-                aria-label={tr("Zoom out")}
-                data-tip={tr("Zoom out")} data-tip-kbd="⌘-"
-              >
-                <Minus size={15} />
-              </button>
-              <button
-                className="se-zoom-val"
-                onClick={() => setZoom(1)}
-                data-tip={tr("Reset to 100%")} data-tip-kbd="⌘0"
-              >
-                {Math.round(zoom * 100)}%
-              </button>
-              <button
-                className="se-close"
-                onClick={() => stepZoom(1)}
-                disabled={zoom >= ZOOM_MAX}
-                aria-label={tr("Zoom in")}
-                data-tip={tr("Zoom in")} data-tip-kbd="⌘+"
-              >
-                <Plus size={15} />
-              </button>
-            </div>
-            <span className="se-tools-sep" />
-            <button
-              className="se-close"
-              onClick={() => useEditor.getState().undo()}
-              disabled={!canUndo}
-              aria-label={tr("Remove")}
-              data-tip={tr("Undo (⌘Z)")}
-            >
-              <Undo2 size={16} />
+            <button className="se-icon-btn" onClick={() => useEditor.getState().undo()} disabled={!canUndo}
+              aria-label={tr("Undo")} data-tip={tr("Undo (⌘Z)")}>
+              <Undo2 size={16} aria-hidden="true" />
             </button>
-            <button
-              className="se-close"
-              onClick={() => useEditor.getState().redo()}
-              disabled={!canRedo}
-              aria-label={tr("Redo")}
-              data-tip={tr("Redo (⇧⌘Z)")}
-            >
-              <Redo2 size={16} />
+            <button className="se-icon-btn" onClick={() => useEditor.getState().redo()} disabled={!canRedo}
+              aria-label={tr("Redo")} data-tip={tr("Redo (⇧⌘Z)")}>
+              <Redo2 size={16} aria-hidden="true" />
             </button>
             <span className="se-tools-sep" />
-            <button className="se-close" onClick={onClose} aria-label={tr("Close")}>
-              <X size={16} />
+            <button className="se-icon-btn" onClick={onClose} aria-label={tr("Close")}>
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
-        </div>
-        <div
-          className={`se-main${palOpen ? "" : " is-pal-closed"}${palAnim ? " is-pal-anim" : ""}`}
-          style={
-            {
-              "--se-pal-w": `${palOpen ? palW : 0}px`,
-              "--se-pal-full": `${palW}px`,
-            } as React.CSSProperties
-          }
-        >
-          <div
-            ref={paletteRef}
-            className={`se-pal-wrap${drag && isFromWorkspace(drag.payload) ? " is-trash-ready" : ""}${drag && isFromWorkspace(drag.payload) && inPaletteHint(drag, paletteRef.current) ? " is-trash" : ""}`}
-          >
-            <ScriptPalette begin={begin} />
-            <div className="se-trash">{tr("Release here to delete")}</div>
-          </div>
-          {palOpen && (
-            <div
-              className="se-pal-resizer"
-              ref={paletteResizerRef}
-              onPointerDown={(e) => {
-                if (e.button !== 0 || paletteResize.current) return;
-                e.preventDefault();
-                e.stopPropagation();
-                const target = e.currentTarget;
-                const collapseBelow = PAL_MIN - 80;
-                paletteResize.current = trackPanelResize(e, target, palW, 1,
-                  (width) => {
-                    target.classList.toggle("is-collapse", width < collapseBelow);
-                    setPalW(clampPal(width));
-                  },
-                  (releasedWidth) => {
-                    paletteResize.current = null;
-                    target.classList.remove("is-collapse");
-                    if (releasedWidth !== null && releasedWidth < collapseBelow) {
-                      setPalW(palW);
-                      togglePal();
-                    }
-                  },
-                );
+        </header>
+        <Ctx.Provider value={ctx}>
+          <div className="se-main">
+            <ScriptList
+              doc={doc}
+              scripts={scripts}
+              tree={tree}
+              openId={open?.id ?? null}
+              focusNodeId={focusNodeId}
+              creating={choosing || !!draft}
+              onOpen={openScript}
+              onNew={() => openScript(null)}
+              onMenu={(anchor, scriptId) => {
+                if (reopening(anchor)) return;
+                setScriptMenu({ anchor: { current: anchor }, value: scriptId });
               }}
             />
-          )}
-          <div
-            ref={wsRef}
-            className="se-ws"
-            data-tutorial="se-workspace"
-            // 方眼も倍率に合わせる
-            style={{ backgroundSize: `${16 * zoom}px ${16 * zoom}px` }}
-            onPointerDown={(e) => {
-              // 何もない所からドラッグすると範囲選択になる（Shift / ⌘ で既存の選択に追加）
-              const t = e.target as HTMLElement;
-              if (e.button !== 0 || dragRef.current || marqueeRef.current) return;
-              if (t !== e.currentTarget && !t.classList.contains("se-ws-inner")) {
-                return;
-              }
-              e.preventDefault();
-              (document.activeElement as HTMLElement | null)?.blur?.();
-              setMenu(null);
-              const base = isModifier(e) ? selectedList : [];
-              if (!isModifier(e)) setSelectedList([]);
-              marqueeRef.current = {
-                pointerId: e.pointerId,
-                x0: e.clientX,
-                y0: e.clientY,
-                x: e.clientX,
-                y: e.clientY,
-                base,
-              };
-            }}
-          >
             <div
-              className="se-ws-inner"
-              style={{ width: wsSize.w, height: wsSize.h, zoom }}
+              ref={flowRef}
+              className="se-flow"
+              data-tutorial="se-workspace"
+              onPointerDown={(e) => {
+                // 何もない所を押したら、選択を外す
+                if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains("se-flow-inner")) {
+                  setSelected([]);
+                }
+              }}
             >
-              {view.map((s) => (
-                <ScopedStackView key={s.id} script={s} shared={sharedCtx}
-                  selectedKeys={scopedSelections.get(s.id) ?? EMPTY_SCRIPT_KEYS}
-                  zIndex={zOrder.get(s.id)}
-                  frozenWidth={drag?.payload?.type === "steps" && drag.payload.from?.loc.scriptId === s.id
-                    ? drag.sourceStackWidth : undefined} />
-              ))}
-            </div>
-            {!scripts.length && (
-              <div className="se-empty">
-                <p>
-                  {tr("Drag a trigger from the left onto this area, choose its element, then attach action blocks below it.")}
-                </p>
-                <p>
-                  {trNodes("Example: \"［Button］ When clicked\" {arrow} \"Open ［page］\"", { arrow: glyphs("→") })}
-                </p>
-                <p>
-                  {tr("To show data, attach \"Set variable ［］ to ［value］\" under \"Fetch data from ［URL］ as ［name］\" to pull out what you need (this runs when the page opens). Then select a variable that holds a list in a List display element's settings to show each item.")}
-                </p>
+              <div className="se-flow-inner">
+                {open ? (
+                  <ScriptOwnerCtx.Provider value={{ scriptId: open.id, nodeId: open.nodeId }}>
+                    <ScriptNodeCtx.Provider value={open.nodeId === PAGE_TARGET ? "" : open.nodeId}>
+                      <TriggerCard
+                        key={open.id}
+                        value={open}
+                        isLink={isLinkScriptId(open.id)}
+                        onChange={(value) => changeTrigger(open, value)}
+                      />
+                      <section className="se-do" aria-label={tr("Then do")}>
+                        <div className="se-do-head">
+                          <h3 className="se-section-title">{tr("Then do")}</h3>
+                          {status && (
+                            <p className={`se-status${status.ready ? " is-ready" : ""}`} role="status">
+                              {status.ready
+                                ? <CircleCheck size={13} aria-hidden="true" />
+                                : <TriangleAlert size={13} aria-hidden="true" />}
+                              {status.message}
+                            </p>
+                          )}
+                        </div>
+                        <FlowCtx.Provider value={flow}>
+                          <SelectionCtx.Provider value={selectedSet}>
+                            <StepList scriptId={open.id} list="root" steps={open.steps}
+                              label={tr("Actions, in the order they run")} />
+                          </SelectionCtx.Provider>
+                        </FlowCtx.Provider>
+                      </section>
+                    </ScriptNodeCtx.Provider>
+                  </ScriptOwnerCtx.Provider>
+                ) : draft ? (
+                  <>
+                    <TriggerCard
+                      key={`draft:${draft.trigger}`}
+                      value={draft}
+                      autoPick
+                      onChange={createScript}
+                      onCancel={() => {
+                        setDraft(null);
+                        setChoosing(true);
+                      }}
+                    />
+                    <section className="se-do is-waiting" aria-label={tr("Then do")} aria-disabled="true">
+                      <h3 className="se-section-title">{tr("Then do")}</h3>
+                      <div className="se-add" aria-hidden="true"><Plus size={14} />{tr("Add the first action")}</div>
+                    </section>
+                  </>
+                ) : (
+                  <TriggerChooser
+                    onPick={startScript}
+                    onCancel={scripts.length ? () => openScript(scripts[0].id) : undefined}
+                  />
+                )}
               </div>
-            )}
+            </div>
           </div>
-        </div>
-        <div className="se-footer">
-          <span>{tr("Drag to connect and reorder")}</span>
-          <span>
-            <kbd>{glyphs("⇧")}</kbd>/<kbd>{glyphs("⌘")}</kbd>{tr("+click or drag on empty space to multi-select")}
-          </span>
-          <span>
-            <kbd>Backspace</kbd>{tr("Delete")}
-          </span>
-          <span>
-            <kbd>{glyphs("⌘A")}</kbd>{tr("Select all")}
-          </span>
-          <span>
-            <kbd>{glyphs("⌘C")}</kbd>/<kbd>{glyphs("⌘X")}</kbd>/<kbd>{glyphs("⌘V")}</kbd>
-            {tr("Copy")}・{tr("Cut")}・{tr("Paste")}
-          </span>
-          <span>
-            <kbd>{glyphs("⌘Z")}</kbd>/<kbd>{glyphs("⇧⌘Z")}</kbd>{tr("Undo/redo")}
-          </span>
-          <InfoTip
-            style={{ marginLeft: "auto" }}
-            text={tr("Scripts that only open a page or URL \"When clicked\" are output as links (a tags).\nStorage uses localStorage, then a cookie for this site only, then memory (cleared when the page closes), whichever is available first.")}
-          />
-        </div>
-        {peekStep && (
-          <div
-            className="se-modal-backdrop"
-            onPointerDown={(e) => {
-              if (e.target === e.currentTarget) setPeekId(null);
+          {peekStep && (
+            <SafeBoundary label={tr("Fetched data")} onClose={() => setPeekId(null)}>
+              <FetchResult step={peekStep} scope={peekScope} onClose={() => setPeekId(null)} />
+            </SafeBoundary>
+          )}
+        </Ctx.Provider>
+        <div ref={lineRef} className="se-drop-line" hidden aria-hidden="true" />
+        <p ref={liveRef} className="se-live" aria-live="polite" />
+        {picker && open && (
+          <ActionPicker
+            anchor={picker.anchor}
+            place={{
+              pageLoadRoot: picker.value.list === "root" && pageLoadScriptIds.has(open.id),
+              insideLoop: listInsideLoop(open, picker.value.list),
             }}
-          >
-            <Ctx.Provider value={ctx}>
-              <SafeBoundary label={tr("Fetched data")} onClose={() => setPeekId(null)}>
-                <PeekModal step={peekStep} scope={peekScope} onClose={() => setPeekId(null)} />
-              </SafeBoundary>
-            </Ctx.Provider>
-          </div>
-        )}
-        {/* A fixed child of the animated, overflow-clipped modal can disappear
-            at its edges. Put the preview in the viewport layer instead. */}
-        {ghost && createPortal(ghost, document.body)}
-        {marquee && (
-          <div
-            ref={marqueeElRef}
-            className="se-marquee"
-            style={{
-              left: Math.min(marquee.x0, marquee.x),
-              top: Math.min(marquee.y0, marquee.y),
-              width: Math.abs(marquee.x - marquee.x0),
-              height: Math.abs(marquee.y - marquee.y0),
+            onPick={(step) => addStep(picker.value, step)}
+            onClose={() => {
+              noteClosed(picker);
+              setPicker(null);
             }}
           />
         )}
-        {menu && (
-          <div
-            className="se-menu"
-            style={{ left: menu.x, top: menu.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button onClick={() => runMenu("duplicate")}>{tr("Duplicate")}</button>
-            <button className="is-danger" onClick={() => runMenu("delete")}>
-              {menuCount > 1
-                ? tr("Delete {menuCount} blocks", { menuCount })
-                : menu.target.type === "script"
-                  ? tr("Delete script")
-                  : tr("Delete this block")}
+        {stepMenu && menuStep && menuList && (
+          <Popover anchor={stepMenu.anchor} width={220} height={190} className="se-menu"
+            label={tr("Action options")} onClose={closeStepMenu}>
+            <button type="button" disabled={menuCount > 1 || stepMenu.value.loc.index === 0}
+              onClick={() => {
+                closeStepMenu();
+                nudge(stepMenu.value.loc, stepMenu.value.stepId, -1);
+              }}>
+              <ArrowUp size={14} aria-hidden="true" />{tr("Move up")}<kbd>{glyphs("⌥↑")}</kbd>
             </button>
-          </div>
+            <button type="button"
+              disabled={menuCount > 1 || stepMenu.value.loc.index >= menuList.length - 1}
+              onClick={() => {
+                closeStepMenu();
+                nudge(stepMenu.value.loc, stepMenu.value.stepId, 1);
+              }}>
+              <ArrowDown size={14} aria-hidden="true" />{tr("Move down")}<kbd>{glyphs("⌥↓")}</kbd>
+            </button>
+            <button type="button" onClick={() => {
+              closeStepMenu();
+              duplicateSteps(menuCount > 1 ? selected : [stepMenu.value.stepId]);
+            }}>
+              <Copy size={14} aria-hidden="true" />{tr("Duplicate")}<kbd>{glyphs("⌘D")}</kbd>
+            </button>
+            <button type="button" className="is-danger" onClick={() => {
+              closeStepMenu();
+              deleteSteps(menuCount > 1 ? selected : [stepMenu.value.stepId]);
+            }}>
+              <Trash2 size={14} aria-hidden="true" />
+              {menuCount > 1 ? tr("Delete {menuCount} actions", { menuCount }) : tr("Delete")}<kbd>⌫</kbd>
+            </button>
+          </Popover>
+        )}
+        {scriptMenu && (
+          <Popover anchor={scriptMenu.anchor} width={200} height={110} className="se-menu"
+            label={tr("Script options")}
+            onClose={() => {
+              noteClosed(scriptMenu);
+              setScriptMenu(null);
+            }}>
+            <button type="button" onClick={() => {
+              setScriptMenu(null);
+              duplicateScript(scriptMenu.value);
+            }}>
+              <Copy size={14} aria-hidden="true" />{tr("Duplicate")}
+            </button>
+            <button type="button" className="is-danger" onClick={() => {
+              setScriptMenu(null);
+              deleteScript(scriptMenu.value);
+            }}>
+              <Trash2 size={14} aria-hidden="true" />{tr("Delete script")}
+            </button>
+          </Popover>
         )}
       </div>
     </div>,
     document.body
   );
-}
-
-/** ワークスペースから持ち出したブロックか（パレットで離すと削除になる） */
-function isFromWorkspace(p: Payload | null): boolean {
-  return !!p && (p.type === "script" || (p.type === "steps" && !!p.from));
-}
-
-const ZOOM_MIN = 0.4;
-const ZOOM_MAX = 2;
-const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
-
-function clampZoom(z: number): number {
-  return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(z * 100) / 100));
-}
-
-const PAL_MIN = 180;
-
-function clampPal(w: number): number {
-  return Math.max(PAL_MIN, Math.min(420, w));
-}
-
-function inPaletteHint(d: Drag, el: HTMLElement | null): boolean {
-  const r = el?.getBoundingClientRect();
-  return !!r && d.x >= r.left && d.x <= r.right && d.y >= r.top && d.y <= r.bottom;
-}
-
-/** 大きなツリーは見えている部分だけを複製する。元の見出しは残し、すべての入力欄を
- * 気づかないうちに別の読み取り専用の表示に置き換えることはしない。 */
-function boundedDragCopy(source: HTMLElement): HTMLElement | null {
-  if (source.classList.contains("se-stack")) {
-    const copy = source.cloneNode(false) as HTMLElement;
-    const head = source.querySelector<HTMLElement>(":scope > .se-hat, :scope > .se-hat-slot");
-    if (head) copy.appendChild(cloneDragElement(head) ?? head.cloneNode(true));
-    const list = source.querySelector<HTMLElement>(":scope > .se-list");
-    if (list) {
-      const preview = list.cloneNode(false) as HTMLElement;
-      // 仮想化したスタックでは、項目の行が直接ではなくチャンクの中にあることがある。
-      const items = list.querySelectorAll<HTMLElement>(":scope > .se-item, :scope > .se-virtual-chunk > .se-item");
-      for (const item of Array.from(items).slice(0, 8)) {
-        const copyItem = cloneDragElement(item);
-        if (copyItem) preview.appendChild(copyItem);
-      }
-      copy.appendChild(preview);
-    }
-    return copy;
-  }
-  if (source.classList.contains("se-item")) {
-    const copy = source.cloneNode(false) as HTMLElement;
-    const first = source.firstElementChild;
-    if (!(first instanceof HTMLElement)) return copy;
-    if (first.classList.contains("se-c")) {
-      const structure = first.cloneNode(false) as HTMLElement;
-      const head = first.querySelector<HTMLElement>(":scope > .se-c-head");
-      if (head) structure.appendChild(cloneDragElement(head) ?? head.cloneNode(true));
-      copy.appendChild(structure);
-    } else {
-      const row = cloneDragElement(first);
-      if (row) copy.appendChild(row);
-    }
-    return copy;
-  }
-  return null;
-}
-
-/** 行を元の兄弟やループの中から取り出してドラッグ用の層に浮かせても、
- * 元と同じ形と装飾になるようにする。 */
-function freezeDragAppearance(source: HTMLElement, copy: HTMLElement, shallow = false) {
-  const selector = ".se-stack, .se-item, .se-blk, .se-c, .se-c-mid, .se-if-conditions, .se-if-condition-line, .np-btn";
-  // 短くしたプレビューは、元より子孫の数が少ない。その子要素は個別に複製したときに
-  // すでに固定済みのため、別のツリーで同じ位置にあるというだけで無関係な行を対応させない。
-  const original = [source, ...(shallow ? [] : source.querySelectorAll<HTMLElement>(selector))]
-    .filter((el) => el.matches(selector));
-  const cloned = [copy, ...(shallow ? [] : copy.querySelectorAll<HTMLElement>(selector))]
-    .filter((el) => el.matches(selector));
-  for (let i = 0; i < Math.min(original.length, cloned.length); i++) {
-    const from = original[i];
-    const to = cloned[i];
-    const computed = getComputedStyle(from);
-    // 枠線や字下げは :first-child や .se-c-body に左右されることがあり、
-    // ブロックを切り離した後のゴーストではそれを再現できない。
-    for (const property of [
-      "padding-top", "padding-right", "padding-bottom", "padding-left",
-      "border-top-width", "border-top-style", "border-top-color",
-      "border-bottom-width", "border-bottom-style", "border-bottom-color",
-      "border-top-left-radius", "border-top-right-radius",
-      "border-bottom-left-radius", "border-bottom-right-radius",
-      "background-color", "color",
-    ]) to.style.setProperty(property, computed.getPropertyValue(property));
-    // こうしないと、drag.w でゴーストの外形を固定していても、入れ子の項目や折り返した条件が
-    // 新しい親に合わせて大きさを変えてしまう。条件のブロックがドラッグ用の層に入ると、
-    // 選択済みの要素の選択欄や、折り返した条件の行もフレックスの幅を計算し直してしまう。
-    if (from.matches(".se-blk, .se-item, .se-stack, .se-if-conditions, .se-if-condition-line, .np-btn")) {
-      to.style.boxSizing = "border-box";
-      to.style.width = `${from.offsetWidth}px`;
-    }
-  }
-}
-
-/** 実際に描画されている部品をそのまま使い、読み取り専用の代わりの表示に作り直さない。
- * 巨大なツリーは、先頭の見えている行だけに限る。 */
-function cloneDragElement(source: HTMLElement): HTMLElement | null {
-  const cap = 350;
-  let count = 0;
-  const walker = document.createTreeWalker(source, NodeFilter.SHOW_ELEMENT);
-  while (walker.nextNode()) {
-    if (++count > cap) break;
-  }
-  const copy = count > cap ? boundedDragCopy(source) : source.cloneNode(true) as HTMLElement;
-  if (!copy) return null;
-  if (count <= cap) {
-    const actual = source.querySelectorAll("input, select, textarea");
-    const cloned = copy.querySelectorAll("input, select, textarea");
-    for (let i = 0; i < actual.length; i++) {
-      const original = actual[i];
-      const target = cloned[i];
-      if (original instanceof HTMLInputElement && target instanceof HTMLInputElement) {
-        target.value = original.value;
-        target.checked = original.checked;
-      } else if (original instanceof HTMLSelectElement && target instanceof HTMLSelectElement) {
-        target.selectedIndex = original.selectedIndex;
-      } else if (original instanceof HTMLTextAreaElement && target instanceof HTMLTextAreaElement) {
-        target.value = original.value;
-      }
-    }
-  }
-  freezeDragAppearance(source, copy, count > cap);
-  // この操作できない複製に、label の対象や編集可能な内容の ID を重複させない。
-  copy.removeAttribute("id");
-  copy.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
-  return copy;
-}
-
-/** ドラッグのプレビューでは、とても長い手順のツリーの複製を2つ目としてマウントしない。 */
-function ghostPreviewSteps(steps: ScriptStep[], depth = 0): ScriptStep[] {
-  if (depth >= 3) return [];
-  return steps.slice(0, 8).map((step) => {
-    if (step.kind === "if") return {
-      ...step,
-      then: ghostPreviewSteps(step.then, depth + 1),
-      ...(step.else ? { else: ghostPreviewSteps(step.else, depth + 1) } : {}),
-    };
-    if (step.kind === "repeat" || step.kind === "for-each") {
-      return { ...step, then: ghostPreviewSteps(step.then, depth + 1) };
-    }
-    return step;
-  });
 }

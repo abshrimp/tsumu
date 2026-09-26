@@ -15,8 +15,7 @@ for (const step of steps) test(`published nested ${step.kind} includes only its 
   const doc: SiteDoc = {
     siteName: "", assets: {}, pageOrder: ["p"], nodes: {}, pages: { p: {
       id: "p", name: "", slug: "", description: "", title: "", children: [], pageScripts: [{
-        id: "s", trigger: "click", pos: { x: 0, y: 0 },
-        steps: [{ id: "repeat", kind: "repeat", times: 1, then: [step] }],
+        id: "s", trigger: "click",        steps: [{ id: "repeat", kind: "repeat", times: 1, then: [step] }],
       }],
     } },
   };

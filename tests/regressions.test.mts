@@ -147,7 +147,7 @@ test("generated components avoid framework names and the exported project typech
   doc.nodes.list = { ...makeBox(), id: "list", type: "list", list: { from: "items" } };
   doc.pages.p.children.push("list");
   doc.pages.p.pageScripts = [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+    id: "load", trigger: "load", steps: [
       { id: "fetch", kind: "fetch", url: "https://example.com/?q={q}", as: "items" },
       { id: "dyn", kind: "fetch", url: "{api}/items", as: "more" },
       { id: "titles-init", kind: "set-var", value: "[]", into: "titles" },
@@ -198,8 +198,8 @@ function site(roots: DocNode[], others: DocNode[] = []): SiteDoc {
   return doc;
 }
 
-const load = (steps: object[]) => [{ id: "load", trigger: "load" as const, pos: { x: 0, y: 0 }, steps: steps as never }];
-const click = (steps: object[]) => [{ id: "click", trigger: "click" as const, pos: { x: 0, y: 0 }, steps: steps as never }];
+const load = (steps: object[]) => [{ id: "load", trigger: "load" as const, steps: steps as never }];
+const click = (steps: object[]) => [{ id: "click", trigger: "click" as const, steps: steps as never }];
 
 test("a link inside a link becomes a click script instead of a nested <a>", () => {
   const inner: DocNode = { ...makeBox(), id: "inner", text: { content: "Inner", heading: 0 }, link: { kind: "url", url: "https://example.com/?a=1&b=2", newTab: true } };

@@ -15,7 +15,7 @@ try {
 function fixture(dynamic:boolean,override:boolean):SiteDoc {
  return {siteName:'Brand "quoted" & 日本',siteUrl:'https://example.com',ogImage:{url:'https://example.com/default.png'},nodes:{},assets:{},pageOrder:['p'],pages:{p:{id:'p',name:'Page',title:'Page title',description:'Description',slug:dynamic?'posts/[slug]':'',children:[],
  ...(override?{ogImage:{url:'https://example.com/page.png'}}:{}),
- ...(dynamic?{pageScripts:[{id:'load',trigger:'load',pos:{x:0,y:0},steps:[{id:'fetch',kind:'fetch',url:'https://example.com/posts/{slug}',as:'response'},{id:'set',kind:'set-var',value:'{response}',into:'post'}]}]}:{}),
+ ...(dynamic?{pageScripts:[{id:'load',trigger:'load',steps:[{id:'fetch',kind:'fetch',url:'https://example.com/posts/{slug}',as:'response'},{id:'set',kind:'set-var',value:'{response}',into:'post'}]}]}:{}),
  }}};
 }
 for(const dynamic of [false,true])for(const override of [false,true])test(`Next resolved OGP retains site name (${dynamic?'dynamic':'static'}, ${override?'page':'default'} image)`,async()=>{

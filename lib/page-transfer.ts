@@ -170,14 +170,13 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     const id = pageMap.get(raw.id)!;
     const { name, slug } = naming.copy(raw, "transfer");
     page.id = id;
-    if (page.scripts) page.scripts = cloneScripts(page.scripts);
     if (page.pageScripts) page.pageScripts = cloneScripts(page.pageScripts);
     page.name = name;
     page.slug = slug;
     // コピー先のサイトと言語が違えば、ページの言語として残す（中身はコピー元の言語のまま）
     if (!isSiteLang(page.lang) && p.lang && isSiteLang(p.lang) && p.lang !== siteLangOf(d)) page.lang = p.lang;
     page.children = raw.children.map((c) => nodeMap.get(c)).filter((c): c is string => !!c);
-    for (const s of [...(page.scripts ?? []), ...(page.pageScripts ?? [])]) mapSteps(s.steps, toPage);
+    for (const s of page.pageScripts ?? []) mapSteps(s.steps, toPage);
     // フォルダは名前で探し、無ければ同じ名前で作る
     delete page.folderId;
     const folderName = p.folders[raw.id];

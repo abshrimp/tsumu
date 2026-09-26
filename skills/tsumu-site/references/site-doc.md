@@ -172,7 +172,7 @@ Their node trees reside in `doc.nodes`. To place one, use an `instance` node wit
 
 ## Scripts
 
-`Script` has `id`, optional `trigger`, `steps`, and `pos: {x, y}`. Trigger values: `click`, `hover-start`, `hover-end`, `change`, `load`, `in-view`.
+`Script` has `id`, `trigger`, and `steps`. Element-triggered scripts live in the element's `scripts`; "when the page opens" and variable-change scripts live in the page's `pageScripts`. Trigger values: `click`, `hover-start`, `hover-end`, `change`, `load`, `in-view`.
 
 A simple page-load script:
 
@@ -180,7 +180,6 @@ A simple page-load script:
 {
   "id": "script_load",
   "trigger": "load",
-  "pos": { "x": 0, "y": 0 },
   "steps": [
     { "id": "step_set", "kind": "set-var", "into": "greeting", "value": "Welcome" }
   ]

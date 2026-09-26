@@ -17,11 +17,11 @@ function site(): SiteDoc {
   return {
     siteName: "Catalog", assets: {}, pageOrder: ["home"],
     nodes: { text: { ...makeText("{output}"), id: "text", scripts: [
-      { id: "click", trigger: "click", pos: { x: 0, y: 0 }, steps: [{ ...transform, id: "click-replace", into: "clickedOutput" }] },
+      { id: "click", trigger: "click", steps: [{ ...transform, id: "click-replace", into: "clickedOutput" }] },
     ] } },
     pages: { home: {
       id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["text"],
-      pageScripts: [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+      pageScripts: [{ id: "load", trigger: "load", steps: [
         { id: "input", kind: "set-var", into: "input", value: "KIT-2026" }, transform,
       ] }],
     } },

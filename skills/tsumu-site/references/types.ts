@@ -175,8 +175,6 @@ export interface LinkSetting {
   url?: string;
   pageId?: string;
   newTab?: boolean;
-  
-  pos?: ScriptPos;
 }
 
 export const SELF_TARGET = "@self";
@@ -190,11 +188,6 @@ export type ScriptTrigger =
   | "change"
   | "load"
   | "in-view";
-
-export interface ScriptPos {
-  x: number;
-  y: number;
-}
 
 export type ScriptOp =
   | "eq"
@@ -358,13 +351,11 @@ export interface FetchHeader {
 
 export interface Script {
   id: string;
-  
-  trigger?: ScriptTrigger;
+  trigger: ScriptTrigger;
   changeVariable?: string;
   
   keepOnShown?: boolean;
   steps: ScriptStep[];
-  pos: ScriptPos;
 }
 
 export interface TextContent {
@@ -469,8 +460,6 @@ export interface Page {
   rewriteTo?: string;
   
   ogImage?: ImageRef | null;
-  
-  scripts?: Script[];
   
   pageScripts?: Script[];
   children: string[];

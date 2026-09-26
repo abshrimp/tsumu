@@ -28,7 +28,7 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 ## Features
 
 - **Visual editing:** Edit styles, hover states, other state changes, and animations without prior web development knowledge.
-- **No-code scripts:** Build JavaScript by intuitively assembling blocks.
+- **No-code scripts:** Build JavaScript just by listing what to do, top to bottom, under a "when".
 - **External data:** Fetch and use JSON from APIs.
 - **Import:** Restore a project from a Tsumu ZIP or `doc.json`. Drop an HTML file or a website ZIP on the home screen to convert its pages into editable elements. Imported forms retain their submission method and field names.
 - **Flexible output:** Export to Next.js, React, Vue, Nuxt, SvelteKit, or HTML, with a choice of TypeScript, JavaScript, and CSS formats.
@@ -51,7 +51,7 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/en/responsive.png" alt="Editing the phone layout"><br><sub><b>Responsive editing</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/en/scripts.png" alt="Script editor with click and page-open blocks"><br><sub><b>No-code scripts</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/en/scripts.png" alt="Script editor listing actions under a trigger"><br><sub><b>No-code scripts</b></sub></td>
   </tr>
 </table>
 

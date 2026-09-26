@@ -30,7 +30,7 @@ test('detach keeps the instance anchor and redirects master references without a
     components: { c: { id: 'c', name: 'Card', rootId: 'master' } },
     nodes: {
       master: { ...makeBox(), id: 'master', attrId: 'master-card', children: ['child'], locked: true, text: { content: '{master-card}', heading: 0 } },
-      child: { ...makeBox(), id: 'child', attrId: 'footer-card', link: { kind: 'url', url: '#master-card' }, scripts: [{ id: 'script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: 'step', kind: 'hide', target: 'master-card' }] }] },
+      child: { ...makeBox(), id: 'child', attrId: 'footer-card', link: { kind: 'url', url: '#master-card' }, scripts: [{ id: 'script', trigger: 'click', steps: [{ id: 'step', kind: 'hide', target: 'master-card' }] }] },
       instance: { ...makeBox(), id: 'instance', type: 'instance', componentId: 'c', attrId: 'footer-card', name: 'Footer' },
       other: { ...makeBox(), id: 'other', type: 'instance', componentId: 'c' },
       external: { ...makeBox(), id: 'external', link: { kind: 'url', url: '#footer-card' } },

@@ -22,8 +22,7 @@ test("generated HTML query variants execute authored scripts and initialize page
           '<script>window.__authorOrder = window.__externalReady ? "correct" : "early";</script>',
         customEndHtml: '<script>window.__endScriptRan = true;</script>',
         pageScripts: [{
-          id: "load", trigger: "load", pos: { x: 0, y: 0 },
-          steps: [{ id: "assign", kind: "set-var", into: "status", value: "ready" }],
+          id: "load", trigger: "load",          steps: [{ id: "assign", kind: "set-var", into: "status", value: "ready" }],
         }],
       },
     },

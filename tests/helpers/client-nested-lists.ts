@@ -17,14 +17,14 @@ export function clientNestedDoc(component = false) {
   const load = doc.pages.p.pageScripts![0];
   load.steps = load.steps.filter(s => s.id !== "alias");
   doc.nodes.reload = { ...makeText("Load items"), id: "reload", attrId: "reload", semantic: "button", scripts: [{
-    id: "reload-script", trigger: "click", pos: { x: 20, y: 20 }, steps: [{ id: "reload-step", kind: "set-var", value: "{response}", into: "items" }],
+    id: "reload-script", trigger: "click", steps: [{ id: "reload-step", kind: "set-var", value: "{response}", into: "items" }],
   }] };
   doc.pages.p.children.unshift("reload");
   doc.nodes.products.attrId = "products-list";
   doc.nodes.row.children.unshift("hide", "show");
   for (const kind of ["hide", "show"] as const) doc.nodes[kind] = {
     ...makeText(`${kind} {label}`), id: kind, attrId: kind, semantic: "button", scripts: [{
-      id: `${kind}-script`, trigger: "click", pos: { x: 20, y: 20 }, steps: [{ id: `${kind}-step`, kind, target: "detail" }],
+      id: `${kind}-script`, trigger: "click", steps: [{ id: `${kind}-step`, kind, target: "detail" }],
     }],
   };
   return doc;

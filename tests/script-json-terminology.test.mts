@@ -16,8 +16,7 @@ test("JSON controls call a key an 項目 without changing the storage-key termin
     ["Set {value} at key {key} of list {list}", "リスト{list}の項目{key}に{value}を入れる"],
     ["List item field", "リスト内の項目名"],
     ["Field name / {variable}", "項目名 / {変数}"],
-    ["Has a key", "項目が存在する"],
-    ["Key", "キー"],
+    ["condition_comparison\u0004have an item", "項目がある"],
   ]) assert.equal(definition(key, text), true, key);
 });
 

@@ -27,8 +27,7 @@ function site(): SiteDoc {
     pages: { home: { id: "home", name: "Home", title: "Home", slug: "",
       description: "Rendered on the server", children: ["heading", "image", "input", "list", "instance"],
       pageScripts: [{
-        id: "load", trigger: "load", pos: { x: 0, y: 0 },
-        steps: [
+        id: "load", trigger: "load",        steps: [
           { id: "fetch", kind: "fetch", as: "items", url: "https://api.example.test/items?type={category}" },
           { id: "count", kind: "transform", source: "items", into: "count", transform: { kind: "length" } },
         ],

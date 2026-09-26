@@ -8,7 +8,7 @@ import { publishedScriptFileValue, scriptFileValueBundle } from "./helpers/scrip
 
 /** DOM の正規化は真似せず、ランタイムから setter・プレビューの状態・通知への呼び出しだけを記録する。 */
 function runAssignment(initial: string, value: string, preview: boolean, type = "file") {
-  const script = { id: "load", trigger: "load" as const, pos: { x: 0, y: 0 }, steps: [{ id: "set", kind: "set-value" as const, target: "upload", value }] };
+  const script = { id: "load", trigger: "load" as const, steps: [{ id: "set", kind: "set-value" as const, target: "upload", value }] };
   const doc: SiteDoc = {
     siteName: "File assignment", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["start"] } },

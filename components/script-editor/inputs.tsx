@@ -7,12 +7,12 @@
 import { isEnterKey } from "../../lib/keys";
 import { Fragment, useContext, useMemo, useState, type ReactNode } from "react";
 import { VarInput } from "../controls";
-import { dataVarNames, fieldLabel, flattenFields, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
+import { dataVarNames, flattenFields, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
 import { changeIfVariableLeft, ifVariableOperators } from "../../lib/if-variable-conditions";
-import { fieldVarName, isRadioItem, radioValue } from "../../lib/fields";
-import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
+import { SELF_TARGET, type ScriptCond, type ScriptOp } from "../../lib/types";
+import type { FieldTargetInfo } from "./field-index";
 import { tr, trc, trNodes } from "../../lib/i18n";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptStepCtx } from "./context";
 import { TargetSelect } from "./targets";
@@ -62,7 +62,7 @@ export function TextIn({
       type={type}
       defaultValue={value}
       placeholder={placeholder}
-      style={{ width }}
+      style={{ minInlineSize: width }}
       step={type === "number" ? numberStep : undefined}
       min={type === "number" ? 0 : undefined}
       onBlur={(e) => {
@@ -86,7 +86,7 @@ export function NumericVariableIn({
   max?: number;
   width?: number;
 }) {
-  return <TextIn vars value={String(value)} width={Math.max(width, 100)}
+  return <TextIn vars value={String(value)} width={width}
     placeholder={tr("Number / {variable}")} valueContext="value"
     onCommit={(input) => {
       const text = input.trim();
@@ -116,13 +116,13 @@ function VarTextIn({
   itemSamples?: Record<string, string>;
   valueContext?: ValueContext;
 }) {
-  const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
+  const { doc: savedDoc, pageId } = useContext(Ctx);
   const stepId = useContext(ScriptStepCtx);
   // 使われていない入力欄まで調べないよう、候補はフォーカスがあるときだけ作る。
   const [active, setActive] = useState(false);
   const doc = useMemo(
-    () => active && !readOnly ? scriptInputDoc(savedDoc, stepId) : null,
-    [active, readOnly, savedDoc, stepId]
+    () => active ? scriptInputDoc(savedDoc, stepId) : null,
+    [active, savedDoc, stepId]
   );
   const nodeId = useContext(ScriptNodeCtx);
   const loops = useContext(LoopCtx);
@@ -148,13 +148,6 @@ function VarTextIn({
       extra: made.filter((n) => !item.includes(n)),
     };
   }, [doc, pageId, nodeId, itemFields, itemSamples, loops, valueContext]);
-  if (readOnly) {
-    return (
-      <span className={`se-in se-in-fake${value ? "" : " is-empty"}`} style={{ width }}>
-        {value || placeholder}
-      </span>
-    );
-  }
   return (
     <VarInput
       key={value}
@@ -162,7 +155,7 @@ function VarTextIn({
       onDeactivate={() => setActive(false)}
       value={value}
       className={`se-in${value ? "" : " is-empty"}`}
-      style={{ width }}
+      style={{ minInlineSize: width }}
       placeholder={placeholder}
       names={names}
       samples={samples}
@@ -184,15 +177,15 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
   value: string; onCommit: (v: string) => void; itemFields?: string[];
   itemSamples?: Record<string, string>; width?: number;
 }) {
-  const { readOnly, samples, variableIndex } = useContext(Ctx);
+  const { samples, variableIndex } = useContext(Ctx);
   const stepId = useContext(ScriptStepCtx);
   const loops = useContext(LoopCtx);
   const source = singleValueReference(value);
   // 入力欄ごとに書き換えた文書を作らず、共有のプレビューを使う。ループやリストの項目の
   // ルートが手元にある場合は、ページの見本を完全に隠す。
-  const produced = variableIndex?.byStep.get(stepId);
+  const produced = variableIndex.byStep.get(stepId);
   const exclusiveOwnOutput = source && [source, source.split(".")[0]].some((name) =>
-    produced?.has(name) && !variableIndex?.hasOther(name, stepId));
+    produced?.has(name) && !variableIndex.hasOther(name, stepId));
   const sourceRoot = source?.split(".")[0];
   const sameRoot = (name: string) => name.split(".")[0] === sourceRoot;
   const locallyShadowed = !!sourceRoot &&
@@ -201,7 +194,6 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
   const sample = source && !exclusiveOwnOutput && !locallyShadowed
     ? lookupVar(samples, source) : undefined;
   const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("List", "list_variant_1") : tr("Value");
-  if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
   return <span className="se-value-choice">
     <TextIn value={value} onCommit={onCommit} vars valueContext="value" width={width}
       itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("value / {variable}")} />
@@ -214,32 +206,11 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
 }
 
 /** 対象（ID 属性、またはきっかけの要素）の入力欄の設定と、選べる値（ラジオは、同じ ID のボタンの文字） */
-function useTargetField(target: string): { kind: FieldContent["kind"]; choices: string[]; bool: boolean } | null {
-  const { doc, tree, fieldLookup } = useContext(Ctx);
+function useTargetField(target: string): FieldTargetInfo | null {
+  const { fieldLookup } = useContext(Ctx);
   const selfId = useContext(ScriptNodeCtx);
-  return useMemo(() => {
-    if (fieldLookup) {
-      if (target !== SELF_TARGET) return fieldLookup.byAttr.get(target) ?? null;
-      if (fieldLookup.byNode.has(selfId)) return fieldLookup.byNode.get(selfId) ?? null;
-    }
-    // 単独で使う場合や読み取り専用の文脈では、ワークスペースの索引が渡されないことがある。
-    const nodes = tree.map((r) => doc.nodes[r.id]).filter(Boolean);
-    const node =
-      target === SELF_TARGET ? doc.nodes[selfId] : target ? nodes.find((n) => n.attrId === target) : undefined;
-    const f = node?.type === "field" ? node.field : undefined;
-    if (!f) return null;
-    // チェックボックスと、グループのラジオボタン1つは、true / false
-    if (f.kind === "checkbox" || isRadioItem(node!)) return { kind: f.kind, choices: [], bool: true };
-    if (f.kind === "select") return { kind: f.kind, choices: (f.options ?? []).map((o) => o.value).filter(Boolean), bool: false };
-    if (f.kind === "radio") {
-      const group = fieldVarName(node!);
-      const labels = nodes
-        .filter((n) => n.field?.kind === "radio" && group && fieldVarName(n) === group)
-        .map((n) => radioValue(n.field!));
-      return { kind: f.kind, choices: [...new Set(labels)].filter(Boolean), bool: false };
-    }
-    return { kind: f.kind, choices: [], bool: false };
-  }, [doc, tree, selfId, target, fieldLookup]);
+  if (target !== SELF_TARGET) return fieldLookup.byAttr.get(target) ?? null;
+  return fieldLookup.byNode.get(selfId) ?? null;
 }
 
 /** 「その他（変数・文字）」を選んだことを表す印 */
@@ -319,7 +290,7 @@ export function NewTabCheck({
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      {tr("New tab")}
+      {tr("Open in a new tab")}
     </label>
   );
 }
@@ -331,40 +302,39 @@ const COND_SUBJECTS: { value: string; label: string }[] = [
   { value: "hovered", label: tr("is hovered") },
 ];
 
-export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string }[] = [
-  { value: "eq", label: trc("condition_comparison", "equal to") },
-  { value: "contains", label: trc("condition_comparison", "contain") },
-  { value: "contains-any", label: tr("Contains any") },
-  { value: "starts-with", label: trc("condition_comparison", "start with") },
-  { value: "ends-with", label: trc("condition_comparison", "end with") },
-  { value: "gt", label: trc("condition_comparison", "greater than") },
-  { value: "gte", label: trc("condition_comparison", "at least") },
-  { value: "lt", label: trc("condition_comparison", "less than") },
-  { value: "lte", label: trc("condition_comparison", "at most") },
-  { value: "in", label: trc("condition_comparison", "one of") },
-  { value: "empty", label: trc("condition_comparison", "empty") },
-  { value: "has-key", label: tr("Has a key") },
+export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string; negated: string }[] = [
+  { value: "eq", label: trc("condition_comparison", "equal to"), negated: trc("condition_comparison", "not equal to") },
+  { value: "contains", label: trc("condition_comparison", "contain"), negated: trc("condition_comparison", "not contain") },
+  { value: "contains-any", label: trc("condition_comparison", "contain any of"), negated: trc("condition_comparison", "contain none of") },
+  { value: "starts-with", label: trc("condition_comparison", "start with"), negated: trc("condition_comparison", "not start with") },
+  { value: "ends-with", label: trc("condition_comparison", "end with"), negated: trc("condition_comparison", "not end with") },
+  { value: "gt", label: trc("condition_comparison", "greater than"), negated: trc("condition_comparison", "not greater than") },
+  { value: "gte", label: trc("condition_comparison", "at least"), negated: trc("condition_comparison", "not at least") },
+  { value: "lt", label: trc("condition_comparison", "less than"), negated: trc("condition_comparison", "not less than") },
+  { value: "lte", label: trc("condition_comparison", "at most"), negated: trc("condition_comparison", "not at most") },
+  { value: "in", label: trc("condition_comparison", "one of"), negated: trc("condition_comparison", "not one of") },
+  { value: "empty", label: trc("condition_comparison", "empty"), negated: trc("condition_comparison", "not empty") },
+  { value: "has-key", label: trc("condition_comparison", "have an item"), negated: trc("condition_comparison", "not have an item") },
 ];
 
-/** 「である / でない」の選択欄。「もし」の条件と、すべてのリストの絞り込み条件で共有する。 */
-export function NegationSelect({ not, onChange, operation }: {
-  not?: boolean;
-  onChange: (not: boolean) => void;
-  operation?: ScriptOp;
-}) {
-  // 文脈付きの翻訳にして、言語ごとに適切な補助動詞を選べるようにする。
-  const context = operation === "contains" || operation === "contains-any" || operation === "starts-with" || operation === "ends-with"
-    ? "condition_check_verb" : "condition_check";
+/** 大小の比較の否定は、逆向きの比較で表せるので一覧には出さない（保存済みのものは表示する）。 */
+const ORDER_OPERATORS = new Set<ScriptOp>(["gt", "gte", "lt", "lte"]);
+
+/** 「表示されている / いない」のように、比べる値の無い条件の肯定・否定。 */
+export function NegationSelect({ not, onChange }: { not?: boolean; onChange: (not: boolean) => void }) {
   return (
-    <select className="se-in se-fixed-select" aria-label={tr("Condition polarity")}
+    <select className="se-in" aria-label={tr("Condition polarity")}
       value={not ? "not" : "is"} onChange={(e) => onChange(e.target.value === "not")}>
-      <option value="is">{trc(context, context === "condition_check_verb" ? "does" : "is")}</option>
-      <option value="not">{trc(context, context === "condition_check_verb" ? "does not" : "is not")}</option>
+      <option value="is">{trc("condition_check", "is")}</option>
+      <option value="not">{trc("condition_check", "is not")}</option>
     </select>
   );
 }
 
-/** エディタが提示するのは肯定の比較だけで、否定の選択欄でどれでも反転できる。 */
+/**
+ * 比べ方と比べる値。「と同じ」「と同じでない」のように肯定と否定を1つの選択欄にまとめ、
+ * 文として続けて読める順（値 → 比べ方）に並べる。
+ */
 export function OpEditor({
   op,
   value,
@@ -372,18 +342,16 @@ export function OpEditor({
   placeholder = tr("Value"),
   target,
   not,
-  onNotChange,
   operators,
   valueContext = "text",
 }: {
   op: ScriptOp;
   value: string;
-  onChange: (op: ScriptOp, value: string) => void;
+  onChange: (op: ScriptOp, value: string, not: boolean) => void;
   placeholder?: string;
   /** 比べる入力欄（あれば、チェックボックスや選択肢に合わせた入力欄にする） */
   target?: string;
   not?: boolean;
-  onNotChange?: (not: boolean) => void;
   /** 種類の分かっているリストや項目には、それに合う比較を表示する。保存済みの比較はそのまま残す。 */
   operators?: readonly ScriptOp[];
   /** リスト全体を比べるときは、変数の元の型を保つ。 */
@@ -394,13 +362,14 @@ export function OpEditor({
     ? CONDITION_OPERATORS.filter((entry) => operators.includes(entry.value) || entry.value === op)
     : CONDITION_OPERATORS;
   const pick = target !== undefined && op === "eq";
+  const current = `${op}${not ? "!" : ""}`;
   return (
     <Phrase
-      text={op === "has-key" ? "{negation} {op} named {value}" : "{negation} {op} {value}"}
+      text={op === "has-key" ? "{op} named {value}" : "{op} {value}"}
       parts={{
         value: !noValue &&
           (pick ? (
-            <FieldValueIn target={target} value={value} placeholder={placeholder} onCommit={(v) => onChange(op, v)} />
+            <FieldValueIn target={target} value={value} placeholder={placeholder} onCommit={(v) => onChange(op, v, !!not)} />
           ) : (
             <TextIn
               value={value}
@@ -408,23 +377,26 @@ export function OpEditor({
               width={96}
               vars
               valueContext={valueContext}
-              onCommit={(v) => onChange(op, v)}
+              onCommit={(v) => onChange(op, v, !!not)}
             />
           )),
         op: (
           <select
             className="se-in"
-            value={op}
-            onChange={(e) => onChange(e.target.value as ScriptOp, value)}
+            aria-label={tr("How to compare")}
+            value={current}
+            onChange={(e) => {
+              const negated = e.target.value.endsWith("!");
+              onChange((negated ? e.target.value.slice(0, -1) : e.target.value) as ScriptOp, value, negated);
+            }}
           >
-            {availableOperators.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
+            {availableOperators.flatMap((o) => [
+              <option key={o.value} value={o.value}>{o.label}</option>,
+              ...(!ORDER_OPERATORS.has(o.value) || current === `${o.value}!`
+                ? [<option key={`${o.value}!`} value={`${o.value}!`}>{o.negated}</option>] : []),
+            ])}
           </select>
         ),
-        negation: onNotChange && <NegationSelect not={not} onChange={onNotChange} operation={op} />,
       }}
     />
   );
@@ -441,7 +413,7 @@ export function CondEditor({
 }) {
   const { samples, variableIndex } = useContext(Ctx);
   const variableOptions = useMemo(() => {
-    const names = variableIndex?.names ?? [];
+    const names = variableIndex.names;
     return Object.fromEntries([
       ...Object.entries(samples).filter(([name]) => !name.startsWith("#")),
       ...names.filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined] as const),
@@ -491,8 +463,8 @@ export function CondEditor({
                 operators={ifVariableOperators(cond.left ?? "", samples)}
                 valueContext={op === "has-key" ? "text" : "value"}
                 placeholder={tr("value / {variable}")}
-                onChange={(o, v) => onChange({ ...cond, op: o, value: v })}
-                not={cond.not} onNotChange={(not) => onChange({ ...cond, not })}
+                not={cond.not}
+                onChange={(o, v, not) => onChange({ ...cond, op: o, value: v, not: not || undefined })}
               />
             ),
           }}
@@ -530,8 +502,8 @@ export function CondEditor({
           op={op}
           value={cond.value ?? ""}
           target={cond.target}
-          onChange={(o, v) => onChange({ ...cond, op: o, value: v })}
-          not={cond.not} onNotChange={(not) => onChange({ ...cond, not })}
+          not={cond.not}
+          onChange={(o, v, not) => onChange({ ...cond, op: o, value: v, not: not || undefined })}
         />
       )}
       {cond.subject !== "value" && <NegationSelect not={cond.not}

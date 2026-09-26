@@ -75,7 +75,7 @@ test("no-selection and an empty option have different preview indices", () => {
 /** ネイティブの value の setter の後の結果を返す、最小限の入力欄。通知とプレビューへの呼び出しだけを検証する。 */
 function runtimeAssignments(preview: boolean, options: string[], initial: number, values: string[]) {
   const doc = scriptSelectValueDoc(options);
-  const script = { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: values.map((value, i) => ({ id: `set-${i}`, kind: "set-value", target: "choice", value })) };
+  const script = { id: "load", trigger: "load", steps: values.map((value, i) => ({ id: `set-${i}`, kind: "set-value", target: "choice", value })) };
   doc.pages.home.pageScripts = undefined;
   doc.nodes = { choice: { ...doc.nodes.choice, scripts: [script as any] } };
   doc.pages.home.children = ["choice"];

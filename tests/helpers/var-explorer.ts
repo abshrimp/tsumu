@@ -8,7 +8,7 @@ export function varExplorerDoc(): SiteDoc {
     schemaVersion: 1, siteName: "Variable picker", assets: {}, pageOrder: ["p", "q"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "P", description: "", children: ["search", "target"], pageScripts: [{
-        id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [{
+        id: "load", trigger: "load", steps: [{
           id: "fetch", kind: "fetch", url: "https://example.test/data", as: "product", preview: {
             fetchedAt: 1, sample: { name: "First", details: { label: "Nested" } },
           },

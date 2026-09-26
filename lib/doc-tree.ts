@@ -106,7 +106,6 @@ export function validDocPageShape(value: unknown): boolean {
   return isObject(value) && typeof value.name === "string" &&
     typeof value.title === "string" && typeof value.description === "string" &&
     (value.bodyStyles == null || validStyleDefinitions(value.bodyStyles)) &&
-    (value.scripts == null || validDocumentScripts(value.scripts)) &&
     (value.pageScripts == null || validDocumentScripts(value.pageScripts)) &&
     [value.rawHtml, value.redirectTo, value.rewriteTo].filter(v => v != null).length <= 1 &&
     validPageAdditionalFields(value);

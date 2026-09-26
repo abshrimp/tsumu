@@ -130,7 +130,6 @@ export function makeSwitch(): PresetResult {
     {
       id: genId("sc"),
       trigger: "click",
-      pos: { x: 32, y: 32 },
       steps: [
         {
           id: genId("st"),
@@ -552,7 +551,6 @@ function presetNavbar(): PresetResult {
       {
         id: genId("sc"),
         trigger: "click",
-        pos: { x: 32, y: 32 },
         steps: [{ id: genId("st"), kind: "toggle", target: "nav-links" }],
       },
     ],
@@ -714,7 +712,6 @@ function loadScript(url: string, sample: unknown, then: ScriptStep[]): Script {
   return {
     id: genId("sc"),
     trigger: "load",
-    pos: { x: 32, y: 32 },
     steps: [
       { id: genId("st"), kind: "fetch", url, as: trc("variable_name", "data"),
         preview: { sample, fetchedAt: Date.now() } },

@@ -154,7 +154,7 @@ test("removal works in the serialized page runner and is allowed in page-load sc
   const doc = createInitialDoc();
   const pageId = doc.pageOrder[0];
   doc.pages[pageId].pageScripts = [
-    { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps },
+    { id: "load", trigger: "load", steps },
   ];
   assert.ok(pagePlan(doc, pageId).serverIds.has("remove"));
   const generated = generateProject(doc).files["app/page.tsx"];
@@ -165,7 +165,7 @@ test("removal works in the serialized page runner and is allowed in page-load sc
 test("list removal validates its method instead of accepting unknown step shapes", () => {
   const step = { id: "remove", kind: "remove-list-item", list: "items", mode: "value", value: "10" };
   const asScripts = (item: object) => [
-    { id: "script", trigger: "click", pos: { x: 0, y: 0 }, steps: [item] },
+    { id: "script", trigger: "click", steps: [item] },
   ];
   assert.equal(validDocumentScripts(asScripts(step)), true);
   assert.equal(validDocumentScripts(asScripts({ ...step, mode: "unknown" })), false);
@@ -242,7 +242,7 @@ test("nested loops read list values from the enclosing item without dropping the
 test("export obfuscation preserves list targets and loop variable references", () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
-  page.pageScripts = [{ id: "source", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+  page.pageScripts = [{ id: "source", trigger: "load", steps: [
     { id: "numbers", kind: "set-var", value: "[1,2]", into: "numbers" },
     { id: "result", kind: "set-var", value: "[]", into: "result" },
     { id: "each", kind: "for-each", array: "numbers", then: [
@@ -341,13 +341,13 @@ test("preview terminates and chains copies into nested variable paths", () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
   page.pageScripts = [
-    { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+    { id: "load", trigger: "load", steps: [
       { id: "seed", kind: "fetch", as: "source", url: "https://example.test/source",
         preview: { sample: { title: "ready" } } },
       { id: "protected", kind: "fetch", as: "preserve", url: "https://example.test/preserve",
         preview: { sample: { title: "original" } } },
     ] },
-    { id: "click", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+    { id: "click", trigger: "click", steps: [
       // Deliberately out of order: the first copy needs a second pass.
       { id: "second", kind: "set-var", into: "record.label", value: "{record.title}" },
       { id: "first", kind: "set-var", into: "record.title", value: "{source.title}" },

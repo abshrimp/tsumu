@@ -5,14 +5,13 @@
  */
 
 import { isEnterKey } from "../../lib/keys";
-import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Play, Plus, RefreshCw, SlidersHorizontal, Table2, X } from "lucide-react";
 import { JsonPeek, readableValue } from "../DataView";
 import { anchoredMenuPos, varSuggestionAnchorVisible } from "../controls";
 import {
   cleanVarName,
-  dataVarNames,
   digPath,
   fieldLabel,
   ITEM_VALUE,
@@ -112,12 +111,11 @@ const notifyRequests = () => requestListeners.forEach((listener) => listener());
 function currentFetch(doc: SiteDoc, pageId: string, id: string, scope: FetchPreviewScope, roots: string[]): FetchStep | undefined {
   const page = doc.pages[pageId];
   if (!page) return undefined;
-  const nodeId = scope.owner?.nodeId ?? (scope.owner ? null : scope.nodeId);
+  const nodeId = scope.owner?.nodeId ?? scope.nodeId;
   const eligible = pageNodeIds(doc, pageId, roots);
   const scripts = nodeId && nodeId !== PAGE_TARGET
     ? eligible.includes(nodeId) ? doc.nodes[nodeId]?.scripts ?? [] : []
-    : scope.owner ? nodeId === PAGE_TARGET ? page.pageScripts ?? [] : page.scripts ?? []
-      : [...(page.pageScripts ?? []), ...(page.scripts ?? [])];
+    : page.pageScripts ?? [];
   const matches: FetchStep[] = [];
   for (const script of scripts) {
     if (scope.owner && script.id !== scope.owner.scriptId) continue;
@@ -129,7 +127,7 @@ function currentFetch(doc: SiteDoc, pageId: string, id: string, scope: FetchPrev
 
 /** 送信を管理するのは文書のセッションで、ブロックや小窓がマウントされているかには左右されない。 */
 export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
-  const { pageId, scriptRootIds = [] } = useContext(Ctx);
+  const { pageId, scriptRootIds } = useContext(Ctx);
   const nodeId = useContext(ScriptNodeCtx);
   const scriptOwner = useContext(ScriptOwnerCtx);
   const scope = suppliedScope ?? { nodeId, localNames: [], ...(scriptOwner ? { owner: scriptOwner } : {}) };
@@ -201,16 +199,16 @@ export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
 
 /** 一時的な入力と、送信に使う見本を、文書・ブロック・リクエスト・文脈ごとに共有する。 */
 function useFetchValues(step: FetchStep, scope: FetchPreviewScope) {
-  const { doc, pageId, readOnly } = useContext(Ctx);
+  const { doc, pageId } = useContext(Ctx);
   const owner = ownerKey(step.id, pageId, scope);
   const key = fetchTestKey(step, scope);
   const snapshot = useSyncExternalStore(subscribeRequests,
     () => temporaryValues.get(owner)?.key === key ? temporaryValues.get(owner) : undefined, () => undefined);
   useEffect(() => {
-    if (!readOnly && temporaryValues.has(owner) && temporaryValues.get(owner)?.key !== key) {
+    if (temporaryValues.has(owner) && temporaryValues.get(owner)?.key !== key) {
       temporaryValues.delete(owner); notifyRequests();
     }
-  }, [owner, key, readOnly]);
+  }, [owner, key]);
   const values = snapshot?.values ?? EMPTY_VALUES;
   const samples = variableChoiceSamples(varGroupsAt(doc, pageId, scope.nodeId).filter((group) => !group.advanced), scope.localNames);
   const inputs = fetchPreviewInputs(step.url, step, samples);
@@ -224,7 +222,6 @@ function useFetchValues(step: FetchStep, scope: FetchPreviewScope) {
   return { inputs, values, samples, vars, missing, invalid,
     prepare: () => vars,
     setValue: (name: string, value: string) => {
-      if (readOnly) return;
       temporaryValues.set(owner, { key, values: { ...values, [name]: value } }); notifyRequests();
     } };
 }
@@ -251,35 +248,54 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
   const state = useFetchValues(step, scope);
   const composing = useRef(false);
   const blockedClick = useRef(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  // モーダルとして開くと、背後を操作できなくする処理・フォーカスの閉じ込め・Esc・
+  // 閉じたときのフォーカスの戻し先を、ブラウザが受け持つ。
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    dialogRef.current?.querySelector<HTMLElement>("input, button:not(:disabled)")?.focus();
-    return () => { if (previous?.isConnected) previous.focus(); };
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    const closed = () => closeRef.current();
+    dialog.addEventListener("close", closed);
+    // closedby="any" に対応していないブラウザでも、外側を押して離したら閉じる。
+    // event.target ではなくポインターの位置で判定する（余白のクリックで閉じないように）。
+    const outside = (event: PointerEvent) => {
+      const box = dialog.getBoundingClientRect();
+      return event.clientX < box.left || event.clientX > box.right ||
+        event.clientY < box.top || event.clientY > box.bottom;
+    };
+    let pressedOutside = false;
+    const down = (event: PointerEvent) => { pressedOutside = outside(event); };
+    const up = (event: PointerEvent) => { if (pressedOutside && outside(event)) dialog.close(); };
+    const fallback = !("closedBy" in HTMLDialogElement.prototype);
+    if (fallback) {
+      dialog.addEventListener("pointerdown", down);
+      dialog.addEventListener("pointerup", up);
+    }
+    return () => {
+      dialog.removeEventListener("close", closed);
+      dialog.removeEventListener("pointerdown", down);
+      dialog.removeEventListener("pointerup", up);
+      if (dialog.open) dialog.close();
+    };
   }, []);
+  const titleId = useId();
   const key = wholeKey(step, useContext(Ctx).pageId, undefined, scope);
   const full = wholeCache.has(key);
   const truncatedSample = Object.keys(step.preview?.totals ?? {}).length > 0;
   const method = step.method ?? "GET";
   const destination = state.missing ? step.url : interpolateUrl(step.url, state.vars);
-  return <div ref={dialogRef} className="se-modal se-fetch-test" role="dialog" aria-modal="true"
-    aria-label={tr("Fetched data")} data-se-popover=""
+  return <dialog ref={dialogRef} className="se-modal se-fetch-test"
+    aria-labelledby={titleId} data-se-popover=""
+    {...({ closedby: "any" } as object)}
     onCompositionStartCapture={() => { composing.current = true; }}
     onCompositionEndCapture={() => { composing.current = false; }}
-    onKeyDown={(e) => {
-      e.stopPropagation();
-      if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
-      if (e.key === "Escape") onClose();
-      if (e.key === "Tab") {
-        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), summary") ?? []);
-        const first = controls[0], last = controls[controls.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
-        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
-      }
-    }}>
+    onKeyDown={(e) => { e.stopPropagation(); }}>
     <div className="se-modal-head">
-      <h3>{tr("Fetched data")}</h3>
-      <button type="button" className="se-close" aria-label={tr("Fetch again")}
+      <h3 id={titleId}>{tr("Fetched data")}</h3>
+      <button type="button" className="se-icon-btn" aria-label={tr("Fetch again")}
         title={`${method} ${destination}`} disabled={busy || state.missing || state.invalid || !step.url.trim()}
         onPointerDown={(e) => {
           blockedClick.current = composing.current;
@@ -289,7 +305,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
           if (composing.current || blockedClick.current) { blockedClick.current = false; return; }
           void run(step.url, step, state.prepare());
         }}><RefreshCw size={15} /></button>
-      <button type="button" className="se-close" onClick={onClose} aria-label={tr("Close")}><X size={16} /></button>
+      <button type="button" className="se-icon-btn" autoFocus onClick={() => dialogRef.current?.close()} aria-label={tr("Close")}><X size={16} /></button>
     </div>
     <div className="se-fetch-destination"><b>{method}</b><span>{destination}</span><small>{tr("Destination for current settings")}</small></div>
     {submitted && (submitted.url !== destination || submitted.method !== method) && (!resultSource || submitted.url !== resultSource.url || submitted.method !== resultSource.method) && <p className="hint se-fetch-submitted">{tr("Last request")}: {submitted.method} {submitted.url}</p>}
@@ -298,7 +314,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
       <summary>{tr("Request contents")}</summary><pre>{JSON.stringify(fetchRequestOf(step, state.vars), null, 2)}</pre>
     </details> : null}
     {method !== "GET" && <p className="se-badge is-warn">{tr("This request may change data at the destination")}</p>}
-    {busy && <p role="status">{tr("Sending…")}</p>}
+    <p role="status" className="se-fetch-status">{busy ? tr("Sending…") : ""}</p>
     {error && <p className="se-badge is-warn" role="alert">{error}</p>}
     {step.preview?.sample !== undefined && <>
       {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("Result request destination")}: {resultSource.method} {resultSource.url}</p>}
@@ -308,7 +324,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
         : tr("Showing the saved sample.")}</p>}
       <JsonPeek value={full ? wholeCache.get(key) : step.preview?.sample} />
     </>}
-  </div>;
+  </dialog>;
 }
 
 /** 取得ブロックの「リクエストの設定」（メソッド・ヘッダー・送る本文） */
@@ -423,7 +439,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
           url: (
             <TextIn
               value={step.url}
-              placeholder={tr("https://~ (variables like {slug} work too)")}
+              placeholder={tr("Web address (https://…)")}
               vars
               width={240}
               onCommit={(v) => {
@@ -437,6 +453,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
           as: <VarNameIn stepId={step.id} value={step.as ?? ""} placeholder={tr("Name")} />,
         }}
       />
+      <span className="se-br" />
       <button type="button" className="se-mini se-mini-text"
         title={`${step.method ?? "GET"} ${values.missing ? step.url : interpolateUrl(step.url, values.vars)}`}
         disabled={!step.url.trim() || (!hasResult && !busy && (values.missing || values.invalid))}
@@ -783,19 +800,17 @@ export function VarNameIn({
   value: string;
   placeholder?: string;
 }) {
-  const { doc, pageId, renameVar, readOnly, variableIndex } = useContext(Ctx);
+  const { doc, pageId, renameVar, variableIndex } = useContext(Ctx);
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
   // ワークスペースは、すべての変数名のブロックに、値を作る側の共通の索引を渡す。
   // 独立したプレビューやテストでは、文書を走査して求める。
-  const others = variableIndex || readOnly ? null : dataVarNames(doc, pageId, stepId);
-  const hasOther = (name: string) =>
-    variableIndex ? variableIndex.hasOther(name, stepId) : (others?.has(name) ?? false);
+  const hasOther = (name: string) => variableIndex.hasOther(name, stepId);
   const overwrite = !!value && hasOther(value) && !RESERVED_VARS.has(value);
   // 閉じている入力欄のすべてで数千の候補を並べ替えていたため、大きなスクリプトの
   // ワークスペースを開く処理量が2乗に増えていた。候補は編集中だけ計算する。
-  const names = open ? (variableIndex ? variableIndex.names : [...(others ?? [])])
+  const names = open ? variableIndex.names
     .filter((name) => !RESERVED_VARS.has(name) && hasOther(name))
     .sort((a, b) => a.localeCompare(b, getLang())) : [];
   const [pos, setPos] = useState<CSSProperties>({});
@@ -850,19 +865,11 @@ export function VarNameIn({
     };
   }, [open, matches.length]);
 
-  if (readOnly) {
-    return (
-      <span className={`se-in se-in-fake${value ? "" : " is-empty"}`} style={{ width: 96 }}>
-        {value || placeholder}
-      </span>
-    );
-  }
   return (
     <>
       <input
         ref={ref}
-        className={`se-in${value ? "" : " is-empty"}`}
-        style={{ width: 96 }}
+        className={`se-in se-in-name${value ? "" : " is-empty"}`}
         value={text}
         placeholder={placeholder}
         onFocus={() => {

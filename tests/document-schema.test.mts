@@ -19,8 +19,7 @@ test("the persisted document requires its one canonical schema version", () => {
 test("malformed scripts cannot survive a round trip through document storage", () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
-  page.pageScripts = [{ id: "s", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "a", kind: "set-var", into: "value", value: "1" }] }];
+  page.pageScripts = [{ id: "s", trigger: "load",    steps: [{ id: "a", kind: "set-var", into: "value", value: "1" }] }];
   assert.equal(validSiteDoc(doc), true);
   (page.pageScripts[0].steps[0] as unknown as Record<string, unknown>).kind = "unknown";
   assert.equal(validSiteDoc(doc), false);

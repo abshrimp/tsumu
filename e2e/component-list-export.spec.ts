@@ -97,7 +97,7 @@ test("converted client list keeps its template and renders browser-loaded items"
   const doc = componentListDoc();
   doc.pages.p.children = ["card"];
   doc.nodes.detail.text!.content = "Tag {値}";
-  doc.pages.p.pageScripts = [{ id: "client-load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+  doc.pages.p.pageScripts = [{ id: "client-load", trigger: "load", steps: [
     { id: "load-raw", kind: "store-load", key: "raw-tags", into: "rawTags" },
     { id: "split-tags", kind: "transform", source: "rawTags", into: "tags", transform: { kind: "split", separator: "," } },
   ] }];

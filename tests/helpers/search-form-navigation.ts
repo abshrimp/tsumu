@@ -35,7 +35,7 @@ export function searchFormFiles() {
     pages: {
       static: { id: "static", name: "Static", slug: "", title: "Static", description: "", children: [staticForm.id, ...links.map((n) => n.id)] },
       search: { id: "search", name: "Search", slug: "search", title: "Search", description: "", children: [form.id, result.id, revision.id, ...links.map((n) => n.id)], pageScripts: [{
-        id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+        id: "load", trigger: "load", steps: [
           { id: "fetch", kind: "fetch", url: "https://example.com/search?q={q}", as: "response" },
         ],
       }] },

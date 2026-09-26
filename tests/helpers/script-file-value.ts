@@ -12,12 +12,12 @@ export function scriptFileValueDoc(): SiteDoc {
   const set = (target: string, value: string): ScriptStep => ({ id: `set-${++sequence}`, kind: "set-value", target, value });
   const button = (id: string, steps: ScriptStep[]): DocNode => ({
     ...makeText(id), id, semantic: "button",
-    scripts: [{ id: `${id}-script`, trigger: "click", pos: { x: 0, y: 0 }, steps }],
+    scripts: [{ id: `${id}-script`, trigger: "click", steps }],
   });
   const nodes: DocNode[] = [
     {
       ...makeBox(), id: "upload", attrId: "upload", type: "field", field: { kind: "file", multiple: true },
-      scripts: [{ id: "count-change", trigger: "change", pos: { x: 0, y: 0 }, steps: [
+      scripts: [{ id: "count-change", trigger: "change", steps: [
         { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "increment", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       ] }],
     },
@@ -34,7 +34,7 @@ export function scriptFileValueDoc(): SiteDoc {
   return {
     schemaVersion: 1, siteName: "Script file value", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: nodes.map((n) => n.id), pageScripts: [{
-      id: "init", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+      id: "init", trigger: "load", steps: [
         { id: "init-changes", kind: "set-var", into: "changes", value: "0" },
         { id: "init-filename", kind: "set-var", into: "filename", value: "report.pdf" },
       ],

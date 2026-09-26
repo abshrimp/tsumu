@@ -198,8 +198,7 @@ test("React refuses executable page scripts on data-driven DOM pages", () => {
   const site = doc();
   const page = site.pages.public;
   page.pageScripts = [{
-    id: "init", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "set", kind: "set-var", into: "state", value: "ready" }],
+    id: "init", trigger: "load",    steps: [{ id: "set", kind: "set-var", into: "state", value: "ready" }],
   }];
   page.customTopHtml = '<script>window.__pageStarted = true;</script>';
   assert.ok(exportLimitations(site, "react").some((reason) =>
@@ -373,8 +372,7 @@ test("Next.js refuses imported HTML route collisions before generating files", (
 test("browser exports use decoded, deep credential scanning like GitHub Push", () => {
   const site = doc();
   site.pages.public.pageScripts = [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "fetch", kind: "fetch", as: "data",
+    id: "load", trigger: "load",    steps: [{ id: "fetch", kind: "fetch", as: "data",
       url: "https://public.example/data?%61pi_key=literal" }],
   }];
   for (const framework of ["react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
@@ -410,8 +408,7 @@ test("every export, including Next.js SSR, rejects credentials before source gen
   const site = doc();
   const sentinel = "PROBE_NOT_A_REAL_SECRET_SENTINEL_0529";
   site.pages.public.pageScripts = [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "fetch", kind: "fetch", as: "data",
+    id: "load", trigger: "load",    steps: [{ id: "fetch", kind: "fetch", as: "data",
       url: "https://public.example/private",
       headers: [{ name: "Authorization", value: "Bearer " + sentinel }] }],
   }];
@@ -441,8 +438,7 @@ test("every export, including Next.js SSR, rejects credentials before source gen
   // 除けることがある。プロジェクトの書き出しでは、すべてのページを調べなければならない。
   step.headers = [];
   site.pages.private.pageScripts = [{
-    id: "secret-load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "secret-fetch", kind: "fetch", as: "secret",
+    id: "secret-load", trigger: "load",    steps: [{ id: "secret-fetch", kind: "fetch", as: "secret",
       url: "https://public.example/private?api_key=" + sentinel }],
   }];
   assert.ok(exportLimitations(site, "nextjs").length > 0);

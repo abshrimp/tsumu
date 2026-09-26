@@ -20,7 +20,7 @@ function fixtureDoc(): SiteDoc {
       ...(id === "html" ? { rawHtml: "<p>HTML</p>" } : {}),
       ...(id === "redirect" ? { redirectTo: "/a" } : {}),
       ...(id === "rewrite" ? { rewriteTo: "https://example.test/" } : {}),
-      pageScripts: [{ id: `${id}-load`, trigger: "load", pos: { x: 0, y: 0 }, steps: [
+      pageScripts: [{ id: `${id}-load`, trigger: "load", steps: [
         { id: `${id}-now`, kind: "open-url", url: `/${id}-load` },
         { id: `${id}-wait`, kind: "wait", seconds: 1 },
         { id: `${id}-late`, kind: "open-url", url: `/${id}-late` },
@@ -205,10 +205,8 @@ test("same-page conversion to HTML and undo replace the runtime owner", () => {
 test("Canvas preview dispatches a variable change to the active page script", () => {
   const doc = fixtureDoc();
   doc.pages.a.pageScripts = [
-    { id: "init", trigger: "load", pos: { x: 0, y: 0 },
-      steps: [{ id: "set", kind: "set-var", into: "count", value: "1" }] },
-    { id: "watch", trigger: "change", changeVariable: "count", pos: { x: 0, y: 0 },
-      steps: [{ id: "open", kind: "open-url", url: "/changed" }] },
+    { id: "init", trigger: "load",      steps: [{ id: "set", kind: "set-var", into: "count", value: "1" }] },
+    { id: "watch", trigger: "change", changeVariable: "count",      steps: [{ id: "open", kind: "open-url", url: "/changed" }] },
   ];
   const m = mount("a", doc);
   try { assert.deepEqual(m.calls, ["/changed"]); }

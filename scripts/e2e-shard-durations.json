@@ -36,10 +36,6 @@
       9,
       8474
     ],
-    "e2e/external-json-security.spec.ts": [
-      2,
-      424
-    ],
     "e2e/canvas-move-lifecycle.spec.ts": [
       20,
       12962
@@ -191,6 +187,10 @@
     "e2e/export-single-html-runtime.spec.ts": [
       1,
       94
+    ],
+    "e2e/external-json-security.spec.ts": [
+      2,
+      424
     ],
     "e2e/fetch-refetch.spec.ts": [
       19,
@@ -364,9 +364,9 @@
       17,
       17824
     ],
-    "e2e/script-drag-lifecycle.spec.ts": [
-      23,
-      14195
+    "e2e/script-editor.spec.ts": [
+      5,
+      38000
     ],
     "e2e/script-file-value.spec.ts": [
       4,
@@ -376,25 +376,9 @@
       30,
       24459
     ],
-    "e2e/script-keyboard-scope.spec.ts": [
-      12,
-      10313
-    ],
-    "e2e/script-large-workspace.spec.ts": [
-      4,
-      5200
-    ],
     "e2e/script-navigation.spec.ts": [
       1,
       102
-    ],
-    "e2e/script-palette-keyboard.spec.ts": [
-      8,
-      5758
-    ],
-    "e2e/script-palette-search.spec.ts": [
-      3,
-      2240
     ],
     "e2e/script-runtime-browser.spec.ts": [
       8,

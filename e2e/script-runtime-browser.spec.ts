@@ -9,7 +9,6 @@ function fixture(entries: Entry[]): SiteDoc {
     id: "script-" + index,
     trigger: entry.trigger,
     keepOnShown: !!entry.keep,
-    pos: { x: 0, y: 0 },
     steps: entry.steps,
   }));
   return {

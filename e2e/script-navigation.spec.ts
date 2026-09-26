@@ -9,7 +9,7 @@ test("Pending scripts from a previous page do not continue after navigating away
     { id: "wait", kind: "wait" as const, seconds: 1 },
     { id: "hide", kind: "hide" as const, target: "banner" },
   ];
-  const scripts = [{ id: "load", trigger: "load" as const, pos: { x: 0, y: 0 }, steps }];
+  const scripts = [{ id: "load", trigger: "load" as const, steps }];
   const doc: SiteDoc = {
     schemaVersion: 1, siteName: "Navigation", pageOrder: ["a", "b"], nodes: {}, assets: {},
     pages: {

@@ -126,7 +126,7 @@ test("Style, Settings, and Script panels open", { tag: "@core-editing" }, async 
   await page.locator('[data-tutorial="right-tab-settings"]').click();
   await expect(page.locator('[data-tutorial="settings-panel"]')).toContainText("意味付け");
   await page.getByText("ページのスクリプトを編集").click();
-  await expect(page.locator('[data-tutorial="se-palette"]')).toBeVisible();
+  await expect(page.locator('[data-tutorial="se-new"]')).toBeVisible();
   await expect(page.locator('[data-tutorial="se-workspace"]')).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -177,7 +177,7 @@ test("Drag a canvas node to reorder it", { tag: "@core-editing" }, async ({ page
   expect(errors).toEqual([]);
 });
 
-test("Drag a palette block into the script workspace", { tag: "@core-editing" }, async ({ page }) => {
+test("Build a click script by choosing a trigger and an action", { tag: "@core-editing" }, async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   await layers(page).getByText("ボタン", { exact: true }).click();
@@ -185,17 +185,12 @@ test("Drag a palette block into the script workspace", { tag: "@core-editing" },
   await page.getByText("ページのスクリプトを編集").click();
   const workspace = page.locator('[data-tutorial="se-workspace"]');
   await expect(workspace).toBeVisible();
-  const before = await workspace.locator(".se-stack").count();
-  const item = page.locator(".se-pal-item").first();
-  const from = (await item.boundingBox())!;
-  const ws = (await workspace.boundingBox())!;
-  await page.mouse.move(from.x + 10, from.y + from.height / 2);
-  await page.mouse.down();
-  for (let i = 1; i <= 10; i++) {
-    await page.mouse.move(from.x + 10 + ((ws.x + ws.width / 2 - from.x) * i) / 10, from.y + ((ws.y + ws.height / 2 - from.y) * i) / 10);
-  }
-  await page.mouse.up();
-  await expect(workspace.locator(".se-stack")).toHaveCount(before + 1);
+  // 要素の設定から開いたので、選んだきっかけはそのボタンに付く
+  await page.locator('[data-tutorial="se-new"]').click();
+  await workspace.locator('[data-trigger="click"]').click();
+  await workspace.locator('[data-tutorial="se-add"]').click();
+  await page.locator('.se-picker [data-action="show"]').click();
+  await expect(workspace.locator(".se-card")).toHaveCount(1);
   expect(errors).toEqual([]);
 });
 

@@ -79,8 +79,7 @@ test("4000 nested nodes, 160 scripts and binary assets survive JSON, ZIP, restor
     id: name, name: name + ".bin", mimeType: "application/octet-stream", width: 0, height: 0, dataUrl,
   };
   for (let i = 0; i < 4000; i += 25) doc.nodes["node-" + i].scripts = [{
-    id: "script-" + i, trigger: "click", pos: { x: i, y: 0 },
-    steps: [{ id: "step-" + i, kind: "set-var", into: "message", value: "雪<>& " + i }],
+    id: "script-" + i, trigger: "click",    steps: [{ id: "step-" + i, kind: "set-var", into: "message", value: "雪<>& " + i }],
   }];
   const before = structuredClone(doc);
   const packed = await serializePortableDoc(doc, IMPORT_LIMITS.docBytes);

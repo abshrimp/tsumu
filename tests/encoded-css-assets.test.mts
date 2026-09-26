@@ -119,7 +119,7 @@ test("conservative ID and URL text fallbacks remain in HTML, scripts and CSS com
     const doc = encodedCssAssetDoc("node.customCss");
     delete doc.nodes.box.customCss;
     if (field === "html") doc.pages.p.rawHtml = `<img src="${assetSrc(picture)}">`;
-    if (field === "script") doc.pages.p.scripts = [{ id: "s", trigger: "load", pos: { x: 0, y: 0 }, steps: [{ id: "step", kind: "open-url", url: assetSrc(picture) }] }];
+    if (field === "script") doc.pages.p.scripts = [{ id: "s", trigger: "load", steps: [{ id: "step", kind: "open-url", url: assetSrc(picture) }] }];
     if (field === "comment") doc.nodes.box.customCss = `/* ${picture.id} */`;
     assert.equal(assetUsage(doc).get(picture.id), 1);
     assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), [picture.id]);

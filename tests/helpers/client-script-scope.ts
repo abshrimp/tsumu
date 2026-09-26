@@ -12,7 +12,7 @@ export function clientScriptFixture(component = false, items: any[] = [
     { id: 'private', kind: 'set-var', value: 'UNUSED_SERVER_PRIVATE', into: 'private' },
   );
   doc.nodes.act = { ...makeText('Act'), id: 'act', attrId: 'act', semantic: 'button', scripts: [{
-    id: 'act-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [
+    id: 'act-script', trigger: 'click', steps: [
       { id: 'selected', kind: 'set-var', value: 'Selected {name}', into: 'chosen' },
       { id: 'raw', kind: 'set-var', value: '{tags}', into: 'rawChosen' },
     ],

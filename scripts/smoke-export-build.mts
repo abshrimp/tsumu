@@ -23,8 +23,7 @@ const doc: SiteDoc = {
     home: { id: "home", name: "Home", slug: "", title: "Home", description: "", noindex: true,
       children: ["heading", "literal-text", "picture", "media-sources", "search", "disabled-submit", "items", "action-button", "status-text", "component-instance"],
       pageScripts: [{
-        id: "load", trigger: "load", pos: { x: 0, y: 0 },
-        steps: [
+        id: "load", trigger: "load",        steps: [
           { id: "constant", kind: "set-var", into: "csv", value: "Alpha,Beta" },
           { id: "split", kind: "transform", source: "csv", into: "names",
             transform: { kind: "split", separator: "," } },
@@ -52,8 +51,7 @@ const doc: SiteDoc = {
     row: { ...makeBox(), id: "row", text: { content: "{値}", heading: 0 } },
     "action-button": { ...makeBox(), id: "action-button", attrId: "action-button",
       semantic: "button", text: { content: "Tap", heading: 0 },
-      scripts: [{ id: "tap", trigger: "click", pos: { x: 0, y: 0 },
-        steps: [{ id: "set-status", kind: "set-var", into: "status", value: "done" }] }],
+      scripts: [{ id: "tap", trigger: "click",        steps: [{ id: "set-status", kind: "set-var", into: "status", value: "done" }] }],
     },
     "status-text": { ...makeBox(), id: "status-text",
       text: { content: "Status: {status}", heading: 0 } },

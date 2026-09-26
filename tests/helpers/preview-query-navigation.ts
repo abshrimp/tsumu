@@ -28,7 +28,7 @@ export function previewQueryDoc(slug = "blog", queries = ["", "tab=news", "tab=n
     const n: DocNode = { ...makeText(id), id };
     if (scripted) {
       n.semantic = "button";
-      n.scripts = [{ id: `${id}-script`, trigger: "click", pos: { x: 0, y: 0 }, steps: [{ id: `${id}-open`, kind: "open-url", url }] }];
+      n.scripts = [{ id: `${id}-script`, trigger: "click", steps: [{ id: `${id}-open`, kind: "open-url", url }] }];
     } else n.link = { kind: "url", url };
     for (const page of Object.values(doc.pages)) {
       const copy = structuredClone(n);

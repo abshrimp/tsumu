@@ -365,8 +365,7 @@ test("preview variable copies follow same-page script edits and Undo", () => {
     assert.equal(m.render().pageVars.copied, undefined);
     const state = useEditor.getState();
     state.updateNode("result", { scripts: [{
-      id: "click-copy", trigger: "click", pos: { x: 0, y: 0 },
-      steps: [{ id: "copy", kind: "set-var", value: "{response.label}", into: "copied" }],
+      id: "click-copy", trigger: "click",      steps: [{ id: "copy", kind: "set-var", value: "{response.label}", into: "copied" }],
     }] });
     assert.equal(m.render().pageVars.copied, "home saved");
     state.undo();
@@ -391,8 +390,7 @@ test("preview copies resolve nested destinations and backward references without
     ["otherMissing", "missing"],
   ];
   doc.nodes.result.scripts = [{
-    id: "copies", trigger: "click", pos: { x: 0, y: 0 },
-    steps: copies.map(([into, src], i) => ({ id: String(i), kind: "set-var", into, value: `{${src}}` })),
+    id: "copies", trigger: "click",    steps: copies.map(([into, src], i) => ({ id: String(i), kind: "set-var", into, value: `{${src}}` })),
   }];
   // 同期ループが再発してもテストプロセス全体を停止させない。
   const vars = runInNewContext('previewDataVars(doc, "home")', { previewDataVars, doc }, { timeout: 2000 });

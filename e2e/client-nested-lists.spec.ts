@@ -42,7 +42,7 @@ test(`component nested browser arrays: configure, preview, reload and execute ex
   await expect(source).toHaveText('tags');
   const configured = await snapshot(page);
   await page.getByRole('button', { name: 'Edit loading', exact: true }).click();
-  const value = page.locator('.se-ws [data-sel-key="step:reload-step"] input').first();
+  const value = page.locator('.se-flow [data-step-id="reload-step"] .se-value-choice input');
   await value.fill('{response}'); await value.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();
   const saved = await snapshot(page);
@@ -117,7 +117,7 @@ test(`component client text overrides the server scalar through real controls`, 
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
   const configured = await snapshot(page);
   await page.getByRole('button', { name: 'Edit loading', exact: true }).click();
-  const value = page.locator('.se-ws [data-sel-key="step:reload-step"] input').first();
+  const value = page.locator('.se-flow [data-step-id="reload-step"] .se-value-choice input');
   await value.fill('{response}'); await value.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();
   const saved = await snapshot(page);
@@ -149,7 +149,7 @@ test(`component generated client links retain row URLs after reload and navigati
   await source.click();
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
   await page.getByRole('button', { name: 'Edit loading', exact: true }).click();
-  const value = page.locator('.se-ws [data-sel-key="step:reload-step"] input').first();
+  const value = page.locator('.se-flow [data-step-id="reload-step"] .se-value-choice input');
   await value.fill('{response}'); await value.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();
   // 補助するのは選択だけ。URL の編集・履歴・保存は、実際の設定のパネルを通す。

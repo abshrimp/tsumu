@@ -59,7 +59,7 @@ export function validNodeAdditionalFields(node: Record<string, unknown>): boolea
     nullable(node.link, x => record(x) &&
       choice(x.kind, ["url", "page"]) &&
       optional(x.url, str) && optional(x.pageId, str) &&
-      optional(x.newTab, bool) && optional(x.pos, point)) &&
+      optional(x.newTab, bool)) &&
     nullable(node.image, x => record(x) &&
       str(x.src) && str(x.alt) && finite(x.width) && finite(x.height) &&
       optional(x.assetId, str) && optional(x.assetSuffix, v => str(x.assetId) && validAssetSuffix(v)) && optional(x.priority, bool) &&

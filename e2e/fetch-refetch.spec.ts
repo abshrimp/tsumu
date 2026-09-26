@@ -10,8 +10,11 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ content: bundle });
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
 });
-const block = (page: Page) => page.locator('[data-sel-key="step:fetch"]');
+const block = (page: Page) => page.locator('[data-step-id="fetch"]');
 const result = (page: Page) => page.getByRole("dialog", { name: "取得したデータ", exact: true });
+/** 要素に付いたスクリプトを、左の一覧から開く。 */
+const openScriptOf = (page: Page, nodeId: string) =>
+  page.locator(`.se-side-group[data-script-node="${nodeId}"] .se-side-open`).first().click();
 const refresh = (page: Page) => result(page).getByRole("button", { name: "取得し直す", exact: true });
 async function setUrl(page: Page, url: string) {
   const input = block(page).locator("input").first();
@@ -48,7 +51,7 @@ test("Initial fetch sends once without confirmation; subsequent views are read-o
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
     const step = doc.pages.p.pageScripts[0].steps[0]; delete step.preview?.sample; delete step.preview?.fetchedAt;
   }));
-  await expect(block(page).getByRole("button")).toHaveCount(2);
+  await expect(block(page).locator(".se-card-body").getByRole("button")).toHaveCount(2);
   await expect(block(page).locator(".se-fetch-destination")).toHaveCount(0);
   await expect(block(page).getByRole("button", { name: "データ取得", exact: true })).toBeVisible();
   await expect(block(page).getByRole("button", { name: "リクエストの設定", exact: true })).toBeVisible();
@@ -83,7 +86,7 @@ test("Editing URL, POST body, headers, or DELETE settings does not send requests
   await block(page).getByRole("button", { name: "ヘッダーを追加", exact: true }).click();
   const name = block(page).locator(".se-fetch-header").getByPlaceholder("名前");
   await name.fill("X-Test"); await name.blur();
-  const value = block(page).getByPlaceholder("値 / {変数}", { exact: true });
+  const value = block(page).getByPlaceholder("値を入力", { exact: true });
   await value.fill("example"); await value.blur(); await options(page, "DELETE");
   await requests(page, 0);
   await expect(block(page).getByRole("button", { name: "データを見る", exact: true })).toHaveCount(0);
@@ -172,11 +175,11 @@ test("Pending responses do not undo Undo or deletion", async ({ page }) => {
   // やり直しても、リクエストを送ったことは保たれる。表示するだけでは、明示的に更新しない限り、決して送り直さない。
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await requests(page, 1); await refresh(page).click(); await requests(page, 2); await close(page);
-  await block(page).click({ button: "right", position: { x: 8, y: 8 } });
-  await page.getByRole("button", { name: "このブロックを削除", exact: true }).click();
+  await block(page).locator(".se-card-more").click();
+  await page.locator(".se-menu").getByRole("button", { name: "削除" }).click();
   await finish(page, 1, [{ name: "REMOVED" }]);
   await expect(block(page)).toHaveCount(0); expect(await currentStep(page)).toBeUndefined();
-  await expect(page.locator('[data-sel-key="step:other"]')).toBeVisible();
+  await expect(page.locator('[data-step-id="other"]')).toBeVisible();
 });
 
 test("Reopening the script editor does not resend a pending POST and allows retry after failure", async ({ page }) => {
@@ -230,7 +233,8 @@ test("Executing a block inside a list and refreshing its dialog send the same ro
   const doc = fetchScopeDoc("node");
   delete (doc.nodes.act.scripts![0].steps[0] as any).preview?.fetchedAt;
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
-  const scoped = page.locator('[data-sel-key="step:scoped"]');
+  await openScriptOf(page, "act");
+  const scoped = page.locator('[data-step-id="scoped"]');
   await scoped.getByRole("button", { name: "データ取得", exact: true }).click();
   for (let i = 0; i < 2; i++) {
     await requests(page, i + 1);
@@ -247,7 +251,7 @@ test("Nested fetches prevent parent loop values and empty objects or arrays from
   const doc = fetchScopeDoc("loop");
   delete (doc.pages.p.pageScripts![0].steps[2] as any).then[0].then[0].preview?.fetchedAt;
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
-  const scoped = page.locator('[data-sel-key="step:scoped"]');
+  const scoped = page.locator('[data-step-id="scoped"]');
   await expect(scoped.getByRole("button", { name: "データ取得", exact: true })).toBeDisabled();
   for (const name of ["details.id", "empty", "tags", "details"]) {
     const input = scoped.getByRole("textbox", { name: `${name} のテスト用の値`, exact: true });
@@ -266,20 +270,19 @@ test("Nested fetches prevent parent loop values and empty objects or arrays from
 });
 
 
-for (const gesture of ["step-cancel", "script-drop"]) test(`pending POST survives ${gesture} without turning view into a second send`, async ({ page }) => {
+for (const gesture of ["cancel", "drop"]) test(`pending POST survives a reorder ${gesture} without turning view into a second send`, async ({ page }) => {
   await options(page, "POST"); await send(page); await requests(page, 1); await close(page);
-  const source = gesture === "step-cancel" ? block(page) : page.locator(".se-ws .se-hat").first();
-  // 設定をスクロールした結果、左端がパレットの下に隠れていても、実際のブロックをつかむ。
-  const grip = source.locator(".se-ico").first();
+  const grip = block(page).locator(".se-grip").first();
   await grip.scrollIntoViewIfNeeded();
-  const rect = await grip.boundingBox(); const workspace = await page.locator(".se-ws").boundingBox();
-  const origin = { x: rect!.x + rect!.width / 2, y: rect!.y + rect!.height / 2 };
-  expect(await source.evaluate((el, point) => el.contains(document.elementFromPoint(point.x, point.y)), origin)).toBe(true);
-  await page.mouse.move(origin.x, origin.y); await page.mouse.down();
-  await page.mouse.move(workspace!.x + workspace!.width - 70, workspace!.y + workspace!.height - 80, { steps: 5 });
-  await expect(page.locator(".se-ghost .se-stack").first()).toBeVisible();
-  if (gesture === "step-cancel") await page.keyboard.press("Escape");
-  await page.mouse.up(); await expect(page.locator(".se-ghost")).toHaveCount(0);
+  const rect = (await grip.boundingBox())!; const add = (await page.locator('.se-steps[data-list="root"] > .se-add').boundingBox())!;
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2); await page.mouse.down();
+  await page.mouse.move(rect.x + 20, rect.y + 30, { steps: 4 });
+  await page.mouse.move(add.x + 80, add.y + 4, { steps: 8 });
+  await expect(page.locator(".se.is-reordering")).toBeVisible();
+  if (gesture === "cancel") await page.keyboard.press("Escape");
+  await page.mouse.up(); await expect(page.locator(".se.is-reordering")).toHaveCount(0);
+  const order = await page.evaluate(() => (window as any).refetchEditor.getState().doc.pages.p.pageScripts[0].steps.map((s: any) => s.id));
+  expect(order.indexOf("fetch")).toBe(gesture === "cancel" ? 0 : order.length - 1);
   await finish(page, 0, [{ name: "DRAG-SAVED" }]);
   await expect(block(page).getByRole("button", { name: "データを見る", exact: true })).toBeVisible();
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click(); await requests(page, 1);
@@ -323,7 +326,8 @@ test("duplicatePage keeps a node fetch result on its authoring page", async ({ p
     store.getState().duplicatePage("p"); (window as any).copiedFetchPage = store.getState().activePageId;
     store.getState().setActivePage("p");
   }, fetchScopeDoc("node"));
-  const scoped = page.locator('[data-script-node="act"] [data-sel-key="step:scoped"]');
+  await openScriptOf(page, "act");
+  const scoped = page.locator('[data-step-id="scoped"]');
   await scoped.getByRole("button", { name: "データを見る", exact: true }).click();
   await refresh(page).click(); await requests(page, 1); await finish(page, 0, { origin: "AUTHOR-PAGE" });
   await expect(result(page).getByText("AUTHOR-PAGE", { exact: true })).toBeVisible();
@@ -343,7 +347,8 @@ test("same-page cloned node opens and refreshes its own result modal", async ({ 
   const copyId = await page.evaluate(() => (window as any).copiedFetchNode);
   const copyStepId = await page.evaluate((id) => (window as any).refetchEditor.getState().doc.nodes[id].scripts[0].steps[0].id, copyId);
   expect(copyStepId).not.toBe("scoped");
-  const copied = page.locator(`[data-script-node="${copyId}"] [data-sel-key="step:${copyStepId}"]`);
+  await openScriptOf(page, copyId);
+  const copied = page.locator(`[data-step-id="${copyStepId}"]`);
   await copied.getByRole("button", { name: "データを見る", exact: true }).click();
   await refresh(page).click(); await finish(page, 0, { origin: "COPY-NODE" });
   await expect(result(page).getByText("COPY-NODE", { exact: true })).toBeVisible();
@@ -381,15 +386,15 @@ test("a newly resolved upstream value replaces a hidden temporary input on reope
   await finish(page, 1, { answer: "current" });
 });
 
-test("a standalone read-only loop drag ghost preserves temporary local inputs", async ({ page }) => {
+test("cancelling a reorder of a card inside a loop preserves its temporary local inputs", async ({ page }) => {
   const doc = fetchScopeDoc("loop"); delete (doc.pages.p.pageScripts![0].steps[2] as any).then[0].then[0].preview?.fetchedAt;
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
-  const scoped = page.locator('.se-ws [data-sel-key="step:scoped"]');
+  const scoped = page.locator('.se-flow [data-step-id="scoped"]');
   for (const name of ["details.id", "empty", "tags", "details"]) await scoped.getByRole("textbox", { name: `${name} のテスト用の値`, exact: true }).fill("LOCAL");
-  const rect = await scoped.boundingBox();
-  await page.mouse.move(rect!.x + 6, rect!.y + 6); await page.mouse.down();
-  await page.mouse.move(rect!.x + 60, rect!.y + 65, { steps: 5 });
-  await expect(page.locator(".se-ghost")).toBeVisible();
+  const rect = (await scoped.locator(".se-grip").first().boundingBox())!;
+  await page.mouse.move(rect.x + 6, rect.y + 6); await page.mouse.down();
+  await page.mouse.move(rect.x + 60, rect.y + 65, { steps: 5 });
+  await expect(page.locator(".se.is-reordering")).toBeVisible();
   await page.keyboard.press("Escape"); await page.mouse.up();
   for (const name of ["details.id", "empty", "tags", "details"]) await expect(scoped.getByRole("textbox", { name: `${name} のテスト用の値`, exact: true })).toHaveValue("LOCAL");
   await requests(page, 0);

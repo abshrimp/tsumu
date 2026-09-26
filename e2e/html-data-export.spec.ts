@@ -17,8 +17,7 @@ test("standalone HTML fetches JSON, transforms it, and renders live text and lis
         id: "home", name: "Home", slug: "", title: "Home", description: "",
         children: ["counter", "list"],
         pageScripts: [{
-          id: "load", trigger: "load", pos: { x: 0, y: 0 },
-          steps: [
+          id: "load", trigger: "load",          steps: [
             { id: "get-data", kind: "fetch", url: "/__html_probe__/items.json", as: "rows" },
             { id: "count", kind: "transform", source: "rows", into: "total", transform: { kind: "length" } },
           ],
@@ -70,8 +69,7 @@ test("standalone HTML selects query-variant pages before loading their data", as
       special: { id: "special", name: "Special", slug: "", title: "Special", description: "Details for this view", noindex: true,
         query: "tab=2", children: ["special-heading"],
         pageScripts: [{
-          id: "load", trigger: "load", pos: { x: 0, y: 0 },
-          steps: [
+          id: "load", trigger: "load",          steps: [
             { id: "fetch", kind: "fetch", url: "/__query_probe__/items.json?tab={tab}", as: "items" },
             { id: "count", kind: "transform", source: "items", into: "count", transform: { kind: "length" } },
           ],
@@ -119,8 +117,7 @@ test("standalone HTML executes transform and condition blocks in Chromium", asyn
       home: { id: "home", name: "Home", slug: "", title: "Composable", description: "",
         children: ["count", "list"],
         pageScripts: [{
-          id: "load", trigger: "load", pos: { x: 0, y: 0 },
-          steps: [
+          id: "load", trigger: "load",          steps: [
             { id: "fetch", kind: "fetch", url: "/__transform_probe__/items.json", as: "items" },
             { id: "length", kind: "transform", source: "items", into: "total",
               transform: { kind: "length" } },
@@ -173,8 +170,7 @@ test("standalone HTML uses form and query operands and clears missing transform 
       id: "home", name: "Home", slug: "", title: "Home", description: "",
       children: ["rate", "shadow", "button", "result"],
       pageScripts: [{
-        id: "load", trigger: "load", pos: { x: 0, y: 0 },
-        steps: [{ id: "records", kind: "fetch", as: "records",
+        id: "load", trigger: "load",        steps: [{ id: "records", kind: "fetch", as: "records",
           url: "/__operand_probe__/records.json" }],
       }],
     }},
@@ -185,7 +181,7 @@ test("standalone HTML uses form and query operands and clears missing transform 
         field: { kind: "input", inputType: "text", defaultValue: "field-shadow", placeholder: "Shadow" } },
       button: { ...makeBox(), id: "button", semantic: "button",
         text: { content: "Calculate", heading: 0 },
-        scripts: [{ id: "calculate", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+        scripts: [{ id: "calculate", trigger: "click", steps: [
           { id: "base", kind: "set-var", into: "base", value: "4" },
           { id: "mul", kind: "transform", source: "base", into: "scaled",
             transform: { kind: "math", operation: "multiply",

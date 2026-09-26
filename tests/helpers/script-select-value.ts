@@ -13,16 +13,15 @@ export function scriptSelectValueDoc(options = ["A", "B"]): SiteDoc {
   ];
   for (const [id, values] of actions) {
     doc.nodes[id] = { ...makeText(id), id, attrId: id, semantic: "button", scripts: [{
-      id: `${id}-script`, trigger: "click", pos: { x: 32, y: 32 },
-      steps: values.map((value, i): ScriptStep => ({ id: `${id}-set-${i}`, kind: "set-value", target: "choice", value })),
+      id: `${id}-script`, trigger: "click",      steps: values.map((value, i): ScriptStep => ({ id: `${id}-set-${i}`, kind: "set-value", target: "choice", value })),
     }] };
   }
-  doc.nodes.choice.scripts = [{ id: "changed", trigger: "change", pos: { x: 32, y: 220 }, steps: [
+  doc.nodes.choice.scripts = [{ id: "changed", trigger: "change", steps: [
     { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "count", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
   ] }];
   doc.nodes.result.text!.content = "value={choice}; index={choice.index}; changes={changes}";
   doc.pages.home.children = ["choice", ...actions.map(([id]) => id), "result"];
-  doc.pages.home.pageScripts = [{ id: "init", trigger: "load", pos: { x: 400, y: 32 }, steps: [
+  doc.pages.home.pageScripts = [{ id: "init", trigger: "load", steps: [
     { id: "init-count", kind: "set-var", into: "changes", value: "0" },
   ] }];
   return doc;

@@ -1086,7 +1086,6 @@ function LinkSettings({
 }) {
   const doc = useEditor((s) => s.doc);
   const kind = link?.kind ?? "none";
-  const pos = link?.pos ? { pos: link.pos } : {};
   return (
     <div className="sec">
       <div className="sec-head is-open">
@@ -1108,8 +1107,8 @@ function LinkSettings({
               v === "none"
                 ? null
                 : v === "url"
-                  ? { kind: "url", url: link?.kind === "url" ? (link.url ?? "") : "", newTab: link?.newTab, ...pos }
-                  : { kind: "page", pageId: link?.kind === "page" ? link.pageId : doc.pageOrder[0], newTab: link?.newTab, ...pos }
+                  ? { kind: "url", url: link?.kind === "url" ? (link.url ?? "") : "", newTab: link?.newTab }
+                  : { kind: "page", pageId: link?.kind === "page" ? link.pageId : doc.pageOrder[0], newTab: link?.newTab }
             )
           }
         />

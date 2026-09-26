@@ -44,8 +44,7 @@ function fixture() {
     { id: "list", kind: "list-display", mode: "filter", array: "items",
       field: "id", op: "eq", value: "first", not: true, dir: "asc" },
   ];
-  page.pageScripts = [{ id: "load-new", trigger: "load", pos: { x: 0, y: 0 },
-    steps }] as unknown as typeof page.pageScripts;
+  page.pageScripts = [{ id: "load-new", trigger: "load",    steps }] as unknown as typeof page.pageScripts;
   return { doc, page };
 }
 
@@ -124,8 +123,7 @@ test("generated browser event runtime retains transform and list-display actions
   doc.pageOrder = [page.id];
   const node = doc.nodes[page.children[0]];
   node.scripts = [{
-    id: "click-value", trigger: "click", pos: { x: 0, y: 0 },
-    steps: [
+    id: "click-value", trigger: "click",    steps: [
       { id: "increment", kind: "transform", source: "total", into: "total",
         transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       { id: "filter", kind: "list-display", mode: "filter", array: "items",
@@ -144,8 +142,7 @@ test("generated browser event runtime retains transform and list-display actions
 
 test("dictionary entries are expanded into rows using ordinary loops in generated SSR", async () => {
   const { doc, page } = fixture();
-  page.pageScripts = [{ id: "entries-page", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [
+  page.pageScripts = [{ id: "entries-page", trigger: "load",    steps: [
       { id: "remote", kind: "fetch", as: "record", url: "https://data.example.test/record" },
       { id: "empty", kind: "set-var", into: "pairs", value: "[]" },
       { id: "entries", kind: "for-each", array: "record", then: [
@@ -178,8 +175,7 @@ test("dictionary entries are expanded into rows using ordinary loops in generate
 });
 test("export preserves variable references after obfuscating a transformation chain", async () => {
   const { doc, page } = fixture();
-  page.pageScripts = [{ id: "chain", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [
+  page.pageScripts = [{ id: "chain", trigger: "load",    steps: [
       { id: "csv", kind: "set-var", into: "csv", value: "Alpha,Beta" },
       { id: "split", kind: "transform", source: "csv", into: "names",
         transform: { kind: "split", separator: "," } },
@@ -206,8 +202,7 @@ test("export preserves variable references after obfuscating a transformation ch
 
 test("multiple if clauses retain AND-before-OR grouping in browser and SSR", async () => {
   const { doc, page } = fixture();
-  page.pageScripts = [{ id: "joined", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{
+  page.pageScripts = [{ id: "joined", trigger: "load",    steps: [{
       id: "joined-if", kind: "if",
       cond: { subject: "var", target: "", left: "{flag}", op: "eq", value: '\"1\"' },
       conditions: [
@@ -251,8 +246,7 @@ test("if condition arrays are serialized into emitted event scripts", () => {
   doc.pages = { [page.id]: page };
   doc.pageOrder = [page.id];
   const node = doc.nodes[page.children[0]];
-  node.scripts = [{ id: "click", trigger: "click", pos: { x: 0, y: 0 },
-    steps: [{ id: "if", kind: "if",
+  node.scripts = [{ id: "click", trigger: "click",    steps: [{ id: "if", kind: "if",
       cond: { subject: "var", target: "", left: "1", op: "eq", value: "1" },
       conditions: [{ subject: "var", target: "", left: "1", op: "eq", value: "2", and: false }],
       then: [{ id: "then", kind: "set-var", into: "result", value: "yes" }],
@@ -333,7 +327,7 @@ test("incomplete OR clause retains the OR group before a later AND clause", () =
 test("empty OR filtering preserves group boundaries in browser and SSR", async () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
-  page.pageScripts = [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+  page.pageScripts = [{ id: "load", trigger: "load", steps: [
     { id: "fetch", kind: "fetch", url: "https://public.example.test/items.json", as: "items" },
     { id: "filter", kind: "list-display", mode: "filter", array: "items",
       field: "status", op: "eq", value: "ready",

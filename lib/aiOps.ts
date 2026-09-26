@@ -337,7 +337,6 @@ function duplicateIdFactory(doc: SiteDoc, copyId: string) {
     collectScripts(node.scripts);
   }
   for (const page of Object.values(doc.pages)) {
-    collectScripts(page.scripts);
     collectScripts(page.pageScripts);
   }
   let n = 0;

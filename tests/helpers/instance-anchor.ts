@@ -15,7 +15,7 @@ export function anchorFixture(): SiteDoc {
     components: { card: { id: "card", name: "Card", rootId: "root" } },
     nodes: {
       jump: { ...makeBox(), id: "jump", attrId: "jump", text: { content: "Jump", heading: 0 }, link: { kind: "url", url: "#first-card" } },
-      show: { ...makeBox(), id: "show", attrId: "show", semantic: "button", text: { content: "Show", heading: 0 }, scripts: [{ id: "show-script", trigger: "click", pos: { x: 0, y: 0 }, steps: [{ id: "show-step", kind: "show", target: "first-card" }] }] },
+      show: { ...makeBox(), id: "show", attrId: "show", semantic: "button", text: { content: "Show", heading: 0 }, scripts: [{ id: "show-script", trigger: "click", steps: [{ id: "show-step", kind: "show", target: "first-card" }] }] },
       first: { ...makeBox(), id: "first", type: "instance", componentId: "card", attrId: "first-card" },
       second: { ...makeBox(), id: "second", type: "instance", componentId: "card", attrId: "second-card" },
       root: { ...makeBox(), id: "root", semantic: "div", text: { content: "Card content", heading: 0 }, styles: { base: { default: { display: "none", flexDirection: "column" } } } },

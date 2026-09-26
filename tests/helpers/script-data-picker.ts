@@ -5,7 +5,7 @@ import type { SiteDoc } from "../../lib/types";
 export function scriptDataPickerDoc(): SiteDoc {
   return { schemaVersion: 1, siteName: "Data choices", assets: {}, nodes: {}, pageOrder: ["p"], pages: {
     p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: [], pageScripts: [{
-      id: "s", trigger: "load", pos: { x: 32, y: 32 }, steps: [
+      id: "s", trigger: "load", steps: [
         { id: "fetch", kind: "fetch", as: "data", url: "https://example.test/data", preview: { sample: {
           name: "Product", price: 12, code: "001", available: false, empty: null,
           detail: { title: "Nested" }, tags: ["red", "blue"], rows: [

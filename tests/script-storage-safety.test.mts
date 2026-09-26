@@ -89,8 +89,7 @@ test("exported browser script includes prototype-free storage", () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
   page.pageScripts = [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [
+    id: "load", trigger: "load",    steps: [
       { id: "save", kind: "store-save", key: "__proto__", value: "value" },
       { id: "read", kind: "store-load", key: "__proto__", into: "record" },
     ],

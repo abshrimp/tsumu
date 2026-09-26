@@ -7,7 +7,7 @@ import type {SiteDoc} from '../lib/types';
 function fixture():SiteDoc {
  return {siteName:'Detail',assets:{},nodes:{},pageOrder:['home','detail'],pages:{
   home:{id:'home',name:'Home',title:'Home',description:'',slug:'',children:[]},
-  detail:{id:'detail',name:'Detail',title:'Detail',description:'',slug:'posts/[slug]',children:[],pageScripts:[{id:'load',trigger:'load',pos:{x:0,y:0},steps:[{id:'fetch',kind:'fetch',url:'https://example.com/posts/{slug}',as:'post'}]}]},
+  detail:{id:'detail',name:'Detail',title:'Detail',description:'',slug:'posts/[slug]',children:[],pageScripts:[{id:'load',trigger:'load',steps:[{id:'fetch',kind:'fetch',url:'https://example.com/posts/{slug}',as:'post'}]}]},
  }};
 }
 const missingData=(doc:SiteDoc)=>runChecks(doc).filter(r=>r.help==='data-detail'&&r.message.includes("doesn't fetch any data"));

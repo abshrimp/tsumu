@@ -11,7 +11,7 @@ interface ObservationSet {
 const byWorkspace = new WeakMap<Element, ObservationSet>();
 
 export function observeScriptViewport(element: HTMLElement, listener: Listener): () => void {
-  const workspace = element.closest<HTMLElement>(".se-ws");
+  const workspace = element.closest<HTMLElement>(".se-flow");
   if (!workspace || typeof IntersectionObserver === "undefined") {
     listener(true);
     return () => {};

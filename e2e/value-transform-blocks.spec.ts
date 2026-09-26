@@ -15,7 +15,7 @@ async function runChain(page: Page, exported: boolean, input: string, transforms
   ];
   const node = {
     ...makeBox(), id: "button", attrId: "button", scripts: [{
-      id: "s", trigger: "click" as const, pos: { x: 0, y: 0 }, steps,
+      id: "s", trigger: "click" as const, steps,
     }],
   };
   const doc: SiteDoc = {
@@ -100,12 +100,10 @@ for (const exported of [false, true]) {
 
 test("scripted named state changes a distant element and reset restores its default style", async ({ page }) => {
   const button = { ...makeBox(), id: "trigger", attrId: "trigger", scripts: [{
-    id: "script-trigger", trigger: "click" as const, pos: { x: 0, y: 0 },
-    steps: [{ id: "activate", kind: "set-state" as const, target: "remote", state: "selected" }],
+    id: "script-trigger", trigger: "click" as const,    steps: [{ id: "activate", kind: "set-state" as const, target: "remote", state: "selected" }],
   }] };
   const reset = { ...makeBox(), id: "reset", attrId: "reset", scripts: [{
-    id: "script-reset", trigger: "click" as const, pos: { x: 0, y: 0 },
-    steps: [{ id: "restore", kind: "set-state" as const, target: "remote", state: "default" }],
+    id: "script-reset", trigger: "click" as const,    steps: [{ id: "restore", kind: "set-state" as const, target: "remote", state: "default" }],
   }] };
   const remote = { ...makeBox(), id: "remote", attrId: "remote",
     styles: { base: { default: { backgroundColor: "#eeeeee" },
@@ -154,8 +152,7 @@ for (const exported of [true]) {
 
   test((exported ? "exported" : "preview") + " runtime displays only entries matching an inverted list condition", async ({ page }) => {
     const button = { ...makeBox(), id: "filterButton", attrId: "filterButton", scripts: [{
-      id: "on-click", trigger: "click" as const, pos: { x: 0, y: 0 },
-      steps: [{ id: "filter", kind: "list-display" as const, mode: "filter" as const,
+      id: "on-click", trigger: "click" as const,      steps: [{ id: "filter", kind: "list-display" as const, mode: "filter" as const,
         array: "results", field: "name", op: "contains" as const,
         value: "red", not: true, dir: "asc" as const }],
     }] };
@@ -347,7 +344,7 @@ for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " keeps OR logic across unfinished list filter clauses", async ({ page }) => {
     const filter = {
       ...makeBox(), id: "filterButton", attrId: "filterButton",
-      scripts: [{ id: "filterScript", trigger: "click" as const, pos: { x: 0, y: 0 }, steps: [{
+      scripts: [{ id: "filterScript", trigger: "click" as const, steps: [{
         id: "filterWithGap", kind: "list-display" as const, mode: "filter" as const,
         array: "results", field: "name", op: "eq" as const, value: "red", dir: "asc" as const,
         or: [
@@ -384,7 +381,7 @@ for (const exported of [true]) {
   test((exported ? "exported" : "preview") + " safely filters object-valued fields from JSON", async ({ page }) => {
     const filter = {
       ...makeBox(), id: "filterButton", attrId: "filterButton",
-      scripts: [{ id: "filterScript", trigger: "click" as const, pos: { x: 0, y: 0 }, steps: [{
+      scripts: [{ id: "filterScript", trigger: "click" as const, steps: [{
         id: "filterObjectField", kind: "list-display" as const, mode: "filter" as const,
         array: "results", field: "meta", op: "has-key" as const,
         value: "toString", dir: "asc" as const,
@@ -465,7 +462,7 @@ test("canvas reads dictionary fields by key", async ({ page }) => {
       );
     });
   });
-  const lookup = page.locator('[data-sel-key="step:dictionary-key"]');
+  const lookup = page.locator('[data-step-id="dictionary-key"]');
   const key = lookup.getByRole("combobox", { name: "取り出す項目名" });
   await expect(key).toHaveAttribute("placeholder", "項目名 / {変数}");
   await key.fill("{selectedDate}");
@@ -485,9 +482,9 @@ test("canvas processing settings persist changes directly", async ({ page }) => 
       });
     });
   });
-  const box = page.locator('[data-sel-key="step:native"]');
+  const box = page.locator('[data-step-id="native"]');
   await expect(box.getByRole("combobox", { name: "加工の種類" })).toBeVisible();
-  await expect(box.getByRole("combobox", { name: "取り出す項目名" })).toHaveCSS("height", "24px");
+  await expect(box.getByRole("combobox", { name: "取り出す項目名" })).toHaveCSS("height", "28px");
   await box.getByRole("combobox", { name: "取り出す項目名" }).fill("tags");
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
@@ -509,7 +506,7 @@ test("canvas native select and picker button share the same dropdown appearance"
       });
     });
   });
-  const box = page.locator('[data-sel-key="step:dropdown-style"]');
+  const box = page.locator('[data-step-id="dropdown-style"]');
   const picker = box.getByRole("button", { name: "加工する元の変数" });
   const select = box.getByRole("combobox", { name: "加工の種類" });
   await expect(picker).toBeVisible();
@@ -535,7 +532,7 @@ test("canvas native select and picker button share the same dropdown appearance"
       };
     })));
   expect(styles[0]).toEqual(styles[1]);
-  expect(styles[0].height).toBe("24px");
+  expect(styles[0].height).toBe("28px");
   expect(styles[0].appearance).toBe("none");
   expect(styles[0].backgroundImage).toContain("svg");
 
@@ -552,50 +549,6 @@ test("canvas native select and picker button share the same dropdown appearance"
   expect(focusedPicker).toEqual(focusedSelect);
 });
 
-test("canvas arithmetic options size to the widest label", async ({ page }) => {
-  // 最初の読み込みの間のフォントの寸法の変化を、選択による大きさの変化と取り違えてはならない。
-  await page.evaluate(async () => { await document.fonts.ready; });
-  const box = page.locator('[data-sel-key="step:numeric"]');
-  const method = box.getByRole("combobox", { name: "計算方法" });
-  await expect(box.getByPlaceholder("計算する値 / {変数}")).toBeVisible();
-  await expect(method).toHaveCSS("width", /\d+px/);
-  const dimensions = await Promise.all([method].map(el => el.evaluate((node) => {
-    const styles = getComputedStyle(node);
-    return { width: node.getBoundingClientRect().width, intrinsic: styles.width, flex: styles.flexGrow };
-  })));
-  for (const dimension of dimensions) {
-    expect(dimension.width).toBeLessThan(120);
-    expect(dimension.flex).toBe("0");
-  }
-  for (const control of [method]) {
-    const measurements = await control.evaluate((node) => {
-      const select = node as HTMLSelectElement;
-      const style = getComputedStyle(select);
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d")!;
-      ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      const longest = Math.max(...Array.from(select.options, (option) => ctx.measureText(option.textContent ?? "").width));
-      const left = parseFloat(style.paddingLeft);
-      const right = parseFloat(style.paddingRight);
-      const borders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
-      return { actual: select.getBoundingClientRect().width, required: longest + left + right + borders, right };
-    });
-    expect(measurements.right).toBe(30);
-    // ラベルが切れているものも、必要以上に幅の広い枠も、どちらも不合格にする。
-    expect(measurements.actual).toBeGreaterThanOrEqual(measurements.required - 2);
-    expect(measurements.actual).toBeLessThanOrEqual(measurements.required + 3);
-    const initialWidth = measurements.actual;
-    await control.selectOption({ index: 1 });
-    await control.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
-    const selectedWidth = await control.evaluate((element) => element.getBoundingClientRect().width);
-    // 丸め方はブラウザによって違うが、別の選択肢を選んでも、ドロップダウンの幅が
-    // 大きく変わったり、最も長いラベルが切れたりしてはならない。
-    expect(selectedWidth).toBeGreaterThanOrEqual(measurements.required - 2);
-    expect(selectedWidth).toBeLessThanOrEqual(measurements.required + 3);
-    expect(Math.abs(selectedWidth - initialWidth)).toBeLessThanOrEqual(2);
-  }
-});
-
 test("canvas list-display block switches filter, sort and clear without changing the step ID", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
@@ -605,7 +558,7 @@ test("canvas list-display block switches filter, sort and clear without changing
       });
     });
   });
-  const box = page.locator('[data-sel-key="step:display"]');
+  const box = page.locator('[data-step-id="display"]');
   const mode = box.getByRole("combobox", { name: "リスト表示の操作" });
   await mode.selectOption("sort");
   await expect.poll(() => page.evaluate(() => {
@@ -617,7 +570,7 @@ test("canvas list-display block switches filter, sort and clear without changing
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "display").mode;
   })).toBe("clear");
-  await page.getByRole("button", { name: "取り消す", exact: true }).click();
+  await page.getByRole("button", { name: "元に戻す", exact: true }).click();
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "display").mode;
@@ -634,7 +587,7 @@ test("canvas wait/repeat accept numbers and variables in one field", async ({ pa
       );
     });
   });
-  const repeat = page.locator('[data-sel-key="step:repeat-count"]');
+  const repeat = page.locator('[data-step-id="repeat-count"]');
   const repeatValue = repeat.getByPlaceholder("数値 / {変数}");
   await expect(repeat.getByRole("combobox", { name: "値の指定方法" })).toHaveCount(0);
   await repeatValue.fill("4");
@@ -649,7 +602,7 @@ test("canvas wait/repeat accept numbers and variables in one field", async ({ pa
     (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
       .find((step: any) => step.id === "repeat-count").times)).toBe("{data.price}");
 
-  const wait = page.locator('[data-sel-key="step:wait-seconds"]');
+  const wait = page.locator('[data-step-id="wait-seconds"]');
   await wait.getByPlaceholder("数値 / {変数}").fill("{data.price}");
   await wait.getByPlaceholder("数値 / {変数}").blur();
   await expect.poll(() => page.evaluate(() =>
@@ -658,7 +611,7 @@ test("canvas wait/repeat accept numbers and variables in one field", async ({ pa
 });
 
 test("canvas arithmetic accepts values and variables in one field", async ({ page }) => {
-  const box = page.locator('[data-sel-key="step:numeric"]');
+  const box = page.locator('[data-step-id="numeric"]');
   const operand = box.getByPlaceholder("計算する値 / {変数}");
   await operand.fill("{data.price}");
   await operand.blur();
@@ -678,7 +631,7 @@ test("canvas list sort uses ascending and descending labels", async ({ page }) =
       });
     });
   });
-  const box = page.locator('[data-sel-key="step:sort-labels"]');
+  const box = page.locator('[data-step-id="sort-labels"]');
   const direction = box.locator('select:has(option[value="asc"])');
   await expect(direction.locator('option[value="asc"]')).toHaveText("昇順");
   await expect(direction.locator('option[value="desc"]')).toHaveText("降順");
@@ -698,7 +651,7 @@ test("canvas fallback uses one text field for text mixed with variables", async 
       });
     });
   });
-  const box = page.locator('[data-sel-key="step:fallback-inline"]');
+  const box = page.locator('[data-step-id="fallback-inline"]');
   const value = box.getByPlaceholder("代わりに使う値 / {変数}");
   await expect(value).toBeVisible();
   await value.fill("こんにちは、{data.name}さん");
@@ -719,8 +672,8 @@ test("canvas if blocks add, edit and remove AND/OR conditions on separate rows",
       });
     });
   });
-  const box = page.locator('[data-sel-key="step:joined-if"]');
-  const actions = box.locator(".se-composer-condition-actions");
+  const box = page.locator('[data-step-id="joined-if"]');
+  const actions = box.locator(".se-cond-actions");
   await expect(actions.getByRole("button", { name: "かつ", exact: true })).toBeVisible();
   await actions.getByRole("button", { name: "かつ", exact: true }).click();
   const connectors = box.getByRole("combobox", { name: "条件のつなぎ方" });
@@ -735,14 +688,14 @@ test("canvas if blocks add, edit and remove AND/OR conditions on separate rows",
     return steps.find((step: any) => step.id === "joined-if").conditions.map((condition: any) => condition.and);
   })).toEqual([false, true]);
   const actionBounds = await actions.boundingBox();
-  const clauseBounds = await box.locator(".se-if-condition-line").last().boundingBox();
+  const clauseBounds = await box.locator(".se-cond-line").last().boundingBox();
   expect(actionBounds).not.toBeNull();
   expect(clauseBounds).not.toBeNull();
   expect(actionBounds!.y).toBeGreaterThan(clauseBounds!.y);
   await box.getByRole("button", { name: "この条件を削除" }).first().click();
   await expect(connectors).toHaveCount(1);
   await expect(connectors).toHaveValue("and");
-  await expect(box.locator(".se-if-condition-line")).toHaveCount(2);
+  await expect(box.locator(".se-cond-line")).toHaveCount(2);
 });
 
 
@@ -757,9 +710,9 @@ test("canvas cross-filter connector only appears when another filter uses the sa
       );
     });
   });
-  const first = page.locator('[data-sel-key="step:filter-a"]');
+  const first = page.locator('[data-step-id="filter-a"]');
   const connector = first.getByRole("combobox", { name: "ほかの絞り込みとのつなぎ方" });
-  const buttons = first.locator(".se-composer-condition-actions");
+  const buttons = first.locator(".se-cond-actions");
   await expect(connector).toHaveCount(0);
   await expect(buttons.getByRole("button", { name: "かつ", exact: true })).toBeVisible();
   await expect(buttons.getByRole("button", { name: "または", exact: true })).toBeVisible();
@@ -796,8 +749,8 @@ test("canvas list filter keeps condition actions on a separate row and lets each
       });
     });
   });
-  const box = page.locator('[data-sel-key="step:filter-conditions"]');
-  const actions = box.locator(".se-composer-condition-actions");
+  const box = page.locator('[data-step-id="filter-conditions"]');
+  const actions = box.locator(".se-cond-actions");
   await expect(actions).toBeVisible();
   await expect(actions.getByRole("button", { name: "かつ" })).toBeVisible();
   await actions.getByRole("button", { name: "かつ" }).click();
@@ -894,7 +847,7 @@ test("canvas transform menu exposes four groups without explicit text conversion
       });
     });
   });
-  const menu = page.locator('[data-sel-key="step:transform-groups"] select[aria-label="加工の種類"]');
+  const menu = page.locator('[data-step-id="transform-groups"] select[aria-label="加工の種類"]');
   await expect(menu).toHaveValue("field");
   expect(await menu.locator("optgroup").evaluateAll((groups) =>
     groups.map((group) => ({
@@ -914,7 +867,7 @@ test.describe("English transform menu", () => {
   test("operation groups, list operations and arithmetic choices use English", async ({ page }) => {
     await page.setContent('<html><body><div id="app"></div></body></html>');
     await page.addScriptTag({ content: bundle });
-    const block = page.locator('[data-sel-key="step:numeric"]');
+    const block = page.locator('[data-step-id="numeric"]');
     const operations = block.getByRole("combobox", { name: "Operation", exact: true });
     await expect(operations).toHaveValue("math");
     expect(await operations.locator("optgroup").evaluateAll((groups) =>
@@ -939,11 +892,11 @@ test("canvas removal block switches between value and position/key", async ({ pa
       });
     });
   });
-  const block = page.locator('[data-sel-key="step:remove-entry"]');
+  const block = page.locator('[data-step-id="remove-entry"]');
   const method = block.getByRole("combobox", { name: "削除方法" });
   await expect(method).toHaveValue("value");
   await method.selectOption("key");
-  const input = block.getByPlaceholder("値 / {変数}");
+  const input = block.getByPlaceholder("値を入力");
   await input.fill("1");
   await input.blur();
   await expect.poll(() => page.evaluate(() =>
@@ -961,7 +914,7 @@ test("canvas field picker leaves Japanese composition keys to the IME", async ({
         transform: { kind: "field", key: "" } });
     });
   });
-  const key = page.locator('[data-sel-key="step:ime-field"]')
+  const key = page.locator('[data-step-id="ime-field"]')
     .getByRole("combobox", { name: "取り出す項目名" });
   await key.fill("商品");
   await expect(key).toHaveAttribute("aria-expanded", "true");

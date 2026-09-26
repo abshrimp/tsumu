@@ -99,7 +99,7 @@ test("script edits preserve undo/redo and do not create history for an unchanged
   const before = useEditor.getState().doc;
   const views = [{
     id: "script", nodeId: "node-0", trigger: "click" as const,
-    pos: { x: 32, y: 32 }, steps: [{ id: "step", kind: "wait" as const, seconds: 1 }],
+    steps: [{ id: "step", kind: "wait" as const, seconds: 1 }],
   }];
   useEditor.getState().updatePageScripts("p", nodeIds, views);
   const first = useEditor.getState().doc;
@@ -165,8 +165,7 @@ const edits = {
   node: () => useEditor.getState().updateNode("node-0", { name: "Changed" }),
   document: () => useEditor.getState().updateDoc(d => { d.siteName = "Changed"; }),
   scripts: () => useEditor.getState().updatePageScripts("p", ["node-0"], [{
-    id: "script", nodeId: "node-0", trigger: "click", pos: { x: 0, y: 0 },
-    steps: [{ id: "step", kind: "wait", seconds: 1 }],
+    id: "script", nodeId: "node-0", trigger: "click",    steps: [{ id: "step", kind: "wait", seconds: 1 }],
   }]),
 };
 

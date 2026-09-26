@@ -17,9 +17,9 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     const button = (id: string): DocNode => ({ ...makeBox(), id, attrId: id, semantic: "button" });
     const tree = markup(framework, {
       form: { ...makeBox(), id: "form", semantic: "form", children: ["scripted", "ordinary", "onload", "explicit"] },
-      scripted: { ...button("scripted"), scripts: [{ id: "click", trigger: "click", pos: { x: 0, y: 0 }, steps: [{ id: "set", kind: "set-var", into: "clicked", value: "yes" }] }] },
+      scripted: { ...button("scripted"), scripts: [{ id: "click", trigger: "click", steps: [{ id: "set", kind: "set-var", into: "clicked", value: "yes" }] }] },
       ordinary: button("ordinary"),
-      onload: { ...button("onload"), scripts: [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [] }] },
+      onload: { ...button("onload"), scripts: [{ id: "load", trigger: "load", steps: [] }] },
       explicit: { ...makeBox(), id: "explicit", attrId: "explicit", type: "field", field: { kind: "submit", label: "Go" } },
       outside: button("outside"),
     }, ["form", "outside"]);

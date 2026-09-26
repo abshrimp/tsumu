@@ -6,8 +6,8 @@ well. No smoke case is skipped or marked as an expected failure for a
 particular engine.
 
 The nine shared `@core-editing` cases cover site creation, reload and IndexedDB
-persistence, deletion and undo, inspector/script panels, canvas reorder, script
-block drag, multiline text, variable suggestions, and pasted text with
+persistence, deletion and undo, inspector/script panels, canvas reorder, building
+a script from a trigger and an action, multiline text, variable suggestions, and pasted text with
 undo/redo. The two `@form-values` cases in `search-form-values.spec.ts`
 (Next.js and React exports) check that search forms keep empty and repeated
 fields.
@@ -57,7 +57,7 @@ exactly one shard; the durations file only influences load balancing.
   Preserve the multi-engine smoke tags when changing test selection.
 - Run preview navigation and script lifecycle cases once when they only inspect
   document state. Exercise both Japanese and English when checking translated
-  labels, accessible names and palette search.
+  labels, accessible names and the action search.
 
 The four shards use `scripts/e2e-shard-durations.json` as an estimate, not
 as a test manifest. It records the sum of Playwright-reported case durations

@@ -12,20 +12,19 @@ export function scriptInputValueDoc(field: FieldContent, requested: string, rest
   ];
   const nodes: DocNode[] = [
     { ...makeBox(), id: "entry", attrId: "entry", type: "field" as const, field, scripts: [{
-      id: "changed", trigger: "change" as const, pos: { x: 32, y: 200 }, steps: [
+      id: "changed", trigger: "change" as const, steps: [
         { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "count", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       ],
     }] },
     ...actions.map(([id, values]) => ({ ...makeText(id), id, attrId: id, semantic: "button" as const, scripts: [{
-      id: `${id}-script`, trigger: "click" as const, pos: { x: 32, y: 32 },
-      steps: values.map((value, i): ScriptStep => ({ id: `${id}-set-${i}`, kind: "set-value", target: "entry", value })),
+      id: `${id}-script`, trigger: "click" as const,      steps: values.map((value, i): ScriptStep => ({ id: `${id}-set-${i}`, kind: "set-value", target: "entry", value })),
     }] })),
     { ...makeText("value=[{entry}]; changes={changes}"), id: "result", attrId: "result" },
   ];
   return {
     schemaVersion: 1, siteName: "Script input values", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: nodes.map((n) => n.id), pageScripts: [{
-      id: "init", trigger: "load", pos: { x: 400, y: 32 }, steps: [
+      id: "init", trigger: "load", steps: [
         { id: "init-count", kind: "set-var", into: "changes", value: "0" },
       ],
     }] } },

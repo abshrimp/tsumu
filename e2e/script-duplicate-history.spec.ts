@@ -16,12 +16,13 @@ async function pageScripts(page: Page) {
 
 for (const kind of ["script", "step"] as const) {
   test(`Duplicate ${kind}: undo clears stale selection, and redo restores one edit`, async ({ page }) => {
-    const target = page.locator(kind === "script"
-      ? '.se-ws [data-sel-key="script:script"]'
-      : '.se-ws [data-sel-key="step:open"]');
     const before = await pageScripts(page);
-    await target.click({ button: "right" });
-    await page.locator(".se-menu button").first().click();
+    // スクリプトは左の一覧の「…」から、動作はカードの「…」から複製する
+    const more = kind === "script"
+      ? page.locator('.se-side-item:has([data-script-id="script"]) .se-side-more')
+      : page.locator('.se-card[data-step-id="open"] .se-card-more');
+    await more.click();
+    await page.locator(".se-menu button", { hasText: "複製" }).click();
     const after = await pageScripts(page);
     if (kind === "script") {
       expect(after).toHaveLength(before.length + 1);
@@ -30,9 +31,11 @@ for (const kind of ["script", "step"] as const) {
     }
     await page.keyboard.press("ControlOrMeta+z");
     await expect.poll(() => pageScripts(page)).toEqual(before);
-    // The selection points at the now-removed cloned ID. Delete must not
-    // turn this stale UI selection into an unrelated document edit.
-    await expect(page.locator(".se-ws .is-selected")).toHaveCount(0);
+    // 選択は、元に戻して消えた複製の ID を指していた。Delete がそれを、
+    // 関係の無い文書の編集に変えてはいけない。
+    await expect(page.locator(".se-flow .is-selected")).toHaveCount(0);
+    // 開いていた複製が消えても、きっかけを選ぶ画面には戻らず、元のスクリプトを開く
+    await expect(page.locator(".se-when")).toBeVisible();
     await page.keyboard.press("Delete");
     await expect.poll(() => pageScripts(page)).toEqual(before);
     await page.keyboard.press("ControlOrMeta+Shift+z");

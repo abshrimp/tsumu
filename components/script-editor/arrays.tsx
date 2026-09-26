@@ -24,9 +24,9 @@ import { ListChoicePicker, type ListChoice } from "./ListChoicePicker";
 
 /** リストを選ぶ */
 export function ArraySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { arrays, readOnly } = useContext(Ctx);
+  const { arrays } = useContext(Ctx);
   const options: ListChoice[] = arrays.map((array) => ({ value: array.name, label: array.name }));
-  return <ListChoicePicker value={value} options={options} onChange={onChange} readOnly={readOnly} />;
+  return <ListChoicePicker value={value} options={options} onChange={onChange} />;
 }
 
 /** 同じ文書のプレビューでは、すべての選択欄で位置の一覧を使い回す。 */
@@ -58,7 +58,7 @@ function arrayPathsIn(samples: Record<string, unknown>): string[] {
 }
 
 export function AnyArraySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { arrays, samples, readOnly } = useContext(Ctx);
+  const { arrays, samples } = useContext(Ctx);
   const named = arrays.map((array) => array.name);
   const nested = arrayPathsIn(samples).filter((path) => !named.includes(path));
   const options: ListChoice[] = [
@@ -69,7 +69,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
       group: tr("Lists inside variables"),
     })),
   ];
-  return <ListChoicePicker value={value} options={options} onChange={onChange} readOnly={readOnly} />;
+  return <ListChoicePicker value={value} options={options} onChange={onChange} />;
 }
 
 /** リストの要素の項目（入れ子は「category.name」のような位置）を、見本から並べる */
@@ -124,7 +124,7 @@ export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "lis
 }
 
 export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "list-display" }> }) {
-  const { updateStep, readOnly, scripts, samples } = useContext(Ctx);
+  const { updateStep, scripts, samples } = useContext(Ctx);
   const first = step.array ? firstListItem(lookupVar(samples, step.array)) : undefined;
   const sampleAt = (field: string) => first && field ? keyOfItem(first, field) : undefined;
   const chooseField = (condition: { field: string; op: FilterCond["op"]; value: string }, field: string) =>
@@ -148,10 +148,9 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
         </span>
         {others.length > 0 && (
           <select
-            className="se-in se-fixed-select"
+            className="se-in"
             aria-label={tr("How to combine with other filters")}
             value={step.join ?? "and"}
-            disabled={readOnly}
             data-tip={tr("How this combines with other filters on the same list")}
             onChange={(e) => set({ join: e.target.value === "or" ? "or" : undefined })}
           >
@@ -172,9 +171,8 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
                 valueContext="value"
                 operators={filterFieldOperators(sampleAt(step.field))}
                 not={step.not}
-                onNotChange={(not) => set({ not })}
                 placeholder={tr("value / {variable}")}
-                onChange={(op, value) => set({ op, value })}
+                onChange={(op, value, not) => set({ op, value, not: not || undefined })}
               />
             ),
           }}
@@ -188,7 +186,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
             parts={{
               join: (
                 <select
-                  className="se-in se-fixed-select"
+                  className="se-in"
                   aria-label={tr("Join conditions with")}
                   value={c.and ? "and" : "or"}
                   onChange={(e) => setOr(i, { and: e.target.value === "and" })}
@@ -208,38 +206,33 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
                   valueContext="value"
                   operators={filterFieldOperators(sampleAt(c.field))}
                   not={c.not}
-                  onNotChange={(not) => setOr(i, { not })}
                   placeholder={tr("value / {variable}")}
-                  onChange={(op, value) => setOr(i, { op, value })}
+                  onChange={(op, value, not) => setOr(i, { op, value, not: not || undefined })}
                 />
               ),
             }}
           />
-          {!readOnly && (
-            <button
-              type="button"
-              className="se-mini"
-              aria-label={tr("Remove this condition")}
-              onClick={() => set({ or: or.filter((_, j) => j !== i) })}
-            >
-              <X size={12} />
-            </button>
-          )}
+          <button
+            type="button"
+            className="se-mini"
+            aria-label={tr("Remove this condition")}
+            onClick={() => set({ or: or.filter((_, j) => j !== i) })}
+          >
+            <X size={12} />
+          </button>
           {i === or.length - 1 && tail}
         </span>
       ))}
-      {!readOnly && (
-        <div className="se-composer-condition-actions">
-          <button type="button" className="se-mini se-mini-text"
-            onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: true }] })}>
-            <Plus size={12} />{tr("and")}
-          </button>
-          <button type="button" className="se-mini se-mini-text"
-            onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: false }] })}>
-            <Plus size={12} />{tr("or")}
-          </button>
-        </div>
-      )}
+      <div className="se-cond-actions">
+        <button type="button" className="se-mini se-mini-text"
+          onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: true }] })}>
+          <Plus size={12} />{tr("and")}
+        </button>
+        <button type="button" className="se-mini se-mini-text"
+          onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: false }] })}>
+          <Plus size={12} />{tr("or")}
+        </button>
+      </div>
     </>
   );
 }

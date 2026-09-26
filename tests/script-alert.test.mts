@@ -3,22 +3,22 @@ import { test } from "node:test";
 import { Script as JsScript } from "node:vm";
 import { compileScripts } from "../lib/script";
 import { scriptsFile } from "../lib/script-runtime";
-import { findPaletteItems, PALETTE } from "../components/script-editor/palette";
+import { ACTIONS, findActions } from "../components/script-editor/catalog";
 import { createInitialDoc } from "../lib/presets";
 import { pageVariableIndex, mapNodeTokens } from "../lib/data";
 import type { ScriptStep } from "../lib/types";
 
 const dialog: ScriptStep = { id: "dialog", kind: "dialog", mode: "alert", message: "こんにちは {user}" };
 
-test("one palette block can show alert, confirm, or prompt", () => {
-  const item = PALETTE.find((entry) => entry.key === "dialog");
+test("one action can show alert, confirm, or prompt", () => {
+  const item = ACTIONS.find((entry) => entry.key === "dialog");
   assert.ok(item);
   assert.equal(item.cat, "look");
   for (const query of ["アラート", "確認", "prompt", "警告"])
-    assert.ok(findPaletteItems(query).some((entry) => entry.key === "dialog"), query);
-  const created = item.make() as { type: "steps"; steps: ScriptStep[] };
-  assert.deepEqual(created.steps, [{
-    id: created.steps[0].id, kind: "dialog", mode: "alert", message: "",
+    assert.ok(findActions(query, "ja").some((entry) => entry.key === "dialog"), query);
+  const created = [item.make()];
+  assert.deepEqual(created, [{
+    id: created[0].id, kind: "dialog", mode: "alert", message: "",
   }]);
 });
 
@@ -29,7 +29,7 @@ test("dialog compiler handles variable-containing messages and prompt defaults",
     { id: "prompt", kind: "dialog", mode: "prompt", message: "Name?", into: "answer", defaultValue: "{user}" },
   ];
   const compiled = compileScripts({
-    scripts: [{ id: "main", trigger: "click", pos: { x: 0, y: 0 }, steps: actions }],
+    scripts: [{ id: "main", trigger: "click", steps: actions }],
   }, () => "", (value, kind) => {
     assert.equal(kind, "value");
     return "compiled:" + value;
@@ -48,8 +48,7 @@ test("prompt and confirm result variable names appear in page variable index, al
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
   page.pageScripts = [{
-    id: "steps", trigger: "click", pos: { x: 0, y: 0 },
-    steps: [
+    id: "steps", trigger: "click",    steps: [
       { id: "a", kind: "dialog", mode: "alert", message: "Hello", into: "unused" },
       { id: "b", kind: "dialog", mode: "confirm", message: "Continue?", into: "yes" },
       { id: "c", kind: "dialog", mode: "prompt", message: "Enter", into: "text" },
@@ -62,7 +61,7 @@ test("prompt and confirm result variable names appear in page variable index, al
 
 test("dialog body variables are renamed in both prompt and message inputs", () => {
   const node = { text: null, image: undefined, link: null, children: [],
-    scripts: [{ id: "script", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+    scripts: [{ id: "script", trigger: "click", steps: [
       { id: "prompt", kind: "dialog", mode: "prompt", message: "Name {old}", defaultValue: "{old}" },
     ] }],
   } as unknown as import("../lib/types").DocNode;
@@ -77,8 +76,7 @@ test("published scripts include dialog runtime only when used, including nested 
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
   page.pageScripts = [{
-    id: "load", trigger: "click", pos: { x: 0, y: 0 },
-    steps: [{ id: "if", kind: "if",
+    id: "load", trigger: "click",    steps: [{ id: "if", kind: "if",
       cond: { subject: "value", target: "input", op: "eq", value: "yes" },
       then: [dialog],
     }],

@@ -199,7 +199,6 @@ export default function PagePanel() {
         target.customTopHtml = importedPage.customTopHtml;
         target.customEndHtml = importedPage.customEndHtml;
         target.pageScripts = undefined;
-        target.scripts = undefined;
         target.rawHtml = null;
         delete target.htmlZip;
         draft.breakpoints = normalizeBreakpoints(converted.doc.breakpoints);

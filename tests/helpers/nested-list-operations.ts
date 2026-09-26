@@ -9,7 +9,6 @@ export const listActions = ["descending", "ascending", "filter", "empty", "clear
 export function nestedOperationsDoc(component = false, selected = true) {
   const doc = nestedScopeDoc();
   const load = doc.pages.p.pageScripts![0];
-  load.pos = { x: 800, y: 20 };
   // スクリプトの画面で選べる、名前付きの配列。各リストでは、項目の中の tags を優先する。
   load.steps.push({ id: "tags-alias", kind: "set-var", value: "{response.0.tags}", into: "tags" });
   doc.nodes.row.children = ["detail"];
@@ -25,7 +24,7 @@ export function nestedOperationsDoc(component = false, selected = true) {
   ];
   for (const [i, action] of listActions.entries()) doc.nodes[action] = {
     ...makeText(action), id: action, attrId: action, semantic: "button",
-    scripts: [{ id: `${action}-script`, trigger: "click", pos: { x: 20, y: 20 + i * 160 }, steps: [steps[i]] }],
+    scripts: [{ id: `${action}-script`, trigger: "click", steps: [steps[i]] }],
   };
   doc.pages.p.children = [...listActions, "products", "other"];
   if (component) {

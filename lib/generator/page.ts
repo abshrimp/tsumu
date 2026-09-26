@@ -713,7 +713,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
       } else if (st.kind === "repeat" || st.kind === "for-each") addDefined(st.then);
     }
   };
-  for (const s of [...(page.pageScripts ?? []), ...(page.scripts ?? [])]) addDefined(s.steps);
+  for (const s of page.pageScripts ?? []) addDefined(s.steps);
   for (const n of idVarNodes) {
     if (n.type === "field") fieldVarNames(n).forEach((v) => known.add(v));
     else if (n.attrId) known.add(n.attrId);
@@ -828,7 +828,7 @@ export function unnestLinks(doc: SiteDoc) {
         ? { id: `${id}_link`, kind: "open-page", pageId: l.pageId, ...newTab }
         : { id: `${id}_link`, kind: "open-url", url: l.url || "#", ...newTab };
     n.scripts = [
-      { id: `${id}_link`, trigger: "click", steps: [step], pos: l.pos ?? { x: 0, y: 0 } },
+      { id: `${id}_link`, trigger: "click", steps: [step] },
       ...(n.scripts ?? []),
     ];
     n.link = null;

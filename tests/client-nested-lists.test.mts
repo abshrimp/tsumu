@@ -3,7 +3,7 @@ import { test } from "node:test";
 import * as React from "react";
 import { createRequire } from "node:module";
 import { renderToStaticMarkup } from "react-dom/server";
-import { pageArrays, pagePlan, previewDataVars } from "../lib/data";
+import { pageArrays, pagePlan, pageVariableIndex, previewDataVars } from "../lib/data";
 import { makeBox, makeText } from "../lib/presets";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { useEditor } from "../lib/store";
@@ -34,7 +34,7 @@ test('the real settings and script controls configure the nested source and brow
   const step = doc.nodes.reload.scripts![0].steps[0];
   const { StepBody } = loadNestedUi('components/script-editor/StepBody.tsx');
   const control = renderToStaticMarkup(React.createElement(Ctx.Provider, { value: {
-    doc, pageId: 'p', samples: previewDataVars(doc, 'p'), arrays: pageArrays(doc, 'p'), updateStep() {}, renameVar() {},
+    doc, pageId: 'p', samples: previewDataVars(doc, 'p'), arrays: pageArrays(doc, 'p'), variableIndex: pageVariableIndex(doc, 'p'), transformSources: {}, targetLookup: { firstByAttr: new Map(), firstNodeIds: new Set() }, updateStep() {}, renameVar() {},
   } as unknown as EdCtx }, React.createElement(StepBody, { step })));
   assert.equal(parse(control).querySelector(".se-value-choice input")?.getAttribute("value"), "{response}");
   assert.equal((step as { value: string }).value, "{response}");
@@ -158,9 +158,9 @@ test('server fallback exposes only rendered fields and supports count without ac
   ];
   doc.nodes.reload.scripts![0].steps = [{ id: 'reload-raw', kind: 'set-var', value: 'outer', into: 'items' }, { id: 'reload-step', kind: 'transform', source: 'items', into: 'items', transform: { kind: 'split', separator: ',' } }];
   doc.nodes.detail.text!.content = '{label}';
-  doc.nodes.detail.scripts = [{ id: 'hide-load', trigger: 'load', pos: { x: 0, y: 0 }, steps: [{ id: 'hide-load-step', kind: 'hide', target: '@self' }] }];
+  doc.nodes.detail.scripts = [{ id: 'hide-load', trigger: 'load', steps: [{ id: 'hide-load-step', kind: 'hide', target: '@self' }] }];
   doc.nodes.count = { ...makeText('count'), id: 'count', attrId: 'count', semantic: 'button', scripts: [{
-    id: 'count-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: 'count-step', kind: 'transform', source: 'tags', into: 'total', transform: { kind: 'length' } }],
+    id: 'count-script', trigger: 'click', steps: [{ id: 'count-step', kind: 'transform', source: 'tags', into: 'total', transform: { kind: 'length' } }],
   }] };
   doc.nodes.total = { ...makeText('{total}'), id: 'total', attrId: 'total' };
   doc.pages.p.children.push('count', 'total');
@@ -197,7 +197,7 @@ test('live global arrays update independently without overwriting item-local arr
   doc.nodes.tags.list!.from = 'labels'; doc.nodes.detail.text!.content = '{name}:{値}';
   for (const [id, value] of [['global-a', 'one,two'], ['global-b', 'three']]) {
     doc.nodes[id] = { ...makeText(id), id, attrId: id, semantic: 'button', scripts: [{
-      id: `${id}-script`, trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: `${id}-raw`, kind: 'set-var', value, into: 'labels' }, { id: `${id}-step`, kind: 'transform', source: 'labels', into: 'labels', transform: { kind: 'split', separator: ',' } }],
+      id: `${id}-script`, trigger: 'click', steps: [{ id: `${id}-raw`, kind: 'set-var', value, into: 'labels' }, { id: `${id}-step`, kind: 'transform', source: 'labels', into: 'labels', transform: { kind: 'split', separator: ',' } }],
     }] }; doc.pages.p.children.push(id);
   }
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));

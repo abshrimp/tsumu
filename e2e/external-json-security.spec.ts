@@ -43,8 +43,7 @@ function fixture(): SiteDoc {
       id: "home", name: "Home", title: "Home", slug: "",
       description: "", children: ["rows"],
       pageScripts: [{
-        id: "fetch-items", trigger: "load", pos: { x: 0, y: 0 },
-        steps: [{ id: "fetch", kind: "fetch", url: prefix + "items.json", as: "items" }],
+        id: "fetch-items", trigger: "load",        steps: [{ id: "fetch", kind: "fetch", url: prefix + "items.json", as: "items" }],
       }],
     }},
     nodes: { "row-title": text, "row-link": link, rows: list },

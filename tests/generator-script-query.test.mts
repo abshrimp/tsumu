@@ -7,7 +7,7 @@ import { makeBox } from "../lib/presets";
 import type { Script, SiteDoc } from "../lib/types";
 
 const require = createRequire(import.meta.url);
-const script = (steps: Script["steps"]): Script => ({ id: "s", trigger: "click", pos: { x: 0, y: 0 }, steps });
+const script = (steps: Script["steps"]): Script => ({ id: "s", trigger: "click", steps });
 function fixture(s: Script, pageScript = false): SiteDoc {
   const node = { ...makeBox(), id: "button", ...(pageScript ? {} : { scripts: [s] }) };
   return {
@@ -59,8 +59,7 @@ test("ブラウザで同名の変数を作っても、配信前の取得には�
   const doc = fixture(script([{ id: "set", kind: "set-var", into: "q", value: "clicked" }]));
   doc.nodes.button.link = { kind: "url", url: "/?q=initial" };
   doc.pages.p.pageScripts = [{
-    id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "fetch", kind: "fetch", url: "https://example.com/api?q={q}", as: "result" }],
+    id: "load", trigger: "load",    steps: [{ id: "fetch", kind: "fetch", url: "https://example.com/api?q={q}", as: "result" }],
   }];
   const source = generateProject(doc).files["app/page.tsx"];
   assert.match(source, /export const dynamic = "force-dynamic"/);

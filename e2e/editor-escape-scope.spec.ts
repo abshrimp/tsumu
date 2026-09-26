@@ -37,7 +37,8 @@ void loadLocale().then(() => createRoot(document.getElementById("app"))
   })).outputFiles[0].text;
 });
 
-const selectedStep = (page: Page) => page.locator('.se-ws [data-sel-key="step:open"]');
+const selectedStep = (page: Page) => page.locator('.se-flow [data-step-id="open"]');
+const selectStep = (page: Page) => selectedStep(page).click({ position: { x: 400, y: 6 } });
 const snapshot = (page: Page) => page.evaluate(() => {
   const { doc, past, future } = (window as any).escapeStore.getState();
   return { doc, past, future };
@@ -62,8 +63,8 @@ async function composingEscape(input: Locator, signal: "isComposing" | "keyCode"
 for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
   test.use({ locale });
   const labels = locale === "ja-JP"
-    ? { script: "スクリプト", search: "操作を探す", prompt: "入力してください" }
-    : { script: "Scripts", search: "Find an action", prompt: "Enter a value" };
+    ? { script: "スクリプト", add: "動作を追加", search: "動作を検索", prompt: "入力してください" }
+    : { script: "Scripts", add: "Add an action", search: "Search actions", prompt: "Enter a value" };
   test.beforeEach(async ({ page }) => {
     // 横取りしたオリジンを使えば、アプリのサーバーに頼らずに、
     // 実際の言語の読み込みが言語のクッキーを保存できる。
@@ -76,26 +77,32 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
   });
 
   for (const signal of ["isComposing", "keyCode"] as const) {
-    for (const selected of [false, true]) test(`${signal}: IME Escape preserves search, focus and ${selected ? "selection" : "the open editor"}`, async ({ page }) => {
+    for (const selected of [false, true]) test(`${signal}: IME Escape keeps the action search, focus and ${selected ? "selection" : "the open editor"}`, async ({ page }) => {
       if (selected) {
-        await selectedStep(page).locator(".se-ico").first().click();
+        await selectStep(page);
         await expect(selectedStep(page)).toHaveClass(/is-selected/);
       }
       const before = await snapshot(page);
-      const search = page.getByRole("searchbox", { name: labels.search });
+      await page.getByRole("button", { name: labels.add, exact: true }).click();
+      const search = page.getByRole("combobox", { name: labels.search });
+      await expect(search).toBeFocused();
       await search.fill("日本 English");
       await composingEscape(search, signal);
       await expect(search).toHaveValue("日本 English");
       await expect(search).toBeFocused();
       if (selected) await expect(selectedStep(page)).toHaveClass(/is-selected/);
       expect(await snapshot(page)).toEqual(before);
+      // ふつうの Escape は、いちばん手前のパネルだけを閉じる。選択と画面はそのまま
       await search.press("Escape");
-      await expect(search).toHaveValue("");
-      await expect(search).toBeFocused();
+      await expect(search).toHaveCount(0);
+      await expect(page.getByRole("dialog", { name: labels.script, exact: true })).toBeVisible();
+      if (selected) await expect(selectedStep(page)).toHaveClass(/is-selected/);
+      await expect(page.getByRole("button", { name: labels.add, exact: true })).toBeFocused();
+      expect(await snapshot(page)).toEqual(before);
     });
 
     test(`${signal}: IME Escape does not cancel a prompt or reach the script behind it`, async ({ page }) => {
-      await selectedStep(page).locator(".se-ico").first().click();
+      await selectStep(page);
       const before = await snapshot(page);
       await page.evaluate(() => (window as any).openEscapePrompt());
       const prompt = page.getByRole("dialog", { name: labels.prompt, exact: true });
@@ -113,4 +120,13 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
       expect(await snapshot(page)).toEqual(before);
     });
   }
+
+  test("plain Escape steps back one layer at a time: selection, then the editor", async ({ page }) => {
+    await selectStep(page);
+    await page.keyboard.press("Escape");
+    await expect(selectedStep(page)).not.toHaveClass(/is-selected/);
+    await expect(page.getByRole("dialog", { name: labels.script, exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: labels.script, exact: true })).toHaveCount(0);
+  });
 });

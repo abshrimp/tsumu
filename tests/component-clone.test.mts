@@ -8,7 +8,7 @@ function fixture(): SiteDoc {
   const child: DocNode = {
     ...makeBox(), id: "child", attrId: "target", text: { content: "{target}", heading: 0 },
     link: { kind: "url", url: "#target" },
-    scripts: [{ id: "script", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+    scripts: [{ id: "script", trigger: "click", steps: [
       { id: "step", kind: "open-url", url: "#target" },
     ] }],
   };

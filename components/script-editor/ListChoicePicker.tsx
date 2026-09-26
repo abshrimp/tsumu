@@ -21,12 +21,10 @@ export function ListChoicePicker({
   value,
   options,
   onChange,
-  readOnly = false,
 }: {
   value: string;
   options: ListChoice[];
   onChange: (value: string) => void;
-  readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -46,11 +44,6 @@ export function ListChoicePicker({
   const visible = open
     ? options.filter((option) => (option.value + " " + option.label).toLocaleLowerCase().includes(filter))
     : [];
-  // 最も長い選択肢の分の幅を確保し、選択を変えてもスクリプトのブロックの大きさが変わらないようにする。
-  // 日本語・中国語・韓国語の文字は、英数字のおよそ2倍の幅になる。
-  const widest = options.reduce((max, option) => Math.max(max,
-    Array.from(option.label).reduce((length, char) => length + (char.codePointAt(0)! > 255 ? 2 : 1), 0)), 0);
-  const triggerWidth = Math.min(220, Math.max(105, widest * 7 + 38));
 
   useLayoutEffect(() => {
     if (!open || !buttonRef.current) return;
@@ -123,9 +116,7 @@ export function ListChoicePicker({
       <button
         ref={buttonRef}
         type="button"
-        className={"se-in se-pm-btn se-list-choice se-in-strong" + (value ? "" : " is-empty") + (open ? " is-open" : "")}
-        style={{ width: triggerWidth }}
-        disabled={readOnly}
+        className={"se-in se-pm-btn se-list-choice" + (value ? "" : " is-empty") + (open ? " is-open" : "")}
         aria-label={tr("Select a list", "select_a_list_variant_1")}
         aria-haspopup="listbox"
         aria-expanded={open}

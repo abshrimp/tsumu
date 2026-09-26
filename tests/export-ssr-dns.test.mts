@@ -9,8 +9,7 @@ test("generated Node SSR transport blocks private DNS answers at socket connecti
     siteName: "External fetch check", pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", slug: "",
       description: "", children: ["item"],
-      pageScripts: [{ id: "load", trigger: "load", pos: { x: 0, y: 0 },
-        steps: [{ id: "get", kind: "fetch", url: "https://public.example.test/data", as: "data" }] }],
+      pageScripts: [{ id: "load", trigger: "load",        steps: [{ id: "get", kind: "fetch", url: "https://public.example.test/data", as: "data" }] }],
     } },
     nodes: { item: { ...makeBox(), id: "item" } }, assets: {},
   };

@@ -15,8 +15,7 @@ test("single HTML executes page-load scripts and renders dynamic variables witho
         id: "home", slug: "", name: "Home", title: "Standalone", description: "",
         children: ["status"],
         pageScripts: [{
-          id: "load", trigger: "load", pos: { x: 0, y: 0 },
-          steps: [{ id: "assign", kind: "set-var", into: "status", value: "ready" }],
+          id: "load", trigger: "load",          steps: [{ id: "assign", kind: "set-var", into: "status", value: "ready" }],
         }],
       },
     },

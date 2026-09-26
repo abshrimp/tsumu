@@ -1,7 +1,7 @@
 "use client";
 
 /** 通常のスクリプトのブロックで使う、値を加工する純粋な処理の設定欄。 */
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ComponentProps, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { TextIn } from "./inputs";
@@ -37,32 +37,9 @@ const MATH: readonly { value: NumericOperation; label: () => string }[] = [
   { value: "remainder", label: () => tr("Remainder") },
 ];
 
-/** 選択中の値にかかわらず、訳した選択肢のうち最も長いものに合わせた幅の標準の選択欄。 */
-function FixedOptionSelect({ children, ...props }: ComponentProps<"select">) {
-  const selectRef = useRef<HTMLSelectElement>(null);
-  useLayoutEffect(() => {
-    const select = selectRef.current;
-    if (!select) return;
-    const measure = () => {
-      if (selectRef.current !== select) return;
-      const style = getComputedStyle(select);
-      const ctx = document.createElement("canvas").getContext("2d");
-      if (!ctx) return;
-      ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      const longest = Math.max(0, ...Array.from(select.options, (option) =>
-        ctx.measureText(option.textContent ?? "").width));
-      const box = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
-        + parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
-      // こうしないと、サブピクセルの丸めや標準の選択欄の最小幅で、部品の大きさが変わってしまう。
-      select.style.width = `${Math.ceil(longest + box + 1)}px`;
-    };
-    measure();
-    // フォントの読み込みで、最初の描画の後に測った幅が変わることがある。
-    void document.fonts.ready.then(measure);
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  });
-  return <select {...props} className="se-in se-fixed-select" ref={selectRef}>{children}</select>;
+/** 幅は CSS の field-sizing で、選んでいる選択肢に合わせる。 */
+function OptionSelect({ children, ...props }: ComponentProps<"select">) {
+  return <select {...props} className="se-in">{children}</select>;
 }
 
 /** 項目名と変数の候補は、同じ入力欄で編集する。 */
@@ -158,7 +135,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
   };
 
   return (
-    <div ref={rootRef} className="se-composer-field">
+    <div ref={rootRef} className="se-combo">
       <input
         ref={inputRef}
         role="combobox"
@@ -198,7 +175,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
       />
       <button
         type="button"
-        className="se-composer-field-toggle"
+        className="se-combo-toggle"
         aria-label={tr("Show suggested fields")}
         aria-expanded={open}
         onMouseDown={(event) => event.preventDefault()}
@@ -212,7 +189,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
       {open && position && createPortal(
         <div
           ref={menuRef}
-          className="se-composer-field-menu"
+          className="se-combo-menu"
           role="listbox"
           id={listId}
           aria-label={tr("Suggested fields")}
@@ -242,7 +219,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
               onClick={() => choose(key)}
             >{key}</button>
           )) : (
-            <p className="se-composer-field-empty" role="status">
+            <p className="se-combo-empty" role="status">
               {tr(choices.length
                 ? "No matching fields. You can type a field name."
                 : "No fields available. You can type a field name.")}
@@ -264,12 +241,12 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
   excludedVariableName?: string;
 }) {
   if (transform.kind === "math") return (
-    <div className="se-composer-step-settings">
-      <FixedOptionSelect aria-label={tr("Arithmetic operation")} value={transform.operation}
+    <div className="se-row">
+      <OptionSelect aria-label={tr("Arithmetic operation")} value={transform.operation}
         onChange={(e) => onChange({ ...transform, operation: e.target.value as NumericOperation })}>
         {MATH.map((method) => <option key={method.value} value={method.value}>{method.label()}</option>)}
-      </FixedOptionSelect>
-      <div className="se-composer-operand">
+      </OptionSelect>
+      <div className="se-row-item">
         <TextIn vars value={transform.operandType === "variable"
           ? "{" + String(transform.operand) + "}" : String(transform.operand)}
           valueContext="value" width={154} placeholder={tr("Number or {variable}")}
@@ -285,19 +262,19 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
   );
 
   if (transform.kind === "split" || transform.kind === "join") return (
-    <div className="se-composer-step-settings">
+    <div className="se-row">
       <TextIn vars value={transform.separator} width={144} placeholder={tr("Delimiter")}
         onCommit={(separator) => onChange({ ...transform, separator })} />
     </div>
   );
 
   if (transform.kind === "replace") return (
-    <div className="se-composer-step-settings">
+    <div className="se-row">
       <TextIn vars value={transform.find} width={144} placeholder={tr("String to find")}
         onCommit={(find) => onChange({ ...transform, find })} />
       <TextIn vars value={transform.replacement} width={144} placeholder={tr("Replacement")}
         onCommit={(replacement) => onChange({ ...transform, replacement })} />
-      <label className="se-composer-regex">
+      <label className="se-check">
         <input type="checkbox" checked={transform.regex}
           onChange={(e) => onChange({ ...transform, regex: e.target.checked })} />
         {tr("Regex")}
@@ -306,24 +283,24 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
   );
 
   if (transform.kind === "sort") return (
-    <div className="se-composer-step-settings">
+    <div className="se-row">
       <FieldKeyPicker value={transform.field} options={options} samples={samples}
         excludedVariableName={excludedVariableName}
         ariaLabel={tr("List item field")}
         placeholder={tr("Field (blank = item itself)")}
         onChange={(field) => onChange({ ...transform, field })} />
-        <FixedOptionSelect aria-label={tr("Sort order")} value={transform.direction}
+        <OptionSelect aria-label={tr("Sort order")} value={transform.direction}
           onChange={(e) => onChange({ ...transform, direction: e.target.value as "asc" | "desc" })}>
           <option value="asc">{tr("Ascending")}</option>
           <option value="desc">{tr("Descending")}</option>
-        </FixedOptionSelect>
+        </OptionSelect>
     </div>
   );
   return null;
 }
 
 
-/** スクリプトのキャンバス上のブロックに置く、独立した設定欄（モーダルではない）。 */
+/** 「値を加工する」の動作に置く、加工ごとの設定欄。 */
 export function ValueTransformSettings({ transform, options, onChange, samples, excludedVariableName }: {
   transform: ValueTransform;
   options: string[];
@@ -332,7 +309,7 @@ export function ValueTransformSettings({ transform, options, onChange, samples, 
   excludedVariableName?: string;
 }) {
   if (transform.kind === "field") return (
-    <div className="se-composer-step-settings">
+    <div className="se-row">
       <FieldKeyPicker value={transform.key} options={options} samples={samples}
         excludedVariableName={excludedVariableName}
         placeholder={tr("Field name / {variable}")}
@@ -340,8 +317,8 @@ export function ValueTransformSettings({ transform, options, onChange, samples, 
     </div>
   );
   if (transform.kind === "fallback") return (
-    <div className="se-composer-step-settings">
-      <select className="se-in se-fixed-select"
+    <div className="se-row">
+      <select className="se-in"
         aria-label={tr("When to use a fallback")}
         value={transform.when}
         onChange={(event) => onChange({ kind: "fallback", text: transform.text,

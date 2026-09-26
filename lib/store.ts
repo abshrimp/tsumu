@@ -608,7 +608,7 @@ function retargetPageUrls(
     for (const sc of node.scripts ?? []) fixSteps(sc.steps);
   }
   for (const p of others) {
-    for (const sc of [...(p.scripts ?? []), ...(p.pageScripts ?? [])]) fixSteps(sc.steps);
+    for (const sc of p.pageScripts ?? []) fixSteps(sc.steps);
     if (p.id === page.id) continue;
     if (p.redirectTo) p.redirectTo = fix(p.redirectTo);
     if (p.rewriteTo) p.rewriteTo = fix(p.rewriteTo);

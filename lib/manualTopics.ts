@@ -1386,19 +1386,19 @@ export const TOPICS: Topic[] = [
       { target: "right-tab-settings", text: tr("Open Settings in the right panel."), done: (s) => s.rightTab === "settings" },
       { target: "settings-link", text: tr("Click \"Edit page scripts\"."), prepare: { right: "settings" }, done: (s) => !!s.scriptEditor },
       {
-        target: "se-block-click",
-        text: tr("Drag \"When clicked\" from the block list on the left into the large area on the right."),
-        hint: tr("If the block list is closed, open it with the button at the top left."),
+        target: "se-workspace",
+        text: tr("Choose \"When clicked\" as the trigger."),
+        hint: tr("If another script is open, press \"New script\" at the top left first."),
         done: (s) => !!node(s)?.link || !!node(s)?.scripts?.some((sc) => sc.trigger === "click"),
       },
       {
-        target: "se-block-open-page",
-        text: tr("Drag \"Open ［page / URL］\" right under the \"When clicked\" block to attach it."),
+        target: "se-add",
+        text: tr("Press \"Add the first action\" and choose \"Open a page or link\"."),
         done: (s) => hasScript(s, ["open-page", "open-url"]),
       },
       {
         target: "se-workspace",
-        text: tr("Choose the page to open in the attached block. For external sites, switch to URL and enter the address."),
+        text: tr("Choose the page to open in the action you added. For external sites, switch to URL and enter the address."),
         done: (s) => {
           const l = node(s)?.link;
           return !!(l && (l.pageId || l.url));
@@ -1483,7 +1483,7 @@ export const TOPICS: Topic[] = [
     cat: "action",
     level: 3,
     q: tr("How do scripts work? (Triggers and actions)"),
-    a: tr("A script is a chain of blocks that run from top to bottom: when (the trigger) and what to do (actions). All scripts on a page are edited together on one screen."),
+    a: tr("A script is a list of actions that run from top to bottom: when (the trigger) and what to do (actions). All scripts on a page are edited together on one screen."),
     keys: [tr("Scripts"), tr("block"), tr("Triggers"), tr("Triggers"), tr("programming"), tr("condition"), tr("if")],
     body: [
       { fig: "script-blocks" },
@@ -1549,7 +1549,7 @@ export const TOPICS: Topic[] = [
     ],
     guide: [
       { target: "page-scripts", text: tr("With nothing selected, open \"Edit scripts\" under Scripts in Page settings."), prepare: { deselect: true, section: "page-scripts" }, done: (s) => !!s.scriptEditor },
-      { target: "se-block-fetch", text: tr("Drag \"Fetch data from ［URL］ as ［name］\" into the large area on the right, and enter the URL and name.") },
+      { target: "se-workspace", text: tr("Open \"When the page opens\" (create it with \"New script\" if it is missing), press \"Add an action\", choose \"Fetch data from the internet\", and enter the address and a name.") },
     ],
     see: ["data-list", "act-vars", "data-detail"],
   },

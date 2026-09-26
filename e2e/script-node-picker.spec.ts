@@ -26,12 +26,12 @@ test.beforeEach(async ({ page }) => {
   await page.addScriptTag({ content: bundle });
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
 });
-const trigger = (page: Page) => page.locator('.se-ws [data-sel-key="step:pick-target"] .np-btn');
+const trigger = (page: Page) => page.locator('.se-flow [data-step-id="pick-target"] .np-btn');
 const menu = (page: Page) => page.locator(".np.dd-menu");
 const row = (page: Page, name: string) => menu(page).locator(".np-row").filter({
   has: page.locator(".np-name", { hasText: new RegExp("^" + name + "$") }),
 });
-const query = (page: Page) => page.getByPlaceholder("要素名・IDで検索");
+const query = (page: Page) => page.getByPlaceholder("要素の名前で検索");
 const picked = (page: Page) => page.evaluate(() =>
   (window as any).scriptDragEditor.getState().doc.pages.p.pageScripts[0].steps[1].target
 );
@@ -41,7 +41,7 @@ test("outside pointer closes element picker even when the clicked row stops prop
   await trigger(page).click();
   await expect(menu(page)).toBeVisible();
 
-  const workspace = page.locator(".se-ws");
+  const workspace = page.locator(".se-flow");
   await workspace.evaluate((el) => el.addEventListener("pointerdown", (event) => event.stopPropagation()));
   await workspace.click({ position: { x: 15, y: 15 } });
   await expect(menu(page)).toHaveCount(0);

@@ -17,7 +17,7 @@ test(`component generated row scripts preserve typed data and read edited fields
   const snapshot = () => page.evaluate(() => (window as any).clientScriptStore.getState().doc);
   const before = await snapshot();
   await page.getByRole('button', { name: 'Edit action', exact: true }).click();
-  const input = page.locator('.se-ws [data-sel-key="step:field"] input').first();
+  const input = page.locator('.se-flow [data-step-id="field"] .se-value-choice input');
   await input.fill('{name}|{entry}|Edited'); await input.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();
   const saved = await snapshot();

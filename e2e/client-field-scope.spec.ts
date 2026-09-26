@@ -55,7 +55,7 @@ test('native generated fields preserve typed values and normalize row-specific r
       kind: 'input', inputType: 'range', min: '{largeMin}', max: '{largeMax}', step: '10', defaultValue: value,
     } }; doc.nodes.row.children.push(id!);
   }
-  doc.nodes.change = { ...makeText('Change live'), id: 'change', attrId: 'change', semantic: 'button', scripts: [{ id: 'change-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [
+  doc.nodes.change = { ...makeText('Change live'), id: 'change', attrId: 'change', semantic: 'button', scripts: [{ id: 'change-script', trigger: 'click', steps: [
     { id: 'change-live', kind: 'set-var', into: 'live', value: 'Later \\{name}' },
   ] }] }; doc.pages.p.children.unshift('change');
   await page.goto('/robots.txt');

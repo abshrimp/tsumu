@@ -7,7 +7,7 @@ export function scriptDragDoc(): SiteDoc {
     schemaVersion: 1, siteName: "Script gestures", assets: {}, nodes: {}, pageOrder: ["p", "q"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "", description: "", children: [], pageScripts: [
-        { id: "script", trigger: "load", pos: { x: 32, y: 32 }, steps: [{ id: "wait", kind: "wait", seconds: 1 }] },
+        { id: "script", trigger: "load", steps: [{ id: "wait", kind: "wait", seconds: 1 }] },
       ] },
       q: { id: "q", name: "Q", slug: "q", title: "", description: "", children: [] },
     },

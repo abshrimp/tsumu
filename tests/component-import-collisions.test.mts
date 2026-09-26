@@ -179,7 +179,7 @@ test("a new outer component reuses an existing nested master without importing i
 
 test("page copy relinks nested scripts on imported remapped masters only", () => {
   const { destination, source, componentId } = forkWithComponent();
-  source.nodes.shared.scripts = [{ id: "script", trigger: "click", pos: { x: 0, y: 0 }, steps: [{
+  source.nodes.shared.scripts = [{ id: "script", trigger: "click", steps: [{
     id: "condition", kind: "if", cond: { subject: "visible", target: "@self" },
     then: [{ id: "repeat", kind: "repeat", times: 2, then: [{ id: "open", kind: "open-page", pageId: "about" }] }],
     else: [{ id: "fallback", kind: "open-page", pageId: "about" }],
@@ -201,7 +201,7 @@ test("page copy relinks nested scripts on imported remapped masters only", () =>
 test("editing or deleting an imported master's scripts cannot change the destination's scripts", () => {
   const { destination, payload, componentId } = forkWithComponent();
   const scripts: NonNullable<DocNode["scripts"]> = [{
-    id: "shared-script", trigger: "click", pos: { x: 0, y: 0 }, steps: [{
+    id: "shared-script", trigger: "click", steps: [{
       id: "shared-repeat", kind: "repeat", times: 2, then: [{
         id: "shared-condition", kind: "if", cond: { subject: "visible", target: "@self" },
         then: [{ id: "shared-then", kind: "show", target: "@self" }],

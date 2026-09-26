@@ -32,7 +32,7 @@ function renderRoot(patch: Partial<DocNode>, preview = true) {
 }
 
 test("component preview retains root IDs and click scripts on the instance element", () => {
-  const { element } = renderRoot({ attrId: "menu", scripts: [{ id: "sc", trigger: "click", pos: { x: 0, y: 0 }, steps: [{ id: "st", kind: "open-url", url: "https://example.org" }] }] });
+  const { element } = renderRoot({ attrId: "menu", scripts: [{ id: "sc", trigger: "click", steps: [{ id: "st", kind: "open-url", url: "https://example.org" }] }] });
   assert.equal(element.props.id, "menu");
   assert.equal(element.props["data-node"], "inst");
   assert.equal(element.props["data-ghost"], "root");
@@ -62,7 +62,7 @@ test("component root buttons use preview submission behavior without overriding 
   assert.equal(button.element.props.type, "button");
   button.click();
   assert.deepEqual(button.actions, ["refresh"]);
-  const scripted = renderRoot({ semantic: "button", scripts: [{ id: "sc", trigger: "click", pos: { x: 0, y: 0 }, steps: [] }] });
+  const scripted = renderRoot({ semantic: "button", scripts: [{ id: "sc", trigger: "click", steps: [] }] });
   assert.equal(scripted.element.props.onClick, undefined);
 });
 

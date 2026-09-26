@@ -16,7 +16,7 @@ function mount(generated: boolean) {
       b: { id: "b", name: "B", slug: "b", title: "", description: "", children: [] },
     },
     nodes: { node: { ...makeBox(), id: "node", scripts: [{
-      id: "hover", trigger: "hover-end", keepOnShown: true, pos: { x: 0, y: 0 }, steps,
+      id: "hover", trigger: "hover-end", keepOnShown: true, steps,
     }] } },
   };
   let pageId = "a";
