@@ -114,9 +114,9 @@ test("every supported palette action is visible in the editor", () => {
   assert.ok(PALETTE.some(item => item.key === "break-loop"));
   assert.ok(PALETTE.some(item => item.key === "set-list-item"));
   assert.ok(PALETTE.some(item => item.key === "remove-list-item"));
-  assert.ok(findPaletteItems("値で削除").some(item => item.key === "remove-list-item"));
+  assert.ok(findPaletteItems("値で削除", "ja").some(item => item.key === "remove-list-item"));
   assert.ok(PALETTE.some(item => item.key === "make-list"));
-  assert.ok(findPaletteItems("値を加工").some(item => item.key === "transform"));
+  assert.ok(findPaletteItems("値を加工", "ja").some(item => item.key === "transform"));
 });
 
 test("untrusted JSON objects cannot crash preview or emitted filter/sort comparisons", () => {

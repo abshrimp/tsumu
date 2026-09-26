@@ -24,6 +24,18 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     await expect(page.getByRole("dialog", { name: labels.title, exact: true })).toBeVisible();
   });
 
+  test("palette aliases follow the selected UI language", async ({ page }) => {
+    const search = page.getByRole("searchbox", { name: labels.search });
+    const click = page.locator('[data-tutorial="se-block-click"]');
+    await search.fill("タップ");
+    if (locale === "ja-JP") await expect(click).toBeVisible();
+    else await expect(click).toHaveCount(0);
+    await search.fill("tap");
+    await expect(click).toBeVisible();
+    await search.fill("warning");
+    await expect(page.locator('[data-tutorial="se-block-dialog"]')).toBeVisible();
+  });
+
   for (const selected of [false, true]) test(`search Escape preserves focus, editor and selection (${selected})`, async ({ page }) => {
     const block = page.locator('.se-ws [data-sel-key="step:open"]');
     if (selected) await block.locator(".se-ico").first().click();

@@ -1,0 +1,30 @@
+/** English search aliases for script palette actions. Keys are stable action IDs. */
+const terms: Record<string, string> = {
+  dialog: "confirm prompt alert browser dialog popup message warning",
+  click: "onclick click tap press",
+  "hover-start": "mouseover mouseenter pointerenter hover enter",
+  "hover-end": "mouseout mouseleave pointerleave hover leave",
+  change: "onChange change input",
+  load: "onload load initialize startup",
+  "in-view": "viewport intersection observer inview visible",
+  fetch: "API WebAPI HTTP HTTPS GET POST REST JSON URL request response fetch download",
+  show: "visibility display show hide toggle visible",
+  "set-state": "set state style variant",
+  "open-page": "navigate redirect open link href location",
+  "scroll-to": "scroll anchor jump scrollto",
+  "set-value": "setvalue set input field form",
+  "set-enabled": "disabled enabled disable enable",
+  "for-each": "foreach each iterate for",
+  "store-save": "localstorage storage save persist",
+  "store-load": "localstorage storage load restore retrieve",
+  "set-var": "assign set variable",
+  "remove-list-item": "remove delete list item entry index key",
+  "list-display": "clear sort filter",
+  transform: "transform operation pipeline math list text",
+  copy: "copy clipboard copytext",
+  wait: "sleep delay pause wait timeout",
+  if: "else if then conditional branching",
+  repeat: "repeat loop forever iteration",
+};
+
+export default terms;
