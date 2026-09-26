@@ -72,7 +72,7 @@ textarea {
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -2788,7 +2788,7 @@ textarea {
 .modal {
   width: 460px;
   max-width: calc(100vw - 48px);
-  max-height: 80vh;
+  max-height: 80dvh;
   overflow-y: auto;
   background: var(--panel);
 }
@@ -3194,7 +3194,7 @@ textarea {
 /* ============ ログイン ============ */
 
 .login-page {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr);
   background:
@@ -3921,7 +3921,7 @@ textarea {
   display: grid;
   grid-template-rows: auto 1fr auto;
   width: min(1180px, calc(100vw - 48px));
-  height: min(760px, calc(100vh - 48px));
+  height: min(760px, calc(100dvh - 48px));
   overflow: hidden;
   background: var(--panel);
   box-shadow: var(--shadow-pop);
@@ -4814,7 +4814,7 @@ input.se-in {
   gap: 12px;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 24px;
   text-align: center;
 }
@@ -5037,7 +5037,7 @@ input.se-in {
 
 .ctx-menu {
   min-width: 208px;
-  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - 16px);
   padding: 6px;
 }
 
@@ -5455,7 +5455,7 @@ input.se-in {
 
 .frame-grip {
   position: sticky;
-  top: calc(50vh - 60px);
+  top: calc(50dvh - 60px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -6436,7 +6436,7 @@ body {
   display: flex;
   flex-direction: column;
   width: 620px;
-  max-height: min(680px, 84vh);
+  max-height: min(680px, 84dvh);
   padding: 18px 8px 12px;
   overflow: hidden;
 }
@@ -7104,7 +7104,7 @@ button.np-chev:hover {
 
 .tutorial-card {
   width: 400px;
-  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
   overflow-y: auto;
   border-radius: 20px;
 }
@@ -9865,7 +9865,7 @@ body.is-scrubbing * {
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  max-height: 46vh;
+  max-height: 46dvh;
   overflow-y: auto;
 }
 
@@ -10136,7 +10136,7 @@ a.hist-msg:hover {
   flex-direction: column;
   width: 380px;
   max-width: calc(100vw - 16px);
-  height: min(560px, calc(100vh - 100px));
+  height: min(560px, calc(100dvh - 100px));
   border-radius: var(--radius-l);
   background: var(--panel);
   box-shadow: 0 12px 40px rgba(31, 31, 31, 0.18), 0 2px 8px rgba(31, 31, 31, 0.08);
@@ -10595,7 +10595,7 @@ a.btn {
 }
 
 .home {
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
   overflow-y: auto;
 }
@@ -11143,6 +11143,11 @@ a.btn {
   font-size: 12.5px;
   font-weight: 600;
   text-align: left;
+  cursor: pointer;
+}
+
+.home-dest-head::-webkit-details-marker {
+  display: none;
 }
 
 .home-dest-head:hover {
@@ -11154,8 +11159,12 @@ a.btn {
   transition: transform 150ms var(--ease);
 }
 
-.home-dest.is-open .home-dest-head svg {
+.home-dest[open] .home-dest-head svg {
   transform: rotate(90deg);
+}
+
+.home-dest[open] .home-dest-sub {
+  display: none;
 }
 
 .home-dest-sub {
@@ -11213,7 +11222,7 @@ a.btn {
 .modal.me-modal {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
 }
 
 .me-modal .modal-desc {

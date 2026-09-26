@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Undo2, X, Zap } from "lucide-react";
 import { componentOf, useEditor } from "../lib/store";
+import { trackPanelResize } from "../lib/panel-resize";
 import SafeBoundary from "./SafeBoundary";
 import { glyphs } from "./Glyph";
 import { InfoTip } from "./controls";
@@ -365,6 +366,10 @@ function ScriptEditorInner({
     }
   });
   const [palAnim, setPalAnim] = useState(false);
+  const paletteResize = useRef<(() => void) | null>(null);
+  const paletteResizerRef = useCallback((element: HTMLDivElement | null) => {
+    if (!element) paletteResize.current?.();
+  }, []);
   useEffect(() => {
     try {
       window.localStorage.setItem("se-pal-w", String(palW));
@@ -1008,33 +1013,27 @@ function ScriptEditorInner({
           {palOpen && (
             <div
               className="se-pal-resizer"
+              ref={paletteResizerRef}
               onPointerDown={(e) => {
-                if (e.button !== 0) return;
+                if (e.button !== 0 || paletteResize.current) return;
                 e.preventDefault();
                 e.stopPropagation();
                 const target = e.currentTarget;
-                target.setPointerCapture(e.pointerId);
-                const x0 = e.clientX;
-                const w0 = palW;
-                const collapse = (x: number) => w0 + x - x0 < PAL_MIN - 80;
-                document.body.classList.add("is-resizing-panel");
-                const onMove = (ev: PointerEvent) => {
-                  target.classList.toggle("is-collapse", collapse(ev.clientX));
-                  setPalW(clampPal(w0 + ev.clientX - x0));
-                };
-                const onUp = (ev: PointerEvent) => {
-                  target.removeEventListener("pointermove", onMove);
-                  target.removeEventListener("pointerup", onUp);
-                  target.removeEventListener("pointercancel", onUp);
-                  document.body.classList.remove("is-resizing-panel");
-                  if (collapse(ev.clientX)) {
-                    setPalW(w0);
-                    togglePal();
-                  }
-                };
-                target.addEventListener("pointermove", onMove);
-                target.addEventListener("pointerup", onUp);
-                target.addEventListener("pointercancel", onUp);
+                const collapseBelow = PAL_MIN - 80;
+                paletteResize.current = trackPanelResize(e, target, palW, 1,
+                  (width) => {
+                    target.classList.toggle("is-collapse", width < collapseBelow);
+                    setPalW(clampPal(width));
+                  },
+                  (releasedWidth) => {
+                    paletteResize.current = null;
+                    target.classList.remove("is-collapse");
+                    if (releasedWidth !== null && releasedWidth < collapseBelow) {
+                      setPalW(palW);
+                      togglePal();
+                    }
+                  },
+                );
               }}
             />
           )}

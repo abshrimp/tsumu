@@ -8,6 +8,7 @@ export async function dialogFocusBundle() {
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import DialogHost from "./components/DialogHost";
+import LeaveAnimator from "./components/LeaveAnimator";
 import { showAlert, showConfirm, showPrompt } from "./lib/dialog";
 import { loadLocale } from "./lib/i18n";
 import css from "./app/globals.css";
@@ -26,6 +27,7 @@ function Fixture() {
     <input aria-label="Background name" defaultValue="unchanged" />
     <output id="results">{JSON.stringify(results)}</output>
     <DialogHost />
+    <LeaveAnimator />
   </>;
 }
 void loadLocale().then(() => createRoot(document.getElementById("app")).render(<React.StrictMode><Fixture /></React.StrictMode>));

@@ -33,9 +33,13 @@ function fixture() {
   });
   const target = makeTarget();
   const widths: number[] = [], finishes: number[] = [];
+  const releasedWidths: (number | null)[] = [];
   const start = (id = 1, element = target, initialWidth = 280, dir: 1 | -1 = 1) =>
     trackPanelResize(pointer("pointerdown", id, 10), element as unknown as HTMLElement,
-      initialWidth, dir, (width) => widths.push(width), () => finishes.push(id));
+      initialWidth, dir, (width) => widths.push(width), (releasedWidth) => {
+        finishes.push(id);
+        releasedWidths.push(releasedWidth);
+      });
   const move = (id = 1, x = 50, buttons = 1) =>
     windowEvents.dispatchEvent(pointer("pointermove", id, x, buttons));
   const release = (type = "pointerup", id = 1) =>
@@ -46,7 +50,7 @@ function fixture() {
     if (previousDocument) Object.defineProperty(globalThis, "document", previousDocument);
     else Reflect.deleteProperty(globalThis, "document");
   };
-  return { windowEvents, documentEvents, body, classes, target, makeTarget, widths, finishes, start, move, release, restore };
+  return { windowEvents, documentEvents, body, classes, target, makeTarget, widths, finishes, releasedWidths, start, move, release, restore };
 }
 
 test("panel resize only follows its own pointer and stops after release", () => {
@@ -67,6 +71,7 @@ test("panel resize only follows its own pointer and stops after release", () => 
     f.release();
     assert.deepEqual(f.widths, [330]);
     assert.deepEqual(f.finishes, [1]);
+    assert.deepEqual(f.releasedWidths, [320]);
     assert.equal(f.target.captured.size, 0);
     assert.equal(f.body.classList.contains("is-resizing-panel"), false);
   } finally { f.restore(); }
@@ -93,6 +98,7 @@ for (const end of ["pointercancel", "blur", "hidden", "released-outside", "captu
       dispose();
       assert.deepEqual(f.widths, [315]);
       assert.deepEqual(f.finishes, [1]);
+      assert.deepEqual(f.releasedWidths, [null]);
       assert.equal(f.target.captured.size, 0);
       assert.equal(f.body.classList.contains("is-resizing-panel"), false);
       (f.documentEvents as any).visibilityState = "visible";

@@ -200,11 +200,14 @@ for (const published of [false, true]) {
       };
     });
     await install(page, published, entries);
-    await page.locator("#scroll").click();
-    await expect.poll(() => page.evaluate(() => (window as any).__scriptScrollOptions)).toEqual({
-      behavior: "smooth",
-      block: "start",
-    });
+    for (const reducedMotion of ["no-preference", "reduce"] as const) {
+      await page.emulateMedia({ reducedMotion });
+      await page.locator("#scroll").click();
+      await expect.poll(() => page.evaluate(() => (window as any).__scriptScrollOptions)).toEqual({
+        behavior: reducedMotion === "reduce" ? "instant" : "smooth",
+        block: "start",
+      });
+    }
   });
 
   test(mode + ": a hover menu stays open on its shown element and closes on exit", async ({ page }) => {

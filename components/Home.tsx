@@ -269,8 +269,7 @@ function SiteDialog({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 新規作成では公開先の欄を畳んでおく（後からでも設定できる）
-  const [destOpen, setDestOpen] = useState(!!site);
+  const destination = useRef<HTMLDetailsElement>(null);
   const set = (k: keyof FormValue) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -288,7 +287,9 @@ function SiteDialog({
     const checked = normalizeSiteInput(form, { name: "", ...emptyDest() });
     if (!checked.ok) {
       setError(tr(checked.error));
-      if (!["Enter a site name", "Site names can be up to 100 characters"].includes(checked.error)) setDestOpen(true);
+      if (destination.current && !["Enter a site name", "Site names can be up to 100 characters"].includes(checked.error)) {
+        destination.current.open = true;
+      }
       return;
     }
     setBusy(true);
@@ -317,58 +318,61 @@ function SiteDialog({
           <input className="input" value={form.name} onChange={set("name")} autoFocus maxLength={100} required />
         </Field>
 
-        <section className={`home-dest${destOpen ? " is-open" : ""}`}>
-          <button type="button" className="home-dest-head" onClick={() => setDestOpen((v) => !v)} aria-expanded={destOpen}>
+        <details
+          className="home-dest"
+          ref={destination}
+          open={!!site}
+          onInvalidCapture={(e) => { e.currentTarget.open = true; }}
+        >
+          <summary className="home-dest-head">
             <ChevronRight size={14} />
             <span>{tr("Publish target")}</span>
-            {!destOpen && <span className="home-dest-sub">{tr("You can set this later")}</span>}
-          </button>
-          {destOpen && (
-            <div className="home-dest-body">
-              <Field
-                label={tr("GitHub repository")}
-                hint={tr("Enter as owner/name. You can edit without it, but you can't publish.")}
-              >
+            <span className="home-dest-sub">{tr("You can set this later")}</span>
+          </summary>
+          <div className="home-dest-body">
+            <Field
+              label={tr("GitHub repository")}
+              hint={tr("Enter as owner/name. You can edit without it, but you can't publish.")}
+            >
+              <input
+                className="input mono"
+                value={form.repo}
+                onChange={set("repo")}
+                placeholder="owner/site-repo"
+                spellCheck={false}
+                autoCapitalize="off"
+              />
+            </Field>
+            <div className="home-field-row">
+              <Field label={tr("Production branch")}>
+                <input className="input mono" value={form.branch} onChange={set("branch")} placeholder="main" spellCheck={false} />
+              </Field>
+              <Field label={tr("Test branch")} hint={tr("Leave empty to turn off test publishing")}>
                 <input
                   className="input mono"
-                  value={form.repo}
-                  onChange={set("repo")}
-                  placeholder="owner/site-repo"
+                  value={form.previewBranch}
+                  onChange={set("previewBranch")}
+                  placeholder="preview"
                   spellCheck={false}
-                  autoCapitalize="off"
                 />
               </Field>
-              <div className="home-field-row">
-                <Field label={tr("Production branch")}>
-                  <input className="input mono" value={form.branch} onChange={set("branch")} placeholder="main" spellCheck={false} />
-                </Field>
-                <Field label={tr("Test branch")} hint={tr("Leave empty to turn off test publishing")}>
-                  <input
-                    className="input mono"
-                    value={form.previewBranch}
-                    onChange={set("previewBranch")}
-                    placeholder="preview"
-                    spellCheck={false}
-                  />
-                </Field>
-              </div>
-              <div className="home-field-row">
-                <Field label={tr("Live site URL")}>
-                  <input className="input" value={form.siteUrl} onChange={set("siteUrl")} placeholder="https://example.com" type="url" />
-                </Field>
-                <Field label={tr("Test site URL")}>
-                  <input
-                    className="input"
-                    value={form.previewUrl}
-                    onChange={set("previewUrl")}
-                    placeholder="https://preview.example.com"
-                    type="url"
-                  />
-                </Field>
-              </div>
             </div>
-          )}
-        </section>
+            <div className="home-field-row">
+              <Field label={tr("Live site URL")}>
+                <input className="input" value={form.siteUrl} onChange={set("siteUrl")} placeholder="https://example.com" type="url" />
+              </Field>
+              <Field label={tr("Test site URL")}>
+                <input
+                  className="input"
+                  value={form.previewUrl}
+                  onChange={set("previewUrl")}
+                  placeholder="https://preview.example.com"
+                  type="url"
+                />
+              </Field>
+            </div>
+          </div>
+        </details>
 
         {error && (
           <p className="home-dialog-error">

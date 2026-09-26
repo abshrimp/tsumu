@@ -75,6 +75,23 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
   });
 });
 
+test("a closing dialog cannot take focus and follows changes to reduced motion", async ({ page }) => {
+  for (const reducedMotion of ["no-preference", "reduce"] as const) {
+    await page.emulateMedia({ reducedMotion });
+    await page.locator("#alert").click();
+    const ok = page.getByRole("alertdialog").getByRole("button", { name: "OK" });
+    const result = await ok.evaluate(async (button) => {
+      (button as HTMLButtonElement).click();
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      const copy = document.querySelector<HTMLElement>(".is-leaving");
+      copy?.querySelector("button")?.focus();
+      return { hasCopy: !!copy, focused: document.activeElement?.id };
+    });
+    expect(result).toEqual({ hasCopy: reducedMotion === "no-preference", focused: "alert" });
+    await expect(page.locator(".is-leaving")).toHaveCount(0);
+  }
+});
+
 test.describe("touch", () => {
   test.use({ hasTouch: true });
   test("touch can acknowledge an alert without trapping later keyboard navigation", async ({ page }) => {

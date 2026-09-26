@@ -12,6 +12,7 @@ import { cssUsesAssetUrl } from "@/lib/css-assets";
 import { ASSET_WINDOW_THRESHOLD, assetWindow } from "../../lib/asset-window";
 import { assetDisplayKind, assetExtensionLabel, isVisualAsset, type AssetDisplayKind } from "../../lib/asset-display";
 import { isEnterKey } from "../../lib/keys";
+import { preferredScrollBehavior } from "../../lib/scroll-behavior";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   CloudUpload,
@@ -444,7 +445,7 @@ export function AssetsTab() {
     if (index < 0) return;
     if (windowed) scrollToAsset(index);
     else listRef.current?.querySelector(`[data-asset-id="${CSS.escape(revealed)}"]`)
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+      ?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
   }, [revealed, shown, windowed, layout.rowHeight]);
   useLayoutEffect(() => {
     const request = focusRequest.current;

@@ -151,7 +151,7 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
       if (event.target === event.currentTarget) onClose();
     }} onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={tr("Trash")}
-        style={{ width: "min(620px, calc(100vw - 32px))", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
+        style={{ width: "min(620px, calc(100vw - 32px))", display: "flex", flexDirection: "column" }}
         onMouseDown={(event) => event.stopPropagation()}>
         <div className="modal-head">
           <h2><Trash2 size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />{tr("Trash")}</h2>

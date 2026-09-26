@@ -13,6 +13,7 @@ import { parseValueLiteral, matchesValueCondition, removeListItem, setVarPath, w
 import { codeLiteral } from "./generator/code-literal";
 import { formatValueText } from "./value-text";
 import { systemTimeValues, systemVariable } from "./system-time";
+import { preferredScrollBehavior } from "./scroll-behavior";
 
 /* ---------- 実行ランタイム ---------- */
 
@@ -1368,7 +1369,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*#scroll*/
           case "scroll-to": {
             var el = find(self, st.target)[0];
-            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            if (el) el.scrollIntoView({ behavior: (${preferredScrollBehavior.toString()})(), block: "start" });
             break;
           }
           /*/scroll*/

@@ -9,6 +9,7 @@ import { AI_STREAM_TYPE, appendAiProgress, readAiResponse, type AiPhase, type Ai
 import AiActivity, { opLabel, phaseLabel } from "./AiActivity";
 import { AiEditConflict, applyAiEdits } from "../lib/ai/client";
 import { isEnterKey } from "../lib/keys";
+import { preferredScrollBehavior } from "../lib/scroll-behavior";
 import { userMessage } from "../lib/errors";
 import { tr } from "../lib/i18n";
 import type { SiteDoc } from "../lib/types";
@@ -55,7 +56,7 @@ function summarizeChanges(ops: AiOp[], before: SiteDoc, after: SiteDoc): AiChang
 function revealNode(id: string) {
   useEditor.getState().select(id);
   requestAnimationFrame(() => {
-    document.querySelector(`.cv-root [data-node="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    document.querySelector(`.cv-root [data-node="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "center", behavior: preferredScrollBehavior() });
   });
 }
 
@@ -236,7 +237,7 @@ export default function AiChat() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: preferredScrollBehavior() });
   }, [messages.length, busy]);
 
   useEffect(() => {

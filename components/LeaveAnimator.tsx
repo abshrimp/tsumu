@@ -11,13 +11,14 @@ const SELECTOR = ".modal-backdrop, .se-backdrop";
  */
 export default function LeaveAnimator() {
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
     const play = (el: HTMLElement, parent: Node) => {
       // 親ごと消えた（画面の切り替えなど）ときは再生しない
       if (!parent.isConnected) return;
       const ghost = el.cloneNode(true) as HTMLElement;
       ghost.classList.add("is-leaving");
+      ghost.inert = true;
       ghost.setAttribute("aria-hidden", "true");
       ghost.removeAttribute("id");
       ghost.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
@@ -58,8 +59,16 @@ export default function LeaveAnimator() {
         });
       }
     });
-    obs.observe(document.body, { childList: true, subtree: true });
-    return () => obs.disconnect();
+    const syncMotionPreference = () => {
+      if (reducedMotion.matches) obs.disconnect();
+      else obs.observe(document.body, { childList: true, subtree: true });
+    };
+    syncMotionPreference();
+    reducedMotion.addEventListener("change", syncMotionPreference);
+    return () => {
+      reducedMotion.removeEventListener("change", syncMotionPreference);
+      obs.disconnect();
+    };
   }, []);
 
   return null;

@@ -44,6 +44,35 @@ async function openDuplicate(page: import("@playwright/test").Page) {
   return dialog;
 }
 
+test("collapsed publishing fields keep their values and reopen for validation", async ({ page }) => {
+  await prepare(page);
+  const dialog = await openDuplicate(page);
+  const summary = dialog.locator(".home-dest-head");
+  const repo = dialog.getByPlaceholder("owner/site-repo");
+  const url = dialog.getByPlaceholder("https://example.com", { exact: true });
+  const submit = dialog.locator("button[type=submit]");
+
+  await expect(repo).toBeHidden();
+  await summary.press("Enter");
+  await repo.fill("invalid");
+  await url.fill("invalid URL");
+  await summary.press("Space");
+  await expect(url).toBeHidden();
+
+  await submit.click();
+  await expect(url).toBeFocused();
+  await expect(url).toHaveValue("invalid URL");
+  await url.fill("https://example.com");
+  await summary.press("Enter");
+  await submit.click();
+  await expect(dialog.locator(".home-dialog-error")).toBeVisible();
+  await expect(repo).toBeVisible();
+  await expect(repo).toHaveValue("invalid");
+  await repo.fill("owner/site");
+  await submit.click();
+  await expect(dialog).toHaveCount(0);
+});
+
 test("a large IndexedDB document can be duplicated without localStorage quota errors", async ({ page }) => {
   const { errors, raw } = await prepare(page, true);
   expect(raw.length).toBeGreaterThan(5 * 1024 * 1024);

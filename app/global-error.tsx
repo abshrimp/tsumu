@@ -13,7 +13,7 @@ export default function GlobalError({ error }: { error: Error }) {
       <body
         style={{
           margin: 0,
-          minHeight: "100vh",
+          minHeight: "100dvh",
           display: "grid",
           placeItems: "center",
           fontFamily: "system-ui, sans-serif",

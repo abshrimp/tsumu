@@ -16,6 +16,42 @@ const snapshot = (page: Page) => page.evaluate(() => {
 // スクリプト全体をドラッグするときの影には、絶対配置のカードが入る。大きさ 0 の親ではなく、カードを調べる。
 const visibleGhost = (page: Page) => page.locator(".se-ghost .se-stack").first();
 const transient = (page: Page) => page.locator(".se-ghost, .se-marquee, .se-slot.is-active, .se-hat-slot.is-active");
+
+test("the block palette collapses only when its own pointer releases past the threshold", async ({ page }) => {
+  const handle = page.locator(".se-pal-resizer");
+  const toggle = page.locator(".se-pal-toggle");
+  const palette = page.locator(".se-main");
+  const width = () => palette.evaluate(el => (el as HTMLElement).style.getPropertyValue("--se-pal-w"));
+  const grab = async () => {
+    await handle.hover();
+    await page.mouse.down();
+    await expect(page.locator("body")).toHaveClass(/is-resizing-panel/);
+  };
+  await grab();
+  const initialWidth = await width();
+  await handle.dispatchEvent("pointerup", { pointerId: 999, clientX: 0, bubbles: true });
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("body")).toHaveClass(/is-resizing-panel/);
+
+  const { x, y } = (await handle.boundingBox())!;
+  await page.mouse.move(x - parseFloat(initialWidth) + 50, y + 30);
+  await expect(handle).toHaveClass(/is-collapse/);
+  await handle.dispatchEvent("pointercancel", { pointerId: 1, clientX: 0, bubbles: true });
+  await page.mouse.up();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(handle).not.toHaveClass(/is-collapse/);
+  await expect(page.locator("body")).not.toHaveClass(/is-resizing-panel/);
+
+  const resizedWidth = await width();
+  await grab();
+  const next = (await handle.boundingBox())!;
+  await page.mouse.move(next.x - parseFloat(resizedWidth) + 50, next.y + 30);
+  await page.mouse.up();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect.poll(width).toBe(resizedWidth);
+});
+
 const owner = (kind: string) => kind === "marquee" ? ".se-ws" : kind === "palette" ? '[data-tutorial="se-block-wait"]' :
   kind === "step" ? '.se-ws [data-sel-key="step:wait"]' : ".se-ws .se-hat";
 async function point(page: Page) {

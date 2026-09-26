@@ -7,49 +7,45 @@ export function trackPanelResize(
   width: number,
   direction: 1 | -1,
   resize: (nextWidth: number) => void,
-  finished: () => void,
+  finished: (releasedWidth: number | null) => void,
 ): () => void {
   const { pointerId, clientX: startX } = start;
-  let active = true;
-  const cleanup = () => {
-    if (!active) return;
-    active = false;
-    window.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerup", onEnd);
-    window.removeEventListener("pointercancel", onEnd);
-    window.removeEventListener("blur", onBlur);
-    document.removeEventListener("visibilitychange", onVisibility);
-    target.removeEventListener("lostpointercapture", onEnd);
+  const listeners = new AbortController();
+  const { signal } = listeners;
+  const widthAt = (event: PointerEvent) => width + (event.clientX - startX) * direction;
+  const finish = (releasedWidth: number | null) => {
+    if (signal.aborted) return;
+    listeners.abort();
     try {
       if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
     } finally {
       activePanelResizes -= 1;
       if (activePanelResizes === 0) document.body.classList.remove("is-resizing-panel");
-      finished();
+      finished(releasedWidth);
     }
   };
+  const cancel = () => finish(null);
   const onMove = (event: PointerEvent) => {
     if (event.pointerId !== pointerId) return;
     // ボタンを離した後にウィンドウへ戻っても、古いドラッグを再開することはできない。
-    if (!(event.buttons & 1)) cleanup();
-    else resize(width + (event.clientX - startX) * direction);
+    if (!(event.buttons & 1)) cancel();
+    else resize(widthAt(event));
   };
-  const onEnd = (event: Event) => {
-    if ("pointerId" in event && event.pointerId !== pointerId) return;
-    cleanup();
+  const onEnd = (event: PointerEvent) => {
+    if (event.pointerId !== pointerId) return;
+    finish(event.type === "pointerup" ? widthAt(event) : null);
   };
-  const onBlur = () => cleanup();
   const onVisibility = () => {
-    if (document.visibilityState === "hidden") cleanup();
+    if (document.visibilityState === "hidden") cancel();
   };
   target.setPointerCapture(pointerId);
   activePanelResizes += 1;
   document.body.classList.add("is-resizing-panel");
-  window.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerup", onEnd);
-  window.addEventListener("pointercancel", onEnd);
-  window.addEventListener("blur", onBlur);
-  document.addEventListener("visibilitychange", onVisibility);
-  target.addEventListener("lostpointercapture", onEnd);
-  return cleanup;
+  window.addEventListener("pointermove", onMove, { signal });
+  window.addEventListener("pointerup", onEnd, { signal });
+  window.addEventListener("pointercancel", onEnd, { signal });
+  window.addEventListener("blur", cancel, { signal });
+  document.addEventListener("visibilitychange", onVisibility, { signal });
+  target.addEventListener("lostpointercapture", onEnd, { signal });
+  return cancel;
 }
