@@ -773,27 +773,6 @@ textarea {
   background: var(--accent);
 }
 
-.inspector-mode-bar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 8px 7px 12px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-2);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.inspector-mode-switch {
-  width: 112px;
-}
-
-.inspector-mode-switch button {
-  flex: 1;
-}
-
 .tabs {
   flex: none;
   display: flex;
@@ -1117,85 +1096,6 @@ textarea {
   color: var(--text-2);
 }
 
-.data-source-steps {
-  display: grid;
-  grid-template-columns: auto 1fr auto 1fr auto;
-  align-items: center;
-  gap: 5px;
-}
-
-.data-source-steps > div {
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-  color: var(--text-3);
-  font-size: 9px;
-}
-
-.data-source-steps b {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--panel);
-}
-
-.data-source-steps i {
-  height: 2px;
-  background: var(--border);
-}
-
-.data-source-steps .is-done b,
-.data-source-steps .is-current b {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: white;
-}
-
-.data-source-steps .is-done,
-.data-source-steps .is-current {
-  color: var(--accent);
-}
-
-.data-source-preview-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text);
-}
-
-.data-source-preview p {
-  margin: 0;
-}
-
-.data-sample-btn {
-  justify-content: center;
-  border-color: var(--accent-border);
-  color: var(--accent);
-}
-
-.data-source-error {
-  margin: 0;
-  padding: 8px;
-  border-radius: 7px;
-  background: #fef2f2;
-  color: #991b1b;
-  line-height: 1.5;
-}
-
-.data-source-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  line-height: 1.45;
-}
-
-.data-source-preview-title svg {
-  color: #16a34a;
-}
-
 /* 取得したデータの表 */
 .data-table-wrap {
   max-height: 220px;
@@ -1239,8 +1139,7 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
-.data-table .is-muted,
-.field-pick .is-muted {
+.data-table .is-muted {
   color: var(--text-3);
 }
 
@@ -1433,131 +1332,6 @@ textarea {
   border-radius: 4px;
   object-fit: cover;
   background: var(--field);
-}
-
-/* 使う一覧の候補 */
-.data-candidates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.data-candidates button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-s);
-  background: var(--panel);
-  color: var(--text-2);
-}
-
-.data-candidates button b {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.data-candidates button.is-on {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent-hover);
-}
-
-.data-source-peek summary {
-  cursor: pointer;
-  color: var(--text-2);
-  font-size: 11px;
-  margin-bottom: 6px;
-}
-
-.data-source-peek[open] summary {
-  margin-bottom: 8px;
-}
-
-.data-source-peek .data-table-wrap {
-  margin-bottom: 6px;
-}
-
-/* 表示する項目を選ぶリスト */
-.field-pick {
-  display: flex;
-  flex-direction: column;
-  max-height: 240px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-s);
-  background: var(--panel);
-}
-
-.field-pick-row {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr) 14px;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-
-.field-pick-row:last-child {
-  border-bottom: 0;
-}
-
-.field-pick-row:hover {
-  background: var(--field);
-}
-
-.field-pick-row.is-on {
-  background: var(--accent-soft);
-}
-
-.field-pick-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-2);
-  font-size: 11px;
-}
-
-.field-pick-row.is-on .field-pick-name {
-  color: var(--accent-hover);
-  font-weight: 600;
-}
-
-.field-pick-value {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text);
-}
-
-.field-pick-check {
-  color: var(--accent);
-}
-
-.data-source-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px;
-}
-
-.data-source-actions.has-preview {
-  grid-template-areas:
-    "save save"
-    "retry cancel";
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
-
-.data-source-actions.has-preview > :nth-child(1) { grid-area: retry; }
-.data-source-actions.has-preview > :nth-child(2) { grid-area: save; }
-.data-source-actions.has-preview > :nth-child(3) { grid-area: cancel; }
-
-.data-source-actions .btn {
-  justify-content: center;
-  min-width: 0;
-  white-space: nowrap;
 }
 
 /* 状態セレクタ */
@@ -1887,31 +1661,6 @@ textarea {
 .add-row:hover {
   border-color: var(--accent-border);
   background: var(--accent-soft);
-}
-
-.preset-row {
-  align-items: flex-start;
-  padding: 8px 10px;
-}
-
-.preset-row > svg {
-  margin-top: 2px;
-  flex: none;
-  color: var(--text-2);
-}
-
-.preset-col {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  text-align: left;
-}
-
-.preset-desc {
-  font-size: 10px;
-  color: var(--text-3);
 }
 
 .comp-row {
@@ -2499,17 +2248,7 @@ textarea {
 
 /* ---- テキスト中の {変数} ---- */
 
-/* 値が入っている変数: 下線で目印 */
-.cv-root .cv-var {
-  border-radius: 2px;
-  background: rgba(13, 153, 255, 0.08);
-  box-shadow: inset 0 -1.5px 0 rgba(13, 153, 255, 0.5);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-}
-
 /* 値の無い変数・編集中の変数: チップ */
-.cv-root .cv-var.is-unset,
 .cv-root .cv-tok {
   padding: 0 0.28em;
   border-radius: 0.3em;
@@ -2518,12 +2257,6 @@ textarea {
   box-shadow: inset 0 0 0 1px rgba(13, 153, 255, 0.28);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
-}
-
-.cv-root .cv-var.is-unset {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.86em;
-  font-weight: 500;
 }
 
 .cv-design [data-rich-edit="true"] {
@@ -2848,8 +2581,7 @@ textarea {
   gap: 12px;
 }
 
-.export-option > .dropdown,
-.export-option > .dropdown-wrap {
+.export-option > .dropdown {
   min-width: 0;
   max-width: 100%;
 }
@@ -2903,82 +2635,10 @@ textarea {
   margin-bottom: 16px;
 }
 
-.publish-targets {
-  margin: 0 0 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-s);
-}
-
-.publish-targets > div {
-  display: flex;
-  gap: 12px;
-  padding: 8px 10px;
-  line-height: 1.5;
-}
-
-.publish-targets > div + div {
-  border-top: 1px solid var(--border);
-}
-
-.publish-targets dt {
-  flex: none;
-  width: 84px;
-  color: var(--text-2);
-}
-
-.publish-targets dd {
-  margin: 0;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.publish-targets dd.is-error {
-  color: #991b1b;
-}
-
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.settings-tutorial {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 16px;
-  padding: 11px;
-  border: 1px solid var(--accent-border);
-  border-radius: 10px;
-  background: var(--accent-soft);
-}
-
-.settings-tutorial-icon {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  flex: none;
-  border-radius: 8px;
-  background: var(--panel);
-  color: var(--accent);
-}
-
-.settings-tutorial > div:nth-child(2) {
-  flex: 1;
-  min-width: 0;
-}
-
-.settings-tutorial strong {
-  display: block;
-  margin-bottom: 2px;
-  font-size: 12px;
-}
-
-.settings-tutorial p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.45;
 }
 
 /* ============ 操作チュートリアル ============ */
@@ -3863,41 +3523,6 @@ textarea {
   background: transparent;
 }
 
-/* ============ スクリプト ============ */
-
-.script-summary {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.script-summary li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 7px 9px;
-  border-radius: var(--radius-s);
-  background: var(--field);
-  line-height: 1.45;
-}
-
-.script-summary li.is-idle {
-  opacity: 0.6;
-}
-
-.script-summary-when {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.script-summary-do {
-  color: var(--text-2);
-  word-break: break-all;
-}
-
 /* 表示エラーの代わりの案内（エラーの中身は出さない） */
 
 .safe-fallback {
@@ -4300,10 +3925,6 @@ textarea {
   }
 }
 
-.inspector-mode-bar {
-  background: var(--panel);
-}
-
 /* ---------- 説明アイコン ---------- */
 
 .info-tip {
@@ -4677,17 +4298,6 @@ textarea {
 .bp-guide.is-hit span {
   opacity: 1;
   font-weight: 600;
-}
-
-/* 区切りの幅（表示幅のガイドと見分けられるよう、灰色の点線にして、ラベルは表示幅のラベルの下に出す） */
-.bp-guide.is-edge {
-  border-left: 1px dotted var(--border-strong);
-  z-index: 2;
-}
-
-.bp-guide.is-edge span {
-  top: 46px;
-  color: var(--text-3);
 }
 
 body.is-resizing-frame,
@@ -5085,25 +4695,6 @@ body {
   pointer-events: auto;
 }
 
-
-/* ---------- デザイン画面の {変数}（値はプレビューで表示） ---------- */
-
-.cv-root .cv-var.is-tpl {
-  padding: 0 0.28em;
-  border-radius: 0.3em;
-  color: #0b7fd4;
-  background: rgba(13, 153, 255, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(13, 153, 255, 0.28);
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-}
-
-.cv-root .cv-var.is-tpl.is-unset {
-  color: #b45309;
-  background: rgba(245, 158, 11, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.4);
-}
 
 .var-comp-none {
   padding: 4px 10px 6px;
@@ -5526,10 +5117,7 @@ button.vx-chev:hover {
 
 /* ---------- {変数} は普通の文字と同じに見せる ---------- */
 
-.cv-root .cv-tok,
-.cv-root .cv-var,
-.cv-root .cv-var.is-tpl,
-.cv-root .cv-var.is-unset {
+.cv-root .cv-tok {
   padding: 0;
   border-radius: 0;
   background: none;
@@ -5607,9 +5195,6 @@ button.vx-chev:hover {
 }
 
 @media (max-width: 1040px) {
-  .hdr-wide {
-    display: none !important;
-  }
 
   .hdr-more .icon-btn.sm {
     width: 28px;
@@ -5666,11 +5251,6 @@ button.vx-chev:hover {
 .bp-edit-name svg {
   flex: none;
   color: var(--text-3);
-}
-
-.bp-edit-op {
-  color: var(--text-3);
-  font-size: 11px;
 }
 
 /* ---------- ページ一覧 ---------- */
@@ -8901,13 +8481,6 @@ a.hist-msg:hover {
 .ai-msg.is-error {
   background: #fef2f2;
   color: #991b1b;
-}
-
-.ai-msg.is-busy {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-2);
 }
 
 .ai-msg.ai-activity {

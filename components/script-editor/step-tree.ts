@@ -418,11 +418,3 @@ export function nudgeStep(scripts: PageScript[], loc: Loc, direction: -1 | 1): P
   const [removed] = spliceScriptList(scripts, loc, 1, []);
   return insertAt(removed, { ...loc, index: to }, [step]);
 }
-
-// このキーは画面上の差し込み位置を指すだけで、保存するデータには使わない。タプルにすることで、
-// 縦線・引用符などの区切り文字を含む ID も、書き換えずに区別できる。
-export const slotKey = (loc: Loc) => JSON.stringify([loc.scriptId, loc.list, loc.index]);
-export function parseSlot(key: string): Loc {
-  const [scriptId, list, index] = JSON.parse(key) as [string, string, number];
-  return { scriptId, list, index };
-}
