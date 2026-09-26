@@ -46,6 +46,7 @@ import { readLocalStorage } from "../lib/local-storage";
 import { useServerStatus } from "../lib/status";
 import { currentSiteId, siteApi, siteKey } from "../lib/site";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
+import { connectEditorPageHistory } from "../lib/editor-page-history";
 import { storageKey } from "../lib/storage-keys";
 import { trackPanelResize } from "../lib/panel-resize";
 
@@ -146,6 +147,12 @@ export default function Editor({ onReady }: EditorProps = {}) {
       title: tr("Import notices"),
     });
   }, [initialLoadComplete]);
+  // 初回の文書読み込み後に URL の ?page= とブラウザの戻る・進むを同期する。
+  useLayoutEffect(() => {
+    if (!initialLoadComplete) return;
+    return connectEditorPageHistory(useEditor);
+  }, [initialLoadComplete]);
+
   // ページ側が準備画面を持っている場合は、描画の前に完了を伝え、同じ準備画面を一度だけ閉じる。
   useLayoutEffect(() => {
     if (initialLoadComplete) onReady?.();

@@ -9,11 +9,11 @@ const css = readFileSync(resolve("app/globals.css"), "utf8");
 test.beforeAll(async () => { bundle = await siteBootstrapBundle(true); });
 
 /** リクエストが完了する順序だけを制御し、実際のページとエディタを動かす。 */
-async function prepare(page: Page, { strict = true, cached = false, localSite = false } = {}) {
-  await page.route("**/sites/bootstrap-test", (route) => route.fulfill({
+async function prepare(page: Page, { strict = true, cached = false, localSite = false, query = "" } = {}) {
+  await page.route("**/sites/bootstrap-test**", (route) => route.fulfill({
     contentType: "text/html", body: '<html><head></head><body><div id="app"></div></body></html>',
   }));
-  await page.goto("/sites/bootstrap-test");
+  await page.goto("/sites/bootstrap-test" + query);
   await page.addStyleTag({ content: css });
   await page.evaluate(({ strict, cached, localSite }) => {
     const w = window as any;
@@ -38,6 +38,11 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
       releaseDoc: (mode = "server") => {
         if (mode === "network") return doc.reject(new TypeError("offline"));
         const saved = w.bootstrapDoc(); saved.siteName = "Saved server document";
+        for (const id of w.bootstrap.extraPages ?? []) {
+          const first = saved.pages[saved.pageOrder[0]];
+          saved.pages[id] = { ...first, id, name: id, slug: id, children: [] };
+          saved.pageOrder.push(id);
+        }
         const body = mode === "invalid" ? { exists: true } : mode === "new" ? { exists: false }
           : { exists: true, doc: saved, rev: "1", savedAt: 1 };
         doc.resolve(Response.json(body, { status: mode === "offline" ? 503 : mode === "error" ? 500 : 200 }));
@@ -206,3 +211,35 @@ for (const phase of ["site", "module", "document"] as const) {
     await page.evaluate(() => (window as any).disposeBootstrap());
   });
 }
+
+
+test("Editor page query supports direct links and browser back/forward without reloading", async ({ page }) => {
+  await prepare(page, { strict: false, query: "?other=keep&page=second#anchor" });
+  await page.evaluate(() => {
+    const w = window as any;
+    w.bootstrap.extraPages = ["second", "third"];
+    w.bootstrap.releaseSite();
+    w.bootstrap.releaseModule();
+  });
+  await expect.poll(() => page.evaluate(() => (window as any).bootstrap.docRequests)).toBe(1);
+  await page.evaluate(() => (window as any).bootstrap.releaseDoc());
+  await expect(page.locator("[data-bootstrap-document]")).toBeVisible();
+  const pageId = () => page.evaluate(() => (window as any).bootstrapEditor.getState().activePageId);
+  await expect.poll(pageId).toBe("second");
+  const originalDocument = await page.evaluate(() => (window as any).bootstrapEditor.getState().doc);
+  await page.evaluate(() => { (window as any).originalHistoryCanvas = document.querySelector("[data-bootstrap-document]"); });
+  await page.evaluate(() => (window as any).bootstrapEditor.getState().setActivePage("third"));
+  await expect.poll(pageId).toBe("third");
+  await expect.poll(() => page.evaluate(() => new URL(location.href).searchParams.get("page"))).toBe("third");
+  expect(await page.evaluate(() => ({
+    other: new URL(location.href).searchParams.get("other"),
+    hash: location.hash,
+  }))).toEqual({ other: "keep", hash: "#anchor" });
+  await page.evaluate(() => history.back());
+  await expect.poll(pageId).toBe("second");
+  await page.evaluate(() => history.forward());
+  await expect.poll(pageId).toBe("third");
+  expect(await page.evaluate(() => (window as any).bootstrapEditor.getState().doc)).toEqual(originalDocument);
+  expect(await page.locator("[data-bootstrap-document]").evaluate(el => el === (window as any).originalHistoryCanvas)).toBe(true);
+  await page.evaluate(() => (window as any).disposeBootstrap());
+});

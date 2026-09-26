@@ -63,7 +63,7 @@ for (const draft of ["create", "reply", "edit"] as const) test(`deleting a local
   else await expect(detail.getByRole("alert")).toContainText("このスレッドは削除されています", { timeout: 20_000 });
   await expect(editor.locator(".cm-panel .is-error")).toHaveText("サイトが見つかりません");
   await expect(input).toHaveValue("Keep this unsent text for copying");
-  await expect(editor).toHaveURL(new RegExp(`/sites/${site.id}$`));
+  await expect.poll(() => editor.evaluate(() => window.location.pathname)).toBe(`/sites/${site.id}`);
   await expect(editor.locator(".cm-item")).toHaveCount(0);
   await expect(editor.locator(".cm-pin:not(.is-draft)")).toHaveCount(0);
   expect(await editor.evaluate(key => localStorage.getItem(key), key)).toBeNull();

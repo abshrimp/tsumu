@@ -13,6 +13,7 @@ export async function siteBootstrapBundle(browser = false) {
         import SitePage from './app/sites/[id]/page';
         import ErrorPage from './app/error';
         import { createInitialDoc } from './lib/presets';
+        import { useEditor } from './lib/store';
         class Boundary extends React.Component {
           state = { error: null };
           static getDerivedStateFromError(error) { return { error }; }
@@ -22,6 +23,7 @@ export async function siteBootstrapBundle(browser = false) {
         }
         const root = createRoot(document.getElementById('app'));
         window.bootstrapDoc = createInitialDoc;
+        window.bootstrapEditor = useEditor;
         window.mountBootstrap = (strict = true) => root.render(strict
           ? <React.StrictMode><Boundary><SitePage /></Boundary></React.StrictMode>
           : <Boundary><SitePage /></Boundary>);
