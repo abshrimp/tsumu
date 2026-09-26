@@ -14,13 +14,16 @@ test("front/back controls affect a static block's actual stacking and undo resto
       import { useEditor } from "./lib/store";
       const node = makeBox(); node.id = "a";
       node.styles = {base:{default:{display:"block",position:"static",width:"100px",height:"100px",backgroundColor:"red"}}};
-      const doc = createInitialDoc(); doc.nodes = { a: node };
-      doc.pages[doc.pageOrder[0]].children = ["a"];
+      const peer = makeBox(); peer.id = "b";
+      peer.styles = {base:{default:{position:"relative",zIndex:"0",width:"100px",height:"100px",marginTop:"-100px",backgroundColor:"blue"}}};
+      const doc = createInitialDoc(); doc.nodes = { a: node, b: peer };
+      doc.pages[doc.pageOrder[0]].children = ["a", "b"];
       useEditor.getState().replaceDoc(doc); useEditor.getState().select("a");
       window.positionEditor = useEditor;
       function Fixture() {
         const style = useEditor(s => s.doc.nodes.a.styles.base.default);
-        return <><div id="front" style={style}/><div id="back" style={{position:"relative",zIndex:0,width:100,height:100,marginTop:-100,backgroundColor:"blue"}}/><StylePanel nodeId="a" /></>;
+        const peer = useEditor(s => s.doc.nodes.b.styles.base.default);
+        return <><div id="front" style={style}/><div id="back" style={peer}/><StylePanel nodeId="a" /></>;
       }
       createRoot(document.getElementById("app")).render(<Fixture />);
     `, resolveDir: resolve("."), loader: "tsx" },
@@ -30,7 +33,7 @@ test("front/back controls affect a static block's actual stacking and undo resto
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   const top = () => page.evaluate(() => document.elementFromPoint(50, 50)?.id);
   await expect.poll(top).toBe("back");
-  await page.locator('.z-ctl button').last().click();
+  await page.locator(".z-ctl button").last().click();
   await expect.poll(top).toBe("front");
   await expect(page.locator("#front")).toHaveCSS("position", "relative");
   await page.evaluate(() => (window as any).positionEditor.getState().undo());
