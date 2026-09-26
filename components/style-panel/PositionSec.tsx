@@ -4,7 +4,7 @@
  * 配置（重なり順・位置）と、親のレイアウトに対する大きさ
  */
 
-import { ArrowDown, ArrowUp, BringToFront, MoveHorizontal, MoveVertical, RotateCw, SendToBack } from "lucide-react";
+import { BringToFront, MoveHorizontal, MoveVertical, RotateCw, SendToBack } from "lucide-react";
 import { findParentOf, useEditor } from "../../lib/store";
 import {
   parseNumeric,
@@ -17,7 +17,6 @@ import {
 import { Grp, NumField, PropNum, Seg, unitConverter, useInspector } from "../controls";
 import { tr } from "../../lib/i18n";
 import { I, Sec } from "./shared";
-import { nextStackLevel, type StackAction } from "../../lib/stack-order";
 
 // 明示的に選んだ方式は、通常時や大きい画面の値を上書きしなければならない。
 // 右クリックメニューでのリセットと入力欄を空にする操作は、それぞれ別の意味のまま残す。
@@ -27,120 +26,46 @@ function explicitDefault(insp: ReturnType<typeof useInspector>, prop: string): s
 
 /* ---------- 重なり順 ---------- */
 
-/** A parent with its own stacking context may keep its children behind other groups. */
-function stackingContextParent(): string | null {
-  const { doc, selection, breakpoint } = useEditor.getState();
-  if (!selection || !doc.nodes[selection]) return null;
-  let parent = findParentOf(doc, selection);
-  while (parent?.kind === "node") {
-    const node = doc.nodes[parent.id];
-    if (!node) break;
-    const styles = resolveStyles(node, breakpoint, "default");
-    const pos = styles.position ?? "static";
-    const z = styles.zIndex;
-    const opacity = styles.opacity === undefined ? 1 : Number(styles.opacity);
-    if (
-      ((pos === "relative" || pos === "absolute") && z && z !== "auto") ||
-      pos === "fixed" || pos === "sticky" ||
-      (Number.isFinite(opacity) && opacity < 1) ||
-      (styles.transform && styles.transform !== "none") ||
-      styles.isolation === "isolate"
-    ) return parent.id;
-    parent = findParentOf(doc, parent.id);
-  }
-  return null;
-}
-
-function siblingStackLevels(): (string | undefined)[] {
-  const { doc, selection, breakpoint, styleState } = useEditor.getState();
-  if (!selection || !doc.nodes[selection]) return [];
-  const parent = findParentOf(doc, selection);
-  const children = parent?.kind === "node"
-    ? doc.nodes[parent.id]?.children
-    : parent?.kind === "page"
-      ? doc.pages[parent.id]?.children : undefined;
-  if (!children) return [];
-  const parentDisplay = parent?.kind === "node" && doc.nodes[parent.id]
-    ? resolveStyles(doc.nodes[parent.id], breakpoint, "default").display : "block";
-  const flexOrGrid = ["flex", "inline-flex", "grid", "inline-grid"].includes(parentDisplay ?? "");
-  return children.filter(id => id !== selection && !!doc.nodes[id]).map(id => {
-    const styles = resolveStyles(doc.nodes[id], breakpoint, styleState);
-    // For a static child outside flex/grid, CSS ignores its z-index.
-    if (!flexOrGrid && (!styles.position || styles.position === "static")) return undefined;
-    return styles.zIndex;
-  });
-}
-
 function ZIndexControl() {
   const insp = useInspector();
   const info = insp.get("zIndex");
   const z = info.value !== undefined && info.value !== "auto" ? parseInt(info.value, 10) || 0 : null;
-  const parent = stackingContextParent();
-  const peers = siblingStackLevels();
 
-  const write = (next: number | null) => {
-    if (next === null) return;
+  const bump = (d: number) => {
+    const next = (z ?? 0) + d;
     const props: Record<string, string | null> = { zIndex: String(next) };
-    // Automatically participate in z-index ordering for initially static elements.
+    // z-index を効かせるため、配置を指定していない要素には relative を付ける。
+    // 小さい画面で「自動」に戻した場合は、明示的に static が入る。
     if (isInitialValue("position", insp.get("position").value)) props.position = "relative";
     insp.set(props);
   };
-  const next = (action: StackAction) => nextStackLevel(info.value, peers, action);
+
   return (
-    <div className="z-control">
-      <div className="z-ctl">
-        <button type="button" className="icon-btn" aria-label={tr("Send to back")}
-          data-tip={tr("Send to back")} disabled={next("back") === null} onClick={() => write(next("back"))}>
-          <SendToBack size={14} />
-        </button>
-        <button type="button" className="icon-btn" aria-label={tr("Send backward")}
-          data-tip={tr("Send backward")} disabled={next("backward") === null} onClick={() => write(next("backward"))}>
-          <ArrowDown size={14} />
-        </button>
-        <span className={"z-val" + (info.changed ? " is-set" : "")}
-          data-tip={info.setHere ? tr("Right-click to reset") : tr("Stacking order (z-index)")}
-          onContextMenu={(e) => { e.preventDefault(); insp.set({ zIndex: null }); }}>
-          {z !== null ? z : tr("automatic")}
-        </span>
-        <button type="button" className="icon-btn" aria-label={tr("Bring forward")}
-          data-tip={tr("Bring forward")} disabled={next("forward") === null} onClick={() => write(next("forward"))}>
-          <ArrowUp size={14} />
-        </button>
-        <button type="button" className="icon-btn" aria-label={tr("Bring to front")}
-          data-tip={tr("Bring to front")} disabled={next("front") === null} onClick={() => write(next("front"))}>
-          <BringToFront size={14} />
-        </button>
-      </div>
-      <details className="z-advanced">
-        <summary>{tr("Exact stacking order (z-index)")}</summary>
-        <input type="number" step="1" aria-label={tr("Exact stacking order (z-index)")}
-          key={info.value ?? "auto"} defaultValue={z ?? ""} placeholder={tr("automatic")}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
-            if (e.key === "Escape") {
-              e.currentTarget.value = z === null ? "" : String(z);
-              e.currentTarget.blur();
-            }
-          }}
-          onBlur={(e) => {
-            const value = e.currentTarget.value.trim();
-            if (!value) insp.set({ zIndex: null });
-            else if (/^-?\d+$/.test(value)) {
-              const parsed = Number(value);
-              if (Number.isSafeInteger(parsed) && parsed >= -2147483647 && parsed <= 2147483647)
-                write(parsed);
-            }
-          }}
-        />
-      </details>
-      {parent && (
-        <div className="z-parent-notice">
-          {tr("A parent's stacking order can limit this element.")}
-          <button type="button" onClick={() => useEditor.getState().select(parent)}>
-            {tr("Select parent")}
-          </button>
-        </div>
-      )}
+    <div className="z-ctl">
+      <button
+        className="icon-btn"
+        data-tip={tr("Send backward")}
+        onClick={() => bump(-1)}
+      >
+        <SendToBack size={14} />
+      </button>
+      <span
+        className={`z-val${info.changed ? " is-set" : ""}`}
+        data-tip={info.setHere ? tr("Right-click to reset") : tr("Stacking order (z-index)")}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          insp.set({ zIndex: null });
+        }}
+      >
+        {z !== null ? z : tr("automatic")}
+      </span>
+      <button
+        className="icon-btn"
+        data-tip={tr("Bring forward")}
+        onClick={() => bump(1)}
+      >
+        <BringToFront size={14} />
+      </button>
     </div>
   );
 }
@@ -352,16 +277,13 @@ export function PositionSec() {
             }
           />
         </Grp>
-        <div className="z-grid-wide">
-          <Grp
-            label={tr("Stacking order")}
-            info={tr("Arrange elements within the same parent. Parent stacking can limit the result.")}
-            setHere={insp.get("zIndex").changed}
-            onReset={() => insp.set({ zIndex: null })}
-          >
-            <ZIndexControl />
-          </Grp>
-        </div>
+        <Grp
+          label={tr("Stacking order")}
+          setHere={insp.get("zIndex").changed}
+          onReset={() => insp.set({ zIndex: null })}
+        >
+          <ZIndexControl />
+        </Grp>
       </div>
     </Sec>
   );

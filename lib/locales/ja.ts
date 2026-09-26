@@ -2,11 +2,6 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
-  "Send to back": "最背面へ",
-  "Bring to front": "最前面へ",
-  "Exact stacking order (z-index)": "重なり順を数値で指定（z-index）",
-  "A parent's stacking order can limit this element.": "親要素の重なり順により、前面に出せる範囲が制限される場合があります。",
-  "Arrange elements within the same parent. Parent stacking can limit the result.": "同じ親要素の中で前後を入れ替えます。親要素の重なり順によっては前面に出せない場合があります。",
   "Show ［Alert / Confirm / Prompt］ ［message］": "［アラート／確認／入力］を表示［メッセージ］",
   "Show {kind} with {message}": "{kind}を表示 {message}",
   "Dialog type": "ダイアログの種類",

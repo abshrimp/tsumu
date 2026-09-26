@@ -3851,15 +3851,6 @@ textarea {
   font-weight: 600;
 }
 
-.z-grid-wide { grid-column: 1 / -1; min-width: 0; }
-.z-control { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.z-ctl button:disabled { opacity: 0.35; cursor: default; }
-.z-advanced { color: var(--text-2); font-size: 11px; }
-.z-advanced summary { cursor: pointer; width: max-content; }
-.z-advanced input { margin-top: 5px; max-width: 120px; width: 100%; padding: 4px 7px; border-radius: var(--radius-s); border: 1px solid var(--border); background: var(--field); color: var(--text); }
-.z-parent-notice { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: var(--text-2); font-size: 11px; }
-.z-parent-notice button { border: none; padding: 0; background: transparent; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
-
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
