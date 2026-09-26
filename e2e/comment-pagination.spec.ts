@@ -43,7 +43,7 @@ test("1001 comments remain reachable and paging preserves off-batch reply drafts
   await expect(page.locator(".cm-pagination")).toContainText("全1001件中1件");
   await expect(page.getByRole("button", { name: "新しい一覧", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "最新の一覧", exact: true }).click();
-  // 一覧を行き来しても、スレッドを開き直せば書きかけの返信が戻る。
+  // Navigating between pages preserves an unfinished reply when its thread is reopened.
   await page.locator(".cm-item").filter({ has: page.locator(".cm-item-body", { hasText: /^Discussion 1000$/ }) }).click();
   await expect(reply).toHaveValue("Reply across batches");
   await detail(page).getByRole("button", { name: "返信", exact: true }).click();
@@ -66,7 +66,7 @@ test("a new comment draft survives batch navigation and its 1002nd thread opens 
   await page.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
   const input = detail(page).getByPlaceholder("コメントを書く", { exact: true });
   await input.fill("New discussion after 1001");
-  // 一覧に戻って行き来しても、新しいコメントの書きかけは残る。
+  // Returning to the list and navigating between pages preserves a new comment draft.
   await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   await page.getByRole("button", { name: "最新の一覧", exact: true }).click();
   await page.getByRole("button", { name: "古い一覧", exact: true }).click();

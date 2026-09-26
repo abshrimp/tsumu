@@ -6,7 +6,7 @@ import { copySiteStorageBundle } from "../tests/helpers/copy-site-storage";
 import { encodedCssAssetDoc, emptyAssetDestination, picture, type CssLocation } from "../tests/helpers/encoded-css-assets";
 
 for (const location of ["node.styles", "node.customCss", "page.bodyStyles"] as CssLocation[]) {
-  test(`${location} のCSSエスケープで使う画像を別サイトのページコピーに含める`, async ({ page }) => {
+  test(`Copied pages include images referenced by CSS escapes in ${location}`, async ({ page }) => {
     const source = encodedCssAssetDoc(location, location !== "page.bodyStyles");
     const bundle = await copySiteStorageBundle(source);
     const errors: string[] = [];

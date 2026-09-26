@@ -32,7 +32,7 @@ async function start(page: Page, kind: "upload" | "migration", path = "assets/co
 }
 
 for (const boundary of ["undo", "undo-redo", "replace", "restore"] as const) {
-  test(`アセット追加中の${boundary}後も履歴を壊さず完了ファイルを残す`, async ({ page }) => {
+  test(`${boundary} during asset creation preserves history and successfully added files`, async ({ page }) => {
     await page.evaluate(() => (window as any).assetEditor.getState().updateNode("a", { name: "Important edit" }));
     const finish = await start(page, "upload");
     if (boundary.startsWith("undo")) await page.locator("#undo").click();
@@ -57,7 +57,7 @@ for (const boundary of ["undo", "undo-redo", "replace", "restore"] as const) {
 }
 
 for (const boundary of ["undo", "restore", "remote-source", "remote-path"] as const) {
-  test(`サーバー移行中の${boundary}で古いファイルを上書きしない`, async ({ page }) => {
+  test(`${boundary} during server migration does not overwrite older files`, async ({ page }) => {
     await page.evaluate(() => (window as any).assetEditor.getState().updateNode("a", { name: "Important edit" }));
     const finish = await start(page, "migration");
     if (boundary === "undo") await page.locator("#undo").click();
@@ -75,7 +75,7 @@ for (const boundary of ["undo", "restore", "remote-source", "remote-path"] as co
   });
 }
 
-test("移行中にタブを閉じてページを変えても同じファイルの移行と背景・履歴を保つ", async ({ page }) => {
+test("Closing the tab and switching pages during migration preserves the file, background, and history", async ({ page }) => {
   const finish = await start(page, "migration");
   await page.evaluate(() => {
     const s = (window as any).assetEditor.getState(); s.setActivePage("q");
@@ -94,7 +94,7 @@ test("移行中にタブを閉じてページを変えても同じファイル�
 });
 
 for (const kind of ["upload", "migration"] as const) {
-  test(`数値ドラッグ中の${kind}完了は別々のUndo/Redoを保つ`, async ({ page }) => {
+  test(`Completing ${kind} during a numeric drag preserves independent Undo/Redo steps`, async ({ page }) => {
     const before = await snapshot(page); const finish = await start(page, kind);
     const handle = page.locator("#controls .field-pre.scrub"); const rect = await handle.boundingBox();
     expect(rect).toBeTruthy(); await page.mouse.move(rect!.x + rect!.width / 2, rect!.y + rect!.height / 2); await page.mouse.down();

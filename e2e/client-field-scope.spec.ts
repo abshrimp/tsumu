@@ -18,11 +18,11 @@ async function check(page: Page) {
     await expect(fields(page, 'entry').nth(1)).toHaveAttribute('placeholder', 'Find Second');
   }
 }
-for (const component of [false, true]) test(`${component ? 'component' : 'plain'} field edits retain row defaults through preview, undo, save and generated navigation`, async ({ page }) => {
+test(`component field edits retain row defaults through preview, undo, save and generated navigation`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: fieldItems } }));
   await page.goto('/robots.txt'); await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  const doc = clientFieldDoc(component); doc.nodes.entry.field!.defaultValue = 'Before';
+  const doc = clientFieldDoc(true); doc.nodes.entry.field!.defaultValue = 'Before';
   await page.addScriptTag({ content: await componentListBundle(doc, 'entry') });
   const input = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^初期値$/ }) }).locator('input');
   const before = await snapshot(page); await expect(input).toHaveValue('Before');

@@ -22,7 +22,7 @@ async function openPicker(page: Page) {
   await expect(page.getByRole("dialog", { name: "変数を探す" })).toBeVisible();
 }
 
-test("詳細を隠した直後の Enter で変数を挿入でき、保存・元に戻す・やり直すも一致する", async ({ page }) => {
+test("Enter after closing variable details inserts the value and preserves save/Undo/Redo", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
   await openPicker(page);
   const before = await snapshot(page);
@@ -53,7 +53,7 @@ test("詳細を隠した直後の Enter で変数を挿入でき、保存・元�
   expect(errors).toEqual([]);
 });
 
-test("変数の開閉ボタンは Enter・Space で中身だけを開き、行の Enter で選んだ項目を挿入する", async ({ page }) => {
+test("Enter/Space toggles variable details, while Enter on a row inserts its selected value", async ({ page }) => {
   await openPicker(page); const before = await snapshot(page);
   const product = page.locator(".vx-row").filter({ has: page.locator(".vx-tok", { hasText: /^\{product\}$/ }) });
   const expand = product.getByRole("button", { name: "中を開く", exact: true });
@@ -71,7 +71,7 @@ test("変数の開閉ボタンは Enter・Space で中身だけを開き、行�
   expect((await snapshot(page)).doc.nodes.target.field.defaultValue).toBe("{product.name}");
 });
 
-test("検索中のデータ更新で候補が減っても、空の検索・キャンセル・再選択で別の要素を変えない", async ({ page }) => {
+test("Search updates that remove candidates do not modify another target after clear, cancel, or reselection", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
   await openPicker(page);
   await page.getByRole("button", { name: "詳細を表示", exact: true }).click();
@@ -102,7 +102,7 @@ test("検索中のデータ更新で候補が減っても、空の検索・キ�
 });
 
 for (const width of [1440, 375, 320]) {
-  test(`設定欄の変数候補の2つの操作案内は折り返さず、幅 ${width}px の画面内に収まる`, async ({ page }) => {
+  test(`Both variable hint actions in Settings fit without wrapping at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await source(page).focus();
     await source(page).press("Control+/");

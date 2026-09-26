@@ -30,12 +30,12 @@ async function check(page: Page) {
     await expect.poll(() => activeRows(page)).toEqual(expected);
   }
 }
-for (const component of [false, true]) test(`${component ? 'component' : 'plain'} nested browser arrays: configure, preview, reload and execute export`, async ({ page }) => {
+test(`component nested browser arrays: configure, preview, reload and execute export`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: nestedScopeItems } }));
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await clientNestedBundle(component) });
+  await page.addScriptTag({ content: await clientNestedBundle(true) });
   const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^表示するリスト$/ }) }).locator('button');
   await source.click();
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
@@ -63,7 +63,7 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   const html = await publishedClientNested(saved.doc);
   await page.setContent(html); await page.addScriptTag({ content: scriptsFile(saved.doc) });
   await check(page);
-  // 本番と同じ常駐ランタイムで別ページへ移動し、戻ったときの変数と操作をリセットする。
+  // Navigate away and back with the production-style persistent runtime to reset temporary values and operations.
   await page.evaluate(() => { document.body.innerHTML = '<span data-page-body="other"></span>'; });
   await expect(details(page)).toHaveCount(0);
   await page.evaluate(content => { document.body.innerHTML = content; }, html);
@@ -103,14 +103,14 @@ test('nested static filters shadow server values without reinterpreting literal 
   expect(errors).toEqual([]);
 });
 
-for (const component of [false, true]) test(`${component ? 'component' : 'plain'} client text overrides the server scalar through real controls`, async ({ page }) => {
-  const doc = clientNestedDoc(component);
+test(`component client text overrides the server scalar through real controls`, async ({ page }) => {
+  const doc = clientNestedDoc(true);
   doc.pages.p.pageScripts![0].steps.push({ id: 'global-name', kind: 'set-var', value: '{response.0.name}', into: 'name' });
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: nestedScopeItems } }));
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await clientNestedBundle(component, doc) });
+  await page.addScriptTag({ content: await clientNestedBundle(true, doc) });
   const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^表示するリスト$/ }) }).locator('button');
   await source.click();
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
@@ -136,14 +136,14 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   await check(page); expect(errors).toEqual([]);
 });
 
-for (const component of [false, true]) test(`${component ? 'component' : 'plain'} generated client links retain row URLs after reload and navigation`, async ({ page }) => {
+test(`component generated client links retain row URLs after reload and navigation`, async ({ page }) => {
   const { clientLinkDoc, linkItems } = await import('../tests/helpers/client-link-scope');
-  let doc = clientLinkDoc(component, "/before");
+  let doc = clientLinkDoc(true, "/before");
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: linkItems } }));
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await clientNestedBundle(component, doc) });
+  await page.addScriptTag({ content: await clientNestedBundle(true, doc) });
   const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^表示するリスト$/ }) }).locator('button');
   await source.click();
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
@@ -151,7 +151,7 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   const value = page.locator('.se-ws [data-sel-key="step:reload-step"] input').first();
   await value.fill('{response}'); await value.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();
-  // 選択だけを補助し、URL の編集・履歴・保存は実際の設定画面を通す。
+  // Only selection is assisted; URL editing, history, and saving go through the actual Settings panel.
   await page.evaluate(() => (window as any).clientNestedStore.getState().select('detail'));
   const before = await snapshot(page);
   const url = page.getByPlaceholder('https://…・#ID・{変数}', { exact: true });

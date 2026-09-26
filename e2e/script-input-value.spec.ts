@@ -62,7 +62,7 @@ for (const preview of [true, false]) for (const entry of cases) {
     await value(page, entry.expected, 3);
     await click(page, "restore-then-assign");
     await value(page, entry.expected, 5);
-    // 通常のユーザー入力に戻れる。色・範囲は専用のネイティブ操作なので別に確認する。
+    // Normal user input resumes; color and range require their own native interactions and are tested separately.
     if (entry.field.inputType === "range") {
       await page.locator("#entry").focus();
       await page.locator("#entry").press("ArrowLeft");

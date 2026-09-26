@@ -34,7 +34,8 @@ test("real field selection keeps literal keys through undo, reload and server ex
   expect(errors).toEqual([]);
 });
 
-for (const key of ["A & B", "A%20%26%20B", "absent"]) test(`browser find preserves literal-field priority for ${key}`, async ({ page }) => {
+// Encoded literal precedence and no-match cover the browser paths; raw keys stay in Node tests.
+for (const key of ["A%20%26%20B", "absent"]) test(`browser find preserves literal-field priority for ${key}`, async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
   const doc = arrayFindFieldsDoc(literalFieldItems, "meta.name", key, true);
   const html = await publishedComponentList(doc, "app/page.tsx", literalFieldItems);

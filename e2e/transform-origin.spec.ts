@@ -20,7 +20,7 @@ for (const [bp, state, inherited, resetValue] of [
   ["base", "focus", "0px 0px", "0px 0px"],
   ["sm", "hover", "0px 100px", "0px 100px"],
 ] as const) {
-  test(`${bp}/${state} の中央を選べて、リセット・元に戻す・やり直すで継承先を保つ`, async ({ page }) => {
+  test(`${bp}/${state}: the center origin survives reset, Undo, Redo, and inheritance`, async ({ page }) => {
     await page.evaluate(({ bp, state }) => {
       const s = (window as any).originEditor.getState();
       s.setBreakpoint(bp); s.setStyleState(state);
@@ -38,7 +38,7 @@ for (const [bp, state, inherited, resetValue] of [
     await page.evaluate(() => (window as any).originEditor.getState().redo());
     await expect(node(page)).toHaveCSS("transform-origin", "100px 50px");
     expect(await page.evaluate(() => (window as any).originEditor.getState().doc)).toEqual(changed);
-    // 同じセルの再選択は解除ではなく、同じ基準点を保つ。
+    // Selecting the same cell again keeps its origin rather than toggling it off.
     const history = await page.evaluate(() => (window as any).originEditor.getState().past.length);
     await center(page).click();
     await expect(node(page)).toHaveCSS("transform-origin", "100px 50px");
@@ -53,7 +53,7 @@ for (const [bp, state, inherited, resetValue] of [
   });
 }
 
-test("中央を複数選択に適用し、解除後はそれぞれの大きい画面の基準点を受け継ぐ", async ({ page }) => {
+test("Setting center origin for multiple nodes preserves their individually inherited larger-breakpoint values", async ({ page }) => {
   await page.evaluate(() => {
     const s = (window as any).originEditor.getState();
     s.setBreakpoint("sm"); s.selectMany(["a", "b"], "a");
@@ -67,7 +67,7 @@ test("中央を複数選択に適用し、解除後はそれぞれの大きい�
   await reset(page);
   await expect(node(page)).toHaveCSS("transform-origin", "0px 0px");
   await expect(node(page, "b")).toHaveCSS("transform-origin", "200px 100px");
-  // 別のページへ移った後の操作は、前の複数選択に残らない。
+  // An action after navigating to a different page must not reuse the previous multi-selection.
   await page.evaluate(() => {
     const s = (window as any).originEditor.getState(); s.setActivePage("q"); s.select("c");
   });
@@ -79,7 +79,7 @@ test("中央を複数選択に適用し、解除後はそれぞれの大きい�
   })).toEqual([undefined, undefined]);
 });
 
-test("通常時の中央も選べて、他の基準点と右クリックリセットを妨げない", async ({ page }) => {
+test("Center origin in normal mode does not block other origins or right-click reset", async ({ page }) => {
   await center(page).click();
   await expect(node(page)).toHaveCSS("transform-origin", "100px 50px");
   await page.locator('.origin-grid [data-tip="右下"]').click();

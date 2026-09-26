@@ -14,7 +14,7 @@ let server: ChildProcess | undefined;
 let origin = "";
 let output = "";
 
-// テスト専用に生成した Next.js を実際に動かし、Link・RSC・履歴を通した状態復元を確かめる。
+// Run a generated Next.js application and verify state restoration through Link, RSC, and history.
 test.beforeAll(async () => {
   test.setTimeout(180_000);
   directory = await mkdtemp(join(tmpdir(), "tsumu-search-form-"));
@@ -30,7 +30,7 @@ test.beforeAll(async () => {
   build.stderr!.on("data", (chunk) => { output += chunk; });
   const [code] = await once(build, "exit");
   expect(code, output).toBe(0);
-  // useSearchParams の追加で静的フォームが消えたり、ページ全体がCSRにならない。
+  // Adding useSearchParams must not hide the static form or turn the whole page into CSR.
   const html = await readFile(join(directory, ".next/server/app/index.html"), "utf8");
   expect(html).toContain('id="static-form"');
   expect(html).toContain('value="Static form"');
@@ -56,7 +56,7 @@ test.afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-test("検索フォームはソフトナビゲーションと履歴に追従し、同じURLの描画では入力を保つ", async ({ page }) => {
+test("Search forms follow client-side navigation and history while preserving input on same-URL renders", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(`${origin}/search${firstSearch}`);
@@ -91,7 +91,7 @@ test("検索フォームはソフトナビゲーションと履歴に追従し�
   expect(submitted.searchParams.get("tab")).toBe("products");
   expect(submitted.searchParams.get("q")).toBe("日本語 & +");
 
-  // 同じ条件を再送信した応答が来ても、その間に書き始めた値は戻さない。
+  // A response to resubmitting the same query must not overwrite text entered while the request was in flight.
   const revision = await page.locator("#render-revision").textContent();
   let release!: () => void;
   let intercepted!: () => void;

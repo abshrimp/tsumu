@@ -52,7 +52,7 @@ async function roundTrip(page: Page, siteId: string, content: string) {
   await expect.poll(() => textNode(page).textContent()).toBe(content);
 }
 
-test("Enterで入れた末尾の改行を編集終了・無変更の再編集・保存後も残す", async ({ page }) => {
+test("Trailing newlines entered with Enter survive blur, unchanged re-editing, and saving", async ({ page }) => {
   const siteId = await openSite(page);
   await textNode(page).dblclick();
   await editing(page).fill("First line");
@@ -68,7 +68,7 @@ test("Enterで入れた末尾の改行を編集終了・無変更の再編集・
   await roundTrip(page, siteId, content);
 });
 
-test("変数チップと末尾改行を含む貼り付けを編集内Undo・Redoと保存で壊さない", async ({ page }) => {
+test("Pasted variable chips and trailing newlines survive local Undo/Redo and saving", async ({ page }) => {
   const siteId = await openSite(page);
   await textNode(page).dblclick();
   const content = "<&>\nHello {profile.name}\n\n";

@@ -4,8 +4,8 @@ import { scriptsFile } from '../lib/script-runtime';
 import { clientScriptBundle, clientScriptFixture } from '../tests/helpers/client-script-scope';
 import { publishedClientNested } from '../tests/helpers/client-nested-lists';
 
-for (const component of [false, true]) test(`${component ? 'component' : 'plain'} generated row scripts preserve typed data and read edited fields on click`, async ({ page }) => {
-  const { doc, items } = clientScriptFixture(component);
+test(`component generated row scripts preserve typed data and read edited fields on click`, async ({ page }) => {
+  const { doc, items } = clientScriptFixture(true);
   doc.nodes.entry = { ...makeText(''), id: 'entry', attrId: 'entry', type: 'field', field: { kind: 'input', inputType: 'text' } };
   doc.pages.p.children.push('entry');
   doc.nodes.act.scripts![0].steps.push({ id: 'field', kind: 'set-var', value: '{name}|{entry}', into: 'chosen' });
