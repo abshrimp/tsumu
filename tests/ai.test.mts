@@ -175,14 +175,27 @@ test("unsupported reasoning effort is retried once and auth/rate failures stay d
   assert.equal(requests[0].reasoning_effort, "medium");
   assert.equal(requests[1].reasoning_effort, undefined);
   t.mock.restoreAll();
+  // 混雑のときの待ち時間は、長さだけを記録して、実際には待たない。
+  const realSetTimeout = globalThis.setTimeout;
+  let waits: number[] = [];
+  const skipRetryWaits = () => t.mock.method(globalThis, "setTimeout", ((run: () => void, ms = 0) => {
+    const retry = ms === 1_000 || ms === 3_000;
+    if (retry) waits.push(ms);
+    return realSetTimeout(run, retry ? 0 : ms);
+  }) as typeof setTimeout);
   let calls = 0;
+  skipRetryWaits();
   t.mock.method(globalThis, "fetch", async () => ++calls === 1 ? new Response("high demand", { status: 503 }) : completion({ content: "OK" }));
   assert.equal(await runAi(config, turns, () => ({ content: "ok", isError: false })), "OK");
   assert.equal(calls, 2);
+  assert.deepEqual(waits, [1_000]);
   t.mock.restoreAll();
   for (const [status, kind] of [[401, "auth"], [403, "auth"], [429, "rate"], [503, "rate"], [400, "other"]] as const) {
+    waits = [];
+    skipRetryWaits();
     t.mock.method(globalThis, "fetch", async () => new Response("Upstream error", { status }));
     await assert.rejects(runAi(config, turns, () => ({ content: "", isError: false })), (e: AiApiError) => e.kind === kind && e.status === status);
+    assert.deepEqual(waits, kind === "rate" ? [1_000, 3_000] : []);
     t.mock.restoreAll();
   }
 });
