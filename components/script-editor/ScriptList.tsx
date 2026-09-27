@@ -13,7 +13,8 @@ import { PAGE_TARGET, type SiteDoc } from "../../lib/types";
 import { tr } from "../../lib/i18n";
 import { Ico, TRIGGER_ICON, TRIGGER_LABELS } from "./catalog";
 import { scriptStatus } from "./issues";
-import { ELEMENT_KIND, type TreeRow } from "./targets";
+import { ELEMENT_KIND } from "../element-kind";
+import type { TreeRow } from "./targets";
 
 export function ScriptList({ doc, scripts, tree, openId, focusNodeId, creating, onOpen, onNew, onMenu }: {
   doc: SiteDoc;

@@ -1394,6 +1394,15 @@ textarea {
   color: var(--text);
 }
 
+.layer-kind {
+  flex: none;
+  color: var(--text-3);
+}
+
+.layer-row.is-sel .layer-kind {
+  color: var(--accent-ink);
+}
+
 .layer-name {
   flex: 1;
   min-width: 0;
@@ -1556,6 +1565,7 @@ textarea {
   display: block;
 }
 
+.layer-row.is-hidden .layer-kind,
 .layer-row.is-hidden .layer-name {
   opacity: 0.45;
 }

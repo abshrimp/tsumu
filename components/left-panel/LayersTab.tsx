@@ -6,12 +6,13 @@
 
 import { isEnterKey } from "../../lib/keys";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { LoaderCircle, Pencil } from "lucide-react";
+import { AppWindow, LoaderCircle, Pencil } from "lucide-react";
 import { ancestorsOf, collectSubtreeIds, useEditor } from "../../lib/store";
 import { BODY_NODE_ID } from "../../lib/types";
 import { canContainElements, resolveTag } from "../../lib/tags";
 import { useImageDrop } from "../../lib/image-drop";
 import { Icon } from "../icons";
+import { ELEMENT_KIND, elementKindOf } from "../element-kind";
 import { BP_INFO, BP_ORDER, hideToggleLabel, isHiddenAt } from "../../lib/style";
 import NodeContextMenu, { type CtxMenuState } from "../NodeContextMenu";
 import { tr } from "../../lib/i18n";
@@ -69,6 +70,7 @@ function LayerRow({
     : BP_ORDER.filter((b) => isHiddenAt(node, b));
 
   const tag = resolveTag(node, isTop);
+  const KindIcon = ELEMENT_KIND[elementKindOf(node, tag)].icon;
   const hasChildren = node.children.length > 0;
   const isCollapsed = collapsed.has(id);
   const isOver = drag.overId === id;
@@ -203,6 +205,7 @@ function LayerRow({
             }}
           />
         </span>
+        <KindIcon className="layer-kind" size={13} aria-hidden="true" />
         <span className="layer-name" onDoubleClick={() => setRenaming(true)}>
           {renaming ? (
             <input
@@ -513,6 +516,7 @@ export function LayersTab() {
                 }}
               />
             </span>
+            <AppWindow className="layer-kind" size={13} aria-hidden="true" />
             <span className="layer-name">body</span>
             <span className="layer-tag">body</span>
           </div>
