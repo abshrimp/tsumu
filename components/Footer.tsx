@@ -14,18 +14,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { docFingerprint, useEditor } from "../lib/store";
 import { getLang, tr } from "../lib/i18n";
 import { siteApi } from "../lib/site";
-import { relativeTime } from "../lib/time";
+import { relativeTime, savedTimeLabel } from "../lib/time";
 import type { ActivityEntry, SiteActivity } from "../lib/activity";
 import UserAvatar from "./UserAvatar";
-
-/** Avoid ambiguous time-only save labels when the editor stays open across midnight. */
-function savedTimeLabel(at: number, now: number): string {
-  const saved = new Date(at);
-  if (saved.toDateString() === new Date(now).toDateString()) return saved.toLocaleTimeString(getLang());
-  return saved.toLocaleString(getLang(), {
-    year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
 
 /* ---------- 最近の編集・最後の公開（ホバーで出すカード） ---------- */
 
