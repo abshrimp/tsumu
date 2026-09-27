@@ -5,7 +5,8 @@
  */
 import { useEffect, type RefObject } from "react";
 import { useEditor } from "../../lib/store";
-import type { ScriptBlockClipboard } from "./clipboard";
+import { isScriptBlockClipboard, type ScriptBlockClipboard } from "./clipboard";
+import { storageKey } from "../../lib/storage-keys";
 
 /** キー操作から参照する、画面の最新の状態 */
 export interface EditorKeyState {
@@ -24,21 +25,81 @@ export interface EditorKeyState {
 
 const SCRIPT_CLIP_MIME = "application/x-tsumu-script+json";
 const SCRIPT_CLIP_PREFIX = "Tsumu script actions v2\n";
+const SCRIPT_CLIP_MIRROR = storageKey("script-clipboard-v2");
+const MAX_SCRIPT_CLIP_LENGTH = 8 * 1024 * 1024;
 let lastScriptClipboard: { raw: string; value: ScriptBlockClipboard } | null = null;
+let pendingWrite: Promise<boolean> | null = null;
+let useInternalPaste = false;
 
-/** メニューからのコピーもキーボード操作と同じ形式で保持する。 */
-export function rememberScriptClipboard(value: ScriptBlockClipboard): void {
+function saveScriptClipboard(value: ScriptBlockClipboard): string {
   const raw = JSON.stringify(value);
   lastScriptClipboard = { raw, value };
   try {
-    // メニュー操作には ClipboardEvent が来ないので、OS のクリップボードも更新する。
-    void navigator.clipboard?.writeText(SCRIPT_CLIP_PREFIX + raw).catch(() => {});
+    if (raw.length <= MAX_SCRIPT_CLIP_LENGTH) localStorage.setItem(SCRIPT_CLIP_MIRROR, raw);
+    else localStorage.removeItem(SCRIPT_CLIP_MIRROR);
   } catch {
-    // 権限が無い環境でも、エディタ内の「貼り付け」メニューは使える。
+    // 保存を許可しないブラウザでも、その画面でのコピーは利用できる。
+  }
+  return raw;
+}
+
+/** 同じブラウザで Tsumu がコピーした内容だけを受け付ける。 */
+function ownScriptClipboard(raw: string): ScriptBlockClipboard | null {
+  if (!raw) return null;
+  if (lastScriptClipboard?.raw === raw) return lastScriptClipboard.value;
+  if (raw.length > MAX_SCRIPT_CLIP_LENGTH) return null;
+  try {
+    if (localStorage.getItem(SCRIPT_CLIP_MIRROR) !== raw) return null;
+  } catch {
+    return null;
+  }
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (!isScriptBlockClipboard(value)) return null;
+    lastScriptClipboard = { raw, value };
+    return value;
+  } catch {
+    return null;
   }
 }
 
-export function readScriptClipboard(): ScriptBlockClipboard | null {
+function rawFromText(text: string): string | null {
+  return text.startsWith(SCRIPT_CLIP_PREFIX) ? text.slice(SCRIPT_CLIP_PREFIX.length) : null;
+}
+
+/** メニューからのコピーもネイティブのコピーと同じ形式で保持する。 */
+export function rememberScriptClipboard(value: ScriptBlockClipboard): void {
+  const raw = saveScriptClipboard(value);
+  useInternalPaste = !navigator.clipboard?.writeText;
+  try {
+    // メニュー操作には ClipboardEvent が来ないので、OS のクリップボードも更新する。
+    pendingWrite = navigator.clipboard?.writeText(SCRIPT_CLIP_PREFIX + raw)
+      .then(() => true, () => false) ?? null;
+  } catch {
+    pendingWrite = null;
+    useInternalPaste = true;
+  }
+}
+
+/**
+ * ボタンの貼り付けは OS の現在のクリップボードを優先する。
+ * 他の文字列をコピーしたのに古いブロックを挿入することを防ぐ。
+ */
+export async function readScriptClipboard(): Promise<ScriptBlockClipboard | null> {
+  try {
+    if (pendingWrite) {
+      useInternalPaste = !(await pendingWrite);
+      pendingWrite = null;
+    }
+    if (useInternalPaste) return lastScriptClipboard?.value ?? null;
+    if (navigator.clipboard?.readText) {
+      const text = await navigator.clipboard.readText();
+      const raw = rawFromText(text);
+      return raw ? ownScriptClipboard(raw) : null;
+    }
+  } catch {
+    // Clipboard API が使えない環境では、最後にコピーした内部データを利用する。
+  }
   return lastScriptClipboard?.value ?? null;
 }
 
@@ -108,11 +169,12 @@ export function useEditorKeys(latest: RefObject<EditorKeyState>) {
       if (textSelection && !textSelection.isCollapsed && textSelection.toString()) return false;
       const copied = latest.current.copySelection();
       if (!copied) return false;
-      const raw = JSON.stringify(copied);
+      const raw = saveScriptClipboard(copied);
+      pendingWrite = null;
+      useInternalPaste = false;
       event.clipboardData.setData(SCRIPT_CLIP_MIME, raw);
       // 独自の形式を OS のクリップボードから取り除くブラウザでも、テキストの形式なら残る。
       event.clipboardData.setData("text/plain", SCRIPT_CLIP_PREFIX + raw);
-      lastScriptClipboard = { raw, value: copied };
       event.preventDefault();
       return true;
     };
@@ -124,15 +186,14 @@ export function useEditorKeys(latest: RefObject<EditorKeyState>) {
       else lastScriptClipboard = null;
     };
     const onPaste = (event: ClipboardEvent) => {
-      if (blocked(event) || !lastScriptClipboard) return;
+      if (blocked(event)) return;
       const data = event.clipboardData;
-      const plain = data?.getData("text/plain") ?? "";
-      const raw = data?.getData(SCRIPT_CLIP_MIME) ||
-        (plain.startsWith(SCRIPT_CLIP_PREFIX) ? plain.slice(SCRIPT_CLIP_PREFIX.length) : "");
-      // 外部から来た任意のクリップボードのテキストを、スクリプトとして解釈しない。
-      // クリップボードが空のときに使う控えは、以前にこの画面自身がコピーしたものに限る。
-      const copied = raw === lastScriptClipboard.raw || (!raw && data?.types.length === 0)
-        ? lastScriptClipboard.value : null;
+      const raw = data && (data.getData(SCRIPT_CLIP_MIME) ||
+        rawFromText(data.getData("text/plain")));
+      // 別タブ・再読み込み後でも、以前このエディタが保存したデータと完全一致すれば利用できる。
+      // コピー元を判別できない空のイベントでは、現在のタブの控えだけを使う。
+      const copied = raw ? ownScriptClipboard(raw)
+        : data?.types.length === 0 ? lastScriptClipboard?.value : null;
       if (!copied) return;
       event.preventDefault();
       latest.current.pasteSelection(copied);

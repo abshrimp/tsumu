@@ -271,6 +271,8 @@ function ScriptEditorInner({
   }, [updatePageScripts, activePageId, nodeIds]);
   const scriptsRef = useRef(scripts);
   scriptsRef.current = scripts;
+  const openIdRef = useRef(openId);
+  openIdRef.current = openId;
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
 
@@ -428,7 +430,7 @@ function ScriptEditorInner({
     copyScriptBlocks(scriptsRef.current, selectedRef.current.map((id) => `step:${id}`));
   const pasteSelection = (copied: ScriptBlockClipboard) => {
     const result = pasteScriptBlocks(scriptsRef.current,
-      selectedRef.current.map((id) => `step:${id}`), copied, openId);
+      selectedRef.current.map((id) => `step:${id}`), copied, openIdRef.current);
     if (!result) return;
     captureLayout();
     commit(result.scripts);
@@ -446,8 +448,11 @@ function ScriptEditorInner({
     if (copySteps(ids)) deleteSteps(ids);
   };
   const pasteFromClipboard = () => {
-    const copied = readScriptClipboard();
-    if (copied) pasteSelection(copied);
+    // Clipboard API は非同期。読み込み中に別のスクリプトを開いた場合は、
+    // 常にその時点の開いているスクリプトへ貼り付ける。
+    void readScriptClipboard().then((copied) => {
+      if (copied && rootRef.current?.isConnected) pasteSelection(copied);
+    });
   };
 
   const drag = useStepDrag({

@@ -12,6 +12,36 @@ export interface ScriptBlockClipboard {
   steps: ScriptStep[];
 }
 
+/**
+ * OS のクリップボードから戻したデータを、文書へ入れる前に最低限検証する。
+ * 任意のテキストをコピーしただけでスクリプトとして解釈しないため、呼び出し側でも
+ * このエディタ自身が保存した内容と一致することを必ず確認する。
+ */
+export function isScriptBlockClipboard(value: unknown): value is ScriptBlockClipboard {
+  if (!value || typeof value !== "object") return false;
+  const payload = value as Partial<ScriptBlockClipboard>;
+  if (payload.v !== 2 || !Array.isArray(payload.steps) || !Array.isArray(payload.scripts) ||
+      (!payload.steps.length && !payload.scripts.length)) return false;
+  let count = 0;
+  const validStep = (candidate: unknown, depth: number): boolean => {
+    if (++count > 10_000 || depth > 64 || !candidate || typeof candidate !== "object") return false;
+    const step = candidate as Partial<ScriptStep>;
+    if (typeof step.id !== "string" || typeof step.kind !== "string") return false;
+    if (step.kind === "if" || step.kind === "repeat" || step.kind === "for-each") {
+      const nested = step as { then?: unknown; else?: unknown };
+      return Array.isArray(nested.then) && nested.then.every((child) => validStep(child, depth + 1)) &&
+        (step.kind !== "if" || nested.else === undefined ||
+          (Array.isArray(nested.else) && nested.else.every((child) => validStep(child, depth + 1))));
+    }
+    return !("then" in step) && !("else" in step);
+  };
+  return payload.steps.every((step) => validStep(step, 0)) &&
+    payload.scripts.every((script) =>
+      !!script && typeof script.id === "string" && typeof script.nodeId === "string" &&
+      typeof script.trigger === "string" && Array.isArray(script.steps) &&
+      script.steps.every((step) => validStep(step, 0)));
+}
+
 export function copyScriptBlocks(scripts: PageScript[], selected: readonly string[]): ScriptBlockClipboard | null {
   const selectedScripts = new Set(selected.filter((key) => key.startsWith("script:")).map((key) => key.slice(7)));
   const selectedSteps = new Set(selected.filter((key) => key.startsWith("step:")).map((key) => key.slice(5)));

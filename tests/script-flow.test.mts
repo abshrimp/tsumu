@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { copyScriptBlocks, pasteScriptBlocks } from "../components/script-editor/clipboard";
+import { copyScriptBlocks, isScriptBlockClipboard, pasteScriptBlocks } from "../components/script-editor/clipboard";
 import { scriptStatus, stepIssue } from "../components/script-editor/issues";
 import {
   findStepLoc, listInsideLoop, moveSteps, nudgeStep,
@@ -118,6 +118,15 @@ test("pasting does not use a selection from another script", () => {
   assert.deepEqual(ids(result.scripts[0].steps), ids(scripts[0].steps));
   assert.equal(result.scripts[1].steps.length, 2);
   assert.equal(result.scripts[1].steps[1].id, result.selection[0].slice(5));
+});
+
+test("external script clipboard records must have valid nested structure", () => {
+  const copied = copyScriptBlocks([script()], ["step:if"])!;
+  assert.equal(isScriptBlockClipboard(JSON.parse(JSON.stringify(copied))), true);
+  assert.equal(isScriptBlockClipboard({ ...copied, steps: [{ id: "bad", kind: "if" }] }), false);
+  assert.equal(isScriptBlockClipboard({ ...copied, scripts: [{ id: "bad", steps: [] }] }), false);
+  assert.equal(isScriptBlockClipboard({ v: 2, scripts: [], steps: [] }), false);
+  assert.equal(isScriptBlockClipboard({ v: 2, scripts: [], steps: [{ id: "a", kind: "if", then: [{ id: "b", kind: "wait", then: [] }] }] }), false);
 });
 
 test("scripts are stored on their trigger element or on the page, without layout data", () => {
