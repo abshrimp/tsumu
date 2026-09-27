@@ -195,7 +195,11 @@ export function AssetGrid({
 }) {
   const doc = useEditor((s) => s.doc);
   const [query, setQuery] = useState("");
-  const all = Object.values(doc.assets).filter((a) => assetKind(a) === kind);
+  // 静的ファイルはライブラリ上では画像と同じ分類だが、画像の選択先には渡さない。
+  // MIME情報の無い既存アセットは、従来のファイル名による判定を維持する。
+  const all = Object.values(doc.assets).filter((a) =>
+    assetKind(a) === kind && (kind !== "image" || !a.mimeType || a.mimeType.startsWith("image/"))
+  );
   const q = query.trim().toLowerCase();
   const shown = q ? all.filter((a) => a.name.toLowerCase().includes(q)) : all;
   return (
