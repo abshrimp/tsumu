@@ -11,8 +11,8 @@ import { envVar } from "../env";
  * AI_EFFORT      … 推論の量（low / medium / high / xhigh / max。既定は medium）
  */
 
-export type AiProvider = "anthropic" | "gemini" | "openai" | "openai-compatible";
-export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
+type AiProvider = "anthropic" | "gemini" | "openai" | "openai-compatible";
+type Effort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface AiConfig {
   enabled: boolean;

@@ -23,7 +23,7 @@ function anchorOf(frame: HTMLElement, nodeId: string | null): HTMLElement | null
 }
 
 /** 開いているページで表示するスレッド（作成した順。番号もこの順に振る） */
-export function usePageThreads(): CommentThread[] {
+function usePageThreads(): CommentThread[] {
   const threads = useComments((s) => s.threads);
   const showResolved = useComments((s) => s.showResolved);
   const pageId = useEditor((s) => s.activePageId);

@@ -12,7 +12,7 @@ import {
 import { tr } from "../lib/i18n";
 
 /** Mac（iPad も含む）か。キーの表記を ⌘ ⇧ の記号にするか、Ctrl・Shift の文字にするかを決める */
-export const IS_MAC =
+const IS_MAC =
   typeof navigator !== "undefined" &&
   /Mac|iPhone|iPad|iPod/i.test(
     (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ||
@@ -41,7 +41,7 @@ const PC_ORDER = ["Ctrl", "Alt", "Shift"];
  * Mac の記号で書いたショートカット（⇧⌘Z・⌘ + スクロール など）を、Mac 以外では
  * 「Ctrl+Shift+Z」「Ctrl + スクロール」の形に書き換える。Mac ではそのまま返す
  */
-export function keyText(text: string): string {
+function keyText(text: string): string {
   if (IS_MAC) return text;
   return text.replace(/[⌃⌥⇧⌘]+/g, (mods: string, offset: number) => {
     const names = [...new Set([...mods].map((m) => PC_NAME[m]))].sort(

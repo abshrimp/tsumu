@@ -18,8 +18,8 @@ import { serializePageDataPlan } from "./browser-data";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { cssValue } from "./css";
 
-export type NativeLanguage = "typescript" | "javascript";
-export type NativeView = "vue" | "sveltekit";
+type NativeLanguage = "typescript" | "javascript";
+type NativeView = "vue" | "sveltekit";
 
 type Context = {
   doc: SiteDoc;
@@ -278,7 +278,7 @@ function node(ctx: Context, id: string, top = false): string {
   }
 }
 
-export interface NativeFiles {
+interface NativeFiles {
   pages: { id: string; name: string; title: string; description: string; noindex: boolean; slug: string;
     query: Record<string, string>; language: string; plan: ReturnType<typeof serializePageDataPlan> }[];
   vuePages: Record<string, string>;

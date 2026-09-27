@@ -4,7 +4,7 @@ import { rewriteCssAssetUrls } from "./css-assets";
 import { appendAssetSuffix } from "./zip-references";
 import { zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
 
-export interface ResolvedZipCss {
+interface ResolvedZipCss {
   css: string;
   /** 安全に展開できず、カスタムコードに残す必要のあるルール。 */
   unresolved: string[];

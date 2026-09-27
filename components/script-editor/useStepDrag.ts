@@ -34,7 +34,7 @@ interface DragState {
   lastFrame: number;
 }
 
-export interface StepDragDeps {
+interface StepDragDeps {
   rootRef: RefObject<HTMLElement | null>;
   flowRef: RefObject<HTMLElement | null>;
   lineRef: RefObject<HTMLElement | null>;

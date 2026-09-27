@@ -1,7 +1,7 @@
-import type { PageFolder, SiteDoc } from "./types";
+import type { SiteDoc } from "./types";
 
 /** A folder is a top-level list item. Its pages remain children, not siblings. */
-export type PanelItem = { kind: "page" | "folder"; id: string };
+type PanelItem = { kind: "page" | "folder"; id: string };
 export type FolderPlacement =
   | { kind: "page"; id: string; after: boolean }
   | { kind: "folder"; id: string; after: boolean }

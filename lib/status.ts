@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { ActivityUser } from "./activity";
 
 /** サーバーの設定の状況（/api/status） */
-export interface ServerStatus {
+interface ServerStatus {
   /** Google 認証を使っているか（false なら、ログインなしで開ける） */
   auth: boolean;
   /** サーバーの保存先（Cloudflare の D1、または TSUMU_DATA_DIR の SQLite）があるか */

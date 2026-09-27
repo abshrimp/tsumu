@@ -1,7 +1,7 @@
 import type { ScriptOp } from "./types";
 
 /** 取得したデータのプレビューは、エディタのための手がかりであって、実行時の値の型を決めるものではない。 */
-export type FilterFieldKind = "record" | "array" | "scalar" | "unknown";
+type FilterFieldKind = "record" | "array" | "scalar" | "unknown";
 
 export function filterFieldKind(sample: unknown): FilterFieldKind {
   if (sample === undefined) return "unknown";

@@ -78,7 +78,7 @@ export function InfoTip({ text, style }: { text: string; style?: CSSProperties }
  * 折りたためるセクションの見出し。行全体がクリックの対象になる
  * （説明アイコンと右端のツールは、クリックしても開閉しない）。
  */
-export function SecHead({
+function SecHead({
   title,
   info,
   open,
@@ -755,7 +755,7 @@ export function CommitTextarea({
 /* ---------- {変数} の予測変換 ---------- */
 
 /** 変数の一覧を開くショートカットの表記（Mac 以外では glyphs によって Ctrl+/ になる） */
-export const VAR_LIST_KBD = "⌘/";
+const VAR_LIST_KBD = "⌘/";
 
 export interface VarSuggest {
   pos: CSSProperties;
@@ -1215,7 +1215,7 @@ export function VarInput({
 
 /* ---------- ドロップダウン（独自の UI） ---------- */
 
-export interface DdOption {
+interface DdOption {
   value: string;
   label: ReactNode;
   icon?: ReactNode;
@@ -1490,7 +1490,7 @@ const RECENT_COLORS_KEY = "recent-colors-v1";
 const RECENT_COLORS_MAX = 14;
 const EMPTY_COLOR_PALETTE: readonly string[] = [];
 
-export function getRecentColors(): string[] {
+function getRecentColors(): string[] {
   try {
     const raw = window.localStorage.getItem(RECENT_COLORS_KEY);
     const list = raw ? JSON.parse(raw) : [];
@@ -1500,7 +1500,7 @@ export function getRecentColors(): string[] {
   }
 }
 
-export function pushRecentColor(color: string): void {
+function pushRecentColor(color: string): void {
   const c = color.trim();
   if (!c) return;
   try {

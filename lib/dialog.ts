@@ -5,7 +5,7 @@
 
 import { create } from "zustand";
 
-export interface DialogOptions {
+interface DialogOptions {
   title?: string;
   /** 決定ボタンの文字 */
   okLabel?: string;
@@ -14,7 +14,7 @@ export interface DialogOptions {
   danger?: boolean;
 }
 
-export interface PromptOptions extends DialogOptions {
+interface PromptOptions extends DialogOptions {
   placeholder?: string;
   defaultValue?: string;
   /** この文字を入力したときだけ決定できる（確認のための入力） */

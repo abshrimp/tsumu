@@ -147,7 +147,7 @@ export function splitVarTokens(text: string): { text: string; name?: string }[] 
 /* ---------- 変数の予測変換 ---------- */
 
 /** 「{」が無くても予測変換を表示する、変数名と一致した文字数 */
-export const VAR_AUTO_MIN = 3;
+const VAR_AUTO_MIN = 3;
 
 export interface VarQuery {
   /** 置き換える範囲の先頭（カーソルの位置までを置き換える） */
@@ -232,7 +232,7 @@ export function isSlugPage(slug: string): boolean {
 }
 
 /** Next.js のページとして配信しないページ（リダイレクト・外部のサイトの中継・HTML のページ） */
-export function isHardNavPage(page: {
+function isHardNavPage(page: {
   redirectTo?: string;
   rewriteTo?: string;
   rawHtml?: string | null;

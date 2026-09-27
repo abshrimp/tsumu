@@ -12,7 +12,7 @@ import { filterFunctions } from "./filter-edit";
 import { EASING_PRESETS } from "./easing";
 import { isBreakpointId } from "./breakpoint-id";
 
-export interface BpInfo {
+interface BpInfo {
   label: string;
   /** ヘッダーの切り替えボタンに表示する短い名前 */
   short: string;
@@ -305,7 +305,7 @@ export function extractSelectionStyles(map: StyleMap): StyleMap | null {
 }
 
 /** プレースホルダーのセレクター（要素自身と、中にある入力欄） */
-export function placeholderSelector(sel: string): string {
+function placeholderSelector(sel: string): string {
   return `${sel}::placeholder, ${sel} ::placeholder`;
 }
 
@@ -500,7 +500,7 @@ const INITIAL_VALUES: Record<string, string[]> = {
 };
 
 /** 親から受け継ぐプロパティ（パソコンの既定では、親で効いている値と比べて変更の色を決める） */
-export const INHERITED_PROPS = new Set([
+const INHERITED_PROPS = new Set([
   "color",
   "fontFamily",
   "fontSize",
@@ -549,7 +549,7 @@ function baselineValue(
 }
 
 /** 直接設定した値が、比べる相手（既定値・大きい画面幅の値・通常時の値）と違うか */
-export function isChangedValue(
+function isChangedValue(
   node: DocNode,
   bp: Breakpoint,
   state: StyleState,
@@ -616,7 +616,7 @@ export interface TransformParts {
   rest: string;
 }
 
-export const TRANSFORM_DEFAULTS: TransformParts = {
+const TRANSFORM_DEFAULTS: TransformParts = {
   x: "0px",
   y: "0px",
   rotate: 0,
@@ -760,7 +760,7 @@ export interface FilterParts {
   hueRotate: number;
 }
 
-export const FILTER_DEFAULTS: FilterParts = {
+const FILTER_DEFAULTS: FilterParts = {
   blur: 0,
   brightness: 100,
   contrast: 100,
@@ -809,7 +809,7 @@ export function serializeFilter(p: FilterParts): string | null {
 }
 
 /** エディタに組み込みのフォント。google が true なら、next/font を通して出力する */
-export const FONTS: {
+const FONTS: {
   label: string;
   value: string;
   google?: { importName: string; cssVar: string; weights?: string[] };
@@ -850,14 +850,14 @@ export const FONTS: {
   },
 ];
 
-export interface FontOption {
+interface FontOption {
   label: string;
   value: string;
   google?: { importName: string; cssVar: string; weights?: string[] };
 }
 
 /** ファミリー名から、next/font 用のメタデータを導く */
-export function googleFontMeta(
+function googleFontMeta(
   font: CustomFont
 ): NonNullable<FontOption["google"]> {
   return {

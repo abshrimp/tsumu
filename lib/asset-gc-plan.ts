@@ -14,7 +14,7 @@ export type GcCandidate = {
   bytes?: number | null;
 };
 
-export type GcKey = { name: string; bytes?: number | null };
+type GcKey = { name: string; bytes?: number | null };
 
 /** 有効な時刻は、任意の先頭部分ではなく、アップロードのパス全体から読み取ったものに限る。 */
 export function assetUploadedAt(path: string): number | null {
@@ -26,7 +26,7 @@ export function assetUploadedAt(path: string): number | null {
     ? timestamp : null;
 }
 
-export interface GcPlanInput {
+interface GcPlanInput {
   kvKeys: readonly GcKey[];
   referenced: ReadonlySet<string>;
   candidates: ReadonlyMap<string, GcCandidate>;

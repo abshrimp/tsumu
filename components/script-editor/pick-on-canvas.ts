@@ -5,7 +5,7 @@
 
 import { tr } from "../../lib/i18n";
 
-export interface CanvasPick {
+interface CanvasPick {
   /** 選べる要素の ID（キャンバスの要素から親へたどり、最初に見つかったものを選ぶ） */
   pickable: (nodeId: string) => boolean;
   onPick: (nodeId: string) => void;

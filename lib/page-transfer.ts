@@ -19,7 +19,7 @@ import { isSiteLang, siteLangOf } from "./site-lang";
 import { normalizeQuery } from "./vars";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 
-export interface PagePayload {
+interface PagePayload {
   breakpoints: BreakpointDef[];
   pages: Page[];
   /** ページの中の要素（入れ子も含む） */

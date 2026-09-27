@@ -11,7 +11,7 @@ import { applyNativeFramework } from "./native-scaffold";
  * フレームワークのコンポーネントの中で動かす。アプリとルートのマークアップは、
  * 隠れた Next.js や React のプロジェクトではなく、そのフレームワークが描画する。
  */
-export type AdditionalFramework = "vue" | "nuxt" | "sveltekit";
+type AdditionalFramework = "vue" | "nuxt" | "sveltekit";
 
 const escapeTemplateHtml = (value: string): string =>
   value.replace(/[&<>"']/g, (ch) =>

@@ -3,7 +3,7 @@ import { isDocumentId } from "./document-id";
 import { sameJson } from "./doc-share";
 
 /** 設定は項目ごとに、ページ・要素・画像・コンポーネントは ID ごとに置き換える。 */
-export type DocPatchOp =
+type DocPatchOp =
   | { path: string[]; value: unknown }
   | { path: string[]; remove: true };
 export type DocPatch = DocPatchOp[];

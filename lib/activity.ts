@@ -30,7 +30,7 @@ export interface SiteActivity {
 }
 
 /** 「直近」とする時間（10分） */
-export const RECENT_MS = 10 * 60 * 1000;
+const RECENT_MS = 10 * 60 * 1000;
 
 const clip = (v: unknown, max: number): string | null =>
   typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;

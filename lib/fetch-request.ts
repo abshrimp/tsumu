@@ -12,7 +12,7 @@ export interface FetchOptions {
 }
 
 /** 実際に送るリクエストの設定（すべて既定なら undefined） */
-export interface FetchRequest {
+interface FetchRequest {
   method?: FetchMethod;
   headers?: Record<string, string>;
   body?: string;

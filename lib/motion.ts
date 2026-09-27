@@ -122,13 +122,13 @@ export const FILL_MODES = [
  * カスタムの @keyframes の名前。要素を複製すると、モーションの ID も同じまま写るため、
  * 要素（scope）ごとに分ける（分けないと、複製先でキーフレームを変えても元の動きになる）
  */
-export function customKeyframeName(m: Motion, scope?: string): string {
+function customKeyframeName(m: Motion, scope?: string): string {
   const safe = (v: string) => v.replace(/[^A-Za-z0-9_-]/g, "_");
   return scope ? `anim-${safe(scope)}-${safe(m.id)}` : `anim-${safe(m.id)}`;
 }
 
 /** animation の一括指定の値を組み立てる */
-export function animationValue(m: Motion, paused = false, scope?: string): string {
+function animationValue(m: Motion, paused = false, scope?: string): string {
   const iter = m.repeat === -1 ? "infinite" : String(m.repeat ?? 1);
   return [
     // カスタムでは、モーションごとに固有の @keyframes の名前を使う
@@ -144,7 +144,7 @@ export function animationValue(m: Motion, paused = false, scope?: string): strin
 }
 
 /** transition の値（状態が変わるときのきっかけのモーションをまとめる） */
-export function transitionValue(motions: Motion[]): string | null {
+function transitionValue(motions: Motion[]): string | null {
   const list = motions.filter((m) => m.trigger === "state");
   if (!list.length) return null;
   return list
@@ -155,7 +155,7 @@ export function transitionValue(motions: Motion[]): string | null {
     .join(", ");
 }
 
-export interface MotionCss {
+interface MotionCss {
   /** 既定のルールに足す宣言（transition と、load・in-view の animation） */
   base: string[];
   /** 擬似クラス → 宣言（hover / active の animation） */

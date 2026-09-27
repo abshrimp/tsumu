@@ -17,7 +17,7 @@ export interface ArchiveAssetMap {
   assets: Record<string, string>;
 }
 
-export interface SiteImport {
+interface SiteImport {
   doc: SiteDoc;
   /** 元のアセットの ID → アーカイブの中のバイト列（ある場合）。 */
   assets: Map<string, Uint8Array>;

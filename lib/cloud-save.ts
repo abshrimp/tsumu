@@ -14,13 +14,13 @@ export type CollabRequestInput =
   | { type: "patch"; base: string; patch: DocPatch }
   | { type: "save"; base: string | null; doc: SiteDoc };
 
-export interface CloudRequestResult {
+interface CloudRequestResult {
   ok: boolean;
   status: number;
   data: Record<string, any>;
 }
 
-export interface CloudSaveTransport {
+interface CloudSaveTransport {
   collabSocket: Ref<Pick<WebSocket, "readyState"> | null>;
   clientId: string;
   requestViaWebSocket: (input: CollabRequestInput) => Promise<CollabServerMessage>;

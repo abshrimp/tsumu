@@ -15,7 +15,7 @@ import { refreshClonedIds } from "./cloneIds";
 import { walkSteps } from "./script";
 
 /** AIが作る要素 */
-export interface AiNodeSpec {
+interface AiNodeSpec {
   /** 同じ返答の中の後の操作から参照するための、仮の名前 */
   ref?: string;
   /** 確定した ID（サーバーが付ける。AI は指定しない） */
@@ -45,9 +45,9 @@ export interface AiNodeSpec {
  * "font-size: 18px; color: #111" のような CSS の宣言の文字列
  * （キーが自由なオブジェクトを引数にできない API でも使えるように）
  */
-export type AiStyles = Record<string, unknown> | string;
+type AiStyles = Record<string, unknown> | string;
 
-export interface AiLink {
+interface AiLink {
   url?: string;
   pageId?: string;
   newTab?: boolean;
@@ -74,14 +74,14 @@ export type AiOp =
   | { op: "set_hidden"; id: string; breakpoints: string[] }
   | { op: "update_page"; title?: string; description?: string; name?: string };
 
-export interface ApplyResult {
+interface ApplyResult {
   /** 適用できた操作（insert / duplicate には、確定した ID を付ける） */
   applied: AiOp[];
   /** 適用できなかった操作の理由（AI へ返す） */
   errors: string[];
 }
 
-export interface ApplyTarget {
+interface ApplyTarget {
   pageId: string;
   /** コンポーネントの編集中なら、そのルート要素（"page" をこの要素として扱う） */
   rootId?: string | null;
@@ -127,7 +127,7 @@ function parseDeclarations(css: string): Record<string, unknown> {
 }
 
 /** "background-color" を "backgroundColor" に、数値は px を付けた文字列にする */
-export function normalizeStyles(raw: AiStyles | undefined): Record<string, string | null> {
+function normalizeStyles(raw: AiStyles | undefined): Record<string, string | null> {
   const out: Record<string, string | null> = {};
   const map = typeof raw === "string" ? parseDeclarations(raw) : (raw ?? {});
   for (const [k0, v] of Object.entries(map)) {

@@ -61,7 +61,7 @@ export async function removeAllowedEmail(email: string): Promise<boolean> {
 }
 
 /** ログインの判定に使う（未設定や失敗のときは空で、環境変数の固定のリストだけが有効） */
-export async function readAllowlist(): Promise<string[]> {
+async function readAllowlist(): Promise<string[]> {
   if (!dbConfigured()) return [];
   try {
     return await listAllowedEmails();

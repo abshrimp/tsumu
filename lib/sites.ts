@@ -8,7 +8,7 @@ import type { Db } from "./db";
  */
 
 /** サイトの ID の形（URL やブラウザの保存のキーに使うため、英小文字・数字・ハイフンだけ） */
-export const SITE_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const SITE_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export function isSiteId(v: unknown): v is string {
   return typeof v === "string" && SITE_ID_RE.test(v);

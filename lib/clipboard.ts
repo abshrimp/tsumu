@@ -1,7 +1,7 @@
 import { tr } from "./i18n";
 import DOMPurify from "dompurify";
 /** Figma や Illustrator などから渡された SVG を、安全な画像として扱える形にする。 */
-export function sanitizeClipboardSvg(source: string): string {
+function sanitizeClipboardSvg(source: string): string {
   // パースする前に XML の実体宣言を拒否し、大きすぎる貼り付けのデータを制限する。
   if (source.length > 2 * 1024 * 1024 || /<!\s*(?:doctype|entity)\b/i.test(source)) {
     throw new Error(tr("The SVG data is corrupted"));

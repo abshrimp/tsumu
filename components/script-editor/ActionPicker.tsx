@@ -13,7 +13,7 @@ import { type ScriptStep } from "../../lib/types";
 import { CAT_INFO, CAT_ORDER, PLACE_REASON, catStyle, findActions, type ActionItem } from "./catalog";
 import { Popover } from "./Popover";
 
-export interface ActionPlaceInfo {
+interface ActionPlaceInfo {
   pageLoadRoot: boolean;
   insideLoop: boolean;
 }

@@ -302,7 +302,7 @@ const COND_SUBJECTS: { value: string; label: string }[] = [
   { value: "hovered", label: tr("is hovered") },
 ];
 
-export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string; negated: string }[] = [
+const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string; negated: string }[] = [
   { value: "eq", label: trc("condition_comparison", "equal to"), negated: trc("condition_comparison", "not equal to") },
   { value: "contains", label: trc("condition_comparison", "contain"), negated: trc("condition_comparison", "not contain") },
   { value: "contains-any", label: trc("condition_comparison", "contain any of"), negated: trc("condition_comparison", "contain none of") },
@@ -321,7 +321,7 @@ export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string; neg
 const ORDER_OPERATORS = new Set<ScriptOp>(["gt", "gte", "lt", "lte"]);
 
 /** 「表示されている / いない」のように、比べる値の無い条件の肯定・否定。 */
-export function NegationSelect({ not, onChange }: { not?: boolean; onChange: (not: boolean) => void }) {
+function NegationSelect({ not, onChange }: { not?: boolean; onChange: (not: boolean) => void }) {
   return (
     <select className="se-in" aria-label={tr("Condition polarity")}
       value={not ? "not" : "is"} onChange={(e) => onChange(e.target.value === "not")}>

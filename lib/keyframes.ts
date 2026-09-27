@@ -26,7 +26,7 @@ const TRANSFORM_KEYS = ["x", "y", "rotate", "scale"] as const;
 type TransformKey = (typeof TRANSFORM_KEYS)[number];
 
 let seq = 0;
-export const keyframeId = () => `kf${Date.now().toString(36)}${(seq++).toString(36)}`;
+const keyframeId = () => `kf${Date.now().toString(36)}${(seq++).toString(36)}`;
 
 export function emptyKeyframe(offset: number): Keyframe {
   return { id: keyframeId(), offset, extra: "" };

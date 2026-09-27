@@ -1,6 +1,6 @@
 import type { DocNode, SiteDoc } from "./types";
 
-export interface BodySearchHit {
+interface BodySearchHit {
   pageId: string;
   pageName: string;
   nodeId: string | null;

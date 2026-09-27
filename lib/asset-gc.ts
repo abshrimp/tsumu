@@ -3,7 +3,7 @@ import type { KVLikeNamespace } from "./kv";
 import { assetUploadedAt, planAssetGc, type GcCandidate } from "./asset-gc-plan";
 
 /** GC が行うのは、アセットのキーの列挙と削除だけ。 */
-export type AssetGcKv = Pick<KVLikeNamespace, "delete" | "list">;
+type AssetGcKv = Pick<KVLikeNamespace, "delete" | "list">;
 
 /**
  * 削除の操作があると、すぐに候補として登録する。毎日の cron は期限切れの候補だけを処理し、
@@ -29,7 +29,7 @@ export interface AssetGcDependencies {
   discoverUntracked?: boolean;
 }
 
-export interface AssetGcReport {
+interface AssetGcReport {
   status: "ok";
   dryRun: boolean;
   sweepSupported: true;
@@ -150,7 +150,7 @@ const PREVIEW_LIMIT = 2000;
  * 物理的な削除1件ごとに、D1 での再確認・KV の削除・D1 の削除がかかり、
  * さらに処理の最後に件数の記録・実行ログ・リースの解放が必ず必要になる。
  */
-export const GC_INTERNAL_SUBREQUEST_BUDGET = 900;
+const GC_INTERNAL_SUBREQUEST_BUDGET = 900;
 const SUBREQUESTS_PER_DELETE = 3;
 const SUBREQUESTS_TO_FINISH = 3;
 

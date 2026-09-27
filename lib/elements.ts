@@ -18,7 +18,7 @@ import {
 } from "./presets";
 import { tr } from "./i18n";
 
-export interface ElementDef {
+interface ElementDef {
   key: string;
   label: string;
   /** components/icons.tsx の Icon 名 */

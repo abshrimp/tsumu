@@ -5,7 +5,7 @@ import { AssetGcAbortedError, collectAllAssetReferences, type AssetGcDocumentNam
 
 const LEASE_MS = 20 * 60 * 1000;
 
-export type PermanentTrashResult = "deleted" | "missing" | "in-use" | "busy";
+type PermanentTrashResult = "deleted" | "missing" | "in-use" | "busy";
 
 /**
  * Permanently remove exactly one trashed object. Share the existing GC lease

@@ -53,7 +53,7 @@ function Cell({ value }: { value: unknown }) {
 }
 
 /** 取得したデータを表で表示する。行をクリックすると、その1件の中身をすべて見られる */
-export function DataTable({
+function DataTable({
   items,
   fields,
   rows = 5,
@@ -286,7 +286,7 @@ function JsonEntries({ value, path, depth }: { value: unknown; path: string; dep
 }
 
 /** 入れ子のデータを、開閉できるツリーで表示する（項目名にカーソルを置くと位置を表示する） */
-export function JsonTree({ value, path = "" }: { value: unknown; path?: string }) {
+function JsonTree({ value, path = "" }: { value: unknown; path?: string }) {
   if (isPrimitive(value)) return <LeafValue value={value} />;
   return (
     <div className="jt">

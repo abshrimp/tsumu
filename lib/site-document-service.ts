@@ -104,7 +104,7 @@ async function finishSave(db: Db, siteId: string, roomKey: string | null, result
 }
 
 /** サーバーの中の通知用。HTTP の応答や WebSocket のメッセージには、この包みを渡さない。 */
-export interface ServerDocumentMutation {
+interface ServerDocumentMutation {
   result: SaveDocResult;
   roomKey: string | null;
 }

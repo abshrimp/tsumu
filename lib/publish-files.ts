@@ -15,7 +15,7 @@ export const ASSET_MANIFEST_PATH = `${MANAGED_DIR}assets.json`;
 /** 書き出したファイルのパス → blob の SHA の一覧 */
 export const GENERATED_MANIFEST_PATH = `${MANAGED_DIR}generated.json`;
 
-export interface PublishPlan {
+interface PublishPlan {
   /** 前回の公開後に直接変更された生成ファイル。今回の公開で再作成する削除済みファイルも含む */
   edited: string[];
   /** 手動で追加したファイルのうち、今回書き出すファイルと同じパスのもの（上書きされる） */

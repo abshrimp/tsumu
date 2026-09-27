@@ -17,9 +17,8 @@ const choice = (value: unknown, choices: readonly string[]) =>
   typeof value === "string" && choices.includes(value);
 const strings: Check = value => arrayOf(value, str);
 const stringMap: Check = value => record(value) && Object.values(value).every(str);
-const point: Check = value => record(value) && finite(value.x) && finite(value.y);
 
-export function validImageRef(value: unknown): boolean {
+function validImageRef(value: unknown): boolean {
   return record(value) && optional(value.url, str) && optional(value.assetId, str);
 }
 

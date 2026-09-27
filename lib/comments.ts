@@ -188,14 +188,14 @@ const userOf = (r: Record<string, unknown>, prefix = ""): ActivityUser => ({
 
 /** 一覧は、作成順の安定したカーソルで区切る。返信や解決では、区切りの位置を動かさない。 */
 export const COMMENT_PAGE_SIZE = 1000;
-export interface CommentCursor { createdAt: number; id: string }
+interface CommentCursor { createdAt: number; id: string }
 export function parseCommentCursor(value: string | null): CommentCursor | null {
   if (!value) return null;
   const match = /^(\d+):([a-zA-Z0-9_-]{1,64})$/.exec(value);
   if (!match || !Number.isSafeInteger(Number(match[1]))) return null;
   return { createdAt: Number(match[1]), id: match[2] };
 }
-export const commentCursor = (t: { createdAt: number; id: string }) => `${t.createdAt}:${t.id}`;
+const commentCursor = (t: { createdAt: number; id: string }) => `${t.createdAt}:${t.id}`;
 export interface CommentPage {
   threads: CommentThread[];
   nextCursor: string | null;

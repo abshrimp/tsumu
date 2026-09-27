@@ -7,7 +7,7 @@ import type { SiteDoc } from "./types";
  * これは受け渡しのための形式で、エディタのオブジェクトのモデルの代わりではない。
  */
 export const PORTABLE_DOC_FORMAT = "tsumu-doc";
-export const PORTABLE_DOC_VERSION = 1;
+const PORTABLE_DOC_VERSION = 1;
 
 type PackedDoc = {
   format: typeof PORTABLE_DOC_FORMAT;

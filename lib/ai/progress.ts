@@ -6,7 +6,7 @@ export type AiProgress =
   | { type: "text"; text: string; turn: number }
   | { type: "operations"; counts: Partial<Record<AiOp["op"], number>>; total: number; errors: number };
 export interface AiResult { reply: string; operations: AiOp[] }
-export type AiStreamEvent = AiProgress | { type: "result"; result: AiResult } | { type: "error"; error: string } | { type: "ping" };
+type AiStreamEvent = AiProgress | { type: "result"; result: AiResult } | { type: "error"; error: string } | { type: "ping" };
 export const AI_STREAM_TYPE = "application/x-ndjson";
 export const MAX_AI_STREAM_BYTES = 8 * 1024 * 1024;
 

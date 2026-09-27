@@ -9,7 +9,7 @@ import {
 import { tr } from "./i18n";
 
 /** 隣のブレークポイントとの、最低限の幅の差（px） */
-export const BP_MIN_GAP = 20;
+const BP_MIN_GAP = 20;
 
 /** ブレークポイントを使っている要素の数（スタイルと、デバイスごとの非表示） */
 export function breakpointUsage(doc: SiteDoc, id: Breakpoint): number {

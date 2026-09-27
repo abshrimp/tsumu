@@ -24,7 +24,7 @@ export function genId(prefix: string): string {
 }
 
 /** ID に付ける、ランダムな英数字4文字 */
-export function randomPart(): string {
+function randomPart(): string {
   const bytes = new Uint8Array(4);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");

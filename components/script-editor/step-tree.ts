@@ -48,16 +48,6 @@ export function listIn(script: PageScript, list: string, createMissing = false):
   return owner.then;
 }
 
-/** ブロックの並びの中（入れ子も含む）に stepId があるか */
-export function stepIn(steps: ScriptStep[], stepId: string): boolean {
-  return steps.some(
-    (st) =>
-      st.id === stepId ||
-      ("then" in st && stepIn(st.then, stepId)) ||
-      (st.kind === "if" && !!st.else && stepIn(st.else, stepId))
-  );
-}
-
 /**
  * ブロックを動かしたり削除したりするたびに、ワークスペース全体を深く複製せず、
  * 編集した一覧と、それを囲む手順だけを複製する。

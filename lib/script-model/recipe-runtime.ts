@@ -90,25 +90,6 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     const value = String(result.value);
     return value.length <= max ? { ok: true, value } : { ok: false };
   };
-  const literal = (text: string, type: string): { ok: true; value: string | number | boolean | null } | { ok: false } => {
-    if (typeof text !== "string" || text.length > 4096) return { ok: false };
-    if (type === "text") return { ok: true, value: text };
-    if (type === "null") return { ok: true, value: null };
-    if (type === "boolean") return text === "true" || text === "false"
-      ? { ok: true, value: text === "true" } : { ok: false };
-    if (type === "number" && /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(text.trim())) {
-      const number = Number(text);
-      return Number.isFinite(number) ? { ok: true, value: number } : { ok: false };
-    }
-    return { ok: false };
-  };
-  const argument = (step: { operand: string; operandType: string }):
-    { ok: true; value: unknown } | { ok: false } => {
-    if (step.operandType === "text") return interpolateText(step.operand, 4096);
-    if (step.operandType !== "variable") return literal(step.operand, step.operandType);
-    const value = valueAt(variables, step.operand);
-    return value === undefined ? { ok: false } : { ok: true, value };
-  };
   // 数値の演算は、有限の数値と、10進数の文字列（フォームの入力など）を受け付ける。
   // 比較は型を区別したまま行う。数値への変換は、計算の操作の中でだけ明示的に行う。
   const numberLike = (input: unknown): number | undefined => {

@@ -17,7 +17,7 @@ export interface ChatTurn {
   role: "user" | "assistant";
   text: string;
 }
-export type ToolHandler = (input: unknown) => { content: string; isError: boolean };
+type ToolHandler = (input: unknown) => { content: string; isError: boolean };
 
 export class AiApiError extends Error {
   constructor(

@@ -418,7 +418,7 @@ export function livesHere(ctx: JsxContext): boolean {
 }
 
 /** JSX の引用符で囲んだ属性は、JavaScript の文字列ではない（バックスラッシュでエスケープできない）。 */
-export function jsxHtmlString(value: string): string {
+function jsxHtmlString(value: string): string {
   const escapes: Record<string, string> = {
     '"': "&quot;", "<": "&lt;", ">": "&gt;", "\r": "&#13;", "\n": "&#10;", "\t": "&#9;",
   };

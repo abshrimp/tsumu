@@ -59,7 +59,7 @@ function usePageValues<T extends object>(pageId: string): [T, Dispatch<SetStateA
 }
 
 /** Canvas から受け取る値 */
-export interface UseCanvasDataDeps {
+interface UseCanvasDataDeps {
   page: Page;
   doc: SiteDoc;
   activePageId: string;

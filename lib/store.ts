@@ -119,7 +119,7 @@ function loadUi(doc: SiteDoc): Partial<SavedUi> {
     return {};
   }
 }
-export type CloudState = "checking" | "synced" | "saving" | "local" | "error";
+type CloudState = "checking" | "synced" | "saving" | "local" | "error";
 
 /** 公開済みかどうかを判定するため、文書の内容のハッシュ（FNV-1a）を返す */
 export function docFingerprint(doc: SiteDoc): string {

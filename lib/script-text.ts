@@ -46,7 +46,7 @@ function opText(subject: string, op: ScriptOp | undefined, value: string): strin
   }
 }
 
-export function condText(c: ScriptCond): string {
+function condText(c: ScriptCond): string {
   const t = targetText(c.target);
   const negate = (phrase: string) => c.not ? tr("Not ({phrase})", { phrase }) : phrase;
   switch (c.subject) {

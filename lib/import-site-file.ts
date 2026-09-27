@@ -10,8 +10,8 @@ import { openImportZip } from "./zip-directory";
 import type { SiteDoc } from "./types";
 import { storageKey } from "./storage-keys";
 
-export type SaveMode = "server" | "local";
-export const importWarningsKey = (id: string) => storageKey("import-warnings-v1") + ":" + id;
+type SaveMode = "server" | "local";
+const importWarningsKey = (id: string) => storageKey("import-warnings-v1") + ":" + id;
 
 export function importFileKind(file: Pick<File, "name">): "zip" | "doc" | "html" {
   const name = file.name.toLowerCase();

@@ -45,7 +45,7 @@ import type { Lang } from "../../lib/lang";
 
 /* ---------- 分類 ---------- */
 
-export type Cat = "event" | "look" | "move" | "input" | "control" | "var" | "load" | "array" | "store";
+type Cat = "event" | "look" | "move" | "input" | "control" | "var" | "load" | "array" | "store";
 
 export const CAT_INFO: Record<Cat, { label: string; color: string }> = {
   event: { label: tr("Triggers"), color: "#b45309" },
@@ -156,7 +156,7 @@ export function Ico({ icon: I, cat, size = 14 }: { icon: LucideIcon; cat: Cat; s
 /* ---------- 動作の一覧 ---------- */
 
 /** その動作を置ける場所の条件。満たさない場所では、理由を添えて選べなくする。 */
-export type ActionPlace = "anywhere" | "page-load-root" | "inside-loop";
+type ActionPlace = "anywhere" | "page-load-root" | "inside-loop";
 
 export interface ActionItem {
   key: string;

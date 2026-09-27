@@ -1,9 +1,9 @@
 import type { SiteDoc } from "./types";
 
 export const LAYER_ROW_HEIGHT = 28;
-export const LAYER_OVERSCAN = 8;
+const LAYER_OVERSCAN = 8;
 
-export interface VisibleLayer {
+interface VisibleLayer {
   id: string;
   depth: number;
   /** この要素が、ページの直下にあるか（コンポーネントのマスターではないか）。 */

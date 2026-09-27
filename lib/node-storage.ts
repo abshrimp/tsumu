@@ -25,7 +25,7 @@ function builtin<T>(id: string): T | null {
 }
 
 /** 保存先のフォルダ（未設定か、Node.js 以外なら null） */
-export function nodeDataDir(): string | null {
+function nodeDataDir(): string | null {
   const dir = globalThis.process?.env?.TSUMU_DATA_DIR;
   return dir ? dir.replace(/\/+$/, "") || "/" : null;
 }

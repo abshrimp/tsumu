@@ -1,16 +1,16 @@
 import type { ScriptStep, SiteDoc, StyleState } from "./types";
 
 /** 利用者が作る状態は要素ごとに適用し、新しいグローバルな CSS の擬似クラスにはしない。 */
-export const CUSTOM_STATE_PREFIX = "custom:";
-export const CUSTOM_STATE_ATTRIBUTE = "data-site-state";
+const CUSTOM_STATE_PREFIX = "custom:";
+const CUSTOM_STATE_ATTRIBUTE = "data-site-state";
 
-export function isValidCustomStateName(value: string): boolean {
+function isValidCustomStateName(value: string): boolean {
   return value.length > 0 && value.length <= 40 &&
     /^[\p{L}\p{N}_][\p{L}\p{N}_ -]*$/u.test(value) &&
     !["default", "hover", "active", "focus"].includes(value);
 }
 
-export function customStateKey(name: string): StyleState | null {
+function customStateKey(name: string): StyleState | null {
   const clean = name.trim();
   return isValidCustomStateName(clean) ? `custom:${clean}` as StyleState : null;
 }

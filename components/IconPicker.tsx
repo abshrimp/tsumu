@@ -17,7 +17,7 @@ function toKebab(name: string): string {
 }
 
 /** アイコンのコンポーネントを SVG の文字列に変換する（大きさは CSS で決める） */
-export function iconToSvg(pascalName: string): string {
+function iconToSvg(pascalName: string): string {
   const C = icons[pascalName as keyof typeof icons];
   if (!C) return "";
   const div = document.createElement("div");

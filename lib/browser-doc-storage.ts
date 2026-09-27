@@ -53,7 +53,7 @@ export async function readBrowserDoc(id: string): Promise<string | null> {
   });
 }
 
-export type BrowserDocWriteResult = "saved" | "conflict";
+type BrowserDocWriteResult = "saved" | "conflict";
 
 /** 比較してから書き込む操作を原子的に行い、古いタブが新しい内容を上書きしないようにする。 */
 export async function writeBrowserDoc(

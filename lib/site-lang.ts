@@ -6,7 +6,7 @@
 import type { SiteDoc } from "./types";
 
 /** サイトの既定の言語 */
-export const DEFAULT_SITE_LANG = "ja";
+const DEFAULT_SITE_LANG = "ja";
 
 /** 選べる言語（BCP 47 の言語コードと、その言語での名前） */
 export const SITE_LANGS: { value: string; label: string }[] = [

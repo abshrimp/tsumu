@@ -249,7 +249,7 @@ export function idVarNodesOf(doc: SiteDoc, pageId: string): DocNode[] {
 }
 
 /** ID 付きの要素が提供する変数の名前（ラジオは、グループ名があればそれを使う） */
-export function idVarName(n: DocNode): string {
+function idVarName(n: DocNode): string {
   return n.type === "field" ? fieldVarName(n) : (n.attrId ?? "");
 }
 
@@ -276,7 +276,7 @@ export function varNamesAt(
 }
 
 /** ページのスクリプトで作る変数と配列の名前（ブロックの入れ子の中も含む） */
-export function scriptVarNames(doc: SiteDoc, pageId: string): string[] {
+function scriptVarNames(doc: SiteDoc, pageId: string): string[] {
   return [...dataVarNames(doc, pageId)].filter((n) => n !== ITEM_VALUE && n !== "slug");
 }
 
@@ -419,14 +419,14 @@ export function varSamplesAt(
 /* ---------- ページで取得するデータ（スクリプトのデータのブロック） ---------- */
 
 /** ページを配信する前（サーバー側）にだけ動くブロック（データの取得） */
-export type DataStep = Extract<ScriptStep, { kind: "fetch" }>;
+type DataStep = Extract<ScriptStep, { kind: "fetch" }>;
 /** リストの各要素を処理するブロック（純粋な処理なら、配信する前にも実行する）。 */
-export type ForEachStep = Extract<ScriptStep, { kind: "for-each" }>;
-export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
-export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
+type ForEachStep = Extract<ScriptStep, { kind: "for-each" }>;
+type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
+type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
 /** ページを配信する前に実行するブロック */
-export type PureGroupStep = Extract<ScriptStep, { kind: "for-each" | "if" | "repeat" }>;
-export type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep | Extract<ScriptStep, { kind: "set-list-item" | "remove-list-item" }>;
+type PureGroupStep = Extract<ScriptStep, { kind: "for-each" | "if" | "repeat" }>;
+type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep | Extract<ScriptStep, { kind: "set-list-item" | "remove-list-item" }>;
 
 /** 「［{名前}］を変数［］とする」の {名前}（値が {名前} 1つだけでなければ null） */
 export function setVarSource(st: SetVarStep): string | null {
@@ -985,7 +985,7 @@ export function listFromOf(node: DocNode): string | undefined {
 }
 
 /** 取得結果を、見本として保存できる大きさにする（配列は先頭だけを残す） */
-export function trimSample(
+function trimSample(
   value: unknown,
   max = 20,
   depth = 0,
@@ -1042,7 +1042,7 @@ function slugSelectorOf(steps: readonly ServerStep[]): {
   return null;
 }
 
-export type PrimaryStep = SetVarStep;
+type PrimaryStep = SetVarStep;
 export function primaryDataStep(
   doc: SiteDoc, pageId: string, plannedSteps?: readonly ServerStep[],
 ): { step: PrimaryStep } | null {
@@ -1082,7 +1082,7 @@ export function sameKey(value: unknown, key: string): boolean {
   return v === key || encodeURIComponent(v) === key;
 }
 
-export interface PreviewOpts {
+interface PreviewOpts {
   /** 中心になるデータで表示する項目の番号（プレビューバー） */
   index?: number;
   /** ページの URL の [slug] の値 */
@@ -1264,7 +1264,7 @@ export function previewDataVars(
 export { setVarPath } from "./value-semantics";
 
 /** {名前} で書ける変数だけにする（「#」で始まる内部の変数を除く） */
-export function namedVars(vars: Record<string, unknown>): Record<string, unknown> {
+function namedVars(vars: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(vars).filter(([k]) => !k.startsWith("#")));
 }
 
@@ -1362,7 +1362,7 @@ function sampleArray(
 }
 
 /** 取得したデータの中にある「一覧」の候補（最大3階層まで探す） */
-export interface ItemsCandidate {
+interface ItemsCandidate {
   /** 一覧の位置（"items" や "data.list"。"" = データ全体が一覧） */
   path: string;
   count: number;
@@ -1444,7 +1444,7 @@ export function flattenFields(
 /* ---------- {変数} の書き換え（変数名の変更など） ---------- */
 
 /** テンプレート中の {名前} を fn の結果に置き換える（null ならそのまま） */
-export function mapVarTokens(
+function mapVarTokens(
   template: string,
   fn: (name: string) => string | null
 ): string {
@@ -1546,7 +1546,7 @@ export function mapNodeTokens(node: DocNode, fn: (name: string) => string | null
 }
 
 /** 「変数名」「変数名.〜」を、新しい変数名に付け替える関数 */
-export function renameVarFn(from: string, to: string) {
+function renameVarFn(from: string, to: string) {
   return (name: string): string | null =>
     name === from ? to : name.startsWith(`${from}.`) ? to + name.slice(from.length) : null;
 }

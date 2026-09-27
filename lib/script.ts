@@ -113,7 +113,7 @@ export function cloneSteps(steps: ScriptStep[], makeId = () => scriptUid("st")):
  * エディタのスクリプトの一覧を、保存する形に分ける。
  * allowLink のときは、最初の「クリックしたとき → 開く」だけのものを link（a タグ）にする
  */
-export function splitScripts(
+function splitScripts(
   scripts: Script[],
   allowLink: boolean
 ): Pick<DocNode, "link" | "scripts"> {
@@ -400,7 +400,7 @@ export function hasRunnableScripts(node: Pick<DocNode, "scripts">): boolean {
 /* ---------- 実行形式への変換 ---------- */
 
 type RuntimeStep = Record<string, unknown>;
-export interface RuntimeScript {
+interface RuntimeScript {
   trigger: ScriptTrigger;
   steps: RuntimeStep[];
   changeVariable?: string;

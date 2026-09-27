@@ -12,7 +12,7 @@ export interface DocUpdatedMessage {
   doc: SiteDoc;
 }
 
-export interface DocPatchedMessage {
+interface DocPatchedMessage {
   type: "doc-patched";
   base: string;
   patch: DocPatch;

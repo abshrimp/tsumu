@@ -39,7 +39,7 @@ import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, type FetchPreviewScope } f
 import { Phrase, TextIn } from "./inputs";
 
 /** テスト実行では明示的に送る。解決していない値を、空文字や仮の slug に置き換えない。 */
-export async function fetchWhole(url: string, options: FetchOptions = {}, vars: Vars = {}): Promise<unknown> {
+async function fetchWhole(url: string, options: FetchOptions = {}, vars: Vars = {}): Promise<unknown> {
   if (fetchPreviewInputs(url, options, vars).some((input) => input.missing)) {
     throw new Error(tr("Enter test values to continue"));
   }
@@ -62,9 +62,9 @@ export const wholeKey = (st: FetchStep, pageId = useEditor.getState().activePage
 const ownerKey = (stepId: string, pageId: string, scope?: FetchPreviewScope) => JSON.stringify([useEditor.getState().documentSession, pageId, sourceKey(scope), stepId]);
 
 /** 見本を取得したときのリクエストと、保存されている現在の設定を比べる（見本の更新時刻は比べない） */
-export const requestKey = (url: string, options: FetchOptions) =>
+const requestKey = (url: string, options: FetchOptions) =>
   JSON.stringify([url.trim(), options.method ?? "GET", options.headers ?? [], options.body ?? ""]);
-export const fetchTestKey = (step: FetchStep, scope: FetchPreviewScope) =>
+const fetchTestKey = (step: FetchStep, scope: FetchPreviewScope) =>
   JSON.stringify([requestKey(step.url, step), scope.nodeId, scope.localNames]);
 
 /** 時刻のある見本だけが、現在の設定で確認済みのもの。確認していない見本も、代わりに使うために残す。 */
@@ -72,7 +72,7 @@ export const hasCurrentSample = (step: FetchStep) => step.preview?.sample !== un
   typeof step.preview?.fetchedAt === "number" && Number.isFinite(step.preview.fetchedAt) && step.preview.fetchedAt > 0;
 
 /** 設定を変えたときは、取得済みの印だけを外し、代わりに使う見本は残す。 */
-export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?: string }, pageId = useEditor.getState().activePageId, scope?: FetchPreviewScope): FetchStep {
+function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?: string }, pageId = useEditor.getState().activePageId, scope?: FetchPreviewScope): FetchStep {
   const next = { ...step, ...patch };
   if (requestKey(step.url, step) !== requestKey(next.url, next)) {
     if (next.preview) {
@@ -788,7 +788,7 @@ function findsList(value: unknown, depth = 0): boolean {
 }
 
 /** 上書きできない変数名（ページの URL の slug、リストの各要素の「値」、ループ） */
-export const RESERVED_VARS = new Set(["slug", ITEM_VALUE, "ループ"]);
+const RESERVED_VARS = new Set(["slug", ITEM_VALUE, "ループ"]);
 
 /** 変数名の入力欄（同じ名前ならその変数を上書きする。名前を変えると、使っている箇所も書き換える） */
 export function VarNameIn({

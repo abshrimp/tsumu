@@ -63,7 +63,7 @@ export interface TreeRow {
   hasChildren: boolean;
 }
 
-export type ElementKind =
+type ElementKind =
   | "text" | "box" | "button" | "image" | "field" | "icon" | "list" | "media" | "embed" | "code" | "divider" | "component";
 
 export const ELEMENT_KIND: Record<ElementKind, { label: string; icon: LucideIcon }> = {
@@ -82,7 +82,7 @@ export const ELEMENT_KIND: Record<ElementKind, { label: string; icon: LucideIcon
 };
 
 /** 作っている人が見て分かる言葉で、要素の種類を返す（タグ名は使わない）。 */
-export function elementKindOf(node: DocNode, tag: string): ElementKind {
+function elementKindOf(node: DocNode, tag: string): ElementKind {
   switch (node.type) {
     case "image": return "image";
     case "icon": return "icon";
@@ -131,7 +131,7 @@ function matchingBranches(rows: readonly TreeRow[], matches: (row: TreeRow) => b
 /** 検索では、一致した行までの祖先をたどれるように残すが、名前や ID が検索語に
  * 一致した親を自動では開かない。
  * その親を開くと、検索語を含まない子も含め、すべての直下の子が表示される。 */
-export function searchNodePickerRows(
+function searchNodePickerRows(
   rows: readonly TreeRow[],
   query: string,
   manuallyOpen: ReadonlySet<string>,

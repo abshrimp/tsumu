@@ -23,7 +23,7 @@ import { validSiteAdditionalFields } from "./document-value-shapes";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 
 /** クリップボードに書くエディタ専用の形式 */
-export const CLIP_MIME = "application/x-tsumu+json";
+const CLIP_MIME = "application/x-tsumu+json";
 /** 右クリックメニューの「貼り付け」に使う控え（全サイト共通） */
 const CLIP_MIRROR_KEY = storageKey("clipboard-v1");
 

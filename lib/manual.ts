@@ -109,7 +109,7 @@ export interface GuideStep {
  * 記事が関係する場面。いま選んでいる要素や編集中の状態から、
  * ヘルプの「いまの作業に関係する質問」に表示する
  */
-export type TopicContext =
+type TopicContext =
   | "none"
   | "text"
   | "image"
