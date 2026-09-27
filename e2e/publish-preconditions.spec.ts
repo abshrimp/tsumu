@@ -123,7 +123,7 @@ for (const drift of ["destination", "head"] as const) {
     await openHistory();
     await expect(page.getByText("Stale history version", { exact: false })).toBeVisible();
     await page.getByRole("button", { name: "サイトを戻す", exact: true }).click();
-    const confirmation = page.getByRole("dialog", { name: "公開したサイトを、この版に戻しますか？" });
+    const confirmation = page.getByRole("dialog", { name: "公開したサイトをこの版に戻しますか？" });
     await expect(confirmation).toBeVisible();
     expect(rollbacks).toHaveLength(0);
     changed = true;

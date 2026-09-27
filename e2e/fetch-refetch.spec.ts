@@ -131,7 +131,7 @@ test("Saved samples are limited to 20 and explain how to fetch all results again
   const all = Array.from({ length: 23 }, (_, i) => ({ name: `Row${i}` }));
   await finish(page, 0, all);
   await expect(result(page).getByText("Row22", { exact: true })).toBeVisible();
-  await expect(result(page)).not.toContainText("見本には、リストの先頭の20件だけを保存しています");
+  await expect(result(page)).not.toContainText("見本にはリストの先頭の20件だけを保存しています");
   await close(page);
 
   // 保存した文書に戻すと、メモリの中の応答の全体は失われるが、プレビューは失われない。
@@ -140,8 +140,8 @@ test("Saved samples are limited to 20 and explain how to fetch all results again
     store.replaceDoc(JSON.parse(JSON.stringify(store.doc)));
   });
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
-  await expect(result(page)).toContainText("見本には、リストの先頭の20件だけを保存しています");
-  await expect(result(page)).toContainText("すべてを見るには、右上の「取得し直す」");
+  await expect(result(page)).toContainText("見本にはリストの先頭の20件だけを保存しています");
+  await expect(result(page)).toContainText("すべてを見るには右上の「取得し直す」");
   await requests(page, 1);
   await refresh(page).click(); await requests(page, 2);
   await finish(page, 1, all);
