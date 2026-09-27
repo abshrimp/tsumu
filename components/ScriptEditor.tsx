@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  ArrowDown, ArrowUp, CircleCheck, Copy, FileText, Plus, Redo2, Trash2, TriangleAlert, Undo2, X, Zap,
+  ArrowDown, ArrowUp, CircleCheck, ClipboardPaste, Copy, FileText, Plus, Redo2, Scissors, Trash2, TriangleAlert, Undo2, X, Zap,
 } from "lucide-react";
 import { componentOf, useEditor } from "../lib/store";
 import SafeBoundary from "./SafeBoundary";
@@ -32,7 +32,7 @@ import {
 } from "./script-editor/step-tree";
 import { buildTree, collectTargets } from "./script-editor/targets";
 import { TriggerCard, TriggerChooser, type TriggerValue } from "./script-editor/TriggerCard";
-import { useEditorKeys, type EditorKeyState } from "./script-editor/useEditorKeys";
+import { readScriptClipboard, rememberScriptClipboard, useEditorKeys, type EditorKeyState } from "./script-editor/useEditorKeys";
 import { useStepDrag } from "./script-editor/useStepDrag";
 
 /* ---------- 設定パネル用の一覧 ---------- */
@@ -432,7 +432,22 @@ function ScriptEditorInner({
     if (!result) return;
     captureLayout();
     commit(result.scripts);
-    setSelected(result.selection.filter((key) => key.startsWith("step:")).map((key) => key.slice(5)));
+    const added = result.selection.filter((key) => key.startsWith("step:")).map((key) => key.slice(5));
+    setSelected(added);
+    if (added.length) refocus.current = { stepId: added[0], selector: ".se-grip" };
+  };
+  const copySteps = (ids: readonly string[]): boolean => {
+    const copied = copyScriptBlocks(scriptsRef.current, ids.map((id) => `step:${id}`));
+    if (!copied) return false;
+    rememberScriptClipboard(copied);
+    return true;
+  };
+  const cutSteps = (ids: readonly string[]) => {
+    if (copySteps(ids)) deleteSteps(ids);
+  };
+  const pasteFromClipboard = () => {
+    const copied = readScriptClipboard();
+    if (copied) pasteSelection(copied);
   };
 
   const drag = useStepDrag({
@@ -575,6 +590,11 @@ function ScriptEditorInner({
               <Redo2 size={16} aria-hidden="true" />
             </button>
             <span className="se-tools-sep" />
+            <button className="se-icon-btn" onClick={pasteFromClipboard} disabled={!open}
+              aria-label={tr("Paste")} data-tip={tr("Paste")}>
+              <ClipboardPaste size={16} aria-hidden="true" />
+            </button>
+            <span className="se-tools-sep" />
             <button className="se-icon-btn" onClick={onClose} aria-label={tr("Close")}>
               <X size={16} aria-hidden="true" />
             </button>
@@ -687,7 +707,7 @@ function ScriptEditorInner({
           />
         )}
         {stepMenu && menuStep && menuList && (
-          <Popover anchor={stepMenu.anchor} width={220} height={190} className="se-menu"
+          <Popover anchor={stepMenu.anchor} width={220} height={300} className="se-menu"
             label={tr("Action options")} onClose={closeStepMenu}>
             <button type="button" disabled={menuCount > 1 || stepMenu.value.loc.index === 0}
               onClick={() => {
@@ -703,6 +723,26 @@ function ScriptEditorInner({
                 nudge(stepMenu.value.loc, stepMenu.value.stepId, 1);
               }}>
               <ArrowDown size={14} aria-hidden="true" />{tr("Move down")}<kbd>{glyphs("⌥↓")}</kbd>
+            </button>
+            <button type="button" onClick={() => {
+              const ids = menuCount > 1 ? selected : [stepMenu.value.stepId];
+              closeStepMenu();
+              copySteps(ids);
+            }}>
+              <Copy size={14} aria-hidden="true" />{tr("Copy")}<kbd>{glyphs("⌘C")}</kbd>
+            </button>
+            <button type="button" onClick={() => {
+              const ids = menuCount > 1 ? selected : [stepMenu.value.stepId];
+              closeStepMenu();
+              cutSteps(ids);
+            }}>
+              <Scissors size={14} aria-hidden="true" />{tr("Cut")}<kbd>{glyphs("⌘X")}</kbd>
+            </button>
+            <button type="button" onClick={() => {
+              closeStepMenu();
+              pasteFromClipboard();
+            }}>
+              <ClipboardPaste size={14} aria-hidden="true" />{tr("Paste")}<kbd>{glyphs("⌘V")}</kbd>
             </button>
             <button type="button" onClick={() => {
               closeStepMenu();

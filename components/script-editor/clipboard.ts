@@ -4,7 +4,7 @@
  */
 import { cloneSteps, scriptUid, type PageScript } from "../../lib/script";
 import type { ScriptStep } from "../../lib/types";
-import { findStepLoc, insertAt, type Loc } from "./step-tree";
+import { insertAt, type Loc } from "./step-tree";
 
 export interface ScriptBlockClipboard {
   v: 2;
@@ -39,16 +39,28 @@ export function copyScriptBlocks(scripts: PageScript[], selected: readonly strin
 
 /** 選択した動作の直後。選択が無ければ、開いているスクリプトの末尾。 */
 function insertionPoint(scripts: PageScript[], selected: readonly string[], openScriptId: string | null): Loc | null {
-  for (let i = selected.length - 1; i >= 0; i--) {
-    const key = selected[i];
-    if (!key.startsWith("step:")) continue;
-    for (const script of scripts) {
-      const found = findStepLoc(script, key.slice(5));
-      if (found) return { ...found, index: found.index + 1 };
-    }
-  }
   const open = scripts.find((script) => script.id === openScriptId);
-  return open ? { scriptId: open.id, list: "root", index: open.steps.length } : null;
+  if (!open) return null;
+
+  // 別のスクリプトに切り替えたあと、以前の選択位置に貼り付けない。
+  // 選択した順序ではなく、スクリプト内に表示される順序で最後の動作を基準にする。
+  const chosen = new Set(selected.filter((key) => key.startsWith("step:")).map((key) => key.slice(5)));
+  let last: Loc | null = null;
+  const visit = (steps: ScriptStep[], list: string, parentSelected = false) => {
+    steps.forEach((step, index) => {
+      const selectedHere = chosen.has(step.id);
+      if (selectedHere && !parentSelected) last = { scriptId: open.id, list, index: index + 1 };
+      // 親と子を両方選択していても、親の直後に貼り付ける。
+      if (step.kind === "if") {
+        visit(step.then, `${step.id}:then`, parentSelected || selectedHere);
+        if (step.else) visit(step.else, `${step.id}:else`, parentSelected || selectedHere);
+      } else if (step.kind === "repeat" || step.kind === "for-each") {
+        visit(step.then, `${step.id}:then`, parentSelected || selectedHere);
+      }
+    });
+  };
+  visit(open.steps, "root");
+  return last ?? { scriptId: open.id, list: "root", index: open.steps.length };
 }
 
 /** 貼り付けは、1回で元に戻せる文書の編集として行い、入れ子の動作には新しい ID を振る。 */

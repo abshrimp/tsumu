@@ -121,6 +121,59 @@ test("the same reordering works from the keyboard and the card menu, and is undo
   await expect.poll(() => kinds(page)).toBe("wait,wait,show,dialog");
 });
 
+test("action menus copy, cut and paste blocks, including after undo and redo", async ({ page }) => {
+  await addAction(page, "show");
+  await addAction(page, "wait");
+
+  await rootCards(page).first().locator("> .se-card-head .se-card-more").click();
+  await page.locator(".se-menu button").filter({ hasText: "コピー" }).click();
+  await rootCards(page).nth(1).locator("> .se-card-head .se-card-more").click();
+  await page.locator(".se-menu button").filter({ hasText: "貼り付け" }).click();
+  await expect.poll(() => kinds(page)).toBe("show,wait,show");
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(() => kinds(page)).toBe("show,wait");
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect.poll(() => kinds(page)).toBe("show,wait,show");
+
+  await rootCards(page).last().locator("> .se-card-head .se-card-more").click();
+  await page.locator(".se-menu button").filter({ hasText: "切り取り" }).click();
+  await expect.poll(() => kinds(page)).toBe("show,wait");
+  // 選択がない場合は、画面上部の「貼り付け」で最後に追加する。
+  await page.locator('.se-header [aria-label="貼り付け"]').click();
+  await expect.poll(() => kinds(page)).toBe("show,wait,show");
+});
+
+test("selected cards accept clipboard events without intercepting text fields", async ({ page }) => {
+  await addAction(page, "show");
+  await addAction(page, "wait");
+  const first = rootCards(page).first();
+  // Hit the card header padding, not the drag-handle button directly below it.
+  await first.click({ position: { x: 5, y: 4 } });
+  await expect(first).toHaveClass(/is-selected/);
+  await expect(first).toBeFocused();
+
+  const raw = await page.evaluate(() => {
+    const data = new DataTransfer();
+    const event = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: data });
+    window.dispatchEvent(event);
+    if (!event.defaultPrevented) throw new Error("The script editor did not handle copy");
+    return data.getData("text/plain");
+  });
+  expect(raw).toContain("Tsumu script actions");
+
+  await rootCards(page).nth(1).click({ position: { x: 5, y: 4 } });
+  const handled = await page.evaluate((plain) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", plain);
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, raw);
+  expect(handled).toBe(true);
+  await expect.poll(() => kinds(page)).toBe("show,wait,show");
+});
+
 test("a script that only opens a page is complete as soon as the page is chosen", async ({ page }) => {
   await addAction(page, "open-page");
   await expect(page.locator(".se-status")).not.toHaveClass(/is-ready/);

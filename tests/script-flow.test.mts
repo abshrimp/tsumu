@@ -93,6 +93,33 @@ test("pasted actions get new IDs and land after the selection, or at the end of 
   assert.equal(pasteScriptBlocks(scripts, [], copied, null), null, "nothing is open, so there is nowhere to paste");
 });
 
+test("pasting uses document order even when actions were selected in reverse order", () => {
+  const scripts = [script()];
+  const copied = copyScriptBlocks(scripts, ["step:a"])!;
+  const result = pasteScriptBlocks(scripts, ["step:e", "step:a"], copied, "s")!;
+  assert.equal(result.scripts[0].steps.at(-1)?.kind, "wait");
+  assert.equal(result.selection.length, 1);
+  assert.equal(result.scripts[0].steps.at(-1)?.id, result.selection[0].slice(5));
+  assert.notEqual(result.scripts[0].steps.at(-1)?.id, "a");
+});
+
+test("pasting after a selected parent stays outside its nested branch", () => {
+  const scripts = [script()];
+  const copied = copyScriptBlocks(scripts, ["step:a"])!;
+  const result = pasteScriptBlocks(scripts, ["step:if", "step:c"], copied, "s")!;
+  assert.equal(result.scripts[0].steps[2].id, result.selection[0].slice(5));
+  assert.deepEqual(ids(scripts[0].steps), ["a", ["if", ["b", "c"], []], ["loop", ["d"]], "e"]);
+});
+
+test("pasting does not use a selection from another script", () => {
+  const scripts = [script(), { ...script(), id: "other", steps: [wait("only")] }];
+  const copied = copyScriptBlocks(scripts, ["step:a"])!;
+  const result = pasteScriptBlocks(scripts, ["step:e"], copied, "other")!;
+  assert.deepEqual(ids(result.scripts[0].steps), ids(scripts[0].steps));
+  assert.equal(result.scripts[1].steps.length, 2);
+  assert.equal(result.scripts[1].steps[1].id, result.selection[0].slice(5));
+});
+
 test("scripts are stored on their trigger element or on the page, without layout data", () => {
   const pageId = "home";
   const doc = {

@@ -26,6 +26,22 @@ const SCRIPT_CLIP_MIME = "application/x-tsumu-script+json";
 const SCRIPT_CLIP_PREFIX = "Tsumu script actions v2\n";
 let lastScriptClipboard: { raw: string; value: ScriptBlockClipboard } | null = null;
 
+/** メニューからのコピーもキーボード操作と同じ形式で保持する。 */
+export function rememberScriptClipboard(value: ScriptBlockClipboard): void {
+  const raw = JSON.stringify(value);
+  lastScriptClipboard = { raw, value };
+  try {
+    // メニュー操作には ClipboardEvent が来ないので、OS のクリップボードも更新する。
+    void navigator.clipboard?.writeText(SCRIPT_CLIP_PREFIX + raw).catch(() => {});
+  } catch {
+    // 権限が無い環境でも、エディタ内の「貼り付け」メニューは使える。
+  }
+}
+
+export function readScriptClipboard(): ScriptBlockClipboard | null {
+  return lastScriptClipboard?.value ?? null;
+}
+
 /** 開いているメニューや小窓が、先にキーを受け取る。 */
 const overlayOpen = () =>
   !!document.querySelector(".dialog-backdrop:not(.is-leaving), [data-se-popover]");

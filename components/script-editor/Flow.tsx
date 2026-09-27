@@ -276,6 +276,7 @@ const StepCard = memo(function StepCard({ step, loc }: { step: ScriptStep; loc: 
       data-step-id={step.id}
       data-step-kind={step.kind}
       role="group"
+      tabIndex={-1}
       aria-label={tr("Action {n}", { n: loc.index + 1 })}
       aria-describedby={issue ? issueId : undefined}
       onPointerDown={(event) => {
@@ -283,6 +284,15 @@ const StepCard = memo(function StepCard({ step, loc }: { step: ScriptStep; loc: 
         if (event.button !== 0 || (event.target as HTMLElement).closest("input, select, textarea, button, label, a")) return;
         if ((event.target as HTMLElement).closest("[data-step-id]") !== event.currentTarget) return;
         flow.select(event, step.id);
+      }}
+      onClick={(event) => {
+        // pointerdown で focus() してもブラウザの既定操作で解除されるので、
+        // クリック終了後に選択したカードへフォーカスを戻す。
+        // 入力欄・ボタンと、ユーザーが文字を範囲選択した場合は妨げない。
+        if ((event.target as HTMLElement).closest("input, select, textarea, button, label, a")) return;
+        if ((event.target as HTMLElement).closest("[data-step-id]") !== event.currentTarget) return;
+        if (window.getSelection()?.toString()) return;
+        event.currentTarget.focus({ preventScroll: true });
       }}
     >
       <CardChrome step={step} loc={loc} issue={issue} issueId={issueId}>
