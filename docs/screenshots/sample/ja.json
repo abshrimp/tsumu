@@ -46,6 +46,7 @@
     "editScripts": "スクリプトを編集"
   },
   "doc": {
+    "schemaVersion": 1,
     "siteName": "森のパン屋",
     "lang": "ja",
     "colorPalette": [],

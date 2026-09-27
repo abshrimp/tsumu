@@ -46,6 +46,7 @@
     "editScripts": "Edit scripts"
   },
   "doc": {
+    "schemaVersion": 1,
     "siteName": "Forest Bakery",
     "lang": "en",
     "colorPalette": [],
