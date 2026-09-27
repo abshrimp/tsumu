@@ -136,7 +136,6 @@ export function tr(key: string, varsOrContext?: Vars | string, contextVars?: Var
 
 /** サーバーでの描画と API の応答で、同じ探し方の規則を使う。 */
 export function translate(
-  lang: Lang,
   list: Dict[],
   key: string,
   varsOrContext?: Vars | string,

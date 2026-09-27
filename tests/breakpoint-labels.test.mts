@@ -8,8 +8,8 @@ const prototypeNames = ["__proto__", "constructor", "toString", "hasOwnProperty"
 test("translation falls back to literal labels for inherited dictionary names", async () => {
   const dictionaries = await loadDicts("en");
   for (const label of prototypeNames) {
-    assert.equal(translate("en", dictionaries, label), label);
-    assert.equal(translate("en", dictionaries, label, {}), label);
+    assert.equal(translate(dictionaries, label), label);
+    assert.equal(translate(dictionaries, label, {}), label);
   }
 });
 
@@ -18,10 +18,10 @@ test("translation uses only own entries while retaining dictionary priority and 
     greeting: "Hello {name}",
   });
   const fallback = JSON.parse('{"inherited":"Fallback","constructor":"Own translation"}');
-  assert.equal(translate("en", [primary, fallback], "inherited"), "Fallback");
-  assert.equal(translate("en", [primary, fallback], "constructor"), "Own translation");
-  assert.equal(translate("en", [primary, { greeting: "Fallback" }], "greeting", { name: "Tsumu" }), "Hello Tsumu");
-  assert.equal(translate("en", [primary], "Missing {name}", { name: "Tsumu" }), "Missing Tsumu");
+  assert.equal(translate([primary, fallback], "inherited"), "Fallback");
+  assert.equal(translate([primary, fallback], "constructor"), "Own translation");
+  assert.equal(translate([primary, { greeting: "Fallback" }], "greeting", { name: "Tsumu" }), "Hello Tsumu");
+  assert.equal(translate([primary], "Missing {name}", { name: "Tsumu" }), "Missing Tsumu");
 });
 
 for (const lang of ["ja", "en"]) {

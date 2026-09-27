@@ -153,7 +153,7 @@ test("the self-loop error has an English translation with the page and destinati
   assert.ok(error);
   // runChecks の日本語の文から辞書のキーに戻し、実際の翻訳の経路を通す。
   const key = error.message.replace("Old URL", "{name}").replace("/about", "{destination}");
-  const translated = translate("en", await loadDicts("en"), key, { name: "Old URL", destination: "/about" });
+  const translated = translate(await loadDicts("en"), key, { name: "Old URL", destination: "/about" });
   assert.match(translated, /Old URL/);
   assert.match(translated, /\/about/);
   assert.match(translated, /redirect loop/);

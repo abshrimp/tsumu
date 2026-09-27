@@ -15,7 +15,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
   }));
   await page.goto("/sites/bootstrap-test" + query);
   await page.addStyleTag({ content: css });
-  await page.evaluate(({ strict, cached, localSite }) => {
+  await page.evaluate(({ strict, localSite }) => {
     const w = window as any;
     w.bootstrapStrict = strict;
     localStorage.setItem("tsumu-lang", "ja");
@@ -65,7 +65,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
       close() { this.readyState = 3; this.listeners.close?.forEach((listener) => listener()); }
     }
     w.WebSocket = w.EventSource = OfflineTransport;
-  }, { strict, cached, localSite });
+  }, { strict, localSite });
   // エディタの動的な import より前に、実際の形式でキャッシュを用意する。
   await page.addScriptTag({ content: bundle });
   if (cached) {

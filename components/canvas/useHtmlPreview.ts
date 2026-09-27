@@ -18,7 +18,7 @@ export function useHtmlPreview(src: string, assets: Record<string, Asset>, zip?:
       asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
     return rewriteHtmlZipScriptUrls(html, zip, assets, assetSrc);
   }, [src, zip, assets]);
-  const key = useMemo(() => JSON.stringify([...zipAssetClosure(assets, zipPreviewRoots(prepared, assets))].map((id) => assets[id])), [prepared, assets]);
+  const key = useMemo(() => JSON.stringify([...zipAssetClosure(assets, zipPreviewRoots(prepared))].map((id) => assets[id])), [prepared, assets]);
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ src: string; key: string; revision: number; html: string; error?: string; needsRefresh?: boolean }>();
   const refresh = useCallback(() => setRevision((n) => n + 1), []);

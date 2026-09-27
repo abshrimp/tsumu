@@ -59,7 +59,7 @@ test("invalid and duplicate language files are rejected during discovery", () =>
 });
 
 test("missing translations fall back to the English source text", () => {
-  assert.equal(translate("ja", [{ Save: "保存" }], "Save"), "保存");
-  assert.equal(translate("ja", [{ Save: "保存" }], "Not yet translated"), "Not yet translated");
-  assert.equal(translate("ja", [{ Save: "" }], "Save"), "Save");
+  assert.equal(translate([{ Save: "保存" }], "Save"), "保存");
+  assert.equal(translate([{ Save: "保存" }], "Not yet translated"), "Not yet translated");
+  assert.equal(translate([{ Save: "" }], "Save"), "Save");
 });

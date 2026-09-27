@@ -22,10 +22,10 @@ for (const draft of ["create", "reply", "edit"] as const) test(`deleting a local
   const doc = createInitialDoc(); doc.siteName = site.name;
   const threads = applyCommentAction([], { action: "create", id: "original", pageId: doc.pageOrder[0],
     nodeId: null, x: .5, y: .5, bp: "base", body: "Saved browser discussion" }, null, 1);
-  await home.evaluate(({ site, doc, key, threads }) => {
+  await home.evaluate(({ site, key, threads }) => {
     localStorage.setItem("tsumu-sites-v1", JSON.stringify([site]));
     localStorage.setItem(key, JSON.stringify(threads));
-  }, { site, doc, key, threads });
+  }, { site, key, threads });
   await setBrowserDoc(home, site.id, JSON.stringify(doc));
   await home.reload(); await expect(home.locator(".home-card-name")).toHaveText(site.name);
   const editor = await context.newPage();

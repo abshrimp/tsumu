@@ -122,8 +122,7 @@ export function applyScriptsAttr(
   doc: SiteDoc,
   vars: Record<string, unknown>,
   clientVars: Set<string>,
-  skip?: Set<string>,
-  itemVars?: Record<string, unknown>
+  skip?: Set<string>
 ) {
   if (!node.scripts?.length) return;
   const compiled = compileScripts(

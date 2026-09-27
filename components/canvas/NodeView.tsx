@@ -60,7 +60,7 @@ function GhostViewInner({
   if (importedClass(node.htmlClass)) common.className = importedClass(node.htmlClass);
   if (instanceIds.length) common["data-instance-node"] = instanceIds.join(" ");
   if (node.attrId) common.id = node.attrId;
-  if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars, undefined, scopedVars);
+  if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars);
 
   if (node.type === "image" && node.image) {
     const raw = mediaSrc(doc, node.image);
@@ -238,7 +238,7 @@ export function NodeView({
   ) {
     common["data-bound"] = "true";
   }
-  if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars, undefined, scopedVars);
+  if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars);
 
   // リスト: 1件目は編集できるテンプレート、2件目以降はゴーストとして表示する
   if (node.type === "list") {
@@ -339,7 +339,7 @@ export function NodeView({
     // プレビューでは、インスタンスの外枠にもマスターの ID・スクリプト・リンクを反映する。
     if (ctx.preview) {
       if (root.attrId) common.id = root.attrId;
-      applyScriptsAttr(root, common, doc, vars, ctx.clientVars, undefined, scopedVars);
+      applyScriptsAttr(root, common, doc, vars, ctx.clientVars);
       if (root.link) {
         const link = root.link;
         const rawUrl = link.kind === "page" ? "#" : link.url || "#";

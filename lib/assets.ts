@@ -365,7 +365,7 @@ const ASSET_URL_RE = /(?<![\w/:%~.-])(?:([Hh][Tt][Tt][Pp][Ss]?:\/\/[^/\s"'<>]+|\
  */
 const ZIP_CSS_URL_RE = /tsumu-zip-css:([A-Za-z0-9%._~-]+)/g;
 
-export function zipPreviewRoots(html: string, assets: Record<string, Asset>): string[] {
+export function zipPreviewRoots(html: string): string[] {
   return [...new Set([...html.matchAll(ZIP_CSS_URL_RE)].map((m) => {
     try { return decodeURIComponent(m[1]); } catch { return ""; }
   }))];
@@ -375,7 +375,7 @@ export async function withSignedAssetUrls(
   html: string, assets: Record<string, Asset> = {}, options: { signal?: AbortSignal; baseUrl?: string; onExpiresAt?: (time: number) => void } = {}
 ): Promise<string> {
   options.signal?.throwIfAborted();
-  const roots = zipPreviewRoots(html, assets);
+  const roots = zipPreviewRoots(html);
   const base = options.baseUrl ?? (typeof window !== "undefined" ? window.location.href : undefined);
   const sameOrigin = (prefix: string | undefined) => {
     if (!prefix) return true;

@@ -17,7 +17,7 @@ async function trOf(lang: Lang): Promise<Tr> {
     cache.set(lang, dicts);
   }
   const list = await dicts;
-  return (key, varsOrContext, contextVars) => translate(lang, list, key, varsOrContext, contextVars);
+  return (key, varsOrContext, contextVars) => translate(list, key, varsOrContext, contextVars);
 }
 
 /** サーバーコンポーネントと API ルート用 */
