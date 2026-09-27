@@ -123,7 +123,9 @@ test("Failed polling keeps existing comments and unsent reply drafts", async ({ 
   const reply = page.locator(".cm-detail").getByPlaceholder("返信", { exact: true });
   await reply.fill("Unsent draft during refresh");
   await setFailure(page, "read");
-  await expect(error(page)).toHaveText("コメントを読み込めませんでした", { timeout: 20_000 });
+  // タブに戻ると、次の定期的な読み込みを待たずに読み込み直す。
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(error(page)).toHaveText("コメントを読み込めませんでした");
   await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText("Saved comment");
   await expect(reply).toHaveValue("Unsent draft during refresh");
   expect(await saved(page, key)).toBe(before);

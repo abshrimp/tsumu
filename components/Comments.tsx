@@ -378,12 +378,17 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
   const [draftPos, setDraftPos] = useState<{ left: number; top: number } | null>(null);
   const [hover, setHover] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
-  // 他の人のコメントも見えるよう、開いている間は定期的に読み込み直す
+  // 他の人のコメントも見えるよう、開いている間は定期的に読み込み直す。タブに戻ったときは、次の回を待たずに読み込む
   useEffect(() => {
-    const id = setInterval(() => {
+    const refresh = () => {
       if (!document.hidden) void load();
-    }, 15000);
-    return () => clearInterval(id);
+    };
+    const id = setInterval(refresh, 15000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, [load]);
 
   // Esc: 書きかけのコメントや開いているスレッドを閉じる。何も無ければコメントモードを終える

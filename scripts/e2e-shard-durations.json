@@ -90,7 +90,7 @@
     ],
     "e2e/comment-local-storage.spec.ts": [
       8,
-      44200
+      29200
     ],
     "e2e/comment-pagination.spec.ts": [
       3,
@@ -126,7 +126,7 @@
     ],
     "e2e/deleted-comment-thread.spec.ts": [
       6,
-      49100
+      19100
     ],
     "e2e/deleted-comments.spec.ts": [
       4,
@@ -258,7 +258,7 @@
     ],
     "e2e/local-site-comment-deletion.spec.ts": [
       3,
-      40900
+      12900
     ],
     "e2e/motion-pointer-drag.spec.ts": [
       8,

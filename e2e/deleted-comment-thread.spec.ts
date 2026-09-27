@@ -25,7 +25,9 @@ for (const local of [false, true]) test(`${local ? "local" : "server"} polling r
   const reply = detail(page).getByPlaceholder("返信", { exact: true }); await reply.fill("Keep this unsent reply");
   if (local) await page.evaluate(key => localStorage.setItem(key, "[]"), key);
   else expect((await page.request.post(`/api/comments?site=${site}`, { data: { action: "delete-thread", threadId: id } })).ok()).toBeTruthy();
-  await expect(deletedWarning(page)).toContainText("このスレッドは削除されています", { timeout: 20_000 });
+  // タブに戻ると、次の定期的な読み込みを待たずに読み込み直す。
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(deletedWarning(page)).toContainText("このスレッドは削除されています");
   await expect(reply).toHaveValue("Keep this unsent reply");
   await expect(detail(page).getByRole("button", { name: "返信", exact: true })).toBeDisabled();
   await expect(detail(page).getByRole("button", { name: "解決済みにする", exact: true })).toBeDisabled();

@@ -58,9 +58,10 @@ for (const draft of ["create", "reply", "edit"] as const) test(`deleting a local
   expect(await home.evaluate(({ key, marker }) => ({ comments: localStorage.getItem(key), marker: localStorage.getItem(marker) }), { key, marker }))
     .toEqual({ comments: null, marker: "1" });
   await home.reload(); await expect(home.locator(".home-card")).toHaveCount(0);
-  await editor.bringToFront();
+  // ヘッドレスのブラウザーではタブの切り替えが伝わらないため、タブに戻ったことを知らせる。
+  await editor.bringToFront(); await editor.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   if (draft === "create") await detail.getByRole("button", { name: "投稿", exact: true }).click();
-  else await expect(detail.getByRole("alert")).toContainText("このスレッドは削除されています", { timeout: 20_000 });
+  else await expect(detail.getByRole("alert")).toContainText("このスレッドは削除されています");
   await expect(editor.locator(".cm-panel .is-error")).toHaveText("サイトが見つかりません");
   await expect(input).toHaveValue("Keep this unsent text for copying");
   await expect.poll(() => editor.evaluate(() => window.location.pathname)).toBe(`/sites/${site.id}`);
