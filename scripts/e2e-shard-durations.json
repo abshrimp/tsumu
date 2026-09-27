@@ -2,283 +2,291 @@
   "files": {
     "e2e/ai-chat-history.spec.ts": [
       5,
-      3753
+      4455
     ],
     "e2e/ai-clone-isolation.spec.ts": [
       2,
-      2600
+      2400
     ],
     "e2e/api-invalid-input.spec.ts": [
       2,
-      271
+      165
     ],
     "e2e/aspect-ratio-collab.spec.ts": [
       1,
-      13400
+      12600
     ],
     "e2e/aspect-ratio-target.spec.ts": [
       7,
-      9800
+      10400
     ],
     "e2e/asset-confirmation.spec.ts": [
-      22,
-      9953
+      13,
+      6501
     ],
     "e2e/asset-download.spec.ts": [
-      7,
-      2741
+      5,
+      2372
     ],
     "e2e/asset-library-history.spec.ts": [
       11,
-      5710
+      8927
     ],
     "e2e/asset-window.spec.ts": [
       9,
-      8474
+      8147
+    ],
+    "e2e/body-search-modal.spec.ts": [
+      3,
+      1845
     ],
     "e2e/canvas-move-lifecycle.spec.ts": [
-      20,
-      12962
+      11,
+      8977
     ],
     "e2e/canvas-preview-lifecycle.spec.ts": [
-      12,
-      6010
+      6,
+      2993
     ],
     "e2e/canvas-selection-observer.spec.ts": [
       1,
-      668
+      795
     ],
     "e2e/client-field-scope.spec.ts": [
       3,
-      2024
+      2289
     ],
     "e2e/client-image-scope.spec.ts": [
       1,
-      1900
+      2100
     ],
     "e2e/client-literal-attributes.spec.ts": [
       1,
-      3400
+      3700
     ],
     "e2e/client-nested-lists.spec.ts": [
       4,
-      11641
+      9977
     ],
     "e2e/client-script-scope.spec.ts": [
       1,
-      1600
+      1700
     ],
     "e2e/clipboard-artwork.spec.ts": [
       24,
-      53000
+      54000
     ],
     "e2e/clipboard-history.spec.ts": [
       1,
-      6400
+      6000
     ],
     "e2e/color-css-values.spec.ts": [
-      6,
-      262
+      2,
+      69
     ],
     "e2e/color-hex-alpha.spec.ts": [
       2,
-      1022
+      1222
     ],
     "e2e/comment-composer.spec.ts": [
       7,
-      19300
+      19900
     ],
     "e2e/comment-local-storage.spec.ts": [
       8,
-      29200
+      29900
     ],
     "e2e/comment-pagination.spec.ts": [
       3,
-      11900
+      12700
     ],
     "e2e/comment-pin-visibility.spec.ts": [
       1,
-      2700
+      2500
     ],
     "e2e/comment-response-order.spec.ts": [
       2,
-      6000
+      5700
     ],
     "e2e/commit-fields.spec.ts": [
-      20,
-      62043
+      14,
+      34478
     ],
     "e2e/component-import-collisions.spec.ts": [
       1,
-      536
+      860
     ],
     "e2e/component-list-export.spec.ts": [
       3,
-      4100
+      5500
     ],
     "e2e/copy-site-storage.spec.ts": [
       6,
-      3115
+      3325
+    ],
+    "e2e/custom-code-editor.spec.ts": [
+      3,
+      10700
     ],
     "e2e/default-audio-height.spec.ts": [
       1,
-      1700
+      1900
     ],
     "e2e/deleted-comment-thread.spec.ts": [
       6,
-      19100
+      19000
     ],
     "e2e/deleted-comments.spec.ts": [
       4,
-      29200
+      29400
     ],
     "e2e/dialog-focus.spec.ts": [
-      7,
-      3461
+      8,
+      3919
     ],
     "e2e/easing-css-fidelity.spec.ts": [
       3,
-      3300
+      4000
     ],
     "e2e/easing-invalid-input.spec.ts": [
       3,
-      3200
+      3300
     ],
     "e2e/easing-pointer-drag.spec.ts": [
       3,
-      2764
+      2298
     ],
     "e2e/editor-bootstrap.spec.ts": [
       13,
-      44500
+      42293
     ],
     "e2e/editor-escape-scope.spec.ts": [
       14,
-      11917
+      13940
     ],
     "e2e/editor-paste-scope.spec.ts": [
       13,
-      36900
+      36500
     ],
     "e2e/editor-title.spec.ts": [
       4,
-      2204
+      2163
     ],
     "e2e/editor.spec.ts": [
       22,
-      113800
+      97500
     ],
     "e2e/empty-list-preview.spec.ts": [
       5,
-      8000
+      8800
     ],
     "e2e/encoded-css-assets.spec.ts": [
       3,
-      2735
+      1852
     ],
     "e2e/export-dialog.spec.ts": [
       9,
-      25409
+      27620
     ],
     "e2e/export-query-variant-runtime.spec.ts": [
       1,
-      170
+      190
     ],
     "e2e/export-single-html-runtime.spec.ts": [
       1,
-      94
+      104
     ],
     "e2e/external-json-security.spec.ts": [
       2,
-      424
+      457
     ],
     "e2e/fetch-refetch.spec.ts": [
       19,
-      28310
+      21353
     ],
     "e2e/frame-resize.spec.ts": [
       9,
-      4988
+      5804
     ],
     "e2e/home-site-mutations.spec.ts": [
       12,
-      8687
+      8062
     ],
     "e2e/home-site-storage.spec.ts": [
-      2,
-      2561
+      3,
+      2774
     ],
     "e2e/html-data-export.spec.ts": [
       4,
-      514
+      480
     ],
     "e2e/html-import-code-boundaries.spec.ts": [
       2,
-      517
+      445
     ],
     "e2e/html-import-lifecycle.spec.ts": [
-      14,
-      10503
+      15,
+      13823
     ],
     "e2e/html-to-site-import.spec.ts": [
-      12,
-      26373
+      15,
+      28098
     ],
     "e2e/image-drop.spec.ts": [
-      53,
-      63081
+      34,
+      43259
     ],
     "e2e/image-picker-target.spec.ts": [
       2,
-      1298
+      1221
     ],
     "e2e/indexeddb-transactions.spec.ts": [
       7,
-      675
+      424
     ],
     "e2e/input-default.spec.ts": [
-      22,
-      21430
+      13,
+      18100
     ],
     "e2e/instance-anchor.spec.ts": [
       1,
-      212
+      153
     ],
     "e2e/keyframe-css-fidelity.spec.ts": [
       8,
-      10800
+      11500
     ],
     "e2e/layers-virtualization.spec.ts": [
       2,
-      1251
+      1211
     ],
     "e2e/local-save-status.spec.ts": [
-      5,
-      29700
+      7,
+      37500
     ],
     "e2e/local-site-comment-deletion.spec.ts": [
       3,
-      12900
+      12600
     ],
     "e2e/motion-pointer-drag.spec.ts": [
       8,
-      7996
+      7615
     ],
     "e2e/nested-list-operations.spec.ts": [
-      1,
-      4300
+      4,
+      8424
     ],
     "e2e/nested-list-sources.spec.ts": [
       4,
-      5800
+      5900
     ],
     "e2e/nested-script-scope.spec.ts": [
       2,
-      1163
+      1340
     ],
     "e2e/number-field.spec.ts": [
       9,
-      12132
+      10716
     ],
     "e2e/output-tag-dropdown.spec.ts": [
       2,
@@ -286,171 +294,191 @@
     ],
     "e2e/page-copy-query.spec.ts": [
       1,
-      260
+      270
     ],
     "e2e/page-folder-collaboration.spec.ts": [
       1,
-      11200
+      11000
     ],
     "e2e/page-folder-merge.spec.ts": [
       5,
-      4094
+      3533
     ],
     "e2e/page-form-accessibility.spec.ts": [
       3,
-      7400
+      7700
     ],
     "e2e/page-html.spec.ts": [
       1,
-      232
+      262
     ],
     "e2e/page-kind-confirmation.spec.ts": [
-      32,
-      33191
+      12,
+      10831
+    ],
+    "e2e/pages-panel-interactions.spec.ts": [
+      2,
+      5400
     ],
     "e2e/panel-resize.spec.ts": [
       2,
-      5100
+      5200
     ],
     "e2e/pending-import.spec.ts": [
       16,
-      15235
+      19900
     ],
     "e2e/preview-dynamic-radio.spec.ts": [
       5,
-      6101
+      5771
     ],
     "e2e/preview-query-navigation.spec.ts": [
       2,
-      5200
+      5100
     ],
     "e2e/preview-refresh.spec.ts": [
-      5,
-      13200
+      6,
+      14800
+    ],
+    "e2e/publish-config-loading.spec.ts": [
+      4,
+      10600
     ],
     "e2e/publish-formats.spec.ts": [
       1,
-      8800
+      10000
     ],
     "e2e/publish-history.spec.ts": [
       1,
-      3700
+      4200
     ],
     "e2e/publish-preconditions.spec.ts": [
       4,
-      19600
+      20300
     ],
     "e2e/publish-redirect-self-loops.spec.ts": [
       1,
-      6100
+      6200
     ],
     "e2e/publish-route-aliases.spec.ts": [
       1,
-      4900
+      5200
     ],
     "e2e/pwa-retirement.spec.ts": [
       3,
-      6200
+      6300
     ],
     "e2e/query-variant-conditions.spec.ts": [
       2,
-      9300
+      9200
     ],
     "e2e/radio-clear-bindings.spec.ts": [
-      10,
-      1875
+      6,
+      1318
     ],
     "e2e/script-data-picker.spec.ts": [
-      17,
-      17824
+      20,
+      22222
+    ],
+    "e2e/script-duplicate-history.spec.ts": [
+      2,
+      2100
     ],
     "e2e/script-editor.spec.ts": [
       5,
-      38000
+      33400
     ],
     "e2e/script-file-value.spec.ts": [
       4,
-      2043
+      3107
     ],
     "e2e/script-input-value.spec.ts": [
-      30,
-      24459
+      18,
+      14763
     ],
     "e2e/script-navigation.spec.ts": [
       1,
-      102
+      112
+    ],
+    "e2e/script-node-picker.spec.ts": [
+      3,
+      3035
     ],
     "e2e/script-runtime-browser.spec.ts": [
-      8,
-      2042
+      18,
+      3166
     ],
     "e2e/script-select-value.spec.ts": [
       8,
-      7558
+      8034
+    ],
+    "e2e/script-variable-change-trigger.spec.ts": [
+      3,
+      2583
     ],
     "e2e/search-form-navigation.spec.ts": [
       1,
-      808
+      705
     ],
     "e2e/search-form-values.spec.ts": [
       6,
-      11500
+      6452
     ],
     "e2e/select-default.spec.ts": [
       8,
-      6374
+      8018
     ],
     "e2e/shadow-zero.spec.ts": [
       1,
-      881
+      766
     ],
     "e2e/site-bootstrap.spec.ts": [
-      17,
-      42619
+      18,
+      49200
     ],
     "e2e/site-file-import.spec.ts": [
-      14,
-      23283
+      15,
+      22268
     ],
     "e2e/site-language.spec.ts": [
       1,
-      8500
+      8200
     ],
     "e2e/static-assets-display.spec.ts": [
       1,
-      2900
+      3300
     ],
     "e2e/text-editing.spec.ts": [
       9,
-      64000
+      49800
     ],
     "e2e/text-style-confirmation.spec.ts": [
       14,
-      27476
+      30500
     ],
     "e2e/transform-origin.spec.ts": [
       7,
-      11800
+      11500
     ],
     "e2e/value-transform-blocks.spec.ts": [
-      65,
-      12878
+      54,
+      19267
     ],
     "e2e/var-explorer.spec.ts": [
-      8,
-      10656
+      10,
+      11798
     ],
     "e2e/z-index-static.spec.ts": [
       1,
-      550
+      846
     ],
     "e2e/zip-css.spec.ts": [
-      12,
-      7964
+      14,
+      7145
     ],
     "e2e/zip-srcset.spec.ts": [
       2,
-      523
+      527
     ]
   }
 }
