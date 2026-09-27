@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "コピー元とコピー先の画面幅設定が一致しないか、参照できない設定があります。表示を保持するためコピーを中止しました。画面幅設定を揃えてから再試行してください。": "The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to preserve the appearance. Match the screen-width settings and try again.",
   "アセットをダウンロードできませんでした": "Could not download the asset.",
   "現在の設定の送信先": "Destination for current settings",
   "最後に送信": "Last request",
