@@ -174,6 +174,54 @@ test("selected cards accept clipboard events without intercepting text fields", 
   await expect.poll(() => kinds(page)).toBe("show,wait,show");
 });
 
+test("unset action fields allow copying and pasting the containing block without taking text paste", async ({ page }) => {
+  await addAction(page, "copy");
+  await addAction(page, "show");
+  const original = rootCards(page).first();
+  const blankInput = original.locator("input.se-in.is-empty").first();
+  await expect(blankInput).toHaveValue("");
+  await blankInput.focus();
+
+  // The last added action ("show") remains selected. Copying from the empty
+  // input must copy its own "copy" action rather than that stale selection.
+  const copied = await blankInput.evaluate((input) => {
+    const data = new DataTransfer();
+    const event = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData: data });
+    input.dispatchEvent(event);
+    return { handled: event.defaultPrevented, text: data.getData("text/plain") };
+  });
+  expect(copied.handled).toBe(true);
+  const payload = JSON.parse(copied.text.slice("Tsumu script actions v2\n".length));
+  expect(payload.steps).toMatchObject([{ kind: "copy", value: "" }]);
+
+  const pasted = await blankInput.evaluate((input, text) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+    input.dispatchEvent(event);
+    return event.defaultPrevented;
+  }, copied.text);
+  expect(pasted).toBe(true);
+  await expect.poll(() => kinds(page)).toBe("copy,copy,show");
+  expect(await rootCards(page).nth(1).locator("input.se-in").first().inputValue()).toBe("");
+  const ids = await rootCards(page).evaluateAll((cards) =>
+    cards.map((card) => (card as HTMLElement).dataset.stepId));
+  expect(new Set(ids).size).toBe(3);
+
+  // Ordinary text paste in an unset field must remain a native input action.
+  const ordinaryText = await blankInput.evaluate((input) => {
+    const data = new DataTransfer();
+    data.setData("text/plain", "some text");
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+    input.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(ordinaryText).toBe(false);
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(() => kinds(page)).toBe("copy,show");
+});
+
 test("a script that only opens a page is complete as soon as the page is chosen", async ({ page }) => {
   await addAction(page, "open-page");
   await expect(page.locator(".se-status")).not.toHaveClass(/is-ready/);

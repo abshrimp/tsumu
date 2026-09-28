@@ -15,11 +15,11 @@ export interface EditorKeyState {
   cancelDrag: () => boolean;
   dragging: () => boolean;
   clearSelection: () => void;
-  deleteSelected: () => void;
+  deleteSelected: (focusedStepId?: string) => void;
   duplicateSelected: () => void;
   selectAll: () => void;
-  copySelection: () => ScriptBlockClipboard | null;
-  pasteSelection: (copied: ScriptBlockClipboard) => void;
+  copySelection: (focusedStepId?: string) => ScriptBlockClipboard | null;
+  pasteSelection: (copied: ScriptBlockClipboard, focusedStepId?: string) => void;
   onClose: () => void;
 }
 
@@ -112,6 +112,20 @@ const isTyping = (target: EventTarget | null) => {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 };
 
+/**
+ * 未設定の入力欄ではコピーする文字が無い。そこにカーソルがあれば、
+ * その入力欄を含む動作をコピー・貼り付けの対象にする。
+ * 入力済みの文字や選択中の文字にはブラウザ標準の動作を優先する。
+ */
+function emptyFieldStep(target: EventTarget | null): string | null {
+  if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) ||
+      target.disabled || target.readOnly || target.value.length !== 0) return null;
+  const selectionStart = target.selectionStart;
+  const selectionEnd = target.selectionEnd;
+  if (selectionStart !== null && selectionEnd !== null && selectionStart !== selectionEnd) return null;
+  return target.closest<HTMLElement>(".se-card[data-step-id]")?.dataset.stepId ?? null;
+}
+
 export function useEditorKeys(latest: RefObject<EditorKeyState>) {
   useEffect(() => {
     // Escape は、入力欄や候補のメニューが先に処理する。capture で止めてしまうと、
@@ -164,10 +178,11 @@ export function useEditorKeys(latest: RefObject<EditorKeyState>) {
     // キャンバスの要素ではなく、選択した動作を受け渡す。
     const blocked = (event: Event) => isTyping(event.target) || overlayOpen() || latest.current.dragging();
     const writeSelection = (event: ClipboardEvent) => {
-      if (blocked(event) || !event.clipboardData) return false;
+      const focusedStepId = emptyFieldStep(event.target);
+      if ((blocked(event) && !focusedStepId) || !event.clipboardData) return false;
       const textSelection = window.getSelection();
       if (textSelection && !textSelection.isCollapsed && textSelection.toString()) return false;
-      const copied = latest.current.copySelection();
+      const copied = latest.current.copySelection(focusedStepId ?? undefined);
       if (!copied) return false;
       const raw = saveScriptClipboard(copied);
       pendingWrite = null;
@@ -182,11 +197,12 @@ export function useEditorKeys(latest: RefObject<EditorKeyState>) {
       if (!writeSelection(event)) lastScriptClipboard = null;
     };
     const onCut = (event: ClipboardEvent) => {
-      if (writeSelection(event)) latest.current.deleteSelected();
+      if (writeSelection(event)) latest.current.deleteSelected(emptyFieldStep(event.target) ?? undefined);
       else lastScriptClipboard = null;
     };
     const onPaste = (event: ClipboardEvent) => {
-      if (blocked(event)) return;
+      const focusedStepId = emptyFieldStep(event.target);
+      if (blocked(event) && !focusedStepId) return;
       const data = event.clipboardData;
       const raw = data && (data.getData(SCRIPT_CLIP_MIME) ||
         rawFromText(data.getData("text/plain")));
@@ -196,7 +212,7 @@ export function useEditorKeys(latest: RefObject<EditorKeyState>) {
         : data?.types.length === 0 ? lastScriptClipboard?.value : null;
       if (!copied) return;
       event.preventDefault();
-      latest.current.pasteSelection(copied);
+      latest.current.pasteSelection(copied, focusedStepId ?? undefined);
     };
     window.addEventListener("copy", onCopy);
     window.addEventListener("cut", onCut);

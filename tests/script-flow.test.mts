@@ -129,6 +129,31 @@ test("external script clipboard records must have valid nested structure", () =>
   assert.equal(isScriptBlockClipboard({ v: 2, scripts: [], steps: [{ id: "a", kind: "if", then: [{ id: "b", kind: "wait", then: [] }] }] }), false);
 });
 
+test("unconfigured script steps keep their empty fields when copied and pasted", () => {
+  const source = script();
+  source.steps = [
+    { id: "unset-copy", kind: "copy", value: "" },
+    { id: "unset-show", kind: "show", target: "" },
+    { id: "unset-if", kind: "if",
+      cond: { subject: "value", target: "", op: "eq", value: "" },
+      then: [{ id: "unset-page", kind: "open-page", pageId: "" }] },
+  ];
+  const scripts = [source];
+  const clip = copyScriptBlocks(scripts, ["step:unset-copy", "step:unset-show", "step:unset-if"])!;
+  assert.ok(isScriptBlockClipboard(JSON.parse(JSON.stringify(clip))));
+  const pasted = pasteScriptBlocks(scripts, ["step:unset-if"], clip, source.id)!;
+  assert.equal(pasted.selection.length, 3);
+  assert.equal(pasted.scripts[0].steps.length, 6);
+  assert.deepEqual(pasted.scripts[0].steps.slice(3).map((step) => step.kind),
+    ["copy", "show", "if"]);
+  const [copy, show, conditional] = pasted.scripts[0].steps.slice(3);
+  assert.equal(copy.kind === "copy" && copy.value, "");
+  assert.equal(show.kind === "show" && show.target, "");
+  assert.equal(conditional.kind === "if" && conditional.then[0]?.kind === "open-page" &&
+    conditional.then[0].pageId, "");
+  assert.ok(pasted.scripts[0].steps.every((step, i, all) => all.findIndex((item) => item.id === step.id) === i));
+});
+
 test("scripts are stored on their trigger element or on the page, without layout data", () => {
   const pageId = "home";
   const doc = {

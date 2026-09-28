@@ -426,11 +426,14 @@ function ScriptEditorInner({
     announce(tr("Added the action. Fill in its settings."));
   };
 
-  const copySelection = (): ScriptBlockClipboard | null =>
-    copyScriptBlocks(scriptsRef.current, selectedRef.current.map((id) => `step:${id}`));
-  const pasteSelection = (copied: ScriptBlockClipboard) => {
+  const clipboardIds = (focusedStepId?: string): string[] =>
+    focusedStepId && !selectedRef.current.includes(focusedStepId)
+      ? [focusedStepId] : selectedRef.current;
+  const copySelection = (focusedStepId?: string): ScriptBlockClipboard | null =>
+    copyScriptBlocks(scriptsRef.current, clipboardIds(focusedStepId).map((id) => `step:${id}`));
+  const pasteSelection = (copied: ScriptBlockClipboard, focusedStepId?: string) => {
     const result = pasteScriptBlocks(scriptsRef.current,
-      selectedRef.current.map((id) => `step:${id}`), copied, openIdRef.current);
+      clipboardIds(focusedStepId).map((id) => `step:${id}`), copied, openIdRef.current);
     if (!result) return;
     captureLayout();
     commit(result.scripts);
@@ -471,7 +474,7 @@ function ScriptEditorInner({
     cancelDrag: drag.cancel,
     dragging: drag.active,
     clearSelection: () => setSelected([]),
-    deleteSelected: () => deleteSteps(selected),
+    deleteSelected: (focusedStepId) => deleteSteps(clipboardIds(focusedStepId)),
     duplicateSelected: () => duplicateSteps(selected),
     selectAll: () => setSelected(open ? open.steps.map((step) => step.id) : []),
     copySelection,
