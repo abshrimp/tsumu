@@ -328,7 +328,6 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
         idCount.set(node.attrId, (idCount.get(node.attrId) ?? 0) + 1);
       }
       for (const sc of node.scripts ?? []) {
-        if (!sc.trigger) continue;
         walkSteps(sc.steps, (st) => {
           if (st.kind === "if") {
             // 条件ごとに対象がある。最初の条件だけを確かめると、「かつ」「または」でつないだ

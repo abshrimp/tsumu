@@ -464,8 +464,8 @@ function scriptsInPage(doc: SiteDoc, pageId: string, runnableOnly = false): Scri
   const page = doc.pages[pageId];
   const out: ScriptStep[][] = [];
   const collect = (script: Script) => {
-    if (!runnableOnly || (script.trigger &&
-        (script.trigger !== "change" || script.changeVariable === undefined || script.changeVariable.trim()))) {
+    if (!runnableOnly ||
+        script.trigger !== "change" || script.changeVariable === undefined || script.changeVariable.trim()) {
       out.push(script.steps);
     }
   };

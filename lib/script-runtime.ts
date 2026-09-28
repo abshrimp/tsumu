@@ -2113,7 +2113,7 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
   const out = new Set<RuntimeFeature>();
   if (usesLiveFields(doc)) out.add("live");
   for (const s of allScripts(doc)) {
-    if (!s.trigger || !s.steps.some((st) => !isDataStep(st))) continue;
+    if (!s.steps.some((st) => !isDataStep(st))) continue;
     out.add(s.trigger === "change" && s.changeVariable !== undefined ? "watch" : TRIGGER_FEATURE[s.trigger]);
     if (s.trigger === "hover-end" && s.keepOnShown) out.add("keep");
     walkSteps(s.steps, (st) => {
