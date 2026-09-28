@@ -222,6 +222,60 @@ test("unset action fields allow copying and pasting the containing block without
   await expect.poll(() => kinds(page)).toBe("copy,show");
 });
 
+test("real keyboard shortcuts copy and paste an unset target picker block", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await addAction(page, "show");
+  await addAction(page, "wait");
+
+  // The last action is still selected, but focus moves to the first action's unset button.
+  const unset = rootCards(page).first().locator("button.se-in.is-empty").first();
+  await unset.focus();
+  await page.keyboard.press("ControlOrMeta+c");
+  await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText()))
+    .toContain("Tsumu script actions v2");
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(JSON.parse(text.slice("Tsumu script actions v2\n".length)).steps)
+    .toMatchObject([{ kind: "show", target: "" }]);
+
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect.poll(() => kinds(page)).toBe("show,show,wait");
+
+  // Opening the target picker must not prevent copying its owner action.
+  await unset.click();
+  await expect(page.locator("[data-se-popover]")).not.toHaveCount(0);
+  await unset.focus();
+  await page.keyboard.press("ControlOrMeta+c");
+  await page.keyboard.press("Escape");
+  await rootCards(page).last().locator("> .se-card-head > .se-grip").focus();
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect.poll(() => kinds(page)).toBe("show,show,wait,show");
+
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(() => kinds(page)).toBe("show,show,wait");
+});
+
+test("real keyboard shortcuts copy an unset select while filled text retains native copy", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await addAction(page, "open-page");
+  await addAction(page, "copy");
+  const select = rootCards(page).first().locator("select.se-in.is-empty").first();
+  await select.focus();
+  await page.keyboard.press("ControlOrMeta+c");
+  const raw = await page.evaluate(() => navigator.clipboard.readText());
+  expect(JSON.parse(raw.slice("Tsumu script actions v2\n".length)).steps)
+    .toMatchObject([{ kind: "open-page", pageId: "" }]);
+  await page.keyboard.press("ControlOrMeta+v");
+  await expect.poll(() => kinds(page)).toBe("open-page,open-page,copy");
+
+  const textInput = rootCards(page).last().locator("input.se-in").first();
+  await textInput.fill("example");
+  await textInput.press("ControlOrMeta+a");
+  await textInput.press("ControlOrMeta+c");
+  await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe("example");
+  await textInput.press("ControlOrMeta+v");
+  await expect.poll(() => kinds(page)).toBe("open-page,open-page,copy");
+});
+
 test("a script that only opens a page is complete as soon as the page is chosen", async ({ page }) => {
   await addAction(page, "open-page");
   await expect(page.locator(".se-status")).not.toHaveClass(/is-ready/);
