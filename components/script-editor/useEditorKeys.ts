@@ -70,6 +70,8 @@ function rawFromText(text: string): string | null {
 /** メニューからのコピーもネイティブのコピーと同じ形式で保持する。 */
 export function rememberScriptClipboard(value: ScriptBlockClipboard): void {
   const raw = saveScriptClipboard(value);
+  // キャンバスで以前コピーした要素を、スクリプトのコピー後に誤貼り付けしない。
+  window.dispatchEvent(new Event("tsumu-internal-script-copy"));
   useInternalPaste = !navigator.clipboard?.writeText;
   try {
     // メニュー操作には ClipboardEvent が来ないので、OS のクリップボードも更新する。

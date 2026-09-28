@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowDown,
@@ -28,7 +28,8 @@ import type { DocNode, SiteDoc } from "../lib/types";
 import { hideToggleLabel, isHiddenAt } from "../lib/style";
 import { glyphs } from "./Glyph";
 import { tr } from "../lib/i18n";
-import { readClipMirror } from "../lib/clip-transfer";
+import { activeContentNames, isOwnClip, readSystemClipPayload } from "../lib/clip-transfer";
+import { showAlert, showConfirm } from "../lib/dialog";
 
 /* ---------- 要素の右クリックメニュー（キャンバス・レイヤー共通） ---------- */
 
@@ -70,9 +71,6 @@ export default function NodeContextMenu({
   extra?: CtxMenuItem[];
 }) {
   const doc = useEditor((s) => s.doc);
-  const clipboard = useEditor((s) => s.clipboard);
-  // 最後にコピーした要素（他のサイトやタブでコピーしたものも含む。アセットなども添えた控え）
-  const copied = useMemo(() => readClipMirror(), []);
   const breakpoint = useEditor((s) => s.breakpoint);
 
   const node = menu.nodeId ? doc.nodes[menu.nodeId] : null;
@@ -186,15 +184,45 @@ export default function NodeContextMenu({
     );
   }
 
-  if (clipboard || copied) {
-    items.push({
-      key: "paste",
-      label: tr("Paste"),
-      icon: <ClipboardPaste size={14} />,
-      kbd: "⌘V",
-      onClick: run(() => s().pasteClipboard(copied ?? undefined)),
-    });
-  }
+  items.push({
+    key: "paste",
+    label: tr("Paste"),
+    icon: <ClipboardPaste size={14} />,
+    kbd: "⌘V",
+    onClick: () => {
+      const destination = s();
+      onClose();
+      const stillHere = () => {
+        const now = s();
+        return now.doc === destination.doc &&
+          now.documentSession === destination.documentSession &&
+          now.historyRevision === destination.historyRevision &&
+          now.activePageId === destination.activePageId &&
+          now.selection === destination.selection &&
+          now.editingComponentId === destination.editingComponentId &&
+          now.mode === "design" && !now.scriptEditor;
+      };
+      void (async () => {
+        const clip = await readSystemClipPayload();
+        if (!stillHere()) return;
+        if (!clip) {
+          await showAlert(tr("Couldn't paste"));
+          return;
+        }
+        const active = isOwnClip(clip.raw) ? [] : activeContentNames(clip.payload);
+        if (active.length) {
+          const names = active.slice(0, 3).join(tr(", ")) +
+            (active.length > 3 ? tr("and {count} more", { count: active.length - 3 }) : "");
+          const accepted = await showConfirm(
+            tr("The elements you're pasting contain content that runs as HTML ({names}), and they weren't copied in this editor. Only paste data that you copied from a source you trust.", { names }),
+            { title: tr("Paste this content?"), okLabel: tr("Paste", "paste_variant_1"), danger: true }
+          );
+          if (!accepted || !stillHere()) return;
+        }
+        s().pasteClipboard(clip.payload);
+      })();
+    },
+  });
 
   if (node) {
     const parent = findParentOf(doc, node.id);

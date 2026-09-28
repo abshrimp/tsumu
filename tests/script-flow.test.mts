@@ -3,7 +3,7 @@ import test from "node:test";
 import { copyScriptBlocks, isScriptBlockClipboard, pasteScriptBlocks } from "../components/script-editor/clipboard";
 import { scriptStatus, stepIssue } from "../components/script-editor/issues";
 import {
-  findStepLoc, listInsideLoop, moveSteps, nudgeStep,
+  findStepLoc, listInsideLoop, mapStep, moveSteps, nudgeStep, removeKeys,
 } from "../components/script-editor/step-tree";
 import { pageScriptsOf, withPageScripts, type PageScript } from "../lib/script";
 import { makeBox } from "../lib/presets";
@@ -91,6 +91,35 @@ test("pasted actions get new IDs and land after the selection, or at the end of 
   const atEnd = pasteScriptBlocks(scripts, [], copied, "s")!;
   assert.equal(atEnd.scripts[0].steps.at(-1)!.kind, "if");
   assert.equal(pasteScriptBlocks(scripts, [], copied, null), null, "nothing is open, so there is nowhere to paste");
+});
+
+
+test("script operations never modify a second script with the same action IDs", () => {
+  const first = { ...script(), id: "first", steps: [wait("shared"), wait("first-only")] };
+  const second = { ...script(), id: "second", steps: [wait("shared"), wait("second-only")] };
+  const originals = [first, second];
+
+  const copied = copyScriptBlocks(originals, ["step:shared"], "first")!;
+  assert.equal(copied.steps.length, 1);
+  assert.equal(copied.steps[0].id, "shared");
+
+  const removed = removeKeys(originals, ["step:shared"], "first");
+  assert.deepEqual(removed[0].steps.map((step) => step.id), ["first-only"]);
+  assert.equal(removed[1], second);
+
+  const modified = mapStep(originals, "shared", () => ({ id: "shared", kind: "wait", seconds: 7 }), "first");
+  assert.equal(modified[0].steps[0].kind === "wait" && modified[0].steps[0].seconds, 7);
+  assert.equal(modified[1], second);
+
+  const moved = moveSteps(originals, { scriptId: "first", list: "root", index: 0 },
+    new Set(["shared"]), { list: "root", beforeId: null });
+  assert.deepEqual(moved[0].steps.map((step) => step.id), ["first-only", "shared"]);
+  assert.equal(moved[1], second);
+
+  const pasted = pasteScriptBlocks(originals, ["step:shared"], copied, "first")!;
+  assert.equal(pasted.scripts[0].steps.length, 3);
+  assert.equal(pasted.scripts[1], second);
+  assert.deepEqual(originals[0], first);
 });
 
 test("pasting uses document order even when actions were selected in reverse order", () => {

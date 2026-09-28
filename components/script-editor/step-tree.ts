@@ -83,7 +83,7 @@ function spliceScriptList(
     const next = source.slice();
     removed = next.splice(loc.index, deleteCount, ...inserted);
     return { ...step, [field]: next } as ScriptStep;
-  });
+  }, loc.scriptId);
   return [updated, removed];
 }
 
@@ -112,7 +112,7 @@ export function takeSelectedSteps(
   };
   collect(script.steps);
   if (!taken.length) return [scripts, []];
-  return [removeKeys(scripts, taken.map((step) => `step:${step.id}`)), taken];
+  return [removeKeys(scripts, taken.map((step) => `step:${step.id}`), loc.scriptId), taken];
 }
 
 export function insertAt(
@@ -141,7 +141,7 @@ export function connectNewTransform(scripts: PageScript[], loc: Loc, steps: Scri
 }
 
 /** 選択したスクリプトと手順を、元のデータを書き換えない1回の走査で削除する。 */
-export function removeKeys(scripts: PageScript[], keys: string[]): PageScript[] {
+export function removeKeys(scripts: PageScript[], keys: string[], stepScriptId?: string): PageScript[] {
   const scriptIds = new Set<string>();
   const stepIds = new Set<string>();
   for (const key of keys) {
@@ -185,7 +185,8 @@ export function removeKeys(scripts: PageScript[], keys: string[]): PageScript[] 
       result ??= scripts.slice(0, i);
       continue;
     }
-    const steps = stepIds.size ? prune(script.steps) : script.steps;
+    const steps = stepIds.size && (!stepScriptId || script.id === stepScriptId)
+      ? prune(script.steps) : script.steps;
     const next = steps === script.steps ? script : { ...script, steps };
     if (result) result.push(next);
     else if (next !== script) {
@@ -199,7 +200,8 @@ export function removeKeys(scripts: PageScript[], keys: string[]): PageScript[] 
 export function mapStep(
   scripts: PageScript[],
   stepId: string,
-  fn: (s: ScriptStep) => ScriptStep
+  fn: (s: ScriptStep) => ScriptStep,
+  scriptId?: string
 ): PageScript[] {
   // 手を付けていないスクリプト・分岐・ブロックは、同じオブジェクトのまま残す。
   const mapList = (list: ScriptStep[]): ScriptStep[] => {
@@ -226,6 +228,7 @@ export function mapStep(
     return changed ?? list;
   };
   return scripts.map((script) => {
+    if (scriptId !== undefined && script.id !== scriptId) return script;
     const steps = mapList(script.steps);
     return steps === script.steps ? script : { ...script, steps };
   });

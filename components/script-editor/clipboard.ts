@@ -42,7 +42,9 @@ export function isScriptBlockClipboard(value: unknown): value is ScriptBlockClip
       script.steps.every((step) => validStep(step, 0)));
 }
 
-export function copyScriptBlocks(scripts: PageScript[], selected: readonly string[]): ScriptBlockClipboard | null {
+export function copyScriptBlocks(
+  scripts: PageScript[], selected: readonly string[], sourceScriptId?: string
+): ScriptBlockClipboard | null {
   const selectedScripts = new Set(selected.filter((key) => key.startsWith("script:")).map((key) => key.slice(7)));
   const selectedSteps = new Set(selected.filter((key) => key.startsWith("step:")).map((key) => key.slice(5)));
   const copies: PageScript[] = [];
@@ -61,7 +63,7 @@ export function copyScriptBlocks(scripts: PageScript[], selected: readonly strin
   };
   for (const script of scripts) {
     if (selectedScripts.has(script.id)) copies.push(structuredClone(script));
-    else collect(script.steps);
+    else if (sourceScriptId === undefined || script.id === sourceScriptId) collect(script.steps);
   }
   if (!copies.length && !steps.length) return null;
   return { v: 2, scripts: copies, steps };

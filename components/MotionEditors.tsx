@@ -96,6 +96,8 @@ interface History<T> {
   set: (next: T | ((v: T) => T), mergeKey?: string) => void;
   undo: () => void;
   redo: () => void;
+  /** 入力欄を離れたときなど、次の入力を別の Undo 履歴にする。 */
+  endMerge: () => void;
   canUndo: boolean;
   canRedo: boolean;
   /** 編集を受け付けたポインターを、履歴上のドラッグ操作の持ち主として明示的に記録する */
@@ -115,13 +117,14 @@ function useHistory<T>(init: () => T): History<T> {
     value: T;
     future: T[];
     mergeKey: string | null;
+    mergeAt: number;
     pressed: boolean;
     pointerId: number | null;
     gestureOwned: boolean;
     moved: boolean;
     dragPushed: boolean;
   } | null>(null);
-  ref.current ??= { past: [], value: init(), future: [], mergeKey: null, pressed: false, pointerId: null, gestureOwned: false, moved: false, dragPushed: false };
+  ref.current ??= { past: [], value: init(), future: [], mergeKey: null, mergeAt: 0, pressed: false, pointerId: null, gestureOwned: false, moved: false, dragPushed: false };
   const [, render] = useReducer((n: number) => n + 1, 0);
 
   useEffect(() => {
@@ -166,16 +169,24 @@ function useHistory<T>(init: () => T): History<T> {
     // 欄に触れただけなど、中身が変わらないときは履歴に積まない
     if (JSON.stringify(v) === JSON.stringify(h.value)) return;
     const dragging = h.pressed && h.moved;
-    const merge = (dragging && h.dragPushed) || (mergeKey !== undefined && h.mergeKey === mergeKey);
+    const now = Date.now();
+    // 文字入力が止まってから十分経った編集は、フォーカスが残っていても別の履歴にする。
+    const merge = (dragging && h.dragPushed) ||
+      (mergeKey !== undefined && h.mergeKey === mergeKey && now - h.mergeAt < 1500);
     if (!merge) {
       h.past.push(h.value);
       if (h.past.length > 200) h.past.shift();
     }
     if (dragging) h.dragPushed = true;
     h.mergeKey = mergeKey ?? null;
+    h.mergeAt = now;
     h.future = [];
     h.value = v;
     render();
+  }, []);
+
+  const endMerge = useCallback(() => {
+    ref.current!.mergeKey = null;
   }, []);
 
   const undo = useCallback(() => {
@@ -229,7 +240,7 @@ function useHistory<T>(init: () => T): History<T> {
   }, []);
 
   const h = ref.current;
-  return { value: h.value, set, undo, redo, beginGesture, endGesture, canUndo: h.past.length > 0, canRedo: h.future.length > 0 };
+  return { value: h.value, set, undo, redo, endMerge, beginGesture, endGesture, canUndo: h.past.length > 0, canRedo: h.future.length > 0 };
 }
 
 /** ⌘Z / ⇧⌘Z（Ctrl+Z / Ctrl+Y）で、編集画面の中の履歴を移動する。入力欄の中では、文字の取り消しに任せる */
@@ -1007,6 +1018,7 @@ export function KeyframeEditorModal({
               history.set((h) => ({ ...h, cssText: text }), "css-text");
               setCssError(false);
             }}
+            onBlur={history.endMerge}
           />
           <p className={`hint${cssError ? " is-error" : ""}`}>
             {cssError

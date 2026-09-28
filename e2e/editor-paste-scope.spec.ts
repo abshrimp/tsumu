@@ -44,6 +44,45 @@ test.describe("Native paste event scope in the editor", () => {
       return event.defaultPrevented;
     }, { kind, selector });
   }
+  test("immediate paste uses the latest in-editor copy, never stale OS clipboard data", async ({ page }) => {
+    const handled = await page.evaluate(() => {
+      const state = (window as any).pasteEditor.getState();
+      state.copyNode("a");
+      const previousCopy = structuredClone(state.clipboard);
+      state.updateNode("a", { text: { content: "Newest copy", heading: 0 } });
+      state.copyNode("a");
+      const data = new DataTransfer();
+      data.setData("application/x-tsumu+json", JSON.stringify(previousCopy));
+      const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+      document.body.dispatchEvent(event);
+      return { prevented: event.defaultPrevented, types: Array.from(data.types),
+        rawLength: data.getData("application/x-tsumu+json").length };
+    });
+    expect(handled).toMatchObject({ prevented: true });
+    const after = await snapshot(page);
+    expect(after.doc.pages.p.children).toHaveLength(2);
+    expect(after.doc.nodes[after.doc.pages.p.children[1]].text?.content).toBe("Newest copy");
+    await page.evaluate(() => (window as any).pasteEditor.getState().undo());
+    expect((await snapshot(page)).doc.pages.p.children).toHaveLength(1);
+    await page.evaluate(() => (window as any).pasteEditor.getState().redo());
+    expect((await snapshot(page)).doc).toEqual(after.doc);
+  });
+
+  test("ordinary external text paste cannot replay an older internal element copy", async ({ page }) => {
+    const before = await snapshot(page);
+    const intercepted = await page.evaluate(() => {
+      const s = (window as any).pasteEditor.getState();
+      s.copyNode("a");
+      const data = new DataTransfer();
+      data.setData("text/plain", "unrelated external text");
+      const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+      document.body.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    expect(intercepted).toBe(false);
+    expect(await snapshot(page)).toEqual(before);
+  });
+
   for (const context of ["preview", "modal", "script"] as const) for (const kind of ["elements", "artwork"] as const) {
     test(`Do not paste ${kind} behind the ${context} overlay`, async ({ page }) => {
       await page.evaluate(context => {
@@ -79,6 +118,49 @@ test.describe("Native paste event scope in the editor", () => {
     await page.evaluate(() => (window as any).pasteEditor.getState().redo());
     expect((await snapshot(page)).doc).toEqual(after.doc);
   });
+});
+
+test("real editor context-menu paste uses current OS data and rejects unrelated text", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+  const created = await page.request.post("/api/sites", { data: { name: "Context clipboard check" } });
+  expect(created.ok()).toBe(true);
+  const { site } = await created.json();
+  const endpoint = `/api/doc?site=${site.id}`;
+  const document = fixture();
+  expect((await page.request.put(endpoint, { data: document })).ok()).toBe(true);
+  await page.goto(`/sites/${site.id}`);
+  await expect(page.locator('[data-node="a"]')).toBeVisible();
+
+  const node = structuredClone(document.nodes.a);
+  node.name = "From current clipboard";
+  const payload = {
+    v: 1, site: "default", breakpoints: [
+      { id: "lg", label: "タブレット", maxWidth: 1024 },
+      { id: "md", label: "スマホ横向き", maxWidth: 767 },
+      { id: "sm", label: "スマホ", maxWidth: 478 },
+    ], nodes: [node], rootIds: [node.id], assets: {}, components: {}, componentNodes: [], customFonts: [],
+  };
+  await page.evaluate(payload => {
+    (window as any).__clipboardHtml = `<span data-tsumu-clipboard="${encodeURIComponent(JSON.stringify(payload))}">Copy</span>`;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { read: async () => [{
+        types: ["text/html"],
+        getType: async () => new Blob([(window as any).__clipboardHtml], { type: "text/html" }),
+      }] },
+    });
+  }, payload);
+  await page.locator('[data-node="a"]').click({ button: "right" });
+  await page.getByRole("menuitem", { name: "貼り付け" }).click();
+  await expect(page.locator('.cv-root [data-node]')).toHaveCount(2);
+  await expect.poll(async () => Object.values((await (await page.request.get(endpoint)).json()).doc.nodes)
+    .some((item: any) => item.name === "From current clipboard")).toBe(true);
+
+  await page.evaluate(() => { (window as any).__clipboardHtml = "<div>Unrelated text</div>"; });
+  await page.locator('[data-node="a"]').click({ button: "right" });
+  await page.getByRole("menuitem", { name: "貼り付け" }).click();
+  await expect(page.locator('.cv-root [data-node]')).toHaveCount(2);
+  await expect(page.getByText("貼り付けできませんでした")).toBeVisible();
 });
 
 // 実際の Next.js のエディタのコピーの操作と、ブラウザが生成した貼り付けのイベントで、保存されたデータを確かめる。

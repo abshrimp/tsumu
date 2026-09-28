@@ -242,6 +242,35 @@ export function clipboardPayload(data: Pick<DataTransfer, "getData">): { payload
   return payload ? { payload, raw } : null;
 }
 
+/**
+ * 右クリックの貼り付けでは、過去に localStorage へコピーした控えではなく
+ * OS の現在のクリップボードを読む。読めない場合に古い控えを使うと、
+ * 別アプリでコピーした内容と違う要素を誤って貼り付けてしまう。
+ */
+export async function readSystemClipPayload(): Promise<{ payload: ClipPayload; raw: string } | null> {
+  if (typeof navigator === "undefined" || !navigator.clipboard?.read) return null;
+  try {
+    if (pendingSystemWrite) await pendingSystemWrite;
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      for (const type of [CLIP_WEB_MIME, CLIP_MIME, "text/html"]) {
+        if (!item.types.includes(type)) continue;
+        const raw = await (await item.getType(type)).text();
+        const parsed = clipboardPayload({ getData: (name) => name === type ? raw : "" });
+        if (parsed) return parsed;
+      }
+    }
+  } catch {
+    // Permissions, unsupported formats or an empty system clipboard are not proof
+    // that the previously saved editor clipboard is still current.
+  }
+  return null;
+}
+
+// 複数のコピーを連続して行っても、先の非同期書き込みが最後に完了して
+// OS 側のクリップボードを巻き戻さないよう、書き込みを直列化する。
+let pendingSystemWrite: Promise<void> | null = null;
+
 /** 新しい非同期の Clipboard API で、エディタの内容を形式付きで書き込む。 */
 export function writeClipPayload(payload: ClipPayload): void {
   const raw = JSON.stringify(payload);
@@ -250,23 +279,33 @@ export function writeClipPayload(payload: ClipPayload): void {
   } catch {
     // ブラウザ内だけのクリップボードの控えは、無くてもよい。
   }
-  try {
-    const text = payload.nodes.map(node => node.text?.content).filter(Boolean).join("\n");
-    if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
-      const formats: Record<string, Blob> = {
-        "text/plain": new Blob([text], { type: "text/plain" }),
-        "text/html": new Blob([clipHtml(raw, text)], { type: "text/html" }),
-      };
-      if (typeof ClipboardItem.supports === "function" && ClipboardItem.supports(CLIP_WEB_MIME)) {
-        formats[CLIP_WEB_MIME] = new Blob([raw], { type: CLIP_MIME });
+  const text = payload.nodes.map(node => node.text?.content).filter(Boolean).join("\n");
+  const write = async () => {
+    if (typeof navigator === "undefined") return;
+    try {
+      if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+        const formats: Record<string, Blob> = {
+          "text/plain": new Blob([text], { type: "text/plain" }),
+          "text/html": new Blob([clipHtml(raw, text)], { type: "text/html" }),
+        };
+        if (typeof ClipboardItem.supports === "function" && ClipboardItem.supports(CLIP_WEB_MIME)) {
+          formats[CLIP_WEB_MIME] = new Blob([raw], { type: CLIP_MIME });
+        }
+        await navigator.clipboard.write([new ClipboardItem(formats)]);
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
       }
-      void navigator.clipboard.write([new ClipboardItem(formats)]).catch(() => {});
-    } else if (navigator.clipboard?.writeText) {
-      void navigator.clipboard.writeText(text).catch(() => {});
+    } catch {
+      // 権限が無くても、エディタの内部コピーは残る。
     }
-  } catch {
-    // クリップボードの権限が制限されていても、エディタ内のコピーと貼り付けは止めない。
-  }
+  };
+  // 前の書き込みがまだ動いている場合だけ直列化する。完了後の次の
+  // ユーザー操作では同期的に Clipboard API を呼び、Safari の user activation を保つ。
+  const started = pendingSystemWrite ? pendingSystemWrite.then(write, write) : write();
+  pendingSystemWrite = started;
+  void started.finally(() => {
+    if (pendingSystemWrite === started) pendingSystemWrite = null;
+  });
 }
 
 /** 右クリックメニューの「貼り付け」に使う、最後にコピーした要素（どのサイトでも共通） */

@@ -363,11 +363,13 @@ export default function Editor({ onReady }: EditorProps = {}) {
     // テキストをコピーしたら、次の貼り付けではそのテキストを使う
     window.addEventListener("copy", releaseClipboard);
     window.addEventListener("cut", releaseClipboard);
+    window.addEventListener("tsumu-internal-script-copy", releaseClipboard);
     return () => {
       window.removeEventListener("tsumu-internal-copy", ownClipboard);
       window.removeEventListener("blur", releaseClipboard);
       window.removeEventListener("copy", releaseClipboard);
       window.removeEventListener("cut", releaseClipboard);
+      window.removeEventListener("tsumu-internal-script-copy", releaseClipboard);
     };
   }, []);
 
@@ -401,15 +403,22 @@ export default function Editor({ onReady }: EditorProps = {}) {
       const data = event.clipboardData;
       if (!data) return;
       const own = ++latestPaste;
-      // Clipboard API が使えず、コピーした内容の形式が空の場合だけ、エディタ内の控えを使う。
-      // 画像や外部のテキストを含む貼り付けでは、必ず OS 側の内容を優先する。
-      if (data.types.length === 0 && internalClipboardOwned.current && useEditor.getState().clipboard) {
+      // コピー直後は OS 側に古い Tsumu 要素が残る場合がある。ただし
+      // SVG/画像などの外部アートワークや普通のテキストを別に貼り付けた場合は、
+      // 以前の内部コピーで横取りしない。
+      const clip = clipboardPayload(data);
+      // ブラウザによって独自 MIME の内容を貼り付けイベントから読めない場合でも、
+      // コピー直後に残った Tsumu 形式のクリップボードなら最後の内部コピーを使う。
+      const hasTsumuType = Array.from(data.types).some((type) =>
+        type === "application/x-tsumu+json" || type === "web application/x-tsumu+json" ||
+        (type === "text/html" && data.getData("text/html").includes("data-tsumu-clipboard=")));
+      if (internalClipboardOwned.current && useEditor.getState().clipboard &&
+          (data.types.length === 0 || !!clip || (hasTsumuType && !hasClipboardArtwork(data)))) {
         event.preventDefault();
         useEditor.getState().pasteClipboard();
         return;
       }
       // エディタでコピーした要素（他のサイトやタブでコピーしたものも含む）
-      const clip = clipboardPayload(data);
       if (clip) {
         const { payload: copied, raw } = clip;
         event.preventDefault();

@@ -353,7 +353,7 @@ function ScriptEditorInner({
 
   const deleteSteps = (ids: readonly string[]) => {
     if (!ids.length) return;
-    commit(removeKeys(scriptsRef.current, ids.map((id) => `step:${id}`)));
+    commit(removeKeys(scriptsRef.current, ids.map((id) => `step:${id}`), openIdRef.current ?? ""));
     setSelected([]);
     announce(ids.length > 1
       ? tr("Deleted {n} actions. Press Undo to bring them back.", { n: ids.length })
@@ -430,7 +430,7 @@ function ScriptEditorInner({
     focusedStepId && !selectedRef.current.includes(focusedStepId)
       ? [focusedStepId] : selectedRef.current;
   const copySelection = (focusedStepId?: string): ScriptBlockClipboard | null =>
-    copyScriptBlocks(scriptsRef.current, clipboardIds(focusedStepId).map((id) => `step:${id}`));
+    copyScriptBlocks(scriptsRef.current, clipboardIds(focusedStepId).map((id) => `step:${id}`), openIdRef.current ?? "");
   const pasteSelection = (copied: ScriptBlockClipboard, focusedStepId?: string) => {
     const result = pasteScriptBlocks(scriptsRef.current,
       clipboardIds(focusedStepId).map((id) => `step:${id}`), copied, openIdRef.current);
@@ -442,7 +442,7 @@ function ScriptEditorInner({
     if (added.length) refocus.current = { stepId: added[0], selector: ".se-grip" };
   };
   const copySteps = (ids: readonly string[]): boolean => {
-    const copied = copyScriptBlocks(scriptsRef.current, ids.map((id) => `step:${id}`));
+    const copied = copyScriptBlocks(scriptsRef.current, ids.map((id) => `step:${id}`), openIdRef.current ?? "");
     if (!copied) return false;
     rememberScriptClipboard(copied);
     return true;
@@ -533,7 +533,7 @@ function ScriptEditorInner({
     serverStepIds,
     // 取得のように後から呼ばれることがあるため、描画した時点ではなく最新の状態に適用する
     updateStep: (stepId, fn) =>
-      commit(mapStep(pageScriptsOf(useEditor.getState().doc, nodeIds, activePageId), stepId, fn)),
+      commit(mapStep(pageScriptsOf(useEditor.getState().doc, nodeIds, activePageId), stepId, fn, openIdRef.current ?? "")),
     isPageLoadRoot: (loc) => loc.list === "root" && pageLoadScriptIds.has(loc.scriptId),
     renameVar: (stepId, from, to) =>
       updateDoc((d) => {
@@ -541,8 +541,11 @@ function ScriptEditorInner({
           d,
           activePageId,
           nodeIds,
-          mapStep(numberFilters(pageScriptsOf(d, nodeIds, activePageId)), stepId, (x) =>
-            (x.kind === "fetch" ? { ...x, as: to } : { ...x, into: to }) as ScriptStep
+          mapStep(
+            numberFilters(pageScriptsOf(d, nodeIds, activePageId)),
+            stepId,
+            (x) => (x.kind === "fetch" ? { ...x, as: to } : { ...x, into: to }) as ScriptStep,
+            openIdRef.current ?? ""
           )
         );
         if (from) renameVarInPage(d, activePageId, from, to);

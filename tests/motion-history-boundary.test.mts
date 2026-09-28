@@ -48,3 +48,41 @@ test("redo followed by remaining drag updates does not consume the preceding his
     f.render().undo(); assert.equal(f.render().value, 0);
   } finally { f.close(); }
 });
+
+test("motion CSS editing creates separate undo entries after blur", () => {
+  const f = fixture();
+  try {
+    let h = f.render(); h.set(1, "css-text");
+    h.set(2, "css-text");
+    assert.equal(f.render().value, 2);
+    h.endMerge();
+    h.set(3, "css-text");
+    h = f.render(); h.undo();
+    assert.equal(f.render().value, 2, "undo returns to the previous editing session");
+    f.render().undo();
+    assert.equal(f.render().value, 0, "same-session keystrokes remain grouped");
+    f.render().redo();
+    assert.equal(f.render().value, 2);
+    f.render().redo();
+    assert.equal(f.render().value, 3);
+  } finally { f.close(); }
+});
+
+test("motion CSS typing after a pause starts a new undo step without losing redo", () => {
+  const f = fixture();
+  const originalNow = Date.now;
+  let now = 10_000;
+  try {
+    Date.now = () => now;
+    let h = f.render();
+    h.set(1, "css-text");
+    now += 200;
+    h.set(2, "css-text");
+    now += 2_000;
+    h.set(3, "css-text");
+    h = f.render(); h.undo();
+    assert.equal(f.render().value, 2);
+    f.render().undo();
+    assert.equal(f.render().value, 0);
+  } finally { Date.now = originalNow; f.close(); }
+});
