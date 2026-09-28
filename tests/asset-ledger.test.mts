@@ -40,6 +40,19 @@ test("the ledger counts every stored file, including removed ones waiting for GC
   } finally { sql.close(); }
 });
 
+test("ledger uses the Trash candidate size when the object inventory lacks bytes", async () => {
+  const { sql, db } = ledgerDb();
+  try {
+    sql.prepare("INSERT INTO asset_objects VALUES(?,?,?,?)").run("assets/unknown.png", null, 0, 0);
+    sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)").run("assets/unknown.png", 1, 1, 2048);
+    const result = await readAssetLedger(db);
+    assert.deepEqual(result, {
+      complete: false, count: 1, bytes: 2048, unknownCount: 0, unknownPaths: [],
+      pendingCount: 1, pendingBytes: 2048,
+    });
+  } finally { sql.close(); }
+});
+
 test("Node/Docker have no ledger", async () => {
   const { sql, db } = ledgerDb("sqlite");
   try {
@@ -66,6 +79,18 @@ test("an incomplete ledger falls back to counting files used by sites once each"
   const usage = computeStorageUsage({
     ledger: ledger({ complete: false }),
     others: [{ path: "assets/shared.png", bytes: 10 }, { path: "assets/x.png", bytes: null }],
+    pending: [{ path: "assets/shared.png", bytes: 10 }, { path: "assets/trash.png", bytes: 25 }],
   }, [{ path: "assets/shared.png", bytes: 10 }, { path: "assets/own.png", bytes: 5 }, {}]);
-  assert.deepEqual(usage, { files: 3, bytes: 15, unknown: 1, exact: false, pendingCount: 0, pendingBytes: 0 });
+  assert.deepEqual(usage, { files: 4, bytes: 40, unknown: 1, exact: false, pendingCount: 2, pendingBytes: 35 });
+});
+
+
+test("pending assets contribute to fallback usage without duplicating referenced files", () => {
+  const usage = computeStorageUsage({
+    others: [{ path: "assets/shared.png", bytes: null }],
+    pending: [{ path: "assets/shared.png", bytes: 4 }, { path: "assets/removed.png", bytes: null }],
+  }, [{ path: "assets/own.png", bytes: 6 }]);
+  assert.deepEqual(usage, {
+    files: 3, bytes: 10, unknown: 1, exact: false, pendingCount: 2, pendingBytes: 4,
+  });
 });

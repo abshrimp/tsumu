@@ -8,6 +8,7 @@ import type { Asset } from "../lib/types";
 import { genId } from "../lib/presets";
 import { useServerStatus } from "../lib/status";
 import { showConfirm } from "../lib/dialog";
+import { loadAllTrash } from "../lib/asset-trash-client";
 
 type DeletedAsset = { path: string; deletedAt: number; bytes: number | null };
 type TrashResponse = { enabled: boolean; hasMore: boolean; items: DeletedAsset[]; error?: string };
@@ -47,6 +48,7 @@ async function assetFromTrash(item: DeletedAsset): Promise<Asset> {
   return asset;
 }
 
+
 export default function AssetTrash({ onClose, onRestore, onDelete }: {
   onClose: () => void;
   onRestore: (asset: Asset) => void;
@@ -54,34 +56,52 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
 }) {
   const status = useServerStatus();
   const [items, setItems] = useState<DeletedAsset[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadedCount, setLoadedCount] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+  const busy = !!restoring || !!bulkProgress || loadingAll;
+
+  const fetchPage = async (offset: number): Promise<TrashResponse> => {
+    const response = await fetch(siteApi("/api/assets/trash", { offset }), { cache: "no-store" });
+    const data = await response.json() as TrashResponse;
+    if (!response.ok) throw new Error(data.error ?? tr("Couldn't load"));
+    return data;
+  };
+
   useEffect(() => {
     let active = true;
     void fetch(siteApi("/api/assets/trash"), { cache: "no-store" })
       .then(async (res) => {
         const data = await res.json() as TrashResponse;
         if (!res.ok) throw new Error(data.error ?? tr("Couldn't load"));
-        if (active) { setEnabled(data.enabled); setItems(data.items); setHasMore(data.hasMore); setLoadedCount(data.items.length); }
-      }).catch((err) => { if (active) setError(err instanceof Error ? err.message : tr("Couldn't load")); })
+        if (active) {
+          setEnabled(data.enabled);
+          setItems(data.items);
+          setHasMore(data.hasMore);
+          setLoadedCount(data.items.length);
+        }
+      })
+      .catch((err) => { if (active) setError(err instanceof Error ? err.message : tr("Couldn't load")); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
 
   const loadMore = async () => {
-    if (loadingMore || !hasMore) return;
+    if (busy || loadingMore || !hasMore) return;
     setLoadingMore(true);
     setError(null);
     try {
-      const response = await fetch(siteApi("/api/assets/trash", { offset: loadedCount }), { cache: "no-store" });
-      const data = await response.json() as TrashResponse;
-      if (!response.ok) throw new Error(data.error ?? tr("Couldn't load"));
-      setItems((current) => [...current, ...data.items]);
+      const data = await fetchPage(loadedCount);
+      setItems((current) => [...current, ...data.items.filter(
+        (item) => !current.some((existing) => existing.path === item.path)
+      )]);
       setLoadedCount((current) => current + data.items.length);
       setHasMore(data.hasMore);
     } catch (err) {
@@ -91,8 +111,18 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
     }
   };
 
+  const removeFromList = (path: string) => {
+    setItems((current) => current.filter((item) => item.path !== path));
+    setLoadedCount((count) => Math.max(0, count - 1));
+    setSelected((current) => {
+      const next = new Set(current);
+      next.delete(path);
+      return next;
+    });
+  };
+
   const restore = async (item: DeletedAsset) => {
-    if (restoring) return;
+    if (busy || loadingMore) return;
     setError(null);
     setRestoring(item.path);
     const site = currentSiteId();
@@ -107,8 +137,9 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
       });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? tr("Couldn't restore"));
-      if (currentSiteId() === site) onRestore(asset);
-      setItems((previous) => previous.filter((entry) => entry.path !== item.path));
+      if (currentSiteId() !== site) return;
+      onRestore(asset);
+      removeFromList(item.path);
     } catch (err) {
       setError(err instanceof Error ? err.message : tr("Couldn't restore"));
     } finally {
@@ -116,85 +147,190 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
     }
   };
 
-  const deleteNow = async (item: DeletedAsset) => {
-    if (restoring) return;
+  const deleteFiles = async (mode: "one" | "selected" | "all", one?: DeletedAsset) => {
+    if (busy || loadingMore || loading || !enabled) return;
     const site = currentSiteId();
     if (!site) return;
     const approved = await showConfirm(
-      tr("The file will be permanently deleted from the server without waiting seven days. This cannot be undone."),
-      { title: tr('Delete "{name}" permanently?', { name: filename(item.path) }),
-        okLabel: tr("Delete permanently"), danger: true }
+      tr("The files will be permanently deleted from the server without waiting seven days. This cannot be undone."),
+      {
+        title: mode === "one" && one
+          ? tr('Delete "{name}" permanently?', { name: filename(one.path) })
+          : mode === "all" ? tr("Delete all files permanently?") : tr("Delete selected files permanently?"),
+        okLabel: tr("Delete permanently"), danger: true,
+      },
     );
-    if (!approved || currentSiteId() !== site) return;
+    if (!approved || currentSiteId() !== site || busy) return;
     setError(null);
-    setRestoring(item.path);
+    setLoadingAll(true);
+    let paths: string[] = [];
     try {
-      const response = await fetch("/api/assets/trash", {
-        method: "DELETE", credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ site, path: item.path }),
-      });
-      const data = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? tr("Couldn't delete permanently"));
-      if (currentSiteId() !== site) return;
-      setItems((previous) => previous.filter((entry) => entry.path !== item.path));
-      onDelete();
+      if (mode === "all") {
+        const all = await loadAllTrash(fetchPage);
+        if (currentSiteId() !== site) return;
+        setItems(all);
+        setLoadedCount(all.length);
+        setHasMore(false);
+        paths = all.map((item) => item.path);
+      } else if (mode === "selected") {
+        paths = [...selected];
+      } else if (one) {
+        paths = [one.path];
+      }
+      if (!paths.length) return;
+      setLoadingAll(false);
+      setBulkProgress({ done: 0, total: paths.length });
+      let succeeded = 0;
+      const failures: string[] = [];
+      for (const path of paths) {
+        if (currentSiteId() !== site) break;
+        try {
+          const response = await fetch("/api/assets/trash", {
+            method: "DELETE", credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ site, path }),
+          });
+          const data = await response.json() as { error?: string };
+          if (!response.ok && !(response.status === 404 && data.error === "File is no longer in trash.")) {
+            throw new Error(data.error ?? tr("Couldn't delete permanently"));
+          }
+          removeFromList(path);
+          succeeded++;
+        } catch (err) {
+          failures.push(filename(path) + ": " +
+            (err instanceof Error ? err.message : tr("Couldn't delete permanently")));
+        } finally {
+          setBulkProgress((current) => current ? { ...current, done: current.done + 1 } : null);
+        }
+      }
+      if (succeeded) onDelete();
+      if (failures.length) setError(
+        tr("{count} files could not be deleted.", { count: failures.length }) + "\n" + failures.slice(0, 3).join("\n")
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : tr("Couldn't delete permanently"));
     } finally {
-      setRestoring(null);
+      setLoadingAll(false);
+      setBulkProgress(null);
+    }
+  };
+
+  const selectAll = async () => {
+    if (busy || loadingMore) return;
+    if (!hasMore && selected.size === items.length) {
+      setSelected(new Set());
+      return;
+    }
+    setLoadingAll(true);
+    setError(null);
+    const site = currentSiteId();
+    try {
+      const all = await loadAllTrash(fetchPage);
+      if (site !== currentSiteId()) return;
+      setItems(all);
+      setLoadedCount(all.length);
+      setHasMore(false);
+      setSelected(new Set(all.map((item) => item.path)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : tr("Couldn't load"));
+    } finally {
+      setLoadingAll(false);
     }
   };
 
   return (
     <div className="modal-backdrop" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose();
-    }} onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={tr("Trash")}
-        style={{ width: "min(620px, calc(100vw - 32px))", display: "flex", flexDirection: "column" }}
+      if (!busy && event.target === event.currentTarget) onClose();
+    }} onKeyDown={(event) => { if (event.key === "Escape" && !busy) onClose(); }}>
+      <div className="modal asset-trash-modal" role="dialog" aria-modal="true" aria-label={tr("Trash")}
         onMouseDown={(event) => event.stopPropagation()}>
-        <div className="modal-head">
-          <h2><Trash2 size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />{tr("Trash")}</h2>
-          <button type="button" className="icon-btn" aria-label={tr("Close")} onClick={onClose}><X size={16} /></button>
+        <div className="asset-trash-header">
+          <h2><Trash2 size={18} aria-hidden="true" />{tr("Trash")}</h2>
+          <button type="button" className="icon-btn" disabled={busy} aria-label={tr("Close")} onClick={onClose}>
+            <X size={16} />
+          </button>
         </div>
         {status?.assetDeletion?.mode === "scheduled" && (
-          <p className="hint">{tr("Assets in trash are permanently deleted after {days} days unless restored.", {
-            days: status.assetDeletion.days,
-          })}</p>
+          <p className="hint asset-trash-notice">
+            {tr("Assets in trash are permanently deleted after {days} days unless restored.", {
+              days: status.assetDeletion.days,
+            })}
+          </p>
         )}
-        {error && <p role="alert" style={{ color: "var(--danger)" }}>{error}</p>}
+        {error && <p role="alert" className="asset-trash-error">{error}</p>}
         {loading ? <p>{tr("Loading…")}</p> : !enabled ? (
           <p>{tr("Trash is available for Cloudflare server storage.")}</p>
-        ) : !items.length ? <p>{tr("Trash is empty.")}</p> : (
-          <div style={{ overflowY: "auto", minHeight: 0 }}>
-            {items.map((item) => (
-              <div key={item.path} style={{ display: "flex", gap: 8, alignItems: "center", padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <strong style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}>{filename(item.path)}</strong>
-                  <span className="hint">{new Date(item.deletedAt).toLocaleString()}
-                    {item.bytes != null ? ` · ${Math.ceil(item.bytes / 1024)} KB` : ""}
-                  </span>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, flex: "none", justifyContent: "flex-end" }}>
-                  <button type="button" className="btn" disabled={!!restoring}
-                    onClick={() => void restore(item)}>
-                    <RotateCcw size={14} />{tr("Restore")}
-                  </button>
-                  <button type="button" className="btn" disabled={!!restoring}
-                    style={{ color: "var(--danger)" }}
-                    onClick={() => void deleteNow(item)}>
-                    <Trash2 size={14} />{tr("Delete permanently")}
-                  </button>
-                </div>
+        ) : (
+          <>
+            <div className="asset-trash-toolbar">
+              <label className="asset-trash-select-all">
+                <input type="checkbox" disabled={busy || loadingMore || !items.length && !hasMore}
+                  checked={!!items.length && !hasMore && selected.size === items.length}
+                  onChange={() => void selectAll()} />
+                {tr("Select all")}
+              </label>
+              <span className="hint">{tr("{count} selected", { count: selected.size })}</span>
+              <div className="asset-trash-toolbar-actions">
+                <button type="button" className="btn" disabled={busy || loadingMore || !selected.size}
+                  onClick={() => void deleteFiles("selected")}>
+                  <Trash2 size={13} />{tr("Delete selected")}
+                </button>
+                <button type="button" className="btn asset-trash-danger" disabled={busy || loadingMore || !items.length && !hasMore}
+                  onClick={() => void deleteFiles("all")}>
+                  <Trash2 size={13} />{tr("Delete all")}
+                </button>
               </div>
-            ))}
-            {hasMore && (
-              <button type="button" className="btn" disabled={loadingMore || !!restoring}
-                onClick={() => void loadMore()} style={{ margin: "12px 0" }}>
-                {loadingMore ? tr("Loading…") : tr("Load more")}
-              </button>
+            </div>
+            {bulkProgress && (
+              <p className="hint" role="status">
+                {tr("Deleting files…")} {bulkProgress.done} / {bulkProgress.total}
+              </p>
             )}
-          </div>
+            <div className="asset-trash-list">
+              {!items.length && !hasMore ? <p className="hint">{tr("Trash is empty.")}</p> : (
+                items.map((item) => (
+                  <div className="asset-trash-row" key={item.path}>
+                    <label className="asset-trash-file">
+                      <input type="checkbox" disabled={busy || loadingMore} checked={selected.has(item.path)}
+                        aria-label={filename(item.path)}
+                        onChange={(event) => {
+                          const checked = event.currentTarget.checked;
+                          setSelected((current) => {
+                            const next = new Set(current);
+                            if (checked) next.add(item.path);
+                            else next.delete(item.path);
+                            return next;
+                          });
+                        }} />
+                      <span className="asset-trash-details">
+                        <strong>{filename(item.path)}</strong>
+                        <span className="hint">
+                          {new Date(item.deletedAt).toLocaleString()}
+                          {item.bytes != null ? " · " + Math.ceil(item.bytes / 1024) + " KB" : ""}
+                        </span>
+                      </span>
+                    </label>
+                    <div className="asset-trash-row-actions">
+                      <button type="button" className="btn" disabled={busy || loadingMore}
+                        onClick={() => void restore(item)}>
+                        <RotateCcw size={14} />{tr("Restore")}
+                      </button>
+                      <button type="button" className="btn asset-trash-danger" disabled={busy || loadingMore}
+                        onClick={() => void deleteFiles("one", item)}>
+                        <Trash2 size={14} />{tr("Delete permanently")}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+              {hasMore && (
+                <button type="button" className="btn asset-trash-more" disabled={busy || loadingMore}
+                  onClick={() => void loadMore()}>
+                  {loadingMore ? tr("Loading…") : tr("Load more")}
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

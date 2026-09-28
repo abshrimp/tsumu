@@ -2,7 +2,7 @@
 
 import { isEnterKey } from "../lib/keys";
 import { useId, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, ImagePlus, Images, LoaderCircle, Music, Search, Upload, Video, X } from "lucide-react";
+import { ChevronDown, FolderSearch, ImagePlus, Images, LoaderCircle, Music, Search, Upload, Video, X } from "lucide-react";
 import { useEditor } from "../lib/store";
 import type { Asset, ImageRef } from "../lib/types";
 import { assetKind, assetSrc, uploadAsset } from "../lib/assets";
@@ -122,6 +122,21 @@ export default function ImagePicker({
             onClick={toggle}
           >
             <Images size={13} />
+          </button>
+        )}
+        {asset && (
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label={tr("Show in assets")}
+            data-tip={tr("Show in assets")}
+            onClick={() => {
+              pending.cancel();
+              setOpen(false);
+              useEditor.getState().revealAsset(asset.id);
+            }}
+          >
+            <FolderSearch size={13} />
           </button>
         )}
         {(asset || value?.url) && (

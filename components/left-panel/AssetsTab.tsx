@@ -189,6 +189,7 @@ function StorageUsageMeter({ deletion, onOpenTrash, refreshToken }: {
   /** Workers KV の無料枠（有料プランでも 1GB までは料金に含まれ、超えた分は従量課金） */
   const limit = 1024 * 1024 * 1024;
   const pct = Math.min(100, (usage.bytes / limit) * 100);
+   const trashRatio = usage.bytes > 0 ? Math.min(100, (usage.pendingBytes / usage.bytes) * 100) : 0;
   const lines = [
     usage.exact
       ? tr("All sites: {files} files stored on the server{p2}", {
@@ -216,14 +217,13 @@ function StorageUsageMeter({ deletion, onOpenTrash, refreshToken }: {
   lines.push(tr("1 GB is the Workers KV free allowance. On a paid plan, storage beyond that is billed by usage."));
   return (
     <div className="storage-usage" data-tip={lines.join("\n")}>
-      <div className="storage-bar">
-        <div
-          className="storage-fill"
-          style={{
-            width: `${Math.max(1, pct)}%`,
-            background: pct > 90 ? "var(--danger)" : undefined,
-          }}
-        />
+      <div className="storage-bar" role="meter" aria-label={tr("Usage (all sites)")}
+        aria-valuemin={0} aria-valuemax={limit} aria-valuenow={Math.min(limit, usage.bytes)}>
+        <div className="storage-occupied" style={{ width: `${usage.bytes > 0 ? Math.max(1, pct) : 0}%` }}>
+          <div className="storage-fill" style={{ width: `${100 - trashRatio}%`,
+            background: pct > 90 ? "var(--danger)" : undefined }} />
+          {trashRatio > 0 && <div className="storage-trash-fill" style={{ width: `${trashRatio}%` }} />}
+        </div>
       </div>
       <span className="hint">
         {tr("Usage (all sites)")} {formatBytes(usage.bytes)} / {tr("{size} free", { size: formatBytes(limit) })}

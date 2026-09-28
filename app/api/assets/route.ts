@@ -125,9 +125,20 @@ export async function GET(req: Request) {
     const ledger = await readAssetLedger(db);
     // 台帳が揃っていれば全ファイルを数えられるため、サイトごとの Durable Object の呼び出しを省く。
     const refs = ledger?.complete ? null : await otherSiteAssetReferences(db, siteId);
+    // Until inventory completes, include GC candidates in the same path-keyed
+    // calculation as document references. This avoids both undercounting Trash
+    // and double-counting assets shared with another site.
+    const pending = ledger?.complete || db.backend !== "d1" ? null : await db.execute({
+      sql: `SELECT c.path, COALESCE(c.bytes,o.bytes) AS bytes
+        FROM asset_gc_candidates c LEFT JOIN asset_objects o ON o.path=c.path`,
+      args: [],
+    });
     return NextResponse.json({
       ...(ledger ? { ledger } : {}),
       ...(refs ? { others: [...refs].map(([path, bytes]) => ({ path, bytes })) } : {}),
+      ...(pending ? { pending: pending.rows.map((row) => ({
+        path: String(row.path), bytes: row.bytes == null ? null : Number(row.bytes),
+      })) } : {}),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "Couldn't load")) }, { status: 502 });

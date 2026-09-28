@@ -6,6 +6,8 @@ export interface StorageUsageResponse {
   ledger?: AssetLedgerSummary;
   /** 台帳がそろっていないときと Node.js・Docker: 他のサイトが使っているファイル（path → bytes） */
   others?: { path: string; bytes: number | null }[];
+  /** 削除待ちのファイル。台帳が未完成の間も使用量に加算する。 */
+  pending?: { path: string; bytes: number | null }[];
 }
 
 export interface StorageUsage {
@@ -53,11 +55,19 @@ export function computeStorageUsage(response: StorageUsageResponse | null, own: 
   for (const a of own) {
     if (a.path) files.set(a.path, a.bytes ?? files.get(a.path) ?? null);
   }
+  // An asset can be referenced by another site while also awaiting GC.
+  // Merge by path so Trash is counted exactly once, not added as a separate total.
+  for (const pending of response?.pending ?? []) {
+    files.set(pending.path, files.get(pending.path) ?? pending.bytes);
+  }
   let bytes = 0;
   let unknown = 0;
   for (const b of files.values()) {
     if (b === null) unknown++;
     else bytes += b;
   }
-  return { files: files.size, bytes, unknown, exact: false, pendingCount: 0, pendingBytes: 0 };
+  const pendingPaths = new Set((response?.pending ?? []).map((item) => item.path));
+  let pendingBytes = 0;
+  for (const path of pendingPaths) pendingBytes += files.get(path) ?? 0;
+  return { files: files.size, bytes, unknown, exact: false, pendingCount: pendingPaths.size, pendingBytes };
 }
