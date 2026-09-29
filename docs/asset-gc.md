@@ -73,6 +73,26 @@ deleted immediately on Node.js and Docker when no other saved site references
 the file. A direct image URL in another site’s HTML or CSS also counts as a
 reference.
 
+## Trash
+
+The Assets panel shows the pending candidates as **Trash**, under the storage
+meter, with their count and total size. It is available whenever the editor
+runs on D1, whether or not `ASSET_GC_ENABLED` is set.
+
+- **Restore** removes the candidate row and adds the asset back to the site
+  you are editing. The KV object is never rewritten. A restore is refused
+  while a garbage-collection run holds the lease, so the sweep can't delete a
+  file just after it was restored; try again a moment later.
+- **Delete permanently** removes one file, the selected files or everything in
+  Trash without waiting for the grace period. It takes the same lease as the
+  scheduled sweep and checks the current documents of every live site twice.
+  A file that any site still references is kept and the request fails, and so
+  does the request when any site can't be read.
+- Permanent deletion is an explicit action, so it deletes from KV **even when
+  `ASSET_GC_ENABLED` is not `true`**. It can't be undone. The same exclusions
+  apply as for the sweep: weekday backups, publish history and offline drafts
+  are not counted as references.
+
 ## Limits, storage and recovery
 
 - D1 tables: `asset_gc_candidates` (path, first-unreferenced time,

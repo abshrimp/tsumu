@@ -74,7 +74,7 @@ The editor runs in any of three environments. The features are identical; what d
 
 D1 and local SQLite tables are created on first access. To store editing data on Cloudflare, `wrangler.jsonc` must declare the `DOC_STORE` binding and the SQLite-backed `exports.DocumentRoom`. For the storage model and deployment checks, see [Document storage](durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
 
-On Cloudflare, removing an asset records it in D1 as a garbage-collection candidate, which expires after seven days (`ASSET_GC_GRACE_DAYS`). The daily job at 03:00 JST processes only expired candidates; a separate weekly check (Mondays at 04:00 JST) adds orphaned uploads as candidates. Physical KV deletion is off by default and runs only with `ASSET_GC_ENABLED=true`. See [KV asset GC](asset-gc.md) for retention trade-offs and configuration.
+On Cloudflare, removing an asset records it in D1 as a garbage-collection candidate, which expires after seven days (`ASSET_GC_GRACE_DAYS`). The daily job at 03:00 JST processes only expired candidates; a separate weekly check (Mondays at 04:00 JST) adds orphaned uploads as candidates. Physical KV deletion is off by default and runs only with `ASSET_GC_ENABLED=true`. Until then the files are listed as **Trash** in the Assets panel, where you can restore one or delete it permanently right away; permanent deletion works without `ASSET_GC_ENABLED`. See [KV asset GC](asset-gc.md) for retention trade-offs and configuration.
 
 ### Common setup
 

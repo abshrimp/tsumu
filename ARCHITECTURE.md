@@ -50,15 +50,15 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 | Area | Files |
 |---|---|
 | Editor state, undo/redo | `lib/store.ts` (zustand). Every change goes through the store, so that undo and sync both see it. |
-| Canvas and panels | `components/Canvas.tsx` and `canvas/` (CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`)<br>`LeftPanel.tsx` and `left-panel/` (one file per tab)<br>`StylePanel.tsx` and `style-panel/` (one file per section)<br>`ScriptEditor.tsx` and `script-editor/` (palette, blocks, step bodies, inputs, `useScriptDrag`, `useScriptEditorKeys`)<br>`SitePanel.tsx` |
+| Canvas and panels | `components/Canvas.tsx` and `canvas/` (CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`)<br>`LeftPanel.tsx` and `left-panel/` (one file per tab)<br>`StylePanel.tsx` and `style-panel/` (one file per section)<br>`ScriptEditor.tsx` and `script-editor/` (palette, blocks, step bodies, inputs, `useStepDrag`, `useEditorKeys`)<br>`SitePanel.tsx` |
 | Style model → CSS | `lib/style.ts`, `lib/breakpoints.ts`, `lib/motion.ts`, `lib/keyframes.ts` |
 | Generator | `lib/generator.ts`. `generateProject(doc, target)` returns the Next.js project as `{ files, binaries, remoteAssets }`. Its parts live in `lib/generator/`: `names.ts`, `css.ts`, `render.ts` (with `render-helpers.ts`), `page.ts`, `head.ts`, `templates.ts`. |
 | Output formats | `lib/export-formats.ts` and the rest of `lib/generator/`. See [Output formats](#output-formats). |
-| Publish and zip export | `components/PublishModal.tsx` (client) → `app/api/publish/route.ts` (GitHub Git Data API). See [Publishing](#publishing).<br>`ExportModal` in `components/Header.tsx` → `lib/exportZip.ts` |
+| Publish and zip export | `components/PublishModal.tsx` (client) → `app/api/publish/route.ts` (GitHub Git Data API). See [Publishing](#publishing).<br>`components/ExportModal.tsx` (opened from `Header.tsx`) → `lib/exportZip.ts` |
 | Import | `lib/import-site-file.ts` (new site from a file), `lib/site-import.ts` (Tsumu zip and `doc.json`), `lib/portable-doc.ts` (compact `doc.json`), `lib/html-to-site.ts` with `html-file-import.ts` and `html-zip.ts` (HTML). See [Imports](#imports). |
 | Pre-publish checks | `runChecks` in `lib/generator/checks.ts`: broken links, alt text, heading order, small text, overflow |
 | Persistence | `document-room.ts` / `lib/structured-document-store.ts`: SQLite-backed Durable Object per site generation, page/node rows and transactional `rev`<br>`lib/site-document-service.ts`: Cloudflare/Node routing<br>`lib/doc-storage.ts` / `lib/node-storage.ts`: local SQLite outside Cloudflare<br>`lib/kv.ts`: asset files<br>`lib/local-storage.ts`: browser-only fallback |
-| KV asset GC | `DELETE /api/assets` registers D1 candidates; `lib/asset-gc.ts` processes expired candidates daily, while a weekly `custom-worker.ts` trigger reconciles orphan KV keys. Default dry-run; [policy and limits](docs/asset-gc.md). |
+| KV asset GC | `DELETE /api/assets` registers D1 candidates; `lib/asset-gc.ts` processes expired candidates daily, while a weekly `custom-worker.ts` trigger reconciles orphan KV keys. Default dry-run; [policy and limits](docs/asset-gc.md).<br>Trash: `components/AssetTrash.tsx` → `app/api/assets/trash` lists the pending candidates, restores one by dropping its candidate row, or deletes one right away (`lib/asset-trash-delete.ts`, under the same lease and reference scan as the sweep). |
 | Collaboration | `custom-worker.ts`: one WebSocket Durable Object per site generation<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
 | AI | `lib/ai/` (providers, prompt, streaming); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client) |
 | Comments, activity | `lib/comments.ts`, `lib/comment-store.ts`, `lib/activity.ts` |
@@ -172,7 +172,7 @@ If the user edited the same page while the AI was working, the AI's change is dr
 
 ## Conventions
 
-- **Language.** Comments are written in Japanese. UI strings are English source strings wrapped in `tr()`; when you add one, add its Japanese translation to `lib/locales/ja.ts` too. Japanese translations are checked strictly (`npm run i18n:check -- --strict ja`); new language dictionaries are discovered automatically and may be partial.
+- **Language.** Comments may be in English or Japanese. UI strings are English source strings wrapped in `tr()`. A Japanese translation in `lib/locales/ja.ts` is welcome but optional: a missing one falls back to English and shows up as a warning in CI (`npm run i18n:check -- --all`). Run `npm run i18n:check -- --strict ja` to confirm the Japanese dictionary is complete. New language dictionaries are discovered automatically and may be partial.
 - **Readable output.** Generated code should look hand-written. Output a developer wouldn't write by hand is a bug.
 - **Formats.** Browser state uses `tsumu-` keys, and clipboard data uses the `application/x-tsumu+json` type. Both follow the current document schema.
 - **Tests.** New behavior needs a test.

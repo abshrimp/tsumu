@@ -50,15 +50,15 @@
 | 領域 | ファイル |
 |---|---|
 | エディタの状態、元に戻す・やり直す | `lib/store.ts`（zustand）。すべての変更がストアを経由するため、どの変更も元に戻す履歴と同期の両方に反映されます。 |
-| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）<br>`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイル）<br>`ScriptEditor.tsx` と `script-editor/`（パレット、ブロック、手順の本体、入力欄、`useScriptDrag`、`useScriptEditorKeys`）<br>`SitePanel.tsx` |
+| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）<br>`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイル）<br>`ScriptEditor.tsx` と `script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx` |
 | スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts` |
 | 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が Next.js プロジェクトを `{ files, binaries, remoteAssets }` として返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
 | 出力形式 | `lib/export-formats.ts` と、`lib/generator/` のその他のファイル。詳細は [出力形式](#出力形式) を参照してください。 |
-| 公開と zip での書き出し | `components/PublishModal.tsx`（ブラウザ側）から `app/api/publish/route.ts`（GitHub Git Data API）へ。詳細は [公開の仕組み](#公開の仕組み) を参照してください。<br>`components/Header.tsx` の `ExportModal` から `lib/exportZip.ts` へ |
+| 公開と zip での書き出し | `components/PublishModal.tsx`（ブラウザ側）から `app/api/publish/route.ts`（GitHub Git Data API）へ。詳細は [公開の仕組み](#公開の仕組み) を参照してください。<br>`components/ExportModal.tsx`（`Header.tsx` から開く）から `lib/exportZip.ts` へ |
 | インポート | `lib/import-site-file.ts`（ファイルからのサイト作成）、`lib/site-import.ts`（Tsumu の zip と `doc.json`）、`lib/portable-doc.ts`（圧縮形式の `doc.json`）、`lib/html-to-site.ts` と `html-file-import.ts`・`html-zip.ts`（HTML）。詳細は [インポート](#インポート) を参照してください。 |
 | 公開前チェック | `lib/generator/checks.ts` の `runChecks`。リンク切れ、代替テキスト、見出しの順序、小さすぎる文字、レイアウトのはみ出しを検査します。 |
 | 保存 | `document-room.ts`・`lib/structured-document-store.ts`：サイトの作成世代ごとに1つの SQLite 対応 Durable Object を使い、ページ・要素などを個別の行に保存<br>`lib/site-document-service.ts`：Cloudflare と Node.js の保存先の振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node.js・Docker 用の SQLite<br>`lib/kv.ts`：アセットの本体<br>`lib/local-storage.ts`：ブラウザへの保存 |
-| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](docs/asset-gc.md)）。 |
+| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](docs/asset-gc.md)）。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、削除待ちの候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
 | 同時編集 | `custom-worker.ts`：サイトの作成世代ごとに独立した、WebSocket 用の Durable Object<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker における Server-Sent Events<br>`lib/collab.ts`：送受信するメッセージ<br>`lib/merge.ts`：3方向マージ。ノードの ID で照合し、次に項目の単位で照合します。配列は全体を1つの値として扱います。 |
 | AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数） |
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |
@@ -180,7 +180,7 @@ AI の処理中に利用者が同じページを編集した場合、AI の変�
 
 ## 開発上の規約
 
-- **言語**：コメントは日本語で記述します。画面の文言は英語を原文として `tr()` で囲み、新しく追加した場合は `lib/locales/ja.ts` に日本語訳も追加します（`npm run i18n:check -- --strict ja` で確認できます）。
+- **言語**：コメントは英語でも日本語でも構いません。画面の文言は英語を原文として `tr()` で囲みます。`lib/locales/ja.ts` への日本語訳の追加は歓迎しますが、必須ではありません。訳が無い文言は英語で表示し、CI では警告として報告します（`npm run i18n:check -- --all`）。日本語訳がそろっていることは `npm run i18n:check -- --strict ja` で確認できます。新しい言語の辞書は自動で検出し、訳が途中でも構いません。
 - **可読性の高い出力**：生成するコードは、人が手で書いたものと同等に読みやすくします。開発者が手では書かないような出力は不具合として扱います。
 - **データ形式**：ブラウザへの保存には `tsumu-` で始まるキーを、クリップボードには `application/x-tsumu+json` を使用します。どちらも、現在の文書スキーマに従います。
 - **テスト**：新しい動作にはテストが必要です。
