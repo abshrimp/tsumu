@@ -26,7 +26,7 @@ export async function GET() {
     enabled: conf.enabled,
     provider: conf.enabled ? conf.provider : null,
     model: conf.enabled ? conf.model : null,
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(req: Request) {

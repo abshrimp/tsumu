@@ -48,16 +48,20 @@ async function authorizeSite(value: unknown, tr: Tr) {
   return site.rows.length ? { db, siteId } : NextResponse.json({ error: tr("Site not found") }, { status: 404 });
 }
 
+const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
+/** D1 以外の保存先では、ゴミ箱を使わない。この応答も、設定を変えた後まで残さない。 */
+const trashDisabled = () => NextResponse.json({ items: [], enabled: false }, { headers: PRIVATE_NO_STORE });
+
 /** Read the list of files awaiting the existing 7-day garbage collection. */
 export async function GET(req: Request) {
   const denied = await requireAuth();
   if (denied) return denied;
-  if (!dbConfigured()) return NextResponse.json({ items: [], enabled: false });
+  if (!dbConfigured()) return trashDisabled();
   const tr = await serverTr();
   try {
     const checked = await authorizeSite(new URL(req.url).searchParams.get("site"), tr);
     if (checked instanceof NextResponse) return checked;
-    if (checked.db.backend !== "d1") return NextResponse.json({ items: [], enabled: false });
+    if (checked.db.backend !== "d1") return trashDisabled();
     const offsetRaw = new URL(req.url).searchParams.get("offset") ?? "0";
     const offset = Number(offsetRaw);
     if (!/^\d+$/.test(offsetRaw) || !Number.isSafeInteger(offset) || offset > 1_000_000) {
@@ -79,7 +83,7 @@ export async function GET(req: Request) {
         deletedAt: Number(row.deletedAt),
         bytes: row.bytes == null ? null : Number(row.bytes),
       })),
-    }, { headers: { "Cache-Control": "private, no-store" } });
+    }, { headers: PRIVATE_NO_STORE });
   } catch (error) {
     return NextResponse.json({ error: tr(userMessage(error, "Couldn't load")) }, { status: 502 });
   }
@@ -112,7 +116,7 @@ export async function POST(req: Request) {
       });
       return exists.rows.length ? gcRunning(tr) : notInTrash(tr);
     }
-    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ ok: true }, { headers: PRIVATE_NO_STORE });
   } catch (error) {
     return NextResponse.json({ error: tr(userMessage(error, "Couldn't restore")) }, { status: 502 });
   }
@@ -145,7 +149,7 @@ export async function DELETE(req: Request) {
     if (outcome === "in-use") return NextResponse.json({
       error: tr("The asset is still used by a saved site and cannot be permanently deleted."),
     }, { status: 409 });
-    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ ok: true }, { headers: PRIVATE_NO_STORE });
   } catch (error) {
     return NextResponse.json({ error: tr(userMessage(error, "Couldn't delete permanently")) }, { status: 502 });
   }

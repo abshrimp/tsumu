@@ -203,3 +203,10 @@ test("a file that already left the trash is reported with a stable code", async 
   assert.equal(missingSite.status, 404);
   assert.equal((await missingSite.json() as { code?: string }).code, undefined);
 });
+
+test("the disabled trash listing is not cacheable either", async () => {
+  const response = await trashRoute({ backend: "sqlite" }).get();
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { items: [], enabled: false });
+  assert.equal(response.headers.get("cache-control"), "private, no-store");
+});

@@ -50,6 +50,7 @@ function load(path: string) {
     documentAssetReferences: async () => [{ path: "assets/example.png", bytes: 256 }],
     readAssetLedger: async () => null,
     parseCommentCursor: () => null,
+    aiConfig: () => ({ enabled: true, provider: "anthropic", model: "example-model" }),
     listCommentPage: async () => ({ threads: [], nextCursor: null, total: 0, unresolvedCount: 0, focusedThread: null }),
   };
   const module = { exports: {} as Record<string, any> };
@@ -73,6 +74,7 @@ for (const path of [
   "../app/api/doc/backups/route.ts",
   "../app/api/allowed-users/route.ts",
   "../app/api/collab/authorize/route.ts",
+  "../app/api/ai/route.ts",
 ]) {
   test(`${path} never allows caching an authorized GET response`, async () => {
     const handler = load(path);
