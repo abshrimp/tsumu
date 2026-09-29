@@ -190,8 +190,9 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ site, path }),
           });
-          const data = await response.json() as { error?: string };
-          if (!response.ok && !(response.status === 404 && data.error === "File is no longer in trash.")) {
+          const data = await response.json() as { error?: string; code?: string };
+          // ほかの人やタブがすでに消したファイルは、削除できたものとして扱う。
+          if (!response.ok && data.code !== "asset_trash_missing") {
             throw new Error(data.error ?? tr("Couldn't delete permanently"));
           }
           removeFromList(path);

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
 import { assetUploadedAt } from "../lib/asset-gc-plan";
+import * as apiJson from "../lib/api-json";
 
 class NextResponse extends Response {
   static json(body: unknown, init?: ResponseInit) {
@@ -65,6 +66,7 @@ function trashRoute({
     "../../../../lib/asset-gc-plan": { assetUploadedAt },
     "../../../../lib/i18n-server": { serverTr: async () => (s: string) => s },
     "../../../../lib/errors": { userMessage: (_err: unknown, fallback: string) => fallback },
+    "../../../../lib/api-json": apiJson,
   };
   const mod = { exports: {} as {
     GET: (req: Request) => Promise<Response>;
@@ -85,6 +87,10 @@ function trashRoute({
       method: "DELETE", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: assetPath, site }),
     })),
+    send: (method: "POST" | "DELETE", body: string, type = "application/json") =>
+      mod.exports[method](new Request("https://example.test/api/assets/trash", {
+        method, headers: { "Content-Type": type }, body,
+      })),
     deletions: () => deletion,
     permanentDeleteCalls: () => permanentDeleteCalls,
   };
@@ -169,4 +175,31 @@ test("permanent deletion refuses invalid paths, missing sites, unsupported backe
     assert.ok([404, 503].includes((await route.remove()).status));
     assert.equal(route.permanentDeleteCalls(), 0);
   }
+});
+
+test("trash writes bound the request body and require JSON before touching storage", async () => {
+  for (const method of ["POST", "DELETE"] as const) {
+    const route = trashRoute();
+    const oversized = JSON.stringify({ site: "site", path, padding: "x".repeat(4096) });
+    assert.equal((await route.send(method, oversized)).status, 413);
+    assert.equal((await route.send(method, JSON.stringify({ site: "site", path }), "text/plain")).status, 415);
+    for (const malformed of ["{", "null", "[]", "\"text\""]) {
+      assert.equal((await route.send(method, malformed)).status, 400);
+    }
+    assert.equal(route.deletions(), 0);
+    assert.equal(route.permanentDeleteCalls(), 0);
+  }
+});
+
+test("a file that already left the trash is reported with a stable code", async () => {
+  const restored = await trashRoute({ candidate: false }).post();
+  assert.equal(restored.status, 404);
+  assert.equal((await restored.json() as { code?: string }).code, "asset_trash_missing");
+  const removed = await trashRoute({ deleteOutcome: "missing" }).remove();
+  assert.equal(removed.status, 404);
+  assert.equal((await removed.json() as { code?: string }).code, "asset_trash_missing");
+  // 存在しないサイトの 404 を、削除済みのファイルと取り違えない。
+  const missingSite = await trashRoute({ siteExists: false }).remove();
+  assert.equal(missingSite.status, 404);
+  assert.equal((await missingSite.json() as { code?: string }).code, undefined);
 });
