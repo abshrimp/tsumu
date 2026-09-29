@@ -42,6 +42,10 @@ function breakpointLabel(label: string): string {
     default: return label;
   }
 }
+/** 上のバーのボタンに出す短い名前。 */
+function breakpointShortLabel(label: string): string {
+  return label === "スマホ横向き" ? tr("Landscape", "phone_landscape_short") : breakpointLabel(label);
+}
 
 /**
  * 表示中のブレークポイントの並び（"base" が先頭、その後は幅の大きい順）と、その情報。
@@ -125,7 +129,7 @@ export function applyBreakpoints(cfg: { breakpoints?: unknown; baseWidth?: unkno
     const smaller = list[i + 1];
     BP_INFO[b.id] = {
       label: breakpointLabel(b.label),
-      short: breakpointLabel(b.label),
+      short: breakpointShortLabel(b.label),
       // 区切りの幅ちょうどで表示する（その画面用のスタイルが効く、いちばん広い幅。崩れやすい幅を確かめられる）
       width: b.maxWidth,
       maxWidth: b.maxWidth,

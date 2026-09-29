@@ -49,6 +49,8 @@ body {
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+  /* 日本語の案内文を、文字の途中ではなく文節の切れ目で折り返す */
+  word-break: auto-phrase;
 }
 
 button {
@@ -2199,6 +2201,8 @@ textarea {
 
 .cv-root {
   min-height: 320px;
+  /* 作っているページには、エディタの折り返し方を持ち込まない */
+  word-break: normal;
   color: #18181b;
   font-family: system-ui, -apple-system, "Hiragino Sans", sans-serif;
   font-size: 16px;
@@ -5389,8 +5393,8 @@ button.vx-chev:hover {
 }
 
 .bp-edit-row {
-  grid-template-columns: minmax(0, 1fr) 96px 22px;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) 90px 20px;
+  gap: 2px;
 }
 
 .bp-edit-name {
@@ -13178,4 +13182,14 @@ button.np-chev:hover {
     width: 100%;
     margin-left: 0;
   }
+}
+
+/* 短い案内文は、最後の行に1〜2文字だけ残らないよう、行の長さをそろえる */
+.asset-drop,
+.panel-empty,
+.home-empty p,
+.help-empty p,
+.modal-desc,
+.tutorial-card p {
+  text-wrap: balance;
 }
