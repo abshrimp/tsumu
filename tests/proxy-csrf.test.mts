@@ -22,7 +22,7 @@ function fixture(configured: boolean) {
     },
     "./lib/lang": { langOfRequest: () => "en" },
     "./lib/csrf": { isCrossSiteWrite },
-    "./lib/anonymous": { anonymousAllowed: () => true },
+    "./lib/anonymous": { anonymousAllowed: () => true, anonymousHostAllowed: () => true },
   };
   const module = { exports: {} as { default: (req: NextRequest) => Promise<Response> } };
   new Function("require", "module", "exports", code)((id: string) => {

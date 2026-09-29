@@ -57,6 +57,7 @@ http://localhost:3000 を開くと、ホーム画面（サイトの一覧）が�
 
 - `wrangler.jsonc` に基づき、Cloudflare の D1・KV をローカルで再現します。データは `.wrangler/state` に保存されます。`TSUMU_DATA_DIR` を設定していても、こちらが優先されます。
 - Google ログインが未設定の場合は匿名で利用できます。`npm run preview` でも同じモードを使うには、`.dev.vars` に `ALLOW_ANONYMOUS=true` を記述します。
+- この匿名のモードでは、`localhost`・`127.0.0.1`・`[::1]` 宛ての要求だけに応答します。Web ページが自分のドメインを手元のマシンに向け直して（DNS rebinding）エディタを操作することを防ぐためです。ほかの端末やホスト名から開くには `ALLOW_ANONYMOUS=true` を設定します。この場合、サーバーに届く人は誰でも編集・公開できます。
 - WebSocket は使えないため、他の編集者の変更は Server-Sent Events（SSE）で反映されます。SSE も使えない場合は、10秒間隔のポーリングに切り替わります。WebSocket によるリアルタイムの反映を確認するには、`npm run preview` を使用します。
 
 ## エディタのデプロイ

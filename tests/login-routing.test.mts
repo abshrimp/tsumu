@@ -34,7 +34,7 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
   const serverTr = async () => (s: string) => s;
   const proxy = load("../proxy.ts", {
     "next/server": { NextResponse }, "./auth": auth,
-    "./lib/anonymous": { anonymousAllowed: () => anonymous },
+    "./lib/anonymous": { anonymousAllowed: () => anonymous, anonymousHostAllowed: () => true },
   }).proxy;
   const redirect = (destination: string) => { throw new Error(`redirect:${destination}`); };
   const login = load("../app/login/page.tsx", {

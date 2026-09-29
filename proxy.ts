@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { proxyAuth, authConfigured } from "./auth";
 import { langOfRequest } from "./lib/lang";
 import { isCrossSiteWrite } from "./lib/csrf";
-import { anonymousAllowed } from "./lib/anonymous";
+import { anonymousAllowed, anonymousHostAllowed } from "./lib/anonymous";
 
 export async function proxy(req: NextRequest) {
   // 辞書を読み込むと大きくなるため、ここで表示する文だけを持つ（日本語以外は英語）
@@ -15,6 +15,7 @@ export async function proxy(req: NextRequest) {
   //（URL を知っている人は、誰でも編集・公開できる）
   if (!authConfigured()) {
     if (!anonymousAllowed()) return setupRequired(pathname, en);
+    if (!anonymousHostAllowed(req.headers.get("host"))) return foreignHost(pathname, en);
     if (pathname === "/login") return NextResponse.redirect(new URL("/", req.nextUrl));
     return NextResponse.next();
   }
@@ -38,6 +39,16 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
   }
   return NextResponse.next();
+}
+
+/** npm run dev のログインなしに、localhost 以外の Host で届いた要求への応答 */
+function foreignHost(pathname: string, en: boolean): NextResponse {
+  const message = en
+    ? "Without sign-in, npm run dev only accepts requests to localhost. Set ALLOW_ANONYMOUS=true to open it from another host."
+    : "ログインなしの npm run dev は、localhost 宛ての要求だけを受け付けます。ほかのホスト名で開くには ALLOW_ANONYMOUS=true を設定してください。";
+  return pathname.startsWith("/api/")
+    ? NextResponse.json({ error: message }, { status: 403 })
+    : new NextResponse(message, { status: 403, headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 
 /** ログインもログインなしの許可も無いときの応答（設定の手順を案内する） */

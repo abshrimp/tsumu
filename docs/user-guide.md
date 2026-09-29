@@ -57,6 +57,7 @@ A few things to know about `npm run dev`:
 
 - It emulates Cloudflare's D1 and KV locally, based on `wrangler.jsonc`. Data goes to `.wrangler/state`, even if `TSUMU_DATA_DIR` is set.
 - With Google sign-in unconfigured, it allows anonymous access. To use the same mode under `npm run preview`, put `ALLOW_ANONYMOUS=true` in `.dev.vars`.
+- In that anonymous mode it only answers requests addressed to `localhost`, `127.0.0.1` or `[::1]`, so a web page can't reach it by pointing its own domain at your machine (DNS rebinding). To open it from another device or host name, set `ALLOW_ANONYMOUS=true`, which lets anyone who can reach the server edit and publish.
 - Collaborators' changes arrive through Server-Sent Events (SSE), because WebSocket is not available. If SSE is also unavailable, the editor falls back to polling every 10 seconds. To try the real-time WebSocket connection, use `npm run preview`.
 
 ## Deploying the editor
