@@ -1,15 +1,10 @@
-import type { SiteDoc, Page } from "../types";
-import { pagePlan, toListItem, type PagePlan } from "../data";
+import { toListItem, type PagePlan } from "../data";
 import { evaluateValueRecipe } from "../script-model/recipe-runtime";
 import { PAGE_STEP_RUNNER_SOURCE } from "../page-load-steps";
 import { matchesValueCondition, parseValueLiteral, setVarPath, withinScriptValueLimit } from "../value-semantics";
 import { formatValueText } from "../value-text";
 
 /** 共通のスクリプトの実行モデルから、ページのデータの計画を出力する。 */
-export function pageDataPlan(doc: SiteDoc, page: Page) {
-  return serializePageDataPlan(pagePlan(doc, page.id));
-}
-
 export function serializePageDataPlan(plan: PagePlan) {
   return {
     steps: plan.steps.map((step) => {
@@ -20,11 +15,6 @@ export function serializePageDataPlan(plan: PagePlan) {
     }),
     listOps: Object.fromEntries(plan.listOps),
   };
-}
-
-/** ページのデータの読み込みで実行したブロックを、DOM のスクリプトでもう一度実行してはいけない。 */
-export function pageDataServerIds(doc: SiteDoc, page: Page): Set<string> {
-  return new Set(pagePlan(doc, page.id).serverIds);
 }
 
 /** Browser-only data runner embedded in all generated client-side formats. */

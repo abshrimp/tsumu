@@ -2606,11 +2606,6 @@ textarea {
   gap: 12px;
 }
 
-.export-option > .dropdown {
-  min-width: 0;
-  max-width: 100%;
-}
-
 .export-note {
   margin: 0 0 10px;
   line-height: 1.6;

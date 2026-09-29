@@ -121,18 +121,16 @@ for (const method of ["PUT", "PATCH"] as const) {
   });
 }
 
-test("server target envelopes leave the existing storage result APIs unchanged", async t => {
+test("server target envelopes name the room only for accepted writes", async t => {
   const f = await setup(t); const key = await f.create("source");
-  for (const method of ["saveSiteDocument", "patchSiteDocument"]) {
-    const value = method === "saveSiteDocument" ? JSON.stringify(edit) : patch;
+  for (const method of ["saveSiteDocumentWithTarget", "patchSiteDocumentWithTarget"]) {
+    const value = method === "saveSiteDocumentWithTarget" ? JSON.stringify(edit) : patch;
     const rev = f.room(key).meta()!.rev;
-    const result = await f.services[method](f.rawDb, "source", value, rev);
-    assert.deepEqual(result, { kind: "saved", rev: String(Number(rev) + 1), savedAt: f.room(key).meta()!.savedAt });
-    const internal = await f.services[method + "WithTarget"](f.rawDb, "source", value, result.rev);
+    const internal = await f.services[method](f.rawDb, "source", value, rev);
     assert.deepEqual(Object.keys(internal).sort(), ["result", "roomKey"]);
     assert.equal(internal.roomKey, key);
-    assert.deepEqual(Object.keys(internal.result).sort(), ["kind", "rev", "savedAt"]);
-    const conflict = await f.services[method + "WithTarget"](f.rawDb, "source", value, "1");
+    assert.deepEqual(internal.result, { kind: "saved", rev: String(Number(rev) + 1), savedAt: f.room(key).meta()!.savedAt });
+    const conflict = await f.services[method](f.rawDb, "source", value, "1");
     assert.equal(conflict.result.kind, "conflict");
     assert.equal(conflict.roomKey, null);
   }

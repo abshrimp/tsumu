@@ -130,11 +130,6 @@ export async function saveSiteDocumentWithTarget(db: Db, siteId: string, raw: st
   return { result: finished, roomKey: finished.kind === "saved" ? roomKey : null };
 }
 
-export async function patchSiteDocument(db: Db, siteId: string, patch: DocPatch, base: string):
-  Promise<SaveDocResult> {
-  return (await patchSiteDocumentWithTarget(db, siteId, patch, base)).result;
-}
-
 export async function patchSiteDocumentWithTarget(db: Db, siteId: string, patch: DocPatch, base: string):
   Promise<ServerDocumentMutation> {
   const target = await forSite(db, siteId);

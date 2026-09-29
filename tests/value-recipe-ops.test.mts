@@ -2,16 +2,18 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { validDocumentScripts } from "../lib/document-validation";
-import { defaultTransform, VALUE_TRANSFORM_KINDS, type ValueTransform } from "../lib/script-model/compose";
+import { defaultTransform, type ValueTransform } from "../lib/script-model/compose";
 
 
 const run = (input: unknown, steps: readonly ValueTransform[]) => evaluateValueRecipe(input, steps);
 const val = (value: unknown) => ({ kind: "value", value });
 
-test("all advertised transforms have stable, serializable defaults", () => {
-  assert.equal(VALUE_TRANSFORM_KINDS.length, 10);
-  assert.equal(new Set(VALUE_TRANSFORM_KINDS).size, VALUE_TRANSFORM_KINDS.length);
-  for (const kind of VALUE_TRANSFORM_KINDS) {
+test("every transform kind has a stable, serializable default", () => {
+  const kinds: Record<ValueTransform["kind"], true> = {
+    field: true, fallback: true, math: true, split: true, replace: true, join: true,
+    length: true, sort: true, stringify: true, parse: true,
+  };
+  for (const kind of Object.keys(kinds) as ValueTransform["kind"][]) {
     const transform = defaultTransform(kind);
     assert.equal(transform.kind, kind);
     assert.doesNotThrow(() => JSON.parse(JSON.stringify(transform)));

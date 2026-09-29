@@ -11,11 +11,6 @@ export type ValueTransform =
   | { readonly kind: "sort"; readonly field: string; readonly direction: SortDirection };
 export type ValueTransformKind = ValueTransform["kind"];
 
-export const VALUE_TRANSFORM_KINDS: readonly ValueTransformKind[] = [
-  "field", "fallback", "math", "split", "replace", "join",
-  "length", "sort", "stringify", "parse",
-];
-
 export function defaultTransform(kind: ValueTransformKind): ValueTransform {
   switch (kind) {
     case "field": return { kind, key: "" };

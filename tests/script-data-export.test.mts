@@ -4,10 +4,14 @@ import { runInNewContext } from "node:vm";
 import { createInitialDoc } from "../lib/presets";
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { lookupVar, interpolate } from "../lib/vars";
-import { pageDataPlan, pageDataServerIds, PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
+import { serializePageDataPlan, PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
+import { pagePlan } from "../lib/data";
+import type { Page, SiteDoc } from "../lib/types";
 import { nativeDataModule } from "../lib/generator/native-data";
 import { generateExportProject } from "../lib/export-formats";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
+
+const pageDataPlan = (doc: SiteDoc, page: Page) => serializePageDataPlan(pagePlan(doc, page.id));
 
 function fixture() {
   const doc = createInitialDoc();
@@ -238,7 +242,7 @@ test("multiple if clauses retain AND-before-OR grouping in browser and SSR", asy
   conditional.conditions[0].target = "checkbox";
   const clientPlan = pageDataPlan(doc, page);
   assert.equal(clientPlan.steps.some((st) => st.kind === "if"), false);
-  assert.equal(pageDataServerIds(doc, page).has(conditional.id), false);
+  assert.equal(pagePlan(doc, page.id).serverIds.has(conditional.id), false);
 });
 
 test("if condition arrays are serialized into emitted event scripts", () => {

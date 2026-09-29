@@ -130,9 +130,13 @@ test("retired rooms are sealed and their deletion queue is drained", async () =>
 const conflict: SaveDocResult = {
   kind: "conflict", current: { rev: "3", savedAt: 300, body: '{"siteName":"Old generation"}' },
 };
-const saveMethods = ["saveSiteDocument", "patchSiteDocument"] as const;
-const saveInput = (method: typeof saveMethods[number]) => method === "saveSiteDocument"
-  ? "{}" : [{ path: ["siteName"], value: "Edited" }];
+const saveMethods = ["saveSiteDocument", "patchSiteDocumentWithTarget"] as const;
+/** 全体の保存と差分の保存を、同じ結果の形で呼ぶ。 */
+const save = (f: ReturnType<typeof fixture>, method: typeof saveMethods[number]): Promise<SaveDocResult> =>
+  method === "saveSiteDocument"
+    ? f.store.saveSiteDocument(f.db, "site", "{}", "1")
+    : f.store.patchSiteDocumentWithTarget(f.db, "site", [{ path: ["siteName"], value: "Edited" }], "1")
+      .then((mutation: { result: SaveDocResult }) => mutation.result);
 
 for (const method of saveMethods) {
   for (const generation of [null, "new-room"]) {
@@ -140,7 +144,7 @@ for (const method of saveMethods) {
       const f = fixture();
       f.setSaveResult(conflict);
       f.changeOnNextCall(generation);
-      assert.deepEqual(await f.store[method](f.db, "site", saveInput(method), "1"), { kind: "missing" });
+      assert.deepEqual(await save(f, method), { kind: "missing" });
       assert.equal(f.timestampWrites, 0);
       assert.equal(f.localCalls, 0);
     });
@@ -149,7 +153,7 @@ for (const method of saveMethods) {
   test(`${method} preserves a current-generation revision conflict`, async () => {
     const f = fixture();
     f.setSaveResult(conflict);
-    assert.deepEqual(await f.store[method](f.db, "site", saveInput(method), "1"), conflict);
+    assert.deepEqual(await save(f, method), conflict);
     assert.equal(f.timestampWrites, 0);
   });
 
@@ -157,14 +161,14 @@ for (const method of saveMethods) {
     const f = fixture();
     const error = new Error("RPC unavailable");
     f.failSave(error);
-    await assert.rejects(f.store[method](f.db, "site", saveInput(method), "1"), error);
+    await assert.rejects(save(f, method), error);
     assert.equal(f.timestampWrites, 0);
   });
 
   test(`${method} returns missing before calling storage for a deleted generation`, async () => {
     const f = fixture();
     f.setGeneration(null);
-    assert.deepEqual(await f.store[method](f.db, "site", saveInput(method), "1"), { kind: "missing" });
+    assert.deepEqual(await save(f, method), { kind: "missing" });
     assert.equal(f.roomLookups, 0);
     assert.equal(f.localCalls, 0);
     assert.equal(f.timestampWrites, 0);
@@ -172,7 +176,7 @@ for (const method of saveMethods) {
 
   test(`${method} still routes Node saves to local storage`, async () => {
     const f = fixture({ local: true });
-    assert.deepEqual(await f.store[method](f.db, "site", saveInput(method), "1"), { kind: "missing" });
+    assert.deepEqual(await save(f, method), { kind: "missing" });
     assert.equal(f.localCalls, 1);
     assert.equal(f.roomLookups, 0);
   });

@@ -54,6 +54,7 @@ function fixture(options: {
     calls.push(stage);
     if (options.stage === stage) throw options.error;
   };
+  const roomKey = "synthetic-private-room-key";
   const injected: Record<string, unknown> = {
     NextResponse, userMessage, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError,
     DocTooLargeError, InvalidDocPatchError, validateDocValue, isDocPatch,
@@ -73,8 +74,9 @@ function fixture(options: {
     saveSiteDocument: async (_db: unknown, _id: string, raw: string, base: string | null) => {
       step("save"); return options.save ? options.save(raw, base) : options.result ?? saved;
     },
-    patchSiteDocument: async (_db: unknown, _id: string, value: DocPatch, base: string) => {
-      step("save"); return options.patch ? options.patch(value, base) : options.result ?? saved;
+    patchSiteDocumentWithTarget: async (_db: unknown, _id: string, value: DocPatch, base: string) => {
+      step("save");
+      return { result: options.patch ? await options.patch(value, base) : options.result ?? saved, roomKey };
     },
     sessionUser: async () => null,
     recordActivity: async () => { step("activity"); },
@@ -85,12 +87,9 @@ function fixture(options: {
     eraseSiteDocument: async () => { calls.push("erase"); },
     cleanupAbandonedDocuments: async () => { calls.push("cleanup"); },
   };
-  for (const method of ["saveSiteDocument", "patchSiteDocument"]) {
-    injected[method + "WithTarget"] = async (...args: unknown[]) => ({
-      result: await (injected[method] as (...args: unknown[]) => unknown)(...args),
-      roomKey: "synthetic-private-room-key",
-    });
-  }
+  injected.saveSiteDocumentWithTarget = async (...args: unknown[]) => ({
+    result: await (injected.saveSiteDocument as (...args: unknown[]) => unknown)(...args), roomKey,
+  });
   const load = (code: string) => {
     const module = { exports: {} as Record<string, Handler> };
     new Function("require", "module", "exports", code)(

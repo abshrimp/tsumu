@@ -40,8 +40,3 @@ export function chunkScriptSteps(steps: ScriptStep[]): StepChunk[] {
   }
   return chunks;
 }
-
-/** 画面の外にあるスクリプトの、測る前の全体の大きさを見積もる。 */
-export function estimateScriptStackHeight(steps: ScriptStep[]): number {
-  return Math.max(72, 42 + estimateStepsHeight(steps, 0));
-}

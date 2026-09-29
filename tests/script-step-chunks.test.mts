@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  chunkScriptSteps, estimateScriptStackHeight,
-  SCRIPT_STEP_CHUNK_SIZE, SCRIPT_STEP_WINDOW_THRESHOLD,
+  chunkScriptSteps, SCRIPT_STEP_CHUNK_SIZE, SCRIPT_STEP_WINDOW_THRESHOLD,
 } from "../components/script-editor/step-chunks";
 import type { ScriptStep } from "../lib/types";
 
@@ -34,8 +33,7 @@ test("window heights include nested branches but remain finite under deeply nest
       then: [root[0]],
     });
   }
-  const height = estimateScriptStackHeight(root);
+  const height = chunkScriptSteps(root)[0].estimatedHeight;
   assert.ok(height > 70);
   assert.ok(Number.isFinite(height));
-  assert.ok(chunkScriptSteps(root)[0].estimatedHeight > 0);
 });

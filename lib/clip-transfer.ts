@@ -308,15 +308,6 @@ export function writeClipPayload(payload: ClipPayload): void {
   });
 }
 
-/** 右クリックメニューの「貼り付け」に使う、最後にコピーした要素（どのサイトでも共通） */
-export function readClipMirror(): ClipPayload | null {
-  try {
-    return parseClipPayload(window.localStorage.getItem(CLIP_MIRROR_KEY));
-  } catch {
-    return null;
-  }
-}
-
 /**
  * 貼り付け先の文書に、コピー元のアセット・コンポーネント・フォントを追加する（updateDoc の中で呼ぶ）。
  * 同じファイルのアセットがすでにあればそれを使い、要素の参照をそちらに付け替える。
