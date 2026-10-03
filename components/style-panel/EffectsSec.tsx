@@ -55,23 +55,41 @@ interface Shadow {
   color: string;
 }
 
-function parseShadow(s: string): Shadow {
-  const inset = s.includes("inset");
-  const rest = s.replace("inset", "").trim();
-  const nums = [...rest.matchAll(/(-?\d*\.?\d+)px/g)].map((m) => +m[1]);
-  const color =
-    rest.replace(/(-?\d*\.?\d+)px/g, "").trim() || "rgba(0, 0, 0, 0.15)";
+export function parseShadow(s: string): Shadow {
+  // Split only outside color functions: unitless zero is a length, but an
+  // rgb()/color() channel or a number inside var()/calc() is not.
+  const tokens: string[] = [];
+  let depth = 0, token = "";
+  for (const ch of s.trim()) {
+    if (/\s/.test(ch) && depth === 0) {
+      if (token) tokens.push(token);
+      token = "";
+    } else {
+      token += ch;
+      if (ch === "(") depth++;
+      if (ch === ")") depth--;
+    }
+  }
+  if (token) tokens.push(token);
+  const nums: number[] = [];
+  const colors: string[] = [];
+  let inset = false;
+  for (const part of tokens) {
+    if (part.toLowerCase() === "inset") inset = true;
+    else if (/^[+-]?(?:\d*\.)?\d+px$/i.test(part) || /^[+-]?(?:0*\.)?0+$/.test(part)) nums.push(parseFloat(part));
+    else colors.push(part);
+  }
   return {
     inset,
     x: nums[0] ?? 0,
-    y: nums[1] ?? 4,
-    blur: nums[2] ?? 12,
+    y: nums[1] ?? 0,
+    blur: nums[2] ?? 0,
     spread: nums[3] ?? 0,
-    color,
+    color: colors.join(" ") || "currentColor",
   };
 }
 
-function serializeShadow(sh: Shadow): string {
+export function serializeShadow(sh: Shadow): string {
   return `${sh.inset ? "inset " : ""}${sh.x}px ${sh.y}px ${sh.blur}px ${sh.spread}px ${sh.color}`;
 }
 
