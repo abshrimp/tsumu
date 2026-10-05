@@ -35,6 +35,8 @@ async function runChain(page: Page, exported: boolean, input: string, transforms
 }
 
 
+// 書き出しのランタイムは、使う機能だけを残した SCRIPT_RUNTIME（pickFeatures）なので、
+// 個々のブロックは書き出し側で確かめる。プレビュー（全機能のランタイム）は、この組で動くことだけを確かめる。
 for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " runtime composes numeric value blocks in ordinary script order", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "12", [
@@ -71,31 +73,29 @@ for (const exported of [false, true]) {
   });
 }
 
-for (const exported of [false, true]) {
-  test((exported ? "exported" : "preview") + " runtime repeats using a variable count", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "", [
-      { id: "count", kind: "set-var", into: "count", value: "3" },
-      { id: "sum", kind: "set-var", into: "sum", value: "0" },
-      { id: "parse-sum", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
-      { id: "repeat", kind: "repeat", times: "{count}", then: [
-        { id: "increase", kind: "transform", source: "sum", into: "sum",
-          transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
-      ] },
-      { id: "result", kind: "set-var", into: "items", value: "{sum}" },
-    ]);
-    await expect(answer).toHaveValue("3");
-    expect(errors).toEqual([]);
-  });
-  test((exported ? "exported" : "preview") + " runtime waits for variable seconds", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "before", [
-      { id: "delay", kind: "set-var", into: "delay", value: "0.01" },
-      { id: "wait", kind: "wait", seconds: "{delay}" },
-      { id: "result", kind: "set-var", into: "items", value: "after" },
-    ]);
-    await expect(answer).toHaveValue("after");
-    expect(errors).toEqual([]);
-  });
-}
+test("exported runtime repeats using a variable count", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "", [
+    { id: "count", kind: "set-var", into: "count", value: "3" },
+    { id: "sum", kind: "set-var", into: "sum", value: "0" },
+    { id: "parse-sum", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
+    { id: "repeat", kind: "repeat", times: "{count}", then: [
+      { id: "increase", kind: "transform", source: "sum", into: "sum",
+        transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
+    ] },
+    { id: "result", kind: "set-var", into: "items", value: "{sum}" },
+  ]);
+  await expect(answer).toHaveValue("3");
+  expect(errors).toEqual([]);
+});
+test("exported runtime waits for variable seconds", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "before", [
+    { id: "delay", kind: "set-var", into: "delay", value: "0.01" },
+    { id: "wait", kind: "wait", seconds: "{delay}" },
+    { id: "result", kind: "set-var", into: "items", value: "after" },
+  ]);
+  await expect(answer).toHaveValue("after");
+  expect(errors).toEqual([]);
+});
 
 
 test("scripted named state changes a distant element and reset restores its default style", async ({ page }) => {
@@ -136,138 +136,165 @@ test("scripted named state changes a distant element and reset restores its defa
 });
 
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " runtime branches on the negation of a positive comparison", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "initial", [
-      { id: "flag", kind: "set-var", into: "flag", value: "blue" },
-      { id: "branch", kind: "if",
-        cond: { subject: "var", target: "", left: "{flag}", op: "contains", value: "red", not: true },
-        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
-        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
-      },
-    ]);
-    await expect(answer).toHaveValue("accepted");
-    expect(errors).toEqual([]);
-  });
+test("exported runtime branches on the negation of a positive comparison", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "initial", [
+    { id: "flag", kind: "set-var", into: "flag", value: "blue" },
+    { id: "branch", kind: "if",
+      cond: { subject: "var", target: "", left: "{flag}", op: "contains", value: "red", not: true },
+      then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+      else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+    },
+  ]);
+  await expect(answer).toHaveValue("accepted");
+  expect(errors).toEqual([]);
+});
 
-  test((exported ? "exported" : "preview") + " runtime displays only entries matching an inverted list condition", async ({ page }) => {
-    const button = { ...makeBox(), id: "filterButton", attrId: "filterButton", scripts: [{
-      id: "on-click", trigger: "click" as const,      steps: [{ id: "filter", kind: "list-display" as const, mode: "filter" as const,
-        array: "results", field: "name", op: "contains" as const,
-        value: "red", not: true, dir: "asc" as const }],
-    }] };
-    const doc: SiteDoc = {
-      schemaVersion: 1, siteName: "Negated filter", assets: {}, nodes: { filterButton: button }, pageOrder: ["p"],
-      pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["filterButton"] } },
-    };
-    await page.setContent('<html><body><button id="filterButton">Filter</button><section data-array="results"><div data-item=\'{"name":"red"}\' id="red">red</div><div data-item=\'{"name":"blue"}\' id="blue">blue</div></section></body></html>');
-    await page.locator("#filterButton").evaluate((element, scripts) =>
-      element.setAttribute("data-scripts", JSON.stringify(scripts)), compileScripts(button, () => "/"));
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.addScriptTag({ content: exported ? scriptsFile(doc) : "(" + SCRIPT_RUNTIME + ")({}).install(document);" });
-    await page.locator("#filterButton").click();
-    await expect(page.locator("#red")).toHaveCSS("display", "none");
-    await expect(page.locator("#blue")).toHaveCSS("display", "contents");
-    expect(errors).toEqual([]);
-  });
-}
+test("exported runtime displays only entries matching an inverted list condition", async ({ page }) => {
+  const button = { ...makeBox(), id: "filterButton", attrId: "filterButton", scripts: [{
+    id: "on-click", trigger: "click" as const,      steps: [{ id: "filter", kind: "list-display" as const, mode: "filter" as const,
+      array: "results", field: "name", op: "contains" as const,
+      value: "red", not: true, dir: "asc" as const }],
+  }] };
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Negated filter", assets: {}, nodes: { filterButton: button }, pageOrder: ["p"],
+    pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["filterButton"] } },
+  };
+  await page.setContent('<html><body><button id="filterButton">Filter</button><section data-array="results"><div data-item=\'{"name":"red"}\' id="red">red</div><div data-item=\'{"name":"blue"}\' id="blue">blue</div></section></body></html>');
+  await page.locator("#filterButton").evaluate((element, scripts) =>
+    element.setAttribute("data-scripts", JSON.stringify(scripts)), compileScripts(button, () => "/"));
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addScriptTag({ content: scriptsFile(doc) });
+  await page.locator("#filterButton").click();
+  await expect(page.locator("#red")).toHaveCSS("display", "none");
+  await expect(page.locator("#blue")).toHaveCSS("display", "contents");
+  expect(errors).toEqual([]);
+});
 
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " interpolates mixed text in fallback blocks", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "unused", [
-      { id: "name", kind: "set-var", into: "name", value: "田中" },
-      { id: "fallback", kind: "transform", source: "missing", into: "items",
-        transform: { kind: "fallback", when: "missing", text: "こんにちは、{name}さん" } },
-    ]);
-    await expect(answer).toHaveValue("こんにちは、田中さん");
-    expect(errors).toEqual([]);
-  });
+test("exported interpolates mixed text in fallback blocks", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "unused", [
+    { id: "name", kind: "set-var", into: "name", value: "田中" },
+    { id: "fallback", kind: "transform", source: "missing", into: "items",
+      transform: { kind: "fallback", when: "missing", text: "こんにちは、{name}さん" } },
+  ]);
+  await expect(answer).toHaveValue("こんにちは、田中さん");
+  expect(errors).toEqual([]);
+});
 
 
-}
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " reads a holiday dictionary using a variable date key", async ({ page }) => {
-    const data = JSON.stringify({ "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" });
-    const { answer, errors } = await runChain(page, exported, data, [
-      { id: "date", kind: "set-var", into: "selectedDate", value: "2026-11-23" },
-      { id: "parse-holidays", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "read-holiday", kind: "transform", source: "items", into: "items", transform: { kind: "field", key: "{selectedDate}" } },
-    ]);
-    await expect(answer).toHaveValue("勤労感謝の日");
-    expect(errors).toEqual([]);
-  });
+test("exported reads a holiday dictionary using a variable date key", async ({ page }) => {
+  const data = JSON.stringify({ "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" });
+  const { answer, errors } = await runChain(page, true, data, [
+    { id: "date", kind: "set-var", into: "selectedDate", value: "2026-11-23" },
+    { id: "parse-holidays", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+    { id: "read-holiday", kind: "transform", source: "items", into: "items", transform: { kind: "field", key: "{selectedDate}" } },
+  ]);
+  await expect(answer).toHaveValue("勤労感謝の日");
+  expect(errors).toEqual([]);
+});
 
 
-}
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " JSON keys cannot pollute script variables", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '{"polluted":"unsafe"}', [
-      { id: "parse-object", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "store-prototype", kind: "set-var", into: "__proto__", value: "{items}" },
-      { id: "safe-fallback", kind: "transform", source: "polluted", into: "items",
-        transform: { kind: "fallback", when: "missing", text: "safe" } },
-    ]);
-    await expect(answer).toHaveValue("safe");
-    expect(errors).toEqual([]);
-    expect(await page.evaluate(() => ({} as Record<string, unknown>).polluted)).toBeUndefined();
-  });
-}
+test("exported JSON keys cannot pollute script variables", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, '{"polluted":"unsafe"}', [
+    { id: "parse-object", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+    { id: "store-prototype", kind: "set-var", into: "__proto__", value: "{items}" },
+    { id: "safe-fallback", kind: "transform", source: "polluted", into: "items",
+      transform: { kind: "fallback", when: "missing", text: "safe" } },
+  ]);
+  await expect(answer).toHaveValue("safe");
+  expect(errors).toEqual([]);
+  expect(await page.evaluate(() => ({} as Record<string, unknown>).polluted)).toBeUndefined();
+});
 
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " evaluates AND before OR in multi-clause if blocks", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "", [
-      { id: "first", kind: "set-var", into: "first", value: "yes" },
-      { id: "second", kind: "set-var", into: "second", value: "no" },
-      { id: "third", kind: "set-var", into: "third", value: "blue" },
-      { id: "if-combined", kind: "if",
-        cond: { subject: "var", target: "", left: "{first}", op: "eq", value: "yes" },
-        conditions: [
-          { subject: "var", target: "", left: "{second}", op: "eq", value: "yes", and: true },
-          { subject: "var", target: "", left: "{third}", op: "eq", value: "red", not: true, and: false },
-        ],
-        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
-        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
-      },
-    ]);
-    await expect(answer).toHaveValue("accepted");
-    expect(errors).toEqual([]);
-  });
+test("exported evaluates AND before OR in multi-clause if blocks", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "", [
+    { id: "first", kind: "set-var", into: "first", value: "yes" },
+    { id: "second", kind: "set-var", into: "second", value: "no" },
+    { id: "third", kind: "set-var", into: "third", value: "blue" },
+    { id: "if-combined", kind: "if",
+      cond: { subject: "var", target: "", left: "{first}", op: "eq", value: "yes" },
+      conditions: [
+        { subject: "var", target: "", left: "{second}", op: "eq", value: "yes", and: true },
+        { subject: "var", target: "", left: "{third}", op: "eq", value: "red", not: true, and: false },
+      ],
+      then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+      else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+    },
+  ]);
+  await expect(answer).toHaveValue("accepted");
+  expect(errors).toEqual([]);
+});
 
-  test((exported ? "exported" : "preview") + " retains variable predicates when the first if clause reads an element", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "", [
-      { id: "status", kind: "set-var", into: "status", value: "ready" },
-      { id: "mixed-if", kind: "if",
-        cond: { subject: "value", target: "answer", op: "eq", value: "absent" },
-        conditions: [
-          { subject: "var", target: "", left: "{status}", op: "eq", value: "ready", and: false },
-        ],
-        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
-        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
-      },
-    ]);
-    await expect(answer).toHaveValue("accepted");
-    expect(errors).toEqual([]);
-  });
-}
+test("exported retains variable predicates when the first if clause reads an element", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "", [
+    { id: "status", kind: "set-var", into: "status", value: "ready" },
+    { id: "mixed-if", kind: "if",
+      cond: { subject: "value", target: "answer", op: "eq", value: "absent" },
+      conditions: [
+        { subject: "var", target: "", left: "{status}", op: "eq", value: "ready", and: false },
+      ],
+      then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+      else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+    },
+  ]);
+  await expect(answer).toHaveValue("accepted");
+  expect(errors).toEqual([]);
+});
 
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " ignores unfinished AND/OR if conditions", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "", [
-      { id: "status", kind: "set-var", into: "status", value: "waiting" },
-      { id: "if-unfinished", kind: "if",
-        cond: { subject: "var", target: "", left: "{status}", op: "eq", value: "ready" },
-        conditions: [
-          { subject: "var", target: "", left: "", op: "eq", value: "", and: true },
-          { subject: "var", target: "", left: "", op: "eq", value: "", and: false },
-        ],
-        then: [{ id: "accept", kind: "set-var", into: "items", value: "accepted" }],
-        else: [{ id: "reject", kind: "set-var", into: "items", value: "rejected" }],
+test("exported ignores unfinished AND/OR if conditions", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "", [
+    { id: "status", kind: "set-var", into: "status", value: "waiting" },
+    { id: "if-unfinished", kind: "if",
+      cond: { subject: "var", target: "", left: "{status}", op: "eq", value: "ready" },
+      conditions: [
+        { subject: "var", target: "", left: "", op: "eq", value: "", and: true },
+        { subject: "var", target: "", left: "", op: "eq", value: "", and: false },
+      ],
+      then: [{ id: "accept", kind: "set-var", into: "items", value: "accepted" }],
+      else: [{ id: "reject", kind: "set-var", into: "items", value: "rejected" }],
+    },
+  ]);
+  await expect(answer).toHaveValue("rejected");
+  expect(errors).toEqual([]);
+});
+
+
+test("exported reads form fields in arithmetic operands", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "4", [
+    { id: "rate-field", kind: "set-value", target: "answer", value: "3" },
+    { id: "math", kind: "transform", source: "items", into: "items",
+      transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "answer" } },
+  ]);
+  await expect(answer).toHaveValue("12");
+  expect(errors).toEqual([]);
+});
+
+test("exported interpolates form values in transform parameters", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "", [
+    { id: "input-value", kind: "set-value", target: "answer", value: "東京" },
+    { id: "fallback", kind: "transform", source: "absent", into: "items",
+      transform: { kind: "fallback", when: "missing", text: "行き先: {answer}" } },
+  ]);
+  await expect(answer).toHaveValue("行き先: 東京");
+  expect(errors).toEqual([]);
+});
+
+
+for (const [label, condition] of [
+  ["unconfigured", { subject: "value" as const, target: "", op: "eq" as const, value: "" }],
+  ["deleted", { subject: "value" as const, target: "deleted-element", op: "eq" as const, value: "", not: true }],
+  ["negated-visibility", { subject: "visible" as const, target: "deleted-element", not: true }],
+] as const) {
+  test("exported rejects " + label + " if element targets", async ({ page }) => {
+    const { answer, errors } = await runChain(page, true, "", [
+      { id: "target-if", kind: "if", cond: condition,
+        then: [{ id: "accepted", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "rejected", kind: "set-var", into: "items", value: "rejected" }],
       },
     ]);
     await expect(answer).toHaveValue("rejected");
@@ -276,172 +303,119 @@ for (const exported of [true]) {
 }
 
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " reads form fields in arithmetic operands", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "4", [
-      { id: "rate-field", kind: "set-value", target: "answer", value: "3" },
-      { id: "math", kind: "transform", source: "items", into: "items",
-        transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "answer" } },
-    ]);
-    await expect(answer).toHaveValue("12");
-    expect(errors).toEqual([]);
-  });
-
-  test((exported ? "exported" : "preview") + " interpolates form values in transform parameters", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "", [
-      { id: "input-value", kind: "set-value", target: "answer", value: "東京" },
-      { id: "fallback", kind: "transform", source: "absent", into: "items",
-        transform: { kind: "fallback", when: "missing", text: "行き先: {answer}" } },
-    ]);
-    await expect(answer).toHaveValue("行き先: 東京");
-    expect(errors).toEqual([]);
-  });
-}
+test("exported preserves OR grouping around incomplete if clauses", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "", [
+    { id: "left-value", kind: "set-var", into: "left", value: "no" },
+    { id: "right-value", kind: "set-var", into: "right", value: "yes" },
+    { id: "or-with-gap", kind: "if",
+      cond: { subject: "var", target: "", left: "{left}", op: "eq", value: "yes" },
+      conditions: [
+        { subject: "var", target: "", left: "", op: "eq", value: "", and: false },
+        { subject: "var", target: "", left: "{right}", op: "eq", value: "yes", and: true },
+      ],
+      then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+      else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+    },
+  ]);
+  await expect(answer).toHaveValue("accepted");
+  expect(errors).toEqual([]);
+});
 
 
-for (const exported of [true]) {
-  for (const [label, condition] of [
-    ["unconfigured", { subject: "value" as const, target: "", op: "eq" as const, value: "" }],
-    ["deleted", { subject: "value" as const, target: "deleted-element", op: "eq" as const, value: "", not: true }],
-    ["negated-visibility", { subject: "visible" as const, target: "deleted-element", not: true }],
-  ] as const) {
-    test((exported ? "exported" : "preview") + " rejects " + label + " if element targets", async ({ page }) => {
-      const { answer, errors } = await runChain(page, exported, "", [
-        { id: "target-if", kind: "if", cond: condition,
-          then: [{ id: "accepted", kind: "set-var", into: "items", value: "accepted" }],
-          else: [{ id: "rejected", kind: "set-var", into: "items", value: "rejected" }],
-        },
-      ]);
-      await expect(answer).toHaveValue("rejected");
-      expect(errors).toEqual([]);
-    });
-  }
-}
+test("exported keeps OR logic across unfinished list filter clauses", async ({ page }) => {
+  const filter = {
+    ...makeBox(), id: "filterButton", attrId: "filterButton",
+    scripts: [{ id: "filterScript", trigger: "click" as const, steps: [{
+      id: "filterWithGap", kind: "list-display" as const, mode: "filter" as const,
+      array: "results", field: "name", op: "eq" as const, value: "red", dir: "asc" as const,
+      or: [
+        { field: "", op: "eq" as const, value: "", and: false },
+        { field: "active", op: "eq" as const, value: "yes", and: true },
+      ],
+    }] }],
+  };
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Filter gap", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
+    pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "",
+      children: ["filterButton"] } },
+  };
+  await page.setContent('<html><body><button id="filterButton">Run</button><section data-array="results">' +
+    '<div data-item=\'{"name":"red","active":"no"}\' id="red">red</div>' +
+    '<div data-item=\'{"name":"blue","active":"yes"}\' id="blue">blue</div>' +
+    '<div data-item=\'{"name":"blue","active":"no"}\' id="other">other</div>' +
+    '</section></body></html>');
+  await page.locator("#filterButton").evaluate((el, script) =>
+    el.setAttribute("data-scripts", JSON.stringify(script)), compileScripts(filter, () => "/"));
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addScriptTag({ content: scriptsFile(doc) });
+  await page.locator("#filterButton").click();
+  await expect(page.locator("#red")).toHaveCSS("display", "contents");
+  await expect(page.locator("#blue")).toHaveCSS("display", "contents");
+  await expect(page.locator("#other")).toHaveCSS("display", "none");
+  expect(errors).toEqual([]);
+});
 
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " preserves OR grouping around incomplete if clauses", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "", [
-      { id: "left-value", kind: "set-var", into: "left", value: "no" },
-      { id: "right-value", kind: "set-var", into: "right", value: "yes" },
-      { id: "or-with-gap", kind: "if",
-        cond: { subject: "var", target: "", left: "{left}", op: "eq", value: "yes" },
-        conditions: [
-          { subject: "var", target: "", left: "", op: "eq", value: "", and: false },
-          { subject: "var", target: "", left: "{right}", op: "eq", value: "yes", and: true },
-        ],
-        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
-        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
-      },
-    ]);
-    await expect(answer).toHaveValue("accepted");
-    expect(errors).toEqual([]);
-  });
-}
+test("exported safely filters object-valued fields from JSON", async ({ page }) => {
+  const filter = {
+    ...makeBox(), id: "filterButton", attrId: "filterButton",
+    scripts: [{ id: "filterScript", trigger: "click" as const, steps: [{
+      id: "filterObjectField", kind: "list-display" as const, mode: "filter" as const,
+      array: "results", field: "meta", op: "has-key" as const,
+      value: "toString", dir: "asc" as const,
+    }] }],
+  };
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Safe JSON filter", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
+    pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "",
+      children: ["filterButton"] } },
+  };
+  await page.setContent('<html><body><button id="filterButton">Run</button><section data-array="results">' +
+    '<div data-item=\'{"meta":{"toString":"broken"}}\' id="obj">object</div>' +
+    '<div data-item=\'{"meta":"other"}\' id="other">other</div>' +
+    '</section></body></html>');
+  await page.locator("#filterButton").evaluate((el, script) =>
+    el.setAttribute("data-scripts", JSON.stringify(script)), compileScripts(filter, () => "/"));
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addScriptTag({ content: scriptsFile(doc) });
+  await page.locator("#filterButton").click();
+  await expect(page.locator("#obj")).toHaveCSS("display", "contents");
+  await expect(page.locator("#other")).toHaveCSS("display", "none");
+  expect(errors).toEqual([]);
+});
 
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " keeps OR logic across unfinished list filter clauses", async ({ page }) => {
-    const filter = {
-      ...makeBox(), id: "filterButton", attrId: "filterButton",
-      scripts: [{ id: "filterScript", trigger: "click" as const, steps: [{
-        id: "filterWithGap", kind: "list-display" as const, mode: "filter" as const,
-        array: "results", field: "name", op: "eq" as const, value: "red", dir: "asc" as const,
-        or: [
-          { field: "", op: "eq" as const, value: "", and: false },
-          { field: "active", op: "eq" as const, value: "yes", and: true },
-        ],
-      }] }],
-    };
-    const doc: SiteDoc = {
-      schemaVersion: 1, siteName: "Filter gap", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
-      pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "",
-        children: ["filterButton"] } },
-    };
-    await page.setContent('<html><body><button id="filterButton">Run</button><section data-array="results">' +
-      '<div data-item=\'{"name":"red","active":"no"}\' id="red">red</div>' +
-      '<div data-item=\'{"name":"blue","active":"yes"}\' id="blue">blue</div>' +
-      '<div data-item=\'{"name":"blue","active":"no"}\' id="other">other</div>' +
-      '</section></body></html>');
-    await page.locator("#filterButton").evaluate((el, script) =>
-      el.setAttribute("data-scripts", JSON.stringify(script)), compileScripts(filter, () => "/"));
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.addScriptTag({ content: exported ? scriptsFile(doc) : "(" + SCRIPT_RUNTIME + ")({}).install(document);" });
-    await page.locator("#filterButton").click();
-    await expect(page.locator("#red")).toHaveCSS("display", "contents");
-    await expect(page.locator("#blue")).toHaveCSS("display", "contents");
-    await expect(page.locator("#other")).toHaveCSS("display", "none");
-    expect(errors).toEqual([]);
-  });
-}
+test("exported nested list item fields shadow global variables in transforms", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, '[{"profile":{}}]', [
+    { id: "global-profile", kind: "set-var", into: "profile", value: '{"age":20}' },
+    { id: "parse-global", kind: "transform", source: "profile", into: "profile",
+      transform: { kind: "parse" } },
+    { id: "parse-rows", kind: "transform", source: "items", into: "items",
+      transform: { kind: "parse" } },
+    { id: "each-row", kind: "for-each", array: "items", then: [
+      { id: "local-age", kind: "transform", source: "profile.age", into: "picked",
+        transform: { kind: "fallback", when: "missing", text: "missing" } },
+      { id: "display-picked", kind: "set-var", into: "items", value: "{picked}" },
+    ] },
+  ]);
+  await expect(answer).toHaveValue("missing");
+  expect(errors).toEqual([]);
+});
 
 
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " safely filters object-valued fields from JSON", async ({ page }) => {
-    const filter = {
-      ...makeBox(), id: "filterButton", attrId: "filterButton",
-      scripts: [{ id: "filterScript", trigger: "click" as const, steps: [{
-        id: "filterObjectField", kind: "list-display" as const, mode: "filter" as const,
-        array: "results", field: "meta", op: "has-key" as const,
-        value: "toString", dir: "asc" as const,
-      }] }],
-    };
-    const doc: SiteDoc = {
-      schemaVersion: 1, siteName: "Safe JSON filter", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
-      pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "",
-        children: ["filterButton"] } },
-    };
-    await page.setContent('<html><body><button id="filterButton">Run</button><section data-array="results">' +
-      '<div data-item=\'{"meta":{"toString":"broken"}}\' id="obj">object</div>' +
-      '<div data-item=\'{"meta":"other"}\' id="other">other</div>' +
-      '</section></body></html>');
-    await page.locator("#filterButton").evaluate((el, script) =>
-      el.setAttribute("data-scripts", JSON.stringify(script)), compileScripts(filter, () => "/"));
-    const errors: string[] = [];
-    page.on("pageerror", (error) => errors.push(error.message));
-    await page.addScriptTag({ content: exported ? scriptsFile(doc) : "(" + SCRIPT_RUNTIME + ")({}).install(document);" });
-    await page.locator("#filterButton").click();
-    await expect(page.locator("#obj")).toHaveCSS("display", "contents");
-    await expect(page.locator("#other")).toHaveCSS("display", "none");
-    expect(errors).toEqual([]);
-  });
-}
-
-
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " nested list item fields shadow global variables in transforms", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '[{"profile":{}}]', [
-      { id: "global-profile", kind: "set-var", into: "profile", value: '{"age":20}' },
-      { id: "parse-global", kind: "transform", source: "profile", into: "profile",
-        transform: { kind: "parse" } },
-      { id: "parse-rows", kind: "transform", source: "items", into: "items",
-        transform: { kind: "parse" } },
-      { id: "each-row", kind: "for-each", array: "items", then: [
-        { id: "local-age", kind: "transform", source: "profile.age", into: "picked",
-          transform: { kind: "fallback", when: "missing", text: "missing" } },
-        { id: "display-picked", kind: "set-var", into: "items", value: "{picked}" },
-      ] },
-    ]);
-    await expect(answer).toHaveValue("missing");
-    expect(errors).toEqual([]);
-  });
-}
-
-
-for (const exported of [true]) {
-  test((exported ? "exported" : "preview") + " extracts nested JSON keys and final array positions", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported,
-      '{"meta":{"scores":[3,7],"city":"Kyoto"}}', [
-      { id: "parse-object", kind: "transform", source: "items", into: "items",
-        transform: { kind: "parse" } },
-      { id: "nested-final", kind: "transform", source: "items", into: "items",
-        transform: { kind: "field", key: "meta.scores.-1" } },
-    ]);
-    await expect(answer).toHaveValue("7");
-    expect(errors).toEqual([]);
-  });
-}
+test("exported extracts nested JSON keys and final array positions", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true,
+    '{"meta":{"scores":[3,7],"city":"Kyoto"}}', [
+    { id: "parse-object", kind: "transform", source: "items", into: "items",
+      transform: { kind: "parse" } },
+    { id: "nested-final", kind: "transform", source: "items", into: "items",
+      transform: { kind: "field", key: "meta.scores.-1" } },
+  ]);
+  await expect(answer).toHaveValue("7");
+  expect(errors).toEqual([]);
+});
 
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
@@ -536,17 +510,17 @@ test("canvas native select and picker button share the same dropdown appearance"
   expect(styles[0].appearance).toBe("none");
   expect(styles[0].backgroundImage).toContain("svg");
 
-  await picker.focus();
-  const focusedPicker = await picker.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return { borderColor: style.borderTopColor, backgroundColor: style.backgroundColor };
-  });
-  await select.focus();
-  const focusedSelect = await select.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return { borderColor: style.borderTopColor, backgroundColor: style.backgroundColor };
-  });
-  expect(focusedPicker).toEqual(focusedSelect);
+  // フォーカスの色は 120ms のトランジションで変わるため、途中の値を読まないよう、完了させてから比べる。
+  const focusedStyle = async (control: typeof picker) => {
+    await control.focus();
+    return control.evaluate((element) => {
+      for (const animation of element.getAnimations()) animation.finish();
+      const style = getComputedStyle(element);
+      return { borderColor: style.borderTopColor, backgroundColor: style.backgroundColor };
+    });
+  };
+  const focusedPicker = await focusedStyle(picker);
+  expect(focusedPicker).toEqual(await focusedStyle(select));
 });
 
 test("canvas list-display block switches filter, sort and clear without changing the step ID", async ({ page }) => {
@@ -778,65 +752,63 @@ test("canvas list filter keeps condition actions on a separate row and lets each
 
 
 
-for (const exported of [false, true]) {
-  test((exported ? "exported" : "preview") + " list loops select matching entries with values, keys and early exit", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported,
-      '{"apple":100,"banana":200,"orange":300}', [
-        { id: "result", kind: "set-var", into: "chosen", value: "none" },
-        { id: "each", kind: "for-each", array: "items", then: [
-          { id: "check", kind: "if",
-            cond: { subject: "var", target: "", left: "{ループ.値}", op: "gte", value: "200" },
-            then: [
-              { id: "save", kind: "set-var", into: "chosen", value: "{ループ.キー}" },
-              { id: "stop", kind: "break-loop" },
-            ] },
-        ] },
-        { id: "display-result", kind: "set-var", into: "items", value: "{chosen}" },
-      ]);
-    await expect(answer).toHaveValue("banana");
-    expect(errors).toEqual([]);
-  });
-
-  test((exported ? "exported" : "preview") + " removes all equal list items with typed values", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '["red","blue","red","green"]', [
-      { id: "delete-red", kind: "remove-list-item", list: "items", mode: "value", value: '"red"' },
-      { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "|" } },
+test("exported list loops select matching entries with values, keys and early exit", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true,
+    '{"apple":100,"banana":200,"orange":300}', [
+      { id: "result", kind: "set-var", into: "chosen", value: "none" },
+      { id: "each", kind: "for-each", array: "items", then: [
+        { id: "check", kind: "if",
+          cond: { subject: "var", target: "", left: "{ループ.値}", op: "gte", value: "200" },
+          then: [
+            { id: "save", kind: "set-var", into: "chosen", value: "{ループ.キー}" },
+            { id: "stop", kind: "break-loop" },
+          ] },
+      ] },
+      { id: "display-result", kind: "set-var", into: "items", value: "{chosen}" },
     ]);
-    await expect(answer).toHaveValue("blue|green");
-    expect(errors).toEqual([]);
-  });
+  await expect(answer).toHaveValue("banana");
+  expect(errors).toEqual([]);
+});
 
-  test((exported ? "exported" : "preview") + " removes a single positional item and keeps list order", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '["a","b","c","d"]', [
-      { id: "delete-second", kind: "remove-list-item", list: "items", mode: "key", value: "1" },
-      { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "|" } },
-    ]);
-    await expect(answer).toHaveValue("a|c|d");
-    expect(errors).toEqual([]);
-  });
+test("exported removes all equal list items with typed values", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, '["red","blue","red","green"]', [
+    { id: "delete-red", kind: "remove-list-item", list: "items", mode: "value", value: '"red"' },
+    { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "|" } },
+  ]);
+  await expect(answer).toHaveValue("blue|green");
+  expect(errors).toEqual([]);
+});
 
-  test((exported ? "exported" : "preview") + " removes dictionary entries by value and key", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, '{"a":1,"b":2,"c":"2","d":3}', [
-      { id: "delete-twos", kind: "remove-list-item", list: "items", mode: "value", value: "2" },
-      { id: "delete-first", kind: "remove-list-item", list: "items", mode: "key", value: "a" },
-      { id: "stringify", kind: "transform", source: "items", into: "items", transform: { kind: "stringify" } },
-    ]);
-    await expect(answer).toHaveValue('{"d":3}');
-    expect(errors).toEqual([]);
-  });
+test("exported removes a single positional item and keeps list order", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, '["a","b","c","d"]', [
+    { id: "delete-second", kind: "remove-list-item", list: "items", mode: "key", value: "1" },
+    { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "|" } },
+  ]);
+  await expect(answer).toHaveValue("a|c|d");
+  expect(errors).toEqual([]);
+});
 
-  test((exported ? "exported" : "preview") + " list construction uses keyed assignments and keeps typed values", async ({ page }) => {
-    const { answer, errors } = await runChain(page, exported, "unused", [
-      { id: "empty", kind: "set-var", into: "basket", value: "[]" },
-      { id: "first", kind: "set-list-item", list: "basket", key: "", value: "10" },
-      { id: "second", kind: "set-list-item", list: "basket", key: "", value: "20" },
-      { id: "total", kind: "transform", source: "basket", into: "count", transform: { kind: "length" } },
-      { id: "result", kind: "set-var", into: "items", value: "{count}" },
-    ]);
-    await expect(answer).toHaveValue("2");
-    expect(errors).toEqual([]);
-  });
-}
+test("exported removes dictionary entries by value and key", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, '{"a":1,"b":2,"c":"2","d":3}', [
+    { id: "delete-twos", kind: "remove-list-item", list: "items", mode: "value", value: "2" },
+    { id: "delete-first", kind: "remove-list-item", list: "items", mode: "key", value: "a" },
+    { id: "stringify", kind: "transform", source: "items", into: "items", transform: { kind: "stringify" } },
+  ]);
+  await expect(answer).toHaveValue('{"d":3}');
+  expect(errors).toEqual([]);
+});
+
+test("exported list construction uses keyed assignments and keeps typed values", async ({ page }) => {
+  const { answer, errors } = await runChain(page, true, "unused", [
+    { id: "empty", kind: "set-var", into: "basket", value: "[]" },
+    { id: "first", kind: "set-list-item", list: "basket", key: "", value: "10" },
+    { id: "second", kind: "set-list-item", list: "basket", key: "", value: "20" },
+    { id: "total", kind: "transform", source: "basket", into: "count", transform: { kind: "length" } },
+    { id: "result", kind: "set-var", into: "items", value: "{count}" },
+  ]);
+  await expect(answer).toHaveValue("2");
+  expect(errors).toEqual([]);
+});
 
 test("canvas transform menu exposes four groups without explicit text conversion", async ({ page }) => {
   await page.evaluate(() => {
