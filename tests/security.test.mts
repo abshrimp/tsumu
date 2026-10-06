@@ -226,21 +226,6 @@ test("signed asset URLs are tied to the path and expire", async () => {
   }
 });
 
-test("API writes from another site are refused, the editor's own requests pass", async () => {
-  const { isCrossSiteWrite } = await import("../lib/csrf");
-  const req = (method: string, headers: Record<string, string>) => ({ method, headers: new Headers({ host: "editor.example.com", ...headers }), nextUrl: { host: "editor.example.com" } });
-  assert.equal(isCrossSiteWrite(req("POST", { origin: "https://evil.example", "sec-fetch-site": "cross-site" })), true);
-  assert.equal(isCrossSiteWrite(req("PUT", { origin: "https://evil.example" })), true);
-  assert.equal(isCrossSiteWrite(req("POST", { origin: "null" })), true);
-  assert.equal(isCrossSiteWrite(req("DELETE", { "sec-fetch-site": "same-site" })), true);
-  assert.equal(isCrossSiteWrite(req("POST", { origin: "https://editor.example.com", "sec-fetch-site": "same-origin" })), false);
-  assert.equal(isCrossSiteWrite(req("GET", { origin: "https://evil.example", "sec-fetch-site": "cross-site" })), false);
-  // リバースプロキシが Host を書き換えていても、ブラウザが同じオリジンだと示すなら通す
-  assert.equal(isCrossSiteWrite({ ...req("POST", { origin: "https://editor.example.com", "sec-fetch-site": "same-origin" }), headers: new Headers({ host: "localhost:3000", origin: "https://editor.example.com", "sec-fetch-site": "same-origin" }) }), false);
-  // ブラウザ以外（Origin が無い）からのリクエストは、CSRF にならない
-  assert.equal(isCrossSiteWrite(req("POST", {})), false);
-});
-
 test("document values never become code or paths outside the exported project", async () => {
   const { generateProject } = await import("../lib/generator");
   const { headHtmlToJsx } = await import("../lib/generator/head");

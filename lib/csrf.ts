@@ -6,7 +6,7 @@
 export function isCrossSiteWrite(req: {
   method: string;
   headers: Headers;
-  nextUrl: { host: string; protocol?: string };
+  nextUrl: { host: string; protocol: string };
 }): boolean {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method.toUpperCase())) return false;
 
@@ -27,14 +27,13 @@ export function isCrossSiteWrite(req: {
     // NextRequest の公開 URL を優先する。Host がリバースプロキシの内部の名前でも、
     // Sec-Fetch-Site に頼らずに正しい Origin を判定できる。
     const forwarded = req.headers.get("x-forwarded-host");
-    const host = forwarded ?? req.nextUrl.host ?? req.headers.get("host");
+    const host = forwarded ?? req.nextUrl.host;
     // Host は authority だけで構成される。URL のパーサーが userinfo・パス・空白などを
     // 取り除いて別の値に正規化する前に拒否し、意図しない Origin を許可しない。
     if (!host || /[,/\\?#@\s]/.test(host)) return true;
 
     const forwardedProto = req.headers.get("x-forwarded-proto");
     const protocol = forwardedProto ?? req.nextUrl.protocol;
-    if (!protocol) return parsed.host !== host; // nextUrl を持たない単体テスト用
     if (!/^https?:?$/i.test(protocol)) return true;
     const scheme = protocol.endsWith(":") ? protocol : `${protocol}:`;
     return parsed.origin !== new URL(`${scheme}//${host}`).origin;

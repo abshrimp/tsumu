@@ -55,6 +55,11 @@ test("proxied editor writes use the externally visible scheme and host", () => {
     "x-forwarded-proto": "https", "x-forwarded-host": "editor.example.test",
     origin: "http://editor.example.test",
   })), true);
+  for (const protocol of ["", "ftp", "https,http"]) {
+    assert.equal(isCrossSiteWrite(request("POST", {
+      "x-forwarded-proto": protocol, origin: "https://editor.example.test",
+    })), true);
+  }
 });
 
 test("safe methods are not treated as CSRF writes and non-browser requests work", () => {
