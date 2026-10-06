@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       cache: "no-store",
       headers: sendHeaders,
       ...(sendBody !== undefined ? { body: sendBody } : {}),
-      signal: AbortSignal.timeout(15000),
+      signal: req.signal,
     });
     if (!res.ok) {
       // エラーを報告するときに、複製した応答のもう一方の読み手を待たないようにする。

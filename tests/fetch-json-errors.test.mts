@@ -10,7 +10,7 @@ class NextResponse extends Response {
   }
 }
 
-function fixture(upstream: Response) {
+function fixture(fetchPublic: (url: string, init: RequestInit) => Promise<Response>) {
   const url = new URL("../app/api/fetch-json/route.ts", import.meta.url);
   const require = createRequire(url);
   const { code } = transformSync(readFileSync(url, "utf8"), {
@@ -25,7 +25,7 @@ function fixture(upstream: Response) {
     "../../../lib/server": { requireAuth: async () => null },
     "../../../lib/safe-fetch": {
       BlockedUrlError: class extends Error {}, TooLargeError: class extends Error {},
-      fetchPublic: async () => upstream,
+      fetchPublic,
       readTextLimited: async () => { throw new Error("an HTTP error body must not be parsed"); },
     },
   };
@@ -34,8 +34,8 @@ function fixture(upstream: Response) {
     (name: string) => Object.hasOwn(mocks, name) ? mocks[name] : require(name),
     module, module.exports,
   );
-  return () => module.exports.POST(new Request("https://editor.example/api/fetch-json", {
-    method: "POST", headers: { "Content-Type": "application/json" },
+  return (signal?: AbortSignal) => module.exports.POST(new Request("https://editor.example/api/fetch-json", {
+    method: "POST", signal, headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url: "https://data.example/value.json" }),
   }));
 }
@@ -53,7 +53,7 @@ test("JSON proxy reports a cloned upstream HTTP error without waiting for its ot
   const original = new Response("upstream failure", { status: 503 });
   const clone = original.clone();
   try {
-    const result = await timely(fixture(clone)());
+    const result = await timely(fixture(async () => clone)());
     assert.equal(result.status, 502);
     assert.match((await result.json()).error, /HTTP 503/);
     assert.equal(original.bodyUsed, false);
@@ -70,9 +70,20 @@ for (const rejects of [false, true]) {
         return rejects ? Promise.reject(new Error("cleanup failed")) : new Promise<void>(() => {});
       },
     }), { status: 429 });
-    const result = await timely(fixture(upstream)());
+    const result = await timely(fixture(async () => upstream)());
     assert.equal(result.status, 502);
     assert.match((await result.json()).error, /HTTP 429/);
     assert.equal(cancelled, true);
   });
 }
+
+test("cancelling a preview propagates to the in-flight data request", async () => {
+  const controller = new AbortController();
+  let observedReason: unknown;
+  await fixture(async (_url, { signal }) => {
+    controller.abort();
+    observedReason = signal?.reason;
+    return new Response(null, { status: 503 });
+  })(controller.signal);
+  assert.equal(observedReason, controller.signal.reason);
+});
