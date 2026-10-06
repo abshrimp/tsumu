@@ -5,6 +5,7 @@ import { connectEditorPageHistory } from "../lib/editor-page-history";
 function fixture(href = "https://example.test/sites/site?other=keep#anchor") {
   const stack = [href];
   let cursor = 0;
+  let urlReads = 0;
   let page = "first";
   let pages = ["first", "second", "third"];
   const listeners = new Set<() => void>();
@@ -20,7 +21,7 @@ function fixture(href = "https://example.test/sites/site?other=keep#anchor") {
   });
   const callbacks = new Set<(current: ReturnType<typeof state>, previous: ReturnType<typeof state>) => void>();
   const location = {
-    get href() { return stack[cursor]; },
+    get href() { urlReads++; return stack[cursor]; },
     get pathname() { return new URL(stack[cursor]).pathname; },
   };
   const browser = {
@@ -52,6 +53,7 @@ function fixture(href = "https://example.test/sites/site?other=keep#anchor") {
     browser, store, setPage, back, forward, get page() { return page; },
     get url() { return new URL(location.href); },
     get historyLength() { return stack.length; },
+    get urlReads() { return urlReads; },
     deletePage(id: string) {
       const prev = state();
       pages = pages.filter(value => value !== id);
@@ -79,8 +81,10 @@ test("page changes preserve unrelated query parameters and create browser histor
   assert.equal(f.page, "first");
   f.forward();
   assert.equal(f.page, "second");
+  const reads = f.urlReads;
   f.setPage("second");
   assert.equal(f.historyLength, 3);
+  assert.equal(f.urlReads, reads);
   dispose();
   f.setPage("third");
   assert.equal(f.url.searchParams.get("page"), "second");
