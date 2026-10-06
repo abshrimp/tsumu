@@ -1970,7 +1970,7 @@ const ja: Dict = {
   "Use entered path: {path}": "入力した位置を使用: {path}",
   "Enter a path or index": "位置または添字を入力",
   "Index (0-based) or full path": "添字（0始まり）または位置",
-  "Enter a path": "位置を入力",
+  "Enter a path": "直接入力",
   "Use path": "使用する",
 
   "Lists inside variables": "変数の中のリスト",
