@@ -270,7 +270,9 @@ Data fetches that carry credentials (an `Authorization` header, an API key in th
 
 In a production publish, **Search & sharing (SEO) → Hide from search results** sets `noindex` for the selected page. React applies this tag in the browser. Static HTML also applies it in the browser when pages sharing a path have different settings for different query strings. The published page remains accessible by link. Test publishes apply `noindex` to the whole site.
 
-**Exporting a zip** can also cover just the **current page** or the **selected component** (the selected element and its children, as a page of their own). Single HTML always exports one page. The zip includes `_tsumu/doc.json` and `_tsumu/assets.json` — the editing data for what you exported — so you can [import](#importing) it again. Don't upload `_tsumu/` to your web server.
+**Exporting a zip** can also cover just the **current page** or the **selected component** (the selected element and its children, as a page of their own). The zip includes `_tsumu/doc.json` and `_tsumu/assets.json` — the editing data for what you exported — so you can [import](#importing) it again. Deploy only the generated website files to your web server.
+
+**Single HTML** downloads a standalone `.html` file for the current page or selected component. To preserve the original editing data and assets for later import, choose a ZIP format. External APIs and embedded videos still need a network connection.
 
 > [!NOTE]
 > Publishing also commits the site's full editing data to `_tsumu/doc.json`, including unpublished pages and settings. In a public repository, anyone can read it.
@@ -281,7 +283,7 @@ On the home screen, click **Import** or drop a file onto the page to create a ne
 
 | File | Result |
 |---|---|
-| A zip exported from Tsumu (it contains `_tsumu/doc.json`) | The site is restored, with its images and other assets. |
+| A zip exported from Tsumu (it contains both `_tsumu/doc.json` and `_tsumu/assets.json`) | The site is restored, with its images and other assets. |
 | A `doc.json` | The site is restored. Assets embedded as data URLs are uploaded. |
 | An HTML file, or a zip of a website | Every HTML page is converted into editable elements. Links between those pages follow the source HTML’s base URL, including query strings and fragments. The zip's other files are uploaded as assets and the HTML's paths are rewritten. |
 
