@@ -24,6 +24,14 @@ export async function bodySearchModalBundle() {
     ...makeBox(), id: "special", name: "Target",
     text: { content: "Unique visitor text", heading: 0 },
   };
+  doc.components = { card: { id: "card", name: "Card", rootId: "card-root" } };
+  doc.nodes["card-root"] = {
+    ...makeBox(), id: "card-root", name: "Card label", text: { content: "Reusable card text", heading: 0 },
+  };
+  doc.nodes["card-instance"] = {
+    ...makeBox(), id: "card-instance", type: "instance", componentId: "card",
+  };
+  doc.pages.other.children.push("card-instance");
 
   return (await build({
     stdin: {

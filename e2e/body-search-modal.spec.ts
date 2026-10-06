@@ -49,6 +49,13 @@ test("Search results navigate to the correct page and select its text", async ({
     return { active: state.activePageId, selected: state.selection, leftTab: state.leftTab };
   });
   expect(selection).toEqual({ active: "other", selected: "special", leftTab: "layers" });
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await modal.getByRole("searchbox").fill("Reusable card text");
+  await modal.getByRole("button", { name: /Second page \/ Card label/ }).click();
+  expect(await page.evaluate(() => {
+    const state = (window as any).bodySearchStore.getState();
+    return [state.activePageId, state.editingComponentId, state.selection];
+  })).toEqual(["other", "card", "card-root"]);
 });
 
 test("Mobile modal stays inside the viewport and does not clip the search field", async ({ page }) => {

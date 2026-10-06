@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
-import { searchSiteBody } from "../lib/body-search";
+import { searchSiteBody, type BodySearchHit } from "../lib/body-search";
 import { tr } from "../lib/i18n";
 import { useEditor } from "../lib/store";
 
@@ -14,10 +14,11 @@ export default function BodySearch({ onClose }: { onClose: () => void }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const hits = useMemo(() => searchSiteBody(doc, query), [doc, query]);
 
-  const open = (pageId: string, nodeId: string | null) => {
+  const open = ({ pageId, nodeId, componentId }: BodySearchHit) => {
     const store = useEditor.getState();
     if (!store.doc.pages[pageId]) return;
     store.setActivePage(pageId);
+    if (componentId) store.setEditingComponent(componentId);
     store.setLeftTab("layers");
     store.select(nodeId);
     onClose();
@@ -89,7 +90,7 @@ export default function BodySearch({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 className="body-search-result"
-                onClick={() => open(hit.pageId, hit.nodeId)}
+                onClick={() => open(hit)}
               >
                 <span className="body-search-result-name">{hit.pageName} / {hit.nodeName}</span>
                 <span className="body-search-result-excerpt">{hit.excerpt}</span>

@@ -35,3 +35,12 @@ test("text search excludes script contents, supports NFKC and bounds results", (
     nodes: { ...doc.nodes, title: { ...doc.nodes.title, text: { content: "ＣＡＦＥ", heading: 0 } } },
   } as SiteDoc, "cafe").length, 1);
 });
+
+test("page kinds search only the content available in the editor", () => {
+  for (const mode of [{ rawHtml: "<p>Imported body</p>" }, { rawHtml: "" }, { redirectTo: "" }, { rewriteTo: "/news" }]) {
+    const page = { ...doc.pages.home, ...mode };
+    const site = { ...doc, pages: { home: page }, pageOrder: ["home"] };
+    assert.deepEqual(searchSiteBody(site, "本文"), []);
+    assert.deepEqual(searchSiteBody(site, "Imported").map(hit => hit.nodeId), page.rawHtml ? [null] : []);
+  }
+});
