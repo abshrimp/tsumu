@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ASSET_TOKEN_TTL, signAssetPath, signAssetPaths, verifyAssetToken } from "../lib/asset-token";
+import { ASSET_TOKEN_TTL, signAssetPaths, verifyAssetToken } from "../lib/asset-token";
+import { signAssetPath } from "./helpers/sign-asset-path";
 
 const secret = process.env.AUTH_SECRET;
 const setSecret = (value: string | undefined) => {

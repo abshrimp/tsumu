@@ -3,7 +3,9 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { afterEach, beforeEach, test } from "node:test";
 import { transformSync } from "esbuild";
-import { ASSET_TOKEN_TTL, signAssetPath, verifyAssetToken } from "../lib/asset-token";
+import { ASSET_TOKEN_TTL, verifyAssetToken } from "../lib/asset-token";
+import { signAssetPath } from "./helpers/sign-asset-path";
+
 
 // 実際の認証の確認・署名の検証・配信のルートを、合成したフォントに置き換えた保存先で動かす。
 function load(path: string, mocks: Record<string, unknown>): any {

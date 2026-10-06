@@ -204,7 +204,8 @@ test("the publish client leaves GitHub website redirects unfollowed", async (t) 
 });
 
 test("signed asset URLs are tied to the path and expire", async () => {
-  const { signAssetPath, verifyAssetToken, ASSET_TOKEN_TTL } = await import("../lib/asset-token");
+  const { verifyAssetToken, ASSET_TOKEN_TTL } = await import("../lib/asset-token");
+  const { signAssetPath } = await import("./helpers/sign-asset-path");
   const prev = process.env.AUTH_SECRET;
   process.env.AUTH_SECRET = "test-secret";
   try {

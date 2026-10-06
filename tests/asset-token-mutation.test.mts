@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  ASSET_TOKEN_TTL, signAssetPath, verifyAssetToken,
+  ASSET_TOKEN_TTL, verifyAssetToken,
 } from "../lib/asset-token";
+import { signAssetPath } from "./helpers/sign-asset-path";
+
 
 const SEED = 0x4a202611;
 function seeded(seed: number) {

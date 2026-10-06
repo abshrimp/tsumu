@@ -54,11 +54,6 @@ export async function signAssetPaths(
   return tokens;
 }
 
-/** 1つのパスに署名する。署名の鍵が無い（認証を使っていない）なら null を返す。 */
-export async function signAssetPath(path: string, now = Date.now()): Promise<string | null> {
-  return (await signAssetPaths([path], now)).get(path) ?? null;
-}
-
 /** 署名が正しく、期限内か */
 export async function verifyAssetToken(
   path: string,
