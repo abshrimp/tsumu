@@ -7,6 +7,11 @@ import { transformSync } from "esbuild";
 import { showAlert, showConfirm, showPrompt, useDialogs } from "../lib/dialog";
 import * as dialogs from "../lib/dialog";
 
+const path = resolve("components/DialogHost.tsx");
+const require = createRequire(path);
+const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
+const loadDialogHost = new Function("require", "module", "exports", "window", "document", "HTMLElement", code);
+
 // 本番のコンポーネント・effect と、実際のダイアログのキューを動かす。ここで模擬するのは、
 // React のレンダラーと、DOM のフォーカス・既定の Tab の移動だけ。対応する Playwright のテストが、
 // ネイティブのフォーカス・伝播・アクセシブルな名前を確かめる。
@@ -44,11 +49,8 @@ function mount() {
       }
     },
   };
-  const path = resolve("components/DialogHost.tsx");
-  const require = createRequire(path);
   const module = { exports: {} as any };
-  const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
-  new Function("require", "module", "exports", "window", "document", "HTMLElement", code)(
+  loadDialogHost(
     (id: string) => id === "react" ? hooks : id === "react-dom" ? { createPortal: (child: any) => child } :
       id === "../lib/dialog" ? { ...dialogs, useDialogs: (select: any) => select(useDialogs.getState()) } : require(id),
     module, module.exports, win, doc, Target,

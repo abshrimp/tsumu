@@ -76,50 +76,56 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     await expect(page.getByRole("dialog", { name: labels.script, exact: true })).toBeVisible();
   });
 
-  for (const signal of ["isComposing", "keyCode"] as const) {
-    for (const selected of [false, true]) test(`${signal}: IME Escape keeps the action search, focus and ${selected ? "selection" : "the open editor"}`, async ({ page }) => {
-      if (selected) {
-        await selectStep(page);
-        await expect(selectedStep(page)).toHaveClass(/is-selected/);
-      }
-      const before = await snapshot(page);
-      await page.getByRole("button", { name: labels.add, exact: true }).click();
-      const search = page.getByRole("combobox", { name: labels.search });
-      await expect(search).toBeFocused();
-      await search.fill("日本 English");
-      await composingEscape(search, signal);
-      await expect(search).toHaveValue("日本 English");
-      await expect(search).toBeFocused();
-      if (selected) await expect(selectedStep(page)).toHaveClass(/is-selected/);
-      expect(await snapshot(page)).toEqual(before);
-      // ふつうの Escape は、いちばん手前のパネルだけを閉じる。選択と画面はそのまま
-      await search.press("Escape");
-      await expect(search).toHaveCount(0);
-      await expect(page.getByRole("dialog", { name: labels.script, exact: true })).toBeVisible();
-      if (selected) await expect(selectedStep(page)).toHaveClass(/is-selected/);
-      await expect(page.getByRole("button", { name: labels.add, exact: true })).toBeFocused();
-      expect(await snapshot(page)).toEqual(before);
-    });
-
-    test(`${signal}: IME Escape does not cancel a prompt or reach the script behind it`, async ({ page }) => {
+  for (const selected of [false, true]) test(`IME Escape keeps the action search, focus and ${selected ? "selection" : "the open editor"}`, async ({ page }) => {
+    if (selected) {
       await selectStep(page);
-      const before = await snapshot(page);
-      await page.evaluate(() => (window as any).openEscapePrompt());
-      const prompt = page.getByRole("dialog", { name: labels.prompt, exact: true });
-      const input = prompt.getByRole("textbox");
-      await expect(input).toBeFocused();
-      await input.fill("日本 English");
-      await composingEscape(input, signal);
-      await expect(input).toHaveValue("日本 English");
-      await expect(input).toBeFocused();
-      expect(await page.evaluate(() => (window as any).promptResults)).toEqual([]);
-      await input.press("Escape");
-      await expect(prompt).toHaveCount(0);
-      expect(await page.evaluate(() => (window as any).promptResults)).toEqual([null]);
       await expect(selectedStep(page)).toHaveClass(/is-selected/);
-      expect(await snapshot(page)).toEqual(before);
-    });
-  }
+    }
+    const before = await snapshot(page);
+    await page.getByRole("button", { name: labels.add, exact: true }).click();
+    const search = page.getByRole("combobox", { name: labels.search });
+    await expect(search).toBeFocused();
+    await search.fill("日本 English");
+    for (const signal of ["isComposing", "keyCode"] as const) {
+      await test.step(signal, async () => {
+        await composingEscape(search, signal);
+        await expect(search).toHaveValue("日本 English");
+        await expect(search).toBeFocused();
+        if (selected) await expect(selectedStep(page)).toHaveClass(/is-selected/);
+        expect(await snapshot(page)).toEqual(before);
+      });
+    }
+    // ふつうの Escape は、いちばん手前のパネルだけを閉じる。選択と画面はそのまま
+    await search.press("Escape");
+    await expect(search).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: labels.script, exact: true })).toBeVisible();
+    if (selected) await expect(selectedStep(page)).toHaveClass(/is-selected/);
+    await expect(page.getByRole("button", { name: labels.add, exact: true })).toBeFocused();
+    expect(await snapshot(page)).toEqual(before);
+  });
+
+  test("IME Escape does not cancel a prompt or reach the script behind it", async ({ page }) => {
+    await selectStep(page);
+    const before = await snapshot(page);
+    await page.evaluate(() => (window as any).openEscapePrompt());
+    const prompt = page.getByRole("dialog", { name: labels.prompt, exact: true });
+    const input = prompt.getByRole("textbox");
+    await expect(input).toBeFocused();
+    await input.fill("日本 English");
+    for (const signal of ["isComposing", "keyCode"] as const) {
+      await test.step(signal, async () => {
+        await composingEscape(input, signal);
+        await expect(input).toHaveValue("日本 English");
+        await expect(input).toBeFocused();
+        expect(await page.evaluate(() => (window as any).promptResults)).toEqual([]);
+      });
+    }
+    await input.press("Escape");
+    await expect(prompt).toHaveCount(0);
+    expect(await page.evaluate(() => (window as any).promptResults)).toEqual([null]);
+    await expect(selectedStep(page)).toHaveClass(/is-selected/);
+    expect(await snapshot(page)).toEqual(before);
+  });
 
   test("plain Escape steps back one layer at a time: selection, then the editor", async ({ page }) => {
     await selectStep(page);
