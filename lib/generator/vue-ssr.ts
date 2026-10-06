@@ -1,5 +1,5 @@
 import type { SiteDoc } from "../types";
-import type { ExportLanguage } from "../export-formats";
+import type { ExportLanguage } from "./export-options";
 
 export function withVueSsr(
   files: Record<string, string>, doc: SiteDoc, language: ExportLanguage,

@@ -1,6 +1,6 @@
 import type { SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
-import type { ExportLanguage } from "../export-formats";
+import type { ExportLanguage } from "./export-options";
 import { obfuscateVarNames } from "../data";
 import { scriptsFile } from "../script-runtime";
 import { usedGoogleFonts } from "./css";

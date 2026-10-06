@@ -1,9 +1,5 @@
 import type { Db } from "./db";
-import {
-  DEFAULT_EXPORT_OPTIONS,
-  EXPORT_FRAMEWORK_OPTIONS,
-  type ExportOptions,
-} from "./export-formats";
+import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportOptions } from "./generator/export-options";
 
 export type PublishedExportOptions = Pick<ExportOptions, "framework" | "language" | "style">;
 

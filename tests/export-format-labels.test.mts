@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { EXPORT_FRAMEWORK_OPTIONS } from "../lib/export-formats";
+import { EXPORT_FRAMEWORK_OPTIONS } from "../lib/generator/export-options";
 import { LOCALES } from "../lib/locales";
 
 // 動的な形式の表示名は、静的な i18n の点検では見えない。

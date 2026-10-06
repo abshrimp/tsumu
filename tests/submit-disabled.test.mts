@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderLeafNode } from "../components/canvas/render";
-import { EXPORT_FRAMEWORK_OPTIONS, generateExportProject } from "../lib/export-formats";
+import { generateExportProject } from "../lib/export-formats";
+import { EXPORT_FRAMEWORK_OPTIONS } from "../lib/generator/export-options";
 import { makeBox } from "../lib/presets";
 import type { DocNode, SiteDoc } from "../lib/types";
 

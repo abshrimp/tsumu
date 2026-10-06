@@ -1,5 +1,5 @@
 import type { SiteDoc } from "./types";
-import type { ExportFormat } from "./export-formats";
+import type { ExportFormat } from "./generator/export-options";
 
 /**
  * 公開先で管理していた Service Worker だけを、終了用のものに置き換える。

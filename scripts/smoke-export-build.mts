@@ -2,7 +2,8 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
-import { prepareExportProject, type ExportFormat, type ExportOptions, type ExportStyle } from "../lib/export-formats";
+import { prepareExportProject } from "../lib/export-formats";
+import { type ExportFormat, type ExportOptions, type ExportStyle } from "../lib/generator/export-options";
 
 const framework = process.argv[2] as ExportFormat | undefined;
 if (!framework || !["nextjs", "react", "vue", "nuxt", "sveltekit"].includes(framework)) {

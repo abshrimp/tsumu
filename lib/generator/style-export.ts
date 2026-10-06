@@ -1,5 +1,5 @@
 import type { GeneratedProject } from "../generator";
-import type { ExportFormat, ExportStyle } from "../export-formats";
+import type { ExportFormat, ExportStyle } from "./export-options";
 
 /** 生成した CSS を、文字列とコメントを考慮して、実際の波括弧の境界で分ける。 */
 function blocks(css: string): { prelude: string; body: string }[] {

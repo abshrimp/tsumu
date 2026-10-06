@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import type { Asset, SiteDoc } from "./types";
-import { prepareExportScopeDoc, prepareExportProject, type ExportFormat, type ExportOptions } from "./export-formats";
+import { prepareExportScopeDoc, prepareExportProject } from "./export-formats";
+import { resolveExportOptions, type ExportFormat, type ExportOptions } from "./generator/export-options";
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, isEmbeddedAssetUrl, mapLimit } from "./assets";
 import { tr } from "./i18n";
 import { buildAssetNames } from "./generator/names";
@@ -22,9 +23,7 @@ export function exportDirectoryName(siteName: string): string {
 
 /** ZIP を作ってダウンロードさせる。保存先に見つからず、含められなかったアセットのパスを返す */
 export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | ExportOptions = "nextjs"): Promise<string[]> {
-  const options: ExportOptions = typeof request === "string"
-    ? { framework: request, language: "typescript", style: "css", scope: "project" }
-    : request;
+  const options = resolveExportOptions(request);
   const editableDoc = await prepareExportScopeDoc(doc, options);
   // 視覚的なノードで表せない取り込んだ要素は、カスタム HTML の中に URL を残している。
   // ダウンロードするウェブサイトではそれらの URL を解決し、編集可能なスナップショットでは

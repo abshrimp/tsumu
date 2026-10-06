@@ -1,6 +1,6 @@
 import type { DefaultTreeAdapterTypes as Html } from "parse5";
 import type { GeneratedProject } from "../generator";
-import type { ExportFormat } from "../export-formats";
+import type { ExportFormat } from "./export-options";
 
 /**
  * TypeScript から JavaScript への変換は、正規表現で取り除くのではなく、実際の構文の変換で行う。

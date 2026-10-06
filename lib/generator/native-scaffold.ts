@@ -1,6 +1,6 @@
 import type { SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
-import type { ExportLanguage } from "../export-formats";
+import type { ExportLanguage } from "./export-options";
 import { generateNativeFiles } from "./native-components";
 import { nativeDataModule } from "./native-data";
 import { withVueSsr } from "./vue-ssr";

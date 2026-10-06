@@ -62,8 +62,6 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
     "../lib/assets": { detectSvgFilters: analyzeSvg ?? (async () => ({})) },
     "../lib/generator": { generateProject: document ? generateProject : () => ({ files: { "app/page.tsx": "NEW" }, binaries: asset ? { "public/p.png": "eA==" } : {}, remoteAssets: {} }) },
     "../lib/export-formats": {
-      DEFAULT_EXPORT_OPTIONS: { framework: "nextjs", language: "typescript", style: "css", scope: "project" },
-      EXPORT_FRAMEWORK_OPTIONS: [{ value: "nextjs", label: "Next.js" }],
       exportLimitations: () => [],
       prepareExportProject: async (_doc: SiteDoc, _options: unknown, target: "test" | "production") =>
         document ? generateProject(_doc, target) : {

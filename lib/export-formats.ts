@@ -6,7 +6,6 @@ import { buildReactProject, needsReactPageRuntime } from "./generator/react-expo
 import { buildAssetNames } from "./generator/names";
 import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
-import { toSingleHtmlProject } from "./generator/single-html";
 import { applyExportStyle } from "./generator/style-export";
 import { zipMediaMime } from "./zip-mime";
 import { zipAssetClosure } from "./zip-css";
@@ -14,43 +13,7 @@ import { scopedAssetIds } from "./generator/scoped-assets";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { hasPublishCredentials } from "./publish-security";
 import { tr } from "./i18n";
-
-export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
-export const EXPORT_FRAMEWORK_OPTIONS: { value: ExportFormat; label: string }[] = [
-  { value: "nextjs", label: "Next.js" },
-  { value: "react", label: "React + Vite" },
-  { value: "vue", label: "Vue 3 + Vite" },
-  { value: "nuxt", label: "Nuxt" },
-  { value: "sveltekit", label: "SvelteKit" },
-  { value: "html", label: "HTML / CSS / JavaScript" },
-  { value: "single-html", label: "Single HTML" },
-];
-
-export type ExportLanguage = "typescript" | "javascript";
-export type ExportStyle = "css" | "css-modules" | "tailwind";
-export type ExportScope = "project" | "page" | "component";
-
-export interface ExportOptions {
-  framework: ExportFormat;
-  language: ExportLanguage;
-  style: ExportStyle;
-  scope: ExportScope;
-  pageId?: string;
-  nodeId?: string;
-}
-
-export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
-  framework: "nextjs",
-  language: "typescript",
-  style: "css",
-  scope: "project",
-};
-
-function optionsOf(options: ExportFormat | ExportOptions): ExportOptions {
-  return typeof options === "string"
-    ? { ...DEFAULT_EXPORT_OPTIONS, framework: options }
-    : options;
-}
+import { resolveExportOptions, type ExportFormat, type ExportOptions } from "./generator/export-options";
 
 /**
  * 一部だけを書き出す場合は、他のページの編集可能なノードや無関係なアセットを含めてはいけない。
@@ -164,9 +127,8 @@ function publishedPages(doc: SiteDoc) {
 export function exportLimitations(
   doc: SiteDoc,
   request: ExportFormat | ExportOptions,
-  _existing?: GeneratedProject,
 ): string[] {
-  const options = optionsOf(request);
+  const options = resolveExportOptions(request);
   try {
     doc = exportScopeDoc(doc, options);
   } catch (e) {
@@ -268,7 +230,7 @@ export function generateExportProject(
   request: ExportFormat | ExportOptions = "nextjs",
   target: PublishTarget = "production",
 ): GeneratedProject {
-  const options = optionsOf(request);
+  const options = resolveExportOptions(request);
   const scoped = exportScopeDoc(doc, options);
   // 秘密を含む値をソースに描き出す *前に*、安全でない出力を拒否する。
   const limitations = exportLimitations(scoped, { ...options, scope: "project" });
@@ -308,7 +270,7 @@ export async function prepareExportProject(
   request: ExportFormat | ExportOptions = "nextjs",
   target: PublishTarget = "production",
 ): Promise<GeneratedProject> {
-  const options = optionsOf(request);
+  const options = resolveExportOptions(request);
   const scoped = await prepareExportScopeDoc(doc, options);
   let project = generateExportProject(scoped, { ...options, scope: "project" }, target);
   if (["nextjs", "react"].includes(options.framework) && options.language === "javascript") {
@@ -347,6 +309,7 @@ export async function prepareExportProject(
             zipMediaMime(asset.zip?.path ?? name))) media.add("/assets/" + name);
       }
     }
+    const { toSingleHtmlProject } = await import("./generator/single-html");
     ready = await toSingleHtmlProject(project, undefined, media);
   }
   assertGeneratedPaths(ready);
