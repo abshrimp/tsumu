@@ -4,7 +4,6 @@ import { runInNewContext } from "node:vm";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
-import { publishedScriptFileValue, scriptFileValueBundle } from "./helpers/script-file-value";
 
 /** DOM の正規化は真似せず、ランタイムから setter・プレビューの状態・通知への呼び出しだけを記録する。 */
 function runAssignment(initial: string, value: string, preview: boolean, type = "file") {
@@ -63,11 +62,3 @@ for (const preview of [true, false]) {
     });
   });
 }
-
-test("the file regression uses the real preview and generated page", async () => {
-  assert.match(await scriptFileValueBundle(), /fileEditor/);
-  const { html } = await publishedScriptFileValue();
-  assert.match(html, /type="file"/);
-  assert.match(html, /assign-file/);
-  assert.match(html, /data-scripts=/);
-});

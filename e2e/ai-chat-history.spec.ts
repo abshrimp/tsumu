@@ -1,11 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { aiChatBundle } from "../tests/helpers/ai-chat";
 
+let bundle: string;
+test.beforeAll(async () => { bundle = await aiChatBundle(); });
+test.beforeEach(async ({ page }) => {
+  await page.setContent('<main id="app"></main>');
+  await page.addScriptTag({ content: bundle });
+  await page.locator(".ai-suggest button").first().click();
+});
+
 for (const changes of [false, true]) {
   test(`AI ${changes ? "change has its own Undo" : "no-op does not offer Undo for a manual change"}`, async ({ page }) => {
-    await page.setContent('<main id="app"></main>');
-    await page.addScriptTag({ content: await aiChatBundle() });
-    await page.locator(".ai-suggest button").first().click();
     await expect(page.locator('[aria-busy="true"]')).toBeVisible();
     await page.evaluate((changes) => {
       const state = (window as any).aiHistoryEditor.getState();
@@ -29,9 +34,6 @@ for (const changes of [false, true]) {
 
 for (const mode of ["no-op", "change", "cancel"] as const) {
   test(`AI ${mode} preserves an in-progress numeric scrub`, async ({ page }) => {
-    await page.setContent('<main id="app"></main>');
-    await page.addScriptTag({ content: await aiChatBundle() });
-    await page.locator(".ai-suggest button").first().click();
     await page.evaluate(() => (window as any).aiHistoryEditor.getState().setActivePage("q"));
     const beforeManual = await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc);
     const scrub = page.locator(".field-pre.scrub");

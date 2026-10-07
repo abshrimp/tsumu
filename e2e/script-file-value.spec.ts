@@ -2,14 +2,17 @@ import { expect, test, type Page } from "@playwright/test";
 import { scriptsFile } from "../lib/script-runtime";
 import { publishedScriptFileValue, scriptFileValueBundle } from "../tests/helpers/script-file-value";
 
+let previewBundle: Promise<string>;
+let publishedPage: ReturnType<typeof publishedScriptFileValue>;
+
 async function setup(page: Page, preview: boolean) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   if (preview) {
     await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-    await page.addScriptTag({ content: await scriptFileValueBundle() });
+    await page.addScriptTag({ content: await (previewBundle ??= scriptFileValueBundle()) });
   } else {
-    const { doc, html } = await publishedScriptFileValue();
+    const { doc, html } = await (publishedPage ??= publishedScriptFileValue());
     await page.setContent(html);
     await page.addScriptTag({ content: scriptsFile(doc) });
   }
