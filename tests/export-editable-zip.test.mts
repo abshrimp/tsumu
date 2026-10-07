@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import JSZip from "jszip";
-import { createInitialDoc } from "../lib/presets";
+import { createInitialDoc, makeBox } from "../lib/presets";
 import { exportProjectZip } from "../lib/exportZip";
 import { parseSiteImport, EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH } from "../lib/site-import";
 
@@ -14,6 +14,13 @@ test("ZIP export preserves the editable SiteDoc and archive asset IDs for direct
     id: "original-asset", name: "mark.svg",
     width: 10, height: 10, mimeType: "image/svg+xml",
     dataUrl: "data:image/svg+xml;base64," + Buffer.from(svg).toString("base64"),
+  };
+  const draft = "private-draft";
+  doc.pages[draft] = { ...doc.pages[doc.pageOrder[0]], id: draft, slug: "draft", unpublished: true, children: ["draft-code"] };
+  doc.pageOrder.push(draft);
+  doc.nodes["draft-code"] = {
+    ...makeBox(), id: "draft-code", type: "code",
+    code: { html: '<link rel="stylesheet" href="tsumu-zip-css:removed-stylesheet">' },
   };
   let blob: Blob | null = null;
   const createUrl = URL.createObjectURL;
@@ -34,6 +41,7 @@ test("ZIP export preserves the editable SiteDoc and archive asset IDs for direct
     const zip = await JSZip.loadAsync(bytes);
     const roundtrip = await zip.file("zip-roundtrip/" + EDITABLE_DOC_PATH)!.async("text");
     assert.deepEqual(JSON.parse(roundtrip), doc);
+    assert.equal(zip.file("zip-roundtrip/app/draft/page.tsx"), null);
     const mapped = JSON.parse(await zip.file("zip-roundtrip/" + EDITABLE_ASSETS_PATH)!.async("text"));
     assert.equal(mapped.version, 1);
     assert.equal(mapped.assets["original-asset"], "public/assets/mark.svg");

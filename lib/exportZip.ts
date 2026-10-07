@@ -5,7 +5,6 @@ import { resolveExportOptions, type ExportFormat, type ExportOptions } from "./g
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, isEmbeddedAssetUrl, mapLimit } from "./assets";
 import { tr } from "./i18n";
 import { buildAssetNames } from "./generator/names";
-import { cssValue } from "./generator/css";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from "./site-import";
 import { zipStylesheet } from "./zip-css";
@@ -25,15 +24,7 @@ export function exportDirectoryName(siteName: string): string {
 export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | ExportOptions = "nextjs"): Promise<string[]> {
   const options = resolveExportOptions(request);
   const editableDoc = await prepareExportScopeDoc(doc, options);
-  // 視覚的なノードで表せない取り込んだ要素は、カスタム HTML の中に URL を残している。
-  // ダウンロードするウェブサイトではそれらの URL を解決し、編集可能なスナップショットでは
-  // 元のアセットの ID と保存場所を指したままにする。
-  const websiteDoc = structuredClone(editableDoc);
-  const assetNames = buildAssetNames(editableDoc);
-  for (const node of Object.values(websiteDoc.nodes)) {
-    if (node.code?.html) node.code.html = cssValue(editableDoc, "rawHtml", node.code.html, assetNames);
-  }
-  const project = await prepareExportProject(websiteDoc, { ...options, scope: "project" });
+  const project = await prepareExportProject(editableDoc, { ...options, scope: "project" });
   const { files, binaries } = project;
   const remoteAssets = { ...project.remoteAssets };
   const dirName = exportDirectoryName(doc.siteName);
@@ -56,7 +47,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   const originalStylesheets = new Map<string, Asset>();
   const assetRoot = options.framework === "html" ? "assets/" :
     options.framework === "sveltekit" ? "static/assets/" : "public/assets/";
-  for (const [id, name] of assetNames) {
+  for (const [id, name] of buildAssetNames(editableDoc)) {
     const asset = editableDoc.assets[id];
     const stylesheet = zipStylesheet(asset);
     const importedPath = stylesheet && importedAssetPath(asset);
