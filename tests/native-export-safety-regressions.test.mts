@@ -88,7 +88,7 @@ test("Next.js export applies the same media URL restrictions", () => {
   assert.doesNotMatch(denied, /javascript:alert/);
 });
 
-test("Nuxt internal requests stream responses and retain bodyless HTTP statuses", async () => {
+test("Nuxt internal requests preserve the fetch policy, stream limit and bodyless statuses", async () => {
   const files = generateExportProject(fixture(), "nuxt").files;
   const page = files["app/pages/index.vue"];
   const source = page.match(/const requestLocal = async \(path, init\) => \{[\s\S]*?\n\};/)?.[0];
@@ -112,11 +112,22 @@ test("Nuxt internal requests stream responses and retain bodyless HTTP statuses"
 
   const module = files["app/generated/server-request.js"];
   assert.ok(module);
+  // Nuxt runs this module on client navigation too, without Node's Buffer global.
   const { requestPublic } = await import("data:text/javascript;base64," +
-    Buffer.from(module).toString("base64")) as {
+    Buffer.from("const Buffer = undefined;\n" + module).toString("base64")) as {
       requestPublic: (uri: string, init: RequestInit, base: string,
         localFetch: (path: string, init: RequestInit) => Promise<Response>) => Promise<Response>;
     };
+
+  const data = await requestPublic("/api/records?page=2", {}, "https://site.example",
+    makeLocal(async (path, init) => {
+      assert.equal(path, "/api/records?page=2");
+      assert.equal(init.credentials, "omit");
+      assert.equal(init.redirect, "error");
+      assert.equal(init.responseType, "stream");
+      return Response.json({ title: "京都" });
+    }));
+  assert.deepEqual(await data.json(), { title: "京都" });
 
   let pulls = 0, cancellations = 0;
   const local = makeLocal(async (_path, init) => {
