@@ -58,3 +58,41 @@ export function bodyJsonError(body: string | undefined): boolean {
     return true;
   }
 }
+
+/**
+ * Script-runtime JSON body interpolation. Keep this helper self-contained so
+ * the exact same implementation can be embedded in published scripts.
+ */
+export function runtimeJsonBody(
+  template: string,
+  read: (name: string) => unknown,
+  toText: (value: unknown) => string,
+): string {
+  const token = /\\\{|\{([^{}\s"'<>\x60]+)\}|\[slug\]/g;
+  let output = "";
+  let start = 0;
+  let quoted = false;
+  for (const match of template.matchAll(token)) {
+    const prefix = template.slice(start, match.index);
+    for (let i = 0; i < prefix.length; i++) {
+      if (prefix[i] === "\\") i++;
+      else if (prefix[i] === '"') quoted = !quoted;
+    }
+    output += prefix;
+    start = match.index! + match[0].length;
+    if (match[0] === "\\{") {
+      if (quoted) {
+        let slashes = 0;
+        while (slashes < prefix.length && prefix[prefix.length - slashes - 1] === "\\") slashes++;
+        if (slashes % 2) output = output.slice(0, -1);
+      }
+      output += "{";
+    } else {
+      const value = read(match[1] || "slug");
+      output += quoted
+        ? JSON.stringify(toText(value)).slice(1, -1)
+        : JSON.stringify(value === undefined ? null : value);
+    }
+  }
+  return output + template.slice(start);
+}

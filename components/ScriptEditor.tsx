@@ -534,7 +534,6 @@ function ScriptEditorInner({
     // 取得のように後から呼ばれることがあるため、描画した時点ではなく最新の状態に適用する
     updateStep: (stepId, fn) =>
       commit(mapStep(pageScriptsOf(useEditor.getState().doc, nodeIds, activePageId), stepId, fn, openIdRef.current ?? "")),
-    isPageLoadRoot: (loc) => loc.list === "root" && pageLoadScriptIds.has(loc.scriptId),
     renameVar: (stepId, from, to) =>
       updateDoc((d) => {
         applyPageScripts(
@@ -707,7 +706,6 @@ function ScriptEditorInner({
           <ActionPicker
             anchor={picker.anchor}
             place={{
-              pageLoadRoot: picker.value.list === "root" && pageLoadScriptIds.has(open.id),
               insideLoop: listInsideLoop(open, picker.value.list),
             }}
             onPick={(step) => addStep(picker.value, step)}

@@ -14,12 +14,10 @@ import { CAT_INFO, CAT_ORDER, PLACE_REASON, catStyle, findActions, type ActionIt
 import { Popover } from "./Popover";
 
 interface ActionPlaceInfo {
-  pageLoadRoot: boolean;
   insideLoop: boolean;
 }
 
 function blockedReason(item: ActionItem, place: ActionPlaceInfo): string | null {
-  if (item.place === "page-load-root" && !place.pageLoadRoot) return PLACE_REASON["page-load-root"];
   if (item.place === "inside-loop" && !place.insideLoop) return PLACE_REASON["inside-loop"];
   return null;
 }

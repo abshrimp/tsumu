@@ -9,7 +9,7 @@ import {
   type ScriptTrigger,
   type SiteDoc,
 } from "./types";
-import { filterConds, isDataStep } from "./data";
+import { filterConds } from "./data";
 import { tr } from "./i18n";
 import { extractVars, hasVars } from "./vars";
 import { singleValueReference } from "./variable-choice";
@@ -389,11 +389,11 @@ export function scriptTargetIds(
   return [...out];
 }
 
-/** 画面上で動くスクリプトを持つか（きっかけと、データの取得以外の動作がある） */
+/** 画面上で動く可能性のあるスクリプトを持つか。サーバー済みの手順はコンパイル時に除く。 */
 export function hasRunnableScripts(node: Pick<DocNode, "scripts">): boolean {
   return !!node.scripts?.some(
     (s) => (s.trigger !== "change" || s.changeVariable === undefined || !!s.changeVariable.trim()) &&
-      s.steps.some((st) => !isDataStep(st))
+      s.steps.length > 0
   );
 }
 
@@ -409,7 +409,7 @@ interface RuntimeScript {
 
 /**
  * 実行用に変換する（ID や位置を除き、ページは URL のパスにする）。
- * データの取得はページを配信する前に済ませるため、ここでは除く。
+ * ページを開いたときの直下で実行済みのデータ取得だけを skip により除く。
  * str: URL や値の文字列を差し替える（{変数} の解決など）
  * withPageId: ページの ID も残す（プレビューは ID でページを切り替え、書き出しは URL だけを使う）
  */
@@ -444,8 +444,16 @@ export function compileScripts(
     };
   };
   const conv = (steps: ScriptStep[]): RuntimeStep[] =>
-    steps.filter((st) => !isDataStep(st) && !skip?.has(st.id)).map((st) => {
+    steps.filter((st) => !skip?.has(st.id)).map((st) => {
       switch (st.kind) {
+        case "fetch": {
+          const { id: _id, preview: _preview, ...rest } = st;
+          return {
+            ...rest,
+            url: str(st.url, "url", true),
+            headers: st.headers?.map((header) => ({ ...header, value: str(header.value, "value", true) })),
+          };
+        }
         case "open-page":
           return {
             kind: st.kind,

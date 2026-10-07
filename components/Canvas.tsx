@@ -478,6 +478,24 @@ export default function Canvas() {
       openUrl: (url, newTab) => scriptEnvRef.current.openUrl?.(url, newTab),
       setValue: (id, v) => scriptEnvRef.current.setValue?.(id, v) ?? false,
       getPageData: () => scriptEnvRef.current.getPageData?.() ?? {},
+      fetchData: async (url, init) => {
+        // Public sites fetch with CORS. The editor uses the existing SSRF-safe
+        // endpoint so a preview never bypasses the editor's request policy.
+        const response = await fetch("/api/fetch-json", {
+          method: "POST",
+          signal: init.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url,
+            method: init.method,
+            headers: init.headers,
+            body: init.body,
+          }),
+        });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        const result = await response.json();
+        return result.json;
+      },
       setVar: (root, value) => setClientValues((prev) => ({ ...prev, [root]: value })),
       // エディタ自身の保存と混ざらないよう、プレビューのストレージには別のキーを使う
       storePrefix: "site-preview:",

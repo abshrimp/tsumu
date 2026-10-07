@@ -186,7 +186,7 @@ A simple page-load script:
 }
 ```
 
-Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; the valid kinds are `show`, `hide`, `toggle`, `set-state`, `open-page`, `open-url`, `scroll-to`, `set-value`, `set-enabled`, `list-display`, `store-save`, `store-load`, `set-var`, `transform`, `copy`, `wait`, `repeat`, `for-each`, `fetch`, and `if`. Value operations such as arithmetic, replacing text, filtering and sorting are `transform` recipes ([`script-model/compose.ts`](script-model/compose.ts)), not step kinds. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** Page-load data fetch steps have additional placement restrictions.
+Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; the valid kinds are `show`, `hide`, `toggle`, `set-state`, `open-page`, `open-url`, `scroll-to`, `set-value`, `set-enabled`, `list-display`, `store-save`, `store-load`, `set-var`, `transform`, `copy`, `wait`, `repeat`, `for-each`, `fetch`, and `if`. Value operations such as arithmetic, replacing text, filtering and sorting are `transform` recipes ([`script-model/compose.ts`](script-model/compose.ts)), not step kinds. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** A fetch directly under a page's load trigger runs before rendering on the server. Fetch steps elsewhere execute in the browser at runtime, require CORS for remote APIs, and delay subsequent steps until complete.
 
 ## Assets and packaging
 

@@ -6,7 +6,6 @@ import { createContext } from "react";
 import { type PageScript } from "../../lib/script";
 import { type PageArray, type PageVariableIndex } from "../../lib/data";
 import { type ScriptStep, type SiteDoc } from "../../lib/types";
-import { type Loc } from "./step-tree";
 import { type Target, type TreeRow } from "./targets";
 import type { FieldTargetIndex } from "./field-index";
 
@@ -43,8 +42,6 @@ export interface EdCtx {
   pageLoadScriptIds: Set<string>;
   serverStepIds: Set<string>;
   updateStep: (stepId: string, fn: (s: ScriptStep) => ScriptStep) => void;
-  /** 「このページ｜ページを開いたとき」の直下にあるか（データの取得が動く位置） */
-  isPageLoadRoot: (loc: Loc) => boolean;
   /** 変数・リスト・取得したデータの名前を変える（ページ内で使っている箇所も書き換える） */
   renameVar: (stepId: string, from: string, to: string) => void;
   /** 取得したデータを表で確認する小窓を開く */

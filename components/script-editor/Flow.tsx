@@ -10,7 +10,7 @@ import {
 } from "react";
 import { MoreHorizontal, Plus, TriangleAlert, X } from "lucide-react";
 import { readableValue } from "../DataView";
-import { isDataStep, keyOfItem, firstListItem } from "../../lib/data";
+import { keyOfItem, firstListItem } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { type ScriptStep } from "../../lib/types";
 import { tr } from "../../lib/i18n";
@@ -254,7 +254,6 @@ const StepCard = memo(function StepCard({ step, loc }: { step: ScriptStep; loc: 
   const flow = useContext(FlowCtx);
   const selected = useContext(SelectionCtx).has(step.id);
   const issue = stepIssue(step);
-  const misplaced = isDataStep(step) && !ctx.isPageLoadRoot(loc);
   const issueId = `se-issue-${step.id}`;
   const container = step.kind === "if" || step.kind === "repeat" || step.kind === "for-each";
   return (
@@ -305,9 +304,6 @@ const StepCard = memo(function StepCard({ step, loc }: { step: ScriptStep; loc: 
             : step.kind === "for-each" ? <ForEachHead step={step} loc={loc} />
             : <StepBody step={step} />}
         </ScriptStepCtx.Provider>
-        {misplaced && (
-          <Issue text={tr("Works when placed under the page's \"When the page opens\" script")} />
-        )}
       </CardChrome>
       {step.kind === "if" && (
         <>

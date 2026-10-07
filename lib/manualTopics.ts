@@ -1538,13 +1538,14 @@ export const TOPICS: Topic[] = [
     cat: "data",
     level: 4,
     q: tr("How do I fetch external data (JSON) and show it?"),
-    a: tr("Add \"Fetch data from ［URL］ as ［name］\" to the page's script, then write {name.field} in text or images."),
+    a: tr("Add \"Fetch data from ［URL］ as ［name］\" to any script, then write {name.field} in text or images."),
     keys: ["JSON", "API", trc("help_search", "fetch data"), tr("external data"), "fetch", tr("data source")],
     ctx: ["none"],
     body: [
       { fig: "fetch-data" },
       { p: tr("If you name the fetched data \"news\", write `{news.title}` in text and `{news.image}` in an image URL.") },
-      { p: tr("On the published site, data is fetched on the server before the page is served, so pages load fast and search engines see the content. Set how often it's fetched again under \"Hosting & data refresh\" in the Site tab.") },
+      { p: tr("A fetch directly under \"When the page opens\" runs on the server before displaying the page. A fetch inside a click, condition, repeat, or other trigger runs when the script reaches it, and later actions wait for the response.") },
+      { note: tr("For browser-triggered requests, the remote API must allow CORS. Use public endpoints: the browser does not send credentials, and fetch failures produce null.") },
       { note: tr("\"View data\" on the block shows the contents as a table. To refresh the editor's sample data, re-enter the URL.") },
     ],
     guide: [

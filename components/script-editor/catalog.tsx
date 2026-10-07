@@ -156,7 +156,7 @@ export function Ico({ icon: I, cat, size = 14 }: { icon: LucideIcon; cat: Cat; s
 /* ---------- 動作の一覧 ---------- */
 
 /** その動作を置ける場所の条件。満たさない場所では、理由を添えて選べなくする。 */
-type ActionPlace = "anywhere" | "page-load-root" | "inside-loop";
+type ActionPlace = "anywhere" | "inside-loop";
 
 export interface ActionItem {
   key: string;
@@ -264,7 +264,7 @@ export const ACTIONS: ActionItem[] = [
     }),
   },
   {
-    key: "fetch", cat: "load", icon: CloudDownload, place: "page-load-root",
+    key: "fetch", cat: "load", icon: CloudDownload, place: "anywhere",
     title: tr("Fetch data from the internet"),
     hint: tr("Load data from a web address so the page can show it."),
     make: () => ({ id: st(), kind: "fetch", url: "" }),
@@ -315,7 +315,6 @@ export const ACTIONS: ActionItem[] = [
 
 /** 置けない場所で選ぼうとしたときに表示する理由。 */
 export const PLACE_REASON: Record<Exclude<ActionPlace, "anywhere">, string> = {
-  "page-load-root": tr("Only works directly under \"When the page opens\"."),
   "inside-loop": tr("Only works inside a repeat."),
 };
 

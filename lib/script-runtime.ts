@@ -4,13 +4,14 @@
 
 import { NAVIGATION_RUNTIME } from "./url-policy";
 import { type ScriptCond, type ScriptStep, type ScriptTrigger, type SiteDoc } from "./types";
-import { isDataStep, listFromOf, pagePlan, toListItem } from "./data";
+import { listFromOf, pagePlan, toListItem } from "./data";
 import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { parseValueLiteral, matchesValueCondition, removeListItem, setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { codeLiteral } from "./generator/code-literal";
+import { runtimeJsonBody } from "./fetch-request";
 import { formatValueText } from "./value-text";
 import { systemTimeValues, systemVariable } from "./system-time";
 import { preferredScrollBehavior } from "./scroll-behavior";
@@ -33,6 +34,9 @@ export const SCRIPT_RUNTIME = `function (env) {
   var matchValueCondition = (${matchesValueCondition.toString()});
   var parseValueLiteral = (${parseValueLiteral.toString()});
   var formatValueText = (${formatValueText.toString()});
+  /*#fetch*/
+  var interpolateFetchBody = (${runtimeJsonBody.toString()});
+  /*/fetch*/
   var systemTimeValues = (${systemTimeValues.toString()});
   var systemVariable = (${systemVariable.toString()});
   // esbuild may annotate nested functions embedded via toString().
@@ -368,6 +372,13 @@ export const SCRIPT_RUNTIME = `function (env) {
   return {
     install: function (root, initialVars, pageListRows) {
       var alive = true;
+      /*#fetch*/
+      var pendingFetches = new Set();
+      function cancelPendingFetches() {
+        pendingFetches.forEach(function (controller) { controller.abort(); });
+        pendingFetches.clear();
+      }
+      /*/fetch*/
       var pageGeneration = 0;
       var pageBody = null;
       var pageId = null;
@@ -403,6 +414,9 @@ export const SCRIPT_RUNTIME = `function (env) {
         var seedData = body && body.getAttribute("data-list-seeds");
         var newData = seedData !== pageSeeds || (changed && !!seedData);
         if (changed || newData) {
+          /*#fetch*/
+          cancelPendingFetches();
+          /*/fetch*/
           /*#wait|repeat*/
           cancelPendingSleeps();
           /*/wait|repeat*/
@@ -457,6 +471,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           return true;
         };
         active.resetBudget = function () { stepsRun = 0; };
+        /*#fetch*/
+        var requestCount = 0;
+        active.request = function () { return active() && ++requestCount <= 100; };
+        /*/fetch*/
         active.cause = cause;
         return active;
       }
@@ -1318,6 +1336,84 @@ export const SCRIPT_RUNTIME = `function (env) {
         return scope;
       }
       /*/transform*/
+
+      /*#fetch*/
+      // Requests outside initial page loading run in the browser. Published
+      // sites require CORS from remote APIs; the editor uses its secure proxy.
+      async function fetchAction(st, self, sc) {
+        if (typeof st.url !== "string" || !st.url.trim()) return null;
+        var url = resolveUrl(st.url, self, sc);
+        // Reject schemeless remote hosts, credentials, and non-HTTP protocols.
+        if (url.slice(0, 2) === "//" || url.length > 8192) return null;
+        var target;
+        try { target = new URL(url, location.href); }
+        catch (e) { return null; }
+        if ((target.protocol !== "https:" && target.protocol !== "http:") ||
+            target.username || target.password) return null;
+        var method = st.method || "GET";
+        if (["GET", "POST", "PUT", "PATCH", "DELETE"].indexOf(method) < 0) return null;
+        var headers = {};
+        for (var header of st.headers || []) {
+          if (!header || typeof header.name !== "string" || !header.name.trim()) continue;
+          headers[header.name.trim()] = resolve(header.value, self, sc);
+        }
+        var init = { method: method, headers: headers, credentials: "omit",
+          redirect: "error", referrerPolicy: "no-referrer", cache: "no-store" };
+        if (method !== "GET" && method !== "DELETE" && st.body && st.body.trim()) {
+          try {
+            init.body = interpolateFetchBody(st.body, function (name) {
+              return lookup(name, self, sc);
+            }, text);
+            JSON.parse(init.body);
+          } catch (e) { return null; }
+          if (!Object.keys(headers).some(function (key) { return key.toLowerCase() === "content-type"; }))
+            headers["Content-Type"] = "application/json";
+        }
+        var controller = new AbortController();
+        pendingFetches.add(controller);
+        init.signal = controller.signal;
+        var timeout = setTimeout(function () { controller.abort(); }, 15000);
+        try {
+          /*#env*/
+          if (env.fetchData) return await env.fetchData(url, init);
+          /*/env*/
+          var response = await fetch(url, init);
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          var maxBytes = 5 * 1024 * 1024;
+          if (Number(response.headers.get("content-length") || 0) > maxBytes)
+            throw new Error("Response exceeds 5 MB");
+          var content = "", size = 0;
+          if (response.body && response.body.getReader) {
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            try {
+              for (;;) {
+                var part = await reader.read();
+                if (part.done) break;
+                size += part.value.byteLength;
+                if (size > maxBytes) throw new Error("Response exceeds 5 MB");
+                content += decoder.decode(part.value, { stream: true });
+              }
+              content += decoder.decode();
+            } catch (e) {
+              void reader.cancel(e).catch(function () {});
+              throw e;
+            } finally { reader.releaseLock(); }
+          } else {
+            content = await response.text();
+            if (new TextEncoder().encode(content).byteLength > maxBytes)
+              throw new Error("Response exceeds 5 MB");
+          }
+          return JSON.parse(content);
+        } catch (error) {
+          if (!controller.signal.aborted) console.warn("Unable to fetch script data:", url, error);
+          return null;
+        } finally {
+          clearTimeout(timeout);
+          pendingFetches.delete(controller);
+        }
+      }
+      /*/fetch*/
       function exec(st, self, cx) {
         var sc = scopeOf(cx);
         switch (st.kind) {
@@ -1615,6 +1711,17 @@ export const SCRIPT_RUNTIME = `function (env) {
               if (depth > 0) return Promise.resolve(LOOP_BREAK);
               continue;
             }
+            /*#fetch*/
+            if (st.kind === "fetch") {
+              if (!st.as) continue;
+              if (!active.request()) return Promise.resolve();
+              return fetchAction(st, self, scopeOf(cx)).then(function (value) {
+                if (!active()) return;
+                setVar(st.as, value, true);
+                return next();
+              });
+            }
+            /*/fetch*/
             /*#wait*/
             if (st.kind === "wait") {
               var seconds = numericAmount(st.seconds, self, scopeOf(cx), lookup);
@@ -1944,6 +2051,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*/scan*/
       return function dispose() {
         alive = false;
+        /*#fetch*/
+        cancelPendingFetches();
+        /*/fetch*/
         /*#wait|repeat*/
         cancelPendingSleeps();
         /*/wait|repeat*/
@@ -1992,6 +2102,8 @@ export interface ScriptEnv {
   setValue?: (id: string, value: string) => boolean;
   /** 表示を変えた要素（プレビューを終えるときの後始末に使う） */
   touch?: (el: HTMLElement) => void;
+  /** エディタの安全な中継APIで、公開サイトと同じJSONを受け取る。 */
+  fetchData?: (url: string, init: RequestInit) => Promise<unknown>;
   /** サーバー側の手順の現在の結果（プレビューを開いた後に更新したデータを含む）。 */
   getPageData?: () => Record<string, unknown>;
   /** 更新したルートの値（入れ子への書き込みの後も、変わっていない兄弟を含む）。 */
@@ -2032,6 +2144,7 @@ type RuntimeFeature =
   | "if"
   | "store"
   | "set-var"
+  | "fetch"
   | "set-list-item"
   | "remove-list-item"
   | "transform"
@@ -2042,7 +2155,7 @@ type RuntimeFeature =
   | ScriptCond["subject"];
 
 const STEP_FEATURE: Record<
-  Exclude<ScriptStep["kind"], "fetch">,
+  ScriptStep["kind"],
   RuntimeFeature
 > = {
   show: "show",
@@ -2059,6 +2172,7 @@ const STEP_FEATURE: Record<
   "store-save": "store",
   "store-load": "store",
   "set-var": "set-var",
+  fetch: "fetch",
   "set-list-item": "set-list-item",
   "remove-list-item": "remove-list-item",
   "break-loop": "repeat",
@@ -2113,11 +2227,10 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
   const out = new Set<RuntimeFeature>();
   if (usesLiveFields(doc)) out.add("live");
   for (const s of allScripts(doc)) {
-    if (!s.steps.some((st) => !isDataStep(st))) continue;
+    if (!s.steps.length) continue;
     out.add(s.trigger === "change" && s.changeVariable !== undefined ? "watch" : TRIGGER_FEATURE[s.trigger]);
     if (s.trigger === "hover-end" && s.keepOnShown) out.add("keep");
     walkSteps(s.steps, (st) => {
-      if (isDataStep(st)) return;
       out.add(STEP_FEATURE[st.kind]);
       if (st.kind === "if") {
         for (const condition of [st.cond, ...(st.conditions ?? [])])

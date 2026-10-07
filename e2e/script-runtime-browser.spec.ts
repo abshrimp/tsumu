@@ -154,6 +154,51 @@ for (const published of [false, true]) {
     });
   }
 
+  test(mode + ": fetch inside a condition waits for JSON before continuing", async ({ page }) => {
+    const entries: Entry[] = [{ trigger: "click", steps: [
+      { id: "seed", kind: "set-var", into: "search", value: "hello world" },
+      { id: "condition", kind: "if",
+        cond: { subject: "var", target: "", left: "{search}", op: "eq", value: "hello world" },
+        then: [{
+          id: "request", kind: "fetch", as: "items",
+          url: "https://api.example.test/?q={search}",
+          method: "POST", body: '{"query":"{search}"}',
+        }],
+      },
+      { id: "after", kind: "set-var", into: "after", value: "{items.0.title}" },
+    ] }];
+    await page.goto("/robots.txt");
+    await page.setContent('<main data-page-body="a"><button id="trigger">Request</button></main>');
+    await attach(page, "#trigger", entries);
+    await page.evaluate(() => {
+      (window as any).__writes = [];
+      (window as any).__requests = [];
+      (window as any).__siteVarsOnChange = (key: string, value: unknown) => {
+        (window as any).__writes.push([key, value]);
+      };
+      window.fetch = (async (url, options) => {
+        (window as any).__requests.push({ url, method: options?.method, body: options?.body,
+          credentials: options?.credentials });
+        return await new Promise<Response>(resolve => {
+          (window as any).__completeRequest = () => resolve(Response.json([{ title: "Fetched" }]));
+        });
+      }) as typeof fetch;
+    });
+    await install(page, published, entries);
+    await page.locator("#trigger").click();
+    await expect.poll(() => page.evaluate(() => (window as any).__requests.length)).toBe(1);
+    const request = await page.evaluate(() => (window as any).__requests[0]);
+    expect(request).toEqual({
+      url: "https://api.example.test/?q=hello%20world",
+      method: "POST", body: '{"query":"hello world"}', credentials: "omit",
+    });
+    expect(await page.evaluate(() => (window as any).__writes.map((item: unknown[]) => item[0])))
+      .toEqual(["search"]);
+    await page.evaluate(() => (window as any).__completeRequest());
+    await expect.poll(() => page.evaluate(() => (window as any).__writes.at(-1)))
+      .toEqual(["after", "Fetched"]);
+  });
+
   test(mode + ": denied Clipboard API does not invoke deprecated DOM copy", async ({ page }) => {
     const entries: Entry[] = [
       { trigger: "click", steps: [{ id: "copy", kind: "copy", value: "fallback content" }] },

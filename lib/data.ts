@@ -435,7 +435,7 @@ export function setVarSource(st: SetVarStep): string | null {
 }
 export type FetchStep = Extract<ScriptStep, { kind: "fetch" }>;
 
-/** データのブロックか（ページを配信する前に動き、画面上で動くスクリプトには含めない） */
+/** データの取得ブロックか（ページを開いたときの直下のみサーバーで処理する） */
 export function isDataStep(st: ScriptStep): st is DataStep {
   return st.kind === "fetch";
 }
@@ -581,6 +581,7 @@ export function pagePlan(
     s.trigger === "change" && s.changeVariable && s.steps.length ? [rootName(s.changeVariable)] : []));
   const runtimeScripts = scriptsInPage(doc, pageId, true);
   const writeTarget = (st: ScriptStep) =>
+    st.kind === "fetch" ? st.as ?? "" :
     st.kind === "set-list-item" || st.kind === "remove-list-item" ? st.list : "into" in st ? st.into : "";
   const markClientWrite = (st: ScriptStep) => {
     const name = writeTarget(st);
@@ -667,6 +668,7 @@ export function pagePlan(
     for (const st of s.steps) {
       if (isDataStep(st)) {
         steps.push(st);
+        serverIds.add(st.id);
       } else if (st.kind === "set-var" || st.kind === "transform") {
         // ページを開いたときの、純粋な値の加工の連なりや定数の代入は、サーバーで実行できる。
         const src = st.kind === "transform" ? st.source : setVarSource(st);
