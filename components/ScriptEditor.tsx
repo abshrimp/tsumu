@@ -396,7 +396,7 @@ function ScriptEditorInner({
     captureLayout();
     commit(next);
     setSelected([stepId]);
-    refocus.current = { stepId, selector: ".se-grip" };
+    refocus.current = { stepId, selector: ":scope" };
     announce(direction < 0
       ? tr("Moved up to position {n}.", { n: loc.index })
       : tr("Moved down to position {n}.", { n: loc.index + 2 }));
@@ -411,7 +411,7 @@ function ScriptEditorInner({
     const card = flowRef.current?.querySelector<HTMLElement>(`[data-step-id="${CSS.escape(target.stepId)}"]`);
     if (!card) return;
     card.scrollIntoView({ block: "nearest", inline: "nearest" });
-    card.querySelector<HTMLElement>(target.selector)?.focus({ preventScroll: true });
+    (target.selector === ":scope" ? card : card.querySelector<HTMLElement>(target.selector))?.focus({ preventScroll: true });
   }, [scripts]);
 
   const addStep = (loc: Loc, step: ScriptStep) => {
@@ -439,7 +439,7 @@ function ScriptEditorInner({
     commit(result.scripts);
     const added = result.selection.filter((key) => key.startsWith("step:")).map((key) => key.slice(5));
     setSelected(added);
-    if (added.length) refocus.current = { stepId: added[0], selector: ".se-grip" };
+    if (added.length) refocus.current = { stepId: added[0], selector: ":scope" };
   };
   const copySteps = (ids: readonly string[]): boolean => {
     const copied = copyScriptBlocks(scriptsRef.current, ids.map((id) => `step:${id}`), openIdRef.current ?? "");

@@ -3498,8 +3498,6 @@ const ja: Dict = {
   "Actions": "動作",
   "Nothing matches \"{query}\". Try another word.": "「{query}」に合う動作がありません。別の言葉で探してみてください。",
   "Action {n}": "動作{n}",
-  "Reorder {name}. Drag, or press Alt and the up or down arrow key.": "{name}を並べ替える。ドラッグするか、Altキーを押しながら上下の矢印キーを押します。",
-  "Drag to reorder": "ドラッグで並べ替え",
   "More options for {name}": "{name}のその他の操作",
   "How long to repeat": "くり返す回数の決め方",
   "Actions to repeat": "くり返す動作",

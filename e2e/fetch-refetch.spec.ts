@@ -272,9 +272,9 @@ test("Nested fetches prevent parent loop values and empty objects or arrays from
 
 for (const gesture of ["cancel", "drop"]) test(`pending POST survives a reorder ${gesture} without turning view into a second send`, async ({ page }) => {
   await options(page, "POST"); await send(page); await requests(page, 1); await close(page);
-  const grip = block(page).locator(".se-grip").first();
-  await grip.scrollIntoViewIfNeeded();
-  const rect = (await grip.boundingBox())!; const add = (await page.locator('.se-steps[data-list="root"] > .se-add').boundingBox())!;
+  const dragSurface = block(page).locator(":scope > .se-card-head > .se-ico").first();
+  await dragSurface.scrollIntoViewIfNeeded();
+  const rect = (await dragSurface.boundingBox())!; const add = (await page.locator('.se-steps[data-list="root"] > .se-add').boundingBox())!;
   await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2); await page.mouse.down();
   await page.mouse.move(rect.x + 20, rect.y + 30, { steps: 4 });
   await page.mouse.move(add.x + 80, add.y + 4, { steps: 8 });
@@ -391,8 +391,8 @@ test("cancelling a reorder of a card inside a loop preserves its temporary local
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
   const scoped = page.locator('.se-flow [data-step-id="scoped"]');
   for (const name of ["details.id", "empty", "tags", "details"]) await scoped.getByRole("textbox", { name: `${name} のテスト用の値`, exact: true }).fill("LOCAL");
-  const rect = (await scoped.locator(".se-grip").first().boundingBox())!;
-  await page.mouse.move(rect.x + 6, rect.y + 6); await page.mouse.down();
+  const rect = (await scoped.locator(":scope > .se-card-head > .se-ico").boundingBox())!;
+  await page.mouse.move(rect.x + rect.width / 2, rect.y + rect.height / 2); await page.mouse.down();
   await page.mouse.move(rect.x + 60, rect.y + 65, { steps: 5 });
   await expect(page.locator(".se.is-reordering")).toBeVisible();
   await page.keyboard.press("Escape"); await page.mouse.up();

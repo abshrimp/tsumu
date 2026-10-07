@@ -8,7 +8,7 @@
 import {
   createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState,
 } from "react";
-import { GripVertical, MoreHorizontal, Plus, TriangleAlert, X } from "lucide-react";
+import { MoreHorizontal, Plus, TriangleAlert, X } from "lucide-react";
 import { readableValue } from "../DataView";
 import { isDataStep, keyOfItem, firstListItem } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
@@ -27,11 +27,11 @@ import { observeScriptViewport } from "./visibility";
 
 /** カードの操作（選択・並べ替え・追加・メニュー）。ScriptEditor が実装を渡す。 */
 export interface FlowActions {
-  /** カードの何もない所を押した（選択する） */
+  /** 修飾キーを押しながらカードを選択する */
   select: (event: React.PointerEvent | React.KeyboardEvent, stepId: string) => void;
-  /** つまみを押した（ドラッグで並べ替える） */
+  /** カードの操作部品以外をつかんだ（ドラッグで並べ替える） */
   grab: (event: React.PointerEvent, loc: Loc, stepId: string) => void;
-  /** つまみの上でキーを押した（Alt + 上下で並べ替える） */
+  /** カードにフォーカスして Alt + 上下で並べ替える */
   nudge: (loc: Loc, stepId: string, direction: -1 | 1) => void;
   openPicker: (anchor: HTMLElement, loc: Loc) => void;
   openMenu: (anchor: HTMLElement, loc: Loc, stepId: string) => void;
@@ -74,7 +74,7 @@ function ConditionEditor({ cond, onChange }: {
   />;
 }
 
-/** カードの左端（並べ替えのつまみ）と右端（メニュー）。どの種類の動作でも同じ。 */
+/** 動作の見出しと操作メニュー。ドラッグはカード全体から開始できる。 */
 function CardChrome({ step, loc, issue, issueId, children }: {
   step: ScriptStep; loc: Loc; issue: string | null; issueId: string; children: React.ReactNode;
 }) {
@@ -82,21 +82,6 @@ function CardChrome({ step, loc, issue, issueId, children }: {
   const name = tr("Action {n}", { n: loc.index + 1 });
   return (
     <div className="se-card-head">
-      <button
-        type="button"
-        className="se-grip"
-        aria-label={tr("Reorder {name}. Drag, or press Alt and the up or down arrow key.", { name })}
-        data-tip={tr("Drag to reorder")}
-        onPointerDown={(event) => flow.grab(event, loc, step.id)}
-        onKeyDown={(event) => {
-          if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
-          event.preventDefault();
-          event.stopPropagation();
-          flow.nudge(loc, step.id, event.key === "ArrowUp" ? -1 : 1);
-        }}
-      >
-        <GripVertical size={14} aria-hidden="true" />
-      </button>
       <Ico icon={STEP_ICON[step.kind]} cat={CAT_OF[step.kind]} />
       <div className="se-card-body">{children}</div>
       {/* まだ決めていない欄があることは、文ではなく印で示す（内容はツールチップと読み上げで伝える） */}
@@ -261,6 +246,9 @@ function LoopBranch({ step, scriptId }: {
     label={tr("Actions to repeat")} loops={loops} />;
 }
 
+// 操作欄のクリックや文字入力を、カードの移動として取り扱わない。
+const ACTION_CONTROL = "input, select, textarea, button, label, a, [contenteditable]:not([contenteditable='false']), [role='button']";
+
 const StepCard = memo(function StepCard({ step, loc }: { step: ScriptStep; loc: Loc }) {
   const ctx = useContext(Ctx);
   const flow = useContext(FlowCtx);
@@ -276,21 +264,36 @@ const StepCard = memo(function StepCard({ step, loc }: { step: ScriptStep; loc: 
       data-step-id={step.id}
       data-step-kind={step.kind}
       role="group"
-      tabIndex={-1}
+      tabIndex={0}
       aria-label={tr("Action {n}", { n: loc.index + 1 })}
+      aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       aria-describedby={issue ? issueId : undefined}
       onPointerDown={(event) => {
-        // 入力欄やボタンの操作は、選択として扱わない
-        if (event.button !== 0 || (event.target as HTMLElement).closest("input, select, textarea, button, label, a")) return;
-        if ((event.target as HTMLElement).closest("[data-step-id]") !== event.currentTarget) return;
-        flow.select(event, step.id);
+        if (event.button !== 0 || (event.target as Element).closest(ACTION_CONTROL)) return;
+        // 入れ子のブロックをつかんだときは、そのブロックだけを動かす。
+        if ((event.target as Element).closest("[data-step-id]") !== event.currentTarget) return;
+        if (event.shiftKey || event.metaKey || event.ctrlKey) {
+          flow.select(event, step.id);
+          return;
+        }
+        // 移動するかどうかが決まるまで選択を保持する（複数選択のドラッグに必要）。
+        flow.grab(event, loc, step.id);
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+          event.preventDefault();
+          event.stopPropagation();
+          flow.nudge(loc, step.id, event.key === "ArrowUp" ? -1 : 1);
+        } else if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          flow.select(event, step.id);
+        }
       }}
       onClick={(event) => {
-        // pointerdown で focus() してもブラウザの既定操作で解除されるので、
-        // クリック終了後に選択したカードへフォーカスを戻す。
-        // 入力欄・ボタンと、ユーザーが文字を範囲選択した場合は妨げない。
-        if ((event.target as HTMLElement).closest("input, select, textarea, button, label, a")) return;
-        if ((event.target as HTMLElement).closest("[data-step-id]") !== event.currentTarget) return;
+        // 入力欄や入れ子のカードの操作は通常どおり動作させる。
+        if ((event.target as Element).closest(ACTION_CONTROL)) return;
+        if ((event.target as Element).closest("[data-step-id]") !== event.currentTarget) return;
         if (window.getSelection()?.toString()) return;
         event.currentTarget.focus({ preventScroll: true });
       }}

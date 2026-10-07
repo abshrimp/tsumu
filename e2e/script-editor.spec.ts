@@ -72,7 +72,7 @@ test("the picker only offers actions that work at that place and closes on Escap
   await expect(page.locator(".se")).toBeVisible();
 });
 
-test("cards are reordered by dragging the handle, into branches too, and Escape cancels", async ({ page }) => {
+test("cards are reordered by dragging the card, into branches too, and Escape cancels", async ({ page }) => {
   for (const key of ["show", "wait", "if", "dialog"]) await addAction(page, key);
   const center = async (selector: string) => {
     // 並べ替えた直後は、カードが新しい位置へ動くアニメーションの途中なので、終わってから測る
@@ -82,12 +82,12 @@ test("cards are reordered by dragging the handle, into branches too, and Escape 
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   };
   const first = (await rootCards(page).first().boundingBox())!;
-  await drag(page, await center('.se-card[data-step-kind="dialog"] > .se-card-head > .se-grip'), { x: first.x + 60, y: first.y + 4 });
+  await drag(page, await center('.se-card[data-step-kind="dialog"] > .se-card-head > .se-ico'), { x: first.x + 60, y: first.y + 4 });
   await expect(page.locator(".se-drop-line")).toBeVisible();
   await page.mouse.up();
   await page.waitForFunction(() => [...document.querySelectorAll('.se-steps[data-list="root"] > .se-card')].map((c) => (c as HTMLElement).dataset.stepKind).join() === "dialog,show,wait,if");
 
-  const from = await center('.se-card[data-step-kind="wait"] > .se-card-head > .se-grip');
+  const from = await center('.se-card[data-step-kind="wait"] > .se-card-head > .se-ico');
   const inside = (await page.locator('.se-card[data-step-kind="if"] .se-branch .se-add').boundingBox())!;
   await drag(page, from, { x: inside.x + 80, y: inside.y + 10 });
   // 選択していなかったカードをつかむと選択が変わるが、持ち上げた状態は保たれる
@@ -96,7 +96,7 @@ test("cards are reordered by dragging the handle, into branches too, and Escape 
   await expect(page.locator('.se-card[data-step-kind="if"] .se-branch .se-card[data-step-kind="wait"]')).toHaveCount(1);
 
   const before = await kinds(page);
-  const grip = await center(".se-card > .se-card-head > .se-grip");
+  const grip = await center(".se-card > .se-card-head > .se-ico");
   await drag(page, grip, { x: grip.x + 10, y: grip.y + 220 });
   await page.keyboard.press("Escape");
   await page.mouse.up();
@@ -106,11 +106,11 @@ test("cards are reordered by dragging the handle, into branches too, and Escape 
 
 test("the same reordering works from the keyboard and the card menu, and is undoable", async ({ page }) => {
   for (const key of ["show", "wait", "dialog"]) await addAction(page, key);
-  const grip = rootCards(page).first().locator("> .se-card-head > .se-grip");
-  await grip.focus();
+  const card = rootCards(page).first();
+  await card.focus();
   await page.keyboard.press("Alt+ArrowDown");
   await expect.poll(() => kinds(page)).toBe("wait,show,dialog");
-  await expect(page.locator(".se-grip:focus")).toHaveCount(1);
+  await expect(page.locator(".se-card:focus")).toHaveCount(1);
 
   await rootCards(page).first().locator("> .se-card-head .se-card-more").click();
   await page.locator(".se-menu button", { hasText: "複製" }).click();
@@ -148,7 +148,7 @@ test("selected cards accept clipboard events without intercepting text fields", 
   await addAction(page, "show");
   await addAction(page, "wait");
   const first = rootCards(page).first();
-  // Hit the card header padding, not the drag-handle button directly below it.
+  // Hit the card border, not an interactive control.
   await first.click({ position: { x: 5, y: 4 } });
   await expect(first).toHaveClass(/is-selected/);
   await expect(first).toBeFocused();
@@ -246,7 +246,7 @@ test("real keyboard shortcuts copy and paste an unset target picker block", asyn
   await unset.focus();
   await page.keyboard.press("ControlOrMeta+c");
   await page.keyboard.press("Escape");
-  await rootCards(page).last().locator("> .se-card-head > .se-grip").focus();
+  await rootCards(page).last().focus();
   await page.keyboard.press("ControlOrMeta+v");
   await expect.poll(() => kinds(page)).toBe("show,show,wait,show");
 

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 動作のカードを、つまみをドラッグして並べ替える。
+ * 動作のカードの操作部品以外をドラッグして並べ替える。
  * つかんだカードそのものを持ち上げて動かし（複製は作らない）、落ちる位置は線で示す。
  * 並びを実際に変えるのは、離したときの1回だけ。
  */
@@ -18,7 +18,7 @@ interface DropTarget {
 
 interface DragState {
   pointerId: number;
-  grip: HTMLElement;
+  surface: HTMLElement;
   card: HTMLElement;
   loc: Loc;
   stepId: string;
@@ -139,7 +139,7 @@ export function useStepDrag(deps: StepDragDeps) {
     drag.current = null;
     cancelAnimationFrame(state.frame);
     const { rootRef, flowRef, lineRef, getScripts, commit, captureLayout, announce } = latest.current;
-    if (state.grip.hasPointerCapture(state.pointerId)) state.grip.releasePointerCapture(state.pointerId);
+    if (state.surface.hasPointerCapture(state.pointerId)) state.surface.releasePointerCapture(state.pointerId);
     const scripts = getScripts();
     const next = drop && state.started && state.target
       ? moveSteps(scripts, state.loc, state.ids, state.target) : scripts;
@@ -196,13 +196,12 @@ export function useStepDrag(deps: StepDragDeps) {
   const grab = useCallback((event: React.PointerEvent, loc: Loc, stepId: string) => {
     // 主ボタンだけ。すでに別のポインターで動かしている間は、新しく始めない。
     if (event.button !== 0 || drag.current) return;
-    const grip = event.currentTarget as HTMLElement;
-    const card = grip.closest<HTMLElement>("[data-step-id]");
-    if (!card) return;
+    const card = event.currentTarget as HTMLElement;
+    if (!card.matches("[data-step-id]")) return;
     event.stopPropagation();
-    grip.setPointerCapture(event.pointerId);
+    card.setPointerCapture(event.pointerId);
     drag.current = {
-      pointerId: event.pointerId, grip, card, loc, stepId, ids: new Set([stepId]),
+      pointerId: event.pointerId, surface: card, card, loc, stepId, ids: new Set([stepId]),
       started: false, startX: event.clientX, startY: event.clientY,
       x: event.clientX, y: event.clientY, startScroll: 0, target: null, frame: 0, lastFrame: 0,
     };
@@ -220,20 +219,20 @@ export function useStepDrag(deps: StepDragDeps) {
     const end = (drop: boolean) => (up: PointerEvent) => {
       const state = drag.current;
       if (state && up.pointerId !== state.pointerId) return;
-      grip.removeEventListener("pointermove", onMove);
-      grip.removeEventListener("pointerup", onUp);
-      grip.removeEventListener("pointercancel", onCancel);
-      grip.removeEventListener("lostpointercapture", onCancel);
+      card.removeEventListener("pointermove", onMove);
+      card.removeEventListener("pointerup", onUp);
+      card.removeEventListener("pointercancel", onCancel);
+      card.removeEventListener("lostpointercapture", onCancel);
       const moved = finish(drop);
       // 動かさずに離したら、そのカードを選ぶ
       if (!moved && drop) latest.current.setSelected([stepId]);
     };
     const onUp = end(true);
     const onCancel = end(false);
-    grip.addEventListener("pointermove", onMove);
-    grip.addEventListener("pointerup", onUp);
-    grip.addEventListener("pointercancel", onCancel);
-    grip.addEventListener("lostpointercapture", onCancel);
+    card.addEventListener("pointermove", onMove);
+    card.addEventListener("pointerup", onUp);
+    card.addEventListener("pointercancel", onCancel);
+    card.addEventListener("lostpointercapture", onCancel);
   }, [finish, follow, start]);
 
   // 画面を閉じるときに、動かしている途中の見た目を残さない
