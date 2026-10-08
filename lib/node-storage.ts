@@ -168,7 +168,6 @@ export function nodeAssetStore(): KVLikeNamespace | null {
 function fileStore(dir: string, fs: FsPromises): KVLikeNamespace {
   const dataDir = `${dir}/assets/data`;
   const metaDir = `${dir}/assets/meta`;
-  const ready = Promise.all([fs.mkdir(dataDir, { recursive: true }), fs.mkdir(metaDir, { recursive: true })]);
 
   /** 書きかけのファイルを読まれないよう、一時ファイルに書いてから置き換える */
   const writeAtomic = async (path: string, data: Uint8Array | string) => {
@@ -177,7 +176,6 @@ function fileStore(dir: string, fs: FsPromises): KVLikeNamespace {
     await fs.rename(tmp, path);
   };
   const readData = async (key: string): Promise<Uint8Array | null> => {
-    await ready;
     try {
       return await fs.readFile(`${dataDir}/${assetFileName(key)}`);
     } catch (e) {
@@ -197,8 +195,8 @@ function fileStore(dir: string, fs: FsPromises): KVLikeNamespace {
 
   return {
     async put(key, value, options) {
-      await ready;
       const name = assetFileName(key);
+      await Promise.all([fs.mkdir(dataDir, { recursive: true }), fs.mkdir(metaDir, { recursive: true })]);
       await writeAtomic(`${dataDir}/${name}`, typeof value === "string" ? value : new Uint8Array(value));
       await writeAtomic(`${metaDir}/${name}`, JSON.stringify(options?.metadata ?? {}));
     },
@@ -212,7 +210,6 @@ function fileStore(dir: string, fs: FsPromises): KVLikeNamespace {
       return { value: new Blob([toArrayBuffer(bytes)]).stream(), metadata: await readMeta(key) };
     },
     async delete(key) {
-      await ready;
       const name = assetFileName(key);
       await fs.rm(`${dataDir}/${name}`, { force: true });
       await fs.rm(`${metaDir}/${name}`, { force: true });

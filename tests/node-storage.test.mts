@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -159,6 +159,22 @@ test("アセットをファイルに保存・配信・削除できる", withData
   await store.delete("assets/a/b.svg");
   assert.equal(await store.get("assets/a/b.svg", { type: "arrayBuffer" }), null);
   assert.deepEqual(await store.getWithMetadata("missing", { type: "stream" }), { value: null, metadata: null });
+}));
+
+test("file assets initialize on upload and retry after the directory becomes available", withDataDir(async (dir) => {
+  const store = nodeAssetStore()!;
+  const root = join(dir, "assets");
+  const key = "assets/notes.txt";
+
+  assert.equal(await store.get(key, { type: "arrayBuffer" }), null);
+  await store.delete(key);
+  assert.equal(existsSync(root), false);
+
+  writeFileSync(root, "temporarily occupied");
+  await assert.rejects(store.put(key, "notes"));
+  rmSync(root);
+  await store.put(key, "notes");
+  assert.equal(new TextDecoder().decode((await store.get(key, { type: "arrayBuffer" }))!), "notes");
 }));
 
 test("アセットのキーはフォルダの外を指せない", () => {
