@@ -44,3 +44,19 @@ test("page kinds search only the content available in the editor", () => {
     assert.deepEqual(searchSiteBody(site, "Imported").map(hit => hit.nodeId), page.rawHtml ? [null] : []);
   }
 });
+
+test("raw HTML search reads body text, including entities and words spanning inline markup", () => {
+  const page = {
+    ...doc.pages.html,
+    rawHtml: '<title>Metadata only</title><main><p title="a > b">Tsu<strong>mu</strong> &amp; Co</p>' +
+      '<p>News<br>today</p><!-- Comment only --><template>Template only</template><i hidden>Hidden only</i></main>',
+  };
+  const site = { ...doc, pages: { html: page }, pageOrder: ["html"] };
+  assert.deepEqual(searchSiteBody(site, "Tsumu & Co News today").map(hit => hit.excerpt), ["Tsumu & Co News today"]);
+  for (const query of ["Metadata only", "Comment only", "Template only", "Hidden only", "CoNews", "a > b"]) {
+    assert.deepEqual(searchSiteBody(site, query), []);
+  }
+  page.rawHtml = "<p>Updated body</p>";
+  assert.equal(searchSiteBody(site, "Tsumu").length, 0);
+  assert.equal(searchSiteBody(site, "Updated body").length, 1);
+});
