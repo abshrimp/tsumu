@@ -86,6 +86,8 @@ export function cssValue(
   assetNames: Map<string, string>
 ): string {
   if (prop === "fontFamily") return fontFamilyCss(doc, value);
+  // A CSS URL occurs in a function or a quoted @import. Plain declarations need no asset lookup.
+  if (prop !== "rawHtml" && (assetNames.size === 0 || !/[(@]/.test(value))) return value;
   const sources = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
     const name = assetNames.get(asset.id);
