@@ -77,7 +77,7 @@ Tsumu から公開（push）するには、公開先の GitHub リポジトリ�
 エディタは **Cloudflare Workers**・**Node.js**・**Docker** で動作します。サーバーに保存するには、Cloudflare では D1・Durable Objects・KV、Node.js・Docker では `TSUMU_DATA_DIR` を設定します。サーバーの保存先がない場合、編集データはブラウザ内だけに保存されます。
 
 > [!IMPORTANT]
-> エディタをインターネットに公開する前に、[Google ログイン](docs/user-guide.ja.md#googleログイン)を設定してください。ログインが未設定の場合、`npm run dev` または `ALLOW_ANONYMOUS=true` で起動すると、アクセスできる人は誰でも編集でき、GitHub トークンが設定されていれば公開もできます。
+> エディタをインターネットに公開する前に、[Google ログイン](docs/user-guide.ja.md#googleログイン)を設定してください。ログイン未設定の `npm run dev` は、既定で `localhost` などのループバック宛ての匿名アクセスを受け付けます。`ALLOW_ANONYMOUS=true` を設定すると他のホスト名からも開けます。その場合、アクセスできる人は誰でも編集でき、GitHub の公開先が設定されていれば公開もできます。
 
 デプロイ手順、認証、出力形式、環境変数、バックアップ、制限事項は[詳細ガイド](docs/user-guide.ja.md)を参照してください。
 

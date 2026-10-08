@@ -33,7 +33,7 @@ Local development works with no environment variables. In production, configure 
 | Setting | Without it | With it |
 |---|---|---|
 | Server storage (D1, Durable Objects and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and images are saved in the browser. Only that browser can see them, and each image is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each image can be up to 25 MB. |
-| Google sign-in (`AUTH_*`) | The editor doesn't open; it shows how to set sign-in up instead. With `ALLOW_ANONYMOUS=true`, or under `npm run dev`, it opens without sign-in — and then **anyone with the URL can edit and publish**. | Only the Google accounts you allow can use the editor. |
+| Google sign-in (`AUTH_*`) | Local development accepts anonymous requests addressed to loopback hosts. Production requires sign-in unless you explicitly set `ALLOW_ANONYMOUS=true`. | Only the Google accounts you allow can use the editor. |
 | `GITHUB_TOKEN` | **Publish** explains what to set up. Exporting code as a zip still works. | Publishes to the repository set in each site's settings. |
 | `AI_*` | No **Ask AI** button. | **Ask AI** is available. |
 
@@ -56,8 +56,8 @@ Open http://localhost:3000 to see the home screen, which lists your sites. Click
 A few things to know about `npm run dev`:
 
 - It emulates Cloudflare's D1 and KV locally, based on `wrangler.jsonc`. Data goes to `.wrangler/state`, even if `TSUMU_DATA_DIR` is set.
-- With Google sign-in unconfigured, it allows anonymous access. To use the same mode under `npm run preview`, put `ALLOW_ANONYMOUS=true` in `.dev.vars`.
-- In that anonymous mode it only answers requests addressed to `localhost`, `127.0.0.1` or `[::1]`, so a web page can't reach it by pointing its own domain at your machine (DNS rebinding). To open it from another device or host name, set `ALLOW_ANONYMOUS=true`, which lets anyone who can reach the server edit and publish.
+- With Google sign-in unconfigured, the default development server checks the request hostname. It accepts `localhost`, names ending in `.localhost`, IPv4 loopback addresses in `127.0.0.0/8`, and `[::1]`, with or without a port.
+- For anonymous LAN testing, set `ALLOW_ANONYMOUS=true` in `.env.local` and restart the development server. For a local Worker preview, put the flag in `.dev.vars`. The explicit flag permits other hostnames, so anyone who can reach the instance can edit and use its configured publish target.
 - Collaborators' changes arrive through Server-Sent Events (SSE), because WebSocket is not available. If SSE is also unavailable, the editor falls back to polling every 10 seconds. To try the real-time WebSocket connection, use `npm run preview`.
 
 ## Deploying the editor

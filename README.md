@@ -77,7 +77,7 @@ To push a site from Tsumu, create a GitHub repository, give a fine-grained token
 The editor runs on **Cloudflare Workers**, **Node.js** or **Docker**. For persistent storage, configure D1, Durable Objects and KV on Cloudflare, or `TSUMU_DATA_DIR` on Node.js/Docker. Without server storage, site data is stored only in the browser.
 
 > [!IMPORTANT]
-> Configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. When sign-in is unconfigured, `npm run dev` and `ALLOW_ANONYMOUS=true` both grant anonymous access. Anyone who can reach that instance can edit and, if a GitHub token is configured, publish.
+> Configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. With sign-in unconfigured, `npm run dev` accepts anonymous requests addressed to loopback hosts by default. Setting `ALLOW_ANONYMOUS=true` also permits other hostnames. Anyone who can reach that instance can then edit and, with a GitHub publish target configured, publish.
 
 See the [detailed guide](docs/user-guide.md) for deployment commands, authentication, publishing formats, environment variables, backups and limitations.
 
