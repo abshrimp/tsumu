@@ -14,9 +14,39 @@ function normalize(text: string): string {
   return text.normalize("NFKC").toLocaleLowerCase();
 }
 
-function excerpt(text: string, at: number, length: number): string {
-  const start = Math.max(0, at - 32);
-  const end = Math.min(text.length, at + length + 84);
+/** Find a source boundary by measuring complete prefixes, so adjacent characters can combine. */
+function sourceOffset(text: string, normalizedOffset: number, guess: number): number {
+  let low = 0;
+  let high = text.length;
+  let probe = Math.max(0, Math.min(guess, high));
+  while (low < high) {
+    const length = normalize(text.slice(0, probe)).length;
+    if (length === normalizedOffset) return probe;
+    if (length < normalizedOffset) low = probe + 1;
+    else high = probe;
+    probe = Math.floor((low + high) / 2);
+  }
+  return low;
+}
+
+function excerpt(text: string, normalized: string, at: number, needle: string): string {
+  const length = needle.length;
+  let start = Math.max(0, at - 32);
+  let end = Math.min(text.length, at + length + 84);
+  // Unchanged text and ASCII case folding preserve offsets. Only remap a cropped, transformed hit.
+  if ((start > 0 || end < text.length) && normalized !== text && /[^\x00-\x7F]/.test(text)) {
+    const remaining = normalized.length - at;
+    const sourceStart = sourceOffset(text, at, at <= remaining ? at : text.length - remaining);
+    start = Math.max(0, sourceStart - 32);
+    end = Math.min(text.length, sourceOffset(text, at + length, sourceStart + length) + 84);
+    // A mark can compose with its base across a run of other marks longer than the excerpt.
+    if (!normalize(text.slice(start, end)).includes(needle)) {
+      const graphemes = new Intl.Segmenter().segment(text);
+      start = graphemes.containing(start)?.index ?? start;
+      const last = graphemes.containing(end - 1);
+      if (last) end = last.index + last.segment.length;
+    }
+  }
   return `${start ? "…" : ""}${text.slice(start, end).replace(/\s+/g, " ").trim()}${end < text.length ? "…" : ""}`;
 }
 
@@ -68,9 +98,10 @@ export function searchSiteBody(doc: SiteDoc, query: string, max = 100): BodySear
     const page = doc.pages[pageId];
     if (!page || page.redirectTo !== undefined || page.rewriteTo !== undefined) continue;
     const add = (nodeId: string | null, nodeName: string, content: string, componentId?: string) => {
-      const at = normalize(content).indexOf(needle);
+      const normalized = normalize(content);
+      const at = normalized.indexOf(needle);
       if (at < 0) return;
-      hits.push({ pageId, pageName: page.name, nodeId, nodeName, componentId, excerpt: excerpt(content, at, needle.length) });
+      hits.push({ pageId, pageName: page.name, nodeId, nodeName, componentId, excerpt: excerpt(content, normalized, at, needle) });
     };
     // Text-based HTML pages are also searchable, but do not have an editable element to select.
     if (page.rawHtml != null) {

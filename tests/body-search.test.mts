@@ -26,6 +26,27 @@ test("text search finds Japanese editable body content across pages in page orde
   assert.match(results[0].excerpt, /公開する本文/);
 });
 
+test("body search excerpts preserve the authored spelling around normalization expansions and contractions", () => {
+  const title = doc.nodes.title;
+  const cases = [
+    ["㍿".repeat(110), "Ｔｓｕｍｕガイド", "tsumuガイド", "後".repeat(300)],
+    ["ｶﾞ".repeat(130), "Ｔｓｕｍｕガイド", "tsumuガイド", "後".repeat(300)],
+    ["İ".repeat(140), "Ｔｓｕｍｕガイド", "tsumuガイド", "後".repeat(300)],
+    ["ㄱㅏ".repeat(140), "Ｔｓｕｍｕガイド", "tsumuガイド", "後".repeat(300)],
+    ["㍿".repeat(100), "ｺﾞ".repeat(180), "ゴ".repeat(180), "ｶﾞ".repeat(120)],
+    ["前".repeat(100), "ａ" + "\u0315".repeat(200) + "\u0301", "á", "後".repeat(300)],
+  ];
+  for (const [prefix, spelling, query, suffix] of cases) {
+    const content = prefix + spelling + suffix;
+    const site = {
+      ...doc, nodes: { ...doc.nodes, title: { ...title, text: { content, heading: 0 as const } } },
+    };
+    const [hit] = searchSiteBody(site, query);
+    assert.ok(hit.excerpt.includes(spelling), hit.excerpt);
+    assert.ok(hit.excerpt.startsWith("…") && hit.excerpt.endsWith("…"));
+  }
+});
+
 test("text search excludes script contents, supports NFKC and bounds results", () => {
   assert.deepEqual(searchSiteBody(doc, "秘密"), []);
   assert.deepEqual(searchSiteBody(doc, ""), []);
