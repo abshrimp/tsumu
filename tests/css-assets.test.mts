@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cssUsesAssetUrl, replaceCssAssetUrls } from "../lib/css-assets";
 import { replaceEmbeddedAsset } from "../lib/assets";
-import { cssValue } from "../lib/generator/css";
+import { createCssValueResolver } from "../lib/generator/css";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
@@ -60,12 +60,15 @@ test("migration and export do not corrupt distinct prefix-sharing asset referenc
     content: `"${data}"`,
   } } } };
   const doc = { pages: {}, nodes: { box: node }, assets: { a: { id: 'a', name: 'logo.svg', width: 1, height: 1, dataUrl: data } } } as unknown as SiteDoc;
+  const names = new Map([['a', 'logo.svg']]);
+  const resolveEmbedded = createCssValueResolver(doc, names);
   const original = node.styles.base.default.backgroundImage;
-  assert.equal(cssValue(doc, 'backgroundImage', original, new Map([['a', 'logo.svg']])), `url(${data}BBBB), image-set("${target}" 1x)`);
+  assert.equal(resolveEmbedded('backgroundImage', original), `url(${data}BBBB), image-set("${target}" 1x)`);
   replaceEmbeddedAsset(doc, 'a', 'assets/logo.svg');
   assert.equal(node.styles.base.default.backgroundImage, `url(${data}BBBB), image-set("${source}" 1x)`);
   assert.equal(node.styles.base.default.content, `"${data}"`);
-  assert.equal(cssValue(doc, 'backgroundImage', `url(${source}.backup), url(${source}#mark)`, new Map([['a', 'logo.svg']])), `url(${source}.backup), url(${target}#mark)`);
+  const resolveUploaded = createCssValueResolver(doc, names);
+  assert.equal(resolveUploaded('backgroundImage', `url(${source}.backup), url(${source}#mark)`), `url(${source}.backup), url(${target}#mark)`);
 });
 
 test("export preserves imported ZIP queries without replacing longer CSS URLs or ordinary strings", () => {
@@ -73,11 +76,12 @@ test("export preserves imported ZIP queries without replacing longer CSS URLs or
     a: { id: 'a', name: 'logo.svg', path: 'assets/logo.svg', width: 1, height: 1 },
   } } as unknown as SiteDoc;
   const names = new Map([['a', 'logo.svg']]);
+  const resolveValue = createCssValueResolver(doc, names);
   const value = `image-set("${source}&v=1&theme=dark#mark" 1x), url('${source}.backup&v=2'), url(${source}#icon&part)`;
-  assert.equal(cssValue(doc, 'backgroundImage', value, names),
+  assert.equal(resolveValue('backgroundImage', value),
     `image-set("${target}?v=1&theme=dark#mark" 1x), url('${source}.backup&v=2'), url(${target}#icon&part)`);
-  assert.equal(cssValue(doc, 'content', `"${source}&v=1"`, names), `"${source}&v=1"`);
-  assert.equal(cssValue(doc, 'backgroundImage', `url('${source}&amp;v=1&amp;theme=dark#mark')`, names),
+  assert.equal(resolveValue('content', `"${source}&v=1"`), `"${source}&v=1"`);
+  assert.equal(resolveValue('backgroundImage', `url('${source}&amp;v=1&amp;theme=dark#mark')`),
     `url('${target}?v=1&amp;theme=dark#mark')`);
   // 書き出しでのクエリの変換を、使用箇所の判定や削除にまで広げない。
   assert.equal(cssUsesAssetUrl(`url('${source}&v=1')`, source), false);

@@ -15,7 +15,7 @@ import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
-import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
+import { rewriteHtmlAssetUrls, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
 import { headHtmlToJsx } from "./generator/head";
 import { deferRunnableScripts } from "./generator/defer-scripts";
 import { codeLiteral } from "./generator/code-literal";
@@ -165,7 +165,7 @@ export function generateProject(
       const path = dir ? `app/${dir}/route.ts` : "app/route.ts";
       const source = htmlZipSource(page.rawHtml, page.htmlZip, doc.assets,
         asset => htmlZipExportSource(asset, assetNames));
-      const htmlWithAssets = rawHtmlWithBodyStyles(doc, page, cssValue(doc, "rawHtml", source, assetNames), assetNames, target);
+      const htmlWithAssets = rawHtmlWithBodyStyles(doc, page, rewriteHtmlAssetUrls(doc, source, assetNames), assetNames, target);
       const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets,
         asset => htmlZipExportUrl(asset, assetNames));
       files[path] = `const html = ${JSON.stringify(htmlWithScriptAssets)};

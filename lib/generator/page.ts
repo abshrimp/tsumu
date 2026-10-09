@@ -32,7 +32,7 @@ import {
   hasListsInside,
 } from "./render-helpers";
 import { renderNode, type JsxContext } from "./render";
-import { cssValue } from "./css";
+import { rewriteHtmlAssetUrls } from "./css";
 import { RUNNABLE_SCRIPT } from "./templates";
 import { deferRunnableScripts } from "./defer-scripts";
 import { codeLiteral } from "./code-literal";
@@ -220,9 +220,9 @@ export function generatePageFile(
   // 取り込んだ HTML の断片は、Tsumu の一時的な保存先のアセットを参照していることがある。
   // デプロイした後も動くよう、そのパスを書き出したアセットに書き換える。
   const topHtml = page.customTopHtml?.trim()
-    ? cssValue(doc, "rawHtml", page.customTopHtml.trim(), ctx.assetNames) : "";
+    ? rewriteHtmlAssetUrls(doc, page.customTopHtml.trim(), ctx.assetNames) : "";
   const endHtml = page.customEndHtml?.trim()
-    ? cssValue(doc, "rawHtml", page.customEndHtml.trim(), ctx.assetNames) : "";
+    ? rewriteHtmlAssetUrls(doc, page.customEndHtml.trim(), ctx.assetNames) : "";
   const pageScripts = nf ? "" : scriptsAttr(ctx, { scripts: page.pageScripts }, plan.serverIds);
   // 親はすべての子孫を含んでいるため、その値は1回だけ出力する。
   const fetchedListTargets = [...seedPaths].filter(path => {

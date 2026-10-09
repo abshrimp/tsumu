@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { resolveZipReference, zipDependency } from "../lib/zip-references";
-import { cssValue } from "../lib/generator/css";
+import { createCssValueResolver, rewriteHtmlAssetUrls } from "../lib/generator/css";
 import { createInitialDoc } from "../lib/presets";
 
 const proxy = "/api/assets/file?path=assets%2Flogo.svg";
@@ -33,9 +33,10 @@ test("exported ZIP assets retain queries in CSS and serialized HTML", () => {
   const doc = createInitialDoc();
   doc.assets.logo = { id: "logo", name: "logo.svg", path: "assets/logo.svg", width: 10, height: 10 };
   const names = new Map([["logo", "logo.svg"]]);
-  assert.equal(cssValue(doc, "backgroundImage", `url('${proxy}&v=1#icon')`, names), "url('/assets/logo.svg?v=1#icon')");
-  assert.equal(cssValue(doc, "rawHtml", `<img src="${proxy}&amp;v=1&amp;theme=dark#icon">`, names), '<img src="/assets/logo.svg?v=1&amp;theme=dark#icon">');
-  assert.equal(cssValue(doc, "rawHtml", `<img src="${proxy}#icon">`, names), '<img src="/assets/logo.svg#icon">');
+  const resolveValue = createCssValueResolver(doc, names);
+  assert.equal(resolveValue("backgroundImage", `url('${proxy}&v=1#icon')`), "url('/assets/logo.svg?v=1#icon')");
+  assert.equal(rewriteHtmlAssetUrls(doc, `<img src="${proxy}&amp;v=1&amp;theme=dark#icon">`, names), '<img src="/assets/logo.svg?v=1&amp;theme=dark#icon">');
+  assert.equal(rewriteHtmlAssetUrls(doc, `<img src="${proxy}#icon">`, names), '<img src="/assets/logo.svg#icon">');
 });
 
 test("archive directory names are literal, not URL-encoded", () => {

@@ -16,7 +16,7 @@ import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { serializePageDataPlan } from "./browser-data";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
-import { cssValue } from "./css";
+import { rewriteHtmlAssetUrls } from "./css";
 
 type NativeLanguage = "typescript" | "javascript";
 type NativeView = "vue" | "sveltekit";
@@ -102,7 +102,7 @@ function common(ctx: Context, node: DocNode, className: string): string {
 function rawNode(ctx: Context, html: string, attrs = ""): string {
   const name = "rawBlock" + ctx.code.length;
   // 埋め込みの HTML や SVG も、通常のメディアのノードと同じ書き出したリソースを使う。
-  ctx.code.push("const " + name + " = " + q(cssValue(ctx.doc, "rawHtml", html, ctx.assets)) + ";");
+  ctx.code.push("const " + name + " = " + q(rewriteHtmlAssetUrls(ctx.doc, html, ctx.assets)) + ";");
   if (ctx.vue) return "<div" + attrs + ' v-html="' + name + '"></div>';
   return "<div" + attrs + ">{@html " + name + "}</div>";
 }

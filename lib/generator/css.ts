@@ -79,15 +79,7 @@ function htmlAssetQuerySuffix(suffix: string): string {
     ? "?" + suffix.slice(entity.length) : suffix;
 }
 
-export function cssValue(
-  doc: SiteDoc,
-  prop: string,
-  value: string,
-  assetNames: Map<string, string>
-): string {
-  if (prop === "fontFamily") return fontFamilyCss(doc, value);
-  // A CSS URL occurs in a function or a quoted @import. Plain declarations need no asset lookup.
-  if (prop !== "rawHtml" && (assetNames.size === 0 || !/[(@]/.test(value))) return value;
+function buildAssetSources(doc: SiteDoc, assetNames: Map<string, string>, format: "css" | "html") {
   const sources = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
     const name = assetNames.get(asset.id);
@@ -97,61 +89,75 @@ export function cssValue(
       : asset.dataUrl;
     // 外部のスクリプトファイルには元の ZIP のディレクトリを使い、サイトを書き出した後も
     // 相対的な ESM の import が解決できるようにする。
-    const target = prop === "rawHtml" && isZipJavascript(asset)
+    const target = format === "html" && isZipJavascript(asset)
       ? importedAssetUrl(asset) || `/assets/${name}` : `/assets/${name}`;
     if (source) sources.set(source, target);
     if (zipStylesheet(asset)) sources.set(zipCssUrl(asset.id), `/assets/${name}`);
   }
-  if (prop === "rawHtml") {
-    // HTML の ZIP の参照は CSS の字句ではないため、既存の HTML の書き出しの処理をそのまま使う。
-    const output = value.replace(/tsumu-zip-css:([A-Za-z0-9%._~-]+)/g, (_token, encoded: string) => {
-      let id = "";
-      try { id = decodeURIComponent(encoded); } catch { /* explicit error below */ }
-      const name = assetNames.get(id);
-      if (!name || !zipStylesheet(doc.assets[id])) throw new Error(tr("The ZIP stylesheet data could not be read. Import the ZIP again."));
-      return `/assets/${name}`;
-    });
-    const rewrite = (text: string, entities = true) => {
-      for (const [source, target] of sources) {
-        if (source.startsWith("tsumu-zip-css:")) continue;
-        text = text.split(source).map((part, index) =>
-          index && source.startsWith("/api/assets/file?path=")
-            ? entities ? htmlAssetQuerySuffix(part) : part.replace(/^&(?:amp;)?/, "?")
-            : part
-        ).join(target);
-      }
-      return text;
-    };
-    // script・style などの本文では、&quot; も文字どおりのクエリになり得る。
-    // 属性の中の引用符や > を保ったまま本文を分け、文字参照の扱いだけを切り替える。
-    // title や textarea の中のタグのような文字列も、独立したタグとして解釈しない。
-    // <style-card> などのカスタム要素を取り違えないよう、単語の境界ではなくタグ名の終わりで判定する。
-    const tokens = /<!--[\s\S]*?(?:-->|$)|(<(script|style|xmp|iframe|noembed|noframes|title|textarea)(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>|$)|<[A-Za-z][\w:-]*\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
-    let result = "";
-    let from = 0;
-    for (const match of output.matchAll(tokens)) {
-      result += rewrite(output.slice(from, match.index));
-      result += match[1]
-        ? rewrite(match[1]) + rewrite(match[3], /^(?:title|textarea)$/i.test(match[2])) + match[4]
-        : rewrite(match[0], !match[0].startsWith("<!--"));
-      from = match.index + match[0].length;
+  return sources;
+}
+
+type CssValueResolver = (prop: string, value: string) => string;
+
+export function createCssValueResolver(doc: SiteDoc, assetNames: Map<string, string>): CssValueResolver {
+  let sources: Map<string, string> | undefined;
+  return (prop, value) => {
+    if (prop === "fontFamily") return fontFamilyCss(doc, value);
+    // A CSS URL occurs in a function or a quoted @import.
+    if (!assetNames.size || !/[(@]/.test(value)) return value;
+    sources ??= buildAssetSources(doc, assetNames, "css");
+    return replaceCssAssetUrls(value, sources, { proxyQueries: true });
+  };
+}
+
+export function rewriteHtmlAssetUrls(doc: SiteDoc, value: string, assetNames: Map<string, string>): string {
+  const sources = buildAssetSources(doc, assetNames, "html");
+  // HTML の ZIP の参照は CSS の字句ではないため、既存の HTML の書き出しの処理をそのまま使う。
+  const output = value.replace(/tsumu-zip-css:([A-Za-z0-9%._~-]+)/g, (_token, encoded: string) => {
+    let id = "";
+    try { id = decodeURIComponent(encoded); } catch { /* explicit error below */ }
+    const name = assetNames.get(id);
+    if (!name || !zipStylesheet(doc.assets[id])) throw new Error(tr("The ZIP stylesheet data could not be read. Import the ZIP again."));
+    return `/assets/${name}`;
+  });
+  const rewrite = (text: string, entities = true) => {
+    for (const [source, target] of sources) {
+      if (source.startsWith("tsumu-zip-css:")) continue;
+      text = text.split(source).map((part, index) =>
+        index && source.startsWith("/api/assets/file?path=")
+          ? entities ? htmlAssetQuerySuffix(part) : part.replace(/^&(?:amp;)?/, "?")
+          : part
+      ).join(target);
     }
-    return result + rewrite(output.slice(from));
+    return text;
+  };
+  // script・style などの本文では、&quot; も文字どおりのクエリになり得る。
+  // 属性の中の引用符や > を保ったまま本文を分け、文字参照の扱いだけを切り替える。
+  // title や textarea の中のタグのような文字列も、独立したタグとして解釈しない。
+  // <style-card> などのカスタム要素を取り違えないよう、単語の境界ではなくタグ名の終わりで判定する。
+  const tokens = /<!--[\s\S]*?(?:-->|$)|(<(script|style|xmp|iframe|noembed|noframes|title|textarea)(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>|$)|<[A-Za-z][\w:-]*\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+  let result = "";
+  let from = 0;
+  for (const match of output.matchAll(tokens)) {
+    result += rewrite(output.slice(from, match.index));
+    result += match[1]
+      ? rewrite(match[1]) + rewrite(match[3], /^(?:title|textarea)$/i.test(match[2])) + match[4]
+      : rewrite(match[0], !match[0].startsWith("<!--"));
+    from = match.index + match[0].length;
   }
-  return replaceCssAssetUrls(value, sources, { proxyQueries: true });
+  return result + rewrite(output.slice(from));
 }
 
 function ruleFor(
-  doc: SiteDoc,
+  resolveValue: CssValueResolver,
   selector: string,
   map: StyleMap,
-  assetNames: Map<string, string>,
   indent = ""
 ): string {
   const body = Object.entries(map)
     .flatMap(([key, value]) => {
       if (!safeCssPropertyName(key) || !safeCssDeclarationValue(value)) return [];
-      const css = safeCssDeclaration(key, cssValue(doc, key, value, assetNames));
+      const css = safeCssDeclaration(key, resolveValue(key, value));
       return css ? [`${indent}  ${css}`] : [];
     })
     .join("\n");
@@ -163,6 +169,7 @@ export function generateSiteCss(
   classNames: Map<string, string>,
   assetNames: Map<string, string>
 ): string {
+  const resolveValue = createCssValueResolver(doc, assetNames);
   const blocks: string[] = [];
   // ブレークポイントごとのルール（サイトの設定で追加・削除できる）
   const mediaBlocks: Record<Breakpoint, string[]> = Object.fromEntries(
@@ -184,10 +191,9 @@ export function generateSiteCss(
       const map = { ...(page.bodyStyles?.[bp]?.default ?? {}) };
       if (!Object.keys(map).length) continue;
       const rule = ruleFor(
-        doc,
+        resolveValue,
         selector,
         map,
-        assetNames,
         bp === "base" ? "" : "  "
       );
       if (bp === "base") blocks.push(rule);
@@ -259,10 +265,9 @@ export function generateSiteCss(
         // 入力欄のプレースホルダーとファイル選択ボタン（擬似要素）のスタイルは、専用のルールに分ける
         for (const part of extractPartStyles(map)) {
           const rule = ruleFor(
-            doc,
+            resolveValue,
             part.selector(`.${cls}${suffix}`),
             part.map,
-            assetNames,
             bp === "base" ? "" : "  "
           );
           if (bp === "base") blocks.push(rule);
@@ -273,10 +278,9 @@ export function generateSiteCss(
         if (selMap) {
           const base = `.${cls}${suffix}`;
           const rule = ruleFor(
-            doc,
+            resolveValue,
             `${base}::selection, ${base} *::selection`,
             selMap,
-            assetNames,
             bp === "base" ? "" : "  "
           );
           if (bp === "base") blocks.push(rule);
@@ -294,7 +298,7 @@ export function generateSiteCss(
             const key = declaration.slice(0, colon).trim();
             const value = declaration.slice(colon + 1).trim();
             if (!safeCssPropertyName(key) || !safeCssDeclarationValue(value)) return [];
-            const css = safeCssDeclaration(key, cssValue(doc, "customCss", value, assetNames));
+            const css = safeCssDeclaration(key, resolveValue("customCss", value));
             return css ? [css] : [];
           }),
           ...(isBaseDefault ? motionDecls : []),
@@ -302,10 +306,9 @@ export function generateSiteCss(
         if (!Object.keys(map).length && !extraDecls.length) continue;
         const selector = `.${cls}${suffix}`;
         let rule = ruleFor(
-          doc,
+          resolveValue,
           selector,
           map,
-          assetNames,
           bp === "base" ? "" : "  "
         );
         if (extraDecls.length) {
@@ -400,6 +403,7 @@ export function rawHtmlWithBodyStyles(
   assetNames: Map<string, string>,
   target: PublishTarget
 ): string {
+  const resolveValue = createCssValueResolver(doc, assetNames);
   const base: string[] = [];
   const responsive: string[] = [];
   if (page.htmlBackground) {
@@ -412,7 +416,7 @@ export function rawHtmlWithBodyStyles(
       map.height ??= "auto";
     }
     if (!Object.keys(map).length) continue;
-    const rule = ruleFor(doc, "body", map, assetNames, bp === "base" ? "" : "  ");
+    const rule = ruleFor(resolveValue, "body", map, bp === "base" ? "" : "  ");
     if (bp === "base") base.push(rule);
     else {
       responsive.push(

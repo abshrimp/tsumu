@@ -10,7 +10,7 @@ import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetUrl, isZipJavascript } from "./imported-assets";
-import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
+import { rewriteHtmlAssetUrls, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
 import { htmlZipElements, htmlZipSource } from "../html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "../html-zip-script-assets";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
@@ -331,12 +331,12 @@ function render(ctx: Context, id: string, top: boolean): string {
         attr("fetchpriority", im.priority ? "high" : undefined) + ">";
     }
     if (n.type === "code" && n.code) {
-      const html = cssValue(ctx.doc, "rawHtml", n.code.html, ctx.assets);
+      const html = rewriteHtmlAssetUrls(ctx.doc, n.code.html, ctx.assets);
       return "<div" + commonAttrs + ' data-raw="">' +
         rewriteRootUrls(html, ctx.prefix, ctx.assetSources) + "</div>";
     }
     if (n.type === "icon" && n.icon) {
-      const html = cssValue(ctx.doc, "rawHtml", n.icon.svg, ctx.assets);
+      const html = rewriteHtmlAssetUrls(ctx.doc, n.icon.svg, ctx.assets);
       return "<span" + commonAttrs + ' data-raw="" aria-hidden="true">' +
         rewriteRootUrls(html, ctx.prefix, ctx.assetSources) + "</span>";
     }
@@ -553,7 +553,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
       // 直列化した TypeScript はフレームワークの出力で、ページのデータの元ではない。
       const source = htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
         asset => htmlZipExportSource(asset, assets));
-      const html = rawHtmlWithBodyStyles(normalized, page, cssValue(normalized, "rawHtml", source, assets), assets, target);
+      const html = rawHtmlWithBodyStyles(normalized, page, rewriteHtmlAssetUrls(normalized, source, assets), assets, target);
       const base = page.htmlZip && standaloneZipBase(html, path);
       const assetPrefix = base?.prefix ?? prefix;
       let htmlWithScriptAssets = rewriteHtmlZipScriptUrls(html, page.htmlZip, normalized.assets, asset => {

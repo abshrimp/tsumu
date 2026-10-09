@@ -254,13 +254,13 @@ test("import, delete-unused, delete dependency, undo and redo preserve the style
 
 
 test("export resolves complete internal CSS tokens, not asset-ID prefixes", async () => {
-  const { cssValue } = await import("../lib/generator/css");
+  const { rewriteHtmlAssetUrls } = await import("../lib/generator/css");
   const doc = createInitialDoc();
   doc.assets = record([sheet("a", "a.css", "a{}"), sheet("ab", "ab.css", "b{}")]);
   const names = new Map([["a", "first.css"], ["ab", "second.css"]]);
   const html = `<link href="${zipCssUrl("ab")}?v=1&amp;x=2#theme"><link href="${zipCssUrl("a")}#other">`;
-  assert.equal(cssValue(doc, "rawHtml", html, names), '<link href="/assets/second.css?v=1&amp;x=2#theme"><link href="/assets/first.css#other">');
-  assert.throws(() => cssValue(doc, "rawHtml", '<link href="tsumu-zip-css:abc">', names), /CSS|stylesheet/i);
+  assert.equal(rewriteHtmlAssetUrls(doc, html, names), '<link href="/assets/second.css?v=1&amp;x=2#theme"><link href="/assets/first.css#other">');
+  assert.throws(() => rewriteHtmlAssetUrls(doc, '<link href="tsumu-zip-css:abc">', names), /CSS|stylesheet/i);
 });
 
 

@@ -5,7 +5,7 @@ import { transformSync } from "esbuild";
 import { assetSrc } from "../lib/assets";
 import { cssAssetReferences } from "../lib/css-assets";
 import { generateProject } from "../lib/generator";
-import { cssValue } from "../lib/generator/css";
+import { rewriteHtmlAssetUrls } from "../lib/generator/css";
 import { applyPagePayload, buildPagePayload } from "../lib/page-transfer";
 import type { Asset, SiteDoc } from "../lib/types";
 
@@ -18,7 +18,7 @@ const fixture = (html: string, item = asset): SiteDoc => ({
   siteName: "HTML assets", nodes: {}, assets: { [item.id]: item }, pageOrder: ["p"],
   pages: { p: { id: "p", name: "Home", slug: "", title: "", description: "", children: [], rawHtml: html } },
 });
-const rewrite = (html: string) => cssValue(fixture(html), "rawHtml", html, names);
+const rewrite = (html: string) => rewriteHtmlAssetUrls(fixture(html), html, names);
 const inline = (url: string, quote = "&quot;") => `<div style="background-image:url(${quote}${url}${quote})"></div>`;
 const urls = (html: string) => cssAssetReferences(parse(html).querySelector("div").getAttribute("style")).map((ref) => ref.url);
 
@@ -62,7 +62,7 @@ test("HTML asset export preserves literal quote styles, fragments, embedded asse
   const html = `<style>.hero { background: url("${source}"); }</style>\n${inline(source)}${inline(source + "&amp;v=1")}`;
   assert.equal(rewrite(html), `<style>.hero { background: url("${target}"); }</style>\n${inline(target)}${inline(target + "?v=1")}`);
   const local = { ...asset, path: undefined, dataUrl: "data:image/svg+xml;base64,PHN2Zy8+" };
-  assert.equal(cssValue(fixture(inline(assetSrc(local)), local), "rawHtml", inline(assetSrc(local)), names), inline(target));
+  assert.equal(rewriteHtmlAssetUrls(fixture(inline(assetSrc(local)), local), inline(assetSrc(local)), names), inline(target));
 });
 
 test("raw-text and comment query flags keep their existing export behavior", () => {
