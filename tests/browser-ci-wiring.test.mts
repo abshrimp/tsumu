@@ -15,6 +15,18 @@ test("CI runs the browser discovery regression in its required check job", () =>
     /^      - run: node --import tsx --test e2e\/browser-projects\.check\.mts$/m);
 });
 
+test("E2E shards all consume the production build from their workflow run", () => {
+  const producer = job("e2e-build");
+  const shards = job("e2e-shard");
+  assert.match(producer, /^      - run: npm run build$/m);
+  assert.match(producer, /tar --exclude=\.next\/cache -cf e2e-build\.tar \.next/);
+  assert.match(producer, /actions\/upload-artifact@[^\n]+\n +with:\n +name: e2e-build\n +path: e2e-build\.tar/);
+  assert.match(shards, /^    needs: e2e-build$/m);
+  assert.match(shards, /actions\/download-artifact@[^\n]+\n +with:\n +name: e2e-build/);
+  assert.match(shards, /tar -xf e2e-build\.tar/);
+  assert.doesNotMatch(shards, /^      - run: npm run build$/m);
+});
+
 test("browser jobs use the exact locked Playwright image, with preinstalled engines and dependencies", () => {
   const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
   const version = lock.packages["node_modules/@playwright/test"].version as string;

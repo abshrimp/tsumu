@@ -28,7 +28,9 @@ three projects and retention of the full Chromium suite:
 node --import tsx --test e2e/browser-projects.check.mts
 ```
 
-CI runs this check in the `check` job. The four `e2e-shard` jobs
+CI runs this check in the `check` job. The `e2e-build` job builds the Next.js
+server once and shares it with all four shards. Each shard runs its own server
+and starts with an empty data directory. The four `e2e-shard` jobs
 (`scripts/run-e2e-shard.mjs`) execute the full suite on Chromium, plus only
 the tagged smoke tests on Firefox and WebKit. Each test file is assigned to
 exactly one shard; the durations file only influences load balancing.

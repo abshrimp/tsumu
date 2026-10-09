@@ -66,7 +66,32 @@ jobs:
           echo "Docker runtime did not respond to HTTP requests" >&2
           exit 1
 
+  e2e-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Keep modes, symlinks and hidden runtime files when transferring the build.
+      - run: tar --exclude=.next/cache -cf e2e-build.tar .next
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-build
+          path: e2e-build.tar
+          compression-level: 1
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
   e2e-shard:
+    needs: e2e-build
     runs-on: ubuntu-24.04
     # Match package-lock.json's Playwright release and avoid apt DNS failures
     # during GitHub's ubuntu-latest transition to 26.04.
@@ -87,7 +112,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: npm run locales:sync
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: e2e-build
+      - run: tar -xf e2e-build.tar && rm e2e-build.tar
       - run: node scripts/run-e2e-shard.mjs ${{ matrix.shard }}/4
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
