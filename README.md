@@ -74,7 +74,7 @@ To keep an editable copy with its assets, open **⋯ → Export as zip**, select
 
 To push a site from Tsumu, create a GitHub repository, give a fine-grained token **Contents: Read and write** access to that repository, and set it as `GITHUB_TOKEN`. Select the repository in the site's settings. You can also export a ZIP without a token.
 
-The editor runs on **Cloudflare Workers**, **Node.js** or **Docker**. For persistent storage, configure D1, Durable Objects and KV on Cloudflare, or `TSUMU_DATA_DIR` on Node.js/Docker. Without server storage, site data is stored only in the browser.
+For persistent storage, configure D1, Durable Objects and KV on **Cloudflare Workers**, set `TSUMU_DATA_DIR` on **Node.js**, or mount a volume at `/data` in **Docker**. With browser-only storage, sites stay in the browser that created them. Asset deletion and recovery depend on the [storage backend](docs/user-guide.md#deploying-the-editor).
 
 > [!IMPORTANT]
 > Configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. With sign-in unconfigured, `npm run dev` accepts anonymous requests addressed to loopback hosts by default. Setting `ALLOW_ANONYMOUS=true` also permits other hostnames. Anyone who can reach that instance can then edit and, with a GitHub publish target configured, publish.

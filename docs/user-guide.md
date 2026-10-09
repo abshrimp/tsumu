@@ -64,18 +64,19 @@ A few things to know about `npm run dev`:
 
 Before updating an existing instance, follow the [release-safety checklist](releasing.md) for staging checks, backup/restore validation, rollback and monitoring.
 
-The editor runs in any of three environments. The features are identical; what differs is where data is stored and how collaborators' changes reach you.
+Choose where to run the editor based on how you want to store files, recover deleted assets and collaborate.
 
 | | Cloudflare Workers | Node.js | Docker |
 |---|---|---|---|
 | Storage | D1 (site metadata), SQLite-backed Durable Objects (document rows), Workers KV (images and files) | The `TSUMU_DATA_DIR` folder (SQLite and files) | `/data` in the container (mount a volume) |
+| Removing an uploaded asset | Appears in **Assets → Trash** for recovery or permanent deletion | Deletes the file immediately if no other site uses it | Same as Node.js |
 | Collaborators' changes | Immediately (WebSocket via a Durable Object) | Immediately (Server-Sent Events) | Immediately (Server-Sent Events) |
 | Cost | Runs on the free plan (see [Limits](#limits)) | Your server | Your server |
 | Good for | Running without a server of your own | Running on your machine or an existing server | Managing it as a container |
 
 D1 and local SQLite tables are created on first access. To store editing data on Cloudflare, `wrangler.jsonc` must declare the `DOC_STORE` binding and the SQLite-backed `exports.DocumentRoom`. For the storage model and deployment checks, see [Document storage](durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
 
-On Cloudflare, removing an asset records it in D1 as a garbage-collection candidate, which expires after seven days (`ASSET_GC_GRACE_DAYS`). The daily job at 03:00 JST processes only expired candidates; a separate weekly check (Mondays at 04:00 JST) adds orphaned uploads as candidates. Physical KV deletion is off by default and runs only with `ASSET_GC_ENABLED=true`. Until then the files are listed as **Trash** in the Assets panel, where you can restore one or delete it permanently right away; permanent deletion works without `ASSET_GC_ENABLED`. See [KV asset GC](asset-gc.md) for retention trade-offs and configuration.
+On Cloudflare, files in Trash count toward storage usage. Automatic deletion is off by default. With `ASSET_GC_ENABLED=true`, the daily job at 03:00 JST checks files whose grace period has elapsed (seven days by default, configurable with `ASSET_GC_GRACE_DAYS`). It keeps files still used by a live site. **Delete permanently** is available even when automatic deletion is off. See [KV asset garbage collection](asset-gc.md) for shared references and the weekly orphan check.
 
 ### Common setup
 

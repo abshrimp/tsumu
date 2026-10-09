@@ -74,7 +74,7 @@ npm run dev
 
 Tsumu から公開（push）するには、公開先の GitHub リポジトリを作成し、そのリポジトリに **Contents: Read and write** 権限を持つ fine-grained トークンを `GITHUB_TOKEN` に設定します。サイトの設定で公開先のリポジトリを選択してください。ZIP の書き出しにはトークンは不要です。
 
-エディタは **Cloudflare Workers**・**Node.js**・**Docker** で動作します。サーバーに保存するには、Cloudflare では D1・Durable Objects・KV、Node.js・Docker では `TSUMU_DATA_DIR` を設定します。サーバーの保存先がない場合、編集データはブラウザ内だけに保存されます。
+編集データをサーバーに保存するには、**Cloudflare Workers** では D1・Durable Objects・KV を設定し、**Node.js** では `TSUMU_DATA_DIR` に保存先を指定します。**Docker** では `/data` にボリュームをマウントします。ブラウザ保存の場合、編集データは作成したブラウザ内に保存されます。アセットを削除したときの扱いは[保存先によって異なります](docs/user-guide.ja.md#エディタのデプロイ)。
 
 > [!IMPORTANT]
 > エディタをインターネットに公開する前に、[Google ログイン](docs/user-guide.ja.md#googleログイン)を設定してください。ログイン未設定の `npm run dev` は、既定で `localhost` などのループバック宛ての匿名アクセスを受け付けます。`ALLOW_ANONYMOUS=true` を設定すると他のホスト名からも開けます。その場合、アクセスできる人は誰でも編集でき、GitHub の公開先が設定されていれば公開もできます。
