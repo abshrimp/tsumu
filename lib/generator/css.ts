@@ -1,3 +1,4 @@
+import { decodeHTMLAttribute } from "entities/decode";
 import type { PublishTarget } from "../generator";
 import { insertIntoHtmlHead } from "./head";
 import { zipCssUrl, zipStylesheet } from "../zip-css";
@@ -65,18 +66,20 @@ function fontFamilyCss(doc: SiteDoc, value: string): string {
 /* ---------- CSS の生成 ---------- */
 
 /** ZIP の HTML を直列化したときに生じる区切り文字は保ち、追加のクエリの & だけを変換する。 */
-function htmlAssetQuerySuffix(suffix: string): string {
+function htmlAssetQuerySeparator(suffix: string, entities: boolean): number {
+  if (!suffix.startsWith("&")) return 0;
+  if (!entities) return suffix.startsWith("&amp;") ? 5 : 1;
   // 任意の &name; を文字参照として扱うと、名前の分からないクエリを壊してしまう。
   // 名前付きの参照は、引用符・空白・山括弧・& だけを扱い、HTML 全体は解析し直さない。
   const entity = /^&(?:#(?:[xX][\da-fA-F]+|\d+);?|(?:apos|Tab|NewLine);|(?:amp|AMP|quot|QUOT|lt|LT|gt|GT)(?:;|(?![A-Za-z\d=])))/.exec(suffix)?.[0];
-  if (!entity) return suffix.replace(/^&/, "?");
+  if (!entity) return 1;
   const name = entity.slice(1).replace(/;$/, "");
   const point = /^#[xX]/.test(name) ? parseInt(name.slice(2), 16)
     : name.startsWith("#") ? parseInt(name.slice(1), 10) : undefined;
   // &quot; などの引用符・空白や数値文字参照を、クエリと取り違えない。
   // &amp;quot; は二重にデコードせず、実際の区切りの1文字分だけを取り除く。
   return name === "amp" || name === "AMP" || point === 38
-    ? "?" + suffix.slice(entity.length) : suffix;
+    ? entity.length : 0;
 }
 
 function buildAssetSources(doc: SiteDoc, assetNames: Map<string, string>, format: "css" | "html") {
@@ -111,7 +114,7 @@ export function createCssValueResolver(doc: SiteDoc, assetNames: Map<string, str
 }
 
 export function rewriteHtmlAssetUrls(doc: SiteDoc, value: string, assetNames: Map<string, string>): string {
-  const sources = buildAssetSources(doc, assetNames, "html");
+  const sources = [...buildAssetSources(doc, assetNames, "html")].filter(([source]) => !source.startsWith("tsumu-zip-css:"));
   // HTML の ZIP の参照は CSS の字句ではないため、既存の HTML の書き出しの処理をそのまま使う。
   const output = value.replace(/tsumu-zip-css:([A-Za-z0-9%._~-]+)/g, (_token, encoded: string) => {
     let id = "";
@@ -120,29 +123,67 @@ export function rewriteHtmlAssetUrls(doc: SiteDoc, value: string, assetNames: Ma
     if (!name || !zipStylesheet(doc.assets[id])) throw new Error(tr("The ZIP stylesheet data could not be read. Import the ZIP again."));
     return `/assets/${name}`;
   });
-  const rewrite = (text: string, entities = true) => {
+  if (!sources.length) return output;
+  const rewrite = (text: string, entities = true, urlAttribute = false) => {
+    if (!text) return text;
+    const edits: { start: number; end: number; value: string }[] = [];
     for (const [source, target] of sources) {
-      if (source.startsWith("tsumu-zip-css:")) continue;
-      text = text.split(source).map((part, index) =>
-        index && source.startsWith("/api/assets/file?path=")
-          ? entities ? htmlAssetQuerySuffix(part) : part.replace(/^&(?:amp;)?/, "?")
-          : part
-      ).join(target);
+      const proxy = source.startsWith("/api/assets/file?path=");
+      let start = text.indexOf(source);
+      while (start >= 0) {
+        const end = start + source.length;
+        const suffix = text.slice(end);
+        const separator = proxy ? htmlAssetQuerySeparator(suffix, entities) : 0;
+        const after = urlAttribute && suffix.includes("&") ? decodeHTMLAttribute(suffix) : suffix;
+        const complete = urlAttribute
+          ? !text.slice(0, start).trim() && (!after.trimEnd() || /^[?#]/.test(after) || (separator > 0 && after.startsWith("&")))
+          : (!start || !/[\p{L}\p{N}._~:/%+-]/u.test(text[start - 1]) || /&(?:quot|apos|#(?:\d+|x[\da-f]+));?$/i.test(text.slice(0, start))) &&
+            /^(?:$|[\s"'\x60<>)#,?&]|\\+["'\x60]|--!?>)/.test(suffix);
+        if (complete) {
+          edits.push({ start, end: end + separator, value: target + (separator ? "?" : "") });
+        }
+        start = text.indexOf(source, end);
+      }
     }
-    return text;
+    if (!edits.length) return text;
+    // Use original offsets so a longer match wins, and emitted URLs are never rewritten again.
+    const parts: string[] = [];
+    let from = 0;
+    for (const edit of edits.sort((a, b) => a.start - b.start || b.end - a.end)) {
+      if (edit.start < from) continue;
+      parts.push(text.slice(from, edit.start), edit.value);
+      from = edit.end;
+    }
+    return parts.join("") + text.slice(from);
+  };
+  // A quoted src/href is a single URL: punctuation, entities and surrounding paths are part of its value.
+  const rewriteTag = (tag: string) => {
+    const attrs = /[\t\n\f\r ]+([^\t\n\f\r />=]+)(?:[\t\n\f\r ]*=[\t\n\f\r ]*("[^"]*"|'[^']*'|[^\t\n\f\r >]+))?/g;
+    const parts: string[] = [];
+    let from = 0;
+    for (const match of tag.matchAll(attrs)) {
+      const raw = match[2];
+      if (!raw || !/^(?:src|href|poster|xlink:href|action|formaction|data)$/i.test(match[1])) continue;
+      const quoted = raw[0] === '"' || raw[0] === "'";
+      const end = match.index + match[0].length - (quoted ? 1 : 0);
+      const start = end - raw.length + (quoted ? 2 : 0);
+      parts.push(rewrite(tag.slice(from, start)), rewrite(tag.slice(start, end), true, true));
+      from = end;
+    }
+    return parts.join("") + rewrite(tag.slice(from));
   };
   // script・style などの本文では、&quot; も文字どおりのクエリになり得る。
   // 属性の中の引用符や > を保ったまま本文を分け、文字参照の扱いだけを切り替える。
   // title や textarea の中のタグのような文字列も、独立したタグとして解釈しない。
   // <style-card> などのカスタム要素を取り違えないよう、単語の境界ではなくタグ名の終わりで判定する。
-  const tokens = /<!--[\s\S]*?(?:-->|$)|(<(script|style|xmp|iframe|noembed|noframes|title|textarea)(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>|$)|<[A-Za-z][\w:-]*\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+  const tokens = /<!--(?:-?>|[\s\S]*?(?:--!?>|$))|(<(script|style|xmp|iframe|noembed|noframes|title|textarea)(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>|$)|<[A-Za-z][\w:-]*\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
   let result = "";
   let from = 0;
   for (const match of output.matchAll(tokens)) {
     result += rewrite(output.slice(from, match.index));
     result += match[1]
-      ? rewrite(match[1]) + rewrite(match[3], /^(?:title|textarea)$/i.test(match[2])) + match[4]
-      : rewrite(match[0], !match[0].startsWith("<!--"));
+      ? rewriteTag(match[1]) + rewrite(match[3], /^(?:title|textarea)$/i.test(match[2])) + match[4]
+      : match[0].startsWith("<!--") ? rewrite(match[0], false) : rewriteTag(match[0]);
     from = match.index + match[0].length;
   }
   return result + rewrite(output.slice(from));

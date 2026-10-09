@@ -65,6 +65,25 @@ test("HTML asset export preserves literal quote styles, fragments, embedded asse
   assert.equal(rewriteHtmlAssetUrls(fixture(inline(assetSrc(local)), local), inline(assetSrc(local)), names), inline(target));
 });
 
+test("HTML asset export keeps distinct proxy paths and embedded image data with a shared prefix", () => {
+  const longer = { ...asset, id: "large", path: asset.path + ".preview", name: "large.svg" };
+  const small = { ...asset, id: "small", path: undefined, name: "small.png", dataUrl: "data:image/png;base64,AAAA" };
+  const large = { ...small, id: "big", name: "big.png", dataUrl: small.dataUrl + "BBBB" };
+  const assets = [asset, longer, small, large];
+  const doc = { ...fixture(""), assets: Object.fromEntries(assets.map(item => [item.id, item])) };
+  const files = new Map(assets.map(item => [item.id, item.name]));
+  const longSource = assetSrc(longer);
+  const html = '<img src="' + longSource + '&amp;v=2#icon"><img src="' + source + '#paint">' +
+    '<img src="' + source + '.unknown"><img src="' + large.dataUrl + '"><img src="' + small.dataUrl + 'DDDD">';
+  assert.equal(rewriteHtmlAssetUrls(doc, html, files),
+    '<img src="/assets/large.svg?v=2#icon"><img src="/assets/hero.svg#paint">' +
+    '<img src="' + source + '.unknown"><img src="/assets/big.png"><img src="' + small.dataUrl + 'DDDD">');
+  for (const other of ["https://cdn.example" + source, "/archive" + source, source + "&#46;backup", source + ")copy"]) {
+    const original = '<img src="' + other + '">';
+    assert.equal(rewriteHtmlAssetUrls(doc, original, files), original);
+  }
+});
+
 test("raw-text and comment query flags keep their existing export behavior", () => {
   for (const tag of ["style", "script", "xmp", "iframe", "noembed", "noframes"]) {
     const html = `<${tag}>url("${source}&quot;");url('${source}&unknown;')</${tag}>`;
@@ -72,6 +91,14 @@ test("raw-text and comment query flags keep their existing export behavior", () 
     assert.equal(rewrite(html), expected, tag);
   }
   assert.equal(rewrite(`<!-- ${source}&quot; -->`), `<!-- ${target}?quot; -->`);
+});
+
+test("HTML after a closed comment resumes normal attribute and query handling", () => {
+  const image = `<img src="${source}&amp;v=2#icon">`;
+  const exported = `<img src="${target}?v=2#icon">`;
+  for (const comment of ["<!-->", "<!--->", `<!-- ${source}-->`, `<!-- ${source}--!>`]) {
+    assert.equal(rewrite(comment + inline(source) + image), comment.replace(source, target) + inline(target) + exported);
+  }
 });
 
 test("raw-text boundaries respect quote entities in tag attributes and RCDATA", () => {
