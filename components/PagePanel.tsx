@@ -208,7 +208,7 @@ export default function PagePanel() {
           "\n" + converted.warnings.join("\n")
         : tr("HTML converted into editable elements."));
     } catch (error) {
-      setNormalImportMessage(userMessage(error, tr("Could not convert HTML.")));
+      if (request.current()) setNormalImportMessage(userMessage(error, tr("Could not convert HTML.")));
     } finally {
       request.finish();
     }

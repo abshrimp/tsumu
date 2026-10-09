@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { useEditor } from "../lib/store";
+import { tr } from "../lib/i18n";
 import { elements, importCallbacks } from "./helpers/pending-import";
 import type { Asset } from "../lib/types";
 
@@ -90,6 +91,30 @@ test("old ZIP progress, failure and completion do not affect a new page/import",
     assert.equal(f.render().find(e => e.type === "button" && e.props.disabled)?.props.disabled, true);
     await f.complete(true, 1); assert.equal(state().doc.pages.q.rawHtml, imported);
     assert.equal(state().doc.pages.p.rawHtml, original);
+  } finally { f.close(); }
+});
+
+test("a late editable HTML read failure does not replace a newer page's import result", async () => {
+  const f = fixture();
+  try {
+    for (const id of ["p", "q"]) state().updatePage(id, { rawHtml: null });
+    const selectFile = (file: File) => {
+      const input = f.render().find(e => e.props?.id === `page-${state().activePageId}-import-html`);
+      input.props.onChange({ target: { files: [file], value: "" } });
+    };
+    const read = Promise.withResolvers<void>();
+    class SlowFile extends File {
+      override async arrayBuffer() { await read.promise; return super.arrayBuffer(); }
+    }
+    selectFile(new SlowFile([Uint8Array.of(0xc3)], "first.html"));
+    state().setActivePage("q");
+    selectFile(new File([], "second.html"));
+    await tick();
+    const status = () => f.render().find(e => e.props?.role === "status")?.props.children;
+    assert.equal(status(), tr("The file is empty."));
+    read.resolve();
+    await tick();
+    assert.equal(status(), tr("The file is empty."));
   } finally { f.close(); }
 });
 
