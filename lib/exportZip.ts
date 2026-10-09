@@ -5,7 +5,7 @@ import { resolveExportOptions, type ExportFormat, type ExportOptions } from "./g
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, isEmbeddedAssetUrl, mapLimit } from "./assets";
 import { tr } from "./i18n";
 import { buildAssetNames } from "./generator/names";
-import { assertGeneratedPaths } from "./generator/output-paths";
+import { assertGeneratedPaths, isWindowsDeviceName } from "./generator/output-paths";
 import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from "./site-import";
 import { zipStylesheet } from "./zip-css";
 import { importedAssetPath } from "./generator/imported-assets";
@@ -17,7 +17,7 @@ export function exportDirectoryName(siteName: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 96)
     .replace(/-+$/g, "") || "my-site";
-  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(name) ? "_" + name : name;
+  return isWindowsDeviceName(name) ? "_" + name : name;
 }
 
 /** ZIP を作ってダウンロードさせる。保存先に見つからず、含められなかったアセットのパスを返す */

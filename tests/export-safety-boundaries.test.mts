@@ -324,7 +324,7 @@ test("Windows device names are renamed, not rejected, as asset paths", async () 
   const { buildAssetNames } = await import("../lib/generator/names");
   const site = doc();
   for (const [i, name] of ["CON.png", "con.png", "AUX.svg", "COM1.jpg",
-    "lpt9.woff", "CON..png", "normal.png"].entries()) {
+    "lpt9.woff", "CON..png", "AUX.preview.svg", "com1.dark.logo.png", "auxiliary.preview.svg"].entries()) {
     const id = "asset" + i;
     site.assets[id] = { id, name, width: 1, height: 1,
       mimeType: "image/png", dataUrl: "data:image/png;base64,AQID" };
@@ -332,12 +332,10 @@ test("Windows device names are renamed, not rejected, as asset paths", async () 
   const names = buildAssetNames(site);
   const files = Array.from(names.values());
   assert.equal(new Set(files.map((name) => name.toLowerCase())).size, files.length);
-  for (let i = 0; i < 6; i++) {
-    assert.ok(files[i].startsWith("_"), "Windows device-name asset was not renamed: " + files[i]);
-  }
-  assert.equal(files[0], "_CON.png");
-  assert.equal(files[1], "_con-2.png");
-  assert.equal(files[5], "_CON-3.png");
+  assert.deepEqual(files, [
+    "_CON.png", "_con-2.png", "_AUX.svg", "_COM1.jpg", "_lpt9.woff", "_CON-3.png",
+    "_AUX.preview.svg", "_com1.dark.logo.png", "auxiliary.preview.svg",
+  ]);
   assert.doesNotThrow(() => generateExportProject(site, "html"));
 });
 

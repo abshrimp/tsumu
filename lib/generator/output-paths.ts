@@ -2,6 +2,11 @@ import type { GeneratedProject } from "../generator";
 
 const encoder = new TextEncoder();
 
+/** Windows reserves the first dot-separated part of a device filename, even with multiple extensions. */
+export function isWindowsDeviceName(name: string): boolean {
+  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name);
+}
+
 export function isPortableOutputPath(path: string): boolean {
   const segments = path.split("/");
   return !/^[a-z]:/i.test(path) &&
@@ -9,7 +14,7 @@ export function isPortableOutputPath(path: string): boolean {
     !segments.some((segment) => !segment || segment === "." || segment === ".." ||
       encoder.encode(segment).byteLength > 255 ||
       /[. ]$/.test(segment) ||
-      /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(segment));
+      isWindowsDeviceName(segment));
 }
 
 /**

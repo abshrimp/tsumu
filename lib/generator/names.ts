@@ -3,6 +3,7 @@
  */
 
 import type { SiteDoc } from "../types";
+import { isWindowsDeviceName } from "./output-paths";
 
 /* ---------- クラス名 ---------- */
 
@@ -144,7 +145,7 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
         .replace(/[.-]+$/g, "") || "image";
     // Windows は、拡張子の有無にかかわらず、これらのデバイス名を予約している。
     // 書き出し全体を失敗させずに、有効なアップロード済みのアセットの名前を変える。
-    const base = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(originalBase)
+    const base = isWindowsDeviceName(originalBase)
       ? "_" + originalBase : originalBase;
     map.set(asset.id, allocate(base, ext));
   }
@@ -159,7 +160,7 @@ export function buildComponentNames(doc: SiteDoc): Map<string, string> {
     // データの取得・リスト・ローディング画面で参照する、組み込みのオブジェクトと型。
     "Object", "Array", "Promise", "Record", "JSON", "Error", "Number", "String", "Boolean",
     "Proxy", "RegExp", "Math", "Date", "Set", "Map", "URL", "URLSearchParams", "RequestInit", "React",
-  ], "", (name) => /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name));
+  ], "", isWindowsDeviceName);
   const map = new Map<string, string>();
   for (const comp of Object.values(doc.components ?? {})) {
     let base = comp.name;
