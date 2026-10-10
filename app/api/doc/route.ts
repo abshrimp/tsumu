@@ -92,7 +92,7 @@ export async function PATCH(req: Request) {
 
 async function save(req: Request, partial: boolean) {
   const tr = await serverTr();
-  const user = await requireAuth("user");
+  const user = await requireAuth("editor-user");
   if (user instanceof NextResponse) return user;
   if (!dbConfigured()) return await dbUnavailable();
 

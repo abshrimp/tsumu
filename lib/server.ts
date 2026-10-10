@@ -4,6 +4,7 @@ import { auth, authConfigured } from "../auth";
 import { anonymousAllowed } from "./anonymous";
 import { parseActivityUser, recordActivity, type ActivityUser } from "./activity";
 import { dbConfigured, getDb } from "./db";
+import { getAccountRole } from "./allowlist";
 
 /**
  * 認可に失敗したときは、レスポンスを返す。"user" を指定したときは、認可に使ったセッションの
@@ -11,7 +12,9 @@ import { dbConfigured, getDb } from "./db";
  */
 export function requireAuth(): Promise<NextResponse | null>;
 export function requireAuth(mode: "user"): Promise<NextResponse | ActivityUser | null>;
-export async function requireAuth(mode?: "user"): Promise<NextResponse | ActivityUser | null> {
+export function requireAuth(mode: "editor"): Promise<NextResponse | null>;
+export function requireAuth(mode: "editor-user"): Promise<NextResponse | ActivityUser | null>;
+export async function requireAuth(mode?: "user" | "editor" | "editor-user"): Promise<NextResponse | ActivityUser | null> {
   // middleware と同じ判定（middleware を通らない呼び出しでも、許可なくログインなしでは動かさない）
   if (!authConfigured()) {
     if (anonymousAllowed()) return null;
@@ -26,7 +29,11 @@ export async function requireAuth(mode?: "user"): Promise<NextResponse | Activit
     const tr = await serverTr();
     return NextResponse.json({ error: tr("You need to sign in") }, { status: 401 });
   }
-  return mode === "user" ? user : null;
+  if ((mode === "editor" || mode === "editor-user") && await getAccountRole(user.email) !== "editor") {
+    const tr = await serverTr();
+    return NextResponse.json({ error: tr("You have view-only access") }, { status: 403 });
+  }
+  return mode === "user" || mode === "editor-user" ? user : null;
 }
 
 /** ログインしている人（Google 認証を使っていなければ null） */

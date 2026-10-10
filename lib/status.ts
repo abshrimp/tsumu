@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import type { ActivityUser } from "./activity";
+import type { AccountRole } from "./allowlist";
 
 /** サーバーの設定の状況（/api/status） */
 interface ServerStatus {
   /** Google 認証を使っているか（false なら、ログインなしで開ける） */
   auth: boolean;
+  /** Effective permission for the current signed-in account. */
+  role: AccountRole;
   /** サーバーの保存先（Cloudflare の D1、または TSUMU_DATA_DIR の SQLite）があるか */
   db: boolean;
   /** アセット（画像・動画・音声）の保存先（KV）があるか */

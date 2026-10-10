@@ -32,6 +32,7 @@ function fixture(mode: "signed-in" | "anonymous" | "denied") {
     NextResponse, parseActivityUser, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError,
     serverTr: async () => (value: string) => value,
     authConfigured: () => mode !== "anonymous",
+    getAccountRole: async () => "editor",
     anonymousAllowed: () => mode === "anonymous",
     auth: async () => {
       authCalls++;

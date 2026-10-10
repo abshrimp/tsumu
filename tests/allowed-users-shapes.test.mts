@@ -30,7 +30,10 @@ function fixture(identity: unknown = "owner@example.com") {
     "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
     "../../../lib/allowlist": {
       addAllowedEmail: async (email: string) => { inserted.push(email); },
-      listAllowedEmails: async () => inserted,
+      listAllowedAccounts: async () => inserted.map((email) => ({ email, role: "editor" })),
+      getAccountRole: async () => "editor",
+      isAccountRole: (role: unknown) => role === "editor" || role === "viewer",
+      updateAllowedAccountRole: async () => false,
       removeAllowedEmail: async () => false,
     },
   };
@@ -51,6 +54,7 @@ test("account allowlist API rejects unexpected JSON field types without writes",
   for (const value of [
     null, [], {}, { email: null }, { email: 1 }, { email: true },
     { email: ["attacker@example.com"] }, { email: { address: "attacker@example.com" } },
+    { email: "attacker@example.com", role: null }, { email: "attacker@example.com", role: "owner" },
   ]) {
     assert.equal((await f.send(value)).status, 400, JSON.stringify(value));
   }
@@ -59,7 +63,7 @@ test("account allowlist API rejects unexpected JSON field types without writes",
 
 test("account allowlist API still accepts a normalized string email address", async () => {
   const f = fixture();
-  const response = await f.send({ email: " Editor@Example.com " });
+  const response = await f.send({ email: " Editor@Example.com ", role: "viewer" });
   assert.equal(response.status, 200);
   assert.deepEqual(f.inserted, ["editor@example.com"]);
 });
@@ -67,7 +71,7 @@ test("account allowlist API still accepts a normalized string email address", as
 
 test("account allowlist API rejects oversized JSON before changing permissions", async () => {
   const f = fixture();
-  const response = await f.send({ email: "attacker@example.com", padding: "x".repeat(32 * 1024) });
+  const response = await f.send({ email: "attacker@example.com", role: "editor", padding: "x".repeat(32 * 1024) });
   assert.equal(response.status, 413);
   assert.deepEqual(f.inserted, []);
 });
@@ -77,7 +81,7 @@ test("account management rejects sessions without a valid email identity", async
     const f = fixture(identity);
     const get = await f.get();
     assert.equal(get.status, 401, `GET with ${JSON.stringify(identity)}`);
-    const post = await f.send({ email: "editor@example.com" });
+    const post = await f.send({ email: "editor@example.com", role: "editor" });
     assert.equal(post.status, 401, `POST with ${JSON.stringify(identity)}`);
     assert.deepEqual(f.inserted, []);
   }
@@ -86,7 +90,7 @@ test("account management rejects sessions without a valid email identity", async
 
 test("account management rejects text/plain POST even if the bytes are JSON", async () => {
   const f = fixture();
-  const response = await f.send({ email: "editor@example.com" }, "text/plain");
+  const response = await f.send({ email: "editor@example.com", role: "editor" }, "text/plain");
   assert.equal(response.status, 415);
   assert.deepEqual(f.inserted, []);
 });

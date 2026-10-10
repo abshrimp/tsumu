@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { assetWindow } from "../lib/asset-window";
+import { assetRowHeight, resizedAssetScrollTop } from "../lib/asset-window";
 
 test("large libraries keep only the viewport and three overscan rows mounted", () => {
   for (const count of [101, 500, 5_000, 50_000]) for (const width of [200, 260, 380]) {
@@ -37,4 +38,14 @@ test("last odd card is reachable and total height matches the two-column card ge
   assert.equal(result.rowHeight, 140);
   assert.equal(result.totalHeight, 2501 * 140 + 2);
   assert.equal(result.indices.at(-1), 5000);
+});
+
+
+test("asset list resize retains the same visible row rather than the same pixel offset", () => {
+  const beforeWidth = 260;
+  const afterWidth = 420;
+  const firstTop = 12.5 * assetRowHeight(beforeWidth);
+  const resized = resizedAssetScrollTop(firstTop, beforeWidth, afterWidth);
+  assert.ok(Math.abs(resized / assetRowHeight(afterWidth) - 12.5) < 1e-9);
+  assert.equal(resizedAssetScrollTop(0, beforeWidth, afterWidth), 0);
 });

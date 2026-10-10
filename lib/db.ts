@@ -87,7 +87,8 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           )`] : []),
           `CREATE TABLE IF NOT EXISTS allowed_emails (
             email TEXT PRIMARY KEY,
-            added_at INTEGER NOT NULL
+            added_at INTEGER NOT NULL,
+            role TEXT NOT NULL DEFAULT 'editor' CHECK (role IN ('editor', 'viewer'))
           )`,
           // サイトの一覧と公開先。Cloudflare では、文書の本体は DocumentRoom に保存する。
           `CREATE TABLE IF NOT EXISTS sites (
@@ -225,7 +226,17 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
       )
       .then(async () => {
         const rows = await binding.prepare("SELECT version FROM storage_schema WHERE name='main'").all();
-        if (Number(rows.results?.[0]?.version) !== 1) throw new Error("Unsupported storage schema");
+        const version = Number(rows.results?.[0]?.version);
+        if (version === 1) {
+          // One-time migration. Existing account grants become editor permissions.
+          const columns = await binding.prepare("PRAGMA table_info(allowed_emails)").all();
+          if (!columns.results.some((column) => column.name === "role")) {
+            await binding.prepare("ALTER TABLE allowed_emails ADD COLUMN role TEXT NOT NULL DEFAULT 'editor' CHECK (role IN ('editor', 'viewer'))").all();
+          }
+          await binding.prepare("UPDATE storage_schema SET version=2 WHERE name='main' AND version=1").all();
+        } else if (version !== 2) {
+          throw new Error("Unsupported storage schema");
+        }
       })
       .catch((error) => {
         schemaReady.delete(binding);

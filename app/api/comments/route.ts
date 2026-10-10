@@ -36,7 +36,7 @@ export async function GET(req: Request) {
 /** コメントを書く・返信する・解決する・消す（lib/comments.ts の CommentAction） */
 export async function POST(req: Request) {
   const tr = await serverTr();
-  const user = await requireAuth("user");
+  const user = await requireAuth("editor-user");
   if (user instanceof NextResponse) return user;
   if (!dbConfigured()) return await dbUnavailable();
   const siteId = await siteIdOf(new URL(req.url).searchParams.get("site"));

@@ -40,8 +40,9 @@ import { useEscapeToClose } from "../lib/use-escape-to-close";
 import SafeBoundary from "./SafeBoundary";
 import { showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
-import { BpIcon, Dropdown, NumField, Seg } from "./controls";
-import { getLang, LANGS, setLang, tr, type Lang } from "../lib/i18n";
+import { BpIcon, Dropdown, NumField } from "./controls";
+import { tr } from "../lib/i18n";
+import LanguageSelector from "./LanguageSelector";
 
 const ExportModal = lazy(() => import("./ExportModal"));
 const PublishModal = lazy(() => import("./PublishModal"));
@@ -76,13 +77,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
 
         <section className="settings-sec">
           <h3>{tr("Language", "language_variant_1")}</h3>
-          <Seg
-            value={getLang()}
-            options={LANGS}
-            onChange={(v) => {
-              if (v !== getLang()) setLang(v as Lang);
-            }}
-          />
+          <LanguageSelector />
           <p className="hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>
 

@@ -22,7 +22,7 @@ async function localOnly(page: Page) {
     localStorage.setItem("tsumu-lang", "ja");
   });
   await page.route("**/api/status", route => route.fulfill({
-    json: { auth: false, db: false, assets: false, user: null },
+    json: { auth: false, role: "editor", db: false, assets: false, user: null },
   }));
   await page.route("**/api/doc?*", route => route.fulfill({ status: 503, json: {} }));
 }

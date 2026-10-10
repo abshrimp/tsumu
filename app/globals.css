@@ -8919,27 +8919,6 @@ a.btn {
   margin: 6px 0 10px;
 }
 
-.home-seg {
-  display: inline-flex;
-  padding: 2px;
-  border-radius: 10px;
-  background: var(--field);
-}
-
-.home-seg button {
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 8px;
-  color: var(--text-2);
-  font-size: 12.5px;
-}
-
-.home-seg button.is-on {
-  background: var(--panel);
-  color: var(--text);
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(31, 31, 31, 0.1), 0 0 0 0.5px rgba(31, 31, 31, 0.06);
-}
 
 /* ログインできるアカウント */
 .acct-list {
@@ -13166,3 +13145,19 @@ button.np-chev:hover {
 .tutorial-card p {
   text-wrap: balance;
 }
+
+/* Shared language control for the home and editor settings. */
+.language-selector { max-width: 100%; }
+.language-selector > button { min-width: 0; }
+.acct-role { flex: none; width: 114px; }
+.acct-row .acct-email { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .acct-role { width: 98px; } }
+
+.viewer-header { display: flex; gap: 12px; align-items: center; min-height: 50px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.viewer-home { text-decoration: none; font-weight: 700; font-size: 16px; color: var(--text); }
+.viewer-pages { max-width: 320px; flex: 1; }
+.viewer-permission { padding: 6px 10px; border-radius: 99px; background: var(--field); color: var(--text-2); margin-left: auto; white-space: nowrap; }
+@media (max-width: 560px) { .viewer-header { padding: 8px; gap: 6px; } .viewer-pages { max-width: 160px; } }
+
+.acct-add .input { min-width: 0; flex: 1; }
+.acct-add .acct-role { height: 32px; }

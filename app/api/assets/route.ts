@@ -36,7 +36,7 @@ async function otherSiteAssetReferences(db: Awaited<ReturnType<typeof getDb>>, s
 /** 画像・動画・音声アセットをアップロード */
 export async function POST(req: Request) {
   const tr = await serverTr();
-  const denied = await requireAuth();
+  const denied = await requireAuth("editor");
   if (denied) return denied;
   const store = assetStore();
   if (!store) return await storeUnavailable();
@@ -151,7 +151,7 @@ export async function GET(req: Request) {
  */
 export async function DELETE(req: Request) {
   const tr = await serverTr();
-  const denied = await requireAuth();
+  const denied = await requireAuth("editor");
   if (denied) return denied;
   const store = assetStore();
   if (!store) return await storeUnavailable();

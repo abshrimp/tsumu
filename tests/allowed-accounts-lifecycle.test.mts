@@ -14,7 +14,7 @@ function fixture() {
     useRef(initial: any) { const i = cursor++; return cells[i] ??= { current: initial }; },
     useEffect(effect: any) { const i = cursor++; if (!(i in cells)) { cells[i] = true; cleanups.push(effect()); } },
   };
-  const users = { me: "me@example.com", fixed: [], extra: ["other@example.com"] };
+  const users = { me: "me@example.com", fixed: [], extra: [{ email: "other@example.com", role: "viewer" }] };
   const fetch = (url: string, init?: any) => {
     if (!init) return Promise.resolve({ ok: true, json: async () => users });
     return new Promise(resolve => calls.push({ url, init, resolve: () => resolve({ ok: true, json: async () => users }) }));

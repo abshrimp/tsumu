@@ -2,6 +2,12 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Editor role": "編集者",
+  "View only": "閲覧のみ",
+  "Role for {email}": "{email}の権限",
+  "Permission for new account": "追加するアカウントの権限",
+  "You have view-only access": "閲覧のみの権限です",
+  "This account's role cannot be changed": "このアカウントの権限は変更できません",
   "Add a font": "フォントを追加",
   "Font family": "フォントファミリー",
   "Adobe Web Project ID": "Adobe WebプロジェクトID",

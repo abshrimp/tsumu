@@ -24,7 +24,7 @@ test("Google sign-in requires a verified profile email and checks live sessions 
     assert.equal(await signIn({ email: "stranger@example.com", email_verified: true }), false);
     assert.deepEqual(await session("owner@example.com"), { email: "owner@example.com" });
     assert.equal(await session(), null);
-    await addAllowedEmail("editor@example.com");
+    await addAllowedEmail("editor@example.com", "editor");
     assert.equal(await signIn({ email: "editor@example.com", email_verified: true }), true);
     assert.deepEqual(await session("editor@example.com"), { email: "editor@example.com" });
     await removeAllowedEmail("editor@example.com");

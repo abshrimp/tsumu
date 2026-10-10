@@ -47,7 +47,7 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   const tr = await serverTr();
-  const denied = await requireAuth();
+  const denied = await requireAuth("editor");
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
 

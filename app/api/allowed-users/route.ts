@@ -5,8 +5,12 @@ import { isValidEmail } from "../../../lib/email";
 import { allowedEmails, auth, authConfigured } from "../../../auth";
 import {
   addAllowedEmail,
-  listAllowedEmails,
+  listAllowedAccounts,
   removeAllowedEmail,
+  updateAllowedAccountRole,
+  getAccountRole,
+  isAccountRole,
+  type AccountRole,
 } from "../../../lib/allowlist";
 import { dbConfigured } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
@@ -28,7 +32,11 @@ async function requireMe(): Promise<string | NextResponse> {
   if (!isValidEmail(identity)) {
     return NextResponse.json({ error: tr("You need to sign in") }, { status: 401 });
   }
-  return identity.toLowerCase();
+  const email = identity.toLowerCase();
+  if (await getAccountRole(email) !== "editor") {
+    return NextResponse.json({ error: tr("You have view-only access") }, { status: 403 });
+  }
+  return email;
 }
 
 async function listResponse(me: string): Promise<NextResponse> {
@@ -36,7 +44,7 @@ async function listResponse(me: string): Promise<NextResponse> {
     ok: true,
     me,
     fixed: allowedEmails(),
-    extra: await listAllowedEmails(),
+    extra: await listAllowedAccounts(),
   }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
@@ -65,13 +73,16 @@ export async function POST(req: Request) {
   if (!dbConfigured()) return await dbUnavailable();
 
   let email: string;
+  let role: AccountRole;
   try {
     const input = await readJsonLimited(req, 16 * 1024);
     // 配列やオブジェクトを String(...) でメールアドレスに変換しない。
     if (!input || typeof input !== "object" || Array.isArray(input) || !("email" in input) || typeof input.email !== "string") {
       throw new TypeError("Invalid email type");
     }
+    if (!("role" in input) || !isAccountRole(input.role)) throw new TypeError("Invalid account role");
     email = input.email.trim().toLowerCase();
+    role = input.role;
   } catch (error) {
     return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
@@ -85,14 +96,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const extra = await listAllowedEmails();
-    if (allowedEmails().includes(email) || extra.includes(email)) {
+    const extra = await listAllowedAccounts();
+    if (allowedEmails().includes(email) || extra.some((account) => account.email === email)) {
       return NextResponse.json(
         { error: tr("This account already has access") },
         { status: 400 }
       );
     }
-    await addAllowedEmail(email);
+    await addAllowedEmail(email, role);
     return await listResponse(me);
   } catch (e) {
     return NextResponse.json(
@@ -147,5 +158,39 @@ export async function DELETE(req: Request) {
       { error: tr(userMessage(e, "Couldn't delete")) },
       { status: 502 }
     );
+  }
+}
+
+/** Change a dynamic account's role without revoking its session. */
+export async function PATCH(req: Request) {
+  const tr = await serverTr();
+  const me = await requireMe();
+  if (me instanceof NextResponse) return me;
+  if (!dbConfigured()) return await dbUnavailable();
+  let email: string;
+  let role: AccountRole;
+  try {
+    const value = await readJsonLimited(req, 16 * 1024);
+    if (!value || typeof value !== "object" || Array.isArray(value) ||
+        !("email" in value) || typeof value.email !== "string" ||
+        !("role" in value) || !isAccountRole(value.role)) throw new TypeError("Invalid role update");
+    email = value.email.trim().toLowerCase();
+    role = value.role;
+  } catch (error) {
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, {
+      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+    });
+  }
+  if (!isValidEmail(email)) return NextResponse.json({ error: tr("Invalid email address") }, { status: 400 });
+  if (email === me || allowedEmails().includes(email)) {
+    return NextResponse.json({ error: tr("This account's role cannot be changed") }, { status: 400 });
+  }
+  try {
+    if (!await updateAllowedAccountRole(email, role)) {
+      return NextResponse.json({ error: tr("Account not found") }, { status: 404 });
+    }
+    return await listResponse(me);
+  } catch (error) {
+    return NextResponse.json({ error: tr(userMessage(error, "Couldn't save")) }, { status: 502 });
   }
 }

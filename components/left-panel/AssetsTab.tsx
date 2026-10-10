@@ -9,7 +9,7 @@ import { cssUsesAssetUrl } from "@/lib/css-assets";
  * アセットタブ（画像などの一覧・アップロード・使用量）
  */
 
-import { ASSET_WINDOW_THRESHOLD, assetWindow } from "../../lib/asset-window";
+import { ASSET_WINDOW_THRESHOLD, assetWindow, resizedAssetScrollTop } from "../../lib/asset-window";
 import { assetDisplayKind, assetExtensionLabel, isVisualAsset, type AssetDisplayKind } from "../../lib/asset-display";
 import { isEnterKey } from "../../lib/keys";
 import { preferredScrollBehavior } from "../../lib/scroll-behavior";
@@ -308,6 +308,7 @@ export function AssetsTab() {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const measuredListWidth = useRef<number | null>(null);
   const mounted = useRef(false);
   const [viewport, setViewport] = useState({ width: 260, height: 600, top: assetScrollTop });
   const [focusedAsset, setFocusedAsset] = useState<string | null>(null);
@@ -316,11 +317,21 @@ export function AssetsTab() {
   useLayoutEffect(() => {
     const list = listRef.current;
     if (!list) return;
-    const measure = () => setViewport((v) => {
-      const width = list.clientWidth || v.width;
-      const height = list.clientHeight || v.height;
-      return width === v.width && height === v.height ? v : { ...v, width, height };
-    });
+    const measure = () => {
+      const width = list.clientWidth || 260;
+      const height = list.clientHeight || 600;
+      const previousWidth = measuredListWidth.current;
+      if (previousWidth !== null && width !== previousWidth) {
+        // Pixel scrollTop is not stable when the two-column cards change height.
+        // Preserve the visible asset row instead of jumping to another asset.
+        list.scrollTop = resizedAssetScrollTop(list.scrollTop, previousWidth, width);
+        assetScrollTop = list.scrollTop;
+      }
+      measuredListWidth.current = width;
+      const top = list.scrollTop;
+      setViewport((v) => width === v.width && height === v.height && top === v.top
+        ? v : { width, height, top });
+    };
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(list);

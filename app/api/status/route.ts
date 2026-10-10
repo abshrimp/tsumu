@@ -5,6 +5,7 @@ import { dbConfigured, getDb } from "../../../lib/db";
 import { assetStore } from "../../../lib/kv";
 import { envVar } from "../../../lib/env";
 import type { AssetDeletion } from "../../../lib/status";
+import { getAccountRole } from "../../../lib/allowlist";
 
 /**
  * エディタでアセットを削除したときに、保存したファイルがどうなるか。
@@ -26,6 +27,7 @@ export async function GET() {
   if (user instanceof NextResponse) return user;
   return NextResponse.json({
     auth: authConfigured(),
+    role: user ? (await getAccountRole(user.email) ?? "viewer") : "editor",
     db: dbConfigured(),
     assets: assetStore() !== null,
     assetDeletion: await assetDeletion(),

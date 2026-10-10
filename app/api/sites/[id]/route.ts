@@ -52,6 +52,8 @@ export async function GET(_req: Request, ctx: Ctx) {
 /** サイト名や公開先を変更する（送られた項目だけ） */
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
+    const denied = await requireAuth("editor");
+    if (denied) return denied;
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
     let input: SiteInput | null;
@@ -87,6 +89,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
 /** サイトを削除する（編集データと自動バックアップも削除する。公開済みのリポジトリはそのまま残す） */
 export async function DELETE(_req: Request, ctx: Ctx) {
   try {
+    const denied = await requireAuth("editor");
+    if (denied) return denied;
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
     const roomKey = await getSiteRoomKey(r.db, r.site.id);

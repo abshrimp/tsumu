@@ -33,21 +33,64 @@ export async function isEmailAllowed(
  * auth.ts を経由して middleware からも読み込まれるため、Node.js 専用の機能は使わない。
  */
 
-/** 追加で許可したメールアドレスの一覧（追加した順） */
-export async function listAllowedEmails(): Promise<string[]> {
-  const db = await getDb();
-  const rs = await db.execute(
-    "SELECT email FROM allowed_emails ORDER BY added_at"
-  );
-  return rs.rows.map((r) => String(r.email));
+export type AccountRole = "editor" | "viewer";
+export type AllowedAccount = { email: string; role: AccountRole };
+
+export function isAccountRole(value: unknown): value is AccountRole {
+  return value === "editor" || value === "viewer";
 }
 
-export async function addAllowedEmail(email: string): Promise<void> {
-  const db = await getDb();
-  await db.execute({
-    sql: "INSERT INTO allowed_emails (email, added_at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
-    args: [email, Date.now()],
+/** Dynamic accounts and their current permissions. */
+export async function listAllowedAccounts(): Promise<AllowedAccount[]> {
+  const rs = await (await getDb()).execute("SELECT email, role FROM allowed_emails ORDER BY added_at");
+  return rs.rows.map((row) => ({ email: String(row.email), role: row.role as AccountRole }));
+}
+
+/** The login allowlist only needs email addresses. */
+export async function listAllowedEmails(): Promise<string[]> {
+  return (await listAllowedAccounts()).map((account) => account.email);
+}
+
+export async function addAllowedEmail(email: string, role: AccountRole): Promise<void> {
+  await (await getDb()).execute({
+    sql: "INSERT INTO allowed_emails (email, role, added_at) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING",
+    args: [email, role, Date.now()],
   });
+}
+
+export async function updateAllowedAccountRole(email: string, role: AccountRole): Promise<boolean> {
+  const db = await getDb();
+  const result = await db.execute({
+    sql: "UPDATE allowed_emails SET role = ? WHERE email = ?", args: [role, email],
+  });
+  if (result.rowsAffected > 0) return true;
+  const exists = await db.execute({ sql: "SELECT 1 FROM allowed_emails WHERE email = ? LIMIT 1", args: [email] });
+  return exists.rows.length > 0;
+}
+
+/** Fixed server accounts always have edit access. Unknown accounts have none. */
+export async function getAccountRole(
+  email: unknown,
+  fixed = allowedEmails(),
+  lookup: (normalized: string) => Promise<AccountRole | null> = readAccountRole,
+): Promise<AccountRole | null> {
+  if (!isValidEmail(email)) return null;
+  const normalized = email.toLowerCase();
+  if (fixed.includes(normalized)) return "editor";
+  try {
+    const role = await lookup(normalized);
+    return isAccountRole(role) ? role : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readAccountRole(email: string): Promise<AccountRole | null> {
+  if (!dbConfigured()) return null;
+  const rows = await (await getDb()).execute({
+    sql: "SELECT role FROM allowed_emails WHERE email = ? LIMIT 1", args: [email],
+  });
+  return rows.rows[0]?.role as AccountRole | null ?? null;
 }
 
 /** 削除する。存在しなければ false を返す */

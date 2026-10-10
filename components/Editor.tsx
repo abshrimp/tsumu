@@ -26,6 +26,7 @@ import { activeContentNames, clipboardPayload, isOwnClip } from "../lib/clip-tra
 import { showAlert, showConfirm } from "../lib/dialog";
 import EditorLoading from "./EditorLoading";
 import Header from "./Header";
+import ViewerHeader from "./ViewerHeader";
 import Footer from "./Footer";
 import LeftPanel from "./LeftPanel";
 import Canvas from "./Canvas";
@@ -165,12 +166,18 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const browserSaveState = localSaveState(localSave, doc);
   const cloudState = useEditor((s) => s.cloudState);
   // D1 が未設定の場合と、一時的な 503 を区別する。判定できない間は、安全側に倒してページを離れるときの保護を有効にする。
-  const browserOnly = useServerStatus()?.db === false;
+  const status = useServerStatus();
+  const readOnly = status?.role === "viewer";
+  const browserOnly = status?.db === false;
+  useLayoutEffect(() => {
+    if (readOnly) useEditor.getState().setMode("preview");
+  }, [readOnly]);
   const localSaveQueue = useRef<Promise<void>>(Promise.resolve());
   // Remote snapshots and browser hydration do not count as local edits.
   // Capture the local revision with the document, before entering the save queue.
   const lastSavedLocalEditRevision = useRef(0);
   const saveLocalDoc = useCallback((snapshot: SiteDoc) => {
+    if (readOnly) return;
     const revision = useEditor.getState().docEditRevision;
     const run = async () => {
       const edited = revision > lastSavedLocalEditRevision.current;
@@ -187,7 +194,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
     // 保存を1つずつ順に行い、どの書き込みも直前に確定した内容を基準にする。
     localSaveQueue.current = localSaveQueue.current.then(run, run);
-  }, [markSaved]);
+  }, [markSaved, readOnly]);
   useEffect(() => watchLocalSaveBlock((result) => {
     if (result === "deleted") localSiteDeleted.current = true;
     useEditor.setState({ savedAt: null });
@@ -553,7 +560,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
 
   // ブラウザ内（IndexedDB）への自動保存（500ms のデバウンス）
   useEffect(() => {
-    if (!initialLoadComplete) return;
+    if (!initialLoadComplete || readOnly || !status) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveLocalDoc(doc);
@@ -561,7 +568,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [doc, saveLocalDoc, initialLoadComplete]);
+  }, [doc, saveLocalDoc, initialLoadComplete, readOnly, status]);
 
   const requestViaWebSocket = useCallback(
     (input: CollabRequestInput): Promise<CollabServerMessage> => {
@@ -632,6 +639,29 @@ export default function Editor({ onReady }: EditorProps = {}) {
     await hydrateBrowserDoc();
     const s = useEditor.getState();
     const localBeforeLoad = s.doc;
+    if (readOnly) {
+      cloudReady.current = false;
+      s.setCloud("checking");
+      try {
+        const data = await loadCloudDoc();
+        if (data.exists !== true || !data.rev || !data.doc?.pages || !data.doc?.nodes || !data.doc?.pageOrder?.length) {
+          throw new Error("No saved site document");
+        }
+        lastSyncedRev.current = data.rev;
+        lastSyncedDoc.current = data.doc;
+        observedDoc.current = data.doc;
+        cloudDirty.current = false;
+        setUnsyncedFlag(false);
+        s.replaceDoc(data.doc);
+        s.setCloud("synced", data.savedAt);
+        cloudReady.current = true;
+      } catch {
+        s.setCloud("error");
+      } finally {
+        setInitialLoadComplete(true);
+      }
+      return;
+    }
     // IndexedDB からの読み込みでストアの参照は変わるが、未同期の編集ではない。
     // 照合の前に基準として記録する。本当に未同期のフラグが立っている場合は、それを消さない。
     if (!initialBrowserDocObserved.current) {
@@ -722,7 +752,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       // オフラインや取得の失敗、競合のときも、手元の内容と既存の復旧の操作は使えるようにする。
       setInitialLoadComplete(true);
     }
-  }, [loadCloudDoc, saveCloudDoc]);
+  }, [loadCloudDoc, saveCloudDoc, readOnly]);
 
   /** 実行中の起動時の同期（重ねて呼ばれたら、同じものを待つ） */
   const syncing = useRef<Promise<void> | null>(null);
@@ -782,6 +812,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
   );
 
   useEffect(() => {
+    if (!status) return;
     void syncFromServer();
     const onRetry = () => {
       // 同期した版が分かっていれば読み込み直さず、保存だけをやり直す（他の人の変更とは 409 を受けて自動でマージする）
@@ -790,12 +821,12 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
     window.addEventListener("cloud-sync-retry", onRetry);
     return () => window.removeEventListener("cloud-sync-retry", onRetry);
-  }, [syncFromServer, retrySaveNow]);
+  }, [syncFromServer, retrySaveNow, status]);
 
   // 変更をサーバーへ自動保存する（800ms のデバウンス）。
   // 起動時の IndexedDB からの読み込みと、サーバーからの最初の取得は、利用者の編集として扱わない。
   useEffect(() => {
-    if (!initialLoadComplete) return;
+    if (!initialLoadComplete || readOnly || !status) return;
     return scheduleCloudSave({
       observedDoc, cloudReady, cloudDirty, cloudTimer, activeCloudSave,
       cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit, deferredCloudConflict,
@@ -803,7 +834,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       requestRetry: () => setSaveRetry((n) => n + 1),
       retryLater: retrySaveLater,
     }, doc);
-  }, [doc, initialLoadComplete, saveCloudDoc, saveRetry, retrySaveLater]);
+  }, [doc, initialLoadComplete, saveCloudDoc, saveRetry, retrySaveLater, readOnly, status]);
 
   // 回線が戻ったら、待たずに保存し直す。保存できたら、自動の保存し直しを取りやめ、間隔を最初に戻す
   useEffect(() => {
@@ -841,6 +872,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
   // 要素の src に複製した分を外し、保存先が使えるならアップロードしてパスに置き換える。
   // 読み込みが済んで同期したとき（またはブラウザ内に保存すると決まったとき）に確かめる
   useEffect(() => {
+    if (readOnly) return;
     let running = false;
     /** 画像の保存先（KV など）があるか。分からなければ null（次の機会に確かめ直す） */
     let assetStorage: boolean | null = null;
@@ -870,7 +902,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return useEditor.subscribe((s, prev) => {
       if (s.cloudState !== prev.cloudState && (s.cloudState === "synced" || s.cloudState === "local")) void tidy();
     });
-  }, []);
+  }, [readOnly]);
 
   // 読み込み・保存・更新の受信は WebSocket で行い、切断中だけ HTTP に切り替える。
   // WebSocket が使えない環境（Node.js・Docker）では、更新を Server-Sent Events で受け取る
@@ -1138,7 +1170,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
 
   // キーボードショートカット
   useEffect(() => {
-    if (!initialLoadComplete) return;
+    if (!initialLoadComplete || readOnly) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (
@@ -1240,7 +1272,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [initialLoadComplete]);
+  }, [initialLoadComplete, readOnly]);
 
   const startTutorial = useCallback(() => {
     closeHelp();
@@ -1255,7 +1287,15 @@ export default function Editor({ onReady }: EditorProps = {}) {
     setTutorialOpen(true);
   }, [togglePanel]);
 
-  if (!initialLoadComplete) return onReady ? null : <EditorLoading />;
+  if (!initialLoadComplete || !status) return onReady ? null : <EditorLoading />;
+
+  if (readOnly) return (
+    <div className="app">
+      <ViewerHeader />
+      <div className="app-main"><Canvas /></div>
+      <DialogHost />
+    </div>
+  );
 
   return (
     <div className="app">

@@ -5,13 +5,14 @@ import { LoaderCircle, Trash2, TriangleAlert } from "lucide-react";
 import { isEnterKey } from "../lib/keys";
 import { showConfirm } from "../lib/dialog";
 import { tr } from "../lib/i18n";
+import type { AccountRole, AllowedAccount } from "../lib/allowlist";
 
 interface AllowedUsers {
   me: string;
   /** 環境変数 ALLOWED_EMAILS の固定分（削除不可） */
   fixed: string[];
   /** 設定画面で追加した分 */
-  extra: string[];
+  extra: AllowedAccount[];
 }
 
 /**
@@ -24,6 +25,7 @@ export default function AllowedAccounts() {
   const [fatal, setFatal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
+  const [newRole, setNewRole] = useState<AccountRole>("editor");
   const [busy, setBusy] = useState(false);
 
   const pending = useRef<object | null>(null);
@@ -61,7 +63,7 @@ export default function AllowedAccounts() {
       const res = await fetch("/api/allowed-users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: v }),
+        body: JSON.stringify({ email: v, role: newRole }),
       });
       const data = await res.json();
       if (pending.current !== request) return;
@@ -73,6 +75,29 @@ export default function AllowedAccounts() {
       setEmail(current => current.trim() === v ? "" : current);
     } catch {
       if (pending.current === request) setError(tr("Couldn't add"));
+    } finally {
+      if (pending.current === request) { pending.current = null; setBusy(false); }
+    }
+  };
+
+  const changeRole = async (target: string, role: AccountRole) => {
+    if (pending.current || target === users?.me) return;
+    const request = {};
+    pending.current = request;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/allowed-users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: target, role }),
+      });
+      const data = await res.json();
+      if (pending.current !== request) return;
+      if (!res.ok) { setError(data.error ?? tr("Couldn't save")); return; }
+      setUsers(data);
+    } catch {
+      if (pending.current === request) setError(tr("Couldn't save"));
     } finally {
       if (pending.current === request) { pending.current = null; setBusy(false); }
     }
@@ -106,12 +131,24 @@ export default function AllowedAccounts() {
     }
   };
 
-  const row = (addr: string, fixed: boolean) => {
+  const row = (addr: string, fixed: boolean, role: AccountRole = "editor") => {
     const isMe = users?.me === addr;
     return (
       <div key={addr} className="acct-row">
         <span className="acct-email">{addr}</span>
         {isMe && <span className="acct-tag">{tr("You")}</span>}
+        {fixed ? <span className="acct-tag">{tr("Editor role")}</span> : (
+          <select
+            className="select acct-role"
+            aria-label={tr("Role for {email}", { email: addr })}
+            value={role}
+            disabled={isMe || busy}
+            onChange={(e) => void changeRole(addr, e.target.value as AccountRole)}
+          >
+            <option value="editor">{tr("Editor role")}</option>
+            <option value="viewer">{tr("View only")}</option>
+          </select>
+        )}
         {fixed ? (
           <span
             className="acct-tag"
@@ -157,7 +194,7 @@ export default function AllowedAccounts() {
     <>
       <div className="acct-list">
         {users.fixed.map((e) => row(e, true))}
-        {users.extra.map((e) => row(e, false))}
+        {users.extra.map((account) => row(account.email, false, account.role))}
         {!users.fixed.length && !users.extra.length && (
           <p className="hint" style={{ margin: 0 }}>
             {tr("No accounts have access yet.")}
@@ -176,6 +213,16 @@ export default function AllowedAccounts() {
             if (isEnterKey(e)) void add();
           }}
         />
+        <select
+          className="select acct-role"
+          value={newRole}
+          aria-label={tr("Permission for new account")}
+          onChange={(e) => setNewRole(e.target.value as AccountRole)}
+          disabled={busy}
+        >
+          <option value="editor">{tr("Editor role")}</option>
+          <option value="viewer">{tr("View only")}</option>
+        </select>
         <button
           type="button"
           className="btn btn-primary"

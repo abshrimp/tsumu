@@ -22,7 +22,8 @@ import {
 import BrandMark from "./BrandMark";
 import DialogHost from "./DialogHost";
 import { showAlert, showPrompt } from "../lib/dialog";
-import { getLang, LANGS, setLang, tr } from "../lib/i18n";
+import { tr } from "../lib/i18n";
+import LanguageSelector from "./LanguageSelector";
 import { relativeTime } from "../lib/time";
 import AllowedAccounts from "./AllowedAccounts";
 import { useServerStatus } from "../lib/status";
@@ -163,8 +164,10 @@ function SiteCard({
   onSettings,
   onDuplicate,
   onDelete,
+  readOnly,
 }: {
   site: SiteRecord;
+  readOnly: boolean;
   onSettings: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -196,7 +199,7 @@ function SiteCard({
           {edited ? <span className="home-card-time">{tr("Edited {time}", { time: relativeTime(edited) })}</span> : null}
         </div>
       </div>
-      <CardMenu
+      {!readOnly && <CardMenu
         items={[
           { label: tr("Settings"), icon: <Settings size={14} />, onSelect: onSettings },
           { label: tr("Duplicate"), icon: <Copy size={14} />, onSelect: onDuplicate },
@@ -211,7 +214,7 @@ function SiteCard({
             : []),
           { label: tr("Delete"), icon: <Trash2 size={14} />, danger: true, onSelect: onDelete },
         ]}
-      />
+      />}
     </article>
   );
 }
@@ -406,7 +409,7 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-  const lang = getLang();
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal home-dialog" onClick={(e) => e.stopPropagation()}>
@@ -415,22 +418,7 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
 
         <section className="home-set-sec">
           <h3>{tr("Language", "language_variant_1")}</h3>
-          <div className="home-seg" role="radiogroup" aria-label={tr("Language", "language_variant_1")}>
-            {LANGS.map((l) => (
-              <button
-                key={l.value}
-                type="button"
-                role="radio"
-                aria-checked={l.value === lang}
-                className={l.value === lang ? "is-on" : ""}
-                onClick={() => {
-                  if (l.value !== lang) setLang(l.value);
-                }}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
+          <LanguageSelector />
           <p className="home-field-hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>
 
@@ -456,6 +444,7 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
 
 export default function Home() {
   const status = useServerStatus();
+  const readOnly = status?.role !== "editor";
   const [store, setStore] = useState<Store | null>(null);
   const [sites, setSites] = useState<SiteRecord[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -500,7 +489,7 @@ export default function Home() {
   useEffect(() => installNoDblClickSelect(), []);
 
   const runFileImport = useCallback(async (file: File, notifyOnConversion = false) => {
-    if (!store || importActive.current) return;
+    if (!store || importActive.current || readOnly) return;
     importActive.current = true;
     setImportStatus({ kind: "loading", message: tr("Reading edit data…") });
     try {
@@ -515,7 +504,7 @@ export default function Home() {
     } finally {
       importActive.current = false;
     }
-  }, [store]);
+  }, [store, readOnly]);
 
   // ホーム画面のどこにドロップしても受け取る。通常のテキストやリンクのドラッグは妨げない。
   useEffect(() => {
@@ -739,10 +728,10 @@ export default function Home() {
                 />
               </label>
             )}
-            <button type="button" className="btn home-new" onClick={() => importFileInput.current?.click()} disabled={!store || importActive.current}>
+            {!readOnly && <button type="button" className="btn home-new" onClick={() => importFileInput.current?.click()} disabled={!store || importActive.current}>
               <FileUp size={14} />
               {tr("Import")}
-            </button>
+            </button>}
             <input
               ref={importFileInput}
               type="file"
@@ -755,10 +744,10 @@ export default function Home() {
                 if (file) void runFileImport(file);
               }}
             />
-            <button type="button" className="btn btn-primary home-new" onClick={() => setDialog("new")} disabled={!store}>
+            {!readOnly && <button type="button" className="btn btn-primary home-new" onClick={() => setDialog("new")} disabled={!store}>
               <Plus size={14} />
               {tr("New site")}
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -809,10 +798,10 @@ export default function Home() {
             </span>
             <strong>{tr("No sites yet")}</strong>
             <p>{tr("Create your first site to start editing.")}</p>
-            <button type="button" className="btn btn-primary" onClick={() => setDialog("new")}>
+            {!readOnly && <button type="button" className="btn btn-primary" onClick={() => setDialog("new")}>
               <Plus size={14} />
               {tr("New site")}
-            </button>
+            </button>}
           </div>
         ) : shown.length === 0 ? (
           <p className="home-none">{tr("No sites match \"{q}\".", { q: query.trim() })}</p>
@@ -825,6 +814,7 @@ export default function Home() {
                 onSettings={() => setDialog(site)}
                 onDuplicate={() => setDialog({ copy: site })}
                 onDelete={() => void remove(site)}
+                readOnly={readOnly}
               />
             ))}
           </div>
@@ -841,7 +831,7 @@ export default function Home() {
           }
         />
       )}
-      {settingsOpen && <AppSettings auth={!!status?.auth} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <AppSettings auth={!!status?.auth && !readOnly} onClose={() => setSettingsOpen(false)} />}
       <DialogHost />
       {draggingFile && (
         <div className="home-drop-overlay" aria-hidden="true">

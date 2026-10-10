@@ -70,7 +70,7 @@ function api(db: Db) {
   const post = load("../app/api/comments/route.ts", "POST", {
     NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
     listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction,
-    requireAuth: async (mode?: "user") => mode === "user" ? author : null,
+    requireAuth: async (mode?: "editor-user") => mode === "editor-user" ? author : null,
     dbConfigured: () => true, getDb: async () => db,
     dbUnavailable: () => { throw new Error("Unexpected fallback"); },
   }) as (req: Request) => Promise<Response>;

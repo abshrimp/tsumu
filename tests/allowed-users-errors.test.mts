@@ -18,7 +18,9 @@ function fixture(failRefresh: boolean) {
     serverTr: async () => (value: string) => value,
     allowedEmails: () => ["owner@example.com"], auth: async () => ({ user: { email: "owner@example.com" } }), authConfigured: () => true,
     dbConfigured: () => true, userMessage: (_error: unknown, fallback: string) => fallback,
-    listAllowedEmails: async () => { if (changed && failRefresh) throw new Error("Temporary database read failure"); return [...emails]; },
+    getAccountRole: async () => "editor", isAccountRole: (role: unknown) => role === "editor" || role === "viewer",
+    listAllowedAccounts: async () => { if (changed && failRefresh) throw new Error("Temporary database read failure"); return [...emails].map((email) => ({ email, role: "editor" })); },
+    updateAllowedAccountRole: async () => false,
     addAllowedEmail: async (email: string) => { changed = true; emails.add(email); },
     removeAllowedEmail: async (email: string) => { changed = true; return emails.delete(email); },
   };
@@ -30,7 +32,7 @@ for (const method of ["POST", "DELETE"] as const) {
     const { api, emails } = fixture(true);
     if (method === "DELETE") emails.add("editor@example.com");
     const req = new Request("https://example.test/api/allowed-users?email=editor%40example.com", {
-      method, ...(method === "POST" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "editor@example.com" }) } : {}),
+      method, ...(method === "POST" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "editor@example.com", role: "editor" }) } : {}),
     });
     const response = await api[method](req);
     assert.equal(response.status, 502);
@@ -41,10 +43,10 @@ for (const method of ["POST", "DELETE"] as const) {
     const { api, emails } = fixture(false);
     if (method === "DELETE") emails.add("editor@example.com");
     const response = await api[method](new Request("https://example.test/api/allowed-users?email=editor%40example.com", {
-      method, ...(method === "POST" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "editor@example.com" }) } : {}),
+      method, ...(method === "POST" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "editor@example.com", role: "editor" }) } : {}),
     }));
     assert.equal(response.status, 200);
-    assert.deepEqual((await response.json()).extra, method === "POST" ? ["editor@example.com"] : []);
+    assert.deepEqual((await response.json()).extra, method === "POST" ? [{ email: "editor@example.com", role: "editor" }] : []);
   });
 }
 

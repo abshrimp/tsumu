@@ -51,8 +51,14 @@ export async function siteBootstrapBundle(browser = false) {
           if (args.importer !== resolve("components/Editor.tsx") || ["./SafeBoundary", "./EditorLoading"].includes(args.path)) return;
           return { path: args.path, namespace: "presentation" };
         });
+        // This fixture intentionally controls only site/document loading; authorization is already granted.
+        build.onResolve({ filter: /^\.\.\/lib\/status$/ }, (args) =>
+          args.importer === resolve("components/Editor.tsx")
+            ? { path: args.path, namespace: "presentation" } : undefined);
         build.onLoad({ filter: /.*/, namespace: "presentation" }, (args) => ({
-          contents: args.path === "./Canvas"
+          contents: args.path === "../lib/status"
+            ? `export function useServerStatus() { return { auth: false, db: true, assets: false, role: "editor" }; }`
+            : args.path === "./Canvas"
             ? `import { createElement } from "react"; import { useEditor } from "./lib/store";
                export default function Canvas() { const name = useEditor((s) => s.doc.siteName);
                  return createElement("div", { "data-bootstrap-document": true }, name); }`

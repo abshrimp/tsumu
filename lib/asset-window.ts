@@ -1,7 +1,17 @@
 /** 2列のアセットカード。画像の比率や、名前・詳細の欄の高さは globals.css とそろえる。 */
 export const ASSET_WINDOW_THRESHOLD = 100;
+/** Consistent card row geometry for both virtualized and normal asset grids. */
+export function assetRowHeight(width: number): number {
+  return Math.max(1, (width - 34) / 2) * 3 / 4 + 50;
+}
+
+/** Keep the same logical asset row at the same viewport offset as card sizes change. */
+export function resizedAssetScrollTop(top: number, fromWidth: number, toWidth: number): number {
+  return Math.max(0, top) * assetRowHeight(toWidth) / assetRowHeight(fromWidth);
+}
+
 export function assetWindow(count: number, width: number, height: number, scrollTop: number, pinned: number[] = []) {
-  const rowHeight = Math.max(1, (width - 34) / 2) * 3 / 4 + 50;
+  const rowHeight = assetRowHeight(width);
   const rows = Math.ceil(count / 2);
   const totalHeight = Math.max(0, rows * rowHeight - 10 + 12);
   const top = Math.max(0, Math.min(scrollTop, totalHeight - height));

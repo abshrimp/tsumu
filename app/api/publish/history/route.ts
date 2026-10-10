@@ -139,7 +139,7 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   const tr = await serverTr();
-  const denied = await requireAuth();
+  const denied = await requireAuth("editor");
   if (denied) return denied;
   let body: { target?: unknown; sha?: unknown; site?: string; dest?: unknown; expected?: unknown; expectedHead?: unknown };
   try {

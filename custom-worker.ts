@@ -17,7 +17,7 @@ import type {
 } from "./lib/collab";
 import { parseActivityUser, recordActivity, type ActivityUser } from "./lib/activity";
 import { isSiteId, getSiteRoomKey, recordSiteSavedAt } from "./lib/sites";
-import { isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
+import { getAccountRole, isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
 import { collaborationIdentityAllowed } from "./lib/anonymous";
 import { isDocPatch } from "./lib/doc-patch";
 
@@ -298,6 +298,20 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
 
       if (input.type !== "save" && input.type !== "patch") {
         throw new Error("未対応のメッセージです");
+      }
+      // Recheck permissions on every write, including after an open socket is downgraded.
+      const identity = attachment?.user?.email;
+      const role = identity
+        ? await getAccountRole(identity, parseAllowedEmails(this.env.ALLOWED_EMAILS), async (email) => {
+            const result = await db.execute({
+              sql: "SELECT role FROM allowed_emails WHERE email = ? LIMIT 1", args: [email],
+            });
+            return result.rows[0]?.role as "editor" | "viewer" | null ?? null;
+          })
+        : signInConfigured(this.env) ? null : "editor";
+      if (role !== "editor") {
+        reply(JSON.stringify({ type: "error", requestId: input.requestId, message: "You have view-only access" }));
+        return;
       }
       let result;
       if (input.type === "patch") {

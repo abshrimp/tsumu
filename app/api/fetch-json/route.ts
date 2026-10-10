@@ -12,7 +12,7 @@ const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 /** エディタからデータソースを取得する（CORS を避けるため、サーバーを経由する） */
 export async function POST(req: Request) {
   const tr = await serverTr();
-  const denied = await requireAuth();
+  const denied = await requireAuth("editor");
   if (denied) return denied;
 
   let url: string;

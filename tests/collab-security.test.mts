@@ -35,7 +35,7 @@ async function withAllowlist(run: () => Promise<void>) {
   process.env.TSUMU_DATA_DIR = dir;
   process.env.ALLOWED_EMAILS = "owner@example.com";
   try {
-    await addAllowedEmail("editor@example.com");
+    await addAllowedEmail("editor@example.com", "editor");
     await run();
   } finally {
     for (const [name, value] of Object.entries(previous)) {

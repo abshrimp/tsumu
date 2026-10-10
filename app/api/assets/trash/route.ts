@@ -91,7 +91,7 @@ export async function GET(req: Request) {
 
 /** Restore a file by removing its GC candidate, without rewriting the KV object. */
 export async function POST(req: Request) {
-  const denied = await requireAuth();
+  const denied = await requireAuth("editor");
   if (denied) return denied;
   const tr = await serverTr();
   if (!dbConfigured()) return trashUnavailable(tr);
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
 
 /** Explicit irreversible deletion from Trash, without waiting seven days. */
 export async function DELETE(req: Request) {
-  const denied = await requireAuth();
+  const denied = await requireAuth("editor");
   if (denied) return denied;
   const tr = await serverTr();
   if (!dbConfigured()) return trashUnavailable(tr);
