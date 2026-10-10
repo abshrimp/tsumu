@@ -3,6 +3,7 @@ import {
   SELF_TARGET,
   type DocNode,
   type LinkSetting,
+  type Page,
   type Script,
   type ScriptCond,
   type ScriptStep,
@@ -363,6 +364,19 @@ export function walkSteps(steps: ScriptStep[], fn: (st: ScriptStep) => void) {
     } else if (st.kind === "repeat" || st.kind === "for-each") {
       walkSteps(st.then, fn);
     }
+  }
+}
+
+/** Retarget explicit page destinations in a copied node or page, including nested script blocks. */
+export function remapPageLinks(owner: DocNode | Page, toPage: (id: string) => string): void {
+  if ("type" in owner && owner.link?.kind === "page" && owner.link.pageId) {
+    owner.link.pageId = toPage(owner.link.pageId);
+  }
+  const scripts = "type" in owner ? owner.scripts : owner.pageScripts;
+  for (const script of scripts ?? []) {
+    walkSteps(script.steps, step => {
+      if (step.kind === "open-page") step.pageId = toPage(step.pageId);
+    });
   }
 }
 

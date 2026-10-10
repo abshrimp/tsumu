@@ -42,7 +42,7 @@ import {
   type ClipPayload,
 } from "./clip-transfer";
 import { storageKey } from "./storage-keys";
-import { withPageScripts, type PageScript } from "./script";
+import { remapPageLinks, withPageScripts, type PageScript } from "./script";
 import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 import { sameDocContent, shareUnchangedDoc } from "./doc-share";
 import { placePageFolder, retainPageFolderSlots, type FolderPlacement } from "./page-panel-order";
@@ -1761,26 +1761,28 @@ export const useEditor = create<EditorStore>((set, get) => {
       const ids = [...new Set(pageIds)].filter(id => Object.hasOwn(doc.pages, id));
       if (!ids.length) return;
       const next = { ...doc, nodes: { ...doc.nodes }, pages: { ...doc.pages } };
+      const copies = new Map(ids.map(id => [id, genId("page")]));
+      const toPage = (id: string) => copies.get(id) ?? id;
       const cloneTree = (id: string): string => {
         const copy = structuredClone(doc.nodes[id]);
         copy.id = genId("node");
         copy.children = copy.children.map(cloneTree);
+        remapPageLinks(copy, toPage);
         next.nodes[copy.id] = copy;
         return copy.id;
       };
       const naming = createPageNaming(doc.pages);
-      const copies = new Map<string, string>();
       for (let i = ids.length - 1; i >= 0; i--) {
         const pageId = ids[i];
         const src = doc.pages[pageId];
         const { name, slug } = naming.copy(src, "duplicate");
-        const id = genId("page");
-        copies.set(pageId, id);
+        const id = copies.get(pageId)!;
         next.pages[id] = {
           ...structuredClone(src), id, name, slug, children: src.children.map(cloneTree),
           // 複製元のタイトルを保ち、初めてページ名を確定したときに更新する。
           titlePending: true,
         };
+        remapPageLinks(next.pages[id], toPage);
       }
       next.pageOrder = doc.pageOrder.flatMap(id => copies.has(id) ? [id, copies.get(id)!] : [id]);
       commitDoc(next);

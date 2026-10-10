@@ -98,9 +98,16 @@ test("duplicating a selection of pages commits one undoable change", () => {
   const state = useEditor.getState;
   const doc = fixture();
   doc.pages.about = { ...doc.pages.home, id: "about", slug: "about", name: "About", children: ["about-root"] };
+  doc.pages.contact = { ...doc.pages.home, id: "contact", slug: "contact", name: "Contact", children: [] };
+  doc.nodes.original.link = { kind: "page", pageId: "about" };
+  doc.pages.about.pageScripts = [{ id: "load", trigger: "load", steps: [
+    { id: "repeat", kind: "repeat", times: 1, then: [{ id: "back", kind: "open-page", pageId: "home" }] },
+  ] }];
   doc.nodes["about-root"] = { ...makeBox(), id: "about-root", children: ["about-child"] };
-  doc.nodes["about-child"] = { ...makeBox(), id: "about-child" };
-  doc.pageOrder.push("about");
+  doc.nodes["about-child"] = { ...makeBox(), id: "about-child", scripts: [{ id: "navigation", trigger: "click", steps: [
+    { id: "self", kind: "open-page", pageId: "about" }, { id: "external", kind: "open-page", pageId: "contact" },
+  ] }] };
+  doc.pageOrder.push("about", "contact");
   state().replaceDoc(doc);
   const notifications: SiteDoc[] = [];
   const stop = useEditor.subscribe((s, previous) => {
@@ -113,13 +120,20 @@ test("duplicating a selection of pages commits one undoable change", () => {
   }
   const after = state().doc;
   const [home, homeCopy, about, aboutCopy] = after.pageOrder;
-  assert.deepEqual(after.pageOrder.map(id => after.pages[id].slug), ["", "copy", "about", "about-copy"]);
+  assert.deepEqual(after.pageOrder.map(id => after.pages[id].slug), ["", "copy", "about", "about-copy", "contact"]);
   assert.equal(after.pages[home], doc.pages.home);
   assert.equal(after.pages[about], doc.pages.about);
   assert.notEqual(after.pages[homeCopy].children[0], "original");
   const root = after.pages[aboutCopy].children[0];
   assert.notEqual(root, "about-root");
   assert.notEqual(after.nodes[root].children[0], "about-child");
+  assert.equal(after.nodes[after.pages[homeCopy].children[0]].link?.pageId, aboutCopy);
+  assert.equal(after.nodes.original.link?.pageId, about);
+  const loop = after.pages[aboutCopy].pageScripts![0].steps[0];
+  assert.ok(loop.kind === "repeat" && loop.then[0].kind === "open-page");
+  assert.equal(loop.then[0].pageId, homeCopy);
+  const steps = after.nodes[after.nodes[root].children[0]].scripts![0].steps;
+  assert.deepEqual(steps.map(step => step.kind === "open-page" && step.pageId), [aboutCopy, "contact"]);
   assert.equal(state().activePageId, aboutCopy);
   assert.deepEqual(notifications, [after]);
   assert.deepEqual(state().past, [doc]);

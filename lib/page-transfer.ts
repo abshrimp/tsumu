@@ -9,7 +9,7 @@
 import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } from "./types";
 import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from "./clip-transfer";
 import { createInitialDoc, genId } from "./presets";
-import { cloneSteps, scriptUid } from "./script";
+import { cloneSteps, remapPageLinks, scriptUid } from "./script";
 import { createPageNaming } from "./page-naming";
 import { isLocalSiteDeleted, loadLocalSites } from "./site";
 import { validSiteDoc } from "./doc-tree";
@@ -64,16 +64,6 @@ export function buildPagePayload(doc: SiteDoc, pageIds: string[]): PagePayload {
   const deps = buildClipPayload(doc, { nodes, rootIds: [], pages });
   deps.nodes = [];
   return { pages, nodes, folders, slugs, queries, deps, lang: siteLangOf(doc), breakpoints: structuredClone(doc.breakpoints ?? DEFAULT_BREAKPOINTS) };
-}
-
-function mapSteps(steps: ScriptStep[] | undefined, fn: (pageId: string) => string) {
-  for (const st of steps ?? []) {
-    if (st.kind === "open-page") st.pageId = fn(st.pageId);
-    else if (st.kind === "if") {
-      mapSteps(st.then, fn);
-      mapSteps(st.else, fn);
-    } else if (st.kind === "repeat" || st.kind === "for-each") mapSteps(st.then, fn);
-  }
 }
 
 /**
@@ -139,10 +129,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
   };
 
   // 新しく取り込んだマスターの中のリンクも付け替える。既存のマスターは変えない。
-  for (const n of componentNodes) {
-    if (n.link?.kind === "page" && n.link.pageId) n.link.pageId = toPage(n.link.pageId);
-    for (const s of n.scripts ?? []) mapSteps(s.steps, toPage);
-  }
+  for (const n of componentNodes) remapPageLinks(n, toPage);
 
   // ページのスクリプトの画面は、スクリプトとその入れ子のブロックを ID で扱う。
   // 同じページを2回コピーしても、編集や選択の対象があいまいにならないようにする。
@@ -158,8 +145,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     if (n.type === "instance" && n.componentId) {
       n.componentId = componentMap.get(n.componentId) ?? n.componentId;
     }
-    if (n.link?.kind === "page" && n.link.pageId) n.link.pageId = toPage(n.link.pageId);
-    for (const s of n.scripts ?? []) mapSteps(s.steps, toPage);
+    remapPageLinks(n, toPage);
     d.nodes[n.id] = n;
   }
 
@@ -176,7 +162,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     // コピー先のサイトと言語が違えば、ページの言語として残す（中身はコピー元の言語のまま）
     if (!isSiteLang(page.lang) && p.lang && isSiteLang(p.lang) && p.lang !== siteLangOf(d)) page.lang = p.lang;
     page.children = raw.children.map((c) => nodeMap.get(c)).filter((c): c is string => !!c);
-    for (const s of page.pageScripts ?? []) mapSteps(s.steps, toPage);
+    remapPageLinks(page, toPage);
     // フォルダは名前で探し、無ければ同じ名前で作る
     delete page.folderId;
     const folderName = p.folders[raw.id];
