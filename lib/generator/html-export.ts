@@ -148,6 +148,7 @@ type Context = {
   template: boolean;
   instance?: { id?: string; hidden?: string };
   staticRoutes?: ReadonlyMap<string, Page[]>;
+  authoredBase?: boolean;
 };
 
 function resource(ctx: Context, assetId?: string): string {
@@ -157,18 +158,25 @@ function resource(ctx: Context, assetId?: string): string {
 
 function href(ctx: Context, value: string, formAction = false): string {
   const safe = safeNavigationUrl(value);
-  if (!ctx.staticRoutes) return safe;
-  if (!safe.startsWith("/")) {
-    if (!formAction || /^(?:[a-z][a-z0-9+.-]*:|[?#])/i.test(safe)) return safe;
-    // The model uses a clean route. Static HTML may be one directory deeper or a single index.html.
-    return ctx.prefix + new URL(safe, archiveFileUrl(ctx.page.slug)).href.slice("file:///".length);
+  if (!ctx.staticRoutes || /^(?:[a-z][a-z0-9+.-]*:|[?#])/i.test(safe)) return safe;
+  const [, pathname, suffix] = /^([^?#]*)([\s\S]*)$/.exec(safe)!;
+  const rootRelative = pathname.startsWith("/");
+  if (!rootRelative) {
+    // An explicit base or a leading variable can supply an entirely different destination.
+    if (ctx.authoredBase || (!formAction && hasVars(pathname))) return safe;
+    // Relative form actions can be server endpoints even when a page has the same clean URL.
+    if (formAction) return ctx.prefix + new URL(safe, archiveFileUrl(ctx.page.slug)).href.slice("file:///".length);
   }
-  const match = /^([^?#]*)(.*)$/.exec(safe);
-  const slug = (match?.[1] ?? safe).replace(/^\/+|\/+$/g, "");
-  const route = ctx.staticRoutes.get(slug);
-  // URL のリンクは、クエリ違いのページが出力ファイルを共有していても、自身のクエリを持つ。
-  if (route) return ctx.prefix + pageFilename(route[0], ctx.single) + (match?.[2] ?? "");
-  return formAction ? safe : ctx.prefix + safe.replace(/^\/+/, "");
+  // A clean editor URL and its exported directory/index.html have different bases for relative links.
+  const path = rootRelative ? pathname : new URL(pathname, archiveFileUrl(ctx.page.slug)).pathname;
+  const slug = path.replace(/^\/+|\/+$/g, "");
+  let route = ctx.staticRoutes.get(slug);
+  if (!route && slug.includes("%")) {
+    try { route = ctx.staticRoutes.get(decodeURI(slug)); } catch { /* Keep the authored URL. */ }
+  }
+  // URL links retain their own query even when several page variants share the same file.
+  if (route) return ctx.prefix + pageFilename(route[0], ctx.single) + suffix;
+  return formAction ? safe : ctx.prefix + path.replace(/^\/+/, "") + suffix;
 }
 
 /** メディアのソースは、インラインのデータか、サイト内のファイルに限る。動作するような URL のスキームは使わない。 */
@@ -402,6 +410,16 @@ function pageFragment(ctx: Context, page: Page): string {
   ].filter(Boolean).join("\n");
 }
 
+function hasBaseHref(html: string | undefined): boolean {
+  return !!html && /<base[\t\n\f\r />]/i.test(html) && !!htmlResourceElements(html).baseElement;
+}
+
+function staticPageFragment(ctx: Context, page: Page): string {
+  const html = pageFragment(ctx, page);
+  // A custom code block or a page snippet can also set the base for the whole page.
+  return !ctx.authoredBase && hasBaseHref(html) ? pageFragment({ ...ctx, authoredBase: true }, page) : html;
+}
+
 function prepareHtmlExport(doc: SiteDoc) {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);
@@ -518,6 +536,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
     if (group) group.push(page);
     else groups.set(key, [page]);
   }
+  const authoredBase = hasBaseHref(normalized.customHeadHtml) || hasBaseHref(normalized.customBodyEndHtml);
   const outputPaths = new Set<string>();
   for (const group of groups.values()) {
     const page = group[0];
@@ -547,12 +566,12 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
       continue;
     }
     const ctx: Context = {
-      ...shared, page, prefix, single, staticRoutes: groups,
+      ...shared, page, prefix, single, staticRoutes: groups, authoredBase,
       seen: new Set(), form: false, template: false,
     };
     const allNoindex = target === "production" && group.every((variant) => variant.noindex);
     const body = group.length === 1
-      ? pageFragment(ctx, page)
+      ? staticPageFragment(ctx, page)
       : (() => {
           files["query-router.js"] = QUERY_VARIANT_RUNTIME;
           const variants = group.map((variant) => {
@@ -563,7 +582,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
               description: variant.description,
               noindex: target === "production" && !allNoindex && !!variant.noindex,
               lang: variant.lang || normalized.lang || "ja",
-              html: pageFragment(context, variant),
+              html: staticPageFragment(context, variant),
             };
           });
           return '<script type="application/json" data-page-variants>' +

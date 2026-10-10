@@ -77,6 +77,37 @@ test("standalone HTML keeps explicit URL queries independent of page-variant que
   assert.ok(html.includes('href="./about/index.html?lang=ja"'));
 });
 
+test("relative links from a nested static page resolve from its editor URL", () => {
+  const doc = fixture();
+  doc.pages.home.slug = "guide/start";
+  doc.pages.contact = { ...doc.pages.home, id: "contact", slug: "guide/連絡", children: [] };
+  doc.pageOrder.push("contact");
+  doc.nodes.hero.link = { kind: "url", url: "./連絡?view={filter}#hours" };
+  const map = { ...makeBox(), id: "map", link: { kind: "url" as const, url: "./map.pdf" } };
+  doc.nodes.map = map;
+  doc.pages.home.children.push(map.id);
+  const form = { ...makeBox(), id: "form", semantic: "form" as const, htmlAttrs: { action: "連絡", method: "post" } };
+  doc.nodes.form = form;
+  doc.pages.home.children.push(form.id);
+  const { files } = generateExportProject(doc, "html");
+  const html = files["guide/start/index.html"];
+  assert.ok(files["guide/連絡/index.html"]);
+  const links = [...html.matchAll(/<a\b[^>]* href="([^"]+)"/g)].map(match =>
+    new URL(match[1], "file:///archive/guide/start/index.html").href);
+  assert.ok(links.includes(new URL("guide/連絡/index.html?view={filter}#hours", "file:///archive/").href));
+  assert.match(html, /data-static-href="[^"]*\?view=\{filter\}#hours"/);
+  assert.ok(links.includes("file:///archive/guide/map.pdf"));
+  assert.ok(html.includes('action="../../guide/%E9%80%A3%E7%B5%A1"'));
+  for (const location of ["head", "body"]) {
+    const base = '<base href="https://docs.example.test/handbook/">';
+    doc.customHeadHtml = location === "head" ? base : "";
+    doc.pages.home.customTopHtml = location === "body" ? base : "";
+    const withBase = generateExportProject(doc, "html").files["guide/start/index.html"];
+    assert.ok(withBase.includes('href="./map.pdf"'));
+    assert.ok(withBase.includes('href="./連絡?view={filter}#hours"'));
+  }
+});
+
 test("a URL link to the only exported page uses index.html without inheriting its query", () => {
   const doc = fixture();
   doc.pages.home.slug = "about";
