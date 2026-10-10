@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -175,6 +175,23 @@ test("file assets initialize on upload and retry after the directory becomes ava
   rmSync(root);
   await store.put(key, "notes");
   assert.equal(new TextDecoder().decode((await store.get(key, { type: "arrayBuffer" }))!), "notes");
+}));
+
+test("failed asset writes remove the temporary file and can be retried", withDataDir(async (dir) => {
+  const store = nodeAssetStore()!;
+  const key = "assets/notes.txt";
+  const name = assetFileName(key);
+  const data = join(dir, "assets", "data");
+  const destination = join(data, name);
+  mkdirSync(destination, { recursive: true });
+
+  await assert.rejects(store.put(key, "draft text"));
+  assert.deepEqual(readdirSync(data), [name]);
+
+  rmSync(destination, { recursive: true });
+  await store.put(key, "final text");
+  assert.equal(new TextDecoder().decode((await store.get(key, { type: "arrayBuffer" }))!), "final text");
+  assert.deepEqual(readdirSync(data), [name]);
 }));
 
 test("アセットのキーはフォルダの外を指せない", () => {

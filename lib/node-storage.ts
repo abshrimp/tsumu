@@ -172,8 +172,14 @@ function fileStore(dir: string, fs: FsPromises): KVLikeNamespace {
   /** 書きかけのファイルを読まれないよう、一時ファイルに書いてから置き換える */
   const writeAtomic = async (path: string, data: Uint8Array | string) => {
     const tmp = `${path}.${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`;
-    await fs.writeFile(tmp, data);
-    await fs.rename(tmp, path);
+    try {
+      await fs.writeFile(tmp, data);
+      await fs.rename(tmp, path);
+    } catch (error) {
+      // 書き込み途中のファイルだけを除去し、呼び出し元には元の保存エラーを返す。
+      await fs.rm(tmp, { force: true }).catch(() => {});
+      throw error;
+    }
   };
   const readData = async (key: string): Promise<Uint8Array | null> => {
     try {
