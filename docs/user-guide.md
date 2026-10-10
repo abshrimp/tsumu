@@ -301,7 +301,18 @@ Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A z
 > [!TIP]
 > `skills/tsumu-site/` is an agent skill that describes the `doc.json` format, so an AI agent can generate a site you then import and keep editing.
 
-To copy pages between sites, select them in the **Pages** panel, right-click and choose **Copy to another site…**. Regular pages such as `/blog?tab=news` and `/blog?tab=archive` keep their shared path when the destination can serve both. If the destination already uses the same URL and query conditions, Tsumu adds a suffix such as `-copy` to the copied path.
+## Duplicating and copying pages
+
+In **Pages**, right-click a page to copy it on its own. For a group, click **Select pages** and check the pages you want. The current page starts checked. You can also ⌘-click (Ctrl-click on Windows or Linux) to toggle individual pages, or Shift-click to select a range. Right-click one of the checked pages to act on the group.
+
+| Where you want the copies | What to choose |
+| --- | --- |
+| The same site | Choose **Duplicate** (for example, **Duplicate 2 pages** for a pair). Each copy appears immediately after its original. One Undo removes the whole group of copies. |
+| Another site | Choose **Copy to another site…** (for example, **Copy 2 pages to another site…**), then click the destination site to start the copy. The pages are appended in their original order with their elements, scripts, referenced assets, components and custom fonts. Click **Open in a new tab** to view the result. |
+
+For a link made with the editor’s page picker, select the source and target together to link the copies to each other. This also works with **Open a page or link** in page and element scripts, including inside a condition or loop. Within the same site, links to unselected pages still point to the originals, and component instances keep using their shared component.
+
+When copying to another site, a link to an unselected page can use an existing destination page with the same path and query conditions. If there is no match, check the link in the destination editor and select the intended page. For example, `/blog?tab=news` and `/blog?tab=archive` are distinct targets. If a copied page's path and query conditions are already in use, Tsumu gives the copy a path such as `/blog-copy`. Update any paths you typed directly into URL fields or custom HTML if they should lead to the copy.
 
 ## Hosting the published site
 
