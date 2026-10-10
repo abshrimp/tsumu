@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { submissionAttributes, submissionProps } from "../lib/imported-form";
 import { importedAttributes, importedClass } from "../lib/imported-html-attrs";
+import { makeBox } from "../lib/presets";
+import { useEditor } from "../lib/store";
 
 test("safe imported HTML attributes preserve original CSS and accessibility hooks", () => {
   const attrs = importedAttributes({
@@ -64,4 +66,30 @@ test("form attributes retain native defaults and apply only to their controls", 
     form: "signup", formAction: "", formMethod: "post", formNoValidate: true, type: "submit",
   });
   assert.deepEqual(submissionAttributes({ action: "/apply", method: 1, target: {} }, "form", () => "file:///local"), { action: "#" });
+});
+
+test("duplicating a form keeps its label, form owner and ARIA references with the copy", () => {
+  const editor = useEditor.getState();
+  editor.replaceDoc({
+    siteName: "Forms", assets: {}, pageOrder: ["p"],
+    pages: { p: { id: "p", name: "Home", slug: "", title: "", description: "", children: ["form", "help"] } },
+    nodes: {
+      form: { ...makeBox(), id: "form", attrId: "signup", semantic: "form", children: ["label", "email"] },
+      label: { ...makeBox(), id: "label", attrId: "email.label", semantic: "custom", customTag: "label", htmlAttrs: { htmlFor: "email" } },
+      email: { ...makeBox(), id: "email", attrId: "email", type: "field", field: { kind: "input", inputType: "email" },
+        htmlAttrs: { form: "signup", "aria-labelledby": "email.label  help", "data-field": "email" } },
+      help: { ...makeBox(), id: "help", attrId: "help" },
+    },
+  });
+  editor.setActivePage("p");
+  editor.duplicateNode("form");
+  const { doc, selection } = useEditor.getState();
+  const form = doc.nodes[selection!];
+  const [label, field] = form.children.map(id => doc.nodes[id]);
+  assert.notEqual(field.attrId, doc.nodes.email.attrId);
+  assert.equal(label.htmlAttrs!.htmlFor, field.attrId);
+  assert.deepEqual(field.htmlAttrs, {
+    form: form.attrId, "aria-labelledby": `${label.attrId}  help`, "data-field": "email",
+  });
+  assert.equal(doc.nodes.label.htmlAttrs!.htmlFor, "email");
 });

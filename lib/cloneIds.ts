@@ -2,6 +2,11 @@ import { SELF_TARGET, type DocNode, type ScriptStep, type SiteDoc } from "./type
 import { cloneSteps, pageNodeIds, scriptUid } from "./script";
 import { mapNodeTokens } from "./data";
 
+const idReferenceAttributes = new Set([
+  "for", "htmlfor", "form", "aria-activedescendant", "aria-controls", "aria-describedby",
+  "aria-details", "aria-errormessage", "aria-flowto", "aria-labelledby", "aria-owns",
+]);
+
 /** 「nav-links」→「nav-links-2」のように、使われていない ID にする */
 function uniqueId(base: string, used: Set<string>): string {
   if (!used.has(base)) return base;
@@ -99,6 +104,13 @@ export function refreshClonedIds(
       }));
     }
     if (!renamed.size) continue;
+    if (c.htmlAttrs) {
+      for (const [name, value] of Object.entries(c.htmlAttrs)) {
+        if (idReferenceAttributes.has(name.toLowerCase())) {
+          c.htmlAttrs[name] = value.replace(/[^\t\n\f\r ]+/g, id => renamed.get(id) ?? id);
+        }
+      }
+    }
     // {ID} の変数（文字・画像・リンク・スクリプトの値）
     mapNodeTokens(c, fn);
     for (const s of c.scripts ?? []) mapSteps(s.steps, fn);
