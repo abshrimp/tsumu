@@ -8,6 +8,12 @@ export async function readAssetForm(req: Request, maxBytes: number): Promise<For
     throw new RangeError("Upload too large");
   }
   if (!req.body) return null;
+  const type = req.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+  if (type !== "multipart/form-data") {
+    // ファイルを含められない形式は、本文の到着を待たずに受信を止める。
+    void req.body.cancel().catch(() => {});
+    return null;
+  }
   let length = 0;
   const body = req.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
     transform(chunk, controller) {

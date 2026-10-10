@@ -69,3 +69,20 @@ test("streamed oversized cloned uploads reject while the other branch remains re
     void original.body?.cancel().catch(() => {});
   }
 });
+
+test("file uploads discard unsupported media types before reading the body", async () => {
+  for (const type of [null, "text/plain; charset=utf-8", "application/x-www-form-urlencoded"]) {
+    let reads = 0, cancelled = false;
+    const req = new Request("https://editor.example/upload", {
+      method: "POST", headers: type ? { "content-type": type } : {},
+      body: new ReadableStream<Uint8Array>({
+        pull(controller) { reads++; controller.close(); },
+        cancel() { cancelled = true; return new Promise<void>(() => {}); },
+      }, { highWaterMark: 0 }),
+      duplex: "half",
+    } as RequestInit);
+    assert.equal(await timely(readAssetForm(req, 4096)), null);
+    assert.equal(reads, 0);
+    assert.equal(cancelled, true);
+  }
+});
