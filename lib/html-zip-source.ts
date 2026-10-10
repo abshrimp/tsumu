@@ -1,11 +1,12 @@
-import { parse, type DefaultTreeAdapterTypes as Html } from "parse5";
+import { parse, parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
 import type { Asset, HtmlZipPage } from "./types";
 import { CSS_ASSET_ATTRIBUTES, rewriteCssAssetUrls } from "./css-assets";
 import { rewriteSrcsetUrls } from "./srcset";
 import { archiveBaseUrl, archiveResolver } from "./zip-references";
 
-export function htmlZipElements(source: string) {
-  const doc = parse(source, { sourceCodeLocationInfo: true });
+export function htmlResourceElements(source: string, mode: "document" | "fragment" = "document") {
+  const options = { sourceCodeLocationInfo: true };
+  const doc = mode === "fragment" ? parseFragment(source, options) : parse(source, options);
   const elements: Html.Element[] = [];
   const pending: Html.Node[] = [doc];
   const templates: Html.Node[] = [];
@@ -34,13 +35,24 @@ export function htmlZipElements(source: string) {
  */
 export function rewriteHtmlZipSource(source: string, htmlPath: string, urls: Map<string, string>): string {
   if (!urls.size) return source;
-  const { elements, baseElement } = htmlZipElements(source);
+  const { elements, baseElement } = htmlResourceElements(source);
   const href = baseElement?.attrs.find(a => a.name === "href")?.value;
   const base = archiveBaseUrl(htmlPath, href);
   const resolve = archiveResolver(htmlPath, base, urls);
+  // ZIP import and preview write resource attributes in a consistent quoted form.
+  return rewriteHtmlResourceUrls(source, elements, resolve, (name, value) =>
+    name + '="' + value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;") + '"', baseElement);
+}
+
+/** Apply URL edits to parsed elements at their original offsets, preserving unrelated markup. */
+export function rewriteHtmlResourceUrls(
+  source: string,
+  elements: Html.Element[],
+  resolve: (url: string, scriptSource?: boolean) => string,
+  attributeMarkup: (name: string, value: string, original: string) => string,
+  preserveBase?: Html.Element,
+): string {
   const edits: { start: number; end: number; value: string }[] = [];
-  const escapeAttribute = (value: string) => value
-    .replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
   const attrs = new Set(["src", "href", "poster", "xlink:href"]);
   const srcsets = new Set(["srcset", "imagesrcset"]);
   const styles = new Set<string>(CSS_ASSET_ATTRIBUTES);
@@ -52,14 +64,15 @@ export function rewriteHtmlZipSource(source: string, htmlPath: string, urls: Map
     for (const attr of el.attrs) {
       const key = attr.prefix ? attr.prefix + ":" + attr.name : attr.name;
       const loc = location.attrs?.[key];
-      if (!loc || (el === baseElement && key === "href")) continue;
+      if (!loc || (el === preserveBase && key === "href")) continue;
       let next: string;
-      if (attrs.has(key)) next = resolve(attr.value);
+      if (attrs.has(key)) next = resolve(attr.value, el.tagName === "script" && key === "src");
       else if (srcsets.has(key)) next = rewriteSrcsetUrls(attr.value, resolve);
       else if (styles.has(key)) next = rewriteCssAssetUrls(attr.value, resolve);
       else continue;
       if (next === attr.value) continue;
-      edits.push({ start: loc.startOffset, end: loc.endOffset, value: key + '="' + escapeAttribute(next) + '"' });
+      const { startOffset: start, endOffset: end } = loc;
+      edits.push({ start, end, value: attributeMarkup(key, next, source.slice(start, end)) });
       if (el.tagName === "link" && key === "href" && next.startsWith("tsumu-zip-css:")) stylesheetChanged = true;
     }
     // プレビューや書き出しでは CSS のバイト列が変わることがあるため、元の SRI はもう当てはまらない。
@@ -67,9 +80,9 @@ export function rewriteHtmlZipSource(source: string, htmlPath: string, urls: Map
       const integrity = location.attrs?.integrity;
       if (integrity) edits.push({ start: integrity.startOffset, end: integrity.endOffset, value: "" });
     }
-    if (el.tagName === "style" && location.endTag) {
+    if (el.tagName === "style") {
       const start = location.startTag.endOffset;
-      const end = location.endTag.startOffset;
+      const end = location.endTag?.startOffset ?? el.childNodes.at(-1)?.sourceCodeLocation?.endOffset ?? start;
       const old = source.slice(start, end);
       const next = rewriteCssAssetUrls(old, resolve);
       if (next !== old) edits.push({ start, end, value: next });

@@ -11,7 +11,7 @@ import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { rewriteHtmlAssetUrls, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
-import { htmlZipElements, htmlZipSource } from "../html-zip-source";
+import { htmlResourceElements, htmlZipSource, rewriteHtmlResourceUrls } from "../html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "../html-zip-script-assets";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
@@ -28,9 +28,7 @@ import { QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { rewriteCssAssetUrls } from "../css-assets";
-import { rewriteSrcsetUrls } from "../srcset";
 import { archiveBaseUrl, archiveFileUrl } from "../zip-references";
-import { parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -60,7 +58,7 @@ function pagePrefix(path: string): string {
  */
 function standaloneZipBase(html: string, path: string) {
   if (!/<base[\s>]/i.test(html)) return undefined;
-  const { baseElement } = htmlZipElements(html);
+  const { baseElement } = htmlResourceElements(html);
   const href = baseElement?.attrs.find(attr => attr.name === "href");
   const location = baseElement?.sourceCodeLocation?.attrs?.href;
   const base = archiveBaseUrl(path, href?.value);
@@ -97,50 +95,28 @@ function exportedAssetSources(doc: SiteDoc, names: Map<string, string>) {
  * 実際の HTML の属性とインラインの CSS だけを書き換える。スクリプトの本文、コメント、
  * テキストノード、たまたまマークアップを含む無関係な属性の値は、決して書き換えない。
  */
-function rewriteRootUrls(source: string, prefix: string, sources: ReturnType<typeof exportedAssetSources>): string {
+function rewriteRootUrls(
+  source: string, prefix: string, sources: ReturnType<typeof exportedAssetSources>,
+  mode: "fragment" | "document" = "fragment",
+): string {
   const resource = (value: string, script = false) => {
     const suffix = value.startsWith("/api/assets/file?path=") ? value.search(/[&#]/) : value.indexOf("#");
     const key = suffix < 0 ? value : value.slice(0, suffix);
     const mapped = (script ? sources.scripts.get(key) : undefined) ?? sources.files.get(key);
     if (mapped === "") throw new Error("Ambiguous ZIP script location. Give the imported entry scripts distinct URLs.");
     if (mapped) {
-      const tail = suffix < 0 ? "" : value.slice(suffix).replace(/^&(?:amp;)?/, "?");
+      const tail = suffix < 0 ? "" : value.slice(suffix).replace(/^&/, "?");
       return prefix + mapped.slice(1) + tail;
     }
     return value.startsWith("/") && !value.startsWith("//") ? prefix + value.slice(1) : value;
   };
-  const rewriteTag = (tag: string) => tag.replace(
-    /(\s)([^\s=/>]+)(\s*=\s*)(["'])([\s\S]*?)\4/g,
-    (whole, space: string, name: string, eq: string, quote: string, value: string) => {
-      const attribute = name.toLowerCase();
-      if (attribute === "srcset" || attribute === "imagesrcset") {
-        const rewritten = rewriteSrcsetUrls(value, url => resource(url));
-        return rewritten === value ? whole : space + name + eq + quote + rewritten + quote;
-      }
-      if (attribute === "style") {
-        // ブラウザでは、CSS の字句の解析は HTML の属性の文字参照をデコードした後に行われる。
-        // 直列化した url(&quot;/assets/...&quot;) も使えるようにする。
-        const fragment = parseFragment("<div style=" + quote + value + quote + "></div>");
-        const decoded = (fragment.childNodes[0] as Html.Element).attrs[0].value;
-        const rewritten = rewriteCssRootUrls(decoded, prefix);
-        return rewritten === decoded ? whole : space + name + eq + quote + escapeHtml(rewritten) + quote;
-      }
-      const next = attribute === "src" || attribute === "href" || attribute === "xlink:href" || attribute === "poster"
-        ? resource(value, attribute === "src" && /^<script(?=[\t\n\f\r />])/i.test(tag))
-        : value;
-      return next === value ? whole : space + name + eq + quote + next + quote;
-    },
-  );
-  return source.replace(
-    /<!--[\s\S]*?(?:-->|$)|(<(script|style|textarea|title|xmp|iframe|noembed|noframes)(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>|$)|<[a-z][\w:-]*(?:"[^"]*"|'[^']*'|[^'">])*>/gi,
-    (whole, open: string | undefined, kind: string | undefined, body: string | undefined, close: string | undefined) => {
-      if (whole.startsWith("<!--")) return whole;
-      if (!open) return rewriteTag(whole);
-      return rewriteTag(open) +
-        (kind?.toLowerCase() === "style" ? rewriteCssRootUrls(body ?? "", prefix) : body ?? "") +
-        (close ?? "");
-    },
-  );
+  const { elements } = htmlResourceElements(source, mode);
+  return rewriteHtmlResourceUrls(source, elements, resource, (_name, value, original) => {
+    // Preserve the original assignment and quote style. Newly quoted values can contain decoded spaces.
+    const assignment = /^[^=]+=[\t\n\f\r ]*/.exec(original)![0];
+    const quote = original[assignment.length] === "'" ? "'" : '"';
+    return assignment + quote + escapeHtml(value) + quote;
+  });
 }
 
 /** Tsumu のブラウザのランタイムが各行を複製するまで、リストの項目の字句を残す。 */
@@ -566,7 +542,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
         htmlWithScriptAssets = htmlWithScriptAssets.slice(0, updated.location.startOffset) +
           'href="' + escapeHtml(base.href) + '"' + htmlWithScriptAssets.slice(updated.location.endOffset);
       }
-      files[path] = rewriteRootUrls(htmlWithScriptAssets, assetPrefix, assetSources);
+      files[path] = rewriteRootUrls(htmlWithScriptAssets, assetPrefix, assetSources, "document");
       continue;
     }
     const ctx: Context = {

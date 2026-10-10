@@ -1,5 +1,5 @@
 import { tokenizer, tokTypes } from "acorn";
-import { htmlZipElements } from "./html-zip-source";
+import { htmlResourceElements } from "./html-zip-source";
 import type { Asset, HtmlZipPage } from "./types";
 import { archiveBaseUrl, archiveResolver } from "./zip-references";
 
@@ -46,7 +46,7 @@ export function quotedScriptUrl(literal: Literal, resolved: string) {
 // src を持つスクリプト、JSON-LD のようなデータのスクリプトはそのまま残す。
 function eachScriptLiteral(source: string, path: string, urls: Map<string, string>,
     visit: (literal: Literal, resolved: string) => void): void {
-  const { elements, baseElement } = htmlZipElements(source);
+  const { elements, baseElement } = htmlResourceElements(source);
   const base = archiveBaseUrl(path, baseElement?.attrs.find(attr => attr.name === "href")?.value);
   // 外部の base がある相対的な取得やモジュールの import は、そのオリジンのまま残す。
   if (base && base.protocol !== "file:") return;

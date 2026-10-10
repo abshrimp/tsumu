@@ -90,8 +90,19 @@ test("nested HTML code and SVG use relative exported asset URLs", () => {
   const doc = fixture();
   doc.pages.home = { ...doc.pages.p, id: "home", slug: "", children: [] };
   doc.pageOrder.unshift("home");
+  doc.pages.p.customEndHtml = '<style>.hero{background:url(/assets/photo.png)}';
+  const untouched = '<script>const example = "<img src=/assets/example.png>";</script>';
+  doc.pages.p.customTopHtml = '<!-- note --!><img src=/assets/photo.png>' +
+    '<template><img src=&#47;assets/photo.png></template>' +
+    '<img src="' + source + '&amp;v=2&amp;size=3#icon">' + untouched;
   const project = generateExportProject(doc, "html");
-  assertMarkup(project.files["guide/details/index.html"], "../../");
+  const html = project.files["guide/details/index.html"];
+  assertMarkup(html, "../../");
+  assert.ok(html.includes('<!-- note --!><img src="../../assets/photo.png">'));
+  assert.ok(html.includes('<template><img src="../../assets/photo.png"></template>'));
+  assert.ok(html.includes('<img src="../../assets/photo.png?v=2&amp;size=3#icon">'));
+  assert.ok(html.includes(untouched));
+  assert.ok(html.includes('<style>.hero{background:url(../../assets/photo.png)}'));
 });
 
 test("React browser-data rendering keeps embedded assets portable", async () => {
