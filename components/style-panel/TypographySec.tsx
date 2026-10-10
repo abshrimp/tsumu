@@ -5,6 +5,7 @@
  */
 
 import { isEnterKey } from "../../lib/keys";
+import { adobeCssFamily, parseAdobeEmbed } from "../../lib/adobe-fonts-embed";
 import { useState } from "react";
 import { usePendingImport } from "../../lib/use-pending-import";
 import {
@@ -52,13 +53,14 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const [adding, setAdding] = useState(false);
   const [family, setFamily] = useState("");
   const [provider, setProvider] = useState<"google" | "adobe">("google");
-  const [kitId, setKitId] = useState("");
-  const [adobeLoading, setAdobeLoading] = useState<"css" | "dynamic">("css");
+  const [adobeEmbed, setAdobeEmbed] = useState("");
   const pending = usePendingImport(JSON.stringify([insp.editTarget, insp.get("fontFamily").value]));
   const { busy } = pending;
   const [error, setError] = useState<string | null>(null);
 
   const fonts = allFonts(doc.customFonts, doc.adobeFonts);
+  const parsedAdobe = parseAdobeEmbed(adobeEmbed);
+  const detectedFamily = adobeCssFamily(adobeEmbed);
 
   const addFont = async () => {
     const name = family.trim().replace(/\s+/g, " ");
@@ -129,32 +131,33 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   };
 
   const addAdobeFont = () => {
-    const name = family.trim().replace(/\s+/g, " ");
-    const kit = kitId.trim().toLowerCase();
-    if (!/^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(name)) {
+    const name = adobeCssFamily(family.trim() || adobeEmbed);
+    if (!parsedAdobe) {
+      setError(tr("Paste a valid Adobe Fonts Web Project embed code."));
+      return;
+    }
+    if (!name) {
       setError(tr("Enter the CSS font-family name shown in Adobe Fonts."));
       return;
     }
-    if (!/^[a-z0-9]{7}$/.test(kit)) {
-      setError(tr("Enter the seven-character Adobe Fonts Web Project ID."));
-      return;
-    }
+    const { kitId, loading } = parsedAdobe;
     if (fonts.some((f) => f.value === name && !doc.adobeFonts?.some((a) => a.family === name))) {
       setError(tr("A font with this name is already registered from another provider."));
       return;
     }
-    if (doc.adobeFonts?.some((f) => f.kitId === kit && f.family !== name && f.loading !== adobeLoading)) {
+    if (doc.adobeFonts?.some((f) => f.kitId === kitId && f.family !== name && f.loading !== loading)) {
       setError(tr("Fonts from the same Adobe Web Project must use the same loading method."));
       return;
     }
     setError(null);
     updateDoc((d) => {
       d.adobeFonts = [...(d.adobeFonts ?? []).filter((f) => f.family !== name),
-        { family: name, kitId: kit, loading: adobeLoading }];
+        { family: name, kitId, loading }];
     });
     insp.set({ fontFamily: name });
     setAdding(false);
     setFamily("");
+    setAdobeEmbed("");
   };
 
   return (
@@ -194,12 +197,38 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
               </button>
             ))}
           </div>
+          {provider === "adobe" && (
+            <>
+              <textarea className="input" rows={5}
+                aria-label={tr("Adobe Fonts embed code")}
+                value={adobeEmbed}
+                placeholder={'<script>\n  (function(d) {\n    var config = { kitId: "xxxxxxx", ... };\n  })(document);\n</script>'}
+                onChange={(e) => { setError(null); setAdobeEmbed(e.target.value); }}
+              />
+              <p className="hint" style={{ margin: 0 }}>
+                {tr("Paste the embed code copied from your Adobe Fonts Web Project. The code is parsed, never executed.")}
+              </p>
+              {parsedAdobe && (
+                <p className="hint" style={{ margin: 0 }} aria-live="polite">
+                  {tr("Web Project {kitId} detected ({method}).", {
+                    kitId: parsedAdobe.kitId,
+                    method: parsedAdobe.loading === "dynamic" ? "JavaScript" : "CSS",
+                  })}
+                </p>
+              )}
+              {adobeEmbed.trim() && !parsedAdobe && (
+                <p className="hint" style={{ margin: 0, color: "var(--danger)" }} role="status">
+                  {tr("Could not identify one Adobe Fonts Web Project in the pasted code.")}
+                </p>
+              )}
+            </>
+          )}
           <input className="input" value={family}
             aria-label={tr("Font family")}
             placeholder={provider === "google"
               ? tr("Name on fonts.google.com (e.g. Playfair Display)")
-              : tr("CSS font-family (e.g. source-han-sans-japanese)")}
-            onChange={(e) => { pending.cancel(); setFamily(e.target.value); }}
+              : detectedFamily ?? tr("CSS font-family (e.g. poprumcute)")}
+            onChange={(e) => { pending.cancel(); setError(null); setFamily(e.target.value); }}
             onKeyDown={(e) => {
               if (isEnterKey(e)) {
                 if (provider === "google") void addFont();
@@ -208,20 +237,9 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
             }}
           />
           {provider === "adobe" && (
-            <>
-              <input className="input" aria-label={tr("Adobe Web Project ID")}
-                value={kitId} placeholder={tr("Web Project ID (7 characters)")}
-                onChange={(e) => setKitId(e.target.value)} />
-              <select className="input" aria-label={tr("Adobe loading method")}
-                value={adobeLoading}
-                onChange={(e) => setAdobeLoading(e.target.value as "css" | "dynamic")}>
-                <option value="css">{tr("CSS (Latin and other non-East Asian fonts)")}</option>
-                <option value="dynamic">{tr("JavaScript (Japanese and other East Asian fonts)")}</option>
-              </select>
-              <p className="hint" style={{ margin: 0 }}>
-                {tr("Use your own Adobe Fonts Web Project. Add this font to the project on Adobe first.")}
-              </p>
-            </>
+            <p className="hint" style={{ margin: 0 }}>
+              {tr("Paste the CSS font-family declaration from Adobe, or enter its family name. If included in the embed text, it is detected automatically.")}
+            </p>
           )}
           <button type="button" className="btn btn-sm"
             disabled={provider === "google" && busy}

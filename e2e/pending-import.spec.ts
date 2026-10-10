@@ -45,18 +45,48 @@ async function startFont(page: Page) {
   await request.started;
   return request;
 }
-test("Adobe Fonts can be added without fetching Google Fonts", async ({ page }) => {
+test("Adobe Fonts accepts Adobe's complete script and copied font-family declaration", async ({ page }) => {
   await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByRole("button", { name: "Adobe Fonts" }).click();
-  await page.getByRole("textbox", { name: "フォントファミリー" }).fill("source-han-sans-japanese");
-  await page.getByRole("textbox", { name: "Adobe WebプロジェクトID" }).fill("abc1234");
-  await page.getByLabel("Adobe Fontsの読み込み方式").selectOption("dynamic");
+  await page.getByRole("textbox", { name: "Adobe Fontsの埋め込みコード" }).fill(
+    '<script>(function(d){var config={kitId:"abc1234",async:true};' +
+    'var tk=d.createElement("script");tk.src="https://use.typekit.net/"+config.kitId+".js";' +
+    'd.head.appendChild(tk);})(document);</script>');
+  await expect(page.getByText("Webプロジェクト abc1234（JavaScript）を検出しました。")).toBeVisible();
+  await page.getByRole("textbox", { name: "フォントファミリー" }).fill(
+    'font-family: "source-han-sans-japanese", sans-serif;');
   await page.getByRole("button", { name: "追加", exact: true }).click();
   await expect.poll(async () => (await doc(page)).nodes.a.styles.base.default.fontFamily)
     .toBe("source-han-sans-japanese");
   expect((await doc(page)).adobeFonts).toEqual([
     { family: "source-han-sans-japanese", kitId: "abc1234", loading: "dynamic" },
   ]);
+});
+
+test("Adobe CSS link and CSS family are detected from the same pasted text", async ({ page }) => {
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  await page.getByRole("textbox", { name: "Adobe Fontsの埋め込みコード" }).fill(
+    '<link rel="stylesheet" href="https://use.typekit.net/def5678.css">\n' +
+    '<style>body { font-family: "acumin-pro", sans-serif; }</style>');
+  await expect(page.getByText("Webプロジェクト def5678（CSS）を検出しました。")).toBeVisible();
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  expect((await doc(page)).adobeFonts).toEqual([
+    { family: "acumin-pro", kitId: "def5678", loading: "css" },
+  ]);
+});
+
+test("invalid Adobe embeds are rejected without changing the document", async ({ page }) => {
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  const before = await doc(page);
+  await page.getByRole("textbox", { name: "Adobe Fontsの埋め込みコード" }).fill(
+    '<script src="https://example.com/abc1234.js"></script>');
+  await page.getByRole("textbox", { name: "フォントファミリー" }).fill("poprumcute");
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  expect(await doc(page)).toEqual(before);
+  await expect(page.getByText("Adobe FontsのWebプロジェクトの埋め込みコードを貼り付けてください。"))
+    .toBeVisible();
 });
 
 async function startImage(page: Page, picker = page.locator('[data-tutorial="style-background"] .img-pick')) {
