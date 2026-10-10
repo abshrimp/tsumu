@@ -57,12 +57,6 @@ function isSafeGoogleFont(f: { value: string; google?: { importName: string } })
   return !!f.google && /^[A-Za-z][A-Za-z0-9 ]*$/.test(f.value) && /^[A-Za-z_][A-Za-z0-9_]*$/.test(f.google.importName);
 }
 
-function fontFamilyCss(doc: SiteDoc, value: string): string {
-  const font = allFonts(doc.customFonts).find((f) => f.value === value);
-  if (font?.google && isSafeGoogleFont(font)) return `var(${font.google.cssVar}), "${value}", sans-serif`;
-  return value;
-}
-
 /* ---------- CSS の生成 ---------- */
 
 /** ZIP の HTML を直列化したときに生じる区切り文字は保ち、追加のクエリの & だけを変換する。 */
@@ -104,8 +98,13 @@ type CssValueResolver = (prop: string, value: string) => string;
 
 export function createCssValueResolver(doc: SiteDoc, assetNames: Map<string, string>): CssValueResolver {
   let sources: Map<string, string> | undefined;
+  let fonts: ReturnType<typeof allFonts> | undefined;
   return (prop, value) => {
-    if (prop === "fontFamily") return fontFamilyCss(doc, value);
+    if (prop === "fontFamily") {
+      fonts ??= allFonts(doc.customFonts);
+      const font = fonts.find(f => f.value === value);
+      return font?.google && isSafeGoogleFont(font) ? `var(${font.google.cssVar}), "${value}", sans-serif` : value;
+    }
     // A CSS URL occurs in a function or a quoted @import.
     if (!assetNames.size || !/[(@]/.test(value)) return value;
     sources ??= buildAssetSources(doc, assetNames, "css");
