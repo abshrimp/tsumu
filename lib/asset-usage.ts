@@ -11,8 +11,10 @@ import type { SiteDoc } from "./types";
  */
 export function assetUsage(doc: SiteDoc): Map<string, number> {
   const usage = new Map<string, number>();
+  const assets = Object.values(doc.assets);
+  if (!assets.length) return usage;
   const add = (id: string | undefined | null) => {
-    if (id && doc.assets[id]) usage.set(id, (usage.get(id) ?? 0) + 1);
+    if (id && Object.hasOwn(doc.assets, id)) usage.set(id, (usage.get(id) ?? 0) + 1);
   };
   const findCssAssets = createCssAssetFinder(doc.assets);
   for (const node of Object.values(doc.nodes)) {
@@ -31,11 +33,14 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
     findCssAssets(page.bodyStyles).forEach(add);
   }
 
+  // The remaining scans only mark assets that have no counted use yet.
+  if (usage.size === assets.length) return usage;
+
   // それ以外（スクリプト・埋め込みの HTML など）に URL や ID が書かれていれば、使用中とみなす
   const { assets: _assets, ...rest } = doc;
   void _assets;
   const text = JSON.stringify(rest);
-  for (const a of Object.values(doc.assets)) {
+  for (const a of assets) {
     if (usage.has(a.id)) continue;
     const src = assetSrc(a);
     const alias = importedAssetUrl(a);
@@ -47,10 +52,10 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
   // こうした参照はバイナリとして保存した JS のアセットの中にあり、ここでは調べられない。
   // そのため、ZIP の中のスクリプトが1つでも使われていれば、元の ZIP の一式をまとめて残し、
   // 依存するファイルを「未使用」として削除しないようにする。
-  const activeGroups = new Set(Object.values(doc.assets)
+  const activeGroups = new Set(assets
     .filter((asset) => isZipJavascript(asset) && usage.has(asset.id))
     .map((asset) => asset.zip!.group));
-  for (const asset of Object.values(doc.assets)) {
+  for (const asset of assets) {
     if (asset.zip && activeGroups.has(asset.zip.group) && !usage.has(asset.id)) {
       usage.set(asset.id, 1);
     }

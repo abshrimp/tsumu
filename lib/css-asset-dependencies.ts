@@ -16,6 +16,8 @@ export function createCssAssetFinder(assets: Record<string, Asset>) {
   return (styles?: NodeStyles, customCss?: string): Set<string> => {
     const hits = new Set<string>();
     const scan = (css: string) => {
+      // A CSS resource appears in a function or a quoted @import.
+      if (!/[(@]/.test(css)) return;
       for (const { url } of iterateCssAssetReferences(css)) {
         // 同じファイルを指す別の ID と、SVG などのフラグメントを除いた元の画像も残す。
         const exact = bySrc.get(url);
