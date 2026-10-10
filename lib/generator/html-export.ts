@@ -11,6 +11,7 @@ import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { rewriteHtmlAssetUrls, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
+import { adobeFontHead } from "./adobe-fonts";
 import { htmlResourceElements, htmlZipSource, rewriteHtmlResourceUrls } from "../html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "../html-zip-script-assets";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
@@ -581,6 +582,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
       normalized.pwa?.enabled ? '<link rel="manifest" href="' + prefix + 'manifest.webmanifest">' : "",
       '<link rel="stylesheet" href="' + prefix + 'styles/globals.css">',
       '<link rel="stylesheet" href="' + prefix + 'styles/site.css">',
+      adobeFontHead(normalized),
       normalized.customHeadHtml || "",
     ].filter(Boolean).join("\n");
     const scriptNames = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"]

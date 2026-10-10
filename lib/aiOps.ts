@@ -734,6 +734,7 @@ export function buildAiContext(
     baseWidth: doc.baseWidth,
     colorPalette: doc.colorPalette,
     customFonts: doc.customFonts,
+    adobeFonts: doc.adobeFonts,
     components: comp ? { [comp.id]: comp } : undefined,
   });
   return {

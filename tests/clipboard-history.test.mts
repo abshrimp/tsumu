@@ -32,6 +32,18 @@ function copyComponent() {
   return componentId;
 }
 
+test("copying a node preserves its Adobe Fonts Web Project", async () => {
+  const doc = fixture();
+  doc.nodes.text.styles.base = { default: { fontFamily: "acumin-pro" } };
+  doc.adobeFonts = [{ family: "acumin-pro", kitId: "abc1234", loading: "css" }];
+  const { buildClipPayload, mergeClipDeps } = await import("../lib/clip-transfer");
+  const payload = buildClipPayload(doc, { nodes: [doc.nodes.text], rootIds: ["text"] });
+  assert.deepEqual(payload.adobeFonts, doc.adobeFonts);
+  const target = fixture();
+  mergeClipDeps(target, payload);
+  assert.deepEqual(target.adobeFonts, doc.adobeFonts);
+});
+
 test("internal paste restores a copied component after undoing its creation", () => {
   open();
   const original = structuredClone(state().doc);

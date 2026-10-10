@@ -44,6 +44,8 @@ test("clipboard rejects malformed asset maps, identities and values", () => {
     (p: any) => { p.assets.picture.zip = { version: 1, group: "zip", path: "picture.png", stylesheet: { source: "", references: {} } }; },
     (p: any) => { p.assets = JSON.parse('{"__proto__":{"id":"__proto__","name":"x.png","path":"assets/x.png","width":1,"height":1}}'); },
     (p: any) => { p.customFonts = [{ family: "Font", weights: [400] }]; },
+    (p: any) => { p.adobeFonts = [{ family: "Bad", kitId: "../bad", loading: "css" }]; },
+    (p: any) => { delete p.adobeFonts; },
   ]) {
     const p = payload();
     change(p);

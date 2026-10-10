@@ -2,6 +2,7 @@ import type {
   Breakpoint,
   BreakpointDef,
   CustomFont,
+  AdobeFont,
   DocNode,
   NodeStyles,
   StyleMap,
@@ -858,6 +859,7 @@ interface FontOption {
   label: string;
   value: string;
   google?: { importName: string; cssVar: string; weights?: string[] };
+  adobe?: { kitId: string; loading: AdobeFont["loading"] };
 }
 
 /** ファミリー名から、next/font 用のメタデータを導く */
@@ -872,16 +874,27 @@ function googleFontMeta(
   };
 }
 
-/** 組み込みのフォントと、文書に追加したカスタムの Google Fonts */
-export function allFonts(customFonts: CustomFont[] | undefined): FontOption[] {
-  const custom = (customFonts ?? [])
+/** 組み込みのフォントと、文書に追加したGoogle Fonts・Adobe Fonts。 */
+export function allFonts(
+  customFonts: CustomFont[] | undefined,
+  adobeFonts: AdobeFont[] | undefined = [],
+): FontOption[] {
+  const google: FontOption[] = (customFonts ?? [])
     .filter((f) => !FONTS.some((b) => b.value === f.family))
     .map((font) => ({
       label: font.family,
       value: font.family,
       google: googleFontMeta(font),
     }));
-  return [...FONTS, ...custom];
+  const occupied = new Set([...FONTS, ...google].map((f) => f.value));
+  const adobe: FontOption[] = (adobeFonts ?? [])
+    .filter((f) => !occupied.has(f.family))
+    .map((font) => ({
+      label: font.family,
+      value: font.family,
+      adobe: { kitId: font.kitId, loading: font.loading },
+    }));
+  return [...FONTS, ...google, ...adobe];
 }
 
 /** css2 の URL の family のトークン（プレビューでの読み込み用） */

@@ -2,6 +2,19 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Add a font": "フォントを追加",
+  "Font family": "フォントファミリー",
+  "Adobe Web Project ID": "Adobe WebプロジェクトID",
+  "Adobe loading method": "Adobe Fontsの読み込み方式",
+  "Web Project ID (7 characters)": "WebプロジェクトID（7文字）",
+  "CSS font-family (e.g. source-han-sans-japanese)": "CSSのfont-family（例：source-han-sans-japanese）",
+  "CSS (Latin and other non-East Asian fonts)": "CSS（欧文など）",
+  "JavaScript (Japanese and other East Asian fonts)": "JavaScript（日本語など）",
+  "Use your own Adobe Fonts Web Project. Add this font to the project on Adobe first.": "ご自身のAdobe Fonts Webプロジェクトにフォントを追加してから指定してください。",
+  "Enter the CSS font-family name shown in Adobe Fonts.": "Adobe Fontsに表示されたCSSのfont-family名を入力してください。",
+  "Enter the seven-character Adobe Fonts Web Project ID.": "7文字のAdobe Fonts WebプロジェクトIDを入力してください。",
+  "Fonts from the same Adobe Web Project must use the same loading method.": "同じAdobe Fonts Webプロジェクトでは読み込み方式を統一してください。",
+  "A font with this name is already registered from another provider.": "同じ名前のフォントが別の提供元から登録されています。",
   "Dialog type": "ダイアログの種類",
   "Alert": "アラート",
   "Prompt": "入力",

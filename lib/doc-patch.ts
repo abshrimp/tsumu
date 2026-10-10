@@ -21,7 +21,7 @@ const REQUIRED = new Set(["schemaVersion", "pages", "nodes", "assets", "pageOrde
 const ROOT_FIELDS = new Set([
   "siteName", "lang", "colorPalette", "siteUrl", "dataRevalidate", "hosting",
   "favicon", "appleTouchIcon", "ogImage", "loadingScreen", "pwa",
-  "pages", "pageOrder", "pageFolders", "nodes", "assets", "components",
+  "pages", "pageOrder", "pageFolders", "nodes", "assets", "components", "adobeFonts",
   "customFonts", "customHeadHtml", "customBodyEndHtml", "breakpoints", "baseWidth",
 ]);
 const record = (value: unknown): value is Record<string, unknown> =>

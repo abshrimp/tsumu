@@ -515,6 +515,14 @@ export interface CustomFont {
   weights: string[] | "variable";
 }
 
+/** Adobe FontsのWebプロジェクトに登録済みのフォント（ファイルは保存しない）。 */
+export interface AdobeFont {
+  family: string;
+  kitId: string;
+  /** 日本語など、動的サブセットが必要なWebプロジェクトでは dynamic。 */
+  loading: "css" | "dynamic";
+}
+
 /** 再利用するコンポーネント。マスターのノードのツリーは nodes の中に持つ */
 export interface Component {
   id: string;
@@ -633,6 +641,8 @@ export interface SiteDoc {
   components?: Record<string, Component>;
   /** 追加した Google Fonts */
   customFonts?: CustomFont[];
+  /** 利用者自身のAdobe Fonts Webプロジェクトに登録したフォント */
+  adobeFonts?: AdobeFont[];
   /** カスタムのコード: head の中（meta や script など） */
   customHeadHtml?: string;
   /** カスタムのコード: body の末尾 */

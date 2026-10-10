@@ -43,7 +43,7 @@ import { tr, trc } from "../../lib/i18n";
 import { differsFrom } from "./BackgroundSec";
 import { Sec } from "./shared";
 
-/* ---------- フォント（追加した Google Fonts にも対応） ---------- */
+/* ---------- フォント（Google Fonts・Adobe Fonts） ---------- */
 
 function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const insp = useInspector();
@@ -51,15 +51,22 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const updateDoc = useEditor((s) => s.updateDoc);
   const [adding, setAdding] = useState(false);
   const [family, setFamily] = useState("");
+  const [provider, setProvider] = useState<"google" | "adobe">("google");
+  const [kitId, setKitId] = useState("");
+  const [adobeLoading, setAdobeLoading] = useState<"css" | "dynamic">("css");
   const pending = usePendingImport(JSON.stringify([insp.editTarget, insp.get("fontFamily").value]));
   const { busy } = pending;
   const [error, setError] = useState<string | null>(null);
 
-  const fonts = allFonts(doc.customFonts);
+  const fonts = allFonts(doc.customFonts, doc.adobeFonts);
 
   const addFont = async () => {
     const name = family.trim().replace(/\s+/g, " ");
     if (!name) return;
+    if (doc.adobeFonts?.some((f) => f.family === name)) {
+      setError(tr("A font with this name is already registered from another provider."));
+      return;
+    }
     const request = pending.begin();
     setError(null);
     try {
@@ -121,6 +128,35 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
     }
   };
 
+  const addAdobeFont = () => {
+    const name = family.trim().replace(/\s+/g, " ");
+    const kit = kitId.trim().toLowerCase();
+    if (!/^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(name)) {
+      setError(tr("Enter the CSS font-family name shown in Adobe Fonts."));
+      return;
+    }
+    if (!/^[a-z0-9]{7}$/.test(kit)) {
+      setError(tr("Enter the seven-character Adobe Fonts Web Project ID."));
+      return;
+    }
+    if (fonts.some((f) => f.value === name && !doc.adobeFonts?.some((a) => a.family === name))) {
+      setError(tr("A font with this name is already registered from another provider."));
+      return;
+    }
+    if (doc.adobeFonts?.some((f) => f.kitId === kit && f.family !== name && f.loading !== adobeLoading)) {
+      setError(tr("Fonts from the same Adobe Web Project must use the same loading method."));
+      return;
+    }
+    setError(null);
+    updateDoc((d) => {
+      d.adobeFonts = [...(d.adobeFonts ?? []).filter((f) => f.family !== name),
+        { family: name, kitId: kit, loading: adobeLoading }];
+    });
+    insp.set({ fontFamily: name });
+    setAdding(false);
+    setFamily("");
+  };
+
   return (
     <div className="stack" style={{ gap: 6 }}>
       <div style={{ display: "flex", gap: 4 }}>
@@ -137,7 +173,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
         </div>
         <button
           className={`icon-btn${adding ? " is-on" : ""}`}
-          data-tip={tr("Add from Google Fonts")}
+          data-tip={tr("Add a font")}
           onClick={() => {
             pending.cancel();
             setAdding(!adding);
@@ -147,33 +183,53 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
         </button>
       </div>
       {adding && (
-        <div className="stack" style={{ gap: 4 }}>
-          <div style={{ display: "flex", gap: 4 }}>
-            <input
-              className="input"
-              value={family}
-              placeholder={tr("Name on fonts.google.com (e.g. Playfair Display)")}
-              onChange={(e) => {
-                pending.cancel();
-                setFamily(e.target.value);
-              }}
-              onKeyDown={(e) => {
-                if (isEnterKey(e)) void addFont();
-              }}
-            />
-            <button
-              className="btn btn-sm"
-              disabled={busy}
-              onClick={() => void addFont()}
-              style={{ flex: "none" }}
-            >
-              {busy ? tr("Checking…") : tr("Add")}
-            </button>
+        <div className="stack" style={{ gap: 6 }}>
+          <div className="grid2">
+            {(["google", "adobe"] as const).map((source) => (
+              <button key={source} type="button"
+                className={`btn btn-sm${provider === source ? " is-on" : ""}`}
+                aria-pressed={provider === source}
+                onClick={() => { pending.cancel(); setError(null); setFamily(""); setProvider(source); }}>
+                {source === "google" ? "Google Fonts" : "Adobe Fonts"}
+              </button>
+            ))}
           </div>
+          <input className="input" value={family}
+            aria-label={tr("Font family")}
+            placeholder={provider === "google"
+              ? tr("Name on fonts.google.com (e.g. Playfair Display)")
+              : tr("CSS font-family (e.g. source-han-sans-japanese)")}
+            onChange={(e) => { pending.cancel(); setFamily(e.target.value); }}
+            onKeyDown={(e) => {
+              if (isEnterKey(e)) {
+                if (provider === "google") void addFont();
+                else addAdobeFont();
+              }
+            }}
+          />
+          {provider === "adobe" && (
+            <>
+              <input className="input" aria-label={tr("Adobe Web Project ID")}
+                value={kitId} placeholder={tr("Web Project ID (7 characters)")}
+                onChange={(e) => setKitId(e.target.value)} />
+              <select className="input" aria-label={tr("Adobe loading method")}
+                value={adobeLoading}
+                onChange={(e) => setAdobeLoading(e.target.value as "css" | "dynamic")}>
+                <option value="css">{tr("CSS (Latin and other non-East Asian fonts)")}</option>
+                <option value="dynamic">{tr("JavaScript (Japanese and other East Asian fonts)")}</option>
+              </select>
+              <p className="hint" style={{ margin: 0 }}>
+                {tr("Use your own Adobe Fonts Web Project. Add this font to the project on Adobe first.")}
+              </p>
+            </>
+          )}
+          <button type="button" className="btn btn-sm"
+            disabled={provider === "google" && busy}
+            onClick={() => { if (provider === "google") void addFont(); else addAdobeFont(); }}>
+            {provider === "google" && busy ? tr("Checking…") : tr("Add")}
+          </button>
           {error && (
-            <p className="hint" style={{ margin: 0, color: "var(--danger)" }}>
-              {error}
-            </p>
+            <p className="hint" style={{ margin: 0, color: "var(--danger)" }}>{error}</p>
           )}
         </div>
       )}

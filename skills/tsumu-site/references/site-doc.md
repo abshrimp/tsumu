@@ -230,7 +230,7 @@ For a standalone JSON, fully embedded data-URL assets can be represented via `da
 
 ## Other `SiteDoc` options
 
-`lang` (BCP 47, default `ja`), `colorPalette`, `siteUrl`, `baseWidth`, `breakpoints`, `pageFolders`, `customFonts`, `customHeadHtml`, `customBodyEndHtml`, `favicon`, `appleTouchIcon`, `ogImage`, `loadingScreen`, `pwa`, `hosting`, `dataRevalidate`. For exact shapes of these advanced settings, consult `lib/types.ts` instead of inventing fields.
+`lang` (BCP 47, default `ja`), `colorPalette`, `siteUrl`, `baseWidth`, `breakpoints`, `pageFolders`, `customFonts` (Google Fonts), `adobeFonts` (Adobe Fonts Web Projects), `customHeadHtml`, `customBodyEndHtml`, `favicon`, `appleTouchIcon`, `ogImage`, `loadingScreen`, `pwa`, `hosting`, `dataRevalidate`. For exact shapes of these advanced settings, consult `lib/types.ts` instead of inventing fields.
 
 ## Validation rules and limits
 

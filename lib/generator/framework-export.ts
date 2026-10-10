@@ -3,7 +3,8 @@ import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "./export-options";
 import { obfuscateVarNames } from "../data";
 import { scriptsFile } from "../script-runtime";
-import { usedGoogleFonts } from "./css";
+import { usedGoogleFonts, usedAdobeFonts } from "./css";
+import { adobeFontHead, adobeFontLoader, adobeFontProjects } from "./adobe-fonts";
 import { applyNativeFramework } from "./native-scaffold";
 
 /**
@@ -116,13 +117,21 @@ export function buildAdditionalFramework(
     files["app/assets/site.css"] = common.siteCss;
     // Nuxt には、共通のプレビューの後処理で使う HTML の入口のファイルが無い。
     // すべての SSR のルートが受け取れるよう、全体の head に指定を置く。
+    const adobe = adobeFontProjects(usedAdobeFonts(doc));
+    const adobeLinks = adobe.filter(p => p.loading === "css").map(p => ({
+      rel: "stylesheet", href: `https://use.typekit.net/${p.kitId}.css`,
+    }));
+    const adobeScripts = adobe.filter(p => p.loading === "dynamic").map(p => ({
+      innerHTML: adobeFontLoader(p.kitId),
+    }));
     const meta = [{ name: "description", content: "" }, ...(target === "test"
       ? [{ name: "robots", content: "noindex, nofollow, noarchive, nosnippet, noimageindex" }] : [])];
     files["nuxt.config." + ext] = [
       'export default defineNuxtConfig({',
       '  ssr: true,',
       '  css: ["~/assets/globals.css", "~/assets/site.css"],',
-      '  app: { head: { title: ' + json(doc.siteName) + ', meta: ' + json(meta) + ' } },',
+      '  app: { head: { title: ' + json(doc.siteName) + ', meta: ' + json(meta) +
+        ', link: ' + json(adobeLinks) + ', script: ' + json(adobeScripts) + ' } },',
       '});', "",
     ].join("\n");
     files["package.json"] = jsonIndent({
@@ -140,7 +149,7 @@ export function buildAdditionalFramework(
     files["src/app.html"] = [
       "<!doctype html>", '<html lang="%page.language%">',
       '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-      '%sveltekit.head%</head><body data-sveltekit-preload-data="hover">',
+      adobeFontHead(doc) + '%sveltekit.head%</head><body data-sveltekit-preload-data="hover">',
       '<div style="display:contents">%sveltekit.body%</div></body></html>', "",
     ].join("\n");
     files["src/routes/+layout." + ext] = 'export const ssr = true;\nexport const prerender = false;\n';

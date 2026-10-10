@@ -121,6 +121,15 @@ function validCustomFont(value: unknown): boolean {
   return record(value) && str(value.family) &&
     (value.weights === "variable" || arrayOf(value.weights, str));
 }
+
+function validAdobeFont(value: unknown): boolean {
+  return record(value) &&
+    typeof value.family === "string" &&
+    /^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(value.family) &&
+    typeof value.kitId === "string" && /^[a-z0-9]{7}$/.test(value.kitId) &&
+    choice(value.loading, ["css", "dynamic"]) &&
+    Object.keys(value).every((key) => ["family", "kitId", "loading"].includes(key));
+}
 function validBreakpoint(value: unknown): boolean {
   return record(value) && isBreakpointId(value.id) && str(value.label) &&
     nonnegative(value.maxWidth);
@@ -138,6 +147,10 @@ export function validSiteAdditionalFields(site: Record<string, unknown>): boolea
     optional(site.loadingScreen, validLoadingScreen) &&
     optional(site.pwa, validPwa) &&
     optional(site.customFonts, x => arrayOf(x, validCustomFont)) &&
+    optional(site.adobeFonts, x => arrayOf(x, validAdobeFont) &&
+      new Set((x as { family: string }[]).map(font => font.family)).size === (x as unknown[]).length &&
+      new Set((x as { kitId: string; loading: string }[]).map(font => font.kitId + ":" + font.loading)).size ===
+        new Set((x as { kitId: string }[]).map(font => font.kitId)).size) &&
     optional(site.breakpoints, x => arrayOf(x, validBreakpoint)) &&
     optional(site.baseWidth, x => finite(x) && (x as number) > 0);
 }

@@ -36,7 +36,7 @@ test.describe("Native paste event scope in the editor", () => {
     return page.evaluate(({ kind, selector }) => {
       const data = new DataTransfer();
       if (kind === "elements") data.setData("application/x-tsumu+json", JSON.stringify({
-        v: 1, site: "default", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }, { id: "md", label: "スマホ横向き", maxWidth: 767 }, { id: "sm", label: "スマホ", maxWidth: 478 }], nodes: [(window as any).pasteEditor.getState().doc.nodes.a], rootIds: ["a"], assets: {}, components: {}, componentNodes: [], customFonts: [],
+        v: 1, site: "default", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }, { id: "md", label: "スマホ横向き", maxWidth: 767 }, { id: "sm", label: "スマホ", maxWidth: 478 }], nodes: [(window as any).pasteEditor.getState().doc.nodes.a], rootIds: ["a"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [],
       }));
       else data.items.add(new File(["synthetic image"], "test.png", { type: "image/png" }));
       const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
@@ -138,7 +138,7 @@ test("real editor context-menu paste uses current OS data and rejects unrelated 
       { id: "lg", label: "タブレット", maxWidth: 1024 },
       { id: "md", label: "スマホ横向き", maxWidth: 767 },
       { id: "sm", label: "スマホ", maxWidth: 478 },
-    ], nodes: [node], rootIds: [node.id], assets: {}, components: {}, componentNodes: [], customFonts: [],
+    ], nodes: [node], rootIds: [node.id], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [],
   };
   await page.evaluate(payload => {
     (window as any).__clipboardHtml = `<span data-tsumu-clipboard="${encodeURIComponent(JSON.stringify(payload))}">Copy</span>`;

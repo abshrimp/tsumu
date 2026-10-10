@@ -28,7 +28,7 @@ import { safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName, safeC
 
 /* ---------- フォント ---------- */
 
-export function usedGoogleFonts(doc: SiteDoc) {
+function usedFontFamilies(doc: SiteDoc) {
   const families = new Set<string>();
   for (const page of Object.values(doc.pages)) {
     for (const bp of Object.values(page.bodyStyles ?? {})) {
@@ -44,9 +44,19 @@ export function usedGoogleFonts(doc: SiteDoc) {
       }
     }
   }
+  return families;
+}
+
+export function usedGoogleFonts(doc: SiteDoc) {
+  const families = usedFontFamilies(doc);
   return allFonts(doc.customFonts).filter(
     (f) => isSafeGoogleFont(f) && families.has(f.value)
   );
+}
+
+export function usedAdobeFonts(doc: SiteDoc) {
+  const families = usedFontFamilies(doc);
+  return (doc.adobeFonts ?? []).filter((f) => families.has(f.family));
 }
 
 /**
@@ -101,9 +111,13 @@ export function createCssValueResolver(doc: SiteDoc, assetNames: Map<string, str
   let fonts: ReturnType<typeof allFonts> | undefined;
   return (prop, value) => {
     if (prop === "fontFamily") {
-      fonts ??= allFonts(doc.customFonts);
+      fonts ??= allFonts(doc.customFonts, doc.adobeFonts);
       const font = fonts.find(f => f.value === value);
-      return font?.google && isSafeGoogleFont(font) ? `var(${font.google.cssVar}), "${value}", sans-serif` : value;
+      if (font?.google && isSafeGoogleFont(font)) return `var(${font.google.cssVar}), "${value}", sans-serif`;
+      if (font?.adobe && /^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(value)) {
+        return `"${value}", sans-serif`;
+      }
+      return value;
     }
     // A CSS URL occurs in a function or a quoted @import.
     if (!assetNames.size || !/[(@]/.test(value)) return value;

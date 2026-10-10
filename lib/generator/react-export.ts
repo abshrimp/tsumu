@@ -5,6 +5,7 @@ import { PAGE_DATA_RUNTIME } from "./browser-data";
 import { createReactPageRenderer } from "./html-export";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import { usedGoogleFonts } from "./css";
+import { adobeFontHead } from "./adobe-fonts";
 import { buildAssetNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
 import { pwaIconType } from "./templates";
@@ -234,6 +235,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
     '    <meta name="description" content="">',
     "    " + icons,
     "    <title>" + esc(doc.siteName) + "</title>",
+    "    " + adobeFontHead(doc),
     "    " + (doc.customHeadHtml ?? ""),
     "  </head>", "  <body>", '    <div id="root"></div>',
     '    <script type="module" src="/src/main.tsx"></script>',

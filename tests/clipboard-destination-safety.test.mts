@@ -72,7 +72,7 @@ test("cycle check uses the existing master's content instead of the source maste
 
 function deepPayload(depth: number): ClipPayload {
   return { v: 1, site: "other", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }], nodes: Array.from({ length: depth }, (_, i) => node(`n${i}`, i < depth - 1 ? [`n${i + 1}`] : [])),
-    rootIds: ["n0"], assets: {}, components: {}, componentNodes: [], customFonts: [] };
+    rootIds: ["n0"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [] };
 }
 for (const [depth, allowed] of [[MAX_NODE_DEPTH, false], [MAX_NODE_DEPTH - 1, true]] as const) {
   test(`paste ${depth}-deep tree into a parent ${allowed ? "preserves" : "rejects exceeding"} the depth limit`, () => {

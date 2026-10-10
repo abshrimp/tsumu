@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("http://pending-import.test/", (route) => route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' }));
   await page.goto("http://pending-import.test/");
   await page.addScriptTag({ content: bundle });
-  await expect(page.locator('[data-tip="Google Fontsから追加"]')).toBeVisible();
+  await expect(page.locator('[data-tip="フォントを追加"]')).toBeVisible();
 });
 
 async function hold(page: Page, pattern: string, body: string, contentType: string) {
@@ -39,12 +39,26 @@ async function settle(page: Page) {
 }
 async function startFont(page: Page) {
   const request = await hold(page, "https://fonts.googleapis.com/**", "@font-face { font-family: New Font; font-weight: 100 900; }", "text/css");
-  await page.locator('[data-tip="Google Fontsから追加"]').click();
+  await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByPlaceholder("fonts.google.com の名前（例: Shippori Mincho）").fill("New Font");
   await page.getByRole("button", { name: "追加", exact: true }).click();
   await request.started;
   return request;
 }
+test("Adobe Fonts can be added without fetching Google Fonts", async ({ page }) => {
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  await page.getByRole("textbox", { name: "フォントファミリー" }).fill("source-han-sans-japanese");
+  await page.getByRole("textbox", { name: "Adobe WebプロジェクトID" }).fill("abc1234");
+  await page.getByLabel("Adobe Fontsの読み込み方式").selectOption("dynamic");
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await expect.poll(async () => (await doc(page)).nodes.a.styles.base.default.fontFamily)
+    .toBe("source-han-sans-japanese");
+  expect((await doc(page)).adobeFonts).toEqual([
+    { family: "source-han-sans-japanese", kitId: "abc1234", loading: "dynamic" },
+  ]);
+});
+
 async function startImage(page: Page, picker = page.locator('[data-tutorial="style-background"] .img-pick')) {
   const request = await hold(page, "http://pending-import.test/api/assets", JSON.stringify({ path: "assets/new.svg" }), "application/json");
   await picker.locator(".img-pick-thumb").click();
@@ -146,13 +160,13 @@ for (const initial of [undefined, "https://example.test/original.png"]) {
 
 test("Closing a font addition ignores its result and allows a subsequent successful import", async ({ page }) => {
   const pending = await startFont(page);
-  await page.locator('[data-tip="Google Fontsから追加"]').click();
+  await page.locator('[data-tip="フォントを追加"]').click();
   const before = await doc(page);
   await pending.finish(); await settle(page);
   expect(await doc(page)).toEqual(before);
   await page.unroute("https://fonts.googleapis.com/**");
   await page.route("https://fonts.googleapis.com/**", (route) => route.fulfill({ contentType: "text/css", body: "@font-face { font-weight: 100 900; }", headers: { "access-control-allow-origin": "*" } }));
-  await page.locator('[data-tip="Google Fontsから追加"]').click();
+  await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByRole("button", { name: "追加", exact: true }).click();
   await expect.poll(async () => (await doc(page)).nodes.a.styles.base.default.fontFamily).toBe("New Font");
   expect((await doc(page)).customFonts).toEqual([{ family: "New Font", weights: "variable" }]);

@@ -1,5 +1,6 @@
 import type { SiteDoc } from "../types";
 import type { ExportLanguage } from "./export-options";
+import { adobeFontHead } from "./adobe-fonts";
 
 export function withVueSsr(
   files: Record<string, string>, doc: SiteDoc, language: ExportLanguage,
@@ -143,6 +144,7 @@ export function withVueSsr(
     '<meta name="description" content="<!--page-description-->">',
     '<!--page-robots-->',
     "<title><!--page-title--></title>",
+    adobeFontHead(doc),
     "</head><body>",
     '<div id="app"><!--app-html--></div>',
     '<!--app-data-->',

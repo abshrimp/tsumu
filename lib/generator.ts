@@ -17,6 +17,7 @@ import { setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
 import { rewriteHtmlAssetUrls, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
 import { headHtmlToJsx } from "./generator/head";
+import { adobeFontHead } from "./generator/adobe-fonts";
 import { deferRunnableScripts } from "./generator/defer-scripts";
 import { codeLiteral } from "./generator/code-literal";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
@@ -561,7 +562,7 @@ ${loadingBody || `      ${fallbackBody}`}
 `;
   }
 
-  const headHtml = doc.customHeadHtml?.trim();
+  const headHtml = [adobeFontHead(doc), doc.customHeadHtml?.trim()].filter(Boolean).join("\n");
   // サイトのスクリプトは React の描画（ハイドレーション）が終わってから動かす。
   // 先に動くと、表示の切り替えやリストの描画がハイドレーションとぶつかる
   const siteScripts = [

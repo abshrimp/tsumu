@@ -56,6 +56,13 @@ test("runtime validation rejects malformed optional node, page, asset and site f
   fail(doc => { doc.dataRevalidate = -1; });
   fail(doc => { doc.pwa = { enabled: true, display: "unrecognized" }; });
   fail(doc => { doc.customFonts = [{ family: "Example", weights: [400] }]; });
+  fail(doc => { doc.adobeFonts = [{ family: "Example", kitId: "bad.js", loading: "dynamic" }]; });
+  fail(doc => { doc.adobeFonts = [{ family: "Example", kitId: "abc1234", loading: "unexpected" }]; });
+  fail(doc => { doc.adobeFonts = [{ family: "Example", kitId: "abc1234", loading: "css", extra: true }]; });
+  fail(doc => { doc.adobeFonts = [
+    { family: "One", kitId: "abc1234", loading: "css" },
+    { family: "Two", kitId: "abc1234", loading: "dynamic" },
+  ]; });
   fail(doc => { doc.assets = { a: { id: "a", name: "test.svg", width: "100", height: 100 } }; });
   fail(doc => { doc.assets = { a: { id: "a", name: "test.svg", width: 100 } }; });
   fail(doc => { doc.assets = { a: { id: "a", name: "test.svg", width: 100, height: 100, bytes: "10" } }; });
@@ -66,6 +73,10 @@ test("valid optional shapes survive the same runtime validators", () => {
   doc.baseWidth = 1280;
   doc.dataRevalidate = 0;
   doc.customFonts = [{ family: "Example", weights: ["400", "700"] }];
+  doc.adobeFonts = [
+    { family: "acumin-pro", kitId: "abc1234", loading: "css" },
+    { family: "source-han-sans-japanese", kitId: "xyz5678", loading: "dynamic" },
+  ];
   doc.pwa = { enabled: true, display: "standalone", icon: { url: "/icon.png" } };
   const node = Object.values(doc.nodes)[0]!;
   node.motions = [{ id: "fade", trigger: "load", duration: 0.5, delay: 0, easing: "linear" }];

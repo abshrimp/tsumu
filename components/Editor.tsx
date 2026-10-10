@@ -514,6 +514,43 @@ export default function Editor({ onReady }: EditorProps = {}) {
     if (link.href !== href) link.href = href;
   }, [doc.customFonts]);
 
+  // Adobe Fontsは利用者自身のWebプロジェクトから読み込む。日本語は動的サブセットが必要。
+  useEffect(() => {
+    const projects = new Map<string, "css" | "dynamic">();
+    for (const font of doc.adobeFonts ?? []) {
+      if (/^[a-z0-9]{7}$/.test(font.kitId) && !projects.has(font.kitId)) {
+        projects.set(font.kitId, font.loading);
+      }
+    }
+    const inserted: HTMLElement[] = [];
+    for (const [kitId, loading] of projects) {
+      if (loading === "css") {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = `https://use.typekit.net/${kitId}.css`;
+        document.head.appendChild(link);
+        inserted.push(link);
+      } else {
+        const script = document.createElement("script");
+        script.async = true;
+        script.src = `https://use.typekit.net/${kitId}.js`;
+        script.onload = () => {
+          try {
+            const typekit = (window as Window & {
+              Typekit?: { load: (options?: { async: boolean }) => void };
+            }).Typekit;
+            typekit?.load({ async: true });
+          } catch {
+            // Adobe Fontsを読み込めなくても編集操作は止めない。
+          }
+        };
+        document.head.appendChild(script);
+        inserted.push(script);
+      }
+    }
+    return () => { inserted.forEach((element) => element.remove()); };
+  }, [doc.adobeFonts]);
+
   // ブラウザ内（IndexedDB）への自動保存（500ms のデバウンス）
   useEffect(() => {
     if (!initialLoadComplete) return;

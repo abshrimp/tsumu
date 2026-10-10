@@ -7,7 +7,7 @@
  * 別のタブやウィンドウで開いた別のサイトでも、⌘V で同じものを貼り付けられる
  */
 
-import type { Asset, BreakpointDef, Component, CustomFont, DocNode, Page, SiteDoc } from "./types";
+import type { Asset, AdobeFont, BreakpointDef, Component, CustomFont, DocNode, Page, SiteDoc } from "./types";
 import { assetSrc } from "./assets";
 import { createCssAssetFinder } from "./css-asset-dependencies";
 import { zipAssetClosure, zipStylesheet } from "./zip-css";
@@ -42,6 +42,7 @@ export interface ClipPayload {
   componentNodes: DocNode[];
   /** 要素が使っている追加フォント */
   customFonts: CustomFont[];
+  adobeFonts: AdobeFont[];
 }
 
 function descendants(doc: SiteDoc, id: string, out: DocNode[] = []): DocNode[] {
@@ -91,6 +92,7 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
     if (asset.zip && scriptGroups.has(asset.zip.group)) assets[asset.id] = structuredClone(asset);
   }
   const customFonts = (doc.customFonts ?? []).filter((f) => text.includes(f.family));
+  const adobeFonts = (doc.adobeFonts ?? []).filter((f) => text.includes(f.family));
   return {
     v: 1,
     site: currentSiteId(),
@@ -101,6 +103,7 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
     components,
     componentNodes,
     customFonts,
+    adobeFonts,
   };
 }
 
@@ -170,7 +173,8 @@ function isPayload(v: unknown): v is ClipPayload {
     validNodes(p.componentNodes, Object.keys(p.components).length
       ? Object.values(p.components).map(c => c.rootId) : undefined) &&
     validNodeForest({}, Object.fromEntries(p.componentNodes.map(n => [n.id, n])), p.components) &&
-    Array.isArray(p.customFonts) && validSiteAdditionalFields({ customFonts: p.customFonts }) &&
+    Array.isArray(p.customFonts) && Array.isArray(p.adobeFonts) &&
+    validSiteAdditionalFields({ customFonts: p.customFonts, adobeFonts: p.adobeFonts }) &&
     validClipDependencies(p)
   );
 }
@@ -426,13 +430,20 @@ export function mergeClipDeps(
     componentNodes.push(node);
   }
   for (const f of p.customFonts) {
-    // 名前は公開するサイトのコードに入るため、Google Fonts の名前の形をしたものだけを受け取る
     const valid =
       typeof f?.family === "string" && /^[A-Za-z][A-Za-z0-9 ]{0,63}$/.test(f.family) &&
       (f.weights === "variable" || (Array.isArray(f.weights) && f.weights.every((w) => /^\d{3}$/.test(String(w)))));
-    if (valid && !(d.customFonts ?? []).some((x) => x.family === f.family)) {
+    if (valid && !(d.customFonts ?? []).some((x) => x.family === f.family) &&
+        !(d.adobeFonts ?? []).some((x) => x.family === f.family)) {
       d.customFonts = [...(d.customFonts ?? []), structuredClone(f)];
     }
+  }
+  for (const f of p.adobeFonts) {
+    if (!validSiteAdditionalFields({ adobeFonts: [f] }) ||
+        (d.customFonts ?? []).some(x => x.family === f.family) ||
+        (d.adobeFonts ?? []).some(x => x.family === f.family) ||
+        (d.adobeFonts ?? []).some(x => x.kitId === f.kitId && x.loading !== f.loading)) continue;
+    d.adobeFonts = [...(d.adobeFonts ?? []), structuredClone(f)];
   }
   return { assetIds: remap, componentIds, componentNodes };
 }

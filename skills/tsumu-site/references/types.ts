@@ -476,6 +476,12 @@ export interface CustomFont {
   weights: string[] | "variable";
 }
 
+export interface AdobeFont {
+  family: string;
+  kitId: string;
+  loading: "css" | "dynamic";
+}
+
 export interface Component {
   id: string;
   name: string;
@@ -580,6 +586,7 @@ export interface SiteDoc {
   components?: Record<string, Component>;
   
   customFonts?: CustomFont[];
+  adobeFonts?: AdobeFont[];
   
   customHeadHtml?: string;
   
