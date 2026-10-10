@@ -178,11 +178,12 @@ If the user edited the same page while the AI was working, the AI's change is dr
 - **Tests.** New behavior needs a test.
   - Unit tests live in `tests/`. They use Node's built-in test runner through `tsx` and import modules from `lib/` directly.
   - UI flows live in `e2e/` (Playwright). They start the built editor on Node.js with a throwaway `TSUMU_DATA_DIR` and `ALLOW_ANONYMOUS=true`.
-  - Output formats are also built for real in CI: `scripts/smoke-export-build.mts` generates a sample project into `.generated-export-smoke/`, and `check-generated-ssr.mts` and `check-generated-browser.mts` run the result.
+  - CI builds sample Next.js, React, Vue, Nuxt and SvelteKit projects in both TypeScript and JavaScript. It checks server-rendered HTML for Vue, Nuxt and SvelteKit, and runs Chromium against selected exports. See [Checking a generated project](CONTRIBUTING.md#checking-a-generated-project) for a local example.
 
 ```bash
 npm run typecheck
 npm test
-npm run i18n:check
+npm run i18n:check -- --all
+npx playwright install chromium firefox webkit
 npm run build && npm run test:e2e
 ```

@@ -40,12 +40,19 @@ npm run test:e2e
 
 Cloudflare と連携する部分を変更した場合は、`npm run build:worker` も実行してください。これらのチェックを実行しても、デプロイは行われません。
 
-出力形式（`lib/export-formats.ts`・`lib/generator/`）を変更した場合は、影響するフレームワークのサンプルを生成し、ビルドできることを確認してください（CI では全フレームワークを TypeScript と JavaScript の両方で検証しています）。
+### 生成したプロジェクトの確認
+
+リポジトリのルートで `npm ci` を実行した後、同じディレクトリで次の例を実行します。TypeScript と通常の CSS を使う Vue プロジェクトを生成し、ビルドして、サーバーが返す HTML を確認できます。
 
 ```sh
-node --import tsx scripts/smoke-export-build.mts <nextjs|react|vue|nuxt|sveltekit> [typescript|javascript]
-(cd .generated-export-smoke && npm install && npm run build)
+node --import tsx scripts/smoke-export-build.mts vue typescript css
+(cd .generated-export-smoke && npm install --no-audit --no-fund && npm run build)
+node --import tsx scripts/check-generated-ssr.mts vue
 ```
+
+生成のたびに `.generated-export-smoke/` の内容が置き換わります。Vue のビルド結果はその中の `dist/client/` と `dist/server/` に出力されます。最後のコマンドは生成したサーバーを `127.0.0.1:48730` で起動し、HTTP レスポンスにサンプルの見出し、リストの行、再利用コンポーネントが含まれることを確かめて終了します。
+
+別の構成でビルドするには、生成コマンドの3つの引数を変更します。フレームワークは `nextjs`、`react`、`vue`、`nuxt`、`sveltekit`、言語は `typescript` と `javascript`、スタイルは `css`、`css-modules`、`tailwind` に対応しています。SSR の確認は Vue、Nuxt、SvelteKit に対応しているので、直前にビルドしたフレームワーク名を指定してください。
 
 `lib/safe-fetch.ts` を変更した場合は、`node --import tsx scripts/sync-fetch-runtime.mts` で、書き出したサイトに組み込む複製（`lib/generator/safe-fetch-source.ts`）を再生成してください。
 

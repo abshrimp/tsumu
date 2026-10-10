@@ -41,12 +41,19 @@ If you want to verify full Japanese translation coverage separately, run `npm ru
 
 If you change the Cloudflare integration, also run `npm run build:worker`. None of these checks deploy anything; deployment is a separate step.
 
-If you change an output format (`lib/export-formats.ts` or `lib/generator/`), generate and build a sample project for the affected frameworks. CI does this for every framework in TypeScript and JavaScript.
+### Checking a generated project
+
+After running `npm ci` in the repository root, run this example from the same directory to generate a Vue project with TypeScript and plain CSS, build it, and check its server-rendered HTML.
 
 ```sh
-node --import tsx scripts/smoke-export-build.mts <nextjs|react|vue|nuxt|sveltekit> [typescript|javascript]
-(cd .generated-export-smoke && npm install && npm run build)
+node --import tsx scripts/smoke-export-build.mts vue typescript css
+(cd .generated-export-smoke && npm install --no-audit --no-fund && npm run build)
+node --import tsx scripts/check-generated-ssr.mts vue
 ```
+
+The generator replaces `.generated-export-smoke/` each time. For Vue, the build writes `dist/client/` and `dist/server/` inside that directory. The final command starts the generated server on `127.0.0.1:48730`, checks that its HTTP response contains the sample heading, list rows and reusable component, then stops it.
+
+To build another configuration, change the three generator arguments. Frameworks are `nextjs`, `react`, `vue`, `nuxt` and `sveltekit`. Languages are `typescript` and `javascript`. Styles are `css`, `css-modules` and `tailwind`. The SSR check supports Vue, Nuxt and SvelteKit. Pass it the framework you just built.
 
 If you change `lib/safe-fetch.ts`, run `node --import tsx scripts/sync-fetch-runtime.mts` to regenerate the copy that exported sites embed (`lib/generator/safe-fetch-source.ts`).
 

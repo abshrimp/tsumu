@@ -186,11 +186,12 @@ AI の処理中に利用者が同じページを編集した場合、AI の変�
 - **テスト**：新しい動作にはテストが必要です。
   - 単体テストは `tests/` に配置します。`tsx` を介して Node.js 組み込みのテストランナーで実行し、`lib/` のモジュールを直接読み込みます。
   - 画面操作のテストは `e2e/`（Playwright）に配置します。ビルドしたエディタを Node.js で起動し、一時的な `TSUMU_DATA_DIR` と `ALLOW_ANONYMOUS=true` を指定して実行します。
-  - 出力形式は CI で実際にビルドしています。`scripts/smoke-export-build.mts` がサンプルのプロジェクトを `.generated-export-smoke/` に生成し、`check-generated-ssr.mts` と `check-generated-browser.mts` がそれを実行して検証します。
+  - CI は Next.js、React、Vue、Nuxt、SvelteKit のサンプルを TypeScript と JavaScript の両方でビルドします。Vue、Nuxt、SvelteKit ではサーバーが返す HTML を検証し、一部の構成では Chromium でブラウザの動作も確認します。ローカルで実行する例は[生成したプロジェクトの確認](CONTRIBUTING.ja.md#生成したプロジェクトの確認)を参照してください。
 
 ```bash
 npm run typecheck
 npm test
-npm run i18n:check
+npm run i18n:check -- --all
+npx playwright install chromium firefox webkit
 npm run build && npm run test:e2e
 ```
