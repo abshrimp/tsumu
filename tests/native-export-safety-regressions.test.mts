@@ -39,18 +39,14 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     ? "app/generated/pages/Page0.vue"
     : framework === "sveltekit" ? "src/lib/pages/Page0.svelte" : "src/pages/Page0.vue";
 
-  test(framework + " preserves apostrophes in escaped native text and attributes", () => {
-    const source = generateExportProject(fixture(), framework).files[sourcePath];
+  test(framework + " escapes native text and attributes and validates inline media URLs", () => {
+    const doc = fixture();
+    const source = generateExportProject(doc, framework).files[sourcePath];
     assert.ok(source, sourcePath);
     assert.match(source, /It&#39;s &lt;script&gt;not code&lt;\/script&gt;/);
     assert.match(source, /title="Owner&#39;s &amp; friends"/);
     assert.doesNotMatch(source, /Itundefineds|Ownerundefineds/);
     assert.doesNotMatch(source, /<script>not code<\/script>/);
-  });
-
-  test(framework + " preserves valid inline audio and video without allowing scripts", () => {
-    const doc = fixture();
-    const source = generateExportProject(doc, framework).files[sourcePath];
     assert.match(source, /src="data:audio\/wav;base64,AQID"/);
     assert.match(source, /src="data:video\/mp4;base64,AQID"/);
     doc.nodes.audio.media!.src = "javascript:alert(1)";
