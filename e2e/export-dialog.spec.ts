@@ -37,31 +37,6 @@ async function openExport(page: import("@playwright/test").Page, firstPageSlug?:
   return modal;
 }
 
-test("export options use Tsumu controls and descriptions reflect the framework", async ({ page }) => {
-  const modal = await openExport(page);
-  await expect(modal.locator("select#export-format")).toHaveCount(0);
-  await expect(modal.getByText("フレームワーク", { exact: true })).toBeVisible();
-  await expect(modal.getByText("言語", { exact: true })).toBeVisible();
-  await expect(modal.getByText("スタイル", { exact: true })).toBeVisible();
-  await expect(modal.getByText("出力範囲", { exact: true })).toBeVisible();
-  await expect(modal.locator(".modal-desc")).toContainText("npm run dev");
-
-  await modal.getByRole("button", { name: "フレームワーク" }).click();
-  await page.getByRole("button", { name: "HTML / CSS / JavaScript" }).click();
-  await expect(modal.locator(".modal-desc")).toContainText("index.html");
-  await expect(modal.locator(".modal-desc")).not.toContainText("npm run build");
-  await expect(modal.locator(".modal-desc .kbd")).toHaveCount(0);
-  await expect(modal.getByRole("button", { name: "言語" })).toContainText("JavaScript");
-  await expect(modal.getByRole("button", { name: "スタイル" })).toContainText("CSS");
-  await expect(modal.getByRole("button", { name: "出力範囲" })).toContainText("プロジェクト全体");
-
-  await modal.getByRole("button", { name: "出力範囲" }).click();
-  await page.getByRole("button", { name: "選択したコンポーネント" }).click();
-  await expect(modal.locator(".check-list li.is-error")).toContainText(["書き出す要素かコンポーネントを選択してください。"]);
-  await expect(modal.locator(".check-ok")).toHaveCount(0);
-  await expect(modal.getByRole("button", { name: "zipをダウンロード" })).toBeDisabled();
-});
-
 test("export settings use a compact grid and stack on narrow screens", async ({ page }) => {
   const modal = await openExport(page);
   const grid = modal.locator(".export-option-grid");
@@ -75,7 +50,7 @@ test("export settings use a compact grid and stack on narrow screens", async ({ 
   expect(overflow).toBe(false);
 });
 
-test("compatibility errors never appear alongside the success check", async ({ page }) => {
+test("React export recovers from an empty component selection and downloads a JavaScript project", async ({ page }) => {
   const modal = await openExport(page);
   await modal.getByRole("button", { name: "フレームワーク" }).click();
   await page.getByRole("button", { name: "React + Vite" }).click();
@@ -87,13 +62,10 @@ test("compatibility errors never appear alongside the success check", async ({ p
   await page.getByRole("button", { name: "選択したコンポーネント" }).click();
   await expect(modal.locator(".check-list li.is-error")).toHaveCount(1);
   await expect(modal.locator(".check-ok")).toHaveCount(0);
-});
+  await expect(modal.getByRole("button", { name: "zipをダウンロード" })).toBeDisabled();
 
-
-test("JavaScript export downloads an actual JSX ZIP through the browser", async ({ page }) => {
-  const modal = await openExport(page);
-  await modal.getByRole("button", { name: "フレームワーク" }).click();
-  await page.getByRole("button", { name: "React + Vite" }).click();
+  await modal.getByRole("button", { name: "出力範囲" }).click();
+  await page.getByRole("button", { name: "プロジェクト全体", exact: true }).click();
   await modal.getByRole("button", { name: "言語" }).click();
   await page.getByRole("button", { name: "JavaScript", exact: true }).click();
   const downloadButton = modal.getByRole("button", { name: "zipをダウンロード" });
@@ -112,13 +84,32 @@ test("JavaScript export downloads an actual JSX ZIP through the browser", async 
   expect(paths.some((p) => p.endsWith("/jsconfig.json"))).toBe(true);
 });
 
-test("native HTML export downloads ready-to-open HTML, CSS and JavaScript without package tooling", async ({ page }) => {
+test("HTML export shows its fixed options, validates the scope, and downloads a ready-to-open site", async ({ page }) => {
   const modal = await openExport(page);
+  await expect(modal.locator("select#export-format")).toHaveCount(0);
+  await expect(modal.getByText("フレームワーク", { exact: true })).toBeVisible();
+  await expect(modal.getByText("言語", { exact: true })).toBeVisible();
+  await expect(modal.getByText("スタイル", { exact: true })).toBeVisible();
+  await expect(modal.getByText("出力範囲", { exact: true })).toBeVisible();
   await expect(modal.locator(".modal-desc .kbd")).toContainText("npm install && npm run dev");
+
   await modal.getByRole("button", { name: "フレームワーク" }).click();
   await page.getByRole("button", { name: "HTML / CSS / JavaScript" }).click();
   await expect(modal.locator(".modal-desc")).toContainText("index.html");
+  await expect(modal.locator(".modal-desc")).not.toContainText("npm run build");
   await expect(modal.locator(".modal-desc .kbd")).toHaveCount(0);
+  await expect(modal.getByRole("button", { name: "言語" })).toContainText("JavaScript");
+  await expect(modal.getByRole("button", { name: "スタイル" })).toContainText("CSS");
+  await expect(modal.getByRole("button", { name: "出力範囲" })).toContainText("プロジェクト全体");
+
+  await modal.getByRole("button", { name: "出力範囲" }).click();
+  await page.getByRole("button", { name: "選択したコンポーネント" }).click();
+  await expect(modal.locator(".check-list li.is-error")).toContainText(["書き出す要素かコンポーネントを選択してください。"]);
+  await expect(modal.locator(".check-ok")).toHaveCount(0);
+  await expect(modal.getByRole("button", { name: "zipをダウンロード" })).toBeDisabled();
+
+  await modal.getByRole("button", { name: "出力範囲" }).click();
+  await page.getByRole("button", { name: "プロジェクト全体", exact: true }).click();
   const downloadButton = modal.getByRole("button", { name: "zipをダウンロード" });
   await expect(downloadButton).toBeEnabled();
   const [download] = await Promise.all([
