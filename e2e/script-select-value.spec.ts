@@ -2,6 +2,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { scriptsFile } from "../lib/script-runtime";
 import { publishedScriptSelectValue, scriptSelectValueBundle, scriptSelectValueDoc } from "../tests/helpers/script-select-value";
 import type { SiteDoc } from "../lib/types";
+import { fieldEditorFixture } from "./helpers/field-editor";
+
+const mountEditor = fieldEditorFixture(scriptSelectValueBundle);
 
 const snapshot = (page: Page) => page.evaluate(() => {
   const state = (window as any).selectScriptEditor?.getState();
@@ -12,7 +15,7 @@ async function setup(page: Page, preview: boolean, doc: SiteDoc) {
   page.on("pageerror", (error) => errors.push(error.message));
   if (preview) {
     await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-    await page.addScriptTag({ content: await scriptSelectValueBundle(doc) });
+    await mountEditor(page, doc);
   } else {
     const { html } = await publishedScriptSelectValue(doc);
     await page.setContent(html);

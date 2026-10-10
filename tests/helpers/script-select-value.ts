@@ -28,7 +28,7 @@ export function scriptSelectValueDoc(options = ["A", "B"]): SiteDoc {
 }
 
 /** 実際の ScriptEditor で動作を編集し、その文書を Canvas と書き出したサイトの両方で実行する。 */
-export async function scriptSelectValueBundle(doc = scriptSelectValueDoc()) {
+export async function scriptSelectValueBundle() {
   return (await build({
     stdin: { contents: `
 import React, { useState } from "react";
@@ -38,27 +38,27 @@ import { createRoot } from "react-dom/client";
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
 import { loadLocale } from "./lib/i18n";
-void loadLocale().then(async () => {
+export async function mount(doc) {
+  await loadLocale();
   const { default: ScriptEditor } = await import("./components/ScriptEditor");
   const { default: Canvas } = await import("./components/Canvas");
-const style = document.createElement("style"); style.textContent = css; document.head.append(style);
-useEditor.getState().replaceDoc(${JSON.stringify(doc)});
-window.selectScriptEditor = useEditor;
-function Example() {
-  const [editing, setEditing] = useState(false);
-  const mode = useEditor(s => s.mode);
-  return <>
-    <button onClick={() => setEditing(true)}>Edit assignment</button>
-    <button onClick={() => useEditor.getState().setMode(mode === "preview" ? "design" : "preview")}>Toggle preview</button>
-    <Canvas />
-    {editing && <ScriptEditor focusNodeId="assign-choice" focusScriptId="assign-choice-script" onClose={() => setEditing(false)} />}
-  </>;
+  const style = document.createElement("style"); style.textContent = css; document.head.append(style);
+  useEditor.getState().replaceDoc(doc);
+  window.selectScriptEditor = useEditor;
+  function Example() {
+    const [editing, setEditing] = useState(false);
+    const mode = useEditor(s => s.mode);
+    return <>
+      <button onClick={() => setEditing(true)}>Edit assignment</button>
+      <button onClick={() => useEditor.getState().setMode(mode === "preview" ? "design" : "preview")}>Toggle preview</button>
+      <Canvas />
+      {editing && <ScriptEditor focusNodeId="assign-choice" focusScriptId="assign-choice-script" onClose={() => setEditing(false)} />}
+    </>;
+  }
+  createRoot(document.getElementById("app")).render(<Example />);
 }
-createRoot(document.getElementById("app")).render(<Example />);
-
-});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "script-select-value-browser.tsx" },
-    loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
+    loader: { ".css": "text" }, bundle: true, write: false, format: "iife", globalName: "fieldFixture", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
   })).outputFiles[0].text;
 }

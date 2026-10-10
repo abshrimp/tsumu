@@ -2,12 +2,15 @@ import { expect, test, type Page } from "@playwright/test";
 import { scriptsFile } from "../lib/script-runtime";
 import { publishedSelectDefault, selectDefaultBundle, selectDefaultDoc } from "../tests/helpers/select-default";
 import type { SiteDoc } from "../lib/types";
+import { fieldEditorFixture } from "./helpers/field-editor";
+
+const mountEditor = fieldEditorFixture(selectDefaultBundle);
 
 async function setup(page: Page, doc = selectDefaultDoc()) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await selectDefaultBundle(doc) });
+  await mountEditor(page, doc);
   await expect(page.locator("#choice")).toBeVisible();
   const snapshot = () => page.evaluate(() => {
     const { doc, past, future } = (window as any).selectEditor.getState();

@@ -2,12 +2,15 @@ import { expect, test, type Page } from "@playwright/test";
 import { scriptsFile } from "../lib/script-runtime";
 import type { FieldContent, SiteDoc } from "../lib/types";
 import { inputDefaultBundle, inputDefaultDoc, publishedInputDefault } from "../tests/helpers/input-default";
+import { fieldEditorFixture } from "./helpers/field-editor";
+
+const mountEditor = fieldEditorFixture(inputDefaultBundle);
 
 async function setup(page: Page, doc: SiteDoc) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setContent('<html><body><div id="app" style="width:1200px;height:850px"></div></body></html>');
-  await page.addScriptTag({ content: await inputDefaultBundle(doc) });
+  await mountEditor(page, doc);
   await expect(page.locator("#entry")).toBeVisible();
   return errors;
 }

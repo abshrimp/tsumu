@@ -54,6 +54,10 @@ exactly one shard; the durations file only influences load balancing.
   Canvas move coverage keeps real mouse, touch cancellation, and keyboard
   interruption in Playwright. The Node suite covers pending and active drags
   across the full cancellation and editor-state matrix.
+- For input and select defaults and script assignments, the four specs compile
+  their browser fixtures once per worker. Each case passes its own document to
+  a fresh editor page. Keep case data separate from the compiled fixture when
+  adding field variants so the browser still exercises its native controls.
 - Do not delete a browser test merely because its filename also exists in
   `tests/`. Compare its assertions and unique browser behavior first.
   Preserve the multi-engine smoke tags when changing test selection.

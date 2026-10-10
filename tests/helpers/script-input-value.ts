@@ -33,7 +33,7 @@ export function scriptInputValueDoc(field: FieldContent, requested: string, rest
 }
 
 /** 実際の ScriptEditor で動作を編集し、Canvas の入力値と参照の表示を確かめる。 */
-export async function scriptInputValueBundle(doc: SiteDoc) {
+export async function scriptInputValueBundle() {
   return (await build({
     stdin: { contents: `
 import React, { useState } from "react";
@@ -43,27 +43,27 @@ import { createRoot } from "react-dom/client";
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
 import { loadLocale } from "./lib/i18n";
-void loadLocale().then(async () => {
+export async function mount(doc) {
+  await loadLocale();
   const { default: ScriptEditor } = await import("./components/ScriptEditor");
   const { default: Canvas } = await import("./components/Canvas");
-const style = document.createElement("style"); style.textContent = css; document.head.append(style);
-useEditor.getState().replaceDoc(${JSON.stringify(doc)});
-window.inputScriptEditor = useEditor;
-function Example() {
-  const [editing, setEditing] = useState(false);
-  const mode = useEditor(s => s.mode);
-  return <>
-    <button onClick={() => setEditing(true)}>Edit assignment</button>
-    <button onClick={() => useEditor.getState().setMode(mode === "preview" ? "design" : "preview")}>Toggle preview</button>
-    <Canvas />
-    {editing && <ScriptEditor focusNodeId="assign-input" focusScriptId="assign-input-script" onClose={() => setEditing(false)} />}
-  </>;
+  const style = document.createElement("style"); style.textContent = css; document.head.append(style);
+  useEditor.getState().replaceDoc(doc);
+  window.inputScriptEditor = useEditor;
+  function Example() {
+    const [editing, setEditing] = useState(false);
+    const mode = useEditor(s => s.mode);
+    return <>
+      <button onClick={() => setEditing(true)}>Edit assignment</button>
+      <button onClick={() => useEditor.getState().setMode(mode === "preview" ? "design" : "preview")}>Toggle preview</button>
+      <Canvas />
+      {editing && <ScriptEditor focusNodeId="assign-input" focusScriptId="assign-input-script" onClose={() => setEditing(false)} />}
+    </>;
+  }
+  createRoot(document.getElementById("app")).render(<Example />);
 }
-createRoot(document.getElementById("app")).render(<Example />);
-
-});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "script-input-value-browser.tsx" },
-    loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
+    loader: { ".css": "text" }, bundle: true, write: false, format: "iife", globalName: "fieldFixture", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
   })).outputFiles[0].text;
 }
