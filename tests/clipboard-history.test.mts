@@ -32,16 +32,24 @@ function copyComponent() {
   return componentId;
 }
 
-test("copying a node preserves its Adobe Fonts Web Project", async () => {
+test("pasting a node into another site brings its Adobe Fonts Web Project in the same undo step", () => {
   const doc = fixture();
   doc.nodes.text.styles.base = { default: { fontFamily: "acumin-pro" } };
   doc.adobeFonts = [{ family: "acumin-pro", kitId: "abc1234", loading: "css" }];
-  const { buildClipPayload, mergeClipDeps } = await import("../lib/clip-transfer");
-  const payload = buildClipPayload(doc, { nodes: [doc.nodes.text], rootIds: ["text"] });
-  assert.deepEqual(payload.adobeFonts, doc.adobeFonts);
+  open(doc);
+  state().copyNode("text");
+  const payload = { ...state().clipboard!, site: "source" };
   const target = fixture();
-  mergeClipDeps(target, payload);
-  assert.deepEqual(target.adobeFonts, doc.adobeFonts);
+  target.adobeFonts = [{ family: "source-han-sans-japanese", kitId: "def5678", loading: "dynamic" }];
+  open(target);
+  state().pasteClipboard(payload);
+  const pasted = state().doc;
+  assert.equal(pasted.nodes[state().selection!].styles.base.default?.fontFamily, "acumin-pro");
+  assert.deepEqual(pasted.adobeFonts, [...target.adobeFonts, ...doc.adobeFonts]);
+  state().undo();
+  assert.deepEqual(state().doc, target);
+  state().redo();
+  assert.deepEqual(state().doc, pasted);
 });
 
 test("internal paste restores a copied component after undoing its creation", () => {
