@@ -6,6 +6,7 @@ import { generateProject } from "../lib/generator";
 import { generateExportProject } from "../lib/export-formats";
 import { importedAssetUrl } from "../lib/generator/imported-assets";
 import { createInitialDoc } from "../lib/presets";
+import { restoreImportAssets } from "../lib/site-import";
 import type { Asset } from "../lib/types";
 
 for (const modules of [false, true]) {
@@ -113,4 +114,33 @@ test("committing a ZIP media update reuses unshared members without erasing pane
   assert.notEqual(doc.assets[before.get("main.js")!].zip!.group, collidingGroup);
   assert.equal(Object.keys(doc.assets).length, Object.keys(original.assets).length + 1);
   assert.equal(uploads, 4);
+});
+
+test("reimport replaces a matching asset whose stored bytes could not be restored", async t => {
+  const uploaded: string[] = [];
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    const file = (init!.body as FormData).get("file") as File;
+    uploaded.push(await file.text());
+    return Response.json({ path: "assets/upload-" + uploaded.length });
+  });
+  const script = 'export const label = "notes";';
+  const archive = await new JSZip().file("index.html", '<script type="module" src="main.js"></script>')
+    .file("main.js", script).generateAsync({ type: "uint8array" });
+  const read = (previous: Asset[] = []) => readHtmlZip(archive, undefined, undefined, previous, true);
+  const doc = createInitialDoc(), pageId = doc.pageOrder[0];
+  const first = await read();
+  applyHtmlZipPage(doc, pageId, first);
+
+  const restored = await restoreImportAssets({ doc, assets: new Map(), warnings: [] });
+  const missing = restored.doc.assets[first.assets[0].id];
+  assert.equal(missing.path, undefined);
+  assert.equal(missing.dataUrl, undefined);
+  const repaired = await read([missing]);
+  assert.deepEqual(uploaded, [script, script]);
+  assert.equal(repaired.assets[0].path, "assets/upload-2");
+  applyHtmlZipPage(restored.doc, pageId, repaired);
+  assert.ok(Object.values(generateProject(restored.doc).remoteAssets).includes("assets/upload-2"));
+
+  await read(repaired.assets);
+  assert.equal(uploaded.length, 2);
 });

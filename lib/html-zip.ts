@@ -244,7 +244,8 @@ async function prepareHtmlZip(
     // 元のバイト列（UTF-8 の BOM も含む）を残す。CSS の参照は付随する情報として持つ。
     const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
     const sha256 = Array.from(hash, byte => byte.toString(16).padStart(2, "0")).join("");
-    const previous = existing.find(asset => asset.zip?.path === path && asset.zip.sha256 === sha256);
+    // 復元時に実体が見つからなかったアセットにも、元のパスとハッシュは残る。
+    const previous = existing.find(asset => asset.zip?.path === path && asset.zip.sha256 === sha256 && assetSrc(asset));
     const asset = previous
       ? { ...previous }
       : await uploadStaticAsset(new File([bytes], path.replace(/\//g, "-"), { type: mime }));
