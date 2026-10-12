@@ -58,6 +58,11 @@ exactly one shard; the durations file only influences load balancing.
   their browser fixtures once per worker. Each case passes its own document to
   a fresh editor page. Keep case data separate from the compiled fixture when
   adding field variants so the browser still exercises its native controls.
+- The script and Settings variable pickers check all three viewport widths
+  (1440, 375, and 320 pixels) in named steps on the same mounted editor. Each
+  step reopens suggestions and the explorer and checks dismissal. Script value
+  selections check saved references and scalar labels together, so the false
+  value needs only one selection flow.
 - Do not delete a browser test merely because its filename also exists in
   `tests/`. Compare its assertions and unique browser behavior first.
   Preserve the multi-engine smoke tags when changing test selection.
