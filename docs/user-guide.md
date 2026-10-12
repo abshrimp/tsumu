@@ -292,6 +292,8 @@ If you drop a ZIP without editing data onto the home screen, Tsumu alerts you be
 
 In the editor, a page's settings can also load an HTML file or a zip into that page. A normal page converts the HTML into editable elements, asking before it replaces the page's current elements. An HTML page uses the HTML as is. From a zip, `index.html` is loaded first.
 
+If a restored HTML page reports missing assets, open that page's settings, choose **Load HTML and assets from ZIP without converting**, and select the original website ZIP. This reloads the page's HTML and uploads the missing files from the ZIP.
+
 Editable forms retain their submission method, action URL, field names and submit-button overrides. Serve the exported site with the endpoint that handles the form. Number and date fields retain their limits, and file fields retain their allowed file types and multiple-file setting.
 
 When converted to an editable image, a plain `<img>` keeps its `src` and drops `srcset` and `sizes`. Use an HTML page to preserve its responsive image candidates. A `<picture>` is retained as a custom code element.
@@ -308,11 +310,13 @@ In **Pages**, right-click a page to copy it on its own. For a group, click **Sel
 | Where you want the copies | What to choose |
 | --- | --- |
 | The same site | Choose **Duplicate** (for example, **Duplicate 2 pages** for a pair). Each copy appears immediately after its original. One Undo removes the whole group of copies. |
-| Another site | Choose **Copy to another site…** (for example, **Copy 2 pages to another site…**), then click the destination site to start the copy. The pages are appended in their original order with their elements, scripts, referenced assets, components and custom fonts. Click **Open in a new tab** to view the result. |
+| Another site | Choose **Copy to another site…** (for example, **Copy 2 pages to another site…**), then click the destination site to start the copy. The pages are appended in their original order with their elements, scripts, referenced assets, components, custom fonts and Adobe Fonts Web Project settings. Click **Open in a new tab** to view the result. |
 
 For a link made with the editor’s page picker, select the source and target together to link the copies to each other. This also works with **Open a page or link** in page and element scripts, including inside a condition or loop. Within the same site, links to unselected pages still point to the originals, and component instances keep using their shared component.
 
 When copying to another site, a link to an unselected page can use an existing destination page with the same path and query conditions. If there is no match, check the link in the destination editor and select the intended page. For example, `/blog?tab=news` and `/blog?tab=archive` are distinct targets. If a copied page's path and query conditions are already in use, Tsumu gives the copy a path such as `/blog-copy`. Update any paths you typed directly into URL fields or custom HTML if they should lead to the copy.
+
+For individual elements, select them and press ⌘C, then open the destination site's editor and press ⌘V (Ctrl+C and Ctrl+V on Windows or Linux). The paste also carries their referenced assets, components and font settings, including Adobe Fonts Web Projects. The elements and newly added font settings form one Undo/Redo step.
 
 ## Hosting the published site
 
