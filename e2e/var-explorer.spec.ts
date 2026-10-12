@@ -145,23 +145,27 @@ test("Suggestions close when the focused inspector field leaves its scroll viewp
   await expect(page.locator(".var-comp")).toHaveCount(0);
 });
 
-for (const width of [1440, 375, 320]) {
-  test(`Both variable hint actions in Settings fit without wrapping at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await source(page).focus();
-    await source(page).press("Control+/");
-    const menu = page.locator(".var-comp");
-    await expect(menu).toBeVisible();
-    await expectVariableMenuLayout(page, width, 2);
-    await source(page).press("Escape");
-    await expect(menu).toHaveCount(0);
-    await source(page).press("Control+/");
-    await page.locator(".var-comp-explore").click();
-    await expect(page.getByRole("dialog", { name: "変数を探す" })).toBeVisible();
-    await page.getByPlaceholder("変数名・値で検索").press("Escape");
-    await expect(page.getByRole("dialog", { name: "変数を探す" })).toHaveCount(0);
-  });
-}
+test("Both Settings hint actions fit without wrapping at desktop and mobile widths", async ({ page }) => {
+  const input = source(page);
+  const menu = page.locator(".var-comp");
+  for (const width of [1440, 375, 320]) {
+    await test.step(`${width}px`, async () => {
+      await input.blur();
+      await page.setViewportSize({ width, height: 900 });
+      await input.focus();
+      await input.press("Control+/");
+      await expect(menu).toBeVisible();
+      await expectVariableMenuLayout(page, width, 2);
+      await input.press("Escape");
+      await expect(menu).toHaveCount(0);
+      await input.press("Control+/");
+      await page.locator(".var-comp-explore").click();
+      await expect(page.getByRole("dialog", { name: "変数を探す" })).toBeVisible();
+      await page.getByPlaceholder("変数名・値で検索").press("Escape");
+      await expect(page.getByRole("dialog", { name: "変数を探す" })).toHaveCount(0);
+    });
+  }
+});
 
 
 test("system date, browser and random variables are shown only after enabling details", async ({ page }) => {

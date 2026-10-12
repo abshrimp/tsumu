@@ -56,22 +56,25 @@ test("value input supports raw lists, serialization and undo", async ({ page }) 
   expect(await snapshot(page)).toEqual(changed);
 });
 
-test("value references share one type label and concise previews", async ({ page }) => {
-  for (const [reference, kind] of [["data.price", "値"], ["data.available", "値"]] as const) {
-    await openPicker(page); await pick(page, reference);
-    const info = block(page, "value").locator(".se-value-info");
-    await expect(info.locator(".vx-kind")).toHaveText(kind);
-    await expect(info.locator(":scope > *")).toHaveCount(1);
+test("picked references retain their types and scalar values show one concise label", async ({ page }) => {
+  for (const [reference, kind] of [
+    ["data.price", "値"], ["data.available", "値"], ["data.name", "値"],
+    ["data.tags", undefined], ["data.empty", undefined], ["later", undefined],
+  ] as const) {
+    await test.step(reference, async () => {
+      await openPicker(page);
+      await pick(page, reference);
+      expect(await selected(page)).toBe(`{${reference}}`);
+      if (kind) {
+        const info = block(page, "value").locator(".se-value-info");
+        await expect(info.locator(".vx-kind")).toHaveText(kind);
+        await expect(info.locator(":scope > *")).toHaveCount(1);
+      }
+    });
   }
 });
 
-test("a chosen string value shows one type label beside the field", async ({ page }) => {
-  await openPicker(page); await pick(page, "data.name");
-  await expect(block(page, "value").locator(".se-value-info .vx-kind")).toHaveText("値");
-  await expect(block(page, "value").locator(".se-value-info > *")).toHaveCount(1);
-});
-
-test("Variable explorer row corners do not overlap the help footer divider", async ({ page }) => {
+test("focus suggestions keep the footer divider clear and offer touch/click and keyboard exploration", async ({ page }) => {
   const input = block(page, "value").locator("input:not(.se-in-name)").first();
   await input.focus();
   const explore = page.locator(".var-comp-explore");
@@ -84,14 +87,8 @@ test("Variable explorer row corners do not overlap the help footer divider", asy
   });
   expect(corners).toEqual(["0px", "0px"]);
   await expect(footer).toHaveCSS("border-top-width", "1px");
-});
-
-test("focus suggestions offer a touch/click route to nested data and Cmd+/ opens unfiltered exploration", async ({ page }) => {
-  const input = block(page, "value").locator("input:not(.se-in-name)").first();
-  await input.focus();
-  await expect(page.locator(".var-comp-explore")).toBeVisible();
-  await expect(page.locator(".var-comp-foot")).toContainText("変数を探す");
-  await page.locator(".var-comp-explore").click();
+  await expect(footer).toContainText("変数を探す");
+  await explore.click();
   await expect(picker(page)).toBeVisible();
   await picker(page).getByPlaceholder("変数名・値で検索").press("Escape");
   await input.fill("data.name"); await input.press("Control+/");
@@ -246,13 +243,6 @@ test("if conditions allow nested list variables and choose meaningful operators"
   expect(cond.value).toBe("{data.rows.0.categories.投票カテゴリ}");
 });
 
-test("typed references preserve arrays, false, null and runtime-unknown choices", async ({ page }) => {
-  for (const name of ["data.tags", "data.available", "data.empty", "later"]) {
-    await openPicker(page); await pick(page, name);
-    expect(await selected(page)).toBe(`{${name}}`);
-  }
-});
-
 test("keyboard exploration preserves uncommitted literal and escaped text on cancellation", async ({ page }) => {
   const input = block(page, "value").locator("input:not(.se-in-name)").first();
   await input.fill("001 false \\{literal} {data.name}"); await input.press("Control+/");
@@ -308,24 +298,27 @@ test("inline dropdown selection replaces an existing raw object reference with a
   await expect(block(page, "value").locator(".se-value-info")).toContainText("リスト");
 });
 
-for (const width of [1440, 375, 320]) {
-  test(`All three variable hint actions in the script editor remain on one line at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: 900 });
-    const input = block(page, "value").locator("input:not(.se-in-name)").first();
-    await input.focus();
-    await expectVariableMenuLayout(page, width, 3);
-    await input.press("Escape");
-    await expect(page.locator(".var-comp")).toHaveCount(0);
-    await input.blur();
-    await input.focus();
-    await expectVariableMenuLayout(page, width, 3);
-    await page.locator(".var-comp-explore").click();
-    await expect(picker(page)).toBeVisible();
-    await picker(page).getByPlaceholder("変数名・値で検索").press("Escape");
-    await expect(picker(page)).toHaveCount(0);
-    await expect(input).toHaveValue("Value {data.name}");
-  });
-}
+test("All three script editor hint actions remain on one line at desktop and mobile widths", async ({ page }) => {
+  const input = block(page, "value").locator("input:not(.se-in-name)").first();
+  for (const width of [1440, 375, 320]) {
+    await test.step(`${width}px`, async () => {
+      await input.blur();
+      await page.setViewportSize({ width, height: 900 });
+      await input.focus();
+      await expectVariableMenuLayout(page, width, 3);
+      await input.press("Escape");
+      await expect(page.locator(".var-comp")).toHaveCount(0);
+      await input.blur();
+      await input.focus();
+      await expectVariableMenuLayout(page, width, 3);
+      await page.locator(".var-comp-explore").click();
+      await expect(picker(page)).toBeVisible();
+      await picker(page).getByPlaceholder("変数名・値で検索").press("Escape");
+      await expect(picker(page)).toHaveCount(0);
+      await expect(input).toHaveValue("Value {data.name}");
+    });
+  }
+});
 
 
 test("array paths show only their first element but accept the zero-based fourth index", async ({ page }) => {
