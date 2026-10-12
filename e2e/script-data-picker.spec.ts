@@ -57,6 +57,21 @@ test("string value hints and card hover remain inside rounded borders", async ({
   expect(style).toEqual({ overflow: "clip", radius: "10px", borderWidth: "1px" });
 });
 
+test("Variable explorer row corners do not overlap the help footer divider", async ({ page }) => {
+  const input = block(page, "value").locator("input").first();
+  await input.focus();
+  const explore = page.locator(".var-comp-explore");
+  const footer = page.locator(".var-comp-foot");
+  await expect(explore).toBeVisible();
+  await expect(footer).toBeVisible();
+  const corners = await explore.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.borderBottomLeftRadius, style.borderBottomRightRadius];
+  });
+  expect(corners).toEqual(["0px", "0px"]);
+  await expect(footer).toHaveCSS("border-top-width", "1px");
+});
+
 test("focus suggestions offer a touch/click route to nested data and Cmd+/ opens unfiltered exploration", async ({ page }) => {
   const input = block(page, "value").locator("input").first();
   await input.focus();
