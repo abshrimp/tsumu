@@ -62,6 +62,13 @@ for (const [name, runtime] of Object.entries(runtimes)) {
       assert.equal(response.bodyUsed, true, "discard the redirect body even though cancellation is pending");
     });
 
+    test(`${name}: ${transport} rejects a malformed redirect Location with BlockedUrlError`, async (t) => {
+      selectNative(t, transport === "Workers");
+      const response = clonedResponse(t, { status: 302, headers: { location: "http://[::1:bad]" } });
+      t.mock.method(globalThis, "fetch", async () => response);
+      await assert.rejects(withoutCancellationWait(runtime.fetchPublic(url, {})), runtime.BlockedUrlError);
+    });
+
     test(`${name}: ${transport} follows an allowed redirect without waiting for a cloned body`, async (t) => {
       selectNative(t, transport === "Workers");
       const request = new AbortController();

@@ -243,7 +243,13 @@ export async function fetchPublic(
     // リダイレクトの検証やリクエストの期限を遅らせずに、後始末を始める。
     void res.body?.cancel().catch(() => {});
     if (i >= maxRedirects) throw new BlockedUrlError("too many redirects");
-    const next = await assertPublicUrl(new URL(location, url).toString(), signal);
+    let redirectTarget: string;
+    try {
+      redirectTarget = new URL(location, url).toString();
+    } catch {
+      throw new BlockedUrlError("invalid url");
+    }
+    const next = await assertPublicUrl(redirectTarget, signal);
     // 任意のヘッダーや本文には API キーなどが入るため、別のオリジンへは転送しない。
     // 転送を許すのは、認証の無い GET / HEAD だけ（プロトコルやポートの変更も、別のオリジンとみなす）。
     if (next.origin !== url.origin) {

@@ -19,6 +19,7 @@ import { cloneSteps, scriptUid } from "./script";
 import { currentSiteId } from "./site";
 import { storageKey } from "./storage-keys";
 import { validAssetEntry, validDocNodeShape, validNodeForest } from "./doc-tree";
+import { isSafeImportedSvg } from "./imported-svg";
 import { validSiteAdditionalFields } from "./document-value-shapes";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 
@@ -147,7 +148,8 @@ function validNodes(nodes: unknown, roots?: unknown): nodes is DocNode[] {
   const ids = new Set<string>();
   for (const n of nodes as DocNode[]) {
     if (
-      !n || typeof n !== "object" || typeof n.id !== "string" || !validDocNodeShape(n) || !Array.isArray(n.children) ||
+      !n || typeof n !== "object" || typeof n.id !== "string" || !validDocNodeShape(n) ||
+      (n.icon != null && !isSafeImportedSvg(n.icon.svg)) || !Array.isArray(n.children) ||
       n.children.some((c) => typeof c !== "string") || ids.has(n.id)
     ) {
       return false;

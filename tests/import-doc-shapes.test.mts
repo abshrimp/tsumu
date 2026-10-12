@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createInitialDoc, makeIcon } from "../lib/presets";
 import { parseSiteImport, validateImportedDoc } from "../lib/site-import";
 import { sanitizeImportedInlineIcons, sanitizeImportedSvg } from "../lib/imported-svg";
+import { parseClipPayload } from "../lib/clip-transfer";
 
 const encoder = new TextEncoder();
 
@@ -91,20 +92,28 @@ test("non-browser import strips active or external SVG content rather than bypas
 });
 
 
-test("direct API SiteDoc validation blocks executable inline SVG without browser sanitization", () => {
+test("import and clipboard validation block unsafe inline SVG across browser and server", () => {
   const doc = createInitialDoc();
   const icon = makeIcon();
   const page = doc.pages[doc.pageOrder[0]];
   doc.nodes[icon.id] = icon;
   page.children.push(icon.id);
+  const originalBytes = icon.icon!.svg;
+  assert.equal(sanitizeImportedSvg(originalBytes), originalBytes, "safe self-closing SVG preserves exact bytes");
   assert.equal(validateImportedDoc(doc), doc);
   for (const payload of [
     '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="5" height="5"/></svg>',
     '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><iframe srcdoc="unsafe"></iframe></foreignObject></svg>',
     '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://attacker.example/svg"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>body{background:url(https://attacker.example/css)}</style><rect width="5" height="5"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><a href="https://attacker.example"><rect width="5" height="5"/></a></svg>',
   ]) {
     icon.icon!.svg = payload;
     assert.throws(() => validateImportedDoc(doc), /invalid element settings/i);
+    assert.equal(parseClipPayload(JSON.stringify({
+      v: 1, site: "s", breakpoints: doc.breakpoints ?? [], rootIds: [icon.id],
+      nodes: [icon], assets: {}, components: {}, componentNodes: [],
+    })), null);
   }
 });
 

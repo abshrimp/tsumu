@@ -13,4 +13,6 @@ test("custom HTML iframes cannot combine scripts with the editor's same-origin p
   assert.ok(!permissions.has("allow-top-navigation"));
   assert.ok(!permissions.has("allow-top-navigation-by-user-activation"));
   assert.match(source, /node\.setAttribute\("sandbox", IFRAME_SANDBOX\)/);
+  assert.match(source, /\["a", "area", "form"\]\.includes\(node\.nodeName\.toLowerCase\(\)\)/);
+  assert.match(source, /node\.setAttribute\("rel", "noopener noreferrer"\)/);
 });

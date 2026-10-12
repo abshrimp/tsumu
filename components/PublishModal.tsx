@@ -789,8 +789,8 @@ async function restoreFrom(url: string, label: string, current: () => boolean): 
     ? (untrusted as { error?: unknown }).error : undefined;
   if (!res.ok) throw new Error(typeof error === "string" ? error : tr("Couldn't load editor data"));
   // GitHub のコミットは Tsumu とは無関係に編集できる。基本的な形の確認だけでは足りないため、
-  // 明示的な doc.json のインポートと同じ検証で、循環・プロトタイプのキー・不正なリンクを拒否する。
-  const data = sanitizeImportedInlineIcons(validateImportedDoc(untrusted));
+  // 明示的な doc.json のインポートと同じ無害化と検証で、能動的な SVG・循環・不正なキーやリンクを拒否する。
+  const data = validateImportedDoc(sanitizeImportedInlineIcons(untrusted));
   const ok = await showConfirm(
     tr("Your current edits will be replaced with the content from \"{label}\". This is saved to the server too, but Undo (⌘Z) brings back what you have now.", { label }),
     { title: tr("Restore the edits from this version?"), okLabel: tr("Restore this version") }

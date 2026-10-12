@@ -99,16 +99,8 @@ test("untrusted GitHub history inline SVG is sanitized before it enters the edit
   doc.nodes[icon.id] = icon;
   page.children.push(icon.id);
   icon.icon!.svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">' +
-    '<script>alert(2)</script><circle cx="3" cy="3" r="2"/></svg>';
-  // ブラウザでの取り込みの検証は、DOM を使った無害化のため、構造が正しい SVG を許す。
-  // 一方、Node.js 版の検証は、安全でないバイト列をすぐに拒否する。
-  const browserValidator = ((input: unknown): SiteDoc => {
-    const valid = structuredClone(input as SiteDoc);
-    valid.nodes[icon.id].icon!.svg = '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="3" cy="3" r="2"/></svg>';
-    validateImportedDoc(valid);
-    return input as SiteDoc;
-  }) as typeof validateImportedDoc;
-  const f = fixture(browserValidator);
+    '<script>alert(2)</script><style>body{display:none}</style><circle cx="3" cy="3" r="2"/></svg>';
+  const f = fixture();
   const task = f.run();
   f.response.resolve(Response.json(doc));
   await tick();
@@ -118,5 +110,5 @@ test("untrusted GitHub history inline SVG is sanitized before it enters the edit
   const savedSvg = useEditor.getState().doc.nodes[icon.id].icon!.svg;
   assert.match(savedSvg, /<svg/);
   assert.match(savedSvg, /<circle/);
-  assert.doesNotMatch(savedSvg, /onload|<script|alert/i);
+  assert.doesNotMatch(savedSvg, /onload|<script|<style|alert/i);
 });

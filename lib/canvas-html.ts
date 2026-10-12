@@ -20,8 +20,10 @@ function sanitizer(): ReturnType<typeof DOMPurify> {
   purify = DOMPurify(window);
   purify.addHook("afterSanitizeAttributes", (node) => {
     if (node.nodeName === "IFRAME") node.setAttribute("sandbox", IFRAME_SANDBOX);
-    // 新しいタブで開くリンクから、エディタの画面（window.opener）を書き換えさせない
-    if (node.nodeName === "A" && node.getAttribute("target")) node.setAttribute("rel", "noopener noreferrer");
+    // 新しいタブで開くリンクやフォーム（SVG 内の小文字の <a> も含む）から、window.opener を書き換えさせない
+    if (["a", "area", "form"].includes(node.nodeName.toLowerCase()) && node.getAttribute("target")) {
+      node.setAttribute("rel", "noopener noreferrer");
+    }
   });
   return purify;
 }

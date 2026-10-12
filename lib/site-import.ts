@@ -53,7 +53,8 @@ export async function parseSiteImport(
   if (bytes.byteLength > IMPORT_LIMITS.docBytes) {
     throw new Error(tr("The import file is too large."));
   }
-  return { doc: validateImportedDoc(await decodePortableDoc(jsonText(bytes), IMPORT_LIMITS.docBytes)),
+  const decoded = await decodePortableDoc(jsonText(bytes), IMPORT_LIMITS.docBytes);
+  return { doc: validateImportedDoc(sanitizeImportedInlineIcons(decoded)),
     assets: new Map(), warnings: [] };
 }
 
@@ -91,7 +92,8 @@ export async function parseEditableZip(zip: JSZip): Promise<SiteImport> {
   }
   const docBytes = await readZipEntryLimited(documentEntry, IMPORT_LIMITS.docBytes);
   if (docBytes.length > IMPORT_LIMITS.docBytes) throw new Error(tr("doc.json exceeds the size limit."));
-  const doc = validateImportedDoc(await decodePortableDoc(jsonText(docBytes), IMPORT_LIMITS.docBytes));
+  const decoded = await decodePortableDoc(jsonText(docBytes), IMPORT_LIMITS.docBytes);
+  const doc = validateImportedDoc(sanitizeImportedInlineIcons(decoded));
   const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
   // アセットのパスは、アーカイブの中の明示的な対応表のファイルから読む。

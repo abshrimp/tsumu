@@ -23,14 +23,6 @@ export function isImportObject(input: unknown): input is Record<string, unknown>
   return !!input && typeof input === "object" && !Array.isArray(input);
 }
 
-/** 取り込み専用の SVG の検査で、保存と同じノードの形の検査を補う。 */
-function validImportedNode(value: unknown): boolean {
-  if (!validDocNodeShape(value)) return false;
-  const icon = isImportObject(value) ? value.icon : undefined;
-  return icon == null || typeof window !== "undefined" ||
-    (isImportObject(icon) && isSafeImportedSvg(icon.svg as string));
-}
-
 /** サイトを書き込んだり、アセットをアップロードしたりする前に、不正なアーカイブを拒否する。 */
 export function validateImportedDoc(value: unknown): SiteDoc {
   if (!isImportObject(value)) throw new Error(tr("This file does not contain editable site data."));
@@ -58,7 +50,9 @@ export function validateImportedDoc(value: unknown): SiteDoc {
   }
   check(value);
   if (!validNodeForest(doc.pages, doc.nodes, doc.components)) throw new Error(tr("The element hierarchy is invalid."));
-  if (!Object.values(doc.nodes).every(validImportedNode)) {
+  if (!Object.values(doc.nodes).every((node) => validDocNodeShape(node) &&
+      (!isImportObject(node) || node.icon == null ||
+        (isImportObject(node.icon) && isSafeImportedSvg(node.icon.svg as string))))) {
     throw new Error(tr("The document contains invalid element settings."));
   }
   if (new Set(doc.pageOrder).size !== doc.pageOrder.length) throw new Error(tr("The document contains invalid page references."));
