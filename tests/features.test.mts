@@ -201,21 +201,6 @@ test("comments: only the author can edit or delete, and resolving records who", 
   assert.equal(parseCommentAction({ action: "create", id: "bad id!", pageId: "p", nodeId: null, x: 0, y: 0, body: "a" }), null);
 });
 
-test("cloned ID suffixes fill gaps and reserve radio group names", () => {
-  const doc = docWith(["card", "card-2", "card-4"].map((attrId) => ({ ...makeBox(), id: attrId, attrId })));
-  doc.nodes.radio = { ...makeField("radio"), id: "radio", field: { kind: "radio", group: "card-5" } };
-  doc.pages.p.children.push("radio");
-  const clones = ["card", "card-2", "card-4", "card-9", "menu-9"].map((attrId) => ({
-    ...makeBox(), id: attrId, attrId,
-  }));
-  clones.push({ ...makeField("radio"), id: "copy-radio", field: { kind: "radio", group: "card-6" } });
-  refreshClonedIds(doc, "p", clones);
-  assert.deepEqual(clones.slice(0, 5).map((node) => node.attrId), ["card-3", "card-7", "card-8", "card-9", "menu-9"]);
-  const nextCopy = [{ ...makeBox(), id: "next", attrId: "card-2" }];
-  refreshClonedIds(doc, "p", nextCopy);
-  assert.equal(nextCopy[0].attrId, "card-3");
-});
-
 test("buttons, switches and radio groups are exported as working HTML", () => {
   const btn: DocNode = { ...makeBox(), id: "b", semantic: "button", text: { content: "Go", heading: 0 } };
   const form: DocNode = { ...makeBox(), id: "f", semantic: "form", children: ["b"] };

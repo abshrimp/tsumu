@@ -1,4 +1,5 @@
 import type { SiteDoc } from "../types";
+import { addPatchedPicomatch } from "./picomatch";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "./export-options";
 import { obfuscateVarNames } from "../data";
@@ -179,5 +180,6 @@ export function buildAdditionalFramework(
     });
   }
   files[".gitignore"] = "node_modules/\ndist/\n.nuxt/\n.output/\n.svelte-kit/\nbuild/\n";
+  addPatchedPicomatch(files);
   return applyNativeFramework(doc, { files, binaries: common.binaries, remoteAssets: common.remoteAssets }, framework, language, target);
 }

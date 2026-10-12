@@ -41,6 +41,8 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Audit all dependencies
         run: npm audit --audit-level=high
+      - name: Audit the patched generated-project dependency
+        run: npm run audit:vendor
       - name: Build and smoke-test the non-root Docker runtime
         shell: bash
         run: |
@@ -145,6 +147,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - run: npm install --global npm@12.2.1
       - run: npm ci
       - name: Verify TypeScript and JavaScript exports
         shell: bash

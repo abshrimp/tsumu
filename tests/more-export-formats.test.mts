@@ -200,7 +200,7 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
       assert.match(result.files["package.json"], /"@sveltejs\/kit"/);
     }
     for (const [path, content] of Object.entries(result.files)) {
-      if (/\.md$/i.test(path)) continue;
+      if (/\.md$/i.test(path) || path === "vendor/picomatch/package.json") continue;
       assert.doesNotMatch(content, /tsumu/i, framework + " " + path);
     }
   });

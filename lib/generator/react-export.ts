@@ -1,4 +1,5 @@
 import type { SiteDoc } from "../types";
+import { addPatchedPicomatch } from "./picomatch";
 import { pagePlan } from "../data";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME } from "./browser-data";
@@ -279,5 +280,6 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
     "On a static host, configure fallback to index.html for deep links.",
     "Use the Next.js format for dynamic data, redirects, reverse proxies or SEO-sensitive pages.", "",
   ].join("\n");
+  addPatchedPicomatch(files);
   return { files, binaries: { ...next.binaries }, remoteAssets: { ...next.remoteAssets } };
 }

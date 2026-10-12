@@ -1,5 +1,5 @@
 import { SELF_TARGET, type DocNode, type ScriptStep, type SiteDoc } from "./types";
-import { cloneSteps, scriptUid, visitPageNodes } from "./script";
+import { cloneSteps, pageNodeIds, scriptUid } from "./script";
 import { mapNodeTokens } from "./data";
 
 const idReferenceAttributes = new Set([
@@ -8,12 +8,11 @@ const idReferenceAttributes = new Set([
 ]);
 
 /** 「nav-links」→「nav-links-2」のように、使われていない ID にする */
-function uniqueId(base: string, used: Set<string>, nextSuffix: Map<string, number>): string {
+function uniqueId(base: string, used: Set<string>): string {
   if (!used.has(base)) return base;
   const stem = base.replace(/-\d+$/, "") || base;
-  let n = nextSuffix.get(stem) ?? 2;
+  let n = 2;
   while (used.has(`${stem}-${n}`)) n++;
-  nextSuffix.set(stem, n + 1);
   return `${stem}-${n}`;
 }
 
@@ -57,20 +56,18 @@ export function refreshClonedIds(
   makeId?: (prefix: "attr" | "sc" | "st") => string
 ) {
   const used = new Set<string>();
-  if (!makeId && clones.some(c => c.attrId)) {
-    visitPageNodes(doc, pageId, extraRootIds, (_id, node) => {
-      if (node.attrId) used.add(node.attrId);
-      if (node.type === "field" && node.field?.kind === "radio" && node.field.group?.trim()) {
-        used.add(node.field.group.trim());
-      }
-    }, true);
-    for (const c of clones) {
-      if (c.type === "field" && c.field?.kind === "radio" && c.field.group?.trim()) {
-        used.add(c.field.group.trim());
-      }
+  for (const id of pageNodeIds(doc, pageId, extraRootIds, true)) {
+    const n = doc.nodes[id];
+    if (n?.attrId) used.add(n.attrId);
+    if (n?.type === "field" && n.field?.kind === "radio" && n.field.group?.trim()) {
+      used.add(n.field.group.trim());
     }
   }
-  const nextSuffix = new Map<string, number>();
+  for (const c of clones) {
+    if (c.type === "field" && c.field?.kind === "radio" && c.field.group?.trim()) {
+      used.add(c.field.group.trim());
+    }
+  }
   const renamed = new Map<string, string>();
   // 解除するインスタンスの ID は引き継ぎ、マスター内の参照もそれに合わせる。
   const replacement = clones.find((c) => c.id === replacing?.rootId);
@@ -88,7 +85,7 @@ export function refreshClonedIds(
       c.attrId = prev;
       continue;
     }
-    const next = makeId ? makeId("attr") : uniqueId(c.attrId, used, nextSuffix);
+    const next = makeId ? makeId("attr") : uniqueId(c.attrId, used);
     used.add(next);
     if (next !== c.attrId) renamed.set(c.attrId, next);
     c.attrId = next;

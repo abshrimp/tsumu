@@ -1,4 +1,5 @@
 import rootPackage from "../package.json";
+import { addPatchedPicomatch } from "./generator/picomatch";
 import { exportZipStylesheet, zipStylesheet } from "./zip-css";
 import { htmlZipSource } from "./html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "./html-zip-script-assets";
@@ -907,6 +908,7 @@ out/
 
   if (isTest) addTestSiteGuards(files);
 
+  addPatchedPicomatch(files);
   return { files, binaries, remoteAssets };
 }
 

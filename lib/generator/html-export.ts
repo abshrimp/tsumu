@@ -537,7 +537,6 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
     else groups.set(key, [page]);
   }
   const authoredBase = hasBaseHref(normalized.customHeadHtml) || hasBaseHref(normalized.customBodyEndHtml);
-  let adobeHead: string | undefined;
   const outputPaths = new Set<string>();
   for (const group of groups.values()) {
     const page = group[0];
@@ -602,7 +601,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
       normalized.pwa?.enabled ? '<link rel="manifest" href="' + prefix + 'manifest.webmanifest">' : "",
       '<link rel="stylesheet" href="' + prefix + 'styles/globals.css">',
       '<link rel="stylesheet" href="' + prefix + 'styles/site.css">',
-      adobeHead ??= adobeFontHead(normalized),
+      adobeFontHead(normalized),
       normalized.customHeadHtml || "",
     ].filter(Boolean).join("\n");
     const scriptNames = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"]

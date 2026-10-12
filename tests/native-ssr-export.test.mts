@@ -91,7 +91,8 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
       assert.match(component, /\{\{ resolveText/);
       assert.doesNotMatch(component, /v-html/);
     }
-    const code = Object.entries(project.files).filter(([path]) => !/\.md$/i.test(path));
+    const code = Object.entries(project.files).filter(([path]) =>
+      !/\.md$/i.test(path) && path !== "vendor/picomatch/package.json");
     for (const [path, content] of code) assert.doesNotMatch(content, /tsumu/i, path);
   });
 

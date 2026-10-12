@@ -222,12 +222,12 @@ test("native HTML does not expose authorization credentials or token-bearing URL
   assert.ok(exportLimitations(doc, "html").length > 0);
 });
 
-test("generated code has no framework-editor brand markers (documentation excepted)", () => {
+test("generated code has no framework-editor brand markers (documentation and build-package identity excepted)", () => {
   const doc = fixture([]);
   for (const format of ["nextjs", "react", "html"] as const) {
     const p = generateExportProject(doc, format);
     for (const [path, source] of Object.entries(p.files)) {
-      if (/\.(md|txt)$/i.test(path)) continue;
+      if (/\.(md|txt)$/i.test(path) || path === "vendor/picomatch/package.json") continue;
       assert.doesNotMatch(source, /tsumu/i, format + ": " + path);
     }
   }
@@ -235,7 +235,7 @@ test("generated code has no framework-editor brand markers (documentation except
     framework: "react", language: "typescript", style: "css-modules", scope: "project",
   });
   for (const [path, source] of Object.entries(css.files)) {
-    if (/\.(md|txt)$/i.test(path)) continue;
+    if (/\.(md|txt)$/i.test(path) || path === "vendor/picomatch/package.json") continue;
     assert.doesNotMatch(source, /tsumu/i, path);
   }
 });

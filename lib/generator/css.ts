@@ -55,9 +55,8 @@ export function usedGoogleFonts(doc: SiteDoc) {
 }
 
 export function usedAdobeFonts(doc: SiteDoc) {
-  if (!doc.adobeFonts?.length) return [];
   const families = usedFontFamilies(doc);
-  return doc.adobeFonts.filter((f) => families.has(f.family));
+  return (doc.adobeFonts ?? []).filter((f) => families.has(f.family));
 }
 
 /**
