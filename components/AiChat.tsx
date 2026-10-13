@@ -85,26 +85,23 @@ export function toggleAi(open?: boolean) {
   useAi.setState((s) => ({ open: open ?? !s.open }));
 }
 
-/** AI機能が有効かをサーバーに確かめる（ヘッダーにボタンを表示するかを決める） */
+/** エディタを開いたときだけAIの利用可否を取得する。再マウントでも重複させない。 */
+let aiAvailabilityRequested = false;
+
 export function useAiAvailability(): boolean {
   const enabled = useAi((s) => s.enabled);
   useEffect(() => {
-    let cancelled = false;
-    const check = () => fetch("/api/ai", { cache: "no-store", signal: AbortSignal.timeout(10_000) })
+    if (aiAvailabilityRequested || useAi.getState().enabled !== null) return;
+    aiAvailabilityRequested = true;
+    void fetch("/api/ai", { cache: "no-store", signal: AbortSignal.timeout(10_000) })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { enabled?: boolean } | null) => {
-        if (!cancelled) useAi.setState({ enabled: !!data?.enabled });
+        useAi.setState({ enabled: !!data?.enabled });
       })
       .catch(() => {
-        // 一時的な通信の失敗で機能を隠したままにしない（確認中のままなら、いったん無効として扱う）
-        if (!cancelled && useAi.getState().enabled === null) useAi.setState({ enabled: false });
+        // 通信に失敗した場合は無効とし、次のページ読み込み時に再確認する。
+        useAi.setState({ enabled: false });
       });
-    void check();
-    window.addEventListener("focus", check);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("focus", check);
-    };
   }, []);
   return !!enabled;
 }
