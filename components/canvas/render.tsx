@@ -30,7 +30,7 @@ import { tr } from "../../lib/i18n";
 import { storageKey } from "../../lib/storage-keys";
 import { canvasHtml } from "../../lib/canvas-html";
 import { mediaSrc } from "../../lib/assets";
-import { safeResourceUrl } from "../../lib/url-policy";
+import { safeMediaUrl } from "../../lib/url-policy";
 
 /* ---------- 変数コンテキスト ---------- */
 
@@ -331,7 +331,7 @@ export function renderLeafNode(
     const sources = (node.media.sources ?? []).map((source, index) => {
       const url = opts.doc ? mediaSrc(opts.doc, source) : source.src;
       return url.trim() ? createElement("source", {
-        key: index, src: safeResourceUrl(url), type: source.type, media: source.media,
+        key: index, src: safeMediaUrl(url), type: source.type, media: source.media,
       }) : null;
     }).filter(Boolean);
     if (!src.trim() && !sources.length) {
@@ -345,7 +345,7 @@ export function renderLeafNode(
     }
     return createElement(node.media.kind, {
       ...common,
-      src: src.trim() ? src : undefined,
+      src: src.trim() ? safeMediaUrl(src) : undefined,
       controls: true,
       loop: node.media.loop,
       muted: node.media.muted,

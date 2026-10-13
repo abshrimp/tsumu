@@ -90,11 +90,18 @@ test("continuously competing settings changes return conflict instead of claimin
 
 test("site settings reject arrays and invalid lock-suffixed branch path components", async () => database(async db => {
   const before = await getSite(db, "site");
-  for (const input of [[], { branch: "release.lock/site" }, { previewBranch: "preview.lock/nested/branch" }]) {
+  for (const input of [
+    [],
+    { branch: "release.lock/site" },
+    { previewBranch: "preview.lock/nested/branch" },
+    { siteUrl: "https://user:pass@example.com" },
+    { previewUrl: "https://[" },
+    { siteUrl: "https://example.com\\evil" },
+  ]) {
     assert.equal((await api(db)(input)).status, 400);
     assert.deepEqual(await getSite(db, "site"), before);
   }
-  assert.equal((await api(db)({ branch: "release/v2", previewBranch: "previews/v2" })).status, 200);
+  assert.equal((await api(db)({ branch: "release/v2", previewBranch: "previews/v2", siteUrl: "https://example.com" })).status, 200);
 }));
 
 

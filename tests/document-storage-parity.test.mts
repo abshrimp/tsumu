@@ -172,3 +172,36 @@ test("reconnecting during a pending gesture preserves Undo/Redo through conflict
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("saveDocPatch rejects removing a page referenced by pageFolders.beforePageId without corrupting SQLite", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-folder-anchor-"));
+  const old = process.env.TSUMU_DATA_DIR;
+  process.env.TSUMU_DATA_DIR = dir;
+  const { store, sqlite } = durableObjectFixture();
+  try {
+    const db = await getDbFromBinding(nodeDatabase()!);
+    await insertSite(db, "anchor", { name: "Anchor", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    const doc = createInitialDoc();
+    doc.pages.second = { id: "second", name: "Second", slug: "second", title: "Second", description: "", children: [] };
+    doc.pageOrder.push("second");
+    doc.pageFolders = [{ id: "folder_1", name: "Docs", beforePageId: "second" }];
+    await saveCurrentDoc(db, "anchor", JSON.stringify(doc), null);
+    store.replace(JSON.stringify(doc), null);
+
+    const invalidPatch = [
+      { path: ["pages", "second"], remove: true as const },
+      { path: ["pageOrder"], value: [doc.pageOrder[0]!] },
+    ];
+    await assert.rejects(() => saveDocPatch(db, "anchor", invalidPatch, "1"));
+    assert.throws(() => store.patch(invalidPatch, "1"));
+
+    const saved = await readCurrentDoc(db, "anchor");
+    assert.equal(saved?.rev, "1");
+    assert.deepEqual(JSON.parse(saved!.body), doc);
+  } finally {
+    sqlite.close();
+    if (old === undefined) delete process.env.TSUMU_DATA_DIR;
+    else process.env.TSUMU_DATA_DIR = old;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

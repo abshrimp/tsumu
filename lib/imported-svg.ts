@@ -1,3 +1,4 @@
+import { decodeCssEscapes } from "./css-escape";
 import type { SiteDoc } from "./types";
 import { parseFragment, serialize, type DefaultTreeAdapterTypes as Html } from "parse5";
 
@@ -37,8 +38,9 @@ const staticAttrs = new Set([
   "seed", "stitchtiles",
 ]);
 
-function sanitizeSvgWithoutDom(input: string): string {
+function sanitizeSvgWithoutDom(input: string): { original: string; cleaned: string } {
   const fragment = parseFragment(input);
+  const original = serialize(fragment);
   let seenRoot = false;
   const safeNode = (node: Html.Node, parentIsSvg: boolean): boolean => {
     if (!("tagName" in node)) return parentIsSvg && node.nodeName === "#text";
@@ -55,24 +57,25 @@ function sanitizeSvgWithoutDom(input: string): string {
       if (key === "xmlns:xlink") return attr.value === "http://www.w3.org/1999/xlink";
       // 外部のリソースの読み込みは、編集可能なアイコンには含めない。
       if (key === "href" || key === "xlink:href") return /^#[\w.-]+$/.test(attr.value);
-      if (/\burl\s*\(/i.test(attr.value)) {
+      const decoded = decodeCssEscapes(attr.value).replace(/\/\*[\s\S]*?\*\//g, "");
+      if (/\burl\s*\(/i.test(decoded)) {
         return /^\s*url\(\s*["']?#[\w.-]+["']?\s*\)\s*$/i.test(attr.value);
       }
-      return !/(?:javascript|vbscript|data|https?|file)\s*:/i.test(attr.value);
+      return !/(?:javascript|vbscript|data|https?|file)\s*:/i.test(decoded);
     });
     if ("childNodes" in node) node.childNodes = node.childNodes.filter((child) => safeNode(child, true));
     return true;
   };
   fragment.childNodes = fragment.childNodes.filter((node) => safeNode(node, false));
-  return serialize(fragment);
+  return { original, cleaned: serialize(fragment) };
 }
-
 
 /** 受け取ったアイコンのマークアップを、環境によらない単一の許可リストで検証する。 */
 export function isSafeImportedSvg(svg: string): boolean {
   if (typeof svg !== "string") return false;
   if (verifiedSafeSvgs.has(svg)) return true;
-  const safe = serialize(parseFragment(svg)) === sanitizeSvgWithoutDom(svg);
+  const { original, cleaned } = sanitizeSvgWithoutDom(svg);
+  const safe = original === cleaned;
   if (safe) rememberSafeSvg(svg);
   return safe;
 }
@@ -83,8 +86,8 @@ export function isSafeImportedSvg(svg: string): boolean {
  */
 export function sanitizeImportedSvg(svg: string): string {
   if (verifiedSafeSvgs.has(svg)) return svg;
-  const cleaned = sanitizeSvgWithoutDom(svg);
-  const out = serialize(parseFragment(svg)) === cleaned ? svg : cleaned;
+  const { original, cleaned } = sanitizeSvgWithoutDom(svg);
+  const out = original === cleaned ? svg : cleaned;
   rememberSafeSvg(out);
   return out;
 }
@@ -96,7 +99,7 @@ export function sanitizeImportedInlineIcons<T>(doc: T): T {
   if (!nodes || typeof nodes !== "object" || Array.isArray(nodes)) return doc;
   for (const node of Object.values(nodes)) {
     if (node && typeof node === "object" && !Array.isArray(node) &&
-        node.type === "icon" && node.icon && typeof node.icon === "object" &&
+        node.icon && typeof node.icon === "object" &&
         !Array.isArray(node.icon) && typeof node.icon.svg === "string" && node.icon.svg) {
       node.icon.svg = sanitizeImportedSvg(node.icon.svg);
     }

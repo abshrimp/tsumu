@@ -56,10 +56,16 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+  const contentType = file.type.split(";", 1)[0].trim().toLowerCase();
   if (
-    !file.type ||
-    /^(?:text\/html|application\/xhtml\+xml|(?:text|application)\/xml)\b/i.test(file.type.trim()) ||
-    /\.(?:x?html?|mhtml|shtml|xml)$/i.test(file.name.trim())
+    !contentType ||
+    !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(contentType) ||
+    contentType === "text/html" ||
+    contentType === "application/xhtml+xml" ||
+    contentType === "text/xml" ||
+    contentType === "application/xml" ||
+    (contentType.endsWith("+xml") && contentType !== "image/svg+xml") ||
+    /\.(?:x?html?|mhtml|shtml|xml|svgz)$/i.test(file.name.trim())
   ) {
     return NextResponse.json(
       { error: tr("This file type can't be uploaded") },
@@ -87,7 +93,7 @@ export async function POST(req: Request) {
 
   try {
     await store.put(path, await file.arrayBuffer(), {
-      metadata: { contentType: file.type, bytes: file.size },
+      metadata: { contentType, bytes: file.size },
     });
     if (dbConfigured()) {
       try {

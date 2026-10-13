@@ -182,6 +182,11 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       return;
     }
 
+    if ((typeof message === "string" ? message.length : message.byteLength) > 64 * 1024 * 1024) {
+      reply(JSON.stringify({ type: "error", requestId: "", message: "リクエストが大きすぎます" }));
+      return;
+    }
+
     let decoded: unknown;
     try {
       decoded = JSON.parse(

@@ -97,7 +97,12 @@ export function normalizeSiteInput(
   const siteUrl = url("siteUrl");
   const previewUrl = url("previewUrl");
   for (const u of [siteUrl, previewUrl]) {
-    if (u && !/^https?:\/\/[^\s]+$/.test(u)) {
+    if (!u) continue;
+    if (!/^https?:\/\/[^\s\\]+$/i.test(u) || !URL.canParse(u)) {
+      return { ok: false, error: "URLs must start with http:// or https://" };
+    }
+    const parsed = new URL(u);
+    if (parsed.username || parsed.password) {
       return { ok: false, error: "URLs must start with http:// or https://" };
     }
   }

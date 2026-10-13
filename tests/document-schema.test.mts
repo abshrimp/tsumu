@@ -66,6 +66,10 @@ test("runtime validation rejects malformed optional node, page, asset and site f
   fail(doc => { doc.assets = { a: { id: "a", name: "test.svg", width: "100", height: 100 } }; });
   fail(doc => { doc.assets = { a: { id: "a", name: "test.svg", width: 100 } }; });
   fail(doc => { doc.assets = { a: { id: "a", name: "test.svg", width: 100, height: 100, bytes: "10" } }; });
+  fail(doc => {
+    const n = Object.values(doc.nodes)[0] as Record<string, unknown>;
+    n.scripts = [{ id: "s1", trigger: "click", steps: [{ id: "st1", kind: "dialog", mode: "unknown", message: "Hi" }] }];
+  });
 });
 
 test("valid optional shapes survive the same runtime validators", () => {
@@ -82,6 +86,15 @@ test("valid optional shapes survive the same runtime validators", () => {
   node.motions = [{ id: "fade", trigger: "load", duration: 0.5, delay: 0, easing: "linear" }];
   node.htmlAttrs = { title: "example" };
   node.list = { from: "items", limit: 10 };
+  node.scripts = [{
+    id: "s1",
+    trigger: "click",
+    steps: [
+      { id: "d1", kind: "dialog", mode: "alert", message: "Saved" },
+      { id: "d2", kind: "dialog", mode: "confirm", message: "Proceed?", into: "confirmed" },
+      { id: "d3", kind: "dialog", mode: "prompt", message: "Name?", into: "userName", defaultValue: "Guest" },
+    ],
+  }];
   assert.equal(validSiteDoc(doc), true);
 });
 

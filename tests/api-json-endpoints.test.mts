@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { transformSync } from "esbuild";
-import { readJsonLimited } from "../lib/api-json";
+import { JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 import { parseAiRequest, readAiRequest } from "../lib/ai/request";
 import { AI_STREAM_TYPE, readAiResponse, type AiProgress } from "../lib/ai/progress";
 import type { runAi } from "../lib/ai/run";
@@ -48,10 +48,10 @@ function fixture(route: keyof typeof inputs, authorized = true, model?: typeof r
     "next/server": { NextResponse },
     "../../../lib/i18n-server": { serverTr: async () => (value: string) => value },
     "../../../lib/server": { requireAuth: async () => authorized ? null : NextResponse.json({}, { status: 401 }) },
+    "../../../lib/api-json": { JsonContentTypeError, readJsonLimited },
   };
   const POST = route === "fetch-json" ? load("../app/api/fetch-json/route.ts", {
     ...common,
-    "../../../lib/api-json": { readJsonLimited },
     "../../../lib/safe-fetch": {
       BlockedUrlError: class extends Error {}, TooLargeError: class extends Error {},
       fetchPublic: async () => { calls++; return Response.json({ message: "日本語" }); },
@@ -156,9 +156,8 @@ for (const route of ["fetch-json", "ai"] as const) {
 
   test(`${route} rejects wrong MIME and malformed JSON without downstream requests`, async () => {
     const f = fixture(route);
-    // エディタの JSON のヘッダーと異なる MIME には、他の不正な入力への応答と同じ 400 を返す。
     for (const mime of ["text/plain", "application/x-www-form-urlencoded", "application/problem+json"]) {
-      assert.equal((await f.POST(request(route, JSON.stringify(inputs[route]), { "Content-Type": mime }))).status, 400);
+      assert.equal((await f.POST(request(route, JSON.stringify(inputs[route]), { "Content-Type": mime }))).status, 415);
     }
     for (const value of ["{broken", "null", "{}", null]) {
       assert.equal((await f.POST(request(route, value))).status, 400);

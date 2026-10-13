@@ -107,6 +107,8 @@ test("import and clipboard validation block unsafe inline SVG across browser and
     '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://attacker.example/svg"/></svg>',
     '<svg xmlns="http://www.w3.org/2000/svg"><style>body{background:url(https://attacker.example/css)}</style><rect width="5" height="5"/></svg>',
     '<svg xmlns="http://www.w3.org/2000/svg"><a href="https://attacker.example"><rect width="5" height="5"/></a></svg>',
+    String.raw`<svg xmlns="http://www.w3.org/2000/svg"><rect width="5" height="5" fill="u\72l(https://attacker.example/p)"/></svg>`,
+    '<svg xmlns="http://www.w3.org/2000/svg"><rect width="5" height="5" fill="url(/*c*/https://attacker.example/p)"/></svg>',
   ]) {
     icon.icon!.svg = payload;
     assert.throws(() => validateImportedDoc(doc), /invalid element settings/i);
@@ -124,12 +126,15 @@ test("restoring a backup sanitizes inline SVG without changing other editable pr
     '<circle cx="5" cy="5" r="3"/><foreignObject><img src=x onerror="alert(1)"/></foreignObject></svg>';
   icon.icon!.svg = original;
   doc.nodes[icon.id] = icon;
+  const rootId = doc.pages[doc.pageOrder[0]].children[0]!;
+  doc.nodes[rootId].icon = { name: "box-icon", svg: original };
   doc.pages[doc.pageOrder[0]].children.push(icon.id);
   const before = structuredClone(doc);
   const restored = sanitizeImportedInlineIcons(structuredClone(doc));
   const cleaned = restored.nodes[icon.id].icon!.svg;
   assert.match(cleaned, /<circle\b/);
   assert.doesNotMatch(cleaned, /onload|onerror|foreignObject|<img|alert\(/i);
+  assert.equal(restored.nodes[rootId].icon?.svg, cleaned);
   assert.equal(validateImportedDoc(restored), restored);
   assert.equal(doc.nodes[icon.id].icon!.svg, original);
   assert.deepEqual(restored.pages, before.pages);

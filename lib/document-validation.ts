@@ -51,6 +51,9 @@ function validSteps(value: unknown, depth: number, count: { value: number }): bo
         valid = str(step.pageId) && optional(step.newTab, bool); break;
       case "open-url":
         valid = str(step.url) && optional(step.newTab, bool); break;
+      case "dialog":
+        valid = oneOf(step.mode, ["alert", "confirm", "prompt"]) && str(step.message) &&
+          optional(step.into, str) && optional(step.defaultValue, str); break;
       case "set-value":
         valid = str(step.target) && str(step.value); break;
       case "set-enabled":

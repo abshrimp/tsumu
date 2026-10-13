@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { BlockedUrlError, fetchPublic, readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
-import { readJsonLimited } from "../../../lib/api-json";
+import { JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -24,7 +24,8 @@ export async function POST(req: Request) {
       url: string; method?: string; headers?: unknown; body?: unknown;
     });
   } catch (error) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: error instanceof RangeError ? 413 : 400 });
+    const status = error instanceof RangeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400;
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status });
   }
   // メソッド・ヘッダー・本文（データの取得ブロックの「リクエストの設定」）
   const verb = typeof method === "string" ? method.toUpperCase() : method == null ? "GET" : "";

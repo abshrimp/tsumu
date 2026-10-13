@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { assetMediaUrl, validAssetSuffix } from "../lib/media-url";
 import { mediaSrc, replaceEmbeddedAsset } from "../lib/assets";
-import { safeResourceUrl } from "../lib/url-policy";
+import { safeMediaUrl, safeResourceUrl } from "../lib/url-policy";
 import { createInitialDoc, makeMedia } from "../lib/presets";
 import { validSiteDoc } from "../lib/doc-tree";
 import { validateImportedDoc } from "../lib/site-import-format";
@@ -31,6 +31,10 @@ test("media asset suffixes preserve bytes without replacing the resource URL", (
   assert.equal(safeResourceUrl("data:video/mp4;base64,AQID#t=3,7"), "data:video/mp4;base64,AQID#t=3,7");
   assert.equal(safeResourceUrl("data:text/html;base64,AQID#t=3,7"), "#");
   assert.equal(safeResourceUrl("data:video/mp4;base64,AQID#t=3\n7"), "#");
+  assert.equal(safeMediaUrl("https://example.com/{name}/\\{name}/%7Bname%7D"), "https://example.com/{name}/\\{name}/%7Bname%7D");
+  for (const bad of ["javascript:alert(1)", "file:///etc/passwd", "https:\\evil.test/x", "https://good.test\\@evil.test/x", "https://good.test/\nx", "/\\evil.test/x", "data:text/html;base64,AQID"]) {
+    assert.equal(safeMediaUrl(bad), "#");
+  }
 });
 
 test("native source suffixes survive persistence and storage relocation", () => {

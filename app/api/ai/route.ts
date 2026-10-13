@@ -4,6 +4,7 @@ import { requireAuth } from "../../../lib/server";
 import { applyAiOps, MAX_AI_ADDED_NODES, type AiOp } from "../../../lib/aiOps";
 import { AI_NOT_ENABLED, aiConfig } from "../../../lib/ai/config";
 import { AiApiError, runAi } from "../../../lib/ai/run";
+import { JsonContentTypeError } from "../../../lib/api-json";
 import { parseAiRequest, readAiRequest } from "../../../lib/ai/request";
 import { aiStreamResponse, type AiProgress, type AiResult } from "../../../lib/ai/progress";
 
@@ -46,9 +47,10 @@ export async function POST(req: Request) {
   try {
     parsed = parseAiRequest(await readAiRequest(req));
   } catch (error) {
+    const status = error instanceof RangeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400;
     return NextResponse.json({ error: error instanceof RangeError
       ? tr("This page is too large to send to AI") : tr("Invalid request", "invalid_request_variant_1") },
-      { status: error instanceof RangeError ? 413 : 400 });
+      { status });
   }
   const { turns, context } = parsed;
   const failure = (e: unknown): string => {

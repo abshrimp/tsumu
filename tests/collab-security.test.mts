@@ -325,5 +325,12 @@ test("a disconnected saving sender does not prevent persistence, activity or pee
       assert.equal((await db.execute("SELECT email FROM site_activity WHERE site_id = 's1' AND kind = 'edit'")).rows[0]?.email, "owner@example.com");
       base = next;
     }
+    const oversized = socket("owner@example.com");
+    const room = new CollaborationRoom({ getWebSockets: () => [oversized] }, {
+      DB: nodeDatabase(), ALLOWED_EMAILS: "owner@example.com", AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
+    });
+    await room.webSocketMessage(oversized, new ArrayBuffer(64 * 1024 * 1024 + 1));
+    assert.equal(oversized.messages.length, 1);
+    assert.equal(JSON.parse(oversized.messages[0]).type, "error");
   });
 });

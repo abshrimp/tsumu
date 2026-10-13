@@ -19,6 +19,14 @@ export function safeResourceUrl(value: string): string {
   return safeNavigationUrl(url);
 }
 
+/** メディアの literal な URL パス（\{name} など）は残し、実行できるスキームや権限の偽装は拒否する。 */
+export function safeMediaUrl(value: string): string {
+  const url = value.trim();
+  if (!url || /[\u0000-\u001f\u007f]/.test(url)) return "#";
+  if (/^https?:\/\/[^/?#@\\]+(?:\/|$)/i.test(url)) return url;
+  return safeResourceUrl(url);
+}
+
 /** ブラウザ用の素の JS。生成したサイトとエディタで判定が一致することは、テストで確かめる。 */
 export const NAVIGATION_RUNTIME = String.raw`function safeNavigationUrl(value) {
   var url = value.trim();

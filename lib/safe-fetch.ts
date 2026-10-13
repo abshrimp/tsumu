@@ -153,7 +153,7 @@ async function fetchOnce(url: URL, init: RequestInit, maxBytes = 5 * 1024 * 1024
       method: init.method, headers: Object.fromEntries(headers), agent: false,
       signal: init.signal ?? undefined,
       lookup(host, options, callback) {
-        dns.lookup(host, { all: true }).then((addresses) => {
+        dnsWithDeadline(() => dns.lookup(host, { all: true }), init.signal ?? undefined).then((addresses) => {
           if (!addresses.length || addresses.some((r) => isPrivateHost(r.family === 6 ? `[${r.address}]` : r.address))) {
             callback(new BlockedUrlError("private DNS address"), "", 4);
             return;

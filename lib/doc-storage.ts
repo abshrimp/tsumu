@@ -176,7 +176,7 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
         op.path[0] === "ogImage" || op.path[0] === "pwa") return true;
     if (op.path[0] === "assets") return op.path.length === 1 || "remove" in op;
     if (op.path[0] === "pages") {
-      if (op.path.length === 1) return true;
+      if (op.path.length === 1 || "remove" in op) return true;
       return "value" in op && !!op.value && typeof op.value === "object" &&
         !Array.isArray(op.value) &&
         (Object.hasOwn(op.value, "folderId") || Object.hasOwn(op.value, "ogImage"));

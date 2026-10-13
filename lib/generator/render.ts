@@ -4,7 +4,7 @@
 
 import { fieldSubmissionAttributes, submissionAttributes, submissionProps } from "../imported-form";
 import { assetMediaUrl } from "../assets";
-import { safeNavigationUrl } from "../url-policy";
+import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import type { SiteDoc } from "../types";
 import { toggleShowDisplay } from "../style";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
@@ -340,7 +340,7 @@ ${indent}</div>`;
     const src = node.image.assetId
       ? assetMediaUrl(assetPath(ctx, node.image.assetId), node.image.assetSuffix)
       : node.image.src;
-    let srcAttr = `src=${jsxString(src)}`;
+    let srcAttr = `src=${jsxString(src ? safeResourceUrl(src) : "")}`;
     if (hasVars(src)) {
       ctx.usesInterpolate = true;
       const base = ctx.varsExpr ?? "vars";
@@ -466,17 +466,13 @@ ${indent}</div>`;
   if (node.type === "media" && node.media) {
     const m = node.media;
     const src = m.assetId ? assetMediaUrl(assetPath(ctx, m.assetId), m.assetSuffix) : m.src;
-    const safeMedia = (value: string): string => {
-      const normalized = value.replace(/[\u0000-\u0020\u007f]/g, "").toLowerCase();
-      return /^(?:javascript:|vbscript:|data:text\/html(?:[;,]|$))/.test(normalized) ? "#" : value;
-    };
     const sources = (m.sources ?? []).map((source) => {
       const url = source.assetId ? assetMediaUrl(assetPath(ctx, source.assetId), source.assetSuffix) : source.src;
       if (!url.trim()) return "";
-      return `${indent}  <source src=${jsxString(safeMedia(url))}${source.type != null ? ` type=${jsxString(source.type)}` : ""}${source.media != null ? ` media=${jsxString(source.media)}` : ""} />`;
+      return `${indent}  <source src=${jsxString(safeMediaUrl(url))}${source.type != null ? ` type=${jsxString(source.type)}` : ""}${source.media != null ? ` media=${jsxString(source.media)}` : ""} />`;
     }).filter(Boolean);
     if (!src.trim() && !sources.length) return "";
-    const mediaSrc = src.trim() ? `\n${indent}  src=${jsxString(safeMedia(src))}` : "";
+    const mediaSrc = src.trim() ? `\n${indent}  src=${jsxString(safeMediaUrl(src))}` : "";
     const extra = [
       m.loop ? " loop" : "",
       m.autoplay ? " autoPlay" : "",
