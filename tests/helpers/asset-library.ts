@@ -1,3 +1,4 @@
+import { readEditorCss } from "./editor-css";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
@@ -68,7 +69,7 @@ import { loadLocale } from "./lib/i18n";
 let AssetsTab;
 let NumField, FillControl;
 import { useEditor } from "./lib/store";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(assetLibraryDoc())});
 window.assetEditor = useEditor;

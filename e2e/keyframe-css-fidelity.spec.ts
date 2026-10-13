@@ -1,3 +1,4 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test } from "@playwright/test";
 import { motionEditorBundle } from "../tests/helpers/motion-editor-browser";
 
@@ -16,7 +17,7 @@ for (const item of cases) {
     page.on("pageerror", (error) => errors.push(error.message));
     const source = `from { ${item.declarations} } to { ${item.declarations} }`;
     await page.setContent('<div id="app"></div>');
-    await page.addStyleTag({ path: "app/globals.css" });
+    await page.addStyleTag({ content: readEditorCss() });
     await page.addScriptTag({ content: await motionEditorBundle(source) });
     const value = () => page.locator("#motion-probe").evaluate((element, property) => getComputedStyle(element).getPropertyValue(property), item.property);
     await expect.poll(value).toBe(item.expected);
@@ -41,7 +42,7 @@ test("opening and applying nearby keyframes preserves the animated position", as
   page.on("pageerror", (error) => errors.push(error.message));
   const source = "from { transform: translateX(0px); } 49.9999% { transform: translateX(100px); } 50% { transform: translateX(0px); } to { transform: translateX(100px); }";
   await page.setContent('<div id="app"></div>');
-  await page.addStyleTag({ path: "app/globals.css" });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.addScriptTag({ content: await motionEditorBundle(source) });
   const position = () => page.locator("#motion-probe").evaluate((element) => {
     const animation = element.getAnimations()[0];
@@ -66,7 +67,7 @@ test("overflowing values remain raw through applying and reopening keyframes", a
   page.on("pageerror", (error) => errors.push(error.message));
   const source = "from { opacity: 1e309; transform: translateX(1e309px); } to { transform: rotate(1e308turn); }";
   await page.setContent('<div id="app"></div>');
-  await page.addStyleTag({ path: "app/globals.css" });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.addScriptTag({ content: await motionEditorBundle(source) });
   for (let pass = 0; pass < 2; pass++) {
     await expect(page.locator(".kfe-modal")).toBeVisible();

@@ -22,7 +22,7 @@ function evaluate(source: string, mocks: Record<string, unknown>) {
   const module = { exports: {} as any };
   const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
   new Function("require", "module", "exports", code)(
-    (name: string) => name in mocks ? mocks[name] : require(name), module, module.exports,
+    (name: string) => name in mocks ? mocks[name] : name.endsWith(".css") ? {} : require(name), module, module.exports,
   );
   return module.exports;
 }

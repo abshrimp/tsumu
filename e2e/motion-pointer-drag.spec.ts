@@ -1,3 +1,4 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
 import { motionEditorBundle } from "../tests/helpers/motion-editor-browser";
 
@@ -7,7 +8,7 @@ test.use({ hasTouch: true });
 
 test.beforeEach(async ({ page }) => {
   await page.setContent('<div id="app"></div>');
-  await page.addStyleTag({ path: "app/globals.css" });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.addScriptTag({ content: bundle });
   await expect(page.locator(".kfe-modal")).toBeVisible();
   await page.locator(".kfe-modal").evaluate((element) =>

@@ -1,3 +1,4 @@
+import { readEditorCss } from "./editor-css";
 import { build } from "esbuild";
 import { resolve } from "node:path";
 import type { SiteDoc } from "../../lib/types";
@@ -23,7 +24,7 @@ import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { loadLocale } from "./lib/i18n";
 import { useEditor } from "./lib/store";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 useEditor.getState().setActivePage("p");

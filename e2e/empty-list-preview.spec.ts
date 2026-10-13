@@ -1,5 +1,5 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
 import { emptyListBundle, publishedEmptyList } from "../tests/helpers/empty-list-preview";
 
 const snapshot = (page: Page) => page.evaluate(() => {
@@ -10,7 +10,7 @@ async function setup(page: Page, items: readonly unknown[]) {
   const errors: string[] = [];
   page.on("pageerror", e => errors.push(e.message));
   await page.setContent('<html><body><div id="app"></div></body></html>');
-  await page.addStyleTag({ content: readFileSync("app/globals.css", "utf8") });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.addScriptTag({ content: await emptyListBundle(items) });
   await page.getByRole("button", { name: "リスト表示にする", exact: true }).click();
   const before = await snapshot(page);

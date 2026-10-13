@@ -1,0 +1,188 @@
+import type { Topic } from "../manual";
+import { tr } from "../i18n";
+
+export const startTopics: Topic[] = [  /* ================= はじめに ================= */
+  {
+    id: "start-screen",
+    cat: "start",
+    level: 1,
+    q: tr("What does each part of the screen do?"),
+    a: tr("**Add and select on the left, view in the middle, change on the right**. The top bar switches screen widths and publishes the site."),
+    keys: [tr("how to use"), tr("screen"), tr("layout"), tr("first time"), tr("panel")],
+    ctx: ["none"],
+    body: [
+      { fig: "editor-map" },
+      { rule: tr("When in doubt: select on the canvas, change in the right panel. Almost everything works this way."), title: tr("The basic flow") },
+      { note: tr("Open and close the side panels with ⌘[ and ⌘].") },
+    ],
+    guide: [
+      { target: "canvas", text: tr("The middle is the canvas. It shows your page as it will look. Click an element to select it.") },
+      { target: "left-tabs", text: tr("The tabs at the top of the left panel switch between Pages, Layers, Add, Assets and Site."), prepare: { design: true } },
+      { target: "inspector", text: tr("The right panel shows settings for the selected element. With nothing selected, it shows the current page's settings.") },
+      { target: "responsive", text: tr("Switch between desktop, tablet and phone views here. You can also change the look for phones only.") },
+      { target: "preview", text: tr("In Preview, try out buttons and links just as they'll work when published.") },
+      { target: "publish", text: tr("When you're done, click Publish to update your site. Changes save automatically, so there's no save button.") },
+    ],
+    see: ["start-tutorial", "start-save", "el-select"],
+  },
+  {
+    id: "start-tutorial",
+    cat: "start",
+    level: 1,
+    q: tr("Where should I start?"),
+    a: tr("The 10-minute tutorial walks you through the basics as you build a practice page."),
+    keys: [tr("Tutorial"), tr("practice"), tr("start"), tr("beginner")],
+    ctx: ["none"],
+    body: [
+      { p: tr("You'll create an unpublished practice page, add a heading, text and buttons, then try layout, spacing, color, links and mobile one by one. Each step explains why.") },
+      { action: "tutorial" },
+      { p: tr("The tutorial page is unpublished, so it won't appear on your live site. You can delete it from the [[page-order|page list]] when you're done.") },
+      { rule: tr("Don't aim for perfect from the start. Placing headings, text, images and buttons first and polishing afterwards gets you there faster."), title: tr("A tip for building") },
+    ],
+    see: ["start-screen", "el-add", "d-hierarchy"],
+  },
+  {
+    id: "start-save",
+    cat: "start",
+    level: 1,
+    q: tr("How do I save?"),
+    a: tr("**Saving is automatic**. When the bottom right says \"Saved to server\", you can open the same content from other devices."),
+    keys: [tr("save"), tr("saving"), tr("lost"), tr("autosave"), tr("sync")],
+    body: [
+      {
+        table: {
+          head: [tr("Bottom-right status"), tr("Meaning")],
+          rows: [
+            [tr("Saved to server"), tr("Saving is complete")],
+            [tr("Saving to server…"), tr("Saving in progress")],
+            [tr("Couldn't save to server"), tr("For example, the connection may be down. Your work is kept in this browser.")],
+            [tr("Saved in this browser only"), tr("Server storage isn't configured, so work is saved in this browser only")],
+          ],
+        },
+      },
+      { p: tr("If you close the editor before saving finishes, you'll be asked next time whether to use this browser's version or the server's.") },
+      { note: tr("The server also keeps 7 days of backups automatically. To keep your own file, use [[pub-backup|Backup]].") },
+    ],
+    guide: [{ target: "save-status", text: tr("Check the save status at the bottom right. \"Saved to server\" means you're all set.") }],
+    see: ["start-undo", "start-collab", "pub-backup"],
+  },
+  {
+    id: "start-undo",
+    cat: "start",
+    level: 1,
+    q: tr("How do I undo a mistake?"),
+    a: tr("Press ⌘Z to undo and ⇧⌘Z to redo. The arrow buttons in the top bar do the same."),
+    keys: [tr("Undo"), tr("undo"), "undo", tr("redo"), "redo", tr("cancel"), "Ctrl+Z", "Ctrl+Y"],
+    body: [
+      { p: tr("You can undo up to 100 steps. Even after others' changes come in, Undo reverts only your own actions.") },
+      { warn: tr("Deleting assets (images) and loading a backup can't be undone.") },
+      { note: tr("While typing, ⌘Z undoes only that typing. On Windows, Ctrl+Y also redoes.") },
+    ],
+    guide: [{ target: "undo", text: tr("Use the arrows at the top left to undo and redo.") }],
+    see: ["start-shortcuts", "pub-backup"],
+  },
+  {
+    id: "start-shortcuts",
+    cat: "start",
+    level: 2,
+    q: tr("What keyboard shortcuts are there?"),
+    a: tr("Common actions have keyboard shortcuts. Keys are shown for your computer (Mac or Windows)."),
+    keys: [tr("Shortcuts"), tr("keyboard"), tr("Key"), tr("shortcut list"), "Ctrl", "Command", tr("command"), tr("control")],
+    body: [
+      {
+        table: {
+          head: [tr("Key"), tr("Action")],
+          rows: [
+            ["⌘Z / ⇧⌘Z", tr("Undo / redo")],
+            ["⌘C / ⌘X / ⌘V", tr("Copy / cut / paste elements")],
+            ["⌘D", tr("Duplicate (all selected elements)")],
+            ["Delete", tr("Delete (locked elements aren't deleted)")],
+            ["⌘A", tr("Select all elements at the same level")],
+            [tr("⇧+click"), tr("Add to or remove from selection")],
+            ["Enter", tr("Edit the selected text")],
+            ["⇧Enter", tr("Select the parent element")],
+            ["Esc", tr("Deselect (or finish editing text)")],
+            ["⌘[ / ⌘]", tr("Open/close the left or right panel")],
+            [tr("⌘ + scroll"), tr("Zoom the canvas")],
+            [tr("{ (while typing)"), tr("Show variable suggestions")],
+            ["?", tr("Open this Help")],
+          ],
+        },
+      },
+    ],
+    see: ["start-undo", "el-select"],
+  },
+  {
+    id: "ai-chat",
+    cat: "start",
+    level: 1,
+    q: tr("I want AI to edit the page for me"),
+    a: tr("Click the **sparkle button** (Ask AI) at the top right and describe what you want. AI edits the page, and **⌘Z undoes it all at once**."),
+    keys: [tr("AI"), tr("chat"), tr("automatic"), tr("let AI do it"), "Claude"],
+    body: [
+      { fig: "ai-flow" },
+      {
+        list: [
+          tr("**Adjusting the look** … \"Make the heading bigger\", \"Round the button corners\""),
+          tr("**Layout** … \"Put the cards in three columns\", \"Stack them on phones\""),
+          tr("**Building** … \"Add a pricing section\", \"Put company info in the footer\""),
+          tr("**Writing** … \"Make this description shorter and friendlier\""),
+        ],
+      },
+      { rule: tr("Select an element before asking, so that \"this\" and \"it\" refer to it. Asking for one or two things at a time gives more predictable results."), title: tr("Tips for asking") },
+      { note: tr("AI only edits the page you have open (or the component you're editing). It can't set up scripts or data, or upload images.") },
+      { warn: tr("This button appears only when the editor's administrator has enabled AI on the server. The administrator also chooses which AI is used (Claude, Gemini, etc.).") },
+    ],
+    guide: [
+      { target: "ai", text: tr("Open the AI panel with this button, type what you want, and press Enter to send.") },
+    ],
+    see: ["start-undo", "el-select"],
+  },
+  {
+    id: "start-collab",
+    cat: "start",
+    level: 2,
+    q: tr("Can I edit at the same time as others?"),
+    a: tr("Yes. But if two people change the same element at once, **whoever saves last wins**. Divide pages or sections between people."),
+    keys: [tr("simultaneous editing"), tr("collaboration"), tr("multiple people"), tr("conflict")],
+    body: [
+      { p: tr("Others' saves show up on your screen within seconds. If you edit different elements at the same time, both changes are kept.") },
+      { warn: tr("If you change the same element (like the same heading) at the same time, the later save wins. Text isn't merged character by character.") },
+      { note: tr("While you're editing text, others' changes wait. They come in when you finish.") },
+      { p: tr("Hover over Save at the bottom right to see who made the latest change and who edited in the last 10 minutes. Hover over Publish to see when the site was last published and by whom.") },
+    ],
+    see: ["start-save", "start-comments", "pub-accounts"],
+  },
+  {
+    id: "start-comments",
+    cat: "start",
+    level: 2,
+    q: tr("I want to leave comments on a page and discuss them with others"),
+    a: tr("Turn on comment mode with the speech-bubble button in the top bar (or the C key), then click an element on the canvas to comment on it."),
+    keys: [tr("Comments"), tr("note"), tr("review"), tr("feedback"), tr("Reply"), tr("remark")],
+    body: [
+      { p: tr("A comment is attached to the element you clicked, so it follows that element when you change the screen width or move it. Click a pin to reply, resolve or delete it.") },
+      { p: tr("The right panel lists the comments on this page (or all pages). Click one to jump to it.") },
+      { note: tr("Comments aren't part of the published site and aren't affected by Undo. You can only edit or delete comments you wrote.") },
+    ],
+    guide: [
+      { target: "comments", text: tr("This button starts comment mode.") },
+    ],
+    see: ["start-collab"],
+  },
+  {
+    id: "start-zoom",
+    cat: "start",
+    level: 1,
+    q: tr("How do I zoom the canvas?"),
+    a: tr("Choose a zoom level from \"Fit\" in the top bar, or scroll while holding ⌘."),
+    keys: [tr("Zoom in"), tr("Zoom out"), tr("zoom"), tr("magnification")],
+    body: [
+      { p: tr("\"Fit\" sizes the canvas to fit your screen. Use 100% or 150% to see details.") },
+      { note: tr("Zooming doesn't change the size of your page (only how it looks on screen).") },
+    ],
+    guide: [{ target: "zoom", text: tr("Choose the zoom level here. You can also zoom by scrolling over the canvas while holding ⌘.") }],
+  },
+
+
+];

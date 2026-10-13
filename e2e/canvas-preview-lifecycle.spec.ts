@@ -1,3 +1,4 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
 import { build } from "esbuild";
 import { resolve } from "node:path";
@@ -42,7 +43,7 @@ import { createRoot } from "react-dom/client";
 import Canvas from "./components/Canvas";
 import { useEditor } from "./lib/store";
 import { loadLocale } from "./lib/i18n";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 useEditor.getState().setActivePage("a");

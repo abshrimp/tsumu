@@ -1,3 +1,4 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test } from "@playwright/test";
 import { easingEditorBundle } from "../tests/helpers/motion-editor-browser";
 
@@ -9,7 +10,7 @@ for (const source of [
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.setContent('<div id="app"></div>');
-  await page.addStyleTag({ path: "app/globals.css" });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.addScriptTag({ content: await easingEditorBundle(source) });
   const computed = () => page.locator("#easing-probe").evaluate(el => getComputedStyle(el).transitionTimingFunction);
   await expect(page.locator(".ee-modal")).toBeVisible();

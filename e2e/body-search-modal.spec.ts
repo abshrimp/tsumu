@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test } from "@playwright/test";
 import { bodySearchModalBundle } from "../tests/helpers/body-search-modal";
 
 let bundle: string;
-const css = readFileSync("app/globals.css", "utf8");
+const css = readEditorCss();
 test.beforeAll(async () => { bundle = await bodySearchModalBundle(); });
 test.beforeEach(async ({ page }) => {
   // A transformed and clipped parent catches dialogs not portaled to document.body.

@@ -1,3 +1,4 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { build } from "esbuild";
 import { resolve } from "node:path";
@@ -15,7 +16,7 @@ import DialogHost from "./components/DialogHost";
 import { useEditor } from "./lib/store";
 import { showPrompt } from "./lib/dialog";
 import { loadLocale } from "./lib/i18n";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(scriptKeyboardDoc())});
 useEditor.getState().setActivePage("p");

@@ -1,11 +1,10 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { siteBootstrapBundle } from "../tests/helpers/site-bootstrap";
 import { setBrowserDoc } from "./helpers/browser-doc";
 
 let bundle: string;
-const css = readFileSync(resolve("app/globals.css"), "utf8");
+const css = readEditorCss();
 test.beforeAll(async () => { bundle = await siteBootstrapBundle(true); });
 
 /** リクエストが完了する順序だけを制御し、実際のページとエディタを動かす。 */

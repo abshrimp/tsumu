@@ -1,5 +1,5 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
 import { makeBox } from "../lib/presets";
 import { generateProject } from "../lib/generator";
 import { compileScripts } from "../lib/script";
@@ -422,7 +422,7 @@ test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
   if (!testInfo.title.includes("canvas")) return;
   await page.setContent('<html><body><div id="app"></div></body></html>');
-  await page.addStyleTag({ content: readFileSync("app/globals.css", "utf8") });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.addScriptTag({ content: bundle });
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
 });

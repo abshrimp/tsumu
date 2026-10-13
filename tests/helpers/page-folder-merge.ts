@@ -1,3 +1,4 @@
+import { readEditorCss } from "./editor-css";
 import { build } from "esbuild";
 import { resolve } from "node:path";
 import { makeBox } from "../../lib/presets";
@@ -25,7 +26,7 @@ import { loadLocale } from "./lib/i18n";
 let PagesTab;
 import { useEditor } from "./lib/store";
 import { mergeDocs } from "./lib/merge";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 const base = ${JSON.stringify(pageFolderFixture())};
 useEditor.getState().replaceDoc(structuredClone(base));

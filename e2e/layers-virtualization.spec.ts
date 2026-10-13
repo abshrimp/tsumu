@@ -1,3 +1,4 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test } from "@playwright/test";
 import { build } from "esbuild";
 import { resolve } from "node:path";
@@ -18,7 +19,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { LayersTab } from "./components/left-panel/LayersTab";
 import { useEditor } from "./lib/store";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 const style = document.createElement("style");
 style.textContent = css;
 document.head.append(style);

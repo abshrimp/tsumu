@@ -1,5 +1,5 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
 import { expectVariableMenuLayout } from "./helpers/variable-menu-layout";
 import { varExplorerBundle } from "../tests/helpers/var-explorer";
 
@@ -7,7 +7,7 @@ let bundle: string;
 test.beforeAll(async () => { bundle = await varExplorerBundle(); });
 test.beforeEach(async ({ page }) => {
   await page.setContent('<html><body><div id="app"></div></body></html>');
-  await page.addStyleTag({ content: readFileSync("app/globals.css", "utf8") });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.addScriptTag({ content: bundle });
 });
 const source = (page: Page) => page.getByPlaceholder("最初から入力されている文字", { exact: true });

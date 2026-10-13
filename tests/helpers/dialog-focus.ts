@@ -1,3 +1,4 @@
+import { readEditorCss } from "./editor-css";
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
@@ -11,7 +12,7 @@ import DialogHost from "./components/DialogHost";
 import LeaveAnimator from "./components/LeaveAnimator";
 import { showAlert, showConfirm, showPrompt } from "./lib/dialog";
 import { loadLocale } from "./lib/i18n";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 function Fixture() {
   const [results, setResults] = useState([]);

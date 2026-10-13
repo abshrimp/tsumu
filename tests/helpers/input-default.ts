@@ -1,3 +1,4 @@
+import { readEditorCss } from "./editor-css";
 import { build } from "esbuild";
 import { resolve } from "node:path";
 import type { FieldContent, SiteDoc } from "../../lib/types";
@@ -19,7 +20,7 @@ import { createRoot } from "react-dom/client";
 
 
 import { useEditor } from "./lib/store";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 import { loadLocale } from "./lib/i18n";
 export async function mount(doc) {
   await loadLocale();

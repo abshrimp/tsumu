@@ -1,10 +1,11 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
 import { easingEditorBundle } from "../tests/helpers/motion-editor-browser";
 let bundle: string;
 test.beforeAll(async () => { bundle = await easingEditorBundle("cubic-bezier(0.25, 0.25, 0.75, 0.75)"); });
 test.beforeEach(async ({ page }) => {
   await page.setContent('<div id="app"></div>');
-  await page.addStyleTag({ path: "app/globals.css" });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.evaluate(() => {
     const listeners = new Set<EventListenerOrEventListenerObject>();
     (window as any).__moves = listeners;

@@ -1,3 +1,4 @@
+import { readEditorCss } from "./editor-css";
 import { build } from "esbuild";
 import { resolve } from "node:path";
 import { makeBox } from "../../lib/presets";
@@ -25,7 +26,7 @@ import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { useEditor } from "./lib/store";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
   const { default: Canvas } = await import("./components/Canvas");

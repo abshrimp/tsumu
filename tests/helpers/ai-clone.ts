@@ -1,3 +1,4 @@
+import { readEditorCss } from "./editor-css";
 import { build } from "esbuild";
 import { resolve } from "node:path";
 import { makeBox, makeText } from "../../lib/presets";
@@ -36,7 +37,7 @@ import { createRoot } from "react-dom/client";
 import { useEditor } from "./lib/store";
 import { applyAiOps } from "./lib/aiOps";
 import { parseAiRequest } from "./lib/ai/request";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
   const { default: AiChat, useAi } = await import("./components/AiChat");

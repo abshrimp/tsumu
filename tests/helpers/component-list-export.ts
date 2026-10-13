@@ -1,3 +1,4 @@
+import { readEditorCss } from "./editor-css";
 import { build, transformSync } from "esbuild";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
@@ -30,7 +31,7 @@ import { createRoot } from "react-dom/client";
 
 
 import { useEditor } from "./lib/store";
-import css from "./app/globals.css";
+const css = ${JSON.stringify(readEditorCss())};
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
   const { default: SettingsPanel } = await import("./components/SettingsPanel");

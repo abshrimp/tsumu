@@ -1,12 +1,12 @@
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
 import { fetchRefetchBundle, fetchScopeDoc } from "../tests/helpers/fetch-refetch";
 
 let bundle: string;
 test.beforeAll(async () => { bundle = await fetchRefetchBundle(); });
 test.beforeEach(async ({ page }) => {
   await page.setContent('<html><body><div id="app"></div></body></html>');
-  await page.addStyleTag({ content: readFileSync("app/globals.css", "utf8") });
+  await page.addStyleTag({ content: readEditorCss() });
   await page.addScriptTag({ content: bundle });
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
 });

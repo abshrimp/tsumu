@@ -1,10 +1,10 @@
-import { readFileSync } from "node:fs";
+import { readEditorCss } from "../tests/helpers/editor-css";
 import { expect, test, type Page } from "@playwright/test";
 import { assetWindowBundle } from "../tests/helpers/asset-window-browser";
 
 let bundle: string;
 let imageRequests: Set<string>;
-const css = readFileSync("app/globals.css", "utf8");
+const css = readEditorCss();
 const id = (index: number) => `library_asset_${String(index).padStart(6, "0")}`;
 const card = (page: Page, index: number) => page.locator(`[data-asset-id="${id(index)}"]`);
 const frame = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
