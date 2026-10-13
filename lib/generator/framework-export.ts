@@ -2,9 +2,7 @@ import type { SiteDoc } from "../types";
 import { addPatchedPicomatch } from "./picomatch";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "./export-options";
-import { obfuscateVarNames } from "../data";
-import { scriptsFile } from "../script-runtime";
-import { usedGoogleFonts, usedAdobeFonts } from "./css";
+import { googleFontsCss, usedAdobeFonts } from "./css";
 import { adobeFontHead, adobeFontLoader, adobeFontProjects } from "./adobe-fonts";
 import { applyNativeFramework } from "./native-scaffold";
 
@@ -23,25 +21,6 @@ function json(value: unknown): string {
   return JSON.stringify(value);
 }
 
-/** フォント名を、1つの CSS の文字列の字句として引用符で囲む。 */
-function cssQuoted(value: string): string {
-  return '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
-    "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
-}
-
-function fonts(doc: SiteDoc): string {
-  const fonts = usedGoogleFonts(doc);
-  const imports = fonts.map((font) =>
-    '@import url("https://fonts.googleapis.com/css2?family=' +
-    encodeURIComponent(font.value).replace(/%20/g, "+") +
-    ':wght@' + (font.google?.weights?.length ? font.google.weights.join(";") : "400") +
-    '&display=swap");');
-  const declarations = fonts.filter((font) => /^--[\w-]+$/.test(font.google!.cssVar)).map((font) =>
-    "  " + font.google!.cssVar + ": " + cssQuoted(font.value) + ", sans-serif;");
-  return imports.join("\n") + (declarations.length ? "\n:root {\n" +
-    declarations.join("\n") + "\n}\n" : "");
-}
-
 function packageName(doc: SiteDoc): string {
   return doc.siteName.toLowerCase().replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "") || "website";
@@ -50,7 +29,6 @@ function packageName(doc: SiteDoc): string {
 function commonFiles(doc: SiteDoc, next: GeneratedProject, framework: AdditionalFramework) {
   const files: Record<string, string> = {};
   const assetPrefix = framework === "sveltekit" ? "static/" : "public/";
-  const normalized = obfuscateVarNames(doc);
   for (const [path, content] of Object.entries(next.files)) {
     if (path.startsWith("public/")) files[assetPrefix + path.slice(7)] = content;
   }
@@ -58,8 +36,7 @@ function commonFiles(doc: SiteDoc, next: GeneratedProject, framework: Additional
     [path.startsWith("public/") ? assetPrefix + path.slice(7) : path, b64]));
   const remoteAssets = Object.fromEntries(Object.entries(next.remoteAssets).map(([path, source]) =>
     [path.startsWith("public/") ? assetPrefix + path.slice(7) : path, source]));
-  files[assetPrefix + "scripts.js"] = scriptsFile(normalized, true);
-  const baseCss = fonts(doc) + "\n" + next.files["app/globals.css"];
+  const baseCss = googleFontsCss(doc) + next.files["app/globals.css"];
   const siteCss = next.files["styles/site.css"];
   return { files, binaries, remoteAssets, baseCss, siteCss };
 }

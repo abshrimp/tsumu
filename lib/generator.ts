@@ -33,8 +33,8 @@ import {
   PWA_REGISTER_SCRIPT,
   PWA_SERVICE_WORKER,
   SEARCH_FORM_COMPONENT,
+  buildPwaManifest,
   generatedReadme,
-  pwaIconType,
   versionedSrc,
 } from "./generator/templates";
 
@@ -334,41 +334,8 @@ ${body || "    null"}
   // PWA: マニフェスト（app/manifest.ts → /manifest.webmanifest）と Service Worker
   const pwa = doc.pwa?.enabled ? doc.pwa : null;
   const pwaThemeColor = pwa?.themeColor?.trim();
-  if (pwa) {
-    const appName = pwa.name?.trim() || doc.siteName;
-    const iconRef = [pwa.icon, doc.appleTouchIcon, doc.favicon].find(
-      (r) => imageRefSrc(assetNames, r)
-    );
-    const iconSrc = imageRefSrc(assetNames, iconRef);
-    const iconAsset = iconRef?.assetId ? doc.assets[iconRef.assetId] : undefined;
-    const icons = iconSrc
-      ? [
-          {
-            src: iconSrc,
-            sizes:
-              iconAsset?.width && iconAsset?.height
-                ? `${iconAsset.width}x${iconAsset.height}`
-                : "any",
-            ...(pwaIconType(iconAsset?.mimeType, iconSrc)
-              ? { type: pwaIconType(iconAsset?.mimeType, iconSrc) }
-              : {}),
-            purpose: "any",
-          },
-        ]
-      : [];
-    const manifest = {
-      name: appName,
-      short_name: pwa.shortName?.trim() || appName,
-      start_url: "/",
-      scope: "/",
-      display: pwa.display ?? "standalone",
-      lang: siteLang,
-      ...(pwaThemeColor ? { theme_color: pwaThemeColor } : {}),
-      ...(pwa.backgroundColor?.trim()
-        ? { background_color: pwa.backgroundColor.trim() }
-        : {}),
-      icons,
-    };
+  const manifest = buildPwaManifest(doc, assetNames);
+  if (pwa && manifest) {
     files["app/manifest.ts"] = `import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -378,7 +345,7 @@ export default function manifest(): MetadataRoute.Manifest {
     files["public/sw.js"] = compactJs(PWA_SERVICE_WORKER) + "\n";
     files["public/pwa.js"] = compactJs(PWA_REGISTER_SCRIPT) + "\n";
     layoutMeta.push(
-      `  appleWebApp: { capable: true, title: ${JSON.stringify(pwa.shortName?.trim() || appName)} },`
+      `  appleWebApp: { capable: true, title: ${JSON.stringify(manifest.short_name)} },`
     );
   }
 

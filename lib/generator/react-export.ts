@@ -5,11 +5,11 @@ import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME } from "./browser-data";
 import { createReactPageRenderer } from "./html-export";
 import type { GeneratedProject, PublishTarget } from "../generator";
-import { usedGoogleFonts } from "./css";
+import { googleFontsCss } from "./css";
 import { adobeFontHead } from "./adobe-fonts";
 import { buildAssetNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
-import { pwaIconType } from "./templates";
+import { buildPwaManifest } from "./templates";
 import { REACT_SEARCH_FORM } from "./react-form";
 import { indexQueryVariants } from "./page";
 import { pageQueryConditions, routeDir } from "../page-query";
@@ -75,10 +75,10 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
   // cannot reproduce those browser-side data dependencies.
   const variants = indexQueryVariants(pages);
   const clientPages = new Set(pages.filter((page) => needsReactPageRuntime(doc, page.id)).map((page) => page.id));
-  const renderClientPage = clientPages.size ? createReactPageRenderer(doc) : undefined;
-  if (renderClientPage) {
+  const clientRenderer = clientPages.size ? createReactPageRenderer(doc) : undefined;
+  if (clientRenderer) {
     files["public/data-loader.js"] = PAGE_DATA_RUNTIME;
-    files["public/scripts.js"] = scriptsFile(doc, true);
+    files["public/scripts.js"] = scriptsFile(clientRenderer.doc, true);
   }
   for (const [i, page] of pages.entries()) {
     const slug = page.slug.replace(/^\/+|\/+$/g, "");
@@ -90,8 +90,8 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
       (variant ? "_q/p" + variant.index + ".tsx" : "page.tsx");
     const generated = next.files[generatedPath];
     if (!generated) throw new Error("Missing generated page: " + generatedPath);
-    if (renderClientPage && clientPages.has(page.id)) {
-      const body = renderClientPage(page.id);
+    if (clientRenderer && clientPages.has(page.id)) {
+      const body = clientRenderer.renderPage(page.id);
       files["src/pages/Page" + i + ".tsx"] = [
         "/** Client-side JSON data and DOM effects; no server is required. */",
         "export default function Page() {",
@@ -184,45 +184,16 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
     'createRoot(root).render(<App />);', '',
   ].join("\n");
 
-  const fonts = usedGoogleFonts(doc);
-  const fontImports = fonts.map((font) =>
-    '@import url("https://fonts.googleapis.com/css2?family=' +
-    encodeURIComponent(font.value).replace(/%20/g, "+") +
-    ':wght@' + (font.google?.weights?.length ? font.google.weights.join(";") : "400") +
-    '&display=swap");');
-  const cssQuoted = (value: string) => '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
-    "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
-  const fontVariables = fonts.filter((font) => /^--[\w-]+$/.test(font.google!.cssVar))
-    .map((font) => "  " + font.google!.cssVar + ": " + cssQuoted(font.value) + ", sans-serif;");
-  files["src/globals.css"] = fontImports.join("\n") + "\n" +
-    (fontVariables.length ? ":root {\n" + fontVariables.join("\n") + "\n}\n" : "") +
-    next.files["app/globals.css"];
+  files["src/globals.css"] = googleFontsCss(doc) + next.files["app/globals.css"];
   files["src/site.css"] = next.files["styles/site.css"];
 
   const assetNames = buildAssetNames(doc);
   const favicon = imageRefSrc(assetNames, doc.favicon);
   const appleIcon = imageRefSrc(assetNames, doc.appleTouchIcon);
   // Vite ではマニフェストと Service Worker は public のアセットなので、Next.js のルートは不要。
-  if (doc.pwa?.enabled) {
-    const pwa = doc.pwa;
-    const iconRef = [pwa.icon, doc.appleTouchIcon, doc.favicon].find((ref) => imageRefSrc(assetNames, ref));
-    const iconSrc = imageRefSrc(assetNames, iconRef);
-    const asset = iconRef?.assetId ? doc.assets[iconRef.assetId] : undefined;
-    files["public/manifest.webmanifest"] = JSON.stringify({
-      name: pwa.name?.trim() || doc.siteName,
-      short_name: pwa.shortName?.trim() || doc.siteName,
-      start_url: "/", scope: "/",
-      display: pwa.display ?? "standalone",
-      lang: doc.lang || "ja",
-      ...(pwa.themeColor?.trim() ? { theme_color: pwa.themeColor.trim() } : {}),
-      ...(pwa.backgroundColor?.trim() ? { background_color: pwa.backgroundColor.trim() } : {}),
-      icons: iconSrc ? [{
-        src: iconSrc,
-        sizes: asset?.width && asset?.height ? asset.width + "x" + asset.height : "any",
-        ...(pwaIconType(asset?.mimeType, iconSrc) ? { type: pwaIconType(asset?.mimeType, iconSrc) } : {}),
-        purpose: "any",
-      }] : [],
-    }, null, 2) + "\n";
+  const manifest = buildPwaManifest(doc, assetNames);
+  if (manifest) {
+    files["public/manifest.webmanifest"] = JSON.stringify(manifest, null, 2) + "\n";
   }
   const icons = [
     doc.pwa?.enabled ? '<link rel="manifest" href="/manifest.webmanifest">' : "",

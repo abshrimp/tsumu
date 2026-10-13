@@ -165,9 +165,7 @@ function addTailwind(files: Record<string, string>, framework: ExportFormat) {
   pkg.devDependencies.tailwindcss = "^4.1.0";
   if (framework === "react" || framework === "vue" || framework === "sveltekit") {
     pkg.devDependencies["@tailwindcss/vite"] = "^4.1.0";
-    const config = framework === "sveltekit"
-      ? Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js"
-      : Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js";
+    const config = Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js";
     files[config] = 'import tailwindcss from "@tailwindcss/vite";\n' + files[config];
     if (framework === "vue") files[config] = files[config]
       .replace("plugins: [vue()]", "plugins: [vue(), tailwindcss()]");

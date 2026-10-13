@@ -72,9 +72,6 @@ export function nativeDataModule(): string {
     "  const rows = displayListRows(read(scope, name), listOps, name, scope);",
     "  return Number(limit) > 0 ? rows.slice(0, limit) : rows;",
     "}",
-    "export function listItems(vars, name, limit, ...items) {",
-    "  return listItemsWithOps(undefined, vars, name, limit, ...items);",
-    "}",
     "",
   ].join("\n");
 }

@@ -150,3 +150,74 @@ test("Vue with Vite also builds an SSR entry with hydration and native component
   assert.match(vue.files["package.json"], /vite build --ssr/);
   assert.doesNotMatch(vue.files["src/pages/Page0.vue"], /v-html/);
 });
+
+test("native exports keep image alt, media src and embed src literal while interpolating image src", () => {
+  const doc = site();
+  const literalText = "Photo {name} \\{name}";
+  const literalMedia = "https://example.com/{name}/\\{name}/clip.mp4";
+  const literalEmbed = "https://example.com/embed/{name}";
+  doc.nodes.image.image = { src: "/images/{name}.png", alt: literalText, width: 120, height: 80 };
+  doc.nodes.video = {
+    ...makeBox(), id: "video", name: "Video", type: "media",
+    media: { kind: "video", src: literalMedia, sources: [{ src: literalMedia, type: "video/mp4" }] },
+  };
+  doc.nodes.frame = {
+    ...makeBox(), id: "frame", name: "Embed", type: "embed",
+    embed: { kind: "url", src: literalEmbed },
+  };
+  doc.pages.home.children.push("video", "frame");
+
+  for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
+    const files = generateExportProject(doc, framework).files;
+    const base = framework === "nuxt" ? "app/generated/" : framework === "sveltekit" ? "src/lib/" : "src/";
+    const suffix = framework === "sveltekit" ? ".svelte" : ".vue";
+    const page = files[base + "pages/Page0" + suffix];
+    assert.match(page, /resolveResourceUrl\((?:&quot;|")\/images\/\\u007bname\\u007d\.png(?:&quot;|")/);
+    assert.match(page, /alt="Photo &#123;name&#125; \\&#123;name&#125;"/);
+    assert.match(page, /<video[^>]* src="https:\/\/example\.com\/&#123;name&#125;\/\\&#123;name&#125;\/clip\.mp4"/);
+    assert.match(page, /<source src="https:\/\/example\.com\/&#123;name&#125;\/\\&#123;name&#125;\/clip\.mp4"/);
+    assert.match(page, /<iframe src="https:\/\/example\.com\/embed\/%7Bname%7D"/);
+  }
+});
+
+test("native exports normalize /404 custom page and avoid orphan else blocks when only 404 exists", () => {
+  const doc = site();
+  doc.pages.home.slug = "/404/";
+  for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
+    const files = generateExportProject(doc, framework).files;
+    const base = framework === "nuxt" ? "app/generated/" : framework === "sveltekit" ? "src/lib/" : "src/";
+    const suffix = framework === "sveltekit" ? ".svelte" : ".vue";
+    assert.ok(files[base + "pages/NotFound" + suffix], framework);
+    assert.equal(files[base + "pages/Page0" + suffix], undefined);
+    if (framework === "sveltekit") {
+      assert.doesNotMatch(files["src/routes/+page.svelte"], /\{:else\}/);
+      assert.match(files["src/routes/+page.svelte"], /<NotFound \{scope\} \/>/);
+      assert.match(files["src/routes/+error.svelte"], /<NotFound scope=\{\{\}\} \/>/);
+    } else {
+      const entry = framework === "nuxt" ? files["app/pages/index.vue"] : files["src/App.vue"];
+      assert.doesNotMatch(entry, /v-else/);
+      assert.match(entry, /<NotFound :scope="vars" \/>/);
+    }
+  }
+});
+
+test("React and native exports emit open-url handler in scripts.js for unnested inner links", () => {
+  const outer = { ...makeBox(), id: "outer", name: "Outer", link: { kind: "url" as const, url: "https://example.com/outer" }, children: ["inner"] };
+  const inner = { ...makeBox(), id: "inner", name: "Inner", link: { kind: "url" as const, url: "https://example.com/inner" }, text: { content: "Inner", heading: 0 } };
+  const doc: SiteDoc = {
+    siteName: "Nested link site",
+    pageOrder: ["home"],
+    pages: {
+      home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["outer"] },
+    },
+    nodes: { outer, inner },
+    assets: {},
+  };
+  for (const framework of ["react", "vue", "nuxt", "sveltekit", "html"] as const) {
+    const files = generateExportProject(doc, framework).files;
+    const scriptPath = framework === "sveltekit" ? "static/scripts.js" : framework === "html" ? "scripts.js" : "public/scripts.js";
+    assert.ok(files[scriptPath], `${framework}: ${scriptPath} should be emitted`);
+    assert.match(files[scriptPath], /case "open-url":/, framework);
+  }
+});
+

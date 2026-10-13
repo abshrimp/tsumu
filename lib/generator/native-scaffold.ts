@@ -1,6 +1,7 @@
 import type { SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "./export-options";
+import { scriptsFile } from "../script-runtime";
 import { generateNativeFiles } from "./native-components";
 import { nativeDataModule } from "./native-data";
 import { withVueSsr } from "./vue-ssr";
@@ -192,8 +193,14 @@ function browserStarter(assetPaths: string[]): string {
   ].join("\n");
 }
 
-function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
-  framework: "vue" | "nuxt", lang: ExportLanguage, siteName: string, siteLanguage = "ja"): string {
+function vueApp(
+  pages: ReturnType<typeof generateNativeFiles>["pages"],
+  framework: "vue" | "nuxt",
+  lang: ExportLanguage,
+  siteName: string,
+  siteLanguage = "ja",
+  hasNotFound = false,
+): string {
   const isNuxt = framework === "nuxt";
   const rel = isNuxt ? "../generated/" : "./";
   const js = [
@@ -204,6 +211,7 @@ function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
     'import { startPage } from "' + rel + 'browser-start.js";',
     ...(isNuxt ? ['import { requestPublic } from "' + rel + 'server-request.js";'] : []),
     ...pages.map((page) => 'import ' + page.name + ' from "' + rel + 'pages/' + page.name + '.vue";'),
+    ...(hasNotFound ? ['import NotFound from "' + rel + 'pages/NotFound.vue";'] : []),
   ];
   if (isNuxt) {
     js.push(
@@ -247,6 +255,10 @@ function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
         : 'const vars = ref({});',
     );
   }
+  const fallbackAttr = pages.length ? " v-else" : "";
+  const fallbackLine = hasNotFound
+    ? "  <NotFound" + fallbackAttr + ' :scope="vars" />'
+    : "  <main" + fallbackAttr + "><h1>Not Found</h1></main>";
   js.push(
     "onMounted(async () => {",
     ...(!isNuxt ? [
@@ -263,22 +275,29 @@ function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
     "</script>",
     "<template>",
     ...pages.map((page, i) => {
-      const condition = (isNuxt ? "selected?.id" : "selected?.id") + " === " + json(page.id);
+      const condition = "selected?.id === " + json(page.id);
       return "  <" + page.name + ' v-' + (i ? "else-if" : "if") +
         '="' + condition.replace(/"/g, "&quot;") + '" :scope="vars" />';
     }),
-    '  <main v-else><h1>Not Found</h1></main>',
+    fallbackLine,
     "</template>", "",
   );
   return js.join("\n");
 }
 
-function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang: ExportLanguage, siteName: string): string {
+function sveltePage(
+  pages: ReturnType<typeof generateNativeFiles>["pages"],
+  lang: ExportLanguage,
+  siteName: string,
+  hasNotFound = false,
+): string {
+  const fallbackBody = hasNotFound ? "<NotFound {scope} />" : "<h1>Not Found</h1>";
   return [
     '<script' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
     'import { onMount } from "svelte";',
     'import { startPage } from "$lib/browser-start.js";',
     ...pages.map((page) => 'import ' + page.name + ' from "$lib/pages/' + page.name + '.svelte";'),
+    ...(hasNotFound ? ['import NotFound from "$lib/pages/NotFound.svelte";'] : []),
     lang === "typescript"
       ? 'let { data }: { data: { id: string; vars: Record<string, unknown>; title: string; description: string; noindex: boolean; language: string } } = $props();'
       : "let { data } = $props();",
@@ -294,10 +313,14 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
     '  <meta name="description" content={data.description} />',
     '  {#if data.noindex}<meta name="robots" content="noindex, nofollow" />{/if}',
     '</svelte:head>',
-    ...pages.map((page, i) => (i ? "{:else if " : "{#if ") + "data.id === " + json(page.id) + "}",
-      // Svelte のテンプレートの構文では、':else' の後に 'if' が必要になる点に注意。
-    ).flatMap((condition, i) => [condition, "<" + pages[i].name + " {scope} />"]),
-    '{:else}<h1>Not Found</h1>{/if}',
+    ...(pages.length
+      ? [
+          ...pages.map((page, i) => (i ? "{:else if " : "{#if ") + "data.id === " + json(page.id) + "}",
+            // Svelte のテンプレートの構文では、':else' の後に 'if' が必要になる点に注意。
+          ).flatMap((condition, i) => [condition, "<" + pages[i].name + " {scope} />"]),
+          "{:else}" + fallbackBody + "{/if}",
+        ]
+      : [fallbackBody]),
     "",
   ].join("\n");
 }
@@ -305,31 +328,37 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
 export function applyNativeFramework(
   doc: SiteDoc, project: GeneratedProject, framework: Framework, language: ExportLanguage, target: PublishTarget,
 ): GeneratedProject {
-  const native = generateNativeFiles(doc, language, target);
+  const mode = framework === "sveltekit" ? "sveltekit" : "vue";
+  const native = generateNativeFiles(doc, language, target, mode);
   const files = { ...project.files };
   const root = framework === "vue" ? "src/" : framework === "nuxt" ? "app/generated/" : "src/lib/";
   const ext = framework === "sveltekit" ? ".svelte" : ".vue";
-  for (const [name, source] of Object.entries(framework === "sveltekit" ? native.sveltePages : native.vuePages)) {
+  for (const [name, source] of Object.entries(native.pageFiles)) {
     files[root + "pages/" + name + ext] = source;
   }
-  for (const [name, source] of Object.entries(framework === "sveltekit" ? native.svelteComponents : native.vueComponents)) {
+  if (native.notFound) {
+    files[root + "pages/NotFound" + ext] = native.notFound;
+  }
+  for (const [name, source] of Object.entries(native.componentFiles)) {
     files[root + "components/" + name + ext] = source;
   }
   files[root + "site-routes.js"] = routesFile(native.pages);
   files[root + "site-data.js"] = nativeDataModule();
   const assetRoot = framework === "sveltekit" ? "static/" : "public/";
   delete files[assetRoot + "data-loader.js"];
+  files[assetRoot + "scripts.js"] = scriptsFile(native.doc, true);
   const scriptFiles = ["inview.js", "scripts.js", "pwa.js"].filter((file) =>
     file === "scripts.js" || Boolean(files[assetRoot + file])).map((file) => "/" + file);
   files[root + "browser-start.js"] = browserStarter(scriptFiles);
+  const hasNotFound = Boolean(native.notFound);
   if (framework === "vue") {
-    files["src/App.vue"] = vueApp(native.pages, "vue", language, doc.siteName);
+    files["src/App.vue"] = vueApp(native.pages, "vue", language, doc.siteName, doc.lang || "ja", hasNotFound);
     files["src/server-request.js"] = serverRequestSource(native.pages);
     withVueSsr(files, doc, language);
   } else if (framework === "nuxt") {
     files["app/app.vue"] = "<template><NuxtPage /></template>\n";
     files["app/generated/server-request.js"] = serverRequestSource(native.pages);
-    files["app/pages/index.vue"] = vueApp(native.pages, "nuxt", language, doc.siteName, doc.lang || "ja");
+    files["app/pages/index.vue"] = vueApp(native.pages, "nuxt", language, doc.siteName, doc.lang || "ja", hasNotFound);
     files["app/pages/[...slug].vue"] = files["app/pages/index.vue"];
   } else {
     files["src/lib/server-request.js"] = serverRequestSource(native.pages);
@@ -357,8 +386,18 @@ export function applyNativeFramework(
     ].join("\n");
     files["src/routes/+page.server.js"] = script;
     files["src/routes/[...path]/+page.server.js"] = script;
-    files["src/routes/+page.svelte"] = sveltePage(native.pages, language, doc.siteName);
+    files["src/routes/+page.svelte"] = sveltePage(native.pages, language, doc.siteName, hasNotFound);
     files["src/routes/[...path]/+page.svelte"] = files["src/routes/+page.svelte"];
+    if (hasNotFound) {
+      files["src/routes/+error.svelte"] = [
+        '<script' + (language === "typescript" ? ' lang="ts"' : "") + '>',
+        'import { page } from "$app/state";',
+        'import NotFound from "$lib/pages/NotFound.svelte";',
+        '</script>',
+        '{#if page.status === 404}<NotFound scope={{}} />{:else}<h1>{page.status}</h1>{/if}',
+        "",
+      ].join("\n");
+    }
     files["src/routes/+layout.svelte"] = [
       '<script>',
       'import "../globals.css";',

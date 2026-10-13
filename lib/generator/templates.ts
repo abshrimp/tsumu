@@ -3,6 +3,9 @@
  */
 
 import { getLang } from "../i18n";
+import { siteLangOf } from "../site-lang";
+import type { SiteDoc } from "../types";
+import { imageRefSrc } from "./render-helpers";
 
 /** 画像の URL が空のときに使う、1×1 の透明な GIF */
 export const EMPTY_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -20,6 +23,37 @@ export function pwaIconType(mimeType: string | undefined, src: string): string |
     ico: "image/x-icon",
   };
   return ext ? types[ext] : undefined;
+}
+
+/** PWA のマニフェスト（有効でなければ null） */
+export function buildPwaManifest(doc: SiteDoc, assetNames: Map<string, string>) {
+  const pwa = doc.pwa?.enabled ? doc.pwa : null;
+  if (!pwa) return null;
+  const appName = pwa.name?.trim() || doc.siteName;
+  const iconRef = [pwa.icon, doc.appleTouchIcon, doc.favicon].find((ref) => imageRefSrc(assetNames, ref));
+  const iconSrc = imageRefSrc(assetNames, iconRef);
+  const iconAsset = iconRef?.assetId ? doc.assets[iconRef.assetId] : undefined;
+  const iconType = iconSrc ? pwaIconType(iconAsset?.mimeType, iconSrc) : undefined;
+  return {
+    name: appName,
+    short_name: pwa.shortName?.trim() || appName,
+    start_url: "/",
+    scope: "/",
+    display: pwa.display ?? "standalone",
+    lang: siteLangOf(doc),
+    ...(pwa.themeColor?.trim() ? { theme_color: pwa.themeColor.trim() } : {}),
+    ...(pwa.backgroundColor?.trim() ? { background_color: pwa.backgroundColor.trim() } : {}),
+    icons: iconSrc
+      ? [
+          {
+            src: iconSrc,
+            sizes: iconAsset?.width && iconAsset?.height ? `${iconAsset.width}x${iconAsset.height}` : "any",
+            ...(iconType ? { type: iconType } : {}),
+            purpose: "any" as const,
+          },
+        ]
+      : [],
+  };
 }
 
 /** PWA の Service Worker を登録する */

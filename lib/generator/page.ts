@@ -398,7 +398,6 @@ ${
       ...(init ? JSON.parse(init) : {}),
       ...(!init ? { cf: { cacheTtl: ${revalidate}, cacheEverything: true } } : { cache: "no-store" as const }),
     };
-    if (!safeRequestOrigin(url, init, origin)) return null;
     const res = await fetchPublic(url, req);
     return res.ok ? JSON.parse(await readTextLimited(res, 5 * 1024 * 1024)) : null;
   } catch {

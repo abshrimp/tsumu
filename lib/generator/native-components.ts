@@ -13,7 +13,7 @@ import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
-import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
+import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { serializePageDataPlan } from "./browser-data";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { rewriteHtmlAssetUrls } from "./css";
@@ -131,7 +131,7 @@ function node(ctx: Context, id: string, top = false): string {
       const im = n.image;
       const source = im.assetId && ctx.assets.get(im.assetId) ?
         assetMediaUrl("/assets/" + ctx.assets.get(im.assetId), im.assetSuffix) : im.src;
-      return "<img" + attrs + srcAttr(ctx, "src", source, true) + valueAttr(ctx, "alt", im.alt) +
+      return "<img" + attrs + srcAttr(ctx, "src", source, true) + literal("alt", im.alt) +
         literal("width", im.width || 800) + literal("height", im.height || 500) +
         literal("fetchpriority", im.priority ? "high" : undefined) +
         (ctx.vue ? ">" : " />");
@@ -143,13 +143,15 @@ function node(ctx: Context, id: string, top = false): string {
       const tag = media.kind === "audio" ? "audio" : "video";
       const source = media.assetId && ctx.assets.get(media.assetId) ?
         assetMediaUrl("/assets/" + ctx.assets.get(media.assetId), media.assetSuffix) : media.src;
+      const safeSrc = source.trim() ? safeMediaUrl(source) : "";
       const sources = (media.sources ?? []).map((item) => {
         const url = item.assetId && ctx.assets.get(item.assetId) ?
           assetMediaUrl("/assets/" + ctx.assets.get(item.assetId), item.assetSuffix) : item.src;
-        return url.trim() ? "<source" + srcAttr(ctx, "src", url, true) + literal("type", item.type) +
+        return url.trim() ? "<source" + literal("src", safeMediaUrl(url)) + literal("type", item.type) +
           literal("media", item.media) + (ctx.vue ? ">" : " />") : "";
       }).join("");
-      return "<" + tag + attrs + (source.trim() ? srcAttr(ctx, "src", source, true) : "") + " controls" +
+      if (!safeSrc && !sources) return "";
+      return "<" + tag + attrs + (safeSrc ? literal("src", safeSrc) : "") + " controls" +
         truth("autoplay", media.autoplay) + truth("loop", media.loop) +
         truth("muted", media.muted || media.autoplay) +
         (tag === "video" ? " playsinline" : "") + ">" + sources + "</" + tag + ">";
@@ -157,7 +159,7 @@ function node(ctx: Context, id: string, top = false): string {
     if (n.type === "embed" && n.embed) {
       const url = embedSrc(n.embed);
       if (!url) return "";
-      return "<div" + attrs + "><iframe" + srcAttr(ctx, "src", url) +
+      return "<div" + attrs + "><iframe" + literal("src", safeNavigationUrl(url)) +
         ' loading="lazy" referrerpolicy="strict-origin-when-cross-origin"' +
         (n.embed.kind === "youtube" ? literal("allow", YOUTUBE_ALLOW) : "") +
         truth("allowfullscreen", n.embed.kind !== "map") +
@@ -278,17 +280,22 @@ function node(ctx: Context, id: string, top = false): string {
   }
 }
 
-interface NativeFiles {
+export interface NativeFiles {
+  doc: SiteDoc;
   pages: { id: string; name: string; title: string; description: string; noindex: boolean; slug: string;
     query: Record<string, string>; language: string; plan: ReturnType<typeof serializePageDataPlan> }[];
-  vuePages: Record<string, string>;
-  vueComponents: Record<string, string>;
-  sveltePages: Record<string, string>;
-  svelteComponents: Record<string, string>;
+  pageFiles: Record<string, string>;
+  componentFiles: Record<string, string>;
+  notFound?: string;
 }
 
 /** 書かれたすべてのページとコンポーネントについて、フレームワーク固有の明示的なテンプレートのツリーを生成する。 */
-export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage, target: PublishTarget): NativeFiles {
+export function generateNativeFiles(
+  doc: SiteDoc,
+  lang: NativeLanguage,
+  target: PublishTarget,
+  mode: NativeView,
+): NativeFiles {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);
   applyBreakpoints(normalized);
@@ -302,20 +309,18 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage, target: 
     ...Object.values(normalized.pages).flatMap((p) =>
       scriptTargetIds({ scripts: p.pageScripts }, ["show", "toggle"])),
   ]);
-  const vuePages: Record<string, string> = {};
-  const vueComponents: Record<string, string> = {};
-  const sveltePages: Record<string, string> = {};
-  const svelteComponents: Record<string, string> = {};
-  const makeCtx = (vue: boolean): Context => ({
-    doc: normalized, vue, classes, assets, components, toggles,
+  const pageFiles: Record<string, string> = {};
+  const componentFiles: Record<string, string> = {};
+  const makeCtx = (): Context => ({
+    doc: normalized, vue: mode === "vue", classes, assets, components, toggles,
     imports: new Set(), code: [], seen: new Set(), inForm: false, rows: [], level: 0,
   });
   type PageRenderPlan = Pick<Page, "id" | "pageScripts"> & {
     serverIds: Set<string>;
     listOps: ReturnType<typeof serializePageDataPlan>["listOps"];
   };
-  const build = (ids: string[], mode: NativeView, page?: PageRenderPlan, id?: string) => {
-    const ctx = makeCtx(mode === "vue");
+  const build = (ids: string[], page?: PageRenderPlan, id?: string) => {
+    const ctx = makeCtx();
     let tree = ids.map((nid) => node(ctx, nid, true)).join("\n");
     if (page) {
       const script = compiled(ctx, { scripts: page.pageScripts }, page.serverIds);
@@ -355,22 +360,32 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage, target: 
   for (const [compId, name] of components) {
     const master = normalized.components?.[compId];
     if (!master) continue;
-    vueComponents[name] = build([master.rootId], "vue", undefined, name);
-    svelteComponents[name] = build([master.rootId], "sveltekit", undefined, name);
+    componentFiles[name] = build([master.rootId], undefined, name);
   }
-  const pages = normalized.pageOrder.map((id) => normalized.pages[id])
-    .filter((p) => p && !p.unpublished && !p.rawHtml?.trim() && p.slug !== "404")
+  const cleanSlug = (slug: string) => slug.replace(/^\/+|\/+$/g, "");
+  const published = normalized.pageOrder.map((id) => normalized.pages[id])
+    .filter((p) => p && !p.unpublished && !p.rawHtml?.trim());
+  const custom404 = published.find((p) => cleanSlug(p.slug) === "404");
+  let notFound: string | undefined;
+  if (custom404) {
+    const model = pagePlan(normalized, custom404.id);
+    const plan = serializePageDataPlan(model);
+    notFound = build(custom404.children, {
+      id: custom404.id, pageScripts: custom404.pageScripts, serverIds: model.serverIds, listOps: plan.listOps,
+    });
+  }
+  const pages = published
+    .filter((p) => cleanSlug(p.slug) !== "404")
     .map((page, index) => {
       const name = "Page" + index;
       const model = pagePlan(normalized, page.id);
       const plan = serializePageDataPlan(model);
       const view = { id: page.id, pageScripts: page.pageScripts, serverIds: model.serverIds, listOps: plan.listOps };
-      vuePages[name] = build(page.children, "vue", view);
-      sveltePages[name] = build(page.children, "sveltekit", view);
+      pageFiles[name] = build(page.children, view);
       return { id: page.id, name, title: page.title || page.name,
         description: page.description, noindex: target === "production" && !!page.noindex, slug: page.slug,
         query: Object.fromEntries(pageQueryConditions(page.query)),
         language: page.lang || normalized.lang || "ja", plan };
     });
-  return { pages, vuePages, vueComponents, sveltePages, svelteComponents };
+  return { doc: normalized, pages, pageFiles, componentFiles, notFound };
 }

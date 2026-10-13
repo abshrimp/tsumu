@@ -10,7 +10,7 @@ import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetUrl, isZipJavascript } from "./imported-assets";
-import { rewriteHtmlAssetUrls, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
+import { googleFontsCss, rewriteHtmlAssetUrls, rawHtmlWithBodyStyles } from "./css";
 import { adobeFontHead } from "./adobe-fonts";
 import { htmlResourceElements, htmlZipSource, rewriteHtmlResourceUrls } from "../html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "../html-zip-script-assets";
@@ -22,11 +22,11 @@ import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "..
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
-import { EMPTY_GIF, pwaIconType } from "./templates";
+import { EMPTY_GIF, buildPwaManifest } from "./templates";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME, serializePageDataPlan } from "./browser-data";
 import { QUERY_VARIANT_RUNTIME } from "./query-route";
-import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
+import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { rewriteCssAssetUrls } from "../css-assets";
 import { archiveBaseUrl, archiveFileUrl } from "../zip-references";
@@ -188,6 +188,12 @@ function sourceHref(ctx: Context, value: string): string {
     ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
 }
 
+function mediaHref(ctx: Context, value: string): string {
+  const safe = safeMediaUrl(value);
+  return /^\/(?!\/)/.test(safe)
+    ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
+}
+
 function pageHref(ctx: Context, id: string): string {
   const p = ctx.doc.pages[id];
   if (!p) return "#";
@@ -328,9 +334,9 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "media" && n.media) {
       const media = n.media;
       const tag = media.kind === "audio" ? "audio" : "video";
-      const src = media.assetId ? assetMediaUrl(resource(ctx, media.assetId), media.assetSuffix) : media.src.trim() ? sourceHref(ctx, media.src) : "";
+      const src = media.assetId ? assetMediaUrl(resource(ctx, media.assetId), media.assetSuffix) : media.src.trim() ? mediaHref(ctx, media.src) : "";
       const sources = (media.sources ?? []).map((source) => {
-        const url = source.assetId ? assetMediaUrl(resource(ctx, source.assetId), source.assetSuffix) : source.src.trim() ? sourceHref(ctx, source.src) : "";
+        const url = source.assetId ? assetMediaUrl(resource(ctx, source.assetId), source.assetSuffix) : source.src.trim() ? mediaHref(ctx, source.src) : "";
         return url.trim() ? "<source" + attr("src", url) + attr("type", source.type) + attr("media", source.media) + ">" : "";
       }).join("");
       if (!src.trim() && !sources) return "";
@@ -342,7 +348,7 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "embed" && n.embed) {
       const src = embedSrc(n.embed);
       if (!src) return "";
-      return "<div" + commonAttrs + "><iframe" + attr("src", src) +
+      return "<div" + commonAttrs + "><iframe" + attr("src", safeNavigationUrl(src)) +
         ' loading="lazy" referrerpolicy="strict-origin-when-cross-origin"' +
         (n.embed.kind === "youtube" ? attr("allow", YOUTUBE_ALLOW) + " allowfullscreen" :
           n.embed.kind === "url" ? " allowfullscreen" : "") +
@@ -441,31 +447,15 @@ function prepareHtmlExport(doc: SiteDoc) {
 
 export function createReactPageRenderer(doc: SiteDoc) {
   const shared = prepareHtmlExport(doc);
-  return (pageId: string) => {
-    const page = shared.doc.pages[pageId];
-    return pageFragment({
-      ...shared, page, prefix: "/", single: false, seen: new Set(), form: false, template: false,
-    }, page);
+  return {
+    doc: shared.doc,
+    renderPage: (pageId: string) => {
+      const page = shared.doc.pages[pageId];
+      return pageFragment({
+        ...shared, page, prefix: "/", single: false, seen: new Set(), form: false, template: false,
+      }, page);
+    },
   };
-}
-
-/** フォント名を、1つの CSS の文字列の字句として引用符で囲む。 */
-function cssQuoted(value: string): string {
-  return '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
-    "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
-}
-
-function fontsCss(doc: SiteDoc): string {
-  const fonts = usedGoogleFonts(doc);
-  const imports = fonts.map((f) => {
-    const g = f.google!;
-    return '@import url("https://fonts.googleapis.com/css2?family=' +
-      encodeURIComponent(f.value).replace(/%20/g, "+") + ':wght@' +
-      (g.weights?.length ? g.weights.join(";") : "400") + '&display=swap");';
-  });
-  const variables = fonts.filter((f) => /^--[\w-]+$/.test(f.google!.cssVar)).map((f) =>
-    "  " + f.google!.cssVar + ": " + cssQuoted(f.value) + ", sans-serif;");
-  return imports.join("\n") + (variables.length ? "\n:root {\n" + variables.join("\n") + "\n}" : "");
 }
 
 export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, target: PublishTarget = "production"): GeneratedProject {
@@ -488,32 +478,12 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
   for (const [path, source] of Object.entries(next.remoteAssets)) {
     if (path.startsWith("public/")) remoteAssets[path.slice(7)] = source;
   }
-  if (normalized.pwa?.enabled) {
-    const pwa = normalized.pwa;
-    const candidate = [pwa.icon, normalized.appleTouchIcon, normalized.favicon]
-      .find((x) => x && (x.assetId ? assets.has(x.assetId) : !!x.url));
-    const iconSrc = candidate?.assetId ? "/assets/" + assets.get(candidate.assetId) : candidate?.url || "";
-    const iconAsset = candidate?.assetId ? normalized.assets[candidate.assetId] : undefined;
-    files["manifest.webmanifest"] = JSON.stringify({
-      name: pwa.name?.trim() || normalized.siteName,
-      short_name: pwa.shortName?.trim() || normalized.siteName,
-      start_url: "/", scope: "/",
-      display: pwa.display ?? "standalone",
-      lang: normalized.lang || "ja",
-      ...(pwa.themeColor?.trim() ? { theme_color: pwa.themeColor.trim() } : {}),
-      ...(pwa.backgroundColor?.trim() ? { background_color: pwa.backgroundColor.trim() } : {}),
-      icons: iconSrc ? [{
-        src: iconSrc,
-        sizes: iconAsset?.width && iconAsset?.height ?
-          iconAsset.width + "x" + iconAsset.height : "any",
-        ...(pwaIconType(iconAsset?.mimeType, iconSrc) ?
-          { type: pwaIconType(iconAsset?.mimeType, iconSrc) } : {}),
-        purpose: "any",
-      }] : [],
-    }, null, 2) + "\n";
+  const manifest = buildPwaManifest(normalized, assets);
+  if (manifest) {
+    files["manifest.webmanifest"] = JSON.stringify(manifest, null, 2) + "\n";
   }
   files["styles/site.css"] = rewriteCssRootUrls(next.files["styles/site.css"], "../");
-  files["styles/globals.css"] = fontsCss(normalized) + "\n" + next.files["app/globals.css"];
+  files["styles/globals.css"] = googleFontsCss(normalized) + next.files["app/globals.css"];
   // ページの計画は、共通の DOM のランタイムがリスナーを登録する前に実行するため、
   // 取得した変数を、動的なテキストやクライアントのリストで使える。
   files["data-loader.js"] = PAGE_DATA_RUNTIME;

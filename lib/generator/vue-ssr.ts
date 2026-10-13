@@ -135,7 +135,6 @@ export function withVueSsr(
     'server.listen(Number(process.env.PORT || 3000), process.env.HOST || "127.0.0.1");',
     "",
   ].join("\n");
-  files["src/server-request.js"] = files["src/server-request.js"] || "";
   files["index.html"] = [
     "<!doctype html>",
     '<html lang="<!--page-language-->">',
@@ -164,5 +163,4 @@ export function withVueSsr(
   };
   pkg.dependencies["@vue/server-renderer"] = "^3.5.25";
   files["package.json"] = JSON.stringify(pkg, null, 2) + "\n";
-  files[".gitignore"] += "dist/\n";
 }

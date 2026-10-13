@@ -68,6 +68,26 @@ function isSafeGoogleFont(f: { value: string; google?: { importName: string } })
   return !!f.google && /^[A-Za-z][A-Za-z0-9 ]*$/.test(f.value) && /^[A-Za-z_][A-Za-z0-9_]*$/.test(f.google.importName);
 }
 
+/** フォント名を、1つの CSS の文字列の字句として引用符で囲む。 */
+function cssQuoted(value: string): string {
+  return '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
+    "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
+}
+
+/** Google Fonts の @import と CSS 変数の宣言をまとめて出力する。 */
+export function googleFontsCss(doc: SiteDoc): string {
+  const fonts = usedGoogleFonts(doc);
+  if (!fonts.length) return "";
+  const imports = fonts.map((font) =>
+    '@import url("https://fonts.googleapis.com/css2?family=' +
+    encodeURIComponent(font.value).replace(/%20/g, "+") +
+    ':wght@' + (font.google?.weights?.length ? font.google.weights.join(";") : "400") +
+    '&display=swap");');
+  const declarations = fonts.filter((font) => /^--[\w-]+$/.test(font.google!.cssVar)).map((font) =>
+    "  " + font.google!.cssVar + ": " + cssQuoted(font.value) + ", sans-serif;");
+  return imports.join("\n") + (declarations.length ? "\n:root {\n" + declarations.join("\n") + "\n}\n" : "\n");
+}
+
 /* ---------- CSS の生成 ---------- */
 
 /** ZIP の HTML を直列化したときに生じる区切り文字は保ち、追加のクエリの & だけを変換する。 */

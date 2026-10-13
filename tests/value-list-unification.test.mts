@@ -267,14 +267,14 @@ test("export obfuscation preserves list targets and loop variable references", (
 
 test("native exported list rendering accepts dictionary keys and preserves nested values", async () => {
   const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
-  const { listItems } = await import(uri);
-  const result = listItems({
+  const { listItemsWithOps } = await import(uri);
+  const result = listItemsWithOps(undefined, {
     rows: { apple: { title: "Apple" }, banana: 2, empty: null, nested: [1, 2] },
   }, "rows", 0);
   assert.deepEqual(result, [
     { title: "Apple" }, { "値": 2 }, { "値": null }, { "値": [1, 2] },
   ]);
-  assert.deepEqual(listItems({ rows: ["a", "b"] }, "rows", 1), [{ "値": "a" }]);
+  assert.deepEqual(listItemsWithOps(undefined, { rows: ["a", "b"] }, "rows", 1), [{ "値": "a" }]);
 });
 
 test("at the size limit dictionaries still allow updates to existing keys", () => {
