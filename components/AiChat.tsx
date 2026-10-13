@@ -8,7 +8,7 @@ import { buildAiContext, type AiOp } from "../lib/aiOps";
 import { AI_STREAM_TYPE, appendAiProgress, readAiResponse, type AiPhase, type AiProgress } from "../lib/ai/progress";
 import AiActivity, { opLabel, phaseLabel } from "./AiActivity";
 import { AiEditConflict, applyAiEdits } from "../lib/ai/client";
-import { isEnterKey } from "../lib/keys";
+import { isEnterKey, isEscapeKey } from "../lib/keys";
 import { preferredScrollBehavior } from "../lib/scroll-behavior";
 import { userMessage } from "../lib/errors";
 import { tr } from "../lib/i18n";
@@ -375,7 +375,7 @@ export default function AiChat() {
                 e.preventDefault();
                 send();
               }
-              if (e.key === "Escape") toggleAi(false);
+              if (isEscapeKey(e)) toggleAi(false);
             }}
           />
           <button

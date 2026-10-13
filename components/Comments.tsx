@@ -420,49 +420,66 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
     };
   }, []);
 
-  // ピンの位置（スクロール・拡大・幅の変更に追従するため、毎フレーム測る）
+  // ピンの位置（スクロール・拡大・幅や要素の変更に追従し、静止中は再計測しない）
   useEffect(() => {
     let raf = 0;
-    const tick = () => {
+    const measure = () => {
+      raf = 0;
       const frame = frameRef.current;
       const inner = innerRef.current;
-      if (frame && inner) {
-        const ir = inner.getBoundingClientRect();
-        const fr = frame.getBoundingClientRect();
-        const box = { left: fr.left - ir.left, top: fr.top - ir.top, width: fr.width, height: fr.height };
-        setFrameBox((p) =>
-          p && Math.abs(p.left - box.left) < 0.5 && Math.abs(p.top - box.top) < 0.5 && Math.abs(p.width - box.width) < 0.5 && Math.abs(p.height - box.height) < 0.5
-            ? p
-            : box
-        );
-        const place = (nodeId: string | null, x: number, y: number) => {
-          const el = anchorOf(frame, nodeId);
-          if (!el) return null;
-          const r = el.getBoundingClientRect();
-          return { left: r.left - ir.left + x * r.width, top: r.top - ir.top + y * r.height };
-        };
-        const next: PinPos[] = [];
-        for (const t of threads) {
-          const p = place(t.nodeId, t.x, t.y);
-          if (p) next.push({ id: t.id, ...p });
-        }
-        setPins((prev) =>
-          prev.length === next.length &&
-          prev.every((p, i) => p.id === next[i].id && Math.abs(p.left - next[i].left) < 0.5 && Math.abs(p.top - next[i].top) < 0.5)
-            ? prev
-            : next
-        );
-        const d = useComments.getState().draft;
-        const dp = d?.pageId === pageId ? place(d.nodeId, d.x, d.y) : null;
-        setDraftPos((prev) =>
-          prev && dp && Math.abs(prev.left - dp.left) < 0.5 && Math.abs(prev.top - dp.top) < 0.5 ? prev : dp
-        );
+      if (!frame || !inner) return;
+      const ir = inner.getBoundingClientRect();
+      const fr = frame.getBoundingClientRect();
+      const box = { left: fr.left - ir.left, top: fr.top - ir.top, width: fr.width, height: fr.height };
+      setFrameBox((p) =>
+        p && Math.abs(p.left - box.left) < 0.5 && Math.abs(p.top - box.top) < 0.5 && Math.abs(p.width - box.width) < 0.5 && Math.abs(p.height - box.height) < 0.5
+          ? p
+          : box
+      );
+      const place = (nodeId: string | null, x: number, y: number) => {
+        const el = anchorOf(frame, nodeId);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { left: r.left - ir.left + x * r.width, top: r.top - ir.top + y * r.height };
+      };
+      const next: PinPos[] = [];
+      for (const t of threads) {
+        const p = place(t.nodeId, t.x, t.y);
+        if (p) next.push({ id: t.id, ...p });
       }
-      raf = requestAnimationFrame(tick);
+      setPins((prev) =>
+        prev.length === next.length &&
+        prev.every((p, i) => p.id === next[i].id && Math.abs(p.left - next[i].left) < 0.5 && Math.abs(p.top - next[i].top) < 0.5)
+          ? prev
+          : next
+      );
+      const d = useComments.getState().draft;
+      const dp = d?.pageId === pageId ? place(d.nodeId, d.x, d.y) : null;
+      setDraftPos((prev) =>
+        prev && dp && Math.abs(prev.left - dp.left) < 0.5 && Math.abs(prev.top - dp.top) < 0.5 ? prev : dp
+      );
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [threads, pageId, frameRef, innerRef]);
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+    schedule();
+    const frame = frameRef.current;
+    const inner = innerRef.current;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(schedule) : null;
+    if (ro && inner) ro.observe(inner);
+    if (ro && frame) ro.observe(frame);
+    const mo = typeof MutationObserver !== "undefined" ? new MutationObserver(schedule) : null;
+    if (mo && frame) mo.observe(frame, { subtree: true, childList: true, attributes: true });
+    window.addEventListener("resize", schedule);
+    document.addEventListener("scroll", schedule, { capture: true, passive: true });
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      ro?.disconnect();
+      mo?.disconnect();
+      window.removeEventListener("resize", schedule);
+      document.removeEventListener("scroll", schedule, true);
+    };
+  }, [threads, pageId, breakpoint, draft, frameRef, innerRef]);
 
   if (!frameBox) return null;
 

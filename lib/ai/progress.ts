@@ -38,7 +38,13 @@ export function aiStreamResponse(
         controller.close();
       };
       const emit = (event: AiStreamEvent) => {
-        if (!closed) controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+        } catch {
+          closed = true;
+          cleanup();
+        }
       };
       requestSignal.addEventListener("abort", cancel, { once: true });
       if (requestSignal.aborted) { cancel(); return; }

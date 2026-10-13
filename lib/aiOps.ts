@@ -622,13 +622,21 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
 /** 1回のツール呼び出しで増やせる要素の数の上限。 */
 export const MAX_AI_ADDED_NODES = 2_000;
 
+/** AI の編集操作は assets を書き換えないため、巨大な dataUrl の毎回コピーを避ける。 */
+export function cloneDocWithoutAssets(doc: SiteDoc): SiteDoc {
+  const { assets } = doc;
+  const draft = structuredClone({ ...doc, assets: {} });
+  draft.assets = assets;
+  return draft;
+}
+
 /** 操作は1つずつ確かめてから確定する。refs（仮の名前 → ID）は、同じリクエストのツール呼び出しをまたいで引き継ぐ */
 export function applyAiOps(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs = new Map<string, string>()): ApplyResult {
   const result: ApplyResult = { applied: [], errors: [] };
   if (!Array.isArray(ops) || ops.length > 200) return { applied: [], errors: ["Use at most 200 operations per call"] };
   const initialNodeCount = Object.keys(doc.nodes).length;
   for (const op of ops) {
-    const draft = structuredClone(doc);
+    const draft = cloneDocWithoutAssets(doc);
     const nextRefs = new Map(refs);
     try {
       validateOperation(op);

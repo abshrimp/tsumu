@@ -11,7 +11,7 @@ import { cssUsesAssetUrl } from "@/lib/css-assets";
 
 import { ASSET_WINDOW_THRESHOLD, assetWindow, resizedAssetScrollTop } from "../../lib/asset-window";
 import { assetDisplayKind, assetExtensionLabel, isVisualAsset, type AssetDisplayKind } from "../../lib/asset-display";
-import { isEnterKey } from "../../lib/keys";
+import { isEnterKey, isEscapeKey } from "../../lib/keys";
 import { preferredScrollBehavior } from "../../lib/scroll-behavior";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -675,6 +675,7 @@ export function AssetsTab() {
       if (d.pwa?.icon?.assetId === asset.id) d.pwa.icon = null;
       for (const page of Object.values(d.pages)) {
         if (page.ogImage?.assetId === asset.id) page.ogImage = null;
+        if (page.htmlZip) page.htmlZip.assetIds = page.htmlZip.assetIds.filter((id) => id !== asset.id);
       }
       removePageAssetBackgrounds(d, asset);
       delete d.assets[asset.id];
@@ -747,7 +748,7 @@ export function AssetsTab() {
                 value={query}
                 onChange={(e) => changeQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape") changeQuery("");
+                  if (isEscapeKey(e)) changeQuery("");
                 }}
               />
               {query && (

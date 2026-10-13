@@ -184,7 +184,8 @@ function compatibleSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSigna
   let sendStream = !!onText;
   return async () => {
     let res: Response;
-    for (let attempt = 0; ; attempt++) {
+    let retries = 0;
+    for (;;) {
       res = await fetch(`${conf.baseUrl}/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${conf.apiKey}`, "Content-Type": "application/json" },
@@ -204,8 +205,8 @@ function compatibleSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSigna
         if (error instanceof TooLargeError) return "Model error response exceeded the byte limit";
         throw error;
       });
-      if (RETRYABLE.has(res.status) && attempt < RETRY_DELAYS.length) {
-        await sleep(RETRY_DELAYS[attempt], signal);
+      if (RETRYABLE.has(res.status) && retries < RETRY_DELAYS.length) {
+        await sleep(RETRY_DELAYS[retries++], signal);
         continue;
       }
       if ((res.status === 400 || res.status === 422) && sendEffort && /reasoning[_ ]?effort/i.test(detail)) {

@@ -30,9 +30,11 @@ test("non-hex CSS colors use the browser's canonical color before an opacity edi
     ["hsl(120 100% 50% / 0.5)", "rgba(0, 255, 0, 0.5)"],
     ["rgb(100% 0% 0% / 50%)", "rgba(255, 0, 0, 0.5)"],
   ]);
+  let created = 0;
   Object.defineProperty(globalThis, "document", { configurable: true, value: {
     createElement(tag: string) {
       assert.equal(tag, "canvas");
+      created++;
       return { getContext: () => {
         let color = "#000000";
         return { set fillStyle(value: string) { color = colors.get(value) ?? value; }, get fillStyle() { return color; } };
@@ -40,11 +42,17 @@ test("non-hex CSS colors use the browser's canonical color before an opacity edi
     },
   } });
   try {
+    assert.deepEqual(parseColor("rgba(12, 34, 56, 0.5)"), { hex: "#0c2238", alpha: 0.5 });
+    assert.equal(created, 0);
     assert.deepEqual(parseColor("red"), { hex: "#ff0000", alpha: 1 });
     assert.deepEqual(parseColor("transparent"), { hex: "#000000", alpha: 0 });
     assert.deepEqual(parseColor("hsl(120 100% 50% / 0.5)"), { hex: "#00ff00", alpha: 0.5 });
     const color = parseColor("rgb(100% 0% 0% / 50%)");
     assert.equal(composeColor(color.hex, 0.25), "rgba(255, 0, 0, 0.25)");
+    assert.equal(created, 1);
+    const isolated = new Function("__name", `return (${parseColor.toString()})`)((fn: unknown) => fn) as typeof parseColor;
+    assert.deepEqual(isolated("hsl(120 100% 50% / 0.5)"), { hex: "#00ff00", alpha: 0.5 });
+    assert.equal(created, 1);
   } finally {
     if (original) Object.defineProperty(globalThis, "document", original);
     else Reflect.deleteProperty(globalThis, "document");

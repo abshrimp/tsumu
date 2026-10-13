@@ -9,16 +9,30 @@ import { envVar } from "./env";
 /** 有効期限（1時間。プレビューを開き直せば作り直す） */
 export const ASSET_TOKEN_TTL = 60 * 60 * 1000;
 
+let cachedHmacKey: { secret: string; importKey: typeof crypto.subtle.importKey; key: Promise<CryptoKey> } | null = null;
+
 async function hmacKey(): Promise<CryptoKey | null> {
   const secret = envVar("AUTH_SECRET");
-  if (!secret) return null;
-  return crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(`asset-url\n${secret}`),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign", "verify"]
-  );
+  if (!secret) {
+    cachedHmacKey = null;
+    return null;
+  }
+  const importKey = crypto.subtle.importKey;
+  if (cachedHmacKey?.secret === secret && cachedHmacKey.importKey === importKey) return cachedHmacKey.key;
+  const key = crypto.subtle
+    .importKey(
+      "raw",
+      new TextEncoder().encode(`asset-url\n${secret}`),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign", "verify"]
+    )
+    .catch((err) => {
+      if (cachedHmacKey?.secret === secret && cachedHmacKey.importKey === importKey) cachedHmacKey = null;
+      throw err;
+    });
+  cachedHmacKey = { secret, importKey, key };
+  return key;
 }
 
 const toB64Url = (buf: ArrayBuffer) =>
@@ -38,20 +52,18 @@ export async function signAssetPaths(
   paths: readonly string[],
   now = Date.now(),
 ): Promise<Map<string, string | null>> {
-  const unique = new Set(paths);
+  const unique = [...new Set(paths)];
   const key = await hmacKey();
-  const tokens = new Map<string, string | null>();
-  if (!key) {
-    for (const path of unique) tokens.set(path, null);
-    return tokens;
-  }
+  if (!key) return new Map(unique.map((path) => [path, null]));
   const exp = now + ASSET_TOKEN_TTL;
   const encoder = new TextEncoder();
-  for (const path of unique) {
-    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(`${path}\n${exp}`));
-    tokens.set(path, `exp=${exp}&sig=${toB64Url(sig)}`);
-  }
-  return tokens;
+  const entries = await Promise.all(
+    unique.map(async (path): Promise<[string, string]> => {
+      const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(`${path}\n${exp}`));
+      return [path, `exp=${exp}&sig=${toB64Url(sig)}`];
+    })
+  );
+  return new Map(entries);
 }
 
 /** 署名が正しく、期限内か */

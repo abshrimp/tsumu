@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Maximize2, X } from "lucide-react";
 import { highlightCustomCode } from "../lib/code-highlight";
 import { tr } from "../lib/i18n";
+import { isComposingKey, isEscapeKey } from "../lib/keys";
 
 /** Each button opens the code field beside its own label, not a whole section. */
 export function CodeEditorButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -48,7 +49,7 @@ export function CustomCodeEditorModal({
   // Stop Escape from reaching keyboard handlers in the editor behind the modal.
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if (!isEscapeKey(event)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       onClose();
@@ -62,6 +63,7 @@ export function CustomCodeEditorModal({
     onClose();
   };
   const onEditorKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (isComposingKey(event)) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       apply();

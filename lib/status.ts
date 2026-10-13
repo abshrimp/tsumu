@@ -37,7 +37,11 @@ function loadServerStatus(): Promise<ServerStatus | null> {
   cached ??= fetch("/api/status")
     .then((res) => (res.ok ? (res.json() as Promise<ServerStatus>) : null))
     .catch(() => null)
-    .then((s) => (loaded = s));
+    .then((s) => {
+      if (s) loaded = s;
+      else cached = null;
+      return s;
+    });
   return cached;
 }
 

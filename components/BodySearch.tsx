@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
 import { searchSiteBody, type BodySearchHit } from "../lib/body-search";
 import { tr } from "../lib/i18n";
+import { isEscapeKey } from "../lib/keys";
 import { useEditor } from "../lib/store";
 
 /** Search all pages without affecting browser Find or the editor's text inputs. */
@@ -35,7 +36,7 @@ export default function BodySearch({ onClose }: { onClose: () => void }) {
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === "Escape") {
+        if (isEscapeKey(e)) {
           e.preventDefault();
           onClose();
         } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {

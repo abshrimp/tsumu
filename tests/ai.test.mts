@@ -281,3 +281,35 @@ test("custom compatible providers do not require reasoning extensions", async (t
   });
   assert.equal(await runAi({ ...config, provider: "openai-compatible" }, turns, () => ({ content: "", isError: false })), "OK");
 });
+
+test("capability fallbacks do not exhaust transient retry attempts and AI edits preserve asset references", async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    const body = JSON.parse(init.body);
+    calls++;
+    if (calls === 1) {
+      assert.ok(body.reasoning_effort);
+      assert.equal(body.stream, true);
+      return new Response("Unsupported parameter: reasoning_effort", { status: 400 });
+    }
+    if (calls === 2) {
+      assert.equal(body.reasoning_effort, undefined);
+      assert.equal(body.stream, true);
+      return new Response("streaming is not supported", { status: 422 });
+    }
+    if (calls <= 4) return new Response("overloaded", { status: 503 });
+    assert.equal(body.reasoning_effort, undefined);
+    assert.equal(body.stream, undefined);
+    return completion({ content: "Recovered" });
+  });
+  const reply = await runAi({ ...config, provider: "openai" }, turns, () => ({ content: "", isError: false }), undefined, () => {});
+  assert.equal(reply, "Recovered");
+  assert.equal(calls, 5);
+
+  const doc = fixture();
+  const assetsRef = doc.assets;
+  doc.assets.hero = { id: "hero", name: "hero.png", mimeType: "image/png", dataUrl: "data:image/png;base64,AQID", width: 1, height: 1 };
+  const applied = applyAiOps(doc, [{ op: "rename", id: "a", name: "Renamed" }], target);
+  assert.deepEqual(applied.errors, []);
+  assert.equal(doc.assets, assetsRef);
+});

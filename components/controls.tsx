@@ -1445,33 +1445,39 @@ export function PropSeg({
 
 export function parseColor(v: string | undefined): { hex: string; alpha: number } {
   if (!v) return { hex: "#000000", alpha: 1 };
-  const hexm = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(v.trim());
+  const trimmed = v.trim();
+  const hexm = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(trimmed);
   if (hexm) return { hex: `#${hexm[1]}`, alpha: hexm[2] ? parseInt(hexm[2], 16) / 255 : 1 };
-  const short = /^#([0-9a-f]{3})([0-9a-f])?$/i.exec(v.trim());
+  const short = /^#([0-9a-f]{3})([0-9a-f])?$/i.exec(trimmed);
   if (short) {
     const [r, g, b] = short[1].split("");
     return { hex: `#${r}${r}${g}${g}${b}${b}`, alpha: short[2] ? parseInt(short[2].repeat(2), 16) / 255 : 1 };
   }
-  // 名前付きの色、HSL、新しい書き方の RGB は、ブラウザに解決させる。これらも保存できる
-  // 正しい CSS なので、不透明度を編集したときに黒に置き換えてはいけない。
-  // 上の16進数の値は、（書かれたアルファ値も含めて）損なわずに扱える。
-  if (typeof document !== "undefined") {
-    const context = document.createElement("canvas").getContext("2d");
-    if (context) {
-      context.fillStyle = v.trim();
-      const normalized = context.fillStyle;
-      if (normalized !== v.trim()) return parseColor(normalized);
-    }
-  }
-  const rgba = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)$/.exec(
-    v.trim()
-  );
+  const rgba = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)$/.exec(trimmed);
   if (rgba) {
     const to2 = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0");
     return {
       hex: `#${to2(+rgba[1])}${to2(+rgba[2])}${to2(+rgba[3])}`,
       alpha: rgba[4] !== undefined ? Math.max(0, Math.min(1, parseFloat(rgba[4]))) : 1,
     };
+  }
+  // 名前付きの色、HSL、新しい書き方の RGB は、ブラウザに解決させる。これらも保存できる
+  // 正しい CSS なので、不透明度を編集したときに黒に置き換えてはいけない。
+  // 上の16進数・rgba() の値は、（書かれたアルファ値も含めて）損なわずに扱える。
+  if (typeof document !== "undefined") {
+    const contextKey = Symbol.for("editor.colorContext");
+    const holder = document as Document & { [contextKey]?: CanvasRenderingContext2D | null };
+    let context = holder[contextKey];
+    if (context === undefined) {
+      context = document.createElement("canvas").getContext("2d");
+      holder[contextKey] = context;
+    }
+    if (context) {
+      context.fillStyle = "#000000";
+      context.fillStyle = trimmed;
+      const normalized = context.fillStyle;
+      if (normalized !== trimmed) return parseColor(normalized);
+    }
   }
   return { hex: "#000000", alpha: 1 };
 }

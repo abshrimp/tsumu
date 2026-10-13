@@ -278,3 +278,26 @@ test("unused cleanup checks all removed files in one browser scan bound to the o
     assert.equal(scans.mock.callCount(), 1);
   } finally { globalThis.window = previous; f.close(); }
 });
+
+test("single asset deletion prunes page htmlZip.assetIds, resetDoc bumps docEditRevision, and isEscapeKey ignores IME", async () => {
+  const { validSiteDoc } = await import("../lib/doc-tree");
+  const { isComposingKey, isEscapeKey } = await import("../lib/keys");
+  const doc = assetConfirmationDoc();
+  doc.pages.p.htmlZip = { path: "index.html", assetIds: [candidate.id, spare.id] };
+  const f = fixture(doc);
+  try {
+    f.begin(true);
+    await f.finish();
+    assert.deepEqual(state().doc.pages.p.htmlZip?.assetIds, [spare.id]);
+    assert.equal(validSiteDoc(state().doc), true);
+    const beforeRev = state().docEditRevision;
+    state().resetDoc();
+    assert.equal(state().docEditRevision, beforeRev + 1);
+  } finally { f.close(); }
+
+  assert.equal(isComposingKey({ isComposing: true }), true);
+  assert.equal(isComposingKey({ nativeEvent: { keyCode: 229 } }), true);
+  assert.equal(isEscapeKey({ key: "Escape", isComposing: true }), false);
+  assert.equal(isEscapeKey({ key: "Escape", nativeEvent: { keyCode: 229 } }), false);
+  assert.equal(isEscapeKey({ key: "Escape", isComposing: false, keyCode: 27 }), true);
+});

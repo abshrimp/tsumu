@@ -26,6 +26,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
+import { isEscapeKey } from "../lib/keys";
 import { useEditor } from "../lib/store";
 import {
   CATEGORIES,
@@ -520,7 +521,7 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
       role="dialog"
       aria-label={tr("Help")}
       onKeyDown={(e) => {
-        if (e.key !== "Escape") return;
+        if (!isEscapeKey(e)) return;
         // 入力中の検索語があれば先に消す。エディタの Esc（選択を外す）までは届かせない
         e.stopPropagation();
         if (query && (e.target as HTMLElement).tagName === "INPUT") setQuery("");

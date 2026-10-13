@@ -7,7 +7,7 @@ import { canvasHtml } from "../../lib/canvas-html";
  * キャンバス上の1つの要素（選択・ドラッグ・文字の直接編集）と、ドラッグ中の影
  */
 
-import { isEnterKey } from "../../lib/keys";
+import { isEnterKey, isEscapeKey } from "../../lib/keys";
 import { createElement, memo, useContext, type ReactNode } from "react";
 import { useEditor } from "../../lib/store";
 import { mediaSrc } from "../../lib/assets";
@@ -540,7 +540,7 @@ export function NodeView({
     };
     common.onKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
       e.stopPropagation();
-      if (e.key === "Escape" || (isEnterKey(e) && e.metaKey)) {
+      if (isEscapeKey(e) || (isEnterKey(e) && e.metaKey)) {
         (e.currentTarget as HTMLElement).blur();
         return;
       }

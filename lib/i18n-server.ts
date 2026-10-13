@@ -13,7 +13,10 @@ const cache = new Map<Lang, Promise<Dict[]>>();
 async function trOf(lang: Lang): Promise<Tr> {
   let dicts = cache.get(lang);
   if (!dicts) {
-    dicts = loadDicts(lang);
+    dicts = loadDicts(lang).catch((err) => {
+      cache.delete(lang);
+      throw err;
+    });
     cache.set(lang, dicts);
   }
   const list = await dicts;

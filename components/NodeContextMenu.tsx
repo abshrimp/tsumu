@@ -30,6 +30,7 @@ import { glyphs } from "./Glyph";
 import { tr } from "../lib/i18n";
 import { activeContentNames, isOwnClip, readSystemClipPayload } from "../lib/clip-transfer";
 import { showAlert, showConfirm } from "../lib/dialog";
+import { isEscapeKey } from "../lib/keys";
 
 /* ---------- 要素の右クリックメニュー（キャンバス・レイヤー共通） ---------- */
 
@@ -317,7 +318,7 @@ export function ContextMenu({
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (isEscapeKey(e)) onClose();
     };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);

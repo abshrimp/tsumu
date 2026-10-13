@@ -1879,6 +1879,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({
         ...historyFor(get().doc),
         doc,
+        docEditRevision: get().docEditRevision + 1,
         documentSession: get().documentSession + 1,
         historyRevision: get().historyRevision + 1,
         activePageId: doc.pageOrder[0],

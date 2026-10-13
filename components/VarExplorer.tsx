@@ -1,6 +1,6 @@
 "use client";
 
-import { isEnterKey } from "../lib/keys";
+import { isComposingKey, isEnterKey, isEscapeKey } from "../lib/keys";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
@@ -229,7 +229,7 @@ export default function VarExplorer({
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
         e.stopPropagation();
-        if (e.key === "Escape") onClose();
+        if (isEscapeKey(e)) onClose();
       }}
     >
       <div className="modal vx" role="dialog" aria-label={tr("Browse variables")} data-se-popover="">
@@ -247,7 +247,7 @@ export default function VarExplorer({
             placeholder={tr("Search by name or value")}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (!results.length) return;
+              if (!results.length || isComposingKey(e)) return;
               if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 e.preventDefault();
                 const n = results.length;

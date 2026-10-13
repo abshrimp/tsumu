@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CircleAlert, Info, TriangleAlert } from "lucide-react";
-import { isEnterKey } from "../lib/keys";
+import { isComposingKey, isEnterKey } from "../lib/keys";
 import { closeDialog, useDialogs, type DialogRequest } from "../lib/dialog";
 import { tr } from "../lib/i18n";
 
@@ -48,7 +48,7 @@ function Dialog({ req }: { req: DialogRequest }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.isComposing || e.keyCode === 229) return;
+      if (isComposingKey(e)) return;
       if (e.key === "Tab") {
         // ポータルは文書の最後にあるため、標準の Tab のままだと、どちらの端からも
         // このモーダルの後ろにあるエディタへ移ってしまう。確認の文字を入力すると OK が
