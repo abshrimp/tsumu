@@ -1,0 +1,106 @@
+/* Dedicated font-add dialog: searchable previews and Adobe project discovery. */
+.font-add-modal {
+  width: min(700px, calc(100vw - 28px));
+  max-width: 100%;
+  max-height: min(88dvh, 880px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 24px;
+}
+.font-add-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 20px 12px;
+}
+.font-add-header h2 { margin: 0 0 4px; }
+.font-add-header .hint { margin: 0; }
+.font-add-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 20px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.font-add-tabs .btn.is-on { border-color: var(--accent); background: var(--selected-bg, var(--hover)); }
+.font-add-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.font-add-search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(110px, 160px);
+  align-items: center;
+  gap: 8px;
+}
+.font-add-search .input { width: 100%; min-width: 0; }
+.font-add-content > .hint { margin: 0; }
+.font-add-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 310px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.font-add-result {
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.font-add-result:hover { background: var(--hover); }
+.font-add-result.is-on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.font-add-result span:first-child { font-weight: 600; font-size: 13px; }
+.font-add-result span:last-child { font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.font-add-result small { font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
+.font-add-selected, .font-add-label { font-size: 12px; margin: 0; }
+.font-add-label { font-weight: 600; }
+.font-add-label-row { display: flex; align-items: center; gap: 5px; }
+.font-add-label-row .icon-btn { width: 22px; height: 22px; min-width: 22px; }
+.font-add-existing { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.font-add-existing .hint { margin: 0; }
+.font-add-kits { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.font-add-kit { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-s); overflow: hidden; }
+.font-add-kit .btn { border: 0; border-radius: 0; }
+.font-add-kit .btn.is-on { background: var(--accent-soft); }
+.font-add-kit-remove { flex: none; width: 26px; height: 26px; border-left: 1px solid var(--border); border-radius: 0; }
+.font-add-kit-remove:hover { color: var(--danger); }
+.font-add-kit-add { flex: none; width: 30px; height: 30px; }
+.font-add-project-input { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.font-add-project-input .input { width: 100%; }
+.font-add-project-input .hint { margin: 0; }
+.font-add-project { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.font-add-project .hint { margin: 0; }
+.font-add-warning { color: var(--danger); }
+.font-add-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+@media (max-width: 560px) {
+  .font-add-modal { width: calc(100vw - 16px); max-height: 92dvh; }
+  .font-add-header { padding: 14px; }
+  .font-add-tabs { padding: 0 14px 10px; }
+  .font-add-content { padding: 12px 14px; }
+  .font-add-search { grid-template-columns: auto minmax(0, 1fr); }
+  .font-add-search select { grid-column: 2; }
+  .font-add-results { grid-template-columns: minmax(0, 1fr); }
+  .font-add-footer { padding: 10px 14px; }
+}

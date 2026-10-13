@@ -235,6 +235,16 @@ function BlockView({ block, onStartTutorial }: { block: Block; onStartTutorial: 
     );
   }
   if ("code" in block) return <pre className="help-code">{block.code}</pre>;
+  if ("external" in block) {
+    const url = block.external.url;
+    return url.startsWith("https://fonts.adobe.com/") ? (
+      <p className="help-p">
+        <a href={url} target="_blank" rel="noopener noreferrer" className="help-inline-link">
+          {block.external.label}
+        </a>
+      </p>
+    ) : null;
+  }
   if ("fig" in block) return <HelpFigure id={block.fig} caption={block.caption} />;
   if ("action" in block && block.action === "tutorial") {
     return (

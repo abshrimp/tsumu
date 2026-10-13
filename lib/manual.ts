@@ -71,6 +71,8 @@ export type Block =
   | { warn: string }
   | { table: { head: string[]; rows: string[][] } }
   | { code: string }
+  /** 外部サイトの公式案内へのリンク */
+  | { external: { url: string; label: string } }
   /** 図解（components/HelpFigures.tsx の図の ID） */
   | { fig: FigureId; caption?: string }
   /** ボタン（チュートリアルを始める など） */

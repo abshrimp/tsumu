@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('[data-tip="フォントを追加"]')).toBeVisible();
 });
 
-async function hold(page: Page, pattern: string, body: string, contentType: string) {
+async function hold(page: Page, pattern: string | RegExp, body: string, contentType: string) {
   let arrived!: () => void;
   let release!: () => void;
   let finished!: () => void;
@@ -38,23 +38,32 @@ async function settle(page: Page) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 async function startFont(page: Page) {
-  const request = await hold(page, "https://fonts.googleapis.com/**", "@font-face { font-family: New Font; font-weight: 100 900; }", "text/css");
+  const request = await hold(page, /https:\/\/fonts\.googleapis\.com\/css2\?family=New\+Font/, "@font-face { font-family: New Font; font-weight: 100 900; }", "text/css");
   await page.locator('[data-tip="フォントを追加"]').click();
-  await page.getByPlaceholder("fonts.google.com の名前（例: Shippori Mincho）").fill("New Font");
+  await page.getByRole("searchbox", { name: "Google Fontsを検索" }).fill("New Font");
   await page.getByRole("button", { name: "追加", exact: true }).click();
   await request.started;
   return request;
 }
-test("Adobe Fonts accepts Adobe's complete script and copied font-family declaration", async ({ page }) => {
+test("Google Fonts suggestions do not include arbitrary alphabetical catalog entries", async ({ page }) => {
+  await page.locator('[data-tip="フォントを追加"]').click();
+  const results = page.getByRole("group", { name: "Google Fontsの検索結果" });
+  await expect(results.getByRole("button")).toHaveCount(32);
+  await expect(results.getByRole("button", { name: /Noto Sans JP/ })).toBeVisible();
+  await expect(results.getByRole("button", { name: /ABeeZee/ })).toHaveCount(0);
+  await page.getByRole("searchbox", { name: "Google Fontsを検索" }).fill("ABeeZee");
+  await expect(results.getByRole("button", { name: /ABeeZee/ })).toBeVisible();
+});
+
+test("Adobe Fonts lists published project families without requiring embed code", async ({ page }) => {
+  await page.route("http://pending-import.test/api/fonts/adobe/status?**", (route) =>
+    route.fulfill({ json: { status: "available", fonts: [
+      { name: "Source Han Sans", family: "source-han-sans-japanese", loading: "dynamic" },
+    ] } }));
   await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByRole("button", { name: "Adobe Fonts" }).click();
-  await page.getByRole("textbox", { name: "Adobe Fontsの埋め込みコード" }).fill(
-    '<script>(function(d){var config={kitId:"abc1234",async:true};' +
-    'var tk=d.createElement("script");tk.src="https://use.typekit.net/"+config.kitId+".js";' +
-    'd.head.appendChild(tk);})(document);</script>');
-  await expect(page.getByText("Webプロジェクト abc1234（JavaScript）を検出しました。")).toBeVisible();
-  await page.getByRole("textbox", { name: "フォントファミリー" }).fill(
-    'font-family: "source-han-sans-japanese", sans-serif;');
+  await page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" }).fill("abc1234");
+  await page.getByRole("button", { name: /Source Han Sans/ }).click();
   await page.getByRole("button", { name: "追加", exact: true }).click();
   await expect.poll(async () => (await doc(page)).nodes.a.styles.base.default.fontFamily)
     .toBe("source-han-sans-japanese");
@@ -63,30 +72,100 @@ test("Adobe Fonts accepts Adobe's complete script and copied font-family declara
   ]);
 });
 
-test("Adobe CSS link and CSS family are detected from the same pasted text", async ({ page }) => {
+test("Adobe Fonts places project setup help next to the ID label without redundant warnings", async ({ page }) => {
   await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByRole("button", { name: "Adobe Fonts" }).click();
-  await page.getByRole("textbox", { name: "Adobe Fontsの埋め込みコード" }).fill(
-    '<link rel="stylesheet" href="https://use.typekit.net/def5678.css">\n' +
-    '<style>body { font-family: "acumin-pro", sans-serif; }</style>');
-  await expect(page.getByText("Webプロジェクト def5678（CSS）を検出しました。")).toBeVisible();
+  await expect(page.getByText("Webプロジェクトが未設定です。")).toHaveCount(0);
+  await expect(page.locator(".font-add-label-row")
+    .getByRole("button", { name: "Adobe Fontsの追加方法" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "ここ" }))
+    .toHaveAttribute("href", "https://fonts.adobe.com/my_fonts#web_projects-section");
+  await expect(page.getByRole("link", { name: "源ノ明朝" }))
+    .toHaveAttribute("href", "https://fonts.adobe.com/fonts/source-han-serif-japanese");
+});
+
+test("Adobe lookup failure is not called an expired subscription and does not require manual input", async ({ page }) => {
+  await page.route("http://pending-import.test/api/fonts/adobe/status?**", (route) =>
+    route.fulfill({ json: { status: "unknown", fonts: [] } }));
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  await page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" }).fill(
+    "https://use.typekit.net/abc1234.js");
+  await expect(page.getByText(/期限切れとは限りません/)).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "CSSのfont-family名" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "追加", exact: true })).toBeDisabled();
+  await expect(page.getByRole("link", { name: "ここ" })).toBeVisible();
+  await expect(page.locator(".font-add-label-row").getByRole("button", { name: "Adobe Fontsの追加方法" })).toBeVisible();
+});
+
+test("Existing Adobe fonts remain selectable when metadata API is unavailable", async ({ page }) => {
+  await page.route("http://pending-import.test/api/fonts/adobe/status?**", (route) =>
+    route.fulfill({ json: { status: "reachable", fonts: [], loading: "dynamic" } }));
+  await page.evaluate(() => {
+    (window as any).importEditor.getState().updateDoc((doc: any) => {
+      doc.adobeFonts = [{ family: "poprumcute", kitId: "tud1nus", loading: "dynamic" }];
+    });
+  });
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toHaveCount(0);
+  await page.getByRole("button", { name: "tud1nus", exact: true }).click();
+  await expect(page.getByText(/フォント配信先には接続できましたが/)).toBeVisible();
+  await page.getByRole("group", { name: "AdobeのWebプロジェクト内のフォント" })
+    .getByRole("button", { name: /poprumcute/ }).click();
   await page.getByRole("button", { name: "追加", exact: true }).click();
+  await expect.poll(async () => (await doc(page)).nodes.a.styles.base.default.fontFamily).toBe("poprumcute");
   expect((await doc(page)).adobeFonts).toEqual([
-    { family: "acumin-pro", kitId: "def5678", loading: "css" },
+    { family: "poprumcute", kitId: "tud1nus", loading: "dynamic" },
   ]);
 });
 
-test("invalid Adobe embeds are rejected without changing the document", async ({ page }) => {
+test("Saved Adobe projects hide the ID field until + is selected", async ({ page }) => {
+  await page.evaluate(() => (window as any).importEditor.getState().updateDoc((d: any) => {
+    d.adobeFonts = [
+      { family: "poprumcute", kitId: "jys5tkg", loading: "dynamic" },
+    ];
+  }));
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "jys5tkg", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Webプロジェクトを追加" }).click();
+  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toBeVisible();
+  await page.getByRole("button", { name: "jys5tkg", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toHaveCount(0);
+});
+
+test("Removing an Adobe project clears its font registrations and applied font styles in one undo step", async ({ page }) => {
+  await page.evaluate(() => (window as any).importEditor.getState().updateDoc((d: any) => {
+    d.adobeFonts = [
+      { family: "poprumcute", kitId: "jys5tkg", loading: "dynamic" },
+      { family: "source-han-serif-japanese", kitId: "jys5tkg", loading: "dynamic" },
+      { family: "acumin-pro", kitId: "abc1234", loading: "css" },
+    ];
+    d.nodes.a.styles.base.default.fontFamily = "poprumcute";
+  }));
   await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByRole("button", { name: "Adobe Fonts" }).click();
   const before = await doc(page);
-  await page.getByRole("textbox", { name: "Adobe Fontsの埋め込みコード" }).fill(
-    '<script src="https://example.com/abc1234.js"></script>');
-  await page.getByRole("textbox", { name: "フォントファミリー" }).fill("poprumcute");
-  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await page.getByRole("button", { name: "Webプロジェクト jys5tkg を削除" }).click();
+  const confirm = page.getByRole("dialog", { name: "Adobe Webプロジェクトの削除" });
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText("登録済みのフォント2件");
+  await expect(confirm).toContainText("Adobe Fonts側のWebプロジェクトは削除されません");
   expect(await doc(page)).toEqual(before);
-  await expect(page.getByText("Adobe FontsのWebプロジェクトの埋め込みコードを貼り付けてください。"))
-    .toBeVisible();
+  await confirm.getByRole("button", { name: "キャンセル" }).click();
+  expect(await doc(page)).toEqual(before);
+  await page.getByRole("button", { name: "Webプロジェクト jys5tkg を削除" }).click();
+  await page.getByRole("dialog", { name: "Adobe Webプロジェクトの削除" })
+    .getByRole("button", { name: "削除", exact: true }).click();
+  const after = await doc(page);
+  expect(after.adobeFonts).toEqual([{ family: "acumin-pro", kitId: "abc1234", loading: "css" }]);
+  expect(after.nodes.a.styles.base.default.fontFamily).toBeUndefined();
+  await page.evaluate(() => (window as any).importEditor.getState().undo());
+  expect(await doc(page)).toEqual(before);
+  await page.evaluate(() => (window as any).importEditor.getState().redo());
+  expect(await doc(page)).toEqual(after);
 });
 
 async function startImage(page: Page, picker = page.locator('[data-tutorial="style-background"] .img-pick')) {

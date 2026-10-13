@@ -521,42 +521,51 @@ export default function Editor({ onReady }: EditorProps = {}) {
     if (link.href !== href) link.href = href;
   }, [doc.customFonts]);
 
-  // Adobe Fontsは利用者自身のWebプロジェクトから読み込む。日本語は動的サブセットが必要。
+  // 編集画面では JavaScript 埋め込みを使う。CSS 専用の読み込みを要求すると、
+  // 日本語などの動的サブセット付き Web プロジェクトは HTTP 412 を返す。
+  // Adobe の JavaScript 埋め込みは通常のプロジェクトでも利用できる。
   useEffect(() => {
-    const projects = new Map<string, "css" | "dynamic">();
-    for (const font of doc.adobeFonts ?? []) {
-      if (/^[a-z0-9]{7}$/.test(font.kitId) && !projects.has(font.kitId)) {
-        projects.set(font.kitId, font.loading);
-      }
+    const projects = new Set(
+      (doc.adobeFonts ?? [])
+        .filter(font => /^[a-z0-9]{7}$/.test(font.kitId))
+        .map(font => font.kitId)
+    );
+    const inserted: HTMLScriptElement[] = [];
+    for (const kitId of projects) {
+      const script = document.createElement("script");
+      script.async = true;
+      script.src = `https://use.typekit.net/${kitId}.js`;
+      script.onload = () => {
+        try {
+          (window as Window & {
+            Typekit?: { load: (options?: { async: boolean }) => void };
+          }).Typekit?.load({ async: true });
+        } catch {
+          // Adobe の一時的な障害では、他の編集操作を止めない。
+        }
+      };
+      document.head.appendChild(script);
+      inserted.push(script);
     }
-    const inserted: HTMLElement[] = [];
-    for (const [kitId, loading] of projects) {
-      if (loading === "css") {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = `https://use.typekit.net/${kitId}.css`;
-        document.head.appendChild(link);
-        inserted.push(link);
-      } else {
-        const script = document.createElement("script");
-        script.async = true;
-        script.src = `https://use.typekit.net/${kitId}.js`;
-        script.onload = () => {
-          try {
-            const typekit = (window as Window & {
-              Typekit?: { load: (options?: { async: boolean }) => void };
-            }).Typekit;
-            typekit?.load({ async: true });
-          } catch {
-            // Adobe Fontsを読み込めなくても編集操作は止めない。
-          }
-        };
-        document.head.appendChild(script);
-        inserted.push(script);
-      }
-    }
-    return () => { inserted.forEach((element) => element.remove()); };
+    return () => { inserted.forEach(script => script.remove()); };
   }, [doc.adobeFonts]);
+
+  // Adobeの日本語フォントは、編集中のDOMの文字を使って動的サブセットを生成する。
+  // 初回のスクリプト読み込み後にも、本文やスタイルの更新で字形を取り込み直す。
+  // 多数のテキスト操作の途中で毎回起動しないよう、短い時間まとめて再検出する。
+  useEffect(() => {
+    if (!doc.adobeFonts?.length) return;
+    const refresh = window.setTimeout(() => {
+      try {
+        (window as Window & {
+          Typekit?: { load: (options?: { async: boolean }) => void };
+        }).Typekit?.load({ async: true });
+      } catch {
+        // フォントの通信障害は編集や保存を止めない。
+      }
+    }, 200);
+    return () => window.clearTimeout(refresh);
+  }, [doc.adobeFonts, doc.nodes, doc.pages]);
 
   // ブラウザ内（IndexedDB）への自動保存（500ms のデバウンス）
   useEffect(() => {

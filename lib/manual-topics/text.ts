@@ -67,7 +67,34 @@ export const textTopics: Topic[] = [  /* ================= 文字 ==============
     guide: [
       { target: "style-typography", text: tr("Choose from the Font field, or add one from Google Fonts with \"+\" on the right."), needs: "text", prepare: { right: "style", section: "style-typography" } },
     ],
-    see: ["d-fonts", "d-performance"],
+    see: ["d-fonts", "d-performance", "text-adobe-fonts"],
+  },
+  {
+    id: "text-adobe-fonts",
+    cat: "text",
+    level: 2,
+    q: tr("How do I add Adobe Fonts?"),
+    a: tr("Create an Adobe Fonts Web Project, copy its Project ID, and select the published fonts from Tsumu's font dialog."),
+    keys: ["Adobe Fonts", "Typekit", tr("Web Project"), tr("Project ID"), tr("Font"), tr("font-family")],
+    ctx: ["text", "body"],
+    body: [
+      { list: [
+        tr('On Adobe Fonts, open the page of the font you want to use. Click the "</>" button and create a Web Project. Publish it.'),
+        tr('Open "Web Projects" under "Manage fonts" in Adobe Fonts and copy the seven-character "Project ID".'),
+        tr('In Tsumu, select a text element, then choose Text → Font → + → Adobe Fonts.'),
+        tr('Paste the Project ID (or its use.typekit.net URL). Select a font from the published list and click Add.'),
+      ], ordered: true },
+      { external: {
+        url: "https://fonts.adobe.com/my_fonts#web_projects-section",
+        label: tr("Open Adobe Fonts Web Projects"),
+      } },
+      { note: tr("The Project ID is stored in the site's font settings as adobeFonts[].kitId. Server-saved sites store these settings in their database; browser-only sites store them locally. No Adobe embed code or font files are saved.") },
+      { warn: tr("If the font list does not appear, check that the Web Project is published and contains fonts you can use. A lookup failure does not mean your Adobe subscription has expired.") },
+    ],
+    guide: [
+      { target: "style-typography", text: tr("In the Text section, open Font → + → Adobe Fonts to enter the Project ID."), needs: "text", prepare: { right: "style", section: "style-typography" } },
+    ],
+    see: ["text-font", "d-fonts"],
   },
   {
     id: "text-heading",

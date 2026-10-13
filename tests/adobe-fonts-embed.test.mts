@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { adobeCssFamily, parseAdobeEmbed } from "../lib/adobe-fonts-embed";
+import { adobeCssFamily, parseAdobeEmbed, parseAdobeKitInput } from "../lib/adobe-fonts-embed";
 
 const adobeJapaneseSnippet = `<script>
   (function(d) {
@@ -65,4 +65,18 @@ test("pasted scripts are never evaluated", () => {
   const snippet = `<script>globalThis.${key}=true;var kitId='abc1234';</script>`;
   assert.equal(parseAdobeEmbed(snippet), null);
   assert.equal((globalThis as Record<string, unknown>)[key], undefined);
+});
+
+test("Web Project ID or URL is enough; embedding the whole snippet is optional", () => {
+  assert.deepEqual(parseAdobeKitInput(" abc1234 "), { kitId: "abc1234", loading: "css" });
+  assert.deepEqual(parseAdobeKitInput("https://use.typekit.net/abc1234.css"),
+    { kitId: "abc1234", loading: "css" });
+  assert.deepEqual(parseAdobeKitInput("https://use.typekit.net/abc1234.js"),
+    { kitId: "abc1234", loading: "dynamic" });
+  assert.deepEqual(parseAdobeKitInput('<script src="https://use.typekit.net/abc1234.js"></script>'),
+    { kitId: "abc1234", loading: "dynamic" });
+  for (const bad of ["", "abc123", "abc12345", "https://evil.test/abc1234.js",
+    "https://use.typekit.net/abc1234.js.evil", "abc1234;alert(1)", "../abc1234"]) {
+    assert.equal(parseAdobeKitInput(bad), null, bad);
+  }
 });

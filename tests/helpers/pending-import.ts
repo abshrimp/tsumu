@@ -67,6 +67,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
         showAlert: (...args: unknown[]) => { alerts.push(args); },
         showPrompt: () => new Promise<string | null>(resolve => { confirmations.push({ resolve: value => resolve(value ? "Reset" : null) }); }),
         showConfirm: () => new Promise<boolean>(resolve => { confirmations.push({ resolve }); }),
+        useDialogs: { getState: () => ({ queue: [] }) },
       };
       if (["/NodeContextMenu", "/CopyToSite", "/exportZip", "/export-formats", "/AiChat", "/HelpCenter", "/Tutorial", "/GuideOverlay"].some(x => name.endsWith(x))) return {};
       if (name.endsWith("/use-escape-to-close")) return { useEscapeToClose() {} };
@@ -85,7 +86,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
     : kind === "backup" ? evaluate("components/SitePanel.tsx").default
     : kind === "html" ? evaluate("components/PagePanel.tsx").default
     : kind === "style" ? evaluate("components/StylePanel.tsx").default
-    : evaluate("components/style-panel/TypographySec.tsx", "\nexport { FontPicker };").FontPicker;
+    : evaluate("components/style-panel/FontPicker.tsx").FontPicker;
   return {
     alerts,
     confirmations,
@@ -103,7 +104,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
 export function elements(tree: any): any[] {
   if (!tree || typeof tree !== "object") return [];
   if (Array.isArray(tree)) return tree.flatMap(elements);
-  return [tree, ...elements(tree.props?.children), ...elements(tree.props?.lead)];
+  return [tree, ...elements(tree.props?.children), ...elements(tree.children), ...elements(tree.props?.lead)];
 }
 
 /** 実際のパネル・ストア・画像のアップロードの処理を、ブラウザで動かす。 */
@@ -117,6 +118,7 @@ import { loadLocale } from "./lib/i18n";
 let RightPanel;
 import { useEditor } from "./lib/store";
 import { makeText } from "./lib/presets";
+import DialogHost from "./components/DialogHost";
 const doc = { siteName: "Pending imports", assets: {
   old: { id: "old", name: "old.svg", dataUrl: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>', width: 1, height: 1 },
 }, pageOrder: ["p", "q"], pages: {
@@ -134,7 +136,7 @@ void loadLocale().then(async () => {
   ({ default: RightPanel } = await import("./components/RightPanel"));
   const root = createRoot(document.getElementById("app"));
   window.unmountImportEditor = () => root.unmount();
-  root.render(<RightPanel />);
+  root.render(<><RightPanel /><DialogHost /></>);
 });
 `,
       loader: "tsx", sourcefile: "pending-import-browser.tsx", resolveDir: resolve("."),

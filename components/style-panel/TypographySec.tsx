@@ -4,10 +4,6 @@
  * 文字（フォント・大きさ・行間など）
  */
 
-import { isEnterKey } from "../../lib/keys";
-import { adobeCssFamily, parseAdobeEmbed } from "../../lib/adobe-fonts-embed";
-import { useState } from "react";
-import { usePendingImport } from "../../lib/use-pending-import";
 import {
   AlignCenter,
   AlignLeft,
@@ -23,13 +19,12 @@ import {
   Heading6,
   Italic,
   Pilcrow,
-  Plus,
   Strikethrough,
   Underline,
 } from "lucide-react";
 import { ancestorsOf, findParentOf, useEditor } from "../../lib/store";
-import type { Breakpoint, CustomFont, DocNode, SiteDoc, StyleState } from "../../lib/types";
-import { allFonts, getProp, resolveStyleMap, isInitialValue, initialValueOf } from "../../lib/style";
+import type { Breakpoint, DocNode, SiteDoc, StyleState } from "../../lib/types";
+import { getProp, resolveStyleMap, isInitialValue, initialValueOf } from "../../lib/style";
 import {
   Dropdown,
   Grp,
@@ -43,217 +38,7 @@ import {
 import { tr, trc } from "../../lib/i18n";
 import { differsFrom } from "./BackgroundSec";
 import { Sec } from "./shared";
-
-/* ---------- フォント（Google Fonts・Adobe Fonts） ---------- */
-
-function FontPicker({ inheritedValue }: { inheritedValue: string }) {
-  const insp = useInspector();
-  const doc = useEditor((s) => s.doc);
-  const updateDoc = useEditor((s) => s.updateDoc);
-  const [adding, setAdding] = useState(false);
-  const [family, setFamily] = useState("");
-  const [provider, setProvider] = useState<"google" | "adobe">("google");
-  const [adobeEmbed, setAdobeEmbed] = useState("");
-  const pending = usePendingImport(JSON.stringify([insp.editTarget, insp.get("fontFamily").value]));
-  const { busy } = pending;
-  const [error, setError] = useState<string | null>(null);
-
-  const fonts = allFonts(doc.customFonts, doc.adobeFonts);
-  const parsedAdobe = parseAdobeEmbed(adobeEmbed);
-  const detectedFamily = adobeCssFamily(adobeEmbed);
-
-  const addFont = async () => {
-    const name = family.trim().replace(/\s+/g, " ");
-    if (!name) return;
-    if (doc.adobeFonts?.some((f) => f.family === name)) {
-      setError(tr("A font with this name is already registered from another provider."));
-      return;
-    }
-    const request = pending.begin();
-    setError(null);
-    try {
-      // 使えるウェイトを、実際の css2 の応答から読み取る
-      //（css2 は存在しないウェイトを黙って省くが、next/font は厳格に扱うため）
-      const enc = encodeURIComponent(name).replace(/%20/g, "+");
-      const tryFetch = async (axis: string): Promise<string | null> => {
-        if (!request.current()) return null;
-        try {
-          // css2 のエラーの応答には CORS のヘッダーが無いため、例外になる
-          const res = await fetch(
-            `https://fonts.googleapis.com/css2?family=${enc}${axis}&display=swap`
-          );
-          return res.ok ? await res.text() : null;
-        } catch {
-          return null;
-        }
-      };
-
-      let found: CustomFont | null = null;
-      if (await tryFetch(":wght@100..900")) {
-        found = { family: name, weights: "variable" };
-      } else {
-        const body =
-          (await tryFetch(":wght@400;500;600;700")) ?? (await tryFetch(""));
-        if (body) {
-          const weights = [
-            ...new Set(
-              [...body.matchAll(/font-weight:\s*(\d+)/g)].map((m) => m[1])
-            ),
-          ].sort();
-          found = {
-            family: name,
-            weights: weights.length ? weights : ["400"],
-          };
-        }
-      }
-      if (!request.current()) return;
-      if (!found) {
-        setError(
-          tr("Not found on Google Fonts. Enter the name exactly as shown on fonts.google.com.")
-        );
-        return;
-      }
-      updateDoc((d) => {
-        d.customFonts = [
-          ...(d.customFonts ?? []).filter((f) => f.family !== name),
-          found!,
-        ];
-      });
-      insp.set({ fontFamily: name });
-      setAdding(false);
-      setFamily("");
-    } catch {
-      if (!request.current()) return;
-      setError(tr("Couldn't check. Check your network connection."));
-    } finally {
-      request.finish();
-    }
-  };
-
-  const addAdobeFont = () => {
-    const name = adobeCssFamily(family.trim() || adobeEmbed);
-    if (!parsedAdobe) {
-      setError(tr("Paste a valid Adobe Fonts Web Project embed code."));
-      return;
-    }
-    if (!name) {
-      setError(tr("Enter the CSS font-family name shown in Adobe Fonts."));
-      return;
-    }
-    const { kitId, loading } = parsedAdobe;
-    if (fonts.some((f) => f.value === name && !doc.adobeFonts?.some((a) => a.family === name))) {
-      setError(tr("A font with this name is already registered from another provider."));
-      return;
-    }
-    if (doc.adobeFonts?.some((f) => f.kitId === kitId && f.family !== name && f.loading !== loading)) {
-      setError(tr("Fonts from the same Adobe Web Project must use the same loading method."));
-      return;
-    }
-    setError(null);
-    updateDoc((d) => {
-      d.adobeFonts = [...(d.adobeFonts ?? []).filter((f) => f.family !== name),
-        { family: name, kitId, loading }];
-    });
-    insp.set({ fontFamily: name });
-    setAdding(false);
-    setFamily("");
-    setAdobeEmbed("");
-  };
-
-  return (
-    <div className="stack" style={{ gap: 6 }}>
-      <div style={{ display: "flex", gap: 4 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <PropSelect
-            prop="fontFamily"
-            unsetLabel={tr("Inherited ({inheritedValue})", { inheritedValue })}
-            options={fonts.map((f) => ({
-              label: f.label,
-              value: f.value,
-              labelStyle: { fontFamily: `"${f.value}", sans-serif` },
-            }))}
-          />
-        </div>
-        <button
-          className={`icon-btn${adding ? " is-on" : ""}`}
-          data-tip={tr("Add a font")}
-          onClick={() => {
-            pending.cancel();
-            setAdding(!adding);
-          }}
-        >
-          <Plus size={13} />
-        </button>
-      </div>
-      {adding && (
-        <div className="stack" style={{ gap: 6 }}>
-          <div className="grid2">
-            {(["google", "adobe"] as const).map((source) => (
-              <button key={source} type="button"
-                className={`btn btn-sm${provider === source ? " is-on" : ""}`}
-                aria-pressed={provider === source}
-                onClick={() => { pending.cancel(); setError(null); setFamily(""); setProvider(source); }}>
-                {source === "google" ? "Google Fonts" : "Adobe Fonts"}
-              </button>
-            ))}
-          </div>
-          {provider === "adobe" && (
-            <>
-              <textarea className="input" rows={5}
-                aria-label={tr("Adobe Fonts embed code")}
-                value={adobeEmbed}
-                placeholder={'<script>\n  (function(d) {\n    var config = { kitId: "xxxxxxx", ... };\n  })(document);\n</script>'}
-                onChange={(e) => { setError(null); setAdobeEmbed(e.target.value); }}
-              />
-              <p className="hint" style={{ margin: 0 }}>
-                {tr("Paste the embed code copied from your Adobe Fonts Web Project. The code is parsed, never executed.")}
-              </p>
-              {parsedAdobe && (
-                <p className="hint" style={{ margin: 0 }} aria-live="polite">
-                  {tr("Web Project {kitId} detected ({method}).", {
-                    kitId: parsedAdobe.kitId,
-                    method: parsedAdobe.loading === "dynamic" ? "JavaScript" : "CSS",
-                  })}
-                </p>
-              )}
-              {adobeEmbed.trim() && !parsedAdobe && (
-                <p className="hint" style={{ margin: 0, color: "var(--danger)" }} role="status">
-                  {tr("Could not identify one Adobe Fonts Web Project in the pasted code.")}
-                </p>
-              )}
-            </>
-          )}
-          <input className="input" value={family}
-            aria-label={tr("Font family")}
-            placeholder={provider === "google"
-              ? tr("Name on fonts.google.com (e.g. Playfair Display)")
-              : detectedFamily ?? tr("CSS font-family (e.g. poprumcute)")}
-            onChange={(e) => { pending.cancel(); setError(null); setFamily(e.target.value); }}
-            onKeyDown={(e) => {
-              if (isEnterKey(e)) {
-                if (provider === "google") void addFont();
-                else addAdobeFont();
-              }
-            }}
-          />
-          {provider === "adobe" && (
-            <p className="hint" style={{ margin: 0 }}>
-              {tr("Paste the CSS font-family declaration from Adobe, or enter its family name. If included in the embed text, it is detected automatically.")}
-            </p>
-          )}
-          <button type="button" className="btn btn-sm"
-            disabled={provider === "google" && busy}
-            onClick={() => { if (provider === "google") void addFont(); else addAdobeFont(); }}>
-            {provider === "google" && busy ? tr("Checking…") : tr("Add")}
-          </button>
-          {error && (
-            <p className="hint" style={{ margin: 0, color: "var(--danger)" }}>{error}</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+import { FontPicker } from "./FontPicker";
 
 /* ---------- テキスト ---------- */
 

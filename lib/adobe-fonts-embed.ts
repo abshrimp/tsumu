@@ -46,3 +46,12 @@ export function parseAdobeEmbed(source: string): AdobeEmbed | null {
   return projects.every((project) =>
     project.kitId === first.kitId && project.loading === first.loading) ? first : null;
 }
+
+/** Read the project ID from a short ID, a hosted CSS/JS URL, or Adobe's supplied snippet. */
+export function parseAdobeKitInput(source: string): AdobeEmbed | null {
+  const input = source.trim();
+  if (/^[a-z0-9]{7}$/.test(input)) return { kitId: input, loading: "css" };
+  const url = /^https:\/\/use\.typekit\.net\/([a-z0-9]{7})\.(css|js)(?:\?[^\s<>]*)?$/.exec(input);
+  if (url) return { kitId: url[1], loading: url[2] === "js" ? "dynamic" : "css" };
+  return parseAdobeEmbed(input);
+}

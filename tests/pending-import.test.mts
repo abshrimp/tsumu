@@ -250,7 +250,7 @@ function fontFixture() {
   const ui = importCallbacks("font");
   const render = () => elements(ui.render({ inheritedValue: "Arial" }));
   render().find((e) => e.props?.["data-tip"] === "Add a font").props.onClick();
-  render().find((e) => e.type === "input").props.onChange({ target: { value: "New Font" } });
+  render().find((e) => e.type === "input" && e.props.type === "search").props.onChange({ target: { value: "New Font" } });
   render().find((e) => e.type === "button" && e.props?.children === "Add").props.onClick();
   render();
   return { work, ui, render, close: () => { ui.unmount(); globalThis.fetch = oldFetch; } };
@@ -278,7 +278,7 @@ test("closing or editing a pending font request leaves styles and font registrat
     const f = fontFixture();
     try {
       if (change === "close") f.render().find((e) => e.props?.["data-tip"] === "Add a font").props.onClick();
-      if (change === "edit") f.render().find((e) => e.type === "input").props.onChange({ target: { value: "Different Font" } });
+      if (change === "edit") f.render().find((e) => e.type === "input" && e.props.type === "search").props.onChange({ target: { value: "Different Font" } });
       if (change === "unmount") f.ui.unmount();
       if (change === "external") { state().setStyleProps("a", { fontFamily: "Arial" }); f.render(); }
       const before = structuredClone(state().doc);
