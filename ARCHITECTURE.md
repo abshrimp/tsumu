@@ -50,7 +50,7 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 | Area | Files |
 |---|---|
 | Editor state, undo/redo | `lib/store.ts` (zustand). Every change goes through the store, so that undo and sync both see it. |
-| Canvas and panels | `components/Canvas.tsx` and `canvas/` (CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`)<br>`LeftPanel.tsx` and `left-panel/` (one file per tab)<br>`StylePanel.tsx` and `style-panel/` (one file per section)<br>`ScriptEditor.tsx` and `script-editor/` (palette, blocks, step bodies, inputs, `useStepDrag`, `useEditorKeys`)<br>`SitePanel.tsx` |
+| Canvas and panels | `components/Canvas.tsx` and `canvas/` (CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`, `useHtmlPreview`)<br>`LeftPanel.tsx` and `left-panel/` (one file per tab), `PagePanel.tsx`<br>`RightPanel.tsx`, `StylePanel.tsx` and `style-panel/` (one file per section), `SettingsPanel.tsx`, `MotionEditors.tsx`<br>`ScriptEditor.tsx` and `script-editor/` (palette, blocks, step bodies, inputs, `useStepDrag`, `useEditorKeys`)<br>`SitePanel.tsx`, `Comments.tsx`, `ViewerHeader.tsx` |
 | Style model → CSS | `lib/style.ts`, `lib/breakpoints.ts`, `lib/motion.ts`, `lib/keyframes.ts` |
 | Generator | `lib/generator.ts`. `generateProject(doc, target)` returns the Next.js project as `{ files, binaries, remoteAssets }`. Its parts live in `lib/generator/`: `names.ts`, `css.ts`, `render.ts` (with `render-helpers.ts`), `page.ts`, `head.ts`, `templates.ts`. |
 | Output formats | `lib/export-formats.ts` and the rest of `lib/generator/`. See [Output formats](#output-formats). |
@@ -62,7 +62,7 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 | Collaboration | `custom-worker.ts`: one WebSocket Durable Object per site generation<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
 | AI | `lib/ai/` (providers, prompt, streaming); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client) |
 | Comments, activity | `lib/comments.ts`, `lib/comment-store.ts`, `lib/activity.ts` |
-| Auth | `auth.ts`, `proxy.ts`, `lib/allowlist.ts`. Without `AUTH_*`, the editor opens only under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
+| Auth | `auth.ts`, `proxy.ts`, `lib/allowlist.ts` (`editor` and `viewer` roles). Without `AUTH_*`, the editor opens only on loopback hosts under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
 | i18n | `lib/i18n.ts`. Source strings are English, wrapped in `tr("…")`. Japanese translations are in `lib/locales/ja.ts`. |
 | Help and tutorial | `lib/manualTopics.ts`, `components/HelpCenter.tsx`, `HelpFigures.tsx`, `Tutorial.tsx` |
 

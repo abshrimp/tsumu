@@ -62,6 +62,7 @@ Example structure:
 
 ```json
 {
+  "schemaVersion": 1,
   "siteName": "My Site",
   "lang": "ja",
   "pages": {
@@ -100,7 +101,7 @@ Every page object requires `id`, `name`, `slug`, `title`, `description`, and `ch
 - `slug: ""` means the home page; `"about"` means `/about`, `"blog/post"` means `/blog/post`.
 - `children` is an ordered array of **node IDs**, not embedded node objects.
 - Optional metadata: `query` (query string without `?`), `lang`, `bodyStyles`, `htmlBackground`, `noindex`, `unpublished`, `folderId`, `ogImage`, `customTopHtml`, `customEndHtml`.
-- `pageScripts` holds event scripts targeting the page (including `trigger: "load"`); `scripts` holds detached scripts.
+- `pageScripts` holds scripts targeting the page (such as `trigger: "load"` and variable-watching `trigger: "change"` scripts). Detached scripts exist only in editor memory and are never saved in `SiteDoc`.
 - Do not use `rawHtml` for a visual page: setting `rawHtml` turns it into a raw HTML page, not an element-based editable page.
 - `redirectTo` and `rewriteTo` produce redirect/proxy pages, not visual content.
 
@@ -172,7 +173,7 @@ Their node trees reside in `doc.nodes`. To place one, use an `instance` node wit
 
 ## Scripts
 
-`Script` has `id`, `trigger`, and `steps`. Element-triggered scripts live in the element's `scripts`; "when the page opens" and variable-change scripts live in the page's `pageScripts`. Trigger values: `click`, `hover-start`, `hover-end`, `change`, `load`, `in-view`.
+`Script` has `id`, `trigger`, `steps`, and (for variable-watching page scripts with `trigger: "change"`) `changeVariable`. Element-triggered scripts live in the element's `scripts`; "when the page opens" and variable-change scripts live in the page's `pageScripts`. Trigger values: `click`, `hover-start`, `hover-end`, `change`, `load`, `in-view`.
 
 A simple page-load script:
 
@@ -186,7 +187,7 @@ A simple page-load script:
 }
 ```
 
-Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; the valid kinds are `show`, `hide`, `toggle`, `set-state`, `open-page`, `open-url`, `scroll-to`, `set-value`, `set-enabled`, `list-display`, `store-save`, `store-load`, `set-var`, `transform`, `copy`, `wait`, `repeat`, `for-each`, `fetch`, and `if`. Value operations such as arithmetic, replacing text, filtering and sorting are `transform` recipes ([`script-model/compose.ts`](script-model/compose.ts)), not step kinds. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** A fetch directly under a page's load trigger runs before rendering on the server. Fetch steps elsewhere execute in the browser at runtime, require CORS for remote APIs, and delay subsequent steps until complete.
+Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; the valid kinds are `show`, `hide`, `toggle`, `set-state`, `open-page`, `open-url`, `scroll-to`, `dialog`, `set-value`, `set-enabled`, `list-display`, `store-save`, `store-load`, `set-var`, `set-list-item`, `remove-list-item`, `transform`, `copy`, `wait`, `repeat`, `for-each`, `break-loop`, `fetch`, and `if`. Value operations such as arithmetic, replacing text, and sorting are `transform` recipes ([`script-model/compose.ts`](script-model/compose.ts)), not step kinds. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** A fetch directly under a page's load trigger runs before rendering on the server. Fetch steps elsewhere execute in the browser at runtime, require CORS for remote APIs, and delay subsequent steps until complete.
 
 ## Assets and packaging
 
@@ -218,13 +219,13 @@ An asset definition must include `id`, `name`, `width`, `height`, and optionally
 }
 ```
 
-An image node must use the exact same `assetId: "asset_logo"`. The ZIP asset map (`_tsumu/assets.json`) explicitly maps the ID to a safe relative archive path:
+An image node must use the exact same `assetId: "asset_logo"`. The ZIP asset map (`_tsumu/assets.json`) is required whenever `doc.assets` contains packaged files and explicitly maps every asset ID to a safe relative archive path:
 
 ```json
 { "version": 1, "assets": { "asset_logo": "public/assets/logo.svg" } }
 ```
 
-The map is optional for imports that use Tsumu's deterministic `buildAssetNames()` convention, but **include it** for AI-generated ZIPs so the files match exactly. Keep original asset IDs stable. Do not put filenames or filesystem paths in `assetId`. Do not invent a Tsumu server-side `path` for locally bundled assets.
+Keep original asset IDs stable. Do not put filenames or filesystem paths in `assetId`. Do not invent a Tsumu server-side `path` for locally bundled assets.
 
 For a standalone JSON, fully embedded data-URL assets can be represented via `dataUrl` with matching asset metadata, subject to the JSON size and browser storage limits.
 

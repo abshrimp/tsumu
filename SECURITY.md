@@ -27,7 +27,7 @@ Keep these points in mind when you run Tsumu.
 ### Who can do what
 
 - **Set up Google sign-in and an email allowlist** for any editor reachable from the internet.
-- **Every allowed account is a fully trusted editor.** It can access all sites, publish, and manage accounts. There are no per-site roles.
+- **Roles apply across the entire instance; there are no per-site roles.** Accounts in `ALLOWED_EMAILS` and accounts given the **Editor** role can edit all sites, publish, and manage accounts. Accounts given **View only** access can sign in and view all sites' saved content, comments, and assets in read-only mode, without editing, publishing, or account-management permissions.
 - **Removing an account does not clear its browser cache.** Uploaded files are cached privately in the browser for up to a year (their paths never change), so a removed editor can still view files they already opened.
 - **`ALLOW_ANONYMOUS=true` gives those same capabilities to everyone** who can reach the editor. Keep demos isolated from production data and from GitHub publishing tokens.
 - **`npm run dev` without sign-in answers only `localhost`.** Requests addressed to any other host name get 403, so a web page can't reach your local editor by pointing its own domain at your machine (DNS rebinding). Setting `ALLOW_ANONYMOUS=true` lifts this restriction.

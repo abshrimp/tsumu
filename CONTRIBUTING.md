@@ -21,7 +21,7 @@ Local development needs no API keys. Keep your environment variables in `.env.lo
 ## Making a change
 
 - **Keep each pull request focused** on one problem, and explain the behavior that results.
-- **Add a regression test** when you change behavior. Unit tests go in `tests/`, browser tests in `e2e/`.
+- **Add a regression test** when you change behavior. Unit tests go in `tests/`, browser tests in `e2e/` (see [`e2e/README.md`](e2e/README.md)).
 - **Use English source strings in `tr()`. Code comments may be in English or Japanese.** Japanese translations in `lib/locales/ja.ts` are welcome but **not required for a PR**. Missing translations fall back to English and are reported as CI warnings. New languages only need a dictionary file.
 - **Keep the types, the editor, the generated code and the tests in agreement** about Tsumu's data model and runtime behavior.
 - **Preserve user-authored files when publishing a site.** `_tsumu/` is reserved for Tsumu's document and publish manifests.

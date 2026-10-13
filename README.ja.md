@@ -85,7 +85,7 @@ Tsumu から公開（push）するには、公開先の GitHub リポジトリ�
 
 - [詳細ガイド](docs/user-guide.ja.md) · [English](docs/user-guide.md)
 - [設計](ARCHITECTURE.ja.md) · [環境変数](.env.example)
-- [コントリビュート](CONTRIBUTING.ja.md) · [セキュリティ](SECURITY.ja.md) · [行動規範](CODE_OF_CONDUCT.md)
+- [コントリビュート](CONTRIBUTING.ja.md) · [セキュリティ](SECURITY.ja.md) · [行動規範](CODE_OF_CONDUCT.md)（英語）
 
 ## ライセンス
 

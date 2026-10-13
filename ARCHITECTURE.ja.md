@@ -50,7 +50,7 @@
 | 領域 | ファイル |
 |---|---|
 | エディタの状態、元に戻す・やり直す | `lib/store.ts`（zustand）。すべての変更がストアを経由するため、どの変更も元に戻す履歴と同期の両方に反映されます。 |
-| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）<br>`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイル）<br>`ScriptEditor.tsx` と `script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx` |
+| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`、`useHtmlPreview`）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）、`PagePanel.tsx`<br>`RightPanel.tsx`、`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイル）、`SettingsPanel.tsx`、`MotionEditors.tsx`<br>`ScriptEditor.tsx` と `script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx`、`Comments.tsx`、`ViewerHeader.tsx` |
 | スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts` |
 | 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が Next.js プロジェクトを `{ files, binaries, remoteAssets }` として返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
 | 出力形式 | `lib/export-formats.ts` と、`lib/generator/` のその他のファイル。詳細は [出力形式](#出力形式) を参照してください。 |
@@ -58,11 +58,11 @@
 | インポート | `lib/import-site-file.ts`（ファイルからのサイト作成）、`lib/site-import.ts`（Tsumu の zip と `doc.json`）、`lib/portable-doc.ts`（圧縮形式の `doc.json`）、`lib/html-to-site.ts` と `html-file-import.ts`・`html-zip.ts`（HTML）。詳細は [インポート](#インポート) を参照してください。 |
 | 公開前チェック | `lib/generator/checks.ts` の `runChecks`。リンク切れ、代替テキスト、見出しの順序、小さすぎる文字、レイアウトのはみ出しを検査します。 |
 | 保存 | `document-room.ts`・`lib/structured-document-store.ts`：サイトの作成世代ごとに1つの SQLite 対応 Durable Object を使い、ページ・要素などを個別の行に保存<br>`lib/site-document-service.ts`：Cloudflare と Node.js の保存先の振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node.js・Docker 用の SQLite<br>`lib/kv.ts`：アセットの本体<br>`lib/local-storage.ts`：ブラウザへの保存 |
-| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](docs/asset-gc.md)）。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、削除待ちの候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
+| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](docs/asset-gc.md)（英語））。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、削除待ちの候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
 | 同時編集 | `custom-worker.ts`：サイトの作成世代ごとに独立した、WebSocket 用の Durable Object<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker における Server-Sent Events<br>`lib/collab.ts`：送受信するメッセージ<br>`lib/merge.ts`：3方向マージ。ノードの ID で照合し、次に項目の単位で照合します。配列は全体を1つの値として扱います。 |
 | AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数） |
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |
-| 認証 | `auth.ts`、`proxy.ts`、`lib/allowlist.ts`。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` の実行時か `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
+| 認証 | `auth.ts`、`proxy.ts`、`lib/allowlist.ts`（`editor` と `viewer` の権限）。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` でのループバック宛てのアクセスか `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
 | 多言語対応 | `lib/i18n.ts`。原文は英語で記述し、`tr("…")` で囲みます。日本語訳は `lib/locales/ja.ts` に配置します。 |
 | ヘルプとチュートリアル | `lib/manualTopics.ts`、`components/HelpCenter.tsx`、`HelpFigures.tsx`、`Tutorial.tsx` |
 

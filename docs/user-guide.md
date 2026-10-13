@@ -22,7 +22,7 @@ Hosting (your choice)
 
 There are three moving parts:
 
-- **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded images, video and audio. Uploads are shared by all sites. Where all of this is stored depends on where the editor runs.
+- **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded assets (images, video, audio, custom fonts, and imported HTML ZIP files). Uploads are shared by all sites. Where all of this is stored depends on where the editor runs.
 - **The published site** is an ordinary Next.js app (or one of the other [output formats](#output-formats)), committed to that site's own repository. It does **not** have to run where the editor runs.
 - **Test publishing** commits to a second branch of the same repository (`preview` by default). Vercel, Netlify and Cloudflare Workers Builds can build non-production branches as previews, so one hosting project covers both the live and the test site (on Netlify and Workers Builds, turn this on first; see [Hosting the published site](#hosting-the-published-site)). The test build is kept out of search engines with robots.txt, `noindex`, the `X-Robots-Tag` header and crawler blocking.
 
@@ -32,8 +32,8 @@ Local development works with no environment variables. In production, configure 
 
 | Setting | Without it | With it |
 |---|---|---|
-| Server storage (D1, Durable Objects and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and images are saved in the browser. Only that browser can see them, and each image is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each image can be up to 25 MB. |
-| Google sign-in (`AUTH_*`) | Local development accepts anonymous requests addressed to loopback hosts. Production requires sign-in unless you explicitly set `ALLOW_ANONYMOUS=true`. | Only the Google accounts you allow can use the editor. |
+| Server storage (D1, Durable Objects and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and uploaded files are saved in the browser. Only that browser can see them, and each file is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each file can be up to 25 MB. |
+| Google sign-in (`AUTH_*`) | Local development accepts anonymous requests addressed to loopback hosts. Production requires sign-in unless you explicitly set `ALLOW_ANONYMOUS=true`. | Only the Google accounts you allow can sign in (with **Editor** or **View only** access). |
 | `GITHUB_TOKEN` | **Publish** explains what to set up. Exporting code as a zip still works. | Publishes to the repository set in each site's settings. |
 | `AI_*` | No **Ask AI** button. | **Ask AI** is available. |
 
@@ -90,7 +90,7 @@ On Cloudflare, files in Trash count toward storage usage. Automatic deletion is 
 
 Sign-in turns on once `AUTH_SECRET`, `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are all set. Also set `AUTH_URL` to the editor's URL.
 
-Accounts listed in `ALLOWED_EMAILS` can always sign in. To allow more accounts, go to the home screen and open **Settings → Accounts that can sign in** (this needs server storage).
+Accounts listed in `ALLOWED_EMAILS` always sign in as **Editors**. To allow more accounts (either as **Editors** or **View only**), go to the home screen and open **Settings → Accounts that can sign in** (this needs server storage).
 
 #### GitHub token
 
@@ -408,10 +408,10 @@ All variables are optional (see [What you need](#what-you-need)).
 | Variable | Description |
 |---|---|
 | `AUTH_SECRET` | Session secret. Generate one with `npx auth secret`. |
-| `ALLOW_ANONYMOUS` | `true` lets the editor open without sign-in when Google sign-in isn't set up (not needed under `npm run dev`). Anyone with the URL can then edit and publish, so use it only locally or for a demo. |
+| `ALLOW_ANONYMOUS` | `true` lets the editor open without sign-in on non-loopback hosts and in production when Google sign-in isn't set up (loopback hosts under `npm run dev` open without it). Anyone with the URL can then edit and publish, so use it only locally or for a demo. |
 | `AUTH_URL` | The editor's URL in production, e.g. `https://tsumu.example.com` |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth client |
-| `ALLOWED_EMAILS` | Google accounts that can always sign in, comma-separated. These can't be removed in the UI. Manage additional accounts under **Settings** on the home screen. |
+| `ALLOWED_EMAILS` | Google accounts that always sign in as **Editors**, comma-separated. These can't be removed or downgraded in the UI. Manage additional **Editor** or **View only** accounts under **Settings** on the home screen. |
 | `GITHUB_TOKEN` | Token with Contents: Read and write on every repository you publish to (shared by all sites) |
 | `AI_ENABLED` | `true` to turn on Ask AI |
 | `AI_PROVIDER` | `anthropic` (default), `gemini`, `openai` or `openai-compatible` |
@@ -441,7 +441,7 @@ Where to put them:
 | SQLite-backed Durable Object row | 8 MB per value | Page, node, component and asset JSON entries are stored independently; Tsumu limits each stored entry to 7 MB. |
 | KV | 1 GB total, 25 MB per file, 1,000 writes per day | All sites share this storage. The Assets tab shows the total for all sites. |
 | KV consistency | Eventual | A new upload can take a few seconds to appear everywhere. |
-| GitHub API | 5,000 requests per hour | One publish uses anywhere from a few to a dozen or so. |
+| GitHub API | 5,000 requests per hour | One publish uses anywhere from a dozen or fewer requests. |
 
 ### Sites
 
@@ -471,7 +471,7 @@ Where to put them:
 **Activity and access**
 
 - The activity log records the latest time each person edited and published. Without Google sign-in, everyone appears as a single guest.
-- Removing an account from the allowlist blocks its existing sessions from the next API request onward. Open collaboration connections check permission again before reading, writing or receiving further updates.
+- Changing an account's role to **View only** or removing it from the allowlist takes effect from the next API request onward. Open collaboration connections re-check permission before reading, writing or receiving further updates.
 
 ### Editor and export
 
@@ -537,7 +537,7 @@ scripts/cloudflare.mjs  Writes the deploy wrangler config and runs OpenNext
 ```bash
 npm run typecheck      # tsc --noEmit
 npm test               # regression tests for collaboration, undo, scripts, publishing and more
-npm run i18n:check     # translation warnings; use -- --strict ja to enforce Japanese coverage
+npm run i18n:check -- --all   # non-blocking translation warnings (optional strict check: -- --strict ja)
 npm run build && npm run test:e2e   # end-to-end tests in real browsers (Playwright; first run: npx playwright install chromium firefox webkit)
 ```
 
@@ -556,7 +556,7 @@ Tsumu uses English source strings as translation keys (`tr("Save")`). Japanese t
 
 1. Add `lib/locales/<BCP-47>.ts` with a default-exported `Dict` mapping English keys to translations. For instance, `fr.ts` can export `{ Save: "Enregistrer" }`. Partial dictionaries are supported.
 2. Run `npm run dev` or `npm run build`. The language picker and lazy dictionary loader are generated automatically from file names; **do not edit** `lib/lang.ts` or `lib/locales/index.ts`. Language labels are generated using the native language display name.
-3. Run `npm run i18n:check -- fr` to report missing entries without failing. `npm run i18n:check -- --strict fr` makes missing translations a failing check; `npm run i18n:check -- --all` reports every registered dictionary. CI enforces complete Japanese translations with `--strict ja` but permits partially translated new languages.
+3. Run `npm run i18n:check -- fr` to report missing entries without failing. `npm run i18n:check -- --strict fr` makes missing translations a failing check; `npm run i18n:check -- --all` reports every registered dictionary. CI runs `npm run i18n:check -- --all` as non-blocking warnings so untranslated strings fall back to English without blocking pull requests.
 
 The generation also runs before `typecheck`, `test` and `build:worker` (`test:e2e` relies on the `npm run build` that precedes it). If you run a tool directly rather than through npm, run `npm run locales:sync` first. `en` is reserved for the built-in English source strings; it needs no `en.ts` file.
 
