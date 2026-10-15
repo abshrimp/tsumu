@@ -24,7 +24,7 @@ import type { SiteDoc } from "../lib/types";
 import { detectSvgFilters } from "../lib/assets";
 import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
 import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
-import { validateImportedDoc, IMPORT_LIMITS } from "../lib/site-import";
+import { validateImportedDoc, IMPORT_LIMITS } from "../lib/site-import-format";
 import type { PublishTarget } from "../lib/generator";
 import { exportLimitations, prepareExportProject } from "../lib/export-formats";
 import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/generator/export-options";
@@ -75,7 +75,7 @@ export function CheckList({ checks, onClose }: { checks: CheckResult[]; onClose:
   }
   return (
     <ul className="check-list">
-      {[...checks].sort((a, b) => Number(b.level === "warn") - Number(a.level === "warn")).map((c, i) => (
+      {checks.toSorted((a, b) => Number(b.level === "warn") - Number(a.level === "warn")).map((c, i) => (
         <li key={i} className={c.level === "error" ? "is-error" : ""}>
           <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
           <span>{c.message}</span>

@@ -213,7 +213,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           `CREATE INDEX IF NOT EXISTS comment_messages_thread ON comment_messages (site_id, thread_id, at, id)`,
           // 文書の保存先を使う前に、スキーマのバージョンを確かめる。
           `CREATE TABLE IF NOT EXISTS storage_schema (name TEXT PRIMARY KEY, version INTEGER NOT NULL)`,
-          `INSERT OR IGNORE INTO storage_schema(name,version) VALUES('main',1)`,
+          `INSERT OR IGNORE INTO storage_schema(name,version) VALUES('main',2)`,
           // ローカルの SQLite では、任意の曜日ごとのバックアップを持つ。
           ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS site_backups (
             site_id TEXT NOT NULL,
@@ -226,15 +226,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
       )
       .then(async () => {
         const rows = await binding.prepare("SELECT version FROM storage_schema WHERE name='main'").all();
-        const version = Number(rows.results?.[0]?.version);
-        if (version === 1) {
-          // One-time migration. Existing account grants become editor permissions.
-          const columns = await binding.prepare("PRAGMA table_info(allowed_emails)").all();
-          if (!columns.results.some((column) => column.name === "role")) {
-            await binding.prepare("ALTER TABLE allowed_emails ADD COLUMN role TEXT NOT NULL DEFAULT 'editor' CHECK (role IN ('editor', 'viewer'))").all();
-          }
-          await binding.prepare("UPDATE storage_schema SET version=2 WHERE name='main' AND version=1").all();
-        } else if (version !== 2) {
+        if (Number(rows.results?.[0]?.version) !== 2) {
           throw new Error("Unsupported storage schema");
         }
       })

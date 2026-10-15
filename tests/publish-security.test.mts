@@ -5,7 +5,7 @@ import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security"
 import { fetchRequestOf } from "../lib/fetch-request";
 import { validSiteDoc } from "../lib/doc-tree";
 import { exportLimitations } from "../lib/export-formats";
-import { validateImportedDoc } from "../lib/site-import";
+import { validateImportedDoc } from "../lib/site-import-format";
 
 const siteWithFetch = (url: string, headers?: { name: string; value: string }[], body?: string) => {
   const doc = createInitialDoc();

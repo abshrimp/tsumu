@@ -6,7 +6,6 @@ import { cachedSvgEffect, cacheSvgEffect, type SvgEffectAnalysis } from "./svg-a
 import { CSS_ASSET_ATTRIBUTES, replaceCssAssetUrls, rewriteCssAssetUrls } from "./css-assets";
 import { zipAssetClosure, zipCssPreviewUrls, zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
 import { assetMediaUrl } from "./media-url";
-export { assetMediaUrl } from "./media-url";
 import { appendAssetSuffix } from "./zip-references";
 import type { Asset, SiteDoc } from "./types";
 import { genId } from "./presets";
@@ -287,8 +286,6 @@ export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit)
     }
   }
 }
-
-export { isEmbeddedAssetUrl } from "./site-import-format";
 
 /** アセットの表示用の URL */
 export function assetSrc(asset: Asset): string {

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import JSZip from "jszip";
-import { HTML_ZIP_LIMITS, inspectHtmlZip, readZipEntryLimited } from "../lib/html-zip-guard";
+import { HTML_ZIP_LIMITS, inspectHtmlZip } from "../lib/html-zip-guard";
+import { readZipEntryLimited } from "../lib/zip-stream";
 import { readHtmlZip } from "../lib/html-zip";
 
 async function reopen(zip: JSZip): Promise<JSZip> {

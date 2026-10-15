@@ -83,7 +83,9 @@ export function startImageInsertion(
       }
       // ドラッグでの編集の履歴には混ぜない。終了の通知の後の microtask で、現在の文書に配置する。
       while (!cancelled && place && useEditor.getState().gestureActive) {
-        await new Promise<void>((resolve) => { wakePlacement = resolve; });
+        const { promise, resolve } = Promise.withResolvers<void>();
+        wakePlacement = resolve;
+        await promise;
         wakePlacement = undefined;
       }
     } catch (error) {

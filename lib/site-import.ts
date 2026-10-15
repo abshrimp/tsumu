@@ -1,11 +1,11 @@
 import { tr } from "./i18n";
 import { rebindImportedAssetUrls } from "./imported-asset-urls";
 import { sanitizeImportedInlineIcons } from "./imported-svg";
-import { IMPORT_LIMITS, isImportObject, validateImportedDoc } from "./site-import-format";
+import { IMPORT_LIMITS, isEmbeddedAssetUrl, isImportObject, validateImportedDoc } from "./site-import-format";
 import type JSZip from "jszip";
 import { openImportZip, zipEntrySize } from "./zip-directory";
 import type { SiteDoc } from "./types";
-import { isEmbeddedAssetUrl, uploadStaticAsset } from "./assets";
+import { uploadStaticAsset } from "./assets";
 import { decodePortableDoc } from "./portable-doc";
 import { readZipEntryLimited, ZipEntryTooLargeError } from "./zip-stream";
 
@@ -23,8 +23,6 @@ interface SiteImport {
   assets: Map<string, Uint8Array>;
   warnings: string[];
 }
-
-export { IMPORT_LIMITS, validateImportedDoc } from "./site-import-format";
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
 

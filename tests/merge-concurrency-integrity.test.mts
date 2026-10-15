@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mergeDocs } from "../lib/merge";
 import { makeBox } from "../lib/presets";
-import { validateImportedDoc } from "../lib/site-import";
+import { validateImportedDoc } from "../lib/site-import-format";
 import { validNodeForest } from "../lib/doc-tree";
 import type { SiteDoc } from "../lib/types";
 

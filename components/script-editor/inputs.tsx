@@ -142,7 +142,7 @@ function VarTextIn({
       names: [...item, ...available.filter((n) => !item.includes(n) && canPickVariable(lookupVar(raw, n), valueContext))],
       samples: {
         ...Object.fromEntries(Object.entries(varSamplesAt(doc, pageId, nodeId)).filter(([name]) => !item.some((n) => n.split(".")[0] === name.split(".")[0]))),
-        ...Object.assign({}, ...[...loops].reverse().map((l) => l.samples)),
+        ...Object.assign({}, ...loops.toReversed().map((l) => l.samples)),
         ...itemSamples,
       },
       extra: made.filter((n) => !item.includes(n)),

@@ -1,7 +1,6 @@
 "use client";
 
 import { assetUsage } from "../../lib/asset-usage";
-export { assetUsage } from "../../lib/asset-usage";
 
 import { cssUsesAssetUrl } from "@/lib/css-assets";
 

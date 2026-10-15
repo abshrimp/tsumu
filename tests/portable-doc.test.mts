@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialDoc } from "../lib/presets";
 import { decodePortableDoc, PORTABLE_DOC_FORMAT, serializePortableDoc } from "../lib/portable-doc";
-import { IMPORT_LIMITS, parseSiteImport } from "../lib/site-import";
+import { parseSiteImport } from "../lib/site-import";
+import { IMPORT_LIMITS } from "../lib/site-import-format";
 
 const encoder = new TextEncoder();
 const minimalDoc = () => ({

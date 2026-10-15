@@ -3,10 +3,8 @@ import { test } from "node:test";
 import JSZip from "jszip";
 import { createInitialDoc } from "../lib/presets";
 import { buildAssetNames } from "../lib/generator/names";
-import {
-  EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, IMPORT_LIMITS,
-  parseSiteImport, validateImportedDoc,
-} from "../lib/site-import";
+import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, parseSiteImport } from "../lib/site-import";
+import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { createSiteFromFile, importFileKind } from "../lib/import-site-file";
 
 const enc = new TextEncoder();

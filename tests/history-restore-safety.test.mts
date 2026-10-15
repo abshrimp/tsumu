@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { transformSync } from "esbuild";
 import { useEditor } from "../lib/store";
 import { readRestoreJson } from "../lib/publish-security";
-import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import";
+import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
 import { createInitialDoc, makeIcon } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";

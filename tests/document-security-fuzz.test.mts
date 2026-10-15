@@ -5,7 +5,8 @@ import { createDocPatch, applyDocPatch, applyDocPatchAtRevision, isDocPatch } fr
 import { codeLiteral } from "../lib/generator/code-literal";
 import { mergeDocs } from "../lib/merge";
 import { createInitialDoc } from "../lib/presets";
-import { parseSiteImport, validateImportedDoc } from "../lib/site-import";
+import { parseSiteImport } from "../lib/site-import";
+import { validateImportedDoc } from "../lib/site-import-format";
 import { safeNavigationUrl, safeResourceUrl, NAVIGATION_RUNTIME } from "../lib/url-policy";
 import { matchesValueCondition, setVarPath, withinScriptValueLimit } from "../lib/value-semantics";
 import type { SiteDoc } from "../lib/types";

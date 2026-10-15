@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialDoc, makeIcon } from "../lib/presets";
-import { parseSiteImport, validateImportedDoc } from "../lib/site-import";
+import { parseSiteImport } from "../lib/site-import";
+import { validateImportedDoc } from "../lib/site-import-format";
 import { sanitizeImportedInlineIcons, sanitizeImportedSvg } from "../lib/imported-svg";
 import { parseClipPayload } from "../lib/clip-transfer";
 

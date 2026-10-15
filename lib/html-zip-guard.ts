@@ -1,6 +1,6 @@
 import { tr } from "./i18n";
 import type JSZip from "jszip";
-import { IMPORT_LIMITS } from "./site-import";
+import { IMPORT_LIMITS } from "./site-import-format";
 import { checkZipRecordCount, zipEntrySize } from "./zip-directory";
 import { ZIP_CSS_LIMITS } from "./zip-css";
 
@@ -87,5 +87,3 @@ export function inspectHtmlZip(zip: JSZip): {
   }
   return { htmlEntries, htmlEntry, assetEntries: entries.filter((entry) => !/\.html?$/i.test(entry.name)) };
 }
-
-export { readZipEntryLimited } from "./zip-stream";

@@ -58,7 +58,6 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 
 const NODE_TYPES = new Set(["box", "image", "divider", "code", "instance", "icon", "field", "media", "embed", "list"]);
 const SEMANTICS = new Set(["auto", "form", "button", "div", "section", "header", "footer", "nav", "main", "article", "span", "custom"]);
-const FIELD_KINDS = new Set(["input", "textarea", "select", "checkbox", "radio", "file", "submit"]);
 
 /** 保存したエディタのデータの形は、キャンバスとコードの生成処理で扱えるものでなければならない。 */
 export function validStyleDefinitions(value: unknown): boolean {
@@ -81,23 +80,6 @@ export function validDocNodeShape(value: unknown): boolean {
   if (value.text != null && (!isObject(value.text) ||
       typeof value.text.content !== "string" || typeof value.text.heading !== "number" ||
       !Number.isInteger(value.text.heading) || value.text.heading < 0 || value.text.heading > 6)) return false;
-  if (value.link != null && (!isObject(value.link) || !["url", "page"].includes(value.link.kind as string) ||
-      (value.link.url != null && typeof value.link.url !== "string") ||
-      (value.link.pageId != null && typeof value.link.pageId !== "string"))) return false;
-  if (value.image != null && (!isObject(value.image) ||
-      typeof value.image.src !== "string" || typeof value.image.alt !== "string" ||
-      typeof value.image.width !== "number" || !Number.isFinite(value.image.width) ||
-      typeof value.image.height !== "number" || !Number.isFinite(value.image.height))) return false;
-  if (value.media != null && (!isObject(value.media) ||
-      !["audio", "video"].includes(value.media.kind as string) ||
-      typeof value.media.src !== "string")) return false;
-  if (value.icon != null && (!isObject(value.icon) ||
-      typeof value.icon.name !== "string" || typeof value.icon.svg !== "string")) return false;
-  if (value.code != null && (!isObject(value.code) || typeof value.code.html !== "string")) return false;
-  if (value.field != null && (!isObject(value.field) || !FIELD_KINDS.has(value.field.kind as string) ||
-      (value.field.options != null && (!Array.isArray(value.field.options) ||
-        !value.field.options.every(option => isObject(option) &&
-          typeof option.label === "string" && typeof option.value === "string"))))) return false;
   if (value.scripts != null && !validDocumentScripts(value.scripts)) return false;
   return validNodeAdditionalFields(value);
 }

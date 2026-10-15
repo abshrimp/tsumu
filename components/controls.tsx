@@ -428,7 +428,6 @@ export function NumField({
   useLayoutEffect(() => () => stopScrub.current?.(), []);
   const activeUnit = parsed ? parsed.unit : unit;
   const canCycle = units.length > 1;
-  const scrubbable = true;
 
   useEffect(() => {
     if (parsed && parsed.unit !== unit) setUnit(parsed.unit);
@@ -455,7 +454,6 @@ export function NumField({
   };
 
   const startScrub = (e: React.PointerEvent) => {
-    if (!scrubbable) return;
     stopScrub.current?.();
     const startX = e.clientX;
     const from = parsed ? undefined : scrubFrom?.();
@@ -466,6 +464,8 @@ export function NumField({
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
     let last = "";
+    const abort = new AbortController();
+    const { signal } = abort;
     const onMove = (ev: PointerEvent) => {
       if (ev.pointerId !== e.pointerId) return;
       if (!(ev.buttons & 1)) { finish(); return; }
@@ -489,11 +489,7 @@ export function NumField({
     const finish = () => {
       if (stopScrub.current !== finish) return;
       stopScrub.current = null;
-      target.removeEventListener("pointermove", onMove);
-      target.removeEventListener("pointerup", onEnd);
-      target.removeEventListener("pointercancel", onEnd);
-      target.removeEventListener("lostpointercapture", onEnd);
-      window.removeEventListener("blur", finish);
+      abort.abort();
       document.body.classList.remove("is-scrubbing");
       if (target.hasPointerCapture?.(e.pointerId)) target.releasePointerCapture(e.pointerId);
       finishGesture?.();
@@ -502,18 +498,18 @@ export function NumField({
       if (ev.pointerId === e.pointerId) finish();
     };
     stopScrub.current = finish;
-    target.addEventListener("pointermove", onMove);
-    target.addEventListener("pointerup", onEnd);
-    target.addEventListener("pointercancel", onEnd);
-    target.addEventListener("lostpointercapture", onEnd);
-    window.addEventListener("blur", finish);
+    target.addEventListener("pointermove", onMove, { signal });
+    target.addEventListener("pointerup", onEnd, { signal });
+    target.addEventListener("pointercancel", onEnd, { signal });
+    target.addEventListener("lostpointercapture", onEnd, { signal });
+    window.addEventListener("blur", finish, { signal });
   };
 
   return (
     <div className="field" data-tip={title}>
       {pre !== undefined && (
         <span
-          className={`field-pre${scrubbable ? " scrub" : ""}`}
+          className="field-pre scrub"
           onPointerDown={startScrub}
         >
           {pre}

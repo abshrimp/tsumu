@@ -3,7 +3,7 @@
  */
 
 import { fieldSubmissionAttributes, submissionAttributes, submissionProps } from "../imported-form";
-import { assetMediaUrl } from "../assets";
+import { assetMediaUrl } from "../media-url";
 import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import type { SiteDoc } from "../types";
 import { toggleShowDisplay } from "../style";

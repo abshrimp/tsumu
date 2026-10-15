@@ -88,9 +88,7 @@ if (assigned.files.length === 0) {
   process.exit(0);
 }
 // Playwright の位置引数は、ファイルのパスの正規表現になる。それぞれを固定し、エスケープする。
-const escapeRegex = (value) => Array.from(value, char =>
-  ".*+?^$()[]{}|\\".includes(char) ? "\\" + char : char).join("");
-const filters = assigned.files.map(file => escapeRegex(file) + "$");
+const filters = assigned.files.map(file => RegExp.escape(file) + "$");
 const child = spawnSync(command, ["--no-install", "playwright", "test", ...filters], { cwd: root, stdio: "inherit", env });
 if (child.error) throw child.error;
 process.exit(child.status || (child.signal ? 1 : 0));

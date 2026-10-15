@@ -1,6 +1,6 @@
 import { runChecks } from "../lib/generator/checks";
 import { fieldExpr, listItemsExpr } from "../lib/generator/render-helpers";
-import { setVarPath, compareValues, filterItems, filterConds } from "../lib/data";
+import { compareValues, filterItems, filterConds } from "../lib/data";
 import { createInitialDoc } from "../lib/presets";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -8,7 +8,7 @@ import { generateExportProject } from "../lib/export-formats";
 import { toSingleHtmlProject } from "../lib/generator/single-html";
 import { nativeDataModule } from "../lib/generator/native-data";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
-import { matchesValueCondition } from "../lib/value-semantics";
+import { matchesValueCondition, setVarPath } from "../lib/value-semantics";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 

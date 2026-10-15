@@ -3,7 +3,7 @@ import { test } from "node:test";
 import vm from "node:vm";
 import { nativeDataModule } from "../lib/generator/native-data";
 import { PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
-import { setVarPath } from "../lib/data";
+import { setVarPath } from "../lib/value-semantics";
 
 type Loader = (plan: unknown, search: string, fetcher: (url: string) => Promise<Response>) => Promise<Record<string, unknown>>;
 

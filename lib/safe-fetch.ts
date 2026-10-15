@@ -38,9 +38,9 @@ function isPrivateIPv4([a, b, c]: number[]): boolean {
 
 function isPrivateIPv6(addr: string): boolean {
   // DNS が返す省略形やゼロ埋めの表記も、URL と同じ形にして判定する。
-  let a: string;
-  try { a = new URL(`http://[${addr}]/`).hostname.slice(1, -1); }
-  catch { return true; }
+  const parsed = URL.parse(`http://[${addr}]/`);
+  if (!parsed) return true;
+  const a = parsed.hostname.slice(1, -1);
   const [first, second] = a.split(":").map(part => parseInt(part || "0", 16));
   // グローバルユニキャストは 2000::/3。2::1 のような省略した小さい値のアドレスが、
   // 公開のプレフィックスの文字列の先頭に一致しないよう、16ビットごとの値で判定する。

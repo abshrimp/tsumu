@@ -48,21 +48,21 @@ export function closeDialog(id: number) {
 
 /** お知らせ（OK だけ） */
 export function showAlert(message: string, opts: DialogOptions = {}): Promise<void> {
-  return new Promise((resolve) =>
-    push({ id: nextId++, kind: "alert", message, opts, resolve })
-  );
+  const { promise, resolve } = Promise.withResolvers<void>();
+  push({ id: nextId++, kind: "alert", message, opts, resolve });
+  return promise;
 }
 
 /** 確認（OK = true / キャンセル = false） */
 export function showConfirm(message: string, opts: DialogOptions = {}): Promise<boolean> {
-  return new Promise((resolve) =>
-    push({ id: nextId++, kind: "confirm", message, opts, resolve })
-  );
+  const { promise, resolve } = Promise.withResolvers<boolean>();
+  push({ id: nextId++, kind: "confirm", message, opts, resolve });
+  return promise;
 }
 
 /** 文字の入力（キャンセル = null） */
 export function showPrompt(message: string, opts: PromptOptions = {}): Promise<string | null> {
-  return new Promise((resolve) =>
-    push({ id: nextId++, kind: "prompt", message, opts, resolve })
-  );
+  const { promise, resolve } = Promise.withResolvers<string | null>();
+  push({ id: nextId++, kind: "prompt", message, opts, resolve });
+  return promise;
 }

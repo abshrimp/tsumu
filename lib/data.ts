@@ -198,7 +198,7 @@ export function applyList(
       continue;
     } else {
       const dir = o.dir === "desc" ? -1 : 1;
-      out = [...out].sort(
+      out = out.toSorted(
         (a, b) => compareValues(keyOfItem(a, o.field), keyOfItem(b, o.field)) * dir
       );
     }
@@ -1262,8 +1262,6 @@ export function previewDataVars(
   }
   return out;
 }
-
-export { setVarPath } from "./value-semantics";
 
 /** {名前} で書ける変数だけにする（「#」で始まる内部の変数を除く） */
 function namedVars(vars: Record<string, unknown>): Record<string, unknown> {

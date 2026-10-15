@@ -1,5 +1,5 @@
 import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
-import { assetMediaUrl } from "../assets";
+import { assetMediaUrl } from "../media-url";
 import type { PublishTarget } from "../generator";
 import type { SiteDoc, Page, DocNode } from "../types";
 import { obfuscateVarNames, pagePlan } from "../data";

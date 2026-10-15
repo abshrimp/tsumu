@@ -4,7 +4,8 @@ import JSZip from "jszip";
 import { escapeStyleContent, rewriteCssAssetUrls } from "../lib/css-assets";
 import { inspectHtmlZip } from "../lib/html-zip-guard";
 import { createInitialDoc } from "../lib/presets";
-import { parseSiteImport, validateImportedDoc } from "../lib/site-import";
+import { parseSiteImport } from "../lib/site-import";
+import { validateImportedDoc } from "../lib/site-import-format";
 import { openImportZip } from "../lib/zip-directory";
 import { readZipEntryLimited } from "../lib/zip-stream";
 

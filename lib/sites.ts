@@ -169,7 +169,7 @@ export async function getSiteRoomKey(db: Db, siteId: string): Promise<string | n
   return typeof rs.rows[0]?.room_key === "string" ? String(rs.rows[0].room_key) : null;
 }
 
-export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, initialBody?: string): Promise<string | null> {
+export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>): Promise<string | null> {
   const now = Date.now();
   const site = {
     sql: `INSERT INTO sites (id, name, repo, branch, preview_branch, site_url, preview_url, created_at, updated_at)
@@ -177,7 +177,6 @@ export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" 
     args: [id, v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
   };
   if (db.backend === "d1") {
-    if (initialBody !== undefined) throw new Error("D1の編集データはDocumentRoomに保存してください");
     const roomKey = crypto.randomUUID();
     await db.batch([
       site,
@@ -186,11 +185,7 @@ export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" 
     // 呼び出し元の初期保存と取り消しには、作成した世代のキーだけを使う。
     return roomKey;
   }
-  if (initialBody === undefined) { await db.execute(site); return null; }
-  await db.batch([site, {
-    sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, 1, ?, ?)",
-    args: [id, now, initialBody],
-  }]);
+  await db.execute(site);
   return null;
 }
 

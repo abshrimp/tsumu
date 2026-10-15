@@ -8,7 +8,7 @@ import { archiveBaseUrl, archiveFileUrl } from "./zip-references";
 import { importedFormAction } from "./imported-form";
 import { isHtmlIndex } from "./html-zip-guard";
 import { convertHtmlToSite, type HtmlConversion } from "./html-to-site";
-import { IMPORT_LIMITS } from "./site-import";
+import { IMPORT_LIMITS } from "./site-import-format";
 import { tr } from "./i18n";
 
 export function isHtmlFile(name: string): boolean {

@@ -248,10 +248,6 @@ export class StructuredDocumentStore {
       if (!current && expected !== null) return "missing" as const;
       if (current) this.preservePreviousDay(current.savedAt, now);
       for (const [bucket, rows] of entries) this.syncBucket(bucket, rows);
-      const stale = this.query("SELECT DISTINCT bucket FROM document_entries").map(row => String(row.bucket));
-      for (const bucket of stale) {
-        if (!bucketsSet.has(bucket)) this.query("DELETE FROM document_entries WHERE bucket=?", bucket);
-      }
       if (!current) {
         this.query("INSERT INTO document_meta(id,rev,saved_at,props) VALUES(1,1,?,?)", now, props);
       } else {

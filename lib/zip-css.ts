@@ -108,7 +108,7 @@ export function zipCssPreviewUrls(
         // data のスタイルシートには、階層のある基準の URL が無い。アーカイブの外を指すルート相対や
         // プロトコル相対の URL は、プレビューに限り、エディタのオリジンでの元の意味を保つ。
         if (url.startsWith("/") && options.baseUrl) {
-          try { return new URL(url, options.baseUrl).href; } catch { /* Invalid URLs remain unchanged. */ }
+          return URL.parse(url, options.baseUrl)?.href;
         }
         return undefined;
       }

@@ -10,7 +10,7 @@ import { buildPagePayload, applyPagePayload } from "../lib/page-transfer";
 import { createInitialDoc } from "../lib/presets";
 import { generateProject } from "../lib/generator";
 import { generateExportProject } from "../lib/export-formats";
-import { assetUsage } from "../components/left-panel/AssetsTab";
+import { assetUsage } from "../lib/asset-usage";
 import type { Asset, DocNode } from "../lib/types";
 
 const sheet = (id: string, path: string, source: string, group = "zip-a"): Asset => ({

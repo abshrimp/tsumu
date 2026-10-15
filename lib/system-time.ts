@@ -4,15 +4,14 @@
  * No system values are saved into the editable document.
  */
 export function systemTimeValues(now: Date = new Date()) {
-  const pad = (value: number) => String(value).padStart(2, "0");
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
   const day = now.getDate();
   const hour = now.getHours();
   const minute = now.getMinutes();
   const second = now.getSeconds();
-  const date = `${year}-${pad(month)}-${pad(day)}`;
-  const time = `${pad(hour)}:${pad(minute)}:${pad(second)}`;
+  const date = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`;
   return {
     now: `${date} ${time}`,
     date, time,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { validateImportedDoc } from "../lib/site-import";
+import { validateImportedDoc } from "../lib/site-import-format";
 
 const read = (relative: string) => readFileSync(new URL("../" + relative, import.meta.url), "utf8");
 

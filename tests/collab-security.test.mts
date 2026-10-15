@@ -2,17 +2,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { transformSync } from "esbuild";
 import { addAllowedEmail, removeAllowedEmail } from "../lib/allowlist";
 import { nodeDatabase } from "../lib/node-storage";
-import { getDb, getDbFromBinding } from "../lib/db";
+import { getDb, getDbFromBinding, type D1LikeDatabase } from "../lib/db";
 import { readCurrentDoc, saveCurrentDoc, saveDocPatch } from "../lib/doc-storage";
 import { createDocPatch } from "../lib/doc-patch";
 import { createInitialDoc } from "../lib/presets";
 import { insertSite } from "../lib/sites";
 import { publishDocUpdate } from "../lib/collab-events";
+import { StructuredDocumentStore, type DocumentSqlStorage } from "../lib/structured-document-store";
 
 // 実際のハンドラーを実行し、Cloudflare のホストの環境と Next.js のリクエストの文脈だけを置き換える。
 function loadHandler(path: string, mocks: Record<string, unknown>): any {
@@ -46,10 +48,44 @@ async function withAllowlist(run: () => Promise<void>) {
   }
 }
 
-function socket(email: string) {
+function d1Binding(): D1LikeDatabase {
+  const raw = nodeDatabase()!;
+  return { prepare: raw.prepare, batch: raw.batch };
+}
+
+function createDocStore(initial?: string) {
+  const sqlite = new DatabaseSync(":memory:");
+  const storage: DocumentSqlStorage = {
+    sql: { exec(sql, ...args) {
+      const stmt = sqlite.prepare(sql);
+      if (stmt.columns().length) return { toArray: () => stmt.all(...args) as Record<string, unknown>[] };
+      stmt.run(...args); return { toArray: () => [] };
+    } },
+    transactionSync(fn) {
+      sqlite.exec("BEGIN");
+      try { const result = fn(); sqlite.exec("COMMIT"); return result; }
+      catch (error) { sqlite.exec("ROLLBACK"); throw error; }
+    },
+  };
+  const store = new StructuredDocumentStore(storage);
+  if (initial !== undefined) store.replace(initial, null);
+  const remote = {
+    getSnapshot: async () => store.snapshot(),
+    getMetadata: async () => store.meta(),
+    replaceDocument: async (raw: string, base: string | null) => store.replace(raw, base),
+    patchDocument: async (patch: Parameters<StructuredDocumentStore["patch"]>[0], base: string) => store.patch(patch, base),
+  };
+  return {
+    store,
+    close: () => sqlite.close(),
+    DOC_STORE: { idFromName: (key: string) => key, get: () => remote },
+  };
+}
+
+function socket(email: string, roomKey = "room-s1") {
   return {
     messages: [] as string[], closed: false,
-    deserializeAttachment: () => ({ clientId: email, siteId: "s1", user: { email } }),
+    deserializeAttachment: () => ({ clientId: email, siteId: "s1", roomKey, user: { email } }),
     send(raw: string) { this.messages.push(raw); },
     close(code: number) { assert.equal(code, 1008); this.closed = true; },
   };
@@ -145,32 +181,37 @@ test("WebSocket patch saves broadcast deltas to all authorized peers", async () 
       } },
       "./.open-next/worker.js": {},
     });
-    const db = await getDb();
-    await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    const d1 = d1Binding();
+    const db = await getDbFromBinding(d1);
+    const roomKey = (await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }))!;
     const base = createInitialDoc();
-    await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
-    const next = { ...base, siteName: "Changed through a patch" };
-    const patch = createDocPatch(base, next)!;
-    const sender = socket("owner@example.com");
-    const first = socket("editor@example.com");
-    const second = socket("editor@example.com");
-    const room = new CollaborationRoom({ getWebSockets: () => [sender, first, second] }, {
-      DB: nodeDatabase(), ALLOWED_EMAILS: "owner@example.com",
-      AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
-    });
-    await room.webSocketMessage(sender, JSON.stringify({ type: "patch", requestId: "p1", base: "1", patch }));
-    assert.equal(JSON.parse(sender.messages[0]).type, "saved");
-    for (const peer of [first, second]) {
-      const delta = JSON.parse(peer.messages[0]);
-      assert.equal(delta.type, "doc-patched");
-      assert.deepEqual(delta.patch, patch);
-      assert.equal(delta.doc, undefined);
-      assert.equal(delta.base, "1");
+    const docs = createDocStore(JSON.stringify(base));
+    try {
+      const next = { ...base, siteName: "Changed through a patch" };
+      const patch = createDocPatch(base, next)!;
+      const sender = socket("owner@example.com", roomKey);
+      const first = socket("editor@example.com", roomKey);
+      const second = socket("editor@example.com", roomKey);
+      const room = new CollaborationRoom({ getWebSockets: () => [sender, first, second] }, {
+        DB: d1, DOC_STORE: docs.DOC_STORE, ALLOWED_EMAILS: "owner@example.com",
+        AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
+      });
+      await room.webSocketMessage(sender, JSON.stringify({ type: "patch", requestId: "p1", base: "1", patch }));
+      assert.equal(JSON.parse(sender.messages[0]).type, "saved");
+      for (const peer of [first, second]) {
+        const delta = JSON.parse(peer.messages[0]);
+        assert.equal(delta.type, "doc-patched");
+        assert.deepEqual(delta.patch, patch);
+        assert.equal(delta.doc, undefined);
+        assert.equal(delta.base, "1");
+      }
+      await room.webSocketMessage(sender, JSON.stringify({ type: "patch", requestId: "p2", base: "1", patch }));
+      assert.equal(JSON.parse(sender.messages[1]).type, "conflict");
+      assert.equal(first.messages.length, 1, "rejected patches must not be broadcast");
+      assert.equal(second.messages.length, 1, "rejected patches must not be broadcast");
+    } finally {
+      docs.close();
     }
-    await room.webSocketMessage(sender, JSON.stringify({ type: "patch", requestId: "p2", base: "1", patch }));
-    assert.equal(JSON.parse(sender.messages[1]).type, "conflict");
-    assert.equal(first.messages.length, 1, "rejected patches must not be broadcast");
-    assert.equal(second.messages.length, 1, "rejected patches must not be broadcast");
   });
 });
 
@@ -248,29 +289,36 @@ test("open WebSockets lose read, write and broadcast access when their account i
       } },
       "./.open-next/worker.js": {},
     });
-    const editor = socket("editor@example.com");
-    const owner = socket("owner@example.com");
-    const room = new CollaborationRoom({ getWebSockets: () => [editor, owner] }, {
-      DB: nodeDatabase(), ALLOWED_EMAILS: "owner@example.com",
-      AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
-    });
-    await room.webSocketMessage(editor, "ping");
-    assert.deepEqual(editor.messages, ["pong"]);
-    editor.messages = [];
-    await insertSite(await getDb(), "s1", {
+    const d1 = d1Binding();
+    const db = await getDbFromBinding(d1);
+    const roomKey = (await insertSite(db, "s1", {
       name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
-    });
-    await removeAllowedEmail("editor@example.com");
-    await room.webSocketMessage(editor, JSON.stringify({ type: "save", requestId: "save1", doc: createInitialDoc(), base: null }));
-    assert.equal(await readCurrentDoc(await getDb(), "s1"), null, "revoked sockets cannot save");
-    await room.webSocketMessage(editor, JSON.stringify({ type: "load", requestId: "load1" }));
-    await room.webSocketMessage(owner, JSON.stringify({ type: "save", requestId: "save2", doc: createInitialDoc(), base: null }));
-    assert.ok(await readCurrentDoc(await getDbFromBinding(nodeDatabase()!), "s1"));
-    assert.equal(JSON.parse(owner.messages[0]).type, "saved");
-    await room.fetch(new Request("https://room/broadcast", { method: "POST", body: '{"type":"doc-updated"}' }));
-    assert.equal(owner.messages.length, 2, "allowed recipients still receive updates");
-    assert.equal(editor.closed, true);
-    assert.deepEqual(editor.messages, [], "revoked recipients cannot load or receive either broadcast path");
+    }))!;
+    const docs = createDocStore();
+    try {
+      const editor = socket("editor@example.com", roomKey);
+      const owner = socket("owner@example.com", roomKey);
+      const room = new CollaborationRoom({ getWebSockets: () => [editor, owner] }, {
+        DB: d1, DOC_STORE: docs.DOC_STORE, ALLOWED_EMAILS: "owner@example.com",
+        AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
+      });
+      await room.webSocketMessage(editor, "ping");
+      assert.deepEqual(editor.messages, ["pong"]);
+      editor.messages = [];
+      await removeAllowedEmail("editor@example.com");
+      await room.webSocketMessage(editor, JSON.stringify({ type: "save", requestId: "save1", doc: createInitialDoc(), base: null }));
+      assert.equal(docs.store.snapshot(), null, "revoked sockets cannot save");
+      await room.webSocketMessage(editor, JSON.stringify({ type: "load", requestId: "load1" }));
+      await room.webSocketMessage(owner, JSON.stringify({ type: "save", requestId: "save2", doc: createInitialDoc(), base: null }));
+      assert.ok(docs.store.snapshot());
+      assert.equal(JSON.parse(owner.messages[0]).type, "saved");
+      await room.fetch(new Request("https://room/broadcast", { method: "POST", body: '{"type":"doc-updated"}' }));
+      assert.equal(owner.messages.length, 2, "allowed recipients still receive updates");
+      assert.equal(editor.closed, true);
+      assert.deepEqual(editor.messages, [], "revoked recipients cannot load or receive either broadcast path");
+    } finally {
+      docs.close();
+    }
   });
 });
 
@@ -303,34 +351,39 @@ test("a disconnected saving sender does not prevent persistence, activity or pee
       "cloudflare:workers": { DurableObject: class { constructor(public ctx: unknown, public env: unknown) {} } },
       "./.open-next/worker.js": {},
     });
-    const db = await getDb();
-    await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    const d1 = d1Binding();
+    const db = await getDbFromBinding(d1);
+    const roomKey = (await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }))!;
     let base = createInitialDoc();
-    await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
-    for (const type of ["save", "patch"] as const) {
-      const sender = socket("owner@example.com");
-      sender.deserializeAttachment = () => ({ clientId: "sender", siteId: "s1", user: { email: "owner@example.com", name: null, image: null } });
-      sender.send = () => { throw new Error("WebSocket is closed"); };
-      const peer = socket("editor@example.com");
-      const room = new CollaborationRoom({ getWebSockets: () => [sender, peer] }, {
-        DB: nodeDatabase(), ALLOWED_EMAILS: "owner@example.com", AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
+    const docs = createDocStore(JSON.stringify(base));
+    try {
+      for (const type of ["save", "patch"] as const) {
+        const sender = socket("owner@example.com", roomKey);
+        sender.deserializeAttachment = () => ({ clientId: "sender", siteId: "s1", roomKey, user: { email: "owner@example.com", name: null, image: null } });
+        sender.send = () => { throw new Error("WebSocket is closed"); };
+        const peer = socket("editor@example.com", roomKey);
+        const room = new CollaborationRoom({ getWebSockets: () => [sender, peer] }, {
+          DB: d1, DOC_STORE: docs.DOC_STORE, ALLOWED_EMAILS: "owner@example.com", AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
+        });
+        const current = docs.store.snapshot();
+        const next = { ...base, siteName: `Saved through ${type}` };
+        const input = type === "save" ? { type, doc: next } : { type, patch: createDocPatch(base, next) };
+        await assert.doesNotReject(room.webSocketMessage(sender, JSON.stringify({ ...input, base: current!.rev, requestId: type })));
+        assert.equal(JSON.parse(docs.store.snapshot()!.body).siteName, next.siteName);
+        assert.equal(peer.messages.length, 1);
+        assert.equal(JSON.parse(peer.messages[0]).type, type === "save" ? "doc-updated" : "doc-patched");
+        assert.equal((await db.execute("SELECT email FROM site_activity WHERE site_id = 's1' AND kind = 'edit'")).rows[0]?.email, "owner@example.com");
+        base = next;
+      }
+      const oversized = socket("owner@example.com", roomKey);
+      const room = new CollaborationRoom({ getWebSockets: () => [oversized] }, {
+        DB: d1, DOC_STORE: docs.DOC_STORE, ALLOWED_EMAILS: "owner@example.com", AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
       });
-      const current = await readCurrentDoc(db, "s1");
-      const next = { ...base, siteName: `Saved through ${type}` };
-      const input = type === "save" ? { type, doc: next } : { type, patch: createDocPatch(base, next) };
-      await assert.doesNotReject(room.webSocketMessage(sender, JSON.stringify({ ...input, base: current!.rev, requestId: type })));
-      assert.equal(JSON.parse((await readCurrentDoc(db, "s1"))!.body).siteName, next.siteName);
-      assert.equal(peer.messages.length, 1);
-      assert.equal(JSON.parse(peer.messages[0]).type, type === "save" ? "doc-updated" : "doc-patched");
-      assert.equal((await db.execute("SELECT email FROM site_activity WHERE site_id = 's1' AND kind = 'edit'")).rows[0]?.email, "owner@example.com");
-      base = next;
+      await room.webSocketMessage(oversized, new ArrayBuffer(64 * 1024 * 1024 + 1));
+      assert.equal(oversized.messages.length, 1);
+      assert.equal(JSON.parse(oversized.messages[0]).type, "error");
+    } finally {
+      docs.close();
     }
-    const oversized = socket("owner@example.com");
-    const room = new CollaborationRoom({ getWebSockets: () => [oversized] }, {
-      DB: nodeDatabase(), ALLOWED_EMAILS: "owner@example.com", AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
-    });
-    await room.webSocketMessage(oversized, new ArrayBuffer(64 * 1024 * 1024 + 1));
-    assert.equal(oversized.messages.length, 1);
-    assert.equal(JSON.parse(oversized.messages[0]).type, "error");
   });
 });

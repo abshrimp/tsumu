@@ -4,7 +4,7 @@ import { createInitialDoc, makeIcon, makeImage } from "../lib/presets";
 import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
 import { serializePortableDoc } from "../lib/portable-doc";
 import { generateExportProject } from "../lib/export-formats";
-import { IMPORT_LIMITS } from "../lib/site-import";
+import { IMPORT_LIMITS } from "../lib/site-import-format";
 import { storageKey } from "../lib/storage-keys";
 
 const listKey = storageKey("sites-v1");

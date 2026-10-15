@@ -14,8 +14,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { resolve, dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join } from "node:path";
 
 const GENERATED = "wrangler.generated.jsonc";
 const D1_PLACEHOLDER = "<YOUR_D1_DATABASE_ID>";
@@ -108,22 +107,22 @@ function wranglerJson(args) {
 
 /** ブラウザの中にだけ保存するデプロイの前に、ローカルのファイルだけでなく、動いている版を読む。 */
 export function assertRemoteStorageContinuity(config, configPath) {
-  if (storageBindings(config).db && storageBindings(config).kv && storageBindings(config).doc) return;
+  const current = storageBindings(config);
+  if (current.db && current.kv && current.doc) return;
   if (typeof config.name !== "string" || !config.name.trim())
     throw new Error("Cannot inspect existing deployment without a Worker name.");
   const flags = ["--config", configPath, "--name", config.name];
   const deployed = wranglerJson(["deployments", "status", ...flags]);
   if (deployed === null) return;
-  const entries = deployed.versions ?? deployed.deployment?.versions;
+  const entries = deployed.versions;
   if (!Array.isArray(entries) || entries.length === 0)
     throw new Error("Cannot determine active Worker versions; deployment aborted.");
   for (const entry of entries) {
-    const id = entry.version_id ?? entry.id ?? entry.version?.id;
+    const id = entry.version_id;
     if (typeof id !== "string")
       throw new Error("Cannot determine active Worker version ID; deployment aborted.");
     const version = wranglerJson(["versions", "view", id, ...flags]);
-    const bindings = version?.resources?.bindings ?? version?.bindings;
-    assertNoStorageDowngrade(bindings, config);
+    assertNoStorageDowngrade(version?.resources?.bindings, config);
   }
 }
 
@@ -138,7 +137,7 @@ export function resolveWorkerName(configuredName, env = process.env) {
 }
 
 /** ビルドと本番へのデプロイで、同じ設定を選ぶ。 */
-export function wranglerConfigPath({ deploy = false } = {}) {
+export function wranglerConfigPath() {
   const explicit = process.env.WRANGLER_CONFIG || (existsSync("wrangler.local.jsonc") ? "wrangler.local.jsonc" : null);
   const source = explicit ?? "wrangler.jsonc";
   const config = parseJsonc(readFileSync(source, "utf8"));
@@ -180,9 +179,9 @@ export function assertSafeDeployArgs(args) {
   }
 }
 const [command, ...rest] = process.argv.slice(2);
-if (command && process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (command && import.meta.main) {
   if (command === "deploy") assertSafeDeployArgs(rest);
-  const config = wranglerConfigPath({ deploy: command === "deploy" });
+  const config = wranglerConfigPath();
   if (command === "deploy") {
     const finalConfig = parseJsonc(readFileSync(config, "utf8"));
     assertRemoteStorageContinuity(finalConfig, config);

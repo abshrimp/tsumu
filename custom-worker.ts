@@ -5,12 +5,7 @@ import { getDbFromBinding, type D1LikeDatabase } from "./lib/db";
 import { runAssetGc, type AssetGcDocumentNamespace } from "./lib/asset-gc";
 import type { KVLikeNamespace } from "./lib/kv";
 export { DocumentRoom } from "./document-room";
-import {
-  readCurrentDoc,
-  saveCurrentDoc,
-  saveDocPatch,
-  validateDocBody,
-} from "./lib/doc-storage";
+import { validateDocBody, type SaveDocResult } from "./lib/doc-storage";
 import type {
   CollabClientMessage,
   DocChangeMessage,
@@ -240,31 +235,28 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
       if (!site.rows.length) throw new Error("サイトが見つかりません");
       const roomKey = await getSiteRoomKey(db, siteId);
-      if (this.env.DB.__tsumuBackend !== "sqlite" &&
-        (!roomKey || attachment?.roomKey !== roomKey)) {
+      if (!roomKey || attachment?.roomKey !== roomKey) {
         socket.close(1008, "Site generation changed");
         return;
       }
-      const remote = roomKey && this.env.DOC_STORE
-        ? this.env.DOC_STORE.get(this.env.DOC_STORE.idFromName(roomKey)) as unknown as
-        | {
-            getSnapshot(): Promise<{ body: string; rev: string; savedAt: number } | null>;
-            getMetadata(): Promise<{ rev: string; savedAt: number } | null>;
-            replaceDocument(raw: string, base: string | null): Promise<import("./lib/doc-storage").SaveDocResult>;
-            patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<import("./lib/doc-storage").SaveDocResult>;
-          } : undefined;
-      if (!remote && this.env.DB.__tsumuBackend !== "sqlite") {
+      if (!this.env.DOC_STORE) {
         throw new Error("DOC_STORE binding is missing");
       }
+      const remote = this.env.DOC_STORE.get(this.env.DOC_STORE.idFromName(roomKey)) as unknown as {
+        getSnapshot(): Promise<{ body: string; rev: string; savedAt: number } | null>;
+        getMetadata(): Promise<{ rev: string; savedAt: number } | null>;
+        replaceDocument(raw: string, base: string | null): Promise<SaveDocResult>;
+        patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<SaveDocResult>;
+      };
       if (input.type === "load") {
         // 再接続した編集者は、すでにこの版を持っている。メタデータだけを照会すれば、
         // WebSocket の再接続のたびに文書全体を組み立てて送ることも、
         // メインスレッドで改めてパースすることも避けられる。
-        if (remote && typeof input.knownRev === "string" && input.knownRev.length <= 30) {
+        if (typeof input.knownRev === "string" && input.knownRev.length <= 30) {
           const meta = await remote.getMetadata();
           if (meta?.rev === input.knownRev) {
             // メタデータだけの応答でも、削除されたサイトや作り直されたサイトは遮断しなければならない。
-            if (roomKey && await getSiteRoomKey(db, siteId) !== roomKey) {
+            if (await getSiteRoomKey(db, siteId) !== roomKey) {
               socket.close(1008, "Site generation changed");
               return;
             }
@@ -278,10 +270,10 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
             return;
           }
         }
-        const current = remote ? await remote.getSnapshot() : await readCurrentDoc(db, siteId);
+        const current = await remote.getSnapshot();
         // 文書の RPC の処理中に、サイトが削除されたり作り直されたりすることがある。
         // 空の結果も遮断する。exists:false を返すと、クライアントが最初の保存を始めてしまう。
-        if (roomKey && await getSiteRoomKey(db, siteId) !== roomKey) {
+        if (await getSiteRoomKey(db, siteId) !== roomKey) {
           socket.close(1008, "Site generation changed");
           return;
         }
@@ -318,11 +310,10 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         reply(JSON.stringify({ type: "error", requestId: input.requestId, message: "You have view-only access" }));
         return;
       }
-      let result;
+      let result: SaveDocResult;
       if (input.type === "patch") {
         if (typeof input.base !== "string" || !isDocPatch(input.patch)) throw new Error("不正なリクエスト");
-        result = remote ? await remote.patchDocument(input.patch, input.base)
-          : await saveDocPatch(db, siteId, input.patch, input.base);
+        result = await remote.patchDocument(input.patch, input.base);
       } else {
         if (!input.doc || (input.base !== null && typeof input.base !== "string")) {
           throw new Error("不正なリクエスト");
@@ -330,21 +321,18 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         const raw = JSON.stringify(input.doc);
         const validationError = validateDocBody(raw);
         if (validationError) throw new Error(validationError);
-        result = remote ? await remote.replaceDocument(raw, input.base)
-          : await saveCurrentDoc(db, siteId, raw, input.base);
+        result = await remote.replaceDocument(raw, input.base);
       }
       let generationChanged = false;
       let generationCheckFailed = false;
-      if (roomKey) {
-        try {
-          generationChanged = await getSiteRoomKey(db, siteId) !== roomKey;
-        } catch (error) {
-          // 保存は確定している。その後の照会に失敗しても失敗とはせず、元の部屋にだけ通知する。
-          // 競合の結果は本文を含むため、世代を確認できなければ返さない。
-          if (result.kind !== "saved") throw error;
-          generationCheckFailed = true;
-          console.error("[collab] committed save generation check failed");
-        }
+      try {
+        generationChanged = await getSiteRoomKey(db, siteId) !== roomKey;
+      } catch (error) {
+        // 保存は確定している。その後の照会に失敗しても失敗とはせず、元の部屋にだけ通知する。
+        // 競合の結果は本文を含むため、世代を確認できなければ返さない。
+        if (result.kind !== "saved") throw error;
+        generationCheckFailed = true;
+        console.error("[collab] committed save generation check failed");
       }
       if (generationChanged) {
         socket.close(1008, "Site generation changed");
@@ -485,7 +473,7 @@ export default {
     // 同時編集の WebSocket は、文書の保存と同じサイト作成ごとのキーで分ける。
     // 古いソケットが、作り直したサイトの新しい部屋に加わることはない。
     let roomName = siteId;
-    if (env.DB && env.DB.__tsumuBackend !== "sqlite") {
+    if (env.DB) {
       const db = await getDbFromBinding(env.DB);
       const key = await getSiteRoomKey(db, siteId);
       if (!key) return new Response("Site storage not initialized", { status: 404 });

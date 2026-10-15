@@ -2,10 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import JSZip from "jszip";
 import { createInitialDoc } from "../lib/presets";
-import {
-  EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH,
-  IMPORT_LIMITS, parseSiteImport, validateImportedDoc,
-} from "../lib/site-import";
+import { EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH, parseSiteImport } from "../lib/site-import";
+import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 
 test("large editable projects with more than 500 assets round-trip through document and ZIP imports", async () => {
   const doc = createInitialDoc();

@@ -197,7 +197,7 @@ export function componentOf(doc: SiteDoc, nodeId: string): string | null {
 /** 選んだ部分木を文書の順にたどる。重なる選択も1回だけ扱う。 */
 export function collectSubtreeIds(doc: SiteDoc, roots: readonly string[]): Set<string> {
   const ids = new Set<string>();
-  const pending = [...roots].reverse();
+  const pending = roots.toReversed();
   while (pending.length) {
     const id = pending.pop()!;
     if (ids.has(id)) continue;

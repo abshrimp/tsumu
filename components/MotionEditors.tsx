@@ -701,7 +701,7 @@ export function KeyframeEditorModal({
   const { time, playing, toggle, seek } = usePlayback(dur, Number(speed));
 
   const output = cssText ?? serializeKeyframes(list);
-  const sorted = [...list].sort((a, b) => a.offset - b.offset);
+  const sorted = list.toSorted((a, b) => a.offset - b.offset);
   // 元に戻す操作で、選んでいたキーフレームが消えたときは、先頭を選ぶ
   const sel = list.find((k) => k.id === selected) ?? list[0] ?? null;
 

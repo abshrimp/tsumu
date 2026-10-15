@@ -69,8 +69,8 @@ export function archiveResolver(htmlPath: string, base: URL | undefined, urls: M
   return (raw: string): string => {
     const ref = raw.trim();
     if (!base || !ref || /^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(ref)) return resolveZipReference(ref, htmlPath, urls);
-    let url: URL;
-    try { url = new URL(ref, base); } catch { return raw; }
+    const url = URL.parse(ref, base);
+    if (!url) return raw;
     if (url.protocol !== "file:") return url.href;
     const path = url.pathname + url.search + url.hash;
     const target = resolveZipReference(path, htmlPath, urls);
