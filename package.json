@@ -55,7 +55,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tsx": "^4.23.15",
-    "typescript": "^5",
+    "typescript": "^7",
     "wrangler": "^4.151.1"
   },
   "overrides": {
