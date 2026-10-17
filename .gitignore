@@ -1,0 +1,37 @@
+node_modules/
+.next/
+out/
+.env*
+!.env.example
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+スクリーンショット*.png
+
+# Cloudflare (OpenNext / wrangler)
+.open-next/
+.wrangler/
+.dev.vars*
+# 自分の D1・KV の ID を書いたデプロイ設定
+wrangler.local.jsonc
+# ビルド変数（D1_DATABASE_ID・KV_NAMESPACE_ID）から作るデプロイ設定
+wrangler.generated.jsonc
+
+# Node.js で動かすときの保存先（TSUMU_DATA_DIR=./data）
+/data/
+
+# 画面を通しで確かめるテスト（Playwright）
+/.e2e-data/
+/test-results/
+/playwright-report/
+
+# D1 の書き出し（wrangler d1 export）。編集データが丸ごと入るのでコミットしない
+/*.sql
+
+# Local database files and backup archives
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+tsumu-data*.tgz

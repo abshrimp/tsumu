@@ -1,0 +1,47 @@
+// Cloudflare Workers config for the editor.
+// Put your own D1 / KV IDs in a copy of this file named wrangler.local.jsonc (git-ignored).
+// npm run dev / preview / deploy use wrangler.local.jsonc when it exists.
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "tsumu",
+	"main": "custom-worker.ts",
+	"compatibility_date": "2025-10-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	// 画像アセットの保存先（Workers KV。カード登録不要の無料枠で使える）。
+	// `npx wrangler kv namespace create ASSETS_KV` で作成し、表示された id を設定する
+	"kv_namespaces": [
+		{
+			"binding": "ASSETS_KV",
+			"id": "<YOUR_KV_NAMESPACE_ID>"
+		}
+	],
+	// 編集データ・許可アカウントの保存先（Cloudflare D1）。
+	// `npx wrangler d1 create tsumu` で作成し、表示された database_id を設定する
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "tsumu",
+			"database_id": "<YOUR_D1_DATABASE_ID>"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "COLLAB_ROOM",
+				"class_name": "CollaborationRoom"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["CollaborationRoom"]
+		}
+	]
+}
