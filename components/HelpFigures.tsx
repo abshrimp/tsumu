@@ -344,7 +344,7 @@ function Wrap() {
       ))}
     </div>
   );
-  return <Compare badLabel={tr("No wrap (overflows)")} goodLabel={tr("Wrap", "wrap_variant_1")} bad={<div className="hf-clipx">{box(false)}</div>} good={box(true)} />;
+  return <Compare badLabel={tr("No wrap (overflows)")} goodLabel={tr("Wrap")} bad={<div className="hf-clipx">{box(false)}</div>} good={box(true)} />;
 }
 
 /** 自由な位置（カスタム）は親が基準になる */
@@ -557,7 +557,7 @@ function HeadingOutline() {
   return (
     <div className="hf-stack" style={{ alignItems: "stretch" }}>
       {row(1, tr("Sunny Café"), tr("Page title, only one"))}
-      {row(2, tr("About us", "about_us_variant_1"), tr("threshold"))}
+      {row(2, tr("About us (sample shop)"), tr("threshold"))}
       {row(3, tr("Directions"), tr("More detail"))}
       {row(2, tr("Menu"), tr("threshold"))}
       <div className="hf-h-note">
@@ -724,8 +724,8 @@ function Hierarchy() {
 function ObjectFit() {
   const fits: [string, CSSProperties["objectFit"]][] = [
     [tr("Fill frame"), "cover"],
-    [tr("Show all", "show_all_variant_1"), "contain"],
-    [tr("Stretch", "stretch_variant_1"), "fill"],
+    [tr("Show all (fit)"), "contain"],
+    [tr("Stretch (fit)"), "fill"],
   ];
   return (
     <div className="hf-row hf-wrap">

@@ -3,5 +3,6 @@ import type { Dict } from "../i18n";
 import type { Lang } from "../lang";
 
 export const LOCALES: Partial<Record<Lang, () => Promise<Dict>>> = {
+  "en": () => import("./en").then((m) => m.default),
   "ja": () => import("./ja").then((m) => m.default),
 };

@@ -1,7 +1,17 @@
 /**
- * tr("Save")、tr("Delete {name}?", { name })、trc("context", "Save") のように、英語の原文を使う。
+ * tr("Save")、tr("Delete {name}?", { name }) のように、英語の原文をキーにする。
  * 翻訳は lib/locales/{lang}.ts に置く。
+ * 英語の表示も、原文そのままでよいものは辞書が要らない。原文と表示を変えたいものだけを
+ * lib/locales/en.ts に書く。en.ts の訳は、ほかの言語で訳が無いときの予備としても使う。
+ *
+ * 同じ英語でも意味が違うもの（日本語では言い分けたいもの）は、使う場所ごとに別のキーにする。
+ * キーは英語に括弧で補足を付けたものにして（tr("Done (tutorial step)")）、en.ts で英語に戻す。
  * 選んだ言語はエディタより先に読み込み、言語を切り替えるとページを読み込み直す。
+ *
+ * 数で言い方が変わる文は、ICU MessageFormat の plural の書き方で訳を書ける:
+ *   "{n} pages": "{n, plural, one {# page} other {# pages}}"
+ * 「=0」「=1」のような数の指定と、Intl.PluralRules の区分（zero / one / two / few / many / other）を使える。
+ * # は、その数に置き換わる。other は必ず書く。
  */
 
 import { createElement, Fragment, type ReactNode } from "react";
@@ -27,6 +37,9 @@ const STORAGE_KEY = "tsumu-lang";
 
 export type Dict = Record<string, string>;
 
+/** ある言語の辞書（複数形の規則を選ぶため、言語も一緒に持つ） */
+export type Catalog = { lang: Lang; messages: Dict };
+
 function detectLang(): Lang {
   if (typeof window === "undefined") return "ja";
   try {
@@ -40,7 +53,7 @@ function detectLang(): Lang {
 
 let current: Lang = detectLang();
 /** 訳を探す辞書（今の言語 → 予備の言語の順） */
-let dicts: Dict[] = [];
+let dicts: Catalog[] = [];
 /** 辞書の読み込み（読み込み中のものと、読み込み済みのもの） */
 let loading: Promise<void> | null = null;
 
@@ -59,17 +72,16 @@ export function setLang(lang: Lang) {
   window.location.reload();
 }
 
-/** 言語の辞書を、予備の言語の分も含めて読み込む */
-export async function loadDicts(lang: Lang): Promise<Dict[]> {
-  // 英語は原文の言語なので、対応表は必要ない。
-  if (lang === SOURCE_LANG) return [];
-  const chain = [lang, FALLBACK_LANG].filter(
-    (l, i, a) => l !== SOURCE_LANG && a.indexOf(l) === i
-  );
-  const out: Dict[] = [];
+/**
+ * 言語の辞書を、予備の言語の分も含めて読み込む。
+ * 英語（原文の言語）は、原文と表示が違うものだけを en.ts に書くので、英語でも辞書を読み込む。
+ */
+export async function loadDicts(lang: Lang): Promise<Catalog[]> {
+  const chain = [lang, FALLBACK_LANG].filter((l, i, a) => a.indexOf(l) === i);
+  const out: Catalog[] = [];
   for (const l of chain) {
     const load = LOCALES[l];
-    if (load) out.push(await load());
+    if (load) out.push({ lang: l, messages: await load() });
   }
   return out;
 }
@@ -99,13 +111,19 @@ export async function loadLocale(): Promise<void> {
   await loading;
 }
 
-function lookup(list: Dict[], key: string): string | undefined {
-  for (const d of list) {
-    if (!Object.hasOwn(d, key)) continue;
-    const v = d[key];
-    if (v) return v;
+type Found = { value: string; lang: Lang };
+
+function entry(messages: Dict, key: string): string | undefined {
+  return Object.hasOwn(messages, key) && messages[key] ? messages[key] : undefined;
+}
+
+/** 辞書を言語の順に探す。どの辞書にも無ければ、英語の原文をそのまま使う。 */
+function lookup(list: readonly Catalog[], key: string): Found {
+  for (const { lang, messages } of list) {
+    const value = entry(messages, key);
+    if (value) return { value, lang };
   }
-  return undefined;
+  return { value: key, lang: SOURCE_LANG };
 }
 
 /** 訳した文（userMessage が「自分たちで書いた案内文」を見分けるため） */
@@ -119,43 +137,86 @@ export function isTranslatedMessage(s: string): boolean {
   return own.has(s);
 }
 
-export function format(s: string, vars?: Record<string, string | number>): string {
-  if (!vars) return s;
-  return s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
-}
-
-/** 英語の原文を訳す。文脈を区別することもできる。 */
 type Vars = Record<string, string | number>;
 
-export function tr(key: string, varsOrContext?: Vars | string, contextVars?: Vars): string {
-  const context = typeof varsOrContext === "string" ? varsOrContext : undefined;
-  const vars = typeof varsOrContext === "string" ? contextVars : varsOrContext;
-  const value = (context ? lookup(dicts, `${context}\u0004${key}`) : undefined) ?? lookup(dicts, key) ?? key;
-  return remember(format(value, vars));
+const pluralRules = new Map<string, Intl.PluralRules>();
+function pluralCategory(lang: string, n: number): string {
+  let rules = pluralRules.get(lang);
+  if (!rules) {
+    rules = new Intl.PluralRules(lang);
+    pluralRules.set(lang, rules);
+  }
+  return rules.select(n);
+}
+
+/** "{n, plural, " のあとの選択肢を読む。書き方が正しくなければ null（その部分は書いたとおりに表示する） */
+function parsePlural(s: string, start: number): { options: Map<string, string>; end: number } | null {
+  const options = new Map<string, string>();
+  let i = start;
+  for (;;) {
+    while (/\s/.test(s[i] ?? "")) i++;
+    if (s[i] === "}") return options.has("other") ? { options, end: i + 1 } : null;
+    const selector = /^(?:=\d+(?:\.\d+)?|[a-z]+)/.exec(s.slice(i))?.[0];
+    if (!selector) return null;
+    i += selector.length;
+    while (/\s/.test(s[i] ?? "")) i++;
+    if (s[i] !== "{") return null;
+    let depth = 0;
+    let close = -1;
+    for (let j = i; j < s.length; j++) {
+      if (s[j] === "{") depth++;
+      else if (s[j] === "}" && --depth === 0) {
+        close = j;
+        break;
+      }
+    }
+    if (close < 0) return null;
+    options.set(selector, s.slice(i + 1, close));
+    i = close + 1;
+  }
+}
+
+/** {n, plural, …} を、n の数に合う言い方にする */
+function formatPlurals(s: string, vars: Vars, lang: string): string {
+  const start = /\{(\w+),\s*plural,/g;
+  let out = "";
+  let from = 0;
+  for (let m = start.exec(s); m; m = start.exec(s)) {
+    const parsed = Object.hasOwn(vars, m[1]) ? parsePlural(s, start.lastIndex) : null;
+    if (!parsed) continue;
+    const raw = vars[m[1]];
+    const n = typeof raw === "number" ? raw : Number(raw);
+    const exact = Number.isFinite(n) ? parsed.options.get(`=${n}`) : undefined;
+    const chosen = exact ??
+      (Number.isFinite(n) ? parsed.options.get(pluralCategory(lang, n)) : undefined) ??
+      parsed.options.get("other")!;
+    out += s.slice(from, m.index) + formatPlurals(chosen, vars, lang).replaceAll("#", String(raw));
+    from = start.lastIndex = parsed.end;
+  }
+  return out + s.slice(from);
+}
+
+/** {name} を値に置き換える。lang は、複数形の規則を選ぶための訳文の言語 */
+export function format(s: string, vars?: Vars, lang: string = SOURCE_LANG): string {
+  if (!vars) return s;
+  return formatPlurals(s, vars, lang).replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
 
 /** サーバーでの描画と API の応答で、同じ探し方の規則を使う。 */
-export function translate(
-  list: Dict[],
-  key: string,
-  varsOrContext?: Vars | string,
-  contextVars?: Vars
-): string {
-  const context = typeof varsOrContext === "string" ? varsOrContext : undefined;
-  const vars = typeof varsOrContext === "string" ? contextVars : varsOrContext;
-  const value = (context ? lookup(list, `${context}\u0004${key}`) : undefined) ?? lookup(list, key) ?? key;
-  return remember(format(value, vars));
+export function translate(list: readonly Catalog[], key: string, vars?: Vars): string {
+  const { value, lang } = lookup(list, key);
+  return remember(format(value, vars, lang));
+}
+
+/** 英語の原文を訳す */
+export function tr(key: string, vars?: Vars): string {
+  return translate(dicts, key, vars);
 }
 
 /** 訳文に React のノードを差し込む: trNodes("Run {cmd}", { cmd: <code>…</code> }) */
-export function trNodes(key: string, nodes: Record<string, ReactNode>, context?: string): ReactNode[] {
-  return (context ? tr(key, context) : tr(key))
+export function trNodes(key: string, nodes: Record<string, ReactNode>): ReactNode[] {
+  return tr(key)
     .split(/\{(\w+)\}/)
     // 配列で返すため、差し込んだ要素にも key を付ける（React の警告が出ないように）
     .map((part, i) => (i % 2 ? createElement(Fragment, { key: i }, nodes[part] ?? `{${part}}`) : part));
-}
-
-/** 同じ英語の原文を、文脈ごとに別の訳にする。 */
-export function trc(context: string, key: string, vars?: Record<string, string | number>): string {
-  return tr(key, context, vars);
 }

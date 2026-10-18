@@ -38,14 +38,14 @@ export const MAX_BREAKPOINTS = 6;
 function breakpointLabel(label: string): string {
   switch (label) {
     case "タブレット": return tr("Tablet");
-    case "スマホ横向き": return tr("Phone (landscape)", "phone_landscape_variant_1");
+    case "スマホ横向き": return tr("Phone (landscape) (screen width)");
     case "スマホ": return tr("Phone");
     default: return label;
   }
 }
 /** 上のバーのボタンに出す短い名前。 */
 function breakpointShortLabel(label: string): string {
-  return label === "スマホ横向き" ? tr("Landscape", "phone_landscape_short") : breakpointLabel(label);
+  return label === "スマホ横向き" ? tr("Landscape (short)") : breakpointLabel(label);
 }
 
 /**
@@ -86,14 +86,14 @@ export function normalizeBreakpoints(raw: unknown): BreakpointDef[] {
 export const DEVICE_WIDTHS: { width: number; label: string }[] = [
   { width: 390, label: tr("Phone (standard)") },
   { width: 768, label: tr("Tablet portrait (small)") },
-  { width: 667, label: tr("Phone (landscape)", "phone_landscape_variant_1") },
+  { width: 667, label: tr("Phone (landscape) (screen width)") },
   { width: 360, label: tr("Phone (small)") },
   { width: 430, label: tr("Phone (large)") },
   { width: 820, label: tr("Tablet portrait") },
   { width: 1024, label: tr("Tablet landscape") },
   { width: 600, label: tr("Small tablet") },
   { width: 1280, label: tr("Laptop") },
-  { width: 1440, label: tr("Desktop", "desktop_variant_1") },
+  { width: 1440, label: tr("Desktop (screen width)") },
   { width: 1920, label: tr("Large desktop") },
 ];
 
@@ -266,7 +266,7 @@ export function nextHiddenOn(
 
 /** 表示を切り替えるボタンとメニューの文言（表示中のデバイスに合わせる） */
 export function hideToggleLabel(hiddenHere: boolean, bp: Breakpoint): string {
-  if (bp === "base") return hiddenHere ? tr("Show", "show_variant_2") : tr("Hide", "hide_variant_2");
+  if (bp === "base") return hiddenHere ? tr("Show (visibility)") : tr("Hide (visibility)");
   const name = BP_INFO[bp].label;
   return hiddenHere ? tr("show on {name}", { name }) : tr("hide on {name}", { name });
 }

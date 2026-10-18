@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import { scriptUid, TRIGGER_LABELS, TRIGGER_ORDER } from "../../lib/script";
 import { type ScriptStep, type ScriptTrigger } from "../../lib/types";
-import { getLang, tr, trc } from "../../lib/i18n";
+import { getLang, tr } from "../../lib/i18n";
 import { searchTermsFor } from "../../lib/locales/search-terms";
 import type { Lang } from "../../lib/lang";
 
@@ -49,13 +49,13 @@ type Cat = "event" | "look" | "move" | "input" | "control" | "var" | "load" | "a
 
 export const CAT_INFO: Record<Cat, { label: string; color: string }> = {
   event: { label: tr("Triggers"), color: "#b45309" },
-  look: { label: trc("block_category", "Looks"), color: "#7c3aed" },
+  look: { label: tr("Looks (block category)"), color: "#7c3aed" },
   move: { label: tr("Navigation"), color: "#0b6bcb" },
   input: { label: tr("Input"), color: "#0f766e" },
-  control: { label: trc("block_category", "Flow"), color: "#52525b" },
+  control: { label: tr("Flow (block category)"), color: "#52525b" },
   var: { label: tr("Variables"), color: "#0e7490" },
   load: { label: tr("Data"), color: "#047857" },
-  array: { label: tr("List", "list_variant_1"), color: "#be185d" },
+  array: { label: tr("List (data type)"), color: "#be185d" },
   store: { label: tr("Storage"), color: "#4338ca" },
 };
 

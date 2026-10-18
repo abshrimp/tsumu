@@ -1,5 +1,5 @@
 import type { Topic } from "../manual";
-import { tr, trc } from "../i18n";
+import { tr } from "../i18n";
 import { node, hasScript } from "./helpers";
 
 export const actionTopics: Topic[] = [  /* ================= リンクと動き ================= */
@@ -9,7 +9,7 @@ export const actionTopics: Topic[] = [  /* ================= リンクと動き 
     level: 1,
     q: tr("How do I make a button go to another page (link)?"),
     a: tr("Select the button, open \"Edit page scripts\" under Settings, and attach \"Open ［page / URL］\" under \"When clicked\"."),
-    keys: [trc("help_search", "link"), tr("navigate"), tr("go to page"), tr("jump"), tr("click"), "URL", tr("Button")],
+    keys: [tr("link (help search)"), tr("navigate"), tr("go to page"), tr("jump"), tr("click"), "URL", tr("Button")],
     ctx: ["box", "text", "image"],
     body: [
       { fig: "script-blocks" },
@@ -106,7 +106,7 @@ export const actionTopics: Topic[] = [  /* ================= リンクと動き 
     level: 1,
     q: tr("How do I try out links and interactions (Preview)?"),
     a: tr("Click Preview in the top bar. Selection outlines disappear, and buttons and links work as they will when published."),
-    keys: [tr("Preview"), tr("Confirm"), tr("try"), tr("test", "test_variant_1")],
+    keys: [tr("Preview"), tr("Confirm"), tr("try"), tr("test (help search)")],
     body: [
       { p: tr("Scripts and animations don't run in the Design view. Check them in Preview, then click Design to go back.") },
     ],
@@ -130,7 +130,7 @@ export const actionTopics: Topic[] = [  /* ================= リンクと動き 
             [tr("When hover starts / ends"), tr("When the mouse enters or leaves")],
             [tr("When the value changes"), tr("When a field's or select's value changes")],
             [tr("When the page opens"), tr("When the page is shown (for \"This page\", also fetches data)")],
-            [tr("When scrolled into view"), tr("When scrolled into view", "when_scrolled_into_view_variant_1")],
+            [tr("When scrolled into view"), tr("When scrolled into view (help)")],
           ],
         },
       },

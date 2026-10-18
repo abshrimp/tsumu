@@ -149,7 +149,7 @@ export async function POST(req: Request) {
   } catch (error) {
     const status = error instanceof JsonBodyTooLargeError ? 413
       : error instanceof JsonContentTypeError ? 415 : 400;
-    return NextResponse.json({ error: tr(status === 413 ? "Request too large" : "Invalid request", status === 413 ? undefined : "invalid_request_variant_1") }, { status });
+    return NextResponse.json({ error: status === 413 ? tr("Request too large") : tr("Invalid request (request body)") }, { status });
   }
   if (!isSha(body.sha)) {
     return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });

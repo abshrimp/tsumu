@@ -34,7 +34,7 @@ import { type FetchHeader, type FetchMethod, type SiteDoc, PAGE_TARGET } from ".
 import { useEditor } from "../../lib/store";
 import { pageNodeIds, walkSteps } from "../../lib/script";
 import { userMessage } from "../../lib/errors";
-import { getLang, tr, trc } from "../../lib/i18n";
+import { getLang, tr } from "../../lib/i18n";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, type FetchPreviewScope } from "./context";
 import { Phrase, TextIn } from "./inputs";
 
@@ -446,7 +446,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
                 const url = v.trim();
                 updateStep(step.id, (s) => s.kind === "fetch" ? changeFetchRequest(s, { url }, pageId, scope) : s);
                 // 名前が空なら付けておく
-                if (url && !step.as) renameVar(step.id, "", uniqueVarName(doc, pageId, trc("variable_name", "data"), step.id));
+                if (url && !step.as) renameVar(step.id, "", uniqueVarName(doc, pageId, tr("data (variable name)"), step.id));
               }}
             />
           ),
@@ -527,7 +527,7 @@ export const isNested = (v: unknown) => v != null && typeof v === "object";
 function PathValuePreview({ value }: { value: unknown }) {
   return (
     <span className="se-pm-val">
-      {isNested(value) && <span className="vx-kind">{tr("List", "list_variant_1")}</span>}
+      {isNested(value) && <span className="vx-kind">{tr("List (data type)")}</span>}
       {isNested(value) && " "}{readableValue(value)}
     </span>
   );
@@ -642,7 +642,7 @@ export function PathMenu({
   const label = path
     ? fieldLabel(path)
     : placeholder ?? (mode === "list"
-      ? tr("Select a list", "select_a_list_variant_1")
+      ? tr("Select a list")
       : mode === "item"
         ? tr("Select a path")
         : mode === "field"

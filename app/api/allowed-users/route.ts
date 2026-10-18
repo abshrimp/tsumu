@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     email = input.email.trim().toLowerCase();
     role = input.role;
   } catch (error) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, {
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }
@@ -177,7 +177,7 @@ export async function PATCH(req: Request) {
     email = value.email.trim().toLowerCase();
     role = value.role;
   } catch (error) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, {
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }

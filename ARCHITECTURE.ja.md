@@ -63,7 +63,7 @@
 | AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数） |
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |
 | 認証 | `auth.ts`、`proxy.ts`、`lib/allowlist.ts`（`editor` と `viewer` の権限）。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` でのループバック宛てのアクセスか `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
-| 多言語対応 | `lib/i18n.ts`。原文は英語で記述し、`tr("…")` で囲みます。日本語訳は `lib/locales/ja.ts` に配置します。 |
+| 多言語対応 | `lib/i18n.ts`。原文は英語で記述し、`tr("…")` で囲みます。日本語訳は `lib/locales/ja.ts` に配置します。`lib/locales/en.ts` には、原文と表示を変えたい英語（複数形など）だけを書きます。 |
 | ヘルプとチュートリアル | `lib/manualTopics.ts`、`components/HelpCenter.tsx`、`HelpFigures.tsx`、`Tutorial.tsx` |
 
 ### ブラウザに保存したサイトの削除

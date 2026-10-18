@@ -56,20 +56,20 @@ export async function POST(req: Request) {
     input = await readJsonLimited(req, IMPORT_LIMITS.docBytes + 1024) as typeof input;
   } catch (error) {
     const status = error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400;
-    return NextResponse.json({ error: tr(status === 413 ? "The import file is too large." : "Invalid request", status === 413 ? undefined : "invalid_request_variant_1") }, { status });
+    return NextResponse.json({ error: status === 413 ? tr("The import file is too large.") : tr("Invalid request (request body)") }, { status });
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }
   const { copyFrom, importId, initialDoc } = input;
   const importing = importId !== undefined || initialDoc !== undefined;
   if (copyFrom !== undefined && (!isSiteId(copyFrom) || importing)) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }
   let initialBody: string | undefined;
   if (importing) {
     if (typeof importId !== "string" || !/^[a-z0-9]{10}$/.test(importId)) {
-      return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
+      return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
     }
     try {
       const doc = validateImportedDoc(initialDoc);

@@ -16,7 +16,7 @@ export const ELEMENT_KIND: Record<ElementKind, { label: string; icon: LucideIcon
   image: { label: tr("Image"), icon: ImageIcon },
   field: { label: tr("Input field"), icon: TextCursorInput },
   icon: { label: tr("Icon"), icon: Sparkles },
-  list: { label: tr("List", "list_variant_1"), icon: List },
+  list: { label: tr("List (data type)"), icon: List },
   media: { label: tr("Video / audio"), icon: PlayCircle },
   embed: { label: tr("Embed"), icon: Globe },
   code: { label: tr("Code"), icon: Code2 },

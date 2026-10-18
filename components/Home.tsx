@@ -308,7 +308,7 @@ function SiteDialog({
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <form className="modal home-dialog" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{site ? tr("Site settings", "site_settings_variant_1") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
+        <h2>{site ? tr("Site settings (menu)") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
         <p className="modal-desc">
           {site
             ? tr("Change the site name and the GitHub repository it publishes to.")
@@ -417,7 +417,7 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
         <p className="modal-desc">{tr("These settings apply to all sites.")}</p>
 
         <section className="home-set-sec">
-          <h3>{tr("Language", "language_variant_1")}</h3>
+          <h3>{tr("Language (display)")}</h3>
           <LanguageSelector />
           <p className="home-field-hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>

@@ -550,15 +550,15 @@ cd .generated-export-smoke && npm install && npm run build
 
 ### Translations
 
-Tsumu uses English source strings as translation keys (`tr("Save")`). Japanese translations live in `lib/locales/ja.ts`. Untranslated entries are shown in English; no English dictionary is required. Keep interpolation placeholders (e.g. `{name}`) unchanged in translated values.
+Tsumu uses English source strings as translation keys (`tr("Save")`). Japanese translations live in `lib/locales/ja.ts`. Untranslated entries are shown in English. Because the keys are already English, `lib/locales/en.ts` lists only the English text that should differ from its key, such as plural forms (`"{n} pages": "{n, plural, one {# page} other {# pages}}"`). When the same English needs different translations in different places, give each place its own key with a hint in parentheses (`tr("Done (tutorial step)")`) and map it back to the English text in `en.ts` (`"Done (tutorial step)": "Done"`). Other languages also fall back to these entries. Keep interpolation placeholders (e.g. `{name}`) unchanged in translated values.
 
 #### Adding a language
 
-1. Add `lib/locales/<BCP-47>.ts` with a default-exported `Dict` mapping English keys to translations. For instance, `fr.ts` can export `{ Save: "Enregistrer" }`. Partial dictionaries are supported.
+1. Add `lib/locales/<BCP-47>.ts` with a default-exported `Dict` mapping English keys to translations. For instance, `fr.ts` can export `{ Save: "Enregistrer" }`. Partial dictionaries are supported. Translations can use the same plural syntax; the forms are chosen by that language's plural rules.
 2. Run `npm run dev` or `npm run build`. The language picker and lazy dictionary loader are generated automatically from file names; **do not edit** `lib/lang.ts` or `lib/locales/index.ts`. Language labels are generated using the native language display name.
 3. Run `npm run i18n:check -- fr` to report missing entries without failing. `npm run i18n:check -- --strict fr` makes missing translations a failing check; `npm run i18n:check -- --all` reports every registered dictionary. CI runs `npm run i18n:check -- --all` as non-blocking warnings so untranslated strings fall back to English without blocking pull requests.
 
-The generation also runs before `typecheck`, `test` and `build:worker` (`test:e2e` relies on the `npm run build` that precedes it). If you run a tool directly rather than through npm, run `npm run locales:sync` first. `en` is reserved for the built-in English source strings; it needs no `en.ts` file.
+The generation also runs before `typecheck`, `test` and `build:worker` (`test:e2e` relies on the `npm run build` that precedes it). If you run a tool directly rather than through npm, run `npm run locales:sync` first. English is always registered as the source language, whether or not `en.ts` exists.
 
 The language appears under **Settings → Language** on the home screen and **⋯ → Settings** in the editor. The browser's language preferences select supported languages automatically. Existing Japanese/English E2E assertions are not expanded to newly added languages.
 

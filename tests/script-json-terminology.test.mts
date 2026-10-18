@@ -16,13 +16,13 @@ test("JSON controls call a key an 項目 without changing the storage-key termin
     ["Set {value} at key {key} of list {list}", "リスト{list}の項目{key}に{value}を入れる"],
     ["List item field", "リスト内の項目名"],
     ["Field name / {variable}", "項目名 / {変数}"],
-    ["condition_comparison\u0004have an item", "項目がある"],
+    ["have an item (comparison)", "項目がある"],
   ]) assert.equal(definition(key, text), true, key);
 });
 
 test("list labels distinguish array elements from dictionary items", () => {
   assert.equal(definition("List · {length} elements", "リスト・{length}要素"), true);
-  assert.equal(definition("list_length_items_variant_1\u0004List · {length} items", "リスト・{length}項目"), true);
+  assert.equal(definition("List · {length} items", "リスト・{length}項目"), true);
   // 以前に保存したスクリプトの識別子は、そのまま保たれる。
   assert.equal(locale.includes("{ループ.キー}"), true);
 });

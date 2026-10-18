@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { LOCALES } from "../lib/locales";
 
-test("Japanese help search terms retain their contextual translations", async () => {
+test("Japanese help search terms keep their own keys and translations", async () => {
   const ja = await LOCALES.ja!();
   for (const [label, expected, term] of [
     ["Link", "リンク", "link"],
@@ -10,6 +10,6 @@ test("Japanese help search terms retain their contextual translations", async ()
     ["Paragraph", "文章", "text"],
   ]) {
     assert.equal(ja[label], expected);
-    assert.equal(ja["help_search\u0004" + term], expected);
+    assert.equal(ja[term + " (help search)"], expected);
   }
 });

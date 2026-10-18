@@ -17,7 +17,7 @@ export const elementTopics: Topic[] = [  /* ================= 要素の追加と
           rows: [
             [tr("Box"), tr("A container for other elements. The base for layout and backgrounds.")],
             [tr("Heading"), tr("Titles for pages and sections")],
-            [tr("Text", "text_variant_1"), tr("Body")],
+            [tr("Text (element)"), tr("Body")],
             [tr("Button"), tr("Actions you want people to take (sign up, learn more, etc.)")],
             [tr("Image"), tr("Photos, logos, illustrations")],
           ],
@@ -145,15 +145,15 @@ export const elementTopics: Topic[] = [  /* ================= 要素の追加と
     level: 3,
     q: tr("What is \"Meaning (output tag)\"?"),
     a: tr("It tells search engines and screen readers what part of the page a box is, like a header, navigation or main content. **It doesn't change the look**."),
-    keys: [tr("Meaning", "meaning_variant_1"), tr("tag"), tr("semantic"), "header", "nav", "main", "section", "footer"],
+    keys: [tr("Meaning (element role)"), tr("tag"), tr("semantic"), "header", "nav", "main", "section", "footer"],
     ctx: ["box"],
     body: [
       {
         table: {
-          head: [tr("Meaning", "meaning_variant_1"), tr("Where to use")],
+          head: [tr("Meaning (element role)"), tr("Where to use")],
           rows: [
             [tr("Header"), tr("The logo and menu at the top of the page")],
-            [tr("Navigation", "navigation_variant_1"), tr("A row of main links")],
+            [tr("Navigation (element)"), tr("A row of main links")],
             [tr("Main"), tr("The main content of the page (one per page)")],
             [tr("Section"), tr("A group with its own heading")],
             [tr("Article"), tr("A self-contained article or announcement")],

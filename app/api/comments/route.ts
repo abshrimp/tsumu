@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   const before = parseCommentCursor(params.get("before"));
   const focus = params.get("focus");
   if ((params.has("before") && !before) || (focus !== null && !/^[a-zA-Z0-9_-]{1,64}$/.test(focus))) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }
   try {
     return NextResponse.json(await listCommentPage(await getDb(), siteId, before, focus), {
@@ -45,19 +45,19 @@ export async function POST(req: Request) {
   const before = parseCommentCursor(params.get("before"));
   const focus = params.get("focus");
   if ((params.has("before") && !before) || (focus !== null && !/^[a-zA-Z0-9_-]{1,64}$/.test(focus))) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }
   // 本文は5000文字以内のコメント1件だけ。読み込む JSON の量も、ストリーム全体で制限する。
   let value: unknown;
   try {
     value = await readJsonLimited(req, 64 * 1024);
   } catch (error) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, {
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }
   const action = parseCommentAction(value);
-  if (!action) return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
+  if (!action) return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   try {
     const db = await getDb();
     const ok = await runCommentAction(db, siteId, action, user);

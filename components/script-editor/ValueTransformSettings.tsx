@@ -30,9 +30,9 @@ export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly V
   { label: "JSON conversion", kinds: ["stringify", "parse"] },
 ];
 const MATH: readonly { value: NumericOperation; label: () => string }[] = [
-  { value: "add", label: () => tr("Add", "add_variant_1") },
+  { value: "add", label: () => tr("Add (math)") },
   { value: "subtract", label: () => tr("Subtract") },
-  { value: "multiply", label: () => tr("Multiply", "multiply_variant_1") },
+  { value: "multiply", label: () => tr("Multiply (math)") },
   { value: "divide", label: () => tr("Divide") },
   { value: "remainder", label: () => tr("Remainder") },
 ];

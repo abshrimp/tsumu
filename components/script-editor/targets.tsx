@@ -172,7 +172,7 @@ export function TargetSelect({
       }
       kind={value === SELF_TARGET ? undefined : cur?.kind}
       missing={!!value && !known}
-      placeholder={only ? tr("Select a field", "select_a_field_variant_1") : tr("Select an element")}
+      placeholder={only ? tr("Select a field (target)") : tr("Select an element")}
     />
   );
 }

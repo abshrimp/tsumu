@@ -35,7 +35,7 @@ import {
   Seg,
   useInspector,
 } from "../controls";
-import { tr, trc } from "../../lib/i18n";
+import { tr } from "../../lib/i18n";
 import { differsFrom } from "./BackgroundSec";
 import { Sec } from "./shared";
 import { FontPicker } from "./FontPicker";
@@ -112,7 +112,7 @@ export function TypographySec({ node }: { node: DocNode }) {
 
   return (
     <Sec
-      title={tr("Text", "text_variant_1")}
+      title={tr("Text (element)")}
       defaultOpen={!!node.text || node.type === "field"}
       tutorialTarget="style-typography"
       help="text-size"
@@ -123,9 +123,9 @@ export function TypographySec({ node }: { node: DocNode }) {
             value={String(node.text.heading)}
             options={[
               { value: "0", label: tr("Body"), icon: <Pilcrow size={13} /> },
-              { value: "1", label: tr("Heading 1", "heading_1_variant_1"), icon: <Heading1 size={14} /> },
-              { value: "2", label: tr("Heading 2", "heading_2_variant_1"), icon: <Heading2 size={14} /> },
-              { value: "3", label: tr("Heading 3", "heading_3_variant_1"), icon: <Heading3 size={14} /> },
+              { value: "1", label: tr("Heading 1 (text style)"), icon: <Heading1 size={14} /> },
+              { value: "2", label: tr("Heading 2 (text style)"), icon: <Heading2 size={14} /> },
+              { value: "3", label: tr("Heading 3 (text style)"), icon: <Heading3 size={14} /> },
               { value: "4", label: tr("Heading 4"), icon: <Heading4 size={14} /> },
               { value: "5", label: tr("Heading 5"), icon: <Heading5 size={14} /> },
               { value: "6", label: tr("Heading 6"), icon: <Heading6 size={14} /> },
@@ -175,10 +175,10 @@ export function TypographySec({ node }: { node: DocNode }) {
           />
         </Grp>
         <Grp label={tr("Line height")} props={["lineHeight"]}>
-          <PropNum prop="lineHeight" pre={trc("line_height", "LH")} units={["", "px"]} />
+          <PropNum prop="lineHeight" pre={tr("LH (line height)")} units={["", "px"]} />
         </Grp>
         <Grp label={tr("Letter spacing")} props={["letterSpacing"]}>
-          <PropNum prop="letterSpacing" pre={trc("letter_spacing", "LS")} units={["px", "em"]} />
+          <PropNum prop="letterSpacing" pre={tr("LS (letter spacing)")} units={["px", "em"]} />
         </Grp>
       </div>
 
@@ -302,8 +302,8 @@ export function TypographySec({ node }: { node: DocNode }) {
           <Seg
             value={clamp ? "clamp" : nowrap ? "nowrap" : "wrap"}
             options={[
-              { label: tr("Wrap"), value: "wrap" },
-              { label: tr("None"), value: "nowrap" },
+              { label: tr("Wrap (text option)"), value: "wrap" },
+              { label: tr("None (no wrap)"), value: "nowrap" },
               { label: tr("Truncate"), value: "clamp" },
             ]}
             onChange={(v) => {

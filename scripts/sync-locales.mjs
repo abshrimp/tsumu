@@ -2,6 +2,7 @@
  * ビルドのときに言語を見つける。lib/locales/<BCP-47>.ts を追加して、npm run
  * dev/build/typecheck/test を実行すると、軽量な言語の一覧と、遅延 import の対応表が
  * 作り直される。登録の一覧を手で保守する必要は無い。
+ * 英語は原文の言語なので、en.ts が無くても常に登録する。en.ts があれば、その辞書も読み込む。
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -22,9 +23,7 @@ export function generateLocaleSources(fileNames) {
     }
     const canonical = Intl.getCanonicalLocales(raw)[0];
     const code = canonical.toLowerCase();
-    if (code === "en") {
-      throw new Error("en is the English source language; do not add en.ts");
-    }
+    if (code === "en" && raw !== "en") throw new Error("Name the English dictionary en.ts: " + name);
     if (seen.has(code)) throw new Error("Duplicate locale code: " + code);
     seen.add(code);
     const native = new Intl.DisplayNames([canonical], { type: "language" }).of(canonical) ?? canonical;
@@ -34,7 +33,8 @@ export function generateLocaleSources(fileNames) {
   if (!seen.has("ja")) throw new Error("lib/locales/ja.ts is required");
 
   // 既存の言語の選択肢の順序と表示名を保つ。
-  const other = languages.filter((item) => item.code !== "ja").sort((a, b) => a.code.localeCompare(b.code));
+  const other = languages.filter((item) => item.code !== "ja" && item.code !== "en")
+    .sort((a, b) => a.code.localeCompare(b.code));
   const list = [
     { code: "ja", label: "日本語" },
     { code: "en", label: "English" },

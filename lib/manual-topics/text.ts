@@ -8,7 +8,7 @@ export const textTopics: Topic[] = [  /* ================= 文字 ==============
     level: 1,
     q: tr("How do I edit text or add line breaks?"),
     a: tr("**Double-click text** to edit it. Enter adds a line break; Esc or clicking outside confirms."),
-    keys: [tr("Text"), tr("Text", "text_variant_1"), tr("edit"), tr("rewrite"), tr("line break")],
+    keys: [tr("Text"), tr("Text (element)"), tr("edit"), tr("rewrite"), tr("line break")],
     ctx: ["text"],
     body: [
       { p: tr("You can also press Enter on a selected element to start editing. ⌘Enter confirms too.") },

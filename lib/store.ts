@@ -836,7 +836,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const makeSpan = (part: string): DocNode => ({
         id: genId("node"),
         type: "box",
-        name: part.trim().slice(0, 12) || tr("Text", "text_variant_1"),
+        name: part.trim().slice(0, 12) || tr("Text (element)"),
         semantic: "span",
         text: { content: part, heading: 0 },
         link: null,

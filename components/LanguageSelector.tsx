@@ -6,7 +6,7 @@ import { getLang, LANGS, setLang, tr } from "../lib/i18n";
 export default function LanguageSelector() {
   const current = getLang();
   return (
-    <div className="seg seg-full language-selector" role="radiogroup" aria-label={tr("Language", "language_variant_1")}>
+    <div className="seg seg-full language-selector" role="radiogroup" aria-label={tr("Language (display)")}>
       {LANGS.map(({ value, label }) => (
         <button
           key={value}

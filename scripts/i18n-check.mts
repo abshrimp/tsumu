@@ -2,6 +2,8 @@
  * 1つの言語、または見つかったすべての辞書の訳を点検する。
  * 訳が欠けた項目は、既定では警告にとどめる（実行時は英語の原文で表示する）。
  * 訳がそろっていることを任意で確かめるには --strict を使う。CI は警告のみ。
+ * 英語の en.ts は、原文と表示を変えたいものだけを書く辞書なので、欠けた項目は数えない。
+ * 代わりに、ソースで使われていないキー（原文を変えたあとに残った訳）を報告する。
  *
  * npm run i18n:check -- fr
  * npm run i18n:check -- --strict ja
@@ -58,7 +60,7 @@ export async function checkTranslations(root: string, args: readonly string[], o
   const literal = (node: ts.Node | undefined): string | undefined =>
     node && ts.isStringLiteralLike(node) ? node.text : undefined;
 
-  // 呼び出し箇所のキーを1回で集める（文脈ごとの参照も含む）。動的なキーは、
+  // 呼び出し箇所のキーを1回で集める。動的なキーは、
   // 引き続き手動でのテストが必要。それらも、実行時は英語で表示する。
   const required = new Map<string, Set<string>>();
   for (const file of files) {
@@ -87,13 +89,7 @@ export async function checkTranslations(root: string, args: readonly string[], o
         const name = ts.isIdentifier(node.expression) ? node.expression.text
           : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
         const first = literal(node.arguments[0]);
-        if ((name === "tr" || name === "trNodes") && first !== undefined) {
-          const context = name === "tr" ? literal(node.arguments[1]) : literal(node.arguments[2]);
-          found.add(context === undefined ? first : context + "\u0004" + first);
-        } else if (name === "trc" && first !== undefined) {
-          const key = literal(node.arguments[1]);
-          if (key !== undefined) found.add(first + "\u0004" + key);
-        }
+        if ((name === "tr" || name === "trNodes") && first !== undefined) found.add(first);
       }
       ts.forEachChild(node, visit);
     };
@@ -103,7 +99,7 @@ export async function checkTranslations(root: string, args: readonly string[], o
 
   let failed = false;
   for (const code of codes) {
-    if (code === "en") {
+    if (code === "en" && !available.has(code)) {
       out.log("English is the source language; no dictionary is required.");
       continue;
     }
@@ -111,6 +107,25 @@ export async function checkTranslations(root: string, args: readonly string[], o
     const dict = (await import(file)).default as Record<string, string>;
     if (!dict || typeof dict !== "object" || Array.isArray(dict)) {
       throw new Error("Invalid dictionary in " + file);
+    }
+
+    if (code === "en") {
+      const used = new Set([...required.values()].flatMap((keys) => [...keys]));
+      const stale = Object.keys(dict).filter((key) => !used.has(key));
+      if (!stale.length) {
+        out.log("All English overrides are used in the source (" + Object.keys(dict).length + " entries)");
+        continue;
+      }
+      for (const key of stale) out.log("lib/locales/" + available.get(code) + ": " + JSON.stringify(key));
+      const message = stale.length + " English overrides are not used in the source" +
+        " (they may be dynamic keys, or the source text may have changed)";
+      if (strict) {
+        out.error("ERROR: " + message);
+        failed = true;
+      } else {
+        out.warn("WARNING: " + message);
+      }
+      continue;
     }
 
     const missing: { file: string; key: string }[] = [];

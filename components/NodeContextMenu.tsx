@@ -216,7 +216,7 @@ export default function NodeContextMenu({
             (active.length > 3 ? tr("and {count} more", { count: active.length - 3 }) : "");
           const accepted = await showConfirm(
             tr("The elements you're pasting contain content that runs as HTML ({names}), and they weren't copied in this editor. Only paste data that you copied from a source you trust.", { names }),
-            { title: tr("Paste this content?"), okLabel: tr("Paste", "paste_variant_1"), danger: true }
+            { title: tr("Paste this content?"), okLabel: tr("Paste (action)"), danger: true }
           );
           if (!accepted || !stillHere()) return;
         }
@@ -238,14 +238,14 @@ export default function NodeContextMenu({
       items.push(
         {
           key: "up",
-          label: tr("Move up", "move_up_variant_1"),
+          label: tr("Move up (in order)"),
           icon: <ArrowUp size={14} />,
           disabled: !!node.locked || idx <= 0,
           onClick: run(() => s().moveNode(node.id, parent, idx - 1)),
         },
         {
           key: "down",
-          label: tr("Move down", "move_down_variant_1"),
+          label: tr("Move down (in order)"),
           icon: <ArrowDown size={14} />,
           disabled: !!node.locked || idx < 0 || idx >= siblings.length - 1,
           // moveNode の index は、移動前の並びでの位置

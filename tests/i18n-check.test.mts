@@ -83,25 +83,16 @@ test("i18n checker ignores source-like text inside comments, strings and JSX tex
   assert.equal(result.status, 0, result.output);
 });
 
-test("i18n checker uses contextual English key in trc and tr", async () => {
-  const source = 'trc("navigation", "Back"); tr("End", "list_end"); trNodes("Run {cmd}", { cmd: "x" }, "guide");';
-  const missing = await check(source, { Back: "戻る", End: "終了", "Run {cmd}": "{cmd}を実行" });
-  assert.equal(missing.status, 1, missing.output);
-  for (const key of ["navigation\u0004Back", "list_end\u0004End", "guide\u0004Run {cmd}"]) assert.ok(missing.output.includes(JSON.stringify(key)), missing.output);
-  const complete = await check(source, { "navigation\u0004Back": "戻る", "list_end\u0004End": "末尾", "guide\u0004Run {cmd}": "{cmd}を実行" });
-  assert.equal(complete.status, 0, complete.output);
-});
-
 test("i18n checker accepts member calls, rejects empty translations, and de-duplicates", async () => {
-  const source = 'r.tr("Save"); i18n.trNodes("Save", {}); r.trc("menu", "End");';
-  assert.equal((await check(source, { Save: "", "menu\u0004End": "" })).status, 1);
+  const source = 'r.tr("Save"); i18n.trNodes("Save", {}); r.tr("End (menu)");';
+  assert.equal((await check(source, { Save: "", "End (menu)": "" })).status, 1);
   const missing = await check('tr("Save"); tr("Save");');
   assert.match(missing.output, /1 untranslated strings/);
-  assert.equal((await check(source, { Save: "保存", "menu\u0004End": "終了" })).status, 0);
+  assert.equal((await check(source, { Save: "保存", "End (menu)": "終了" })).status, 0);
 });
 
 test("i18n checker skips dynamically computed keys", async () => {
-  const result = await check('tr(dynamicKey); tr(`Save ${value}`); trc(context, "Back"); tr("Save");', { Save: "保存" });
+  const result = await check('tr(dynamicKey); tr(`Save ${value}`); tr(ok ? "Back" : "Next"); tr("Save");', { Save: "保存" });
   assert.equal(result.status, 0, result.output);
 });
 
@@ -135,4 +126,23 @@ test("i18n checker audits static and conditional script-block phrases", async ()
   assert.equal(result.status, 1, result.output);
   assert.match(result.output, /2 untranslated strings/);
   assert.match(result.output, /"If \{condition\} then"/);
+});
+
+test("English overrides are optional and unused ones are reported", async () => {
+  const source = 'tr("{n} pages", { n }); tr("Close (menu)");';
+  const none = await check(source, { "{n} pages": "{n}ページ", "Close (menu)": "閉じる" }, ["--strict", "en"]);
+  assert.equal(none.status, 0, none.output);
+  assert.match(none.output, /English is the source language/);
+
+  const english = { "{n} pages": "{n, plural, one {# page} other {# pages}}", "Close (menu)": "Close" };
+  const used = await check(source, {}, ["--strict", "en"], { en: english });
+  assert.equal(used.status, 0, used.output);
+  assert.match(used.output, /All English overrides are used in the source \(2 entries\)/);
+
+  const stale = { ...english, "Old wording": "Old" };
+  const warned = await check(source, {}, ["en"], { en: stale });
+  assert.equal(warned.status, 0, warned.output);
+  assert.match(warned.output, /"Old wording"/);
+  assert.match(warned.output, /WARNING: 1 English overrides are not used/);
+  assert.equal((await check(source, {}, ["--strict", "en"], { en: stale })).status, 1);
 });

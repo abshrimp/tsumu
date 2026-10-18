@@ -18,10 +18,12 @@ test("translation uses only own entries while retaining dictionary priority and 
     greeting: "Hello {name}",
   });
   const fallback = JSON.parse('{"inherited":"Fallback","constructor":"Own translation"}');
-  assert.equal(translate([primary, fallback], "inherited"), "Fallback");
-  assert.equal(translate([primary, fallback], "constructor"), "Own translation");
-  assert.equal(translate([primary, { greeting: "Fallback" }], "greeting", { name: "Tsumu" }), "Hello Tsumu");
-  assert.equal(translate([primary], "Missing {name}", { name: "Tsumu" }), "Missing Tsumu");
+  const ja = (messages: Record<string, string>) => ({ lang: "ja" as const, messages });
+  const en = (messages: Record<string, string>) => ({ lang: "en" as const, messages });
+  assert.equal(translate([ja(primary), en(fallback)], "inherited"), "Fallback");
+  assert.equal(translate([ja(primary), en(fallback)], "constructor"), "Own translation");
+  assert.equal(translate([ja(primary), en({ greeting: "Fallback" })], "greeting", { name: "Tsumu" }), "Hello Tsumu");
+  assert.equal(translate([ja(primary)], "Missing {name}", { name: "Tsumu" }), "Missing Tsumu");
 });
 
 for (const lang of ["ja", "en"]) {

@@ -13,7 +13,7 @@ import { canPickVariable, localVariableNames, variableChoiceSamples, singleValue
 import { changeIfVariableLeft, ifVariableOperators } from "../../lib/if-variable-conditions";
 import { SELF_TARGET, type ScriptCond, type ScriptOp } from "../../lib/types";
 import type { FieldTargetInfo } from "./field-index";
-import { tr, trc, trNodes } from "../../lib/i18n";
+import { tr, trNodes } from "../../lib/i18n";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptStepCtx } from "./context";
 import { TargetSelect } from "./targets";
 
@@ -193,7 +193,7 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
       loop.fields.some(sameRoot) || (loop.roots?.some(sameRoot) ?? false)));
   const sample = source && !exclusiveOwnOutput && !locallyShadowed
     ? lookupVar(samples, source) : undefined;
-  const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("List", "list_variant_1") : tr("Value");
+  const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("List (data type)") : tr("Value");
   return <span className="se-value-choice">
     <TextIn value={value} onCommit={onCommit} vars valueContext="value" width={width}
       itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("value / {variable}")} />
@@ -303,18 +303,18 @@ const COND_SUBJECTS: { value: string; label: string }[] = [
 ];
 
 const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string; negated: string }[] = [
-  { value: "eq", label: trc("condition_comparison", "equal to"), negated: trc("condition_comparison", "not equal to") },
-  { value: "contains", label: trc("condition_comparison", "contain"), negated: trc("condition_comparison", "not contain") },
-  { value: "contains-any", label: trc("condition_comparison", "contain any of"), negated: trc("condition_comparison", "contain none of") },
-  { value: "starts-with", label: trc("condition_comparison", "start with"), negated: trc("condition_comparison", "not start with") },
-  { value: "ends-with", label: trc("condition_comparison", "end with"), negated: trc("condition_comparison", "not end with") },
-  { value: "gt", label: trc("condition_comparison", "greater than"), negated: trc("condition_comparison", "not greater than") },
-  { value: "gte", label: trc("condition_comparison", "at least"), negated: trc("condition_comparison", "not at least") },
-  { value: "lt", label: trc("condition_comparison", "less than"), negated: trc("condition_comparison", "not less than") },
-  { value: "lte", label: trc("condition_comparison", "at most"), negated: trc("condition_comparison", "not at most") },
-  { value: "in", label: trc("condition_comparison", "one of"), negated: trc("condition_comparison", "not one of") },
-  { value: "empty", label: trc("condition_comparison", "empty"), negated: trc("condition_comparison", "not empty") },
-  { value: "has-key", label: trc("condition_comparison", "have an item"), negated: trc("condition_comparison", "not have an item") },
+  { value: "eq", label: tr("equal to (comparison)"), negated: tr("not equal to (comparison)") },
+  { value: "contains", label: tr("contain (comparison)"), negated: tr("not contain (comparison)") },
+  { value: "contains-any", label: tr("contain any of (comparison)"), negated: tr("contain none of (comparison)") },
+  { value: "starts-with", label: tr("start with (comparison)"), negated: tr("not start with (comparison)") },
+  { value: "ends-with", label: tr("end with (comparison)"), negated: tr("not end with (comparison)") },
+  { value: "gt", label: tr("greater than (comparison)"), negated: tr("not greater than (comparison)") },
+  { value: "gte", label: tr("at least (comparison)"), negated: tr("not at least (comparison)") },
+  { value: "lt", label: tr("less than (comparison)"), negated: tr("not less than (comparison)") },
+  { value: "lte", label: tr("at most (comparison)"), negated: tr("not at most (comparison)") },
+  { value: "in", label: tr("one of (comparison)"), negated: tr("not one of (comparison)") },
+  { value: "empty", label: tr("empty (comparison)"), negated: tr("not empty (comparison)") },
+  { value: "has-key", label: tr("have an item (comparison)"), negated: tr("not have an item (comparison)") },
 ];
 
 /** 大小の比較の否定は、逆向きの比較で表せるので一覧には出さない（保存済みのものは表示する）。 */
@@ -325,8 +325,8 @@ function NegationSelect({ not, onChange }: { not?: boolean; onChange: (not: bool
   return (
     <select className="se-in" aria-label={tr("Condition polarity")}
       value={not ? "not" : "is"} onChange={(e) => onChange(e.target.value === "not")}>
-      <option value="is">{trc("condition_check", "is")}</option>
-      <option value="not">{trc("condition_check", "is not")}</option>
+      <option value="is">{tr("is (condition)")}</option>
+      <option value="not">{tr("is not (condition)")}</option>
     </select>
   );
 }

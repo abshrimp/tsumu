@@ -984,7 +984,7 @@ export default function Canvas() {
                     borderColor: "transparent",
                   }}
                 >
-                  {refreshing ? tr("Loading…") : tr("Reload", "reload_variant_1")}
+                  {refreshing ? tr("Loading…") : tr("Reload (canvas)")}
                 </button>
               )}
             </>
@@ -1154,7 +1154,7 @@ export default function Canvas() {
                   type="button"
                   className="sel-parent"
                   data-tutorial="sel-parent"
-                  aria-label={tr("Select parent", "select_parent_variant_1")}
+                  aria-label={tr("Select parent (element)")}
                   data-tip={tr("Select parent (⇧Enter)")}
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}

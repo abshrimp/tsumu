@@ -25,12 +25,12 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     const status = error instanceof RangeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400;
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status });
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status });
   }
   // メソッド・ヘッダー・本文（データの取得ブロックの「リクエストの設定」）
   const verb = typeof method === "string" ? method.toUpperCase() : method == null ? "GET" : "";
   if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(verb)) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }
   const sendHeaders: Record<string, string> = { Accept: "application/json" };
   if (headers && typeof headers === "object") {

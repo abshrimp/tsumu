@@ -136,7 +136,7 @@ const isRecordList = (v: unknown): v is Record<string, unknown>[] =>
 function containerMeta(value: unknown): string {
   return Array.isArray(value)
     ? tr("List · {length} elements", { length: value.length })
-    : tr("List · {length} items", "list_length_items_variant_1", { length: Object.keys(value as object).length });
+    : tr("List · {length} items", { length: Object.keys(value as object).length });
 }
 
 /** 文字・数値などの値 */

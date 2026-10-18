@@ -22,7 +22,7 @@ async function readTrashRequest(req: Request, tr: Tr): Promise<TrashRequest | Ne
   try {
     body = await readJsonLimited(req, MAX_REQUEST_BYTES);
   } catch (error) {
-    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, {
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }

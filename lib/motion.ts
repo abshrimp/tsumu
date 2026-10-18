@@ -16,7 +16,7 @@ export function triggerLabel(t: Motion["trigger"]): string {
 export const TRANSITION_PROPS: { value: string; label: string }[] = [
   { value: "all", label: tr("All (all)") },
   { value: "opacity", label: tr("Opacity") },
-  { value: "transform", label: tr("Transform", "transform_variant_1") },
+  { value: "transform", label: tr("Transform (effect)") },
   { value: "background-color", label: tr("Background color") },
   { value: "color", label: tr("Text color") },
   { value: "border-color", label: tr("Border color") },
@@ -90,12 +90,12 @@ export const KEYFRAMES: { key: string; label: string; css: string }[] = [
   },
   {
     key: "zoom-in",
-    label: tr("Zoom in", "zoom_in_variant_1"),
+    label: tr("Zoom in (animation)"),
     css: "from { opacity: 0; transform: scale(0.6); }",
   },
   {
     key: "zoom-out",
-    label: tr("Zoom out", "zoom_out_variant_1"),
+    label: tr("Zoom out (animation)"),
     css: "from { opacity: 0; transform: scale(1.25); }",
   },
 ];
@@ -112,10 +112,10 @@ export const DIRECTIONS = [
 ] as const;
 
 export const FILL_MODES = [
-  { value: "both", label: tr("Both", "both_variant_1") },
+  { value: "both", label: tr("Both (fill mode)") },
   { value: "forwards", label: tr("Keep end state") },
   { value: "backwards", label: tr("Keep start state") },
-  { value: "none", label: tr("None", "none_variant_1") },
+  { value: "none", label: tr("None (fill mode)") },
 ] as const;
 
 /**

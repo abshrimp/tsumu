@@ -53,8 +53,8 @@ export function StepBody({ step }: { step: ScriptStep }) {
                   )
                 }
               >
-                <option value="show">{tr("Show", "show_variant_1")}</option>
-                <option value="hide">{tr("Hide", "hide_variant_1")}</option>
+                <option value="show">{tr("Show (script action)")}</option>
+                <option value="hide">{tr("Hide (script action)")}</option>
                 <option value="toggle">{tr("Toggle visibility of")}</option>
               </select>
             ),
@@ -466,7 +466,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
         <span className="se-note">{Array.isArray(value)
           ? listCounts && src && listCounts[src] !== undefined
             ? tr("List · {length} elements", { length: listCounts[src] })
-            : tr("List", "list_variant_1")
+            : tr("List (data type)")
           : isNested(value)
             ? tr("Use it in elements like {{into}.field}", { into: step.into })
             : tr("Sample: {p1}", { p1: readableValue(value) })}</span>

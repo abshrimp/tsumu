@@ -17,7 +17,7 @@ import {
   varText,
 } from "./vars";
 import { fieldStateNotes, fieldVarName, fieldVarNames, isRadioItem } from "./fields";
-import { tr, trc } from "./i18n";
+import { tr } from "./i18n";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { matchesValueCondition, parseValueLiteral, setVarPath } from "./value-semantics";
 import { runPurePageSteps } from "./page-load-steps";
@@ -395,7 +395,7 @@ export function varSamplesAt(
   nodeId: string
 ): Record<string, string> {
   const describe = (v: unknown): string => {
-    if (v && typeof v === "object") return tr("List", "list_variant_1");
+    if (v && typeof v === "object") return tr("List (data type)");
     const t = varText(v).replace(/\s+/g, " ");
     return t.length > 28 ? `${t.slice(0, 28)}…` : t;
   };
@@ -897,7 +897,7 @@ export function scriptInputDoc(doc: SiteDoc, stepId?: string): SiteDoc {
 /** 名前の候補を、ページ内の既存の変数と重ならないようにする */
 export function uniqueVarName(doc: SiteDoc, pageId: string, base: string, exceptStepId?: string): string {
   const used = dataVarNames(doc, pageId, exceptStepId);
-  const stem = cleanVarName(base) || trc("variable_name", "data");
+  const stem = cleanVarName(base) || tr("data (variable name)");
   let name = stem;
   for (let i = 2; used.has(name); i++) name = `${stem}${i}`;
   return name;

@@ -88,9 +88,9 @@ function safeUrl(value: string): string {
 function htmlName(tag: string): string {
   const names: Record<string, string> = {
     h1: tr("Heading"), h2: tr("Heading"), h3: tr("Heading"), p: tr("Paragraph"), a: tr("Link"),
-    img: tr("Image"), button: tr("Button"), nav: tr("Navigation", "navigation_variant_1"), header: tr("Header"),
+    img: tr("Image"), button: tr("Button"), nav: tr("Navigation (element)"), header: tr("Header"),
     footer: tr("Footer"), section: tr("Section"), main: tr("Main"), form: tr("Form"),
-    input: tr("Input", "input_variant_2"), textarea: tr("Text area"), select: tr("Select", "select_variant_1"),
+    input: tr("Input (field)"), textarea: tr("Text area"), select: tr("Select (element)"),
   };
   return names[tag] || tag;
 }
@@ -673,7 +673,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         if (depth >= MAX_NODE_DEPTH) throw new Error(tr("The HTML contains too many elements."));
         const textId = genId("node");
         common.children.push(add({
-          id: textId, type: "box", name: tr("Text", "text_variant_1"), semantic: "span",
+          id: textId, type: "box", name: tr("Text (element)"), semantic: "span",
           text: { content: value, heading: 0 }, link: null, children: [],
           styles: { base: { default: {} } },
         }));
@@ -689,7 +689,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
       const id = genId("node");
       roots.push(add({
-        id, type: "box", name: tr("Text", "text_variant_1"), semantic: "span",
+        id, type: "box", name: tr("Text (element)"), semantic: "span",
         text: { content: child.textContent, heading: 0 },
         link: null, children: [], styles: { base: { default: {} } },
       }));

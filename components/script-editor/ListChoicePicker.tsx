@@ -38,7 +38,7 @@ export function ListChoicePicker({
   const selected = options.find((option) => option.value === value);
   // 手で入力した参照は、見本が無くても実行時には有効なことがある。
   const selectedLabel = selected?.label ?? value;
-  const placeholder = options.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists");
+  const placeholder = options.length ? tr("Select a list") : tr("No lists");
   const entered = query.trim();
   const filter = entered.toLocaleLowerCase();
   const visible = open
@@ -117,7 +117,7 @@ export function ListChoicePicker({
         ref={buttonRef}
         type="button"
         className={"se-in se-pm-btn se-list-choice" + (value ? "" : " is-empty") + (open ? " is-open" : "")}
-        aria-label={tr("Select a list", "select_a_list_variant_1")}
+        aria-label={tr("Select a list")}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
@@ -173,7 +173,7 @@ export function ListChoicePicker({
             />
           </label>
           <div id={menuId} className="np-list" role="listbox"
-            aria-label={tr("Select a list", "select_a_list_variant_1")} ref={listRef}>
+            aria-label={tr("Select a list")} ref={listRef}>
             {visible.map((option, index) => (
               <div key={option.value}>
                 {option.group && option.group !== visible[index - 1]?.group && (

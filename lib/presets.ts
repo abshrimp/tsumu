@@ -10,7 +10,7 @@ import type {
   SiteDoc,
   StyleMap,
 } from "./types";
-import { getLang, tr, trc } from "./i18n";
+import { getLang, tr } from "./i18n";
 import { BP_ORDER } from "./style";
 
 let counter = 0;
@@ -53,11 +53,11 @@ export function makeBox(name = tr("Box"), styles: StyleMap = {}): DocNode {
   };
 }
 
-export function makeText(content = tr("Text", "text_variant_1"), styles: StyleMap = {}): DocNode {
+export function makeText(content = tr("Text (element)"), styles: StyleMap = {}): DocNode {
   return {
     id: genId("node"),
     type: "box",
-    name: tr("Text", "text_variant_1"),
+    name: tr("Text (element)"),
     semantic: "auto",
     text: { content, heading: 0 },
     link: null,
@@ -284,7 +284,7 @@ export function makeField(kind: FieldKind): DocNode {
     { name: string; field: Partial<FieldContent>; attrId?: string; styles: StyleMap }
   > = {
     input: {
-      name: tr("Input", "input_variant_1"),
+      name: tr("Input (element)"),
       field: { inputType: "text", placeholder: tr("Enter a value") },
       attrId: "field",
       styles: {
@@ -314,7 +314,7 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     select: {
-      name: tr("Select", "select_variant_1"),
+      name: tr("Select (element)"),
       field: {
         options: [tr("Select…"), tr("Option A"), tr("Option B")]
           .map((value) => ({ label: value, value })),
@@ -331,7 +331,7 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     checkbox: {
-      name: tr("Checkbox", "checkbox_variant_1"),
+      name: tr("Checkbox (element)"),
       field: { label: tr("I agree") },
       attrId: "agree",
       styles: {
@@ -713,7 +713,7 @@ function loadScript(url: string, sample: unknown, then: ScriptStep[]): Script {
     id: genId("sc"),
     trigger: "load",
     steps: [
-      { id: genId("st"), kind: "fetch", url, as: trc("variable_name", "data"),
+      { id: genId("st"), kind: "fetch", url, as: tr("data (variable name)"),
         preview: { sample, fetchedAt: Date.now() } },
       ...then,
     ],
@@ -789,7 +789,7 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
     children: [dWrap.id],
     pageScripts: [
       loadScript("https://dummyjson.com/products/{slug}", DEMO_PRODUCTS_SAMPLE[0], [
-        { id: genId("st"), kind: "set-var", value: tr("{data}"), into: trc("variable_name", "product") },
+        { id: genId("st"), kind: "set-var", value: tr("{data}"), into: tr("product (variable name)") },
       ]),
     ],
   };
@@ -865,7 +865,7 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
     text: null,
     link: null,
     list: {
-      from: trc("variable_name", "products"),
+      from: tr("products (variable name)"),
       limit: 12,
     },
     children: [card.id],
@@ -906,7 +906,7 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
       loadScript(
         "https://dummyjson.com/products/search?q={q}",
         { products: DEMO_PRODUCTS_SAMPLE },
-        [{ id: genId("st"), kind: "set-var", value: tr("{data.products}"), into: trc("variable_name", "products") }]
+        [{ id: genId("st"), kind: "set-var", value: tr("{data.products}"), into: tr("products (variable name)") }]
       ),
     ],
   };

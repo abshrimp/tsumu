@@ -38,7 +38,7 @@ export const ELEMENT_SECTIONS: { title: string; items: ElementDef[] }[] = [
     title: tr("Basic"),
     items: [
       { key: "box", label: tr("Box"), icon: "box", make: () => makeBox() },
-      { key: "text", label: tr("Text", "text_variant_1"), icon: "text", make: () => makeText() },
+      { key: "text", label: tr("Text (element)"), icon: "text", make: () => makeText() },
       {
         key: "heading",
         label: tr("Heading"),
@@ -67,7 +67,7 @@ export const ELEMENT_SECTIONS: { title: string; items: ElementDef[] }[] = [
     items: [
       {
         key: "input",
-        label: tr("Input", "input_variant_1"),
+        label: tr("Input (element)"),
         icon: "input",
         make: () => makeField("input"),
       },
@@ -79,7 +79,7 @@ export const ELEMENT_SECTIONS: { title: string; items: ElementDef[] }[] = [
       },
       {
         key: "select",
-        label: tr("Select", "select_variant_1"),
+        label: tr("Select (element)"),
         icon: "select",
         make: () => makeField("select"),
       },

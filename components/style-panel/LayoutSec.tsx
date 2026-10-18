@@ -35,7 +35,7 @@ import {
   TextField,
   useInspector,
 } from "../controls";
-import { tr, trc } from "../../lib/i18n";
+import { tr } from "../../lib/i18n";
 import { StyleCheck, differsFrom } from "./BackgroundSec";
 import {
   GRID_DEFAULT_COLUMNS,
@@ -236,7 +236,7 @@ export function LayoutSec() {
               </div>
             </Grp>
             {dir === "row" && (
-              <StyleCheck prop="flexWrap" label={tr("Wrap", "wrap_variant_1")} on="wrap" off="nowrap" />
+              <StyleCheck prop="flexWrap" label={tr("Wrap")} on="wrap" off="nowrap" />
             )}
           </div>
         </div>
@@ -335,8 +335,8 @@ export function LayoutSec() {
         <PropSeg
           prop="overflow"
           options={[
-            { label: trc("overflow", "Visible"), value: "visible" },
-            { label: trc("overflow", "Hidden"), value: "hidden" },
+            { label: tr("Visible (overflow)"), value: "visible" },
+            { label: tr("Hidden (overflow)"), value: "hidden" },
             { label: tr("Scroll"), value: "auto" },
           ]}
         />

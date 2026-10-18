@@ -275,7 +275,7 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
         {ready && checks && (
           <div className={`guide-status${done ? " is-done" : ""}`}>
             {done ? <CheckCircle2 size={14} /> : <Circle size={14} />}
-            {done ? tr("Done", "done_variant_1") : tr("Do it to continue")}
+            {done ? tr("Done (guide step)") : tr("Do it to continue")}
           </div>
         )}
         <div className="guide-actions">

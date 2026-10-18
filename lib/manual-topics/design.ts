@@ -1,5 +1,5 @@
 import type { Topic } from "../manual";
-import { tr, trc } from "../i18n";
+import { tr } from "../i18n";
 
 export const designTopics: Topic[] = [  /* ================= ウェブデザインの基本 ================= */
   {
@@ -36,7 +36,7 @@ export const designTopics: Topic[] = [  /* ================= ウェブデザイ�
     level: 2,
     q: tr("How do I choose spacing sizes?"),
     a: tr("Pick from **a fixed scale** like 4, 8, 16, 24, 32, 48, 64px (multiples of 8). Keep related things close and separate groups more widely."),
-    keys: [tr("Spacing"), "8px", tr("Grid"), tr("spacing", "spacing_variant_1"), tr("Gap"), tr("align")],
+    keys: [tr("Spacing"), "8px", tr("Grid"), tr("spacing (help search)"), tr("Gap"), tr("align")],
     ctx: ["box"],
     body: [
       { fig: "spacing-scale" },
@@ -89,7 +89,7 @@ export const designTopics: Topic[] = [  /* ================= ウェブデザイ�
     level: 2,
     q: tr("How do I make long text easy to read?"),
     a: tr("Keep lines to a comfortable length (about 640–760px wide, roughly 60–75 characters in English) with a line height of 1.5–1.9. Leave about a line's worth of space between paragraphs."),
-    keys: [tr("readability"), tr("line length"), tr("characters"), tr("Line height"), tr("paragraph"), trc("help_search", "text")],
+    keys: [tr("readability"), tr("line length"), tr("characters"), tr("Line height"), tr("paragraph"), tr("text (help search)")],
     ctx: ["text"],
     body: [
       { fig: "line-length" },
@@ -125,7 +125,7 @@ export const designTopics: Topic[] = [  /* ================= ウェブデザイ�
     body: [
       {
         table: {
-          head: [tr("Type"), tr("Feel"), tr("Good for", "good_for_variant_1")],
+          head: [tr("Type"), tr("Feel"), tr("Good for (situations)")],
           rows: [
             [tr("Sans-serif"), tr("Readable, friendly"), tr("Body text, guides, buttons")],
             [tr("Serif"), tr("Elegant, calm"), tr("Headings, formal notices")],
@@ -173,7 +173,7 @@ export const designTopics: Topic[] = [  /* ================= ウェブデザイ�
     level: 3,
     q: tr("Why does text overflow or overlap?"),
     a: tr("Usually it's because the box holding the text **has a fixed height or width**. Leave the height empty (fit to content) and use Min height if needed."),
-    keys: [tr("overflow"), tr("overlap", "overlap_variant_1"), tr("broken layout"), tr("fixed height"), tr("layout issues")],
+    keys: [tr("overflow"), tr("overlap (help search)"), tr("broken layout"), tr("fixed height"), tr("layout issues")],
     ctx: ["box", "text", "mobile"],
     body: [
       { fig: "fixed-height", caption: tr("On phones, text wraps onto more lines. It spills out of fixed-height boxes and overlaps the elements below.") },

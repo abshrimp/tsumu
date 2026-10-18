@@ -27,7 +27,7 @@ export const publishTopics: Topic[] = [  /* ================= 公開と管理 ==
     level: 2,
     q: tr("I want to return the live site to an earlier version (rollback)"),
     a: tr("Open **Publish history & rollback** in the Publish dialog (or History in the \"…\" menu) and click **Restore site** on the version you want."),
-    keys: [tr("rollback"), tr("restore", "restore_variant_1"), tr("publish history"), tr("earlier version"), tr("Undo")],
+    keys: [tr("rollback"), tr("restore (help search)"), tr("publish history"), tr("earlier version"), tr("Undo")],
     body: [
       { fig: "rollback" },
       {
@@ -160,7 +160,7 @@ export const publishTopics: Topic[] = [  /* ================= 公開と管理 ==
     level: 4,
     q: tr("How do I export the site and run it myself (zip)?"),
     a: tr("Use **Export as zip** in the \"…\" menu at the top right to export a Next.js project. Extract it and run `npm install && npm run dev`."),
-    keys: ["zip", tr("export", "export_variant_1"), tr("export"), "Next.js", tr("Download")],
+    keys: ["zip", tr("export (help search)"), tr("export"), "Next.js", tr("Download")],
     body: [
       { p: tr("Sites made with this editor are regular Next.js projects. You can edit and publish the exported files without the editor.") },
     ],

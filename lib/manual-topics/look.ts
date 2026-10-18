@@ -127,7 +127,7 @@ export const lookTopics: Topic[] = [  /* ================= 色と見た目 =====
     level: 3,
     q: tr("How do I add effects like transparency, frosted glass or black and white?"),
     a: tr("Use Opacity under Appearance for transparency, Background blur under Effects for frosted glass, and Grayscale for black and white."),
-    keys: [tr("translucent"), tr("transparent"), tr("frosted glass"), tr("Blur"), tr("black and white"), tr("filter", "filter_variant_1"), tr("blend")],
+    keys: [tr("translucent"), tr("transparent"), tr("frosted glass"), tr("Blur"), tr("black and white"), tr("filter (help search)"), tr("blend")],
     ctx: ["box", "image"],
     body: [
       { p: tr("Background blur blurs whatever is behind the element. Combined with a semi-transparent (60–80%) background color, it looks like frosted glass.") },
@@ -143,7 +143,7 @@ export const lookTopics: Topic[] = [  /* ================= 色と見た目 =====
     level: 3,
     q: tr("I want to nudge, scale or skew an element (transform)"),
     a: tr("Add Transform with the + in Effects to set move, scale, rotate and skew, along with their origin. The layout around the element doesn't change."),
-    keys: ["transform", tr("Transform", "transform_variant_1"), tr("Zoom in"), tr("Zoom out"), tr("Rotation"), tr("skew"), tr("Navigation"), tr("nudge")],
+    keys: ["transform", tr("Transform (effect)"), tr("Zoom in"), tr("Zoom out"), tr("Rotation"), tr("skew"), tr("Navigation"), tr("nudge")],
     ctx: ["box", "image"],
     body: [
       { p: tr("Set the state to Hover, set Scale to 105%, and add a “state change” motion to make a button or card that grows smoothly when the pointer is over it.") },
@@ -160,7 +160,7 @@ export const lookTopics: Topic[] = [  /* ================= 色と見た目 =====
     level: 2,
     q: tr("I want to set up inputs, checkboxes, switches and sliders"),
     a: tr("Select the field. Set its type, initial value, placeholder and whether it's required under Form field on the Settings tab, and colors such as the checkbox or slider color under Input on the Style tab."),
-    keys: [tr("Input", "input_variant_2"), tr("Form"), tr("Checkbox", "checkbox_variant_1"), tr("Radio button"), tr("slider"), "input", "accent-color", tr("Default value"), tr("placeholder")],
+    keys: [tr("Input (field)"), tr("Form"), tr("Checkbox (element)"), tr("Radio button"), tr("slider"), "input", "accent-color", tr("Default value"), tr("placeholder")],
     body: [
       { p: tr("The initial value, placeholder, label and options can contain {variables}, such as fetched data or the value of another field ({ID}).") },
       { p: tr("Number, slider and date fields have a minimum, maximum and step; text fields have a maximum length. A Required field can't be submitted empty.") },

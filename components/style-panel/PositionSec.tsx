@@ -223,7 +223,7 @@ export function PositionSec() {
                 </Grp>
               </div>
               <Grp
-                label={tr("Relative to", "relative_to_variant_1")}
+                label={tr("Relative to (element)")}
                 setHere={posInfo.setHere && (pos === "fixed") !== (posInfo.reference === "fixed")}
                 onReset={() => insp.set({ position: "absolute" })}
               >

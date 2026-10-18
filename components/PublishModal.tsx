@@ -900,7 +900,7 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
       ) : !state ? (
         <div className="pub-loading">
           <LoaderCircle size={14} className="spin" />
-          {tr("Loading…", "loading_variant_1")}
+          {tr("Loading… (in progress)")}
         </div>
       ) : !state.commits.length ? (
         <p className="hint">{tr("Not published yet.")}</p>
@@ -999,7 +999,7 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
       ) : !list ? (
         <div className="pub-loading">
           <LoaderCircle size={14} className="spin" />
-          {tr("Loading…", "loading_variant_1")}
+          {tr("Loading… (in progress)")}
         </div>
       ) : !list.length ? (
         <p className="hint">{tr("No backups yet.")}</p>
@@ -1059,7 +1059,7 @@ export function HistoryModal({
           ) : conf === null ? (
             <div className="pub-loading">
               <LoaderCircle size={14} className="spin" />
-              {tr("Loading…", "loading_variant_1")}
+              {tr("Loading… (in progress)")}
             </div>
           ) : conf === "error" ? (
             <p className="hint">{tr("Couldn't load the publish settings")}</p>

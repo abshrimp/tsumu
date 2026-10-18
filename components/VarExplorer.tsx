@@ -17,7 +17,7 @@ const isNested = (v: unknown) => v != null && typeof v === "object";
 function kindOf(v: unknown, note?: string): string {
   if (v === undefined) return note ? "" : tr("No sample");
   if (Array.isArray(v)) return tr("List · {length} elements", { length: v.length });
-  if (v && typeof v === "object") return tr("List · {length} items", "list_length_items_variant_1", { length: Object.keys(v).length });
+  if (v && typeof v === "object") return tr("List · {length} items", { length: Object.keys(v).length });
   return tr("Value");
 }
 
@@ -101,7 +101,7 @@ function Row({
           <button
             type="button"
             className={`vx-chev${open ? " is-open" : ""}`}
-            aria-label={open ? tr("Close") : tr("Expand", "expand_variant_1")}
+            aria-label={open ? tr("Close") : tr("Expand (contents)")}
             aria-expanded={open}
             onClick={(e) => {
               e.stopPropagation();

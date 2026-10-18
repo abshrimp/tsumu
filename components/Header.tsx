@@ -76,7 +76,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
         <h2>{tr("Settings")}</h2>
 
         <section className="settings-sec">
-          <h3>{tr("Language", "language_variant_1")}</h3>
+          <h3>{tr("Language (display)")}</h3>
           <LanguageSelector />
           <p className="hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>
@@ -471,7 +471,7 @@ export default function Header({
         <button
           className={`icon-btn${helpOpen ? " is-on" : ""}`}
           data-tutorial="help"
-          data-tip={tr("Help", "help_variant_1")}
+          data-tip={tr("Help (menu)")}
           data-tip-kbd="?"
           aria-label={tr("Help")}
           aria-pressed={helpOpen}

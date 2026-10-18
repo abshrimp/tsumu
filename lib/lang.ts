@@ -1,7 +1,8 @@
 /**
  * middleware とブラウザで使う、軽量な言語の情報。
  * lib/locales/<BCP-47>.ts を追加すれば、scripts/sync-locales.mjs が見つけて登録する。
- * 原文の英語にはファイルが要らない。訳が無い文は英語で表示する。
+ * 英語は原文の言語なので、en.ts が無くても登録する。en.ts には、原文と表示を変えたいもの（複数形など）だけを書く。
+ * 訳が無い文は英語で表示する。
  */
 import { REGISTERED_LANGUAGES } from "./locales/languages.generated";
 
