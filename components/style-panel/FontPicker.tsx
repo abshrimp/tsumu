@@ -162,6 +162,34 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
     return () => { clearTimeout(timeout); controller.abort(); };
   }, [open, provider, kitId]);
 
+  // Preview Adobe families from the selected Web Project, including dynamic CJK subsets.
+  // Only Adobe's validated seven-character kit endpoint is loaded, never arbitrary embed code.
+  useEffect(() => {
+    const validKitId = kitId && /^[a-z0-9]{7}$/.test(kitId) ? kitId : null;
+    if (!open || provider !== "adobe" || !validKitId || !visibleAdobeFonts.length) return;
+    const url = "https://use.typekit.net/" + validKitId + ".js";
+    const existing = [...document.querySelectorAll<HTMLScriptElement>("script[src]")]
+      .find(script => script.src === url);
+    const refresh = () => {
+      try {
+        (window as Window & { Typekit?: { load: (options?: { async: boolean }) => void } })
+          .Typekit?.load({ async: true });
+      } catch {
+        // A disabled or unpublished kit must not prevent selecting other fonts.
+      }
+    };
+    if (existing) {
+      refresh();
+      return;
+    }
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = url;
+    script.onload = refresh;
+    document.head.appendChild(script);
+    return () => { script.remove(); };
+  }, [open, provider, kitId, visibleAdobeFonts.length]);
+
   const addGoogle = async () => {
     const name = (chosenGoogle || query).trim().replace(/\s+/g, " ");
     if (!name) { setError(tr("Choose a font from the search results.")); return; }
@@ -417,6 +445,10 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
                             aria-pressed={chosenAdobe === font.family}
                             onClick={() => { setChosenAdobe(font.family); setError(null); }}>
                             <span>{font.name}</span>
+                            <span className="font-add-sample"
+                              style={{ fontFamily: '"' + font.family.replace(/[^A-Za-z0-9 _-]/g, "") + '", sans-serif' }}>
+                              {tr("Sample typography")}
+                            </span>
                             <small>{font.family}</small>
                           </button>
                         ))}

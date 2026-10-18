@@ -72,6 +72,23 @@ test("Adobe Fonts lists published project families without requiring embed code"
   ]);
 });
 
+test("Adobe font choices preview their font families through the Web Project loader", async ({ page }) => {
+  await page.route("http://pending-import.test/api/fonts/adobe/status?**", route =>
+    route.fulfill({ json: { status: "available", fonts: [
+      { name: "Source Han Serif", family: "source-han-serif-japanese", loading: "dynamic" },
+    ] } }));
+  await page.route("https://use.typekit.net/abc1234.js", route =>
+    route.fulfill({ contentType: "application/javascript", body: "window.Typekit = { load() {} };" }));
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  await page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" }).fill("abc1234");
+  const option = page.getByRole("group", { name: "AdobeのWebプロジェクト内のフォント" })
+    .getByRole("button", { name: /Source Han Serif/ });
+  await expect(option.locator(".font-add-sample")).toBeVisible();
+  await expect(option.locator(".font-add-sample")).toHaveCSS("font-family", "source-han-serif-japanese, sans-serif");
+  await expect.poll(async () => page.locator('script[src="https://use.typekit.net/abc1234.js"]').count()).toBe(1);
+});
+
 test("Adobe Fonts places project setup help next to the ID label without redundant warnings", async ({ page }) => {
   await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByRole("button", { name: "Adobe Fonts" }).click();
