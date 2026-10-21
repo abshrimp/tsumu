@@ -1293,12 +1293,6 @@ export const SCRIPT_RUNTIME = `function (env) {
           return s.trigger === "click";
         });
       }
-      function opensPage(steps) {
-        return (steps || []).some(function (st) {
-          return st.kind === "open-page" || st.kind === "open-url" ||
-            opensPage(st.then) || opensPage(st.else);
-        });
-      }
       // 押した場所から外側へたどって、最初に見つかる「クリックしたとき」を持つ要素
       function innerClick(t) {
         var els = chain(t);
@@ -1312,15 +1306,10 @@ export const SCRIPT_RUNTIME = `function (env) {
         var a = inner && inner.parentElement && inner.parentElement.closest("a[href]");
         if (a && root.contains(a)) e.preventDefault();
       }
+      // 「クリックしたとき」は一番内側の要素のものだけ動かし、外側（親）のものは動かさない
       function onClick(e) {
-        var inner = null;
-        chain(e.target).forEach(function (el) {
-          var steps = clickSteps(el);
-          // 内側で動いた要素があれば、外側の「ページを開く」は動かさない
-          if (inner && steps.some(function (s) { return opensPage(s.steps); })) return;
-          fire(el, "click");
-          if (!inner && steps.length) inner = el;
-        });
+        var inner = innerClick(e.target);
+        if (inner) fire(inner, "click");
       }
       /*/click*/
       /*#hover*/
