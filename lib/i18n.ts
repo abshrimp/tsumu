@@ -46,6 +46,8 @@ function detectLang(): Lang {
 let current: Lang = detectLang();
 /** 訳を探す辞書（今の言語 → 予備の言語の順） */
 let dicts: Dict[] = [];
+/** 辞書の読み込み（読み込み中・読み込み済みのもの） */
+let loading: Promise<void> | null = null;
 
 export function getLang(): Lang {
   return current;
@@ -83,7 +85,17 @@ export async function loadLocale(): Promise<void> {
     document.documentElement.lang = current;
     document.cookie = `${LANG_COOKIE}=${current}; path=/; max-age=31536000; samesite=lax`;
   }
-  if (!dicts.length) dicts = await loadDicts(current);
+  // 同時に何か所から呼ばれても読み込みは1回にする（失敗したら次の呼び出しで読み込み直す）
+  loading ??= loadDicts(current).then(
+    (list) => {
+      dicts = list;
+    },
+    (error) => {
+      loading = null;
+      throw error;
+    }
+  );
+  await loading;
 }
 
 function lookup(list: Dict[], key: string): string | undefined {

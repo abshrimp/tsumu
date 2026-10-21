@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import dynamic from "next/dynamic";
+import { type ComponentType, useEffect, useState } from "react";
 import BrandMark from "../../../components/BrandMark";
 import { glyphs } from "../../../components/Glyph";
 import { loadLocale, tr } from "../../../lib/i18n";
@@ -93,10 +92,7 @@ function EditorLoading() {
 }
 
 // 文言を作る前に言語の辞書を読み込む（モジュールの読み込み時に訳す文言があるため）
-const Editor = dynamic(() => loadLocale().then(() => import("../../../components/Editor")), {
-  ssr: false,
-  loading: () => <EditorLoading />,
-});
+const loadEditor = () => loadLocale().then(() => import("../../../components/Editor"));
 
 /** サイトが見つからないとき（消されたサイト・URLの打ち間違い） */
 function SiteNotFound() {
@@ -114,15 +110,25 @@ function SiteNotFound() {
   );
 }
 
+type SiteState =
+  | { kind: "checking" }
+  | { kind: "missing" }
+  | { kind: "ok"; Editor: ComponentType }
+  | { kind: "failed"; error: unknown };
+
 /**
  * 開く前に、サイトがあるか確かめる（無いサイトの編集データを作らないように）。
- * サーバーに一覧が無い（D1 が無い）ときはブラウザ内の一覧を見る。通信の失敗では止めない
+ * サーバーに一覧が無い（D1 が無い）ときはブラウザ内の一覧を見る。通信の失敗では止めない。
+ * エディタ本体は確認と並行して読み込み、両方そろってから開く（読み込み画面を1回で済ませるため）
  */
-function useSiteCheck(): "checking" | "ok" | "missing" {
-  const [state, setState] = useState<"checking" | "ok" | "missing">("checking");
+function useSiteCheck(): SiteState {
+  const [state, setState] = useState<SiteState>({ kind: "checking" });
   useEffect(() => {
     let alive = true;
     const id = currentSiteId();
+    const editor = loadEditor();
+    // サイトが無くて待たなかったときの失敗は捨てる（待つときは下で受け取る）
+    editor.catch(() => {});
     void (async () => {
       let result: "ok" | "missing" = "ok";
       try {
@@ -140,7 +146,17 @@ function useSiteCheck(): "checking" | "ok" | "missing" {
         // 通信できなくても、手元の保存で編集を続けられるようにする
       }
       await loadLocale();
-      if (alive) setState(result);
+      if (result === "missing") {
+        if (alive) setState({ kind: "missing" });
+        return;
+      }
+      try {
+        const { default: Editor } = await editor;
+        if (alive) setState({ kind: "ok", Editor });
+      } catch (error) {
+        // 読み込めなかったら（デプロイ直後の古いチャンクなど）エラー画面に任せる
+        if (alive) setState({ kind: "failed", error });
+      }
     })();
     return () => {
       alive = false;
@@ -151,7 +167,8 @@ function useSiteCheck(): "checking" | "ok" | "missing" {
 
 export default function SitePage() {
   const state = useSiteCheck();
-  if (state === "checking") return <EditorLoading />;
-  if (state === "missing") return <SiteNotFound />;
-  return <Editor />;
+  if (state.kind === "checking") return <EditorLoading />;
+  if (state.kind === "missing") return <SiteNotFound />;
+  if (state.kind === "failed") throw state.error;
+  return <state.Editor />;
 }
