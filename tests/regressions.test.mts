@@ -338,3 +338,9 @@ test("a fetch URL that cannot be parsed does not stop the export and sends no cr
   // 取得元のオリジンが決まらないので、資格情報つきの取得は safeRequestOrigin が止める
   assert.match(files["app/page.tsx"], /fetchJson\(interpolateUrl\("https:\/\/exa mple\.com\/items", vars\), JSON\.stringify\(\{ headers: \{ "Authorization": "Bearer x" \} \}\), undefined\)/);
 });
+
+test("the script runtime parses as JavaScript (preview and export run it with new Function)", async () => {
+  const { SCRIPT_RUNTIME } = await import("../lib/script-runtime");
+  // テンプレート文字列の中の正規表現は \\/ と書かないと / で終わり、プレビューのキャンバスごと落ちる
+  assert.doesNotThrow(() => new Function(`return (${SCRIPT_RUNTIME})`));
+});

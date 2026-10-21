@@ -494,7 +494,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               if (!/^[^{}\\s"'<>\`]+$/.test(k)) return m;
             }
             var v = text(lookup(k.trim(), self, item));
-            return at === 0 && (/^(?:https?:|mailto:|tel:|data:image\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")
+            return at === 0 && (/^(?:https?:|mailto:|tel:|data:image\\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\\.microsoft\\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")
               ? v
               : encodeURIComponent(v);
           }
@@ -727,7 +727,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               var v = text(lookup(k, null, item));
               // URLの先頭（JSON の文字列の始まり）の変数がURLそのもの（https:// や / で始まる）なら、そのまま入れる
               //（配信時の interpolateUrl・画面上の resolveUrl と同じ）
-              if (all.charAt(at - 1) === '"' && (/^(?:https?:|mailto:|tel:|data:image\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")) {
+              if (all.charAt(at - 1) === '"' && (/^(?:https?:|mailto:|tel:|data:image\\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\\.microsoft\\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")) {
                 return JSON.stringify(v).slice(1, -1);
               }
               return encodeURIComponent(v);
