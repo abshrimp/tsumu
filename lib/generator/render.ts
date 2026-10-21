@@ -208,7 +208,9 @@ ${indent}</div>`;
       ctx.usesInterpolate = true;
       srcAttr = `src={interpolate(${JSON.stringify(src)}, ${ctx.varsExpr ?? "vars"}) || "${EMPTY_GIF}"}`;
     }
-    const priority = node.image.priority ? "\n" + indent + "  priority" : "";
+    // Next.js 16 では priority が非推奨なので preload を使い、取得の優先度も上げる
+    const priority = (pad: string) =>
+      node.image!.priority ? `\n${pad}preload\n${pad}fetchPriority="high"` : "";
     const asset = node.image.assetId ? ctx.doc.assets[node.image.assetId] : null;
     if (
       asset?.svgFilter &&
@@ -220,10 +222,10 @@ ${indent}</div>`;
       // iOS SafariはSVGのfilterを低解像度で描くため、2倍で描いて0.5倍に縮める。
       // 元画像と同じ実寸・縦横比を持つ透明なsvgで箱の大きさを決め、レイアウトは変えない
       const w = width, h = height;
-      return `${indent}<span${idAttr}\n${indent}  className="crisp-svg ${cls}"\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority ? "\n" + indent + "    priority" : ""}\n${indent}  />\n${indent}</span>`;
+      return `${indent}<span${idAttr}\n${indent}  className="crisp-svg ${cls}"\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
     }
     // 実寸が分からない画像（読み込み前など）でも next/image の width・height は必須
-    return `${indent}<Image${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className="${cls}"${priority}\n${indent}/>`;
+    return `${indent}<Image${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className="${cls}"${priority(indent + "  ")}\n${indent}/>`;
   }
 
   if (node.type === "divider") {
