@@ -208,6 +208,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       if (validationError) throw new Error(validationError);
 
       const result = await saveCurrentDoc(db, siteId, raw, input.base);
+      if (result.kind === "missing") throw new Error("サイトが見つかりません");
       if (result.kind === "conflict") {
         const current = result.current;
         socket.send(

@@ -11,7 +11,9 @@ export interface CurrentDoc {
 
 export type SaveDocResult =
   | { kind: "saved"; rev: string; savedAt: number }
-  | { kind: "conflict"; current: CurrentDoc };
+  | { kind: "conflict"; current: CurrentDoc }
+  /** サイトが無い（ほかのタブ・人が消した）。編集データを作り直さない */
+  | { kind: "missing" };
 
 export function validateDocBody(raw: string): string | null {
   if (new TextEncoder().encode(raw).byteLength > MAX_DOC_BYTES) {
@@ -94,10 +96,13 @@ export async function saveCurrentDoc(
     if (current) return { kind: "conflict", current };
   }
 
+  // サイトの一覧に無い編集データは作らない（消したサイトを開いたままのタブが保存すると、
+  // 一覧に出ないデータが残り、そのアセットも「ほかのサイトが使用中」として消せなくなる）
   const rs = await db.execute({
-    sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, 1, ?, ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body, rev = docs.rev + 1, saved_at = excluded.saved_at RETURNING rev",
-    args: [siteId, now, raw],
+    sql: "INSERT INTO docs (id, rev, saved_at, body) SELECT ?, 1, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body, rev = docs.rev + 1, saved_at = excluded.saved_at RETURNING rev",
+    args: [siteId, now, raw, siteId],
   });
+  if (!rs.rows.length) return { kind: "missing" };
   await writeDailyBackup(db, siteId, raw, now);
   return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
 }

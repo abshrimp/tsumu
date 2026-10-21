@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDbFromBinding } from "../lib/db";
 import { assetFileName, nodeAssetStore, nodeDatabase } from "../lib/node-storage";
+import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
+import { deleteSite, insertSite } from "../lib/sites";
 
 function withDataDir(run: (dir: string) => Promise<void>) {
   return async () => {
@@ -87,4 +89,16 @@ test("長いキー（日本語の名前など）はハッシュのファイル�
   const store = nodeAssetStore()!;
   await store.put(key, new TextEncoder().encode("png").buffer, { metadata: { contentType: "image/png" } });
   assert.equal(new TextDecoder().decode((await store.get(key, { type: "arrayBuffer" }))!), "png");
+}));
+
+test("消したサイトの編集データは、開いたままのタブが保存しても作り直さない", withDataDir(async () => {
+  const db = await getDbFromBinding(nodeDatabase()!);
+  const dest = { name: "s", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null };
+  await insertSite(db, "s1", dest);
+  const first = await saveCurrentDoc(db, "s1", "{}", null);
+  assert.equal(first.kind, "saved");
+  await deleteSite(db, "s1");
+  assert.deepEqual(await saveCurrentDoc(db, "s1", "{}", first.kind === "saved" ? first.rev : null), { kind: "missing" });
+  assert.deepEqual(await saveCurrentDoc(db, "s1", "{}", null), { kind: "missing" });
+  assert.equal(await readCurrentDoc(db, "s1"), null);
 }));

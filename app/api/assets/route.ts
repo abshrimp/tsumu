@@ -49,7 +49,8 @@ export async function POST(req: Request) {
     .replace(/^[.-]+|-+$/g, "");
   // 保存先のキー（KV は512バイト・ファイルに保存するときは名前が255バイトまで）に収まる長さにする
   const safeName = `${(stem || "asset").slice(0, 80).replace(/-+$/, "") || "asset"}${ext}`;
-  const path = `assets/${Date.now().toString(36)}-${safeName}`;
+  // 同じ名前（日本語だけの名前はどれも "asset"）が同時に届いても上書きしないよう、乱数も入れる
+  const path = `assets/${Date.now().toString(36)}${crypto.randomUUID().slice(0, 6)}-${safeName}`;
 
   try {
     await store.put(path, await file.arrayBuffer(), {

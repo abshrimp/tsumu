@@ -100,6 +100,9 @@ export async function PUT(req: Request) {
   try {
     const db = await getDb();
     const result = await saveCurrentDoc(db, siteId, raw, base);
+    if (result.kind === "missing") {
+      return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+    }
     if (result.kind === "conflict") {
       const cur = result.current;
       return new NextResponse(

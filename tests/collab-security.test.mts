@@ -10,6 +10,7 @@ import { nodeDatabase } from "../lib/node-storage";
 import { getDb, getDbFromBinding } from "../lib/db";
 import { readCurrentDoc } from "../lib/doc-storage";
 import { createInitialDoc } from "../lib/presets";
+import { insertSite } from "../lib/sites";
 import { publishDocUpdate } from "../lib/collab-events";
 
 // 実際のハンドラを実行し、Cloudflare のホスト環境・Next のリクエストコンテキストだけを置き換える。
@@ -70,6 +71,9 @@ test("open WebSockets lose read, write and broadcast access when their account i
     await room.webSocketMessage(editor, "ping");
     assert.deepEqual(editor.messages, ["pong"]);
     editor.messages = [];
+    await insertSite(await getDb(), "s1", {
+      name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+    });
     await removeAllowedEmail("editor@example.com");
     await room.webSocketMessage(editor, JSON.stringify({ type: "save", requestId: "save1", doc: createInitialDoc(), base: null }));
     assert.equal(await readCurrentDoc(await getDb(), "s1"), null, "revoked sockets cannot save");
