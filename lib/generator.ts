@@ -722,7 +722,7 @@ a {
         deploy: "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
       },
       dependencies: {
-        next: "^15.5.28",
+        next: "^16.4.2",
         react: "^19.1.0",
         "react-dom": "^19.1.0",
       },
@@ -734,7 +734,7 @@ a {
         typescript: "^5",
         wrangler: "^4.151.1",
       },
-      // Next.js 15 / OpenNext が固定している間接依存も修正版にする。
+      // Next.js / OpenNext が固定している間接依存も修正版にする。
       overrides: {
         next: { postcss: "^8.5.30" },
         "@node-minify/core": { glob: "^10.5.0" },
@@ -817,12 +817,12 @@ export default nextConfig;
         moduleResolution: "bundler",
         resolveJsonModule: true,
         isolatedModules: true,
-        jsx: "preserve",
+        jsx: "react-jsx",
         incremental: true,
         plugins: [{ name: "next" }],
         paths: { "@/*": ["./*"] },
       },
-      include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+      include: ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
       exclude: ["node_modules"],
     },
     null,
