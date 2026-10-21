@@ -12077,6 +12077,11 @@ a.btn {
   padding: 0 16px;
 }
 
+/* 絞り込みの下線の直後に来る注意書きは、線に貼り付かないよう上を空ける */
+.cm-panel-filters + .cm-panel-hint {
+  padding-top: 10px;
+}
+
 .cm-panel-filters {
   display: flex;
   flex-direction: column;

@@ -1549,8 +1549,6 @@ const en: Dict = {
     "Site URL",
   "公開したサイトのアドレスです（例: https://example.com）。シェア用画像のURLなどに使います。":
     "Your published site's address (e.g. https://example.com). Used for things like share image URLs.",
-  "サイトの言語":
-    "Site language",
   "言語":
     "Language",
   "このページの文章の言語です。「サイトと同じ」のときは、サイト設定の言語になります。":

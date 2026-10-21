@@ -637,7 +637,7 @@ export default function SitePanel() {
         </div>
         <div className="row">
           <label className="lbl-info">
-            {tr("サイトの言語")}
+            {tr("言語")}
             <InfoTip text={tr("ページの文章の言語です。ブラウザの読み上げ・翻訳や検索エンジンが、この言語として扱います。")} />
           </label>
           <select
