@@ -44,14 +44,14 @@ export function useEscapeToClose(onClose: () => void, enabled = true) {
   }, [onClose, enabled]);
 }
 
-/** 未判定のSVGアセットのシャドウ有無を調べて記録し、書き出しに使う最新の編集データを返す */
+/** 未判定のSVGアセットのシャドウ有無（と実寸が 0 なら viewBox の大きさ）を調べて記録し、書き出しに使う最新の編集データを返す */
 export async function docWithSvgFilters(): Promise<SiteDoc> {
   const found = await detectSvgFilters(useEditor.getState().doc.assets);
   if (Object.keys(found).length) {
     useEditor.getState().updateDoc(
       (d) => {
         for (const [id, value] of Object.entries(found)) {
-          if (d.assets[id]) d.assets[id].svgFilter = value;
+          if (d.assets[id]) Object.assign(d.assets[id], value);
         }
       },
       { history: false }

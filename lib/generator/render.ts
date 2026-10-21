@@ -13,7 +13,7 @@ import { resolveTag } from "../tags";
 import { keepTokens } from "../script";
 import {
   assetPath,
-  crispWouldCover,
+  crispSvgSize,
   fieldExpr,
   hasBlockDescendant,
   hasScriptsInside,
@@ -211,17 +211,12 @@ ${indent}</div>`;
     // Next.js 16 では priority が非推奨なので preload を使い、取得の優先度も上げる
     const priority = (pad: string) =>
       node.image!.priority ? `\n${pad}preload\n${pad}fetchPriority="high"` : "";
-    const asset = node.image.assetId ? ctx.doc.assets[node.image.assetId] : null;
-    if (
-      asset?.svgFilter &&
-      node.image.crispShadow !== false &&
-      node.image.width &&
-      node.image.height &&
-      !crispWouldCover(ctx.doc, id)
-    ) {
+    const crisp = crispSvgSize(ctx.doc, node);
+    if (crisp) {
       // iOS SafariはSVGのfilterを低解像度で描くため、2倍で描いて0.5倍に縮める。
       // 元画像と同じ実寸・縦横比を持つ透明なsvgで箱の大きさを決め、レイアウトは変えない
-      const w = width, h = height;
+      //（前後の位置指定の要素との重なりは raiseOverCrispSvg で合わせてある）
+      const { width: w, height: h } = crisp;
       return `${indent}<span${idAttr}\n${indent}  className="crisp-svg ${cls}"\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
     }
     // 実寸が分からない画像（読み込み前など）でも next/image の width・height は必須

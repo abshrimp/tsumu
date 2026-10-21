@@ -9,7 +9,7 @@ import { obfuscateVarNames, varNamesAt } from "../lib/data";
 import { refreshClonedIds } from "../lib/cloneIds";
 import { generateProject } from "../lib/generator";
 import { runChecks } from "../lib/generator/checks";
-import { makeBox, makeField, makeSwitch } from "../lib/presets";
+import { makeBox, makeField, makeImage, makeSwitch } from "../lib/presets";
 import { usesLiveFields } from "../lib/script-runtime";
 import type { DocNode, SiteDoc } from "../lib/types";
 
@@ -313,4 +313,32 @@ test("obfuscateVarNames preserves array-field item keys and cloning renames grou
   assert.ok(varNamesAt(cDoc, "p", "inst").includes("comp-input"));
   assert.ok(!runChecks(cDoc).some((w) => w.help === "seo-h1"));
   assert.equal(interpolateUrl("{img}", { img: "data:image/png;base64,AAAA" }), "data:image/png;base64,AAAA");
+});
+
+test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of them", () => {
+  // 前にある位置指定の要素（重ねた文字）と後ろの位置指定の要素
+  const before: DocNode = { ...makeBox(), id: "a", styles: { base: { default: { position: "absolute", top: "0" } } } };
+  const after: DocNode = { ...makeBox(), id: "z", styles: { base: { default: { position: "sticky", top: "0", zIndex: "0" } } } };
+  const own: DocNode = { ...makeBox(), id: "o", styles: { base: { default: { position: "absolute", zIndex: "5" } } } };
+  const img: DocNode = { ...makeImage(), id: "i" };
+  // 実寸が 0 の画像はアセットの実寸を使う
+  img.image = { ...img.image!, assetId: "s", src: "", width: 0, height: 0 };
+  const doc = docWith([before, img, after, own]);
+  doc.assets.s = { id: "s", name: "s.svg", path: "assets/s.svg", mimeType: "image/svg+xml", width: 120, height: 40, svgFilter: true };
+  const { files } = generateProject(doc);
+  const page = Object.entries(files).find(([p]) => p.endsWith("page.tsx"))![1];
+  assert.match(page, /className="crisp-svg [^"]*"/);
+  assert.match(page, /viewBox="0 0 120 40"/);
+  assert.match(page, /width=\{240\}\s+height=\{80\}/);
+  assert.match(files["app/globals.css"], /transform: scale\(0\.5\)/);
+  // 前後の位置指定の要素は z-index: 1 になり、自分の z-index がある要素はそのまま
+  assert.equal((files["styles/site.css"].match(/z-index: 1;/g) ?? []).length, 2);
+  assert.match(files["styles/site.css"], /z-index: 5;/);
+  // 元の編集データは書き換えない
+  assert.equal(doc.nodes.a.styles.base?.default?.zIndex, undefined);
+
+  // チェックを外したら通常の画像
+  img.image.crispShadow = false;
+  const plain = Object.entries(generateProject(doc).files).find(([p]) => p.endsWith("page.tsx"))![1];
+  assert.doesNotMatch(plain, /crisp-svg/);
 });

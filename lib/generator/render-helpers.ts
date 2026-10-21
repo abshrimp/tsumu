@@ -94,26 +94,67 @@ function hasPositionedAuto(doc: SiteDoc, id: string, seen = new Set<string>()): 
   return n.children.some((cid) => hasPositionedAuto(doc, cid, seen));
 }
 
+/** hasPositionedAuto と同じたどり方で、該当する要素を集める */
+function collectPositionedAuto(doc: SiteDoc, id: string, out: Set<string>, seen = new Set<string>()) {
+  const n = doc.nodes[id];
+  if (!n || seen.has(id)) return;
+  seen.add(id);
+  if (isOwnLayer(n)) return;
+  if (isPositionedAuto(n)) {
+    out.add(id);
+    return;
+  }
+  if (isContainer(doc, n)) return;
+  for (const cid of n.children) collectPositionedAuto(doc, cid, out, seen);
+}
+
 /**
- * crisp-svg の画像は transform を使うため、位置指定した要素と同じ層で描かれる。
- * 前にある位置指定の要素（画像に重ねた文字など）より前面に出てしまう場合は true
- *（エディタでは通常の画像なので、位置指定の要素が前面になる）
+ * シャドウ付きSVGをiOS Safari向けに2倍で描いて縮める（crisp-svg）ときの実寸。対象外なら null。
+ * 画像側に実寸が無ければアセットの実寸を使う
  */
-export function crispWouldCover(doc: SiteDoc, id: string): boolean {
-  const self = doc.nodes[id];
-  if (!self || isPositionedAuto(self)) return false;
-  let cur = id;
-  // 親をたどる（壊れた文書の循環でも止まるよう、回数に上限を付ける）
-  for (let depth = 0; depth < 200; depth++) {
-    const sib = siblingsOf(doc, cur);
-    if (!sib) return false;
-    const before = sib.list.slice(0, sib.list.indexOf(cur));
-    if (before.some((cid) => hasPositionedAuto(doc, cid))) return true;
-    const parent = sib.parent ? doc.nodes[sib.parent] : null;
-    // 位置指定した親の中身は親の順番で描かれるので、そこより外は比べなくてよい
-    if (!parent || isContainer(doc, parent)) return false;
-    cur = parent.id;
-  }  return false;
+export function crispSvgSize(doc: SiteDoc, node: DocNode): { width: number; height: number } | null {
+  const img = node.image;
+  const asset = img?.assetId ? doc.assets[img.assetId] : null;
+  if (!img || !asset?.svgFilter || img.crispShadow === false) return null;
+  const valid = (v: number | undefined) => (Number.isFinite(v) && v! > 0 ? v! : 0);
+  const width = valid(img.width) && valid(img.height) ? img.width : asset.width;
+  const height = valid(img.width) && valid(img.height) ? img.height : asset.height;
+  return valid(width) && valid(height) ? { width, height } : null;
+}
+
+/**
+ * crisp-svg の画像は transform を使うため、位置指定した要素（z-index: auto・0）と同じ層で描かれ、
+ * 前にある位置指定の要素（画像に重ねた文字など）より前面に出てしまう。
+ * エディタ（通常の画像）と同じ重なりにするため、同じ層で比べ合う位置指定の要素に z-index: 1 を付ける
+ *（前後どちらも上げるので、位置指定の要素どうしの順番は変わらない）。書き出し用に複製した doc を書き換える
+ */
+export function raiseOverCrispSvg(doc: SiteDoc): void {
+  const raise = new Set<string>();
+  for (const node of Object.values(doc.nodes)) {
+    if (node.type !== "image" || !crispSvgSize(doc, node) || isPositionedAuto(node)) continue;
+    let cur = node.id;
+    // 親をたどる（壊れた文書の循環でも止まるよう、回数に上限を付ける）
+    for (let depth = 0; depth < 200; depth++) {
+      const sib = siblingsOf(doc, cur);
+      if (!sib) break;
+      for (const cid of sib.list) if (cid !== cur) collectPositionedAuto(doc, cid, raise);
+      const parent = sib.parent ? doc.nodes[sib.parent] : null;
+      // 位置指定した親の中身は親の順番で描かれるので、そこより外は比べなくてよい
+      if (!parent || isContainer(doc, parent)) break;
+      cur = parent.id;
+    }
+  }
+  for (const id of raise) {
+    const styles = doc.nodes[id].styles;
+    const base = (styles.base ??= {});
+    base.default ??= {};
+    for (const bp of Object.values(styles)) {
+      const s = bp?.default;
+      if (!s) continue;
+      const z = s.zIndex?.trim();
+      if (z === undefined ? s === base.default : z === "auto" || parseFloat(z) === 0) s.zIndex = "1";
+    }
+  }
 }
 
 /**

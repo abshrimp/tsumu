@@ -12,7 +12,7 @@ import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
 import { generatePageFile, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
-import { imageRefSrc, jsxString, smartLinkComponent } from "./generator/render-helpers";
+import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
 import {
   PAGE_HTML_COMPONENT,
@@ -71,6 +71,8 @@ export function generateProject(
   unnestLinks(doc);
   // メディアクエリの幅はサイトのブレークポイント設定から作る
   applyBreakpoints(doc);
+  // シャドウ付きSVGの画像（crisp-svg）に、前後の位置指定の要素が隠されないようにする
+  raiseOverCrispSvg(doc);
   const isTest = target === "test";
   const siteLang = siteLangOf(doc);
   const classNames = buildClassNames(doc);

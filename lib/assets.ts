@@ -55,7 +55,10 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
     }
   }
   if (file.type === "image/svg+xml") {
-    size.svgFilter = hasSvgFilter(await file.text());
+    const svg = await file.text();
+    size.svgFilter = hasSvgFilter(svg);
+    // width・height の無いSVGは 0 と測れることがあるので、viewBox から実寸を取る
+    if (!size.width || !size.height) size = { ...size, ...(svgViewBoxSize(svg) ?? {}) };
   }
 
   const form = new FormData();
@@ -117,24 +120,35 @@ function hasSvgFilter(svg: string): boolean {
   return /<filter[\s>]/i.test(svg);
 }
 
+/** ルートの <svg> の viewBox の幅・高さ（無い・不正なら null） */
+function svgViewBoxSize(svg: string): { width: number; height: number } | null {
+  const root = /<svg\b[^>]*>/i.exec(svg)?.[0] ?? "";
+  const box = /\bviewBox\s*=\s*["']([^"']*)["']/i.exec(root)?.[1];
+  const [, , width, height] = (box ?? "").trim().split(/[\s,]+/).map(Number);
+  return width > 0 && height > 0 ? { width: Math.round(width), height: Math.round(height) } : null;
+}
+
 /**
- * <filter>（シャドウ等）の有無が未判定のSVGアセットを調べる。
- * 戻り値は判定できたアセットIDと結果。iOS Safariのぼやけ対策の対象判定に使う
+ * <filter>（シャドウ等）の有無が未判定か、実寸が 0 のSVGアセットを調べる。
+ * 戻り値は判定できたアセットIDと結果（実寸は viewBox から取れたときだけ）。iOS Safariのぼやけ対策の対象判定に使う
  */
 export async function detectSvgFilters(
   assets: Record<string, Asset>
-): Promise<Record<string, boolean>> {
+): Promise<Record<string, Pick<Asset, "svgFilter"> & Partial<Pick<Asset, "width" | "height">>>> {
   const pending = Object.values(assets).filter(
     (a) =>
       (a.mimeType === "image/svg+xml" || (!a.mimeType && /\.svg$/i.test(a.name))) &&
-      a.svgFilter === undefined
+      (a.svgFilter === undefined || (a.svgFilter && (!a.width || !a.height)))
   );
-  const result: Record<string, boolean> = {};
+  const result: Record<string, Pick<Asset, "svgFilter"> & Partial<Pick<Asset, "width" | "height">>> = {};
   // 一度に取りに行くとサーバーが 503 を返すため、同時に取得する数を絞る
   await mapLimit(pending, ASSET_FETCH_CONCURRENCY, async (asset) => {
     try {
       const res = await fetchWithRetry(assetSrc(asset));
-      if (res.ok) result[asset.id] = hasSvgFilter(await res.text());
+      if (!res.ok) return;
+      const svg = await res.text();
+      const size = !asset.width || !asset.height ? svgViewBoxSize(svg) : null;
+      result[asset.id] = { svgFilter: hasSvgFilter(svg), ...(size ?? {}) };
     } catch {
       // 取得できなければ未判定のまま（次回また調べる）
     }
