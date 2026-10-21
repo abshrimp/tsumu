@@ -14,7 +14,7 @@ export function canPickVariable(sample: unknown, context: ValueContext): boolean
 
 /** 既存の単独参照と同じ規則で、値を変更せずに入力表示を選ぶ。 */
 export function singleValueReference(value: string): string | null {
-  return /^\{([^{}]+)\}$/.exec(value.trim())?.[1].trim() ?? null;
+  return /^\{([^{}\s"\'<>`]+)\}$/.exec(value.trim())?.[1] ?? null;
 }
 
 /** 葉の候補だけが分かる場合も、同じローカル値の親を選択・遮蔽できるようにする。 */

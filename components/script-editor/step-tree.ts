@@ -4,6 +4,7 @@
 
 import { type PageScript } from "../../lib/script";
 import { type ScriptStep } from "../../lib/types";
+import { stepOutName } from "../../lib/data";
 
 /* ---------- スクリプト操作（純粋関数） ---------- */
 
@@ -76,6 +77,23 @@ export function insertAt(
   if (!list) return scripts;
   list.splice(loc.index, 0, ...steps);
   return next;
+}
+
+/**
+ * Connect a newly dropped processing block to the preceding output in the
+ * same script list. Moving an existing step must never rewrite its source.
+ */
+export function connectNewTransform(scripts: PageScript[], loc: Loc, steps: ScriptStep[]): ScriptStep[] {
+  const script = scripts.find((s) => s.id === loc.scriptId);
+  const list = script && listIn(script, loc.list);
+  const preceding = loc.index > 0 ? list?.[loc.index - 1] : undefined;
+  const name = preceding ? stepOutName(preceding) : null;
+  if (!name) return steps;
+  return steps.map((step) =>
+    step.kind === "transform" && !step.source
+      ? { ...step, source: name, into: step.into || name }
+      : step
+  );
 }
 
 /** ステップIDの位置を探す */
@@ -161,11 +179,11 @@ export function mapStep(
  */
 export function numberFilters(scripts: PageScript[]): PageScript[] {
   const used = new Map<string, Set<number>>();
-  const need: Extract<ScriptStep, { kind: "filter-array" }>[] = [];
+  const need: Extract<ScriptStep, { kind: "list-display" }>[] = [];
   const next = structuredClone(scripts);
   const walk = (steps: ScriptStep[]) => {
     for (const st of steps) {
-      if (st.kind === "filter-array") {
+      if (st.kind === "list-display" && st.mode === "filter") {
         const set = used.get(st.array) ?? new Set<number>();
         used.set(st.array, set);
         if (st.no !== undefined && st.no > 0 && !set.has(st.no)) set.add(st.no);
@@ -195,7 +213,7 @@ export function filterNumbersOf(scripts: PageScript[], array: string): number[] 
   const out: number[] = [];
   const walk = (steps: ScriptStep[]) => {
     for (const st of steps) {
-      if (st.kind === "filter-array" && st.array === array && st.no !== undefined) out.push(st.no);
+      if (st.kind === "list-display" && st.mode === "filter" && st.array === array && st.no !== undefined) out.push(st.no);
       else if (st.kind === "if") {
         walk(st.then);
         if (st.else) walk(st.else);

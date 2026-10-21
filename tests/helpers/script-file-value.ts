@@ -18,7 +18,7 @@ export function scriptFileValueDoc(): SiteDoc {
     {
       ...makeBox(), id: "upload", attrId: "upload", type: "field", field: { kind: "file", multiple: true },
       scripts: [{ id: "count-change", trigger: "change", pos: { x: 0, y: 0 }, steps: [
-        { id: "increment", kind: "calc", expr: "{changes}+1", into: "changes" },
+        { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "increment", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operand: 1 } },
       ] }],
     },
     { ...makeBox(), id: "name", attrId: "name", type: "field", field: { kind: "input" } },

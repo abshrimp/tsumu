@@ -39,8 +39,8 @@ test('field parts preserve own roots, scalar fallbacks, escapes, literal data br
   (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
   doc.pages.p.pageScripts![0].steps.push(
     { id: 'profile', kind: 'set-var', value: '{response.0.profile}', into: 'profile' },
-    { id: 'fallback', kind: 'split', source: 'Server \\{name}', sep: ',', into: 'fallback' },
-    { id: 'private', kind: 'split', source: 'UNUSED_FIELD_PRIVATE', sep: ',', into: 'private' },
+    { id: 'fallback', kind: 'set-var', value: 'Server \\{name}', into: 'fallback' },
+    { id: 'private', kind: 'set-var', value: 'UNUSED_FIELD_PRIVATE', into: 'private' },
   );
   const expression = '{name}|{profile.name}|{fallback}|\\{name}';
   for (const id of ['entry', 'memo']) doc.nodes[id].field!.defaultValue = expression;

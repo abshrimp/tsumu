@@ -81,7 +81,7 @@ test("Editing URL, POST body, headers, or DELETE settings does not send requests
   await setUrl(page, "https://example.test/edited"); await options(page, "POST");
   await block(page).locator("textarea").fill('{"version":2}'); await block(page).locator("textarea").blur();
   await block(page).getByRole("button", { name: "ヘッダーを追加", exact: true }).click();
-  const name = block(page).getByPlaceholder("名前（例: Authorization）");
+  const name = block(page).locator(".se-fetch-header").getByPlaceholder("名前");
   await name.fill("X-Test"); await name.blur();
   const value = block(page).getByPlaceholder("値 / {変数}", { exact: true });
   await value.fill("example"); await value.blur(); await options(page, "DELETE");

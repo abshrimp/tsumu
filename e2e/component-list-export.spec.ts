@@ -99,7 +99,7 @@ test("converted client list keeps its template and renders browser-loaded items"
   doc.nodes.detail.text!.content = "Tag {値}";
   doc.pages.p.pageScripts = [{ id: "client-load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
     { id: "load-raw", kind: "store-load", key: "raw-tags", into: "rawTags" },
-    { id: "split-tags", kind: "split", source: "{rawTags}", sep: ",", into: "tags" },
+    { id: "split-tags", kind: "transform", source: "rawTags", into: "tags", transform: { kind: "split", separator: "," } },
   ] }];
   await page.goto("/robots.txt");
   await page.evaluate(() => localStorage.setItem("raw-tags", "red,blue"));

@@ -137,18 +137,7 @@ export function applyScriptsAttr(
     },
     true,
     skip,
-    (name, item) => (item || clientVars.has(name.split(".")[0]) ? undefined : (lookupVar(vars, name) ?? null)),
-    (st) => {
-      const owned = !!itemVars && (Object.hasOwn(itemVars, st.array) || Object.hasOwn(itemVars, st.array.split(".")[0]));
-      if (!owned && clientVars.has(st.array.split(".")[0])) return undefined;
-      const source = lookupVar(owned ? itemVars! : vars, st.array);
-      const text = (value: unknown) => value == null || typeof value === "object" ? "" : String(value);
-      const value = st.kind === "count" ? (Array.isArray(source) ? source.length : 0) : Array.isArray(source)
-        ? source.map((x) => st.field && x && typeof x === "object" ? lookupVar({ item: x }, `item.${st.field}`) : x)
-          .map(text).filter(Boolean).join(st.sep)
-        : text(source);
-      return { value, ...(owned ? { owned: true } : {}) };
-    }
+    (name, item) => (item || clientVars.has(name.split(".")[0]) ? undefined : (lookupVar(vars, name) ?? null))
   );
   if (compiled.length) common["data-scripts"] = JSON.stringify(compiled);
 }

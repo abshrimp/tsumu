@@ -4379,21 +4379,41 @@ textarea {
 /* ブロック内の入力部品 */
 
 .se-in {
+  box-sizing: border-box;
   height: 24px;
   max-width: 220px;
   padding: 0 7px;
   border: 1px solid transparent;
   border-radius: var(--radius-s);
-  background: var(--field);
+  background-color: var(--field);
   color: var(--text);
+  font-family: inherit;
   font-size: 12px;
   font-weight: 500;
+  line-height: normal;
   outline: none;
   cursor: pointer;
 }
 
+/* Native selects and popover buttons must look like the same dropdown. */
+select.se-in,
+button.se-pm-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+  /* 10px arrow + 8px edge + 12px separation from the longest label. */
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' fill='none' stroke='%236f6f78' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px 10px;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .se-in:hover {
-  background: var(--field-hover);
+  background-color: var(--field-hover);
 }
 
 input.se-in {
@@ -4402,7 +4422,7 @@ input.se-in {
 
 .se-in:focus {
   border-color: var(--accent);
-  background: var(--panel);
+  background-color: var(--panel);
 }
 
 .se-in.is-empty {
@@ -4437,13 +4457,7 @@ input.se-in {
 
 .se-pm-btn.is-open {
   border-color: var(--accent);
-  background: var(--panel);
-}
-
-.se-pm-chev {
-  flex: none;
-  color: var(--text-3);
-  transform: rotate(90deg);
+  background-color: var(--panel);
 }
 
 .se-pm {
@@ -4572,6 +4586,24 @@ input.se-in {
   border-top: 1px solid var(--border);
   color: var(--text-2);
 }
+
+.se-if-conditions {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.se-if-condition-line {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.se-if-conditions > .se-composer-condition-actions { margin-top: 1px; }
 
 .se-c-body {
   display: flex;
@@ -6495,6 +6527,12 @@ button.vx-chev:hover {
   color: var(--text-2);
 }
 
+.se-blk.has-lines > .se-composer-condition-actions {
+  grid-column: 2;
+  justify-self: start;
+  padding-left: 0;
+}
+
 /* スクリプト画面の表示倍率 */
 .se-zoom {
   display: inline-flex;
@@ -6572,6 +6610,11 @@ button.vx-chev:hover {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Give the first special target ("このページ" / trigger element) room below search. */
+.np-list > .np-special:first-child {
+  margin-top: 5px;
 }
 
 .np-row {
@@ -12459,6 +12502,173 @@ a.btn {
 /* スクリプトの値選択。既存のテンプレートを変えず、参照を直接選ぶ。 */
 .se-value-choice { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; flex-wrap: wrap; }
 .se-value-info { display: inline-flex; align-items: center; gap: 6px; }
-.se-value-sample { opacity: .65; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
 .se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }
+
+.se-quantity { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
+.se-quantity > .se-fixed-select { flex: none; width: max-content; min-width: max-content; }
+.se-quantity > .se-in { flex: none; }
+
+/* Inline value operations in ordinary script blocks. */
+.se-transform-settings {
+  flex-basis: 100%;
+  display: flex;
+  min-width: 0;
+  margin-left: 26px;
+  align-items: center;
+}
+.se-transform-settings > .se-composer-step-settings {
+  flex: 1;
+  max-width: 650px;
+}
+.se-composer-step-settings {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.se-composer-step-settings > .se-in,
+.se-composer-step-settings > input:not([type="checkbox"]),
+.se-composer-step-settings .se-composer-operand > .se-in,
+.se-composer-step-settings .se-composer-operand > input {
+  flex: 1 1 90px;
+  min-width: 0;
+  max-width: 225px;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background-color: var(--field);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+.se-composer-step-settings > .se-in:focus,
+.se-composer-step-settings .se-composer-operand > .se-in:focus,
+.se-composer-step-settings > input:not([type="checkbox"]):focus,
+.se-composer-step-settings .se-composer-operand > input:focus {
+  border-color: var(--accent);
+  background-color: var(--panel);
+  outline: none;
+}
+/* Width uses the longest translated option plus the dedicated arrow area above. */
+select.se-in.se-fixed-select,
+.se-composer-step-settings > select.se-in.se-fixed-select,
+.se-composer-step-settings .se-composer-operand > select.se-in.se-fixed-select {
+  box-sizing: border-box;
+  flex: none;
+  width: max-content;
+  min-width: 0;
+  max-width: none;
+  /* Fixed-option controls measure the longest option, arrow and padding in React. */
+  padding-left: 7px;
+  padding-right: 30px;
+}
+
+/* Multiple conditions keep the same row/connector layout as if and list filters. */
+.se-composer-conditions { align-items: stretch; flex-direction: column; gap: 7px; }
+.se-composer-condition-line {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  min-width: 0; width: 100%;
+}
+.se-composer-condition-line > .se-in { flex: none; }
+.se-composer-condition-line > .se-composer-operand { flex: 1 1 180px; }
+.se-composer-condition-line > .se-composer-field { flex: 1 1 125px; }
+.se-composer-condition-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.se-composer-operand:has(> .se-fixed-select) {
+  flex: 0 1 auto;
+}
+
+.se-composer-operand {
+  display: flex;
+  flex: 2 1 180px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.se-composer-operand > .se-in {
+  flex: 0 1 90px;
+}
+.se-composer-operand > .se-pm-btn {
+  flex: 1 1 120px;
+}
+.se-composer-operand > input {
+  flex: 1 1 90px;
+}
+.se-composer-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 145px;
+  min-width: 0;
+  max-width: 225px;
+}
+.se-composer-field > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 24px;
+  min-height: 24px;
+  padding: 0 30px 0 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+}
+.se-composer-field > input:hover { background: var(--field-hover); }
+.se-composer-field > input:focus { border-color: var(--accent); background: var(--panel); }
+.se-composer-field-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  height: 20px;
+  width: 20px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-s);
+  color: var(--text-2);
+}
+.se-composer-field-toggle:hover { background: var(--field); }
+.se-composer-field-menu {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+}
+.se-composer-field-menu > button {
+  flex: none;
+  min-height: 30px;
+  padding: 6px 9px;
+  border-radius: 5px;
+  font-size: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.se-composer-field-menu > button:hover,
+.se-composer-field-menu > button.is-active { background: var(--field); }
+.se-composer-field-menu > button[aria-selected="true"] { font-weight: 600; }
+.se-composer-field-empty { margin: 0; padding: 10px 8px; color: var(--text-2); font-size: 12px; }
+.se-composer-regex {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-2);
+  font-size: 11px;
+}
+.se-composer-regex input { accent-color: var(--accent); }
+@media (max-width: 540px) {
+  .se-transform-settings { margin-left: 0; }
+}

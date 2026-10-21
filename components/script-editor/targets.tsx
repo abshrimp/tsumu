@@ -209,14 +209,19 @@ export function NodePicker({
       const t = e.target as Node;
       if (!menuRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false);
     };
-    const onScroll = (e: Event) => {
+    // A click can trigger programmatic scrolling of the canvas or focused
+    // block. Only close for user scrolling outside the menu, not scroll
+    // events emitted while a picker is opening.
+    const onUserScroll = (e: Event) => {
       if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
     };
     window.addEventListener("mousedown", onDown);
-    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("wheel", onUserScroll, { capture: true, passive: true });
+    window.addEventListener("touchmove", onUserScroll, { capture: true, passive: true });
     return () => {
       window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("wheel", onUserScroll, true);
+      window.removeEventListener("touchmove", onUserScroll, true);
     };
   }, [open]);
 
@@ -262,9 +267,19 @@ export function NodePicker({
   ];
 
   useEffect(() => {
-    listRef.current
-      ?.querySelector<HTMLElement>(".np-row.is-key")
-      ?.scrollIntoView({ block: "nearest" });
+    // Scroll only the menu's own list. scrollIntoView() can also scroll the
+    // editor page, which the outside-scroll dismissal handler interprets as
+    // a reason to close the picker immediately after opening it.
+    if (!open) return;
+    const list = listRef.current;
+    const current = list?.querySelector<HTMLElement>(".np-row.is-key");
+    if (!list || !current) return;
+    const itemBounds = current.getBoundingClientRect();
+    const listBounds = list.getBoundingClientRect();
+    if (itemBounds.top < listBounds.top)
+      list.scrollTop -= listBounds.top - itemBounds.top;
+    else if (itemBounds.bottom > listBounds.bottom)
+      list.scrollTop += itemBounds.bottom - listBounds.bottom;
   }, [key, open]);
 
   const show = () => {
@@ -297,7 +312,6 @@ export function NodePicker({
       >
         <span>{label ?? placeholder}</span>
         {sub && <small className="np-sub">{sub}</small>}
-        <ChevronRight size={11} className="se-pm-chev" />
       </button>
       {open &&
         createPortal(

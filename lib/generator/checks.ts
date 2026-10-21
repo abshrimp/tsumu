@@ -271,20 +271,6 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     const dataSteps = pageDataSteps(doc, page.id);
     for (const st of dataSteps) {
       if (!isDataStep(st)) {
-        if (st.kind === "array-find" && st.into && !st.field) {
-          results.push({
-            help: "data-detail",
-            level: "error",
-            message: tr("「{name}」のスクリプトで、リストの要素を探す項目が選ばれていません", { name: page.name }),
-          });
-        }
-        if (st.kind === "array-field" && st.array && !st.field) {
-          results.push({
-            help: "data-list",
-            level: "error",
-            message: tr("「{name}」のスクリプトで、リストの要素に格納する項目名が空です", { name: page.name }),
-          });
-        }
         if ("into" in st && st.into) loadVars.add(st.into);
         continue;
       }
@@ -317,14 +303,15 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       for (const sc of node.scripts ?? []) {
         if (!sc.trigger) continue;
         walkSteps(sc.steps, (st) => {
-          const t =
-            "target" in st
-              ? st.target
-              : st.kind === "if" && st.cond.subject !== "var"
-                ? st.cond.target
-                : null;
-          if (t !== null && t !== SELF_TARGET) {
-            scriptRefs.push({ name: node.name, targetId: t });
+          if (st.kind === "if") {
+            // Every predicate has its own target; checking only the first
+            // condition misses broken references in joined AND/OR clauses.
+            for (const condition of [st.cond, ...(st.conditions ?? [])]) {
+              if (condition.subject !== "var" && condition.target !== SELF_TARGET)
+                scriptRefs.push({ name: node.name, targetId: condition.target });
+            }
+          } else if ("target" in st && st.target !== SELF_TARGET) {
+            scriptRefs.push({ name: node.name, targetId: st.target });
           }
           if (st.kind === "open-page" && !doc.pages[st.pageId]) {
             results.push({

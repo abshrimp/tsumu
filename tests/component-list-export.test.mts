@@ -10,6 +10,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { useEditor } from "../lib/store";
 import { pagePlan, previewDataVars } from "../lib/data";
+import { lookupVar, interpolate } from "../lib/vars";
 import { generateProject } from "../lib/generator";
 import { hasScriptsInside } from "../lib/generator/render-helpers";
 import { buildClassNames } from "../lib/generator/names";
@@ -111,7 +112,7 @@ test("shared list components resolve each page and each placement's own data and
   doc.pages.second = { ...structuredClone(doc.pages.p), id: "second", slug: "second", children: ["secondUse"], pageScripts: [{
     id: "second-load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
       { id: "second-fetch", kind: "fetch", url: "https://example.com/data", as: "tags", sample: [] },
-      { id: "second-sort", kind: "sort-array", array: "tags", field: "label", dir: "desc" },
+      { id: "second-sort", kind: "list-display", mode: "sort", array: "tags", field: "label", dir: "desc", op: "eq", value: "" },
     ],
   }] };
   doc.pageOrder.push("second");
@@ -121,8 +122,34 @@ test("shared list components resolve each page and each placement's own data and
   ]);
   assert.deepEqual(details(await publishedComponentList(doc, "app/second/page.tsx", [{ label: "a" }, { label: "z" }])), ["Detail :z", "Detail :a"]);
   doc.nodes.tags.list!.limit = 1;
-  doc.pages.second.pageScripts![0].steps.push({ id: "second-filter", kind: "filter-array", array: "tags", field: "label", op: "neq", value: "zz" });
+  doc.pages.second.pageScripts![0].steps.push({ id: "second-filter", kind: "list-display", mode: "filter", array: "tags", field: "label", op: "eq", not: true, value: "zz", dir: "asc" });
   assert.deepEqual(details(await publishedComponentList(doc, "app/second/page.tsx", [{ label: "a" }, { label: "z" }, { label: "zz" }])), ["Detail :z"]);
+});
+
+test("exported list template proxies preserve placeholders under own-only lookup", () => {
+  const doc = componentListDoc();
+  doc.pages.p.children = ["card"];
+  doc.pages.p.pageScripts = [{
+    id: "load", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "load-tags", kind: "store-load", key: "tags", into: "tags" }],
+  }];
+  const source = generateProject(doc).files["app/page.tsx"];
+  const helper = source.match(/^function templateVars\(vars: Vars\): Vars \{[\s\S]*?^\}/m)?.[0];
+  assert.ok(helper, "client-list pages must include the templateVars helper");
+  const code = transformSync(helper + "\nexport { templateVars };", {
+    loader: "ts", format: "cjs",
+  }).code;
+  const output = { exports: {} as { templateVars?: (vars: Record<string, unknown>) => Record<string, unknown> } };
+  new Function("module", "exports", code)(output, output.exports);
+  const templateVars = output.exports.templateVars;
+  assert.ok(templateVars);
+  const scope = templateVars(Object.create(null));
+  assert.equal(lookupVar(scope, "row.meta.name"), "{row.meta.name}");
+  assert.equal(interpolate("Hello {row.meta.name}", scope), "Hello {row.meta.name}");
+  const present = Object.assign(Object.create(null), { name: "real" });
+  assert.equal(lookupVar(templateVars(present), "name"), "real");
+  assert.equal(lookupVar({}, "constructor"), undefined,
+    "plain JSON must still reject inherited properties");
 });
 
 test("client-list templates retain placeholders and raw content through conversion", async () => {
@@ -137,7 +164,16 @@ test("client-list templates retain placeholders and raw content through conversi
   const before = await publishedComponentList(doc), after = await publishedComponentList(convert(doc));
   assert.deepEqual(details(after), details(before));
   assert.match(after, /data-client-list/); assert.match(after, /data-tpl/);
-  assert.match(after, /data-raw/); assert.match(after, /Detail \{name\}:\{label\}/);
+  assert.match(after, /data-raw/);
+  assert.match(after, /<b>\{label\}<\/b>/, "custom code must remain literal");
+  const templateDetail = parse(after).querySelector('[data-tpl] [id="detail"]');
+  assert.ok(templateDetail, "the client-list template retains its detail node");
+  const parts = JSON.parse(templateDetail.getAttribute("data-text-parts") ?? "[]") as Array<string | { name: string; fallback?: string }>;
+  assert.deepEqual(parts.map((part) => typeof part === "string" ? part : { name: part.name }),
+    ["Detail ", { name: "name" }, ":", { name: "label" }, ""],
+    "text placeholders remain structured, with optional server-side fallback text");
+  assert.ok(parts.every((part) =>
+    typeof part === "string" || part.fallback === undefined || typeof part.fallback === "string"));
   const templateScripts = (html: string) => parse(html).querySelectorAll("[data-tpl] [data-scripts]")
     .map((el: any) => JSON.parse(el.getAttribute("data-scripts")));
   assert.deepEqual(templateScripts(after), templateScripts(before));
@@ -199,7 +235,7 @@ test("converted server and client list projects typecheck", () => {
   doc.pages.client = { ...structuredClone(doc.pages.p), id: "client", slug: "client", children: ["clientUse"], pageScripts: [{
     id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
       { id: "load-raw", kind: "store-load", key: "raw-tags", into: "rawTags" },
-      { id: "split-tags", kind: "split", source: "{rawTags}", sep: ",", into: "tags" },
+      { id: "split-tags", kind: "transform", source: "rawTags", into: "tags", transform: { kind: "split", separator: "," } },
     ],
   }] };
   doc.pageOrder.push("client");

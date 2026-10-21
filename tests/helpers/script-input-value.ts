@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
 import { makeBox, makeText } from "../../lib/presets";
-import type { FieldContent, ScriptStep, SiteDoc } from "../../lib/types";
+import type { DocNode, FieldContent, ScriptStep, SiteDoc } from "../../lib/types";
 export { publishedSelectDefault as publishedScriptInputValue } from "./select-default";
 
 /** 有効な初期値から始め、ブラウザが書き換える値を実スクリプトで代入する。 */
@@ -10,10 +10,10 @@ export function scriptInputValueDoc(field: FieldContent, requested: string, rest
     ["assign-input", [requested]], ["repeat-input", [requested, requested]],
     ["restore-input", [restored]], ["restore-then-assign", [restored, requested]],
   ];
-  const nodes = [
+  const nodes: DocNode[] = [
     { ...makeBox(), id: "entry", attrId: "entry", type: "field" as const, field, scripts: [{
       id: "changed", trigger: "change" as const, pos: { x: 32, y: 200 }, steps: [
-        { id: "count", kind: "calc" as const, expr: "{changes}+1", into: "changes" },
+        { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "count", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operand: 1 } },
       ],
     }] },
     ...actions.map(([id, values]) => ({ ...makeText(id), id, attrId: id, semantic: "button" as const, scripts: [{
