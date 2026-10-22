@@ -19,24 +19,27 @@ assert.ok(integrityScript, "runbook must provide the disposable restore check");
 function dockerBackup(scenario: string, check: (result: ReturnType<typeof spawnSync>, calls: string[][]) => void) {
   const dir = mkdtempSync(join(tmpdir(), "tsumu-release-"));
   try {
-    const log = join(dir, "docker-calls.jsonl");
-    writeFileSync(join(dir, "docker"), `#!${process.execPath}
-const fs = require('node:fs');
-const args = process.argv.slice(2);
-fs.appendFileSync(process.env.TEST_DOCKER_LOG, JSON.stringify(args) + '\\n');
-const scenario = process.env.TEST_DOCKER_SCENARIO;
-if (args[0] === 'stop' && scenario === 'stop-failure') process.exit(41);
-if (args[0] === 'run' && scenario === 'archive-failure') process.exit(42);
-if (args[0] === 'inspect') {
-  if (scenario === 'inspect-failure') process.exit(43);
-  if (args.join(' ').includes('.Mounts')) {
-    console.log(scenario === 'wrong-volume' ? 'different-data' : 'tsumu-data');
-    if (scenario === 'volume-inspect-output-failure') process.exit(43);
-  } else {
-    console.log(scenario === 'still-running' ? 'true' : 'false');
-    if (scenario === 'state-inspect-output-failure') process.exit(43);
-  }
-}
+    const log = join(dir, "docker-calls.bin");
+    writeFileSync(join(dir, "docker"), `#!/bin/sh
+for arg in "$@"; do
+  printf '%s\\0' "$arg" >> "$TEST_DOCKER_LOG"
+done
+printf '\\1' >> "$TEST_DOCKER_LOG"
+if [ "$1" = "stop" ] && [ "$TEST_DOCKER_SCENARIO" = "stop-failure" ]; then exit 41; fi
+if [ "$1" = "run" ] && [ "$TEST_DOCKER_SCENARIO" = "archive-failure" ]; then exit 42; fi
+if [ "$1" = "inspect" ]; then
+  if [ "$TEST_DOCKER_SCENARIO" = "inspect-failure" ]; then exit 43; fi
+  case "$*" in
+    *.Mounts*)
+      if [ "$TEST_DOCKER_SCENARIO" = "wrong-volume" ]; then echo "different-data"; else echo "tsumu-data"; fi
+      if [ "$TEST_DOCKER_SCENARIO" = "volume-inspect-output-failure" ]; then exit 43; fi
+      ;;
+    *)
+      if [ "$TEST_DOCKER_SCENARIO" = "still-running" ]; then echo "true"; else echo "false"; fi
+      if [ "$TEST_DOCKER_SCENARIO" = "state-inspect-output-failure" ]; then exit 43; fi
+      ;;
+  esac
+fi
 `, { mode: 0o755 });
     const result = spawnSync("/bin/bash", ["--noprofile", "--norc", "-c", backupScript!], {
       cwd: dir,
@@ -47,7 +50,8 @@ if (args[0] === 'inspect') {
       encoding: "utf8",
     });
     assert.ifError(result.error);
-    const calls = readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line) as string[]);
+    const calls = readFileSync(log, "utf8").split("\x01").filter(Boolean)
+      .map((record) => record.split("\x00").slice(0, -1));
     check(result, calls);
   } finally {
     rmSync(dir, { recursive: true, force: true });

@@ -20,11 +20,15 @@ import { componentListDoc, publishedComponentList } from "./helpers/component-li
 
 const require = createRequire(import.meta.url);
 const { parse } = require("next/dist/compiled/node-html-parser");
+const compiledUi = new Map<string, string>();
 function loadUi(file: string, direct = false) {
   const path = resolve(file), local = createRequire(path), mod = { exports: {} as any };
-  new Function("require", "module", "exports", transformSync(readFileSync(path, "utf8"), {
-    loader: "tsx", jsx: "automatic", format: "cjs",
-  }).code)((id: string) => id.endsWith("/lib/store")
+  let code = compiledUi.get(path);
+  if (code === undefined) {
+    code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
+    compiledUi.set(path, code);
+  }
+  new Function("require", "module", "exports", code)((id: string) => id.endsWith("/lib/store")
     ? { ...local(id), useEditor: (select: any) => select(useEditor.getState()) }
     : direct && id === "react" ? { ...React, useState: (value: unknown) => [value, () => {}] } : local(id), mod, mod.exports);
   return mod.exports;
@@ -244,6 +248,6 @@ test("converted server and client list projects typecheck", () => {
     for (const [path, content] of Object.entries(files)) {
       mkdirSync(dirname(join(dir, path)), { recursive: true }); writeFileSync(join(dir, path), content);
     }
-    execFileSync(process.execPath, [join(dirname(require.resolve("typescript/package.json")), "bin/tsc"), "--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
+    execFileSync(resolve("node_modules/.bin/tsc"), ["--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

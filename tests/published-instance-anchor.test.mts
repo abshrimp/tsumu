@@ -13,16 +13,16 @@ import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 import { anchorFixture, renderAnchorExport } from "./helpers/instance-anchor";
 
-const require = createRequire(import.meta.url);
+const nodeViewUrl = new URL("../components/canvas/NodeView.tsx", import.meta.url);
+const nodeViewRequire = createRequire(nodeViewUrl);
+const { VarsCtx } = nodeViewRequire("./render");
+const nodeViewCode = transformSync(readFileSync(nodeViewUrl, "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
+
 function preview(doc: SiteDoc, id: string) {
-  const filename = new URL("../components/canvas/NodeView.tsx", import.meta.url);
-  const localRequire = createRequire(filename);
-  const { VarsCtx } = localRequire("./render");
   const mod = { exports: {} as { NodeView: any } };
   const state = { doc, mode: "preview", selectedIds: [], editingText: null };
-  const code = transformSync(readFileSync(filename, "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
-  new Function("require", "module", "exports", code)((name: string) =>
-    name === "../../lib/store" ? { useEditor: (select: any) => select(state) } : localRequire(name), mod, mod.exports);
+  new Function("require", "module", "exports", nodeViewCode)((name: string) =>
+    name === "../../lib/store" ? { useEditor: (select: any) => select(state) } : nodeViewRequire(name), mod, mod.exports);
   return renderToStaticMarkup(createElement(VarsCtx.Provider, {
     value: { preview: true, pageVars: {}, clientVars: new Set(), fieldValues: {}, refresh: () => {} },
   }, createElement(mod.exports.NodeView, { id, isTop: true })));
@@ -95,6 +95,6 @@ test("the generated anchored project passes TypeScript checking", () => {
       mkdirSync(dirname(join(dir, path)), { recursive: true });
       writeFileSync(join(dir, path), content);
     }
-    execFileSync(process.execPath, [join(dirname(require.resolve("typescript/package.json")), "bin/tsc"), "--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
+    execFileSync(resolve("node_modules/.bin/tsc"), ["--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

@@ -13,6 +13,7 @@ async function database(run: (db: Db) => Promise<void>) {
   const old = process.env.TSUMU_DATA_DIR; process.env.TSUMU_DATA_DIR = dir;
   try {
     const db = await getDbFromBinding(nodeDatabase()!);
+    await db.execute("PRAGMA synchronous = OFF");
     for (const id of ["site", "other"]) await insertSite(db, id, { name: id, repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
     await run(db);
   } finally {

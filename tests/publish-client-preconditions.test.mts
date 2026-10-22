@@ -12,6 +12,16 @@ import type { detectSvgFilters } from "../lib/assets";
 const require = createRequire(new URL("../components/PublishModal.tsx", import.meta.url));
 const source = readFileSync(new URL("../components/PublishModal.tsx", import.meta.url), "utf8");
 const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
+const generatedCache = new Map<string, ReturnType<typeof generateProject>>();
+function cachedGenerateProject(doc: SiteDoc, target: "test" | "production" = "production") {
+  const key = JSON.stringify([doc, target]);
+  let cached = generatedCache.get(key);
+  if (!cached) {
+    cached = generateProject(doc, target);
+    generatedCache.set(key, cached);
+  }
+  return structuredClone(cached);
+}
 const old = "a".repeat(40);
 function fixture({ conflict = false, missingHead = false, asset = false, document, snapshot, analyzeSvg, commitFailure }: {
   conflict?: boolean; missingHead?: boolean; asset?: boolean; document?: SiteDoc;
@@ -60,11 +70,11 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
     "./HelpCenter": {}, "./controls": {},
     "../lib/dialog": { showConfirm: (message: string) => new Promise<boolean>(resolve => { confirmations.push(message); confirm = resolve; waiting = true; }) },
     "../lib/assets": { detectSvgFilters: analyzeSvg ?? (async () => ({})) },
-    "../lib/generator": { generateProject: document ? generateProject : () => ({ files: { "app/page.tsx": "NEW" }, binaries: asset ? { "public/p.png": "eA==" } : {}, remoteAssets: {} }) },
+    "../lib/generator": { generateProject: document ? cachedGenerateProject : () => ({ files: { "app/page.tsx": "NEW" }, binaries: asset ? { "public/p.png": "eA==" } : {}, remoteAssets: {} }) },
     "../lib/export-formats": {
       exportLimitations: () => [],
       prepareExportProject: async (_doc: SiteDoc, _options: unknown, target: "test" | "production") =>
-        document ? generateProject(_doc, target) : {
+        document ? cachedGenerateProject(_doc, target) : {
           files: { "app/page.tsx": "NEW" },
           binaries: asset ? { "public/p.png": "eA==" } : {},
           remoteAssets: {},
@@ -83,7 +93,17 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
     return Response.json({ sha: "asset", commitUrl: "https://example.com/commit" });
   };
   const module = { exports: {} as any };
-  new Function("require", "module", "exports", "fetch", code)((name: string) => name in mocks ? mocks[name] : require(name), module, module.exports, request);
+  const immediateTimeout = (cb: (...args: unknown[]) => void, _ms?: number, ...args: unknown[]) => {
+    queueMicrotask(() => cb(...args));
+    return 0;
+  };
+  new Function("require", "module", "exports", "fetch", "setTimeout", code)(
+    (name: string) => name in mocks ? mocks[name] : require(name),
+    module,
+    module.exports,
+    request,
+    immediateTimeout,
+  );
   const tree = module.exports.default({ onClose() {}, onOpenHistory() {} });
   const elements = (node: any): any[] => !node || typeof node !== "object" ? [] : Array.isArray(node) ? node.flatMap(elements) : [node, ...elements(node.props?.children)];
   const button = elements(tree).find(e => e.type === "button" && e.props.className === "btn btn-primary");

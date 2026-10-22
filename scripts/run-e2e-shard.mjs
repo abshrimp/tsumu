@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const playwrightCli = createRequire(import.meta.url).resolve("@playwright/test/cli");
 const spec = process.argv[2] ?? "";
 const match = /^(\d+)\/(\d+)$/.exec(spec);
 if (!match) throw new Error("Expected a shard in the form 1/4");
@@ -13,10 +15,9 @@ if (!Number.isSafeInteger(shard) || !Number.isSafeInteger(shardCount) || shard <
   throw new Error("Invalid shard: " + spec);
 }
 
-const command = process.platform === "win32" ? "npx.cmd" : "npx";
 const env = { ...process.env };
 for (const name of ["PLAYWRIGHT_JSON_OUTPUT_NAME", "PLAYWRIGHT_JSON_OUTPUT_FILE", "PLAYWRIGHT_JSON_OUTPUT_DIR"]) delete env[name];
-const discovery = spawnSync(command, ["--no-install", "playwright", "test", "--list", "--reporter=json"], {
+const discovery = spawnSync(process.execPath, [playwrightCli, "test", "--list", "--reporter=json"], {
   cwd: root, encoding: "utf8", maxBuffer: 50 * 1024 * 1024, env,
 });
 if (discovery.error || discovery.status !== 0) {
@@ -54,9 +55,14 @@ if (counts.size === 0) throw new Error("No E2E tests were discovered; refusing t
 
 // 時間の記録は目安にすぎない。実行のたびに、現在のテストの全体を探し直す。
 const history = JSON.parse(readFileSync(resolve(root, "scripts/e2e-shard-durations.json"), "utf8"));
-const samples = Object.values(history.files);
-const averageTestMs = samples.reduce((sum, value) => sum + value[1], 0) /
-  samples.reduce((sum, value) => sum + value[0], 0);
+const samples = [...counts.keys()].flatMap(path => {
+  const entry = history.files[path];
+  return Array.isArray(entry) && entry[0] > 0 ? [entry] : [];
+});
+const totalSampleTests = samples.reduce((sum, value) => sum + value[0], 0);
+const averageTestMs = totalSampleTests > 0
+  ? samples.reduce((sum, value) => sum + value[1], 0) / totalSampleTests
+  : 2_000;
 const cases = [...counts].map(([path, count]) => {
   const previous = history.files[path];
   const estimatedMs = previous && previous[0] > 0
@@ -83,12 +89,12 @@ for (const group of buckets) {
   console.log("Shard " + (group.index + 1) + "/" + shardCount + ": " + group.count +
     " tests, " + group.files.length + " files, estimated " + (group.estimatedMs / 60_000).toFixed(2) + " min");
 }
-if (assigned.files.length === 0) {
-  console.log("No test files assigned to shard " + shard);
+if (assigned.files.length === 0 || process.argv.includes("--dry-run")) {
+  if (assigned.files.length === 0) console.log("No test files assigned to shard " + shard);
   process.exit(0);
 }
 // Playwright の位置引数は、ファイルのパスの正規表現になる。それぞれを固定し、エスケープする。
 const filters = assigned.files.map(file => RegExp.escape(file) + "$");
-const child = spawnSync(command, ["--no-install", "playwright", "test", ...filters], { cwd: root, stdio: "inherit", env });
+const child = spawnSync(process.execPath, [playwrightCli, "test", ...filters], { cwd: root, stdio: "inherit", env });
 if (child.error) throw child.error;
 process.exit(child.status || (child.signal ? 1 : 0));

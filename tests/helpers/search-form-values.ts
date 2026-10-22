@@ -20,34 +20,40 @@ export const searchFormValuesHtml = `
   <input value="unnamed">
   <button id="submit" type="submit">Search</button>`;
 
+const searchFormBundleCache = new Map<"nextjs" | "react", Promise<string>>();
+
 /** 生成したフォームだけを実際の React と DOM に載せ、外部への通信は行わない。 */
-export async function searchFormValuesBundle(format: "nextjs" | "react") {
-  const result = await build({
-    bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
-    define: { "process.env.NODE_ENV": '"production"' },
-    stdin: {
-      contents: `
+export function searchFormValuesBundle(format: "nextjs" | "react") {
+  let cached = searchFormBundleCache.get(format);
+  if (!cached) {
+    cached = build({
+      bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
+      define: { "process.env.NODE_ENV": '"production"' },
+      stdin: {
+        contents: `
 import { createRoot } from "react-dom/client";
 import SearchForm from "fixture-form";
 createRoot(document.getElementById("app")).render(
   <SearchForm id="search-form"><div dangerouslySetInnerHTML={{ __html: ${JSON.stringify(searchFormValuesHtml)} }} /></SearchForm>
 );
 `, loader: "tsx", resolveDir: process.cwd(),
-    },
-    plugins: [{ name: "generated-search-form", setup(builder) {
-      builder.onResolve({ filter: /^(fixture-form|next\/navigation)$/ }, (args) => ({ path: args.path, namespace: "fixture" }));
-      builder.onLoad({ filter: /.*/, namespace: "fixture" }, (args) => ({
-        loader: "tsx", resolveDir: process.cwd(), contents: args.path === "fixture-form"
-          ? format === "nextjs" ? SEARCH_FORM_COMPONENT : REACT_SEARCH_FORM
-          : `
+      },
+      plugins: [{ name: "generated-search-form", setup(builder) {
+        builder.onResolve({ filter: /^(fixture-form|next\/navigation)$/ }, (args) => ({ path: args.path, namespace: "fixture" }));
+        builder.onLoad({ filter: /.*/, namespace: "fixture" }, (args) => ({
+          loader: "tsx", resolveDir: process.cwd(), contents: args.path === "fixture-form"
+            ? format === "nextjs" ? SEARCH_FORM_COMPONENT : REACT_SEARCH_FORM
+            : `
 import { useSyncExternalStore } from "react";
 const subscribe = (callback) => { window.addEventListener("popstate", callback); return () => window.removeEventListener("popstate", callback); };
 export const usePathname = () => window.location.pathname;
 export const useSearchParams = () => new URLSearchParams(useSyncExternalStore(subscribe, () => window.location.search));
 export const useRouter = () => ({ replace(url) { window.history.replaceState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); } });
 `,
-      }));
-    } }],
-  });
-  return result.outputFiles[0].text;
+        }));
+      } }],
+    }).then(result => result.outputFiles[0].text);
+    searchFormBundleCache.set(format, cached);
+  }
+  return cached;
 }

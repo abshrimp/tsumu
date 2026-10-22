@@ -8,6 +8,8 @@ import { applyHtmlZipPage, readHtmlZip } from "../../lib/html-zip";
 import * as assets from "../../lib/assets";
 
 const require = createRequire(resolve("package.json"));
+const transformCache = new Map<string, string>();
+let bundlePromise: Promise<string> | undefined;
 
 /** 実際のコールバックを、完了の順序と再描画を制御して実行する。DOM での同じ操作は、E2E でも確かめる。 */
 export function importCallbacks(kind: "image" | "font" | "html" | "style" | "backup" | "breakpoints" | "pages" | "add" | "reset", upload = assets.uploadAsset, readZip = readHtmlZip) {
@@ -53,7 +55,12 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
   const alerts: unknown[] = [];
   const confirmations: { resolve: (value: boolean) => void }[] = [];
   function evaluate(path: string, append = "") {
-    const code = transformSync(readFileSync(resolve(path), "utf8") + append, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
+    const cacheKey = `${path}\0${append}`;
+    let code = transformCache.get(cacheKey);
+    if (code === undefined) {
+      code = transformSync(readFileSync(resolve(path), "utf8") + append, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
+      transformCache.set(cacheKey, code);
+    }
     const module = { exports: {} as any };
     new Function("require", "module", "exports", code)((name: string) => {
       if (name === "react") return { ...require("react"), ...hooks };
@@ -108,8 +115,8 @@ export function elements(tree: any): any[] {
 }
 
 /** 実際のパネル・ストア・画像のアップロードの処理を、ブラウザで動かす。 */
-export async function pendingImportBundle() {
-  return (await build({
+export function pendingImportBundle() {
+  return bundlePromise ??= build({
     stdin: {
       contents: `
 import React from "react";
@@ -143,5 +150,5 @@ void loadLocale().then(async () => {
     },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
-  })).outputFiles[0].text;
+  }).then(result => result.outputFiles[0].text);
 }

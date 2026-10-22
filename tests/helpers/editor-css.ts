@@ -2,9 +2,13 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+let cachedCss: string | undefined;
+
 export function readEditorCss(): string {
+  if (cachedCss !== undefined) return cachedCss;
   const layout = readFileSync(resolve("app/layout.tsx"), "utf8");
   const sheets = [...layout.matchAll(/^import ["']\.\/(.+\.css)["'];?$/gm)].map((match) => match[1]);
   if (!sheets.length) throw new Error("No editor stylesheets imported by app/layout.tsx");
-  return sheets.map((file) => readFileSync(resolve("app", file), "utf8")).join("\n");
+  cachedCss = sheets.map((file) => readFileSync(resolve("app", file), "utf8")).join("\n");
+  return cachedCss;
 }

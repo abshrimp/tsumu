@@ -1,9 +1,12 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
+let compiledMotionBundle: Promise<string> | undefined;
+let compiledEasingBundle: Promise<string> | undefined;
+
 /** 実際のモーダルと操作部品を取り付ける。この準備が持つのは、適用と取り消しの状態だけ。 */
 export async function motionEditorBundle(initialCss = "0% { opacity: 0; } 50% { opacity: 0.5; } 100% { opacity: 1; }") {
-  return (await build({
+  compiledMotionBundle ??= build({
     stdin: {
       contents: `
 import React, { useState } from "react";
@@ -13,7 +16,7 @@ void loadLocale().then(async () => {
   const { KeyframeEditorModal } = await import("./components/MotionEditors");
 
 function Fixture() {
-  const [css, setCss] = useState(${JSON.stringify(initialCss)});
+  const [css, setCss] = useState(window.__initialMotionCss);
   const [open, setOpen] = useState(true);
   return <>
     <style>{"@keyframes keyframe-test {" + css + "}"}</style>
@@ -32,24 +35,26 @@ createRoot(document.getElementById("app")).render(<Fixture />);
     },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
-  })).outputFiles[0].text;
+  }).then(result => result.outputFiles[0].text);
+  return `window.__initialMotionCss = ${JSON.stringify(initialCss)};\n` + await compiledMotionBundle;
 }
 
 /** 実際のイージングのモーダル。CSS を調べる仕組みで、変更せずに適用した場合と開き直した場合を比べる。 */
 export async function easingEditorBundle(initial = "cubic-bezier(0.123456, 0.000001, 0.876543, 1.234567)") {
-  return (await build({
+  compiledEasingBundle ??= build({
     stdin: {
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
-  const { EasingEditorModal } = await import("./components/MotionEditors");
+  const { EasingCurve, EasingEditorModal } = await import("./components/MotionEditors");
 
 function Fixture() {
-  const [value, setValue] = useState(${JSON.stringify(initial)});
+  const [value, setValue] = useState(window.__initialEasing);
   const [open, setOpen] = useState(true);
   return <>
+    <EasingCurve value={value} />
     <div id="easing-probe" style={{ transitionTimingFunction: value }} />
     <button id="reopen" onClick={() => setOpen(true)}>Open easing</button>
     <output id="saved">{value}</output>
@@ -65,5 +70,6 @@ createRoot(document.getElementById("app")).render(<Fixture />);
     },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
-  })).outputFiles[0].text;
+  }).then(result => result.outputFiles[0].text);
+  return `window.__initialEasing = ${JSON.stringify(initial)};\n` + await compiledEasingBundle;
 }

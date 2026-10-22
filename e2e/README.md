@@ -72,11 +72,13 @@ exactly one shard; the durations file only influences load balancing.
 
 The four shards use `scripts/e2e-shard-durations.json` as an estimate, not
 as a test manifest. It records the sum of Playwright-reported case durations
-from a successful CI run. Every run still discovers all tests dynamically,
+from a successful CI run, and `e2e/browser-projects.check.mts` rejects stale
+entries for deleted spec files. Every run still discovers all tests dynamically,
 including tests added after the last timing snapshot. Refresh the hint data
 only from a successful full CI run, using each file's case count and summed
-Playwright case durations. Check the discovered test list after reducing a
-matrix. A failing E2E should be investigated rather than removed to make CI green.
+Playwright case durations, and inspect shard assignments without starting a
+server via `node scripts/run-e2e-shard.mjs 1/4 --dry-run`. A failing E2E should
+be investigated rather than removed to make CI green.
 
 ## Coverage limits
 

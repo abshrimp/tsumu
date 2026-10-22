@@ -18,32 +18,48 @@ const examples = [
   "before\u2028import 'next/link';\u2029const sp = await searchParams;",
 ];
 
-function fixture(content: string): SiteDoc {
+function fixture(): SiteDoc {
+  const children = examples.map((_, index) => `text_${index}`);
+  const nodes = Object.fromEntries(examples.map((content, index) => [
+    `text_${index}`,
+    { ...makeText(content), id: `text_${index}`, attrId: `text_${index}` },
+  ]));
   return {
     siteName: "Literal examples", assets: {}, pageOrder: ["home"],
-    pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["text"] } },
-    nodes: { text: { ...makeText(content), id: "text" } },
+    pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children } },
+    nodes,
   };
 }
 
 for (const language of ["typescript", "javascript"] as const) {
-  for (const [index, content] of examples.entries()) {
-    test(`React ${language} renders code-like authored text unchanged (${index})`, async () => {
-      const doc = fixture(content);
-      const before = structuredClone(doc);
-      const project = await prepareExportProject(doc,
-        { framework: "react", language, style: "css", scope: "project" });
-      const source = project.files["src/pages/Page0." + (language === "typescript" ? "tsx" : "jsx")];
-      const { code } = transformSync(source, { loader: "tsx", format: "cjs", jsx: "automatic" });
-      const module = { exports: {} as { default: () => ReturnType<typeof createElement> } };
-      new Function("require", "module", "exports", code)(require, module, module.exports);
-      const fragment = parseFragment(renderToStaticMarkup(createElement(module.exports.default)));
-      const textOf = (node: Html.Node): string => "value" in node ? node.value :
-        "childNodes" in node ? node.childNodes.map(textOf).join("") : "";
-      assert.equal(textOf(fragment), content);
-      assert.deepEqual(doc, before);
-    });
-  }
+  test(`React ${language} renders code-like authored text unchanged`, async () => {
+    const doc = fixture();
+    const before = structuredClone(doc);
+    const project = await prepareExportProject(doc,
+      { framework: "react", language, style: "css", scope: "project" });
+    const source = project.files["src/pages/Page0." + (language === "typescript" ? "tsx" : "jsx")];
+    const { code } = transformSync(source, { loader: "tsx", format: "cjs", jsx: "automatic" });
+    const module = { exports: {} as { default: () => ReturnType<typeof createElement> } };
+    new Function("require", "module", "exports", code)(require, module, module.exports);
+    const fragment = parseFragment(renderToStaticMarkup(createElement(module.exports.default)));
+    const textOf = (node: Html.Node): string => "value" in node ? node.value :
+      "childNodes" in node ? node.childNodes.map(textOf).join("") : "";
+    const byId = new Map<string, Html.Node>();
+    const visit = (node: Html.Node) => {
+      if ("attrs" in node) {
+        const id = node.attrs.find((attr) => attr.name === "id")?.value;
+        if (id) byId.set(id, node);
+      }
+      if ("childNodes" in node) for (const child of node.childNodes) visit(child);
+    };
+    visit(fragment);
+    for (const [index, content] of examples.entries()) {
+      const target = byId.get(`text_${index}`);
+      assert.ok(target, `missing rendered node text_${index}`);
+      assert.equal(textOf(target), content);
+    }
+    assert.deepEqual(doc, before);
+  });
 }
 
 test("React adaptation preserves literal HTML and still converts real inline JSX", () => {

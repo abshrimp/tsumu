@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -17,14 +19,17 @@ test("all three engines discover the same core editing smoke tests", () => {
   assert.deepEqual(report.config.projects.map((p: { name: string }) => p.name).sort(),
     ["chromium", "firefox", "webkit"]);
 
-  type Suite = { suites?: Suite[]; specs?: {
+  type Suite = { file?: string; suites?: Suite[]; specs?: {
     file: string; title: string; tags: string[]; tests: { projectName: string }[];
   }[] };
   const smoke = new Map<string, Set<string>>();
   const forms = new Map<string, Set<string>>();
+  const discoveredFiles = new Set<string>();
   let chromiumOnly = 0;
   function visit(suite: Suite) {
     for (const spec of suite.specs ?? []) {
+      const normalized = spec.file.startsWith("e2e/") ? spec.file : `e2e/${spec.file}`;
+      discoveredFiles.add(normalized);
       const projects = spec.tests.map((t) => t.projectName).sort();
       const group = spec.tags.includes("core-editing") ? smoke : spec.tags.includes("form-values") ? forms : null;
       if (group) {
@@ -47,4 +52,8 @@ test("all three engines discover the same core editing smoke tests", () => {
   assert.equal(forms.get("search-form-values.spec.ts")?.size, 2);
   assert.equal(forms.size, 1);
   assert.ok(chromiumOnly > 0, "keep the full existing Chromium suite");
+
+  const durations = JSON.parse(readFileSync(resolve(root, "scripts/e2e-shard-durations.json"), "utf8")).files as Record<string, [number, number]>;
+  const stale = Object.keys(durations).filter((file) => !discoveredFiles.has(file));
+  assert.deepEqual(stale, [], "scripts/e2e-shard-durations.json must not reference deleted E2E specs");
 });

@@ -13,9 +13,11 @@ export function emptyListDoc(items: readonly unknown[]) {
   return doc;
 }
 
+let compiledEmptyListBundle: Promise<string> | undefined;
+
 /** 実際の設定の画面でリストに変換して配列を選び、同じ NodeView のデザインとプレビューを切り替える。 */
 export async function emptyListBundle(items: readonly unknown[]) {
-  return (await build({
+  compiledEmptyListBundle ??= build({
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
@@ -26,7 +28,7 @@ void loadLocale().then(async () => {
 const { default: SettingsPanel } = await import("./components/SettingsPanel");
 const { NodeView } = await import("./components/canvas/NodeView");
 const { VarsCtx } = await import("./components/canvas/render");
-useEditor.getState().replaceDoc(${JSON.stringify(emptyListDoc(items))});
+useEditor.getState().replaceDoc(window.__emptyListDoc);
 useEditor.getState().setActivePage("p"); useEditor.getState().select("tag");
 window.emptyListStore = useEditor;
 function Example() {
@@ -45,7 +47,8 @@ createRoot(document.getElementById("app")).render(<Example />);
 `, loader: "tsx", sourcefile: "empty-list-preview-browser.tsx", resolveDir: resolve(".") },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
-  })).outputFiles[0].text;
+  }).then(result => result.outputFiles[0].text);
+  return `window.__emptyListDoc = ${JSON.stringify(emptyListDoc(items))};\n` + await compiledEmptyListBundle;
 }
 
 /** 保存した同じ文書から実際の Next.js のページを生成し、取得するデータだけを固定する。 */

@@ -131,12 +131,6 @@ test("Style, Settings, and Script panels open", { tag: "@core-editing" }, async 
   expect(errors).toEqual([]);
 });
 
-test("Publishing explains the missing GitHub configuration", async ({ page }) => {
-  await openNewSite(page);
-  await page.locator('[data-tutorial="publish"]').click();
-  await expect(page.getByText("GitHubへの公開が設定されていません")).toBeVisible();
-});
-
 test("ZIP export produces a standard Next.js project", async ({ page }) => {
   await openNewSite(page, "Zip export");
   await page.locator('[data-tutorial="menu"]').click();
@@ -218,7 +212,8 @@ test("Custom code and icon scripts stored in documents never execute inside the 
   await page.reload();
   await expect(canvas(page).getByText("custom code kept")).toBeVisible();
   await expect(canvas(page).locator('a[href^="javascript:"]')).toHaveCount(0);
-  await page.waitForTimeout(500);
+  await expect.poll(() => canvas(page).locator("img").evaluateAll((els) => els.every((el) => (el as HTMLImageElement).complete))).toBe(true);
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
   expect(await page.evaluate(() => (window as { __pwned?: string }).__pwned)).toBeUndefined();
   expect(errors).toEqual([]);
 });

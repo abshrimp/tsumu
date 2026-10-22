@@ -20,12 +20,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
     localStorage.setItem("tsumu-lang", "ja");
     localStorage.setItem("tsumu-help-seen-v1", "1");
     if (localSite) localStorage.setItem("tsumu-sites-v1", JSON.stringify([{ id: "bootstrap-test", name: "Local site" }]));
-    const deferred = () => {
-      let resolve!: (value?: any) => void, reject!: (reason: any) => void;
-      const promise = new Promise<any>((yes, no) => { resolve = yes; reject = no; });
-      return { promise, resolve, reject };
-    };
-    const site = deferred(), module = deferred(), doc = deferred();
+    const site = Promise.withResolvers<Response>(), module = Promise.withResolvers<void>(), doc = Promise.withResolvers<Response>();
     w.bootstrapModule = module.promise;
     w.bootstrap = {
       siteRequests: 0, docRequests: 0, writes: [] as string[],
@@ -90,12 +85,17 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
         if (node instanceof Element && node.matches('.boot[role="status"]')) w.addedLoaders.push(node);
       }
     });
-    w.loaderObserver.observe(document.getElementById("app"), { childList: true, subtree: true });
+    w.loaderObserver.observe(document.getElementById("app")!, { childList: true, subtree: true });
   });
   // 最初の表示のアニメーションが終わってから、状態を進める。
-  await page.waitForTimeout(420);
+  await page.locator(".boot-card").evaluate((el) => Promise.all(
+    el.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished),
+  ));
   await page.evaluate(() => { (window as any).startsBeforeImport = (window as any).loaderStarts; });
 }
+
+const settleFrames = (page: Page) =>
+  page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
 
 async function expectSameLoader(page: Page) {
   await expect(page.locator('.boot[role="status"]')).toHaveCount(1);
@@ -117,7 +117,7 @@ for (const strict of [false, true]) for (const first of ["site", "module"] as co
   test(`The boot screen stays continuous when ${strict ? "StrictMode" : "normal mode"} is used and ${first} completes first`, async ({ page }) => {
     await prepare(page, { strict });
     await page.evaluate((first) => (window as any).bootstrap[first === "site" ? "releaseSite" : "releaseModule"](), first);
-    await page.waitForTimeout(100);
+    await settleFrames(page);
     await expectSameLoader(page);
     expect(await page.evaluate(() => (window as any).bootstrap.docRequests)).toBe(0);
     await page.evaluate((first) => (window as any).bootstrap[first === "site" ? "releaseModule" : "releaseSite"](), first);
@@ -162,7 +162,7 @@ for (const status of [400, 404, 503]) {
     await page.evaluate((status) => (window as any).bootstrap.releaseSite(status), status);
     await expect(page.getByText("サイトが見つかりません", { exact: true })).toBeVisible();
     await page.evaluate(() => (window as any).bootstrap.releaseModule());
-    await page.waitForTimeout(100);
+    await settleFrames(page);
     expect(await page.evaluate(() => (window as any).bootstrap.docRequests)).toBe(0);
     await expect(page.locator('[role="status"]')).toHaveCount(0);
     await page.evaluate(() => (window as any).disposeBootstrap());
@@ -200,7 +200,7 @@ for (const phase of ["site", "module", "document"] as const) {
       (window as any).bootstrap.releaseModule();
       (window as any).bootstrap.releaseDoc();
     });
-    await page.waitForTimeout(100);
+    await settleFrames(page);
     await expect(page.locator(".boot, [data-bootstrap-document]")).toHaveCount(0);
     expect(await page.evaluate(() => (window as any).bootstrap.docRequests)).toBe(phase === "document" ? 1 : 0);
     // 同じルートを開き直すと、新しい起動処理が通常どおり完了する。

@@ -31,11 +31,18 @@ export function clientNestedDoc(component = false) {
   return doc;
 }
 
+const nestedUiCodeCache = new Map<string, string>();
+
 export function loadNestedUi(file: string, direct = false) {
   const path = resolve(file), local = createRequire(path), mod = { exports: {} as any };
-  new Function("require", "module", "exports", transformSync(readFileSync(path, "utf8"), {
-    loader: "tsx", jsx: "automatic", format: "cjs",
-  }).code)((id: string) => id.endsWith("/lib/store")
+  let code = nestedUiCodeCache.get(path);
+  if (code === undefined) {
+    code = transformSync(readFileSync(path, "utf8"), {
+      loader: "tsx", jsx: "automatic", format: "cjs",
+    }).code;
+    nestedUiCodeCache.set(path, code);
+  }
+  new Function("require", "module", "exports", code)((id: string) => id.endsWith("/lib/store")
     ? { ...local(id), useEditor: (select: any) => select(useEditor.getState()) }
     : direct && id === "react" ? { ...React, useState: (v: unknown) => [v, () => {}] } : local(id), mod, mod.exports);
   return mod.exports;
@@ -51,45 +58,44 @@ export function clientNestedCanvas(doc: SiteDoc, items: unknown[] = nestedScopeI
   } }, doc.pages.p.children.map(id => React.createElement(NodeView, { id, key: id, isTop: true }))));
 }
 
+let compiledClientNestedBundle: Promise<string> | undefined;
+
 /** 設定の画面で内側の配列を選び、スクリプトの画面で、外側をブラウザで読み込む設定にする。 */
 export async function clientNestedBundle(component = false, source?: SiteDoc) {
   const doc = source ? structuredClone(source) : clientNestedDoc(component);
   doc.nodes.tags.list!.from = "";
   (doc.nodes.reload.scripts![0].steps[0] as { value: string }).value = "";
-  return (await build({ stdin: { contents: `
+  compiledClientNestedBundle ??= build({ stdin: { contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-
-
-
 import { useEditor } from "./lib/store";
-const css = ${JSON.stringify(readEditorCss())};
 import { loadLocale } from "./lib/i18n";
+const css = ${JSON.stringify(readEditorCss())};
 void loadLocale().then(async () => {
   const { default: SettingsPanel } = await import("./components/SettingsPanel");
   const { default: ScriptEditor } = await import("./components/ScriptEditor");
   const { default: Canvas } = await import("./components/Canvas");
-const style = document.createElement("style"); style.textContent = css; document.head.append(style);
-useEditor.getState().replaceDoc(${JSON.stringify(doc)});
-useEditor.getState().setActivePage("p"); useEditor.getState().select("tags");
-window.clientNestedStore = useEditor;
-function Example() {
-  const [edit, setEdit] = useState(false), mode = useEditor(s => s.mode);
-  const selected = useEditor(s => s.selection);
-  return <><button onClick={() => setEdit(true)}>Edit loading</button>
-    <button onClick={() => useEditor.getState().setMode(mode === "preview" ? "design" : "preview")}>Toggle preview</button>
-    <button onClick={() => useEditor.getState().undo()}>Undo</button>
-    <button onClick={() => useEditor.getState().redo()}>Redo</button>
-    <button onClick={() => useEditor.getState().replaceDoc(JSON.parse(JSON.stringify(useEditor.getState().doc)))}>Reload saved</button>
-    <aside>{selected && <SettingsPanel nodeId={selected} />}</aside><Canvas />
-    {edit && <ScriptEditor focusNodeId="reload" focusScriptId="reload-script" onClose={() => setEdit(false)} />}
-  </>;
-}
-createRoot(document.getElementById("app")).render(<Example />);
-
+  const style = document.createElement("style"); style.textContent = css; document.head.append(style);
+  useEditor.getState().replaceDoc(window.__clientNestedDoc);
+  useEditor.getState().setActivePage("p"); useEditor.getState().select("tags");
+  window.clientNestedStore = useEditor;
+  function Example() {
+    const [edit, setEdit] = useState(false), mode = useEditor(s => s.mode);
+    const selected = useEditor(s => s.selection);
+    return <><button onClick={() => setEdit(true)}>Edit loading</button>
+      <button onClick={() => useEditor.getState().setMode(mode === "preview" ? "design" : "preview")}>Toggle preview</button>
+      <button onClick={() => useEditor.getState().undo()}>Undo</button>
+      <button onClick={() => useEditor.getState().redo()}>Redo</button>
+      <button onClick={() => useEditor.getState().replaceDoc(JSON.parse(JSON.stringify(useEditor.getState().doc)))}>Reload saved</button>
+      <aside>{selected && <SettingsPanel nodeId={selected} />}</aside><Canvas />
+      {edit && <ScriptEditor focusNodeId="reload" focusScriptId="reload-script" onClose={() => setEdit(false)} />}
+    </>;
+  }
+  createRoot(document.getElementById("app")).render(<Example />);
 });
 `, resolveDir: resolve("."), sourcefile: "client-nested-lists-browser.tsx", loader: "tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
-  })).outputFiles[0].text;
+  }).then(result => result.outputFiles[0].text);
+  return `window.__clientNestedDoc = ${JSON.stringify(doc)};\n` + await compiledClientNestedBundle;
 }

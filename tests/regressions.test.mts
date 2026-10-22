@@ -179,8 +179,7 @@ test("generated components avoid framework names and the exported project typech
       writeFileSync(join(dir, path), content);
     }
     // 書き出すサイトも、本体と同じ TypeScript 7 で型を検査する。
-    execFileSync(process.execPath, [
-      join(dirname(require.resolve("typescript/package.json")), "bin/tsc"),
+    execFileSync(resolve("node_modules/.bin/tsc"), [
       "--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false",
     ], { cwd: dir, stdio: "pipe" });
     assert.match(files["components/SmartLink.tsx"], /export default function SmartLink\(/);

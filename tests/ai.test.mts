@@ -283,6 +283,14 @@ test("custom compatible providers do not require reasoning extensions", async (t
 });
 
 test("capability fallbacks do not exhaust transient retry attempts and AI edits preserve asset references", async (t) => {
+  const realSetTimeout = globalThis.setTimeout;
+  t.mock.method(globalThis, "setTimeout", ((cb: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if ((ms ?? 0) < 10_000) {
+      queueMicrotask(() => cb(...args));
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }
+    return realSetTimeout(cb, ms, ...args);
+  }) as typeof setTimeout);
   let calls = 0;
   t.mock.method(globalThis, "fetch", async (_url, init) => {
     const body = JSON.parse(init.body);
