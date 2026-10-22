@@ -50,8 +50,8 @@
 | 領域 | ファイル |
 |---|---|
 | エディタの状態、元に戻す・やり直す | `lib/store.ts`（zustand）。すべての変更がストアを経由するため、どの変更も元に戻す履歴と同期の両方に反映されます。 |
-| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`、`useHtmlPreview`）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）、`PagePanel.tsx`<br>`RightPanel.tsx`、`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイル）、`SettingsPanel.tsx`、`MotionEditors.tsx`<br>`ScriptEditor.tsx` と `script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx`、`Comments.tsx`、`ViewerHeader.tsx` |
-| スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts` |
+| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`、`useHtmlPreview`）、`app/styles/`（エディタのスタイルシート）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）、`PagePanel.tsx`<br>`RightPanel.tsx`、`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイルと `FontPicker.tsx`）、`SettingsPanel.tsx`、`MotionEditors.tsx`<br>`ScriptEditor.tsx` と `script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx`、`Comments.tsx`、`ViewerHeader.tsx` |
+| スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts`、`lib/google-font-catalog.ts`、`lib/adobe-fonts-*.ts`（[Adobe Fonts](docs/adobe-fonts.md)） |
 | 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が Next.js プロジェクトを `{ files, binaries, remoteAssets }` として返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
 | 出力形式 | `lib/export-formats.ts` と、`lib/generator/` のその他のファイル。詳細は [出力形式](#出力形式) を参照してください。 |
 | 公開と zip での書き出し | `components/PublishModal.tsx`（ブラウザ側）から `app/api/publish/route.ts`（GitHub Git Data API）へ。詳細は [公開の仕組み](#公開の仕組み) を参照してください。<br>`components/ExportModal.tsx`（`Header.tsx` から開く）から `lib/exportZip.ts` へ |
@@ -64,7 +64,7 @@
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |
 | 認証 | `auth.ts`、`proxy.ts`、`lib/allowlist.ts`（`editor` と `viewer` の権限）。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` でのループバック宛てのアクセスか `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
 | 多言語対応 | `lib/i18n.ts`。原文は英語で記述し、`tr("…")` で囲みます。日本語訳は `lib/locales/ja.ts` に配置します。`lib/locales/en.ts` には、原文と表示を変えたい英語（複数形など）だけを書きます。 |
-| ヘルプとチュートリアル | `lib/manualTopics.ts`、`components/HelpCenter.tsx`、`HelpFigures.tsx`、`Tutorial.tsx` |
+| ヘルプとチュートリアル | `lib/manualTopics.ts` と `lib/manual-topics/`、`components/HelpCenter.tsx`、`HelpFigures.tsx`、`Tutorial.tsx` |
 
 ### ブラウザに保存したサイトの削除
 

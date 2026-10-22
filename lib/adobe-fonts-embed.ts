@@ -10,17 +10,6 @@ export interface AdobeEmbed {
 }
 
 const KIT_ID = /^[a-z0-9]{7}$/;
-const FAMILY = /^[A-Za-z][A-Za-z0-9 _-]{0,79}$/;
-
-/** CSSのfont-family宣言、またはファミリー名だけの入力を受け付ける。 */
-export function adobeCssFamily(source: string): string | null {
-  const text = source.trim();
-  if (FAMILY.test(text)) return text;
-  const found = [...text.matchAll(/\bfont-family\s*:\s*(?:"([^"]+)"|'([^']+)'|([^,;\n}\r]+))/gi)];
-  if (!found.length) return null;
-  const families = [...new Set(found.map((match) => (match[1] ?? match[2] ?? match[3]).trim()))];
-  return families.length === 1 && FAMILY.test(families[0]) ? families[0] : null;
-}
 
 /**
  * Adobe FontsのWebプロジェクトが出す<script>、<link>、またはCSS @importから
