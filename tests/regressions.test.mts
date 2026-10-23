@@ -5,8 +5,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-// TypeScript 7 の CLI と併用する、構文解析・変換用の公式互換 API。
-import ts from "@typescript/typescript6";
+import { transformSync } from "esbuild";
 import { generateProject } from "../lib/generator";
 import { headHtmlToJsx } from "../lib/generator/head";
 import { makeBox } from "../lib/presets";
@@ -23,14 +22,14 @@ function fixture(nodes: DocNode[]): SiteDoc {
   };
 }
 
+// 構文エラーがあれば transformSync が例外を投げる。
+const transpileTsx = (source: string, sourcefile: string) =>
+  transformSync(source, { sourcefile, loader: "tsx", jsx: "automatic", format: "cjs", target: "es2020" }).code;
+
 function evaluate(source: string) {
-  const result = ts.transpileModule(source, {
-    fileName: "fixture.tsx", reportDiagnostics: true,
-    compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
-  });
-  assert.deepEqual(result.diagnostics?.map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n")), []);
+  const code = transpileTsx(source, "fixture.tsx");
   const mod = { exports: {} as { default: () => any } };
-  new Function("require", "module", "exports", result.outputText)(require, mod, mod.exports);
+  new Function("require", "module", "exports", code)(require, mod, mod.exports);
   return mod.exports.default();
 }
 
@@ -171,8 +170,7 @@ test("a component whose root renders nothing returns null", () => {
   const doc = site([inst], [media]);
   doc.components = { c: { id: "c", name: "Empty", rootId: "media" } };
   const source = generateProject(doc).files["components/Empty.tsx"];
-  const result = ts.transpileModule(source, { fileName: "Empty.tsx", reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX } });
-  assert.deepEqual(result.diagnostics?.map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n")), []);
+  assert.doesNotThrow(() => transpileTsx(source, "Empty.tsx"));
   assert.match(source, /return \(\s*null\s*\);/);
 });
 

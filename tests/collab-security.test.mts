@@ -4,8 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-// TypeScript 7 の CLI と併用する、構文解析・変換用の公式互換 API。
-import ts from "@typescript/typescript6";
+import { transformSync } from "esbuild";
 import { addAllowedEmail, removeAllowedEmail } from "../lib/allowlist";
 import { nodeDatabase } from "../lib/node-storage";
 import { getDb, getDbFromBinding } from "../lib/db";
@@ -20,11 +19,9 @@ function loadHandler(path: string, mocks: Record<string, unknown>): any {
   const url = new URL(path, import.meta.url);
   const require = createRequire(url);
   const source = readFileSync(url, "utf8");
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  });
+  const { code } = transformSync(source, { loader: "ts", format: "cjs", target: "es2022" });
   const module = { exports: {} };
-  new Function("require", "module", "exports", outputText)(
+  new Function("require", "module", "exports", code)(
     (name: string) => Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports,
   );
   return module.exports;

@@ -322,7 +322,7 @@ function loadActivePageId(doc: SiteDoc): string {
   return doc.pageOrder[0];
 }
 
-interface EditorStore {
+export interface EditorStore {
   doc: SiteDoc;
   past: SiteDoc[];
   future: SiteDoc[];

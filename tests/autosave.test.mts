@@ -1,55 +1,33 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { test } from "node:test";
-// TypeScript 7 の CLI と併用する、構文解析・変換用の公式互換 API。
-import ts from "@typescript/typescript6";
+import { afterEach, mock, test } from "node:test";
+import { CLOUD_SAVE_DEBOUNCE_MS, scheduleCloudSave, sendCloudDoc } from "../lib/cloud-save";
 import { createDocPatch } from "../lib/doc-patch";
 import { createInitialDoc } from "../lib/presets";
 
-// 実際の自動保存エフェクトを取り出し、通信とタイマーの完了順を制御する。
-const source = ts.createSourceFile("Editor.tsx", readFileSync(new URL("../components/Editor.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-let effectSource = "";
-let saveSource = "";
-function visit(node: ts.Node) {
-  if (ts.isVariableDeclaration(node) && node.name.getText(source) === "saveCloudDoc" &&
-      node.initializer && ts.isCallExpression(node.initializer)) {
-    saveSource = node.initializer.arguments[0].getText(source);
-  }
-  if (ts.isCallExpression(node) && node.expression.getText(source) === "useEffect" &&
-      node.arguments[0]?.getText(source).includes("observedDoc.current !== doc")) {
-    effectSource = node.arguments[0].getText(source);
-  }
-  ts.forEachChild(node, visit);
-}
-visit(source);
-assert.ok(effectSource, "the production autosave effect must be found");
-const compiled = ts.transpileModule(`const effect = ${effectSource};`, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-}).outputText;
-const ref = <T>(current: T) => ({ current });
+// 実際の自動保存処理を動かし、通信とタイマーの完了順を制御する。
+const ref = <T,>(current: T) => ({ current });
+afterEach(() => mock.reset());
 
 function harness() {
+  mock.timers.enable({ apis: ["setTimeout"] });
   const original = { title: "original" };
   const state = { doc: { title: "first edit" }, cloudState: "synced", editingText: null,
     setCloud(value: string) { this.cloudState = value; } };
   const requests: { doc: object; base: string; resolve: (result: any) => void }[] = [];
-  let timer: (() => void) | undefined;
   let retries = 0;
   let unsynced = false;
   const scope = {
     observedDoc: ref(original), cloudReady: ref(true), cloudDirty: ref(false),
-    skipNextCloudSave: ref(false), cloudTimer: ref<unknown>(null),
+    skipNextCloudSave: ref(false), cloudTimer: ref<any>(null),
     activeCloudSave: ref<Promise<void> | null>(null), cloudSaveQueued: ref(false),
     lastSyncedRev: ref("1"), lastSyncedDoc: ref<object>(original), retrySaveAfterEdit: ref(false),
-    useEditor: { getState: () => state }, CLOUD_SAVE_DEBOUNCE_MS: 800,
+    getState: () => state,
     setUnsyncedFlag: (value: boolean) => { unsynced = value; },
-    setSaveRetry: () => { retries++; },
-    clearTimeout: () => { timer = undefined; },
-    setTimeout: (fn: () => void) => { timer = fn; return 1; },
+    requestRetry: () => { retries++; },
     saveCloudDoc: (doc: object, base: string) => new Promise((resolve) => requests.push({ doc, base, resolve })),
   };
-  const effect = () => new Function(...Object.keys(scope), "doc", `${compiled}\nreturn effect();`)(...Object.values(scope), state.doc);
-  const tick = () => { const next = timer; timer = undefined; next?.(); };
+  const effect = () => scheduleCloudSave(scope as any, state.doc as any);
+  const tick = () => mock.timers.tick(CLOUD_SAVE_DEBOUNCE_MS);
   return { state, scope, effect, tick, requests, retries: () => retries, unsynced: () => unsynced };
 }
 
@@ -108,21 +86,15 @@ function transport(connected: boolean, supported = true, httpStatus = 200) {
   const messages: any[] = [];
   const requests: { url: string; method: string; body: any }[] = [];
   const scope = {
-    deltaSupported: ref(supported), collabSocket: ref(connected ? { readyState: 1 } : null),
-    collabClientId: ref("client1"), WebSocket: { OPEN: 1 }, createDocPatch,
-    useEditor: { getState: () => ({ cloudSavedAt: 10 }) },
-    siteApi: (path: string, query: Record<string, string>) => `${path}?${new URLSearchParams(query)}`,
-    requestViaWebSocket: async (message: unknown) => { messages.push(message); return { type: "saved", rev: "2", savedAt: 20 }; },
-    fetch: async (url: string, init: RequestInit) => {
-      requests.push({ url, method: init.method!, body: JSON.parse(String(init.body)) });
-      return Response.json({ rev: "2", savedAt: 20 }, { status: requests.length === 1 ? httpStatus : 200 });
-    },
+    deltaSupported: ref(supported), collabSocket: ref(connected ? { readyState: WebSocket.OPEN } : null),
+    clientId: "client1", savedAt: () => 10,
+    requestViaWebSocket: async (message: any) => { messages.push(message); return { type: "saved", rev: "2", savedAt: 20 } as any; },
   };
-  assert.ok(saveSource);
-  const compiledSave = ts.transpileModule(`const save = ${saveSource};`, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
-  }).outputText;
-  const save = new Function(...Object.keys(scope), `${compiledSave}\nreturn save;`)(...Object.values(scope));
+  mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    requests.push({ url, method: init.method!, body: JSON.parse(String(init.body)) });
+    return Response.json({ rev: "2", savedAt: 20 }, { status: requests.length === 1 ? httpStatus : 200 });
+  });
+  const save = (...args: Parameters<typeof sendCloudDoc> extends [any, ...infer R] ? R : never) => sendCloudDoc(scope, ...args);
   return { save, scope, messages, requests };
 }
 
