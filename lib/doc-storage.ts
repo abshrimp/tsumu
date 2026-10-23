@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { isDocPatch, type DocPatch } from "./doc-patch";
 
 /** 編集データの保存（D1 の docs テーブル。1サイト = 1行で、id はサイトID） */
 export const MAX_DOC_BYTES = 10 * 1024 * 1024;
@@ -54,23 +55,15 @@ export async function readCurrentDoc(db: Db, siteId: string): Promise<CurrentDoc
 }
 
 /** 日次バックアップ（曜日で7世代ローテーション、1日1回だけ書く） */
-async function writeDailyBackup(db: Db, siteId: string, raw: string, now: number) {
+async function writeDailyBackup(db: Db, siteId: string, now: number) {
   try {
     const day = new Date(now).getUTCDay();
-    const today = new Date(now).toISOString().slice(0, 10);
-    const rs = await db.execute({
-      sql: "SELECT saved_at FROM site_backups WHERE site_id = ? AND day = ?",
-      args: [siteId, day],
+    const dayStart = Math.floor(now / 86_400_000) * 86_400_000;
+    // 本文をWorkerへ取り出さずDB内でコピーする。並行保存でも同日のバックアップは上書きしない。
+    await db.execute({
+      sql: "INSERT INTO site_backups (site_id, day, saved_at, body) SELECT id, ?, saved_at, body FROM docs WHERE id = ? AND saved_at >= ? AND saved_at < ? AND NOT EXISTS (SELECT 1 FROM site_backups WHERE site_id = ? AND day = ? AND saved_at >= ?) ON CONFLICT(site_id, day) DO UPDATE SET saved_at = excluded.saved_at, body = excluded.body WHERE site_backups.saved_at < ?",
+      args: [day, siteId, dayStart, dayStart + 86_400_000, siteId, day, dayStart, dayStart],
     });
-    const last = rs.rows[0]
-      ? new Date(Number(rs.rows[0].saved_at)).toISOString().slice(0, 10)
-      : null;
-    if (last !== today) {
-      await db.execute({
-        sql: "INSERT INTO site_backups (site_id, day, saved_at, body) VALUES (?, ?, ?, ?) ON CONFLICT(site_id, day) DO UPDATE SET saved_at = excluded.saved_at, body = excluded.body",
-        args: [siteId, day, now, raw],
-      });
-    }
   } catch {
     // バックアップの失敗は保存自体に影響させない
   }
@@ -89,7 +82,7 @@ export async function saveCurrentDoc(
       args: [raw, now, siteId, Number(base)],
     });
     if (rs.rows.length) {
-      await writeDailyBackup(db, siteId, raw, now);
+      await writeDailyBackup(db, siteId, now);
       return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
     }
     const current = await readCurrentDoc(db, siteId);
@@ -108,6 +101,46 @@ export async function saveCurrentDoc(
     const current = await readCurrentDoc(db, siteId);
     return current ? { kind: "conflict", current } : { kind: "missing" };
   }
-  await writeDailyBackup(db, siteId, raw, now);
+  await writeDailyBackup(db, siteId, now);
   return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
+}
+
+/** 本文を取得せず、版の照合と差分反映を1つのSQLで原子的に行う。 */
+export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base: string): Promise<SaveDocResult> {
+  if (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)) || !isDocPatch(patch)) {
+    throw new Error("不正なリクエスト");
+  }
+  if (new TextEncoder().encode(JSON.stringify(patch)).byteLength > MAX_DOC_BYTES) {
+    throw new Error("ドキュメントが大きすぎます（10MBまで）");
+  }
+  const args: (string | number | null)[] = [];
+  let body = "body";
+  // D1の関数引数数上限にも収める（1回のjson_setは本文 + 12組のパス・値）。
+  for (let i = 0; i < patch.length; i += 12) {
+    const chunk = patch.slice(i, i + 12);
+    const sets: string[] = [];
+    const removes: string[] = [];
+    for (const op of chunk.filter((op) => !("remove" in op))) {
+      sets.push("?, json(?)");
+      args.push(`$.${op.path.join(".")}`, JSON.stringify("value" in op ? op.value : null));
+    }
+    if (sets.length) body = `json_set(${body}, ${sets.join(", ")})`;
+    for (const op of chunk.filter((op) => "remove" in op)) {
+      removes.push("?");
+      args.push(`$.${op.path.join(".")}`);
+    }
+    if (removes.length) body = `json_remove(${body}, ${removes.join(", ")})`;
+  }
+  const now = Date.now();
+  const rs = await db.execute({
+    sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? AND (SELECT length(CAST(body AS BLOB)) FROM patched) <= ? RETURNING rev`,
+    args: [...args, siteId, Number(base), now, siteId, Number(base), MAX_DOC_BYTES],
+  });
+  if (rs.rows.length) {
+    await writeDailyBackup(db, siteId, now);
+    return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
+  }
+  const current = await readCurrentDoc(db, siteId);
+  if (current?.rev === base) throw new Error("ドキュメントが大きすぎます（10MBまで）");
+  return current ? { kind: "conflict", current } : { kind: "missing" };
 }

@@ -9,9 +9,12 @@ import { siteIdOf } from "../../../lib/site-server";
 import {
   readCurrentDoc,
   saveCurrentDoc,
+  saveDocPatch,
+  MAX_DOC_BYTES,
   validateDocBody,
 } from "../../../lib/doc-storage";
 import { userMessage } from "../../../lib/errors";
+import { isDocPatch } from "../../../lib/doc-patch";
 
 export const maxDuration = 30;
 
@@ -53,11 +56,11 @@ export async function GET(req: Request) {
     }
 
     const cur = await readCurrentDoc(db, siteId);
-    if (!cur) return NextResponse.json({ exists: false });
+    if (!cur) return NextResponse.json({ exists: false, deltaVersion: 1 });
     // body は保存済みJSONなので、パースし直さず文字列結合で返す
     //（Workers無料プランのCPU時間制限対策）
     return new NextResponse(
-      `{"exists":true,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
+      `{"exists":true,"deltaVersion":1,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
       { headers: { "Content-Type": "application/json" } }
     );
   } catch (e) {
@@ -74,6 +77,14 @@ export async function GET(req: Request) {
  * （クライアントがマージして再保存する）
  */
 export async function PUT(req: Request) {
+  return save(req, false);
+}
+
+export async function PATCH(req: Request) {
+  return save(req, true);
+}
+
+async function save(req: Request, partial: boolean) {
   const tr = await serverTr();
   const denied = await requireAuth();
   if (denied) return denied;
@@ -81,7 +92,15 @@ export async function PUT(req: Request) {
 
   // 再シリアライズは避けるが、壊れたJSONで保存データ全体が読めなくなるのを防ぐ
   const raw = (await req.text()).trim();
-  const validationError = validateDocBody(raw);
+  let patch: unknown;
+  if (partial) {
+    try { patch = JSON.parse(raw); } catch { /* validation below */ }
+  }
+  const validationError = partial
+    ? new TextEncoder().encode(raw).byteLength > MAX_DOC_BYTES
+      ? "ドキュメントが大きすぎます（10MBまで）"
+      : isDocPatch(patch) ? null : "不正なリクエスト"
+    : validateDocBody(raw);
   if (validationError) {
     return NextResponse.json(
       { error: tr(validationError) },
@@ -92,6 +111,9 @@ export async function PUT(req: Request) {
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
   const base = params.get("base");
+  if (partial && (!base || !/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
+    return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
+  }
   const rawSenderId = req.headers.get("X-Collab-Client-Id") ?? "";
   const senderId = /^[a-zA-Z0-9_-]{1,100}$/.test(rawSenderId)
     ? rawSenderId
@@ -99,7 +121,9 @@ export async function PUT(req: Request) {
 
   try {
     const db = await getDb();
-    const result = await saveCurrentDoc(db, siteId, raw, base);
+    const result = partial && isDocPatch(patch)
+      ? await saveDocPatch(db, siteId, patch, base!)
+      : await saveCurrentDoc(db, siteId, raw, base);
     if (result.kind === "missing") {
       return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
     }
@@ -112,13 +136,14 @@ export async function PUT(req: Request) {
     }
     // 右下の「保存」にホバーしたときに出す、最近編集した人
     await recordActivity(db, siteId, "edit", await sessionUser().catch(() => null), result.savedAt);
-    notifyDocUpdated(siteId, {
-      type: "doc-updated",
+    const metadata = {
       rev: result.rev,
       savedAt: result.savedAt,
       senderId,
-      doc: JSON.parse(raw) as import("../../../lib/types").SiteDoc,
-    });
+    };
+    notifyDocUpdated(siteId, partial && isDocPatch(patch)
+      ? { ...metadata, type: "doc-patched", base: base!, patch }
+      : { ...metadata, type: "doc-updated", doc: JSON.parse(raw) });
     return NextResponse.json({
       ok: true,
       rev: result.rev,

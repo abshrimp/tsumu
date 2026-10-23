@@ -8,8 +8,9 @@ import type { SiteDoc } from "../lib/types";
 import type {
   CollabClientMessage,
   CollabServerMessage,
-  DocUpdatedMessage,
+  DocChangeMessage,
 } from "../lib/collab";
+import { createDocPatch, applyDocPatchAtRevision, type DocPatch } from "../lib/doc-patch";
 import { mergeDocs } from "../lib/merge";
 import { css2FamilyToken } from "../lib/style";
 import { assetSrc, uploadAsset } from "../lib/assets";
@@ -72,6 +73,7 @@ function setUnsyncedFlag(on: boolean) {
 
 type CollabRequestInput =
   | { type: "load" }
+  | { type: "patch"; base: string; patch: DocPatch }
   | { type: "save"; base: string | null; doc: SiteDoc };
 
 interface CloudRequestResult {
@@ -174,6 +176,9 @@ export default function Editor() {
   const scriptEditor = useEditor((s) => s.scriptEditor);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** 保存の応答を反映し終わるまで、次の保存は開始しない。 */
+  const activeCloudSave = useRef<Promise<void> | null>(null);
+  const cloudSaveQueued = useRef(false);
   const collabClientId = useRef(
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -191,6 +196,7 @@ export default function Editor() {
     >()
   );
   const cloudReady = useRef(false);
+  const deltaSupported = useRef(false);
   /** サーバー未保存のローカル変更があるか（ポーリング取り込みの抑止に使う） */
   const cloudDirty = useRef(false);
   /** 初回同期が完了する前の編集も未保存として残す。 */
@@ -486,14 +492,16 @@ export default function Editor() {
   }, [requestViaWebSocket, waitForWebSocket]);
 
   const saveCloudDoc = useCallback(
-    async (snapshot: SiteDoc, base: string | null): Promise<CloudRequestResult> => {
+    async (snapshot: SiteDoc, base: string | null, baseDoc?: SiteDoc): Promise<CloudRequestResult> => {
+      const patch = deltaSupported.current && base && baseDoc ? createDocPatch(baseDoc, snapshot) : null;
+      if (patch?.length === 0) {
+        return { ok: true, status: 200, data: { rev: base, savedAt: useEditor.getState().cloudSavedAt } };
+      }
       if (collabSocket.current?.readyState === WebSocket.OPEN) {
         try {
-          const message = await requestViaWebSocket({
-            type: "save",
-            base,
-            doc: snapshot,
-          });
+          const message = await requestViaWebSocket(patch && base
+            ? { type: "patch", base, patch }
+            : { type: "save", base, doc: snapshot });
           if (message.type === "saved") {
             return { ok: true, status: 200, data: message };
           }
@@ -506,17 +514,26 @@ export default function Editor() {
         }
       }
 
-      const response = await fetch(
+      let response = await fetch(
         siteApi("/api/doc", base ? { base } : {}),
         {
-          method: "PUT",
+          method: patch ? "PATCH" : "PUT",
           headers: {
             "Content-Type": "application/json",
             "X-Collab-Client-Id": collabClientId.current,
           },
-          body: JSON.stringify(snapshot),
+          body: JSON.stringify(patch ?? snapshot),
         }
       );
+      // 段階的なデプロイ中、HTTP側が旧版なら版照合付きの全体保存に戻す。
+      if (patch && response.status === 405) {
+        deltaSupported.current = false;
+        response = await fetch(siteApi("/api/doc", base ? { base } : {}), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-Collab-Client-Id": collabClientId.current },
+          body: JSON.stringify(snapshot),
+        });
+      }
       return {
         ok: response.ok,
         status: response.status,
@@ -534,7 +551,10 @@ export default function Editor() {
     if (cloudTimer.current) clearTimeout(cloudTimer.current);
     s.setCloud("checking");
     try {
+      // 再接続時も、進行中の保存が確定してから最新版を読み込む。
+      await activeCloudSave.current;
       const data = await loadCloudDoc();
+      deltaSupported.current = data.deltaVersion === 1;
       if (data.exists === true) {
         // 壊れた応答を「サーバーが空」と扱って初期データを保存しない。
         if (!data.rev || !data.doc?.pages || !data.doc?.nodes || !data.doc?.pageOrder?.length) {
@@ -687,59 +707,79 @@ export default function Editor() {
     cloudDirty.current = true;
     setUnsyncedFlag(true);
     if (cloudTimer.current) clearTimeout(cloudTimer.current);
-    cloudTimer.current = setTimeout(async () => {
+    cloudTimer.current = setTimeout(() => {
       if (!cloudReady.current) return;
-      const st = useEditor.getState();
-      const base = lastSyncedRev.current;
-      if (!base || !lastSyncedDoc.current) {
-        cloudReady.current = false;
-        st.setCloud("error");
+      if (activeCloudSave.current) {
+        cloudSaveQueued.current = true;
         return;
       }
-      const snapshot = st.doc;
-      st.setCloud("saving");
-      try {
-        // base 付き = 楽観ロック。他の編集者が先に保存していれば 409 が返る
-        const res = await saveCloudDoc(snapshot, base);
-        if (res.ok) {
-          const data = res.data;
-          lastSyncedRev.current = data.rev ?? lastSyncedRev.current;
-          lastSyncedDoc.current = snapshot;
-          // 保存中にさらに編集されていなければ「未保存の変更なし」に戻す
-          if (useEditor.getState().doc === snapshot) {
-            cloudDirty.current = false;
-            setUnsyncedFlag(false);
-          }
-          st.setCloud("synced", data.savedAt ?? Date.now());
-        } else if (res.status === 409) {
-          // 競合: 相手の最新と三方向マージして、次の自動保存で保存し直す
-          const data = res.data;
-          const baseDoc = lastSyncedDoc.current;
-          const now = useEditor.getState();
-          if (data?.doc && baseDoc && now.editingText) {
-            // テキスト編集中のマージは入力が失われるため、確定（blur）後の
-            // 再保存時に解決する（base は据え置き → もう一度409になる）。
-            // 文字を変えずに編集を終えても保存し直せるよう、終わったときに知らせる
-            retrySaveAfterEdit.current = true;
-            st.setCloud("saving");
-          } else if (data?.doc && baseDoc) {
-            const merged = mergeDocs(baseDoc, now.doc, data.doc);
+      activeCloudSave.current = (async () => {
+        const st = useEditor.getState();
+        const base = lastSyncedRev.current;
+        const baseDoc = lastSyncedDoc.current;
+        if (!base || !baseDoc) {
+          cloudReady.current = false;
+          st.setCloud("error");
+          return;
+        }
+        const snapshot = st.doc;
+        if (snapshot === baseDoc) {
+          cloudDirty.current = false;
+          setUnsyncedFlag(false);
+          return;
+        }
+        st.setCloud("saving");
+        try {
+          // base 付き = 楽観ロック。他の編集者が先に保存していれば 409 が返る
+          const res = await saveCloudDoc(snapshot, base, baseDoc);
+          if (res.ok) {
+            const data = res.data;
             lastSyncedRev.current = data.rev ?? lastSyncedRev.current;
-            lastSyncedDoc.current = data.doc;
-            // dirty のまま適用 → 保存エフェクトが再スケジュールされる
-            st.applyRemoteDoc(merged);
-            st.setCloud("saving");
+            lastSyncedDoc.current = snapshot;
+            // 保存中にさらに編集されていなければ「未保存の変更なし」に戻す
+            if (useEditor.getState().doc === snapshot) {
+              cloudDirty.current = false;
+              setUnsyncedFlag(false);
+            }
+            st.setCloud(cloudDirty.current ? "saving" : "synced", data.savedAt ?? Date.now());
+          } else if (res.status === 409) {
+            // 競合: 相手の最新と三方向マージして、次の自動保存で保存し直す
+            const data = res.data;
+            const now = useEditor.getState();
+            if (data?.doc && baseDoc && now.editingText) {
+              // テキスト編集中のマージは入力が失われるため、確定（blur）後の
+              // 再保存時に解決する（base は据え置き → もう一度409になる）。
+              // 文字を変えずに編集を終えても保存し直せるよう、終わったときに知らせる
+              retrySaveAfterEdit.current = true;
+              st.setCloud("saving");
+            } else if (data?.doc && baseDoc) {
+              const merged = mergeDocs(baseDoc, now.doc, data.doc);
+              lastSyncedRev.current = data.rev ?? lastSyncedRev.current;
+              lastSyncedDoc.current = data.doc;
+              // dirty のまま適用 → 保存エフェクトが再スケジュールされる
+              st.applyRemoteDoc(merged);
+              st.setCloud("saving");
+            } else {
+              // ベース不明のまま最新版の番号だけ採用すると、次の保存が全体を上書きする。
+              cloudReady.current = false;
+              st.setCloud("error");
+            }
           } else {
-            // ベース不明のまま最新版の番号だけ採用すると、次の保存が全体を上書きする。
-            cloudReady.current = false;
             st.setCloud("error");
           }
-        } else {
+        } catch {
           st.setCloud("error");
         }
-      } catch {
-        st.setCloud("error");
-      }
+      })().finally(() => {
+        activeCloudSave.current = null;
+        if (cloudSaveQueued.current) {
+          cloudSaveQueued.current = false;
+          // テキストの確定待ちは専用の再保存処理へ任せる。
+          if (cloudReady.current && !retrySaveAfterEdit.current) {
+            setSaveRetry((n) => n + 1);
+          }
+        }
+      });
     }, CLOUD_SAVE_DEBOUNCE_MS);
     return () => {
       if (cloudTimer.current) clearTimeout(cloudTimer.current);
@@ -768,10 +808,10 @@ export default function Editor() {
     let inFlight = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectDelay = 1000;
-    let pendingRemote: DocUpdatedMessage | null = null;
+    let pendingRemote: DocChangeMessage | null = null;
     let fallbackTick = 0;
 
-    const applyRemote = (message: DocUpdatedMessage): boolean => {
+    const applyRemote = (message: DocChangeMessage): boolean => {
       const incomingRev = Number(message.rev);
       const currentRev = Number(lastSyncedRev.current ?? 0);
       if (Number.isFinite(incomingRev) && incomingRev <= currentRev) {
@@ -786,13 +826,21 @@ export default function Editor() {
         state.editingText ||
         document.hidden
       ) {
-        pendingRemote = message;
+        if (!pendingRemote || Number(pendingRemote.rev) < incomingRev) pendingRemote = message;
+        return false;
+      }
+      const incomingDoc = message.type === "doc-updated" ? message.doc
+        : applyDocPatchAtRevision(lastSyncedDoc.current, lastSyncedRev.current, message.base, message.patch);
+      if (!incomingDoc) {
+        if (!pendingRemote || Number(pendingRemote.rev) < incomingRev) pendingRemote = message;
+        // 差分が欠けた場合だけ全体を取得する。版が違う差分を無理に適用しない。
+        void pullFallback();
         return false;
       }
       lastSyncedRev.current = message.rev;
-      lastSyncedDoc.current = message.doc;
+      lastSyncedDoc.current = incomingDoc;
       skipNextCloudSave.current = true;
-      state.applyRemoteDoc(message.doc);
+      state.applyRemoteDoc(incomingDoc);
       state.setCloud("synced", message.savedAt);
       pendingRemote = null;
       return true;
@@ -825,14 +873,8 @@ export default function Editor() {
         if (!data.exists || !data.doc?.pages || !data.doc?.pageOrder?.length) {
           return;
         }
-        const st = useEditor.getState();
-        // 取得中に編集が始まっていたら破棄（次回の保存が正になる）
-        if (stopped || cloudDirty.current || st.editingText) return;
-        lastSyncedRev.current = data.rev ?? lastSyncedRev.current;
-        lastSyncedDoc.current = data.doc;
-        skipNextCloudSave.current = true;
-        st.applyRemoteDoc(data.doc);
-        st.setCloud("synced", data.savedAt);
+        if (stopped) return;
+        applyRemote({ type: "doc-updated", rev: data.rev, savedAt: data.savedAt, doc: data.doc });
       } catch {
         // 失敗は無視して次回に再試行
       } finally {
@@ -853,7 +895,7 @@ export default function Editor() {
     const openEvents = () => {
       if (stopped || events) return;
       const source = new EventSource(
-        `/api/collab/events?site=${encodeURIComponent(currentSiteId())}&clientId=${encodeURIComponent(
+        `/api/collab/events?delta=1&site=${encodeURIComponent(currentSiteId())}&clientId=${encodeURIComponent(
           collabClientId.current
         )}`
       );
@@ -866,7 +908,7 @@ export default function Editor() {
       source.addEventListener("message", (event) => {
         try {
           const message = JSON.parse(String(event.data)) as CollabServerMessage;
-          if (message.type === "doc-updated") applyRemote(message);
+          if (message.type === "doc-updated" || message.type === "doc-patched") applyRemote(message);
         } catch {
           // 未知のメッセージは無視する
         }
@@ -900,7 +942,7 @@ export default function Editor() {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const url = `${protocol}//${window.location.host}/api/collab?clientId=${encodeURIComponent(
         collabClientId.current
-      )}&site=${encodeURIComponent(currentSiteId())}`;
+      )}&site=${encodeURIComponent(currentSiteId())}&delta=1`;
       const nextSocket = new WebSocket(url);
       collabSocket.current = nextSocket;
       let opened = false;
@@ -917,6 +959,7 @@ export default function Editor() {
         if (cloudReady.current) {
           void requestViaWebSocket({ type: "load" })
             .then((message) => {
+              if (message.type === "snapshot") deltaSupported.current = message.deltaVersion === 1;
               if (
                 message.type === "snapshot" &&
                 message.exists &&
@@ -950,7 +993,7 @@ export default function Editor() {
                 pending.resolve(message);
               }
             }
-          } else if (message.type === "doc-updated") {
+          } else if (message.type === "doc-updated" || message.type === "doc-patched") {
             applyRemote(message);
           }
         } catch {

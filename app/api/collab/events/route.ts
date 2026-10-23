@@ -5,6 +5,8 @@ import { authConfigured } from "../../../../auth";
 import { siteIdOf } from "../../../../lib/site-server";
 import { subscribeDocUpdates } from "../../../../lib/collab-events";
 import { collabRoomAvailable } from "../../../../lib/collab";
+import { getDb } from "../../../../lib/db";
+import { readCurrentDoc } from "../../../../lib/doc-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +28,7 @@ export async function GET(req: Request) {
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
   const clientId = params.get("clientId") ?? "";
+  const delta = params.get("delta") === "1";
   const user = await sessionUser();
   if (authConfigured() && !user) return new Response(null, { status: 401 });
 
@@ -39,16 +42,24 @@ export async function GET(req: Request) {
         cleanup();
         try { controller.close(); } catch { /* すでに閉じている */ }
       };
-      const send = (text: string) => {
+      const send = (text: string | (() => Promise<string | null>)) => {
         // 通知の順序を保ち、接続後に権限を外された人へ本文を送らない。
         pending = pending.then(async () => {
           if (closed) return;
           if (user && !await isEmailAllowed(user.email)) return close();
-          if (!closed) controller.enqueue(encoder.encode(text));
+          const output = typeof text === "string" ? text : await text();
+          if (!closed && output !== null) controller.enqueue(encoder.encode(output));
         }).catch(close);
       };
       const unsubscribe = subscribeDocUpdates(siteId, (message, raw) => {
         if (clientId && message.senderId === clientId) return;
+        if (!delta && message.type === "doc-patched") {
+          send(async () => {
+            const current = await readCurrentDoc(await getDb(), siteId);
+            return current ? `data: {"type":"doc-updated","rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}\n\n` : null;
+          });
+          return;
+        }
         send(`data: ${raw}\n\n`);
       });
       const heartbeat = setInterval(() => send(": ping\n\n"), HEARTBEAT_MS);

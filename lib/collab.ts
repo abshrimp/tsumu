@@ -1,6 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { publishDocUpdate } from "./collab-events";
 import type { SiteDoc } from "./types";
+import type { DocPatch } from "./doc-patch";
 
 
 export interface DocUpdatedMessage {
@@ -11,6 +12,16 @@ export interface DocUpdatedMessage {
   doc: SiteDoc;
 }
 
+export interface DocPatchedMessage {
+  type: "doc-patched";
+  base: string;
+  patch: DocPatch;
+  rev: string;
+  savedAt: number;
+  senderId?: string;
+}
+export type DocChangeMessage = DocUpdatedMessage | DocPatchedMessage;
+
 export type CollabClientMessage =
   | { type: "load"; requestId: string }
   | {
@@ -18,14 +29,21 @@ export type CollabClientMessage =
       requestId: string;
       base: string | null;
       doc: SiteDoc;
+    }
+  | {
+      type: "patch";
+      requestId: string;
+      base: string;
+      patch: DocPatch;
     };
 
 export type CollabServerMessage =
-  | (DocUpdatedMessage & { requestId?: never })
+  | (DocChangeMessage & { requestId?: never })
   | {
       type: "snapshot";
       requestId: string;
       exists: boolean;
+      deltaVersion?: 1;
       rev?: string;
       savedAt?: number;
       doc?: SiteDoc;
@@ -70,7 +88,7 @@ export function collabRoomAvailable(): boolean {
  * Durable Object の無い環境（Node.js・Docker・next dev）では、同じプロセスの
  * /api/collab/events の接続へ届ける（lib/collab-events.ts）
  */
-export function notifyDocUpdated(siteId: string, message: DocUpdatedMessage): void {
+export function notifyDocUpdated(siteId: string, message: DocChangeMessage): void {
   publishDocUpdate(siteId, message);
   try {
     const cloudflare = getCloudflareContext();

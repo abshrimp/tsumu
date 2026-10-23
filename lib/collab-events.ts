@@ -4,9 +4,9 @@
  * エディタは1つのプロセスで動かす前提（Node.js・Docker の README を参照）
  */
 
-import type { DocUpdatedMessage } from "./collab";
+import type { DocChangeMessage } from "./collab";
 
-type Listener = (message: DocUpdatedMessage, raw: string) => void;
+type Listener = (message: DocChangeMessage, raw: string) => void;
 
 // 開発時のモジュールの再読み込みでも、購読の一覧を1つに保つ
 const store = globalThis as typeof globalThis & {
@@ -30,7 +30,7 @@ export function subscribeDocUpdates(siteId: string, listener: Listener): () => v
 }
 
 /** サイトの購読者へ保存を知らせる（購読者がいなければ何もしない） */
-export function publishDocUpdate(siteId: string, message: DocUpdatedMessage): void {
+export function publishDocUpdate(siteId: string, message: DocChangeMessage): void {
   const set = listeners().get(siteId);
   if (!set?.size) return;
   const raw = JSON.stringify(message);

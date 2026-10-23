@@ -5,15 +5,17 @@ import { getDbFromBinding, type D1LikeDatabase } from "./lib/db";
 import {
   readCurrentDoc,
   saveCurrentDoc,
+  saveDocPatch,
   validateDocBody,
 } from "./lib/doc-storage";
 import type {
   CollabClientMessage,
-  DocUpdatedMessage,
+  DocChangeMessage,
 } from "./lib/collab";
 import { parseActivityUser, recordActivity, type ActivityUser } from "./lib/activity";
 import { isSiteId } from "./lib/sites";
 import { isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
+import { isDocPatch } from "./lib/doc-patch";
 
 interface WorkerEnv {
   COLLAB_ROOM: DurableObjectNamespace<CollaborationRoom>;
@@ -26,7 +28,7 @@ interface WorkerEnv {
 }
 
 /** siteId は接続時の ?site=、user は Worker が認証の結果から渡すログイン中の人 */
-type SocketAttachment = { clientId: string; siteId: string; user?: ActivityUser | null };
+type SocketAttachment = { clientId: string; siteId: string; delta?: boolean; user?: ActivityUser | null };
 
 /** Worker から部屋へ、ログイン中の人を渡すヘッダー（ブラウザから来た同名のヘッダーは捨てる） */
 const USER_HEADER = "X-Editor-User";
@@ -38,26 +40,49 @@ type AttachableSocket = WebSocket & {
 
 /** 1サイト分の接続を集約し、保存完了通知を配信する（部屋の名前 = サイトID）。 */
 export class CollaborationRoom extends DurableObject<WorkerEnv> {
-  private async authorized(socket: WebSocket): Promise<boolean> {
+  private async readAllowedEmails(): Promise<string[]> {
+    if (!this.env.DB) return [];
+    const db = await getDbFromBinding(this.env.DB);
+    const rs = await db.execute("SELECT email FROM allowed_emails");
+    return rs.rows.map((r) => String(r.email));
+  }
+
+  private async authorized(
+    socket: WebSocket,
+    readExtra = () => this.readAllowedEmails()
+  ): Promise<boolean> {
     const user = (socket as AttachableSocket).deserializeAttachment()?.user;
     const allowed = user
-      ? await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), async () => {
-          if (!this.env.DB) return [];
-          const db = await getDbFromBinding(this.env.DB);
-          const rs = await db.execute("SELECT email FROM allowed_emails");
-          return rs.rows.map((r) => String(r.email));
-        })
+      ? await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), readExtra)
       : !(this.env.AUTH_SECRET && this.env.AUTH_GOOGLE_ID && this.env.AUTH_GOOGLE_SECRET);
     if (!allowed) socket.close(1008, "Access revoked");
     return allowed;
   }
 
-  private async broadcast(raw: string, except?: WebSocket): Promise<void> {
+  private async broadcast(raw: string, except?: WebSocket, senderId?: string): Promise<void> {
+    // 同じ配信内だけ共有する。次の配信では取り直し、許可削除を反映する。
+    let allowedEmails: Promise<string[]> | undefined;
+    const readExtra = () => allowedEmails ??= this.readAllowedEmails();
+    const message = JSON.parse(raw) as DocChangeMessage;
+    let legacySnapshot: Promise<string | null> | undefined;
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === except) continue;
       try {
-        if (!await this.authorized(socket)) continue;
-        socket.send(raw);
+        const attachment = (socket as AttachableSocket).deserializeAttachment();
+        if (senderId && attachment?.clientId === senderId) continue;
+        if (!await this.authorized(socket, readExtra)) continue;
+        if (message.type === "doc-patched" && !attachment?.delta) {
+          // デプロイ前から開いている画面には従来形式で通知する。本文取得は配信内で1回だけ。
+          legacySnapshot ??= (async () => {
+            if (!this.env.DB || !attachment?.siteId) return null;
+            const current = await readCurrentDoc(await getDbFromBinding(this.env.DB), attachment.siteId);
+            return current ? `{"type":"doc-updated","rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}` : null;
+          })();
+          const snapshot = await legacySnapshot;
+          if (snapshot) socket.send(snapshot);
+        } else {
+          socket.send(raw);
+        }
       } catch {
         // 切断済みソケットはランタイムが一覧から除外する
       }
@@ -75,20 +100,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       } catch {
         return new Response("Invalid message", { status: 400 });
       }
-      for (const socket of this.ctx.getWebSockets()) {
-        try {
-          const attachment = (
-            socket as WebSocket & {
-              deserializeAttachment(): SocketAttachment | null;
-            }
-          ).deserializeAttachment();
-          if (senderId && attachment?.clientId === senderId) continue;
-          if (!await this.authorized(socket)) continue;
-          socket.send(raw);
-        } catch {
-          // 切断済みソケットはランタイムが一覧から除外する
-        }
-      }
+      await this.broadcast(raw, undefined, senderId);
       return new Response(null, { status: 204 });
     }
 
@@ -115,7 +127,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
 
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
-    (server as AttachableSocket).serializeAttachment({ clientId, siteId, user });
+    (server as AttachableSocket).serializeAttachment({ clientId, siteId, user, delta: url.searchParams.get("delta") === "1" });
 
     return new Response(null, {
       status: 101,
@@ -190,24 +202,31 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
               type: "snapshot",
               requestId: input.requestId,
               exists: false,
+              deltaVersion: 1,
             })
           );
           return;
         }
         socket.send(
-          `{"type":"snapshot","requestId":"${input.requestId}","exists":true,"rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}`
+          `{"type":"snapshot","requestId":"${input.requestId}","exists":true,"deltaVersion":1,"rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}`
         );
         return;
       }
 
-      if (input.type !== "save" || !input.doc) {
+      if (input.type !== "save" && input.type !== "patch") {
         throw new Error("未対応のメッセージです");
       }
-      const raw = JSON.stringify(input.doc);
-      const validationError = validateDocBody(raw);
-      if (validationError) throw new Error(validationError);
-
-      const result = await saveCurrentDoc(db, siteId, raw, input.base);
+      let result;
+      if (input.type === "patch") {
+        if (typeof input.base !== "string" || !isDocPatch(input.patch)) throw new Error("不正なリクエスト");
+        result = await saveDocPatch(db, siteId, input.patch, input.base);
+      } else {
+        if (!input.doc) throw new Error("不正なリクエスト");
+        const raw = JSON.stringify(input.doc);
+        const validationError = validateDocBody(raw);
+        if (validationError) throw new Error(validationError);
+        result = await saveCurrentDoc(db, siteId, raw, input.base);
+      }
       if (result.kind === "missing") throw new Error("サイトが見つかりません");
       if (result.kind === "conflict") {
         const current = result.current;
@@ -227,12 +246,10 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       );
       // 右下の「保存」にホバーしたときに出す、最近編集した人
       await recordActivity(db, siteId, "edit", attachment?.user ?? null, result.savedAt);
-      const update: DocUpdatedMessage = {
-        type: "doc-updated",
-        rev: result.rev,
-        savedAt: result.savedAt,
-        doc: input.doc,
-      };
+      const metadata = { rev: result.rev, savedAt: result.savedAt };
+      const update: DocChangeMessage = input.type === "patch"
+        ? { ...metadata, type: "doc-patched", base: input.base, patch: input.patch }
+        : { ...metadata, type: "doc-updated", doc: input.doc };
       await this.broadcast(JSON.stringify(update), socket);
     } catch (error) {
       socket.send(

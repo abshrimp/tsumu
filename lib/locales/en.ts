@@ -49,6 +49,8 @@ const en: Dict = {
     "Invalid parameters",
   "リクエストが正しくありません":
     "Invalid request",
+  "不正なリクエスト":
+    "Invalid request",
   "ログインが設定されていないため、アカウント管理は使えません":
     "Account management isn't available because sign-in isn't configured",
   "メールアドレスの形式が正しくありません":
