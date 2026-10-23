@@ -4,7 +4,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import ts from "typescript";
+// TypeScript 7 の CLI と併用する、構文解析・変換用の公式互換 API。
+import ts from "@typescript/typescript6";
 import { addAllowedEmail, removeAllowedEmail } from "../lib/allowlist";
 import { nodeDatabase } from "../lib/node-storage";
 import { getDb, getDbFromBinding } from "../lib/db";

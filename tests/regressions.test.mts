@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import ts from "typescript";
+// TypeScript 7 の CLI と併用する、構文解析・変換用の公式互換 API。
+import ts from "@typescript/typescript6";
 import { generateProject } from "../lib/generator";
 import { headHtmlToJsx } from "../lib/generator/head";
 import { makeBox } from "../lib/presets";
@@ -109,10 +111,11 @@ test("generated components avoid framework names and the exported project typech
       mkdirSync(dirname(join(dir, path)), { recursive: true });
       writeFileSync(join(dir, path), content);
     }
-    const config = ts.parseJsonConfigFileContent(JSON.parse(files["tsconfig.json"]), ts.sys, dir);
-    const program = ts.createProgram(config.fileNames, { ...config.options, incremental: false });
-    const diagnostics = ts.getPreEmitDiagnostics(program);
-    assert.deepEqual(diagnostics.map((d) => `${d.file?.fileName}: ${ts.flattenDiagnosticMessageText(d.messageText, "\n")}`), []);
+    // 書き出すサイトも本体と同じ TypeScript 7 で型チェックする。
+    execFileSync(process.execPath, [
+      join(dirname(require.resolve("typescript/package.json")), "bin/tsc"),
+      "--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false",
+    ], { cwd: dir, stdio: "pipe" });
     assert.match(files["components/SmartLink.tsx"], /export default function SmartLink\(/);
     assert.match(files["components/SmartLink2.tsx"], /export default function SmartLink2\(\)/,
       "the user component must not be overwritten by the link helper");

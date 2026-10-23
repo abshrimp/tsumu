@@ -5,7 +5,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "tsumu",
 	"main": "custom-worker.ts",
-	"compatibility_date": "2025-10-01",
+	"compatibility_date": "2026-10-19",
 	"compatibility_flags": [
 		"nodejs_compat"
 	],

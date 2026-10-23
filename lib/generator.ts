@@ -710,12 +710,20 @@ a {
   // テストサイトは同じリポジトリの別ブランチなので、本番と同じ Worker のプレビュー版になる
   const workerName = siteSlug;
 
+  files[".nvmrc"] = "26.12.1\n";
+
   files["package.json"] = JSON.stringify(
     {
       name: siteSlug,
       private: true,
       version: "0.1.0",
-      engines: { node: "^22.16.0 || >=24.0.0" },
+      engines: { node: ">=26.12.1", npm: ">=12.2.1" },
+      packageManager: "npm@12.2.1",
+      allowScripts: {
+        "esbuild@0.28.2": true,
+        "workerd@1.20261019.1": true,
+        "fsevents@2.3.3": true,
+      },
       scripts: {
         dev: "next dev",
         build: "next build",
@@ -724,22 +732,22 @@ a {
         deploy: "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
       },
       dependencies: {
-        next: "^16.4.2",
-        react: "^19.1.0",
-        "react-dom": "^19.1.0",
+        next: "^16.4.3",
+        react: "^19.3.1",
+        "react-dom": "^19.3.1",
       },
       devDependencies: {
-        "@opennextjs/cloudflare": "^1.20.12",
-        "@types/node": "^22",
-        "@types/react": "^19",
-        "@types/react-dom": "^19",
-        typescript: "^5",
-        wrangler: "^4.151.1",
+        "@opennextjs/cloudflare": "^1.20.13",
+        "@types/node": "^26.6.5",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        typescript: "^7.0.2",
+        wrangler: "^4.152.0",
       },
       // Next.js / OpenNext が固定している間接依存も修正版にする。
       overrides: {
-        next: { postcss: "^8.5.30" },
-        "@node-minify/core": { glob: "^10.5.0" },
+        next: { postcss: "^8.5.31" },
+        "@node-minify/core": { glob: "^13.0.6" },
       },
     },
     null,
@@ -751,7 +759,7 @@ a {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": ${JSON.stringify(workerName)},
   "main": ".open-next/worker.js",
-  "compatibility_date": "2025-10-01",
+  "compatibility_date": "2026-10-19",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": ".open-next/assets",

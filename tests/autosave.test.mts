@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import ts from "typescript";
+// TypeScript 7 の CLI と併用する、構文解析・変換用の公式互換 API。
+import ts from "@typescript/typescript6";
 import { createDocPatch } from "../lib/doc-patch";
 import { createInitialDoc } from "../lib/presets";
 

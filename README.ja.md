@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0b57d0" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs" alt="Next.js 16">
   <img src="https://img.shields.io/badge/React-19-149eca?logo=react&logoColor=white" alt="React 19">
-  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white" alt="TypeScript 5">
+  <img src="https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white" alt="TypeScript 7">
   <img src="https://img.shields.io/badge/deploy-Cloudflare%20%7C%20Node.js%20%7C%20Docker-555" alt="Cloudflare・Node.js・Docker で動く">
   <img src="https://img.shields.io/badge/i18n-English%20%7C%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555" alt="English と日本語">
   <a href="#コントリビュート"><img src="https://img.shields.io/badge/PRs-welcome-2ea44f" alt="PRs welcome"></a>
@@ -97,7 +97,7 @@ Tsumu（このリポジトリ）
 
 ## ローカルで起動
 
-Node.js 22.16 以上の22系、または24以上が必要です。nvmを使う場合は、クローン後に `nvm use` を実行してください。
+Node.js 26.12.1 以上と npm 12.2.1 以上が必要です。nvmを使う場合は、クローン後に `nvm use` を実行してください。
 
 ```bash
 git clone https://github.com/abshrimp/tsumu.git
@@ -173,7 +173,7 @@ push のたびに Cloudflare Workers Builds で自動デプロイする場合は
 
 ### Node.js
 
-Node.js 22.16 以上の22系、または24以上が必要です。nvmを使う場合は、クローン後に `nvm use` を実行してください。環境変数 `TSUMU_DATA_DIR` にフォルダを指定すると、`<フォルダ>/tsumu.db`（SQLite）にデータを、`<フォルダ>/assets/` に画像などを保存します。組み込みの `node:sqlite` を使うため、追加のパッケージは要りません。
+Node.js 26.12.1 以上と npm 12.2.1 以上が必要です。nvmを使う場合は、クローン後に `nvm use` を実行してください。環境変数 `TSUMU_DATA_DIR` にフォルダを指定すると、`<フォルダ>/tsumu.db`（SQLite）にデータを、`<フォルダ>/assets/` に画像などを保存します。組み込みの `node:sqlite` を使うため、追加のパッケージは要りません。
 
 ```bash
 npm ci

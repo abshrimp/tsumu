@@ -4,7 +4,7 @@ The canonical repository is [abshrimp/tsumu](https://github.com/abshrimp/tsumu).
 
 ## Validate the source
 
-Use a clean checkout with Node.js 22.16+ (22.x) or 24+:
+Use a clean checkout with Node.js 26.12.1+ and npm 12.2.1+:
 
 ```sh
 npm ci

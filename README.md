@@ -9,7 +9,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0b57d0" alt="MIT License"></a>
   <img src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs" alt="Next.js 16">
   <img src="https://img.shields.io/badge/React-19-149eca?logo=react&logoColor=white" alt="React 19">
-  <img src="https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white" alt="TypeScript 5">
+  <img src="https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white" alt="TypeScript 7">
   <img src="https://img.shields.io/badge/deploy-Cloudflare%20%7C%20Node.js%20%7C%20Docker-555" alt="Runs on Cloudflare, Node.js and Docker">
   <img src="https://img.shields.io/badge/i18n-English%20%7C%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555" alt="English and Japanese">
   <a href="#contributing"><img src="https://img.shields.io/badge/PRs-welcome-2ea44f" alt="PRs welcome"></a>
@@ -97,7 +97,7 @@ Always set up Google sign-in for an editor that's reachable from the internet. R
 
 ## Quick start (local)
 
-Requires Node.js 22.16+ (22.x) or 24+. If you use nvm, run `nvm use` after cloning.
+Requires Node.js 26.12.1+ and npm 12.2.1+. If you use nvm, run `nvm use` after cloning.
 
 ```bash
 git clone https://github.com/abshrimp/tsumu.git
@@ -173,7 +173,7 @@ At build time the script writes a deploy config (`wrangler.generated.jsonc`) fro
 
 ### Node.js
 
-Requires Node.js 22.16+ (22.x) or 24+. If you use nvm, run `nvm use` after cloning. Set `TSUMU_DATA_DIR` to a folder, and the editor keeps its data in `<folder>/tsumu.db` (SQLite) and uploads in `<folder>/assets/`. It uses the built-in `node:sqlite`, so there's nothing extra to install.
+Requires Node.js 26.12.1+ and npm 12.2.1+. If you use nvm, run `nvm use` after cloning. Set `TSUMU_DATA_DIR` to a folder, and the editor keeps its data in `<folder>/tsumu.db` (SQLite) and uploads in `<folder>/assets/`. It uses the built-in `node:sqlite`, so there's nothing extra to install.
 
 ```bash
 npm ci
