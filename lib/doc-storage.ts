@@ -94,15 +94,20 @@ export async function saveCurrentDoc(
     }
     const current = await readCurrentDoc(db, siteId);
     if (current) return { kind: "conflict", current };
+    return { kind: "missing" };
   }
 
   // サイトの一覧に無い編集データは作らない（消したサイトを開いたままのタブが保存すると、
   // 一覧に出ないデータが残り、そのアセットも「ほかのサイトが使用中」として消せなくなる）
   const rs = await db.execute({
-    sql: "INSERT INTO docs (id, rev, saved_at, body) SELECT ?, 1, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?) ON CONFLICT(id) DO UPDATE SET body = excluded.body, rev = docs.rev + 1, saved_at = excluded.saved_at RETURNING rev",
+    // base の無い保存は初回作成だけ。読み込み失敗や同時作成でも既存データを上書きしない。
+    sql: "INSERT INTO docs (id, rev, saved_at, body) SELECT ?, 1, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?) ON CONFLICT(id) DO NOTHING RETURNING rev",
     args: [siteId, now, raw, siteId],
   });
-  if (!rs.rows.length) return { kind: "missing" };
+  if (!rs.rows.length) {
+    const current = await readCurrentDoc(db, siteId);
+    return current ? { kind: "conflict", current } : { kind: "missing" };
+  }
   await writeDailyBackup(db, siteId, raw, now);
   return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
 }

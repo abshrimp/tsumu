@@ -193,6 +193,8 @@ export default function Editor() {
   const cloudReady = useRef(false);
   /** サーバー未保存のローカル変更があるか（ポーリング取り込みの抑止に使う） */
   const cloudDirty = useRef(false);
+  /** 初回同期が完了する前の編集も未保存として残す。 */
+  const observedDoc = useRef(doc);
   /** 最後に同期した版の識別子（自分の保存分を見分ける） */
   const lastSyncedRev = useRef<string | null>(null);
   /** 最後に同期した時点のドキュメント（三方向マージのベース） */
@@ -527,10 +529,17 @@ export default function Editor() {
   // 起動時：サーバーのドキュメントを取得（あれば正とする）
   const runSyncFromServer = useCallback(async () => {
     const s = useEditor.getState();
+    const localBeforeLoad = s.doc;
+    cloudReady.current = false;
+    if (cloudTimer.current) clearTimeout(cloudTimer.current);
     s.setCloud("checking");
     try {
       const data = await loadCloudDoc();
-      if (data.exists && data.doc?.pages && data.doc?.pageOrder?.length) {
+      if (data.exists === true) {
+        // 壊れた応答を「サーバーが空」と扱って初期データを保存しない。
+        if (!data.rev || !data.doc?.pages || !data.doc?.nodes || !data.doc?.pageOrder?.length) {
+          throw new Error("Invalid document snapshot");
+        }
         // 前回のローカル変更がサーバー未保存のまま残っていれば、どちらを
         // 使うかユーザーに選ばせる（cloudReady は選択まで立てない）
         let unsynced = false;
@@ -540,7 +549,7 @@ export default function Editor() {
           unsynced = false;
         }
         if (
-          unsynced &&
+          (unsynced || cloudDirty.current || useEditor.getState().doc !== localBeforeLoad) &&
           JSON.stringify(useEditor.getState().doc) !== JSON.stringify(data.doc)
         ) {
           setConflict({
@@ -551,23 +560,33 @@ export default function Editor() {
           return;
         }
         setUnsyncedFlag(false);
+        cloudDirty.current = false;
         lastSyncedRev.current = data.rev ?? null;
         lastSyncedDoc.current = data.doc;
         skipNextCloudSave.current = true;
         s.replaceDoc(data.doc);
         s.setCloud("synced", data.savedAt);
-      } else {
+      } else if (data.exists === false) {
         // サーバーが空 → 手元のドキュメントを初回アップロード
         const snapshot = useEditor.getState().doc;
         const put = await saveCloudDoc(snapshot, null);
         if (put.ok) {
           lastSyncedRev.current = put.data.rev ?? null;
           lastSyncedDoc.current = snapshot;
-          setUnsyncedFlag(false);
+          cloudDirty.current = useEditor.getState().doc !== snapshot;
+          setUnsyncedFlag(cloudDirty.current);
           s.setCloud("synced", put.data.savedAt ?? Date.now());
+          if (cloudDirty.current) setSaveRetry((n) => n + 1);
+        } else if (put.status === 409 && put.data.doc && put.data.rev) {
+          // 空であることを確認した後、他の編集者が先に保存した。
+          setConflict({ doc: put.data.doc, rev: put.data.rev, savedAt: put.data.savedAt });
+          return;
         } else {
           s.setCloud("error");
+          return;
         }
+      } else {
+        throw new Error("Invalid document snapshot");
       }
       cloudReady.current = true;
     } catch (error) {
@@ -578,7 +597,7 @@ export default function Editor() {
             ? "local"
             : "error"
         );
-      cloudReady.current = true;
+      // 読み込み失敗後は版が不明なため、自動保存を許可しない。
     }
   }, [loadCloudDoc, saveCloudDoc]);
 
@@ -600,29 +619,36 @@ export default function Editor() {
       if (!conflict) return;
       const s = useEditor.getState();
       setConflict(null);
-      cloudReady.current = true;
+      cloudReady.current = false;
       if (which === "remote") {
         setUnsyncedFlag(false);
         cloudDirty.current = false;
         lastSyncedRev.current = conflict.rev;
         lastSyncedDoc.current = conflict.doc;
         skipNextCloudSave.current = true;
+        cloudReady.current = true;
         s.replaceDoc(conflict.doc);
         s.setCloud("synced", conflict.savedAt);
         return;
       }
       s.setCloud("saving");
       try {
-        // ユーザーが明示的に選んだ上書きなので base は付けない
+        // 確認画面を開いた後の他の編集も、版の照合で保護する。
+        if (!conflict.rev) throw new Error("Missing document revision");
         const snapshot = useEditor.getState().doc;
-        const res = await saveCloudDoc(snapshot, null);
+        const res = await saveCloudDoc(snapshot, conflict.rev);
         if (res.ok) {
           const data = res.data;
           lastSyncedRev.current = data.rev ?? null;
           lastSyncedDoc.current = snapshot;
-          setUnsyncedFlag(false);
-          cloudDirty.current = false;
+          cloudDirty.current = useEditor.getState().doc !== snapshot;
+          setUnsyncedFlag(cloudDirty.current);
+          cloudReady.current = true;
           s.setCloud("synced", data.savedAt ?? Date.now());
+          if (cloudDirty.current) setSaveRetry((n) => n + 1);
+        } else if (res.status === 409 && res.data.doc && res.data.rev) {
+          setConflict({ doc: res.data.doc, rev: res.data.rev, savedAt: res.data.savedAt });
+          s.setCloud("checking");
         } else {
           s.setCloud("error");
         }
@@ -642,10 +668,18 @@ export default function Editor() {
 
   // 変更をサーバーへ自動保存（800msデバウンス）
   useEffect(() => {
-    if (!cloudReady.current) return;
+    const changed = observedDoc.current !== doc;
+    observedDoc.current = doc;
     // サーバーから取り込んだ変更は保存し直さない（編集者間のエコー防止）
     if (skipNextCloudSave.current) {
       skipNextCloudSave.current = false;
+      return;
+    }
+    if (!cloudReady.current) {
+      if (changed) {
+        cloudDirty.current = true;
+        setUnsyncedFlag(true);
+      }
       return;
     }
     const s = useEditor.getState();
@@ -654,12 +688,18 @@ export default function Editor() {
     setUnsyncedFlag(true);
     if (cloudTimer.current) clearTimeout(cloudTimer.current);
     cloudTimer.current = setTimeout(async () => {
+      if (!cloudReady.current) return;
       const st = useEditor.getState();
+      const base = lastSyncedRev.current;
+      if (!base || !lastSyncedDoc.current) {
+        cloudReady.current = false;
+        st.setCloud("error");
+        return;
+      }
       const snapshot = st.doc;
       st.setCloud("saving");
       try {
         // base 付き = 楽観ロック。他の編集者が先に保存していれば 409 が返る
-        const base = lastSyncedRev.current;
         const res = await saveCloudDoc(snapshot, base);
         if (res.ok) {
           const data = res.data;
@@ -690,8 +730,8 @@ export default function Editor() {
             st.applyRemoteDoc(merged);
             st.setCloud("saving");
           } else {
-            // ベース不明（通常は起こらない）: 次回は最新パスを基準に保存
-            lastSyncedRev.current = data?.rev ?? lastSyncedRev.current;
+            // ベース不明のまま最新版の番号だけ採用すると、次の保存が全体を上書きする。
+            cloudReady.current = false;
             st.setCloud("error");
           }
         } else {
