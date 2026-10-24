@@ -1285,6 +1285,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         if (prepared.components) d.components = prepared.components;
         if (prepared.customFonts) d.customFonts = prepared.customFonts;
         if (prepared.adobeFonts) d.adobeFonts = prepared.adobeFonts;
+        if (prepared.uploadedFonts) d.uploadedFonts = prepared.uploadedFonts;
         for (const n of deps.componentNodes) d.nodes[n.id] = n;
         for (const n of clones) d.nodes[n.id] = remapAssetIds(n, deps.assetIds);
         const list = childrenOf(d, parent);

@@ -16,7 +16,7 @@ import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
-import { rewriteHtmlAssetUrls, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
+import { rewriteHtmlAssetUrls, generateSiteCss, rawHtmlWithBodyStyles, uploadedFontsCss, usedGoogleFonts } from "./generator/css";
 import { headHtmlToJsx } from "./generator/head";
 import { adobeFontHead } from "./generator/adobe-fonts";
 import { deferRunnableScripts } from "./generator/defer-scripts";
@@ -670,6 +670,8 @@ a {
   text-decoration: none;
 }
 `;
+
+  files["app/globals.css"] = uploadedFontsCss(doc, assetNames) + files["app/globals.css"];
 
   files["app/not-found.tsx"] ??= `export default function NotFound() {
   return (

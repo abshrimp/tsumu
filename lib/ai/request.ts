@@ -102,7 +102,7 @@ function summarizeContext(context: AiContext, componentId?: string): string {
       ...bps.map((b) => ({ id: b.id, label: b.label, appliesTo: `max-width ${b.maxWidth}px` })),
     ],
     colorPalette: doc.colorPalette,
-    fonts: [...(doc.customFonts ?? []), ...(doc.adobeFonts ?? [])].map((f) => f.family),
+    fonts: [...(doc.customFonts ?? []), ...(doc.adobeFonts ?? []), ...(doc.uploadedFonts ?? [])].map((f) => f.family),
     pages: doc.pageOrder.map((id) => ({ id, name: doc.pages[id]?.name, url: `/${doc.pages[id]?.slug ?? ""}` })),
     editing: comp
       ? { component: comp.name, rootId: comp.rootId }

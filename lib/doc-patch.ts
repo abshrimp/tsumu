@@ -22,7 +22,7 @@ const ROOT_FIELDS = new Set([
   "siteName", "lang", "colorPalette", "siteUrl", "dataRevalidate", "hosting",
   "favicon", "appleTouchIcon", "ogImage", "loadingScreen", "pwa",
   "pages", "pageOrder", "pageFolders", "nodes", "assets", "components", "adobeFonts",
-  "customFonts", "customHeadHtml", "customBodyEndHtml", "breakpoints", "baseWidth",
+  "customFonts", "uploadedFonts", "customHeadHtml", "customBodyEndHtml", "breakpoints", "baseWidth",
 ]);
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);

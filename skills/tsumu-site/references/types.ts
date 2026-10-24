@@ -476,6 +476,12 @@ export interface CustomFont {
   weights: string[] | "variable";
 }
 
+/** A locally uploaded font file included with exported websites. */
+export interface UploadedFont {
+  family: string;
+  assetId: string;
+}
+
 export interface AdobeFont {
   family: string;
   kitId: string;
@@ -587,6 +593,7 @@ export interface SiteDoc {
   
   customFonts?: CustomFont[];
   adobeFonts?: AdobeFont[];
+  uploadedFonts?: UploadedFont[];
   
   customHeadHtml?: string;
   

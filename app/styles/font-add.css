@@ -19,7 +19,7 @@
 .font-add-header .hint { margin: 0; }
 .font-add-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   padding: 0 20px 14px;
   border-bottom: 1px solid var(--border);
@@ -104,4 +104,52 @@
   .font-add-search select { grid-column: 2; }
   .font-add-results { grid-template-columns: minmax(0, 1fr); }
   .font-add-footer { padding: 10px 14px; }
+}
+
+/* Uploaded fonts share the Assets library; this is an in-app picker and drop target. */
+.font-add-asset-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.font-add-asset-option {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+  text-align: left;
+  padding: 10px 12px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.font-add-asset-option:hover { background: var(--field-hover); }
+.font-add-asset-option.is-on {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.font-add-asset-option span { font-weight: 600; overflow-wrap: anywhere; }
+.font-add-asset-option small { color: var(--text-2); overflow-wrap: anywhere; }
+.font-add-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 132px;
+  padding: 18px;
+  text-align: center;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: var(--radius-l);
+  background: var(--field);
+}
+.font-add-dropzone.is-over { border-color: var(--accent); background: var(--accent-soft); }
+.font-add-dropzone .hint { margin: 0; }
+.font-add-dropzone-title { font-weight: 600; margin: 0; }
+@media (max-width: 560px) {
+  .font-add-asset-list { grid-template-columns: minmax(0, 1fr); }
 }

@@ -89,6 +89,116 @@ test("Adobe font choices preview their font families through the Web Project loa
   await expect.poll(async () => page.locator('script[src="https://use.typekit.net/abc1234.js"]').count()).toBe(1);
 });
 
+test("existing font assets can be registered and applied without uploading again", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).importEditor.getState().updateDoc((doc: any) => {
+      doc.assets.font_existing = {
+        id: "font_existing", name: "sample.woff2",
+        dataUrl: "data:font/woff2;base64,d09GMgAAAAA=",
+        mimeType: "font/woff2", width: 0, height: 0,
+      };
+    });
+  });
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "フォントファイル" }).click();
+  await page.locator(".font-add-asset-option").filter({ hasText: "sample.woff2" }).click();
+  await page.locator("#uploaded-font-family").fill("My Custom Font");
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await expect.poll(async () => (await doc(page)).uploadedFonts?.[0]?.family).toBe("My Custom Font");
+  const saved = await doc(page);
+  assertAsset(saved);
+  function assertAsset(snapshot: any) {
+    expect(snapshot.uploadedFonts).toEqual([{ family: "My Custom Font", assetId: "font_existing" }]);
+    expect(snapshot.assets.font_existing.mimeType).toBe("font/woff2");
+    expect(snapshot.nodes.a.styles.base.default.fontFamily).toBe("My Custom Font");
+  }
+});
+
+test("non-English font family names show a dedicated error", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).importEditor.getState().updateDoc((doc: any) => {
+      doc.assets.font_existing = {
+        id: "font_existing", name: "sample.woff2",
+        dataUrl: "data:font/woff2;base64,d09GMgAAAAA=",
+        mimeType: "font/woff2", width: 0, height: 0,
+      };
+    });
+  });
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "フォントファイル" }).click();
+  await page.locator(".font-add-asset-option").filter({ hasText: "sample.woff2" }).click();
+  await page.locator("#uploaded-font-family").fill("日本語フォント");
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("日本語など英語以外の文字は使用できません");
+  expect((await doc(page)).uploadedFonts).toBeUndefined();
+});
+
+test("font picker uploads a WOFF2 file into Assets and selects it for registration", async ({ page }) => {
+  await page.route("http://pending-import.test/api/assets", route =>
+    route.fulfill({ status: 503, json: { error: "Storage not configured" } }));
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "フォントファイル" }).click();
+  await page.locator("input[type=file][aria-label=\"フォントファイルを選択\"]").setInputFiles({
+    name: "uploaded.woff2", mimeType: "font/woff2",
+    buffer: Buffer.from([0x77, 0x4f, 0x46, 0x32, 0, 0, 0, 0]),
+  });
+  await expect.poll(async () => Object.values((await doc(page)).assets)
+    .some((asset: any) => asset.name === "uploaded.woff2")).toBe(true);
+  const uploaded = Object.values((await doc(page)).assets)
+    .find((asset: any) => asset.name === "uploaded.woff2") as any;
+  expect(uploaded.mimeType).toBe("font/woff2");
+  expect(uploaded.dataUrl).toMatch(/^data:font\/woff2;base64,/);
+  await expect(page.locator(".font-add-asset-option[aria-pressed=true]")).toContainText("uploaded.woff2");
+  await expect(page.locator("#uploaded-font-family")).toHaveValue("uploaded");
+  expect((await doc(page)).uploadedFonts).toBeUndefined();
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await expect.poll(async () => (await doc(page)).uploadedFonts?.[0]?.assetId).toBe(uploaded.id);
+  expect((await doc(page)).nodes.a.styles.base.default.fontFamily).toBe("uploaded");
+});
+
+test("font files can be dropped into the custom uploader", async ({ page }) => {
+  await page.route("http://pending-import.test/api/assets", route =>
+    route.fulfill({ status: 503, json: { error: "Storage not configured" } }));
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "フォントファイル" }).click();
+  await page.locator(".font-add-dropzone").dispatchEvent("drop", {
+    dataTransfer: await page.evaluateHandle(() => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([new Uint8Array([0x77, 0x4f, 0x46, 0x32, 0, 0, 0, 0])],
+        "dropped.woff2", { type: "font/woff2" }));
+      return transfer;
+    }),
+  });
+  await expect.poll(async () => Object.values((await doc(page)).assets)
+    .some((asset: any) => asset.name === "dropped.woff2")).toBe(true);
+  await expect(page.locator(".font-add-asset-option[aria-pressed=true]")).toContainText("dropped.woff2");
+});
+
+test("invalid files do not enter Assets from the font picker", async ({ page }) => {
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "フォントファイル" }).click();
+  await page.locator("input[type=file][aria-label=\"フォントファイルを選択\"]").setInputFiles({
+    name: "invalid.woff2", mimeType: "font/woff2", buffer: Buffer.from("not-a-font"),
+  });
+  await expect(page.getByRole("alert")).toContainText("有効なWOFF2");
+  expect(Object.values((await doc(page)).assets)
+    .some((asset: any) => asset.name === "invalid.woff2")).toBe(false);
+});
+
+test("file font tab only offers supported font assets", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).importEditor.getState().updateDoc((doc: any) => {
+      doc.assets.font_existing = { id: "font_existing", name: "sample.woff2", mimeType: "font/woff2", dataUrl: "data:font/woff2;base64,d09GMgAAAAA=", width: 0, height: 0 };
+      doc.assets.not_font = { id: "not_font", name: "sample.png", mimeType: "image/png", dataUrl: "data:image/png;base64,AAAA", width: 1, height: 1 };
+    });
+  });
+  await page.locator('[data-tip="フォントを追加"]').click();
+  await page.getByRole("button", { name: "フォントファイル" }).click();
+  await expect(page.locator(".font-add-asset-option")).toHaveCount(1);
+  await expect(page.locator(".font-add-asset-option")).toContainText("sample.woff2");
+  await expect(page.locator(".font-add-asset-option")).not.toContainText("sample.png");
+});
+
 test("Adobe Fonts places project setup help next to the ID label without redundant warnings", async ({ page }) => {
   await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByRole("button", { name: "Adobe Fonts" }).click();

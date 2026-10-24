@@ -515,6 +515,12 @@ export interface CustomFont {
   weights: string[] | "variable";
 }
 
+/** A locally uploaded font file, bundled with generated websites. */
+export interface UploadedFont {
+  family: string;
+  assetId: string;
+}
+
 /** Adobe FontsのWebプロジェクトに登録済みのフォント（ファイルは保存しない）。 */
 export interface AdobeFont {
   family: string;
@@ -643,6 +649,8 @@ export interface SiteDoc {
   customFonts?: CustomFont[];
   /** 利用者自身のAdobe Fonts Webプロジェクトに登録したフォント */
   adobeFonts?: AdobeFont[];
+  /** Locally uploaded font files. */
+  uploadedFonts?: UploadedFont[];
   /** カスタムのコード: head の中（meta や script など） */
   customHeadHtml?: string;
   /** カスタムのコード: body の末尾 */

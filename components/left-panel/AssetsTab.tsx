@@ -51,6 +51,7 @@ import { Icon } from "../icons";
 import AssetTrash from "../AssetTrash";
 import { userMessage } from "../../lib/errors";
 import { showConfirm } from "../../lib/dialog";
+import { removeUploadedFont } from "../../lib/uploaded-fonts";
 import { tr } from "../../lib/i18n";
 import { serverStatusSnapshot, useServerStatus, type AssetDeletion } from "../../lib/status";
 import { computeStorageUsage, type StorageUsageResponse } from "../../lib/storage-usage";
@@ -677,6 +678,7 @@ export function AssetsTab() {
         if (page.htmlZip) page.htmlZip.assetIds = page.htmlZip.assetIds.filter((id) => id !== asset.id);
       }
       removePageAssetBackgrounds(d, asset);
+      removeUploadedFont(d, asset.id);
       delete d.assets[asset.id];
     });
     deleteRemovedAssetFiles([asset]);

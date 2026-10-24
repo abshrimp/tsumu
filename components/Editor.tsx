@@ -19,6 +19,7 @@ import { css2FamilyToken } from "../lib/style";
 import {
   replaceEmbeddedAsset,
   uploadEmbeddedAsset,
+  assetSrc,
 } from "../lib/assets";
 import { startImageInsertion } from "../lib/image-drop";
 import { clipboardArtworkFile, hasClipboardArtwork } from "../lib/clipboard";
@@ -520,6 +521,23 @@ export default function Editor({ onReady }: EditorProps = {}) {
     }
     if (link.href !== href) link.href = href;
   }, [doc.customFonts]);
+
+  // Load uploaded font files into the editor using their registered assets.
+  useEffect(() => {
+    const faces: FontFace[] = [];
+    for (const font of doc.uploadedFonts ?? []) {
+      const asset = doc.assets[font.assetId];
+      const url = asset && assetSrc(asset);
+      if (!url || !/^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(font.family)) continue;
+      const face = new FontFace(font.family, "url(" + JSON.stringify(url) + ")", {
+        style: "normal", weight: "400", display: "swap",
+      });
+      document.fonts.add(face);
+      void face.load().catch(() => {});
+      faces.push(face);
+    }
+    return () => { for (const face of faces) document.fonts.delete(face); };
+  }, [doc.uploadedFonts, doc.assets]);
 
   // 編集画面では JavaScript 埋め込みを使う。CSS 専用の読み込みを要求すると、
   // 日本語などの動的サブセット付き Web プロジェクトは HTTP 412 を返す。

@@ -3,6 +3,7 @@ import type {
   BreakpointDef,
   CustomFont,
   AdobeFont,
+  UploadedFont,
   DocNode,
   NodeStyles,
   StyleMap,
@@ -860,6 +861,7 @@ interface FontOption {
   value: string;
   google?: { importName: string; cssVar: string; weights?: string[] };
   adobe?: { kitId: string; loading: AdobeFont["loading"] };
+  uploaded?: { assetId: string };
 }
 
 /** ファミリー名から、next/font 用のメタデータを導く */
@@ -878,6 +880,7 @@ function googleFontMeta(
 export function allFonts(
   customFonts: CustomFont[] | undefined,
   adobeFonts: AdobeFont[] | undefined = [],
+  uploadedFonts: UploadedFont[] | undefined = [],
 ): FontOption[] {
   const google: FontOption[] = (customFonts ?? [])
     .filter((f) => !FONTS.some((b) => b.value === f.family))
@@ -894,7 +897,11 @@ export function allFonts(
       value: font.family,
       adobe: { kitId: font.kitId, loading: font.loading },
     }));
-  return [...FONTS, ...google, ...adobe];
+  const occupiedWithAdobe = new Set([...occupied, ...adobe.map(f => f.value)]);
+  const uploaded: FontOption[] = (uploadedFonts ?? [])
+    .filter(font => !occupiedWithAdobe.has(font.family))
+    .map(font => ({ label: font.family, value: font.family, uploaded: { assetId: font.assetId } }));
+  return [...FONTS, ...google, ...adobe, ...uploaded];
 }
 
 /** css2 の URL の family のトークン（プレビューでの読み込み用） */

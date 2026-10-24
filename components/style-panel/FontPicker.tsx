@@ -8,6 +8,8 @@ import { parseAdobeKitInput } from "../../lib/adobe-fonts-embed";
 import { registerAdobeFont, removeAdobeWebProject } from "../../lib/adobe-fonts-registration";
 import { googleFontWeights, searchGoogleFonts, type GoogleFontFilter } from "../../lib/google-font-catalog";
 import { allFonts } from "../../lib/style";
+import { assetSrc, uploadStaticAsset } from "../../lib/assets";
+import { assetDisplayKind } from "../../lib/asset-display";
 import { usePendingImport } from "../../lib/use-pending-import";
 import { useEditor } from "../../lib/store";
 import { openHelp } from "../../lib/help";
@@ -25,7 +27,10 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const doc = useEditor((state) => state.doc);
   const updateDoc = useEditor((state) => state.updateDoc);
   const [open, setOpen] = useState(false);
-  const [provider, setProvider] = useState<"google" | "adobe">("google");
+  const [provider, setProvider] = useState<"google" | "adobe" | "file">("google");
+  const [uploadedFamily, setUploadedFamily] = useState("");
+  const [selectedFontAssetId, setSelectedFontAssetId] = useState("");
+  const [fontDropActive, setFontDropActive] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<GoogleFontFilter>("all");
   const [chosenGoogle, setChosenGoogle] = useState("");
@@ -40,8 +45,10 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const searchRef = useRef<HTMLInputElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const fontFileInputRef = useRef<HTMLInputElement>(null);
 
-  const fonts = allFonts(doc.customFonts, doc.adobeFonts);
+  const fonts = allFonts(doc.customFonts, doc.adobeFonts, doc.uploadedFonts);
+  const fontAssets = Object.values(doc.assets).filter(asset => assetDisplayKind(asset) === "font" && /\.(woff2?|ttf|otf)$/i.test(asset.name));
   const results = useMemo(() => searchGoogleFonts(query, filter), [query, filter]);
   const project = parseAdobeKitInput(projectInput);
   const kitId = project?.kitId;
@@ -237,6 +244,65 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
     }
   };
 
+  const uploadFontFile = async (file: File) => {
+    const extension = /\.(woff2?|ttf|otf)$/i.exec(file.name)?.[1]?.toLowerCase();
+    const mime = extension === "woff2" ? "font/woff2" : extension === "woff" ? "font/woff" :
+      extension === "ttf" ? "font/ttf" : extension === "otf" ? "font/otf" : null;
+    const bytes = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+    const signature = String.fromCharCode(...bytes);
+    const valid = extension === "woff2" ? signature === "wOF2" :
+      extension === "woff" ? signature === "wOFF" :
+      extension === "otf" ? signature === "OTTO" :
+      extension === "ttf" ? bytes.length === 4 && bytes[0] === 0 && bytes[1] === 1 &&
+        bytes[2] === 0 && bytes[3] === 0 : false;
+    if (!mime || !valid) {
+      setError(tr("Choose a valid WOFF2, WOFF, TTF or OTF font file."));
+      return;
+    }
+    const request = pending.begin();
+    setError(null);
+    try {
+      const normalized = new File([file], file.name, { type: mime });
+      const asset = await uploadStaticAsset(normalized);
+      // A completed upload remains in Assets even if the selection changes while it is pending.
+      useEditor.getState().retainUploadedAssets([asset]);
+      if (!request.current()) return;
+      setSelectedFontAssetId(asset.id);
+      setUploadedFamily(current => current || file.name.replace(/\.(woff2?|ttf|otf)$/i, ""));
+    } catch (error) {
+      if (request.current()) setError(error instanceof Error ? error.message : tr("Couldn't upload the font file."));
+    } finally {
+      request.finish();
+    }
+  };
+
+  const addUploadedFont = () => {
+    const family = uploadedFamily.trim().replace(/\s+/g, " ");
+    const asset = doc.assets[selectedFontAssetId];
+    if (/[^\x00-\x7f]/.test(family)) {
+      setError(tr("Font family names must use English letters, numbers, spaces, hyphens or underscores. Japanese and other non-English characters are not supported."));
+      return;
+    }
+    if (!/^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(family) ||
+        !asset || assetDisplayKind(asset) !== "font" ||
+        !/\.(woff2?|ttf|otf)$/i.test(asset.name) || !assetSrc(asset)) {
+      setError(tr("Select a font asset and enter a valid family name."));
+      return;
+    }
+    if (fonts.some(font => font.value === family)) {
+      setError(tr("A font with this name is already registered from another provider."));
+      return;
+    }
+    updateDoc(site => {
+      site.uploadedFonts = [...(site.uploadedFonts ?? []), { family, assetId: asset.id }];
+    });
+    insp.set({ fontFamily: family });
+    setOpen(false);
+    setSelectedFontAssetId("");
+    setUploadedFamily("");
+    setError(null);
+  };
+
   const addAdobe = () => {
     if (!kitId) { setError(tr("Enter the Adobe Fonts Web Project ID or URL.")); return; }
     const family = availableFamily?.family ?? "";
@@ -276,14 +342,14 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
           </button>
         </div>
         <div className="font-add-tabs" role="group" aria-label={tr("Font provider")}>
-          {(["google", "adobe"] as const).map((source) => (
+          {(["google", "adobe", "file"] as const).map((source) => (
             <button key={source} type="button" className={"btn" + (provider === source ? " is-on" : "")}
               aria-pressed={provider === source}
               onClick={() => {
                 pending.cancel();
                 setProvider(source);
                 setError(null);
-              }}>{source === "google" ? "Google Fonts" : "Adobe Fonts"}</button>
+              }}>{source === "google" ? "Google Fonts" : source === "adobe" ? "Adobe Fonts" : tr("Font file")}</button>
           ))}
         </div>
         <div className="font-add-content">
@@ -333,6 +399,64 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
                   {tr("Selected font")}: <strong>{chosenGoogle || query}</strong>
                 </p>
               )}
+            </>
+          ) : provider === "file" ? (
+            <>
+              <label className="font-add-label" htmlFor="uploaded-font-family">{tr("Font family name")}</label>
+              <input className="input" id="uploaded-font-family" value={uploadedFamily}
+                onChange={event => setUploadedFamily(event.target.value)}
+                placeholder="My Custom Font" />
+              <p className="font-add-label" id="uploaded-font-asset-label">{tr("Font asset")}</p>
+              <div className="font-add-asset-list" role="group" aria-labelledby="uploaded-font-asset-label">
+                {fontAssets.map(asset => (
+                  <button type="button" key={asset.id}
+                    className={"font-add-asset-option" + (selectedFontAssetId === asset.id ? " is-on" : "")}
+                    aria-pressed={selectedFontAssetId === asset.id}
+                    onClick={() => {
+                      setSelectedFontAssetId(asset.id);
+                      setUploadedFamily(current => current || asset.name.replace(/\.(woff2?|ttf|otf)$/i, ""));
+                      setError(null);
+                    }}>
+                    <span>{asset.name}</span>
+                    <small>{asset.mimeType ?? tr("Font file")}</small>
+                  </button>
+                ))}
+              </div>
+              <div className={"font-add-dropzone" + (fontDropActive ? " is-over" : "")}
+                onDragOver={event => {
+                  if (event.dataTransfer.types.includes("Files")) {
+                    event.preventDefault();
+                    setFontDropActive(true);
+                  }
+                }}
+                onDragLeave={event => {
+                  if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+                  setFontDropActive(false);
+                }}
+                onDrop={event => {
+                  event.preventDefault();
+                  setFontDropActive(false);
+                  if (!busy && event.dataTransfer.files[0]) void uploadFontFile(event.dataTransfer.files[0]);
+                }}>
+                <p className="font-add-dropzone-title">{tr("Drop a font file here")}</p>
+                <p className="hint">{tr("WOFF2, WOFF, TTF, OTF")}</p>
+                <button type="button" className="btn" disabled={busy}
+                  onClick={() => fontFileInputRef.current?.click()}>
+                  {busy ? tr("Uploading…") : tr("Choose a font file")}
+                </button>
+                <input ref={fontFileInputRef} type="file" hidden
+                  aria-label={tr("Choose a font file")}
+                  accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf"
+                  onChange={event => {
+                    const file = event.target.files?.[0];
+                    event.target.value = "";
+                    if (file) void uploadFontFile(file);
+                  }}/>
+              </div>
+              {fontAssets.length === 0 && (
+                <p className="hint">{tr("No font assets yet. Upload one here or in Assets.")}</p>
+              )}
+              <p className="hint">{tr("Use only font files you are licensed to distribute. Selected assets are included in exported websites.")}</p>
             </>
           ) : (
             <>
@@ -465,9 +589,10 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
           <button type="button" className="btn" onClick={close}>{tr("Cancel")}</button>
           <button type="button" className="btn btn-primary" disabled={
             provider === "google" ? busy || !(chosenGoogle || query.trim()) :
+              provider === "file" ? busy || !selectedFontAssetId || !uploadedFamily.trim() :
               !kitId || !availableFamily
-          } onClick={() => provider === "google" ? void addGoogle() : addAdobe()}>
-            {provider === "google" && busy ? tr("Checking…") : tr("Add")}
+          } onClick={() => provider === "google" ? void addGoogle() : provider === "file" ? addUploadedFont() : addAdobe()}>
+            {busy ? tr("Checking…") : tr("Add")}
           </button>
         </div>
       </div>

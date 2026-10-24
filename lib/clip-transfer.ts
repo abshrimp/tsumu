@@ -7,7 +7,7 @@
  * 別のタブやウィンドウで開いた別のサイトでも、⌘V で同じものを貼り付けられる
  */
 
-import type { Asset, AdobeFont, BreakpointDef, Component, CustomFont, DocNode, Page, SiteDoc } from "./types";
+import type { Asset, AdobeFont, BreakpointDef, Component, CustomFont, DocNode, Page, SiteDoc, UploadedFont } from "./types";
 import { assetSrc } from "./assets";
 import { createCssAssetFinder } from "./css-asset-dependencies";
 import { zipAssetClosure, zipStylesheet } from "./zip-css";
@@ -44,6 +44,7 @@ export interface ClipPayload {
   /** 要素が使っている追加フォント */
   customFonts: CustomFont[];
   adobeFonts: AdobeFont[];
+  uploadedFonts?: UploadedFont[];
 }
 
 function descendants(doc: SiteDoc, id: string, out: DocNode[] = []): DocNode[] {
@@ -80,10 +81,12 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
     findCssAssets(node.styles, node.customCss).forEach((id) => cssIds.add(id));
   }
   for (const page of clip.pages ?? []) findCssAssets(page.bodyStyles).forEach((id) => cssIds.add(id));
+  const uploadedFonts = (doc.uploadedFonts ?? []).filter(font => text.includes(font.family));
+  const fileIds = new Set(uploadedFonts.map(font => font.assetId));
   const assets: Record<string, Asset> = {};
   for (const a of Object.values(doc.assets)) {
     const src = assetSrc(a);
-    if (cssIds.has(a.id) || text.includes(a.id) || (src && text.includes(src))) assets[a.id] = structuredClone(a);
+    if (fileIds.has(a.id) || cssIds.has(a.id) || text.includes(a.id) || (src && text.includes(src))) assets[a.id] = structuredClone(a);
   }
   for (const id of zipAssetClosure(doc.assets, Object.keys(assets))) assets[id] = structuredClone(doc.assets[id]);
   // JS の相対参照はアセットの内容の中にあり、ここでは読み取れない。
@@ -105,6 +108,7 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
     componentNodes,
     customFonts,
     adobeFonts,
+    uploadedFonts,
   };
 }
 
@@ -176,7 +180,7 @@ function isPayload(v: unknown): v is ClipPayload {
       ? Object.values(p.components).map(c => c.rootId) : undefined) &&
     validNodeForest({}, Object.fromEntries(p.componentNodes.map(n => [n.id, n])), p.components) &&
     Array.isArray(p.customFonts) && Array.isArray(p.adobeFonts) &&
-    validSiteAdditionalFields({ customFonts: p.customFonts, adobeFonts: p.adobeFonts }) &&
+    validSiteAdditionalFields({ customFonts: p.customFonts, adobeFonts: p.adobeFonts, uploadedFonts: p.uploadedFonts }) &&
     validClipDependencies(p)
   );
 }
@@ -185,7 +189,8 @@ function isPayload(v: unknown): v is ClipPayload {
 function validClipDependencies(p: ClipPayload): boolean {
   const assetRef = (value: { assetId?: string } | null | undefined): boolean =>
     value?.assetId === undefined || (Object.hasOwn(p.assets, value.assetId) && isSafeClipAsset(p.assets[value.assetId]));
-  return [...p.nodes, ...p.componentNodes].every(node =>
+  return (p.uploadedFonts ?? []).every(font => assetRef(font)) &&
+    [...p.nodes, ...p.componentNodes].every(node =>
     (node.type !== "instance" || (typeof node.componentId === "string" && Object.hasOwn(p.components, node.componentId))) &&
     assetRef(node.image) && assetRef(node.media) && (node.media?.sources ?? []).every(assetRef));
 }
@@ -446,6 +451,14 @@ export function mergeClipDeps(
         (d.adobeFonts ?? []).some(x => x.family === f.family) ||
         (d.adobeFonts ?? []).some(x => x.kitId === f.kitId && x.loading !== f.loading)) continue;
     d.adobeFonts = [...(d.adobeFonts ?? []), structuredClone(f)];
+  }
+  for (const font of p.uploadedFonts ?? []) {
+    const id = remap.get(font.assetId) ?? font.assetId;
+    if (!Object.hasOwn(d.assets, id) ||
+        (d.uploadedFonts ?? []).some(existing => existing.family === font.family) ||
+        (d.customFonts ?? []).some(existing => existing.family === font.family) ||
+        (d.adobeFonts ?? []).some(existing => existing.family === font.family)) continue;
+    d.uploadedFonts = [...(d.uploadedFonts ?? []), { family: font.family, assetId: id }];
   }
   return { assetIds: remap, componentIds, componentNodes };
 }

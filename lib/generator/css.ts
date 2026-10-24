@@ -54,6 +54,29 @@ export function usedGoogleFonts(doc: SiteDoc) {
   );
 }
 
+/** Only referenced uploaded fonts are emitted into generated stylesheets. */
+export function usedUploadedFonts(doc: SiteDoc) {
+  const families = usedFontFamilies(doc);
+  return (doc.uploadedFonts ?? []).filter(font => families.has(font.family) &&
+    Object.hasOwn(doc.assets, font.assetId));
+}
+
+/** Bundle local fonts as first-party static files. Missing fonts retain CSS fallback. */
+export function uploadedFontsCss(doc: SiteDoc, assetNames: Map<string, string>): string {
+  return usedUploadedFonts(doc).map(font => {
+    const asset = doc.assets[font.assetId];
+    const name = assetNames.get(font.assetId);
+    if (!name || !/^[A-Za-z0-9._-]+$/.test(name)) return "";
+    const ext = name.split(".").pop()?.toLowerCase();
+    const format = ext === "woff2" ? "woff2" : ext === "woff" ? "woff" :
+      ext === "ttf" ? "truetype" : ext === "otf" ? "opentype" : null;
+    if (!format || !asset || !/^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(font.family)) return "";
+    return "@font-face { font-family: " + cssQuoted(font.family) +
+      "; src: url(" + cssQuoted("/assets/" + name) + ") format(" + cssQuoted(format) +
+      "); font-style: normal; font-weight: 400; font-display: swap; }\\n";
+  }).join("");
+}
+
 export function usedAdobeFonts(doc: SiteDoc) {
   if (!doc.adobeFonts?.length) return [];
   const families = usedFontFamilies(doc);
@@ -132,10 +155,10 @@ export function createCssValueResolver(doc: SiteDoc, assetNames: Map<string, str
   let fonts: ReturnType<typeof allFonts> | undefined;
   return (prop, value) => {
     if (prop === "fontFamily") {
-      fonts ??= allFonts(doc.customFonts, doc.adobeFonts);
+      fonts ??= allFonts(doc.customFonts, doc.adobeFonts, doc.uploadedFonts);
       const font = fonts.find(f => f.value === value);
       if (font?.google && isSafeGoogleFont(font)) return `var(${font.google.cssVar}), "${value}", sans-serif`;
-      if (font?.adobe && /^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(value)) {
+      if ((font?.adobe || font?.uploaded) && /^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(value)) {
         return `"${value}", sans-serif`;
       }
       return value;

@@ -122,6 +122,13 @@ function validCustomFont(value: unknown): boolean {
     (value.weights === "variable" || arrayOf(value.weights, str));
 }
 
+function validUploadedFont(value: unknown): boolean {
+  return record(value) && typeof value.family === "string" &&
+    /^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(value.family) &&
+    typeof value.assetId === "string" && /^[A-Za-z0-9_-]{1,100}$/.test(value.assetId) &&
+    Object.keys(value).every(key => key === "family" || key === "assetId");
+}
+
 function validAdobeFont(value: unknown): boolean {
   return record(value) &&
     typeof value.family === "string" &&
@@ -147,6 +154,8 @@ export function validSiteAdditionalFields(site: Record<string, unknown>): boolea
     optional(site.loadingScreen, validLoadingScreen) &&
     optional(site.pwa, validPwa) &&
     optional(site.customFonts, x => arrayOf(x, validCustomFont)) &&
+    optional(site.uploadedFonts, x => arrayOf(x, validUploadedFont) &&
+      new Set((x as { family: string }[]).map(font => font.family)).size === (x as unknown[]).length) &&
     optional(site.adobeFonts, x => arrayOf(x, validAdobeFont) &&
       new Set((x as { family: string }[]).map(font => font.family)).size === (x as unknown[]).length &&
       new Set((x as { kitId: string; loading: string }[]).map(font => font.kitId + ":" + font.loading)).size ===

@@ -484,7 +484,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
     files["manifest.webmanifest"] = JSON.stringify(manifest, null, 2) + "\n";
   }
   files["styles/site.css"] = rewriteCssRootUrls(next.files["styles/site.css"], "../");
-  files["styles/globals.css"] = googleFontsCss(normalized) + next.files["app/globals.css"];
+  files["styles/globals.css"] = googleFontsCss(normalized) + rewriteCssRootUrls(next.files["app/globals.css"], "../");
   // ページの計画は、共通の DOM のランタイムがリスナーを登録する前に実行するため、
   // 取得した変数を、動的なテキストやクライアントのリストで使える。
   files["data-loader.js"] = PAGE_DATA_RUNTIME;
