@@ -44,6 +44,7 @@ import { BpIcon, Dropdown, NumField } from "./controls";
 import { tr } from "../lib/i18n";
 import LanguageSelector from "./LanguageSelector";
 
+const ExternalEditConnection = lazy(() => import("./ExternalEditConnection"));
 const ExportModal = lazy(() => import("./ExportModal"));
 const PublishModal = lazy(() => import("./PublishModal"));
 const BodySearch = lazy(() => import("./BodySearch"));
@@ -80,6 +81,8 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           <LanguageSelector />
           <p className="hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>
+
+        <Suspense fallback={null}><ExternalEditConnection /></Suspense>
 
         <section className="settings-sec">
           <h3>{tr("Reset site")}</h3>
