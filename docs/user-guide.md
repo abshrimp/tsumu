@@ -347,6 +347,8 @@ On any host, an interval of `0` fetches the data on every request.
 
 The same dialog also lists the server's daily backups of the editor content: one per weekday, seven in total.
 
+Use **Export backup ZIP** in **History & rollback** to download a self-contained copy of the entire site, including every asset in the library (images, videos, fonts and even unused files). **Load backup file** restores that ZIP into the current editor and uploads its assets to the current storage. If an asset cannot be fetched or restored, the operation fails rather than silently producing an incomplete backup. Older standalone `doc.json` files can still be loaded, but remote assets are not bundled in JSON.
+
 ## Ask AI (optional)
 
 Set `AI_ENABLED=true` and an API key, and the **Ask AI** button appears. Requests go through `/api/ai` on the editor's server, so the API key never reaches the browser.

@@ -90,7 +90,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
     : kind === "add" ? evaluate("components/left-panel/AddTab.tsx").AddTab
     : kind === "reset" ? evaluate("components/Header.tsx", "\nexport { SettingsModal };").SettingsModal
     : kind === "breakpoints" ? evaluate("components/SitePanel.tsx", "\nexport { BreakpointSettings }; ").BreakpointSettings
-    : kind === "backup" ? evaluate("components/SitePanel.tsx").default
+    : kind === "backup" ? evaluate("components/BackupFileControls.tsx").default
     : kind === "html" ? evaluate("components/PagePanel.tsx").default
     : kind === "style" ? evaluate("components/StylePanel.tsx").default
     : evaluate("components/style-panel/FontPicker.tsx").FontPicker;

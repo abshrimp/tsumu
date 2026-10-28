@@ -17,6 +17,7 @@ import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
 import { HelpLink } from "./HelpCenter";
+import BackupFileControls from "./BackupFileControls";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publish-preconditions";
 import { addPwaRetirementWorker } from "../lib/publish-pwa";
@@ -989,6 +990,9 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
       <p className="hint" style={{ margin: "0 0 10px" }}>
         {tr("For each day you edit, the server automatically keeps that day's final content. It keeps seven days, one per weekday, and saves a day's copy at the first save after the date changes.")}
       </p>
+      <p className="hint" style={{ margin: "0 0 10px" }}>
+        {tr("Automatic backups contain editing data only. Export a backup ZIP to preserve all asset files.")}
+      </p>
       {error ? (
         <ul className="check-list">
           <li className="is-error">
@@ -1026,15 +1030,9 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
 }
 
 /** 履歴: 公開サイトのロールバックと、編集データの復元 */
-export function HistoryModal({
-  onClose,
-  initialTab = "site",
-}: {
-  onClose: () => void;
-  initialTab?: "site" | "doc";
-}) {
+export function HistoryModal({ onClose }: { onClose: () => void }) {
   const conf = usePublishConfig();
-  const [tab, setTab] = useState<"site" | "doc">(initialTab);
+  const [tab, setTab] = useState<"site" | "doc">("site");
   useEscapeToClose(onClose);
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -1053,6 +1051,7 @@ export function HistoryModal({
             {tr("Automatic backups of edits")}
           </button>
         </div>
+        <BackupFileControls onDone={onClose} />
         <div className="hist-body">
           {tab === "doc" ? (
             <BackupHistory onDone={onClose} />

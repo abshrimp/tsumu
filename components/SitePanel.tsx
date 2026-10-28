@@ -1,12 +1,9 @@
 "use client";
 
 import { isEnterKey } from "../lib/keys";
-import { useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import {
   AppWindow,
-  FileDown,
-  FileUp,
-  History,
   Maximize,
   PanelTop,
   Plus,
@@ -15,12 +12,8 @@ import {
 } from "lucide-react";
 import { useEditor } from "../lib/store";
 import { usePendingImport } from "../lib/use-pending-import";
-import { showAlert, showConfirm } from "../lib/dialog";
+import { showConfirm } from "../lib/dialog";
 import { assetSrc } from "../lib/assets";
-import { serializePortableDoc } from "../lib/portable-doc";
-import { parseSiteImport } from "../lib/site-import";
-import { IMPORT_LIMITS } from "../lib/site-import-format";
-import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
 import { siteLangOf } from "../lib/site-lang";
 import { genId, makeBox, makeText } from "../lib/presets";
 import {
@@ -579,52 +572,8 @@ function BreakpointSettings() {
 export default function SitePanel() {
   const doc = useEditor((s) => s.doc);
   const updateDoc = useEditor((s) => s.updateDoc);
-  const restoreDoc = useEditor((s) => s.restoreDoc);
-  const docFileRef = useRef<HTMLInputElement>(null);
-  const pendingBackup = usePendingImport("site-backup");
   const [codeEditorOpen, setCodeEditorOpen] = useState<"head" | "body" | null>(null);
 
-  const exportDocJson = async () => {
-    let serialized: string;
-    try {
-      serialized = await serializePortableDoc(doc, IMPORT_LIMITS.docBytes);
-    } catch {
-      void showAlert(tr("Could not create the backup file."));
-      return;
-    }
-    const blob = new Blob([serialized], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `tsumu-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    // URL をすぐに破棄すると、Safari などでダウンロードが始まらないことがある
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
-  const importDocJson = async (file: File) => {
-    const request = pendingBackup.begin();
-    let parsed;
-    try {
-      if (file.size > IMPORT_LIMITS.docBytes) throw new RangeError();
-      parsed = (await parseSiteImport(new Uint8Array(await file.arrayBuffer()), "doc")).doc;
-    } catch {
-      if (!request.current()) return;
-      request.finish();
-      void showAlert(tr("Make sure it's a backup file saved from this editor."), {
-        title: tr("Couldn't load this file"),
-      });
-      return;
-    }
-    if (!request.current()) return;
-    if (await showConfirm(
-      tr("Your current edits will be replaced with this file's content. Undo (⌘Z) brings back what you have now."),
-      { title: tr("Load the backup?"), okLabel: tr("Load") },
-    ) && request.current()) restoreDoc(sanitizeImportedInlineIcons(parsed));
-    request.finish();
-  };
 
   return (
     <div className="panel-body" data-tutorial="site-settings">
@@ -820,48 +769,6 @@ export default function SitePanel() {
 
       <BreakpointSettings />
 
-      <Sec
-        title={tr("Backup")}
-        tutorialTarget="site-backup"
-        help="pub-backup"
-        info={tr("Save or restore the whole site's data as a backup file. You can also load the _tsumu/doc.json that publishing saves to the repository.")}
-        defaultOpen={false}
-      >
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
-            className="btn btn-sm"
-            data-tip={tr("Restore from the server's automatic backups or from a published version")}
-            onClick={() => window.dispatchEvent(new CustomEvent("tsumu-open-history", { detail: "doc" }))}
-          >
-            <History size={12} />
-            {tr("Restore from history")}
-          </button>
-          <button className="btn btn-sm" onClick={exportDocJson}>
-            <FileDown size={12} />
-            {tr("Export")}
-          </button>
-          <button
-            className="btn btn-sm"
-            onClick={() => docFileRef.current?.click()}
-          >
-            <FileUp size={12} />
-            {tr("Load")}
-          </button>
-          <input
-            ref={docFileRef}
-            id="site-backup-import"
-            aria-label={tr("Load")}
-            type="file"
-            accept=".json,application/json"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void importDocJson(file);
-              e.target.value = "";
-            }}
-          />
-        </div>
-      </Sec>
       {codeEditorOpen && (
         <CustomCodeEditorModal
           key={codeEditorOpen}

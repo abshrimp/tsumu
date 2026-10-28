@@ -210,16 +210,7 @@ export default function Header({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const status = useServerStatus();
-  const [historyOpen, setHistoryOpen] = useState<false | "site" | "doc">(false);
-  // サイト設定の「履歴から戻す」から開いた場合
-  useEffect(() => {
-    const open = (e: Event) => {
-      closeHelp();
-      setHistoryOpen((e as CustomEvent<"site" | "doc">).detail === "doc" ? "doc" : "site");
-    };
-    window.addEventListener("tsumu-open-history", open);
-    return () => window.removeEventListener("tsumu-open-history", open);
-  }, []);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const helpOpen = useHelp((s) => s.open);
   const commenting = useComments((s) => s.active);
   /** まだ解決していないコメントの数（ボタンに添えて表示する） */
@@ -502,7 +493,7 @@ export default function Header({
               if (v === "export") openModal(setExporting);
               else if (v === "history") {
                 closeHelp();
-                setHistoryOpen("site");
+                setHistoryOpen(true);
               }
               else if (v === "settings") openModal(setSettingsOpen);
               else if (v === "logout") openModal(setLogoutOpen);
@@ -549,11 +540,11 @@ export default function Header({
                 onClose={() => setPublishing(false)}
                 onOpenHistory={() => {
                   setPublishing(false);
-                  setHistoryOpen("site");
+                  setHistoryOpen(true);
                 }}
               />
             )}
-            {historyOpen && <HistoryModal initialTab={historyOpen} onClose={() => setHistoryOpen(false)} />}
+            {historyOpen && <HistoryModal onClose={() => setHistoryOpen(false)} />}
           </Suspense>
         </SafeBoundary>
       )}
