@@ -416,3 +416,109 @@ test("fetch classifies full IPv6 prefixes and reserved v4 networks", () => {
     assert.equal(isPrivateHost(host), false, host);
   }
 });
+
+test("canvas CSS drops unsafe motion and customCss rule breakouts", async () => {
+  const { buildCanvasCss } = await import("../components/canvas/css");
+  const { createInitialDoc } = await import("../lib/presets");
+  const doc = createInitialDoc();
+  const rootId = doc.pages[doc.pageOrder[0]].children[0];
+  const node = doc.nodes[rootId];
+  node.customCss = "color: red; /* unclosed; background: url(javascript:alert(1)); } .hdr { display: none !important";
+  node.motions = [
+    {
+      id: "m1",
+      trigger: "load",
+      duration: 1,
+      delay: 0,
+      easing: "ease; } .pub-modal { opacity: 0",
+      keyframes: "fade-in",
+    },
+    {
+      id: "m2",
+      trigger: "load",
+      duration: 1,
+      delay: 0,
+      easing: "ease",
+      keyframes: "custom",
+      customKeyframes: "from { opacity: 0; } } .hdr { visibility: hidden; } @keyframes x { to { opacity: 1; }",
+    },
+    {
+      id: "m3",
+      trigger: "state",
+      property: "opacity",
+      duration: 0.2,
+      delay: 0,
+      easing: "ease-out",
+    },
+  ];
+  const css = buildCanvasCss(doc, [rootId], "base", "preview", null, "default");
+  assert.doesNotMatch(css, /\.pub-modal/);
+  assert.doesNotMatch(css, /\.hdr/);
+  assert.match(css, /color: red;/);
+  assert.match(css, /transition: opacity 0\.2s ease-out 0s;/);
+});
+
+test("Next.js redirects and rewrites block private SSRF hosts, credentials, and backslash open-redirects", async () => {
+  const { isSafeRedirectTarget, isSafeRewriteTarget } = await import("../lib/url-policy");
+  const { generateProject } = await import("../lib/generator");
+  const { runChecks } = await import("../lib/generator/checks");
+  const { createInitialDoc } = await import("../lib/presets");
+
+  for (const unsafeRewrite of [
+    "http://169.254.169.254/latest/meta-data/",
+    "http://127.0.0.1:3000/internal",
+    "http://2130706433/",
+    "http://localhost:8080/",
+    "http://[::1]/",
+    "http://metadata.google.internal/",
+    "https://user:pass@example.com/",
+    "https://example.com\\@internal/",
+  ]) {
+    assert.equal(isSafeRewriteTarget(unsafeRewrite), false, unsafeRewrite);
+  }
+  assert.equal(isSafeRewriteTarget("https://origin.example/base/:path*"), true);
+
+  for (const unsafeRedirect of ["/\\evil.example", "//evil.example", "https://user:pass@example.com/", "javascript:alert(1)"]) {
+    assert.equal(isSafeRedirectTarget(unsafeRedirect), false, unsafeRedirect);
+  }
+  assert.equal(isSafeRedirectTarget("/archive/:slug"), true);
+  assert.equal(isSafeRedirectTarget("https://example.com/path"), true);
+
+  const doc = createInitialDoc();
+  doc.pages.ssrf = {
+    id: "ssrf", name: "Proxy", slug: "proxy", title: "", description: "", children: [],
+    rewriteTo: "http://169.254.169.254/latest/meta-data/",
+  };
+  doc.pages.badRedirect = {
+    id: "badRedirect", name: "BadRedirect", slug: "go", title: "", description: "", children: [],
+    redirectTo: "/\\evil.example",
+  };
+  doc.pageOrder.push("ssrf", "badRedirect");
+  const checks = runChecks(doc);
+  assert.ok(checks.some((c) => c.level === "error" && c.message.includes("Proxy")));
+  assert.ok(checks.some((c) => c.level === "error" && c.message.includes("BadRedirect")));
+
+  const out = generateProject(doc, "production");
+  assert.doesNotMatch(out.files["next.config.mjs"], /169\.254\.169\.254/);
+  assert.doesNotMatch(out.files["next.config.mjs"], /evil\.example/);
+});
+
+test("Vue SSR server enforces nosniff, sandboxes static SVGs, and never serves raw index.html template", async () => {
+  const { generateExportProject } = await import("../lib/export-formats");
+  const { createInitialDoc } = await import("../lib/presets");
+  const doc = createInitialDoc();
+  doc.pageOrder = [doc.pageOrder[0]];
+  const vue = generateExportProject(doc, "vue");
+  const server = vue.files["server.mjs"];
+  assert.match(server, /file !== templateFile/);
+  assert.match(server, /"X-Content-Type-Options": "nosniff"/);
+  assert.match(server, /ext === "\.svg".*sandbox/);
+  assert.match(server, /"\.webmanifest": "application\/manifest\+json"/);
+});
+
+test("i18n format and trNodes ignore Object.prototype keys", async () => {
+  const { format, trNodes } = await import("../lib/i18n");
+  assert.equal(format("Hello {constructor} {toString} {name}", { name: "Tsumu" }), "Hello {constructor} {toString} Tsumu");
+  const nodes = trNodes("Run {constructor} and {cmd}", { cmd: "ok" });
+  assert.equal(nodes.map((part) => (typeof part === "string" ? part : (part as { props?: { children?: unknown } }).props?.children)).join(""), "Run {constructor} and ok");
+});

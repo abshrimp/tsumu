@@ -3,7 +3,7 @@
  */
 
 import { escapeStyleContent } from "../../lib/css-assets";
-import { safeCssDeclaration } from "../../lib/css-declaration";
+import { safeCssDeclaration, safeCustomCssDeclarations } from "../../lib/css-declaration";
 import { keyframesCss, motionCss } from "../../lib/motion";
 import type { Breakpoint, DocNode, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
 import { customStateSelector } from "../../lib/custom-states";
@@ -85,9 +85,9 @@ function buildNodeCss(
     }
   }
 
-  // 直接書いた CSS の宣言（ルールを壊さないよう、波括弧は取り除く）
-  const raw = node.customCss?.replace(/[{}]/g, " ").trim() ?? "";
-  const extra = raw ? ` ${raw}${raw.endsWith(";") ? "" : ";"}` : "";
+  // 直接書いた CSS の宣言（構文とエスケープ境界を検証した宣言だけを使う）
+  const safeCustom = safeCustomCssDeclarations(node.customCss);
+  const extra = safeCustom.length ? ` ${safeCustom.join(" ")}` : "";
 
   const map = resolveStyles(node, bp, state);
   map.width ??= "auto";

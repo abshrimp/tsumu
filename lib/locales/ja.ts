@@ -1485,6 +1485,7 @@ const ja: Dict = {
   "The 301 target of redirect page \"{name}\" must be a site URL starting with / or an http(s) URL": "リダイレクトページ「{name}」の301転送先は / から始まるサイト内URLか http(s) URLにしてください",
   "The 301 target \"{destination}\" of redirect page \"{name}\" matches its own source URL, which causes a redirect loop. Change it to a different path.": "リダイレクトのページ「{name}」の301の転送先「{destination}」が、転送元と同じURLに一致します。転送がくり返されるため、別のパスに変えてください",
   "The external site of redirect page \"{name}\" must be a URL starting with http(s)://": "リダイレクトページ「{name}」の表示する外部サイトは http(s):// から始まるURLにしてください",
+  "The external site of redirect page \"{name}\" cannot target a private or credentialed URL": "リダイレクトページ「{name}」の表示する外部サイトに、非公開ホストや認証情報付きのURLは指定できません",
   "A script on \"{name}\" fetches data from an empty URL": "「{name}」のスクリプトで、データを取得するURLが空です",
   "A script on \"{name2}\" in \"{name}\" opens a page that isn't selected or was deleted": "「{name}」の「{name2}」のスクリプトで開くページが選択されていないか、削除されています",
   "The link target of \"{name2}\" in \"{name}\" was deleted (it will link to the home page)": "「{name}」の「{name2}」のリンク先ページが削除されています（トップページへのリンクになります）",

@@ -3,7 +3,7 @@ import { dbUnavailable } from "../../../../lib/unavailable";
 import { serverTr } from "../../../../lib/i18n-server";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { requireAuth } from "../../../../lib/server";
-import { userMessage } from "../../../../lib/errors";
+import { validateDocBody } from "../../../../lib/doc-storage";
 import { siteIdOf } from "../../../../lib/site-server";
 import {
   usesDocumentRooms, listSiteDocumentBackups, readSiteDocumentBackup,
@@ -30,10 +30,10 @@ export async function GET(req: Request) {
   const day = dayParams.length ? Number(dayParams[0]) : null;
   try {
     const db = await getDb();
+    if (!await getSite(db, siteId)) {
+      return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
+    }
     if (usesDocumentRooms()) {
-      if (!await getSite(db, siteId)) {
-        return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
-      }
       if (day !== null) {
         const body = await readSiteDocumentBackup(db, siteId, day);
         if (body === null) {
@@ -56,8 +56,11 @@ export async function GET(req: Request) {
       if (!row) {
         return NextResponse.json({ error: tr("Backup not found") }, { status: 404 });
       }
-      // 保存済みのJSONをパースし直さずに返す（Workers無料プランのCPU時間制限対策）
-      return new NextResponse(String(row.body), {
+      const body = String(row.body);
+      if (validateDocBody(body)) {
+        throw new Error("Corrupt backup document");
+      }
+      return new NextResponse(body, {
         headers: {
           "Content-Type": "application/json; charset=utf-8",
           "Cache-Control": "private, no-store",
@@ -75,9 +78,10 @@ export async function GET(req: Request) {
         bytes: Number(r.size),
       })),
     }, { headers: { "Cache-Control": "private, no-store" } });
-  } catch (e) {
+  } catch {
+    console.error("[api/doc/backups GET] backup read failed");
     return NextResponse.json(
-      { error: tr(userMessage(e, "Couldn't load")) },
+      { error: tr("Couldn't load") },
       { status: 502 }
     );
   }

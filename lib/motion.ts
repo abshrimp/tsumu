@@ -1,5 +1,6 @@
 import type { Motion } from "./types";
 import { tr } from "./i18n";
+import { safeCssDeclarationValue, safeCssKeyframesBody, safeCssPropertyName } from "./css-declaration";
 
 export const TRIGGERS: { value: Motion["trigger"]; label: string }[] = [
   { value: "state", label: tr("On state change") },
@@ -168,13 +169,30 @@ interface MotionCss {
   hasInView: boolean;
 }
 
+function isSafeMotion(m: Motion): boolean {
+  return (
+    ["state", "hover", "active", "load", "in-view"].includes(m.trigger) &&
+    Number.isFinite(m.duration) &&
+    Number.isFinite(m.delay) &&
+    (m.repeat === undefined || Number.isFinite(m.repeat)) &&
+    (m.easing === undefined || safeCssDeclarationValue(m.easing)) &&
+    (!m.property || m.property.split(",").every((part) => safeCssPropertyName(part.trim()) !== null)) &&
+    (!m.direction || ["normal", "reverse", "alternate"].includes(m.direction)) &&
+    (!m.fillMode || ["both", "forwards", "backwards", "none"].includes(m.fillMode)) &&
+    (!m.keyframes ||
+      (m.keyframes === "custom"
+        ? (!m.customKeyframes?.trim() || safeCssKeyframesBody(m.customKeyframes))
+        : KEYFRAMES.some((keyframe) => keyframe.key === m.keyframes)))
+  );
+}
+
 /**
  * モーションの設定から CSS の宣言を組み立てる。
  * inViewMode: "paused" = 停止した状態で始め、.is-inview で再生する（書き出し用）、
  *             "run" = すぐに再生する（エディタのプレビュー用）
  */
 export function motionCss(
-  motions: Motion[] | undefined,
+  rawMotions: Motion[] | undefined,
   inViewMode: "paused" | "run",
   /** 要素ごとに分けるカスタムの @keyframes の名前に付ける名前（要素の ID など） */
   scope?: string
@@ -186,6 +204,7 @@ export function motionCss(
     customKeyframes: [],
     hasInView: false,
   };
+  const motions = rawMotions?.filter(isSafeMotion);
   if (!motions?.length) return out;
 
   const trans = transitionValue(motions);
@@ -262,7 +281,7 @@ export function keyframesCss(
     .filter(Boolean);
   const seen = new Set<string>();
   for (const c of customs) {
-    if (seen.has(c.name)) continue;
+    if (seen.has(c.name) || !/^[A-Za-z0-9_-]+$/.test(c.name) || !safeCssKeyframesBody(c.css)) continue;
     seen.add(c.name);
     blocks.push(`@keyframes ${c.name} {\n  ${c.css}\n}`);
   }

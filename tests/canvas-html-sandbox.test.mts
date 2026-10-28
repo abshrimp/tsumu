@@ -15,4 +15,7 @@ test("custom HTML iframes cannot combine scripts with the editor's same-origin p
   assert.match(source, /node\.setAttribute\("sandbox", IFRAME_SANDBOX\)/);
   assert.match(source, /\["a", "area", "form"\]\.includes\(node\.nodeName\.toLowerCase\(\)\)/);
   assert.match(source, /node\.setAttribute\("rel", "noopener noreferrer"\)/);
+  assert.match(source, /FORBID_TAGS:\s*\["base",\s*"link",\s*"meta",\s*"style"\]/);
+  assert.match(source, /FORBID_ATTR:\s*\["formaction",\s*"formtarget"\]/);
+  assert.match(source, /isReservedDataAttribute\(attr\.name\)/);
 });

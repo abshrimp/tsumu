@@ -129,7 +129,10 @@ function lookup(list: readonly Catalog[], key: string): Found {
 /** 訳した文（userMessage が「自分たちで書いた案内文」を見分けるため） */
 const own = new Set<string>();
 function remember(s: string): string {
-  if (own.size > 1000) own.clear();
+  if (own.size >= 1000 && !own.has(s)) {
+    const oldest = own.values().next().value;
+    if (oldest !== undefined) own.delete(oldest);
+  }
   own.add(s);
   return s;
 }
@@ -199,7 +202,7 @@ function formatPlurals(s: string, vars: Vars, lang: string): string {
 /** {name} を値に置き換える。lang は、複数形の規則を選ぶための訳文の言語 */
 export function format(s: string, vars?: Vars, lang: string = SOURCE_LANG): string {
   if (!vars) return s;
-  return formatPlurals(s, vars, lang).replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
+  return formatPlurals(s, vars, lang).replace(/\{(\w+)\}/g, (m, k: string) => (Object.hasOwn(vars, k) ? String(vars[k]) : m));
 }
 
 /** サーバーでの描画と API の応答で、同じ探し方の規則を使う。 */
@@ -218,5 +221,5 @@ export function trNodes(key: string, nodes: Record<string, ReactNode>): ReactNod
   return tr(key)
     .split(/\{(\w+)\}/)
     // 配列で返すため、差し込んだ要素にも key を付ける（React の警告が出ないように）
-    .map((part, i) => (i % 2 ? createElement(Fragment, { key: i }, nodes[part] ?? `{${part}}`) : part));
+    .map((part, i) => (i % 2 ? createElement(Fragment, { key: i }, Object.hasOwn(nodes, part) ? nodes[part] : `{${part}}`) : part));
 }

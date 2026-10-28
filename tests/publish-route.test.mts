@@ -10,6 +10,11 @@ import { parsePublishedExportOptions } from "../lib/publish-preferences";
 import { gitBlobRequestBody } from "../lib/github-blob";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
+const HEAD_SHA = "1".repeat(40);
+const WORKFLOW_SHA = "2".repeat(40);
+const SECRET_DOC_SHA = "3".repeat(40);
+const OTHER_BLOB_SHA = "4".repeat(40);
+
 // 外部とは通信せずに、公開の API が GitHub に渡すツリーを確かめる。
 function fixture(truncated?: boolean, manifestText?: string, documentBlob?: string,
   storedAssets: Record<string, Uint8Array> = {}) {
@@ -22,7 +27,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     { path: "script.sh", mode: "100755", type: "blob", sha: "exec" },
     { path: "link", mode: "120000", type: "blob", sha: "link" },
     { path: "vendor", mode: "160000", type: "commit", sha: "submodule" },
-    { path: ".github/workflows/ci.yml", mode: "100644", type: "blob", sha: "workflow" },
+    { path: ".github/workflows/ci.yml", mode: "100644", type: "blob", sha: WORKFLOW_SHA },
   ];
   const trees: { tree: helpers.TreeEntry[]; base_tree?: string }[] = [];
   const treeSnapshots = new Map<string, Map<string, helpers.TreeEntry>>();
@@ -34,10 +39,10 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
   let treeRejection: { body: object; headers?: Record<string, string>; when?: (items: helpers.TreeEntry[]) => boolean } | null = null;
   const gh = async (path: string, options: { body?: string } = {}) => {
     if (options.body) writes.push(path);
-    if (path.startsWith("/git/ref/heads/")) return NextResponse.json({ object: { sha: "head" } });
+    if (path.startsWith("/git/ref/heads/")) return NextResponse.json({ object: { sha: HEAD_SHA } });
     if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries, truncated });
     if (path.startsWith("/git/blobs/")) return NextResponse.json({
-      encoding: "base64", content: Buffer.from(path.endsWith("/secret-doc") ? documentBlob ?? "" : manifestText ?? "").toString("base64"),
+      encoding: "base64", content: Buffer.from(path.endsWith(`/${SECRET_DOC_SHA}`) ? documentBlob ?? "" : manifestText ?? "").toString("base64"),
     });
     if (path === "/git/blobs") {
       uploaded.push(JSON.parse(options.body!));
@@ -98,7 +103,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     .replace(/^export /gm, "");
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected)) as (req: Request) => Promise<Response>;
   const send = (body: object) => post(new Request("https://example.com/api/publish", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", exportOptions: { framework: "nextjs", language: "typescript", style: "css" }, ...body, site: "site", target: "production" }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: HEAD_SHA, exportOptions: { framework: "nextjs", language: "typescript", style: "css" }, ...body, site: "site", target: "production" }),
   }));
   return {
     entries, trees, treeSnapshots, commitTrees, writes, refUpdates, uploaded, send,
@@ -131,7 +136,7 @@ test("保持する項目は先端に存在する安全なパスに限る", async
 test("既存の保持項目はテキスト・アセットの書き出しと重複させない", async () => {
   const overlapping = [
     { files: { "app/page.tsx": "page", "script.sh": "replacement" } },
-    { files: { "app/page.tsx": "page" }, assetShas: { "script.sh": "replacement-sha" } },
+    { files: { "app/page.tsx": "page" }, assetShas: { "script.sh": OTHER_BLOB_SHA } },
   ];
   for (const output of overlapping) {
     const { trees, send } = fixture();
@@ -156,7 +161,7 @@ test("a truncated snapshot is rejected before a destructive replacement can be p
 test("a truncated commit-time tree is rejected even when requested entries are present", async () => {
   for (const retained of [
     { keptPaths: ["script.sh", "vendor"] },
-    { assetShas: { ".github/workflows/ci.yml": "workflow" } },
+    { assetShas: { ".github/workflows/ci.yml": WORKFLOW_SHA } },
   ]) {
     const f = fixture(true);
     const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, ...retained });
@@ -228,7 +233,7 @@ test("the same path cannot be supplied as both text and an asset SHA", async () 
   const res = await f.send({
     action: "commit",
     files: { "app/page.tsx": "text" },
-    assetShas: { "app/page.tsx": "other-blob" },
+    assetShas: { "app/page.tsx": OTHER_BLOB_SHA },
   });
   assert.equal(res.status, 400);
   assert.deepEqual(f.writes, []);
@@ -328,7 +333,7 @@ test("commit checks credentials in a previously uploaded doc.json blob as well",
   const response = await f.send({
     action: "commit",
     files: { "app/page.tsx": "page" },
-    assetShas: { [helpers.DOC_PATH]: "secret-doc" },
+    assetShas: { [helpers.DOC_PATH]: SECRET_DOC_SHA },
   });
   assert.equal(response.status, 400);
   assert.match((await response.json()).error, /credentials/i);
@@ -446,7 +451,7 @@ test("publication rejects padded credential headers before any remote write", as
   }] }] } } });
   for (const payload of [
     { action: "commit", files: { [helpers.DOC_PATH]: document } },
-    { action: "commit", files: { "app/page.tsx": "page" }, assetShas: { [helpers.DOC_PATH]: "secret-doc" } },
+    { action: "commit", files: { "app/page.tsx": "page" }, assetShas: { [helpers.DOC_PATH]: SECRET_DOC_SHA } },
     { action: "upload", path: helpers.DOC_PATH, base64: Buffer.from(document).toString("base64") },
   ]) {
     const f = fixture(false, undefined, document);
@@ -537,7 +542,7 @@ test("generic 422 validation is subdivided and succeeds without losing a single 
     assert.ok(result.has(name), `missing ${name} from the subdivided tree`);
   }
   const protectedEntry = result.get(".github/workflows/ci.yml");
-  assert.equal(protectedEntry?.sha, "workflow");
+  assert.equal(protectedEntry?.sha, WORKFLOW_SHA);
   assert.equal(f.recorded, true);
   assert.deepEqual(f.refUpdates, [{ sha: "new-commit", force: false }]);
 });
@@ -585,3 +590,19 @@ test("validation subdivision stops after a bounded number of GitHub writes", asy
   assert.deepEqual(f.refUpdates, []);
   assert.equal(f.recorded, false);
 });
+
+test("commit rejects non-40-hex expectedHead and assetShas before any GitHub write", async () => {
+  for (const payload of [
+    { expectedHead: "../../heads/main" },
+    { expectedHead: "not-a-git-sha" },
+    { assetShas: { "public/logo.png": "../blobs/evil" } },
+    { assetShas: { "public/logo.png": "g".repeat(40) } },
+  ]) {
+    const f = fixture();
+    const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, ...payload });
+    assert.equal(response.status, 400);
+    assert.deepEqual(f.writes, []);
+    assert.equal(f.recorded, false);
+  }
+});
+

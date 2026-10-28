@@ -12,6 +12,7 @@ import { walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
 import { pageQueryKey, routeDir } from "../page-query";
 import { missingHtmlZipScriptAssets } from "../html-zip-script-assets";
+import { isSafeRedirectTarget, isSafeRewriteTarget } from "../url-policy";
 
 /* ---------- 公開前チェック ---------- */
 
@@ -258,8 +259,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
         });
       } else if (
         page.redirectTo?.trim() &&
-        !/^\/(?!\/)/.test(page.redirectTo.trim()) &&
-        !/^https?:\/\//i.test(page.redirectTo.trim())
+        !isSafeRedirectTarget(page.redirectTo)
       ) {
         results.push({
           help: "page-redirect",
@@ -280,6 +280,15 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
           help: "page-redirect",
           level: "error",
           message: tr("The external site of redirect page \"{name}\" must be a URL starting with http(s)://", { name: page.name }),
+        });
+      } else if (
+        page.rewriteTo?.trim() &&
+        !isSafeRewriteTarget(page.rewriteTo)
+      ) {
+        results.push({
+          help: "page-redirect",
+          level: "error",
+          message: tr("The external site of redirect page \"{name}\" cannot target a private or credentialed URL", { name: page.name }),
         });
       }
       if (page.redirectTo?.trim()) earlierRedirects.push(page);

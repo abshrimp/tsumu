@@ -1,3 +1,5 @@
+import { isPrivateHost } from "./safe-fetch";
+
 /** ブラウザが制御文字を取り除く前に検査し、リンクからスクリプトが実行されるのを防ぐ。 */
 export function safeNavigationUrl(value: string): string {
   const url = value.trim();
@@ -9,6 +11,31 @@ export function safeNavigationUrl(value: string): string {
   if (scheme && !["http", "https", "mailto", "tel"].includes(scheme)) return "#";
   if ((scheme === "http" || scheme === "https") && !/^https?:\/\//i.test(url)) return "#";
   return url;
+}
+
+/** 301 リダイレクト先に使える安全なサイト内パスまたは公開の http(s) URL か */
+export function isSafeRedirectTarget(value: string): boolean {
+  const url = value.trim();
+  if (!url || /[\u0000-\u001f\u007f]/.test(url)) return false;
+  const beforeQuery = url.split(/[?#]/, 1)[0];
+  if (beforeQuery.includes("\\")) return false;
+  if (/^\/(?![/\\])/.test(url)) return true;
+  if (!/^https?:\/\/[^/?#@\\]+(?:[/?#]|$)/i.test(url)) return false;
+  const parsed = URL.parse(url);
+  return Boolean(parsed && (parsed.protocol === "http:" || parsed.protocol === "https:") && !parsed.username && !parsed.password);
+}
+
+/** リバースプロキシ（rewrite）の中継先に使える公開の http(s) URL か（SSRF・認証情報の埋め込みを防ぐ） */
+export function isSafeRewriteTarget(value: string): boolean {
+  const url = value.trim();
+  if (!url || /[\u0000-\u001f\u007f]/.test(url)) return false;
+  const beforeQuery = url.split(/[?#]/, 1)[0];
+  if (beforeQuery.includes("\\") || !/^https?:\/\/[^/?#@\\]+(?:[/?#]|$)/i.test(url)) return false;
+  const parsed = URL.parse(url);
+  if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:") || parsed.username || parsed.password) {
+    return false;
+  }
+  return !isPrivateHost(parsed.hostname);
 }
 
 /** 対応しているインラインの画像・音声・動画のリソースは残し、実行できる URL のスキームは拒否する。 */

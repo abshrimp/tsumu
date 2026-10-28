@@ -22,9 +22,9 @@ import {
   STATE_INFO,
   STATE_ORDER,
 } from "../style";
-import { KEYFRAMES, keyframesCss, motionCss } from "../motion";
+import { keyframesCss, motionCss } from "../motion";
 import { customStateSelector } from "../custom-states";
-import { safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName, safeCssKeyframesBody } from "../css-declaration";
+import { cssDecls, safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName, safeCustomCssDeclarations } from "../css-declaration";
 
 /* ---------- フォント ---------- */
 
@@ -302,22 +302,7 @@ export function generateSiteCss(
   for (const node of Object.values(doc.nodes)) {
     const cls = classNames.get(node.id)!;
     // モーション（transition + animation）
-    // 取り込んだ文書には、不正なイージング・カスタムのキーフレーム・識別子が含まれることがある。
-    // 不正なモーションだけを落とし、他のアニメーションは残す。
-    const safeMotions = node.motions?.filter((m) =>
-      ["state", "hover", "active", "load", "in-view"].includes(m.trigger) &&
-      Number.isFinite(m.duration) && Number.isFinite(m.delay) &&
-      (m.repeat === undefined || Number.isFinite(m.repeat)) &&
-      safeCssDeclarationValue(m.easing) &&
-      (!m.property || m.property.split(",").every((part) =>
-        safeCssPropertyName(part.trim()) !== null)) &&
-      (!m.direction || ["normal", "reverse", "alternate"].includes(m.direction)) &&
-      (!m.fillMode || ["both", "forwards", "backwards", "none"].includes(m.fillMode)) &&
-      (!m.keyframes || m.keyframes === "custom" && (!m.customKeyframes?.trim() ||
-          safeCssKeyframesBody(m.customKeyframes)) ||
-        KEYFRAMES.some((keyframe) => keyframe.key === m.keyframes))
-    );
-    const mCss = motionCss(safeMotions, "paused", node.id);
+    const mCss = motionCss(node.motions, "paused", node.id);
     usedKeyframes.push(...mCss.usedKeyframes);
     customKeyframes.push(...mCss.customKeyframes);
     const motionDecls = mCss.base;
@@ -386,19 +371,10 @@ export function generateSiteCss(
         }
         if (state === "default" && inferredPosition) map.position = inferredPosition;
         // 要素のカスタム CSS とモーションは、base の既定のルールに追記する
-        const raw = isBaseDefault
-          ? (node.customCss?.replace(/[{}]/g, " ").trim() ?? "")
-          : "";
         const extraDecls = [
-          ...cssDecls(raw).flatMap((declaration) => {
-            const colon = declaration.indexOf(":");
-            if (colon < 1) return [];
-            const key = declaration.slice(0, colon).trim();
-            const value = declaration.slice(colon + 1).trim();
-            if (!safeCssPropertyName(key) || !safeCssDeclarationValue(value)) return [];
-            const css = safeCssDeclaration(key, resolveValue("customCss", value));
-            return css ? [css] : [];
-          }),
+          ...(isBaseDefault
+            ? safeCustomCssDeclarations(node.customCss, (value) => resolveValue("customCss", value))
+            : []),
           ...(isBaseDefault ? motionDecls : []),
         ];
         if (!Object.keys(map).length && !extraDecls.length) continue;
@@ -528,49 +504,4 @@ export function rawHtmlWithBodyStyles(
     target === "production" && page.noindex ? '<meta name="robots" content="noindex, nofollow">' : "",
   ].filter(Boolean).join("\n");
   return head ? insertIntoHtmlHead(html, head) : html;
-}
-
-/**
- * カスタム CSS を宣言ごとに分ける。url(data:image/png;base64,…) や引用符の中の「;」では分けない
- * （エディタのキャンバスは書いたとおりに当てるため、同じ宣言になるようにする）
- */
-function cssDecls(css: string): string[] {
-  const out: string[] = [];
-  let cur = "";
-  let depth = 0;
-  let quote = "";
-  for (let i = 0; i < css.length; i++) {
-    const c = css[i];
-    if (quote) {
-      if (c === "\\") {
-        cur += c + (css[++i] ?? "");
-        continue;
-      }
-      if (c === quote) quote = "";
-    } else if (c === "\\") {
-      cur += c + (css[++i] ?? "");
-      continue;
-    } else if (c === "/" && css[i + 1] === "*") {
-      // コメントは CSS の字句の間の空白であって、宣言の区切りではない。
-      // 特に、コメントの中の引用符やセミコロンで、解析の結果を変えてはいけない。
-      const end = css.indexOf("*/", i + 2);
-      cur += " ";
-      if (end < 0) break;
-      i = end + 1;
-      continue;
-    } else if (c === '"' || c === "'") {
-      quote = c;
-    } else if (c === "(") {
-      depth++;
-    } else if (c === ")") {
-      depth = Math.max(0, depth - 1);
-    } else if (c === ";" && depth === 0) {
-      if (cur.trim()) out.push(cur.trim());
-      cur = "";
-      continue;
-    }
-    cur += c;
-  }
-  if (cur.trim()) out.push(cur.trim());
-  return out;
 }

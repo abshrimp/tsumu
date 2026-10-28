@@ -32,14 +32,24 @@ export async function POST(req: Request) {
   if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(verb)) {
     return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }
-  const sendHeaders: Record<string, string> = { Accept: "application/json" };
-  if (headers && typeof headers === "object") {
+  const BLOCKED_HEADERS = new Set([
+    "host", "content-length", "connection", "transfer-encoding", "upgrade",
+    "proxy-authorization", "proxy-connection", "te", "trailer", "keep-alive",
+    "forwarded", "x-real-ip",
+  ]);
+  const sendHeaders = new Headers({ Accept: "application/json" });
+  if (headers && typeof headers === "object" && !Array.isArray(headers)) {
     const entries = Object.entries(headers as Record<string, unknown>).slice(0, 50);
     for (const [k, v] of entries) {
-      // 中継先の決定に影響するヘッダーは送らない
+      // 中継先の決定やプロキシの偽装に影響するヘッダーは送らない
       if (typeof v !== "string" || !/^[\w!#$%&'*+.^`|~-]+$/.test(k)) continue;
-      if (["host", "content-length", "connection", "transfer-encoding"].includes(k.toLowerCase())) continue;
-      sendHeaders[k] = v;
+      const lower = k.toLowerCase();
+      if (BLOCKED_HEADERS.has(lower) || lower.startsWith("x-forwarded-")) continue;
+      try {
+        sendHeaders.set(k, v);
+      } catch {
+        return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
+      }
     }
   }
   const sendBody = typeof body === "string" && verb !== "GET" && verb !== "DELETE" ? body : undefined;

@@ -1,6 +1,7 @@
 "use client";
 
 import DOMPurify from "dompurify";
+import { isReservedDataAttribute } from "./imported-html-attrs";
 
 /**
  * キャンバスに表示するカスタムコードとアイコンの HTML を無害にする。
@@ -19,6 +20,9 @@ function sanitizer(): ReturnType<typeof DOMPurify> {
   if (purify) return purify;
   purify = DOMPurify(window);
   purify.addHook("afterSanitizeAttributes", (node) => {
+    for (const attr of Array.from(node.attributes)) {
+      if (isReservedDataAttribute(attr.name)) node.removeAttribute(attr.name);
+    }
     if (node.nodeName.toLowerCase() === "iframe") node.setAttribute("sandbox", IFRAME_SANDBOX);
     // 新しいタブで開くリンクやフォーム（SVG 内の小文字の <a> も含む）から、window.opener を書き換えさせない
     if (["a", "area", "form"].includes(node.nodeName.toLowerCase()) && node.getAttribute("target")) {
@@ -39,9 +43,10 @@ export function canvasHtml(html: string): string {
     out = sanitizer().sanitize(html, {
       ADD_TAGS: ["iframe"],
       ADD_ATTR: ["allow", "allowfullscreen", "frameborder", "loading", "referrerpolicy", "target"],
-      FORBID_TAGS: ["base", "link", "meta"],
+      FORBID_TAGS: ["base", "link", "meta", "style"],
+      FORBID_ATTR: ["formaction", "formtarget"],
     });
-    if (cache.size >= CACHE_LIMIT) cache.clear();
+    if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value!);
     cache.set(html, out);
   }
   return out;

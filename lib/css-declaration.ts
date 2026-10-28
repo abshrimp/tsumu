@@ -77,3 +77,65 @@ export function safeCssKeyframesBody(input: unknown): input is string {
   return blocks > 0 && depth === 0 && !quote && !comment &&
     trivia(input.slice(blockEnd)) === "";
 }
+
+/**
+ * カスタム CSS を宣言ごとに分ける。url(data:image/png;base64,…) や引用符の中の「;」では分けない。
+ */
+export function cssDecls(css: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let depth = 0;
+  let quote = "";
+  for (let i = 0; i < css.length; i++) {
+    const c = css[i];
+    if (quote) {
+      if (c === "\\") {
+        cur += c + (css[++i] ?? "");
+        continue;
+      }
+      if (c === quote) quote = "";
+    } else if (c === "\\") {
+      cur += c + (css[++i] ?? "");
+      continue;
+    } else if (c === "/" && css[i + 1] === "*") {
+      const end = css.indexOf("*/", i + 2);
+      cur += " ";
+      if (end < 0) break;
+      i = end + 1;
+      continue;
+    } else if (c === '"' || c === "'") {
+      quote = c;
+    } else if (c === "(") {
+      depth++;
+    } else if (c === ")") {
+      depth = Math.max(0, depth - 1);
+    } else if (c === ";" && depth === 0) {
+      if (cur.trim()) out.push(cur.trim());
+      cur = "";
+      continue;
+    }
+    cur += c;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+/**
+ * 要素の customCss から、構文とエスケープ境界を検証した宣言だけを取り出す。
+ */
+export function safeCustomCssDeclarations(
+  customCss: string | undefined,
+  resolveValue?: (value: string) => string
+): string[] {
+  const raw = customCss?.replace(/[{}]/g, " ").trim() ?? "";
+  if (!raw) return [];
+  return cssDecls(raw).flatMap((declaration) => {
+    const colon = declaration.indexOf(":");
+    if (colon < 1) return [];
+    const key = declaration.slice(0, colon).trim();
+    const value = declaration.slice(colon + 1).trim();
+    if (!safeCssPropertyName(key) || !safeCssDeclarationValue(value)) return [];
+    const css = safeCssDeclaration(key, resolveValue ? resolveValue(value) : value);
+    return css ? [css] : [];
+  });
+}

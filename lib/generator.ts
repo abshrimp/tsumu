@@ -22,6 +22,7 @@ import { adobeFontHead } from "./generator/adobe-fonts";
 import { deferRunnableScripts } from "./generator/defer-scripts";
 import { codeLiteral } from "./generator/code-literal";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
+import { isSafeRedirectTarget, isSafeRewriteTarget } from "./url-policy";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetPath, isZipJavascript } from "./generator/imported-assets";
 import { generatePageFile, indexQueryVariants, needsPageStepRunner, writesNestedPageValue, queryDispatcherFile, unnestLinks } from "./generator/page";
@@ -123,7 +124,7 @@ export function generateProject(
     .map((id) => doc.pages[id])
     .filter((page) => !page.unpublished);
   const redirects = routedPages
-    .filter((page) => page.redirectTo?.trim())
+    .filter((page) => page.redirectTo?.trim() && isSafeRedirectTarget(page.redirectTo))
     .map((page) => ({
       source: configSource(page.slug),
       destination: page.redirectTo!.trim(),
@@ -133,7 +134,7 @@ export function generateProject(
   // 外部サイトの相対パス（CSS・画像・下の階層のページ）も届くよう、その配下のパスも同じ先へ中継する
   const fallbackRewrites: { source: string; destination: string }[] = [];
   const rewrites = routedPages
-    .filter((page) => page.rewriteTo?.trim())
+    .filter((page) => page.rewriteTo?.trim() && isSafeRewriteTarget(page.rewriteTo))
     .flatMap((page) => {
       const source = configSource(page.slug);
       const destination = page.rewriteTo!.trim();

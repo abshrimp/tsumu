@@ -415,11 +415,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
     }
 
+    const isGitSha = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{40}$/i.test(value);
     const assetShas = body.assetShas ?? {};
     const keptPaths = body.keptPaths ?? [];
     if (!assetShas || typeof assetShas !== "object" || Array.isArray(assetShas) ||
         Object.values(body.files).some(value => typeof value !== "string") ||
-        Object.values(assetShas).some(value => typeof value !== "string" || !value) ||
+        Object.values(assetShas).some(value => !isGitSha(value)) ||
         Object.keys(body.files).some(path => Object.hasOwn(assetShas, path))) {
       return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
@@ -487,7 +488,7 @@ export async function POST(req: Request) {
 
     // 古い「残す・削除する」の計画が新しい先端に適用されないよう、スナップショットを必須にする。
     // null は「ブランチが無かった」ことを表し、「確認を省く」という意味ではない。
-    if (!(body.expectedHead === null || (typeof body.expectedHead === "string" && body.expectedHead.length > 0))) {
+    if (!(body.expectedHead === null || isGitSha(body.expectedHead))) {
       return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
     }
     if (refRes.status === 409 || parentSha !== body.expectedHead) {

@@ -48,6 +48,7 @@ function load(path: string) {
     readActivity: async () => ({ items: [] }),
     cleanupAbandonedDocuments: async () => undefined,
     usesDocumentRooms: () => false,
+    validateDocBody: () => null,
     documentAssetReferences: async () => [{ path: "assets/example.png", bytes: 256 }],
     readAssetLedger: async () => null,
     parseCommentCursor: () => null,

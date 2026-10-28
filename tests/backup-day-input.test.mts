@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { transformSync } from "esbuild";
 
-function handler() {
+function handler(options: { siteExists?: boolean; body?: string } = {}) {
+  const { siteExists = true, body = '{"ok":true}' } = options;
   class NextResponse extends Response {
     static json(data: unknown, init?: ResponseInit) {
       return new NextResponse(JSON.stringify(data), init);
@@ -23,12 +24,22 @@ function handler() {
     "../../../../lib/db": { dbConfigured: () => true, getDb: async () => ({
       execute: async (query: { sql: string; args: unknown[] }) => {
         reads.push(query.sql);
-        if (query.sql.includes("SELECT body")) return { rows: [{ body: '{"ok":true}' }] };
+        if (query.sql.includes("SELECT body")) return { rows: [{ body }] };
         return { rows: [{ day: 0, saved_at: 1, size: 12 }] };
       },
     }) },
     "../../../../lib/server": { requireAuth: async () => null },
-    "../../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
+    "../../../../lib/doc-storage": {
+      validateDocBody: (raw: string) => {
+        try {
+          const parsed = JSON.parse(raw);
+          return parsed && typeof parsed === "object" ? null : "invalid";
+        } catch {
+          return "corrupt";
+        }
+      },
+    },
+    "../../../../lib/sites": { getSite: async () => (siteExists ? { id: "site" } : null) },
     "../../../../lib/site-server": { siteIdOf: async () => "site" },
     "../../../../lib/site-document-service": { usesDocumentRooms: () => false },
   };
@@ -64,4 +75,17 @@ test("backup API still accepts the seven documented weekdays and the listing mod
   assert.equal(list.status, 200);
   assert.deepEqual((await list.json()).backups, [{ day: 0, savedAt: 1, bytes: 12 }]);
   assert.equal(f.reads.length, 8);
+});
+
+test("backup API returns 404 for nonexistent sites and hides corrupt Japanese backup contents on 502", async () => {
+  const missing = handler({ siteExists: false });
+  assert.equal((await missing.get("")).status, 404);
+  assert.equal((await missing.get("&day=0")).status, 404);
+
+  const corrupt = handler({ body: '{"社外秘のテキスト": 壊れたJSON' });
+  const res = await corrupt.get("&day=0");
+  assert.equal(res.status, 502);
+  const text = await res.text();
+  assert.doesNotMatch(text, /社外秘/);
+  assert.deepEqual(JSON.parse(text), { error: "Couldn't load" });
 });
