@@ -46,6 +46,8 @@ export class ListDomNode {
   set selectedIndex(value: number) { this.explicitSelection = true; this.options.forEach((o, i) => { o.defaultSelected = i === value; }); }
   get defaultValue(): string { return this.tagName === "TEXTAREA" ? this.textContent : this.attrs.value ?? ""; }
   set defaultValue(value: string) { if (this.tagName === "TEXTAREA") this.textContent = value; else this.attrs.value = value; }
+  get placeholder(): string { return this.attrs.placeholder ?? ""; }
+  set placeholder(value: string) { this.attrs.placeholder = String(value); }
   get value(): string {
     if (this.tagName === "SELECT") return this.options[this.selectedIndex]?.value ?? "";
     if (this.tagName === "OPTION") return this.attrs.value ?? this.textContent;
@@ -56,6 +58,7 @@ export class ListDomNode {
     else if (this.tagName === "OPTION") this.attrs.value = value;
     else this.fieldValue = value;
   }
+  getRootNode(): ListDomNode { return this.parentElement ? this.parentElement.getRootNode() : this; }
   getAttribute(name: string) { return this.attrs[name] ?? null; }
   hasAttribute(name: string) { return Object.hasOwn(this.attrs, name); }
   setAttribute(name: string, value: string) { this.attrs[name] = String(value); }

@@ -2,16 +2,16 @@ import { fieldSubmissionAttributes, submissionAttributes } from "../imported-for
 import { assetMediaUrl } from "../media-url";
 import type { PublishTarget } from "../generator";
 import type { SiteDoc, Page, DocNode } from "../types";
-import { obfuscateVarNames, pagePlan } from "../data";
+import { listFromOf, obfuscateVarNames, pagePlan } from "../data";
 import { buildClassNames, buildAssetNames } from "./names";
 import { unnestLinks } from "./page";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
-import { hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
-import { selectDefaultValue, fieldVarName } from "../fields";
+import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
+import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
-import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
+import { compileScripts, EMPTY_GIF, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { serializePageDataPlan } from "./browser-data";
@@ -99,12 +99,12 @@ function common(ctx: Context, node: DocNode, className: string): string {
 }
 
 /** フレームワーク固有の要素のテンプレートの唯一の例外は、利用者が書いた生の HTML。 */
-function rawNode(ctx: Context, html: string, attrs = ""): string {
+function rawNode(ctx: Context, html: string, attrs = "", tag = "div"): string {
   const name = "rawBlock" + ctx.code.length;
   // 埋め込みの HTML や SVG も、通常のメディアのノードと同じ書き出したリソースを使う。
   ctx.code.push("const " + name + " = " + q(rewriteHtmlAssetUrls(ctx.doc, html, ctx.assets)) + ";");
-  if (ctx.vue) return "<div" + attrs + ' v-html="' + name + '"></div>';
-  return "<div" + attrs + ">{@html " + name + "}</div>";
+  if (ctx.vue) return "<" + tag + attrs + ' v-html="' + name + '"></' + tag + ">";
+  return "<" + tag + attrs + ">{@html " + name + "}</" + tag + ">";
 }
 
 function node(ctx: Context, id: string, top = false): string {
@@ -131,13 +131,28 @@ function node(ctx: Context, id: string, top = false): string {
       const im = n.image;
       const source = im.assetId && ctx.assets.get(im.assetId) ?
         assetMediaUrl("/assets/" + ctx.assets.get(im.assetId), im.assetSuffix) : im.src;
-      return "<img" + attrs + srcAttr(ctx, "src", source, true) + literal("alt", im.alt) +
+      const safeStatic = source ? safeResourceUrl(source) : "";
+      const imageSrc = hasVars(source)
+        ? srcAttr(ctx, "src", source, true)
+        : literal("src", !safeStatic || safeStatic === "#" ? EMPTY_GIF : safeStatic);
+      const crisp = crispSvgSize(ctx.doc, n);
+      if (crisp) {
+        return "<span" + attrs.replace(literal("class", cls), literal("class", "crisp-svg " + cls)) +
+          literal("style", "--crisp-svg-width:" + crisp.width + "px;--crisp-svg-ratio:" + crisp.width + "/" + crisp.height) + ">" +
+          '<svg aria-hidden="true"' + literal("width", crisp.width) + literal("height", crisp.height) +
+          literal("viewBox", "0 0 " + crisp.width + " " + crisp.height) + "></svg>" +
+          "<img" + imageSrc + literal("alt", im.alt) +
+          literal("width", crisp.width * 2) + literal("height", crisp.height * 2) +
+          literal("fetchpriority", im.priority ? "high" : undefined) +
+          (ctx.vue ? ">" : " />") + "</span>";
+      }
+      return "<img" + attrs + imageSrc + literal("alt", im.alt) +
         literal("width", im.width || 800) + literal("height", im.height || 500) +
         literal("fetchpriority", im.priority ? "high" : undefined) +
         (ctx.vue ? ">" : " />");
     }
     if (n.type === "code" && n.code) return rawNode(ctx, n.code.html, attrs);
-    if (n.type === "icon" && n.icon) return rawNode(ctx, n.icon.svg, attrs);
+    if (n.type === "icon" && n.icon) return rawNode(ctx, n.icon.svg, attrs + ' aria-hidden="true"', "span");
     if (n.type === "media" && n.media) {
       const media = n.media;
       const tag = media.kind === "audio" ? "audio" : "video";
@@ -220,15 +235,18 @@ function node(ctx: Context, id: string, top = false): string {
         return "<input" + attrs + fields + ' type="file"' + literal("accept", f.accept) +
           truth("multiple", f.multiple) + (ctx.vue ? ">" : " />");
       }
-      return "<input" + attrs + fields + fieldEvent("input") + literal("type", f.inputType || "text") +
-        valueAttr(ctx, "placeholder", f.placeholder) + valueAttr(ctx, "value", f.defaultValue) +
-        valueAttr(ctx, "min", f.min) + valueAttr(ctx, "max", f.max) + valueAttr(ctx, "step", f.step) +
-        literal("maxlength", f.maxLength) + (ctx.vue ? ">" : " />");
+      const inputType = f.inputType || "text";
+      const bounds = RANGED_INPUTS.has(inputType)
+        ? valueAttr(ctx, "min", f.min) + valueAttr(ctx, "max", f.max) + valueAttr(ctx, "step", f.step) : "";
+      return "<input" + attrs + fields + fieldEvent("input") + literal("type", inputType) +
+        (inputType === "color" || inputType === "range" ? "" : valueAttr(ctx, "placeholder", f.placeholder)) +
+        valueAttr(ctx, "value", f.defaultValue) + bounds +
+        (TEXT_INPUTS.has(inputType) ? literal("maxlength", f.maxLength) : "") + (ctx.vue ? ">" : " />");
     }
     if (n.type === "list" && n.list) {
       const row = "row" + ctx.level;
       const index = "index" + ctx.level;
-      const from = n.list.from || "";
+      const from = listFromOf(n) || "";
       const listExpr = "listItemsWithOps(listOps, scope, " + q(from) + ", " + (n.list.limit || 0) +
         (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
       const prior = ctx.rows, level = ctx.level;

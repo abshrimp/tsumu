@@ -2,7 +2,7 @@
  * スクリプトの実行ランタイム（プレビューと書き出したサイトで共用する）と、使う機能だけを残す書き出しの処理
  */
 
-import { NAVIGATION_RUNTIME } from "./url-policy";
+import { NAVIGATION_RUNTIME, RESOURCE_URL_RUNTIME } from "./url-policy";
 import { type ScriptCond, type ScriptStep, type ScriptTrigger, type SiteDoc } from "./types";
 import { listFromOf, pagePlan, toListItem } from "./data";
 import { extractVars, hardNavPatterns } from "./vars";
@@ -29,6 +29,7 @@ import { preferredScrollBehavior } from "./scroll-behavior";
  */
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
+  ${RESOURCE_URL_RUNTIME}
   var writeVarPath = (${setVarPath.toString()});
   var withinValueLimit = (${withinScriptValueLimit.toString()});
   var matchValueCondition = (${matchesValueCondition.toString()});
@@ -680,6 +681,18 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (inTpl(el) || el.hasAttribute("data-edited")) return;
           var nv = resolve(el.getAttribute("data-live-value"), el);
           if (el.value !== nv) el.value = nv;
+        });
+        root.querySelectorAll("[data-live-src]").forEach(function (el) {
+          if (inTpl(el)) return;
+          var raw = resolve(el.getAttribute("data-live-src"), el);
+          var safe = raw ? safeResourceUrl(raw) : "";
+          var nextSrc = !safe || safe === "#" ? "${EMPTY_GIF}" : safe;
+          if (el.getAttribute("src") !== nextSrc) el.setAttribute("src", nextSrc);
+        });
+        root.querySelectorAll("[data-live-href]").forEach(function (el) {
+          if (inTpl(el)) return;
+          var nextHref = safeNavigationUrl(resolveUrl(el.getAttribute("data-live-href"), el));
+          if (el.getAttribute("href") !== nextHref) el.setAttribute("href", nextHref);
         });
         /*#clist*/
         // 選択肢の文字を先に直してから select の値を選ぶ。同じスクリプトの次の行も新しい値を読む。
@@ -2207,6 +2220,8 @@ export function usesLiveFields(doc: SiteDoc): boolean {
       const n = doc.nodes[id];
       const strs = [
         n?.text?.content,
+        !n?.image?.assetId ? n?.image?.src : undefined,
+        n?.link?.kind === "url" ? n.link.url : undefined,
         n?.field?.placeholder,
         n?.field?.defaultValue,
         n?.field?.label,

@@ -415,3 +415,15 @@ test("the script runtime parses as JavaScript (preview and export run it with ne
   // テンプレート文字列の中の正規表現は、\\/ と書かないと / で終わり、プレビューのキャンバスごと落ちる
   assert.doesNotThrow(() => new Function(`return (${SCRIPT_RUNTIME})`));
 });
+
+test("Next.js live URL and image bindings emit data-live attributes and avoid stale SmartLink props", () => {
+  const qField: DocNode = { ...makeBox(), id: "q", attrId: "q", type: "field", field: { kind: "input", inputType: "text" } };
+  const liveImg: DocNode = { ...makeBox(), id: "img", type: "image", image: { src: "https://cdn.example.com/{q}.png", alt: "Preview", width: 80, height: 80 } };
+  const liveLink: DocNode = { ...makeBox(), id: "lnk", text: { content: "Open", heading: 0 }, link: { kind: "url", url: "https://example.com/search?q={q}" } };
+  const doc = site([qField, liveImg, liveLink]);
+  const { files } = generateProject(doc);
+  assert.match(files["app/page.tsx"], /data-live-src=\{interpolate\("https:\/\/cdn\.example\.com\/\{q\}\.png"/);
+  assert.match(files["app/page.tsx"], /<a [^>]*data-live-href=\{interpolate\("https:\/\/example\.com\/search\?q=\{q\}"/);
+  assert.doesNotMatch(files["app/page.tsx"], /<SmartLink[^>]*data-live-href/);
+});
+

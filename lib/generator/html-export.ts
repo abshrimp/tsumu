@@ -5,7 +5,7 @@
 import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
 import type { DocNode, Page, SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
-import { obfuscateVarNames, pagePlan } from "../data";
+import { listFromOf, obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetSrc } from "../assets";
@@ -122,13 +122,13 @@ function rewriteRootUrls(
 }
 
 /** Tsumu のブラウザのランタイムが各行を複製するまで、リストの項目の字句を残す。 */
-function templateParts(value: string): string {
-  const out: (string | { name: string })[] = [];
+function templateParts(value: string, includeOffset = false): string {
+  const out: (string | { name: string; at?: number })[] = [];
   let from = 0;
   for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>]+)\}|\[slug\]/g)) {
     const at = m.index ?? 0;
     out.push(value.slice(from, at));
-    out.push(m[0] === "\\{" ? "{" : { name: m[1] ?? "slug" });
+    out.push(m[0] === "\\{" ? "{" : includeOffset ? { name: m[1] ?? "slug", at } : { name: m[1] ?? "slug" });
     from = at + m[0].length;
   }
   out.push(value.slice(from));
@@ -232,19 +232,20 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
   const formAttrs = Object.entries(fieldSubmissionAttributes(n, action => href(ctx, action, true)))
     .map(([key, value]) => attr(key, value)).join("");
   const shared = formAttrs + attr("name", name || undefined) + flag("required", f.required) + flag("disabled", f.disabled);
-  const dynamic = (key: string, value?: string) => value && hasVars(value)
+  const dynamic = (key: string, value?: string) => !ctx.template && value && hasVars(value)
     ? attr("data-live-" + key, value) : "";
+  const fieldParts = (key: string, value?: string) => ctx.template && value && hasVars(value)
+    ? attr("data-field-" + key + "-parts", templateParts(value)) : "";
   if (f.kind === "submit") {
     const label = f.label ?? "送信";
     return "<button" + attrs + ' type="submit"' + attr("value", f.submitValue) + shared +
-      (hasVars(label) ? attr("data-live", label) : "") + ">" + escapeHtml(label) + "</button>";
+      (!ctx.template && hasVars(label) ? attr("data-live", label) : "") + fieldParts("text", label) + ">" + escapeHtml(label) + "</button>";
   }
   if (f.kind === "textarea") {
     return "<textarea" + attrs + shared + attr("placeholder", f.placeholder) +
-      dynamic("placeholder", f.placeholder) +
+      dynamic("placeholder", f.placeholder) + fieldParts("placeholder", f.placeholder) +
       attr("rows", f.rows) + attr("maxlength", f.maxLength) +
-      dynamic("value", f.defaultValue) +
-      (f.defaultValue && ctx.template && hasVars(f.defaultValue) ? attr("data-field-value-parts", templateParts(f.defaultValue)) : "") + ">" +
+      dynamic("value", f.defaultValue) + fieldParts("value", f.defaultValue) + ">" +
       escapeHtml(f.defaultValue || "") + "</textarea>";
   }
   if (f.kind === "select") {
@@ -253,10 +254,8 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
     const selected = Math.max(0, values.findIndex((o) => o.value === initial));
     return "<select" + attrs + shared + ">" + values.map((o, index) =>
       "<option" + attr("value", o.value) + flag("selected", index === selected) +
-      (hasVars(o.value) ? attr("data-live-value", o.value) : "") +
-      (hasVars(o.value) && ctx.template ? attr("data-field-value-parts", templateParts(o.value)) : "") +
-      (hasVars(o.label) ? attr("data-static-option", o.label) : "") +
-      (hasVars(o.label) && ctx.template ? attr("data-field-text-parts", templateParts(o.label)) : "") +
+      dynamic("value", o.value) + fieldParts("value", o.value) +
+      (!ctx.template && hasVars(o.label) ? attr("data-live", o.label) : "") + fieldParts("text", o.label) +
       ">" + escapeHtml(o.label) + "</option>").join("") + "</select>";
   }
   if (f.kind === "checkbox" || f.kind === "radio") {
@@ -265,8 +264,8 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
     const input = "<input" + (bare ? attrs : "") + attr("type", f.kind) + shared +
       attr("value", f.submitValue ?? (f.kind === "checkbox" ? "true" : text)) + flag("checked", f.checked) + ">";
     if (bare) return input;
-    return "<label" + attrs + ">" + input + "<span" + (hasVars(text) ? attr("data-live", text) : "") +
-      (hasVars(text) && ctx.template ? attr("data-field-text-parts", templateParts(text)) : "") + ">" +
+    return "<label" + attrs + ">" + input + "<span" + (!ctx.template && hasVars(text) ? attr("data-live", text) : "") +
+      fieldParts("text", text) + ">" +
       escapeHtml(text) + "</span></label>";
   }
   if (f.kind === "file") {
@@ -278,8 +277,8 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
     ? attr("min", f.min) + attr("max", f.max) + attr("step", f.step) : "";
   return "<input" + attrs + attr("type", type) + shared + bounds +
     (type === "color" || type === "range" ? "" :
-      attr("placeholder", f.placeholder) + dynamic("placeholder", f.placeholder)) +
-    attr("value", f.defaultValue) + dynamic("value", f.defaultValue) +
+      attr("placeholder", f.placeholder) + dynamic("placeholder", f.placeholder) + fieldParts("placeholder", f.placeholder)) +
+    attr("value", f.defaultValue) + dynamic("value", f.defaultValue) + fieldParts("value", f.defaultValue) +
     (TEXT_INPUTS.has(type) ? attr("maxlength", f.maxLength) : "") + ">";
 }
 
@@ -309,7 +308,7 @@ function render(ctx: Context, id: string, top: boolean): string {
       const im = n.image;
       const src = im.assetId ? assetMediaUrl(resource(ctx, im.assetId), im.assetSuffix) : sourceHref(ctx, im.src);
       const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
-        (hasVars(src) ? attr("data-static-src", src) : "") +
+        (!ctx.template && hasVars(src) ? attr("data-live-src", src) : "") +
         (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src)) : "") +
         attr("alt", im.alt);
       const crisp = crispSvgSize(ctx.doc, n);
@@ -362,7 +361,7 @@ function render(ctx: Context, id: string, top: boolean): string {
       let inside = "";
       try { inside = n.children.map((cid) => render(ctx, cid, false)).join("\n"); }
       finally { ctx.template = old; }
-      return "<div" + commonAttrs + attr("data-array", n.list.from) +
+      return "<div" + commonAttrs + attr("data-array", listFromOf(n)) +
         attr("data-limit", n.list.limit) + " data-client-list>" +
         '<div data-tpl hidden style="display:none">' + inside + "</div></div>";
     }
@@ -385,7 +384,7 @@ function render(ctx: Context, id: string, top: boolean): string {
       const destination = n.link.kind === "page" && n.link.pageId
         ? pageHref(ctx, n.link.pageId) : href(ctx, n.link.url || "#");
       extra += attr("href", destination) +
-        (hasVars(destination) ? attr("data-static-href", destination) : "");
+        (hasVars(destination) ? (ctx.template ? attr("data-href-parts", templateParts(destination, true)) : attr("data-live-href", destination)) : "");
       if (n.link.newTab) extra += ' target="_blank" rel="noopener noreferrer"';
     }
     const wasForm = ctx.form;

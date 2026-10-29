@@ -620,13 +620,14 @@ function nodeFetchDoc(): SiteDoc {
   return doc;
 }
 
-test("real duplicatePage cannot redirect a node fetch response into the copied page's identical step ID", async () => {
+test("real duplicatePage assigns independent script and step IDs and keeps fetch responses on the authoring node", async () => {
   const mounted = mount({ doc: nodeFetchDoc(), nodeId: "act", owner: { nodeId: "act", scriptId: "node-script" } });
   useEditor.getState().duplicatePage("p");
   const copiedPage = useEditor.getState().activePageId;
   const copiedNode = useEditor.getState().doc.pages[copiedPage].children[0];
   const originalCopy = structuredClone(useEditor.getState().doc.nodes[copiedNode]);
-  assert.equal(originalCopy.scripts![0].steps[0].id, "fetch");
+  assert.notEqual(originalCopy.scripts![0].id, "node-script");
+  assert.notEqual(originalCopy.scripts![0].steps[0].id, "fetch");
   void mounted.run(); await mounted.finish(0, latest);
   assert.deepEqual(mounted.step()!.preview?.sample, latest);
   assert.deepEqual(useEditor.getState().doc.nodes[copiedNode], originalCopy);
@@ -696,7 +697,11 @@ test("same-page nodes with copied identical script and step IDs remain separate 
   useEditor.getState().duplicatePage("p");
   const copiedPage = useEditor.getState().activePageId;
   const copiedNode = useEditor.getState().doc.pages[copiedPage].children[0];
-  useEditor.getState().updateDoc((doc) => { doc.pages[copiedPage].children = []; doc.pages.p.children.push(copiedNode); });
+  useEditor.getState().updateDoc((doc) => {
+    doc.nodes[copiedNode].scripts = structuredClone(doc.nodes.act.scripts);
+    doc.pages[copiedPage].children = [];
+    doc.pages.p.children.push(copiedNode);
+  });
   const copy = structuredClone(useEditor.getState().doc.nodes[copiedNode]);
   assert.equal(copy.scripts![0].id, "node-script"); assert.equal(copy.scripts![0].steps[0].id, "fetch");
   void mounted.run(); await mounted.finish(0, latest);

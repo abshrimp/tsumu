@@ -348,6 +348,11 @@ ${indent}</div>`;
       if (ctx.inTemplate) {
         // 項目が届いてから一度だけ解決する。代替値に含まれる波括弧は、文字として残す。
         srcAttr += ` data-image-src-parts={JSON.stringify(${textParts(src, base)})}`;
+      } else if (livesHere(ctx)) {
+        const keep = keepTokens(src, ctx.isLive);
+        if (Object.keys(keep).length) {
+          srcAttr += ` data-live-src={interpolate(${JSON.stringify(src)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
+        }
       }
     }
     // Next.js 16 では priority が非推奨のため、preload を使い、取得の優先度も上げる
@@ -564,11 +569,15 @@ ${indent}</div>`;
     ctx.usesInterpolate = true;
     const base = ctx.varsExpr ?? "vars";
     const href = `{safeNavigationUrl(interpolateUrl(${JSON.stringify(node.link.url)}, ${base}))}`;
+    const keep = !ctx.inTemplate && livesHere(ctx) ? keepTokens(node.link.url!, ctx.isLive) : {};
+    const hasLiveHref = Object.keys(keep).length > 0;
     if (ctx.inTemplate) {
       // URL の元の区切りと参照した値だけを残し、行の値で一度だけ解決する。
       attrs += ` data-href-parts={JSON.stringify(${textParts(node.link.url!, base, true)})}`;
+    } else if (hasLiveHref) {
+      attrs += ` data-live-href={interpolate(${JSON.stringify(node.link.url)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
     }
-    if (!node.link.newTab) {
+    if (!node.link.newTab && !hasLiveHref) {
       // 行き先は値が入るまで分からない（{link} が外部の URL のこともある）ため、
       // 表示するときの値がサイト内のページなら Link に、それ以外なら a にする
       ctx.usesSmartLink = true;

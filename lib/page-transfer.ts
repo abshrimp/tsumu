@@ -6,10 +6,10 @@
  * コピー先のサイトの編集データ（サーバー / このブラウザの保存）に書き足す
  */
 
-import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } from "./types";
+import type { BreakpointDef, DocNode, NodeStyles, Page, SiteDoc } from "./types";
 import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from "./clip-transfer";
 import { createInitialDoc, genId } from "./presets";
-import { cloneSteps, remapPageLinks, scriptUid } from "./script";
+import { cloneScripts, remapPageLinks } from "./script";
 import { createPageNaming } from "./page-naming";
 import { isLocalSiteDeleted, loadLocalSites } from "./site";
 import { validSiteDoc } from "./doc-tree";
@@ -124,17 +124,14 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
   const toPage = (id: string) => {
     const copied = pageMap.get(id);
     if (copied) return copied;
-    const slug = p.slugs[id];
-    return (slug !== undefined && byUrl.get(urlKey(slug, p.queries[id]))) || id;
+    const slug = Object.hasOwn(p.slugs, id) ? p.slugs[id] : undefined;
+    const query = Object.hasOwn(p.queries, id) ? p.queries[id] : undefined;
+    return (slug !== undefined && byUrl.get(urlKey(slug, query))) || id;
   };
 
   // 新しく取り込んだマスターの中のリンクも付け替える。既存のマスターは変えない。
   for (const n of componentNodes) remapPageLinks(n, toPage);
 
-  // ページのスクリプトの画面は、スクリプトとその入れ子のブロックを ID で扱う。
-  // 同じページを2回コピーしても、編集や選択の対象があいまいにならないようにする。
-  const cloneScripts = <T extends { id: string; steps: ScriptStep[] }>(scripts: T[] | undefined): T[] | undefined =>
-    scripts?.map((s) => ({ ...s, id: scriptUid(), steps: cloneSteps(s.steps) }));
   const nodeMap = new Map<string, string>();
   for (const n of p.nodes) nodeMap.set(n.id, genId("node"));
   for (const raw of p.nodes) {
@@ -165,7 +162,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     remapPageLinks(page, toPage);
     // フォルダは名前で探し、無ければ同じ名前で作る
     delete page.folderId;
-    const folderName = p.folders[raw.id];
+    const folderName = Object.hasOwn(p.folders, raw.id) ? p.folders[raw.id] : undefined;
     if (folderName) {
       let folder = d.pageFolders?.find((f) => f.name === folderName);
       if (!folder) {

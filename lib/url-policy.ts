@@ -65,3 +65,10 @@ export const NAVIGATION_RUNTIME = String.raw`function safeNavigationUrl(value) {
   if ((scheme === "http" || scheme === "https") && !/^https?:\/\//i.test(url)) return "#";
   return url;
 }`;
+
+export const RESOURCE_URL_RUNTIME = String.raw`function safeResourceUrl(value) {
+  var url = value.trim();
+  if (/^data:(?:image|video|audio)\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+(?:#[^\u0000-\u001f\u007f]*)?$/i.test(url)) return url;
+  if (/^blob:/i.test(url)) return url;
+  return safeNavigationUrl(url);
+}`;

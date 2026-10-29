@@ -95,7 +95,7 @@ test("relative links from a nested static page resolve from its editor URL", () 
   const links = [...html.matchAll(/<a\b[^>]* href="([^"]+)"/g)].map(match =>
     new URL(match[1], "file:///archive/guide/start/index.html").href);
   assert.ok(links.includes(new URL("guide/連絡/index.html?view={filter}#hours", "file:///archive/").href));
-  assert.match(html, /data-static-href="[^"]*\?view=\{filter\}#hours"/);
+  assert.match(html, /data-live-href="[^"]*\?view=\{filter\}#hours"/);
   assert.ok(links.includes("file:///archive/guide/map.pdf"));
   assert.ok(html.includes('action="../../guide/%E9%80%A3%E7%B5%A1"'));
   for (const location of ["head", "body"]) {
@@ -360,3 +360,89 @@ test("scoped files are selected by local URLs, CSS tokens and JavaScript literal
   doc.customHeadHtml = '<base href="https://outside.example/">';
   assert.deepEqual(Object.keys(generateExportProject(doc, options).binaries), []);
 });
+
+test("HTML export hydrates data-live-src, data-live-href, option data-live, and client-list field templates safely", async () => {
+  const { listRuntimeDom } = await import("./helpers/list-runtime-dom");
+  const doc = fixture();
+  doc.nodes.liveImg = {
+    ...makeBox(), id: "liveImg", attrId: "liveImg", type: "image",
+    image: { src: "{avatar}", alt: "Avatar", width: 40, height: 40 },
+  };
+  doc.nodes.liveLink = {
+    ...makeBox(), id: "liveLink", attrId: "liveLink",
+    text: { content: "Visit", heading: 0 },
+    link: { kind: "url", url: "{dest}" },
+  };
+  doc.nodes.liveSelect = {
+    ...makeBox(), id: "liveSelect", attrId: "liveSelect", type: "field",
+    field: { kind: "select", options: [{ label: "Pick {label}", value: "a" }] },
+  };
+  doc.nodes.rowInput = {
+    ...makeBox(), id: "rowInput", attrId: "rowInput", type: "field",
+    field: { kind: "input", inputType: "text", placeholder: "Hint {hint}", defaultValue: "{val}" },
+  };
+  doc.nodes.rowLink = {
+    ...makeBox(), id: "rowLink", attrId: "rowLink",
+    text: { content: "Item", heading: 0 },
+    link: { kind: "url", url: "{url}" },
+  };
+  doc.nodes.clientList = {
+    ...makeBox(), id: "clientList", type: "list",
+    list: { from: "rows" },
+    children: ["rowInput", "rowLink"],
+  };
+  doc.nodes.applyBtn = {
+    ...makeBox(), id: "applyBtn", attrId: "applyBtn", semantic: "button",
+    text: { content: "Apply", heading: 0 },
+    scripts: [{
+      id: "sc_apply", trigger: "click",
+      steps: [
+        { id: "s1", kind: "set-var", into: "avatar", value: "https://example.com/u.png" },
+        { id: "s2", kind: "set-var", into: "dest", value: "https://example.com/go" },
+        { id: "s3", kind: "set-var", into: "label", value: "Alpha" },
+        { id: "s4", kind: "set-var", into: "rows", value: '[{"hint":"Name","val":"Alice","url":"https://example.com/alice"},{"hint":"Bad","val":"Eve","url":"javascript:alert(1)"}]' },
+      ],
+    }],
+  };
+  doc.nodes.blockBtn = {
+    ...makeBox(), id: "blockBtn", attrId: "blockBtn", semantic: "button",
+    text: { content: "Block", heading: 0 },
+    scripts: [{
+      id: "sc_block", trigger: "click",
+      steps: [
+        { id: "b1", kind: "set-var", into: "avatar", value: "javascript:alert(1)" },
+        { id: "b2", kind: "set-var", into: "dest", value: "https:\\\\evil.example" },
+      ],
+    }],
+  };
+  doc.pages.home.children = ["liveImg", "liveLink", "liveSelect", "clientList", "applyBtn", "blockBtn"];
+
+  const out = generateExportProject(doc, "html");
+  const html = out.files["index.html"];
+  assert.doesNotMatch(html, /data-static-(?:src|href|option)/);
+  assert.match(html, /data-live-src="\{_\d+\}"/);
+  assert.match(html, /data-live-href="\{_\d+\}"/);
+  assert.match(html, /<option value="a"[^>]* data-live="Pick \{_\d+\}">/);
+  assert.match(html, /data-field-placeholder-parts=/);
+  assert.match(html, /data-field-value-parts=/);
+  assert.match(html, /data-href-parts=/);
+
+  const dom = listRuntimeDom(html, out.files["scripts.js"], {
+    window: { __pageDataReady: Promise.resolve({}) },
+    location: { search: "", href: "https://example.com/" },
+  });
+  await new Promise((r) => setImmediate(r));
+  await dom.click("applyBtn");
+  assert.equal(dom.active("#liveImg")[0].getAttribute("src"), "https://example.com/u.png");
+  assert.equal(dom.active("#liveLink")[0].getAttribute("href"), "https://example.com/go");
+  assert.equal(dom.active("#liveSelect")[0].options[0].textContent, "Pick Alpha");
+  assert.equal(dom.active("#rowInput")[0].placeholder, "Hint Name");
+  assert.equal(dom.active("#rowInput")[0].value, "Alice");
+  assert.equal(dom.active("#rowLink")[0].getAttribute("href"), "https://example.com/alice");
+  assert.equal(dom.active("#rowLink")[1].getAttribute("href"), "javascript%3Aalert(1)");
+
+  await dom.click("blockBtn");
+  assert.match(dom.active("#liveImg")[0].getAttribute("src") ?? "", /^data:image\/gif;base64,/);
+  assert.equal(dom.active("#liveLink")[0].getAttribute("href"), "#");
+});
+

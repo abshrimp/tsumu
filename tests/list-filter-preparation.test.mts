@@ -81,3 +81,41 @@ test("unused operands remain lazy, including empty input and short-circuited fil
     { kind: "filter", conds: [{ field: "value", op: "eq", value: "false" }, { field: "value", op: "eq", and: true, get value(): string { throw new Error("unused operand"); } }] },
   ]), []);
 });
+
+test("listFilterFields and pagePlan retain list-display filter steps whose primary field is blank but secondary or-conditions are populated", async () => {
+  const { pagePlan } = await import("../lib/data");
+  const { listFilterFields } = await import("../lib/script");
+  const { makeBox } = await import("../lib/presets");
+  const doc = {
+    siteName: "Filter Or",
+    pageOrder: ["home"],
+    assets: {},
+    nodes: { box: { ...makeBox(), id: "box" } },
+    pages: {
+      home: {
+        id: "home", name: "Home", slug: "", title: "Home", description: "", children: ["box"],
+        pageScripts: [{
+          id: "load", trigger: "load" as const,
+          steps: [
+            { id: "f1", kind: "fetch" as const, url: "https://api.example.com/tasks", as: "tasks" },
+            {
+              id: "flt", kind: "list-display" as const, mode: "filter" as const,
+              array: "tasks", field: "", op: "eq" as const, value: "", dir: "asc" as const,
+              or: [{ field: "status", op: "eq" as const, value: "open" }],
+            },
+          ],
+        }],
+      },
+    },
+  };
+  assert.deepEqual([...(listFilterFields(doc).get("tasks") ?? [])], ["status"]);
+  const plan = pagePlan(doc, "home");
+  assert.ok(plan.serverIds.has("flt"));
+  assert.deepEqual(plan.listOps.get("tasks"), [{
+    kind: "filter",
+    conds: [{ field: "status", op: "eq", value: "open" }],
+    no: undefined,
+    join: undefined,
+  }]);
+});
+

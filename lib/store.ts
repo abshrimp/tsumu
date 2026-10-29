@@ -42,7 +42,7 @@ import {
   type ClipPayload,
 } from "./clip-transfer";
 import { storageKey } from "./storage-keys";
-import { remapPageLinks, withPageScripts, type PageScript } from "./script";
+import { cloneScripts, remapPageLinks, stripDeletedPageScripts, withPageScripts, type PageScript } from "./script";
 import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 import { sameDocContent, shareUnchangedDoc } from "./doc-share";
 import { placePageFolder, retainPageFolderSlots, type FolderPlacement } from "./page-panel-order";
@@ -1775,6 +1775,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         const copy = structuredClone(doc.nodes[id]);
         copy.id = genId("node");
         copy.children = copy.children.map(cloneTree);
+        if (copy.scripts) copy.scripts = cloneScripts(copy.scripts);
         remapPageLinks(copy, toPage);
         next.nodes[copy.id] = copy;
         return copy.id;
@@ -1785,8 +1786,10 @@ export const useEditor = create<EditorStore>((set, get) => {
         const src = doc.pages[pageId];
         const { name, slug } = naming.copy(src, "duplicate");
         const id = copies.get(pageId)!;
+        const clonedPage = structuredClone(src);
+        if (clonedPage.pageScripts) clonedPage.pageScripts = cloneScripts(clonedPage.pageScripts);
         next.pages[id] = {
-          ...structuredClone(src), id, name, slug, children: src.children.map(cloneTree),
+          ...clonedPage, id, name, slug, children: src.children.map(cloneTree),
           // 複製元のタイトルを保ち、初めてページ名を確定したときに更新する。
           titlePending: true,
         };
@@ -1816,11 +1819,18 @@ export const useEditor = create<EditorStore>((set, get) => {
           delete d.pages[pageId];
         }
         d.pageOrder = d.pageOrder.filter((p) => !ids.has(p));
-        // 削除したページを指すリンクを取り除く
+        if (d.loadingScreen?.pageId && ids.has(d.loadingScreen.pageId)) {
+          d.loadingScreen = { ...d.loadingScreen, enabled: false, pageId: undefined };
+        }
+        // 削除したページを指すリンクやスクリプトの手順を取り除く
         for (const n of Object.values(d.nodes)) {
           if (n.link?.kind === "page" && n.link.pageId && ids.has(n.link.pageId)) {
             n.link = null;
           }
+          if (n.scripts) n.scripts = stripDeletedPageScripts(n.scripts, ids);
+        }
+        for (const page of Object.values(d.pages)) {
+          if (page.pageScripts) page.pageScripts = stripDeletedPageScripts(page.pageScripts, ids);
         }
       });
       if (ids.has(get().activePageId)) {

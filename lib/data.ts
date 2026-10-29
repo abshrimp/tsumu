@@ -696,7 +696,7 @@ export function pagePlan(
       } else if (
         st.kind === "list-display" && st.mode !== "clear" &&
         st.array &&
-        st.field &&
+        (st.mode === "filter" ? filterConds(st).length > 0 : Boolean(st.field)) &&
         !isClient(st.array) &&
         !dynamicArrays.has(st.array) &&
         !(
@@ -708,7 +708,7 @@ export function pagePlan(
           st.array,
           st.mode === "filter"
             ? { kind: "filter", conds: filterConds(st), no: st.no, join: st.join }
-            : { kind: "sort", field: st.field, dir: st.dir }
+            : { kind: "sort", field: st.field!, dir: st.dir }
         );
         serverIds.add(st.id);
       } else if (

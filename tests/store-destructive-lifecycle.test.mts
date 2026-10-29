@@ -46,3 +46,53 @@ test("document replacement keeps valid node selection but discards old text rang
   assert.equal(useEditor.getState().textSel, null);
   assert.deepEqual(useEditor.getState().doc, doc);
 });
+
+test("duplicatePages assigns fresh script and step IDs, and deletePages clears loadingScreen and open-page steps", () => {
+  const d = createInitialDoc();
+  const homeId = d.pageOrder[0];
+  d.pages.about = {
+    id: "about", name: "About", slug: "about", title: "About", description: "", children: [],
+    pageScripts: [{ id: "ps_1", trigger: "load", steps: [{ id: "st_1", kind: "wait", seconds: 1 }] }],
+  };
+  d.pageOrder.push("about");
+  const btnId = d.pages[homeId].children[0];
+  d.nodes[btnId].scripts = [
+    {
+      id: "ns_only_about", trigger: "click",
+      steps: [{
+        id: "if_1", kind: "if",
+        cond: { subject: "var", target: "", left: "1", op: "eq", value: "1" },
+        then: [{ id: "op_1", kind: "open-page", pageId: "about" }],
+      }],
+    },
+    {
+      id: "ns_mixed", trigger: "hover",
+      steps: [
+        { id: "op_2", kind: "open-page", pageId: "about" },
+        { id: "w_2", kind: "wait", seconds: 0.5 },
+      ],
+    },
+  ];
+  d.loadingScreen = { enabled: true, pageId: "about", minDuration: 0.4, fadeDuration: 0.3, frequency: "session" };
+  useEditor.getState().replaceDoc(d);
+
+  useEditor.getState().duplicatePages([homeId, "about"]);
+  const afterDup = useEditor.getState().doc;
+  const copiedAboutId = afterDup.pageOrder.find((id) => id !== homeId && id !== "about" && afterDup.pages[id].slug.startsWith("about"))!;
+  const copiedHomeId = afterDup.pageOrder.find((id) => id !== homeId && id !== "about" && id !== copiedAboutId)!;
+  assert.notEqual(afterDup.pages[copiedAboutId].pageScripts![0].id, "ps_1");
+  assert.notEqual(afterDup.pages[copiedAboutId].pageScripts![0].steps[0].id, "st_1");
+  const copiedBtn = afterDup.nodes[afterDup.pages[copiedHomeId].children[0]];
+  assert.notEqual(copiedBtn.scripts![0].id, "ns_only_about");
+  assert.notEqual(copiedBtn.scripts![0].steps[0].id, "if_1");
+
+  useEditor.getState().deletePages(["about"]);
+  const afterDel = useEditor.getState().doc;
+  assert.equal(afterDel.loadingScreen?.enabled, false);
+  assert.equal(afterDel.loadingScreen?.pageId, undefined);
+  const homeBtnScripts = afterDel.nodes[btnId].scripts!;
+  assert.equal(homeBtnScripts.length, 1);
+  assert.equal(homeBtnScripts[0].id, "ns_mixed");
+  assert.deepEqual(homeBtnScripts[0].steps.map((s) => s.kind), ["wait"]);
+});
+

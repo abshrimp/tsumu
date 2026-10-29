@@ -203,3 +203,129 @@ test("Nuxt client navigation uses browser fetch without bypassing the SSR origin
     else Reflect.deleteProperty(globalThis, "window");
   }
 });
+
+test("Native SSR socket lookup supports both Node { all: true } and single-address callbacks while blocking private DNS answers", async () => {
+  const doc = fixture();
+  doc.pages.home.pageScripts = [{
+    id: "page-data", trigger: "load", steps: [
+      { id: "request", kind: "fetch", url: "https://api.example/public", as: "records" },
+    ],
+  }];
+  const module = generateExportProject(doc, "vue").files["src/server-request.js"];
+  assert.ok(module);
+  const { requestPublic } = await import("data:text/javascript;base64," +
+    Buffer.from(module).toString("base64")) as {
+      requestPublic: (uri: string, init: RequestInit, base: string,
+        localFetch: (path: string, init: RequestInit) => Promise<Response>) => Promise<Response>;
+    };
+
+  const prevGetBuiltin = process.getBuiltinModule;
+  let capturedLookup: ((host: string, flags: { all?: boolean }, cb: (...args: any[]) => void) => void) | undefined;
+  let dnsAnswers: Array<{ address: string; family: number }> = [{ address: "93.184.216.34", family: 4 }];
+  try {
+    process.getBuiltinModule = ((id: string) => {
+      if (id === "node:dns") {
+        return {
+          lookup(_host: string, _opts: unknown, cb: (err: Error | null, res: Array<{ address: string; family: number }>) => void) {
+            cb(null, dnsAnswers);
+          },
+        };
+      }
+      if (id === "node:https") {
+        return {
+          request(_target: URL, opts: { lookup: typeof capturedLookup }, onRes: (res: any) => void) {
+            capturedLookup = opts.lookup;
+            setImmediate(() => {
+              onRes({
+                statusCode: 200,
+                headers: { "content-type": "application/json" },
+                destroy() {},
+                async *[Symbol.asyncIterator]() { yield Buffer.from('{"ok":1}'); },
+              });
+            });
+            return { on() {}, end() {}, destroy() {} };
+          },
+        };
+      }
+      return prevGetBuiltin(id);
+    }) as typeof process.getBuiltinModule;
+
+    const res = await requestPublic("https://api.example/public", {}, "https://site.example",
+      async () => { throw new Error("unexpected"); });
+    assert.deepEqual(await res.json(), { ok: 1 });
+    assert.ok(capturedLookup);
+
+    capturedLookup!("api.example", { all: true }, (err, list) => {
+      assert.equal(err, null);
+      assert.deepEqual(list, [{ address: "93.184.216.34", family: 4 }]);
+    });
+    capturedLookup!("api.example", {}, (err, addr, family) => {
+      assert.equal(err, null);
+      assert.equal(addr, "93.184.216.34");
+      assert.equal(family, 4);
+    });
+
+    dnsAnswers = [{ address: "127.0.0.1", family: 4 }];
+    capturedLookup!("api.example", { all: true }, (err, list) => {
+      assert.match(String(err), /Private DNS address blocked/);
+      assert.deepEqual(list, []);
+    });
+    capturedLookup!("api.example", {}, (err, addr, family) => {
+      assert.match(String(err), /Private DNS address blocked/);
+      assert.equal(addr, "");
+      assert.equal(family, 4);
+    });
+  } finally {
+    process.getBuiltinModule = prevGetBuiltin;
+  }
+});
+
+test("Native components render span icons, guard input attributes by type, and fall back unsafe dynamic image URLs to EMPTY_GIF", async () => {
+  const doc = fixture();
+  doc.nodes.icon = {
+    ...makeBox(), id: "icon", type: "icon",
+    icon: { name: "check", svg: '<svg viewBox="0 0 24 24"><path d="M5 12l5 5L20 7"/></svg>' },
+  };
+  doc.nodes.textInput = {
+    ...makeBox(), id: "textInput", type: "field",
+    field: { kind: "input", inputType: "text", min: "1", max: "10", step: "2", maxLength: 20, placeholder: "Name" },
+  };
+  doc.nodes.colorInput = {
+    ...makeBox(), id: "colorInput", type: "field",
+    field: { kind: "input", inputType: "color", maxLength: 7, placeholder: "Ignored" },
+  };
+  doc.assets.logo = {
+    id: "logo", name: "logo.svg", mimeType: "image/svg+xml",
+    width: 48, height: 24, svgFilter: true, dataUrl: "data:image/svg+xml;base64,PHN2Zy8+",
+  };
+  doc.nodes.svgLogo = {
+    ...makeBox(), id: "svgLogo", type: "image",
+    image: { src: "/logo.svg", assetId: "logo", alt: "Logo", width: 48, height: 24 },
+  };
+  doc.nodes.unsafeImg = {
+    ...makeBox(), id: "unsafeImg", type: "image",
+    image: { src: "javascript:alert(1)", alt: "Blocked", width: 10, height: 10 },
+  };
+  doc.pages.home.children.push("icon", "textInput", "colorInput", "svgLogo", "unsafeImg");
+
+  const vueFiles = generateExportProject(doc, "vue").files;
+  const page = vueFiles["src/pages/Page0.vue"];
+  assert.match(page, /<span[^>]*aria-hidden="true"[^>]*v-html=/);
+  assert.match(page, /type="text"[^>]*placeholder="Name"[^>]*maxlength="20"/);
+  const textInputTag = page.match(/<input[^>]*type="text"[^>]*>/)?.[0] ?? "";
+  assert.doesNotMatch(textInputTag, /\b(?:min|max|step)=/);
+  const colorInputTag = page.match(/<input[^>]*type="color"[^>]*>/)?.[0] ?? "";
+  assert.doesNotMatch(colorInputTag, /\b(?:placeholder|maxlength)=/);
+  assert.match(page, /--crisp-svg-width:48px;--crisp-svg-ratio:48\/24/);
+  assert.match(page, /<img[^>]*src="data:image\/gif;base64,[^"]*"[^>]*alt="Blocked"/);
+
+  const siteData = vueFiles["src/site-data.js"];
+  const { resolveResourceUrl } = await import("data:text/javascript;base64," +
+    Buffer.from(siteData).toString("base64")) as {
+      resolveResourceUrl: (template: string, scope: Record<string, unknown>) => string;
+    };
+  assert.equal(resolveResourceUrl("{img}", { img: "javascript:alert(1)" }), "#");
+  assert.equal(resolveResourceUrl("{img}", { img: "" }), "#");
+  assert.equal(resolveResourceUrl("{img}", { img: "https://example.com/pic.png" }), "https://example.com/pic.png");
+});
+

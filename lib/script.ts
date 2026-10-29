@@ -110,6 +110,46 @@ export function cloneSteps(steps: ScriptStep[], makeId = () => scriptUid("st")):
   );
 }
 
+/** スクリプト一覧とその中のステップを新しいIDで複製する */
+export function cloneScripts<T extends { id: string; steps: ScriptStep[] }>(
+  scripts: T[] | undefined,
+  makeScriptId = () => scriptUid(),
+  makeStepId = () => scriptUid("st"),
+): T[] | undefined {
+  return scripts?.map((s) => ({ ...s, id: makeScriptId(), steps: cloneSteps(s.steps, makeStepId) }));
+}
+
+function filterDeletedPageSteps(steps: ScriptStep[], deletedIds: ReadonlySet<string>): ScriptStep[] {
+  return steps.flatMap((st): ScriptStep[] => {
+    if (st.kind === "open-page" && deletedIds.has(st.pageId)) return [];
+    if (st.kind === "if") {
+      const hadBranches = st.then.length > 0 || (st.else?.length ?? 0) > 0;
+      const then = filterDeletedPageSteps(st.then, deletedIds);
+      const elseSteps = st.else ? filterDeletedPageSteps(st.else, deletedIds) : undefined;
+      if (hadBranches && !then.length && !elseSteps?.length) return [];
+      return [{ ...st, then, ...(elseSteps !== undefined ? { else: elseSteps } : {}) }];
+    }
+    if (st.kind === "repeat" || st.kind === "for-each") {
+      const then = filterDeletedPageSteps(st.then, deletedIds);
+      if (st.then.length > 0 && !then.length) return [];
+      return [{ ...st, then }];
+    }
+    return [st];
+  });
+}
+
+/** 削除したページを開く手順を取り除き、空になったスクリプトを除く */
+export function stripDeletedPageScripts<T extends { steps: ScriptStep[] }>(
+  scripts: T[] | undefined,
+  deletedIds: ReadonlySet<string>,
+): T[] | undefined {
+  if (!scripts?.length) return scripts;
+  const next = scripts
+    .map((s) => ({ ...s, steps: filterDeletedPageSteps(s.steps, deletedIds) }))
+    .filter((s) => s.steps.length > 0);
+  return next.length ? next : undefined;
+}
+
 /**
  * エディタのスクリプトの一覧を、保存する形に分ける。
  * allowLink のときは、最初の「クリックしたとき → 開く」だけのものを link（a タグ）にする
@@ -559,10 +599,11 @@ export function listFilterFields(doc: SiteDoc): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   for (const s of allScripts(doc)) {
     walkSteps(s.steps, (st) => {
-      if (st.kind !== "list-display" || st.mode === "clear" || !st.array || !st.field) return;
+      if (st.kind !== "list-display" || st.mode === "clear" || !st.array) return;
+      const fields = st.mode === "filter" ? filterConds(st).map((cond) => cond.field) : st.field ? [st.field] : [];
+      if (!fields.length) return;
       const set = out.get(st.array) ?? new Set<string>();
-      set.add(st.field);
-      if (st.mode === "filter") filterConds(st).forEach((cond) => set.add(cond.field));
+      for (const field of fields) set.add(field);
       out.set(st.array, set);
     });
   }

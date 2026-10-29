@@ -12,6 +12,7 @@ import { BODY_NODE_ID } from "./types";
 import { renamePage, setPageTitle } from "./pageTitle";
 import { normalizeBreakpoints } from "./style";
 import { refreshClonedIds } from "./cloneIds";
+import { MAX_NODE_DEPTH, maxSubtreeDepth } from "./doc-tree";
 import { walkSteps } from "./script";
 
 /** AIが作る要素 */
@@ -469,6 +470,10 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             errors.push(`move: element "${op.id}" was not found`);
             break;
           }
+          if (node.locked) {
+            errors.push(`move: "${op.id}" is locked`);
+            break;
+          }
           if (node.id === target.rootId) throw new Error("the component root cannot be moved");
           const parentNode = op.parent && op.parent !== "page" ? nodeOf(op.parent) : null;
           const anchor = resolve(op.after ?? op.before);
@@ -573,8 +578,11 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             errors.push(`set_image: image "${op.id}" was not found`);
             break;
           }
-          if (op.src) node.image = { ...node.image, src: op.src, assetId: undefined, width: 0, height: 0 };
-          if (op.alt !== undefined) node.image.alt = String(op.alt);
+          const image = op.src
+            ? { ...node.image, src: op.src, assetId: undefined, assetSuffix: undefined, width: 0, height: 0 }
+            : node.image;
+          if (op.alt !== undefined) image.alt = String(op.alt);
+          node.image = image;
           applied.push({ ...op, id: node.id });
           break;
         }
@@ -585,7 +593,7 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             break;
           }
           if (op.breakpoints.some((b) => !bps.has(b))) throw new Error("unknown breakpoint");
-          const list = op.breakpoints;
+          const list = [...new Set(op.breakpoints)];
           node.hiddenOn = list.length ? list : undefined;
           applied.push({ ...op, id: node.id, breakpoints: list });
           break;
@@ -642,6 +650,13 @@ export function applyAiOps(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs 
       else if (next.applied.length) {
         if (Object.keys(draft.nodes).length > initialNodeCount + MAX_AI_ADDED_NODES) {
           result.errors.push("AI edit exceeds the element growth limit");
+          continue;
+        }
+        const rootIds = target.rootId
+          ? [target.rootId]
+          : (Object.hasOwn(draft.pages, target.pageId) ? draft.pages[target.pageId]?.children ?? [] : []);
+        if (maxSubtreeDepth(draft.nodes, rootIds) > MAX_NODE_DEPTH) {
+          result.errors.push("AI edit exceeds the maximum nesting depth");
           continue;
         }
         Object.assign(doc, draft);
