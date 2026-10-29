@@ -99,7 +99,7 @@ export async function inspectAdobeProject(kitId: string, fetcher: Fetcher = fetc
       }
     }
   } catch {
-    // The older metadata endpoint can fail independently of font delivery.
+    // The public metadata endpoint can fail independently of font delivery.
   }
 
   // A failed metadata request is not proof that Adobe's CDN no longer serves the project.

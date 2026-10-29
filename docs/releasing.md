@@ -263,4 +263,4 @@ Browser storage uses `tsumu-` keys, clipboard data uses
 publish metadata in `_tsumu/`. Imports require this same document schema.
 
 Document backups, restoring, undo, and rolling back to a published version
-remain supported.
+all operate on this schema.

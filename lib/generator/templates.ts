@@ -68,18 +68,12 @@ if ("serviceWorker" in navigator) {
  * オフラインのときだけ、最後に表示したページやファイルを返す。
  */
 export const PWA_SERVICE_WORKER = `
-var CACHE = "site-pwa-v2";
+var CACHE = "site-pwa-v1";
 self.addEventListener("install", function () {
   self.skipWaiting();
 });
 self.addEventListener("activate", function (e) {
-  e.waitUntil(
-    caches.keys().then(function (keys) {
-      return Promise.all(
-        keys.filter(function (k) { return k.indexOf("site-pwa-") === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); })
-      );
-    }).then(function () { return self.clients.claim(); })
-  );
+  e.waitUntil(self.clients.claim());
 });
 self.addEventListener("fetch", function (e) {
   var req = e.request;

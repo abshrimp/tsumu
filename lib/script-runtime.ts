@@ -1664,7 +1664,7 @@ export const SCRIPT_RUNTIME = `function (env) {
                 navigator.clipboard.writeText(tx).catch(function () {});
               }
             } catch (e) {
-              // Clipboard permissions can be denied; no legacy DOM copy fallback.
+              // Clipboard permissions can be denied.
             }
             break;
           }

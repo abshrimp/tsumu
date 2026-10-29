@@ -105,7 +105,7 @@ export const publishTopics: Topic[] = [  /* ================= 公開と管理 ==
     keys: [tr("Backup"), tr("restore"), tr("export"), tr("import"), "ZIP", "JSON"],
     ctx: ["site"],
     body: [
-      { p: tr("A backup ZIP includes all site assets, even unused ones. You can also load a `doc.json` saved by an earlier editor or a published version, but a JSON file may not include remote asset contents.") },
+      { p: tr("A backup ZIP includes all site assets, even unused ones. You can also load a standalone `doc.json` or one from a published version, though a JSON file does not bundle server-stored asset files.") },
       { warn: tr("Loading replaces everything you're editing now (⌘Z right afterwards brings it back). To be safe, Export the current state first.") },
       { rule: tr("Get in the habit of exporting a backup before big rebuilds and before publishing.") },
     ],

@@ -48,41 +48,36 @@ test("site listings are filtered by explicit ownership and viewer membership", a
   }
 });
 
-test("legacy storage_schema versions are rejected without migration", async () => {
+test("unsupported storage_schema versions are rejected", async () => {
   const dir = mkdtempSync(join(tmpdir(), "tsumu-schema-strict-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
-    const initialBinding = nodeDatabase()!;
-    const db = await getDbFromBinding(initialBinding);
-    await db.execute({ sql: "UPDATE storage_schema SET version=2 WHERE name='main'", args: [] });
-    process.env.TSUMU_DATA_DIR = join(dir, "..", dir.split("/").pop()!);
-    const reopenedDir = mkdtempSync(join(tmpdir(), "tsumu-schema-v2-"));
-    try {
-      const v2Binding = {
-        __tsumuBackend: "sqlite" as const,
-        prepare(sql: string) {
-          return {
-            bind() { return this; },
-            async all() {
-              if (sql.includes("SELECT version FROM storage_schema")) {
-                return { results: [{ version: 2 }] };
-              }
-              return { results: [] };
-            },
-          };
-        },
-        async batch(stmts: Array<{ all: () => Promise<{ results?: unknown[] }> }>) {
-          return Promise.all(stmts.map((s) => s.all()));
-        },
-      };
-      await assert.rejects(
-        () => getDbFromBinding(v2Binding as unknown as Parameters<typeof getDbFromBinding>[0]),
-        /Unsupported storage schema/,
-      );
-    } finally {
-      rmSync(reopenedDir, { recursive: true, force: true });
-    }
+    const db = await getDbFromBinding(nodeDatabase()!);
+    const current = await db.execute({ sql: "SELECT version FROM storage_schema WHERE name='main'", args: [] });
+    assert.equal(Number(current.rows[0]?.version), 1);
+
+    const unsupportedBinding = {
+      __tsumuBackend: "sqlite" as const,
+      prepare(sql: string) {
+        return {
+          bind() { return this; },
+          async all() {
+            if (sql.includes("SELECT version FROM storage_schema")) {
+              return { results: [{ version: 2 }] };
+            }
+            return { results: [] };
+          },
+        };
+      },
+      async batch(stmts: Array<{ all: () => Promise<{ results?: unknown[] }> }>) {
+        return Promise.all(stmts.map((s) => s.all()));
+      },
+    };
+    await assert.rejects(
+      () => getDbFromBinding(unsupportedBinding as unknown as Parameters<typeof getDbFromBinding>[0]),
+      /Unsupported storage schema/,
+    );
   } finally {
     if (previous === undefined) delete process.env.TSUMU_DATA_DIR;
     else process.env.TSUMU_DATA_DIR = previous;

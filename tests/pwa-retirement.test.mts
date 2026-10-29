@@ -10,7 +10,7 @@ import { parseGeneratedManifest, planPublish, serializeGeneratedManifest } from 
 import type { SiteDoc } from "../lib/types";
 
 const doc: SiteDoc = {
-  siteName: "PWA lifecycle", nodes: {}, assets: {}, pageOrder: ["home"],
+  schemaVersion: 1, siteName: "PWA lifecycle", nodes: {}, assets: {}, pageOrder: ["home"],
   pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [] } },
 };
 const enabled = generateProject({ ...doc, pwa: { enabled: true } }).files;
@@ -88,7 +88,7 @@ test("reenabling replaces the retirement worker with the unchanged generated PWA
 
 for (const cacheResult of ["present", "absent", "failure"] as const) {
   test(`retirement waits for install, unregisters itself after cache ${cacheResult}, and leaves other caches alone`, async () => {
-    const storage = new Set(["customer-cache", "site-pwa-unrelated", ...(cacheResult === "absent" ? [] : ["site-pwa-v2"])]);
+    const storage = new Set(["customer-cache", "site-pwa-unrelated", ...(cacheResult === "absent" ? [] : ["site-pwa-v1"])]);
     const calls: string[] = [];
     type Handler = (event: { waitUntil: (value: Promise<unknown>) => void }) => void;
     const handlers = new Map<string, Handler>();
@@ -115,8 +115,8 @@ for (const cacheResult of ["present", "absent", "failure"] as const) {
     handlers.get("activate")!({ waitUntil: value => { activation = value; } });
     assert.ok(activation);
     await activation;
-    assert.deepEqual(calls, ["skipWaiting", "delete:site-pwa-v2", "unregister"]);
-    assert.deepEqual([...storage], ["customer-cache", "site-pwa-unrelated", ...(cacheResult === "failure" ? ["site-pwa-v2"] : [])]);
+    assert.deepEqual(calls, ["skipWaiting", "delete:site-pwa-v1", "unregister"]);
+    assert.deepEqual([...storage], ["customer-cache", "site-pwa-unrelated", ...(cacheResult === "failure" ? ["site-pwa-v1"] : [])]);
   });
 }
 

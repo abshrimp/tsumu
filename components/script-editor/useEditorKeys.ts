@@ -25,8 +25,8 @@ export interface EditorKeyState {
 }
 
 const SCRIPT_CLIP_MIME = "application/x-tsumu-script+json";
-const SCRIPT_CLIP_PREFIX = "Tsumu script actions v2\n";
-const SCRIPT_CLIP_MIRROR = storageKey("script-clipboard-v2");
+const SCRIPT_CLIP_PREFIX = "Tsumu script actions v1\n";
+const SCRIPT_CLIP_MIRROR = storageKey("script-clipboard-v1");
 const MAX_SCRIPT_CLIP_LENGTH = 8 * 1024 * 1024;
 let lastScriptClipboard: { raw: string; value: ScriptBlockClipboard } | null = null;
 let pendingWrite: Promise<boolean> | null = null;

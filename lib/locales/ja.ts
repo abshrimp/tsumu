@@ -3810,6 +3810,20 @@ const ja: Dict = {
   "Ready": "動きます",
   "Click an element on the page": "ページの上で、要素をクリック",
   "Click it on the page": "ページの上でクリックして選ぶ",
+  "Backup is incomplete: {details}": "バックアップが不完全です: {details}",
+  "Backup file": "バックアップファイル",
+  "ZIP backups include all images, fonts and other assets, even if unused.": "バックアップZIPには、未使用のものも含めて画像・フォントなどの全アセットが含まれます。",
+  "Export backup ZIP": "バックアップZIPを書き出す",
+  "Load backup file": "バックアップファイルを読み込む",
+  "Automatic backups contain editing data only. Export a backup ZIP to preserve all asset files.": "自動バックアップには編集データのみが含まれます。アセットファイル一式も保存するにはバックアップZIPを書き出してください。",
+  "Remove {email}": "{email} を削除",
+  "Email address": "メールアドレス",
+  "Permission": "権限",
+  "Couldn't load publish history": "公開履歴を読み込めませんでした",
+  "Page": "ページ",
+  "Open **History & rollback** from the \"…\" menu to export a complete ZIP backup including assets, or load a backup file. The server also keeps seven daily snapshots of the editing data.": "「…」メニューの **履歴・ロールバック** から、アセット一式を含むバックアップZIPの書き出しや、バックアップファイルの読み込みができます。サーバーにも7日分の日次バックアップが保存されます。",
+  "A backup ZIP includes all site assets, even unused ones. You can also load a standalone `doc.json` or one from a published version, though a JSON file does not bundle server-stored asset files.": "バックアップZIPには、未使用のものも含めてサイトの全アセットが含まれます。単体の `doc.json` や公開済みの版の編集データも読み込めますが、サーバー保存のアセット本体は JSON には含まれません。",
+  "The backup is too large to restore.": "バックアップが大きすぎるため復元できません。",
 };
 
 export default ja;

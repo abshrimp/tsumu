@@ -227,7 +227,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           `CREATE INDEX IF NOT EXISTS comment_messages_thread ON comment_messages (site_id, thread_id, at, id)`,
           // 文書の保存先を使う前に、スキーマのバージョンを確かめる。
           `CREATE TABLE IF NOT EXISTS storage_schema (name TEXT PRIMARY KEY, version INTEGER NOT NULL)`,
-          `INSERT OR IGNORE INTO storage_schema(name,version) VALUES('main',3)`,
+          `INSERT OR IGNORE INTO storage_schema(name,version) VALUES('main',1)`,
           // ローカルの SQLite では、任意の曜日ごとのバックアップを持つ。
           ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS site_backups (
             site_id TEXT NOT NULL,
@@ -240,7 +240,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
       )
       .then(async () => {
         const rows = await binding.prepare("SELECT version FROM storage_schema WHERE name='main'").all();
-        if (Number(rows.results?.[0]?.version) !== 3) {
+        if (Number(rows.results?.[0]?.version) !== 1) {
           throw new Error("Unsupported storage schema");
         }
       })

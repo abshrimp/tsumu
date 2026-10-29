@@ -191,7 +191,7 @@ test("unset action fields allow copying and pasting the containing block without
     return { handled: event.defaultPrevented, text: data.getData("text/plain") };
   });
   expect(copied.handled).toBe(true);
-  const payload = JSON.parse(copied.text.slice("Tsumu script actions v2\n".length));
+  const payload = JSON.parse(copied.text.slice("Tsumu script actions v1\n".length));
   expect(payload.steps).toMatchObject([{ kind: "copy", value: "" }]);
 
   const pasted = await blankInput.evaluate((input, text) => {
@@ -232,9 +232,9 @@ test("real keyboard shortcuts copy and paste an unset target picker block", asyn
   await unset.focus();
   await page.keyboard.press("ControlOrMeta+c");
   await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText()))
-    .toContain("Tsumu script actions v2");
+    .toContain("Tsumu script actions v1");
   const text = await page.evaluate(() => navigator.clipboard.readText());
-  expect(JSON.parse(text.slice("Tsumu script actions v2\n".length)).steps)
+  expect(JSON.parse(text.slice("Tsumu script actions v1\n".length)).steps)
     .toMatchObject([{ kind: "show", target: "" }]);
 
   await page.keyboard.press("ControlOrMeta+v");
@@ -262,7 +262,7 @@ test("real keyboard shortcuts copy an unset select while filled text retains nat
   await select.focus();
   await page.keyboard.press("ControlOrMeta+c");
   const raw = await page.evaluate(() => navigator.clipboard.readText());
-  expect(JSON.parse(raw.slice("Tsumu script actions v2\n".length)).steps)
+  expect(JSON.parse(raw.slice("Tsumu script actions v1\n".length)).steps)
     .toMatchObject([{ kind: "open-page", pageId: "" }]);
   await page.keyboard.press("ControlOrMeta+v");
   await expect.poll(() => kinds(page)).toBe("open-page,open-page,copy");

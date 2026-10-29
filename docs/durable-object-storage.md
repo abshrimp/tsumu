@@ -2,7 +2,7 @@
 
 ## Storage model
 
-Cloudflare persists each site's editor data in a separate SQLite-backed Durable Object (`DocumentRoom`). The HTTP API and WebSocket protocol continue to exchange ordinary `SiteDoc` JSON.
+Cloudflare persists each site's editor data in a separate SQLite-backed Durable Object (`DocumentRoom`). The HTTP API and WebSocket protocol exchange ordinary `SiteDoc` JSON.
 
 | Store | Responsibility |
 |---|---|
@@ -15,7 +15,7 @@ Cloudflare persists each site's editor data in a separate SQLite-backed Durable 
 | `CollaborationRoom` | WebSocket clients isolated by site creation key |
 | Workers KV | Uploaded file bytes; shared across sites |
 
-Node.js and Docker store the equivalent SiteDoc in their own local SQLite `docs` table, without gzip. In the absence of server storage, browser-only local persistence is unchanged.
+Node.js and Docker store the equivalent SiteDoc in their own local SQLite `docs` table, without gzip. Without server storage, documents are persisted in the browser.
 
 ## Writes and consistency
 
@@ -38,11 +38,11 @@ The D1 deletion and DO sealing are not a distributed transaction. A failed clean
 
 A file path may be referenced by more than one site's editor document, including newly imported or copied documents. Removing a reference from one site therefore does **not** immediately remove the Workers KV object. In particular, Cloudflare's asset DELETE endpoint returns `kept: true` and does not issue `KV.delete()`: a reference scan and a delete across DO and KV cannot be one atomic transaction. This intentionally favors avoiding permanent data loss over immediate storage reclamation.
 
-The opt-in [seven-day asset garbage collector](asset-gc.md) registers D1 candidates when an asset is removed from the editor. The nightly task inspects **only expired candidates** and rereads all current site documents before attempting a KV delete. A separate, paginated **weekly** KV inventory catches orphaned uploads and entire-site deletions. Deletion is disabled by default (`ASSET_GC_ENABLED=false`). Restorable backups and old GitHub `doc.json` revisions are deliberately excluded from the seven-day retention roots. A small concurrent-save race remains because DO writes and KV deletes are not atomic. Local Node/Docker behavior is unchanged.
+The opt-in [seven-day asset garbage collector](asset-gc.md) registers D1 candidates when an asset is removed from the editor. The nightly task inspects **only expired candidates** and rereads all current site documents before attempting a KV delete. A separate, paginated **weekly** KV inventory catches orphaned uploads and entire-site deletions. Deletion is disabled by default (`ASSET_GC_ENABLED=false`). Restorable backups and old GitHub `doc.json` revisions are deliberately excluded from the seven-day retention roots. A small concurrent-save race remains because DO writes and KV deletes are not atomic.
 
 ## Deployment
 
-1. Configure the `DB` (D1), `ASSETS_KV` (Workers KV), `COLLAB_ROOM` and `DOC_STORE` bindings. `DOC_STORE` must point to the SQLite-backed `DocumentRoom` class declared in `exports` alongside `CollaborationRoom`. Keep both class names and `storage: "sqlite"` unchanged to reuse the already provisioned namespaces and their data. Keep the same bindings in any separately maintained `wrangler.local.jsonc`.
+1. Configure the `DB` (D1), `ASSETS_KV` (Workers KV), `COLLAB_ROOM` and `DOC_STORE` bindings. `DOC_STORE` must point to the SQLite-backed `DocumentRoom` class declared in `exports` alongside `CollaborationRoom`. Keep both class names and `storage: "sqlite"` consistent across deployments so existing Durable Object namespaces stay attached. Keep the same bindings in any separately maintained `wrangler.local.jsonc`.
 2. Deploy the Worker and confirm that the configured D1 database and KV namespace are the intended production resources. Workers Builds can supply their IDs through `D1_DATABASE_ID` and `KV_NAMESPACE_ID` and the selected Worker name through `WRANGLER_CI_OVERRIDE_NAME`. The generated deployment config uses that Worker name, while local deployments keep the repository default.
 3. Verify site creation, opening, duplication, editing, saving, collaboration, deletion, exports and daily backups in a controlled Cloudflare environment.
 4. Measure initial load on a large site and p50/p95 patch latency, CPU and row usage before production rollout. Local SQLite tests and a successful Worker build do not establish production latency.

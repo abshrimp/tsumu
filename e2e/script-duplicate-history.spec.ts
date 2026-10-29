@@ -55,7 +55,7 @@ test("copied script actions survive text-copy attempts and remain pasteable in a
     if (!event.defaultPrevented) throw new Error("Action copy not handled");
     return data.getData("text/plain");
   });
-  expect(raw).toMatch(/^Tsumu script actions v2\n/);
+  expect(raw).toMatch(/^Tsumu script actions v1\n/);
 
   // 入力欄のコピーイベントでメモリ上の控えが消えても、OSのコピーは残り得る。
   await page.evaluate(() => {

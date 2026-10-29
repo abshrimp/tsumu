@@ -2,8 +2,8 @@
  * Cache SVG effect analysis by immutable uploaded asset path.
  *
  * A new upload always gets a new path; replacing its content therefore changes
- * the cache key. No document schema fields, migration markers, or SVG bytes are
- * persisted. Cache failures never block publishing.
+ * the cache key. Only the filter flag and dimensions are persisted, never SVG
+ * bytes. Cache failures never block publishing.
  */
 export interface SvgEffectAnalysis {
   svgFilter: boolean;

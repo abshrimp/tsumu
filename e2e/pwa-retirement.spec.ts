@@ -95,7 +95,7 @@ async function expectEnabled(page: Page, origin: string) {
 async function cacheProbe(page: Page) {
   const text = await page.evaluate(async () => (await fetch("/assets/probe.txt", { cache: "no-store" })).text());
   await expect.poll(() => page.evaluate(async () => {
-    const cache = await caches.open("site-pwa-v2");
+    const cache = await caches.open("site-pwa-v1");
     return (await cache.match("/assets/probe.txt"))?.text();
   })).toBe(text);
   return text;
@@ -109,7 +109,7 @@ async function updateAndExpectRetired(page: Page) {
     await registration.update();
   });
   await expect.poll(() => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration("/")))).toBe(false);
-  await expect.poll(() => page.evaluate(() => caches.has("site-pwa-v2"))).toBe(false);
+  await expect.poll(() => page.evaluate(() => caches.has("site-pwa-v1"))).toBe(false);
 }
 
 test("on → off retires the active worker, stops caching, and can be reenabled", async ({ page, context, pwaSite }) => {
@@ -124,7 +124,7 @@ test("on → off retires the active worker, stops caching, and can be reenabled"
   expect(pwaSite.workerResponses).toContainEqual({ revision: 2, status: 200 });
   // 既存のタブを開いたままでも、終了用の Worker は fetch のハンドラーを持ってはならない。
   expect(await page.evaluate(async () => (await fetch("/assets/after-off.txt", { cache: "no-store" })).text())).toBe("asset-2");
-  expect(await page.evaluate(() => caches.has("site-pwa-v2"))).toBe(false);
+  expect(await page.evaluate(() => caches.has("site-pwa-v1"))).toBe(false);
   await context.setOffline(true);
   expect(await page.evaluate(() => fetch("/assets/probe.txt", { cache: "no-store" }).then(() => "served", () => "offline"))).toBe("offline");
   await context.setOffline(false);

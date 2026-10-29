@@ -154,8 +154,9 @@ test("external script clipboard records must have valid nested structure", () =>
   assert.equal(isScriptBlockClipboard(JSON.parse(JSON.stringify(copied))), true);
   assert.equal(isScriptBlockClipboard({ ...copied, steps: [{ id: "bad", kind: "if" }] }), false);
   assert.equal(isScriptBlockClipboard({ ...copied, scripts: [{ id: "bad", steps: [] }] }), false);
-  assert.equal(isScriptBlockClipboard({ v: 2, scripts: [], steps: [] }), false);
-  assert.equal(isScriptBlockClipboard({ v: 2, scripts: [], steps: [{ id: "a", kind: "if", then: [{ id: "b", kind: "wait", then: [] }] }] }), false);
+  assert.equal(isScriptBlockClipboard({ ...copied, v: 2 }), false);
+  assert.equal(isScriptBlockClipboard({ v: 1, scripts: [], steps: [] }), false);
+  assert.equal(isScriptBlockClipboard({ v: 1, scripts: [], steps: [{ id: "a", kind: "if", then: [{ id: "b", kind: "wait", then: [] }] }] }), false);
 });
 
 test("unconfigured script steps keep their empty fields when copied and pasted", () => {

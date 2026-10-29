@@ -24,7 +24,7 @@ The generated Next.js, React, HTML, Vue, Nuxt and SvelteKit projects embed Adobe
 
 ## Data format
 
-The existing `SiteDoc.customFonts` array remains the Google Fonts list, unchanged. Adobe Fonts are stored in a separate optional `SiteDoc.adobeFonts` array:
+`SiteDoc.customFonts` holds the Google Fonts list, and the optional `SiteDoc.adobeFonts` array holds Adobe Fonts Web Projects:
 
 ```json
 {
@@ -35,7 +35,7 @@ The existing `SiteDoc.customFonts` array remains the Google Fonts list, unchange
 }
 ```
 
-**No migration is needed for previously saved documents.** They have no `adobeFonts` field, which means no Adobe Web Projects are configured. The existing Google Fonts entries and node `fontFamily` values are not modified. Tsumu does not maintain any legacy Adobe embed format or compatibility path.
+When `adobeFonts` is omitted, no Adobe Web Projects are configured.
 
 If you want to add Adobe Fonts directly to an exported `doc.json`, add `adobeFonts` as shown above and use the exact `family` as the node's `fontFamily` value. Re-import the edited document. For ZIP exports, the editable data lives in `_tsumu/doc.json`.
 
@@ -49,4 +49,4 @@ HTMLやJavaScriptの埋め込みコードを貼り付ける必要はありませ
 
 Adobe側のフォント一覧APIを取得できない場合は、フォント配信先も確認します。登録済みのフォントはTsumuの保存データから選べますが、新規フォントの追加には公開済みのフォント一覧が必要です。**手動入力欄は設けていません。** 一覧が表示されない場合はAdobe側のプロジェクト設定を確認してください。通信エラーは期限切れを意味しません。
 
-`SiteDoc.customFonts` は Google Fonts、`SiteDoc.adobeFonts` は Adobe Fonts の Web プロジェクトを保持します。互換用の旧埋め込み形式は設けていません。
+`SiteDoc.customFonts` は Google Fonts、`SiteDoc.adobeFonts` は Adobe Fonts の Web プロジェクトを保持します。

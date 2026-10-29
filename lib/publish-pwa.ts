@@ -24,7 +24,7 @@ export function addPwaRetirementWorker(
 });
 self.addEventListener("activate", function (e) {
   e.waitUntil(
-    caches.delete("site-pwa-v2").catch(function () {}).then(function () {
+    caches.delete("site-pwa-v1").catch(function () {}).then(function () {
       return self.registration.unregister();
     })
   );

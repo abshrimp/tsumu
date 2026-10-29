@@ -7,7 +7,7 @@ import type { ScriptStep } from "../../lib/types";
 import { insertAt, type Loc } from "./step-tree";
 
 export interface ScriptBlockClipboard {
-  v: 2;
+  v: 1;
   scripts: PageScript[];
   steps: ScriptStep[];
 }
@@ -20,7 +20,7 @@ export interface ScriptBlockClipboard {
 export function isScriptBlockClipboard(value: unknown): value is ScriptBlockClipboard {
   if (!value || typeof value !== "object") return false;
   const payload = value as Partial<ScriptBlockClipboard>;
-  if (payload.v !== 2 || !Array.isArray(payload.steps) || !Array.isArray(payload.scripts) ||
+  if (payload.v !== 1 || !Array.isArray(payload.steps) || !Array.isArray(payload.scripts) ||
       (!payload.steps.length && !payload.scripts.length)) return false;
   let count = 0;
   const validStep = (candidate: unknown, depth: number): boolean => {
@@ -66,7 +66,7 @@ export function copyScriptBlocks(
     else if (sourceScriptId === undefined || script.id === sourceScriptId) collect(script.steps);
   }
   if (!copies.length && !steps.length) return null;
-  return { v: 2, scripts: copies, steps };
+  return { v: 1, scripts: copies, steps };
 }
 
 /** 選択した動作の直後。選択が無ければ、開いているスクリプトの末尾。 */
@@ -102,7 +102,7 @@ export function pasteScriptBlocks(
   clipboard: ScriptBlockClipboard,
   openScriptId: string | null,
 ): { scripts: PageScript[]; selection: string[] } | null {
-  if (clipboard.v !== 2 || (!clipboard.scripts.length && !clipboard.steps.length)) return null;
+  if (clipboard.v !== 1 || (!clipboard.scripts.length && !clipboard.steps.length)) return null;
   const selection: string[] = [];
   let next = scripts;
   if (clipboard.scripts.length) {
