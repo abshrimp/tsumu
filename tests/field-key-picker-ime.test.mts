@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { transformSync } from "esbuild";
+import { isEscapeKey } from "../lib/keys";
 
 function mountPicker() {
   const source = readFileSync("components/script-editor/ValueTransformSettings.tsx", "utf8");
@@ -18,7 +19,7 @@ function mountPicker() {
       if (!(index in slots)) slots[index] = initial;
       return [slots[index], (next: any) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
-    useMemo: (fn: () => unknown) => fn(), useEffect() {}, tr: (text: string) => text,
+    useMemo: (fn: () => unknown) => fn(), useEffect() {}, tr: (text: string) => text, isEscapeKey,
     ChevronDown() {}, createPortal: (child: unknown) => child,
     React: { createElement: (type: unknown, props: any, ...children: unknown[]) => ({ type, props: { ...props, children } }) },
   };

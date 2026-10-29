@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { transformSync } from "esbuild";
 import { useComments, openPostedComment } from "../lib/comment-store";
+import { isComposingKey, isEscapeKey } from "../lib/keys";
 
 // 実際の内部のコンポーネントの処理を、状態を再現できるフックで検証する。
 // DOM の readOnly と、React の実際のマウントは、別にブラウザのテストで確かめる。
@@ -29,7 +30,7 @@ function harness() {
     },
     require: (name: string) => { assert.equal(name, "react/jsx-runtime"); return { jsx: (type: any, props: any) => ({ type, props }), jsxs: (type: any, props: any) => ({ type, props }) }; },
     useComments: (selector: any) => selector({ run: (...args: any[]) => run(...args) }), useServerStatus: () => ({ user: null }),
-    isAuthor: () => true, tr: (value: string) => value, getLang: () => "en", relativeTime: () => "now", userLabel: () => "Guest",
+    isAuthor: () => true, isComposingKey, isEscapeKey, tr: (value: string) => value, getLang: () => "en", relativeTime: () => "now", userLabel: () => "Guest",
     BackButton: "BackButton", Check: "Check", RotateCcw: "RotateCcw", UserAvatar: "UserAvatar", MoreHorizontal: "MoreHorizontal", Pencil: "Pencil", Trash2: "Trash2", CornerDownLeft: "CornerDownLeft", ContextMenu: "ContextMenu", showConfirm: async () => true,
   };
   context.useLayoutEffect = context.useEffect;
@@ -150,7 +151,7 @@ test("the comment layer's bubbling Escape listener also ignores IME events", () 
   assert.ok(start >= 0 && end > start);
   const code = transformSync(source.slice(start, end) + "\nexport { onKey };", { loader: "ts", format: "cjs" }).code;
   const closed: unknown[] = []; const active: boolean[] = [];
-  const context: any = { module: { exports: {} }, document: { querySelector: () => null },
+  const context: any = { module: { exports: {} }, document: { querySelector: () => null }, isEscapeKey,
     useComments: { getState: () => ({ draft: {}, openId: null, open: (id: unknown) => closed.push(id), setActive: (value: boolean) => active.push(value) }) } };
   runInNewContext(code, context);
   const onKey = context.module.exports.onKey;

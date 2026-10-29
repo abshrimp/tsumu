@@ -14,7 +14,7 @@ import ImagePicker from "./ImagePicker";
 import SiteLanguageSelect from "./SiteLanguageSelect";
 import { LoadingScreenSettings } from "./SitePanel";
 import { CommitInput, CommitTextarea, FillControl, Grp, InfoTip, Section, Seg } from "./controls";
-import { ScriptSummary } from "./ScriptEditor";
+import { ScriptSummary } from "./ScriptSummary";
 import { pageNodeIds, pageScriptsOf } from "../lib/script";
 import { PAGE_TARGET } from "../lib/types";
 import { userMessage } from "../lib/errors";
@@ -29,13 +29,7 @@ const htmlImportScope = (state: ReturnType<typeof useEditor.getState>) => {
 const Sec = Section;
 
 const blurOnEnter = (e: React.KeyboardEvent) => {
-  if (
-    isEnterKey(e) &&
-    !e.nativeEvent.isComposing &&
-    e.nativeEvent.keyCode !== 229
-  ) {
-    (e.target as HTMLInputElement).blur();
-  }
+  if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
 };
 
 /** 要素を選んでいないときに、右パネルに表示するページの設定 */

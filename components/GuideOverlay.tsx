@@ -8,6 +8,7 @@ import { canContainElements } from "../lib/tags";
 import { TOPIC_BY_ID, type EditorState, type GuideStep, type SelectionNeed, type Topic } from "../lib/manual";
 import { setGuideStep, stopGuide, useHelp } from "../lib/help";
 import { glyphs } from "./Glyph";
+import { isEscapeKey } from "../lib/keys";
 import { tr } from "../lib/i18n";
 
 /** 選択が手順の条件を満たしているか */
@@ -21,12 +22,14 @@ function needMet(s: EditorState, need: SelectionNeed | undefined): boolean {
   return true;
 }
 
-const NEED_TEXT: Record<SelectionNeed, string> = {
-  any: tr("First, select the element you want to work on by clicking it on the canvas or in Layers."),
-  text: tr("First, click a text element (text, heading or button) to select it."),
-  image: tr("First, click an image to select it."),
-  container: tr("First, select the box (parent) that contains the elements. If a child is selected, press ⇧Enter to select its parent."),
-};
+function needText(need: SelectionNeed): string {
+  switch (need) {
+    case "any": return tr("First, select the element you want to work on by clicking it on the canvas or in Layers.");
+    case "text": return tr("First, click a text element (text, heading or button) to select it.");
+    case "image": return tr("First, click an image to select it.");
+    case "container": return tr("First, select the box (parent) that contains the elements. If a child is selected, press ⇧Enter to select its parent.");
+  }
+}
 
 /** いちばん小さいブレークポイント（スマホ）のID */
 function mobileBp(): string | null {
@@ -215,7 +218,7 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (!isEscapeKey(e)) return;
       const t = e.target as HTMLElement;
       if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
       if (document.querySelector(".dd-menu, .color-pop, .modal-backdrop:not(.is-leaving), [data-se-popover], .help")) {
@@ -257,7 +260,7 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
         ) : (
           <p className="guide-text">
             <MousePointerClick size={14} className="guide-text-icon" />
-            {glyphs(NEED_TEXT[step.needs!])}
+            {glyphs(needText(step.needs!))}
           </p>
         )}
         {ready && step.hint && (

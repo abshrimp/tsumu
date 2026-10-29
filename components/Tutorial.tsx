@@ -18,6 +18,7 @@ import {
   useState,
 } from "react";
 import { useEditor } from "../lib/store";
+import { isEscapeKey } from "../lib/keys";
 import { BP_INFO, BP_ORDER } from "../lib/style";
 import type { SiteDoc } from "../lib/types";
 import { tr } from "../lib/i18n";
@@ -793,7 +794,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
       const popupOpen = !!document.querySelector(
         ".dd-menu, .color-pop, .modal-backdrop:not(.is-leaving), [data-se-popover]"
       );
-      if (event.key === "Escape" && !isTyping && !popupOpen) onClose();
+      if (isEscapeKey(event) && !isTyping && !popupOpen) onClose();
       if (event.key === "ArrowRight" && !isTyping && taskDone) {
         setIndex((value) => Math.min(STEPS.length - 1, value + 1));
       }

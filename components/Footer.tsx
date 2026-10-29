@@ -139,8 +139,13 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
   const cloudError = useEditor((s) => s.cloudError);
   const publishedAt = useEditor((s) => s.publishedAt);
   const publishedFingerprint = useEditor((s) => s.publishedFingerprint);
-  const doc = useEditor((s) => s.doc);
-  const activePageId = useEditor((s) => s.activePageId);
+  const hasPage = useEditor((s) => Boolean(s.doc.pages[s.activePageId]));
+  const pageName = useEditor((s) => s.doc.pages[s.activePageId]?.name ?? "");
+  const pageSlug = useEditor((s) => s.doc.pages[s.activePageId]?.slug ?? "");
+  const isLoadingPage = useEditor((s) => s.doc.loadingScreen?.pageId === s.activePageId);
+  const pageCount = useEditor((s) => s.doc.pageOrder.length);
+  const nodeCount = useEditor((s) => Object.keys(s.doc.nodes).length);
+  const docForPublishCheck = useEditor((s) => (s.publishedFingerprint ? s.doc : null));
 
   const { activity, load } = useSiteActivity();
   // 公開済みかどうかの表示にも使うため、開いたときに一度読み込む
@@ -148,28 +153,23 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
   // 他の人の公開も含めた、最後の公開（サーバーの記録が無ければ、このブラウザの記録）
   const lastPublishAt = Math.max(activity?.lastPublish?.at ?? 0, publishedAt ?? 0) || null;
 
-  const page = doc.pages[activePageId];
-  const isLoadingPage = doc.loadingScreen?.pageId === activePageId;
-  const pageCount = doc.pageOrder.length;
-  const nodeCount = Object.keys(doc.nodes).length;
-
   // 公開したときの内容と比べて、未公開の変更があるかを判定する（編集中は処理が重いため、デバウンスする）
   const [changedSincePublish, setChangedSincePublish] = useState(false);
   useEffect(() => {
-    if (!publishedFingerprint) return;
+    if (!publishedFingerprint || !docForPublishCheck) return;
     const timer = setTimeout(() => {
-      setChangedSincePublish(docFingerprint(doc) !== publishedFingerprint);
+      setChangedSincePublish(docFingerprint(docForPublishCheck) !== publishedFingerprint);
     }, 600);
     return () => clearTimeout(timer);
-  }, [doc, publishedFingerprint]);
+  }, [docForPublishCheck, publishedFingerprint]);
 
   return (
     <footer className="ftr">
       <span className="hint">
-        {page
+        {hasPage
           ? isLoadingPage
             ? tr("Loading screen")
-            : tr("{name} (/{slug})", { name: page.name, slug: page.slug })
+            : tr("{name} (/{slug})", { name: pageName, slug: pageSlug })
           : ""}
         {" · "}
         {tr("{pages} pages · {nodes} elements", { pages: pageCount, nodes: nodeCount })}

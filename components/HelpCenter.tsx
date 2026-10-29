@@ -63,20 +63,23 @@ const CAT_ICON: Record<CategoryId, LucideIcon> = {
 };
 
 /** 選んでいるものの呼び名（「いまの作業に関係する質問」の見出しに使う） */
-const CONTEXT_LABEL: Record<string, string> = {
-  none: tr("The whole page"),
-  text: tr("Selected text"),
-  image: tr("Selected image"),
-  box: tr("Selected box (help)"),
-  list: tr("Selected list display"),
-  instance: tr("Selected component (help)"),
-  field: tr("Selected form field"),
-  media: tr("Selected video or embed"),
-  body: "body",
-  mobile: tr("Phone and tablet views"),
-  component: tr("Editing components"),
-  site: tr("Site settings"),
-};
+function contextLabel(ctx: string): string {
+  switch (ctx) {
+    case "none": return tr("The whole page");
+    case "text": return tr("Selected text");
+    case "image": return tr("Selected image");
+    case "box": return tr("Selected box (help)");
+    case "list": return tr("Selected list display");
+    case "instance": return tr("Selected component (help)");
+    case "field": return tr("Selected form field");
+    case "media": return tr("Selected video or embed");
+    case "body": return "body";
+    case "mobile": return tr("Phone and tablet views");
+    case "component": return tr("Editing components");
+    case "site": return tr("Site settings");
+    default: return "";
+  }
+}
 
 /** ヘルプを閉じても、選んだ難易度とカテゴリは覚えておく */
 let rememberedLevel: Level | 0 = 0;
@@ -364,7 +367,7 @@ function Home({
     () => topicsFor(contexts.split(",") as Parameters<typeof topicsFor>[0], 5),
     [contexts]
   );
-  const ctxLabel = CONTEXT_LABEL[contexts.split(",")[0]] ?? "";
+  const ctxLabel = contextLabel(contexts.split(",")[0]);
   const counts = (cat: CategoryId) =>
     TOPICS.filter((t) => t.cat === cat && (!level || t.level === level)).length;
 

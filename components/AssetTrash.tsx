@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { RotateCcw, Trash2, X } from "lucide-react";
 import { tr } from "../lib/i18n";
+import { isEscapeKey } from "../lib/keys";
 import { siteApi, currentSiteId } from "../lib/site";
 import type { Asset } from "../lib/types";
 import { genId } from "../lib/presets";
@@ -243,7 +244,7 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
   return (
     <div className="modal-backdrop" onMouseDown={(event) => {
       if (!busy && event.target === event.currentTarget) onClose();
-    }} onKeyDown={(event) => { if (event.key === "Escape" && !busy) onClose(); }}>
+    }} onKeyDown={(event) => { if (isEscapeKey(event) && !busy) onClose(); }}>
       <div className="modal asset-trash-modal" role="dialog" aria-modal="true" aria-label={tr("Trash")}
         onMouseDown={(event) => event.stopPropagation()}>
         <div className="asset-trash-header">

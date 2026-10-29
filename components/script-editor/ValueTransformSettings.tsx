@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { TextIn } from "./inputs";
 import { tr } from "../../lib/i18n";
+import { isEscapeKey } from "../../lib/keys";
 import type {
   ValueTransform, ValueTransformKind, NumericOperation,
 } from "../../lib/script-model/compose";
@@ -157,7 +158,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
         onKeyDown={(event) => {
           // IME で変換している間は、候補の確定・移動・終了を入力メソッドに任せる。
           if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-          if (event.key === "Escape" && open) {
+          if (isEscapeKey(event) && open) {
             event.preventDefault();
             event.stopPropagation();
             setOpen(false);
@@ -198,7 +199,7 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
+            if (isEscapeKey(event)) {
               event.preventDefault();
               event.stopPropagation();
               setOpen(false);

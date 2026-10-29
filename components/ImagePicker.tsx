@@ -1,6 +1,6 @@
 "use client";
 
-import { isEnterKey } from "../lib/keys";
+import { isEnterKey, isEscapeKey } from "../lib/keys";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, FolderSearch, ImagePlus, Images, LoaderCircle, Music, Search, Upload, Video, X } from "lucide-react";
 import { useEditor } from "../lib/store";
@@ -236,7 +236,7 @@ export function AssetGrid({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Escape") setQuery("");
+              if (isEscapeKey(e)) setQuery("");
               if (isEnterKey(e) && shown.length === 1) onPick(shown[0]);
             }}
           />

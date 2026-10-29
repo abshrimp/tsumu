@@ -5,7 +5,7 @@
  */
 
 import { visitPageNodes } from "../../lib/script";
-import { isEnterKey } from "../../lib/keys";
+import { isEnterKey, isEscapeKey } from "../../lib/keys";
 import {
   useContext,
   useEffect,
@@ -491,7 +491,7 @@ export function NodePicker({
                       e.preventDefault();
                       toggleRow(choice.r);
                     }
-                  } else if (e.key === "Escape") {
+                  } else if (isEscapeKey(e)) {
                     e.preventDefault();
                     e.stopPropagation();
                     dismiss();

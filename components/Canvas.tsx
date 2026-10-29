@@ -1,6 +1,6 @@
 "use client";
 
-import { isEnterKey } from "../lib/keys";
+import { isEnterKey, isEscapeKey } from "../lib/keys";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpLeft } from "lucide-react";
 import NodeContextMenu, { type CtxMenuState } from "./NodeContextMenu";
@@ -1069,7 +1069,7 @@ export default function Canvas() {
                 const name = pickedVar(autoComp);
                 if (name) insertVar(name);
                 else openExplore();
-              } else if (e.key === "Escape") {
+              } else if (isEscapeKey(e)) {
                 e.preventDefault();
                 e.stopPropagation();
                 setAutoComp(null);

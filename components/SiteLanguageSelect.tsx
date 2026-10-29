@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import { tr } from "../lib/i18n";
-import { isEnterKey } from "../lib/keys";
+import { isEnterKey, isEscapeKey } from "../lib/keys";
 import { isSiteLang, SITE_LANGS } from "../lib/site-lang";
 
 const CUSTOM = "__custom__";
@@ -74,7 +74,7 @@ export default function SiteLanguageSelect({ value, onChange, inheritLabel, id }
             onBlur={(event) => commit(event.target.value)}
             onKeyDown={(event) => {
               if (isEnterKey(event)) event.currentTarget.blur();
-              if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+              if (isEscapeKey(event)) {
                 setDraft(value);
                 setInvalid(false);
               }

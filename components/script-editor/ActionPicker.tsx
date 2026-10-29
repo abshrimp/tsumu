@@ -7,7 +7,7 @@
 
 import { useId, useMemo, useRef, useState, type RefObject } from "react";
 import { Search } from "lucide-react";
-import { isEnterKey } from "../../lib/keys";
+import { isComposingKey, isEnterKey, isEscapeKey } from "../../lib/keys";
 import { tr } from "../../lib/i18n";
 import { type ScriptStep } from "../../lib/types";
 import { CAT_INFO, CAT_ORDER, PLACE_REASON, catStyle, findActions, type ActionItem } from "./catalog";
@@ -84,8 +84,8 @@ export function ActionPicker({
             setActive(0);
           }}
           onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
-            if (event.key === "Escape") {
+            if (isComposingKey(event)) return;
+            if (isEscapeKey(event)) {
               // 検索欄の標準の動作（入力した文字を消すだけ）ではなく、パネルを閉じる
               event.preventDefault();
               event.stopPropagation();

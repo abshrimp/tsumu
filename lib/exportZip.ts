@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import type { Asset, SiteDoc } from "./types";
 import { prepareExportScopeDoc, prepareExportProject } from "./export-formats";
 import { resolveExportOptions, type ExportFormat, type ExportOptions } from "./generator/export-options";
@@ -64,6 +63,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   }
   // JSZip がディレクトリを作る前に、編集用の項目のパスを確保しておく。
   assertGeneratedPaths(project, [EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, ...originalStylesheets.keys()]);
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   const root = zip.folder(dirName)!;
   root.file(EDITABLE_DOC_PATH, JSON.stringify(editableDoc));

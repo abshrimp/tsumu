@@ -16,7 +16,7 @@ import { emptyKeyframe, parseKeyframes, serializeKeyframes, type Keyframe } from
 import { KEYFRAMES } from "../lib/motion";
 import { parseNumeric } from "../lib/style";
 import { CommitInput, CommitTextarea, Dropdown, NumField, Seg } from "./controls";
-import { isEnterKey } from "../lib/keys";
+import { isEnterKey, isEscapeKey } from "../lib/keys";
 import { trackMotionPointer } from "../lib/motion-pointer-drag";
 
 /* ---------- 共通 ---------- */
@@ -25,7 +25,7 @@ import { trackMotionPointer } from "../lib/motion-pointer-drag";
 function useEscape(onClose: () => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (!isEscapeKey(e)) return;
       const t = e.target as HTMLElement | null;
       if (t?.closest("input, textarea, select") || document.querySelector(".dd-menu")) return;
       onClose();

@@ -4,7 +4,7 @@
  * ページタブ（ページとフォルダの作成・並べ替え・設定）
  */
 
-import { isEnterKey } from "../../lib/keys";
+import { isEnterKey, isEscapeKey } from "../../lib/keys";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Folder,
@@ -230,7 +230,7 @@ export function PagesTab() {
   useEffect(() => {
     if (!selecting) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !document.querySelector(".modal-backdrop, .dd-menu")) endPicking();
+      if (isEscapeKey(e) && !document.querySelector(".modal-backdrop, .dd-menu, .color-pop")) endPicking();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -450,7 +450,8 @@ export function PagesTab() {
               setRenamingPage(null);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Escape") {
+              if (isEscapeKey(e)) {
+                e.stopPropagation();
                 e.currentTarget.value = p.name;
                 e.currentTarget.blur();
               } else if (isEnterKey(e)) e.currentTarget.blur();
@@ -741,7 +742,10 @@ export function PagesTab() {
                       }}
                       onKeyDown={(e) => {
                         if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
-                        if (e.key === "Escape") setRenaming(null);
+                        if (isEscapeKey(e)) {
+                          e.stopPropagation();
+                          setRenaming(null);
+                        }
                       }}
                     />
                   ) : (

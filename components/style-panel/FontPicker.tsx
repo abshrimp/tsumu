@@ -15,6 +15,7 @@ import { useEditor } from "../../lib/store";
 import { openHelp } from "../../lib/help";
 import { showConfirm, useDialogs } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
+import { isEscapeKey } from "../../lib/keys";
 import { PropSelect, useInspector } from "../controls";
 
 type AdobeFamily = { name: string; family: string; loading: "css" | "dynamic" };
@@ -24,7 +25,10 @@ const WEB_PROJECTS_URL = "https://fonts.adobe.com/my_fonts#web_projects-section"
 
 export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const insp = useInspector();
-  const doc = useEditor((state) => state.doc);
+  const customFonts = useEditor((state) => state.doc.customFonts);
+  const adobeFonts = useEditor((state) => state.doc.adobeFonts);
+  const uploadedFonts = useEditor((state) => state.doc.uploadedFonts);
+  const assets = useEditor((state) => state.doc.assets);
   const updateDoc = useEditor((state) => state.updateDoc);
   const [open, setOpen] = useState(false);
   const [provider, setProvider] = useState<"google" | "adobe" | "file">("google");
@@ -47,17 +51,17 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const modalRef = useRef<HTMLDivElement>(null);
   const fontFileInputRef = useRef<HTMLInputElement>(null);
 
-  const fonts = allFonts(doc.customFonts, doc.adobeFonts, doc.uploadedFonts);
-  const fontAssets = Object.values(doc.assets).filter(asset => assetDisplayKind(asset) === "font" && /\.(woff2?|ttf|otf)$/i.test(asset.name));
+  const fonts = allFonts(customFonts, adobeFonts, uploadedFonts);
+  const fontAssets = Object.values(assets).filter(asset => assetDisplayKind(asset) === "font" && /\.(woff2?|ttf|otf)$/i.test(asset.name));
   const results = useMemo(() => searchGoogleFonts(query, filter), [query, filter]);
   const project = parseAdobeKitInput(projectInput);
   const kitId = project?.kitId;
   // Registered families remain selectable even if Adobe's public metadata endpoint is unavailable.
   const visibleAdobeFonts = projectFonts.length ? projectFonts :
-    (doc.adobeFonts ?? []).filter((font) => font.kitId === kitId)
+    (adobeFonts ?? []).filter((font) => font.kitId === kitId)
       .map((font) => ({ name: font.family, family: font.family, loading: font.loading }));
   const availableFamily = visibleAdobeFonts.find((font) => font.family === chosenAdobe);
-  const existingKits = [...new Set((doc.adobeFonts ?? []).map((font) => font.kitId))];
+  const existingKits = [...new Set((adobeFonts ?? []).map((font) => font.kitId))];
 
   const removeProject = async (id: string) => {
     const count = (useEditor.getState().doc.adobeFonts ?? []).filter(font => font.kitId === id).length;
@@ -88,10 +92,10 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   useEffect(() => {
     if (!open || typeof document === "undefined") return;
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    requestAnimationFrame(() => (provider === "google" ? searchRef.current : modalRef.current?.querySelector<HTMLInputElement>("#font-project-input"))?.focus());
+    const frame = requestAnimationFrame(() => (provider === "google" ? searchRef.current : modalRef.current?.querySelector<HTMLInputElement>("#font-project-input"))?.focus());
     const onKeyDown = (event: KeyboardEvent) => {
       if (useDialogs.getState().queue.length) return;
-      if (event.key === "Escape") {
+      if (isEscapeKey(event)) {
         event.preventDefault();
         event.stopImmediatePropagation();
         pending.cancel();
@@ -113,6 +117,7 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
     };
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
+      cancelAnimationFrame(frame);
       document.removeEventListener("keydown", onKeyDown, true);
       previousFocus.current?.focus();
     };
@@ -200,7 +205,7 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const addGoogle = async () => {
     const name = (chosenGoogle || query).trim().replace(/\s+/g, " ");
     if (!name) { setError(tr("Choose a font from the search results.")); return; }
-    if (doc.adobeFonts?.some((font) => font.family === name)) {
+    if (adobeFonts?.some((font) => font.family === name)) {
       setError(tr("A font with this name is already registered from another provider."));
       return;
     }
@@ -278,7 +283,7 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
 
   const addUploadedFont = () => {
     const family = uploadedFamily.trim().replace(/\s+/g, " ");
-    const asset = doc.assets[selectedFontAssetId];
+    const asset = assets[selectedFontAssetId];
     if (/[^\x00-\x7f]/.test(family)) {
       setError(tr("Font family names must use English letters, numbers, spaces, hyphens or underscores. Japanese and other non-English characters are not supported."));
       return;
@@ -311,7 +316,7 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
       return;
     }
     if (fonts.some((font) => font.value === family &&
-      !doc.adobeFonts?.some((adobe) => adobe.family === family))) {
+      !adobeFonts?.some((adobe) => adobe.family === family))) {
       setError(tr("A font with this name is already registered from another provider."));
       return;
     }

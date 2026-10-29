@@ -4,6 +4,7 @@
  */
 
 import { tr } from "../../lib/i18n";
+import { isEscapeKey } from "../../lib/keys";
 
 interface CanvasPick {
   /** 選べる要素の ID（キャンバスの要素から親へたどり、最初に見つかったものを選ぶ） */
@@ -90,7 +91,7 @@ export function pickOnCanvas({ pickable, onPick, onCancel }: CanvasPick): () => 
     onPick(el.dataset.node!);
   };
   const onKey = (event: KeyboardEvent) => {
-    if (event.key !== "Escape") return;
+    if (!isEscapeKey(event)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     stop();

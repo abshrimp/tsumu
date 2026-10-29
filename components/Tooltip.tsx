@@ -76,6 +76,7 @@ export default function TooltipLayer() {
     window.addEventListener("focusin", onOver);
     window.addEventListener("mousedown", hide, true);
     window.addEventListener("wheel", hide, true);
+    window.addEventListener("scroll", hide, true);
     window.addEventListener("keydown", hide, true);
     return () => {
       if (timer) clearTimeout(timer);
@@ -83,6 +84,7 @@ export default function TooltipLayer() {
       window.removeEventListener("focusin", onOver);
       window.removeEventListener("mousedown", hide, true);
       window.removeEventListener("wheel", hide, true);
+      window.removeEventListener("scroll", hide, true);
       window.removeEventListener("keydown", hide, true);
     };
   }, []);

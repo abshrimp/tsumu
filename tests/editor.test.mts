@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import { mergeDocs } from "../lib/merge";
 import { makeBox } from "../lib/presets";
@@ -114,7 +116,7 @@ test("blocked browser storage falls back without crashing", () => {
     value: { get localStorage() { throw new Error("Storage blocked"); } },
   });
   try {
-    assert.equal(readLocalStorage("panel-l-w"), null);
+    assert.equal(readLocalStorage("tsumu-panel-l-w"), null);
   } finally {
     if (previous) Object.defineProperty(globalThis, "window", previous);
     else Reflect.deleteProperty(globalThis, "window");
@@ -210,3 +212,48 @@ test("site settings changed on both sides keep each side's fields", () => {
   remote.pwa!.shortName = "A";
   assert.deepEqual(mergeDocs(base, local, remote).pwa, { enabled: true, name: "App", themeColor: "#111111", shortName: "A" });
 });
+
+function sourceFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...sourceFiles(full));
+    else if (/\.(ts|tsx)$/.test(entry.name)) out.push(full);
+  }
+  return out;
+}
+
+test("editor storage keys use the tsumu-* namespace with zero legacy unprefixed keys", () => {
+  const legacyKeys = ["panel-l-w", "panel-r-w", "panel-l-closed", "panel-r-closed", "recent-colors-v1"];
+  for (const file of [...sourceFiles("app"), ...sourceFiles("components"), ...sourceFiles("lib")]) {
+    if (file.endsWith("storage-keys.ts")) continue;
+    const text = readFileSync(file, "utf8");
+    for (const key of legacyKeys) {
+      assert.equal(
+        text.includes(`localStorage.getItem("${key}")`) ||
+          text.includes(`localStorage.setItem("${key}"`) ||
+          text.includes(`readLocalStorage("${key}")`) ||
+          text.includes(`writeLocalStorage("${key}"`),
+        false,
+        `Unexpected unprefixed storage key "${key}" in ${file}`,
+      );
+    }
+  }
+});
+
+test("jszip and ScriptEditor stay out of eager initial editor imports", () => {
+  for (const file of [...sourceFiles("app"), ...sourceFiles("components"), ...sourceFiles("lib")]) {
+    const text = readFileSync(file, "utf8");
+    assert.doesNotMatch(
+      text,
+      /^\s*import\s+(?!type\b).*from\s+["']jszip["']/m,
+      `Static runtime jszip import found in ${file}`,
+    );
+  }
+  for (const panel of ["components/PagePanel.tsx", "components/SettingsPanel.tsx"]) {
+    const text = readFileSync(panel, "utf8");
+    assert.doesNotMatch(text, /from\s+["']\.\/ScriptEditor["']/);
+    assert.match(text, /from\s+["']\.\/ScriptSummary["']/);
+  }
+});
+

@@ -9,6 +9,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties
 import { createPortal } from "react-dom";
 import { Search } from "lucide-react";
 import { tr } from "../../lib/i18n";
+import { isEscapeKey } from "../../lib/keys";
 import { anchoredMenuPos } from "../controls";
 
 export interface ListChoice {
@@ -139,7 +140,7 @@ export function ListChoicePicker({
           data-se-popover=""
           onPointerDown={(event) => event.stopPropagation()}
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
+            if (isEscapeKey(event)) {
               event.preventDefault();
               event.stopPropagation();
               close();

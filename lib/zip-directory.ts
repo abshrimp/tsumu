@@ -1,5 +1,5 @@
 import { tr } from "./i18n";
-import JSZip from "jszip";
+import type JSZip from "jszip";
 import { IMPORT_LIMITS } from "./site-import-format";
 
 // JSZip は、検証済みの長さ 0 の CompressedObject を、"" を返す Promise に置き換える。
@@ -144,6 +144,7 @@ export async function openImportZip(source: File | Uint8Array, maxFiles: number)
     trailer.setUint32(12, size, true);
     trailer.setUint32(16, offset, true);
   }
+  const { default: JSZip } = await import("jszip");
   const zip = await JSZip.loadAsync(input);
   if (Object.keys(zip.files).length !== records) throw new Error(tr("The ZIP contains duplicate file paths."));
   for (const entry of Object.values(zip.files)) {

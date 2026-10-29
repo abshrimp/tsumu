@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { tr } from "../lib/i18n";
+import { getLang, tr } from "../lib/i18n";
 
 /** レイアウトごと表示できないときの画面（globals.css も読めないため、最低限のスタイルで表示する） */
 export default function GlobalError({ error }: { error: Error }) {
@@ -9,7 +9,7 @@ export default function GlobalError({ error }: { error: Error }) {
     console.error(error);
   }, [error]);
   return (
-    <html lang="ja">
+    <html lang={getLang()}>
       <body
         style={{
           margin: 0,

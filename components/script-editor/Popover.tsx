@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { isEscapeKey } from "../../lib/keys";
 import { anchoredMenuPos } from "../controls";
 
 export function Popover({
@@ -74,7 +75,7 @@ export function Popover({
       }
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.isComposing) {
+      if (isEscapeKey(event)) {
         event.stopPropagation();
         closeRef.current();
       }

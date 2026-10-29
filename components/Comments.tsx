@@ -9,6 +9,7 @@ import { useServerStatus } from "../lib/status";
 import { BP_INFO } from "../lib/style";
 import { commentTargetResolver, isDeletedCommentTarget, type CommentTarget } from "../lib/comment-targets";
 import { getLang, tr } from "../lib/i18n";
+import { isComposingKey, isEscapeKey } from "../lib/keys";
 import { relativeTime } from "../lib/time";
 import { showConfirm } from "../lib/dialog";
 import UserAvatar, { userLabel } from "./UserAvatar";
@@ -108,11 +109,11 @@ function Composer({
         onChange={(e) => setBody(e.target.value)}
         onKeyDown={(e) => {
           // 変換の確定や取り消しを、送信や下書きのキャンセルとして扱わない。
-          if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+          if (isComposingKey(e)) return;
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             void submit();
-          } else if (e.key === "Escape" && onCancel) {
+          } else if (isEscapeKey(e) && onCancel) {
             e.stopPropagation();
             // 明示的なキャンセルは、ボタンと同じく下書きを破棄する。返信欄は親の Esc で閉じる。
             if (draftKey) unsentBodies.delete(draftKey);
@@ -394,7 +395,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
   // Esc: 書きかけのコメントや開いているスレッドを閉じる。何も無ければコメントモードを終える
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.isComposing || e.keyCode === 229 || document.querySelector(".modal-backdrop")) return;
+      if (!isEscapeKey(e) || document.querySelector(".modal-backdrop")) return;
       const s = useComments.getState();
       if (s.draft || s.openId) s.open(null);
       else s.setActive(false);

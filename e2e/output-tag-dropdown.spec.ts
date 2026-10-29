@@ -6,7 +6,7 @@ for (const width of [240, 288]) {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.addInitScript((width) => {
       localStorage.setItem("tsumu-help-seen-v1", "1");
-      localStorage.setItem("panel-r-w", String(width));
+      localStorage.setItem("tsumu-panel-r-w", String(width));
     }, width);
     const response = await page.request.post("/api/sites", { data: { name: "Output tag ellipsis" } });
     expect(response.ok()).toBeTruthy();

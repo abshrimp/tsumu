@@ -12,6 +12,7 @@ import { useImageDrop } from "../../lib/image-drop";
 import { makeImage } from "../../lib/presets";
 import { canContainElements } from "../../lib/tags";
 import { cssQuotedAttributeValue } from "../../lib/css-selector";
+import { isEscapeKey } from "../../lib/keys";
 import type { Component, DocNode, SiteDoc } from "../../lib/types";
 
 /** Canvas から受け取る値 */
@@ -207,7 +208,7 @@ export function useCanvasDrag({
     };
     const cancel = () => finish();
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key !== "Escape") return;
+      if (!isEscapeKey(ev)) return;
       ev.preventDefault();
       ev.stopPropagation();
       finish();
@@ -309,7 +310,7 @@ export function useCanvasDrag({
       }, 0);
     };
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") {
+      if (isEscapeKey(ev)) {
         ev.preventDefault();
         ev.stopPropagation();
         onUp();

@@ -6,6 +6,7 @@
 import { useEffect, type RefObject } from "react";
 import { useEditor } from "../../lib/store";
 import { isScriptBlockClipboard, type ScriptBlockClipboard } from "./clipboard";
+import { isComposingKey, isEscapeKey } from "../../lib/keys";
 import { storageKey } from "../../lib/storage-keys";
 
 /** キー操作から参照する、画面の最新の状態 */
@@ -146,7 +147,7 @@ export function useEditorKeys(latest: RefObject<EditorKeyState>) {
     // Escape は、入力欄や候補のメニューが先に処理する。capture で止めてしまうと、
     // 検索語の消去などに届かず、背後の選択の解除や画面の終了になってしまう。
     const onEscape = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
+      if (!isEscapeKey(e) || e.defaultPrevented) return;
       if (overlayOpen()) return;
       e.stopPropagation();
       const state = latest.current;
@@ -155,7 +156,7 @@ export function useEditorKeys(latest: RefObject<EditorKeyState>) {
       else state.onClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" || e.isComposing || e.keyCode === 229) return;
+      if (e.key === "Escape" || isComposingKey(e)) return;
       const state = latest.current;
       if (state.dragging()) return;
       const typing = isTyping(e.target);

@@ -115,6 +115,8 @@ function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loop
     },
     openPeek() { return this.result({ nodeId: "", localNames: [] })(); },
     cached: () => mod.exports.wholeCache.get(mod.exports.wholeKey(step())),
+    wholeCache: mod.exports.wholeCache as Map<string, unknown>,
+    setWholeCache: mod.exports.setWholeCache as (key: string, value: unknown) => void,
     select(id: string) { selected = id; },
     commitUrl(url: string) { render()[0].props.parts.url.props.onCommit(url); },
     setOptions(patch: FetchOptions) {
@@ -741,3 +743,18 @@ test("view pointer activation commits a draft on click without becoming a send o
     await mounted.finish(1, { ok: true });
   }
 });
+
+test("setWholeCache bounds whole-response cache size and refreshes updated entries", () => {
+  const mounted = mount();
+  mounted.wholeCache.clear();
+  for (let i = 0; i < 16; i++) mounted.setWholeCache(`k-${i}`, i);
+  assert.equal(mounted.wholeCache.size, 16);
+  // Updating k-0 moves it to most-recently-used so k-1 becomes the oldest entry.
+  mounted.setWholeCache("k-0", "refreshed");
+  mounted.setWholeCache("k-16", 16);
+  assert.equal(mounted.wholeCache.size, 16);
+  assert.equal(mounted.wholeCache.get("k-0"), "refreshed");
+  assert.equal(mounted.wholeCache.has("k-1"), false);
+  assert.equal(mounted.wholeCache.get("k-16"), 16);
+});
+

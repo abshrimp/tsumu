@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { signOut } from "next-auth/react";
+import { isEscapeKey } from "../lib/keys";
 import {
   ChevronRight,
   Copy,
@@ -118,7 +119,7 @@ function CardMenu({ items }: { items: { label: string; icon: ReactNode; danger?:
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (isEscapeKey(e)) setOpen(false);
     };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
@@ -284,7 +285,7 @@ function SiteDialog({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onClose();
+      if (isEscapeKey(e) && !busy) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -410,7 +411,7 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // 確認ダイアログを開いている間は、そちらを先に閉じる
-      if (e.key === "Escape" && !document.querySelector(".modal.dialog")) onClose();
+      if (isEscapeKey(e) && !document.querySelector(".modal.dialog")) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

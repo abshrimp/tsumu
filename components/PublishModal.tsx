@@ -556,12 +556,19 @@ export default function PublishModal({
           </div>
         )}
         {phase === "check" && conf === "error" && (
-          <ul className="check-list">
-            <li className="is-error">
-              <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
-              {tr("Couldn't load the publish settings")}
-            </li>
-          </ul>
+          <>
+            <ul className="check-list">
+              <li className="is-error">
+                <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
+                {tr("Couldn't load the publish settings")}
+              </li>
+            </ul>
+            <div className="modal-actions">
+              <button className="btn" onClick={onClose}>
+                {tr("Close")}
+              </button>
+            </div>
+          </>
         )}
         {phase === "check" && configuredTargets && (
           <>

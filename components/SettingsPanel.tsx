@@ -39,7 +39,7 @@ import { fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../lib/fields";
 import { Icon } from "./icons";
 import { CommitInput, CommitTextarea, Dropdown, InfoTip, Seg, VarInput } from "./controls";
 import { CodeEditorButton, CustomCodeEditorModal } from "./CustomCodeEditor";
-import { ScriptSummary } from "./ScriptEditor";
+import { ScriptSummary } from "./ScriptSummary";
 import { AssetGrid } from "./ImagePicker";
 import { scriptsOf } from "../lib/script";
 import { tr } from "../lib/i18n";

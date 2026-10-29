@@ -4,7 +4,7 @@
  * データの取得ブロックと、取得したデータの項目や変数名の選び方
  */
 
-import { isEnterKey } from "../../lib/keys";
+import { isEnterKey, isEscapeKey } from "../../lib/keys";
 import { useContext, useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, Play, Plus, RefreshCw, SlidersHorizontal, Table2, X } from "lucide-react";
@@ -55,7 +55,16 @@ async function fetchWhole(url: string, options: FetchOptions = {}, vars: Vars = 
 }
 
 /** 「データを見る」で取得した全件（取得ブロックの設定ごと。エディタを開いている間だけ覚えておく） */
+const WHOLE_CACHE_MAX = 16;
 export const wholeCache = new Map<string, unknown>();
+export function setWholeCache(key: string, value: unknown): void {
+  if (wholeCache.has(key)) wholeCache.delete(key);
+  else if (wholeCache.size >= WHOLE_CACHE_MAX) {
+    const oldest = wholeCache.keys().next().value;
+    if (oldest !== undefined) wholeCache.delete(oldest);
+  }
+  wholeCache.set(key, value);
+}
 const sourceKey = (scope?: FetchPreviewScope) => scope?.owner ?? { nodeId: scope?.nodeId ?? "" };
 export const wholeKey = (st: FetchStep, pageId = useEditor.getState().activePageId, session = useEditor.getState().documentSession, scope?: FetchPreviewScope) =>
   JSON.stringify([session, pageId, sourceKey(scope), st.id, st.url, st.method, st.headers, st.body, st.preview?.fetchedAt]);
@@ -171,7 +180,7 @@ export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
         current.preview = {
           sample, totals, fetchedAt: Math.max(Date.now(), (current.preview?.fetchedAt ?? 0) + 1),
         };
-        wholeCache.set(wholeKey(current, pageId, session, scope), whole);
+        setWholeCache(wholeKey(current, pageId, session, scope), whole);
         resultRequests.set(owner, { method: options.method ?? "GET", url: interpolateUrl(url, vars), fetchedAt: current.preview.fetchedAt! });
         saved = true;
       });
@@ -582,7 +591,7 @@ export function PathMenu({
       if (!menuRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (isEscapeKey(e)) setOpen(false);
     };
     // クリックによって、キャンバスやフォーカスしたブロックがプログラムでスクロールされることがある。
     // 閉じるのは、メニューの外で利用者がスクロールしたときだけで、
@@ -694,7 +703,7 @@ export function PathMenu({
             data-se-popover=""
             onPointerDown={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
-              if (e.key === "Escape") { e.stopPropagation(); setOpen(false); }
+              if (isEscapeKey(e)) { e.stopPropagation(); setOpen(false); }
             }}
           >
             <form className="se-path-direct" onSubmit={(event) => {
@@ -899,7 +908,7 @@ export function VarNameIn({
               setOpen(false);
               commit(matches[index]);
             } else (e.target as HTMLInputElement).blur();
-          } else if (e.key === "Escape" && open) {
+          } else if (isEscapeKey(e) && open) {
             e.stopPropagation();
             setOpen(false);
           }

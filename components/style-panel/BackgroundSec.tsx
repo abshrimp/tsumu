@@ -57,7 +57,7 @@ export function differsFrom(info: PropInfo, dflt: string): boolean {
 
 export function BackgroundSec() {
   const insp = useInspector();
-  const doc = useEditor((s) => s.doc);
+  const assets = useEditor((s) => s.doc.assets);
   const explicitDefault = (prop: string) => isInitialValue(prop, insp.get(prop).baseline)
     ? null : initialValueOf(prop) ?? null;
   const imageInfo = insp.get("backgroundImage");
@@ -194,7 +194,7 @@ export function BackgroundSec() {
               value={(() => {
                 const src = imageUrl;
                 if (!src) return null;
-                const matched = Object.values(doc.assets).find(
+                const matched = Object.values(assets).find(
                   (a) => assetSrc(a) === src
                 );
                 return matched ? { assetId: matched.id } : { url: src };

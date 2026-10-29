@@ -1,4 +1,3 @@
-import JSZip from "jszip";
 import type { Asset, SiteDoc } from "./types";
 import { ASSET_FETCH_CONCURRENCY, assetSrc, fetchWithRetry, mapLimit, readAssetBytes } from "./assets";
 import { buildAssetNames } from "./generator/names";
@@ -17,6 +16,7 @@ export async function createSiteBackup(doc: SiteDoc): Promise<Blob> {
   const manifest: ArchiveAssetMap = { version: 1, assets: {} };
   for (const [id, name] of names) manifest.assets[id] = "public/assets/" + name;
   const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
+  const { default: JSZip } = await import("jszip");
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, documentBytes);
   zip.file(EDITABLE_ASSETS_PATH, manifestBytes);

@@ -3,21 +3,20 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  ArrowDown, ArrowUp, CircleCheck, ClipboardPaste, Copy, FileText, Plus, Redo2, Scissors, Trash2, TriangleAlert, Undo2, X, Zap,
+  ArrowDown, ArrowUp, CircleCheck, ClipboardPaste, Copy, FileText, Plus, Redo2, Scissors, Trash2, TriangleAlert, Undo2, X,
 } from "lucide-react";
 import { componentOf, useEditor } from "../lib/store";
 import SafeBoundary from "./SafeBoundary";
 import { glyphs } from "./Glyph";
 import {
   applyPageScripts, cloneSteps, isLinkScriptId, pageScriptsOf, scriptUid, walkSteps,
-  TRIGGER_LABELS, type PageScript,
+  type PageScript,
 } from "../lib/script";
-import { stepText } from "../lib/script-text";
 import { pageArrays, pagePlan, pageVariableIndex, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
-import { PAGE_TARGET, type Script, type ScriptStep, type ScriptTrigger } from "../lib/types";
+import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../lib/types";
 import { tr } from "../lib/i18n";
 import { ActionPicker } from "./script-editor/ActionPicker";
-import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON, isPageTrigger } from "./script-editor/catalog";
+import { isPageTrigger } from "./script-editor/catalog";
 import { copyScriptBlocks, pasteScriptBlocks, type ScriptBlockClipboard } from "./script-editor/clipboard";
 import { Ctx, ScriptNodeCtx, ScriptOwnerCtx, type EdCtx, type FetchPreviewScope } from "./script-editor/context";
 import { FetchResult } from "./script-editor/fetch";
@@ -34,61 +33,6 @@ import { buildTree, collectTargets } from "./script-editor/targets";
 import { TriggerCard, TriggerChooser, type TriggerValue } from "./script-editor/TriggerCard";
 import { readScriptClipboard, rememberScriptClipboard, useEditorKeys, type EditorKeyState } from "./script-editor/useEditorKeys";
 import { useStepDrag } from "./script-editor/useStepDrag";
-
-/* ---------- 設定パネル用の一覧 ---------- */
-
-/**
- * スクリプトを、「きっかけ」とその下に並ぶ動作の一覧として表示する
- * （element = 要素名を添える。onOpen があれば、クリックでスクリプトの画面を開く）
- */
-export function ScriptSummary({
-  items,
-  onOpen,
-}: {
-  items: { script: Script; element?: string }[];
-  onOpen?: (script: Script) => void;
-}) {
-  const doc = useEditor((s) => s.doc);
-  const MAX = 3;
-  return (
-    <ul className="ss">
-      {items.map(({ script: s, element }) => {
-        const TrigIcon = TRIGGER_ICON[s.trigger] ?? Zap;
-        return (
-          <li key={s.id} className="ss-item">
-            <button
-              type="button"
-              className="ss-card"
-              onClick={() => onOpen?.(s)}
-              disabled={!onOpen}
-              data-tip={onOpen ? tr("Click to edit scripts") : undefined}
-            >
-              <span className="ss-when">
-                <Ico icon={TrigIcon} cat="event" />
-                {s.trigger === "change" && s.changeVariable !== undefined
-                  ? <span className="ss-el">{s.changeVariable || tr("Select a variable")}</span>
-                  : element && <span className="ss-el">{element}</span>}
-                <span className="ss-trig">{TRIGGER_LABELS[s.trigger]}</span>
-              </span>
-              <ol className="ss-steps">
-                {s.steps.slice(0, MAX).map((step) => (
-                  <li key={step.id}>
-                    <Ico icon={STEP_ICON[step.kind]} cat={CAT_OF[step.kind]} />
-                    <span className="ss-text">{glyphs(stepText(step, doc))}</span>
-                  </li>
-                ))}
-                {s.steps.length > MAX && (
-                  <li className="ss-more">{tr("and {n} more actions", { n: s.steps.length - MAX })}</li>
-                )}
-                {!s.steps.length && <li className="ss-more">{tr("No actions")}</li>}
-              </ol>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
 
 /* ---------- 本体 ---------- */
 

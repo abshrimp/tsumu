@@ -12,14 +12,15 @@ import { CommentsPanel } from "./Comments";
 export default function RightPanel() {
   const selection = useEditor((s) => s.selection);
   const breakpoint = useEditor((s) => s.breakpoint);
-  const doc = useEditor((s) => s.doc);
+  const selectedType = useEditor((s) =>
+    s.selection ? s.doc.nodes[s.selection]?.type ?? null : null
+  );
   const tab = useEditor((s) => s.rightTab);
   const setTab = useEditor((s) => s.setRightTab);
 
   const commenting = useComments((s) => s.active);
   const mode = useEditor((s) => s.mode);
 
-  const node = selection ? doc.nodes[selection] : null;
   return (
     // パソコン以外の画面幅で編集しているときは、変更済みの色を青ではなくオレンジにする
     //（その画面幅だけの変更だと分かるようにするため）
@@ -49,13 +50,13 @@ export default function RightPanel() {
           </div>
           <BodyStylePanel />
         </>
-      ) : node ? (
-        node.type === "instance" ? (
+      ) : selectedType && selection ? (
+        selectedType === "instance" ? (
           <>
             <div className="tabs">
               <button className="tab is-on">{tr("Settings")}</button>
             </div>
-            <SettingsPanel nodeId={node.id} />
+            <SettingsPanel nodeId={selection} />
           </>
         ) : (
           <>
@@ -90,9 +91,9 @@ export default function RightPanel() {
               </button>
             </div>
             {tab === "style" ? (
-              <StylePanel nodeId={node.id} />
+              <StylePanel nodeId={selection} />
             ) : (
-              <SettingsPanel nodeId={node.id} />
+              <SettingsPanel nodeId={selection} />
             )}
           </>
         )

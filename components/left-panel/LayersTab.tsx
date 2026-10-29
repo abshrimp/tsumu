@@ -4,7 +4,7 @@
  * レイヤー（要素の階層）タブ
  */
 
-import { isEnterKey } from "../../lib/keys";
+import { isEnterKey, isEscapeKey } from "../../lib/keys";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { AppWindow, LoaderCircle, Pencil } from "lucide-react";
 import { ancestorsOf, collectSubtreeIds, useEditor } from "../../lib/store";
@@ -219,7 +219,10 @@ function LayerRow({
               }}
               onKeyDown={(e) => {
                 if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
-                if (e.key === "Escape") setRenaming(false);
+                if (isEscapeKey(e)) {
+                  e.stopPropagation();
+                  setRenaming(false);
+                }
               }}
             />
           ) : (

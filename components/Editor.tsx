@@ -1,7 +1,7 @@
 "use client";
 
-import { isEnterKey } from "../lib/keys";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { isEnterKey, isEscapeKey } from "../lib/keys";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toggleCommentMode } from "../lib/comment-store";
 import { hydrateBrowserDoc, insertPointFor, persistDoc, useEditor } from "../lib/store";
 import type { SiteDoc } from "../lib/types";
@@ -34,12 +34,8 @@ import Canvas from "./Canvas";
 import RightPanel from "./RightPanel";
 import LeaveAnimator from "./LeaveAnimator";
 import DialogHost from "./DialogHost";
-import ScriptEditor from "./ScriptEditor";
 import TooltipLayer from "./Tooltip";
-import Tutorial from "./Tutorial";
-import HelpCenter from "./HelpCenter";
 import AiChat from "./AiChat";
-import GuideOverlay from "./GuideOverlay";
 import { closeHelp, openHelp, stopGuide, toggleHelp, useHelp } from "../lib/help";
 import { userMessage } from "../lib/errors";
 import SafeBoundary from "./SafeBoundary";
@@ -52,7 +48,16 @@ import { connectEditorPageHistory } from "../lib/editor-page-history";
 import { storageKey } from "../lib/storage-keys";
 import { trackPanelResize } from "../lib/panel-resize";
 
+const ScriptEditor = lazy(() => import("./ScriptEditor"));
+const Tutorial = lazy(() => import("./Tutorial"));
+const HelpCenter = lazy(() => import("./HelpCenter"));
+const GuideOverlay = lazy(() => import("./GuideOverlay"));
+
 const PANEL_MIN = { l: 200, r: 240 } as const;
+const PANEL_L_W_KEY = storageKey("panel-l-w");
+const PANEL_R_W_KEY = storageKey("panel-r-w");
+const PANEL_L_CLOSED_KEY = storageKey("panel-l-closed");
+const PANEL_R_CLOSED_KEY = storageKey("panel-r-closed");
 
 function clampPanel(w: number, side: "l" | "r"): number {
   return Math.max(PANEL_MIN[side], Math.min(460, w));
@@ -261,14 +266,14 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
     savedAt: number;
   } | null>(null);
   const [panelL, setPanelL] = useState(() =>
-    clampPanel(Number(readLocalStorage("panel-l-w")) || 252, "l")
+    clampPanel(Number(readLocalStorage(PANEL_L_W_KEY)) || 252, "l")
   );
   const [panelR, setPanelR] = useState(() =>
-    clampPanel(Number(readLocalStorage("panel-r-w")) || 288, "r")
+    clampPanel(Number(readLocalStorage(PANEL_R_W_KEY)) || 288, "r")
   );
   /** 左右のパネルを閉じているか */
-  const [closedL, setClosedL] = useState(() => readFlag("panel-l-closed"));
-  const [closedR, setClosedR] = useState(() => readFlag("panel-r-closed"));
+  const [closedL, setClosedL] = useState(() => readFlag(PANEL_L_CLOSED_KEY));
+  const [closedR, setClosedR] = useState(() => readFlag(PANEL_R_CLOSED_KEY));
   /** 開閉を切り替えた直後だけ、幅をアニメーションさせる（ドラッグ中は追従を優先する） */
   const [panelAnim, setPanelAnim] = useState(false);
   const animTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -279,15 +284,17 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
     (side === "l" ? setClosedL : setClosedR)((c) => (open === undefined ? !c : !open));
   }, []);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const helpOpen = useHelp((s) => s.open);
+  const hasGuide = useHelp((s) => !!s.guide);
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
   const internalClipboardOwned = useRef(false);
 
   useEffect(() => {
     try {
-      window.localStorage.setItem("panel-l-w", String(panelL));
-      window.localStorage.setItem("panel-r-w", String(panelR));
-      window.localStorage.setItem("panel-l-closed", closedL ? "1" : "0");
-      window.localStorage.setItem("panel-r-closed", closedR ? "1" : "0");
+      window.localStorage.setItem(PANEL_L_W_KEY, String(panelL));
+      window.localStorage.setItem(PANEL_R_W_KEY, String(panelR));
+      window.localStorage.setItem(PANEL_L_CLOSED_KEY, closedL ? "1" : "0");
+      window.localStorage.setItem(PANEL_R_CLOSED_KEY, closedR ? "1" : "0");
     } catch {
       return;
     }
@@ -1270,7 +1277,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
           e.preventDefault();
           s.deleteNodes(ids);
         }
-      } else if (e.key === "Escape") {
+      } else if (isEscapeKey(e)) {
         // ヘルプを開いていれば、選択を外す前にヘルプを閉じる
         if (useHelp.getState().open && !document.querySelector(".dd-menu, .color-pop")) {
           closeHelp();
@@ -1391,12 +1398,14 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       <LeaveAnimator />
       <DialogHost />
       {scriptEditor && (
-        <ScriptEditor
-          key={`${scriptEditor.focusNodeId ?? ""}:${scriptEditor.focusScriptId ?? ""}`}
-          focusNodeId={scriptEditor.focusNodeId}
-          focusScriptId={scriptEditor.focusScriptId}
-          onClose={() => useEditor.getState().openScriptEditor(null)}
-        />
+        <Suspense fallback={null}>
+          <ScriptEditor
+            key={`${scriptEditor.focusNodeId ?? ""}:${scriptEditor.focusScriptId ?? ""}`}
+            focusNodeId={scriptEditor.focusNodeId}
+            focusScriptId={scriptEditor.focusScriptId}
+            onClose={() => useEditor.getState().openScriptEditor(null)}
+          />
+        </Suspense>
       )}
       {pasteNotice && (
         <div className="paste-notice" role="status">
@@ -1406,15 +1415,25 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       <SafeBoundary label={tr("AI")}>
         <AiChat />
       </SafeBoundary>
-      <SafeBoundary label={tr("Help")} onClose={closeHelp}>
-        <HelpCenter onStartTutorial={startTutorial} />
-      </SafeBoundary>
-      <SafeBoundary label={tr("Guide")} onClose={() => stopGuide()}>
-        <GuideOverlay />
-      </SafeBoundary>
+      {helpOpen && (
+        <SafeBoundary label={tr("Help")} onClose={closeHelp}>
+          <Suspense fallback={null}>
+            <HelpCenter onStartTutorial={startTutorial} />
+          </Suspense>
+        </SafeBoundary>
+      )}
+      {hasGuide && (
+        <SafeBoundary label={tr("Guide")} onClose={() => stopGuide()}>
+          <Suspense fallback={null}>
+            <GuideOverlay />
+          </Suspense>
+        </SafeBoundary>
+      )}
       {tutorialOpen && (
         <SafeBoundary label={tr("Tutorial")} onClose={() => setTutorialOpen(false)}>
-          <Tutorial onClose={() => setTutorialOpen(false)} />
+          <Suspense fallback={null}>
+            <Tutorial onClose={() => setTutorialOpen(false)} />
+          </Suspense>
         </SafeBoundary>
       )}
       {conflict && (

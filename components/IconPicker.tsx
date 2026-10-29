@@ -6,8 +6,6 @@ import { createRoot } from "react-dom/client";
 import { icons } from "lucide-react";
 import { tr } from "../lib/i18n";
 
-const ICON_NAMES = Object.keys(icons);
-
 /** PascalCase を kebab-case に変換する（lucide での名前の書き方） */
 function toKebab(name: string): string {
   return name
@@ -15,6 +13,11 @@ function toKebab(name: string): string {
     .replace(/([A-Z])([A-Z][a-z])/g, "$1-$2")
     .toLowerCase();
 }
+
+const ICON_ENTRIES = Object.keys(icons).map((pascal) => ({
+  pascal,
+  kebab: toKebab(pascal),
+}));
 
 /** アイコンのコンポーネントを SVG の文字列に変換する（大きさは CSS で決める） */
 function iconToSvg(pascalName: string): string {
@@ -45,8 +48,8 @@ export default function IconPicker({
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase().replace(/\s+/g, "-");
     const list = q
-      ? ICON_NAMES.filter((n) => toKebab(n).includes(q))
-      : ICON_NAMES;
+      ? ICON_ENTRIES.filter((entry) => entry.kebab.includes(q))
+      : ICON_ENTRIES;
     return list.slice(0, 96);
   }, [query]);
 
@@ -59,8 +62,7 @@ export default function IconPicker({
         onChange={(e) => setQuery(e.target.value)}
       />
       <div className="icon-picker-grid">
-        {matches.map((pascal) => {
-          const kebab = toKebab(pascal);
+        {matches.map(({ pascal, kebab }) => {
           const C = icons[pascal as keyof typeof icons];
           return (
             <button

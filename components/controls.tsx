@@ -1,7 +1,8 @@
 "use client";
 
 import { cssValueParts } from "../lib/css-value-parts";
-import { isEnterKey } from "../lib/keys";
+import { isEnterKey, isEscapeKey } from "../lib/keys";
+import { storageKey } from "../lib/storage-keys";
 import {
   createContext,
   useCallback,
@@ -1166,7 +1167,7 @@ export function VarInput({
               else openExplore();
               return;
             }
-            if (e.key === "Escape") {
+            if (isEscapeKey(e)) {
               e.stopPropagation();
               setSug(null);
               return;
@@ -1272,7 +1273,7 @@ export function Dropdown({
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (isEscapeKey(e)) setOpen(false);
     };
     const onScroll = (e: Event) => {
       if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
@@ -1488,7 +1489,7 @@ export function composeColor(hex: string, alpha: number): string {
 
 /* ---------- 最近使った色 ---------- */
 
-const RECENT_COLORS_KEY = "recent-colors-v1";
+const RECENT_COLORS_KEY = storageKey("recent-colors-v1");
 const RECENT_COLORS_MAX = 14;
 const EMPTY_COLOR_PALETTE: readonly string[] = [];
 
@@ -1612,8 +1613,15 @@ export function FillControl({
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) close();
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (isEscapeKey(e)) close();
+    };
     window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   return (

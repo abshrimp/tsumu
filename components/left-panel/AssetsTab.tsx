@@ -907,7 +907,8 @@ export function AssetsTab() {
                       onKeyDown={(e) => {
                         if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
                         if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
-                        if (e.key === "Escape") {
+                        if (isEscapeKey(e)) {
+                          e.stopPropagation();
                           focusRequest.current = { id: asset.id, last: false };
                           setRenaming(null);
                         }

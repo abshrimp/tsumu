@@ -311,26 +311,29 @@ export function ContextMenu({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const [pos, setPos] = useState({ left: x, top: y });
 
   useEffect(() => {
+    const close = () => onCloseRef.current();
     const onDown = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onClose();
+      if (!ref.current?.contains(e.target as Node)) close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (isEscapeKey(e)) onClose();
+      if (isEscapeKey(e)) close();
     };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
-    window.addEventListener("wheel", onClose, { once: true });
-    window.addEventListener("blur", onClose);
+    window.addEventListener("wheel", close, { once: true });
+    window.addEventListener("blur", close);
     return () => {
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("wheel", onClose);
-      window.removeEventListener("blur", onClose);
+      window.removeEventListener("wheel", close);
+      window.removeEventListener("blur", close);
     };
-  }, [onClose]);
+  }, []);
 
   // 画面からはみ出さないよう、実際の大きさを測って位置を調整する
   useLayoutEffect(() => {
