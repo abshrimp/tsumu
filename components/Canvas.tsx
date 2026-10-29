@@ -18,6 +18,7 @@ import {
   pickedVar,
   shouldShowVarSuggest,
   varSuggestPos,
+  varSuggestionAnchorVisible,
   VarSuggestMenu,
   type VarSuggest,
 } from "./controls";
@@ -201,6 +202,7 @@ export default function Canvas() {
 
   /* ---- テキスト編集の変数予測変換 ---- */
   const [autoComp, setAutoComp] = useState<VarSuggest | null>(null);
+  const autoCompMenuRef = useRef<HTMLDivElement>(null);
   const autoCompRef = useRef(autoComp);
   autoCompRef.current = autoComp;
 
@@ -267,6 +269,51 @@ export default function Canvas() {
   useEffect(() => {
     if (!editingText) setAutoComp(null);
   }, [editingText]);
+
+  useEffect(() => {
+    if (!autoCompOpen) return;
+    const closeOutside = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (editingEl()?.contains(target) || autoCompMenuRef.current?.contains(target)) return;
+      setAutoComp(null);
+    };
+    const closeOnFocusChange = (e: FocusEvent) => {
+      if (editingEl()?.contains(e.target as Node) || autoCompMenuRef.current?.contains(e.target as Node)) return;
+      setAutoComp(null);
+    };
+    const onScrollOrResize = (e: Event) => {
+      if (autoCompMenuRef.current?.contains(e.target as Node)) return;
+      const editor = editingEl();
+      if (!editor || !editor.isConnected) { setAutoComp(null); return; }
+      const selection = window.getSelection();
+      let rect = editor.getBoundingClientRect();
+      if (selection?.rangeCount) {
+        const range = selection.getRangeAt(0);
+        if (editor.contains(range.startContainer) && editor.contains(range.endContainer)) {
+          const caret = range.getBoundingClientRect();
+          if (caret.height) rect = caret;
+        }
+      }
+      if (!varSuggestionAnchorVisible(editor, rect)) { setAutoComp(null); return; }
+      setAutoComp((previous) => previous && ({
+        ...previous,
+        pos: varSuggestPos(rect, previous.matches.length + (previous.explore ? 1 : 0)),
+      }));
+    };
+    const loseWindowFocus = () => setAutoComp(null);
+    window.addEventListener("pointerdown", closeOutside, true);
+    document.addEventListener("focusin", closeOnFocusChange, true);
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    window.addEventListener("blur", loseWindowFocus);
+    return () => {
+      window.removeEventListener("pointerdown", closeOutside, true);
+      document.removeEventListener("focusin", closeOnFocusChange, true);
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("blur", loseWindowFocus);
+    };
+  }, [autoCompOpen]);
 
   /** 「変数を探す」: 置き換える範囲（開いている間もテキスト編集は続ける） */
   const [explore, setExplore] = useState<{ nodeId: string; start: number; end: number } | null>(
@@ -1029,6 +1076,7 @@ export default function Canvas() {
       )}
       {autoComp && (
         <VarSuggestMenu
+          menuRef={autoCompMenuRef}
           suggest={autoComp}
           samples={varSamples}
           onPick={insertVar}
