@@ -4,6 +4,32 @@ import { createInitialDoc } from "../lib/presets";
 import { validSiteDoc } from "../lib/doc-tree";
 import { isDocPatch, docPatchSqlPath } from "../lib/doc-patch";
 
+test("new sites start with only home and 404 without orphaned demo content", () => {
+  const doc = createInitialDoc();
+  assert.equal(doc.pageOrder.length, 2);
+  const [homeId, notFoundId] = doc.pageOrder;
+  assert.deepEqual(Object.keys(doc.pages), [homeId, notFoundId]);
+  assert.equal(doc.pages[homeId].slug, "");
+  assert.equal(doc.pages[notFoundId].slug, "404");
+  assert.ok(doc.pages[homeId].children.length > 0);
+  assert.ok(doc.pages[notFoundId].children.length > 0);
+  assert.ok(Object.values(doc.nodes).some(node =>
+    node.link?.kind === "page" && node.link.pageId === homeId
+  ));
+
+  const reachable = new Set<string>();
+  const visit = (id: string) => {
+    if (reachable.has(id)) return;
+    reachable.add(id);
+    for (const childId of doc.nodes[id]?.children ?? []) visit(childId);
+  };
+  for (const pageId of doc.pageOrder) {
+    for (const nodeId of doc.pages[pageId].children) visit(nodeId);
+  }
+  assert.deepEqual([...reachable].sort(), Object.keys(doc.nodes).sort());
+  assert.equal(validSiteDoc(doc), true);
+});
+
 test("the persisted document requires its one canonical schema version", () => {
   const doc = createInitialDoc();
   assert.equal(doc.schemaVersion, 1);
