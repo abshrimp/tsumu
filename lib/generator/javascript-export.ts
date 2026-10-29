@@ -22,7 +22,7 @@ export async function toJavaScriptProject(
       fileName: path,
       reportDiagnostics: true,
       compilerOptions: {
-        target: ts.ScriptTarget.ES2022,
+        target: ts.ScriptTarget.ES2024,
         module: ts.ModuleKind.ESNext,
         jsx: ts.JsxEmit.Preserve,
         isolatedModules: true,

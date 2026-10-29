@@ -81,10 +81,10 @@ export function buildAdditionalFramework(
         ...(ts ? { typescript: "^5.9.3", "vue-tsc": "^3.1.0" } : {}) },
     });
     if (ts) files["tsconfig.json"] = jsonIndent({
-      compilerOptions: { target: "ES2022", module: "ESNext", moduleResolution: "Bundler",
+      compilerOptions: { target: "ES2024", module: "ESNext", moduleResolution: "Bundler",
         allowJs: true, checkJs: false,
         strict: true, esModuleInterop: true, skipLibCheck: true, resolveJsonModule: true,
-        allowImportingTsExtensions: true, noEmit: true, lib: ["ES2022", "DOM"] },
+        allowImportingTsExtensions: true, noEmit: true, lib: ["ES2024", "DOM"] },
       include: ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"],
     });
     // Vite は *.module.css の環境の型を提供する。この参照が無いと、CSS Modules を選んだ

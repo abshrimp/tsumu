@@ -841,7 +841,7 @@ export default nextConfig;
   files["tsconfig.json"] = JSON.stringify(
     {
       compilerOptions: {
-        target: "ES2020",
+        target: "ES2024",
         lib: ["dom", "dom.iterable", "esnext"],
         allowJs: true,
         skipLibCheck: true,

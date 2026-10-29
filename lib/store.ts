@@ -55,8 +55,8 @@ const UI_KEY = siteKey(storageKey("ui-v1"));
 const HISTORY_LIMIT = 100;
 
 export type EditorMode = "design" | "preview";
-export type LeftTab = "layers" | "add" | "pages" | "assets" | "site";
-export type RightTab = "style" | "settings";
+type LeftTab = "layers" | "add" | "pages" | "assets" | "site";
+type RightTab = "style" | "settings";
 
 const LEFT_TABS: LeftTab[] = ["layers", "add", "pages", "assets", "site"];
 
@@ -1857,7 +1857,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     updatePage: (id, patch) => {
       get().updateDoc((doc) => {
-        const page = doc.pages[id];
+        const page = Object.hasOwn(doc.pages, id) ? doc.pages[id] : undefined;
         if (!page) return;
         const before = { id, slug: page.slug, query: page.query };
         // タイトルを一緒に指定していなければ、まだ決まっていないタイトルをページ名に合わせる（初回だけ）

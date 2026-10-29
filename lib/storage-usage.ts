@@ -10,7 +10,7 @@ export interface StorageUsageResponse {
   pending?: { path: string; bytes: number | null }[];
 }
 
-export interface StorageUsage {
+interface StorageUsage {
   /** サーバーに置いたファイルの数 */
   files: number;
   bytes: number;

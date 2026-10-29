@@ -4,7 +4,7 @@ import type { AdobeFont } from "./types";
  * Adobeの埋め込みコードは実行せず、配信元IDとCSSファミリー名だけを抽出する。
  * 貼り付けたコード自体は保存・再出力しない。
  */
-export interface AdobeEmbed {
+interface AdobeEmbed {
   kitId: string;
   loading: AdobeFont["loading"];
 }

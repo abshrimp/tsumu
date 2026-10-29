@@ -118,7 +118,7 @@ function serverRequestSource(pages: ReturnType<typeof generateNativeFiles>["page
     "  // not through the Node-only SSR transport. Keep the origin allowlist above.",
     "  if (typeof window !== 'undefined') return fetch(target.href, options);",
     "  const transport = globalThis.process?.getBuiltinModule;",
-    "  if (typeof transport !== \"function\") throw new Error(\"External SSR fetch requires Node 22+\");",
+    "  if (typeof transport !== \"function\") throw new Error(\"External SSR fetch requires Node 26+\");",
     "  const http = transport(target.protocol === \"https:\" ? \"node:https\" : \"node:http\");",
     "  const dns = transport(\"node:dns\");",
     "  if (!http?.request || !dns?.lookup) throw new Error(\"Safe SSR transport unavailable\");",

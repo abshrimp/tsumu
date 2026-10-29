@@ -84,10 +84,7 @@ describe("browser-data-export", () => {
     const calls: string[] = [];
     const { values, warnings, steps } = await runBrowserData(project, "?group=news&id=2", async (url) => {
       calls.push(url);
-      return {
-        ok: true, headers: { get: () => null },
-        text: async () => JSON.stringify([{ id: 1, name: "A" }, { id: 2, name: "B" }]),
-      };
+      return Response.json([{ id: 1, name: "A" }, { id: 2, name: "B" }]);
     });
     assert.deepEqual(calls, ["https://data.example.test/items?group=news"]);
     const target = (id: string): string => {
@@ -191,7 +188,7 @@ describe("browser-data-export", () => {
     let request: any;
     const { values, steps } = await runBrowserData(project, "?query=hello%20world&limit=3&lang=ja", async (url, options) => {
       request = { url, options };
-      return { ok: true, headers: { get: () => "13" }, text: async () => '{"answer":true}' };
+      return new Response('{"answer":true}', { headers: { "content-length": "15" } });
     });
     assert.equal(request.url, "https://data.example.test/search");
     assert.equal(request.options.method, "POST");
@@ -301,7 +298,7 @@ describe("generated-fetch-request-parity", () => {
       window: {}, location: { search: new URLSearchParams(vars).toString() }, URLSearchParams, TextDecoder, TextEncoder,
       document: { querySelector: () => ({ textContent: JSON.stringify({ steps: [step] }) }) },
       console: { warn() {} },
-      fetch: async (_url: string, init: unknown) => { request = JSON.parse(JSON.stringify(init)); return { ok: true, headers: { get: () => null }, text: async () => "{}" }; },
+      fetch: async (_url: string, init: unknown) => { request = JSON.parse(JSON.stringify(init)); return Response.json({}); },
     };
     if (native) {
       runInNewContext(nativeDataModule().replace(/\bexport /g, "") + "\nglobalThis.run = loadPageData;", context);
@@ -340,7 +337,7 @@ describe("generated-list-order-parity", () => {
     const plan = { steps: [{ kind: "fetch", url: "https://example.com/", as: "rows" }], listOps: { rows: operations } };
     const context: any = { URLSearchParams, TextDecoder, TextEncoder, window: {}, location: { search: "" },
       document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) },
-      fetch: async () => ({ ok: true, headers: { get: () => null }, text: async () => JSON.stringify(data) }),
+      fetch: async () => Response.json(data),
     };
     let vars, rows;
     if (native) {

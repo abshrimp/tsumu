@@ -47,7 +47,7 @@ export async function listAllowedAccounts(): Promise<AllowedAccount[]> {
 }
 
 /** The login allowlist only needs email addresses. */
-export async function listAllowedEmails(): Promise<string[]> {
+async function listAllowedEmails(): Promise<string[]> {
   return (await listAllowedAccounts()).map((account) => account.email);
 }
 

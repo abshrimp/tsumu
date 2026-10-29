@@ -37,7 +37,7 @@ export type CategoryId =
   | "publish"
   | "design";
 
-export interface Category {
+interface Category {
   id: CategoryId;
   label: string;
   desc: string;

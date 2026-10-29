@@ -21,17 +21,10 @@ export function isAutomaticPageTitle(value: string): boolean {
     /^\d+$/.test(title.slice(prefix.length, title.length - suffix.length));
 }
 
-/**
- * タイトルがまだ決まっていないか（次にページ名を確定したら、タイトルもその名前にする）。
- */
-export function titlePending(page: Pick<Page, "name" | "title" | "titlePending">): boolean {
-  return page.titlePending === true;
-}
-
 /** ページ名を変える。名前が変わらないとき（欄に触れただけ）は何もしない */
 export function renamePage(page: Page, name: string): void {
   if (name === page.name) return;
-  if (page.title.trim() && titlePending(page)) page.title = name;
+  if (page.title.trim() && page.titlePending === true) page.title = name;
   delete page.titlePending;
   page.name = name;
 }

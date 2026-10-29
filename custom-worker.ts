@@ -486,21 +486,18 @@ export default {
     }
     // 同時編集の WebSocket は、文書の保存と同じサイト作成ごとのキーで分ける。
     // 古いソケットが、作り直したサイトの新しい部屋に加わることはない。
-    let roomName = siteId;
-    if (env.DB) {
-      const db = await getDbFromBinding(env.DB);
-      const access = await siteRoleForSocket(db, siteId, user?.email ?? null, env);
-      if (!access) return new Response("Site not found", { status: 404 });
-      const key = await getSiteRoomKey(db, siteId);
-      if (!key) return new Response("Site storage not initialized", { status: 404 });
-      roomName = key;
-    }
+    if (!env.DB) return new Response("Database not configured", { status: 503 });
+    const db = await getDbFromBinding(env.DB);
+    const access = await siteRoleForSocket(db, siteId, user?.email ?? null, env);
+    if (!access) return new Response("Site not found", { status: 404 });
+    const roomName = await getSiteRoomKey(db, siteId);
+    if (!roomName) return new Response("Site storage not initialized", { status: 404 });
     const room = env.COLLAB_ROOM.get(env.COLLAB_ROOM.idFromName(roomName));
     const headers = new Headers(request.headers);
     headers.delete(USER_HEADER);
     headers.delete(ROOM_KEY_HEADER);
     if (user) headers.set(USER_HEADER, encodeURIComponent(JSON.stringify(user)));
-    if (roomName !== siteId) headers.set(ROOM_KEY_HEADER, roomName);
+    headers.set(ROOM_KEY_HEADER, roomName);
     return room.fetch(new Request(request, { headers }));
   },
 };

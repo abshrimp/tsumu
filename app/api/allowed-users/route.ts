@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { dbUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
 import { isValidEmail } from "../../../lib/email";
-import { allowedEmails, auth, authConfigured } from "../../../auth";
+import { auth, authConfigured } from "../../../auth";
 import {
   addAllowedEmail,
+  allowedEmails,
   listAllowedAccounts,
   removeAllowedEmail,
   updateAllowedAccountRole,

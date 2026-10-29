@@ -153,3 +153,17 @@ test("repaired AI refs replay across tool calls and chunks as one independently 
   useEditor.getState().undo();
   assert.deepEqual(useEditor.getState().doc, aiChatDoc());
 });
+
+test("prototype keys in AI page targets and links never resolve or mutate Object.prototype", () => {
+  const doc = aiChatDoc();
+  const res = applyAiOps(doc, [{ op: "update_page", name: "Polluted", title: "Polluted", description: "Polluted" }], { pageId: "__proto__" });
+  assert.equal(res.applied.length, 0);
+  assert.equal(res.errors.length, 1);
+  assert.equal(({} as Record<string, unknown>).title, undefined);
+  assert.equal(({} as Record<string, unknown>).name, undefined);
+  assert.equal(({} as Record<string, unknown>).description, undefined);
+
+  const linkRes = applyAiOps(doc, [{ op: "set_link", id: "a", link: { pageId: "__proto__" } }], target);
+  assert.equal(linkRes.applied.length, 0);
+  assert.equal(linkRes.errors.length, 1);
+});

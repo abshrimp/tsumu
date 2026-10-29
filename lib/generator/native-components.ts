@@ -280,7 +280,7 @@ function node(ctx: Context, id: string, top = false): string {
   }
 }
 
-export interface NativeFiles {
+interface NativeFiles {
   doc: SiteDoc;
   pages: { id: string; name: string; title: string; description: string; noindex: boolean; slug: string;
     query: Record<string, string>; language: string; plan: ReturnType<typeof serializePageDataPlan> }[];

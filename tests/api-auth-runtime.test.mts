@@ -308,7 +308,6 @@ describe("allowed-users-shapes", () => {
       "../../../auth": {
         authConfigured: () => true,
         auth: async () => ({ user: { email: identity } }),
-        allowedEmails: () => ["owner@example.com"],
       },
       "../../../lib/i18n-server": { serverTr: async () => (s: string) => s },
       "../../../lib/unavailable": { dbUnavailable: async () => NextResponse.json({}, { status: 503 }) },
@@ -317,6 +316,7 @@ describe("allowed-users-shapes", () => {
       "../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
       "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
       "../../../lib/allowlist": {
+        allowedEmails: () => ["owner@example.com"],
         addAllowedEmail: async (email: string) => { inserted.push(email); },
         listAllowedAccounts: async () => inserted.map((email) => ({ email, role: "editor" })),
         getAccountRole: async () => "editor",

@@ -2,7 +2,6 @@ import NextAuth, { type NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import { envVar } from "./lib/env";
 import { authCallbacks } from "./lib/auth-policy";
-export { allowedEmails } from "./lib/allowlist";
 
 /**
  * Google 認証の環境変数が揃っているか。揃っていなければ、ログインなしで開ける（proxy.ts）。
@@ -35,7 +34,7 @@ const authConfig = (): NextAuthConfig => ({
   },
 });
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+export const { handlers, auth } = NextAuth(authConfig);
 
 // Proxy では Cookie の検証だけを行い、権限の再確認は各 API の auth() で行う。
 // 設定済みの許可リストが更新されても、Cookie の状態だけでアクセスを許可しない。

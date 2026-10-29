@@ -1395,7 +1395,7 @@ export function looksLikeImage(value: unknown): boolean {
 }
 
 /** 要素の位置で使えるデータの項目と、確認用の値（リストの項目や、読み込んだデータから） */
-export interface FieldOption {
+interface FieldOption {
   field: string;
   /** 1件目の値（見本として表示する） */
   sample: unknown;

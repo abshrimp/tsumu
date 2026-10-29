@@ -44,6 +44,7 @@ function harness(options: { preview?: boolean; clearOnChange?: boolean; live?: b
     hasAttribute(key: string) { return this.attrs.has(key); }
     matches(selector: string) { return selector.split(",").some((tag) => tag.toUpperCase() === this.tagName); }
     querySelector() { return this.input ?? null; }
+    getRootNode() { return root; }
     closest(selector: string): Element | null {
       if (selector === "[data-scripts]") return this.hasAttribute("data-scripts") ? this : this.parentElement?.closest(selector) ?? null;
       return null;

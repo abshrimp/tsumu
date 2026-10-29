@@ -147,7 +147,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   function radiosOf(input) {
     if (!input.name) return [input];
     try {
-      var tree = input.getRootNode ? input.getRootNode() : document;
+      var tree = input.getRootNode();
       return Array.prototype.slice.call(
         tree.querySelectorAll('input[type="radio"][name="' + CSS.escape(input.name) + '"]')
       ).filter(function (radio) { return radio.form === input.form; });
@@ -1383,7 +1383,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (Number(response.headers.get("content-length") || 0) > maxBytes)
             throw new Error("Response exceeds 5 MB");
           var content = "", size = 0;
-          if (response.body && response.body.getReader) {
+          if (response.body) {
             var reader = response.body.getReader();
             var decoder = new TextDecoder();
             try {
@@ -1399,10 +1399,6 @@ export const SCRIPT_RUNTIME = `function (env) {
               void reader.cancel(e).catch(function () {});
               throw e;
             } finally { reader.releaseLock(); }
-          } else {
-            content = await response.text();
-            if (new TextEncoder().encode(content).byteLength > maxBytes)
-              throw new Error("Response exceeds 5 MB");
           }
           return JSON.parse(content);
         } catch (error) {

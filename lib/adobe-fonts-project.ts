@@ -1,11 +1,11 @@
 /** Published Adobe Fonts Web Project discovery. No user credentials or pasted scripts. */
 
-export interface AdobeProjectFamily {
+interface AdobeProjectFamily {
   name: string;
   family: string;
   loading: "css" | "dynamic";
 }
-export type AdobeProjectResult =
+type AdobeProjectResult =
   | { status: "available"; fonts: AdobeProjectFamily[]; loading?: "css" | "dynamic" }
   | { status: "reachable"; fonts: AdobeProjectFamily[]; loading: "css" | "dynamic" }
   | { status: "missing" | "unknown"; fonts: AdobeProjectFamily[] };

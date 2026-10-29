@@ -50,7 +50,6 @@ export async function serializePortableDoc(doc: SiteDoc, maxBytes: number): Prom
   const plain = JSON.stringify(doc);
   const input = new TextEncoder().encode(plain);
   if (input.byteLength > maxBytes) throw new Error("編集データが容量上限を超えています。");
-  if (typeof CompressionStream === "undefined") return plain;
   const compressed = new Uint8Array(await new Response(
     new Blob([input as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new CompressionStream("gzip")),
   ).arrayBuffer());
@@ -74,9 +73,6 @@ export async function decodePortableDoc(value: unknown, maxBytes: number): Promi
   if (value.version !== PORTABLE_DOC_VERSION || value.encoding !== "gzip+base64" ||
       typeof value.payload !== "string") {
     throw new Error("対応していない編集データの形式です。");
-  }
-  if (typeof DecompressionStream === "undefined") {
-    throw new Error("このブラウザでは圧縮された編集データを開けません。");
   }
   const compressed = fromBase64(value.payload, maxBytes);
   const reader = new Blob([compressed as Uint8Array<ArrayBuffer>]).stream()

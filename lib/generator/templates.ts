@@ -11,7 +11,7 @@ import { imageRefSrc } from "./render-helpers";
 export const EMPTY_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 /** PWA のアイコンの MIME タイプ（分からなければ undefined） */
-export function pwaIconType(mimeType: string | undefined, src: string): string | undefined {
+function pwaIconType(mimeType: string | undefined, src: string): string | undefined {
   if (mimeType?.startsWith("image/")) return mimeType;
   const ext = src.split(/[?#]/)[0].split(".").pop()?.toLowerCase();
   const types: Record<string, string> = {

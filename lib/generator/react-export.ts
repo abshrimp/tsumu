@@ -234,7 +234,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
   ].join("\n");
   files["tsconfig.json"] = JSON.stringify({
     compilerOptions: {
-      target: "ES2022", lib: ["DOM", "DOM.Iterable", "ES2022"],
+      target: "ES2024", lib: ["DOM", "DOM.Iterable", "ES2024"],
       module: "ESNext", moduleResolution: "Bundler", jsx: "react-jsx",
       strict: true, noEmit: true, skipLibCheck: true,
       esModuleInterop: true, resolveJsonModule: true,

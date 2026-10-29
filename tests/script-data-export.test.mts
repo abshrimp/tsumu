@@ -78,11 +78,7 @@ test("the document exports its pure transform, nested loop, conditions and list 
   const sandbox: Record<string, any> = {
     window: {}, location: { search: "?offset=2" }, URLSearchParams, TextDecoder, TextEncoder,
     document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) },
-    fetch: async () => ({
-      ok: true, status: 200,
-      headers: { get: () => null },
-      text: async () => JSON.stringify(response),
-    }),
+    fetch: async () => Response.json(response),
     console,
   };
   runInNewContext(PAGE_DATA_RUNTIME, sandbox, { timeout: 5000 });
@@ -95,11 +91,7 @@ test("the same transform semantics run in native SSR without browser globals", a
   const plan = pageDataPlan(doc, page);
   const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
   const { loadPageData, listItemsWithOps } = await import(uri);
-  const vars = await loadPageData(plan, "?offset=2", async () => ({
-    ok: true, status: 200,
-    headers: { get: () => null },
-    text: async () => JSON.stringify(response),
-  }));
+  const vars = await loadPageData(plan, "?offset=2", async () => Response.json(response));
   expected(vars, listItemsWithOps(plan.listOps, vars, "items", 0));
 });
 

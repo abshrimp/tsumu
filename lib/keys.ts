@@ -1,4 +1,4 @@
-export interface KeyLikeEvent {
+interface KeyLikeEvent {
   key: string;
   keyCode?: number;
   isComposing?: boolean;

@@ -106,11 +106,7 @@ const UNITLESS = new Set([
 const HEADING_SIZES: Record<number, string> = { 1: "44px", 2: "32px", 3: "24px", 4: "20px", 5: "17px", 6: "15px" };
 
 function newId(): string {
-  const rand =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID().replace(/-/g, "").slice(0, 10)
-      : Math.random().toString(36).slice(2, 12);
-  return `node_ai${rand}`;
+  return `node_ai${crypto.randomUUID().replace(/-/g, "").slice(0, 10)}`;
 }
 
 /** "font-size: 18px; color: #111" を { "font-size": "18px", color: "#111" } にする */
@@ -132,7 +128,7 @@ function normalizeStyles(raw: AiStyles | undefined): Record<string, string | nul
   const map = typeof raw === "string" ? parseDeclarations(raw) : (raw ?? {});
   for (const [k0, v] of Object.entries(map)) {
     const k = k0.trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-    if (!/^[a-zA-Z]+$/.test(k)) continue;
+    if (!/^[a-zA-Z]+$/.test(k) || k === "constructor" || k === "prototype") continue;
     if (v === null || v === undefined || v === "") out[k] = null;
     else if (typeof v === "number") out[k] = UNITLESS.has(k) || v === 0 ? String(v) : `${v}px`;
     else if (typeof v === "string") out[k] = v.trim().replace(/;$/, "");
@@ -155,7 +151,7 @@ function stylesFrom(spec: AiNodeSpec, defaults: StyleMap): NodeStyles {
     ? spec.responsive.map((r) => [r?.breakpoint, r?.styles] as const)
     : Object.entries(spec.responsive ?? {});
   for (const [bp, map] of responsive) {
-    if (typeof bp !== "string" || !bp) continue;
+    if (typeof bp !== "string" || !bp || ["__proto__", "constructor", "prototype"].includes(bp)) continue;
     const m = Object.fromEntries(Object.entries(normalizeStyles(map)).filter(([, v]) => v !== null)) as StyleMap;
     if (Object.keys(m).length) styles[bp] = { default: m };
   }
@@ -164,7 +160,7 @@ function stylesFrom(spec: AiNodeSpec, defaults: StyleMap): NodeStyles {
 
 function linkFrom(link: AiLink | null | undefined, doc: SiteDoc): DocNode["link"] {
   if (!link) return null;
-  if (link.pageId && doc.pages[link.pageId]) {
+  if (link.pageId && Object.hasOwn(doc.pages, link.pageId)) {
     return { kind: "page", pageId: link.pageId, ...(link.newTab ? { newTab: true } : {}) };
   }
   if (link.url) return { kind: "url", url: link.url, ...(link.newTab ? { newTab: true } : {}) };
@@ -318,7 +314,8 @@ function descendants(doc: SiteDoc, id: string, seen = new Set<string>()): string
   if (seen.has(id)) throw new Error("element tree contains a cycle or duplicate child");
   seen.add(id);
   const out = [id];
-  for (const c of doc.nodes[id]?.children ?? []) out.push(...descendants(doc, c, seen));
+  const children = Object.hasOwn(doc.nodes, id) ? doc.nodes[id]?.children : undefined;
+  for (const c of children ?? []) out.push(...descendants(doc, c, seen));
   return out;
 }
 
@@ -356,13 +353,13 @@ function duplicateIdFactory(doc: SiteDoc, copyId: string) {
 function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<string, string>): ApplyResult {
   const applied: AiOp[] = [];
   const errors: string[] = [];
-  const page: Page | undefined = doc.pages[target.pageId];
+  const page: Page | undefined = Object.hasOwn(doc.pages, target.pageId) ? doc.pages[target.pageId] : undefined;
   const scope = new Set((target.rootId ? [target.rootId] : page?.children ?? []).flatMap((id) => descendants(doc, id)));
   const bps = new Set(["base", ...normalizeBreakpoints(doc.breakpoints).map((b) => b.id)]);
   const resolve = (id: string | undefined) => (id ? (refs.get(id) ?? id) : id);
   const nodeOf = (id: string | undefined) => {
     const r = resolve(id);
-    return r && scope.has(r) ? doc.nodes[r] : undefined;
+    return r && scope.has(r) && Object.hasOwn(doc.nodes, r) ? doc.nodes[r] : undefined;
   };
 
   /** 置き場所の親の children と、入れる位置 */
@@ -562,7 +559,7 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             errors.push(`set_link: element "${op.id}" was not found`);
             break;
           }
-          if (op.link?.pageId && !doc.pages[op.link.pageId]) {
+          if (op.link?.pageId && !Object.hasOwn(doc.pages, op.link.pageId)) {
             errors.push(`set_link: page "${op.link.pageId}" was not found`);
             break;
           }
@@ -719,11 +716,12 @@ export function buildAiContext(
   doc: SiteDoc,
   opts: { pageId: string; componentId?: string | null; selection?: string | null; breakpoint?: string }
 ): AiContext {
-  const comp = opts.componentId ? doc.components?.[opts.componentId] : null;
-  const page = doc.pages[opts.pageId];
+  const comp = opts.componentId && doc.components && Object.hasOwn(doc.components, opts.componentId)
+    ? doc.components[opts.componentId] : null;
+  const page = Object.hasOwn(doc.pages, opts.pageId) ? doc.pages[opts.pageId] : undefined;
   const rootIds = comp ? [comp.rootId] : (page?.children ?? []);
   const nodes: SiteDoc["nodes"] = {};
-  for (const id of rootIds) for (const d of descendants(doc, id)) if (doc.nodes[d]) nodes[d] = doc.nodes[d];
+  for (const id of rootIds) for (const d of descendants(doc, id)) if (Object.hasOwn(doc.nodes, d) && doc.nodes[d]) nodes[d] = doc.nodes[d];
   const pages: SiteDoc["pages"] = {};
   for (const [id, p] of Object.entries(doc.pages)) {
     pages[id] = !comp && id === opts.pageId ? p : {
