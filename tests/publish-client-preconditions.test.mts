@@ -92,6 +92,16 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
     if (body.action === "commit" && commitFailure) return Response.json(commitFailure.body, { status: commitFailure.status });
     return Response.json({ sha: "asset", commitUrl: "https://example.com/commit" });
   };
+  // Evaluate the real shared preflight helpers against the same mocked store.
+  // The helpers were moved out of PublishModal to avoid a circular UI import.
+  const sharedSource = readFileSync(new URL("../components/PublishShared.tsx", import.meta.url), "utf8");
+  const sharedCode = transformSync(sharedSource, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
+  const shared = { exports: {} as any };
+  new Function("require", "module", "exports", sharedCode)(
+    (name: string) => name in mocks ? mocks[name] : require(name), shared, shared.exports,
+  );
+  mocks["./PublishShared"] = shared.exports;
+  mocks["./StaticPublishModal"] = { default: () => null };
   const module = { exports: {} as any };
   const immediateTimeout = (cb: (...args: unknown[]) => void, _ms?: number, ...args: unknown[]) => {
     queueMicrotask(() => cb(...args));

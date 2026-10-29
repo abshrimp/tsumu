@@ -4,6 +4,8 @@
 
 ## How it works
 
+The following diagram describes `PUBLISH_PROVIDER=github`. With `netlify` or `cloudflare`, Tsumu instead sends prebuilt static HTML/CSS/JS directly to a provider project for each site, without using a GitHub repository or publishing editable data.
+
 ```
 Tsumu (this repository)
 │  Runs on Cloudflare Workers, Node.js or Docker
@@ -23,7 +25,7 @@ Hosting (your choice)
 There are three moving parts:
 
 - **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded assets (images, video, audio, custom fonts, and imported HTML ZIP files). Uploads are shared by all sites. Where all of this is stored depends on where the editor runs.
-- **The published site** is an ordinary Next.js app (or one of the other [output formats](#output-formats)), committed to that site's own repository. It does **not** have to run where the editor runs.
+- **The published site** is either an ordinary app committed to the site's GitHub repository or a generated static HTML site uploaded to Netlify/Cloudflare Pages. It does **not** have to run where the editor runs.
 - **Test publishing** commits to a second branch of the same repository (`preview` by default). Vercel, Netlify and Cloudflare Workers Builds can build non-production branches as previews, so one hosting project covers both the live and the test site (on Netlify and Workers Builds, turn this on first; see [Hosting the published site](#hosting-the-published-site)). The test build is kept out of search engines with robots.txt, `noindex`, the `X-Robots-Tag` header and crawler blocking.
 
 ## What you need
@@ -231,7 +233,9 @@ Reverse proxy setup is the same as for [Node.js](#nodejs).
 
 ## Publish targets
 
-On the home screen, open a site's **… → Settings** to set the fields below. You can fill them in when you create the site or at any time later.
+The publishing provider is selected for the entire Tsumu instance by `PUBLISH_PROVIDER` (`github`, `netlify`, `cloudflare`). Server credentials are not stored in site settings. For **Netlify** and **Cloudflare Pages**, configure their API credentials and server-backed site storage. Each site gets a separate provider project on first publish (Netlify test publishing uses a separate project; Cloudflare Pages uses a preview branch). Only built static HTML/CSS/JS and assets are uploaded; editor data is never included. Static publishing has no build step and does not support server-only Next.js features.
+
+For **GitHub**, open a site's **… → Settings** to configure the fields below. You can fill them in when you create the site or later.
 
 | Field | Description |
 |---|---|
@@ -244,7 +248,7 @@ Create the site's repository before the first publish. It can be empty or initia
 
 ## Output formats
 
-**Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. With server storage configured, Publish remembers the framework, language and style from the site's last successful GitHub push, whether to its test or production branch. The first publish and each ZIP export start with Next.js, TypeScript and CSS.
+With **GitHub**, **Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. With server storage configured, Publish remembers the framework, language and style from the site's last successful GitHub push, whether to its test or production branch. The first publish and each ZIP export start with Next.js, TypeScript and CSS.
 
 | Framework | What you get | Running it |
 |---|---|---|
@@ -342,12 +346,14 @@ On any host, an interval of `0` fetches the data on every request.
 
 ### Rollback
 
-**Publish → Publish history & rollback** (or **⋯ → History & rollback**) lists the commits on each branch. For any version you can:
+With **GitHub**, **Publish → Publish history & rollback** (or **⋯ → History & rollback**) lists the commits on each branch. For any version you can:
 
 - **Restore site** — commits the selected version's files again on top of the branch. History is kept, so the rollback itself can be undone.
 - **Restore edits** — loads the editor content that was saved with that publish (`_tsumu/doc.json`). This counts as a normal edit, so ⌘Z reverts it.
 
-The same dialog also lists the server's daily backups of the editor content: one per weekday, seven in total.
+With Netlify/Cloudflare Pages, the publish dialog shows provider deployment history and restore actions instead. It cannot restore the editor document from a deployment; use the separate editor backups for that.
+
+The separate **History & rollback** menu also lists the server's daily backups of the editor content: one per weekday, seven in total.
 
 Use **Export backup ZIP** in **History & rollback** to download a self-contained copy of the entire site, including every asset in the library (images, videos, fonts and even unused files). **Load backup file** restores that ZIP into the current editor and uploads its assets to the current storage. If an asset cannot be fetched or restored, the operation fails rather than silently producing an incomplete backup. Standalone `doc.json` files matching the current schema can also be loaded, though server-stored asset files are not bundled in JSON.
 
@@ -424,7 +430,11 @@ All variables are optional (see [What you need](#what-you-need)).
 | `AUTH_URL` | The editor's URL in production, e.g. `https://tsumu.example.com` |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth client |
 | `ALLOWED_EMAILS` | Google accounts that always sign in as **Editors**, comma-separated. These can't be removed or downgraded in the UI. Manage additional **Editor** or **View only** accounts under **Settings** on the home screen. |
-| `GITHUB_TOKEN` | Token with Contents: Read and write on every repository you publish to (shared by all sites) |
+| `PUBLISH_PROVIDER` | `github` (default), `netlify` or `cloudflare`; selected for the whole Tsumu server |
+| `PUBLISH_PROJECT_PREFIX` | Optional static hosting project prefix (default `tsumu`); choose a unique one per instance |
+| `GITHUB_TOKEN` | GitHub only: Contents: Read and write on every publishing repository |
+| `NETLIFY_AUTH_TOKEN` | Netlify only: API token with access to the sites this server creates |
+| `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | Cloudflare Pages only: account ID and token with Pages: Edit permission |
 | `AI_ENABLED` | `true` to turn on Ask AI |
 | `AI_PROVIDER` | `anthropic` (default), `gemini`, `openai` or `openai-compatible` |
 | `AI_API_KEY` | API key (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY`) |

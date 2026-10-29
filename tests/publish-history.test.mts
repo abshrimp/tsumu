@@ -88,6 +88,8 @@ function fixture(holdWrites = false, holdConfirmation = false) {
   const mocks: Record<string, unknown> = {
     react: hooks,
     "../lib/export-formats": {}, // 履歴のパネルは、書き出しの生成を使わない。
+    "./PublishShared": { CheckList: () => null, docWithSvgFilters: async (doc: unknown) => doc },
+    "./StaticPublishModal": { default: () => null },
     "./controls": { Seg: (props: any) => React.createElement("tabs", props) },
     "../lib/dialog": { showConfirm: () => holdConfirmation ? new Promise<boolean>(resolve => { confirm = resolve; }) : Promise.resolve(true), showAlert: async (...args: any[]) => { alerts.push(args); } },
     "../lib/site": {

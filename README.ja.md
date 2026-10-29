@@ -32,7 +32,7 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 - **外部データ連携**：API から JSON を取得して利用できます。
 - **インポートとバックアップ**：Tsumu のプロジェクト ZIP をホーム画面にドロップすると、デザインと同梱のアセットを復元できます。「履歴・ロールバック」からの完全なバックアップ ZIP の書き出し・復元、`doc.json` の読み込み、HTML ファイルや Web サイトの ZIP から編集可能なページへの変換にも対応しています。
 - **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・静的 HTML のプロジェクトを ZIP で書き出せます。1ページを1ファイルで共有するには「単一のHTML」を選びます。
-- **GitHub への公開**：ボタンひとつで GitHub への公開ができます。本番・テスト用ブランチにも対応。
+- **選べる公開先**：サーバーの環境変数で GitHub・Netlify・Cloudflare Pages を切り替え、公開ボタンからデプロイできます。
 - **リアルタイム共同編集とサイト権限**：複数人での同時編集やコメントに加え、サイトごとに **オーナー**・**編集者**・**閲覧のみ** の権限を設定できます。
 - **AI による編集（任意）**：内蔵の「AIに頼む」で文章からページを編集できるほか、外部の AI クライアントを MCP（`tsumu-mcp`）で接続して編集することもできます。
 - **セルフホスト**：Cloudflare Workers・Node.js・Docker で動作します。
@@ -72,12 +72,17 @@ npm run dev
 
 ## 公開とデプロイ
 
-Tsumu から公開（push）するには、公開先の GitHub リポジトリを作成し、そのリポジトリに **Contents: Read and write** 権限を持つ fine-grained トークンを `GITHUB_TOKEN` に設定します。サイトの設定で公開先のリポジトリを選択してください。ZIP の書き出しにはトークンは不要です。
+サーバーの `PUBLISH_PROVIDER` に `github`（既定）・`netlify`・`cloudflare` のいずれかを設定します。
+
+- **GitHub**：公開用リポジトリを作成し、**Contents: Read and write** 権限を持つ `GITHUB_TOKEN` を設定します。サイト設定から公開先を選びます。生成コードと編集用データをpushします。
+- **Netlify・Cloudflare Pages**：`NETLIFY_AUTH_TOKEN`、または `CLOUDFLARE_ACCOUNT_ID` と `CLOUDFLARE_API_TOKEN` を設定します。Tsumuがサイトごとに公開プロジェクトを作成し、**生成した静的HTML・CSS・JavaScript・アセットだけ**をアップロードします。サーバーへのサイト保存が必要です。
+
+静的ホスティングでもテスト公開が利用できます。独自ドメインは公開サービスで設定し、必要に応じてサイト設定にURLを入力します。公開用トークンがなくてもZIP書き出しは可能です。
 
 編集データをサーバーに保存するには、**Cloudflare Workers** では D1・Durable Objects・KV を設定し、**Node.js** では `TSUMU_DATA_DIR` に保存先を指定します。**Docker** では `/data` にボリュームをマウントします。ブラウザ保存の場合、編集データは作成したブラウザ内に保存されます。アセットを削除したときの扱いは[保存先によって異なります](docs/user-guide.ja.md#エディタのデプロイ)。
 
 > [!IMPORTANT]
-> エディタをインターネットに公開する前に、[Google ログイン](docs/user-guide.ja.md#googleログイン)を設定してください。ログイン未設定の `npm run dev` は、既定で `localhost` などのループバック宛ての匿名アクセスを受け付けます。`ALLOW_ANONYMOUS=true` を設定すると他のホスト名からも開けます。その場合、アクセスできる人は誰でも編集でき、GitHub の公開先が設定されていれば公開もできます。
+> エディタをインターネットに公開する前に、[Google ログイン](docs/user-guide.ja.md#googleログイン)を設定してください。ログイン未設定の `npm run dev` は、既定で `localhost` などのループバック宛ての匿名アクセスを受け付けます。`ALLOW_ANONYMOUS=true` を設定すると他のホスト名からも開けます。その場合、アクセスできる人は誰でも編集でき、公開サービスの認証情報が設定されていれば公開もできます。
 
 デプロイ手順、認証、出力形式、環境変数、バックアップ、制限事項は[詳細ガイド](docs/user-guide.ja.md)を参照してください。
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publishProvider } from "../../../../lib/publish-provider";
 import { serverTr } from "../../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../../lib/server";
 import { requireSiteAccess } from "../../../../lib/site-access";
@@ -67,6 +68,14 @@ export async function GET(req: Request) {
   const tr = await serverTr();
   const denied = await requireAuth();
   if (denied) return denied;
+  try {
+    if (publishProvider() !== "github") {
+      return NextResponse.json({ error: tr("GitHub publishing history is not available for this provider.") },
+        { status: 409 });
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid PUBLISH_PROVIDER configuration." }, { status: 503 });
+  }
   const params = new URL(req.url).searchParams;
   const target = parseTarget(params.get("target"));
   const siteId = await siteIdOf(params.get("site"));
@@ -144,6 +153,14 @@ export async function POST(req: Request) {
   const tr = await serverTr();
   const denied = await requireAuth("editor");
   if (denied) return denied;
+  try {
+    if (publishProvider() !== "github") {
+      return NextResponse.json({ error: tr("GitHub publishing history is not available for this provider.") },
+        { status: 409 });
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid PUBLISH_PROVIDER configuration." }, { status: 503 });
+  }
   let body: { target?: unknown; sha?: unknown; site?: string; dest?: unknown; expected?: unknown; expectedHead?: unknown };
   try {
     const value = await readJsonLimited(req, MAX_ROLLBACK_REQUEST_BYTES);

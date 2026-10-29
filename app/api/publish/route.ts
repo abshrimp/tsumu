@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publishProvider, staticPublishConfig } from "../../../lib/publish-provider";
 import { serverTr } from "../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../lib/server";
 import { requireSiteAccess } from "../../../lib/site-access";
@@ -183,6 +184,26 @@ export async function GET(req: Request) {
   if (siteDenied) return siteDenied;
   const dest = await siteDestOf(siteId, destParam(params));
   if (dest instanceof NextResponse) return dest;
+  let provider: ReturnType<typeof publishProvider>;
+  try { provider = publishProvider(); }
+  catch { return NextResponse.json({ error: "Invalid PUBLISH_PROVIDER configuration." }, { status: 503 }); }
+  if (provider !== "github") {
+    const staticConfig = staticPublishConfig(siteId);
+    const available = staticConfig.configured && dbConfigured();
+    const error = !dbConfigured() ? "Static publishing requires server-backed sites." : staticConfig.error;
+    return NextResponse.json({
+      provider, configured: available, unset: available ? null : "token",
+      previewEnabled: true,
+      test: {
+        project: staticConfig.previewProject,
+        url: dest.previewUrl || staticConfig.previewUrl, error,
+      },
+      production: {
+        project: staticConfig.project,
+        url: dest.siteUrl || staticConfig.productionUrl, error,
+      },
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  }
   const describe = (target: PublishTarget) => {
     const conf = targetConfig(dest, target);
     return {
@@ -194,6 +215,7 @@ export async function GET(req: Request) {
   };
   const prod = targetConfig(dest, "production");
   return NextResponse.json({
+    provider: "github",
     // GitHub のトークンと公開先のリポジトリが設定されているか（無ければ、公開できないことだけを表示する）
     configured: !!(prod.token && prod.repo),
     /** 足りない設定（token = 環境変数の GITHUB_TOKEN、repo = サイトの公開先） */
@@ -211,6 +233,13 @@ export async function POST(req: Request) {
   const tr = await serverTr();
   const denied = await requireAuth("editor");
   if (denied) return denied;
+  try {
+    if (publishProvider() !== "github") {
+      return NextResponse.json({ error: "GitHub publishing is disabled for this server." }, { status: 409 });
+    }
+  } catch {
+    return NextResponse.json({ error: "Invalid PUBLISH_PROVIDER configuration." }, { status: 503 });
+  }
 
   let body: PublishBody;
   try {

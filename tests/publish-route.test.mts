@@ -83,6 +83,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     planPublish: helpers.planPublish,
     keptTreeEntries: helpers.keptTreeEntries,
     NextResponse,
+    publishProvider: () => "github",
     serverTr: async () => (message: string, vars?: Record<string, string | number>) =>
       message.replace(/\{([a-zA-Z]+)\}/g, (match, key: string) => vars?.[key] === undefined ? match : String(vars[key])),
     requireAuth: async () => null, requireSiteAccess: async () => null,

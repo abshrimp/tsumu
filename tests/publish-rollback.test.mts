@@ -148,6 +148,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
       githubClient: () => ({ gh, head: async () => head, fail: async () => { throw new Error("GitHub failure"); } }),
     },
     "lib/db": { dbConfigured: () => false },
+    "lib/publish-provider": { publishProvider: () => "github" },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": preconditions, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },

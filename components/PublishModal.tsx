@@ -16,13 +16,12 @@ import {
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
-import { HelpLink } from "./HelpCenter";
 import BackupFileControls from "./BackupFileControls";
+import StaticPublishModal from "./StaticPublishModal";
+import { CheckList, docWithSvgFilters } from "./PublishShared";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publish-preconditions";
 import { addPwaRetirementWorker } from "../lib/publish-pwa";
-import type { SiteDoc } from "../lib/types";
-import { detectSvgFilters } from "../lib/assets";
 import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
 import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
 import { validateImportedDoc, IMPORT_LIMITS } from "../lib/site-import-format";
@@ -43,49 +42,6 @@ import {
   conflictingCommitPaths,
   serializeGeneratedManifest,
 } from "../lib/publish-files";
-
-/** チェックした文書に SVG の判定を反映する。処理中の共同編集は今回の出力に含めない。 */
-export async function docWithSvgFilters(doc: SiteDoc): Promise<SiteDoc> {
-  const found = await detectSvgFilters(doc.assets);
-  let assets = doc.assets;
-  for (const [id, analysis] of Object.entries(found)) {
-    const asset = doc.assets[id];
-    if (!asset || (asset.svgFilter === analysis.svgFilter &&
-        (analysis.width === undefined || asset.width === analysis.width) &&
-        (analysis.height === undefined || asset.height === analysis.height))) continue;
-    if (assets === doc.assets) assets = { ...assets };
-    assets[id] = { ...asset, ...analysis };
-  }
-  if (assets === doc.assets) return doc;
-  // 同じ ID の画像が差し替えられていても、古い内容から判定した値を書き戻さない。
-  if (useEditor.getState().doc === doc) {
-    useEditor.getState().updateDoc(draft => { draft.assets = assets; }, { history: false });
-  }
-  return { ...doc, assets };
-}
-
-/** 公開前チェックの結果 */
-export function CheckList({ checks, onClose }: { checks: CheckResult[]; onClose: () => void }) {
-  if (!checks.length) {
-    return (
-      <div className="check-ok">
-        <Check size={14} />
-        {tr("All pre-publish checks passed.")}
-      </div>
-    );
-  }
-  return (
-    <ul className="check-list">
-      {checks.toSorted((a, b) => Number(b.level === "warn") - Number(a.level === "warn")).map((c, i) => (
-        <li key={i} className={c.level === "error" ? "is-error" : ""}>
-          <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
-          <span>{c.message}</span>
-          {c.help && <HelpLink topicId={c.help} onBefore={onClose} />}
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 /** UTF-8 のテキストを base64 にする（大きな文字列でも引数の上限を超えないよう、分けて処理する） */
 function textToBase64(text: string): string {
@@ -210,12 +166,15 @@ async function postPublish<T>(conf: PublishConfig, target: PublishTarget, body: 
 interface TargetInfo {
   repo: string | null;
   branch: string;
+  /** Static hosting uses a project, never a GitHub repository or branch. */
+  project?: string;
   url: string | null;
   error: string | null;
 }
 
 interface PublishConfig {
   site: string;
+  provider: "github" | "netlify" | "cloudflare";
   /** GitHub のトークンと公開先のリポジトリが設定されているか */
   configured: boolean;
   /** 足りない設定（token = 環境変数の GITHUB_TOKEN、repo = サイトの公開先） */
@@ -331,7 +290,7 @@ export default function PublishModal({
       .map((message): CheckResult => ({ level: "error", message })),
   ] : [], [configuredTargets, doc, format, language, style]);
   const hasError = checks.some((c) => c.level === "error");
-  useEscapeToClose(onClose, phase !== "busy");
+  useEscapeToClose(onClose, phase !== "busy" && targets?.provider !== "netlify" && targets?.provider !== "cloudflare");
 
   const publish = async (site: PublishTarget) => {
     if (!targets || hasError) return;
@@ -509,6 +468,18 @@ export default function PublishModal({
   };
 
   const siteUrl = site ? targets?.[site].url : null;
+
+  if (targets?.provider === "netlify" || targets?.provider === "cloudflare") {
+    return <StaticPublishModal key={targets.provider} conf={{
+      site: targets.site, provider: targets.provider, configured: targets.configured,
+      test: {
+        project: targets.test.project ?? "", url: targets.test.url, error: targets.test.error,
+      },
+      production: {
+        project: targets.production.project ?? "", url: targets.production.url, error: targets.production.error,
+      },
+    }} onClose={onClose} />;
+  }
 
   return (
     <div className="modal-backdrop" onClick={phase === "busy" ? undefined : onClose}>
@@ -1069,6 +1040,10 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             </div>
           ) : conf === "error" ? (
             <p className="hint">{tr("Couldn't load the publish settings")}</p>
+          ) : conf.provider === "netlify" || conf.provider === "cloudflare" ? (
+            <p className="hint">{tr("Open Publish to view the deployment history for {provider}. Editor backups remain available in this dialog.", {
+              provider: conf.provider === "netlify" ? "Netlify" : "Cloudflare Pages",
+            })}</p>
           ) : (
             <PublishHistory conf={conf} onDone={onClose} />
           )}

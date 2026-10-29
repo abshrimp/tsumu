@@ -2,6 +2,26 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "GitHub publishing history is not available for this provider.": "この公開サービスではGitHubの公開履歴は利用できません。",
+  "Open Publish to view the deployment history for {provider}. Editor backups remain available in this dialog.": "「公開」を開くと、{provider}のデプロイ履歴を確認できます。編集データのバックアップはこの画面から利用できます。",
+  // Publishing providers and static deployment
+  "Change the site name and optional published site URLs.": "サイト名と公開サイトのURL（任意）を変更します。",
+  "Hosting provider and credentials are set on the server. A separate hosting project is created automatically for every site.": "公開サービスと認証情報はサーバーで設定します。公開プロジェクトはサイトごとに自動作成されます。",
+  "This deletes the editing data and automatic backups of \"{name}\". This can't be undone.\nThe published website stays as it is.\n\nType the site name to confirm.": "「{name}」の編集データと自動バックアップを削除します。取り消せません。\n公開済みのWebサイトは削除されません。\n\n確認のためサイト名を入力してください。",
+  "Deployment history": "デプロイ履歴",
+  "Deployment history is stored by {provider}. Static hosting does not publish the editor document.": "デプロイ履歴は{provider}に保存されます。静的サイト公開では編集用データは送信しません。",
+  "The publishing provider changed. Reopen this dialog.": "公開サービスの設定が変更されました。画面を開き直してください。",
+  "Generating static site files…": "静的サイトのファイルを生成中…",
+  "Uploading site files to {provider}…": "{provider}へサイトのファイルをアップロード中…",
+  "Restore this deployment to the selected site? The live content will change.": "選択したサイトをこのデプロイに戻しますか？公開中の内容が変更されます。",
+  "Restore deployment": "デプロイを復元",
+  "Restoring…": "復元中…",
+  "Publish generated HTML, CSS, JavaScript and assets directly to {provider}. Editable project data is not uploaded.": "生成したHTML・CSS・JavaScript・アセットを{provider}へ直接公開します。編集用のプロジェクトデータは送信しません。",
+  "The hosting provider is chosen by the server administrator. Configure custom domains in the hosting service.": "公開サービスはサーバー管理者が設定します。独自ドメインはホスティングサービス側で設定してください。",
+  "Static publishing isn't configured on the server.": "サーバーに静的サイト公開の設定がありません。",
+  "Deployment submitted to {provider}.": "{provider}へのデプロイを受け付けました。",
+  "Deployment status: {state}": "デプロイ状態：{state}",
+  "View deployment": "デプロイを表示",
   // MCP browser and page creation
   "A page with this name already exists": "同じ名前のページがすでにあります",
   "Another external edit is in progress. Try again after it finishes.": "別の外部編集を実行中です。完了後に再試行してください。",

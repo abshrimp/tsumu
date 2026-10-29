@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { useEditor } from "../lib/store";
-import { CheckList, docWithSvgFilters } from "./PublishModal";
+import { CheckList, docWithSvgFilters } from "./PublishShared";
 import { showAlert } from "../lib/dialog";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { runChecks, type CheckResult } from "../lib/generator/checks";

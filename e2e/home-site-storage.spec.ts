@@ -15,6 +15,7 @@ async function prepare(page: import("@playwright/test").Page, large = false) {
   page.on("pageerror", error => errors.push(error.message));
   await page.route("http://tsumu-home.test/**", route => {
     if (new URL(route.request().url()).pathname === "/api/sites") return route.fulfill({ status: 503, json: {} });
+    if (new URL(route.request().url()).pathname === "/api/publish/provider") return route.fulfill({ status: 200, json: { provider: "github" } });
     return route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' });
   });
   await page.goto("http://tsumu-home.test/");

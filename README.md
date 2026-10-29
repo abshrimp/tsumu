@@ -32,7 +32,7 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 - **External data:** Fetch and use JSON from APIs.
 - **Import & backup:** Drop a Tsumu project ZIP on the home screen to restore the design and its packaged assets, or export/restore a full backup ZIP from **History & rollback**. You can also import a `doc.json` or convert HTML files and website ZIPs into editable pages.
 - **Flexible output:** Download a Next.js, React, Vue, Nuxt, SvelteKit, or static HTML project as a ZIP. To share one page as a single file, choose **Single HTML**.
-- **GitHub publishing:** Publish to GitHub with one click, including support for production and preview branches.
+- **Direct publishing:** Publish to GitHub, or upload static site files directly to Netlify and Cloudflare Pages, selected by the server environment.
 - **Real-time collaboration & site permissions:** Edit together with others, leave comments, and grant per-site **Owner**, **Editor**, or **View only** memberships.
 - **Optional AI editing:** Describe changes in plain language with built-in **Ask AI**, or connect an external AI client over MCP (`tsumu-mcp`).
 - **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker.
@@ -72,12 +72,17 @@ To keep an editable copy with its assets, open **⋯ → Export as zip**, select
 
 ## Publishing and deployment
 
-To push a site from Tsumu, create a GitHub repository, give a fine-grained token **Contents: Read and write** access to that repository, and set it as `GITHUB_TOKEN`. Select the repository in the site's settings. You can also export a ZIP without a token.
+Set `PUBLISH_PROVIDER` to `github` (default), `netlify`, or `cloudflare` for the whole Tsumu installation:
+
+- **GitHub:** Create a repository, configure `GITHUB_TOKEN` with **Contents: Read and write**, then choose the repository in the site's settings. Source code and editable project data are pushed to GitHub.
+- **Netlify or Cloudflare Pages:** Configure `NETLIFY_AUTH_TOKEN`, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Tsumu automatically creates one hosting project per site and uploads **only generated static HTML/CSS/JS and assets**. Server-backed site storage is required.
+
+Independent preview sites are available for both static hosts. Custom domains are configured with the hosting provider, with optional links in site settings. All methods still support separate ZIP export without a publishing token.
 
 For persistent storage, configure D1, Durable Objects and KV on **Cloudflare Workers**, set `TSUMU_DATA_DIR` on **Node.js**, or mount a volume at `/data` in **Docker**. With browser-only storage, sites stay in the browser that created them. Asset deletion and recovery depend on the [storage backend](docs/user-guide.md#deploying-the-editor).
 
 > [!IMPORTANT]
-> Configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. With sign-in unconfigured, `npm run dev` accepts anonymous requests addressed to loopback hosts by default. Setting `ALLOW_ANONYMOUS=true` also permits other hostnames. Anyone who can reach that instance can then edit and, with a GitHub publish target configured, publish.
+> Configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. With sign-in unconfigured, `npm run dev` accepts anonymous requests addressed to loopback hosts by default. Setting `ALLOW_ANONYMOUS=true` also permits other hostnames. Anyone who can reach that instance can then edit and, with a publishing provider configured, publish.
 
 See the [detailed guide](docs/user-guide.md) for deployment commands, authentication, publishing formats, environment variables, backups and limitations.
 

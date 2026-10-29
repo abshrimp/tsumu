@@ -8,6 +8,7 @@ import {
   Copy,
   ExternalLink,
   GitBranch,
+  Globe,
   HardDrive,
   FileUp,
   LayoutGrid,
@@ -25,6 +26,7 @@ import BrandMark from "./BrandMark";
 import DialogHost from "./DialogHost";
 import { showAlert, showPrompt } from "../lib/dialog";
 import { tr } from "../lib/i18n";
+import type { PublishProvider } from "../lib/publish-provider";
 import LanguageSelector from "./LanguageSelector";
 import { relativeTime } from "../lib/time";
 import AllowedAccounts from "./AllowedAccounts";
@@ -170,9 +172,11 @@ function SiteCard({
   onDuplicate,
   onDelete,
   readOnly,
+  provider,
 }: {
   site: SiteRecord;
   readOnly: boolean;
+  provider: PublishProvider | null;
   onSettings: () => void;
   onMembers: () => void;
   onDuplicate: () => void;
@@ -191,17 +195,24 @@ function SiteCard({
           {site.name}
         </a>
         <div className="home-card-meta">
-          {site.repo ? (
-            <span className="home-card-repo" title={site.repo}>
-              <GitBranch size={12} />
-              <span>{site.repo}</span>
+          {provider === "github" ? (
+            site.repo ? (
+              <span className="home-card-repo" title={site.repo}>
+                <GitBranch size={12} />
+                <span>{site.repo}</span>
+              </span>
+            ) : (
+              <span className="home-card-repo is-unset">
+                <GitBranch size={12} />
+                <span>{tr("No publish target")}</span>
+              </span>
+            )
+          ) : provider ? (
+            <span className="home-card-repo">
+              <Globe size={12} />
+              <span>{provider === "netlify" ? "Netlify" : "Cloudflare Pages"}</span>
             </span>
-          ) : (
-            <span className="home-card-repo is-unset">
-              <GitBranch size={12} />
-              <span>{tr("No publish target")}</span>
-            </span>
-          )}
+          ) : null}
           {edited ? <span className="home-card-time">{tr("Edited {time}", { time: relativeTime(edited) })}</span> : null}
         </div>
       </div>
@@ -263,6 +274,7 @@ function Field({
 function SiteDialog({
   site,
   copyOf,
+  provider,
   onClose,
   onSave,
 }: {
@@ -270,6 +282,7 @@ function SiteDialog({
   site: SiteRecord | null;
   /** 複製するサイト（site が null のとき） */
   copyOf?: SiteRecord;
+  provider: PublishProvider | null;
   onClose: () => void;
   onSave: (input: SiteInput) => Promise<void>;
 }) {
@@ -318,7 +331,9 @@ function SiteDialog({
         <h2>{site ? tr("Site settings (menu)") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
         <p className="modal-desc">
           {site
-            ? tr("Change the site name and the GitHub repository it publishes to.")
+            ? provider === "github"
+              ? tr("Change the site name and the GitHub repository it publishes to.")
+              : tr("Change the site name and optional published site URLs.")
             : copyOf
               ? tr("Creates a new site with the same pages, elements and settings as “{name}”. The publishing destination isn't copied, so set one if you need it.", { name: copyOf.name })
               : tr("Creates an empty site and opens it in the editor.")}
@@ -340,6 +355,7 @@ function SiteDialog({
             <span className="home-dest-sub">{tr("You can set this later")}</span>
           </summary>
           <div className="home-dest-body">
+            {provider === "github" && (<>
             <Field
               label={tr("GitHub repository")}
               hint={tr("Enter as owner/name. You can edit without it, but you can't publish.")}
@@ -367,6 +383,10 @@ function SiteDialog({
                 />
               </Field>
             </div>
+            </>)}
+            {provider !== "github" && (
+              <p className="hint">{tr("Hosting provider and credentials are set on the server. A separate hosting project is created automatically for every site.")}</p>
+            )}
             <div className="home-field-row">
               <Field label={tr("Live site URL")}>
                 <input className="input" value={form.siteUrl} onChange={set("siteUrl")} placeholder="https://example.com" type="url" />
@@ -452,6 +472,7 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
 export default function Home() {
   const status = useServerStatus();
   const readOnly = status?.role !== "editor";
+  const [provider, setProvider] = useState<PublishProvider | null>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [sites, setSites] = useState<SiteRecord[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -493,6 +514,19 @@ export default function Home() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/publish/provider")
+      .then((response) => response.ok ? response.json() : null)
+      .then((data: { provider?: PublishProvider } | null) => {
+        if (mounted && (data?.provider === "github" || data?.provider === "netlify" || data?.provider === "cloudflare")) {
+          setProvider(data.provider);
+        }
+      })
+      .catch(() => {});
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => installNoDblClickSelect(), []);
 
@@ -648,7 +682,7 @@ export default function Home() {
 
   const remove = async (site: SiteRecord) => {
     const typed = await showPrompt(
-      tr("This deletes the editing data and automatic backups of \"{name}\". This can't be undone.\nThe published site (GitHub repository) stays as it is.\n\nType the site name to confirm.", {
+      tr("This deletes the editing data and automatic backups of \"{name}\". This can't be undone.\nThe published website stays as it is.\n\nType the site name to confirm.", {
         name: site.name,
       }),
       { title: tr("Delete site"), okLabel: tr("Delete"), danger: true, expect: site.name, placeholder: site.name }
@@ -810,6 +844,7 @@ export default function Home() {
                 onDuplicate={() => setDialog({ copy: site })}
                 onDelete={() => void remove(site)}
                 readOnly={readOnly || site.accessRole === "viewer"}
+                provider={provider}
               />
             ))}
           </div>
@@ -820,6 +855,7 @@ export default function Home() {
         <SiteDialog
           site={dialog === "new" || "copy" in dialog ? null : dialog}
           copyOf={dialog !== "new" && "copy" in dialog ? dialog.copy : undefined}
+          provider={provider}
           onClose={() => setDialog(null)}
           onSave={(input) =>
             dialog === "new" ? create(input) : "copy" in dialog ? duplicate(dialog.copy, input) : update(dialog, input)
