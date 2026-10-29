@@ -30,7 +30,7 @@ function fixture() {
     serverTr: async () => (value: string) => value,
     dbConfigured: () => true,
     getDb: async () => ({ backend: "sqlite" }),
-    requireAuth: async () => null,
+    requireAuth: async () => null, requireSiteAccess: async () => null,
     sessionUser: async () => null,
     recordActivity: async () => {},
     notifyDocUpdated: () => {},

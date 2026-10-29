@@ -85,7 +85,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     NextResponse,
     serverTr: async () => (message: string, vars?: Record<string, string | number>) =>
       message.replace(/\{([a-zA-Z]+)\}/g, (match, key: string) => vars?.[key] === undefined ? match : String(vars[key])),
-    requireAuth: async () => null,
+    requireAuth: async () => null, requireSiteAccess: async () => null,
     siteIdOf: async () => "site",
     siteDestOf: async () => ({}),
     configError: () => null,

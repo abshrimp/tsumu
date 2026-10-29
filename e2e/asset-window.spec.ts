@@ -154,10 +154,10 @@ test("Replacing an offscreen image uses the latest preview and insertion source"
     const s = (window as any).assetEditor.getState(), d = structuredClone(s.doc);
     d.assets[id].path = "assets/replaced.png"; s.applyRemoteDoc(d); s.revealAsset(id);
   }, id(4999));
-  await expect(card(page, 4999).locator("img")).toHaveAttribute("src", "/api/assets/file?path=assets%2Freplaced.png");
+  await expect(card(page, 4999).locator("img")).toHaveAttribute("src", "/api/assets/file?path=assets%2Freplaced.png&site=synthetic");
   await card(page, 4999).locator(".asset-thumb").click();
   expect(await page.evaluate(() => Object.values((window as any).assetEditor.getState().doc.nodes).map((n: any) => n.image?.src)))
-    .toContain("/api/assets/file?path=assets%2Freplaced.png");
+    .toContain("/api/assets/file?path=assets%2Freplaced.png&site=synthetic");
 });
 
 test("Deleting the last row does not leave an empty viewport, and newly dropped images remain discoverable", async ({ page }) => {
@@ -174,5 +174,5 @@ test("Deleting the last row does not leave an empty viewport, and newly dropped 
   });
   await page.locator(".asset-search input").fill("Dropped");
   await expect(page.locator(".asset-name")).toHaveText("Dropped.svg");
-  await expect(page.locator(".asset-thumb img")).toHaveAttribute("src", "/api/assets/file?path=assets%2Fuploaded.svg");
+  await expect(page.locator(".asset-thumb img")).toHaveAttribute("src", "/api/assets/file?path=assets%2Fuploaded.svg&site=synthetic");
 });

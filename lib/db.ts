@@ -163,6 +163,20 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             `INSERT OR IGNORE INTO asset_ledger_state(id,created_at)
               VALUES(1, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`,
           ]),
+          // サイト権限はログイン資格とは独立して保存する。
+          `CREATE TABLE IF NOT EXISTS site_members (
+            site_id TEXT NOT NULL,
+            email TEXT NOT NULL,
+            role TEXT NOT NULL CHECK (role IN ('owner','editor','viewer')),
+            PRIMARY KEY(site_id,email)
+          )`,
+          `CREATE INDEX IF NOT EXISTS site_members_email ON site_members(email,site_id)`,
+          // 保存直後で編集データに未反映のアセットにも、アップロードしたサイトを記録する。
+          `CREATE TABLE IF NOT EXISTS site_asset_uploads (
+            site_id TEXT NOT NULL,
+            path TEXT NOT NULL,
+            PRIMARY KEY(site_id,path)
+          )`,
           // サイトごとに、最後に GitHub へ公開した出力形式。D1 と Node.js の SQLite で共通。
           `CREATE TABLE IF NOT EXISTS site_publish_options (
             site_id TEXT PRIMARY KEY,
@@ -213,7 +227,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           `CREATE INDEX IF NOT EXISTS comment_messages_thread ON comment_messages (site_id, thread_id, at, id)`,
           // 文書の保存先を使う前に、スキーマのバージョンを確かめる。
           `CREATE TABLE IF NOT EXISTS storage_schema (name TEXT PRIMARY KEY, version INTEGER NOT NULL)`,
-          `INSERT OR IGNORE INTO storage_schema(name,version) VALUES('main',2)`,
+          `INSERT OR IGNORE INTO storage_schema(name,version) VALUES('main',3)`,
           // ローカルの SQLite では、任意の曜日ごとのバックアップを持つ。
           ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS site_backups (
             site_id TEXT NOT NULL,
@@ -226,7 +240,19 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
       )
       .then(async () => {
         const rows = await binding.prepare("SELECT version FROM storage_schema WHERE name='main'").all();
-        if (Number(rows.results?.[0]?.version) !== 2) {
+        const version = Number(rows.results?.[0]?.version);
+        if (version === 2) {
+          // Forward-only migration: replace instance-wide site visibility with explicit memberships.
+          await binding.batch([
+            binding.prepare(`INSERT OR IGNORE INTO site_members(site_id,email,role)
+              SELECT s.id,a.email,
+                CASE WHEN a.role='editor' AND
+                  a.email=(SELECT MIN(email) FROM allowed_emails WHERE role='editor')
+                  THEN 'owner' ELSE a.role END
+              FROM sites s CROSS JOIN allowed_emails a`),
+            binding.prepare("UPDATE storage_schema SET version=3 WHERE name='main' AND version=2"),
+          ]);
+        } else if (version !== 3) {
           throw new Error("Unsupported storage schema");
         }
       })

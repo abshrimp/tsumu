@@ -40,6 +40,8 @@ function load(path: string) {
     allowedEmails: () => ["user@example.test"],
     listAllowedAccounts: async () => [],
     getAccountRole: async () => "editor",
+    requireSiteAccess: async () => null,
+    siteRole: async () => "owner",
     assetStore: () => ({ put: async () => {} }),
     getSite: async () => ({ id: "site", name: "Site" }),
     isSiteId: () => true,

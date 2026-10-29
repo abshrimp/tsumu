@@ -3,6 +3,7 @@ import { dbUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { requireAuth } from "../../../lib/server";
+import { requireSiteAccess } from "../../../lib/site-access";
 import { recordActivity } from "../../../lib/activity";
 import { notifyDocUpdated } from "../../../lib/collab";
 import { siteIdOf } from "../../../lib/site-server";
@@ -46,6 +47,8 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const siteDenied = await requireSiteAccess(siteId, "view");
+  if (siteDenied) return siteDenied;
   const metaOnly = params.get("meta") === "1";
 
   try {
@@ -118,6 +121,8 @@ async function save(req: Request, partial: boolean) {
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const siteDenied = await requireSiteAccess(siteId, "edit");
+  if (siteDenied) return siteDenied;
   const base = params.get("base");
   if (partial && (!base || !/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
     return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });

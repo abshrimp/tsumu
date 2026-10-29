@@ -186,7 +186,7 @@ test.describe("comment composer and pin visibility", () => {
     await expect(input).not.toHaveAttribute("readonly", "");
     await expect(page.getByText("サイトが見つかりません", { exact: true })).toBeVisible();
     expect((await page.request.get(`/api/sites/${site}`)).status()).toBe(404);
-    expect((await (await page.request.get(`/api/comments?site=${site}`)).json()).threads).toHaveLength(0);
+    expect((await page.request.get(`/api/comments?site=${site}`)).status()).toBe(404);
   });
 
   test("Escape reply preservation, oversized comment rejection, and pin visibility toggle work on one site", async ({ page }) => {

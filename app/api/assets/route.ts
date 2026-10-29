@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { dbUnavailable, storeUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
+import { requireSiteAccess } from "../../../lib/site-access";
+import { isSiteId } from "../../../lib/sites";
+import { siteHasAsset } from "../../../lib/site-asset-access";
+import { authConfigured } from "../../../auth";
+import { allowedEmails } from "../../../lib/allowlist";
+import { sessionUser } from "../../../lib/server";
 import { assetStore, MAX_ASSET_BYTES } from "../../../lib/kv";
 import { userMessage } from "../../../lib/errors";
 import { dbConfigured, getDb } from "../../../lib/db";
@@ -49,6 +55,10 @@ export async function POST(req: Request) {
     if (!(error instanceof RangeError)) throw error;
     return NextResponse.json({ error: tr("The file is too large (max 25MB)") }, { status: 413 });
   }
+  const site = form?.get("site");
+  if (!isSiteId(site)) return NextResponse.json({ error: tr("Invalid site") }, { status: 400 });
+  const deniedSite = await requireSiteAccess(site, "edit");
+  if (deniedSite) return deniedSite;
   const file = form?.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json(
@@ -96,10 +106,13 @@ export async function POST(req: Request) {
       metadata: { contentType, bytes: file.size },
     });
     if (dbConfigured()) {
+      const db = await getDb();
+      // A successful upload must have a site association before its path is returned.
+      await db.execute({ sql: "INSERT INTO site_asset_uploads(site_id,path) VALUES(?,?)", args: [site, path] });
       try {
-        await recordUploadedAsset(await getDb(), path, file.size);
+        await recordUploadedAsset(db, path, file.size);
       } catch {
-        // ファイル自体は保存できている。台帳に載らなかった分は、週1回の KV の棚卸しで追加される。
+        // The optional accounting ledger can be repaired by the weekly inventory.
         console.warn("Uploaded asset was not recorded in the storage ledger");
       }
     }
@@ -126,11 +139,16 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return await dbUnavailable();
   const siteId = await siteIdOf(new URL(req.url).searchParams.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const deniedSite = await requireSiteAccess(siteId, "view");
+  if (deniedSite) return deniedSite;
   try {
     const db = await getDb();
     const ledger = await readAssetLedger(db);
     // 台帳が揃っていれば全ファイルを数えられるため、サイトごとの Durable Object の呼び出しを省く。
-    const refs = ledger?.complete ? null : await otherSiteAssetReferences(db, siteId);
+    const email = (await sessionUser())?.email?.toLowerCase();
+    const admin = !authConfigured() || (!!email && allowedEmails().includes(email));
+    // Other sites' file paths are private, even if storage billing is global.
+    const refs = !admin || ledger?.complete ? null : await otherSiteAssetReferences(db, siteId);
     // Until inventory completes, include GC candidates in the same path-keyed
     // calculation as document references. This avoids both undercounting Trash
     // and double-counting assets shared with another site.
@@ -169,8 +187,13 @@ export async function DELETE(req: Request) {
   }
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const deniedSite = await requireSiteAccess(siteId, "edit");
+  if (deniedSite) return deniedSite;
   try {
     const db = dbConfigured() ? await getDb() : null;
+    if (db && !await siteHasAsset(db, siteId, path)) {
+      return NextResponse.json({ error: tr("Not found") }, { status: 404 });
+    }
     if (db?.backend === "d1") {
       // エディタは、手元の文書からすでにアセットを外している。毎晩 KV の全件を列挙する代わりに、
       // ここで削除の候補として登録する。他のサイトの参照と保存待ちの変更は、

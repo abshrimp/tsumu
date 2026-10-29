@@ -27,23 +27,23 @@ export function requireEditableHtmlContent(result: HtmlConversion): HtmlConversi
 
 /** ホームからの HTML ZIP 取り込みでは、開いたアーカイブの全ページを変換する。 */
 export async function convertHtmlZipSite(
-  zip: JSZip, progress: (message: string) => void, paths: string[],
+  zip: JSZip, progress: (message: string) => void, paths: string[], siteId?: string,
 ): Promise<HtmlConversion> {
   progress(tr("Reading HTML and assets…"));
-  const archive = await readHtmlZipPages(zip, progress, paths);
+  const archive = await readHtmlZipPages(zip, progress, paths, siteId);
   return requireEditableHtmlContent(convertHtmlPages(archive.pages, archive.assets));
 }
 
 export async function convertHtmlFile(
   file: File,
   options: { breakpoints?: BreakpointDef[]; progress?: (message: string) => void } = {},
-  uploaded?: string[],
+  uploaded?: string[], siteId?: string,
 ): Promise<HtmlConversion> {
   if (!file.size) throw new Error(tr("The file is empty."));
   if (file.name.toLowerCase().endsWith(".zip")) {
     options.progress?.(tr("Reading HTML and assets…"));
     return withImportUploads(async paths => {
-      const converted = await readHtmlZip(file, options.progress, paths);
+      const converted = await readHtmlZip(file, options.progress, paths, [], false, siteId);
       return requireEditableHtmlContent(convertHtmlToSite(converted.html, {
         breakpoints: options.breakpoints, assets: converted.assets, sourceName: converted.zip.path.split("/").pop(),
       }));

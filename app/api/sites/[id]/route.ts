@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { dbUnavailable } from "../../../../lib/unavailable";
 import { serverTr } from "../../../../lib/i18n-server";
-import { requireAuth } from "../../../../lib/server";
+import { requireAuth, sessionUser } from "../../../../lib/server";
+import { requireSiteAccess, siteRole } from "../../../../lib/site-access";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { userMessage } from "../../../../lib/errors";
 import { cleanupAbandonedDocuments, eraseSiteDocument } from "../../../../lib/site-document-service";
@@ -33,6 +34,8 @@ async function load(ctx: Ctx) {
   const db = await getDb();
   const site = await getSite(db, id);
   if (!site) return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
+  const deniedSite = await requireSiteAccess(id, "view");
+  if (deniedSite) return deniedSite;
   return { tr, db, site };
 }
 
@@ -40,7 +43,8 @@ export async function GET(_req: Request, ctx: Ctx) {
   try {
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
-    return NextResponse.json({ site: r.site }, {
+    const role = await siteRole(r.db, r.site.id, (await sessionUser())?.email ?? null);
+    return NextResponse.json({ site: { ...r.site, accessRole: role } }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (e) {
@@ -56,6 +60,8 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (denied) return denied;
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
+    const deniedSite = await requireSiteAccess(r.site.id, "edit");
+    if (deniedSite) return deniedSite;
     let input: SiteInput | null;
     try {
       input = await readJsonLimited(req, 64 * 1024) as SiteInput | null;
@@ -74,7 +80,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const saved = await updateSite(r.db, current.id, parsed.value, current);
       const latest = await getSite(r.db, current.id);
       if (!latest) return NextResponse.json({ error: r.tr("Site not found") }, { status: 404 });
-      if (saved) return NextResponse.json({ site: latest });
+      if (saved) return NextResponse.json({ site: { ...latest, accessRole: await siteRole(r.db, latest.id, (await sessionUser())?.email ?? null) } });
       // 送られた項目だけを新しい設定に適用し直す。特に、他の人の変更と競合した後は、
       // branch と previewBranch を組み合わせて検証し直す必要がある。
       current = latest;
@@ -93,6 +99,8 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     if (denied) return denied;
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
+    const deniedSite = await requireSiteAccess(r.site.id, "manage");
+    if (deniedSite) return deniedSite;
     const roomKey = await getSiteRoomKey(r.db, r.site.id);
     if (r.db.backend === "d1" && !roomKey) {
       return NextResponse.json({ error: r.tr("The site's document storage was not found.") }, { status: 409 });

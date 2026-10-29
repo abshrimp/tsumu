@@ -29,7 +29,7 @@ function SiteNotFound() {
 type SiteState =
   | { kind: "checking" }
   | { kind: "missing" }
-  | { kind: "ok"; Editor: ComponentType<EditorProps> }
+  | { kind: "ok"; Editor: ComponentType<EditorProps>; siteRole: "owner" | "editor" | "viewer" | null }
   | { kind: "failed"; error: unknown };
 
 /**
@@ -47,15 +47,17 @@ function useSiteCheck(): SiteState {
     editor.catch(() => {});
     void (async () => {
       let result: "ok" | "missing" = "ok";
+      let siteRole: "owner" | "editor" | "viewer" | null = null;
       try {
         const res = await fetch(`/api/sites/${encodeURIComponent(id)}`);
-        if (res.status === 404 || res.status === 400) result = "missing";
+        if ([400, 401, 403, 404].includes(res.status)) result = "missing";
         else if (res.ok) {
           const data = await res.json();
           if (data.site?.name) document.title = `${data.site.name} | Tsumu`;
+          if (["owner", "editor", "viewer"].includes(data.site?.accessRole)) siteRole = data.site.accessRole;
         } else if (res.status === 503) {
           const site = loadLocalSites().find((s) => s.id === id);
-          if (site) document.title = `${site.name} | Tsumu`;
+          if (site) { document.title = `${site.name} | Tsumu`; siteRole = "owner"; }
           else result = "missing";
         }
       } catch {
@@ -68,7 +70,7 @@ function useSiteCheck(): SiteState {
       }
       try {
         const { default: Editor } = await editor;
-        if (alive) setState({ kind: "ok", Editor });
+        if (alive) setState({ kind: "ok", Editor, siteRole });
       } catch (error) {
         // 読み込めなかった場合（デプロイ直後の古いチャンクなど）は、エラー画面に任せる
         if (alive) setState({ kind: "failed", error });
@@ -91,7 +93,7 @@ export default function SitePage() {
   return (
     <>
       {!ready && <EditorLoading />}
-      {state.kind === "ok" && <state.Editor onReady={onReady} />}
+      {state.kind === "ok" && <state.Editor onReady={onReady} siteRole={state.siteRole} />}
     </>
   );
 }

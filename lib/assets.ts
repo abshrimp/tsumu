@@ -50,7 +50,7 @@ export async function uploadAsset(file: File): Promise<Asset> {
 }
 
 /** HTML の ZIP に含まれる CSS・JS・フォントなどの静的なファイルをアップロードする。 */
-export async function uploadStaticAsset(file: File): Promise<Asset> {
+export async function uploadStaticAsset(file: File, siteId: string = currentSiteId()): Promise<Asset> {
   let size: { width: number; height: number; svgFilter?: boolean } = {
     width: 0,
     height: 0,
@@ -74,6 +74,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
 
   const form = new FormData();
   form.append("file", file);
+  form.append("site", siteId);
   try {
     const res = await fetch("/api/assets", { method: "POST", body: form, credentials: "same-origin", redirect: "error" });
     if (res.ok) {
@@ -289,7 +290,10 @@ export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit)
 
 /** アセットの表示用の URL */
 export function assetSrc(asset: Asset): string {
-  if (asset.path) return `/api/assets/file?path=${encodeURIComponent(asset.path)}`;
+  if (asset.path) {
+    const site = currentSiteId();
+    return `/api/assets/file?path=${encodeURIComponent(asset.path)}${site ? `&site=${encodeURIComponent(site)}` : ""}`;
+  }
   return isEmbeddedAssetUrl(asset.dataUrl) ? asset.dataUrl : "";
 }
 
@@ -395,7 +399,7 @@ export async function withSignedAssetUrls(
     options.signal?.throwIfAborted();
     const res = await fetch("/api/assets/sign", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paths: list.slice(i, i + 500) }), signal: options.signal,
+      body: JSON.stringify({ site: currentSiteId(), paths: list.slice(i, i + 500) }), signal: options.signal,
     });
     if (!res.ok) {
       if (roots.length) throw new Error(tr("The HTML preview assets could not be loaded."));

@@ -50,7 +50,7 @@ test("viewers are rejected before every document or site mutation reaches storag
         { params: Promise.resolve({ id: "s1" }) },
       );
       assert.equal(res.status, 403, path + " " + method);
-      assert.deepEqual(deniedModes, [path.includes("/doc/") || path.includes("/comments/") ? "editor-user" : "editor"], path + " " + method + " must authorize before accessing data");
+      assert.deepEqual(deniedModes, [path.includes("/doc/") || path.includes("/comments/") || path === "app/api/sites/route.ts" ? "editor-user" : "editor"], path + " " + method + " must authorize before accessing data");
     }
   }
 });

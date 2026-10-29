@@ -96,11 +96,11 @@ async function readAccountRole(email: string): Promise<AccountRole | null> {
 /** 削除する。存在しなければ false を返す */
 export async function removeAllowedEmail(email: string): Promise<boolean> {
   const db = await getDb();
-  const rs = await db.execute({
-    sql: "DELETE FROM allowed_emails WHERE email = ?",
-    args: [email],
-  });
-  return rs.rowsAffected > 0;
+  const results = await db.batch([
+    { sql: "DELETE FROM allowed_emails WHERE email = ?", args: [email] },
+    { sql: "DELETE FROM site_members WHERE email = ?", args: [email] },
+  ]);
+  return results[0].rowsAffected > 0;
 }
 
 /** ログインの判定に使う（未設定や失敗のときは空で、環境変数の固定のリストだけが有効） */

@@ -3,6 +3,7 @@ import { dbUnavailable } from "../../../../lib/unavailable";
 import { serverTr } from "../../../../lib/i18n-server";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { requireAuth } from "../../../../lib/server";
+import { requireSiteAccess } from "../../../../lib/site-access";
 import { validateDocBody } from "../../../../lib/doc-storage";
 import { siteIdOf } from "../../../../lib/site-server";
 import {
@@ -23,6 +24,8 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const siteDenied = await requireSiteAccess(siteId, "view");
+  if (siteDenied) return siteDenied;
   const dayParams = params.getAll("day");
   if (dayParams.length > 1 || (dayParams.length === 1 && !/^[0-6]$/.test(dayParams[0]))) {
     return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });

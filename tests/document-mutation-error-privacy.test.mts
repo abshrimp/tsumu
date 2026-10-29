@@ -61,7 +61,7 @@ function fixture(options: {
     IMPORT_LIMITS, validateImportedDoc,
     DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, isSiteId, normalizeSiteInput,
     serverTr: async () => options.translate ?? ((value: string) => value),
-    requireAuth: async () => { calls.push("auth"); return options.denied ?? null; },
+    requireAuth: async () => { calls.push("auth"); return options.denied ?? null; }, requireSiteAccess: async () => null,
     dbConfigured: () => { calls.push("configured"); return options.configured ?? true; },
     dbUnavailable: async () => NextResponse.json({}, { status: 503 }),
     siteIdOf: async (value: unknown) => isSiteId(value) ? value

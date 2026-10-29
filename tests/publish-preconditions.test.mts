@@ -112,6 +112,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "next/server": { NextResponse },
     "lib/i18n-server": { serverTr: async () => (s: string) => s },
     "lib/server": { requireAuth: async () => null, recordPublish: async () => { recorded++; if (options.recordFails) throw new Error("Storage unavailable"); } },
+    "lib/site-access": { requireSiteAccess: async () => null },
     "lib/site-server": { siteIdOf: async (site: string) => site, siteDestOf: async () => dest, destParam: () => undefined },
     "lib/github": { advanceBranchRef, targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/db": { dbConfigured: () => false },

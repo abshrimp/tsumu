@@ -5,8 +5,14 @@ import type { Asset, NodeStyles } from "./types";
 /** アセットの数だけ CSS を読み直さず、各ノードとページから、使用中の ID を一度ずつ取り出す。 */
 export function createCssAssetFinder(assets: Record<string, Asset>) {
   const bySrc = new Map<string, string[]>();
+  const byPath = new Map<string, string[]>();
   for (const asset of Object.values(assets)) {
-    // 保存した CSS の別名は文字列として照合するだけで、ここで取得はしない。
+    // The site query identifies the requester, not the underlying stored file.
+    if (asset.path) {
+      const ids = byPath.get(asset.path) ?? [];
+      ids.push(asset.id);
+      byPath.set(asset.path, ids);
+    }
     const src = asset.path ? assetSrc(asset) : asset.dataUrl;
     if (!src) continue;
     const ids = bySrc.get(src) ?? [];
@@ -24,10 +30,12 @@ export function createCssAssetFinder(assets: Record<string, Asset>) {
         for (const id of exact ?? []) hits.add(id);
         // 書き出しと同じく、プロキシの URL に付いた追加のクエリは元のファイルを指すものとして扱う。
         // 完全一致を優先し、パスの接頭辞や data URL には適用しない。
-        if (!exact && url.startsWith("/api/assets/file?path=")) {
-          const suffix = url.search(/[&#]/);
-          const ids = suffix >= 0 && url[suffix] === "&" ? bySrc.get(url.slice(0, suffix)) : undefined;
-          if (ids) { ids.forEach((id) => hits.add(id)); continue; }
+        // A full source match takes precedence over its underlying file: a
+        // separate data-backed asset may intentionally use a query-specific URL.
+        if (!exact && url.startsWith("/api/assets/file?")) {
+          const query = url.slice("/api/assets/file?".length).split("#", 1)[0];
+          const path = new URLSearchParams(query).get("path");
+          if (path) for (const id of byPath.get(path) ?? []) hits.add(id);
         }
         const hash = url.indexOf("#");
         if (hash >= 0) for (const id of bySrc.get(url.slice(0, hash)) ?? []) hits.add(id);

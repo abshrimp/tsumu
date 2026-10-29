@@ -18,6 +18,7 @@ import {
   Settings,
   Trash2,
   TriangleAlert,
+  Users,
 } from "lucide-react";
 import BrandMark from "./BrandMark";
 import DialogHost from "./DialogHost";
@@ -26,6 +27,7 @@ import { tr } from "../lib/i18n";
 import LanguageSelector from "./LanguageSelector";
 import { relativeTime } from "../lib/time";
 import AllowedAccounts from "./AllowedAccounts";
+import SiteMembers from "./SiteMembers";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
@@ -162,6 +164,7 @@ function CardMenu({ items }: { items: { label: string; icon: ReactNode; danger?:
 function SiteCard({
   site,
   onSettings,
+  onMembers,
   onDuplicate,
   onDelete,
   readOnly,
@@ -169,6 +172,7 @@ function SiteCard({
   site: SiteRecord;
   readOnly: boolean;
   onSettings: () => void;
+  onMembers: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }) {
@@ -202,6 +206,7 @@ function SiteCard({
       {!readOnly && <CardMenu
         items={[
           { label: tr("Settings"), icon: <Settings size={14} />, onSelect: onSettings },
+          ...(site.accessRole === "owner" ? [{ label: tr("Members and permissions"), icon: <Users size={14} />, onSelect: onMembers }] : []),
           { label: tr("Duplicate"), icon: <Copy size={14} />, onSelect: onDuplicate },
           ...(site.siteUrl
             ? [
@@ -212,7 +217,7 @@ function SiteCard({
                 },
               ]
             : []),
-          { label: tr("Delete"), icon: <Trash2 size={14} />, danger: true, onSelect: onDelete },
+          ...(site.accessRole === "viewer" || site.accessRole === "editor" ? [] : [{ label: tr("Delete"), icon: <Trash2 size={14} />, danger: true, onSelect: onDelete }]),
         ]}
       />}
     </article>
@@ -452,6 +457,7 @@ export default function Home() {
   /** 開いているダイアログ（"new" = 新しいサイト、サイト = その設定、copy = そのサイトの複製） */
   const [dialog, setDialog] = useState<"new" | SiteRecord | { copy: SiteRecord } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [membersSite, setMembersSite] = useState<SiteRecord | null>(null);
   const importFileInput = useRef<HTMLInputElement>(null);
   const importActive = useRef(false);
   const [draggingFile, setDraggingFile] = useState(false);
@@ -812,9 +818,10 @@ export default function Home() {
                 key={site.id}
                 site={site}
                 onSettings={() => setDialog(site)}
+                onMembers={() => setMembersSite(site)}
                 onDuplicate={() => setDialog({ copy: site })}
                 onDelete={() => void remove(site)}
-                readOnly={readOnly}
+                readOnly={readOnly || site.accessRole === "viewer"}
               />
             ))}
           </div>
@@ -831,6 +838,7 @@ export default function Home() {
           }
         />
       )}
+      {membersSite && <SiteMembers siteId={membersSite.id} siteName={membersSite.name} onClose={() => setMembersSite(null)} />}
       {settingsOpen && <AppSettings auth={!!status?.auth && !readOnly} onClose={() => setSettingsOpen(false)} />}
       <DialogHost />
       {draggingFile && (

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { collaborationIdentityAllowed } from "../../../../lib/anonymous";
 import { requireAuth } from "../../../../lib/server";
 import { isEmailAllowed } from "../../../../lib/allowlist";
+import { dbConfigured, getDb } from "../../../../lib/db";
+import { permits, requireSiteAccess, siteRole } from "../../../../lib/site-access";
 import { authConfigured } from "../../../../auth";
 import { siteIdOf } from "../../../../lib/site-server";
 import { subscribeDocUpdates } from "../../../../lib/collab-events";
@@ -29,6 +31,8 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const deniedSite = await requireSiteAccess(siteId, "view", user?.email ?? null);
+  if (deniedSite) return deniedSite;
   const clientId = params.get("clientId") ?? "";
 
   const encoder = new TextEncoder();
@@ -55,6 +59,7 @@ export async function GET(req: Request) {
             // 通知の順序を保ちつつ、接続後に権限を外された人には本文を送らない。
             if (!collaborationIdentityAllowed(!!user, authConfigured())) return close();
             if (user && !await isEmailAllowed(user.email)) return close();
+            if (dbConfigured() && !permits(await siteRole(await getDb(), siteId, user?.email ?? null), "view")) return close();
             if (closed) return;
             const bytes = pending.shift()!;
             pendingBytes -= bytes.byteLength;

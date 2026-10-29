@@ -33,6 +33,7 @@ function fixture(mode: "signed-in" | "anonymous" | "denied") {
     serverTr: async () => (value: string) => value,
     authConfigured: () => mode !== "anonymous",
     getAccountRole: async () => "editor",
+    requireSiteAccess: async () => null,
     anonymousAllowed: () => mode === "anonymous",
     auth: async () => {
       authCalls++;

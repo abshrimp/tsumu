@@ -1,4 +1,6 @@
 import type { Db } from "./db";
+import { allowedEmails } from "./allowlist";
+import type { SiteRole } from "./site-access";
 
 /**
  * サイト（1つの編集データと、その公開先）。
@@ -35,6 +37,7 @@ export interface SiteRecord extends SiteDest {
   updatedAt: number;
   /** 編集データを最後に保存した時刻（まだ無ければ null） */
   savedAt?: number | null;
+  accessRole?: SiteRole;
 }
 
 /** 新しいサイトの作成と、設定の変更で受け取る項目 */
@@ -130,19 +133,24 @@ function toRecord(r: Record<string, unknown>): SiteRecord {
     createdAt: Number(r.created_at),
     updatedAt: Number(r.updated_at),
     ...("saved_at" in r ? { savedAt: r.saved_at === null ? null : Number(r.saved_at) } : {}),
+    ...("access_role" in r && (r.access_role === "owner" || r.access_role === "editor" || r.access_role === "viewer")
+      ? { accessRole: r.access_role as SiteRole } : {}),
   };
 }
 
-export async function listSites(db: Db): Promise<SiteRecord[]> {
+export async function listSites(db: Db, email: string | null = null): Promise<SiteRecord[]> {
+  const scoped = email !== null && !allowedEmails().includes(email.toLowerCase());
+  const membership = scoped ? "JOIN site_members m ON m.site_id=s.id AND m.email=?" : "";
+  const access = scoped ? ", m.role AS access_role" : "";
   const sql = db.backend === "d1"
-    ? `SELECT s.*, r.saved_at FROM sites s
+    ? `SELECT s.*, r.saved_at${access} FROM sites s ${membership}
         LEFT JOIN site_document_rooms r ON r.site_id=s.id
         ORDER BY COALESCE(r.saved_at,s.updated_at) DESC`
-    : `SELECT s.*, d.saved_at FROM sites s
+    : `SELECT s.*, d.saved_at${access} FROM sites s ${membership}
         LEFT JOIN docs d ON d.id=s.id
         ORDER BY COALESCE(d.saved_at,s.updated_at) DESC`;
-  const rs = await db.execute(sql);
-  return rs.rows.map(toRecord);
+  const rs = await db.execute(scoped ? { sql, args: [email!.toLowerCase()] } : sql);
+  return rs.rows.map(toRecord).map(site => ({ ...site, ...(!scoped && email ? { accessRole: "owner" as const } : {}) }));
 }
 
 export async function getSite(db: Db, id: string, expectedRoomKey?: string): Promise<SiteRecord | null> {
@@ -169,23 +177,29 @@ export async function getSiteRoomKey(db: Db, siteId: string): Promise<string | n
   return typeof rs.rows[0]?.room_key === "string" ? String(rs.rows[0].room_key) : null;
 }
 
-export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>): Promise<string | null> {
+export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, ownerEmail: string | null = null): Promise<string | null> {
   const now = Date.now();
   const site = {
     sql: `INSERT INTO sites (id, name, repo, branch, preview_branch, site_url, preview_url, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [id, v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
   };
+  const membership = ownerEmail ? [{
+    sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'owner')",
+    args: [id, ownerEmail.toLowerCase()],
+  }] : [];
   if (db.backend === "d1") {
     const roomKey = crypto.randomUUID();
     await db.batch([
       site,
       { sql: "INSERT INTO site_document_rooms(site_id, room_key) VALUES (?, ?)", args: [id, roomKey] },
+      ...membership,
     ]);
     // 呼び出し元の初期保存と取り消しには、作成した世代のキーだけを使う。
     return roomKey;
   }
-  await db.execute(site);
+  if (membership.length) await db.batch([site, ...membership]);
+  else await db.execute(site);
   return null;
 }
 
@@ -212,6 +226,8 @@ export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): 
     const gate = "EXISTS (SELECT 1 FROM site_document_rooms WHERE site_id = ? AND room_key = ?)";
     const result = await db.batch([
       { sql: `DELETE FROM sites WHERE id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
+      { sql: `DELETE FROM site_members WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
+      { sql: `DELETE FROM site_asset_uploads WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
       { sql: `DELETE FROM site_activity WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
       { sql: `DELETE FROM site_publish_options WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
       { sql: `DELETE FROM comment_messages WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
@@ -228,6 +244,8 @@ export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): 
     { sql: "DELETE FROM sites WHERE id = ?", args: [id] },
     { sql: "DELETE FROM docs WHERE id = ?", args: [id] },
     { sql: "DELETE FROM site_backups WHERE site_id = ?", args: [id] },
+    { sql: "DELETE FROM site_members WHERE site_id = ?", args: [id] },
+    { sql: "DELETE FROM site_asset_uploads WHERE site_id = ?", args: [id] },
     { sql: "DELETE FROM site_activity WHERE site_id = ?", args: [id] },
     { sql: "DELETE FROM site_publish_options WHERE site_id = ?", args: [id] },
     { sql: "DELETE FROM comment_messages WHERE site_id = ?", args: [id] },

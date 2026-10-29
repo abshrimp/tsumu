@@ -24,7 +24,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
     w.bootstrapModule = module.promise;
     w.bootstrap = {
       siteRequests: 0, docRequests: 0, writes: [] as string[],
-      releaseSite: (status = 200) => site.resolve(Response.json({ site: { name: "Saved site" } }, { status })),
+      releaseSite: (status = 200) => site.resolve(Response.json({ site: { name: "Saved site", accessRole: "owner" } }, { status })),
       failSite: () => site.reject(new TypeError("offline")),
       releaseModule: () => module.resolve(),
       failModule: () => module.reject(new Error("Chunk load failed")),
@@ -47,7 +47,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
         w.bootstrap.writes.push(init.method);
         return Response.json({ rev: "1", savedAt: 1 });
       }
-      if (String(url).startsWith("/api/sites/")) { w.bootstrap.siteRequests++; return site.promise; }
+      if (String(url).startsWith("/api/sites/")) { w.bootstrap.siteRequests++; return site.promise.then((res) => res.clone()); }
       if (String(url).startsWith("/api/doc")) { w.bootstrap.docRequests++; return doc.promise; }
       throw new Error(`Unexpected request: ${url}`);
     };

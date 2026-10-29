@@ -7,6 +7,10 @@ import { assetStore } from "../../../../lib/kv";
 import { userMessage } from "../../../../lib/errors";
 import { verifyAssetToken } from "../../../../lib/asset-token";
 import { assetCacheControl } from "../../../../lib/asset-cache";
+import { dbConfigured, getDb } from "../../../../lib/db";
+import { isSiteId } from "../../../../lib/sites";
+import { requireSiteAccess } from "../../../../lib/site-access";
+import { siteHasAsset } from "../../../../lib/site-asset-access";
 
 /** KV上のアセットを認証つきで配信する（エディタのキャンバス表示用） */
 export async function GET(req: Request) {
@@ -24,6 +28,23 @@ export async function GET(req: Request) {
 
   if (!path?.startsWith("assets/")) {
     return NextResponse.json({ error: tr("Invalid path") }, { status: 400 });
+  }
+  if (!signed && dbConfigured()) {
+    // Same-origin CSS and imported HTML may refer to a path without an explicit
+    // site query. The referrer only selects a site; the database verifies access.
+    let siteId = params.get("site");
+    if (!siteId) {
+      try {
+        const ref = new URL(req.headers.get("referer") ?? "");
+        if (ref.origin === new URL(req.url).origin) siteId = /^\/sites\/([a-z0-9-]+)/.exec(ref.pathname)?.[1] ?? null;
+      } catch { /* no trusted site hint */ }
+    }
+    if (!isSiteId(siteId)) return NextResponse.json({ error: tr("Invalid site") }, { status: 400 });
+    const deniedSite = await requireSiteAccess(siteId, "view");
+    if (deniedSite) return deniedSite;
+    if (!await siteHasAsset(await getDb(), siteId, path)) {
+      return NextResponse.json({ error: tr("Not found") }, { status: 404 });
+    }
   }
 
   try {

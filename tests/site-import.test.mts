@@ -21,29 +21,43 @@ function fixture() {
   return doc;
 }
 
-test("an import timeout reconciles the site without deleting its uploaded file", async t => {
+test("an import timeout reconciles the reserved site before uploading assets", async t => {
   const doc = createInitialDoc();
   doc.assets.sheet = { id: "sheet", name: "style.css", mimeType: "text/css", width: 0, height: 0, dataUrl: "data:text/css,body%7B%7D" };
   const file = new File([JSON.stringify(doc)], "doc.json");
   const nativeFetch = globalThis.fetch;
-  let saved: { importId: string; initialDoc: typeof doc } | undefined;
+  let siteId = "";
   let visible = false;
+  let saved: typeof doc | null = null;
   const actions: string[] = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
     if (String(url).startsWith("data:")) return nativeFetch(url, init);
     actions.push(init?.method ?? "GET");
-    if (url === "/api/assets") return Response.json({ path: "assets/stylesheet" });
-    if (url === "/api/sites") {
-      saved = JSON.parse(String(init?.body));
+    if (url === "/api/sites" && init?.method === "POST") {
+      siteId = JSON.parse(String(init.body)).importId;
       return Response.json({ error: "Request timed out" }, { status: 408 });
     }
-    assert.equal(url, "/api/doc?site=" + saved!.importId);
-    return Response.json(visible ? { exists: true, doc: saved!.initialDoc } : { exists: false });
+    if (url === "/api/sites/" + siteId && !init?.method)
+      return Response.json(visible ? { site: { id: siteId } } : { error: "Not found" }, { status: visible ? 200 : 404 });
+    if (url === "/api/assets") {
+      assert.equal((init!.body as FormData).get("site"), siteId);
+      return Response.json({ path: "assets/stylesheet" });
+    }
+    if (url === "/api/doc?site=" + siteId && init?.method === "PUT") {
+      saved = JSON.parse(String(init.body));
+      return Response.json({ ok: true, rev: "1" });
+    }
+    if (url === "/api/sites/" + siteId && init?.method === "PATCH") {
+      assert.equal(JSON.parse(String(init.body)).name, doc.siteName);
+      return Response.json({ site: { id: siteId } });
+    }
+    throw new Error("Unexpected request: " + String(url));
   });
   await assert.rejects(createSiteFromFile(file, "server"), /Could not confirm the save/);
   visible = true;
-  assert.equal((await createSiteFromFile(file, "server")).id, saved!.importId);
-  assert.deepEqual(actions, ["POST", "POST", "GET", "POST", "POST", "GET"]);
+  assert.equal((await createSiteFromFile(file, "server")).id, siteId);
+  assert.ok(saved?.assets.sheet.path);
+  assert.deepEqual(actions, ["POST", "GET", "POST", "GET", "POST", "PUT", "PATCH"]);
 });
 
 test("local doc.json restores an editable SiteDoc and original IDs", async () => {

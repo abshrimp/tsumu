@@ -142,6 +142,7 @@ export async function restoreImportAssets(
   imported: SiteImport,
   progress: (message: string) => void = () => {},
   createdPaths: string[] = [],
+  siteId?: string,
 ): Promise<{ doc: SiteDoc; warnings: string[]; createdPaths: string[] }> {
   const doc = structuredClone(imported.doc);
   const warnings = [...imported.warnings];
@@ -165,7 +166,7 @@ export async function restoreImportAssets(
     if (bytes && bytes.byteLength <= IMPORT_LIMITS.assetBytes) {
       const mime = asset.mimeType || guessMime(asset.name);
       try {
-        const result = await uploadStaticAsset(new File([bytes as Uint8Array<ArrayBuffer>], asset.name, { type: mime }));
+        const result = await uploadStaticAsset(new File([bytes as Uint8Array<ArrayBuffer>], asset.name, { type: mime }), siteId);
         if (result.path) createdPaths.push(result.path);
         doc.assets[id] = {
           ...asset, ...result, id, name: asset.name,

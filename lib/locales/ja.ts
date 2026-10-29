@@ -2,6 +2,7 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Importing site": "サイトを取り込み中",
   // Optional external AI editing (MCP)
   "Connect an AI app": "AIと接続",
   "Connect ChatGPT, Claude or Cursor to this site without a Tsumu account. Keep this editor tab open while using AI.": "Tsumuにログインせずに、このサイトをChatGPT・Claude・Cursorなどから操作できます。AIを使用している間は、この編集タブを開いておいてください。",
@@ -35,6 +36,16 @@ const ja: Dict = {
   "WebSocket connection failed": "WebSocket接続に失敗しました",
   "Connection failed": "接続に失敗しました",
 
+  "Members and permissions": "メンバーと権限",
+  "Site owner": "サイトのオーナー",
+  "Instance administrator": "全体管理者",
+  "Add member": "メンバーを追加",
+  "Remove access": "アクセス権を削除",
+  "Only site owners can change membership. Accounts must first be allowed to sign in.": "メンバーを変更できるのはサイトのオーナーのみです。先にログインを許可したアカウントを追加してください。",
+  "Site permissions need server storage and sign-in": "サイト別の権限にはサーバー保存とログイン設定が必要です。",
+  "Add this account under Settings before granting site access": "サイト権限を設定する前に、全体設定でこのアカウントのログインを許可してください。",
+  "This account needs the Editor account role before it can edit sites": "サイトを編集するにはアカウント権限も「編集者」に設定してください。",
+  "A site must always have at least one owner": "サイトには少なくとも1人のオーナーが必要です。",
   "Font family names must use English letters, numbers, spaces, hyphens or underscores. Japanese and other non-English characters are not supported.": "フォント名には英字・数字・半角スペース・ハイフン・アンダースコアのみ使用できます。日本語など英語以外の文字は使用できません。",
   "Drop a font file here": "ここにフォントファイルをドロップ",
   "WOFF2, WOFF, TTF, OTF": "WOFF2・WOFF・TTF・OTF",
@@ -1218,15 +1229,6 @@ const ja: Dict = {
   "End of body code": "body末尾コード",
   "Inserted just before </body> on every page.": "すべてのページの </body> の直前に挿入します。",
   "Backup": "バックアップ",
-  "Automatic backups contain editing data only. Export a backup ZIP to preserve all asset files.": "自動バックアップには編集データのみが保存されます。アセット本体も残すには、バックアップZIPを書き出してください。",
-  "Backup file": "バックアップファイル",
-  "Export backup ZIP": "バックアップZIPを書き出す",
-  "Load backup file": "バックアップファイルを読み込む",
-  "ZIP backups include all images, fonts and other assets, even if unused.": "ZIPバックアップには、使用していないものも含め、画像・フォントなどのすべてのアセットが入ります。",
-  "Backup is incomplete: {details}": "バックアップを完全に復元できません：{details}",
-  "The backup is too large to restore.": "復元可能なZIPのサイズ上限を超えています。",
-  "Open **History & rollback** from the \"…\" menu to export a complete ZIP backup including assets, or load a backup file. The server also keeps seven daily snapshots of the editing data.": "「…」メニューの「**履歴・ロールバック**」から、アセットを含むZIPバックアップを書き出したり、ファイルを読み込んだりできます。サーバーには編集データの日次バックアップも7回分保持されます。",
-  "A backup ZIP includes all site assets, even unused ones. You can also load a `doc.json` saved by an earlier editor or a published version, but a JSON file may not include remote asset contents.": "バックアップZIPには未使用のものも含めてすべてのサイトアセットが入ります。以前のエディタや公開先に保存された `doc.json` も読み込めますが、JSONにはサーバー上のアセット本体が含まれない場合があります。",
   "Save or restore the whole site's data as a backup file. You can also load the _tsumu/doc.json that publishing saves to the repository.": "サイト全体の編集データを、バックアップファイルとして保存したり、復元したりします。公開したときにリポジトリへ保存される _tsumu/doc.json も読み込めます。",
   "Export": "書き出す",
   "Right-click to reset": "右クリックでリセット",

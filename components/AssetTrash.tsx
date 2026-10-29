@@ -9,6 +9,7 @@ import { genId } from "../lib/presets";
 import { useServerStatus } from "../lib/status";
 import { showConfirm } from "../lib/dialog";
 import { loadAllTrash } from "../lib/asset-trash-client";
+import { assetSrc } from "../lib/assets";
 
 type DeletedAsset = { path: string; deletedAt: number; bytes: number | null };
 type TrashResponse = { enabled: boolean; hasMore: boolean; items: DeletedAsset[]; error?: string };
@@ -42,7 +43,7 @@ async function assetFromTrash(item: DeletedAsset): Promise<Asset> {
         resolve();
       };
       image.onerror = () => resolve();
-      image.src = `/api/assets/file?path=${encodeURIComponent(item.path)}`;
+      image.src = assetSrc(asset);
     });
   }
   return asset;

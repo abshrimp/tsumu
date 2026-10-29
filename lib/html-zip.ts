@@ -187,7 +187,7 @@ export function applyHtmlZipPage(doc: SiteDoc, pageId: string, imported: { asset
 
 /** 何かをアップロードする前に、アーカイブを事前に確認する。JavaScript の依存関係は解決しない。 */
 async function prepareHtmlZip(
-  zip: JSZip, progress: (message: string) => void, paths: string[], existing: Asset[] = [],
+  zip: JSZip, progress: (message: string) => void, paths: string[], existing: Asset[] = [], siteId?: string,
 ) {
   const { htmlEntries, htmlEntry, assetEntries } = inspectHtmlZip(zip);
 
@@ -248,7 +248,7 @@ async function prepareHtmlZip(
     const previous = existing.find(asset => asset.zip?.path === path && asset.zip.sha256 === sha256 && assetSrc(asset));
     const asset = previous
       ? { ...previous }
-      : await uploadStaticAsset(new File([bytes], path.replace(/\//g, "-"), { type: mime }));
+      : await uploadStaticAsset(new File([bytes], path.replace(/\//g, "-"), { type: mime }), siteId);
     if (!previous && asset.path) paths.push(asset.path);
     asset.zip = { version: 1, group, path, sha256,
       ...(sheet ? { stylesheet: { source: sheet.source, references: [] } } : {}) };
@@ -264,12 +264,12 @@ async function prepareHtmlZip(
 /** HTMLページへの取り込み: index.html を1つだけ読み込む。 */
 export async function readHtmlZip(
   file: File | Uint8Array, progress: (message: string) => void = () => {},
-  uploaded?: string[], existing: Asset[] = [], sourceOnly = false,
+  uploaded?: string[], existing: Asset[] = [], sourceOnly = false, siteId?: string,
 ) {
   return withImportUploads(async paths => {
     const zip = await openImportZip(file, HTML_ZIP_LIMITS.entries);
     const { assets, htmlEntry, urls, htmlText, pristineHtmlText } =
-      await prepareHtmlZip(zip, progress, paths, existing);
+      await prepareHtmlZip(zip, progress, paths, existing, siteId);
     const path = cleanZipPath(htmlEntry.name);
     const source = pristineHtmlText.get(htmlEntry.name) ?? "";
     // HTML モードでの取り込みでは、書かれたソースを解析・直列化しない。
@@ -283,8 +283,8 @@ export async function readHtmlZip(
 }
 
 /** 編集可能なサイトへの取り込み: アセットは1回だけアップロードしながら、すべての HTML のページを取り込む。 */
-export async function readHtmlZipPages(zip: JSZip, progress: (message: string) => void, paths: string[]) {
-  const { assets, htmlEntries, htmlEntry, urls, htmlText } = await prepareHtmlZip(zip, progress, paths);
+export async function readHtmlZipPages(zip: JSZip, progress: (message: string) => void, paths: string[], siteId?: string) {
+  const { assets, htmlEntries, htmlEntry, urls, htmlText } = await prepareHtmlZip(zip, progress, paths, [], siteId);
   const entries = [htmlEntry, ...htmlEntries.filter((entry) => entry !== htmlEntry)];
   const pages = entries.map((entry) => ({
     name: cleanZipPath(entry.name),

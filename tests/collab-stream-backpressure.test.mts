@@ -12,6 +12,8 @@ function handler(authorize: () => Promise<boolean> = async () => true) {
     "../../../../lib/anonymous": { collaborationIdentityAllowed: () => true },
     "../../../../lib/server": { requireAuth: async () => ({ email: "editor@example.com" }) },
     "../../../../lib/allowlist": { isEmailAllowed: authorize },
+    "../../../../lib/db": { dbConfigured: () => false },
+    "../../../../lib/site-access": { requireSiteAccess: async () => null, permits: () => true, siteRole: async () => "editor" },
     "../../../../auth": { authConfigured: () => true },
     "../../../../lib/site-server": { siteIdOf: async () => "site" },
     "../../../../lib/collab": { collabRoomAvailable: () => false },

@@ -23,10 +23,15 @@ function loadHandler(path: string, mocks: Record<string, unknown>): any {
   const source = readFileSync(url, "utf8");
   const { code } = transformSync(source, { loader: "ts", format: "cjs", target: "es2022" });
   const module = { exports: {} };
+  const securityMocks: Record<string, unknown> = {
+    "../../../../lib/site-access": { requireSiteAccess: async () => null, siteRole: async () => "editor", permits: () => true },
+    "../../../lib/site-access": { requireSiteAccess: async () => null, siteRole: async () => "editor", permits: () => true },
+    "../../../../lib/db": { dbConfigured: () => false },
+  };
   new Function("require", "module", "exports", code)(
     (name: string) => name === "./document-room"
       ? { DocumentRoom: class {} } // Durable Object のクラスは、専用の保存先のテストで確かめる。
-      : Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports,
+      : Object.hasOwn(mocks, name) ? mocks[name] : Object.hasOwn(securityMocks,name) ? securityMocks[name] : require(name), module, module.exports,
   );
   return module.exports;
 }
@@ -148,7 +153,9 @@ test("each broadcast reads the allowlist once and refreshes it before the next b
       constructor(public ctx: unknown, public env: unknown) {}
     } },
     "./.open-next/worker.js": {},
-    "./lib/db": { getDbFromBinding: async () => ({ execute: async () => {
+    "./lib/db": { getDbFromBinding: async () => ({ execute: async (stmt: unknown) => {
+      const sql = typeof stmt === "string" ? stmt : (stmt as {sql: string}).sql;
+      if (sql.includes("site_members")) return { rows: [{role: "editor"}] };
       reads++;
       return { rows: emails.map((email) => ({ email })) };
     } }) },
@@ -183,7 +190,8 @@ test("WebSocket patch saves broadcast deltas to all authorized peers", async () 
     });
     const d1 = d1Binding();
     const db = await getDbFromBinding(d1);
-    const roomKey = (await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }))!;
+    const roomKey = (await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }, "owner@example.com"))!;
+    await db.execute({ sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'editor')", args: ["s1", "editor@example.com"] });
     const base = createInitialDoc();
     const docs = createDocStore(JSON.stringify(base));
     try {
@@ -293,7 +301,8 @@ test("open WebSockets lose read, write and broadcast access when their account i
     const db = await getDbFromBinding(d1);
     const roomKey = (await insertSite(db, "s1", {
       name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
-    }))!;
+    }, "owner@example.com"))!;
+    await db.execute({ sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'editor')", args: ["s1", "editor@example.com"] });
     const docs = createDocStore();
     try {
       const editor = socket("editor@example.com", roomKey);
@@ -353,7 +362,8 @@ test("a disconnected saving sender does not prevent persistence, activity or pee
     });
     const d1 = d1Binding();
     const db = await getDbFromBinding(d1);
-    const roomKey = (await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }))!;
+    const roomKey = (await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }, "owner@example.com"))!;
+    await db.execute({ sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'editor')", args: ["s1", "editor@example.com"] });
     let base = createInitialDoc();
     const docs = createDocStore(JSON.stringify(base));
     try {

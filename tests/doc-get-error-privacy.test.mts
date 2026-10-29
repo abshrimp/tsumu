@@ -43,7 +43,7 @@ function fixture(options: {
   const shared: Record<string, unknown> = {
     NextResponse,
     serverTr: async () => options.translate ?? ((value: string) => value),
-    requireAuth: async () => { calls.push("auth"); return options.denied ?? null; },
+    requireAuth: async () => { calls.push("auth"); return options.denied ?? null; }, requireSiteAccess: async () => null,
     dbConfigured: () => { calls.push("configured"); return options.configured ?? true; },
     dbUnavailable: async () => NextResponse.json({ unavailable: true }, { status: 503 }),
     siteIdOf: async (value: unknown) => {

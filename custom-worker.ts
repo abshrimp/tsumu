@@ -32,6 +32,16 @@ interface WorkerEnv {
   AUTH_GOOGLE_SECRET?: string;
 }
 
+async function siteRoleForSocket(db: Awaited<ReturnType<typeof getDbFromBinding>>, siteId: string, email: string | null, env: WorkerEnv): Promise<"owner" | "editor" | "viewer" | null> {
+  if (!signInConfigured(env) && env.ALLOW_ANONYMOUS === "true") return "owner";
+  if (!email) return null;
+  const normalized = email.toLowerCase();
+  if (parseAllowedEmails(env.ALLOWED_EMAILS).includes(normalized)) return "owner";
+  const result = await db.execute({ sql: "SELECT role FROM site_members WHERE site_id=? AND email=?", args: [siteId, normalized] });
+  const role = result.rows[0]?.role;
+  return role === "owner" || role === "editor" || role === "viewer" ? role : null;
+}
+
 function signInConfigured(env: WorkerEnv): boolean {
   return Boolean(env.AUTH_SECRET && env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET);
 }
@@ -84,9 +94,12 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
     socket: WebSocket,
     readExtra = () => this.readAllowedEmails()
   ): Promise<boolean> {
-    const user = (socket as AttachableSocket).deserializeAttachment()?.user;
+    const attachment = (socket as AttachableSocket).deserializeAttachment();
+    const user = attachment?.user;
     const allowed = collaborationIdentityAllowed(!!user, signInConfigured(this.env), this.env) &&
-      (!user || await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), readExtra));
+      (!user || await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), readExtra)) &&
+      (!this.env.DB || (!!attachment?.siteId &&
+        await siteRoleForSocket(await getDbFromBinding(this.env.DB), attachment.siteId, user?.email ?? null, this.env) !== null));
     if (!allowed) socket.close(1008, "Access revoked");
     return allowed;
   }
@@ -306,7 +319,8 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
             return result.rows[0]?.role as "editor" | "viewer" | null ?? null;
           })
         : signInConfigured(this.env) ? null : "editor";
-      if (role !== "editor") {
+      const scoped = await siteRoleForSocket(db, siteId, identity ?? null, this.env);
+      if (role !== "editor" || (scoped !== "owner" && scoped !== "editor")) {
         reply(JSON.stringify({ type: "error", requestId: input.requestId, message: "You have view-only access" }));
         return;
       }
@@ -475,6 +489,8 @@ export default {
     let roomName = siteId;
     if (env.DB) {
       const db = await getDbFromBinding(env.DB);
+      const access = await siteRoleForSocket(db, siteId, user?.email ?? null, env);
+      if (!access) return new Response("Site not found", { status: 404 });
       const key = await getSiteRoomKey(db, siteId);
       if (!key) return new Response("Site storage not initialized", { status: 404 });
       roomName = key;

@@ -76,10 +76,16 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
     },
     fetch: async (input: string, init?: RequestInit) => {
       if (input === "/api/sites") {
-        const { importId, initialDoc } = JSON.parse(String(init?.body));
-        importedDoc = initialDoc;
+        const { importId } = JSON.parse(String(init?.body));
+        assert.ok(importId);
         return Response.json({ site: { id: importId } });
       }
+      if (input.startsWith("/api/doc?site=") && init?.method === "PUT") {
+        importedDoc = JSON.parse(String(init.body));
+        return Response.json({ ok: true, rev: "1" });
+      }
+      if (/^\/api\/sites\/[a-z0-9]{10}$/.test(input) && init?.method === "PATCH")
+        return Response.json({ site: { id: input.split("/").at(-1) } });
       if (input.startsWith("data:")) return originals.fetch.value(input, init);
       if (input.startsWith("/api/assets/file?")) {
         const file = stored.get(new URL(input, "https://import.test").searchParams.get("path")!);

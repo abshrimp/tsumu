@@ -30,7 +30,7 @@ function api(db: Db) {
   const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/sites/[id]/route.ts", import.meta.url), "utf8"))
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
   const injected = { NextResponse, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
-    requireAuth: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
+    requireAuth: async () => null, requireSiteAccess: async () => null, siteRole: async () => "owner", sessionUser: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
     deleteSite, getSite, isSiteId, normalizeSiteInput, updateSite };
   const patch = new Function(...Object.keys(injected), `${source}\nreturn PATCH;`)(...Object.values(injected));
   return (input: unknown, contentType = "application/json") => patch(new Request("https://example.test/api/sites/site", { method: "PATCH", headers: { "Content-Type": contentType }, body: JSON.stringify(input) }), { params: Promise.resolve({ id: "site" }) }) as Promise<Response>;

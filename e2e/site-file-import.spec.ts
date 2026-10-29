@@ -175,7 +175,7 @@ test("invalid JSON is rejected without creating a site", async ({ page }) => {
   expect((await getLocalSite(page)).list).toHaveLength(0);
 });
 
-for (const lost of [false, true]) test(`server import saves the first revision with the site (response lost: ${lost})`, async ({ page }) => {
+for (const lost of [false, true]) test(`server import reserves a site and saves its first revision (response lost: ${lost})`, async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("tsumu-lang", "ja"));
   const doc = fixture();
   let stored: unknown = null;
@@ -187,21 +187,27 @@ for (const lost of [false, true]) test(`server import saves the first revision w
     if (path === "/api/sites" && route.request().method() === "POST") {
       const input = route.request().postDataJSON();
       siteId = input.importId;
-      // DocumentRoom reconstructs these collections after the document settings.
-      const { pages, nodes, assets, ...settings } = input.initialDoc;
-      stored = { ...settings, pages, nodes, assets };
+      expect(input.initialDoc).toBeUndefined();
       if (lost) return route.abort("connectionreset");
-      return route.fulfill({ json: { site: { id: siteId, name: doc.siteName } } });
+      return route.fulfill({ json: { site: { id: siteId, name: "Importing site" } } });
     }
     if (path === "/api/sites/" + siteId && route.request().method() === "GET")
-      return route.fulfill({ json: { site: { id: siteId, name: doc.siteName } } });
+      return route.fulfill({ json: { site: { id: siteId, name: doc.siteName, accessRole: "owner" } } });
+    if (path === "/api/sites/" + siteId && route.request().method() === "PATCH")
+      return route.fulfill({ json: { site: { id: siteId, name: doc.siteName, accessRole: "owner" } } });
     return route.fulfill({ status: 400, json: { error: "Unexpected site API" } });
   });
   await page.route("**/api/doc?**", async route => {
     if (route.request().method() === "PUT") {
-      throw new Error("The initial import must already contain the document.");
+      const input = route.request().postDataJSON();
+      // DocumentRoom reconstructs collections after document settings.
+      const { pages, nodes, assets, ...settings } = input;
+      stored = { ...settings, pages, nodes, assets };
+      return route.fulfill({ json: { ok: true, rev: "1", savedAt: 1 } });
     }
-    return route.fulfill({ json: { exists: true, doc: stored, rev: "1", savedAt: 1 } });
+    return route.fulfill({ json: stored
+      ? { exists: true, doc: stored, rev: "1", savedAt: 1 }
+      : { exists: false } });
   });
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();

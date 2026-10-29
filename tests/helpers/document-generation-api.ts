@@ -134,6 +134,7 @@ export async function setup(t: TestContext) {
     IMPORT_LIMITS, validateImportedDoc, userMessage,
     newSiteId: () => "destination",
     getDb: async () => db, dbConfigured: () => true, requireAuth: async () => null, sessionUser: async () => null,
+    requireSiteAccess: async () => null, siteRole: async () => "owner",
     serverTr: async () => (value: string) => value,
     siteIdOf: async (value: unknown) => sites.isSiteId(value) ? value : NextResponse.json({}, { status: 400 }),
     notifyDocUpdated: (id: string, message: unknown, roomKey: unknown) => { hooks.beforeNotify?.(); notifications.push({ id, message, roomKey }); },

@@ -33,7 +33,7 @@ function api(db: Db, read = readCurrentDoc) {
   const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/sites/route.ts", import.meta.url), "utf8"))
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
   const injected = { DEFAULT_BRANCH: sites.DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH: sites.DEFAULT_PREVIEW_BRANCH, deleteSite: sites.deleteSite, getSite: sites.getSite, insertSite: sites.insertSite, isSiteId: sites.isSiteId, listSites: sites.listSites, normalizeSiteInput: sites.normalizeSiteInput, newSiteId: () => "copy", NextResponse, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
-    requireAuth: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
+    requireAuth: async () => null, requireSiteAccess: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
     readSiteDocument: read, saveSiteDocument: saveCurrentDoc,
     getSiteRoomKey: sites.getSiteRoomKey,
     cleanupAbandonedDocuments: async () => undefined,

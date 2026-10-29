@@ -3,6 +3,7 @@ import { dbUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { requireAuth } from "../../../lib/server";
+import { requireSiteAccess } from "../../../lib/site-access";
 import { siteIdOf } from "../../../lib/site-server";
 import { listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction } from "../../../lib/comments";
 import { userMessage } from "../../../lib/errors";
@@ -18,6 +19,8 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return await dbUnavailable();
   const siteId = await siteIdOf(new URL(req.url).searchParams.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const siteDenied = await requireSiteAccess(siteId, "view");
+  if (siteDenied) return siteDenied;
   const params = new URL(req.url).searchParams;
   const before = parseCommentCursor(params.get("before"));
   const focus = params.get("focus");
@@ -41,6 +44,11 @@ export async function POST(req: Request) {
   if (!dbConfigured()) return await dbUnavailable();
   const siteId = await siteIdOf(new URL(req.url).searchParams.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const siteDenied = await requireSiteAccess(siteId, "edit");
+  if (siteDenied?.status === 404) {
+    return NextResponse.json({ error: tr("Site not found"), code: "comment_site_missing" }, { status: 404 });
+  }
+  if (siteDenied) return siteDenied;
   const params = new URL(req.url).searchParams;
   const before = parseCommentCursor(params.get("before"));
   const focus = params.get("focus");

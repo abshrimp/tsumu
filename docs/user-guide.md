@@ -90,7 +90,9 @@ On Cloudflare, files in Trash count toward storage usage. Automatic deletion is 
 
 Sign-in turns on once `AUTH_SECRET`, `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are all set. Also set `AUTH_URL` to the editor's URL.
 
-Accounts listed in `ALLOWED_EMAILS` always sign in as **Editors**. To allow more accounts (either as **Editors** or **View only**), go to the home screen and open **Settings → Accounts that can sign in** (this needs server storage).
+Accounts listed in `ALLOWED_EMAILS` are instance administrators with full recovery access. To allow more accounts (either as **Editors** or **View only**), go to the home screen and open **Settings → Accounts that can sign in** (this needs server storage).
+
+**Per-site membership:** A login alone grants no access to individual server-stored sites. The creator is the first **Owner**. From the site's **… → Members and permissions** menu, an owner can grant an allowed account **Owner**, **Editor**, or **View only** rights, or remove its access. Editors can change and publish that site; viewers can only inspect it; users not in the site membership cannot see it in the home list or open its URL. Account-wide **View only** access remains a ceiling, so those accounts cannot edit a site even if listed as a site editor. Each site must retain at least one owner. For existing sites, the current instance-wide roles are converted once to explicit site memberships.
 
 #### GitHub token
 

@@ -29,6 +29,7 @@ function trashRoute({
     async execute(stmt: string | { sql: string; args: unknown[] }) {
       const sql = typeof stmt === "string" ? stmt : stmt.sql;
       if (sql.includes("FROM sites")) return { rows: siteExists ? [{ exists: 1 }] : [] };
+      if (sql.includes("FROM site_asset_uploads")) return { rows: [{ exists: 1 }] };
       if (sql.includes("SELECT c.path")) {
         const args = typeof stmt === "string" ? [] : stmt.args;
         const limit = Number(args[0] ?? 101), offset = Number(args[1] ?? 0);
@@ -60,7 +61,10 @@ function trashRoute({
       },
     },
     "../../../../lib/db": { getDb: async () => db, dbConfigured: () => true },
-    "../../../../lib/server": { requireAuth: async () => null },
+    "../../../../lib/server": { requireAuth: async () => null, sessionUser: async () => null },
+    "../../../../lib/site-access": { requireSiteAccess: async () => null },
+    "../../../../lib/allowlist": { allowedEmails: () => [] },
+    "../../../../auth": { authConfigured: () => false },
     "../../../../lib/site-server": { siteIdOf: async (site: unknown) => site === "site" ? "site"
       : NextResponse.json({ error: "Invalid site" }, { status: 400 }) },
     "../../../../lib/asset-gc-plan": { assetUploadedAt },

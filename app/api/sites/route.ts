@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dbUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
+import { requireSiteAccess } from "../../../lib/site-access";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../../lib/site-import-format";
@@ -27,13 +28,13 @@ export const maxDuration = 30;
 /** サイトの一覧（最近編集した順）。D1 が無ければ 503（ブラウザ内の一覧を使う） */
 export async function GET() {
   const tr = await serverTr();
-  const denied = await requireAuth();
-  if (denied) return denied;
+  const user = await requireAuth("user");
+  if (user instanceof NextResponse) return user;
   if (!dbConfigured()) return await dbUnavailable();
   try {
     const db = await getDb();
     await cleanupAbandonedDocuments(db, 1).catch(() => undefined);
-    return NextResponse.json({ sites: await listSites(db) }, {
+    return NextResponse.json({ sites: await listSites(db, user?.email ?? null) }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (e) {
@@ -47,8 +48,8 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   const tr = await serverTr();
-  const denied = await requireAuth("editor");
-  if (denied) return denied;
+  const user = await requireAuth("editor-user");
+  if (user instanceof NextResponse) return user;
   if (!dbConfigured()) return await dbUnavailable();
 
   let input: SiteInput & { copyFrom?: unknown; importId?: unknown; initialDoc?: unknown };
@@ -71,15 +72,17 @@ export async function POST(req: Request) {
     if (typeof importId !== "string" || !/^[a-z0-9]{10}$/.test(importId)) {
       return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
     }
-    try {
-      const doc = validateImportedDoc(initialDoc);
-      if (doc.siteName !== input.name) throw new Error("リクエストが正しくありません");
-      initialBody = JSON.stringify(doc);
-      if (new TextEncoder().encode(initialBody).byteLength > IMPORT_LIMITS.docBytes) {
-        return NextResponse.json({ error: tr("The edit data exceeds the size limit.") }, { status: 413 });
+    if (initialDoc !== undefined) {
+      try {
+        const doc = validateImportedDoc(initialDoc);
+        if (doc.siteName !== input.name) throw new Error("リクエストが正しくありません");
+        initialBody = JSON.stringify(doc);
+        if (new TextEncoder().encode(initialBody).byteLength > IMPORT_LIMITS.docBytes) {
+          return NextResponse.json({ error: tr("The edit data exceeds the size limit.") }, { status: 413 });
+        }
+      } catch (error) {
+        return NextResponse.json({ error: tr(userMessage(error, "Invalid request")) }, { status: 400 });
       }
-    } catch (error) {
-      return NextResponse.json({ error: tr(userMessage(error, "Invalid request")) }, { status: 400 });
     }
   }
   const parsed = normalizeSiteInput(input, {
@@ -94,6 +97,10 @@ export async function POST(req: Request) {
   let createdSite: { id: string; db: Awaited<ReturnType<typeof getDb>>; roomKey: string | null } | null = null;
   try {
     const db = await getDb();
+    if (copyFrom) {
+      const denied = await requireSiteAccess(copyFrom, "view", user?.email ?? null);
+      if (denied) return denied;
+    }
     if (copyFrom && !(await getSite(db, copyFrom))) {
       return NextResponse.json({ error: tr("The site to duplicate was not found") }, { status: 404 });
     }
@@ -109,7 +116,7 @@ export async function POST(req: Request) {
     }
     // D1 のサイトの記録と Durable Object の文書は、別々のトランザクションで保存される。
     // 文書の初期化に失敗したら、作成したばかりのサイトの記録を削除する。
-    const roomKey = await insertSite(db, id, parsed.value);
+    const roomKey = await insertSite(db, id, parsed.value, user?.email ?? null);
     createdSite = { id, db, roomKey };
     const content = initialBody ?? src?.body;
     if (content !== undefined) {

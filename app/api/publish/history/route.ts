@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { serverTr } from "../../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../../lib/server";
+import { requireSiteAccess } from "../../../../lib/site-access";
 import {
   advanceBranchRef,
   configError,
@@ -70,6 +71,8 @@ export async function GET(req: Request) {
   const target = parseTarget(params.get("target"));
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
+  const siteDenied = await requireSiteAccess(siteId, "view");
+  if (siteDenied) return siteDenied;
   const dest = await siteDestOf(siteId, destParam(params));
   if (dest instanceof NextResponse) return dest;
   let expected: unknown;
@@ -158,6 +161,8 @@ export async function POST(req: Request) {
   const target = parseTarget(body.target);
   const siteId = await siteIdOf(body.site);
   if (siteId instanceof NextResponse) return siteId;
+  const siteDenied = await requireSiteAccess(siteId, "edit");
+  if (siteDenied) return siteDenied;
   const dest = await siteDestOf(siteId, body.dest);
   if (dest instanceof NextResponse) return dest;
   if (!body.expected || typeof body.expectedHead !== "string" || !body.expectedHead) {

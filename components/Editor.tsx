@@ -125,9 +125,9 @@ function PanelResizer({
   );
 }
 
-export type EditorProps = { onReady?: () => void };
+export type EditorProps = { onReady?: () => void; siteRole?: "owner" | "editor" | "viewer" | null };
 
-export default function Editor({ onReady }: EditorProps = {}) {
+export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   // モジュール内の仮の初期データは見せず、最初の読み込み結果が決まるまで準備画面を表示し続ける。
   // 再接続や保存の途中では準備画面に戻さない（入力欄やキャンバスをアンマウントしないため）。
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
@@ -168,7 +168,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const cloudState = useEditor((s) => s.cloudState);
   // D1 が未設定の場合と、一時的な 503 を区別する。判定できない間は、安全側に倒してページを離れるときの保護を有効にする。
   const status = useServerStatus();
-  const readOnly = status?.role === "viewer";
+  const readOnly = status?.role === "viewer" || (status?.db === true && siteRole !== "owner" && siteRole !== "editor");
   const browserOnly = status?.db === false;
   useLayoutEffect(() => {
     if (readOnly) useEditor.getState().setMode("preview");

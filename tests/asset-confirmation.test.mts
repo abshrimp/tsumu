@@ -257,7 +257,9 @@ test("unused cleanup checks all removed files in one browser scan bound to the o
   try {
     const opens = t.mock.method(indexedDB, "open");
     // A copied URL in HTML can reference the file without a library record in this site.
-    const markup = `<img src="${assetSrc(candidate)}"><img src="${assetSrc(spare)}.backup">`;
+    const unrelatedUrl = new URL(assetSrc(spare), "https://synthetic.test");
+    unrelatedUrl.searchParams.set("path", spare.path + ".backup");
+    const markup = `<img src="${assetSrc(candidate)}"><img src="${unrelatedUrl.pathname + unrelatedUrl.search}">`;
     await createBrowserDoc("other", JSON.stringify({ pages: { main: { rawHtml: markup } } }));
     await createBrowserDoc("original", JSON.stringify({ assets: { spare } }));
     const db = opens.mock.calls[0].result!.result;

@@ -62,7 +62,7 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 | Collaboration | `custom-worker.ts`: one WebSocket Durable Object per site generation<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
 | AI | `lib/ai/` (providers, prompt, streaming); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client) |
 | Comments, activity | `lib/comments.ts`, `lib/comment-store.ts`, `lib/activity.ts` |
-| Auth | `auth.ts`, `proxy.ts`, `lib/allowlist.ts` (`editor` and `viewer` roles). Without `AUTH_*`, the editor opens only on loopback hosts under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
+| Auth | `auth.ts`, `proxy.ts`, `lib/allowlist.ts` (login roles), `lib/site-access.ts` (per-site owner/editor/viewer memberships enforced at API and collaboration boundaries). Without `AUTH_*`, the editor opens only on loopback hosts under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
 | i18n | `lib/i18n.ts`. Source strings are English, wrapped in `tr("…")`. Japanese translations are in `lib/locales/ja.ts`; `lib/locales/en.ts` holds only English text that differs from its key (such as plural forms). |
 | Help and tutorial | `lib/manualTopics.ts` and `lib/manual-topics/`, `components/HelpCenter.tsx`, `HelpFigures.tsx`, `Tutorial.tsx` |
 

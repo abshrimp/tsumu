@@ -5,6 +5,10 @@ import { permanentlyDeleteTrashedAsset } from "../../../../lib/asset-trash-delet
 import type { AssetGcDocumentNamespace } from "../../../../lib/asset-gc";
 import { getDb, dbConfigured } from "../../../../lib/db";
 import { requireAuth } from "../../../../lib/server";
+import { requireSiteAccess } from "../../../../lib/site-access";
+import { allowedEmails } from "../../../../lib/allowlist";
+import { sessionUser } from "../../../../lib/server";
+import { authConfigured } from "../../../../auth";
 import { siteIdOf } from "../../../../lib/site-server";
 import { assetUploadedAt } from "../../../../lib/asset-gc-plan";
 import { serverTr, type Tr } from "../../../../lib/i18n-server";
@@ -40,9 +44,11 @@ const gcRunning = (tr: Tr) =>
 const notInTrash = (tr: Tr) =>
   NextResponse.json({ error: tr("File is no longer in trash."), code: "asset_trash_missing" }, { status: 404 });
 
-async function authorizeSite(value: unknown, tr: Tr) {
+async function authorizeSite(value: unknown, tr: Tr, action: "view" | "edit") {
   const siteId = await siteIdOf(value);
   if (siteId instanceof NextResponse) return siteId;
+  const deniedSite = await requireSiteAccess(siteId, action);
+  if (deniedSite) return deniedSite;
   const db = await getDb();
   const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
   return site.rows.length ? { db, siteId } : NextResponse.json({ error: tr("Site not found") }, { status: 404 });
@@ -59,7 +65,7 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return trashDisabled();
   const tr = await serverTr();
   try {
-    const checked = await authorizeSite(new URL(req.url).searchParams.get("site"), tr);
+    const checked = await authorizeSite(new URL(req.url).searchParams.get("site"), tr, "view");
     if (checked instanceof NextResponse) return checked;
     if (checked.db.backend !== "d1") return trashDisabled();
     const offsetRaw = new URL(req.url).searchParams.get("offset") ?? "0";
@@ -68,12 +74,15 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
     }
     const limit = 100;
+    const email = (await sessionUser())?.email?.toLowerCase();
+    const admin = !authConfigured() || (!!email && allowedEmails().includes(email));
     const result = await checked.db.execute({
       sql: `SELECT c.path,c.first_unreferenced_at AS deletedAt,
           COALESCE(c.bytes,o.bytes) AS bytes
        FROM asset_gc_candidates c LEFT JOIN asset_objects o ON o.path=c.path
+       ${admin ? "" : "JOIN site_asset_uploads u ON u.path=c.path AND u.site_id=?"}
        ORDER BY c.first_unreferenced_at DESC LIMIT ? OFFSET ?`,
-      args: [limit + 1, offset],
+      args: admin ? [limit + 1, offset] : [checked.siteId, limit + 1, offset],
     });
     return NextResponse.json({
       enabled: true,
@@ -99,9 +108,12 @@ export async function POST(req: Request) {
   if (body instanceof NextResponse) return body;
   const { path } = body;
   try {
-    const checked = await authorizeSite(body.site, tr);
+    const checked = await authorizeSite(body.site, tr, "edit");
     if (checked instanceof NextResponse) return checked;
     if (checked.db.backend !== "d1") return trashUnavailable(tr);
+    const owner = await checked.db.execute({ sql: "SELECT 1 FROM site_asset_uploads WHERE site_id=? AND path=?", args: [checked.siteId, path] });
+    const email = (await sessionUser())?.email?.toLowerCase();
+    if (!owner.rows.length && authConfigured() && (!email || !allowedEmails().includes(email))) return notInTrash(tr);
     // Only restore when the GC lease is free. Otherwise GC could delete the KV
     // file just after this request removes its candidate.
     const released = await checked.db.execute({
@@ -131,9 +143,12 @@ export async function DELETE(req: Request) {
   const body = await readTrashRequest(req, tr);
   if (body instanceof NextResponse) return body;
   try {
-    const checked = await authorizeSite(body.site, tr);
+    const checked = await authorizeSite(body.site, tr, "edit");
     if (checked instanceof NextResponse) return checked;
     if (checked.db.backend !== "d1") return trashUnavailable(tr);
+    const owner = await checked.db.execute({ sql: "SELECT 1 FROM site_asset_uploads WHERE site_id=? AND path=?", args: [checked.siteId, body.path] });
+    const email = (await sessionUser())?.email?.toLowerCase();
+    if (!owner.rows.length && authConfigured() && (!email || !allowedEmails().includes(email))) return notInTrash(tr);
     const kv = assetStore();
     let rooms: AssetGcDocumentNamespace | null = null;
     try {
