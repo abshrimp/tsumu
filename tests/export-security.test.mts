@@ -60,7 +60,7 @@ test("generated Vue and Svelte components never compile authored plain text into
     if (framework === "vue") {
       assert.doesNotMatch(project.files["index.html"], /onload="globalThis/);
       // 生成したサーバーが、リクエストごとにエスケープしたメタデータを渡す。
-      // vue-ssr-metadata.test.mts で、実際に実行するサーバーの回帰テストを参照。
+      // native-ssr-export.test.mts で、実際に実行するサーバーの回帰テストを参照。
       assert.match(project.files["index.html"], /lang="<!--page-language-->"/);
       assert.doesNotMatch(project.files["server.mjs"], /req\.headers\.host/);
     }

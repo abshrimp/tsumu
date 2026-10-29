@@ -141,6 +141,28 @@ test.describe("Canvas movement fixture", () => {
     await mouseDrag(page, "a", "c"); await page.mouse.up();
     expect(await order(page)).toEqual(["b", "c", "a"]); expect((await snapshot(page)).past).toHaveLength(1);
   });
+
+  test("selected overlay follows a flow-layout shift without an idle frame polling loop", async ({ page }) => {
+    await page.evaluate(() => (window as any).canvasMoveEditor.getState().select("c"));
+    const overlay = page.locator(".sel-overlay");
+    await expect(overlay).toBeVisible();
+    const original = await overlay.boundingBox();
+    expect(original).not.toBeNull();
+
+    // 前の兄弟を変えると、"c" 自身は変えずに "c" が動く。
+    await page.evaluate(() =>
+      (window as any).canvasMoveEditor.getState().setStyleProps("a", { height: "250px" })
+    );
+    await expect.poll(async () => (await overlay.boundingBox())?.y ?? 0)
+      .toBeGreaterThan(original!.y + 80);
+
+    // 大きさを直接変えた場合も、ResizeObserver が選択の表示を正確に保つ。
+    await page.evaluate(() =>
+      (window as any).canvasMoveEditor.getState().setStyleProps("c", { height: "210px" })
+    );
+    await expect.poll(async () => (await overlay.boundingBox())?.height ?? 0)
+      .toBeGreaterThan(original!.height + 80);
+  });
 });
 
 test("the real Editor Ctrl+Z during a mouse drag cannot be overwritten by releasing it", async ({ page }) => {

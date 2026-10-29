@@ -15,9 +15,11 @@ export function scriptDragDoc(): SiteDoc {
   };
 }
 
+let compiledScriptDragBundle: Promise<string> | undefined;
+
 /** 実際のスクリプトの画面・ストア・CSS で、操作の中断と履歴を確かめる。 */
 export async function scriptDragBundle(doc: SiteDoc = scriptDragDoc()) {
-  return (await build({
+  compiledScriptDragBundle ??= build({
     stdin: {
       contents: `
 import React, { useState } from "react";
@@ -26,7 +28,7 @@ import { loadLocale } from "./lib/i18n";
 import { useEditor } from "./lib/store";
 const css = ${JSON.stringify(readEditorCss())};
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
-useEditor.getState().replaceDoc(${JSON.stringify(doc)});
+useEditor.getState().replaceDoc(window.__scriptDragDoc);
 useEditor.getState().setActivePage("p");
 window.scriptDragEditor = useEditor;
 let ScriptEditor;
@@ -45,5 +47,6 @@ void loadLocale().then(async () => {
     },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
-  })).outputFiles[0].text;
+  }).then(result => result.outputFiles[0].text);
+  return `window.__scriptDragDoc = ${JSON.stringify(doc)};\n` + await compiledScriptDragBundle;
 }

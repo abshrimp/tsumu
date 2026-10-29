@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
 import { emptyDest } from "../lib/site";
+import { storageKey } from "../lib/storage-keys";
 import { homeSiteStorageBundle } from "../tests/helpers/home-site-storage";
 import { browserDoc, browserDocIds, setBrowserDoc } from "./helpers/browser-doc";
 
-const listKey = "tsumu-sites-v1";
+const listKey = storageKey("sites-v1");
 const source = { ...emptyDest(), id: "source", name: "Original", createdAt: 1, updatedAt: 2 };
 let bundle: string;
 test.beforeAll(async () => { bundle = await homeSiteStorageBundle(); });
@@ -19,6 +20,7 @@ async function prepare(page: import("@playwright/test").Page, large = false) {
   await page.goto("http://tsumu-home.test/");
   const doc = createInitialDoc();
   doc.siteName = "Original public title";
+  doc.customHeadHtml = "<style>/* Authored source content */</style>";
   if (large) {
     doc.assets["large-binary"] = {
       id: "large-binary", name: "large.png", width: 1, height: 1,
@@ -26,14 +28,15 @@ async function prepare(page: import("@playwright/test").Page, large = false) {
     };
   }
   const raw = JSON.stringify(doc);
-  await page.evaluate(({ site, listKey }) => {
+  const list = JSON.stringify([source]);
+  await page.evaluate(({ list, listKey }) => {
     localStorage.setItem("tsumu-lang", "ja");
-    localStorage.setItem(listKey, JSON.stringify([site]));
-  }, { site: source, listKey });
+    localStorage.setItem(listKey, list);
+  }, { list, listKey });
   await setBrowserDoc(page, source.id, raw);
   await page.addScriptTag({ content: bundle });
   await expect(page.locator(".home-card")).toHaveCount(1);
-  return { errors, raw };
+  return { errors, raw, list };
 }
 
 async function openDuplicate(page: import("@playwright/test").Page) {
@@ -87,26 +90,84 @@ test("a large IndexedDB document can be duplicated without localStorage quota er
   expect(errors).toEqual([]);
 });
 
-test("a failed site-index write rolls back the copied document and can be retried", async ({ page }) => {
-  const { errors, raw } = await prepare(page);
-  const dialog = await openDuplicate(page);
-  await page.evaluate(key => {
-    const state = window as any;
-    state.failListWrite = true;
-    const write = Storage.prototype.setItem;
-    Storage.prototype.setItem = function(k, value) {
-      if (k === key && state.failListWrite) throw new DOMException("Storage full", "QuotaExceededError");
-      return write.call(this, k, value);
+type Action = "create" | "rename" | "duplicate" | "delete";
+type Failure = "list" | "read" | "corrupt" | "marker";
+
+for (const [action, failure] of [
+  ["create", "list"],
+  ["rename", "read"],
+  ["duplicate", "corrupt"],
+  ["delete", "marker"],
+] as [Action, Failure][]) {
+  test(`local ${action} keeps original content and retry input after ${failure} failure`, async ({ page }) => {
+    const { errors, raw, list } = await prepare(page);
+    const openAction = async () => {
+      if (action === "create") await page.getByRole("button", { name: "新しいサイト", exact: true }).click();
+      else {
+        await page.getByRole("button", { name: "サイトの操作" }).click();
+        await page.getByRole("menuitem", { name: action === "rename" ? "設定" : action === "duplicate" ? "複製" : "削除", exact: true }).click();
+      }
+      if (action === "delete") await page.locator(".dialog-input").fill("Original");
+      else await page.locator("form.home-dialog input").first().fill("Retry name");
     };
-  }, listKey);
-  await dialog.getByRole("button", { name: "複製", exact: true }).click();
-  await expect(dialog.locator(".home-dialog-error")).toContainText("サイトを複製できませんでした");
-  expect(await browserDocIds(page)).toEqual([source.id]);
-  expect(await browserDoc(page, source.id)).toBe(raw);
-  await page.evaluate(() => { (window as any).failListWrite = false; });
-  await dialog.getByRole("button", { name: "複製", exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(page.locator(".home-card")).toHaveCount(2);
-  expect(await browserDocIds(page)).toHaveLength(2);
-  expect(errors).toEqual([]);
-});
+    await openAction();
+    await page.evaluate(({ failure, listKey }) => {
+      const state = window as any;
+      state.homeBlocked = true;
+      state.homeRead = Storage.prototype.getItem;
+      state.homeWrite = Storage.prototype.setItem;
+      if (failure === "corrupt") localStorage.setItem(listKey, "{unreadable JSON");
+      Storage.prototype.getItem = function (key) {
+        if (state.homeBlocked && failure === "read" && key === listKey) throw new DOMException("Storage blocked", "SecurityError");
+        return state.homeRead.call(this, key);
+      };
+      Storage.prototype.setItem = function (key, value) {
+        if (state.homeBlocked && ((failure === "marker" && key.startsWith("tsumu-site-deleted-v1:")) || (failure === "list" && key === listKey))) {
+          throw new DOMException("Storage full", "QuotaExceededError");
+        }
+        state.homeWrite.call(this, key, value);
+      };
+    }, { failure, listKey });
+    const submit = () => action === "delete"
+      ? page.getByRole("dialog").getByRole("button", { name: "削除", exact: true }).click()
+      : page.locator("form.home-dialog button[type=submit]").click();
+    await submit();
+    const error = page.locator(action === "delete" ? ".dialog-msg" : ".home-dialog-error");
+    await expect(error).toContainText("ブラウザの空き容量と設定を確認してから、もう一度");
+    await expect(page).toHaveURL("http://tsumu-home.test/");
+    await expect(page.locator(".home-card-name")).toHaveText("Original");
+    expect(await page.evaluate((key) => (window as any).homeRead.call(localStorage, key), listKey))
+      .toBe(failure === "corrupt" ? "{unreadable JSON" : list);
+    expect(await browserDoc(page, source.id)).toBe(raw);
+    expect(await browserDocIds(page)).toEqual([source.id]);
+    if (action !== "delete") {
+      await expect(page.locator("form.home-dialog input").first()).toHaveValue("Retry name");
+      await expect(page.locator("form.home-dialog button[type=submit]")).toBeEnabled();
+    }
+    await page.evaluate(({ listKey, list }) => {
+      const state = window as any;
+      state.homeBlocked = false;
+      state.homeWrite.call(localStorage, listKey, list);
+    }, { listKey, list });
+    if (action === "delete") {
+      await page.getByRole("alertdialog").getByRole("button", { name: "OK", exact: true }).click();
+      await openAction();
+    }
+    await submit();
+    if (action === "create") await expect(page).toHaveURL(/\/sites\/[a-zA-Z0-9_-]+$/);
+    else {
+      await expect(page.locator("form.home-dialog,.dialog")).toHaveCount(0);
+      await expect(page.locator(".home-card")).toHaveCount(action === "delete" ? 0 : action === "duplicate" ? 2 : 1);
+    }
+    const sites = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!) as { id: string; name: string }[], listKey);
+    const firstDoc = sites[0] ? await browserDoc(page, sites[0].id) : null;
+    if (action === "delete") expect(sites).toEqual([]);
+    else {
+      expect(sites[0].name).toBe("Retry name");
+      if (action === "create") expect(JSON.parse(firstDoc!).siteName).toBe("Retry name");
+      else expect(firstDoc).toBe(raw);
+    }
+    expect(await browserDoc(page, source.id)).toBe(action === "delete" ? null : raw);
+    expect(errors).toEqual([]);
+  });
+}

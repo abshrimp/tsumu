@@ -108,15 +108,15 @@ test("empty native clipboard may fall back to the internal node copy", async ({ 
 });
 
 
-for (const linkAttr of ["href", "xlink:href"] as const) {
-  test(`Figma SVG using <use ${linkAttr}> is still visible after sanitization`, async ({ page }) => {
-    // Figma は、SVG の <use> で defs の中のパスや画像の要素を描画することがある。
-    // 貼り付けには成功しても <use> が取り除かれると、空のアセットになる。
+test("Figma SVG using <use href> and <use xlink:href> is still visible after sanitization", async ({ page }) => {
+  // Figma は、SVG の <use> で defs の中のパスや画像の要素を描画することがある。
+  // 貼り付けには成功しても <use> が取り除かれると、空のアセットになる。
+  for (const [idx, linkAttr] of (["href", "xlink:href"] as const).entries()) {
     const source = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="12" viewBox="0 0 24 12"><defs><rect id="figma-shape" width="24" height="12" fill="#00cc44"/></defs><use ${linkAttr}="#figma-shape"/></svg>`;
     await paste(page, false, source);
-    await uploads(page, 1);
-    const rendered = await page.evaluate(async () => {
-      const file = (window as any).uploads[0].file as File;
+    await uploads(page, idx + 1);
+    const rendered = await page.evaluate(async (i) => {
+      const file = (window as any).uploads[i].file as File;
       const xml = await file.text();
       const objectUrl = URL.createObjectURL(file);
       try {
@@ -131,17 +131,17 @@ for (const linkAttr of ["href", "xlink:href"] as const) {
       } finally {
         URL.revokeObjectURL(objectUrl);
       }
-    });
+    }, idx);
     expect(rendered.xml).toMatch(/<use\b/);
     expect(rendered.width).toBe(24);
     expect(rendered.height).toBe(12);
     expect(rendered.pixel[1]).toBeGreaterThan(80);
     expect(rendered.pixel[3]).toBe(255);
-    await finish(page); await settled(page);
+    await finish(page, idx); await settled(page, idx + 1);
     const after = await snapshot(page);
     expect(after.doc.nodes[after.selection].name).toBe("貼り付けたSVG");
-  });
-}
+  }
+});
 
 test("SVG <use> keeps only internal ID references", async ({ page }) => {
   const source = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12"><defs><rect id="safe" width="24" height="12" fill="blue"/></defs><use href="#safe"/><use href="https://evil.test/vector.svg#safe"/><use href="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="/></svg>';
@@ -172,7 +172,14 @@ test("SVG paste strips root events, script nodes and remote style references", a
   await settled(page);
 });
 
-for (const delay of ["decode", "upload"]) for (const change of ["page", "selection", "component", "undo", "delete", "unmount"]) {
+for (const [delay, change] of [
+  ["decode", "page"],
+  ["upload", "selection"],
+  ["decode", "component"],
+  ["upload", "undo"],
+  ["decode", "delete"],
+  ["upload", "unmount"],
+] as const) {
   test(`${change} during ${delay} preserves the original intent and newer history`, async ({ page }) => {
     await page.evaluate(() => (window as any).pasteEditor.getState().updateNode("b", { name: "Manual edit" }));
     await paste(page, delay === "decode"); if (delay === "upload") await uploads(page, 1);

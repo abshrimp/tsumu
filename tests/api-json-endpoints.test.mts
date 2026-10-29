@@ -159,7 +159,10 @@ for (const route of ["fetch-json", "ai"] as const) {
     for (const mime of ["text/plain", "application/x-www-form-urlencoded", "application/problem+json"]) {
       assert.equal((await f.POST(request(route, JSON.stringify(inputs[route]), { "Content-Type": mime }))).status, 415);
     }
-    for (const value of ["{broken", "null", "{}", null]) {
+    const invalidBodies = route === "fetch-json"
+      ? ["{broken", "null", "{}", '{"method":{},"url":"https://example.org"}', null]
+      : ["{broken", "null", "{}", null];
+    for (const value of invalidBodies) {
       assert.equal((await f.POST(request(route, value))).status, 400);
     }
     const invalidLength = request(route);

@@ -47,6 +47,28 @@ export async function setBrowserDoc(page: Page, siteId: string, raw: string): Pr
   }, { dbName: DB, storeName: STORE, siteId, raw });
 }
 
+export async function deleteBrowserDoc(page: Page, siteId: string): Promise<void> {
+  await page.evaluate(async ({ dbName, storeName, siteId }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(dbName, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(storeName);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(storeName, "readwrite");
+        tx.objectStore(storeName).delete(siteId);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+    } finally {
+      db.close();
+    }
+  }, { dbName: DB, storeName: STORE, siteId });
+}
+
 export async function browserDocIds(page: Page): Promise<string[]> {
   return page.evaluate(async ({ dbName, storeName }) => {
     const db = await new Promise<IDBDatabase>((resolve, reject) => {

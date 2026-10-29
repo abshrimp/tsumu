@@ -28,16 +28,19 @@ const homeMocks: Plugin = {
   },
 };
 
+let compiledHomeNodeBundle: Promise<string> | undefined;
+
 /** フックの状態だけを持ち、実際の Home が SiteDialog に渡す onSave を直接実行する。 */
 export async function homeSiteFixture(storage: Storage) {
-  const result = await build({
+  compiledHomeNodeBundle ??= build({
     stdin: {
       contents: "export { default as Home } from './components/Home'; export { loadLocalSites } from './lib/site'; export { useDialogs, closeDialog } from './lib/dialog';",
       resolveDir: repo, loader: "tsx",
     },
     bundle: true, platform: "node", format: "cjs", packages: "external", write: false,
     plugins: [homeMocks],
-  });
+  }).then(r => r.outputFiles[0].text);
+  const code = await compiledHomeNodeBundle;
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const previousFetch = globalThis.fetch;
   const location = { pathname: "/", search: "", href: "/" };
@@ -65,7 +68,7 @@ export async function homeSiteFixture(storage: Storage) {
     useRef(value: unknown) { return { current: value }; },
   };
   const module = { exports: {} as any };
-  new Function("require", "module", "exports", result.outputFiles[0].text)(
+  new Function("require", "module", "exports", code)(
     (name: string) => name === "react" ? hooks : require(name), module, module.exports,
   );
   let tree: any;

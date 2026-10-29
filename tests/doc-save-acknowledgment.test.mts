@@ -176,3 +176,24 @@ for (const method of ["save", "patch"] as const) {
     assert.equal(peer.messages.length, 1);
   });
 }
+
+test("a full save and a subsequent SQL patch use the same value for duplicate JSON keys", async t => {
+  const f = await setup(t);
+  await f.create("source", "Duplicate keys", null as unknown as typeof original);
+  const node = { id: "n", type: "box", name: "Original", semantic: "auto", children: [], styles: {} };
+  const page = { id: "home", slug: "", name: "Home", title: "", description: "", children: ["n"] };
+  const text = '{"schemaVersion":1,"siteName":"Duplicate keys","nodes":{},"nodes":' + JSON.stringify({ n: node }) +
+    ',"pages":' + JSON.stringify({ home: page }) + ',"pageOrder":["home"],"assets":{}}';
+  const saved = await f.doc.PUT(new Request("https://editor.example.test/api/doc?site=source", {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: text,
+  }));
+  assert.equal(saved.status, 200);
+  const { rev } = await saved.json();
+  const updated = await f.doc.PATCH(new Request(`https://editor.example.test/api/doc?site=source&base=${rev}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify([{ path: ["nodes", "n"], value: { ...node, name: "Edited" } }]),
+  }));
+  assert.equal(updated.status, 200);
+  const current = await (await f.doc.GET(new Request("https://editor.example.test/api/doc?site=source"))).json();
+  assert.equal(current.doc.nodes.n.name, "Edited");
+});

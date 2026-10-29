@@ -10,6 +10,7 @@ export async function motionEditorBundle(initialCss = "0% { opacity: 0; } 50% { 
     stdin: {
       contents: `
 import React, { useState } from "react";
+import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
@@ -18,6 +19,10 @@ void loadLocale().then(async () => {
 function Fixture() {
   const [css, setCss] = useState(window.__initialMotionCss);
   const [open, setOpen] = useState(true);
+  window.__resetMotion = (next) => {
+    flushSync(() => { setOpen(false); setCss(next); });
+    flushSync(() => setOpen(true));
+  };
   return <>
     <style>{"@keyframes keyframe-test {" + css + "}"}</style>
     <div id="motion-probe" style={{ animation: "keyframe-test 100s linear paused both", position: "absolute", left: -10000, width: 10, height: 10 }} />
@@ -45,6 +50,7 @@ export async function easingEditorBundle(initial = "cubic-bezier(0.123456, 0.000
     stdin: {
       contents: `
 import React, { useState } from "react";
+import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
@@ -53,6 +59,10 @@ void loadLocale().then(async () => {
 function Fixture() {
   const [value, setValue] = useState(window.__initialEasing);
   const [open, setOpen] = useState(true);
+  window.__resetEasing = (next) => {
+    flushSync(() => { setOpen(false); setValue(next); });
+    flushSync(() => setOpen(true));
+  };
   return <>
     <EasingCurve value={value} />
     <div id="easing-probe" style={{ transitionTimingFunction: value }} />

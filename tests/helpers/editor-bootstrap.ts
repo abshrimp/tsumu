@@ -2,10 +2,14 @@ import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
+const compiledBootstrapBundles = new Map<boolean, Promise<string>>();
+
 /** 実際の Editor・ストア・同期の流れを動かす。省くのは、関係の無い表示のパネルだけ。 */
 export async function editorBootstrapBundle(browser = false) {
+  let cached = compiledBootstrapBundles.get(browser);
+  if (cached) return cached;
   const repo = resolve(".");
-  const result = await build({
+  cached = build({
     stdin: {
       contents: browser ? `
         import React from 'react'; import { createRoot } from 'react-dom/client';
@@ -46,8 +50,9 @@ export async function editorBootstrapBundle(browser = false) {
         }));
       },
     }],
-  });
-  return result.outputFiles[0].text;
+  }).then(result => result.outputFiles[0].text);
+  compiledBootstrapBundles.set(browser, cached);
+  return cached;
 }
 
 export async function editorBootstrapFixture() {

@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import { applyPagePayload, buildPagePayload } from "../lib/page-transfer";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import type { ScriptStep, ScriptTrigger, SiteDoc } from "../lib/types";
+import { anchorFixture, renderAnchorExport } from "../tests/helpers/instance-anchor";
+import { queryCopyFixture, renderQueryCopyExport } from "../tests/helpers/page-copy-query";
+import { publishedRadioClear } from "../tests/helpers/radio-clear-bindings";
 
 type Entry = { trigger: ScriptTrigger; steps: ScriptStep[]; keep?: boolean };
 
@@ -86,8 +90,8 @@ for (const published of [false, true]) {
     await expect(page.locator("#banner")).toBeHidden();
   });
 
-  test(mode + ": alert shows resolved variables and continues after dismissal", async ({ page }) => {
-    const entries: Entry[] = [{
+  test(mode + ": alert, confirm, and prompt dialogs resolve variables, save results, and continue", async ({ page }) => {
+    const alertEntries: Entry[] = [{
       trigger: "click",
       steps: [
         { id: "set", kind: "set-var", into: "customer", value: "田中" },
@@ -95,64 +99,67 @@ for (const published of [false, true]) {
         { id: "hide", kind: "hide", target: "result" },
       ],
     }];
-    await page.setContent('<main data-page-body="a"><button id="trigger">Open alert</button><div id="result">Result</div></main>');
-    await attach(page, "#trigger", entries);
-    await install(page, published, entries);
-    const messages: string[] = [];
-    page.on("dialog", async (dialog) => {
-      expect(dialog.type()).toBe("alert");
-      messages.push(dialog.message());
-      await dialog.accept();
+    const confirmEntries: Entry[] = [{
+      trigger: "click",
+      steps: [
+        { id: "seed", kind: "set-var", into: "seed", value: "初期値" },
+        { id: "reset", kind: "set-var", into: "after", value: "" },
+        { id: "dialog", kind: "dialog", mode: "confirm", message: "確認しますか {seed}", into: "answer" },
+        { id: "after", kind: "set-var", into: "after", value: "continued" },
+      ],
+    }];
+    const promptEntries: Entry[] = [{
+      trigger: "click",
+      steps: [
+        { id: "seed", kind: "set-var", into: "seed", value: "初期値" },
+        { id: "reset", kind: "set-var", into: "after", value: "" },
+        { id: "dialog", kind: "dialog", mode: "prompt", message: "確認しますか {seed}", defaultValue: "{seed}", into: "answer" },
+        { id: "after", kind: "set-var", into: "after", value: "continued" },
+      ],
+    }];
+    await page.setContent(
+      '<main data-page-body="a"><button id="alert-btn">Alert</button><button id="confirm-btn">Confirm</button><button id="prompt-btn">Prompt</button><div id="result">Result</div></main>'
+    );
+    await attach(page, "#alert-btn", alertEntries);
+    await attach(page, "#confirm-btn", confirmEntries);
+    await attach(page, "#prompt-btn", promptEntries);
+    await page.evaluate(() => {
+      (window as any).__dialogWrites = [];
+      (window as any).__siteVarsOnChange = (key: string, value: unknown) => {
+        (window as any).__dialogWrites.push([key, value]);
+      };
     });
-    await page.locator("#trigger").click();
-    await expect.poll(() => messages).toEqual(["こんにちは 田中"]);
-    await expect(page.locator("#result")).toBeHidden();
-  });
+    await install(page, published, [...alertEntries, ...confirmEntries, ...promptEntries]);
 
-  for (const scenario of [
-    { mode: "confirm" as const, accepted: true, value: true },
-    { mode: "confirm" as const, accepted: false, value: false },
-    { mode: "prompt" as const, accepted: true, value: "入力した文字列" },
-    { mode: "prompt" as const, accepted: false, value: null },
-  ]) {
-    test(mode + ": " + scenario.mode + (scenario.accepted ? " accepted" : " cancelled") +
-      " saves the correct result and continues", async ({ page }) => {
-      const entries: Entry[] = [{
-        trigger: "click",
-        steps: [
-          { id: "seed", kind: "set-var", into: "seed", value: "初期値" },
-          { id: "dialog", kind: "dialog", mode: scenario.mode, message: "確認しますか {seed}",
-            defaultValue: "{seed}", into: "answer" },
-          { id: "after", kind: "set-var", into: "after", value: "continued" },
-        ],
-      }];
-      await page.setContent('<main data-page-body="a"><button id="trigger">Show dialog</button></main>');
-      await attach(page, "#trigger", entries);
-      await page.evaluate(() => {
-        (window as any).__dialogWrites = [];
-        (window as any).__siteVarsOnChange = (key: string, value: unknown) => {
-          (window as any).__dialogWrites.push([key, value]);
-        };
-      });
-      await install(page, published, entries);
-      const dialogs: string[] = [];
-      page.on("dialog", async (dialog) => {
-        dialogs.push(dialog.message());
-        expect(dialog.type()).toBe(scenario.mode);
-        if (scenario.mode === "prompt") expect(dialog.defaultValue()).toBe("初期値");
-        if (scenario.accepted) await dialog.accept(scenario.mode === "prompt" ? "入力した文字列" : undefined);
-        else await dialog.dismiss();
-      });
-      await page.locator("#trigger").click();
-      await expect.poll(() => dialogs).toEqual(["確認しますか 初期値"]);
-      await expect.poll(() => page.evaluate(() => (window as any).__dialogWrites)).toContainEqual(
-        ["answer", scenario.value]
-      );
-      await expect.poll(() => page.evaluate(() => (window as any).__dialogWrites)).toContainEqual(
-        ["after", "continued"]
-      );
+    let nextAction: { expectedType: string; accept: boolean; text?: string } = { expectedType: "alert", accept: true };
+    const dialogs: string[] = [];
+    page.on("dialog", async (dialog) => {
+      dialogs.push(dialog.message());
+      expect(dialog.type()).toBe(nextAction.expectedType);
+      if (nextAction.expectedType === "prompt") expect(dialog.defaultValue()).toBe("初期値");
+      if (nextAction.accept) await dialog.accept(nextAction.text);
+      else await dialog.dismiss();
     });
-  }
+
+    await page.locator("#alert-btn").click();
+    await expect.poll(() => dialogs).toEqual(["こんにちは 田中"]);
+    await expect(page.locator("#result")).toBeHidden();
+
+    for (const scenario of [
+      { btn: "#confirm-btn", mode: "confirm", accept: true, value: true },
+      { btn: "#confirm-btn", mode: "confirm", accept: false, value: false },
+      { btn: "#prompt-btn", mode: "prompt", accept: true, text: "入力した文字列", value: "入力した文字列" },
+      { btn: "#prompt-btn", mode: "prompt", accept: false, value: null },
+    ]) {
+      dialogs.length = 0;
+      await page.evaluate(() => { (window as any).__dialogWrites.length = 0; });
+      nextAction = { expectedType: scenario.mode, accept: scenario.accept, text: scenario.text };
+      await page.locator(scenario.btn).click();
+      await expect.poll(() => dialogs).toEqual(["確認しますか 初期値"]);
+      await expect.poll(() => page.evaluate(() => (window as any).__dialogWrites)).toContainEqual(["answer", scenario.value]);
+      await expect.poll(() => page.evaluate(() => (window as any).__dialogWrites)).toContainEqual(["after", "continued"]);
+    }
+  });
 
   test(mode + ": fetch inside a condition waits for JSON before continuing", async ({ page }) => {
     const entries: Entry[] = [{ trigger: "click", steps: [
@@ -280,3 +287,156 @@ for (const published of [false, true]) {
     await expect(page.locator("#menu")).toBeHidden();
   });
 }
+
+// 書き出した DOM を使い、アンカーへの移動と表示を切り替えるスクリプトが、同じコンポーネントを対象にすることを確かめる。
+test("Published instance anchors and visibility toggles preserve the master's layout", async ({ page }) => {
+  const doc = anchorFixture();
+  const { html, css } = renderAnchorExport(doc);
+  await page.setContent(html);
+  await page.addStyleTag({ content: css });
+  await page.addScriptTag({ content: scriptsFile(doc) });
+  await expect(page.locator("#first-card")).toHaveCount(1);
+  await expect(page.locator("#second-card")).toHaveCount(1);
+  await expect(page.locator("#first-card")).toBeHidden();
+  await page.locator("#show").click();
+  await expect(page.locator("#first-card")).toBeVisible();
+  await expect(page.locator("#first-card")).toHaveCSS("display", "flex");
+  await expect(page.locator("#second-card")).toBeHidden();
+  await page.locator("#jump").click();
+  await expect.poll(() => page.evaluate(() => location.hash)).toBe("#first-card");
+  await expect(page.locator("div")).toHaveCount(2);
+});
+
+test("copied links and script buttons navigate to the matching query variant", async ({ page }) => {
+  const { source, target } = queryCopyFixture();
+  applyPagePayload(target, buildPagePayload(source, ["home"]));
+  const { html } = renderQueryCopyExport(target);
+  // 移動はすべてローカルで応答し、外部のサイトには接続しない。
+  await page.route("**/*", (route) => route.fulfill({
+    contentType: "text/html",
+    body: new URL(route.request().url()).search === "?tab=news" ? "<main>News</main>" : "<main>Other</main>",
+  }));
+  for (const selector of ["#news-link", "#news-button"]) {
+    await page.goto("https://page-copy.test/");
+    await page.setContent(html);
+    await page.addScriptTag({ content: scriptsFile(target) });
+    await page.locator(selector).click();
+    await expect(page).toHaveURL("https://page-copy.test/blog?tab=news");
+    await expect(page.locator("main")).toHaveText("News");
+  }
+});
+
+// 公開したサイトのランタイムは、Next.js のページ遷移をまたいで残る。
+// 古いページで保留中の処理が、新しいページの同じ ID に影響しないことを、実際の DOM で確かめる。
+test("Pending scripts from a previous page do not continue after navigating away", async ({ page }) => {
+  const steps = [
+    { id: "wait", kind: "wait" as const, seconds: 1 },
+    { id: "hide", kind: "hide" as const, target: "banner" },
+  ];
+  const scripts = [{ id: "load", trigger: "load" as const, steps }];
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Navigation", pageOrder: ["a", "b"], nodes: {}, assets: {},
+    pages: {
+      a: { id: "a", name: "A", slug: "", title: "A", description: "", children: [], pageScripts: scripts },
+      b: { id: "b", name: "B", slug: "b", title: "B", description: "", children: [] },
+    },
+  };
+  await page.clock.install();
+  await page.setContent('<span hidden data-page-body="a"></span><div id="banner">Page A</div>');
+  await page.locator("[data-page-body]").evaluate((el, scripts) => el.setAttribute("data-scripts", JSON.stringify(scripts)), scripts);
+  await page.addScriptTag({ content: scriptsFile(doc) });
+  await page.evaluate(() => {
+    document.body.innerHTML = '<span hidden data-page-body="b"></span><div id="banner">Page B</div>';
+  });
+  await page.clock.runFor(1500);
+  await expect(page.locator("#banner")).toBeVisible();
+  await expect(page.locator("#banner")).toHaveText("Page B");
+});
+
+test.describe("Published radio clear bindings", () => {
+  async function installRadio(page: Page, clearOnChange = false) {
+    const published = await publishedRadioClear(clearOnChange);
+    await page.setContent(published.html);
+    await page.addScriptTag({ content: published.script });
+    await page.evaluate(() => {
+      const events: string[] = [];
+      (window as any).radioEvents = events;
+      for (const type of ["input", "change"]) document.addEventListener(type, (event) => {
+        const input = event.target as HTMLInputElement;
+        if (input.type === "radio") events.push(`${input.parentElement!.id}:${type}`);
+      });
+    });
+  }
+
+  async function expectCleared(page: Page) {
+    await expect(page.locator("#small input")).not.toBeChecked();
+    await expect(page.locator("#medium input")).not.toBeChecked();
+    await expect(page.locator("#red input")).toBeChecked();
+    await expect(page.locator("#result")).toHaveText("size=; small=false; medium=false; index=; color=red");
+    await expect(page.locator("#dependent")).toHaveValue("Selected: ");
+    await expect(page.locator("#dependent")).toHaveAttribute("placeholder", "Index: ");
+  }
+
+  test("Clearing a radio on a published page updates visible output without firing synthetic radio events", async ({ page }) => {
+    for (const button of ["clear-item-0", "clear-group", "unknown-group"]) {
+      await installRadio(page);
+      await expect(page.locator("#result")).toHaveText("size=S; small=true; medium=false; index=1; color=red");
+      await page.locator(`#${button}`).click();
+      await expectCleared(page);
+      await expect(page.locator("#counts")).toHaveText("||");
+      expect(await page.evaluate(() => (window as any).radioEvents)).toEqual([]);
+      await page.locator(`#${button}`).click();
+      await expectCleared(page);
+      expect(await page.evaluate(() => (window as any).radioEvents)).toEqual([]);
+    }
+  });
+
+  test("Selecting another radio fires change once, and clearing in a change handler avoids recursion", async ({ page }) => {
+    await installRadio(page);
+    await page.locator("#select-medium").click();
+    await expect(page.locator("#counts")).toHaveText("|1|");
+    await expect(page.locator("#result")).toHaveText("size=M; small=false; medium=true; index=2; color=red");
+    await page.locator("#select-medium").click();
+    await expect(page.locator("#counts")).toHaveText("|1|");
+    await page.locator("#select-small").click();
+    await expect(page.locator("#counts")).toHaveText("1|1|");
+    await page.locator("#clear-group").click();
+    await expectCleared(page);
+    await expect(page.locator("#counts")).toHaveText("1|1|");
+    expect(await page.evaluate(() => (window as any).radioEvents)).toEqual([
+      "medium:input", "medium:change", "small:input", "small:change",
+    ]);
+
+    await installRadio(page, true);
+    await page.locator("#select-medium").click();
+    await page.locator("#select-small").click();
+    await expectCleared(page);
+    await expect(page.locator("#counts")).toHaveText("1|1|");
+    expect(await page.evaluate(() => (window as any).radioEvents)).toEqual([
+      "medium:input", "medium:change", "small:input", "small:change",
+    ]);
+  });
+
+  test("Manual selection emits one notification and clearing a radio preserves edited fields", async ({ page }) => {
+    await installRadio(page);
+    await page.locator("#clear-group").click();
+    await page.locator("#toggle-sizes").click();
+    await expect(page.locator("#small input")).toBeDisabled();
+    await expect(page.locator("#medium input")).toBeDisabled();
+    await expect(page.locator("#red input")).toBeEnabled();
+    await page.locator("#toggle-sizes").click();
+    await expect(page.locator("#small input")).toBeEnabled();
+    await page.locator("#medium input").check();
+    await expect(page.locator("#result")).toHaveText("size=M; small=false; medium=true; index=2; color=red");
+    await expect(page.locator("#counts")).toHaveText("|1|");
+    await page.locator("#clear-item-0").click();
+    await expect(page.locator("#medium input")).toBeChecked();
+    await page.locator("#dependent").fill("My own text");
+    await page.locator("#clear-group").click();
+    await expect(page.locator("#dependent")).toHaveValue("My own text");
+    await expect(page.locator("#dependent")).toHaveAttribute("placeholder", "Index: ");
+    await expect(page.locator("#result")).toHaveText("size=; small=false; medium=false; index=; color=red");
+    await expect(page.locator("#counts")).toHaveText("|1|");
+    expect(await page.evaluate(() => (window as any).radioEvents)).toEqual(["medium:input", "medium:change"]);
+  });
+});

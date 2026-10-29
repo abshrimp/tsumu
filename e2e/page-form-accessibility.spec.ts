@@ -1,20 +1,19 @@
 import { expect, test } from "@playwright/test";
 
-test("page settings fields have stable identifiers and associated labels", async ({ page }) => {
+test("page settings, element inspector, and site settings fields have stable identifiers and associated labels", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const response = await page.request.post("/api/sites", { data: { name: "Form accessibility" } });
   expect(response.ok()).toBeTruthy();
   const { site } = (await response.json()) as { site: { id: string } };
 
   await page.goto(`/sites/${site.id}`);
-  const settings = page.locator('[data-tutorial="page-settings"]');
-  await expect(settings).toBeVisible();
+  const pageSettings = page.locator('[data-tutorial="page-settings"]');
+  await expect(pageSettings).toBeVisible();
+  await expect(pageSettings.getByRole("textbox", { name: "名前", exact: true })).toBeVisible();
+  await expect(pageSettings.getByRole("textbox", { name: /^URL/ })).toBeVisible();
+  await expect(pageSettings.getByRole("combobox", { name: "言語", exact: true })).toBeVisible();
 
-  await expect(settings.getByRole("textbox", { name: "名前", exact: true })).toBeVisible();
-  await expect(settings.getByRole("textbox", { name: /^URL/ })).toBeVisible();
-  await expect(settings.getByRole("combobox", { name: "言語", exact: true })).toBeVisible();
-
-  const problems = await settings.evaluate((root) => {
+  const audit = (locator: import("@playwright/test").Locator) => locator.evaluate((root) => {
     const labels = [...root.querySelectorAll("label")]
       .filter((label) => !label.control)
       .map((label) => label.textContent?.trim() ?? "");
@@ -29,58 +28,79 @@ test("page settings fields have stable identifiers and associated labels", async
     };
   });
 
-  expect(problems).toEqual({ labels: [], unnamedFields: [], duplicateIds: [] });
-});
+  expect(await audit(pageSettings)).toEqual({ labels: [], unnamedFields: [], duplicateIds: [] });
 
-test("element inspector uses linked labels and identified inputs", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
-  const response = await page.request.post("/api/sites", { data: { name: "Inspector accessibility" } });
-  expect(response.ok()).toBeTruthy();
-  const { site } = (await response.json()) as { site: { id: string } };
-
-  await page.goto(`/sites/${site.id}`);
   await page.locator('[data-tutorial="layers-panel"]').getByText("ボタン", { exact: true }).click();
   await page.locator('[data-tutorial="right-tab-settings"]').click();
-  const settings = page.locator('[data-tutorial="settings-panel"]');
-  await expect(settings).toBeVisible();
+  const inspector = page.locator('[data-tutorial="settings-panel"]');
+  await expect(inspector).toBeVisible();
+  expect(await audit(inspector)).toEqual({ labels: [], unnamedFields: [], duplicateIds: [] });
 
-  const problems = await settings.evaluate((root) => {
-    const labels = [...root.querySelectorAll("label")]
-      .filter((label) => !label.control)
-      .map((label) => label.textContent?.trim() ?? "");
-    const fields = [...root.querySelectorAll("input, select, textarea")];
-    return {
-      labels,
-      unnamedFields: fields.filter((field) => !field.id && !field.getAttribute("name"))
-        .map((field) => field.outerHTML.slice(0, 180)),
-    };
-  });
-
-  expect(problems).toEqual({ labels: [], unnamedFields: [] });
+  await page.locator('[data-tutorial="left-tab-site"]').click();
+  const siteSettings = page.locator('[data-tutorial="site-settings"]');
+  await expect(siteSettings).toBeVisible();
+  expect(await audit(siteSettings)).toEqual({ labels: [], unnamedFields: [], duplicateIds: [] });
 });
 
-test("site settings fields have associated labels and identifiable controls", async ({ page }) => {
+test("Site and page language settings accept suggested and custom values and survive saving", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
-  const response = await page.request.post("/api/sites", { data: { name: "Site accessibility" } });
+  const response = await page.request.post("/api/sites", { data: { name: "Custom languages" } });
   expect(response.ok()).toBeTruthy();
-  const { site } = (await response.json()) as { site: { id: string } };
-
+  const { site } = await response.json();
   await page.goto(`/sites/${site.id}`);
+  await expect(page.getByText("サーバー保存済み")).toBeVisible();
   await page.locator('[data-tutorial="left-tab-site"]').click();
-  const settings = page.locator('[data-tutorial="site-settings"]');
-  await expect(settings).toBeVisible();
 
-  const problems = await settings.evaluate((root) => {
-    const labels = [...root.querySelectorAll("label")]
-      .filter((label) => !label.control)
-      .map((label) => label.textContent?.trim() ?? "");
-    const fields = [...root.querySelectorAll("input, select, textarea")];
-    return {
-      labels,
-      unnamedFields: fields.filter((field) => !field.id && !field.getAttribute("name"))
-        .map((field) => field.outerHTML.slice(0, 180)),
-    };
-  });
+  const siteSettings = page.locator('[data-tutorial="site-basics"]');
+  const siteSelect = siteSettings.getByRole("combobox", { name: "言語", exact: true });
+  const siteCode = siteSettings.getByRole("textbox", { name: "カスタム言語コード" });
+  const readDoc = async () => (await (await page.request.get(`/api/doc?site=${site.id}`)).json()).doc;
 
-  expect(problems).toEqual({ labels: [], unnamedFields: [] });
+  await expect(siteSelect).toHaveValue("ja");
+  await siteSelect.selectOption({ label: "カスタム…" });
+  await siteCode.fill(" pt-BR ");
+  await siteCode.press("Enter");
+  await expect(siteCode).toHaveValue("pt-BR");
+  await expect.poll(async () => (await readDoc()).lang).toBe("pt-BR");
+
+  for (const invalid of ["", "en_US", "not a language", "<script>"]) {
+    await siteCode.fill(invalid);
+    await siteCode.press("Enter");
+    await expect(siteCode).toHaveAttribute("aria-invalid", "true");
+    await expect(siteSettings.getByRole("alert")).toContainText("変更は保存されていません");
+    expect((await readDoc()).lang).toBe("pt-BR");
+  }
+  await siteCode.press("Escape");
+  await expect(siteCode).toHaveValue("pt-BR");
+  await expect(siteSettings.getByRole("alert")).toHaveCount(0);
+
+  await siteSelect.selectOption("en");
+  await expect(siteCode).toHaveCount(0);
+  await expect.poll(async () => (await readDoc()).lang).toBe("en");
+  await page.locator('[data-tutorial="undo"]').click();
+  await expect(siteCode).toHaveValue("pt-BR");
+
+  const pageSettings = page.locator('[data-tutorial="page-settings"]');
+  const pageSelect = pageSettings.getByRole("combobox", { name: "言語", exact: true });
+  const pageCode = pageSettings.getByRole("textbox", { name: "カスタム言語コード" });
+  await expect(pageSelect).toHaveValue("");
+  await expect(pageSelect.locator('option[value=""]')).toHaveText("サイトと同じ（pt-BR）");
+  await pageSelect.selectOption({ label: "カスタム…" });
+  await pageCode.fill("en-US");
+  await pageCode.press("Enter");
+  await expect.poll(async () => { const doc = await readDoc(); return doc.pages[doc.pageOrder[0]].lang; }).toBe("en-US");
+
+  // 既存の独自の言語の値は、再読み込みした後も編集できる。
+  await page.reload();
+  await expect(page.getByText("サーバー保存済み")).toBeVisible();
+  await page.locator('[data-tutorial="left-tab-site"]').click();
+  await expect(siteCode).toHaveValue("pt-BR");
+  await expect(pageCode).toHaveValue("en-US");
+  await pageSelect.selectOption("");
+  await expect(pageCode).toHaveCount(0);
+  await expect.poll(async () => { const doc = await readDoc(); return doc.pages[doc.pageOrder[0]].lang; }).toBeUndefined();
+  expect((await readDoc()).lang).toBe("pt-BR");
+  expect(errors).toEqual([]);
 });

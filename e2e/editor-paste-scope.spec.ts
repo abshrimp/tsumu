@@ -83,28 +83,33 @@ test.describe("Native paste event scope in the editor", () => {
     expect(await snapshot(page)).toEqual(before);
   });
 
-  for (const context of ["preview", "modal", "script"] as const) for (const kind of ["elements", "artwork"] as const) {
-    test(`Do not paste ${kind} behind the ${context} overlay`, async ({ page }) => {
+  test("Do not paste elements or artwork behind preview, modal, or script overlays, or inside editable targets", async ({ page }) => {
+    const before = await snapshot(page);
+    for (const context of ["preview", "modal", "script"] as const) {
       await page.evaluate(context => {
         if (context === "preview") (window as any).pasteEditor.getState().setMode("preview");
-        else { const el = document.createElement("div"); el.className = context === "modal" ? "modal-backdrop" : "se-backdrop"; document.body.append(el); }
+        else { const el = document.createElement("div"); el.id = "test-overlay"; el.className = context === "modal" ? "modal-backdrop" : "se-backdrop"; document.body.append(el); }
       }, context);
-      const before = await snapshot(page);
-      expect(await paste(page, kind)).toBe(false);
-      await page.waitForTimeout(100);
+      for (const kind of ["elements", "artwork"] as const) {
+        expect(await paste(page, kind)).toBe(false);
+        expect(await snapshot(page)).toEqual(before);
+        await expect(page.locator(".paste-notice")).toHaveCount(0);
+      }
+      await page.evaluate(context => {
+        if (context === "preview") (window as any).pasteEditor.getState().setMode("design");
+        else document.getElementById("test-overlay")?.remove();
+      }, context);
+    }
+    for (const target of ["input", "textarea", "select", "contenteditable"] as const) {
+      await page.evaluate(target => {
+        const el = document.createElement(target === "contenteditable" ? "div" : target); el.id = "native-target";
+        if (target === "contenteditable") el.contentEditable = "true";
+        document.body.append(el);
+      }, target);
+      expect(await paste(page, "elements", "#native-target")).toBe(false);
       expect(await snapshot(page)).toEqual(before);
-      await expect(page.locator(".paste-notice")).toHaveCount(0);
-    });
-  }
-  for (const target of ["input", "textarea", "select", "contenteditable"]) test(`Do not intercept paste inside ${target}`, async ({ page }) => {
-    await page.evaluate(target => {
-      const el = document.createElement(target === "contenteditable" ? "div" : target); el.id = "native-target";
-      if (target === "contenteditable") el.contentEditable = "true";
-      document.body.append(el);
-    }, target);
-    const before = await snapshot(page);
-    expect(await paste(page, "elements", "#native-target")).toBe(false);
-    expect(await snapshot(page)).toEqual(before);
+      await page.evaluate(() => document.getElementById("native-target")?.remove());
+    }
   });
   test("Closing modal animations do not block design paste or Undo/Redo", async ({ page }) => {
     await page.evaluate(() => { const el = document.createElement("div"); el.className = "modal-backdrop is-leaving"; document.body.append(el); });
@@ -164,7 +169,7 @@ test("real editor context-menu paste uses current OS data and rejects unrelated 
 });
 
 // 実際の Next.js のエディタのコピーの操作と、ブラウザが生成した貼り付けのイベントで、保存されたデータを確かめる。
-for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real editor ${context} does not change the saved document`, async ({ page }) => {
+test("Ctrl+V in the real editor preview and settings does not change the saved document", async ({ page }) => {
   // Clipboard API の書き込みは非同期。実際の Chromium にクリップボードの権限を与え、
   // HTML のデータが書かれるのを待ってから、ネイティブの貼り付けを行う。
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -203,25 +208,27 @@ for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real
       prevented: event.defaultPrevented,
     }));
   });
-  if (context === "preview") await page.getByRole("button", { name: "プレビュー", exact: true }).click();
-  else {
-    await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）", exact: true }).click();
-    await page.locator(".dd-menu").getByRole("button", { name: "設定", exact: true }).click();
-    await expect(page.locator(".modal h2")).toHaveText("設定");
+  for (const [index, context] of (["preview", "settings"] as const).entries()) {
+    if (context === "preview") await page.getByRole("button", { name: "プレビュー", exact: true }).click();
+    else {
+      await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）", exact: true }).click();
+      await page.locator(".dd-menu").getByRole("button", { name: "設定", exact: true }).click();
+      await expect(page.locator(".modal h2")).toHaveText("設定");
+    }
+    await page.keyboard.press("ControlOrMeta+v");
+    await expect.poll(() => page.evaluate(() => (window as any).nativePastes.length)).toBe(index + 1);
+    const event = await page.evaluate((i) => (window as any).nativePastes[i], index);
+    expect(event.trusted).toBe(true);
+    const encoded = /data-tsumu-clipboard="([^"]+)"/i.exec(event.data)?.[1];
+    const payload = encoded ? JSON.parse(decodeURIComponent(encoded)) : JSON.parse(event.data);
+    expect(payload.rootIds).toEqual(["a"]);
+    expect(event.prevented).toBe(false);
+    if (context === "settings") await page.locator(".modal").getByRole("button", { name: "閉じる", exact: true }).click();
+    else await page.getByRole("button", { name: "デザイン", exact: true }).click();
+    await expect(page.locator('[data-node]')).toHaveCount(1);
   }
-  await page.keyboard.press("ControlOrMeta+v");
-  await expect.poll(() => page.evaluate(() => (window as any).nativePastes.length)).toBe(1);
-  const event = await page.evaluate(() => (window as any).nativePastes[0]);
-  expect(event.trusted).toBe(true);
-  const encoded = /data-tsumu-clipboard="([^"]+)"/i.exec(event.data)?.[1];
-  const payload = encoded ? JSON.parse(decodeURIComponent(encoded)) : JSON.parse(event.data);
-  expect(payload.rootIds).toEqual(["a"]);
-  expect(event.prevented).toBe(false);
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1000);
   expect((await (await page.request.get(endpoint)).json()).doc).toEqual(doc);
-  if (context === "settings") await page.locator(".modal").getByRole("button", { name: "閉じる", exact: true }).click();
-  else await page.getByRole("button", { name: "デザイン", exact: true }).click();
-  await expect(page.locator('[data-node]')).toHaveCount(1);
   await page.reload();
   await expect(page.locator('[data-node="a"]')).toBeVisible();
   expect((await (await page.request.get(endpoint)).json()).doc).toEqual(doc);
