@@ -1,4 +1,4 @@
-import { exportZipStylesheet } from "./zip-css";
+import { exportZipStylesheet, zipStylesheet } from "./zip-css";
 import type { SiteDoc } from "./types";
 import { applyBreakpoints } from "./style";
 import { siteLangOf, siteText } from "./site-lang";
@@ -14,6 +14,7 @@ import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } fro
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
+import { importedAssetPath, isZipJavascript } from "./generator/imported-assets";
 import { generatePageFile, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
 import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
@@ -731,6 +732,29 @@ a {
           ? m[3].replace(/\s+/g, "")
           : utf8ToBase64(decodeURIComponent(m[3]));
       }
+    }
+  }
+
+  // Keep original relative ZIP paths alongside flattened names for script
+  // module imports and new URL("./asset", import.meta.url) dependencies.
+  // Aliases are only created for ZIP groups containing JavaScript.
+  const scriptGroups = new Set(Object.values(doc.assets)
+    .filter(isZipJavascript).map((asset) => asset.zip!.group));
+  for (const asset of Object.values(doc.assets)) {
+    if (!asset.zip || !scriptGroups.has(asset.zip.group)) continue;
+    const alias = importedAssetPath(asset);
+    if (!alias) continue;
+    if (asset.path) {
+      remoteAssets[alias] = asset.path;
+    } else if (asset.dataUrl) {
+      const m = /^data:([^,]*?)(;base64)?,([\s\S]*)$/.exec(asset.dataUrl);
+      if (m) {
+        binaries[alias] = m[2]
+          ? m[3].replace(/\s+/g, "")
+          : utf8ToBase64(decodeURIComponent(m[3]));
+      }
+    } else if (zipStylesheet(asset)) {
+      files[alias] = zipStylesheet(asset)!.source;
     }
   }
 

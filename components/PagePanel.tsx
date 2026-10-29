@@ -4,6 +4,8 @@ import { isEnterKey } from "../lib/keys";
 import { useLayoutEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { readHtmlZip } from "../lib/html-zip";
+import { convertHtmlFile } from "../lib/html-file-import";
+import { normalizeBreakpoints } from "../lib/style";
 import { useEditor } from "../lib/store";
 import { usePendingImport } from "../lib/use-pending-import";
 import { showConfirm } from "../lib/dialog";
@@ -20,7 +22,7 @@ import { isSiteLang, SITE_LANGS, siteLangOf } from "../lib/site-lang";
 
 const htmlImportScope = (state: ReturnType<typeof useEditor.getState>) => {
   const target = state.doc.pages[state.activePageId];
-  return JSON.stringify([state.activePageId, target?.rawHtml, target?.redirectTo, target?.rewriteTo]);
+  return JSON.stringify([state.activePageId, target?.rawHtml, target?.redirectTo, target?.rewriteTo, target?.children]);
 };
 
 const Sec = Section;
@@ -43,6 +45,9 @@ export default function PagePanel() {
   const updateDoc = useEditor((s) => s.updateDoc);
   const htmlFileRef = useRef<HTMLInputElement>(null);
   const htmlZipRef = useRef<HTMLInputElement>(null);
+  const normalHtmlRef = useRef<HTMLInputElement>(null);
+  const normalZipRef = useRef<HTMLInputElement>(null);
+  const [normalImportMessage, setNormalImportMessage] = useState<string | null>(null);
   const [zipMessage, setZipMessage] = useState<string | null>(null);
   const openScriptEditor = useEditor((s) => s.openScriptEditor);
 
@@ -61,7 +66,7 @@ export default function PagePanel() {
   const kindRevision = useRef(0);
   // 確認中に対象・履歴・パネルが変わったら、以前の切り替えを反映しない。
   useLayoutEffect(() => () => { kindRevision.current++; }, [scope, historyRevision]);
-  useLayoutEffect(() => { setZipMessage(null); }, [activePageId, historyRevision]);
+  useLayoutEffect(() => { setZipMessage(null); setNormalImportMessage(null); }, [activePageId, historyRevision]);
   useLayoutEffect(wakeImports, [scope, historyRevision, pending.busy]);
   const waitForGesture = async (request: { current: () => boolean }) => {
     // 色などの連続編集を確定するまで待ち、読み込みを別のUndoにする。
@@ -138,6 +143,71 @@ export default function PagePanel() {
       );
     } catch (error) {
       if (request.current()) setZipMessage(userMessage(error, tr("ZIPを読み込めませんでした")));
+    } finally {
+      request.finish();
+    }
+  };
+
+  /** Convert one HTML document, keeping the page's URL and site settings. */
+  const importAsEditablePage = async (file: File) => {
+    const request = beginImport(file.name.toLowerCase().endsWith(".zip") ? "zip" : "html");
+    setNormalImportMessage(null);
+    try {
+      const state = useEditor.getState();
+      const converted = await convertHtmlFile(file, {
+        breakpoints: state.doc.breakpoints,
+        progress: (message) => {
+          if (request.current()) setNormalImportMessage(tr(message));
+        },
+      });
+      const assets = Object.values(converted.doc.assets);
+      const keepAssets = () => useEditor.getState().retainUploadedAssets(assets);
+      await waitForGesture(request);
+      if (!request.current()) { keepAssets(); return; }
+      const currentPage = useEditor.getState().doc.pages[page.id];
+      if (!currentPage) { keepAssets(); return; }
+      if (currentPage.children.length && !(await showConfirm(
+        tr("このページの既存の要素をHTMLから変換した要素に置き換えますか？"),
+        { title: tr("ページの要素を置き換えますか？"), okLabel: tr("置き換える") },
+      ))) { keepAssets(); return; }
+      if (!request.current()) { keepAssets(); return; }
+      updateDoc((draft) => {
+        const target = draft.pages[page.id];
+        if (!target) return;
+        const importedPage = converted.doc.pages[converted.doc.pageOrder[0]];
+        // Keep nodes referenced from other pages and component masters. Unreachable
+        // nodes from the replaced page must not inflate future doc.json exports.
+        const oldNodes = new Set<string>();
+        const reachable = (id: string, found: Set<string>) => {
+          if (found.has(id) || !draft.nodes[id]) return;
+          found.add(id);
+          draft.nodes[id].children.forEach((child) => reachable(child, found));
+        };
+        target.children.forEach((id) => reachable(id, oldNodes));
+        const keep = new Set<string>();
+        for (const page of Object.values(draft.pages)) {
+          if (page.id !== target.id) page.children.forEach((id) => reachable(id, keep));
+        }
+        for (const comp of Object.values(draft.components || {})) reachable(comp.rootId, keep);
+        for (const id of oldNodes) if (!keep.has(id)) delete draft.nodes[id];
+        // Imported nodes use globally unique IDs, so no remaining nodes are overwritten.
+        Object.assign(draft.nodes, converted.doc.nodes);
+        Object.assign(draft.assets, converted.doc.assets);
+        target.children = [...importedPage.children];
+        target.bodyStyles = importedPage.bodyStyles;
+        target.customTopHtml = importedPage.customTopHtml;
+        target.customEndHtml = importedPage.customEndHtml;
+        target.pageScripts = undefined;
+        target.scripts = undefined;
+        target.rawHtml = null;
+        draft.breakpoints = normalizeBreakpoints(converted.doc.breakpoints);
+      });
+      setNormalImportMessage(converted.warnings.length
+        ? tr("HTMLを編集可能な要素に変換しました（注意事項: {n}件）。", { n: converted.warnings.length }) +
+          "\n" + converted.warnings.join("\n")
+        : tr("HTMLを編集可能な要素に変換しました。"));
+    } catch (error) {
+      setNormalImportMessage(userMessage(error, tr("HTMLを変換できませんでした。")));
     } finally {
       request.finish();
     }
@@ -414,6 +484,41 @@ export default function PagePanel() {
           onChange={setPageKind}
         />
         </Grp>
+
+      {pageKind === "normal" && (
+        <div className="stack" style={{ gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <button className="btn btn-sm" disabled={pending.busy}
+              onClick={() => normalHtmlRef.current?.click()}>
+              <FileUp size={12} />
+              {tr("HTMLファイルを読み込む")}
+            </button>
+            <button className="btn btn-sm" disabled={pending.busy}
+              onClick={() => normalZipRef.current?.click()}>
+              <FileUp size={12} />
+              {tr("HTMLとアセットのZIPを読み込む")}
+            </button>
+            <input ref={normalHtmlRef} type="file"
+              accept=".html,.htm,text/html" style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importAsEditablePage(file);
+                e.target.value = "";
+              }} />
+            <input ref={normalZipRef} type="file"
+              accept=".zip,application/zip" style={{ display: "none" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importAsEditablePage(file);
+                e.target.value = "";
+              }} />
+          </div>
+          <p className="hint">{tr("HTMLをTsumuの編集可能な要素に変換し、このページに読み込みます。")}</p>
+          {normalImportMessage && (
+            <p className="hint" role="status" style={{ whiteSpace: "pre-wrap" }}>{normalImportMessage}</p>
+          )}
+        </div>
+      )}
 
       {pageKind === "redirect" && (
         <div className="stack" style={{ gap: 4 }}>

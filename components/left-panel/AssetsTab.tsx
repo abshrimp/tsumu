@@ -10,11 +10,18 @@ import { cssUsesAssetUrl } from "@/lib/css-assets";
  */
 
 import { ASSET_WINDOW_THRESHOLD, assetWindow } from "../../lib/asset-window";
+import { assetDisplayKind, assetExtensionLabel, isVisualAsset, type AssetDisplayKind } from "../../lib/asset-display";
 import { isEnterKey } from "../../lib/keys";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   CloudUpload,
   Download,
+  File as FileGeneric,
+  FileArchive,
+  FileCode,
+  FileJson,
+  FileText,
+  FileType,
   ImagePlus,
   LoaderCircle,
   Pencil,
@@ -35,6 +42,7 @@ import {
   replaceEmbeddedAsset,
   removePageAssetBackgrounds,
   uploadAsset,
+  uploadStaticAsset,
   uploadEmbeddedAsset,
 } from "../../lib/assets";
 import { makeImage, makeMedia } from "../../lib/presets";
@@ -52,6 +60,51 @@ function formatBytes(n: number): string {
   if (n >= 1024) return `${Math.round(n / 1024)} KB`;
   return `${n} B`;
 }
+
+/** Non-media files are shown as identifiable files, never as broken images. */
+function StaticAssetThumb({ asset, kind }: { asset: Asset; kind: AssetDisplayKind }) {
+  const FileIcon = kind === "css" || kind === "javascript" ? FileCode
+    : kind === "json" ? FileJson
+    : kind === "font" ? FileType
+    : kind === "document" ? FileText
+    : kind === "archive" ? FileArchive : FileGeneric;
+  return (
+    <span className="asset-static-preview">
+      <FileIcon size={25} strokeWidth={1.5} aria-hidden="true" />
+      <span className="asset-static-extension">{assetExtensionLabel(asset)}</span>
+    </span>
+  );
+}
+
+function staticAssetLabel(kind: AssetDisplayKind): string {
+  switch (kind) {
+    case "css": return "CSS";
+    case "javascript": return "JavaScript";
+    case "font": return tr("フォント");
+    case "json": return "JSON";
+    case "document": return tr("文書");
+    case "archive": return tr("圧縮ファイル");
+    case "file": return tr("ファイル");
+    case "video": return tr("動画");
+    case "audio": return tr("音声");
+    default: return tr("画像");
+  }
+}
+
+const STATIC_MIME: Record<string, string> = {
+  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+  gif: "image/gif", svg: "image/svg+xml", webp: "image/webp",
+  avif: "image/avif", ico: "image/x-icon", mp4: "video/mp4",
+  webm: "video/webm", mov: "video/quicktime", m4v: "video/mp4",
+  mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg",
+  m4a: "audio/mp4", aac: "audio/aac", flac: "audio/flac",
+  css: "text/css", js: "text/javascript", mjs: "text/javascript",
+  cjs: "text/javascript", json: "application/json", map: "application/json",
+  woff: "font/woff", woff2: "font/woff2", ttf: "font/ttf", otf: "font/otf",
+  eot: "application/vnd.ms-fontobject", pdf: "application/pdf",
+  txt: "text/plain", html: "text/html", htm: "text/html",
+  md: "text/markdown", xml: "application/xml", csv: "text/csv",
+};
 
 /** ほかのサイトが使っているサーバー保存のファイル（path → bytes）。開いている間に1回だけ取りに行く */
 let otherSitesUsage: Promise<Map<string, number | null>> | null = null;
@@ -379,8 +432,18 @@ export function AssetsTab() {
     try {
       let fellBack = false;
       for (const file of Array.from(files)) {
-        if (!/^(image|video|audio)\//.test(file.type)) continue;
-        const asset = await uploadAsset(file);
+        const type = assetDisplayKind({ name: file.name, mimeType: file.type });
+        // Full HTML/XML documents belong to the site's HTML import path, not
+        // static asset storage (the upload API rejects executable documents).
+        if (/\.(?:html?|xml)$/i.test(file.name)) continue;
+        if (!isVisualAsset({ name: file.name, mimeType: file.type }) &&
+            !["css", "javascript", "font", "json", "document"].includes(type)) continue;
+        const ext = file.name.split(".").at(-1)?.toLowerCase() ?? "";
+        const mime = !file.type || file.type === "application/octet-stream"
+          ? STATIC_MIME[ext] || file.type || "application/octet-stream" : file.type;
+        const normalized = file.type === mime ? file : new File([file], file.name, { type: mime });
+        const asset = isVisualAsset({ name: file.name, mimeType: mime })
+          ? await uploadAsset(normalized) : await uploadStaticAsset(normalized);
         if (!asset.path) fellBack = true;
         await waitForAssetGesture(() => !request.historyChanged());
         // Undo/Redoや文書置換後も完了したファイルを残し、やり直す編集は消さない。
@@ -433,6 +496,10 @@ export function AssetsTab() {
   const useAsset = (asset: Asset) => {
     const sel = selection ? doc.nodes[selection] : null;
     const kind = assetKind(asset);
+    if (!isVisualAsset(asset)) {
+      void download(asset);
+      return;
+    }
     // 何も選んでいなければ、編集中のコンポーネント（なければページ）の末尾へ
     const editingComp = editingComponentId ? doc.components?.[editingComponentId] : null;
     const fallback: ParentRef = editingComp
@@ -567,7 +634,7 @@ export function AssetsTab() {
           <input
             ref={inputRef}
             type="file"
-            accept="image/*,video/*,audio/*"
+            accept="image/*,video/*,audio/*,.css,.js,.mjs,.cjs,.json,.map,.woff,.woff2,.ttf,.otf,.eot,.pdf,.txt,.md,.csv"
             multiple
             style={{ display: "none" }}
             onChange={(e) => {
@@ -686,7 +753,7 @@ export function AssetsTab() {
           >
             {visible.map(({ asset, index }) => {
               const used = usedBy(asset);
-              const kind = assetKind(asset);
+              const kind = assetDisplayKind(asset);
               return (
                 <div
                   key={asset.id}
@@ -701,13 +768,14 @@ export function AssetsTab() {
                   } : undefined}
                 >
                 <button
-                  className="asset-thumb"
+                  className={`asset-thumb${isVisualAsset(asset) ? "" : " is-static"}`}
+                  aria-label={!isVisualAsset(asset) ? tr("ファイルをダウンロード") + ": " + asset.name : undefined}
                   draggable={kind === "image"}
                   data-tip={
-                    selection && doc.nodes[selection]?.type === "image"
-                      ? tr("選択中の画像に適用")
-                      : kind === "image"
-                        ? tr("クリックで挿入・キャンバスへドラッグでも置けます")
+                    !isVisualAsset(asset) ? tr("ファイルをダウンロード")
+                      : selection && doc.nodes[selection]?.type === "image" && kind === "image"
+                        ? tr("選択中の画像に適用")
+                        : kind === "image" ? tr("クリックで挿入・キャンバスへドラッグでも置けます")
                         : tr("ページに挿入")
                   }
                   onClick={() => useAsset(asset)}
@@ -728,8 +796,10 @@ export function AssetsTab() {
                       decoding="async"
                       draggable={false}
                     />
-                  ) : (
+                  ) : kind === "video" || kind === "audio" ? (
                     <Icon name={kind === "video" ? "video" : "audio"} size={24} />
+                  ) : (
+                    <StaticAssetThumb asset={asset} kind={kind} />
                   )}
                 </button>
                 <div className="asset-meta">
@@ -766,7 +836,10 @@ export function AssetsTab() {
                     </span>
                   )}
                   <span className="asset-dim">
-                    {kind === "image" ? `${asset.width}×${asset.height}` : kind === "video" ? tr("動画") : tr("音声")}
+                    {kind === "image"
+                      ? (asset.width && asset.height ? `${asset.width}×${asset.height}` : tr("画像"))
+                      : staticAssetLabel(kind)}
+                    {asset.bytes !== undefined && ` · ${formatBytes(asset.bytes)}`}
                     {used > 0 && tr(" · {used}箇所", { used })}
                     {!asset.path && tr(" · このブラウザのみ")}
                   </span>
