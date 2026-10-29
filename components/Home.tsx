@@ -35,6 +35,7 @@ import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
+import { resolveMcpEndpoint } from "../lib/external-edit/config";
 import { createBrowserDoc, deleteBrowserDoc, readBrowserDoc } from "../lib/browser-doc-storage";
 import {
   SITE_SCOPED_KEYS,
@@ -483,9 +484,10 @@ export default function Home() {
   const [membersSite, setMembersSite] = useState<SiteRecord | null>(null);
   const importFileInput = useRef<HTMLInputElement>(null);
   const importActive = useRef(false);
+  const pendingDraft = useRef<{ id: string; secret: string } | null>(null);
   const [draggingFile, setDraggingFile] = useState(false);
   const [importStatus, setImportStatus] = useState<
-    { kind: "loading"; message: string } | { kind: "error"; message: string } | null
+    { kind: "loading"; message: string } | { kind: "error"; message: string; source?: "remote" } | null
   >(null);
 
   const load = useCallback(async () => {
@@ -547,6 +549,61 @@ export default function Home() {
       importActive.current = false;
     }
   }, [store, readOnly]);
+
+  // Reuse the existing importer: the temporary URL never writes into an existing site.
+  const runRemoteImport = useCallback(async (draft: { id: string; secret: string }) => {
+    if (!store || importActive.current) return;
+    if (readOnly) {
+      setImportStatus({ kind: "error", source: "remote", message: tr("Could not restore the site.") });
+      return;
+    }
+    importActive.current = true;
+    setImportStatus({ kind: "loading", message: tr("Reading edit data…") });
+    const url = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL) +
+      "/drafts/" + encodeURIComponent(draft.id);
+    try {
+      const claim = await fetch(url + "/claim", {
+        method: "POST", redirect: "error", cache: "no-store",
+        headers: { Authorization: "Bearer " + draft.secret },
+      });
+      if (!claim.ok) throw new Error((await claim.json().catch(() => null))?.error ?? String(claim.status));
+      const result = await claim.json() as { doc?: unknown; receipt?: unknown };
+      if (typeof result.doc !== "string" || typeof result.receipt !== "string") throw new Error("Invalid draft response");
+      const file = new File([result.doc], "doc.json", { type: "application/json" });
+      const { createSiteFromFile } = await import("../lib/import-site-file");
+      const { id } = await createSiteFromFile(file, store,
+        message => setImportStatus({ kind: "loading", message }));
+      // Acknowledge removal only after the editor confirms a successful save.
+      try {
+        const complete = await fetch(url + "/complete", {
+          method: "POST", redirect: "error", cache: "no-store",
+          headers: { Authorization: "Bearer " + draft.secret, "Content-Type": "application/json" },
+          body: JSON.stringify({ receipt: result.receipt }),
+        });
+        if (!complete.ok) console.warn("Temporary Tsumu draft cleanup was not confirmed:", complete.status);
+      } catch (error) {
+        // The server expiry alarm will clean up if the acknowledgement is lost.
+        console.warn("Temporary Tsumu draft cleanup failed:", error);
+      }
+      pendingDraft.current = null;
+      window.location.assign(sitePath(id));
+    } catch (error) {
+      setImportStatus({ kind: "error", source: "remote",
+        message: tr("Could not restore the site.") + ": " + (error instanceof Error ? error.message : String(error)) });
+    } finally {
+      importActive.current = false;
+    }
+  }, [store, readOnly]);
+
+  useEffect(() => {
+    // Wait for storage mode and permissions; React Strict Mode must not claim twice.
+    if (!store || !status) return;
+    const match = /^#tsumu-import=([0-9a-f-]{36})\.([A-Za-z0-9_-]{40,64})$/.exec(window.location.hash);
+    if (!match) return;
+    pendingDraft.current = { id: match[1], secret: match[2] };
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    void runRemoteImport(pendingDraft.current);
+  }, [store, status, runRemoteImport]);
 
   // ホーム画面のどこにドロップしても受け取る。通常のテキストやリンクのドラッグは妨げない。
   useEffect(() => {
@@ -787,8 +844,11 @@ export default function Home() {
               : <LoaderCircle size={14} className="spin" />}
             <p>{importStatus.message}</p>
             {importStatus.kind === "error" && (
-              <button type="button" className="btn btn-sm" onClick={() => importFileInput.current?.click()}>
-                {tr("Choose another file")}
+              <button type="button" className="btn btn-sm" onClick={() => {
+                if (importStatus.source === "remote" && pendingDraft.current) void runRemoteImport(pendingDraft.current);
+                else importFileInput.current?.click();
+              }}>
+                {importStatus.source === "remote" ? tr("Retry") : tr("Choose another file")}
               </button>
             )}
           </div>
