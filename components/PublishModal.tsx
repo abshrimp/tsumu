@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Check,
   CloudOff,
@@ -20,9 +20,11 @@ import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publi
 import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import type { SiteDoc } from "../lib/types";
 import { detectSvgFilters } from "../lib/assets";
-import { generateProject, type PublishTarget } from "../lib/generator";
+import { hasPublishCredentials } from "../lib/publish-security";
+import type { PublishTarget } from "../lib/generator";
+import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
-import { Seg } from "./controls";
+import { Dropdown, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
 import { currentSiteId, sitePublishFields, siteApi } from "../lib/site";
 import { getLang, tr } from "../lib/i18n";
@@ -281,14 +283,32 @@ export default function PublishModal({
     error?: string;
     warnings?: string[];
     conflict?: boolean;
+    format?: ExportFormat;
   }>({});
   const [progress, setProgress] = useState("");
-  const checks: CheckResult[] = runChecks(doc);
+  const [format, setFormat] = useState<ExportFormat>(DEFAULT_EXPORT_OPTIONS.framework);
+  const [language, setLanguage] = useState<ExportLanguage>(DEFAULT_EXPORT_OPTIONS.language);
+  const [style, setStyle] = useState<ExportStyle>(DEFAULT_EXPORT_OPTIONS.style);
+  const options: ExportOptions = { framework: format, language, style, scope: "project" };
+  const checks = useMemo<CheckResult[]>(() => [
+    ...runChecks(doc),
+    ...exportLimitations(doc, { framework: format, language, style, scope: "project" })
+      .map((message): CheckResult => ({ level: "error", message })),
+  ], [doc, format, language, style]);
   const hasError = checks.some((c) => c.level === "error");
   useEscapeToClose(onClose, phase !== "busy");
 
   const publish = async (site: PublishTarget) => {
-    if (!targets) return;
+    if (!targets || hasError) return;
+    // A non-Next output changes the entire repository tree, and the current
+    // hosting build settings may still assume Next.js.
+    if (site === "production" && format !== "nextjs") {
+      const accepted = await showConfirm(
+        tr("選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリの設定が以前の形式のままだとサイトが表示されなくなる場合があります。設定を確認したうえで続行しますか？"),
+        { title: tr("公開先の設定を確認してください"), okLabel: tr("この形式でPushする"), danger: true }
+      );
+      if (!accepted) return;
+    }
     setSite(site);
     setPhase("busy");
     setProgress("");
@@ -296,7 +316,10 @@ export default function PublishModal({
     let target = doc;
     try {
       target = await docWithSvgFilters();
-      const { files, binaries, remoteAssets } = generateProject(target, site);
+      if (hasPublishCredentials(target)) {
+        throw new Error(tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"));
+      }
+      const { files, binaries, remoteAssets } = await prepareExportProject(target, options, site);
       // 編集データも同梱（バックアップ兼、履歴から編集内容を戻すときに使う）
       files[DOC_PATH] = JSON.stringify(target, null, 2) + "\n";
       const outputPaths = [
@@ -336,7 +359,7 @@ export default function PublishModal({
       if (!(existing.head === null || (typeof existing.head === "string" && existing.head.length > 0))) {
         throw new PublishConflictError(tr(publishConflictMessage));
       }
-      addPwaRetirementWorker(target, existing.generated, files, outputPaths);
+      addPwaRetirementWorker(target, existing.generated, files, outputPaths, format);
       const plan = planPublish(existing.blobs, existing.generated, outputPaths);
       const overwritten = [...plan.edited, ...plan.clashing];
       if (overwritten.length && !(await confirmOverwrite(overwritten))) {
@@ -415,7 +438,7 @@ export default function PublishModal({
       );
       // フッターの「公開済み」表示は本番サイトの状態を表す
       if (site === "production") markPublished(docFingerprint(target));
-      setResult({ commitUrl: data.commitUrl, warnings });
+      setResult({ commitUrl: data.commitUrl, warnings, format });
       setPhase("done");
     } catch (e) {
       setResult({ error: userMessage(e, tr("公開できませんでした")), conflict: e instanceof PublishConflictError });
@@ -467,8 +490,76 @@ export default function PublishModal({
         {phase === "check" && !(targets && !targets.configured) && (
           <>
             <p className="modal-desc">
-              {tr("サイトを生成してGitHubリポジトリにコミットします。ホスティング側でビルドが終わると反映されます。")}
+              {format === "html" || format === "single-html"
+                ? format === "single-html"
+                  ? tr("1つのHTMLファイルにCSS・JavaScript・画像などを埋め込んでGitHubへPushします。静的ホスティングではリポジトリのルートを配信してください。")
+                  : tr("HTML・CSS・JavaScript・画像を、ビルド不要のファイルとしてGitHubへPushします。静的サイトとして公開する場合は、リポジトリのルートを配信するようホスティングを設定してください。")
+                : format === "react" || format === "vue"
+                  ? tr("{framework}のソースをGitHubへPushします。ホスティング側でビルドし、distフォルダを配信してください。", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
+                  : format === "sveltekit"
+                    ? tr("SvelteKitプロジェクトをGitHubへPushします。ビルド後の公開ディレクトリはbuildです。")
+                    : format === "nuxt"
+                      ? tr("NuxtプロジェクトをGitHubへPushします。ホスティング側でNuxt用のビルド設定が必要です。")
+                      : tr("Next.jsプロジェクトをGitHubへPushします。ホスティング側のビルドが完了すると公開サイトに反映されます。")}
             </p>
+            <fieldset className="export-options pub-export-options">
+              <div className="export-option">
+                <div className="export-option-label">{tr("フレームワーク")}</div>
+                <Dropdown
+                  value={format}
+                  options={EXPORT_FRAMEWORK_OPTIONS}
+                  onChange={(value) => {
+                    setFormat(value as ExportFormat);
+                    if (value === "html" || value === "single-html") {
+                      setLanguage("javascript");
+                      setStyle("css");
+                    }
+                  }}
+                  title={tr("フレームワーク")}
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div className="export-option-grid">
+                <div className="export-option">
+                  <div className="export-option-label">{tr("言語")}</div>
+                  <Dropdown
+                    value={language}
+                    options={format === "html" || format === "single-html"
+                      ? [{ value: "javascript", label: "JavaScript" }]
+                      : [
+                          { value: "typescript", label: "TypeScript" },
+                          { value: "javascript", label: "JavaScript" },
+                        ]}
+                    onChange={(value) => setLanguage(value as ExportLanguage)}
+                    title={tr("言語")}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+                <div className="export-option">
+                  <div className="export-option-label">{tr("スタイル")}</div>
+                  <Dropdown
+                    value={style}
+                    options={format === "html" || format === "single-html"
+                      ? [{ value: "css", label: "CSS" }]
+                      : [
+                          { value: "css", label: "CSS" },
+                          { value: "css-modules", label: "CSS Modules" },
+                          { value: "tailwind", label: "Tailwind CSS" },
+                        ]}
+                    onChange={(value) => setStyle(value as ExportStyle)}
+                    title={tr("スタイル")}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              </div>
+            </fieldset>
+            <p className="hint export-note">
+              {format === "html" || format === "single-html"
+                ? tr("HTML形式はJavaScriptとCSSで出力します。データ取得にはAPIのCORS許可が必要です。")
+                : tr("GitHubへのPushはソースの送信です。形式によってホスティングのビルド設定が異なり、コミットだけでは公開成功を保証できません。")}
+              {tr(" 公開対象はプロジェクト全体です。")}
+            </p>
+            <p className="hint export-note">{tr("GitHubへPushすると、編集データには非公開ページや設定も含まれ、公開リポジトリでは第三者が閲覧できます。公開前に内容を確認してください。")}</p>
             <CheckList checks={checks} onClose={onClose} />
             {conf === null ? (
               <div className="pub-loading">
@@ -540,7 +631,9 @@ export default function PublishModal({
           <>
             <div className="check-ok">
               <Check size={14} />
-              {tr("コミットしました。まもなくビルドが始まります。")}
+              {result.format === "html" || result.format === "single-html"
+                ? tr("GitHubへPushしました。HTML一式はそのまま配信できる形式です。")
+                : tr("GitHubへPushしました。ホスティング側のビルド・公開設定をご確認ください。")}
             </div>
             {!!result.warnings?.length && (
               <ul className="check-list">

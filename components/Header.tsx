@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 import {
   CircleHelp,
@@ -39,41 +39,165 @@ import { showAlert, showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { exportProjectZip } from "../lib/exportZip";
+import { exportLimitations, exportScopeDoc, DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/export-formats";
 import { BpIcon, Dropdown, NumField, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
 import { getLang, LANGS, setLang, tr, trNodes, type Lang } from "../lib/i18n";
 
 function ExportModal({ onClose }: { onClose: () => void }) {
   const doc = useEditor((s) => s.doc);
+  const activePageId = useEditor((s) => s.activePageId);
+  const selectedNodeId = useEditor((s) => s.selection);
   const [busy, setBusy] = useState(false);
-  const checks: CheckResult[] = runChecks(doc);
-  const hasError = checks.some((c) => c.level === "error");
+  const [format, setFormat] = useState<ExportFormat>(DEFAULT_EXPORT_OPTIONS.framework);
+  const [language, setLanguage] = useState<ExportLanguage>(DEFAULT_EXPORT_OPTIONS.language);
+  const [style, setStyle] = useState<ExportStyle>(DEFAULT_EXPORT_OPTIONS.style);
+  const [scope, setScope] = useState<ExportScope>(DEFAULT_EXPORT_OPTIONS.scope);
+  const options: ExportOptions = {
+    framework: format, language, style, scope,
+    pageId: activePageId,
+    nodeId: selectedNodeId ?? undefined,
+  };
+  const checks = useMemo<CheckResult[]>(() => {
+    const compatibility = exportLimitations(doc, options);
+    let scoped: typeof doc | null = null;
+    try {
+      scoped = exportScopeDoc(doc, options);
+    } catch {
+      // The scope error is already included in the compatibility list.
+    }
+    return [
+      ...(scoped ? runChecks(scoped) : []),
+      ...compatibility.map((message): CheckResult => ({ level: "error", message })),
+    ];
+  }, [doc, activePageId, selectedNodeId, format, language, style, scope]);
+  const hasError = checks.some((check) => check.level === "error");
   useEscapeToClose(onClose, !busy);
+
+  const description = format === "html"
+    ? tr("HTML・CSS・JavaScript・画像をまとめたZIPをダウンロードします。展開後、index.htmlをブラウザで開くだけで表示できます。npmやビルドは不要です。")
+    : format === "single-html"
+      ? tr("画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数のページを同時に出力することはできません。")
+      : trNodes("{framework}プロジェクトとして保存します。展開後に {cmd} で起動できます。", {
+          framework: tr(EXPORT_FRAMEWORK_OPTIONS.find((item) => item.value === format)?.label ?? "Next.js"),
+          cmd: <span className="kbd">npm install && npm run dev</span>,
+        });
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("Next.jsプロジェクトとして書き出し")}</h2>
-        <p className="modal-desc">
-          {trNodes("プロジェクト一式をzipでダウンロードします。展開して {cmd} を実行すると、そのまま動きます。", {
-            cmd: <span className="kbd">npm install && npm run dev</span>,
-          })}
-        </p>
+      <div className="modal export-modal" onClick={(event) => event.stopPropagation()}>
+        <h2>{tr("コードをエクスポート")}</h2>
+        <p className="modal-desc">{description}</p>
 
+        <fieldset className="export-options" disabled={busy}>
+          <div className="export-option">
+            <div className="export-option-label">{tr("フレームワーク")}</div>
+            <Dropdown
+              value={format}
+              options={EXPORT_FRAMEWORK_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))}
+              onChange={(value) => {
+                setFormat(value as ExportFormat);
+                if (value === "single-html" && scope === "project") setScope("page");
+                if (value === "html" || value === "single-html") {
+                  setLanguage("javascript");
+                  setStyle("css");
+                }
+              }}
+              style={{ width: "100%" }}
+              title={tr("フレームワーク")}
+            />
+          </div>
+          <div className="export-option-grid">
+            <div className="export-option">
+              <div className="export-option-label">{tr("言語")}</div>
+              <Dropdown
+                value={language}
+                options={format === "html" || format === "single-html"
+                  ? [{ value: "javascript", label: "JavaScript" }]
+                  : [
+                      { value: "typescript", label: "TypeScript" },
+                      { value: "javascript", label: "JavaScript" },
+                    ]}
+                onChange={(value) => setLanguage(value as ExportLanguage)}
+                style={{ width: "100%" }}
+                title={tr("言語")}
+              />
+            </div>
+            <div className="export-option">
+              <div className="export-option-label">{tr("スタイル")}</div>
+              <Dropdown
+                value={style}
+                options={format === "html" || format === "single-html"
+                  ? [{ value: "css", label: "CSS" }]
+                  : [
+                      { value: "css", label: "CSS" },
+                      { value: "css-modules", label: "CSS Modules" },
+                      { value: "tailwind", label: "Tailwind CSS" },
+                    ]}
+                onChange={(value) => setStyle(value as ExportStyle)}
+                style={{ width: "100%" }}
+                title={tr("スタイル")}
+              />
+            </div>
+          </div>
+          <div className="export-option">
+            <div className="export-option-label">{tr("出力範囲")}</div>
+            <Dropdown
+              value={scope}
+              options={[
+                { value: "component", label: tr("選択したコンポーネント") },
+                { value: "page", label: tr("現在のページ") },
+                ...(format === "single-html" ? [] : [{ value: "project", label: tr("プロジェクト全体") }]),
+              ]}
+              onChange={(value) => setScope(value as ExportScope)}
+              style={{ width: "100%" }}
+              title={tr("出力範囲")}
+            />
+          </div>
+        </fieldset>
+        {style === "tailwind" && (
+          <p className="hint export-note">
+            {tr("Tailwind CSSのユーティリティを利用できます。デザインを維持するため、Tsumuが生成したCSSも含まれます。")}
+          </p>
+        )}
+        {scope === "component" && (
+          <p className="hint export-note">
+            {tr("選択中の要素を単独のページとして書き出します。選択した要素の子要素も含まれます。")}
+          </p>
+        )}
+        {(format === "html" || format === "single-html") && (
+          <p className="hint export-note">
+            {tr("HTML形式はそのまま開けるファイルを出力するため、言語はJavaScript、スタイルはCSSに固定されます。")}
+          </p>
+        )}
+        {(format === "html" || format === "single-html") && (
+          <p className="hint export-note">
+            {tr("外部データの取得にはAPIのCORS許可が必要です。file://での利用には制約があるため、localhostなどの環境で確認してください。")}
+          </p>
+        )}
+        {format === "single-html" && (
+          <p className="hint export-note">
+            {tr("外部APIや埋め込み動画はインターネット接続が必要です。外部画像などを埋め込めない場合は、アセットとして取り込んでから再試行してください。")}
+          </p>
+        )}
+        {format !== "single-html" && (
+          <p className="hint export-note">
+            {tr("ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。")}
+          </p>
+        )}
         <CheckList checks={checks} onClose={onClose} />
 
         <div className="modal-actions">
-          <button className="btn" onClick={onClose}>
+          <button className="btn" disabled={busy} onClick={onClose}>
             {tr("キャンセル")}
           </button>
           <button
             className="btn btn-primary"
             disabled={hasError || busy}
-            style={hasError ? { opacity: 0.5, pointerEvents: "none" } : undefined}
             onClick={async () => {
               setBusy(true);
               try {
-                const missing = await exportProjectZip(await docWithSvgFilters());
+                const missing = await exportProjectZip(await docWithSvgFilters(), options);
                 onClose();
                 if (missing.length) {
                   void showAlert(
@@ -81,15 +205,16 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                     { title: tr("一部の画像を含めずにダウンロードしました") }
                   );
                 }
-              } catch (e) {
-                void showAlert(userMessage(e, tr("zipを生成できませんでした")), { title: tr("zipを生成できませんでした") });
+              } catch (error) {
+                const title = format === "single-html" ? tr("HTMLを生成できませんでした") : tr("zipを生成できませんでした");
+                void showAlert(userMessage(error, title), { title });
               } finally {
                 setBusy(false);
               }
             }}
           >
             <Download size={13} />
-            {busy ? tr("生成中…") : tr("zipをダウンロード")}
+            {busy ? tr("生成中…") : format === "single-html" ? tr("HTMLをダウンロード") : tr("zipをダウンロード")}
           </button>
         </div>
       </div>

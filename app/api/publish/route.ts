@@ -16,6 +16,8 @@ import { destParam, siteDestOf, siteIdOf } from "../../../lib/site-server";
 import {
   GENERATED_MANIFEST_PATH,
   ASSET_MANIFEST_PATH,
+  LEGACY_GENERATED_MANIFEST_PATH,
+  LEGACY_ASSET_MANIFEST_PATH,
   isProtectedPath,
   isSafeCommitPath,
   parseGeneratedManifest,
@@ -227,7 +229,9 @@ export async function POST(req: Request) {
         return Buffer.from(content, "base64").toString("utf8");
       };
       let manifest: Record<string, string> = {};
-      const manifestText = await readText(ASSET_MANIFEST_PATH, false);
+      const manifestText = await readText(
+        blobs[ASSET_MANIFEST_PATH] ? ASSET_MANIFEST_PATH : LEGACY_ASSET_MANIFEST_PATH, false
+      );
       if (manifestText) {
         try {
           manifest = JSON.parse(manifestText);
@@ -236,7 +240,9 @@ export async function POST(req: Request) {
         }
       }
       // 読めないと手で追加したファイルを消してしまうため、取得の失敗は公開の失敗にする
-      const generatedText = await readText(GENERATED_MANIFEST_PATH, true);
+      const generatedText = await readText(
+        blobs[GENERATED_MANIFEST_PATH] ? GENERATED_MANIFEST_PATH : LEGACY_GENERATED_MANIFEST_PATH, true
+      );
       const generated = generatedText === null ? null : parseGeneratedManifest(generatedText);
       if (generatedText !== null && generated === null) {
         throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
