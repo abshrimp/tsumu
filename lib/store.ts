@@ -549,7 +549,7 @@ export interface EditorStore {
    * 開いているページの次に作る（同じフォルダに入る）。
    * folderId を渡すと、そのフォルダの中に作る
    */
-  addPage: (folderId?: string) => void;
+  addPage: (folderId?: string, pageName?: string) => string;
   /** ページの一覧のフォルダを作り、その ID を返す（URL には関係しない、エディタの上での整理） */
   addPageFolder: () => string;
   renamePageFolder: (folderId: string, name: string) => void;
@@ -1653,11 +1653,16 @@ export const useEditor = create<EditorStore>((set, get) => {
         textSel: null,
       }),
 
-    addPage: (folderId) => {
+    addPage: (folderId, pageName) => {
       const id = genId("page");
       // ページを消した後でも、既存のページと名前や URL が重ならない番号にする
       const { doc } = get();
       const { name, slug } = createPageNaming(doc.pages).newPage(doc.pageOrder.length + 1);
+      const requestedName = pageName?.trim();
+      if (requestedName && Object.values(doc.pages).some((p) => p.name === requestedName)) {
+        throw new Error(tr("A page with this name already exists"));
+      }
+      const finalName = requestedName || name;
       const activeId = get().activePageId;
       get().updateDoc((doc) => {
         const active = doc.pages[activeId];
@@ -1670,10 +1675,10 @@ export const useEditor = create<EditorStore>((set, get) => {
               : undefined;
         doc.pages[id] = {
           id,
-          name,
+          name: finalName,
           slug,
-          title: name,
-          titlePending: true,
+          title: finalName,
+          ...(requestedName ? {} : { titlePending: true }),
           description: "",
           ...(folder ? { folderId: folder } : {}),
           children: [],
@@ -1693,6 +1698,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         doc.pageOrder.splice(at <= 0 ? doc.pageOrder.length : at, 0, id);
       });
       get().setActivePage(id);
+      return id;
     },
 
     addPageFolder: () => {

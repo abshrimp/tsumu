@@ -2,6 +2,12 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  // MCP browser and page creation
+  "A page with this name already exists": "同じ名前のページがすでにあります",
+  "Another external edit is in progress. Try again after it finishes.": "別の外部編集を実行中です。完了後に再試行してください。",
+  "MCP site creation currently requires browser-only storage. Create server-backed sites in Tsumu.": "MCPからのサイト作成は現在ブラウザ保存のみ対応しています。サーバー保存のサイトはTsumuで作成してください。",
+  "Enter a page name": "ページ名を入力してください",
+  "Page created but browser saving failed. Check Tsumu before retrying.": "ページは作成されましたが、ブラウザへの保存に失敗しました。再試行する前にTsumuで確認してください。",
   "Importing site": "サイトを取り込み中",
   // Optional external AI editing (MCP)
   "MCP connection": "MCP接続",

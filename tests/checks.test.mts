@@ -64,6 +64,21 @@ describe("checks", () => {
     return { st, page: (id: string) => st().doc.pages[id], bySlug: (slug: string) => Object.values(st().doc.pages).find((p) => p.slug === slug)! };
   }
 
+  test("MCP can create a named page with a single edit and a unique route", async () => {
+    const { st } = await fresh({});
+    const before = st().doc.pageOrder.length;
+    const pageId = st().addPage(undefined, "Menu");
+    const page = st().doc.pages[pageId];
+    assert.equal(page.name, "Menu");
+    assert.equal(page.title, "Menu");
+    assert.equal(page.titlePending, undefined);
+    assert.equal(st().activePageId, pageId);
+    assert.equal(st().doc.pageOrder.length, before + 1);
+    assert.ok(page.slug);
+    assert.throws(() => st().addPage(undefined, "Menu"), /already exists/);
+    assert.equal(st().doc.pageOrder.length, before + 1);
+  });
+
   test("a new page takes its first confirmed name as its title, and is not linked afterwards", async () => {
     const { st } = await fresh({});
     const number = st().doc.pageOrder.length + 1;

@@ -9,7 +9,9 @@ import { create } from "zustand";
 import { buildAiContext, applyAiOps, cloneDocWithoutAssets, type AiOp } from "../aiOps";
 import { applyAiEdits } from "../ai/client";
 import { persistDoc, useEditor } from "../store";
-import { currentSiteId } from "../site";
+import { currentSiteId, sitePath } from "../site";
+import { createLocalBrowserSite } from "../browser-site-create";
+import { serverStatusSnapshot } from "../status";
 import { tr } from "../i18n";
 import { resolveMcpEndpoint } from "./config";
 
@@ -57,10 +59,14 @@ async function revision(value: unknown): Promise<string> {
   return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+const MUTATING_ACTIONS = new Set(["apply_operations", "create_page", "create_site"]);
+let writeInProgress = false;
+
 async function execute(action: string, rawArgs: unknown, siteId: string, canEdit: boolean): Promise<unknown> {
   if (currentSiteId() !== siteId) throw new Error(tr("The active Tsumu site changed"));
   const args = asObject(rawArgs);
   const s = useEditor.getState();
+
   if (action === "list_sites") return [{ id: siteId, name: s.doc.siteName, storage: "browser" }];
   if (action === "list_pages") {
     return s.doc.pageOrder.map((id) => {
@@ -73,53 +79,101 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
     if (typeof id !== "string" || !s.doc.nodes[id]) throw new Error(tr("Element not found"));
     return { id, element: s.doc.nodes[id] };
   }
-  if (action === "get_page" || action === "apply_operations") {
+  if (action === "get_page") {
     const pageId = args.pageId;
     if (typeof pageId !== "string" || !s.doc.pages[pageId]) throw new Error(tr("Page not found"));
     const context = buildAiContext(s.doc, { pageId });
-    const currentRevision = await revision(context.doc);
-    if (action === "get_page") {
-      return { siteId, pageId, revision: currentRevision, document: context.doc };
+    return { siteId, pageId, revision: await revision(context.doc), document: context.doc };
+  }
+  if (!MUTATING_ACTIONS.has(action)) throw new Error(tr("Unknown external editing operation"));
+  if (!canEdit) throw new Error(tr("This connection is read-only"));
+  const requestId = args.requestId;
+  if (typeof requestId !== "string" || !/^[\w-]{8,80}$/.test(requestId)) {
+    throw new Error(tr("A unique requestId is required"));
+  }
+  if (completed.has(requestId)) return completed.get(requestId);
+  if (writeInProgress) throw new Error(tr("Another external edit is in progress. Try again after it finishes."));
+  if (s.gestureActive || s.editingText !== null) throw new Error(tr("Finish the current editor gesture before using MCP"));
+
+  writeInProgress = true;
+  try {
+    let result: unknown;
+    if (action === "create_site") {
+      const name = args.name;
+      if (typeof name !== "string" || !name.trim() || name.trim().length > 100) {
+        throw new Error(tr("Enter a site name"));
+      }
+      const status = serverStatusSnapshot();
+      if (!status || status.db) {
+        throw new Error(tr("MCP site creation currently requires browser-only storage. Create server-backed sites in Tsumu."));
+      }
+      const created = await createLocalBrowserSite({ name: name.trim() });
+      result = {
+        id: created.id,
+        name: created.name,
+        storage: "browser",
+        url: new URL(sitePath(created.id), window.location.origin).toString(),
+        requiresReconnect: true,
+        note: "Open the new site in this browser and pair it separately before editing it with MCP.",
+      };
+    } else if (action === "create_page") {
+      const name = args.name;
+      if (typeof name !== "string" || !name.trim() || name.trim().length > 100) {
+        throw new Error(tr("Enter a page name"));
+      }
+      const id = useEditor.getState().addPage(undefined, name.trim());
+      const nextState = useEditor.getState();
+      const page = nextState.doc.pages[id];
+      if (!page) throw new Error(tr("Page not found"));
+      const saved = await persistDoc(nextState.doc, true);
+      if (saved !== "saved") throw new Error(tr("Page created but browser saving failed. Check Tsumu before retrying."));
+      result = {
+        siteId,
+        pageId: id,
+        name: page.name,
+        slug: page.slug,
+        savedToBrowser: true,
+        revision: await revision(buildAiContext(useEditor.getState().doc, { pageId: id }).doc),
+      };
+    } else {
+      const pageId = args.pageId;
+      if (typeof pageId !== "string" || !s.doc.pages[pageId]) throw new Error(tr("Page not found"));
+      const context = buildAiContext(s.doc, { pageId });
+      const currentRevision = await revision(context.doc);
+      if (args.expectedRevision !== currentRevision) {
+        throw new Error(tr("The page changed. Call get_page to obtain the latest revision"));
+      }
+      const ops = args.operations;
+      if (!Array.isArray(ops) || ops.length < 1 || ops.length > 100) {
+        throw new Error(tr("Provide between 1 and 100 operations"));
+      }
+      const verified = applyAiOps(cloneDocWithoutAssets(context.doc), ops as AiOp[], context.target);
+      if (verified.errors.length || verified.applied.length !== ops.length) {
+        throw new Error(verified.errors.join("; ") || tr("Invalid operations"));
+      }
+      const before = useEditor.getState().doc;
+      useEditor.getState().updateDoc((draft) => {
+        applyAiEdits(draft, context, verified.applied);
+      });
+      const after = useEditor.getState().doc;
+      if (after === before) throw new Error(tr("No changes were applied"));
+      const saved = await persistDoc(after, true);
+      if (saved !== "saved") {
+        throw new Error(tr("Edits were applied but browser saving failed; inspect Tsumu before retrying"));
+      }
+      result = {
+        applied: verified.applied,
+        savedToBrowser: true,
+        cloudState: useEditor.getState().cloudState,
+        revision: await revision(buildAiContext(useEditor.getState().doc, { pageId }).doc),
+      };
     }
-    if (!canEdit) throw new Error(tr("This connection is read-only"));
-    if (s.gestureActive || s.editingText !== null) throw new Error(tr("Finish the current editor gesture before using MCP"));
-    if (args.expectedRevision !== currentRevision) {
-      throw new Error(tr("The page changed. Call get_page to obtain the latest revision"));
-    }
-    const requestId = args.requestId;
-    if (typeof requestId !== "string" || !/^[\w-]{8,80}$/.test(requestId)) {
-      throw new Error(tr("A unique requestId is required"));
-    }
-    if (completed.has(requestId)) return completed.get(requestId);
-    const ops = args.operations;
-    if (!Array.isArray(ops) || ops.length < 1 || ops.length > 100) {
-      throw new Error(tr("Provide between 1 and 100 operations"));
-    }
-    const verified = applyAiOps(cloneDocWithoutAssets(context.doc), ops as AiOp[], context.target);
-    if (verified.errors.length || verified.applied.length !== ops.length) {
-      throw new Error(verified.errors.join("; ") || tr("Invalid operations"));
-    }
-    const before = useEditor.getState().doc;
-    useEditor.getState().updateDoc((draft) => {
-      applyAiEdits(draft, context, verified.applied);
-    });
-    const after = useEditor.getState().doc;
-    if (after === before) throw new Error(tr("No changes were applied"));
-    const saved = await persistDoc(after, true);
-    if (saved !== "saved") {
-      throw new Error(tr("Edits were applied but browser saving failed; inspect Tsumu before retrying"));
-    }
-    const result = {
-      applied: verified.applied,
-      savedToBrowser: true,
-      cloudState: useEditor.getState().cloudState,
-      revision: await revision(buildAiContext(useEditor.getState().doc, { pageId }).doc),
-    };
     completed.set(requestId, result);
     if (completed.size > 100) completed.delete(completed.keys().next().value!);
     return result;
+  } finally {
+    writeInProgress = false;
   }
-  throw new Error(tr("Unknown external editing operation"));
 }
 
 async function onMessage(socket: WebSocket, siteId: string, canEdit: boolean, data: unknown): Promise<void> {

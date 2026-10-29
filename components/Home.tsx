@@ -31,6 +31,7 @@ import SiteMembers from "./SiteMembers";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
+import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { createBrowserDoc, deleteBrowserDoc, readBrowserDoc } from "../lib/browser-doc-storage";
 import {
   SITE_SCOPED_KEYS,
@@ -582,21 +583,7 @@ export default function Home() {
       // サーバーには登録済みのため、ブラウザに置けなくても、エディタで初期データを作れる。
       await seedDoc(id, name).catch(() => false);
     } else {
-      id = newSiteId();
-      const now = Date.now();
-      const site = { ...emptyDest(), ...input, name, id, createdAt: now, updatedAt: now } as SiteRecord;
-      let seeded = false;
-      try {
-        seeded = await seedDoc(id, name);
-        if (!seeded) throw localSaveError();
-        await withLocalSiteListLock(() => {
-          const list = loadLocalSites({ strict: true });
-          if (localSiteIdInUse(id, list) || !saveLocalSites([site, ...list])) throw localSaveError();
-        });
-      } catch {
-        if (seeded) await forgetLocal(id).catch(() => {});
-        throw localSaveError();
-      }
+      id = (await createLocalBrowserSite(input)).id;
     }
     window.location.href = sitePath(id);
   };
