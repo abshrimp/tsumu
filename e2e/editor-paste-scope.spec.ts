@@ -211,7 +211,7 @@ test("Ctrl+V in the real editor preview and settings does not change the saved d
   for (const [index, context] of (["preview", "settings"] as const).entries()) {
     if (context === "preview") await page.getByRole("button", { name: "プレビュー", exact: true }).click();
     else {
-      await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）", exact: true }).click();
+      await page.locator('[data-tutorial="menu"] > button').click();
       await page.locator(".dd-menu").getByRole("button", { name: "設定", exact: true }).click();
       await expect(page.locator(".modal h2")).toHaveText("設定");
     }

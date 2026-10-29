@@ -25,7 +25,7 @@ async function openExport(page: import("@playwright/test").Page, firstPageSlug?:
   await expect(page.locator('[data-tutorial="canvas"]')
     .getByText(heading.text.content.split("\n")[0]).first()).toBeVisible();
   const reopen = async () => {
-    await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）" }).click();
+    await page.locator('[data-tutorial="menu"] > button').click();
     await page.getByRole("button", { name: "zipでエクスポート" }).click();
     const modal = page.locator(".export-modal");
     await expect(modal).toBeVisible();
@@ -215,7 +215,7 @@ test("同じ書き出し先のURLを検出し、URL修正後は両方のクエ�
   await page.goto(`/sites/${site.id}`);
   await expect(page.getByText("サーバー保存済み")).toBeVisible();
   const openModal = async () => {
-    await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）", exact: true }).click();
+    await page.locator('[data-tutorial="menu"] > button').click();
     await page.getByRole("button", { name: "zipでエクスポート", exact: true }).click();
     await expect(page.locator(".export-modal").getByRole("heading", { name: "コードをエクスポート" })).toBeVisible();
   };
@@ -303,7 +303,7 @@ test("大文字だけ違う転送を公開・書き出し前に止め、別の�
   }
   await page.locator(".pub-modal").getByRole("button", { name: "閉じる", exact: true }).click();
   const openModal = async () => {
-    await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）", exact: true }).click();
+    await page.locator('[data-tutorial="menu"] > button').click();
     await page.getByRole("button", { name: "zipでエクスポート", exact: true }).click();
     await expect(page.locator(".export-modal").getByRole("heading", { name: "コードをエクスポート" })).toBeVisible();
   };

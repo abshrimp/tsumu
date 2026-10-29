@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 const ja: Dict = {
   "Importing site": "サイトを取り込み中",
   // Optional external AI editing (MCP)
+  "MCP connection": "MCP接続",
   "Connect an AI app": "AIと接続",
   "Connect ChatGPT, Claude or Cursor to this site without a Tsumu account. Keep this editor tab open while using AI.": "Tsumuにログインせずに、このサイトをChatGPT・Claude・Cursorなどから操作できます。AIを使用している間は、この編集タブを開いておいてください。",
   "Allow editing (not publishing or deleting assets)": "編集を許可する（公開・アセット削除は含みません）",
@@ -1737,7 +1738,7 @@ const ja: Dict = {
   "Fetching history": "履歴の取得",
   "Fetching the selected version": "指定した版の取得",
   "Another publish happened at the same time. Reload the history and try again.": "他の公開と重なりました。履歴を読み込み直してから、もう一度試してください",
-  "Menu (export, history, settings)": "メニュー（書き出し・履歴・設定）",
+  "Menu (export, history, MCP, settings)": "メニュー（書き出し・履歴・MCP・設定）",
   "History & rollback": "履歴・ロールバック",
   "Inside": "中へ",
   "Adds to the end of the selected box (or after it, if it can't contain elements)": "選んだボックスの中の最後に追加します（中に入れられない要素なら後ろ）",

@@ -345,7 +345,7 @@ test("linked CSS @imports and external JS module files are preserved and resolve
   const notice = page.locator(".dialog-backdrop");
   await expect(notice).toContainText("インポート時の注意事項");
   await notice.getByRole("button", { name: "OK", exact: true }).click();
-  await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）" }).click();
+  await page.locator('[data-tutorial="menu"] > button').click();
   await page.getByRole("button", { name: "zipでエクスポート" }).click();
   const modal = page.locator(".export-modal");
   await modal.getByRole("button", { name: "フレームワーク" }).click();

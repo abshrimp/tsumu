@@ -11,8 +11,9 @@ import { applyAiEdits } from "../ai/client";
 import { persistDoc, useEditor } from "../store";
 import { currentSiteId } from "../site";
 import { tr } from "../i18n";
+import { resolveMcpEndpoint } from "./config";
 
-const ENDPOINT = (process.env.NEXT_PUBLIC_TSUMU_MCP_URL || "https://mcp.tsumu.ebii.net").replace(/\/$/, "");
+const ENDPOINT = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL);
 const MAX_REPLY_BYTES = 1024 * 1024;
 
 type Phase = "disconnected" | "connecting" | "connected";

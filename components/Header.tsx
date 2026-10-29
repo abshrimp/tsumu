@@ -4,6 +4,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 import {
   CircleHelp,
+  Cable,
   Download,
   FileText,
   Globe,
@@ -82,8 +83,6 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           <p className="hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>
 
-        <Suspense fallback={null}><ExternalEditConnection /></Suspense>
-
         <section className="settings-sec">
           <h3>{tr("Reset site")}</h3>
           <button
@@ -109,6 +108,24 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           <button className="btn" onClick={onClose}>
             {tr("Close")}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** MCP接続はエディタ設定とは独立したメニューから開く。 */
+function McpConnectionModal({ onClose }: { onClose: () => void }) {
+  useEscapeToClose(onClose);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>{tr("MCP connection")}</h2>
+        <Suspense fallback={<p className="hint" role="status">{tr("Loading…")}</p>}>
+          <ExternalEditConnection />
+        </Suspense>
+        <div className="modal-actions" style={{ marginTop: 16 }}>
+          <button type="button" className="btn" onClick={onClose}>{tr("Close")}</button>
         </div>
       </div>
     </div>
@@ -211,6 +228,7 @@ export default function Header({
   const [searchOpen, setSearchOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const status = useServerStatus();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -481,11 +499,12 @@ export default function Header({
           <Dropdown
             value=""
             trigger={<MoreHorizontal size={16} />}
-            title={tr("Menu (export, history, settings)")}
+            title={tr("Menu (export, history, MCP, settings)")}
             menuWidth={230}
             options={[
               { value: "history", label: tr("History & rollback"), icon: <History size={13} /> },
               { value: "export", label: tr("Export as zip"), icon: <Download size={13} /> },
+              { value: "mcp", label: tr("MCP connection"), icon: <Cable size={13} /> },
               { value: "settings", label: tr("Settings"), icon: <Settings size={13} /> },
               // Google 認証を使っていない（ログインなしで開ける）ときは、ログアウトを表示しない
               ...(status?.auth === false
@@ -498,6 +517,7 @@ export default function Header({
                 closeHelp();
                 setHistoryOpen(true);
               }
+              else if (v === "mcp") openModal(setMcpOpen);
               else if (v === "settings") openModal(setSettingsOpen);
               else if (v === "logout") openModal(setLogoutOpen);
             }}
@@ -553,6 +573,11 @@ export default function Header({
       )}
       {settingsOpen && (
         <SettingsModal onClose={() => setSettingsOpen(false)} />
+      )}
+      {mcpOpen && (
+        <SafeBoundary label={tr("MCP connection")} onClose={() => setMcpOpen(false)}>
+          <McpConnectionModal onClose={() => setMcpOpen(false)} />
+        </SafeBoundary>
       )}
     </header>
   );
