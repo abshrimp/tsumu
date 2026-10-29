@@ -43,10 +43,10 @@ If you want to add Adobe Fonts directly to an exported `doc.json`, add `adobeFon
 
 Adobe FontsでWebプロジェクトにフォントを登録したら、Tsumuの「テキスト → フォント → ＋ → Adobe Fonts」を開きます。**7文字のWebプロジェクトID**か `https://use.typekit.net/xxxxxxx.js` のURLを入力すると、公開済みのフォントを一覧表示します。追加したいフォントを選び、「追加」を押してください。
 
-従来のように埋め込みコード全体をコピーする必要はありません。まだWebプロジェクトを作っていない場合は、モーダルのリンクからAdobe Fontsを開けます。
+HTMLやJavaScriptの埋め込みコードを貼り付ける必要はありません。まだWebプロジェクトを作っていない場合は、モーダルのリンクからAdobe Fontsを開けます。
 
 **プロジェクトID**は [Adobe Fontsの「フォントを管理」→「Webプロジェクト」](https://fonts.adobe.com/my_fonts#web_projects-section) に表示されます。まだ作成していない場合は、各フォントのページの「</>」ボタンから作成してください。Tsumuのフォント追加モーダルには「Adobe Fontsの追加方法」のヘルプがあります。
 
 Adobe側のフォント一覧APIを取得できない場合は、フォント配信先も確認します。登録済みのフォントはTsumuの保存データから選べますが、新規フォントの追加には公開済みのフォント一覧が必要です。**手動入力欄は設けていません。** 一覧が表示されない場合はAdobe側のプロジェクト設定を確認してください。通信エラーは期限切れを意味しません。
 
-この変更で保存形式は変わりません。既存の`adobeFonts`やGoogle Fontsの`customFonts`はそのまま有効で、データ変換は不要です。
+`SiteDoc.customFonts` は Google Fonts、`SiteDoc.adobeFonts` は Adobe Fonts の Web プロジェクトを保持します。互換用の旧埋め込み形式は設けていません。

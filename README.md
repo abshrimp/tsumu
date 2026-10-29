@@ -30,11 +30,11 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 - **Visual editing:** Edit styles, hover states, other state changes, and animations without prior web development knowledge.
 - **No-code scripts:** Build JavaScript just by listing what to do, top to bottom, under a "when".
 - **External data:** Fetch and use JSON from APIs.
-- **Import:** Drop a Tsumu project ZIP on the home screen to restore the design and its packaged assets. You can also import a `doc.json` or convert HTML files and website ZIPs into editable pages.
+- **Import & backup:** Drop a Tsumu project ZIP on the home screen to restore the design and its packaged assets, or export/restore a full backup ZIP from **History & rollback**. You can also import a `doc.json` or convert HTML files and website ZIPs into editable pages.
 - **Flexible output:** Download a Next.js, React, Vue, Nuxt, SvelteKit, or static HTML project as a ZIP. To share one page as a single file, choose **Single HTML**.
 - **GitHub publishing:** Publish to GitHub with one click, including support for production and preview branches.
-- **Real-time collaboration:** Edit together with others and leave comments.
-- **Optional AI editing:** Describe the changes you want in plain language to edit pages.
+- **Real-time collaboration & site permissions:** Edit together with others, leave comments, and grant per-site **Owner**, **Editor**, or **View only** memberships.
+- **Optional AI editing:** Describe changes in plain language with built-in **Ask AI**, or connect an external AI client over MCP (`tsumu-mcp`).
 - **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker.
 - **Help and languages:** Built-in tutorials, illustrated Q&A, and on-screen guides.
 

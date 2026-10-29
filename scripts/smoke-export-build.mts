@@ -18,6 +18,7 @@ const language = (process.argv[3] === "javascript" || process.argv[3] === "types
   ? process.argv[3] : framework === "nuxt" ? "javascript" : "typescript";
 const options: ExportOptions = { framework, language, style, scope: "project" };
 const doc: SiteDoc = {
+  schemaVersion: 1,
   siteName: "Build smoke {1 + 2} test",
   pageOrder: ["home"],
   pages: {

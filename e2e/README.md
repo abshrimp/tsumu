@@ -38,8 +38,9 @@ exactly one shard; the durations file only influences load balancing.
 ## Choosing the right test layer
 
 - Use `tests/*.test.mts` for deterministic state transitions, validation,
-  data transformations, and exhaustive input/operation combinations. These
-  checks run in the `check` job without launching a browser.
+  data transformations, and exhaustive input/operation combinations. Shared
+  fixtures in `tests/helpers/` cache compiled `esbuild` bundles in memory so
+  these checks run quickly in the `check` job without launching a browser.
 - Use `e2e/*.spec.ts` when real browser behavior matters: pointer ownership,
   focus and IME, DOM layout and CSS, browser storage, Service Workers, or the
   editor's actual create/save/export/navigation flow. API-only cases in

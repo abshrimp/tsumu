@@ -92,7 +92,7 @@ Sign-in turns on once `AUTH_SECRET`, `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` a
 
 Accounts listed in `ALLOWED_EMAILS` are instance administrators with full recovery access. To allow more accounts (either as **Editors** or **View only**), go to the home screen and open **Settings → Accounts that can sign in** (this needs server storage).
 
-**Per-site membership:** A login alone grants no access to individual server-stored sites. The creator is the first **Owner**. From the site's **… → Members and permissions** menu, an owner can grant an allowed account **Owner**, **Editor**, or **View only** rights, or remove its access. Editors can change and publish that site; viewers can only inspect it; users not in the site membership cannot see it in the home list or open its URL. Account-wide **View only** access remains a ceiling, so those accounts cannot edit a site even if listed as a site editor. Each site must retain at least one owner. For existing sites, the current instance-wide roles are converted once to explicit site memberships.
+**Per-site membership:** A login alone grants no access to individual server-stored sites. The creator is the first **Owner**. From the site's **… → Members and permissions** menu, an owner can grant an allowed account **Owner**, **Editor**, or **View only** rights, or remove its access. Editors can change and publish that site; viewers can only inspect it; users not in the site membership cannot see it in the home list or open its URL. Account-wide **View only** access remains a ceiling, so those accounts cannot edit a site even if listed as a site editor. Each site must retain at least one owner.
 
 #### GitHub token
 
@@ -349,7 +349,7 @@ On any host, an interval of `0` fetches the data on every request.
 
 The same dialog also lists the server's daily backups of the editor content: one per weekday, seven in total.
 
-Use **Export backup ZIP** in **History & rollback** to download a self-contained copy of the entire site, including every asset in the library (images, videos, fonts and even unused files). **Load backup file** restores that ZIP into the current editor and uploads its assets to the current storage. If an asset cannot be fetched or restored, the operation fails rather than silently producing an incomplete backup. Older standalone `doc.json` files can still be loaded, but remote assets are not bundled in JSON.
+Use **Export backup ZIP** in **History & rollback** to download a self-contained copy of the entire site, including every asset in the library (images, videos, fonts and even unused files). **Load backup file** restores that ZIP into the current editor and uploads its assets to the current storage. If an asset cannot be fetched or restored, the operation fails rather than silently producing an incomplete backup. Standalone `doc.json` files matching the current schema can also be loaded, though server-stored asset files are not bundled in JSON.
 
 ## Ask AI (optional)
 
@@ -405,6 +405,14 @@ Every AI edit is validated on a working copy before it touches your page.
 - The chat's stop button cancels a request. A successful edit is a single undo step.
 - While it works, the chat streams short public explanations, progress through preparation, validation and repair, and the elapsed time. The activity log stays available afterwards. The model's private reasoning and signatures are never shown.
 
+### Connecting an external AI client (MCP)
+
+You can also connect an external MCP-capable AI client (such as Claude Desktop, Cursor, or Codex) to an open Tsumu browser tab without configuring an AI API key on the Tsumu server:
+
+- Open **⋯ → Connect external AI (MCP)** in the editor header (or on the home screen) to start a session with `tsumu-mcp` (defaults to `https://mcp.tsumu.ebii.net`; override at build time via `NEXT_PUBLIC_TSUMU_MCP_URL`).
+- Choose **Read-only** or **Allow edits**, copy the generated MCP URL / configuration into your AI client, and keep the Tsumu tab open while working.
+- External edits (`create_site`, `create_page`, `apply_operations`) execute inside your open browser session using the same validated `aiOps` schema, undo history, and storage backend (server or browser-only IndexedDB) as manual edits.
+
 ## Environment variables
 
 All variables are optional (see [What you need](#what-you-need)).
@@ -423,6 +431,7 @@ All variables are optional (see [What you need](#what-you-need)).
 | `AI_MODEL` | Model ID. Defaults to `claude-opus-5-5` (anthropic) or `gemini-3.8-flash` (gemini). |
 | `AI_BASE_URL` | API URL for `openai-compatible`, e.g. `https://openrouter.ai/api/v1` |
 | `AI_EFFORT` | `low`, `medium` (default), `high`, `xhigh` or `max` |
+| `NEXT_PUBLIC_TSUMU_MCP_URL` | Build-time base URL of the `tsumu-mcp` server used for external MCP connections (defaults to `https://mcp.tsumu.ebii.net`; rebuild after changing). |
 | `TSUMU_DATA_DIR` | Storage folder on Node.js (see [Node.js](#nodejs)). Fixed to `/data` on Docker. |
 | `ASSET_GC_ENABLED` | Cloudflare only. `true` lets garbage collection delete unused assets from KV; by default it only does a dry run (see [KV asset GC](asset-gc.md)). |
 | `ASSET_GC_GRACE_DAYS` / `ASSET_GC_MAX_DELETES` | Cloudflare only. Days before a candidate can be deleted (default 7), and the most deletions per run (default and maximum 500). |
@@ -499,7 +508,7 @@ app/
   page.tsx            Home (list of sites)
   sites/[id]/         Editor
   login/              Sign-in page
-  api/sites/          List, create, configure and delete sites
+  api/sites/          List, create, configure, delete sites, and manage per-site members
   api/doc/            Per-site editing data and daily backups
   api/comments/       Comment threads on the canvas
   api/activity/       Who edited recently and who published last
@@ -515,22 +524,26 @@ components/           UI (Home, Editor, Canvas, panels, ScriptEditor, HelpCenter
 lib/
   types.ts            The SiteDoc data model
   sites.ts            Site types, input validation and D1 storage
-  site.ts             Current site, browser storage keys, and the browser-only site list without D1
+  site-access.ts      Per-site Owner / Editor / View-only membership checks (plus site-asset-access.ts)
+  site.ts             Current site, tsumu-* browser storage keys, and the browser-only site list without D1
   generator.ts        SiteDoc → Next.js project (parts in generator/)
   export-formats.ts   Output formats: options, limitations and the shared zip / publish pipeline
   exportZip.ts        The exported zip, with the editing data for re-import
   site-import.ts      Restore a Tsumu zip or doc.json (import-site-file.ts creates the site)
+  site-backup.ts      Self-contained site backup zip bundling editing data and assets
   html-to-site.ts     Convert HTML into editable elements (html-file-import.ts, html-zip.ts)
   script.ts           Script model; script-runtime.ts is the runtime shared by the canvas and exported sites
   site-document-service.ts  Routes each site's editing data to its Durable Object (Cloudflare) or local SQLite
   structured-document-store.ts  Row-per-page/node SQLite schema inside the DocumentRoom Durable Object
   node-storage.ts     SQLite and file storage outside Cloudflare (TSUMU_DATA_DIR)
+  browser-doc-storage.ts  IndexedDB storage (tsumu-documents) for browser-only site documents and assets
   store.ts            Editor state (zustand) and undo history
   clip-transfer.ts    Copy and paste between sites
   page-transfer.ts    Copy pages to another site
   comments.ts         Comment threads on the server (comment-store.ts keeps them in the browser without one)
   activity.ts         Edit and publish activity log
   aiOps.ts            AI edit operations (applied on the server and in the browser)
+  external-edit/      Browser WebSocket bridge connecting an open editor tab to tsumu-mcp
   manualTopics.ts     Help articles
   locales/            Translations and generated language registry
 custom-worker.ts      Cloudflare Worker entry, including the collaboration Durable Object

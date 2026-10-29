@@ -240,19 +240,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
       )
       .then(async () => {
         const rows = await binding.prepare("SELECT version FROM storage_schema WHERE name='main'").all();
-        const version = Number(rows.results?.[0]?.version);
-        if (version === 2) {
-          // Forward-only migration: replace instance-wide site visibility with explicit memberships.
-          await binding.batch([
-            binding.prepare(`INSERT OR IGNORE INTO site_members(site_id,email,role)
-              SELECT s.id,a.email,
-                CASE WHEN a.role='editor' AND
-                  a.email=(SELECT MIN(email) FROM allowed_emails WHERE role='editor')
-                  THEN 'owner' ELSE a.role END
-              FROM sites s CROSS JOIN allowed_emails a`),
-            binding.prepare("UPDATE storage_schema SET version=3 WHERE name='main' AND version=2"),
-          ]);
-        } else if (version !== 3) {
+        if (Number(rows.results?.[0]?.version) !== 3) {
           throw new Error("Unsupported storage schema");
         }
       })
