@@ -1,8 +1,30 @@
-import type { Db } from "./db";
+import type { Db, ResultSet } from "./db";
 import { isDocPatch, type DocPatch } from "./doc-patch";
 
-/** 編集データの保存（D1 の docs テーブル。1サイト = 1行で、id はサイトID） */
+/**
+ * 編集データの保存（D1 の docs テーブル。1サイト = 1行で、id はサイトID）。
+ * 大きさはアプリとして10MBまで。保存先がそれより小さければ（D1 は約2MB）、そちらに合わせる（docLimit）
+ */
 export const MAX_DOC_BYTES = 10 * 1024 * 1024;
+
+export const byteLength = (s: string): number => new TextEncoder().encode(s).byteLength;
+
+/** 上限の表示（10MB・2MB など） */
+export function formatDocLimit(bytes: number): string {
+  return bytes >= 1_000_000 ? `${Math.round(bytes / 1_000_000)}MB` : `${Math.ceil(bytes / 1000)}KB`;
+}
+
+/** 保存先に入りきらない編集データ（API は 413 で返す） */
+export class DocTooLargeError extends Error {
+  constructor(readonly limit: number) {
+    super(`ドキュメントが大きすぎます（${formatDocLimit(limit)}まで）`);
+  }
+}
+
+/** この保存先に置ける編集データの大きさ（バイト） */
+export function docLimit(db: Pick<Db, "maxValueBytes">): number {
+  return Math.min(MAX_DOC_BYTES, db.maxValueBytes);
+}
 
 export interface CurrentDoc {
   rev: string;
@@ -16,10 +38,8 @@ export type SaveDocResult =
   /** サイトが無い（ほかのタブ・人が消した）。編集データを作り直さない */
   | { kind: "missing" };
 
+/** 本文の形を確かめる（大きさは保存するときに、保存先の上限で確かめる） */
 export function validateDocBody(raw: string): string | null {
-  if (new TextEncoder().encode(raw).byteLength > MAX_DOC_BYTES) {
-    return "ドキュメントが大きすぎます（10MBまで）";
-  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -33,11 +53,25 @@ export function validateDocBody(raw: string): string | null {
     !("nodes" in parsed) ||
     !("assets" in parsed) ||
     !("pageOrder" in parsed) ||
-    !Array.isArray((parsed as { pageOrder?: unknown }).pageOrder)
+    !Array.isArray((parsed as { pageOrder?: unknown }).pageOrder) ||
+    // ページが1つも無いデータはエディタが読み込めず、開けなくなる（バックアップからも戻せない）
+    !(parsed as { pageOrder: unknown[] }).pageOrder.length
   ) {
     return "不正なリクエスト";
   }
   return null;
+}
+
+/** D1 の上限を超えた値は SQLITE_TOOBIG になる。上限の見込みが外れても、大きさのエラーとして返す */
+async function write(db: Db, stmt: Parameters<Db["execute"]>[0]): Promise<ResultSet> {
+  try {
+    return await db.execute(stmt);
+  } catch (e) {
+    if (/SQLITE_TOOBIG|too big/i.test(e instanceof Error ? e.message : String(e))) {
+      throw new DocTooLargeError(docLimit(db));
+    }
+    throw e;
+  }
 }
 
 export async function readCurrentDoc(db: Db, siteId: string): Promise<CurrentDoc | null> {
@@ -54,15 +88,22 @@ export async function readCurrentDoc(db: Db, siteId: string): Promise<CurrentDoc
   };
 }
 
-/** 日次バックアップ（曜日で7世代ローテーション、1日1回だけ書く） */
-async function writeDailyBackup(db: Db, siteId: string, now: number) {
+/**
+ * 日次バックアップ（曜日で7世代ローテーション）。日付（UTC）が変わってから最初の保存の直前に、
+ * それまでの内容（前に編集した日の最後の内容）を、その日の曜日の枠へ残す。
+ * 保存した後の内容を残すと、その日最初の保存で壊したときに壊れた内容しか残らないため
+ */
+async function backupPreviousDay(db: Db, siteId: string, now: number) {
   try {
-    const day = new Date(now).getUTCDay();
     const dayStart = Math.floor(now / 86_400_000) * 86_400_000;
-    // 本文をWorkerへ取り出さずDB内でコピーする。並行保存でも同日のバックアップは上書きしない。
+    // 本文をWorkerへ取り出さずDB内でコピーする。並行保存でも、より新しい内容でだけ上書きする。
     await db.execute({
-      sql: "INSERT INTO site_backups (site_id, day, saved_at, body) SELECT id, ?, saved_at, body FROM docs WHERE id = ? AND saved_at >= ? AND saved_at < ? AND NOT EXISTS (SELECT 1 FROM site_backups WHERE site_id = ? AND day = ? AND saved_at >= ?) ON CONFLICT(site_id, day) DO UPDATE SET saved_at = excluded.saved_at, body = excluded.body WHERE site_backups.saved_at < ?",
-      args: [day, siteId, dayStart, dayStart + 86_400_000, siteId, day, dayStart, dayStart],
+      sql: `INSERT INTO site_backups (site_id, day, saved_at, body)
+        SELECT id, CAST(strftime('%w', saved_at / 1000, 'unixepoch') AS INTEGER), saved_at, body
+        FROM docs WHERE id = ? AND saved_at < ?
+        ON CONFLICT(site_id, day) DO UPDATE SET saved_at = excluded.saved_at, body = excluded.body
+        WHERE site_backups.saved_at < excluded.saved_at`,
+      args: [siteId, dayStart],
     });
   } catch {
     // バックアップの失敗は保存自体に影響させない
@@ -75,14 +116,15 @@ export async function saveCurrentDoc(
   raw: string,
   base: string | null
 ): Promise<SaveDocResult> {
+  if (byteLength(raw) > docLimit(db)) throw new DocTooLargeError(docLimit(db));
   const now = Date.now();
   if (base) {
-    const rs = await db.execute({
+    await backupPreviousDay(db, siteId, now);
+    const rs = await write(db, {
       sql: "UPDATE docs SET body = ?, rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? RETURNING rev",
       args: [raw, now, siteId, Number(base)],
     });
     if (rs.rows.length) {
-      await writeDailyBackup(db, siteId, now);
       return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
     }
     const current = await readCurrentDoc(db, siteId);
@@ -92,7 +134,7 @@ export async function saveCurrentDoc(
 
   // サイトの一覧に無い編集データは作らない（消したサイトを開いたままのタブが保存すると、
   // 一覧に出ないデータが残り、そのアセットも「ほかのサイトが使用中」として消せなくなる）
-  const rs = await db.execute({
+  const rs = await write(db, {
     // base の無い保存は初回作成だけ。読み込み失敗や同時作成でも既存データを上書きしない。
     sql: "INSERT INTO docs (id, rev, saved_at, body) SELECT ?, 1, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?) ON CONFLICT(id) DO NOTHING RETURNING rev",
     args: [siteId, now, raw, siteId],
@@ -101,7 +143,6 @@ export async function saveCurrentDoc(
     const current = await readCurrentDoc(db, siteId);
     return current ? { kind: "conflict", current } : { kind: "missing" };
   }
-  await writeDailyBackup(db, siteId, now);
   return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
 }
 
@@ -110,9 +151,8 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   if (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)) || !isDocPatch(patch)) {
     throw new Error("不正なリクエスト");
   }
-  if (new TextEncoder().encode(JSON.stringify(patch)).byteLength > MAX_DOC_BYTES) {
-    throw new Error("ドキュメントが大きすぎます（10MBまで）");
-  }
+  const limit = docLimit(db);
+  if (byteLength(JSON.stringify(patch)) > limit) throw new DocTooLargeError(limit);
   const args: (string | number | null)[] = [];
   let body = "body";
   // D1の関数引数数上限にも収める（1回のjson_setは本文 + 12組のパス・値）。
@@ -132,15 +172,15 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
     if (removes.length) body = `json_remove(${body}, ${removes.join(", ")})`;
   }
   const now = Date.now();
-  const rs = await db.execute({
+  await backupPreviousDay(db, siteId, now);
+  const rs = await write(db, {
     sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? AND (SELECT length(CAST(body AS BLOB)) FROM patched) <= ? RETURNING rev`,
-    args: [...args, siteId, Number(base), now, siteId, Number(base), MAX_DOC_BYTES],
+    args: [...args, siteId, Number(base), now, siteId, Number(base), limit],
   });
   if (rs.rows.length) {
-    await writeDailyBackup(db, siteId, now);
     return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
   }
   const current = await readCurrentDoc(db, siteId);
-  if (current?.rev === base) throw new Error("ドキュメントが大きすぎます（10MBまで）");
+  if (current?.rev === base) throw new DocTooLargeError(limit);
   return current ? { kind: "conflict", current } : { kind: "missing" };
 }

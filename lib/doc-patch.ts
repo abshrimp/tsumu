@@ -31,7 +31,8 @@ export function isDocPatch(value: unknown): value is DocPatch {
       if (Object.hasOwn(op, "remove") || !Object.hasOwn(op, "value") || op.value === undefined) return false;
       if (path.length === 1) {
         if (COLLECTIONS.has(path[0]) && !record(op.value)) return false;
-        if (path[0] === "pageOrder" && !Array.isArray(op.value)) return false;
+        // ページが1つも無いデータは開けなくなるため、並びを空にする差分は受け付けない
+        if (path[0] === "pageOrder" && (!Array.isArray(op.value) || !op.value.length)) return false;
         if (path[0] === "siteName" && typeof op.value !== "string") return false;
       }
     }

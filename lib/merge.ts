@@ -151,6 +151,33 @@ export function mergeDocs(
   local: SiteDoc,
   remote: SiteDoc
 ): SiteDoc {
+  const merged = mergeOnce(base, local, remote);
+  if (merged.pageOrder.length) return merged;
+  // 残りのページを別々の人が1つずつ消すと、どちらも1ページは残しているのに合成後は0ページになる。
+  // ページの無いデータは開けないため、相手が消したページのうち自分の側に残っているものを、
+  // 相手は触っていない扱い（元の版のまま）にして合成し直す。中の要素も自分の側の内容で残る
+  const kept = local.pageOrder.filter((id) => local.pages[id] && base.pages[id] && !remote.pages[id]);
+  if (!kept.length) return merged;
+  const pages = { ...remote.pages };
+  const nodes = { ...remote.nodes };
+  const stack = kept.flatMap((id) => {
+    pages[id] = base.pages[id];
+    return base.pages[id].children;
+  });
+  for (let id = stack.pop(); id !== undefined; id = stack.pop()) {
+    const node = base.nodes[id];
+    if (!node || nodes[id]) continue;
+    nodes[id] = node;
+    stack.push(...node.children);
+  }
+  return mergeOnce(base, local, { ...remote, pages, nodes, pageOrder: [...remote.pageOrder, ...kept] });
+}
+
+function mergeOnce(
+  base: SiteDoc,
+  local: SiteDoc,
+  remote: SiteDoc
+): SiteDoc {
   const nodes = mergeRecord(base.nodes, local.nodes, remote.nodes);
   const pages = mergeRecord(base.pages, local.pages, remote.pages);
 

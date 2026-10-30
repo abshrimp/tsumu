@@ -4,7 +4,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDocPatch, applyDocPatch, applyDocPatchAtRevision, isDocPatch, MAX_PATCH_OPS } from "../lib/doc-patch";
-import { saveCurrentDoc, saveDocPatch, readCurrentDoc } from "../lib/doc-storage";
+import {
+  DocTooLargeError, docLimit, MAX_DOC_BYTES, readCurrentDoc, saveCurrentDoc, saveDocPatch, validateDocBody,
+} from "../lib/doc-storage";
 import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import { insertSite } from "../lib/sites";
@@ -89,13 +91,11 @@ test("SQL patches preserve nulls, arrays, additions and removals without fetchin
     const result = await saveDocPatch(db, "s1", patch, "1");
     assert.equal(result.kind, "saved");
     assert.equal(statements.some((s) => /SELECT rev, saved_at, body/.test(s.sql)), false);
-    assert.equal(statements.length, 2, "one update plus one conditional database-side backup");
-    assert.ok(statements[0].args.length <= 100);
+    assert.equal(statements.length, 2, "one conditional database-side backup plus one update");
+    assert.ok(statements.every((s) => s.args.length <= 100));
     assert.equal(statements.some((s) => s.args.includes(JSON.stringify(base))), false);
     assert.deepEqual(JSON.parse((await readCurrentDoc(db, "s1"))!.body), next);
     assert.deepEqual(applyDocPatch(base, patch), next);
-    const backup = await db.execute("SELECT body FROM site_backups WHERE site_id = 's1'");
-    assert.deepEqual(JSON.parse(String(backup.rows[0].body)), base, "same-day backup is preserved");
     const conflict = await saveDocPatch(db, "s1", patch, "1");
     assert.equal(conflict.kind, "conflict");
     assert.deepEqual(JSON.parse((await readCurrentDoc(db, "s1"))!.body), next);
@@ -116,7 +116,73 @@ test("the maximum patch size fits parameter limits and applies all chunks correc
     assert.equal(patch.length, MAX_PATCH_OPS);
     statements.length = 0;
     assert.equal((await saveDocPatch(db, "s1", patch, "1")).kind, "saved");
-    assert.ok(statements[0].args.length <= 100);
+    assert.ok(statements.every((s) => s.args.length <= 100));
     assert.deepEqual(JSON.parse((await readCurrentDoc(db, "s1"))!.body), next);
   });
+});
+
+test("the first save of a day keeps the previous day's final content as that day's backup", async () => {
+  await database(async (db) => {
+    const backups = async () => (await db.execute("SELECT day, saved_at, body FROM site_backups WHERE site_id = 's1'")).rows;
+    const base = doc();
+    await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
+    const evening = { ...base, siteName: "End of the first day" };
+    assert.equal((await saveCurrentDoc(db, "s1", JSON.stringify(evening), "1")).kind, "saved");
+    assert.equal((await backups()).length, 0, "the day has not ended yet");
+
+    const yesterday = Date.now() - 86_400_000;
+    await db.execute({ sql: "UPDATE docs SET saved_at = ? WHERE id = 's1'", args: [yesterday] });
+    // 翌日最初の保存で壊しても、前日の最後の内容が残る
+    const broken = { ...evening, nodes: {}, pages: { home: { ...evening.pages.home, children: [] } } };
+    assert.equal((await saveDocPatch(db, "s1", createDocPatch(evening, broken)!, "2")).kind, "saved");
+    let rows = await backups();
+    assert.equal(rows.length, 1);
+    assert.equal(Number(rows[0].day), new Date(yesterday).getUTCDay());
+    assert.equal(Number(rows[0].saved_at), yesterday);
+    assert.deepEqual(JSON.parse(String(rows[0].body)), evening);
+
+    // 同じ日の2回目以降の保存では書き換えない
+    assert.equal((await saveCurrentDoc(db, "s1", JSON.stringify({ ...broken, siteName: "Later" }), "3")).kind, "saved");
+    rows = await backups();
+    assert.equal(rows.length, 1);
+    assert.deepEqual(JSON.parse(String(rows[0].body)), evening);
+  });
+});
+
+test("documents larger than the storage allows are rejected as too large", async () => {
+  await database(async (real) => {
+    const base = doc();
+    await saveCurrentDoc(real, "s1", JSON.stringify(base), null);
+    // D1 は1つの値が約2MBまで。保存先の上限が小さければ、10MBより手前で止める
+    const db: Db = { ...real, maxValueBytes: 2_000 };
+    assert.equal(docLimit(db), 2_000);
+    assert.equal(docLimit(real), MAX_DOC_BYTES);
+    const big = structuredClone(base);
+    big.nodes["node-1"].text = "x".repeat(3_000) as any;
+    await assert.rejects(saveCurrentDoc(db, "s1", JSON.stringify(big), "1"), DocTooLargeError);
+    await assert.rejects(saveDocPatch(db, "s1", createDocPatch(base, big)!, "1"), DocTooLargeError);
+    // 差分は小さくても、反映後の本文が上限を超えるなら保存しない
+    const large = structuredClone(base);
+    large.nodes["node-1"].text = "z".repeat(1_500) as any;
+    assert.equal((await saveCurrentDoc(real, "s1", JSON.stringify(large), "1")).kind, "saved");
+    const grown = { ...large, siteName: "y".repeat(100) };
+    const patchDb: Db = { ...real, maxValueBytes: JSON.stringify(large).length + 50 };
+    await assert.rejects(saveDocPatch(patchDb, "s1", createDocPatch(large, grown)!, "2"), DocTooLargeError);
+    assert.equal((await readCurrentDoc(real, "s1"))!.rev, "2");
+    // 上限の見込みが外れて D1 が拒んだ場合も、大きさのエラーとして返す
+    const d1: Db = { ...real, maxValueBytes: 2_000_000, execute: async (stmt) => {
+      if (typeof stmt !== "string" && /^UPDATE docs/.test(stmt.sql)) throw new Error("D1_ERROR: string or blob too big: SQLITE_TOOBIG");
+      return real.execute(stmt);
+    } };
+    await assert.rejects(saveCurrentDoc(d1, "s1", JSON.stringify(base), "2"), DocTooLargeError);
+    assert.equal(new DocTooLargeError(docLimit(d1)).message, "ドキュメントが大きすぎます（2MBまで）");
+  });
+});
+
+test("documents without any page are rejected, because the editor cannot open them", () => {
+  const empty = { ...doc(), pages: {}, pageOrder: [] };
+  assert.equal(validateDocBody(JSON.stringify(empty)), "不正なリクエスト");
+  assert.equal(validateDocBody(JSON.stringify(doc())), null);
+  assert.equal(isDocPatch([{ path: ["pageOrder"], value: [] }]), false);
+  assert.equal(createDocPatch(doc(), empty), null, "falls back to a full save, which is rejected");
 });

@@ -49,6 +49,8 @@ const en: Dict = {
     "Invalid parameters",
   "リクエストが正しくありません":
     "Invalid request",
+  "ドキュメントが大きすぎます（{size}まで）":
+    "The document is too large (up to {size})",
   "不正なリクエスト":
     "Invalid request",
   "ログインが設定されていないため、アカウント管理は使えません":
@@ -2768,8 +2770,8 @@ const en: Dict = {
     "Restore edits",
   "サイトを戻す":
     "Restore site",
-  "サーバーは1日に1回、その日最初に保存した時点の内容を自動で残します（曜日ごとに7日分）。":
-    "Once a day, the server automatically keeps the content as of that day's first save (seven days, one per weekday).",
+  "サーバーは編集した日ごとに、その日の最後の内容を自動で残します（曜日ごとに7日分。日付が変わって最初に保存したときに残ります）。":
+    "For each day you edit, the server automatically keeps that day's final content (seven days, one per weekday; it is kept at the first save after the date changes).",
   "まだバックアップがありません。":
     "No backups yet.",
   "この内容に戻す":

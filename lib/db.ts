@@ -19,7 +19,12 @@ export interface ResultSet {
 export interface Db {
   execute(stmt: Stmt): Promise<ResultSet>;
   batch(stmts: Stmt[]): Promise<ResultSet[]>;
+  /** 1つの値（編集データの本文など）に保存できる大きさ（バイト） */
+  maxValueBytes: number;
 }
+
+/** D1 の1行（1つの文字列・BLOB）の上限は 2,000,000 バイト。同じ行のほかの列の分を残す */
+const D1_MAX_VALUE_BYTES = 2_000_000 - 1_000;
 
 /** 使用するD1 APIの最小型（@cloudflare/workers-types の型衝突を避ける） */
 interface D1Result {
@@ -35,6 +40,8 @@ interface D1PreparedStatement {
 export interface D1LikeDatabase {
   prepare(sql: string): D1PreparedStatement;
   batch(stmts: D1PreparedStatement[]): Promise<D1Result[]>;
+  /** D1 より大きな値を置ける保存先（Node.js の SQLite）だけが指定する */
+  maxValueBytes?: number;
 }
 
 function d1(): D1LikeDatabase | null {
@@ -159,6 +166,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
       (await binding.batch(stmts.map((s) => prepare(binding, s)))).map(
         toResultSet
       ),
+    maxValueBytes: binding.maxValueBytes ?? D1_MAX_VALUE_BYTES,
   };
 }
 

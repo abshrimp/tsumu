@@ -80,6 +80,8 @@ function d1Adapter(db: SqliteDatabase): D1LikeDatabase {
         throw e;
       }
     },
+    // SQLite の既定の上限（SQLITE_MAX_LENGTH）。D1 の約2MBより大きい
+    maxValueBytes: 1_000_000_000,
   };
 }
 
