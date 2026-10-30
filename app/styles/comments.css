@@ -483,6 +483,33 @@
 }
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
  
+/* One-time MCP links show progress from the first Home render, without flashing the site list. */
+.home-import-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+}
+.home-import-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: min(420px, 100%);
+  padding: 28px 32px;
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+  text-align: center;
+}
+.home-import-overlay-content svg { color: var(--accent); }
+.home-import-overlay-content strong { font-size: 17px; }
+.home-import-overlay-content p { margin: 0; font-size: 14px; color: var(--text-2); }
+
 /* ファイルをドラッグしている間だけ表示する。通常のホーム画面には場所を取らない。 */
 .home-drop-overlay {
   position: fixed;

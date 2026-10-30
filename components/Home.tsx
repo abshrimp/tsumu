@@ -487,8 +487,10 @@ export default function Home() {
   const pendingDraft = useRef<{ id: string; secret: string } | null>(null);
   const [draggingFile, setDraggingFile] = useState(false);
   const [importStatus, setImportStatus] = useState<
-    { kind: "loading"; message: string } | { kind: "error"; message: string; source?: "remote" } | null
-  >(null);
+    { kind: "loading"; message: string; source?: "remote" } |
+    { kind: "error"; message: string; source?: "remote" } | null
+  >(() => typeof window !== "undefined" && /^#tsumu-import=([0-9a-f-]{36})\.([A-Za-z0-9_-]{40,64})$/.test(window.location.hash)
+    ? { kind: "loading", message: tr("Reading edit data…"), source: "remote" } : null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -558,7 +560,7 @@ export default function Home() {
       return;
     }
     importActive.current = true;
-    setImportStatus({ kind: "loading", message: tr("Reading edit data…") });
+    setImportStatus({ kind: "loading", message: tr("Reading edit data…"), source: "remote" });
     const url = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL) +
       "/drafts/" + encodeURIComponent(draft.id);
     try {
@@ -572,7 +574,7 @@ export default function Home() {
       const file = new File([result.doc], "doc.json", { type: "application/json" });
       const { createSiteFromFile } = await import("../lib/import-site-file");
       const { id } = await createSiteFromFile(file, store,
-        message => setImportStatus({ kind: "loading", message }));
+        message => setImportStatus({ kind: "loading", message, source: "remote" }));
       // Acknowledge removal only after the editor confirms a successful save.
       try {
         const complete = await fetch(url + "/complete", {
@@ -771,6 +773,15 @@ export default function Home() {
 
   return (
     <div className="home">
+      {importStatus?.kind === "loading" && importStatus.source === "remote" && (
+        <div className="home-import-overlay" role="status" aria-live="polite" aria-busy="true">
+          <div className="home-import-overlay-content">
+            <LoaderCircle size={30} className="spin" aria-hidden="true" />
+            <strong>{tr("Importing site")}</strong>
+            <p>{importStatus.message}</p>
+          </div>
+        </div>
+      )}
       <header className="home-top">
         <div className="home-brand">
           <BrandMark size={28} />
