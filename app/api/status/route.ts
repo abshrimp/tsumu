@@ -6,6 +6,7 @@ import { assetStore } from "../../../lib/kv";
 import { envVar } from "../../../lib/env";
 import type { AssetDeletion } from "../../../lib/status";
 import { getAccountRole } from "../../../lib/allowlist";
+import { collabRoomAvailable } from "../../../lib/collab";
 
 /**
  * エディタでアセットを削除したときに、保存したファイルがどうなるか。
@@ -25,10 +26,12 @@ async function assetDeletion(): Promise<AssetDeletion | null> {
 export async function GET() {
   const user = await requireAuth("user");
   if (user instanceof NextResponse) return user;
+  const hasDatabase = dbConfigured();
   return NextResponse.json({
     auth: authConfigured(),
     role: user ? (await getAccountRole(user.email) ?? "viewer") : "editor",
-    db: dbConfigured(),
+    db: hasDatabase,
+    collabTransport: !hasDatabase ? "none" : collabRoomAvailable() ? "websocket" : "sse",
     assets: assetStore() !== null,
     assetDeletion: await assetDeletion(),
     // ログインしている人（コメントのうち、自分が書いたものを見分けるために使う）

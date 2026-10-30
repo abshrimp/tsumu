@@ -175,6 +175,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   const status = useServerStatus();
   const readOnly = status?.role === "viewer" || (status?.db === true && siteRole !== "owner" && siteRole !== "editor");
   const browserOnly = status?.db === false;
+  const collabTransport = status?.collabTransport;
   useLayoutEffect(() => {
     if (readOnly) useEditor.getState().setMode("preview");
   }, [readOnly]);
@@ -941,8 +942,10 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   // 読み込み・保存・更新の受信は WebSocket で行い、切断中だけ HTTP に切り替える。
   // WebSocket が使えない環境（Node.js・Docker）では、更新を Server-Sent Events で受け取る
   useEffect(() => {
+    // サーバー保存先が無い場合は、WebSocket・SSE・ポーリングのいずれも起動しない。
+    if (!collabTransport || collabTransport === "none") return;
     let stopped = false;
-    /** 更新の通知（/api/collab/events）。WebSocket に一度もつながらなかったときだけ開く */
+    /** 更新の通知（/api/collab/events）。SSE を使う環境だけで開く */
     let events: EventSource | null = null;
     let eventsOpen = false;
     let connectionGeneration = 0;
@@ -1145,7 +1148,8 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       });
     };
 
-    connect();
+    if (collabTransport === "websocket") connect();
+    else openEvents();
 
     // 保留中の他の人の変更を再試行する。必要な間だけ、10秒間隔で HTTP で確認する
     const id = setInterval(() => {
@@ -1159,7 +1163,8 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
     // タブがアクティブに戻ったときは、再接続してすぐに確認する
     const onVisible = () => {
       if (!document.hidden) {
-        connect();
+        if (collabTransport === "websocket") connect();
+        else openEvents();
         if (pendingRemote) applyRemote(pendingRemote);
         if (needsPolling()) {
           void pullFallback();
@@ -1181,7 +1186,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       collabRequests.current.clear();
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [requestViaWebSocket]);
+  }, [requestViaWebSocket, collabTransport]);
 
   // 未同期の変更や、削除されたブラウザ内の保存先にしかない内容があれば、ページを離れる前に知らせる
   useEffect(() => {

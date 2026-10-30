@@ -197,6 +197,11 @@ for (const choice of ["remote", "local"] as const) {
 test("a delayed WebSocket snapshot uses the same initial loading gate", async ({ page }) => {
   const id = await createSite(page);
   await prepare(page, id);
+  // Node.js uses SSE by default; explicitly exercise the WebSocket editor path here.
+  await page.route("**/api/status", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), collabTransport: "websocket" } });
+  });
   const remote = fixture("WebSocket saved heading");
   let release!: () => void;
   let entered!: () => void;
@@ -220,6 +225,31 @@ test("a delayed WebSocket snapshot uses the same initial loading gate", async ({
     await expect(canvas(page).getByText("WebSocket saved heading", { exact: true })).toBeVisible();
     await saved(page);
   } finally { release(); }
+});
+
+test("browser-only sites never open collaboration connections or polling", async ({ page }) => {
+  const id = await createSite(page);
+  await prepare(page, id);
+  await page.route("**/api/status", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, json: { ...(await response.json()), db: false, collabTransport: "none" } });
+  });
+
+  const attempts: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/collab")) attempts.push(request.url());
+    if (new URL(request.url()).pathname === "/api/doc" && new URL(request.url()).searchParams.has("meta")) {
+      attempts.push(request.url());
+    }
+  });
+  page.on("websocket", (socket) => {
+    if (new URL(socket.url()).pathname === "/api/collab") attempts.push(socket.url());
+  });
+
+  await page.goto(`/sites/${id}`);
+  await expect(canvas(page)).toBeVisible();
+  await page.waitForTimeout(1200);
+  expect(attempts).toEqual([]);
 });
 
 test("offline without a cache reveals the usable initial document only after the read fails", async ({ page }) => {

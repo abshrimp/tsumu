@@ -57,7 +57,7 @@ export async function siteBootstrapBundle(browser = false) {
             ? { path: args.path, namespace: "presentation" } : undefined);
         build.onLoad({ filter: /.*/, namespace: "presentation" }, (args) => ({
           contents: args.path === "../lib/status"
-            ? `export function useServerStatus() { return { auth: false, db: true, assets: false, role: "editor" }; }`
+            ? `export function useServerStatus() { return { auth: false, db: true, collabTransport: "sse", assets: false, role: "editor" }; }`
             : args.path === "./Canvas"
             ? `import { createElement } from "react"; import { useEditor } from "./lib/store";
                export default function Canvas() { const name = useEditor((s) => s.doc.siteName);

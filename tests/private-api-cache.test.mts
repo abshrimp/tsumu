@@ -26,6 +26,7 @@ function load(path: string) {
     sessionUser: async () => ({ email: "user@example.test", name: "User" }),
     serverTr: async () => (text: string) => text,
     dbConfigured: () => true,
+    collabRoomAvailable: () => false,
     getDb: async () => ({
       execute: async () => ({
         rows: [{

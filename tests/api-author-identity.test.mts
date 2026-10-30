@@ -43,6 +43,7 @@ function fixture(mode: "signed-in" | "anonymous" | "denied") {
         ? { user: { email: "Editor@example.test", name: " Editor " } } : null;
     },
     dbConfigured: () => true,
+    collabRoomAvailable: () => false,
     getDb: async () => ({ backend: "sqlite" }),
     assetStore: () => null,
     siteIdOf: async () => "site",

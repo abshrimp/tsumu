@@ -12,6 +12,8 @@ interface ServerStatus {
   role: AccountRole;
   /** サーバーの保存先（Cloudflare の D1、または TSUMU_DATA_DIR の SQLite）があるか */
   db: boolean;
+  /** 同時編集の接続方式。サーバー保存を使わない場合は接続しない。 */
+  collabTransport: "none" | "sse" | "websocket";
   /** アセット（画像・動画・音声）の保存先（KV）があるか */
   assets: boolean;
   /** アセットを削除したとき、サーバーのファイルをどうするか（保存先が無ければ null） */
