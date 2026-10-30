@@ -10,6 +10,8 @@ interface ServerStatus {
   auth: boolean;
   /** Effective permission for the current signed-in account. */
   role: AccountRole;
+  /** Only fixed administrators may edit global account permissions with public signup. */
+  manageAccounts?: boolean;
   /** サーバーの保存先（Cloudflare の D1、または TSUMU_DATA_DIR の SQLite）があるか */
   db: boolean;
   /** 同時編集の接続方式。サーバー保存を使わない場合は接続しない。 */

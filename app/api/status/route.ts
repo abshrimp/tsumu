@@ -5,7 +5,7 @@ import { dbConfigured, getDb } from "../../../lib/db";
 import { assetStore } from "../../../lib/kv";
 import { envVar } from "../../../lib/env";
 import type { AssetDeletion } from "../../../lib/status";
-import { getAccountRole } from "../../../lib/allowlist";
+import { allowedEmails, getAccountRole } from "../../../lib/allowlist";
 import { collabRoomAvailable } from "../../../lib/collab";
 
 /**
@@ -30,6 +30,8 @@ export async function GET() {
   return NextResponse.json({
     auth: authConfigured(),
     role: user ? (await getAccountRole(user.email) ?? "viewer") : "editor",
+    manageAccounts: !!user && (envVar("ALLOW_PUBLIC_SIGNUP") !== "true" ||
+      allowedEmails().includes(user.email.toLowerCase())),
     db: hasDatabase,
     collabTransport: !hasDatabase ? "none" : collabRoomAvailable() ? "websocket" : "sse",
     assets: assetStore() !== null,

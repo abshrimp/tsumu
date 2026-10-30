@@ -47,7 +47,8 @@ export function staticPublishConfig(siteId: string): StaticPublishConfig {
   const project = hostingProjectName(siteId, provider, "production");
   const previewProject = hostingProjectName(siteId, provider, "test");
   const configured = provider === "netlify"
-    ? !!envVar("NETLIFY_AUTH_TOKEN")
+    ? !!envVar("NETLIFY_OAUTH_CLIENT_ID") && !!envVar("NETLIFY_OAUTH_REDIRECT_URI") &&
+      !!envVar("NETLIFY_TOKEN_ENCRYPTION_KEY")
     : !!envVar("CLOUDFLARE_ACCOUNT_ID") && !!envVar("CLOUDFLARE_API_TOKEN");
   return {
     provider,
@@ -55,7 +56,7 @@ export function staticPublishConfig(siteId: string): StaticPublishConfig {
     previewProject,
     configured,
     error: configured ? null : provider === "netlify"
-      ? "NETLIFY_AUTH_TOKEN is not configured on the server."
+      ? "Netlify OAuth is not configured on the server."
       : "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required on the server.",
     productionUrl: provider === "netlify" ? "https://" + project + ".netlify.app"
       : "https://" + project + ".pages.dev",

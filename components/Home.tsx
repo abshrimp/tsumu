@@ -31,6 +31,7 @@ import LanguageSelector from "./LanguageSelector";
 import { relativeTime } from "../lib/time";
 import AllowedAccounts from "./AllowedAccounts";
 import SiteMembers from "./SiteMembers";
+import NetlifyConnectionSettings from "./NetlifyConnectionSettings";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
@@ -404,6 +405,10 @@ function SiteDialog({
             </div>
           </div>
         </details>
+
+        {site && provider === "netlify" && site.accessRole === "owner" && (
+          <NetlifyConnectionSettings siteId={site.id} />
+        )}
 
         {error && (
           <p className="home-dialog-error">
@@ -934,7 +939,8 @@ export default function Home() {
         />
       )}
       {membersSite && <SiteMembers siteId={membersSite.id} siteName={membersSite.name} onClose={() => setMembersSite(null)} />}
-      {settingsOpen && <AppSettings auth={!!status?.auth && !readOnly} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <AppSettings auth={!!status?.auth && !readOnly && status?.manageAccounts !== false}
+        onClose={() => setSettingsOpen(false)} />}
       <DialogHost />
       {draggingFile && (
         <div className="home-drop-overlay" aria-hidden="true">

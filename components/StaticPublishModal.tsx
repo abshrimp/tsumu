@@ -48,7 +48,7 @@ function providerLabel(provider: StaticPublishProvider): string {
   return provider === "netlify" ? "Netlify" : "Cloudflare Pages";
 }
 
-export default function StaticPublishModal({
+function StaticPublishContent({
   conf,
   onClose,
 }: {
@@ -222,9 +222,16 @@ export default function StaticPublishModal({
                   {tr("The hosting provider is chosen by the server administrator. Configure custom domains in the hosting service.")}
                 </p>
                 {!conf.configured && (
-                  <p className="pub-card-error" role="alert">
-                    {conf.production.error ?? tr("Static publishing isn't configured on the server.")}
-                  </p>
+                  <>
+                    <p className="pub-card-error" role="alert">
+                      {conf.production.error ?? tr("Static publishing isn't configured on the server.")}
+                    </p>
+                    {conf.provider === "netlify" && (
+                      <a className="btn btn-sm" href={"/?settings=" + encodeURIComponent(conf.site)}>
+                        {tr("Open site settings to connect Netlify")}
+                      </a>
+                    )}
+                  </>
                 )}
                 <CheckList checks={checks} onClose={onClose} />
                 <div className="pub-cards">
@@ -295,6 +302,136 @@ export default function StaticPublishModal({
             )}
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+
+type NetlifySetup = {
+  connected: boolean;
+  teams: { id: string; slug: string; name: string }[];
+  binding: { teamSlug: string; teamName: string; ownerIsYou: boolean } | null;
+};
+
+/** Entry point: users can connect and choose their own Netlify account from Publish. */
+export default function StaticPublishModal({
+  conf,
+  onClose,
+}: {
+  conf: StaticPublishModalConfig;
+  onClose: () => void;
+}) {
+  const [active, setActive] = useState(conf);
+  const [setup, setSetup] = useState<NetlifySetup | null>(null);
+  const [loading, setLoading] = useState(conf.provider === "netlify" && !conf.configured);
+  const [team, setTeam] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  useEscapeToClose(onClose, !busy);
+
+  useEffect(() => {
+    if (conf.provider !== "netlify" || active.configured) return;
+    let alive = true;
+    void (async () => {
+      try {
+        const response = await fetch("/api/publish/netlify?site=" + encodeURIComponent(conf.site), {
+          cache: "no-store",
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || tr("Ask the site owner to connect Netlify."));
+        if (!alive) return;
+        setSetup(data as NetlifySetup);
+        setTeam(data.binding?.teamSlug || data.teams?.[0]?.slug || "");
+        // Clicking Publish initiates the Netlify login itself for disconnected owners.
+        if (!data.connected) {
+          window.location.assign("/api/publish/netlify/authorize?site=" + encodeURIComponent(conf.site));
+          return;
+        }
+        if (data.binding && active.production.error?.includes("disconnected")) {
+          setSetupError(tr("Reconnect Netlify to publish this site."));
+        }
+      } catch (cause) {
+        if (alive) setSetupError(cause instanceof Error ? cause.message : tr("Could not load Netlify settings."));
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [conf.provider, conf.site, active.configured, active.production.error]);
+
+  const bindTeam = async (slug: string) => {
+    if (!slug || busy) return;
+    setBusy(true);
+    setSetupError(null);
+    try {
+      const response = await fetch("/api/publish/netlify?site=" + encodeURIComponent(conf.site), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "team", teamSlug: slug }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || tr("Could not select a Netlify team."));
+      // Refresh only publish configuration: preserve in-progress edits in the editor.
+      const refreshed = await fetch("/api/publish?site=" + encodeURIComponent(conf.site), { cache: "no-store" });
+      const next = await refreshed.json().catch(() => null);
+      if (!refreshed.ok || next?.provider !== "netlify" || !next?.configured) {
+        throw new Error(next?.production?.error || tr("Could not load Netlify publishing configuration."));
+      }
+      setActive({
+        site: conf.site, provider: "netlify", configured: true,
+        test: next.test, production: next.production,
+      });
+    } catch (cause) {
+      setSetupError(cause instanceof Error ? cause.message : tr("Could not select a Netlify team."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (active.provider !== "netlify" || active.configured) {
+    return <StaticPublishContent conf={active} onClose={onClose} />;
+  }
+  return (
+    <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
+      <div className="modal pub-modal" onClick={(event) => event.stopPropagation()}>
+        <h2>{tr("Publish site")}</h2>
+        <p className="modal-desc">
+          {tr("Publish this site to your own Netlify account. Netlify usage is charged to the selected team.")}
+        </p>
+        {loading && <div className="pub-loading" role="status">
+          <LoaderCircle size={15} className="spin" />{tr("Checking Netlify connection…")}
+        </div>}
+        {!loading && setup?.connected && (
+          <>
+            <p className="hint">
+              {tr("Choose the Netlify team that will own this site's publication.")}
+            </p>
+            <label className="home-field">
+              <span className="home-field-label">{tr("Netlify team")}</span>
+              <select className="input" value={team} disabled={busy}
+                onChange={(event) => setTeam(event.target.value)}>
+                {setup.teams.map((option) => (
+                  <option key={option.id} value={option.slug}>{option.name}</option>
+                ))}
+              </select>
+            </label>
+            <button type="button" className="btn btn-primary" disabled={!team || busy}
+              onClick={() => void bindTeam(team)}>
+              {busy && <LoaderCircle size={13} className="spin" />}
+              {tr("Continue to publish")}
+            </button>
+          </>
+        )}
+        {!loading && !setup?.connected && (
+          <a className="btn btn-primary" href={"/api/publish/netlify/authorize?site=" + encodeURIComponent(conf.site)}>
+            {tr("Log in to Netlify")}
+          </a>
+        )}
+        {setupError && <p className="pub-card-error" role="alert">{setupError}</p>}
+        <div className="modal-actions">
+          <button className="btn" disabled={busy} onClick={onClose}>{tr("Cancel")}</button>
+        </div>
       </div>
     </div>
   );

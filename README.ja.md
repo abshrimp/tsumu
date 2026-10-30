@@ -75,7 +75,10 @@ npm run dev
 サーバーの `PUBLISH_PROVIDER` に `github`（既定）・`netlify`・`cloudflare` のいずれかを設定します。
 
 - **GitHub**：公開用リポジトリを作成し、**Contents: Read and write** 権限を持つ `GITHUB_TOKEN` を設定します。サイト設定から公開先を選びます。生成コードと編集用データをpushします。
-- **Netlify・Cloudflare Pages**：`NETLIFY_AUTH_TOKEN`、または `CLOUDFLARE_ACCOUNT_ID` と `CLOUDFLARE_API_TOKEN` を設定します。Tsumuがサイトごとに公開プロジェクトを作成し、**生成した静的HTML・CSS・JavaScript・アセットだけ**をアップロードします。サーバーへのサイト保存が必要です。
+- **Netlify**：`NETLIFY_OAUTH_CLIENT_ID`・`NETLIFY_OAUTH_REDIRECT_URI`・`NETLIFY_TOKEN_ENCRYPTION_KEY` を設定します。各サイトの所有者が初めて**公開**を押すと、**自身のNetlifyアカウントでログイン**する画面に進みます。認証後はTsumuの公開画面に戻り、チームが1つなら自動選択、複数なら公開画面で選択します。サーバー共通のNetlifyトークンは使用しません。
+- **Cloudflare Pages**：`CLOUDFLARE_ACCOUNT_ID` と `CLOUDFLARE_API_TOKEN` を設定します。
+
+Netlify・Cloudflare Pagesでは、生成した静的HTML・CSS・JavaScript・アセットだけをアップロードします。サーバーへのサイト保存が必要です。複数ユーザー向けの公開サービスでは、Googleログインを設定したうえで `ALLOW_PUBLIC_SIGNUP=true` を指定すると、Googleで本人確認された利用者が**他人のサイトにアクセスせず、自分のサイト**を作成できます。
 
 静的ホスティングでもテスト公開が利用できます。独自ドメインは公開サービスで設定し、必要に応じてサイト設定にURLを入力します。公開用トークンがなくてもZIP書き出しは可能です。
 

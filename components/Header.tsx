@@ -227,6 +227,15 @@ export default function Header({
   const [exporting, setExporting] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // Reopen Publish after Netlify OAuth without retaining the redirect flag in history.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("publish") !== "1") return;
+    url.searchParams.delete("publish");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    closeHelp();
+    setPublishing(true);
+  }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);

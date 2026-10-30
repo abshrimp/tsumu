@@ -75,7 +75,10 @@ To keep an editable copy with its assets, open **⋯ → Export as zip**, select
 Set `PUBLISH_PROVIDER` to `github` (default), `netlify`, or `cloudflare` for the whole Tsumu installation:
 
 - **GitHub:** Create a repository, configure `GITHUB_TOKEN` with **Contents: Read and write**, then choose the repository in the site's settings. Source code and editable project data are pushed to GitHub.
-- **Netlify or Cloudflare Pages:** Configure `NETLIFY_AUTH_TOKEN`, or `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Tsumu automatically creates one hosting project per site and uploads **only generated static HTML/CSS/JS and assets**. Server-backed site storage is required.
+- **Netlify:** Configure a Netlify OAuth application (`NETLIFY_OAUTH_CLIENT_ID`, `NETLIFY_OAUTH_REDIRECT_URI`, and `NETLIFY_TOKEN_ENCRYPTION_KEY`). When the owner first clicks **Publish**, Tsumu opens their **own Netlify account** login. After authorization, it returns directly to the Publish dialog and selects the team automatically if there's only one; otherwise the owner chooses a team there. Subsequent publishes use the selected team's projects. No shared Netlify API token is used.
+- **Cloudflare Pages:** Configure `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for this installation.
+
+Netlify and Cloudflare Pages upload **only generated static HTML/CSS/JS and assets**, not editable site data. Server-backed storage is required. For public multi-user hosting, you may additionally set `ALLOW_PUBLIC_SIGNUP=true` with Google sign-in to let verified Google accounts create their own isolated sites.
 
 Independent preview sites are available for both static hosts. Custom domains are configured with the hosting provider, with optional links in site settings. All methods still support separate ZIP export without a publishing token.
 

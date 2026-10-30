@@ -21,8 +21,11 @@ export async function isEmailAllowed(
   const normalized = email.toLowerCase();
   if (fixed.includes(normalized)) return true;
   try {
-    return (await readExtra()).some((e) => e.toLowerCase() === normalized);
+    const explicit = (await readExtra()).some((e) => e.toLowerCase() === normalized);
+    // Public signup is opt-in and requires server-backed, per-site membership storage.
+    return explicit || (envVar("ALLOW_PUBLIC_SIGNUP") === "true" && dbConfigured());
   } catch {
+    // A database outage must never become an open enrollment bypass.
     return false;
   }
 }
@@ -79,7 +82,9 @@ export async function getAccountRole(
   if (fixed.includes(normalized)) return "editor";
   try {
     const role = await lookup(normalized);
-    return isAccountRole(role) ? role : null;
+    if (isAccountRole(role)) return role;
+    // New verified Google accounts may create their own sites, not access others.
+    return envVar("ALLOW_PUBLIC_SIGNUP") === "true" && dbConfigured() ? "editor" : null;
   } catch {
     return null;
   }

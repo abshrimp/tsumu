@@ -5,6 +5,7 @@ import { recordPublish, requireAuth } from "../../../../../lib/server";
 import { requireSiteAccess } from "../../../../../lib/site-access";
 import { siteDestOf, siteIdOf } from "../../../../../lib/site-server";
 import { staticPublishConfig } from "../../../../../lib/publish-provider";
+import { netlifyProjectStatus } from "../../../../../lib/netlify-deploy";
 import { listStaticDeployments, restoreStaticDeployment } from "../../../../../lib/static-hosting";
 
 export const maxDuration = 30;
@@ -28,6 +29,9 @@ export async function GET(req: Request) {
   try {
     const config = staticPublishConfig(siteId);
     if (!config.configured) return NextResponse.json({ error: config.error }, { status: 503 });
+    if (config.provider === "netlify" && !(await netlifyProjectStatus(siteId)).connected) {
+      return NextResponse.json({ error: "Connect a Netlify account and choose a team." }, { status: 409 });
+    }
     if (params.get("provider") !== config.provider) {
       return NextResponse.json({ error: "The publishing provider changed." }, { status: 409 });
     }
@@ -70,6 +74,9 @@ export async function POST(req: Request) {
   try {
     const config = staticPublishConfig(siteId);
     if (!config.configured) return NextResponse.json({ error: config.error }, { status: 503 });
+    if (config.provider === "netlify" && !(await netlifyProjectStatus(siteId)).connected) {
+      return NextResponse.json({ error: "Connect a Netlify account and choose a team." }, { status: 409 });
+    }
     if (body.provider !== config.provider) {
       return NextResponse.json({ error: "The publishing provider changed." }, { status: 409 });
     }

@@ -19,7 +19,7 @@ function load(path: string) {
     loader: "ts", format: "cjs", target: "es2022",
   }).code;
   const shared: Record<string, unknown> = {
-    NextResponse, isValidEmail,
+    NextResponse, isValidEmail, envVar: () => undefined,
     requireAuth: async (mode?: "user") => mode === "user" ? { email: "user@example.test", name: "User" } : null,
     authConfigured: () => true,
     auth: async () => ({ user: { email: "user@example.test" } }),

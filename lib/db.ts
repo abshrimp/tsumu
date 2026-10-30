@@ -184,6 +184,37 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             language TEXT NOT NULL,
             style TEXT NOT NULL
           )`,
+          // Netlify connections are scoped to the authenticated Tsumu account, never shared
+          // across installations or stored in editable site documents.
+          `CREATE TABLE IF NOT EXISTS netlify_connections (
+            email TEXT PRIMARY KEY,
+            netlify_user_id TEXT NOT NULL,
+            netlify_email TEXT NOT NULL,
+            encrypted_token TEXT NOT NULL,
+            connected_at INTEGER NOT NULL
+          )`,
+          // Owner controls the Netlify team; site editors may deploy via the server.
+          // Project IDs are pinned after first creation, never looked up by a supplied name.
+          `CREATE TABLE IF NOT EXISTS site_netlify_projects (
+            site_id TEXT PRIMARY KEY,
+            owner_email TEXT NOT NULL,
+            team_id TEXT NOT NULL,
+            team_slug TEXT NOT NULL,
+            production_site_id TEXT,
+            preview_site_id TEXT,
+            production_url TEXT,
+            preview_url TEXT,
+            created_at INTEGER NOT NULL
+          )`,
+          `CREATE INDEX IF NOT EXISTS site_netlify_projects_owner ON site_netlify_projects(owner_email)`,
+          // Each redirect consumes a one-use state bound to a Tsumu user and site.
+          `CREATE TABLE IF NOT EXISTS netlify_oauth_states (
+            state TEXT PRIMARY KEY,
+            email TEXT NOT NULL,
+            site_id TEXT NOT NULL,
+            expires_at INTEGER NOT NULL
+          )`,
+          `CREATE INDEX IF NOT EXISTS netlify_oauth_states_expires ON netlify_oauth_states(expires_at)`,
           // サイトの編集・公開の記録（人ごと・種類ごとに最後の時刻。lib/activity.ts）
           `CREATE TABLE IF NOT EXISTS site_activity (
             site_id TEXT NOT NULL,

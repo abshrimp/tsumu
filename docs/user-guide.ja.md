@@ -224,7 +224,7 @@ docker run -d --name tsumu -p 3000:3000 -v tsumu-data:/data --env-file .env.loca
 
 ## サイトの公開先
 
-公開サービスはサーバーの `PUBLISH_PROVIDER`（`github`・`netlify`・`cloudflare`）で選択します。認証情報はサイト設定には保存しません。**Netlify・Cloudflare Pages** では、API認証情報とサーバーへのサイト保存を設定してください。初回公開時にサイトごとの公開プロジェクトを自動作成します。テスト公開では、Netlifyは別プロジェクト、Cloudflare Pagesはプレビューブランチを使います。公開対象は生成された静的HTML・CSS・JavaScript・アセットのみで、編集用データは含まれません。Next.jsのサーバー専用機能は利用できません。
+公開サービスはサーバーの `PUBLISH_PROVIDER`（`github`・`netlify`・`cloudflare`）で選択します。認証情報はサイト設定には保存しません。**Netlify** では、サーバーにOAuthアプリの設定を行い、各サイトの所有者が自身のNetlifyアカウントで認証してチームを選択します。**Cloudflare Pages** では、サーバーにAPI認証情報を設定してください。どちらもサーバーへのサイト保存が必要です。初回公開時にサイトごとの公開プロジェクトを自動作成します。テスト公開では、Netlifyは別プロジェクト、Cloudflare Pagesはプレビューブランチを使います。公開対象は生成された静的HTML・CSS・JavaScript・アセットのみで、編集用データは含まれません。Next.jsのサーバー専用機能は利用できません。
 
 **GitHub** を使う場合、ホーム画面で各サイトの **… → 設定** を開き、次の項目を指定します。サイトの作成時にも、作成後にも設定できます。
 
@@ -236,6 +236,17 @@ docker run -d --name tsumu -p 3000:3000 -v tsumu-data:/data --env-file .env.loca
 | 本番サイトのURL・テストサイトのURL | 任意。指定すると、公開画面から各サイトを開けます。 |
 
 公開先のリポジトリは、初回の公開前に作成しておきます。空のリポジトリでも、README 付きで初期化したリポジトリでも構いません。
+
+### 各ユーザーのNetlifyアカウントで公開する
+
+`PUBLISH_PROVIDER=netlify` では、Tsumu全体で共有するNetlifyトークンを使いません。`tsumu.ebii.net` で利用者ごとの公開を有効にする手順は以下のとおりです。
+
+1. Googleログインとサーバー保存を設定します。誰でもGoogleアカウントで自分のサイトを作れるようにする場合は `ALLOW_PUBLIC_SIGNUP=true` を設定します。作成したサイトは別の利用者から参照できず、所有者がメンバーに許可した場合だけ共有されます。
+2. Netlifyの **User settings → Applications** でOAuthアプリを作成し、リダイレクト先に `https://tsumu.ebii.net/netlify/callback` を登録します。環境変数 `NETLIFY_OAUTH_CLIENT_ID`・`NETLIFY_OAUTH_REDIRECT_URI` に設定し、`NETLIFY_TOKEN_ENCRYPTION_KEY` に `openssl rand -base64 32` で作成した鍵を設定します。
+3. 各サイトの所有者がエディタの **公開** を押すと、初回はNetlifyの認証画面に移動します。認証後は元のサイトの公開画面に戻ります。チームが1つなら自動選択され、複数ある場合だけ公開画面内で選択します。Netlifyの利用枠と請求はそのチームに属します。サイト設定では接続解除などの管理もできます。
+4. サイトの編集者は所有者の接続をサーバー経由で利用して公開できますが、認証情報を読み取ったりチームを変更したりすることはできません。
+
+認証情報はAES-GCMで暗号化して保存し、編集用データには含めません。暗号鍵を変更すると、保存済みの接続情報を復号できなくなります。別のNetlifyアカウントへ接続し直した場合、誤公開を避けるため以前のプロジェクトの紐付けを解除します。Tsumuから接続解除してもNetlify側の認可は失効しないため、必要であればNetlify側でもアプリの許可を取り消してください。
 
 ## 出力形式
 
@@ -424,7 +435,10 @@ Tsumu のサーバーに AI の API キーを設定しなくても、MCP に対�
 | `PUBLISH_PROVIDER` | サーバーで使う公開先（`github` が既定、`netlify`、`cloudflare`） |
 | `PUBLISH_PROJECT_PREFIX` | 静的ホスティングのプロジェクト名の接頭辞（既定は `tsumu`）。インスタンスごとに一意にします。 |
 | `GITHUB_TOKEN` | GitHubのみ。公開先のリポジトリに Contents: Read and write の権限を持つトークン |
-| `NETLIFY_AUTH_TOKEN` | Netlifyのみ。作成するサイトへのアクセス権を持つAPIトークン |
+| `NETLIFY_OAUTH_CLIENT_ID` | Netlify OAuthアプリのクライアントID。Tsumuのインスタンスごとに設定 |
+| `NETLIFY_OAUTH_REDIRECT_URI` | 登録するリダイレクトURL（例：`https://tsumu.ebii.net/netlify/callback`） |
+| `NETLIFY_TOKEN_ENCRYPTION_KEY` | AES-GCM用の32バイト鍵をbase64で指定。`openssl rand -base64 32` で生成し、変更しない |
+| `ALLOW_PUBLIC_SIGNUP` | 任意で `true`。Googleで認証されたユーザーに、自分のサイトを作成する権限を付与。サーバー保存とGoogleログインが必要 |
 | `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | Cloudflare Pagesのみ。アカウントIDとPages: Edit権限を持つAPIトークン |
 | `AI_ENABLED` | `true` で「AIに頼む」を有効にします。 |
 | `AI_PROVIDER` | `anthropic`（既定）・`gemini`・`openai`・`openai-compatible` |

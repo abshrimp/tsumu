@@ -3,8 +3,8 @@ import { envVar } from "./env";
 import type { PublishTarget } from "./generator";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { hostingProjectName, type StaticPublishProvider } from "./publish-provider";
+import { deployNetlify, listNetlifyDeployments, restoreNetlifyDeployment } from "./netlify-deploy";
 
-const NETLIFY_API = "https://api.netlify.com/api/v1";
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const MAX_ZIP_BYTES = 25 * 1024 * 1024;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -137,35 +137,6 @@ export function pagesAssetHash(bytes: Uint8Array, path: string): string {
     (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-async function netlifyRequest(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = envVar("NETLIFY_AUTH_TOKEN");
-  if (!token) throw new Error("NETLIFY_AUTH_TOKEN is not configured.");
-  return fetch(NETLIFY_API + path, {
-    ...init,
-    redirect: "error",
-    headers: { Authorization: "Bearer " + token, ...init.headers },
-  });
-}
-
-async function netlifySite(project: string, create = true): Promise<{ id: string; ssl_url?: string } | null> {
-  const path = "/sites/" + encodeURIComponent(project + ".netlify.app");
-  let response = await netlifyRequest(path);
-  if (response.status === 404 && !create) return null;
-  if (response.status === 404) {
-    response = await netlifyRequest("/sites", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: project }),
-    });
-    // Creation may race with another publish request for the same Tsumu site.
-    if (response.status === 422) response = await netlifyRequest(path);
-  }
-  if (!response.ok) throw new Error("Netlify site setup failed (HTTP " + response.status + ").");
-  const site = await response.json() as { id?: string; ssl_url?: string };
-  if (!site.id) throw new Error("Netlify did not return a site ID.");
-  return { id: site.id, ssl_url: site.ssl_url };
-}
-
 type CloudflareEnvelope<T> = { success: boolean; result: T };
 
 async function cloudflareRequest<T>(
@@ -211,26 +182,6 @@ async function cloudflareProject(project: string): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: project, production_branch: "main" }),
   });
-}
-
-async function publishNetlify(project: string, raw: ArrayBuffer): Promise<StaticDeployment> {
-  const site = await netlifySite(project);
-  if (!site) throw new Error("Netlify site not found.");
-  const response = await netlifyRequest("/sites/" + encodeURIComponent(site.id) + "/deploys", {
-    method: "POST",
-    headers: { "Content-Type": "application/zip" },
-    body: raw,
-  });
-  if (!response.ok) throw new Error("Netlify deployment failed (HTTP " + response.status + ").");
-  const data = await response.json() as {
-    id?: string; state?: string; deploy_ssl_url?: string; ssl_url?: string;
-  };
-  if (!data.id) throw new Error("Netlify did not return a deployment ID.");
-  return {
-    id: data.id,
-    url: data.deploy_ssl_url || data.ssl_url || site.ssl_url || "https://" + project + ".netlify.app",
-    state: data.state ?? "processing",
-  };
 }
 
 async function publishCloudflare(project: string, target: PublishTarget, files: StaticFile[]): Promise<StaticDeployment> {
@@ -306,7 +257,7 @@ export async function deployStaticSite(
 ): Promise<StaticDeployment> {
   const project = hostingProjectName(siteId, provider, target);
   return provider === "netlify"
-    ? publishNetlify(project, raw)
+    ? deployNetlify(siteId, target, raw)
     : publishCloudflare(project, target, files);
 }
 
@@ -316,21 +267,7 @@ export async function listStaticDeployments(
   target: PublishTarget,
 ): Promise<StaticDeploymentHistory[]> {
   const project = hostingProjectName(siteId, provider, target);
-  if (provider === "netlify") {
-    // A preview is a completely separate site, not a production deploy of the live project.
-    const site = await netlifySite(project, false);
-    if (!site) return [];
-    const res = await netlifyRequest("/sites/" + encodeURIComponent(site.id) + "/deploys?per_page=25");
-    if (!res.ok) throw new Error("Netlify deployment history failed (HTTP " + res.status + ").");
-    const data = await res.json() as Array<{
-      id?: string; created_at?: string; state?: string; deploy_ssl_url?: string;
-    }>;
-    return data.filter((x) => !!x.id).map((x) => ({
-      id: x.id!, date: x.created_at ?? "", state: x.state ?? "unknown",
-      url: x.deploy_ssl_url || "https://" + project + ".netlify.app",
-      canRestore: x.state === "ready",
-    }));
-  }
+  if (provider === "netlify") return listNetlifyDeployments(siteId, target);
   // History must not create an empty Pages project.
   const path = cloudflarePath(project);
   const deployments = await cloudflareRequest<Array<{
@@ -362,11 +299,7 @@ export async function restoreStaticDeployment(
   }
   const project = hostingProjectName(siteId, provider, target);
   if (provider === "netlify") {
-    const site = await netlifySite(project, false);
-    if (!site) throw new Error("Netlify site not found.");
-    const response = await netlifyRequest("/sites/" + encodeURIComponent(site.id) +
-      "/deploys/" + encodeURIComponent(deploymentId) + "/restore", { method: "POST" });
-    if (!response.ok) throw new Error("Netlify restore failed (HTTP " + response.status + ").");
+    await restoreNetlifyDeployment(siteId, target, deploymentId);
   } else {
     await cloudflareRequest(cloudflarePath(project) +
       "/deployments/" + encodeURIComponent(deploymentId) + "/rollback",

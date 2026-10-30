@@ -30,6 +30,7 @@ function fixture(mode: "signed-in" | "anonymous" | "denied") {
   const authors: (ActivityUser | null)[] = [];
   const shared: Record<string, unknown> = {
     NextResponse, parseActivityUser, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError,
+    envVar: () => undefined,
     serverTr: async () => (value: string) => value,
     authConfigured: () => mode !== "anonymous",
     getAccountRole: async () => "editor",

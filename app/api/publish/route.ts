@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { publishProvider, staticPublishConfig } from "../../../lib/publish-provider";
+import { netlifyProjectStatus } from "../../../lib/netlify-deploy";
 import { serverTr } from "../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../lib/server";
 import { requireSiteAccess } from "../../../lib/site-access";
@@ -189,18 +190,28 @@ export async function GET(req: Request) {
   catch { return NextResponse.json({ error: "Invalid PUBLISH_PROVIDER configuration." }, { status: 503 }); }
   if (provider !== "github") {
     const staticConfig = staticPublishConfig(siteId);
-    const available = staticConfig.configured && dbConfigured();
-    const error = !dbConfigured() ? "Static publishing requires server-backed sites." : staticConfig.error;
+    const netlify = provider === "netlify" && dbConfigured()
+      ? await netlifyProjectStatus(siteId) : null;
+    const available = staticConfig.configured && dbConfigured() &&
+      (provider !== "netlify" || !!netlify?.bound && !!netlify.connected);
+    const error = !dbConfigured() ? "Static publishing requires server-backed sites."
+      : staticConfig.error || (provider === "netlify" && !netlify?.bound
+        ? "Click Publish to connect your Netlify account and select a team."
+        : provider === "netlify" && !netlify?.connected
+          ? "The site's Netlify account is disconnected. Ask its owner to reconnect."
+          : null);
     return NextResponse.json({
       provider, configured: available, unset: available ? null : "token",
       previewEnabled: true,
       test: {
-        project: staticConfig.previewProject,
-        url: dest.previewUrl || staticConfig.previewUrl, error,
+        project: netlify?.previewProject || staticConfig.previewProject,
+        url: dest.previewUrl || netlify?.previewUrl ||
+          (provider === "netlify" ? null : staticConfig.previewUrl), error,
       },
       production: {
-        project: staticConfig.project,
-        url: dest.siteUrl || staticConfig.productionUrl, error,
+        project: netlify?.productionProject || staticConfig.project,
+        url: dest.siteUrl || netlify?.productionUrl ||
+          (provider === "netlify" ? null : staticConfig.productionUrl), error,
       },
     }, { headers: { "Cache-Control": "private, no-store" } });
   }

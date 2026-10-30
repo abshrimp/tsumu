@@ -35,7 +35,7 @@ describe("api-auth-runtime", () => {
     const module = { exports: {} as Record<string, unknown> };
     let checks = 0;
     const shared: Record<string, unknown> = {
-      NextResponse, isValidEmail,
+      NextResponse, isValidEmail, envVar: () => undefined,
       requireAuth: async () => {
         checks++;
         return NextResponse.json({ error: "Access denied" }, { status });
@@ -243,7 +243,7 @@ describe("allowed-users-errors", () => {
     let changed = false;
     const emails = new Set<string>();
     const injected = {
-      NextResponse, isValidEmail, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, dbUnavailable: () => { throw new Error("Unexpected unavailable"); },
+      NextResponse, isValidEmail, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, envVar: () => undefined, dbUnavailable: () => { throw new Error("Unexpected unavailable"); },
       serverTr: async () => (value: string) => value,
       allowedEmails: () => ["owner@example.com"], auth: async () => ({ user: { email: "owner@example.com" } }), authConfigured: () => true,
       dbConfigured: () => true, userMessage: (_error: unknown, fallback: string) => fallback,
@@ -313,6 +313,7 @@ describe("allowed-users-shapes", () => {
       "../../../lib/unavailable": { dbUnavailable: async () => NextResponse.json({}, { status: 503 }) },
       "../../../lib/email": { isValidEmail },
       "../../../lib/db": { dbConfigured: () => true },
+      "../../../lib/env": { envVar: () => undefined },
       "../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
       "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
       "../../../lib/allowlist": {
