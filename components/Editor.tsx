@@ -11,7 +11,8 @@ import type {
   DocChangeMessage,
 } from "../lib/collab";
 import { applyDocPatchAtRevision } from "../lib/doc-patch";
-import { scheduleCloudSave, sendCloudDoc, type CollabRequestInput } from "../lib/cloud-save";
+import { errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput } from "../lib/cloud-save";
+import { mergeDocs } from "../lib/merge";
 import { css2FamilyToken } from "../lib/style";
 import { assetSrc, uploadAsset } from "../lib/assets";
 import { makeImage } from "../lib/presets";
@@ -58,6 +59,9 @@ function readFlag(key: string): boolean {
 const UNSYNCED_KEY = siteKey(storageKey("unsynced-v1"));
 /** 同時編集の WebSocket がつながるまで待つ時間（過ぎたら打ち切り、SSE・ポーリングで受け取る） */
 const WS_OPEN_TIMEOUT_MS = 5000;
+/** 一時的な失敗で保存できなかったときに、自動で保存し直すまでの間隔（失敗が続くと倍にしていく） */
+const SAVE_RETRY_MIN_MS = 3000;
+const SAVE_RETRY_MAX_MS = 60_000;
 /** ヘルプを一度でも自動で開いたか（はじめての人にだけ開く） */
 const HELP_SEEN_KEY = storageKey("help-seen-v1");
 
@@ -199,6 +203,19 @@ export default function Editor() {
   const retrySaveAfterEdit = useRef(false);
   /** 変更が無くても自動保存をもう一度動かすための番号 */
   const [saveRetry, setSaveRetry] = useState(0);
+  /** 一時的な失敗のあとの、自動の保存し直しの予約と次の間隔 */
+  const saveRetryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRetryDelay = useRef(SAVE_RETRY_MIN_MS);
+  const retrySaveNow = useCallback(() => {
+    if (saveRetryTimer.current) clearTimeout(saveRetryTimer.current);
+    saveRetryTimer.current = null;
+    setSaveRetry((n) => n + 1);
+  }, []);
+  const retrySaveLater = useCallback(() => {
+    if (saveRetryTimer.current) return;
+    saveRetryTimer.current = setTimeout(retrySaveNow, saveRetryDelay.current);
+    saveRetryDelay.current = Math.min(saveRetryDelay.current * 2, SAVE_RETRY_MAX_MS);
+  }, [retrySaveNow]);
   /** 起動時に検出した、ローカル未同期の変更とサーバー内容の競合 */
   const [conflict, setConflict] = useState<{
     doc: SiteDoc;
@@ -508,32 +525,43 @@ export default function Editor() {
         if (!data.rev || !data.doc?.pages || !data.doc?.nodes || !data.doc?.pageOrder?.length) {
           throw new Error("Invalid document snapshot");
         }
-        // 前回のローカル変更がサーバー未保存のまま残っていれば、どちらを
-        // 使うかユーザーに選ばせる（cloudReady は選択まで立てない）
         let unsynced = false;
         try {
           unsynced = window.localStorage.getItem(UNSYNCED_KEY) === "1";
         } catch {
           unsynced = false;
         }
+        const local = useEditor.getState().doc;
         if (
-          (unsynced || cloudDirty.current || useEditor.getState().doc !== localBeforeLoad) &&
-          JSON.stringify(useEditor.getState().doc) !== JSON.stringify(data.doc)
+          (unsynced || cloudDirty.current || local !== localBeforeLoad) &&
+          JSON.stringify(local) !== JSON.stringify(data.doc)
         ) {
-          setConflict({
-            doc: data.doc,
-            rev: data.rev ?? null,
-            savedAt: data.savedAt,
-          });
-          return;
+          const baseDoc = lastSyncedDoc.current;
+          if (!baseDoc) {
+            // 前回のローカル変更がサーバー未保存のまま残っていて、どの版から編集したか
+            // 分からなければ、どちらを使うかユーザーに選ばせる（cloudReady は選択まで立てない）
+            setConflict({
+              doc: data.doc,
+              rev: data.rev ?? null,
+              savedAt: data.savedAt,
+            });
+            return;
+          }
+          // 同期した版が分かっていれば（編集中の再接続など）、自動保存の競合と同じく三方向マージする。
+          // 二択にすると、他の人の変更を上書きで消すか、自分の変更を捨てるしかなくなる
+          lastSyncedRev.current = data.rev;
+          lastSyncedDoc.current = data.doc;
+          s.applyRemoteDoc(mergeDocs(baseDoc, local, data.doc));
+          s.setCloud("saving");
+        } else {
+          setUnsyncedFlag(false);
+          cloudDirty.current = false;
+          lastSyncedRev.current = data.rev ?? null;
+          lastSyncedDoc.current = data.doc;
+          skipNextCloudSave.current = true;
+          s.replaceDoc(data.doc);
+          s.setCloud("synced", data.savedAt);
         }
-        setUnsyncedFlag(false);
-        cloudDirty.current = false;
-        lastSyncedRev.current = data.rev ?? null;
-        lastSyncedDoc.current = data.doc;
-        skipNextCloudSave.current = true;
-        s.replaceDoc(data.doc);
-        s.setCloud("synced", data.savedAt);
       } else if (data.exists === false) {
         // サーバーが空 → 手元のドキュメントを初回アップロード
         const snapshot = useEditor.getState().doc;
@@ -550,7 +578,7 @@ export default function Editor() {
           setConflict({ doc: put.data.doc, rev: put.data.rev, savedAt: put.data.savedAt });
           return;
         } else {
-          s.setCloud("error");
+          s.setCloud("error", undefined, errorOf(put));
           return;
         }
       } else {
@@ -618,7 +646,7 @@ export default function Editor() {
           setConflict({ doc: res.data.doc, rev: res.data.rev, savedAt: res.data.savedAt });
           s.setCloud("checking");
         } else {
-          s.setCloud("error");
+          s.setCloud("error", undefined, errorOf(res));
         }
       } catch {
         s.setCloud("error");
@@ -629,10 +657,14 @@ export default function Editor() {
 
   useEffect(() => {
     void syncFromServer();
-    const onRetry = () => void syncFromServer();
+    const onRetry = () => {
+      // 同期した版が分かっていれば読み込み直さず、保存だけやり直す（他の人の変更とは409で自動マージする）
+      if (cloudReady.current && lastSyncedRev.current && lastSyncedDoc.current) retrySaveNow();
+      else void syncFromServer();
+    };
     window.addEventListener("cloud-sync-retry", onRetry);
     return () => window.removeEventListener("cloud-sync-retry", onRetry);
-  }, [syncFromServer]);
+  }, [syncFromServer, retrySaveNow]);
 
   // 変更をサーバーへ自動保存（800msデバウンス）
   useEffect(() => scheduleCloudSave({
@@ -640,7 +672,28 @@ export default function Editor() {
     cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit,
     getState: useEditor.getState, saveCloudDoc, setUnsyncedFlag,
     requestRetry: () => setSaveRetry((n) => n + 1),
-  }, doc), [doc, saveCloudDoc, saveRetry]);
+    retryLater: retrySaveLater,
+  }, doc), [doc, saveCloudDoc, saveRetry, retrySaveLater]);
+
+  // 回線が戻ったら待たずに保存し直す。保存できたら、自動の保存し直しを取りやめて間隔を最初に戻す
+  useEffect(() => {
+    const onOnline = () => {
+      if (saveRetryTimer.current) retrySaveNow();
+    };
+    window.addEventListener("online", onOnline);
+    const unsubscribe = useEditor.subscribe((s, prev) => {
+      if (s.cloudState !== "synced" || prev.cloudState === "synced") return;
+      if (saveRetryTimer.current) clearTimeout(saveRetryTimer.current);
+      saveRetryTimer.current = null;
+      saveRetryDelay.current = SAVE_RETRY_MIN_MS;
+    });
+    return () => {
+      window.removeEventListener("online", onOnline);
+      unsubscribe();
+      if (saveRetryTimer.current) clearTimeout(saveRetryTimer.current);
+      saveRetryTimer.current = null;
+    };
+  }, [retrySaveNow]);
 
   // 競合でテキスト編集の確定を待っていた保存を、編集を終えたら（文字を変えていなくても）やり直す
   useEffect(
@@ -698,7 +751,8 @@ export default function Editor() {
       skipNextCloudSave.current = true;
       state.applyRemoteDoc(incomingDoc);
       state.setCloud("synced", message.savedAt);
-      pendingRemote = null;
+      // 通知は順不同で届くことがある。古い版を適用しても、保留中の新しい版は捨てない
+      if (pendingRemote && Number(pendingRemote.rev) <= incomingRev) pendingRemote = null;
       return true;
     };
 

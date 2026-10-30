@@ -348,6 +348,8 @@ export interface EditorStore {
   publishedFingerprint: string | null;
   cloudState: CloudState;
   cloudSavedAt: number | null;
+  /** サーバーに保存できなかった理由（cloudState が error のときだけ。分からなければ null） */
+  cloudError: string | null;
 
   select: (id: string | null) => void;
   /** Shiftクリック用: 要素を現在の選択へ追加、選択済みなら解除 */
@@ -389,7 +391,7 @@ export interface EditorStore {
   markSaved: () => void;
   /** 公開したドキュメントの内容ハッシュ（docFingerprint）と日時を記録する */
   markPublished: (fingerprint: string) => void;
-  setCloud: (state: CloudState, savedAt?: number) => void;
+  setCloud: (state: CloudState, savedAt?: number, error?: string) => void;
   /** サーバーから取得したドキュメントで置き換える（履歴はリセット） */
   replaceDoc: (doc: SiteDoc) => void;
   /** バックアップ・公開済みの版の内容に戻す（「元に戻す」で戻せる。サーバーにも保存される） */
@@ -614,6 +616,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     publishedFingerprint: readLocalStorage(PUBLISHED_HASH_KEY),
     cloudState: "checking",
     cloudSavedAt: null,
+    cloudError: null,
     previewIndex: 0,
     setPreviewIndex: (i) => set({ previewIndex: i }),
 
@@ -785,10 +788,11 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({ publishedAt: now, publishedFingerprint: fingerprint });
     },
 
-    setCloud: (state, savedAt) =>
+    setCloud: (state, savedAt, error) =>
       set((s) => ({
         cloudState: state,
         cloudSavedAt: savedAt ?? s.cloudSavedAt,
+        cloudError: state === "error" ? error ?? null : null,
       })),
 
     replaceDoc: (doc) => {

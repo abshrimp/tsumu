@@ -100,7 +100,17 @@ export interface CloudAutosave {
   setUnsyncedFlag: (on: boolean) => void;
   /** 変更が無くても自動保存をもう一度動かす */
   requestRetry: () => void;
+  /** 回線・サーバーの一時的な失敗のあと、間隔をあけて保存し直す */
+  retryLater: () => void;
 }
+
+/** サーバーが返した、保存できなかった理由（右下の保存状態に出す） */
+export function errorOf(res: CloudRequestResult): string | undefined {
+  return typeof res.data?.error === "string" ? res.data.error : undefined;
+}
+
+/** 時間をおけば通る見込みのある失敗か（大きすぎる・サイトが無いなどは、やり直しても同じ） */
+const isTransient = (status: number) => status >= 500 || status === 408 || status === 429;
 
 /** doc の変更を受けて自動保存を予約する（デバウンス付き）。戻り値は予約の取り消し。 */
 export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) | undefined {
@@ -142,6 +152,8 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
       if (snapshot === baseDoc) {
         a.cloudDirty.current = false;
         a.setUnsyncedFlag(false);
+        // 保存に失敗したあと、元に戻すなどで同期済みの内容へ戻ったときは表示も戻す
+        if (st.cloudState === "error") st.setCloud("synced");
         return;
       }
       st.setCloud("saving");
@@ -181,10 +193,12 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
             st.setCloud("error");
           }
         } else {
-          st.setCloud("error");
+          st.setCloud("error", undefined, errorOf(res));
+          if (isTransient(res.status)) a.retryLater();
         }
       } catch {
         st.setCloud("error");
+        a.retryLater();
       }
     })().finally(() => {
       a.activeCloudSave.current = null;

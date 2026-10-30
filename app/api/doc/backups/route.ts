@@ -41,7 +41,7 @@ export async function GET(req: Request) {
       });
     }
     const rs = await db.execute({
-      sql: "SELECT day, saved_at, length(body) AS size FROM site_backups WHERE site_id = ? ORDER BY saved_at DESC",
+      sql: "SELECT day, saved_at, length(CAST(body AS BLOB)) AS size FROM site_backups WHERE site_id = ? ORDER BY saved_at DESC",
       args: [siteId],
     });
     return NextResponse.json({

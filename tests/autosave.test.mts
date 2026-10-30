@@ -11,10 +11,11 @@ afterEach(() => mock.reset());
 function harness() {
   mock.timers.enable({ apis: ["setTimeout"] });
   const original = { title: "original" };
-  const state = { doc: { title: "first edit" }, cloudState: "synced", editingText: null,
-    setCloud(value: string) { this.cloudState = value; } };
-  const requests: { doc: object; base: string; resolve: (result: any) => void }[] = [];
+  const state = { doc: { title: "first edit" }, cloudState: "synced", cloudError: null as string | null, editingText: null,
+    setCloud(value: string, _savedAt?: number, error?: string) { this.cloudState = value; this.cloudError = error ?? null; } };
+  const requests: { doc: object; base: string; resolve: (result: any) => void; reject: (error: Error) => void }[] = [];
   let retries = 0;
+  let later = 0;
   let unsynced = false;
   const scope = {
     observedDoc: ref(original), cloudReady: ref(true), cloudDirty: ref(false),
@@ -24,11 +25,12 @@ function harness() {
     getState: () => state,
     setUnsyncedFlag: (value: boolean) => { unsynced = value; },
     requestRetry: () => { retries++; },
-    saveCloudDoc: (doc: object, base: string) => new Promise((resolve) => requests.push({ doc, base, resolve })),
+    retryLater: () => { later++; },
+    saveCloudDoc: (doc: object, base: string) => new Promise((resolve, reject) => requests.push({ doc, base, resolve, reject })),
   };
   const effect = () => scheduleCloudSave(scope as any, state.doc as any);
   const tick = () => mock.timers.tick(CLOUD_SAVE_DEBOUNCE_MS);
-  return { state, scope, effect, tick, requests, retries: () => retries, unsynced: () => unsynced };
+  return { state, scope, effect, tick, requests, retries: () => retries, later: () => later, unsynced: () => unsynced };
 }
 
 test("edits during a slow save are coalesced and use the acknowledged revision", async () => {
@@ -72,6 +74,39 @@ test("failed saves release the queue and do not discard pending edits", async ()
   assert.deepEqual(h.requests[1].doc, { title: "pending edit" });
   h.requests[1].resolve({ ok: true, data: { rev: "2" } });
   await h.scope.activeCloudSave.current;
+});
+
+test("only temporary save failures are retried automatically, and the reason is shown", async () => {
+  const h = harness();
+  h.effect(); h.tick();
+  h.requests[0].reject(new Error("Failed to fetch"));
+  await h.scope.activeCloudSave.current;
+  assert.equal(h.state.cloudState, "error");
+  assert.equal(h.later(), 1, "network failures are retried later");
+  h.effect(); h.tick();
+  h.requests[1].resolve({ ok: false, status: 413, data: { error: "ドキュメントが大きすぎます（2MBまで）" } });
+  await h.scope.activeCloudSave.current;
+  assert.equal(h.later(), 1, "a document that is too large fails the same way on every retry");
+  assert.equal(h.state.cloudError, "ドキュメントが大きすぎます（2MBまで）");
+  h.effect(); h.tick();
+  h.requests[2].resolve({ ok: false, status: 502, data: {} });
+  await h.scope.activeCloudSave.current;
+  assert.equal(h.later(), 2);
+  assert.equal(h.unsynced(), true, "failed saves keep the edit marked as unsaved");
+});
+
+test("returning to the synced content after a failed save clears the error", async () => {
+  const h = harness();
+  h.effect(); h.tick();
+  h.requests[0].resolve({ ok: false, status: 502, data: {} });
+  await h.scope.activeCloudSave.current;
+  assert.equal(h.state.cloudState, "error");
+  h.state.doc = h.scope.lastSyncedDoc.current as any;
+  h.effect(); h.tick();
+  await h.scope.activeCloudSave.current;
+  assert.equal(h.requests.length, 1, "nothing is left to save");
+  assert.equal(h.state.cloudState, "synced");
+  assert.equal(h.unsynced(), false);
 });
 
 test("initial sync failure continues to block autosave", () => {

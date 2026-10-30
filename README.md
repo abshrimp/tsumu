@@ -329,7 +329,7 @@ Put them in `.env.local` for local development and Node.js, in the `--env-file` 
 | Item | Limit | Effect |
 |---|---|---|
 | Workers CPU time | 10 ms per request | Publishing an asset-heavy site can exceed it. Workers Paid ($5/month, 30 s CPU) removes the issue |
-| D1 value size | about 2 MB | One site's editing data (JSON, without images) has to fit |
+| D1 value size | 2 MB per value in Cloudflare's documentation (larger values are accepted in practice) | Tsumu doesn't cap the size of a site's editing data. If D1 refuses a save, the save status says the document is too large |
 | KV | 1 GB total, 25 MB per file, 1,000 writes/day | Storage is shared by all sites; the Assets tab shows the total for all sites |
 | KV consistency | Eventual | A new upload can take a few seconds to show up everywhere |
 | GitHub API | 5,000 requests/hour | A publish uses a few to a dozen or so |

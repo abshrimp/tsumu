@@ -126,6 +126,7 @@ export default function Footer() {
   const savedAt = useEditor((s) => s.savedAt);
   const cloudState = useEditor((s) => s.cloudState);
   const cloudSavedAt = useEditor((s) => s.cloudSavedAt);
+  const cloudError = useEditor((s) => s.cloudError);
   const publishedAt = useEditor((s) => s.publishedAt);
   const publishedFingerprint = useEditor((s) => s.publishedFingerprint);
   const doc = useEditor((s) => s.doc);
@@ -234,6 +235,7 @@ export default function Footer() {
             {cloudSavedAt && cloudState !== "local" && (
               <p className="ftr-pop-note">{tr("サーバーに保存 {p1}", { p1: new Date(cloudSavedAt).toLocaleString(getLang()) })}</p>
             )}
+            {cloudState === "error" && cloudError && <p className="ftr-pop-note">{cloudError}</p>}
             {cloudState === "error" && <p className="ftr-pop-note">{tr("クリックで再接続します")}</p>}
           </>
         }

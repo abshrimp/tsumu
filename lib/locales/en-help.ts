@@ -2888,8 +2888,8 @@ const en: Dict = {
     "Where to restore from",
   "内容":
     "What it holds",
-  "サーバーが1日1回自動で残す内容（曜日ごとに7日分）":
-    "Saved automatically by the server once a day (seven days, one per weekday)",
+  "サーバーが自動で残す、編集した日ごとの最後の内容（曜日ごとに7日分）":
+    "The final content of each day you edited, kept automatically by the server (seven days, one per weekday)",
   "公開履歴の「編集内容を復元」":
     "\"Restore edits\" in the publish history",
   "その版を公開した時点の編集内容":

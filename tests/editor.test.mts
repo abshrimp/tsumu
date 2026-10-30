@@ -172,6 +172,35 @@ test("concurrent edits to different properties of the same element both remain",
   assert.equal(mergeDocs(base, local, r2).nodes.a.styles.base?.default?.gap, undefined);
 });
 
+test("deleting the remaining pages on both sides keeps the local page and its elements", () => {
+  const base = fixture();
+  base.pages.q = { id: "q", name: "About", slug: "about", title: "About", description: "", children: ["c"] };
+  base.nodes.c = { ...makeBox(), id: "c", children: ["d"] };
+  base.nodes.d = { ...makeBox(), id: "d" };
+  base.pageOrder = ["p", "q"];
+  // 自分は p を、相手は q を消した（どちらも1ページは残している）
+  const local = structuredClone(base);
+  delete local.pages.p;
+  delete local.nodes.a;
+  delete local.nodes.b;
+  local.pageOrder = ["q"];
+  local.nodes.d.name = "Edited";
+  const remote = structuredClone(base);
+  delete remote.pages.q;
+  delete remote.nodes.c;
+  delete remote.nodes.d;
+  remote.pageOrder = ["p"];
+  const originals = structuredClone([base, local, remote]);
+  const merged = mergeDocs(base, local, remote);
+  assert.deepEqual(merged.pageOrder, ["q"]);
+  assert.equal(merged.pages.p, undefined);
+  assert.deepEqual(merged.pages.q.children, ["c"]);
+  assert.deepEqual(merged.nodes.c.children, ["d"]);
+  assert.equal(merged.nodes.d.name, "Edited");
+  assert.equal(merged.nodes.a, undefined);
+  assert.deepEqual([base, local, remote], originals, "inputs are not modified");
+});
+
 test("site settings changed on both sides keep each side's fields", () => {
   const base = fixture();
   base.pwa = { enabled: true, name: "App" };

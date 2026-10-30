@@ -761,7 +761,7 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
   return (
     <>
       <p className="hint" style={{ margin: "0 0 10px" }}>
-        {tr("サーバーは1日に1回、その日最初に保存した時点の内容を自動で残します（曜日ごとに7日分）。")}
+        {tr("サーバーは編集した日ごとに、その日の最後の内容を自動で残します（曜日ごとに7日分。日付が変わって最初に保存したときに残ります）。")}
       </p>
       {error ? (
         <ul className="check-list">

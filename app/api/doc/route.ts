@@ -7,10 +7,10 @@ import { recordActivity } from "../../../lib/activity";
 import { notifyDocUpdated } from "../../../lib/collab";
 import { siteIdOf } from "../../../lib/site-server";
 import {
+  DocTooLargeError,
   readCurrentDoc,
   saveCurrentDoc,
   saveDocPatch,
-  MAX_DOC_BYTES,
   validateDocBody,
 } from "../../../lib/doc-storage";
 import { userMessage } from "../../../lib/errors";
@@ -97,15 +97,10 @@ async function save(req: Request, partial: boolean) {
     try { patch = JSON.parse(raw); } catch { /* validation below */ }
   }
   const validationError = partial
-    ? new TextEncoder().encode(raw).byteLength > MAX_DOC_BYTES
-      ? "ドキュメントが大きすぎます（10MBまで）"
-      : isDocPatch(patch) ? null : "不正なリクエスト"
+    ? isDocPatch(patch) ? null : "不正なリクエスト"
     : validateDocBody(raw);
   if (validationError) {
-    return NextResponse.json(
-      { error: tr(validationError) },
-      { status: validationError.includes("10MB") ? 413 : 400 }
-    );
+    return NextResponse.json({ error: tr(validationError) }, { status: 400 });
   }
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));
@@ -150,6 +145,10 @@ async function save(req: Request, partial: boolean) {
       savedAt: result.savedAt,
     });
   } catch (e) {
+    // 大きさの上限は決め打ちせず、保存先が拒んだときに返す
+    if (e instanceof DocTooLargeError) {
+      return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
+    }
     return NextResponse.json(
       { error: tr(userMessage(e, "保存できませんでした")) },
       { status: 502 }
