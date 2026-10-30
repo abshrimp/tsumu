@@ -1,6 +1,6 @@
 "use client";
 
-import type { Asset } from "./types";
+import type { Asset, SiteDoc } from "./types";
 import { genId } from "./presets";
 import { tr } from "./i18n";
 import { otherLocalDocs, siteApi } from "./site";
@@ -196,6 +196,70 @@ export async function fetchWithRetry(url: string, tries = 3): Promise<Response> 
 export function assetSrc(asset: Asset): string {
   if (asset.path) return `/api/assets/file?path=${encodeURIComponent(asset.path)}`;
   return asset.dataUrl ?? "";
+}
+
+/**
+ * 画像・動画の要素に持たせる src。ブラウザ内に埋め込んだアセット（dataURL）は要素へ複製せず空にし、
+ * 表示するときに assetId から引く（複製すると、使う要素の数だけ編集データが大きくなる）
+ */
+export function nodeAssetSrc(asset: Asset): string {
+  return asset.path ? assetSrc(asset) : "";
+}
+
+/** 画像・動画の要素の表示用URL（アセットを使っていれば、アセットから引く） */
+export function mediaSrc(doc: SiteDoc, ref: { src: string; assetId?: string }): string {
+  const asset = ref.assetId ? doc.assets[ref.assetId] : undefined;
+  return asset ? assetSrc(asset) : ref.src;
+}
+
+/** 要素の src に、埋め込みアセットの dataURL が複製されているもの（以前の形式） */
+function embeddedCopies(doc: SiteDoc) {
+  return Object.values(doc.nodes)
+    .flatMap((node) => [node.image, node.media])
+    .filter((ref) => !!ref?.assetId && !!ref.src && ref.src === doc.assets[ref.assetId]?.dataUrl);
+}
+
+export function hasEmbeddedCopies(doc: SiteDoc): boolean {
+  return embeddedCopies(doc).length > 0;
+}
+
+/** 要素の src に複製された埋め込みアセットを外す（doc を書き換える。表示は assetId から引く） */
+export function dropEmbeddedCopies(doc: SiteDoc): void {
+  for (const ref of embeddedCopies(doc)) ref!.src = "";
+}
+
+/**
+ * 埋め込みアセットを、サーバーに保存したファイルへ置き換える（doc を書き換える）。
+ * 要素の src と、背景画像などスタイルの値に入っている dataURL も差し替える
+ */
+export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string): void {
+  const asset = doc.assets[assetId];
+  if (!asset) return;
+  const data = asset.dataUrl;
+  asset.path = path;
+  delete asset.dataUrl;
+  const src = assetSrc(asset);
+  for (const node of Object.values(doc.nodes)) {
+    if (node.image?.assetId === assetId) node.image.src = src;
+    if (node.media?.assetId === assetId) node.media.src = src;
+    if (!data) continue;
+    for (const bp of Object.values(node.styles)) {
+      for (const styles of Object.values(bp ?? {})) {
+        if (!styles) continue;
+        for (const [prop, value] of Object.entries(styles)) {
+          if (typeof value === "string" && value.includes(data)) styles[prop] = value.split(data).join(src);
+        }
+      }
+    }
+  }
+}
+
+/** 埋め込みアセットをサーバーへアップロードする（サーバーに保存できなければ null） */
+export async function uploadEmbeddedAsset(asset: Asset): Promise<string | null> {
+  if (!asset.dataUrl) return asset.path ?? null;
+  const blob = await (await fetch(asset.dataUrl)).blob();
+  const fresh = await uploadStaticAsset(new File([blob], asset.name, { type: blob.type || asset.mimeType || "" }));
+  return fresh.path ?? null;
 }
 
 const ASSET_URL_RE = /\/api\/assets\/file\?path=([A-Za-z0-9%._~-]+)/g;

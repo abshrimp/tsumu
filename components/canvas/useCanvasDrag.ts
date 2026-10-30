@@ -6,7 +6,7 @@
 import { useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { collectDescendants, findParentOf, useEditor, type EditorMode, type ParentRef } from "../../lib/store";
 import { ELEMENT_DRAG_TYPE, makeElementByKey, normalizeMade } from "../../lib/elements";
-import { ASSET_DRAG_TYPE, assetKind, assetSrc, uploadAsset } from "../../lib/assets";
+import { ASSET_DRAG_TYPE, assetKind, nodeAssetSrc, uploadAsset } from "../../lib/assets";
 import { makeImage } from "../../lib/presets";
 import { canContainElements } from "../../lib/tags";
 import { userMessage } from "../../lib/errors";
@@ -272,7 +272,7 @@ export function useCanvasDrag({
         const node = makeImage();
         node.name = asset.name;
         node.image = {
-          src: assetSrc(asset),
+          src: nodeAssetSrc(asset),
           alt: "",
           width: asset.width,
           height: asset.height,
@@ -355,7 +355,7 @@ export function useCanvasDrag({
               const node = makeImage();
               node.name = asset.name;
               node.image = {
-                src: assetSrc(asset),
+                src: nodeAssetSrc(asset),
                 alt: "",
                 width: asset.width,
                 height: asset.height,

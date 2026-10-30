@@ -27,6 +27,7 @@ import type { DocNode, SiteDoc } from "../../lib/types";
 import { tr } from "../../lib/i18n";
 import { storageKey } from "../../lib/storage-keys";
 import { canvasHtml } from "../../lib/canvas-html";
+import { mediaSrc } from "../../lib/assets";
 
 /* ---------- 変数コンテキスト ---------- */
 
@@ -160,6 +161,8 @@ export function applyButton(
 }
 
 interface LeafOpts {
+  /** 動画・音声のアセットを引く編集データ */
+  doc?: SiteDoc;
   /** プレビュー時: フォーム部品を操作可能にする */
   interactive?: boolean;
   /** プレビュー時: 案内文・初期値などの {変数} を置き換える値 */
@@ -303,7 +306,8 @@ export function renderLeafNode(
   }
 
   if (node.type === "media" && node.media) {
-    if (!node.media.src.trim()) {
+    const src = opts.doc ? mediaSrc(opts.doc, node.media) : node.media.src;
+    if (!src.trim()) {
       return createElement(
         "div",
         { ...common, className: "cv-placeholder" },
@@ -314,7 +318,7 @@ export function renderLeafNode(
     }
     return createElement(node.media.kind, {
       ...common,
-      src: node.media.src,
+      src,
       controls: true,
       loop: node.media.loop,
       muted: node.media.muted,

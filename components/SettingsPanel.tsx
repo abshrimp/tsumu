@@ -31,7 +31,7 @@ import {
   varNamesAt,
   varSamplesAt,
 } from "../lib/data";
-import { assetSrc } from "../lib/assets";
+import { nodeAssetSrc } from "../lib/assets";
 import { embedSrc } from "../lib/embed";
 import { normalizeCustomTag, SEMANTIC_OPTIONS } from "../lib/tags";
 import type { FieldContent, InputType, LinkSetting, Semantic } from "../lib/types";
@@ -526,7 +526,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                   updateNode(nodeId, {
                     image: {
                       ...node.image!,
-                      src: assetSrc(asset),
+                      src: nodeAssetSrc(asset),
                       assetId: asset.id,
                       width: asset.width,
                       height: asset.height,
@@ -676,7 +676,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                 emptyText={tr("対応するアセットがありません。左パネルの「アセット」から追加してください。")}
                 onPick={(asset) => {
                   updateNode(nodeId, {
-                    media: { ...node.media!, src: assetSrc(asset), assetId: asset.id },
+                    media: { ...node.media!, src: nodeAssetSrc(asset), assetId: asset.id },
                   });
                   setAssetPickerOpen(false);
                 }}

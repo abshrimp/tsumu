@@ -10,6 +10,7 @@ import { canvasHtml } from "../../lib/canvas-html";
 import { isEnterKey } from "../../lib/keys";
 import { createElement, useContext, type ReactNode } from "react";
 import { useEditor } from "../../lib/store";
+import { mediaSrc } from "../../lib/assets";
 import { applyList, listFromOf, toListItems } from "../../lib/data";
 import { hasVars, interpolate, interpolateUrl, lookupVar } from "../../lib/vars";
 import {
@@ -57,9 +58,8 @@ function GhostView({
   if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars);
 
   if (node.type === "image" && node.image) {
-    const src = hasVars(node.image.src)
-      ? interpolate(node.image.src, vars)
-      : node.image.src;
+    const raw = mediaSrc(doc, node.image);
+    const src = hasVars(raw) ? interpolate(raw, vars) : raw;
     return createElement("img", {
       ...common,
       src: src || undefined,
@@ -75,6 +75,7 @@ function GhostView({
     });
   }
   const leaf = renderLeafNode(node, common, {
+    doc,
     interactive: ctx.preview,
     vars: ctx.preview ? vars : undefined,
     fieldValues: ctx.fieldValues,
@@ -340,7 +341,7 @@ export function NodeView({
   }
 
   if (node.type === "image" && node.image) {
-    const rawSrc = node.image.src;
+    const rawSrc = mediaSrc(doc, node.image);
     const src = hasVars(rawSrc) ? interpolate(rawSrc, vars) : rawSrc;
     return createElement("img", {
       ...common,
@@ -381,6 +382,7 @@ export function NodeView({
   }
 
   const leafView = renderLeafNode(node, common, {
+    doc,
     interactive: ctx.preview,
     vars: ctx.preview ? vars : undefined,
     fieldValues: ctx.fieldValues,

@@ -14,7 +14,14 @@ import { applyDocPatchAtRevision } from "../lib/doc-patch";
 import { errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput } from "../lib/cloud-save";
 import { mergeDocs } from "../lib/merge";
 import { css2FamilyToken } from "../lib/style";
-import { assetSrc, uploadAsset } from "../lib/assets";
+import {
+  dropEmbeddedCopies,
+  hasEmbeddedCopies,
+  nodeAssetSrc,
+  replaceEmbeddedAsset,
+  uploadAsset,
+  uploadEmbeddedAsset,
+} from "../lib/assets";
 import { makeImage } from "../lib/presets";
 import { clipboardArtworkFile, hasClipboardArtwork } from "../lib/clipboard";
 import { activeContentNames, CLIP_MIME, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
@@ -91,7 +98,7 @@ async function insertClipboardArtwork(file: File) {
   const node = makeImage();
   node.name = file.type === "image/svg+xml" ? tr("貼り付けたSVG") : tr("貼り付けた画像");
   node.image = {
-    src: assetSrc(asset),
+    src: nodeAssetSrc(asset),
     alt: "",
     width: asset.width,
     height: asset.height,
@@ -706,6 +713,44 @@ export default function Editor() {
       }),
     []
   );
+
+  // ブラウザ内に埋め込んだ画像など（画像の保存先に置けなかったもの）を整理して、編集データを小さく保つ。
+  // 要素の src への複製を外し、保存先が使えるならアップロードしてパスに置き換える。
+  // 読み込みが済んで同期した（またはブラウザ内保存に決まった）ときに確かめる
+  useEffect(() => {
+    let running = false;
+    /** 画像の保存先（KV など）があるか。分からなければ null（次の機会に確かめ直す） */
+    let assetStorage: boolean | null = null;
+    const tidy = async () => {
+      if (running) return;
+      running = true;
+      try {
+        if (hasEmbeddedCopies(useEditor.getState().doc)) {
+          useEditor.getState().updateDoc(dropEmbeddedCopies, { history: false });
+        }
+        const embedded = Object.values(useEditor.getState().doc.assets).filter((a) => a.dataUrl && !a.path);
+        if (!embedded.length) return;
+        assetStorage ??= await fetch("/api/status")
+          .then((res) => (res.ok ? res.json() : null))
+          .then((data) => (data ? data.assets === true : null))
+          .catch(() => null);
+        if (!assetStorage) return;
+        for (const asset of embedded) {
+          const path = await uploadEmbeddedAsset(asset).catch(() => null);
+          if (!path) return;
+          useEditor.getState().updateDoc((d) => {
+            // アップロード中に差し替え・削除されていたら触らない
+            if (d.assets[asset.id]?.dataUrl === asset.dataUrl) replaceEmbeddedAsset(d, asset.id, path);
+          }, { history: false });
+        }
+      } finally {
+        running = false;
+      }
+    };
+    return useEditor.subscribe((s, prev) => {
+      if (s.cloudState !== prev.cloudState && (s.cloudState === "synced" || s.cloudState === "local")) void tidy();
+    });
+  }, []);
 
   // 読込・保存・更新受信をWebSocketで行い、切断中だけHTTPへフォールバックする。
   // WebSocket が使えない環境（Node.js・Docker）では、更新の受信を Server-Sent Events で行う

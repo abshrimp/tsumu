@@ -25,7 +25,10 @@ import {
   assetSrc,
   deleteAssetRemote,
   downloadAsset,
+  nodeAssetSrc,
+  replaceEmbeddedAsset,
   uploadAsset,
+  uploadEmbeddedAsset,
 } from "../../lib/assets";
 import { makeImage, makeMedia } from "../../lib/presets";
 import { Icon } from "../icons";
@@ -291,26 +294,15 @@ export function AssetsTab() {
     setBusy(true);
     setError(null);
     try {
-      const blob = await (await fetch(asset.dataUrl)).blob();
-      const file = new File([blob], asset.name, { type: blob.type });
-      const fresh = await uploadAsset(file);
-      if (!fresh.path) {
+      const path = await uploadEmbeddedAsset(asset);
+      if (!path) {
         setError(
           tr("まだサーバーに保存できません。画面下の保存状態を確認してください。")
         );
         return;
       }
-      updateDoc((d) => {
-        const a = d.assets[asset.id];
-        if (!a) return;
-        a.path = fresh.path;
-        delete a.dataUrl;
-        // このアセットを使っている画像要素のsrcを差し替える
-        for (const n of Object.values(d.nodes)) {
-          if (n.image?.assetId === asset.id) n.image.src = assetSrc(a);
-          if (n.media?.assetId === asset.id) n.media.src = assetSrc(a);
-        }
-      });
+      // 使っている要素の src と、背景画像などのスタイルも差し替える
+      updateDoc((d) => replaceEmbeddedAsset(d, asset.id, path));
     } catch (e) {
       setError(userMessage(e, tr("サーバーへ移せませんでした")));
     } finally {
@@ -331,7 +323,7 @@ export function AssetsTab() {
       updateNode(sel.id, {
         image: {
           ...sel.image,
-          src: assetSrc(asset),
+          src: nodeAssetSrc(asset),
           assetId: asset.id,
           width: asset.width,
           height: asset.height,
@@ -341,14 +333,14 @@ export function AssetsTab() {
     }
     if (kind !== "image" && sel?.type === "media" && sel.media?.kind === kind) {
       updateNode(sel.id, {
-        media: { ...sel.media, src: assetSrc(asset), assetId: asset.id },
+        media: { ...sel.media, src: nodeAssetSrc(asset), assetId: asset.id },
       });
       return;
     }
     if (kind !== "image") {
       const node = makeMedia(kind);
       node.name = asset.name;
-      node.media = { ...node.media!, src: assetSrc(asset), assetId: asset.id };
+      node.media = { ...node.media!, src: nodeAssetSrc(asset), assetId: asset.id };
       const target = insertPointFor(doc, selection, fallback, useEditor.getState().insertMode);
       insertNodes([node], node.id, target.parent, target.index);
       setLeftTab("layers");
@@ -357,7 +349,7 @@ export function AssetsTab() {
     const node = makeImage();
     node.name = asset.name;
     node.image = {
-      src: assetSrc(asset),
+      src: nodeAssetSrc(asset),
       alt: "",
       width: asset.width,
       height: asset.height,

@@ -10,6 +10,7 @@ import { refreshClonedIds } from "../lib/cloneIds";
 import { generateProject } from "../lib/generator";
 import { runChecks } from "../lib/generator/checks";
 import { makeBox, makeField, makeImage, makeSwitch } from "../lib/presets";
+import { dropEmbeddedCopies, hasEmbeddedCopies, mediaSrc, nodeAssetSrc, replaceEmbeddedAsset } from "../lib/assets";
 import { usesLiveFields } from "../lib/script-runtime";
 import type { DocNode, SiteDoc } from "../lib/types";
 
@@ -341,4 +342,39 @@ test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of
   img.image.crispShadow = false;
   const plain = Object.entries(generateProject(doc).files).find(([p]) => p.endsWith("page.tsx"))![1];
   assert.doesNotMatch(plain, /crisp-svg/);
+});
+
+test("embedded images are kept once in the asset and moved to the server with every reference", () => {
+  const data = `data:image/png;base64,${"A".repeat(4000)}`;
+  const a: DocNode = { ...makeImage(), id: "a" };
+  const b: DocNode = { ...makeImage(), id: "b" };
+  // 以前の形式: 画像を使う要素ごとに dataURL を複製していた
+  a.image = { ...a.image!, assetId: "s", src: data };
+  b.image = { ...b.image!, assetId: "s", src: data };
+  const bg: DocNode = { ...makeBox(), id: "bg", styles: { base: { default: { backgroundImage: `url(${data})` } } } };
+  const doc = docWith([a, b, bg]);
+  doc.assets.s = { id: "s", name: "s.png", mimeType: "image/png", width: 10, height: 10, dataUrl: data };
+
+  // 要素へ複製しない（表示は assetId から引く）。サーバーに置いたアセットはパスを持たせる
+  assert.equal(nodeAssetSrc(doc.assets.s), "");
+  assert.equal(nodeAssetSrc({ ...doc.assets.s, dataUrl: undefined, path: "assets/s.png" }), "/api/assets/file?path=assets%2Fs.png");
+  const before = JSON.stringify(doc).length;
+  assert.equal(hasEmbeddedCopies(doc), true);
+  dropEmbeddedCopies(doc);
+  assert.equal(hasEmbeddedCopies(doc), false);
+  assert.equal(doc.nodes.a.image!.src, "");
+  assert.equal(mediaSrc(doc, doc.nodes.a.image!), data, "the canvas still shows the image");
+  assert.ok(JSON.stringify(doc).length < before - 7000, "each copy is removed");
+  // 書き出すサイトは変わらない
+  const page = Object.entries(generateProject(doc).files).find(([p]) => p.endsWith("page.tsx"))![1];
+  assert.match(page, /src="\/assets\/[^"]+\.png"/);
+
+  // サーバーへ移すと、要素の src と背景画像のスタイルも差し替わる
+  replaceEmbeddedAsset(doc, "s", "assets/s.png");
+  const src = "/api/assets/file?path=assets%2Fs.png";
+  assert.equal(doc.assets.s.dataUrl, undefined);
+  assert.equal(doc.nodes.a.image!.src, src);
+  assert.equal(doc.nodes.b.image!.src, src);
+  assert.equal(doc.nodes.bg.styles.base!.default!.backgroundImage, `url(${src})`);
+  assert.equal(JSON.stringify(doc).includes("base64"), false);
 });
