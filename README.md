@@ -1,4 +1,9 @@
-<h1 align="center">Tsumu</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/tsumu-logo-dark.svg">
+    <img src="public/tsumu-logo.svg" alt="Tsumu" width="360">
+  </picture>
+</p>
 
 <p align="center">
   <strong>Design freely. Build openly.</strong><br>

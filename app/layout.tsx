@@ -15,6 +15,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const tr = await serverTr();
   return {
     title: "Tsumu",
+    icons: { icon: [{ url: "/tsumu-mark.svg", type: "image/svg+xml" }] },
     description: tr("A visual editor for building and publishing websites."),
     robots: {
       index: false,

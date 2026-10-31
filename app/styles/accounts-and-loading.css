@@ -51,8 +51,6 @@
 .brand-mark {
   flex: none;
   display: block;
-  border-radius: 11px;
-  box-shadow: 0 6px 16px rgba(11, 87, 208, 0.25);
 }
 
 .login-card h1 {
