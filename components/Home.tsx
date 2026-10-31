@@ -38,6 +38,8 @@ import { createInitialDoc } from "../lib/presets";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { resolveMcpEndpoint } from "../lib/external-edit/config";
 import { createBrowserDoc, deleteBrowserDoc, readBrowserDoc } from "../lib/browser-doc-storage";
+import { siteThumbnailImages, type SiteThumbnailImage } from "../lib/site-thumbnail";
+import type { SiteDoc } from "../lib/types";
 import {
   SITE_SCOPED_KEYS,
   emptyDest,
@@ -167,8 +169,79 @@ function CardMenu({ items }: { items: { label: string; icon: ReactNode; danger?:
   );
 }
 
+function SiteThumbnail({ site, store }: { site: SiteRecord; store: Store | null }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [images, setImages] = useState<SiteThumbnailImage[]>([]);
+  const [imageIndex, setImageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!store) return;
+    let active = true;
+    const controller = new AbortController();
+    const load = async () => {
+      if (store === "local") {
+        const raw = await readBrowserDoc(site.id);
+        return raw ? siteThumbnailImages(JSON.parse(raw) as SiteDoc, site.id) : [];
+      }
+      const res = await fetch(`/api/doc?site=${encodeURIComponent(site.id)}&thumbnail=1`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!res.ok) return [];
+      const data = await res.json() as { images?: SiteThumbnailImage[] };
+      return Array.isArray(data.images) ? data.images : [];
+    };
+    const start = () => {
+      void load().then(found => {
+        if (active) {
+          setImages(found);
+          setImageIndex(0);
+        }
+      }).catch(() => {});
+    };
+    // Avoid reading every site's document when only a few cards are on screen.
+    let observer: IntersectionObserver | undefined;
+    if (ref.current && typeof IntersectionObserver !== "undefined") {
+      observer = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          observer?.disconnect();
+          start();
+        }
+      }, { rootMargin: "250px" });
+      observer.observe(ref.current);
+    } else {
+      start();
+    }
+    return () => {
+      active = false;
+      controller.abort();
+      observer?.disconnect();
+    };
+  }, [site.id, store]);
+
+  const image = images[imageIndex];
+  return (
+    <span className="home-card-thumb" ref={ref} aria-hidden>
+      {image ? (
+        image.kind === "ogp" ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image.src} alt="" loading="lazy" decoding="async" onError={() => setImageIndex(i => i + 1)} />
+        ) : (
+          <span className="home-card-thumb-icon">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={image.src} alt="" loading="lazy" decoding="async" onError={() => setImageIndex(i => i + 1)} />
+          </span>
+        )
+      ) : (
+        <span>{Array.from(site.name)[0]?.toUpperCase() ?? "S"}</span>
+      )}
+    </span>
+  );
+}
+
 function SiteCard({
   site,
+  store,
   onSettings,
   onMembers,
   onDuplicate,
@@ -177,6 +250,7 @@ function SiteCard({
   provider,
 }: {
   site: SiteRecord;
+  store: Store | null;
   readOnly: boolean;
   provider: PublishProvider | null;
   onSettings: () => void;
@@ -188,9 +262,7 @@ function SiteCard({
   return (
     <article className="home-card">
       <a className="home-card-link" href={sitePath(site.id)} aria-label={tr("Open {name}", { name: site.name })}>
-        <span className="home-card-thumb" aria-hidden>
-          <span>{Array.from(site.name)[0]?.toUpperCase() ?? "S"}</span>
-        </span>
+        <SiteThumbnail site={site} store={store} />
       </a>
       <div className="home-card-body">
         <a className="home-card-name" href={sitePath(site.id)}>
@@ -915,6 +987,7 @@ export default function Home() {
               <SiteCard
                 key={site.id}
                 site={site}
+                store={store}
                 onSettings={() => setDialog(site)}
                 onMembers={() => setMembersSite(site)}
                 onDuplicate={() => setDialog({ copy: site })}

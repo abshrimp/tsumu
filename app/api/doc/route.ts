@@ -21,6 +21,7 @@ import {
 import { getSite } from "../../../lib/sites";
 import { isDocPatch } from "../../../lib/doc-patch";
 import type { SiteDoc } from "../../../lib/types";
+import { siteThumbnailImages } from "../../../lib/site-thumbnail";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
@@ -63,6 +64,10 @@ export async function GET(req: Request) {
     }
 
     const cur = await readSiteDocument(db, siteId);
+    if (params.get("thumbnail") === "1") {
+      const images = cur ? siteThumbnailImages(JSON.parse(cur.body) as SiteDoc, siteId) : [];
+      return NextResponse.json({ images }, { headers: PRIVATE_CACHE });
+    }
     if (!cur) return NextResponse.json({ exists: false }, { headers: PRIVATE_CACHE });
     // body は保存済みの JSON なので、パースし直さずに文字列をつないで返す
     //（Workers 無料プランの CPU 時間の制限への対策）

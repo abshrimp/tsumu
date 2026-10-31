@@ -304,6 +304,25 @@ a.btn {
     linear-gradient(180deg, #f6f8fb, #eef1f6);
 }
 
+.home-card-thumb > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-card-thumb span.home-card-thumb-icon {
+  box-sizing: border-box;
+  padding: 7px;
+}
+
+.home-card-thumb-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .home-card-thumb span {
   display: grid;
   place-items: center;
