@@ -3,7 +3,6 @@ import { envVar } from "./env";
 import type { PublishTarget } from "./generator";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { hostingProjectName, type StaticPublishProvider } from "./publish-provider";
-import { deployNetlify, listNetlifyDeployments, restoreNetlifyDeployment } from "./netlify-deploy";
 
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const MAX_ZIP_BYTES = 25 * 1024 * 1024;
@@ -252,13 +251,11 @@ export async function deployStaticSite(
   siteId: string,
   provider: StaticPublishProvider,
   target: PublishTarget,
-  raw: ArrayBuffer,
   files: StaticFile[],
 ): Promise<StaticDeployment> {
   const project = hostingProjectName(siteId, provider, target);
-  return provider === "netlify"
-    ? deployNetlify(siteId, target, raw)
-    : publishCloudflare(project, target, files);
+  if (provider !== "cloudflare") throw new Error("Netlify requires a browser-owned deployment.");
+  return publishCloudflare(project, target, files);
 }
 
 export async function listStaticDeployments(
@@ -267,7 +264,7 @@ export async function listStaticDeployments(
   target: PublishTarget,
 ): Promise<StaticDeploymentHistory[]> {
   const project = hostingProjectName(siteId, provider, target);
-  if (provider === "netlify") return listNetlifyDeployments(siteId, target);
+  if (provider !== "cloudflare") throw new Error("Netlify requires a browser-owned deployment.");
   // History must not create an empty Pages project.
   const path = cloudflarePath(project);
   const deployments = await cloudflareRequest<Array<{
@@ -298,11 +295,8 @@ export async function restoreStaticDeployment(
     throw new Error("This deployment cannot be restored.");
   }
   const project = hostingProjectName(siteId, provider, target);
-  if (provider === "netlify") {
-    await restoreNetlifyDeployment(siteId, target, deploymentId);
-  } else {
-    await cloudflareRequest(cloudflarePath(project) +
-      "/deployments/" + encodeURIComponent(deploymentId) + "/rollback",
-      "Restore Pages deployment", { method: "POST" });
-  }
+  if (provider !== "cloudflare") throw new Error("Netlify requires a browser-owned deployment.");
+  await cloudflareRequest(cloudflarePath(project) +
+    "/deployments/" + encodeURIComponent(deploymentId) + "/rollback",
+    "Restore Pages deployment", { method: "POST" });
 }

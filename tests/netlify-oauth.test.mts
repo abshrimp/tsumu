@@ -1,84 +1,100 @@
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
 import { test } from "node:test";
 import {
-  encryptNetlifyToken,
-  decryptNetlifyToken,
-  netlifyOAuthUrl,
-  bindNetlifyTeam,
-  type NetlifyTeam,
-} from "../lib/netlify-account";
-import type { Db } from "../lib/db";
+  netlifyOAuthConfig, netlifyAccount, createNetlifyProject,
+  verifyNetlifySite, deployNetlifyZip,
+} from "../lib/netlify-publish";
 
-test("Netlify authorization URL uses a one-time state and the exact registered callback", () => {
-  const previous = {
-    client: process.env.NETLIFY_OAUTH_CLIENT_ID,
-    redirect: process.env.NETLIFY_OAUTH_REDIRECT_URI,
-    encryption: process.env.NETLIFY_TOKEN_ENCRYPTION_KEY,
-  };
+function withConfig(run: () => void) {
+  const names = ["PUBLISH_PROVIDER", "NETLIFY_OAUTH_CLIENT_ID", "NETLIFY_OAUTH_REDIRECT_URI"];
+  const prior = Object.fromEntries(names.map(key => [key, process.env[key]]));
   try {
-    process.env.NETLIFY_OAUTH_CLIENT_ID = "registered-client-123456";
-    process.env.NETLIFY_OAUTH_REDIRECT_URI = "https://tsumu.example.test/netlify/callback";
-    process.env.NETLIFY_TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("base64");
-    const state = "5b72aa34-161b-4ce0-94a8-4b72727691ae";
-    const url = new URL(netlifyOAuthUrl(state));
-    assert.equal(url.origin, "https://app.netlify.com");
-    assert.equal(url.pathname, "/authorize");
-    assert.equal(url.searchParams.get("state"), state);
-    assert.equal(url.searchParams.get("response_type"), "token");
-    assert.equal(url.searchParams.get("redirect_uri"), "https://tsumu.example.test/netlify/callback");
-    assert.throws(() => netlifyOAuthUrl("attacker"));
+    process.env.PUBLISH_PROVIDER = "netlify";
+    process.env.NETLIFY_OAUTH_CLIENT_ID = "registered-netlify-client-123456";
+    process.env.NETLIFY_OAUTH_REDIRECT_URI = "https://tsumu.ebii.net/netlify/callback";
+    run();
   } finally {
-    if (previous.client === undefined) delete process.env.NETLIFY_OAUTH_CLIENT_ID;
-    else process.env.NETLIFY_OAUTH_CLIENT_ID = previous.client;
-    if (previous.redirect === undefined) delete process.env.NETLIFY_OAUTH_REDIRECT_URI;
-    else process.env.NETLIFY_OAUTH_REDIRECT_URI = previous.redirect;
-    if (previous.encryption === undefined) delete process.env.NETLIFY_TOKEN_ENCRYPTION_KEY;
-    else process.env.NETLIFY_TOKEN_ENCRYPTION_KEY = previous.encryption;
+    for (const name of names) {
+      if (prior[name] === undefined) delete process.env[name];
+      else process.env[name] = prior[name];
+    }
   }
+}
+
+test("Netlify OAuth configuration never requires a Tsumu account, shared token, or encryption key", () => {
+  withConfig(() => {
+    assert.deepEqual(netlifyOAuthConfig(), {
+      clientId: "registered-netlify-client-123456",
+      redirectUri: "https://tsumu.ebii.net/netlify/callback",
+    });
+    process.env.NETLIFY_OAUTH_REDIRECT_URI = "https://attacker.test/other";
+    assert.throws(netlifyOAuthConfig);
+  });
 });
 
-test("Netlify tokens are sealed with AES-GCM and bound to a particular Tsumu email", async () => {
-  const previous = process.env.NETLIFY_TOKEN_ENCRYPTION_KEY;
-  process.env.NETLIFY_TOKEN_ENCRYPTION_KEY = randomBytes(32).toString("base64");
+test("Netlify client credential is scoped to the user-selected team", async () => {
+  const original = globalThis.fetch;
+  let created = false;
+  globalThis.fetch = async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    assert.equal(init?.headers instanceof Headers ? init.headers.get("Authorization") :
+      (init?.headers as Record<string, string>)?.Authorization, "Bearer browser-token-1234567890");
+    if (path.endsWith("/user")) return Response.json({ id: "user-12345678", email: "visitor@example.test" });
+    if (path.endsWith("/accounts")) return Response.json([
+      { id: "team-12345678", slug: "visitor-team", name: "Visitor's Team" },
+    ]);
+    if (path.endsWith("/visitor-team/sites")) {
+      created = true;
+      assert.equal(init?.method, "POST");
+      return Response.json({
+        id: "site-12345678", account_id: "team-12345678",
+        ssl_url: "https://visitor-site.netlify.app",
+      });
+    }
+    throw new Error("Unexpected Netlify API request: " + path);
+  };
   try {
-    const token = "opaque-oauth-access-token-" + randomBytes(12).toString("hex");
-    const first = await encryptNetlifyToken(token, "owner@example.test");
-    const second = await encryptNetlifyToken(token, "owner@example.test");
-    assert.notEqual(first, second);
-    assert.equal(first.includes(token), false);
-    assert.equal(await decryptNetlifyToken(first, "owner@example.test"), token);
-    await assert.rejects(decryptNetlifyToken(first, "different@example.test"));
-    await assert.rejects(decryptNetlifyToken(first.slice(0, -4) + "AAAA", "owner@example.test"));
-    await assert.rejects(encryptNetlifyToken("too short", "owner@example.test"));
-  } finally {
-    if (previous === undefined) delete process.env.NETLIFY_TOKEN_ENCRYPTION_KEY;
-    else process.env.NETLIFY_TOKEN_ENCRYPTION_KEY = previous;
-  }
+    const user = await netlifyAccount("browser-token-1234567890");
+    assert.equal(user.teams[0].slug, "visitor-team");
+    const project = await createNetlifyProject(
+      "browser-token-1234567890", "local123456", "production", "visitor-team",
+    );
+    assert.equal(project.id, "site-12345678");
+    assert.equal(project.teamId, "team-12345678");
+    assert.equal(created, true);
+    await assert.rejects(createNetlifyProject(
+      "browser-token-1234567890", "local123456", "production", "different-team",
+    ), /permission/);
+  } finally { globalThis.fetch = original; }
 });
 
-test("Netlify team changes cannot reassign existing published projects across owners", async () => {
-  const teamA: NetlifyTeam = { id: "team-uuid-12345678", slug: "account-a", name: "A" };
-  const teamB: NetlifyTeam = { id: "team-uuid-87654321", slug: "account-b", name: "B" };
-  const binding = {
-    site_id: "abc1234567", owner_email: "owner@example.test",
-    team_id: teamA.id, team_slug: teamA.slug,
-    production_site_id: "site-uuid-12345678", preview_site_id: null,
-    production_url: "https://example.netlify.app", preview_url: null,
+test("Netlify never deploys files to a project outside the chosen team", async () => {
+  const original = globalThis.fetch;
+  let uploads = 0;
+  globalThis.fetch = async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/sites/site-12345678")) {
+      return Response.json({
+        id: "site-12345678", account_id: "other-team-87654321",
+      });
+    }
+    uploads++;
+    return Response.json({ id: "deploy-12345678" });
   };
-  const sqlCalls: string[] = [];
-  const db: Db = {
-    backend: "d1",
-    async execute(stmt) {
-      const sql = typeof stmt === "string" ? stmt : stmt.sql;
-      sqlCalls.push(sql);
-      return { rows: sql.startsWith("SELECT site_id") ? [binding] : [], rowsAffected: 0 };
-    },
-    async batch() { throw new Error("Unexpected batch"); },
-  };
-  await assert.rejects(bindNetlifyTeam(db, binding.site_id, "other@example.test", teamA),
-    /already been deployed/);
-  await assert.rejects(bindNetlifyTeam(db, binding.site_id, "owner@example.test", teamB),
-    /already been deployed/);
-  assert.equal(sqlCalls.some((sql) => sql.startsWith("INSERT")), false);
+  try {
+    await assert.rejects(verifyNetlifySite(
+      "browser-token-1234567890", "site-12345678", "team-12345678",
+    ), /does not belong/);
+    await assert.rejects(deployNetlifyZip(
+      "browser-token-1234567890", "site-12345678", "team-12345678",
+      new ArrayBuffer(8),
+    ), /does not belong/);
+    assert.equal(uploads, 0);
+  } finally { globalThis.fetch = original; }
+});
+
+test("Netlify account APIs never accept arbitrary URL paths or an invalid token", async () => {
+  const { netlifyApi } = await import("../lib/netlify-publish");
+  await assert.rejects(netlifyApi("short", "/sites"), /Invalid Netlify access token/);
+  await assert.rejects(netlifyApi("browser-token-1234567890", "//attacker.test"), /Invalid Netlify API path/);
 });

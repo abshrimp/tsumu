@@ -233,7 +233,7 @@ Reverse proxy setup is the same as for [Node.js](#nodejs).
 
 ## Publish targets
 
-The publishing provider is selected for the entire Tsumu instance by `PUBLISH_PROVIDER` (`github`, `netlify`, `cloudflare`). Server credentials are not stored in site settings. For **Netlify**, configure a Netlify OAuth application and server-backed site storage; each site owner connects their own account and chooses their own team in Site settings. For **Cloudflare Pages**, configure the server API credentials and storage. Each site gets a separate provider project on first publish (Netlify test publishing uses a separate project; Cloudflare Pages uses a preview branch). Only built static HTML/CSS/JS and assets are uploaded; editor data is never included. Static publishing has no build step and does not support server-only Next.js features.
+The publishing provider is selected for the entire Tsumu instance by `PUBLISH_PROVIDER` (`github`, `netlify`, `cloudflare`). Server credentials are not stored in site settings. For **Netlify**, configure a Netlify OAuth application. The editor can run without sign-in and without server-backed site storage: each browser owns its local sites and its Netlify login. For **Cloudflare Pages**, configure server API credentials and storage. Each site gets a separate provider project on first publish (Netlify test publishing uses a separate project; Cloudflare Pages uses a preview branch). Only built static HTML/CSS/JS and assets are uploaded; editor data is never included. Static publishing has no build step and does not support server-only Next.js features.
 
 For **GitHub**, open a site's **… → Settings** to configure the fields below. You can fill them in when you create the site or later.
 
@@ -246,16 +246,16 @@ For **GitHub**, open a site's **… → Settings** to configure the fields below
 
 Create the site's repository before the first publish. It can be empty or initialized with a README.
 
-### Netlify OAuth for individual users
+### Browser-local Netlify publishing without a Tsumu login
 
-With `PUBLISH_PROVIDER=netlify`, Tsumu does not accept a shared Netlify token. To enable self-service publishing on `tsumu.ebii.net`:
+For a public instance such as `tsumu.ebii.net`:
 
-1. Configure Google sign-in and server-backed storage. Optionally enable `ALLOW_PUBLIC_SIGNUP=true` to let any verified Google account register and create **only its own sites**. The fixed `ALLOWED_EMAILS` accounts remain administrators; site members control access to each site.
-2. In Netlify **User settings → Applications**, create an OAuth application with callback `https://tsumu.ebii.net/netlify/callback`. Set its client ID in `NETLIFY_OAUTH_CLIENT_ID` and the exact callback in `NETLIFY_OAUTH_REDIRECT_URI`. Set `NETLIFY_TOKEN_ENCRYPTION_KEY` using a stable random value from `openssl rand -base64 32`.
-3. Each owner clicks **Publish** in the editor. The first click opens Netlify authorization; the user returns to the same site's Publish dialog. The only available team is selected automatically; multiple teams are shown in a chooser within Publish. The selected team owns the hosting project and incurs any Netlify usage. Site settings also provides connection management.
-4. Site editors may publish through the server using the owner's stored connection. They cannot read the credential or change teams. A disconnected account disables publishing until the same Netlify account reconnects; existing published websites remain online.
+1. Set `PUBLISH_PROVIDER=netlify`, `TSUMU_STORAGE_MODE=local`, `ALLOW_ANONYMOUS=true`. Do not set `AUTH_SECRET`, `AUTH_GOOGLE_ID` or `AUTH_GOOGLE_SECRET`. Each visitor's sites and editable documents then stay in that browser even if D1 is bound to the Worker. Server-side KV uploads are also disabled; inline browser assets are limited to 2 MiB per file.
+2. Create an OAuth application in Netlify **User settings → Applications** with callback `https://tsumu.ebii.net/netlify/callback`. Set `NETLIFY_OAUTH_CLIENT_ID` and the exact `NETLIFY_OAUTH_REDIRECT_URI`. No shared Netlify API token, Google login, OAuth Client Secret or `NETLIFY_TOKEN_ENCRYPTION_KEY` is needed.
+3. The visitor clicks **Publish**. The first time, Netlify signs them in. The callback verifies the one-use state and returns to the same site's Publish dialog. If their Netlify account has one team, it is used automatically; otherwise they choose the team. Production and test use distinct Netlify projects.
+4. The browser stores the Netlify OAuth access token and the per-site project IDs in localStorage. For deployment, Tsumu's server acts as a temporary API proxy; it validates the ZIP and the project's Netlify team, and **does not persist credentials or editable documents**. All Netlify usage is charged to the visitor's chosen team.
 
-Access tokens are encrypted at rest using AES-GCM, and never stored in the editable document. Changing the encryption key makes stored connections unreadable. If the owner changes the Netlify account, Tsumu detaches the previous Netlify projects to avoid accidental cross-account writes. Tsumu does not revoke access on Netlify's side when disconnecting: revoke the application separately in Netlify settings if necessary.
+**Security and recovery:** localStorage tokens are accessible to scripts running on the same origin, so avoid untrusted browser extensions and scripts, and disconnect from Netlify when no longer needed. An editor opened from a different browser cannot read local sites or publishing credentials. Clearing browser data removes the editable sites and Netlify bindings (but does not delete the websites hosted by Netlify). Export a full backup ZIP regularly and re-import to recover editing data. To retain a stable publishing project on another browser, keep its Netlify project ID safely; re-linking existing projects is not automatic. The old Netlify OAuth connections stored in D1 are not transferred; obsolete credential tables are dropped during database initialization.
 
 ## Output formats
 
@@ -446,8 +446,7 @@ All variables are optional (see [What you need](#what-you-need)).
 | `GITHUB_TOKEN` | GitHub only: Contents: Read and write on every publishing repository |
 | `NETLIFY_OAUTH_CLIENT_ID` | Netlify OAuth application client ID, configured once per Tsumu installation |
 | `NETLIFY_OAUTH_REDIRECT_URI` | Registered OAuth redirect, e.g. `https://tsumu.ebii.net/netlify/callback` |
-| `NETLIFY_TOKEN_ENCRYPTION_KEY` | Base64-encoded 32-byte AES-GCM key; generate with `openssl rand -base64 32` and keep stable |
-| `ALLOW_PUBLIC_SIGNUP` | Optional `true`: allow any verified Google account to create its own sites; requires server storage and Google sign-in |
+| `TSUMU_STORAGE_MODE` | Optional `local`: force browser-only site and document storage even when D1 is connected |
 | `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | Cloudflare Pages only: account ID and token with Pages: Edit permission |
 | `AI_ENABLED` | `true` to turn on Ask AI |
 | `AI_PROVIDER` | `anthropic` (default), `gemini`, `openai` or `openai-compatible` |

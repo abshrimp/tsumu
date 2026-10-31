@@ -14,7 +14,6 @@ import {
   type AccountRole,
 } from "../../../lib/allowlist";
 import { dbConfigured } from "../../../lib/db";
-import { envVar } from "../../../lib/env";
 import { userMessage } from "../../../lib/errors";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
@@ -35,9 +34,7 @@ async function requireMe(): Promise<string | NextResponse> {
     return NextResponse.json({ error: tr("You need to sign in") }, { status: 401 });
   }
   const email = identity.toLowerCase();
-  // Publicly self-registered editors must not be able to manage global accounts.
-  if ((envVar("ALLOW_PUBLIC_SIGNUP") === "true" && !allowedEmails().includes(email)) ||
-      await getAccountRole(email) !== "editor") {
+  if (await getAccountRole(email) !== "editor") {
     return NextResponse.json({ error: tr("You have view-only access") }, { status: 403 });
   }
   return email;

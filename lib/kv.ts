@@ -1,5 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { nodeAssetStore } from "./node-storage";
+import { envVar } from "./env";
 
 /**
  * 画像・動画・音声のアセットの保存先（Cloudflare Workers KV）。
@@ -39,6 +40,9 @@ export interface KVLikeNamespace {
 
 /** アセット用の KV（バインディングも TSUMU_DATA_DIR も無ければ null） */
 export function assetStore(): KVLikeNamespace | null {
+  // Browser-local mode must not accept anonymous uploads into the operator's KV.
+  // The browser falls back to inline assets in its IndexedDB document instead.
+  if (envVar("TSUMU_STORAGE_MODE") === "local") return null;
   try {
     const env = getCloudflareContext().env as unknown as Record<
       string,

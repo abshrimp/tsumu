@@ -2,6 +2,20 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Change the Netlify team? Existing published sites will stay online, but new projects will be created in the new team.": "Netlifyチームを変更しますか？公開済みのサイトは引き続き公開されますが、新しいチームには別のプロジェクトが作成されます。",
+  "Change Netlify team": "Netlifyチームを変更",
+  "Netlify is connected when you publish. Your account and project links remain in this browser.": "Netlifyは公開時に接続します。アカウントと公開先の情報はこのブラウザに保存されます。",
+  "Netlify OAuth is not configured.": "Netlify OAuthが設定されていません。",
+  "Netlify returned an invalid account.": "Netlifyから正しいアカウント情報を取得できませんでした。",
+  "Couldn't connect Netlify.": "Netlifyに接続できませんでした。",
+  "Couldn't save Netlify settings.": "Netlifyの設定を保存できませんでした。",
+  "Creating a project in your Netlify team…": "Netlifyチームに公開プロジェクトを作成中…",
+  "The Netlify team changed during publishing.": "公開中にNetlifyチームが変更されました。",
+  "Choose the Netlify team that will pay for and host this site's publications.": "このサイトの公開先となるNetlifyチームを選択してください。利用枠や料金はそのチームが負担します。",
+  "Publish to your Netlify account. Only generated static files are uploaded, not the editing document.": "自分のNetlifyアカウントに公開します。編集データではなく生成した静的ファイルだけをアップロードします。",
+  "A new Netlify project will be created at first publish.": "初回公開時に新しいNetlifyプロジェクトを作成します。",
+  "Switch Netlify account": "Netlifyアカウントを切り替える",
+  "Netlify keeps deployment history. Editing data remains in your browser.": "Netlifyには公開履歴が保存されます。編集データはブラウザ内に残ります。",
   "Backup is incomplete: {details}": "バックアップが不完全です: {details}",
   "Backup file": "バックアップファイル",
   "ZIP backups include all images, fonts and other assets, even if unused.": "バックアップZIPには、未使用のものも含めて画像・フォントなどの全アセットが含まれます。",

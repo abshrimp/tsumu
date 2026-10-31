@@ -1,5 +1,6 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { nodeDatabase } from "./node-storage";
+import { envVar } from "./env";
 
 /**
  * Cloudflare D1 への接続。サイトの一覧・文書の Durable Object の世代管理・コメント・許可したメールアドレスの保存先。
@@ -57,7 +58,10 @@ function d1(): D1LikeDatabase | null {
 }
 
 export function dbConfigured(): boolean {
-  return d1() !== null;
+  // Opt-in browser-only mode even when an editor's Cloudflare D1 binding exists.
+  // The API must respond as if server storage is unavailable so the client uses
+  // its localStorage/IndexedDB site and document implementation.
+  return envVar("TSUMU_STORAGE_MODE") !== "local" && d1() !== null;
 }
 
 function prepare(db: D1LikeDatabase, stmt: Stmt): D1PreparedStatement {
@@ -184,37 +188,11 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             language TEXT NOT NULL,
             style TEXT NOT NULL
           )`,
-          // Netlify connections are scoped to the authenticated Tsumu account, never shared
-          // across installations or stored in editable site documents.
-          `CREATE TABLE IF NOT EXISTS netlify_connections (
-            email TEXT PRIMARY KEY,
-            netlify_user_id TEXT NOT NULL,
-            netlify_email TEXT NOT NULL,
-            encrypted_token TEXT NOT NULL,
-            connected_at INTEGER NOT NULL
-          )`,
-          // Owner controls the Netlify team; site editors may deploy via the server.
-          // Project IDs are pinned after first creation, never looked up by a supplied name.
-          `CREATE TABLE IF NOT EXISTS site_netlify_projects (
-            site_id TEXT PRIMARY KEY,
-            owner_email TEXT NOT NULL,
-            team_id TEXT NOT NULL,
-            team_slug TEXT NOT NULL,
-            production_site_id TEXT,
-            preview_site_id TEXT,
-            production_url TEXT,
-            preview_url TEXT,
-            created_at INTEGER NOT NULL
-          )`,
-          `CREATE INDEX IF NOT EXISTS site_netlify_projects_owner ON site_netlify_projects(owner_email)`,
-          // Each redirect consumes a one-use state bound to a Tsumu user and site.
-          `CREATE TABLE IF NOT EXISTS netlify_oauth_states (
-            state TEXT PRIMARY KEY,
-            email TEXT NOT NULL,
-            site_id TEXT NOT NULL,
-            expires_at INTEGER NOT NULL
-          )`,
-          `CREATE INDEX IF NOT EXISTS netlify_oauth_states_expires ON netlify_oauth_states(expires_at)`,
+          // Remove the previous server-stored Netlify OAuth credentials. The
+          // replacement stores connection data only in each visitor's browser.
+          `DROP TABLE IF EXISTS netlify_oauth_states`,
+          `DROP TABLE IF EXISTS site_netlify_projects`,
+          `DROP TABLE IF EXISTS netlify_connections`,
           // サイトの編集・公開の記録（人ごと・種類ごとに最後の時刻。lib/activity.ts）
           `CREATE TABLE IF NOT EXISTS site_activity (
             site_id TEXT NOT NULL,

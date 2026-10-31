@@ -75,17 +75,17 @@ To keep an editable copy with its assets, open **⋯ → Export as zip**, select
 Set `PUBLISH_PROVIDER` to `github` (default), `netlify`, or `cloudflare` for the whole Tsumu installation:
 
 - **GitHub:** Create a repository, configure `GITHUB_TOKEN` with **Contents: Read and write**, then choose the repository in the site's settings. Source code and editable project data are pushed to GitHub.
-- **Netlify:** Configure a Netlify OAuth application (`NETLIFY_OAUTH_CLIENT_ID`, `NETLIFY_OAUTH_REDIRECT_URI`, and `NETLIFY_TOKEN_ENCRYPTION_KEY`). When the owner first clicks **Publish**, Tsumu opens their **own Netlify account** login. After authorization, it returns directly to the Publish dialog and selects the team automatically if there's only one; otherwise the owner chooses a team there. Subsequent publishes use the selected team's projects. No shared Netlify API token is used.
+- **Netlify:** Configure a Netlify OAuth app (`NETLIFY_OAUTH_CLIENT_ID` and `NETLIFY_OAUTH_REDIRECT_URI`). **No Tsumu login or database is required:** clicking **Publish** opens the visitor's own Netlify login, then returns to Publish. A single Netlify team is auto-selected; otherwise the visitor chooses one. The token and project IDs stay in that browser, while Tsumu's server only relays API operations without persisting credentials.
 - **Cloudflare Pages:** Configure `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for this installation.
 
-Netlify and Cloudflare Pages upload **only generated static HTML/CSS/JS and assets**, not editable site data. Server-backed storage is required. For public multi-user hosting, you may additionally set `ALLOW_PUBLIC_SIGNUP=true` with Google sign-in to let verified Google accounts create their own isolated sites.
+Netlify and Cloudflare Pages upload **only generated static HTML/CSS/JS and assets**, not editable site data. For anonymous browser-only hosting, set `TSUMU_STORAGE_MODE=local` and `ALLOW_ANONYMOUS=true` (without `AUTH_*`). This isolates editable sites by browser without server-side site accounts. Cloudflare Pages still requires server-backed storage. Browser-local mode also disables server-side KV uploads; inline assets are limited to 2 MiB per file.
 
 Independent preview sites are available for both static hosts. Custom domains are configured with the hosting provider, with optional links in site settings. All methods still support separate ZIP export without a publishing token.
 
 For persistent storage, configure D1, Durable Objects and KV on **Cloudflare Workers**, set `TSUMU_DATA_DIR` on **Node.js**, or mount a volume at `/data` in **Docker**. With browser-only storage, sites stay in the browser that created them. Asset deletion and recovery depend on the [storage backend](docs/user-guide.md#deploying-the-editor).
 
 > [!IMPORTANT]
-> Configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. With sign-in unconfigured, `npm run dev` accepts anonymous requests addressed to loopback hosts by default. Setting `ALLOW_ANONYMOUS=true` also permits other hostnames. Anyone who can reach that instance can then edit and, with a publishing provider configured, publish.
+> For server-backed or shared sites, configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. For a deliberately anonymous, browser-local Tsumu instance, use `TSUMU_STORAGE_MODE=local` and `ALLOW_ANONYMOUS=true`. Other browsers cannot see local site documents, but clearing browser storage destroys the local copy unless backed up. Netlify access tokens stored in browser storage must be protected from untrusted scripts.
 
 See the [detailed guide](docs/user-guide.md) for deployment commands, authentication, publishing formats, environment variables, backups and limitations.
 

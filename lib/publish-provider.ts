@@ -47,8 +47,7 @@ export function staticPublishConfig(siteId: string): StaticPublishConfig {
   const project = hostingProjectName(siteId, provider, "production");
   const previewProject = hostingProjectName(siteId, provider, "test");
   const configured = provider === "netlify"
-    ? !!envVar("NETLIFY_OAUTH_CLIENT_ID") && !!envVar("NETLIFY_OAUTH_REDIRECT_URI") &&
-      !!envVar("NETLIFY_TOKEN_ENCRYPTION_KEY")
+    ? !!envVar("NETLIFY_OAUTH_CLIENT_ID") && !!envVar("NETLIFY_OAUTH_REDIRECT_URI")
     : !!envVar("CLOUDFLARE_ACCOUNT_ID") && !!envVar("CLOUDFLARE_API_TOKEN");
   return {
     provider,

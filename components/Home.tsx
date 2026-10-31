@@ -27,11 +27,11 @@ import DialogHost from "./DialogHost";
 import { showAlert, showPrompt } from "../lib/dialog";
 import { tr } from "../lib/i18n";
 import type { PublishProvider } from "../lib/publish-provider";
+import { readNetlifySite } from "../lib/browser-netlify";
 import LanguageSelector from "./LanguageSelector";
 import { relativeTime } from "../lib/time";
 import AllowedAccounts from "./AllowedAccounts";
 import SiteMembers from "./SiteMembers";
-import NetlifyConnectionSettings from "./NetlifyConnectionSettings";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
@@ -259,6 +259,9 @@ function SiteCard({
   onDelete: () => void;
 }) {
   const edited = site.savedAt ?? site.updatedAt;
+  const liveUrl = site.siteUrl ||
+    (store === "local" && provider === "netlify"
+      ? readNetlifySite(site.id)?.production?.url || null : null);
   return (
     <article className="home-card">
       <a className="home-card-link" href={sitePath(site.id)} aria-label={tr("Open {name}", { name: site.name })}>
@@ -295,12 +298,12 @@ function SiteCard({
           { label: tr("Settings"), icon: <Settings size={14} />, onSelect: onSettings },
           ...(site.accessRole === "owner" ? [{ label: tr("Members and permissions"), icon: <Users size={14} />, onSelect: onMembers }] : []),
           { label: tr("Duplicate"), icon: <Copy size={14} />, onSelect: onDuplicate },
-          ...(site.siteUrl
+          ...(liveUrl
             ? [
                 {
                   label: tr("Open live site"),
                   icon: <ExternalLink size={14} />,
-                  onSelect: () => window.open(site.siteUrl!, "_blank", "noopener"),
+                  onSelect: () => window.open(liveUrl, "_blank", "noopener"),
                 },
               ]
             : []),
@@ -459,7 +462,9 @@ function SiteDialog({
             </div>
             </>)}
             {provider !== "github" && (
-              <p className="hint">{tr("Hosting provider and credentials are set on the server. A separate hosting project is created automatically for every site.")}</p>
+              <p className="hint">{provider === "netlify"
+                ? tr("Netlify is connected when you publish. Your account and project links remain in this browser.")
+                : tr("Hosting provider and credentials are set on the server. A separate hosting project is created automatically for every site.")}</p>
             )}
             <div className="home-field-row">
               <Field label={tr("Live site URL")}>
@@ -477,10 +482,6 @@ function SiteDialog({
             </div>
           </div>
         </details>
-
-        {site && provider === "netlify" && site.accessRole === "owner" && (
-          <NetlifyConnectionSettings siteId={site.id} />
-        )}
 
         {error && (
           <p className="home-dialog-error">
@@ -1030,7 +1031,7 @@ export default function Home() {
         />
       )}
       {membersSite && <SiteMembers siteId={membersSite.id} siteName={membersSite.name} onClose={() => setMembersSite(null)} />}
-      {settingsOpen && <AppSettings auth={!!status?.auth && !readOnly && status?.manageAccounts !== false}
+      {settingsOpen && <AppSettings auth={!!status?.auth && !readOnly}
         onClose={() => setSettingsOpen(false)} />}
       <DialogHost />
       {draggingFile && (

@@ -27,6 +27,7 @@ interface WorkerEnv {
   DB?: D1LikeDatabase;
   ALLOWED_EMAILS?: string;
   ALLOW_ANONYMOUS?: string;
+  TSUMU_STORAGE_MODE?: string;
   AUTH_SECRET?: string;
   AUTH_GOOGLE_ID?: string;
   AUTH_GOOGLE_SECRET?: string;
@@ -431,6 +432,8 @@ async function authorizeWebSocket(
 
 export default {
   scheduled(event: { cron?: string }, env: WorkerEnv, ctx: ExecutionContext): void {
+    // Browser-only instances never write shared KV assets or maintain shared GC.
+    if (env.TSUMU_STORAGE_MODE === "local") return;
     // 毎日の処理: 期限切れの D1 の候補だけを扱う。週1回の処理: KV の1ページ分を照合し、
     // アップロードの失敗や、削除したサイトに残ったアセットを見つける。
     const discoverUntracked = event.cron === "0 19 * * SUN";
@@ -463,6 +466,11 @@ export default {
       return nextHandler.fetch(request, env, ctx);
     }
 
+    // The WebSocket endpoint accesses D1 directly, bypassing Next.js DB checks.
+    // Never expose existing shared site rooms when this instance is anonymous/local.
+    if (env.TSUMU_STORAGE_MODE === "local") {
+      return new Response("Collaboration requires server-backed site storage", { status: 503 });
+    }
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
       return new Response("WebSocket upgrade required", { status: 426 });
     }

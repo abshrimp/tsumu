@@ -75,17 +75,17 @@ npm run dev
 サーバーの `PUBLISH_PROVIDER` に `github`（既定）・`netlify`・`cloudflare` のいずれかを設定します。
 
 - **GitHub**：公開用リポジトリを作成し、**Contents: Read and write** 権限を持つ `GITHUB_TOKEN` を設定します。サイト設定から公開先を選びます。生成コードと編集用データをpushします。
-- **Netlify**：`NETLIFY_OAUTH_CLIENT_ID`・`NETLIFY_OAUTH_REDIRECT_URI`・`NETLIFY_TOKEN_ENCRYPTION_KEY` を設定します。各サイトの所有者が初めて**公開**を押すと、**自身のNetlifyアカウントでログイン**する画面に進みます。認証後はTsumuの公開画面に戻り、チームが1つなら自動選択、複数なら公開画面で選択します。サーバー共通のNetlifyトークンは使用しません。
+- **Netlify**：`NETLIFY_OAUTH_CLIENT_ID` と `NETLIFY_OAUTH_REDIRECT_URI` だけを設定します。**Tsumuのログインもデータベースも不要**です。利用者が初めて**公開**を押すと、自身のNetlifyアカウントでログインし、公開画面に戻ります。チームが1つなら自動選択され、複数の場合は選択します。トークンと公開プロジェクトIDはブラウザ内に保存し、Tsumuサーバーでは永続保存しません。
 - **Cloudflare Pages**：`CLOUDFLARE_ACCOUNT_ID` と `CLOUDFLARE_API_TOKEN` を設定します。
 
-Netlify・Cloudflare Pagesでは、生成した静的HTML・CSS・JavaScript・アセットだけをアップロードします。サーバーへのサイト保存が必要です。複数ユーザー向けの公開サービスでは、Googleログインを設定したうえで `ALLOW_PUBLIC_SIGNUP=true` を指定すると、Googleで本人確認された利用者が**他人のサイトにアクセスせず、自分のサイト**を作成できます。
+Netlify・Cloudflare Pagesでは、生成した静的HTML・CSS・JavaScript・アセットだけをアップロードします。ログイン不要でブラウザ保存を利用する場合は `TSUMU_STORAGE_MODE=local` と `ALLOW_ANONYMOUS=true` を設定し、`AUTH_*` は設定しません。Cloudflare Pages公開には引き続きサーバー保存が必要です。ローカルモードではCloudflare KVへのアップロードも無効になり、アセットはブラウザ内に保存されます（現行の上限は1ファイル2MB）。
 
 静的ホスティングでもテスト公開が利用できます。独自ドメインは公開サービスで設定し、必要に応じてサイト設定にURLを入力します。公開用トークンがなくてもZIP書き出しは可能です。
 
 編集データをサーバーに保存するには、**Cloudflare Workers** では D1・Durable Objects・KV を設定し、**Node.js** では `TSUMU_DATA_DIR` に保存先を指定します。**Docker** では `/data` にボリュームをマウントします。ブラウザ保存の場合、編集データは作成したブラウザ内に保存されます。アセットを削除したときの扱いは[保存先によって異なります](docs/user-guide.ja.md#エディタのデプロイ)。
 
 > [!IMPORTANT]
-> エディタをインターネットに公開する前に、[Google ログイン](docs/user-guide.ja.md#googleログイン)を設定してください。ログイン未設定の `npm run dev` は、既定で `localhost` などのループバック宛ての匿名アクセスを受け付けます。`ALLOW_ANONYMOUS=true` を設定すると他のホスト名からも開けます。その場合、アクセスできる人は誰でも編集でき、公開サービスの認証情報が設定されていれば公開もできます。
+> サーバー共有保存では、インターネット公開前に[Googleログイン](docs/user-guide.ja.md#googleログイン)を設定してください。匿名で利用する場合は `TSUMU_STORAGE_MODE=local` と `ALLOW_ANONYMOUS=true` を組み合わせます。ローカルサイトはブラウザ単位で分離されますが、ブラウザのデータ削除によって失われるためバックアップが必要です。Netlifyトークンはブラウザに保存されるので、不審なスクリプトから保護してください。
 
 デプロイ手順、認証、出力形式、環境変数、バックアップ、制限事項は[詳細ガイド](docs/user-guide.ja.md)を参照してください。
 

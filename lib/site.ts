@@ -42,6 +42,7 @@ export const SITE_SCOPED_KEYS = [
   storageKey("ui-v1"),
   storageKey("unsynced-v1"),
   storageKey("comments-v1"),
+  storageKey("netlify-publish-v1"),
 ];
 
 /** API の URL に、いま開いているサイトを付ける */

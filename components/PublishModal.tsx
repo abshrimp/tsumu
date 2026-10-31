@@ -18,6 +18,7 @@ import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
 import BackupFileControls from "./BackupFileControls";
 import StaticPublishModal from "./StaticPublishModal";
+import NetlifyPublishModal from "./NetlifyPublishModal";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publish-preconditions";
@@ -470,7 +471,8 @@ export default function PublishModal({
   const siteUrl = site ? targets?.[site].url : null;
 
   if (targets?.provider === "netlify" || targets?.provider === "cloudflare") {
-    return <StaticPublishModal key={targets.provider} conf={{
+    const Modal = targets.provider === "netlify" ? NetlifyPublishModal : StaticPublishModal;
+    return <Modal key={targets.provider} conf={{
       site: targets.site, provider: targets.provider, configured: targets.configured,
       test: {
         project: targets.test.project ?? "", url: targets.test.url, error: targets.test.error,
