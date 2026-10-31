@@ -852,10 +852,28 @@ export default function Home() {
     <div className="home">
       {importStatus?.kind === "loading" && importStatus.source === "remote" && (
         <div className="home-import-overlay" role="status" aria-live="polite" aria-busy="true">
-          <div className="home-import-overlay-content">
-            <LoaderCircle size={30} className="spin" aria-hidden="true" />
+          <div className="home-import-skeleton" aria-hidden="true">
+            <header className="home-top">
+              <div className="home-brand">
+                <BrandMark size={28} />
+                <strong>Tsumu</strong>
+              </div>
+            </header>
+            <main className="home-main">
+              <div className="home-import-skeleton-heading">
+                <span />
+                <span />
+              </div>
+              <div className="home-grid">
+                {[0, 1, 2].map((i) => <div key={i} className="home-card is-skeleton" />)}
+              </div>
+            </main>
+          </div>
+          <div className="boot-card home-import-overlay-content">
+            <BrandMark size={40} />
             <strong>{tr("Importing site")}</strong>
-            <p>{importStatus.message}</p>
+            <div className="boot-bar" aria-hidden="true"><span /></div>
+            <p className="boot-tip">{importStatus.message}</p>
           </div>
         </div>
       )}

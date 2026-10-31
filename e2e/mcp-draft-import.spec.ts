@@ -45,6 +45,8 @@ test("one-time MCP URL imports a new editable site, then acknowledges deletion",
   await page.goto("/#tsumu-import=" + draftId + "." + secret);
   await expect(page.locator(".home-import-overlay")).toBeVisible();
   await expect(page.locator(".home-import-overlay")).toHaveAttribute("aria-busy", "true");
+  await expect(page.locator(".home-import-overlay .boot-card")).toBeVisible();
+  await expect(page.locator(".home-import-overlay .boot-bar")).toBeVisible();
   releaseClaim();
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
