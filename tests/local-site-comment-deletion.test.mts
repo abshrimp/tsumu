@@ -203,7 +203,9 @@ test("successful server reads and writes remain authoritative despite a local de
   const f = await setup("server");
   try {
     await f.remove();
-    mock.method(globalThis, "fetch", async () => Response.json({ threads: initial }));
+    mock.method(globalThis, "fetch", async () => Response.json({ threads: initial,
+      nextCursor: null, total: initial.length, unresolvedCount: initial.filter(thread => !thread.resolvedAt).length,
+      focusedThread: null }));
     await useComments.getState().load(); assert.deepEqual(useComments.getState().threads, initial);
     assert.equal(await useComments.getState().run(create("server")), true);
     assert.equal(useComments.getState().store, "server"); assert.equal(f.values.get(markerKey), "1"); assert.equal(f.writes(), 0);

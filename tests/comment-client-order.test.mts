@@ -12,11 +12,11 @@ afterEach(() => mock.reset());
 test("a poll started before a successful post cannot remove the acknowledged thread", async () => {
   reset();
   const old = deferred<Response>();
-  mock.method(globalThis, "fetch", async (_url, init) => init?.method ? Response.json({ threads: threads("new") }) : old.promise);
+  mock.method(globalThis, "fetch", async (_url, init) => init?.method ? Response.json(pageData(["new"])) : old.promise);
   const pending = useComments.getState().load();
   assert.equal(await useComments.getState().run(create("new")), true);
   useComments.getState().open("new");
-  old.resolve(Response.json({ threads: [] }));
+  old.resolve(Response.json(pageData([])));
   await pending;
   assert.deepEqual(useComments.getState().threads.map((t) => t.id), ["new"]);
   assert.equal(useComments.getState().openId, "new");
@@ -27,7 +27,7 @@ test("an old failed or local-fallback read cannot replace a successful server po
   for (const status of [500, 503]) {
     reset();
     const old = deferred<Response>();
-    mock.method(globalThis, "fetch", async (_url, init) => init?.method ? Response.json({ threads: threads("new") }) : old.promise);
+    mock.method(globalThis, "fetch", async (_url, init) => init?.method ? Response.json(pageData(["new"])) : old.promise);
     const pending = useComments.getState().load();
     await useComments.getState().run(create("new"));
     old.resolve(Response.json({ error: "Old failure" }, { status }));
@@ -44,9 +44,9 @@ test("overlapping polls retain the newest response and its loading state", async
   const old = deferred<Response>(); const current = deferred<Response>(); let n = 0;
   mock.method(globalThis, "fetch", async () => ++n === 1 ? old.promise : current.promise);
   const first = useComments.getState().load(); const second = useComments.getState().load();
-  old.resolve(Response.json({ threads: threads("old") })); await first;
+  old.resolve(Response.json(pageData(["old"]))); await first;
   assert.equal(useComments.getState().loading, true);
-  current.resolve(Response.json({ threads: threads("current") })); await second;
+  current.resolve(Response.json(pageData(["current"]))); await second;
   assert.equal(useComments.getState().threads[0]?.id, "current");
   assert.equal(useComments.getState().loading, false);
 });
@@ -56,7 +56,7 @@ test("writes are serialized and a poll during them cannot restore an intermediat
   const responses = [deferred<Response>(), deferred<Response>()];
   const actions: CommentAction[] = []; let reads = 0;
   mock.method(globalThis, "fetch", async (_url, init) => {
-    if (!init?.method) { reads++; return Response.json({ threads: [] }); }
+    if (!init?.method) { reads++; return Response.json(pageData([])); }
     const index = actions.length; actions.push(JSON.parse(String(init.body)));
     return responses[index].promise;
   });
@@ -66,11 +66,11 @@ test("writes are serialized and a poll during them cannot restore an intermediat
   assert.equal(actions.length, 1);
   await useComments.getState().load();
   assert.equal(reads, 0);
-  responses[0].resolve(Response.json({ threads: threads("first") }));
+  responses[0].resolve(Response.json(pageData(["first"])));
   await first;
   await Promise.resolve();
   assert.equal(actions.length, 2);
-  responses[1].resolve(Response.json({ threads: threads("first", "second") }));
+  responses[1].resolve(Response.json(pageData(["first", "second"])));
   assert.equal(await second, true);
   assert.deepEqual(useComments.getState().threads.map((t) => t.id), ["first", "second"]);
 });
@@ -80,12 +80,12 @@ test("a failed write releases the queue and keeps the failure until a current re
   let writes = 0;
   const old = deferred<Response>();
   mock.method(globalThis, "fetch", async (_url, init) => !init?.method ? old.promise : ++writes === 1
-    ? Response.json({ error: "Save failed" }, { status: 500 }) : Response.json({ threads: threads("second") }));
+    ? Response.json({ error: "Save failed" }, { status: 500 }) : Response.json(pageData(["second"])));
   const poll = useComments.getState().load();
   assert.equal(await useComments.getState().run(create("first")), false);
   const error = useComments.getState().error;
   assert.ok(error);
-  old.resolve(Response.json({ threads: [] })); await poll;
+  old.resolve(Response.json(pageData([]))); await poll;
   assert.equal(useComments.getState().error, error);
   assert.equal(await useComments.getState().run(create("second")), true);
   assert.equal(useComments.getState().threads[0]?.id, "second");
@@ -230,13 +230,15 @@ test("a completed deletion does not close a different thread opened while saving
 });
 
 
-test("legacy threads-only reads do not infer deletion of an off-batch detail", async () => {
+test("incomplete comment responses fail closed without replacing the current page or detail", async () => {
   reset(); useComments.setState({ threads: threads("new"), nextCursor: "2:new" }); useComments.getState().open("new");
   mock.method(globalThis, "fetch", async () => Response.json({ threads: threads("old") }));
   await useComments.getState().navigate("older");
-  assert.equal(useComments.getState().focusedThread?.id, "new"); assert.equal(useComments.getState().openId, "new");
+  assert.deepEqual(useComments.getState().threads.map(thread => thread.id), ["new"]);
+  assert.equal(useComments.getState().focusedThread?.id, "new");
+  assert.equal(useComments.getState().openId, "new");
+  assert.ok(useComments.getState().error);
 });
-
 
 test("a missing-target reply fails honestly and subsequent polls preserve the cached detail until Close", async () => {
   reset(); useComments.setState({ threads: threads("one"), active: true }); useComments.getState().open("one");
@@ -296,7 +298,7 @@ test("an ID conflict preserves the live discussion and allows retrying with a fr
   let requests = 0;
   mock.method(globalThis, "fetch", async () => ++requests === 1
     ? Response.json({ error: "コメントのIDが重複しています。もう一度送信してください", code: "comment_id_conflict" }, { status: 409 })
-    : Response.json({ threads: applyCommentAction(threads("one"), { action: "reply", threadId: "one", id: "fresh", body: "Keep this reply" }, null, 2) }));
+    : Response.json({ ...pageData(["one"], "one"), total: 1, unresolvedCount: 1, threads: applyCommentAction(threads("one"), { action: "reply", threadId: "one", id: "fresh", body: "Keep this reply" }, null, 2) }));
   assert.equal(await useComments.getState().run({ action: "reply", threadId: "one", id: "collision", body: "Keep this reply" }), false);
   assert.equal(useComments.getState().openId, "one"); assert.equal(useComments.getState().focusedThread?.id, "one");
   assert.equal(useComments.getState().threadUnavailable, false); assert.equal(useComments.getState().total, 1);

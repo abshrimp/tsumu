@@ -199,7 +199,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
     >()
   );
   const cloudReady = useRef(false);
-  const deltaSupported = useRef(false);
   /** サーバー未保存のローカル変更があるか（ポーリング取り込みの抑止に使う） */
   const cloudDirty = useRef(false);
   /** 初回同期が完了する前の編集も未保存として残す。 */
@@ -540,7 +539,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const saveCloudDoc = useCallback(
     (snapshot: SiteDoc, base: string | null, baseDoc?: SiteDoc) =>
       sendCloudDoc({
-        deltaSupported,
         collabSocket,
         clientId: collabClientId.current,
         requestViaWebSocket,
@@ -560,7 +558,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
       // 再接続時も、進行中の保存が確定してから最新版を読み込む。
       await activeCloudSave.current;
       const data = await loadCloudDoc();
-      deltaSupported.current = data.deltaVersion === 1;
       if (data.exists === true) {
         // 壊れた応答を「サーバーが空」と扱って初期データを保存しない。
         if (!data.rev || !data.doc?.pages || !data.doc?.nodes || !data.doc?.pageOrder?.length) {
@@ -887,7 +884,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     const openEvents = () => {
       if (stopped || events) return;
       const source = new EventSource(
-        `/api/collab/events?delta=1&site=${encodeURIComponent(currentSiteId())}&clientId=${encodeURIComponent(
+        `/api/collab/events?site=${encodeURIComponent(currentSiteId())}&clientId=${encodeURIComponent(
           collabClientId.current
         )}`
       );
@@ -934,7 +931,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const url = `${protocol}//${window.location.host}/api/collab?clientId=${encodeURIComponent(
         collabClientId.current
-      )}&site=${encodeURIComponent(currentSiteId())}&delta=1`;
+      )}&site=${encodeURIComponent(currentSiteId())}`;
       const nextSocket = new WebSocket(url);
       collabSocket.current = nextSocket;
       let opened = false;
@@ -951,7 +948,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
         if (cloudReady.current) {
           void requestViaWebSocket({ type: "load" })
             .then((message) => {
-              if (message.type === "snapshot") deltaSupported.current = message.deltaVersion === 1;
               if (
                 message.type === "snapshot" &&
                 message.exists &&

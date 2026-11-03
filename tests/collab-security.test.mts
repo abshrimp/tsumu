@@ -44,10 +44,10 @@ async function withAllowlist(run: () => Promise<void>) {
   }
 }
 
-function socket(email: string, delta = false) {
+function socket(email: string) {
   return {
     messages: [] as string[], closed: false,
-    deserializeAttachment: () => ({ clientId: email, siteId: "s1", delta, user: { email } }),
+    deserializeAttachment: () => ({ clientId: email, siteId: "s1", user: { email } }),
     send(raw: string) { this.messages.push(raw); },
     close(code: number) { assert.equal(code, 1008); this.closed = true; },
   };
@@ -86,7 +86,7 @@ test("each broadcast reads the allowlist once and refreshes it before the next b
   assert.equal(second.messages.length, 2);
 });
 
-test("WebSocket patch saves notify new clients with a delta and legacy clients with a snapshot", async () => {
+test("WebSocket patch saves broadcast deltas to all authorized peers", async () => {
   await withAllowlist(async () => {
     const { CollaborationRoom } = loadHandler("../custom-worker.ts", {
       "cloudflare:workers": { DurableObject: class {
@@ -100,24 +100,26 @@ test("WebSocket patch saves notify new clients with a delta and legacy clients w
     await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
     const next = { ...base, siteName: "Changed through a patch" };
     const patch = createDocPatch(base, next)!;
-    const sender = socket("owner@example.com", true);
-    const modern = socket("editor@example.com", true);
-    const legacy = socket("editor@example.com");
-    const room = new CollaborationRoom({ getWebSockets: () => [sender, modern, legacy] }, {
+    const sender = socket("owner@example.com");
+    const first = socket("editor@example.com");
+    const second = socket("editor@example.com");
+    const room = new CollaborationRoom({ getWebSockets: () => [sender, first, second] }, {
       DB: nodeDatabase(), ALLOWED_EMAILS: "owner@example.com",
       AUTH_SECRET: "test", AUTH_GOOGLE_ID: "test", AUTH_GOOGLE_SECRET: "test",
     });
     await room.webSocketMessage(sender, JSON.stringify({ type: "patch", requestId: "p1", base: "1", patch }));
     assert.equal(JSON.parse(sender.messages[0]).type, "saved");
-    const delta = JSON.parse(modern.messages[0]);
-    assert.equal(delta.type, "doc-patched");
-    assert.deepEqual(delta.patch, patch);
-    assert.equal(delta.doc, undefined);
-    assert.equal(delta.base, "1");
-    assert.deepEqual(JSON.parse(legacy.messages[0]).doc, next);
+    for (const peer of [first, second]) {
+      const delta = JSON.parse(peer.messages[0]);
+      assert.equal(delta.type, "doc-patched");
+      assert.deepEqual(delta.patch, patch);
+      assert.equal(delta.doc, undefined);
+      assert.equal(delta.base, "1");
+    }
     await room.webSocketMessage(sender, JSON.stringify({ type: "patch", requestId: "p2", base: "1", patch }));
     assert.equal(JSON.parse(sender.messages[1]).type, "conflict");
-    assert.equal(modern.messages.length, 1, "rejected patches must not be broadcast");
+    assert.equal(first.messages.length, 1, "rejected patches must not be broadcast");
+    assert.equal(second.messages.length, 1, "rejected patches must not be broadcast");
   });
 });
 
@@ -152,7 +154,7 @@ test("HTTP PATCH enforces revision checks and publishes only the delta", async (
   });
 });
 
-test("SSE negotiates delta notifications and keeps legacy clients synchronized", async () => {
+test("SSE broadcasts patch deltas to all authorized clients", async () => {
   await withAllowlist(async () => {
     const { GET } = loadHandler("../app/api/collab/events/route.ts", {
       "../../../../lib/server": { requireAuth: async () => null, sessionUser: async () => ({ email: "editor@example.com" }) },
@@ -168,19 +170,21 @@ test("SSE negotiates delta notifications and keeps legacy clients synchronized",
     const patch = createDocPatch(base, next)!;
     await saveDocPatch(db, "s1", patch, "1");
     const abort = new AbortController();
-    const modern = (await GET(new Request("https://editor.example/api/collab/events?site=s1&delta=1", { signal: abort.signal }))).body.getReader();
-    const legacy = (await GET(new Request("https://editor.example/api/collab/events?site=s1", { signal: abort.signal }))).body.getReader();
+    const first = (await GET(new Request("https://editor.example/api/collab/events?site=s1", { signal: abort.signal }))).body.getReader();
+    const second = (await GET(new Request("https://editor.example/api/collab/events?site=s1&clientId=second", { signal: abort.signal }))).body.getReader();
     try {
-      await Promise.all([modern.read(), legacy.read()]);
+      await Promise.all([first.read(), second.read()]);
       publishDocUpdate("s1", { type: "doc-patched", base: "1", rev: "2", savedAt: 1, patch });
       const decode = (data: Uint8Array) => JSON.parse(new TextDecoder().decode(data).slice(6).trim());
-      assert.equal(decode((await modern.read()).value).type, "doc-patched");
-      const snapshot = decode((await legacy.read()).value);
-      assert.equal(snapshot.type, "doc-updated");
-      assert.deepEqual(snapshot.doc, next);
+      for (const reader of [first, second]) {
+        const delta = decode((await reader.read()).value);
+        assert.equal(delta.type, "doc-patched");
+        assert.deepEqual(delta.patch, patch);
+        assert.equal(delta.doc, undefined);
+      }
     } finally {
       abort.abort();
-      await Promise.all([modern.cancel(), legacy.cancel()]);
+      await Promise.all([first.cancel(), second.cancel()]);
     }
   });
 });

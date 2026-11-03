@@ -91,28 +91,38 @@ export function commentId(): string {
   return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// 古いサーバー応答（threads のみ）も扱い、ローリング更新中に一覧を失わない。
-function serverSnapshot(data: Partial<CommentPage> & { threads: CommentThread[] }) {
+/** Accept only the complete current API response; never infer totals from a partial page. */
+function isCommentPage(value: unknown): value is CommentPage {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const data = value as Partial<CommentPage>;
+  return Array.isArray(data.threads) &&
+    (data.nextCursor === null || typeof data.nextCursor === "string") &&
+    Number.isSafeInteger(data.total) && Number(data.total) >= 0 &&
+    Number.isSafeInteger(data.unresolvedCount) && Number(data.unresolvedCount) >= 0 &&
+    (data.focusedThread === null ||
+      (typeof data.focusedThread === "object" &&
+       !!data.focusedThread && typeof data.focusedThread.id === "string" &&
+       Array.isArray(data.focusedThread.messages)));
+}
+function serverSnapshot(data: CommentPage) {
   return { store: "server" as const, threads: data.threads, error: null,
-    nextCursor: data.nextCursor ?? null,
-    total: data.total ?? data.threads.length,
-    unresolvedCount: data.unresolvedCount ?? data.threads.filter(t => !t.resolvedAt).length };
+    nextCursor: data.nextCursor, total: data.total, unresolvedCount: data.unresolvedCount };
 }
 function focusOf(state: Pick<CommentsState, "threads" | "focusedThread" | "openId">) {
   return state.focusedThread?.id === state.openId ? state.focusedThread : state.threads.find(t => t.id === state.openId) ?? null;
 }
-function focusSnapshot(data: Partial<CommentPage> & { threads: CommentThread[] }, id: string | null, previous: CommentThread | null, unavailable: boolean) {
+function focusSnapshot(data: Pick<CommentPage, "threads" | "focusedThread">, id: string | null, previous: CommentThread | null) {
   if (!id) return { focusedThread: null, threadUnavailable: false };
   const found = data.focusedThread?.id === id ? data.focusedThread : data.threads.find(t => t.id === id);
   if (found) return { focusedThread: found, threadUnavailable: false };
   // 閲覧中のスレッドが削除されても、入力をコピーできるよう詳細だけを閉じるまで残す。
   const focusedThread = previous?.id === id ? previous : null;
-  return { focusedThread, threadUnavailable: !!focusedThread && ("focusedThread" in data ? true : unavailable) };
+  return { focusedThread, threadUnavailable: !!focusedThread };
 }
 function localSnapshot(threads: CommentThread[], state: CommentsState) {
   return { store: "local" as const, threads, error: null, cursor: null, previousCursors: [], nextCursor: null,
     total: threads.length, unresolvedCount: threads.filter(t => !t.resolvedAt).length,
-    ...focusSnapshot({ threads, focusedThread: threads.find(t => t.id === state.openId) ?? null }, state.openId, focusOf(state), state.threadUnavailable) };
+    ...focusSnapshot({ threads, focusedThread: threads.find(t => t.id === state.openId) ?? null }, state.openId, focusOf(state)) };
 }
 
 // POST は返却された一覧をそのまま反映するため、同じブラウザの操作は順に確定する。
@@ -181,10 +191,10 @@ export const useComments = create<CommentsState>((set, get) => ({
       }
       const data = await res.json().catch(() => null);
       if (request !== readRequest) return;
-      if (!res.ok || !Array.isArray(data?.threads)) throw new Error(data?.error ?? tr("読み込めませんでした"));
+      if (!res.ok || !isCommentPage(data)) throw new Error(data?.error ?? tr("読み込めませんでした"));
       const state = get();
       set({ ...serverSnapshot(data), cursor, previousCursors,
-        ...(state.openId === openId ? focusSnapshot(data, openId, focusOf(state), state.threadUnavailable) : {}) });
+        ...(state.openId === openId ? focusSnapshot(data, openId, focusOf(state)) : {}) });
     } catch (e) {
       if (request === readRequest) set({ ...(e instanceof LocalSiteDeletedError ? localSnapshot([], get()) : {}),
         error: userMessage(e, tr("コメントを読み込めませんでした")) });
@@ -241,11 +251,11 @@ export const useComments = create<CommentsState>((set, get) => ({
             ...(state.openId === a.threadId ? { focusedThread: focusOf(state), threadUnavailable: true } : {}),
           });
         }
-        if (!res.ok || !Array.isArray(data?.threads)) throw new Error(data?.error ?? tr("保存できませんでした"));
+        if (!res.ok || !isCommentPage(data)) throw new Error(data?.error ?? tr("保存できませんでした"));
         const state = get();
         set({ ...serverSnapshot(data),
           ...(a.action === "create" ? { cursor: null, previousCursors: [] } : {}),
-          ...(state.openId === openId ? focusSnapshot(data, a.action === "create" ? a.id : openId, focusOf(state), state.threadUnavailable) : {}),
+          ...(state.openId === openId ? focusSnapshot(data, a.action === "create" ? a.id : openId, focusOf(state)) : {}),
         });
         return true;
       } catch (e) {

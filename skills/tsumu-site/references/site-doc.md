@@ -184,7 +184,7 @@ A simple page-load script:
 }
 ```
 
-Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; valid kinds include `show`, `hide`, `toggle`, `open-page`, `open-url`, `scroll-to`, `set-value`, `set-var`, `calc`, `replace`, `if`, `wait`, `repeat`, `fetch`, `filter-array`, `sort-array`, and others. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** Page-load data fetch steps have additional placement restrictions.
+Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; valid kinds include `show`, `hide`, `toggle`, `open-page`, `open-url`, `scroll-to`, `set-value`, `set-var`, `transform`, `calc`, `replace`, `if`, `wait`, `repeat`, `for-each`, `fetch`, and others. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** Page-load data fetch steps have additional placement restrictions.
 
 ## Assets and packaging
 

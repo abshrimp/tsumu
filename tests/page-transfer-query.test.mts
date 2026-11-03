@@ -46,14 +46,13 @@ test("missing query matches do not silently retarget links to another variant", 
   assert.equal(target.nodes[home.children[0]].link?.pageId, "source-news");
 });
 
-test("payloads without query metadata still resolve query-free pages", () => {
+test("missing required page-copy metadata is rejected without changing the destination", () => {
   const { source, target } = queryCopyFixture();
-  delete source.pages["source-news"].query;
   const payload = buildPagePayload(source, ["home"]);
-  delete payload.queries;
-  applyPagePayload(target, payload);
-  const home = target.pages[target.pageOrder.at(-1)!];
-  assert.equal(target.nodes[home.children[0]].link?.pageId, "default");
+  const before = structuredClone(target);
+  delete (payload as Partial<typeof payload>).queries;
+  assert.throws(() => applyPagePayload(target, payload), /Invalid page copy metadata/);
+  assert.deepEqual(target, before);
 });
 
 test("pages copied together take priority over matching destination URLs", () => {

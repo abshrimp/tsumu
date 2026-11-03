@@ -17,8 +17,7 @@ import { normalizeQuery } from "./vars";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 
 export interface PagePayload {
-  /** Missing in older payloads, which used the default screen widths. */
-  breakpoints?: BreakpointDef[];
+  breakpoints: BreakpointDef[];
   pages: Page[];
   /** ページの中の要素（入れ子も含む） */
   nodes: DocNode[];
@@ -26,8 +25,8 @@ export interface PagePayload {
   folders: Record<string, string>;
   /** コピー元の全ページのURL（ページID → slug。コピーしなかったページへのリンクを付け替えるため） */
   slugs: Record<string, string>;
-  /** 同じslugのページを区別するクエリ。古いペイロードではクエリなしとして扱う */
-  queries?: Record<string, string>;
+  /** 同じslugのページを区別するクエリ */
+  queries: Record<string, string>;
   deps: ClipPayload;
   /** コピー元のサイトの言語（ページで言語を選んでいなければ、こちらの言語で書かれている） */
   lang?: string;
@@ -81,11 +80,17 @@ function mapSteps(steps: ScriptStep[] | undefined, fn: (pageId: string) => strin
  */
 /** Validate before importing any assets or components. Never change destination breakpoints. */
 function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload {
+  // A page copy is accepted only when its complete, current metadata exists.
+  // Reject malformed imports before mergeClipDeps can mutate the destination.
+  if (!payload || !payload.slugs || !payload.queries ||
+      typeof payload.slugs !== "object" || Array.isArray(payload.slugs) ||
+      typeof payload.queries !== "object" || Array.isArray(payload.queries)) {
+    throw new Error("Invalid page copy metadata");
+  }
   const fail = (): never => {
     throw new Error(tr("コピー元とコピー先の画面幅設定が一致しないか、参照できない設定があります。表示を保持するためコピーを中止しました。画面幅設定を揃えてから再試行してください。"));
   };
-  const checked = (raw: BreakpointDef[] | undefined) => {
-    const input = raw ?? DEFAULT_BREAKPOINTS;
+  const checked = (input: BreakpointDef[]) => {
     if (!Array.isArray(input) || input.length > MAX_BREAKPOINTS) return fail();
     const normalized = normalizeBreakpoints(input);
     if (normalized.length !== input.length || input.some((b) =>
@@ -94,7 +99,7 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
     return normalized;
   };
   const source = checked(payload.breakpoints);
-  const target = checked(d.breakpoints);
+  const target = checked(d.breakpoints ?? DEFAULT_BREAKPOINTS);
   if (source.length !== target.length || source.some((b, i) => b.maxWidth !== target[i].maxWidth)) fail();
   const ids = new Map([["base", "base"], ...source.map((b, i) => [b.id, target[i].id] as [string, string])]);
   const id = (key: string): string => ids.get(key) ?? fail();
@@ -130,7 +135,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     const copied = pageMap.get(id);
     if (copied) return copied;
     const slug = p.slugs[id];
-    return (slug !== undefined && byUrl.get(urlKey(slug, p.queries?.[id]))) || id;
+    return (slug !== undefined && byUrl.get(urlKey(slug, p.queries[id]))) || id;
   };
 
   // 新しく取り込んだマスター内のリンクも付け替える。既存のマスターは変更しない。

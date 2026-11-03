@@ -28,7 +28,7 @@ interface WorkerEnv {
 }
 
 /** siteId は接続時の ?site=、user は Worker が認証の結果から渡すログイン中の人 */
-type SocketAttachment = { clientId: string; siteId: string; delta?: boolean; user?: ActivityUser | null };
+type SocketAttachment = { clientId: string; siteId: string; user?: ActivityUser | null };
 
 /** Worker から部屋へ、ログイン中の人を渡すヘッダー（ブラウザから来た同名のヘッダーは捨てる） */
 const USER_HEADER = "X-Editor-User";
@@ -63,26 +63,13 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
     // 同じ配信内だけ共有する。次の配信では取り直し、許可削除を反映する。
     let allowedEmails: Promise<string[]> | undefined;
     const readExtra = () => allowedEmails ??= this.readAllowedEmails();
-    const message = JSON.parse(raw) as DocChangeMessage;
-    let legacySnapshot: Promise<string | null> | undefined;
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === except) continue;
       try {
         const attachment = (socket as AttachableSocket).deserializeAttachment();
         if (senderId && attachment?.clientId === senderId) continue;
         if (!await this.authorized(socket, readExtra)) continue;
-        if (message.type === "doc-patched" && !attachment?.delta) {
-          // デプロイ前から開いている画面には従来形式で通知する。本文取得は配信内で1回だけ。
-          legacySnapshot ??= (async () => {
-            if (!this.env.DB || !attachment?.siteId) return null;
-            const current = await readCurrentDoc(await getDbFromBinding(this.env.DB), attachment.siteId);
-            return current ? `{"type":"doc-updated","rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}` : null;
-          })();
-          const snapshot = await legacySnapshot;
-          if (snapshot) socket.send(snapshot);
-        } else {
-          socket.send(raw);
-        }
+        socket.send(raw);
       } catch {
         // 切断済みソケットはランタイムが一覧から除外する
       }
@@ -127,7 +114,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
 
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
-    (server as AttachableSocket).serializeAttachment({ clientId, siteId, user, delta: url.searchParams.get("delta") === "1" });
+    (server as AttachableSocket).serializeAttachment({ clientId, siteId, user });
 
     return new Response(null, {
       status: 101,
@@ -202,13 +189,12 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
               type: "snapshot",
               requestId: input.requestId,
               exists: false,
-              deltaVersion: 1,
             })
           );
           return;
         }
         socket.send(
-          `{"type":"snapshot","requestId":"${input.requestId}","exists":true,"deltaVersion":1,"rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}`
+          `{"type":"snapshot","requestId":"${input.requestId}","exists":true,"rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}`
         );
         return;
       }
