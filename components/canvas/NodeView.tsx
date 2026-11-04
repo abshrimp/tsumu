@@ -318,6 +318,32 @@ export function NodeView({
     }
     if (chain.includes(comp.id)) return recursiveInstance(common);
     const tag = resolveTag(root, isTop);
+    // プレビューではインスタンスの外枠にもマスターのID・スクリプト・リンクを反映する。
+    if (ctx.preview) {
+      if (root.attrId) common.id = root.attrId;
+      applyScriptsAttr(root, common, doc, vars, ctx.clientVars);
+      if (root.link) {
+        const link = root.link;
+        const rawUrl = link.kind === "page" ? "#" : link.url || "#";
+        const href = safeNavigationUrl(hasVars(rawUrl) ? interpolateUrl(rawUrl, vars) : rawUrl);
+        common.href = href;
+        if (link.kind === "page" && link.pageId) {
+          common.onClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            setActivePage(link.pageId!);
+          };
+        } else if (link.newTab) {
+          common.target = "_blank";
+          common.rel = "noopener noreferrer";
+        } else if (!href.startsWith("#")) {
+          common.onClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            ctx.navigate(href);
+          };
+        }
+      }
+      if (tag === "button") applyButton(root, common, true, ctx.refresh);
+    }
     const children: ReactNode[] = [];
     if (root.text) {
       children.push(
@@ -332,7 +358,7 @@ export function NodeView({
     return (
       <InstanceChainCtx.Provider key={id} value={[...chain, comp.id]}>
         {createElement(
-          tag === "a" ? "div" : tag,
+          tag === "a" && !ctx.preview ? "div" : tag,
           { ...common, "data-instance": comp.id, "data-ghost": root.id },
           children.length ? children : undefined
         )}
