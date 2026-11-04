@@ -1,5 +1,7 @@
 "use client";
 
+import { cssUsesAssetUrl } from "@/lib/css-assets";
+
 /**
  * アセットタブ（画像などの一覧・アップロード・使用量）
  */
@@ -160,8 +162,7 @@ function assetUsage(doc: SiteDoc): Map<string, number> {
     for (const bp of Object.values(node.styles)) {
       for (const styles of Object.values(bp)) {
         for (const value of Object.values(styles ?? {})) {
-          if (!value.includes("url(")) continue;
-          for (const [id, src] of bySrc) if (value.includes(src)) hits.add(id);
+          for (const [id, src] of bySrc) if (cssUsesAssetUrl(value, src)) hits.add(id);
         }
       }
     }
@@ -388,7 +389,7 @@ export function AssetsTab() {
             for (const styles of Object.values(bp)) {
               if (!styles) continue;
               for (const [prop, value] of Object.entries(styles)) {
-                if (value.includes(src)) delete styles[prop];
+                if (cssUsesAssetUrl(value, src)) delete styles[prop];
               }
             }
           }

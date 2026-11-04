@@ -1,5 +1,6 @@
 "use client";
 
+import { replaceCssAssetUrls } from "./css-assets";
 import type { Asset, SiteDoc } from "./types";
 import { genId } from "./presets";
 import { tr } from "./i18n";
@@ -239,6 +240,7 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
   asset.path = path;
   delete asset.dataUrl;
   const src = assetSrc(asset);
+  const sources = new Map(data ? [[data, src]] : []);
   for (const node of Object.values(doc.nodes)) {
     if (node.image?.assetId === assetId) node.image.src = src;
     if (node.media?.assetId === assetId) node.media.src = src;
@@ -247,7 +249,7 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
       for (const styles of Object.values(bp ?? {})) {
         if (!styles) continue;
         for (const [prop, value] of Object.entries(styles)) {
-          if (typeof value === "string" && value.includes(data)) styles[prop] = value.split(data).join(src);
+          if (typeof value === "string") styles[prop] = replaceCssAssetUrls(value, sources);
         }
       }
     }

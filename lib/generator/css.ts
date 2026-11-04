@@ -2,6 +2,7 @@
  * サイト全体のCSS（要素のスタイル・画面幅・状態・フォント）の書き出し
  */
 
+import { replaceCssAssetUrls } from "../css-assets";
 import type { Breakpoint, Page, SiteDoc, StyleMap } from "../types";
 import {
   allFonts,
@@ -62,18 +63,16 @@ export function cssValue(
   assetNames: Map<string, string>
 ): string {
   if (prop === "fontFamily") return fontFamilyCss(doc, value);
-  let output = value;
+  const sources = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
     const name = assetNames.get(asset.id);
     if (!name) continue;
     const source = asset.path
       ? `/api/assets/file?path=${encodeURIComponent(asset.path)}`
       : asset.dataUrl;
-    if (source && output.includes(source)) {
-      output = output.split(source).join(`/assets/${name}`);
-    }
+    if (source) sources.set(source, `/assets/${name}`);
   }
-  return output;
+  return replaceCssAssetUrls(value, sources);
 }
 
 function ruleFor(
