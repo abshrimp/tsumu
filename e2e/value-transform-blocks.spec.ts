@@ -122,7 +122,7 @@ test("scripted named state changes a distant element and reset restores its defa
   };
   const project = generateProject(doc);
   const css = project.files["styles/site.css"];
-  const className = /\.([a-zA-Z0-9_-]+)\[data-tsumu-state="selected"\]/.exec(css)?.[1];
+  const className = /\.([a-zA-Z0-9_-]+)\[data-site-state="selected"\]/.exec(css)?.[1];
   expect(className).toBeTruthy();
   await page.setContent('<html><body><button id="trigger">Activate</button><button id="reset">Reset</button><div id="remote">Target</div></body></html>');
   await page.addStyleTag({ content: css });
@@ -134,10 +134,10 @@ test("scripted named state changes a distant element and reset restores its defa
   await page.addScriptTag({ content: scriptsFile(doc) });
   await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(238, 238, 238)");
   await page.locator("#trigger").click();
-  await expect(page.locator("#remote")).toHaveAttribute("data-tsumu-state", "selected");
+  await expect(page.locator("#remote")).toHaveAttribute("data-site-state", "selected");
   await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(255, 0, 0)");
   await page.locator("#reset").click();
-  await expect(page.locator("#remote")).not.toHaveAttribute("data-tsumu-state");
+  await expect(page.locator("#remote")).not.toHaveAttribute("data-site-state");
   await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(238, 238, 238)");
 });
 

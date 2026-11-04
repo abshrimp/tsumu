@@ -4,7 +4,7 @@
  * must never be copied from an untrusted HTML document.
  */
 const EXTRA_ATTRIBUTES = new Set(["title", "role", "lang", "dir", "tabindex", "for", "htmlfor"]);
-const RESERVED_DATA = /^(?:node|ghost|sel|bound|scripts|raw|array|tpl|inview|toggle-show|page-body|instance-node|instance-hidden|live(?:-.+)?|text-parts|href-parts|field-.+|tutorial|item|limit|client-list|list-ops)$/;
+const RESERVED_DATA = /^(?:node|ghost|sel|bound|scripts|raw|array|tpl|inview|toggle-show|page-body|instance-node|instance-hidden|live(?:-.+)?|text-parts|href-parts|field-.+|tutorial|item|limit|client-list|list-ops|site-state|edited|row|list-fallback|image-src-parts|static-href|static-src|static-option|loader|page-plan|page-variants|variant-root|driven)$/;
 const MAX_COUNT = 64;
 const MAX_LENGTH = 2048;
 

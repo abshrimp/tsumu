@@ -57,7 +57,7 @@ test("generated browser and SSR engines avoid inherited-key reads and nested __p
     headers: { "content-type": "application/json" }, status: 200,
   });
   const sandbox: Record<string, any> = {
-    window: {}, location: { search: "" }, URLSearchParams,
+    window: {}, location: { search: "" }, URLSearchParams, TextDecoder, TextEncoder,
     document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) },
     fetch: response, console,
   };
@@ -100,7 +100,7 @@ test("#136 gte/lte list-display filters yield identical browser and SSR results"
     status: 200, headers: { "Content-Type": "application/json" },
   });
   const sandbox: Record<string, any> = {
-    window: {}, location: { search: "" }, URLSearchParams,
+    window: {}, location: { search: "" }, URLSearchParams, TextDecoder, TextEncoder,
     document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) },
     fetch: response, console,
   };

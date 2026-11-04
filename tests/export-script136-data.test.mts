@@ -68,7 +68,7 @@ test("the #136 document exports its pure transform, nested loop, conditions and 
   ]);
   assert.ok(!JSON.stringify(plan).includes("editor"));
   const sandbox: Record<string, any> = {
-    window: {}, location: { search: "?offset=2" }, URLSearchParams,
+    window: {}, location: { search: "?offset=2" }, URLSearchParams, TextDecoder, TextEncoder,
     document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) },
     fetch: async () => ({
       ok: true, status: 200,
@@ -222,7 +222,7 @@ test("#136 multiple if clauses retain AND-before-OR grouping in browser and SSR"
   assert.equal(plan.steps.length, 1);
   assert.deepEqual((plan.steps[0] as { conditions?: unknown[] }).conditions?.length, 2);
   const sandbox: Record<string, any> = {
-    window: {}, location: { search: "?flag=1&mode=other" }, URLSearchParams,
+    window: {}, location: { search: "?flag=1&mode=other" }, URLSearchParams, TextDecoder, TextEncoder,
     document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) }, console,
   };
   runInNewContext(PAGE_DATA_RUNTIME, sandbox, { timeout: 5000 });
@@ -356,7 +356,7 @@ test("latest #136 empty OR filtering preserves group boundaries in browser and S
   const respond = async () => new Response(JSON.stringify(rows),
     { status: 200, headers: { "content-type": "application/json" } });
   const sandbox: Record<string, any> = {
-    window: {}, location: { search: "" }, URLSearchParams,
+    window: {}, location: { search: "" }, URLSearchParams, TextDecoder, TextEncoder,
     document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) },
     fetch: respond, console,
   };

@@ -34,7 +34,7 @@ async function runBrowserData(
   const window: { __pageDataReady?: Promise<any> } = {};
   const warnings: string[] = [];
   vm.runInNewContext(project.files["data-loader.js"], {
-    window, location: { search }, URLSearchParams,
+    window, location: { search }, URLSearchParams, TextDecoder, TextEncoder,
     document: { querySelector: () => ({ textContent: raw }) },
     fetch: implementation,
     console: { warn: (...args: unknown[]) => warnings.push(args.map(String).join(" ")) },
@@ -82,6 +82,48 @@ test("native HTML fetches JSON and applies composable find, length, map and join
   assert.ok(rows && rows.kind === "fetch");
   assert.equal(values[rows.as!][1].name, "B");
   assert.deepEqual(warnings, []);
+});
+
+test("native HTML decodes streamed multibyte JSON across chunk boundaries", async () => {
+  const project = generateExportProject(fixture([
+    { id: "fetch", kind: "fetch", url: "https://data.example.test/utf8", as: "rows" },
+  ]), "html");
+  const encoded = new TextEncoder().encode('[{"name":"東京"}]');
+  const split = encoded.indexOf(0xe6) + 1;
+  assert.ok(split > 0);
+  const { values, steps, warnings } = await runBrowserData(project, "", async () =>
+    new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoded.subarray(0, split));
+        controller.enqueue(encoded.subarray(split));
+        controller.close();
+      },
+    })));
+  const step = steps.find((item) => item.kind === "fetch");
+  assert.ok(step && step.kind === "fetch");
+  assert.equal(values[step.as!][0].name, "東京");
+  assert.deepEqual(warnings, []);
+});
+
+test("native HTML cancels a large streamed API response before buffering it", async () => {
+  const project = generateExportProject(fixture([
+    { id: "fetch", kind: "fetch", url: "https://data.example.test/unbounded", as: "rows" },
+  ]), "html");
+  let pulls = 0, cancellations = 0;
+  const { values, warnings, steps } = await runBrowserData(project, "", async () =>
+    new Response(new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls++;
+        controller.enqueue(new Uint8Array(1024 * 1024));
+      },
+      cancel() { cancellations++; },
+    })));
+  const step = steps.find((item) => item.kind === "fetch");
+  assert.ok(step && step.kind === "fetch");
+  assert.equal(values[step.as!], null);
+  assert.ok(warnings.some((warning) => warning.includes("Response exceeds 5 MB")));
+  assert.equal(cancellations, 1);
+  assert.ok(pulls <= 8);
 });
 
 test("native HTML sends an interpolated JSON POST when the public API permits it", async () => {

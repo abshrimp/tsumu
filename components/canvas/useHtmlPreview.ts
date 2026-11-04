@@ -29,8 +29,6 @@ export function useHtmlPreview(src: string, assets: Record<string, Asset>) {
         }, Math.max(0, Math.min(HTML_PREVIEW_REFRESH_MS, expiresAt - Date.now() - 5 * 60 * 1000)));
       } catch (error) {
         if (controller.signal.aborted) return;
-        // Legacy pages keep their original behavior when signing is unavailable.
-        if (!isZip) { setResult({ src, key, revision, html: src }); return; }
         setResult({ src, key, revision, html: "", error: error instanceof Error ? error.message : tr("HTMLプレビューのアセットを読み込めませんでした") });
         // Explicit retry avoids repeatedly expanding a graph that exceeded a permanent limit.
       }
@@ -43,7 +41,7 @@ export function useHtmlPreview(src: string, assets: Record<string, Asset>) {
   const current = result?.src === src && result.key === key ? result : undefined;
   // Never send unresolved internal CSS URLs to the sandbox, even for the first frame.
   return {
-    html: current?.html ?? (src.includes("tsumu-zip-css:") ? "" : src), error: current?.error,
+    html: current?.html ?? "", error: current?.error,
     needsRefresh: current?.needsRefresh ?? false, refreshing: current?.revision !== revision, refresh,
   };
 }

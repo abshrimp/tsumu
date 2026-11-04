@@ -39,6 +39,17 @@ test("untrusted HTML cannot override editor markers or inject handlers and URLs"
     "data-tpl": "broken",
     "data-scripts": "run",
     "data-tsumu-secret": "x",
+    "data-site-state": "selected",
+    "data-row": "fake-row",
+    "data-loader": "fake-loader",
+    "data-page-plan": "fake-plan",
+    "data-list-fallback": "fake-fallback",
+    "data-static-href": "javascript:alert(1)",
+    "data-image-src-parts": "unsafe",
+    "data-edited": "",
+    "data-page-variants": "alternate",
+    "data-variant-root": "root",
+    "data-driven": "true",
     "data-allowed": "safe",
   });
   assert.deepEqual(attrs, { "data-allowed": "safe" });

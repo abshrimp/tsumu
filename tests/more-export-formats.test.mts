@@ -94,6 +94,43 @@ test("single HTML inlines fetched remote stored assets without leaking their sou
   assert.equal(Object.keys(result.files).length, 1);
 });
 
+test("single HTML cancels oversized asset streams even when Content-Length is absent", async () => {
+  let pulls = 0;
+  let cancellations = 0;
+  const response = new Response(new ReadableStream<Uint8Array>({
+    pull(controller) {
+      pulls++;
+      controller.enqueue(new Uint8Array(8 * 1024 * 1024));
+    },
+    cancel() { cancellations++; },
+  }), { status: 200, headers: { "Content-Type": "image/png" } });
+  await assert.rejects(
+    toSingleHtmlProject({
+      files: { "index.html": '<html><body><img src="./assets/large.png"></body></html>' },
+      binaries: {}, remoteAssets: { "assets/large.png": "assets/remote-id" },
+    }, async () => response),
+    /Resource exceeds single HTML size limit/,
+  );
+  assert.equal(cancellations, 1, "the excessive stream must be cancelled");
+  assert.ok(pulls <= 9, "the remote resource must not be buffered completely");
+});
+
+test("single HTML checks a declared oversized asset before reading it", async () => {
+  let reads = 0;
+  const response = new Response(new ReadableStream<Uint8Array>({
+    pull() { reads++; },
+  }), { headers: { "Content-Length": String(49 * 1024 * 1024) } });
+  await assert.rejects(
+    toSingleHtmlProject({
+      files: { "index.html": '<html><body><img src="./assets/large.png"></body></html>' },
+      binaries: {}, remoteAssets: { "assets/large.png": "assets/remote-id" },
+    }, async () => response),
+    /Resource exceeds single HTML size limit/,
+  );
+  // The stream can be pulled once by the Response constructor, but not consumed.
+  assert.ok(reads <= 1);
+});
+
 test("single HTML fails explicitly rather than retaining a CORS-blocked remote image", async () => {
   await assert.rejects(
     toSingleHtmlProject({
@@ -126,6 +163,14 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     assert.equal(result.files["app/page.tsx"], undefined);
     const root = framework === "sveltekit" ? "static" : "public";
     assert.equal(result.files[root + "/data-loader.js"], undefined);
+    assert.equal(result.files[root + "/browser-start.js"], undefined);
+    if (framework === "nuxt") {
+      assert.equal(result.files["app/browser-start.js"], undefined);
+      assert.equal(result.files["app/site-routes.js"], undefined);
+    } else if (framework === "sveltekit") {
+      assert.equal(result.files["src/browser-start.js"], undefined);
+      assert.equal(result.files["src/site-routes.js"], undefined);
+    }
     assert.match(result.files[framework === "nuxt" ? "app/generated/site-data.js" :
       framework === "vue" ? "src/site-data.js" : "src/lib/site-data.js"], /loadPageData/);
     assert.match(result.files[root + "/scripts.js"], /__pageDataReady/);
@@ -146,6 +191,9 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
       assert.match(result.files["vite.config.ts"], /adapter-node/);
       assert.equal(result.files["svelte.config.js"], undefined);
       assert.match(result.files["package.json"], /"@sveltejs\/kit": "\^3/);
+      assert.doesNotMatch(result.files["package.json"], /adapter-static|@sveltejs\/kit": "\^2/);
+      assert.match(result.files["vite.config.ts"], /adapter-node/);
+      assert.equal(result.files["src/routes/+layout.ts"].includes("ssr = true"), true);
       assert.match(result.files["src/routes/+page.server.js"], /loadPageData/);
       assert.match(result.files["package.json"], /"@sveltejs\/kit"/);
     }

@@ -93,12 +93,40 @@ export async function toSingleHtmlProject(
     try { response = await request(url); }
     catch { throw new Error("Could not embed the remote resource (check CORS or import it as a local asset): " + path); }
     if (!response.ok) throw new Error("Could not embed the resource (" + response.status + "): " + path);
-    const len = Number(response.headers.get("content-length") || "0");
-    if (len > LIMIT) throw new Error("Resource exceeds single HTML size limit: " + path);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const lengthHeader = response.headers.get("content-length");
+    if (lengthHeader !== null && Number(lengthHeader) > LIMIT) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error("Resource exceeds single HTML size limit: " + path);
+    }
+    // A remote server may omit Content-Length or report a smaller value.
+    // Bound actual bytes while reading instead of buffering an unlimited response.
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    if (response.body) {
+      const reader = response.body.getReader();
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > LIMIT) {
+            await reader.cancel().catch(() => {});
+            throw new Error("Resource exceeds single HTML size limit: " + path);
+          }
+          chunks.push(value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
     const type = response.headers.get("content-type")?.split(";")[0].trim();
     if (type) responseMime.set(path, type);
-    check(bytes.length);
     return bytes;
   };
   const embed = async (ref: string, base: string): Promise<string> => {
