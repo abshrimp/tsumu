@@ -5,6 +5,7 @@
  */
 import { useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { collectDescendants, findParentOf, useEditor, type EditorMode, type ParentRef } from "../../lib/store";
+import { canvasFallbackDrop } from "../../lib/canvas-drop";
 import { ELEMENT_DRAG_TYPE, makeElementByKey, normalizeMade } from "../../lib/elements";
 import { ASSET_DRAG_TYPE, assetKind, nodeAssetSrc, uploadAsset } from "../../lib/assets";
 import { makeImage } from "../../lib/presets";
@@ -20,7 +21,6 @@ export interface UseCanvasDragDeps {
   doc: SiteDoc;
   editingComp: Component | null | undefined;
   activePageId: string;
-  rootIds: string[];
   mode: EditorMode;
   editingText: string | null;
   moveState: RefObject<{ startX: number; startY: number; id: string; ids: string[]; active: boolean } | null>;
@@ -46,7 +46,6 @@ export function useCanvasDrag({
   doc,
   editingComp,
   activePageId,
-  rootIds,
   mode,
   editingText,
   moveState,
@@ -80,13 +79,9 @@ export function useCanvasDrag({
     while (el && descendants.has(el.getAttribute("data-node")!)) {
       el = el.parentElement?.closest("[data-node]") ?? null;
     }
-    const fallbackParent: ParentRef = editingComp
-      ? { kind: "node", id: editingComp.rootId }
-      : { kind: "page", id: activePageId };
     if (!el) {
       return {
-        parent: fallbackParent,
-        index: rootIds.length,
+        ...canvasFallbackDrop(doc, editingComp, activePageId),
         line: null,
         insideId: null,
       };
