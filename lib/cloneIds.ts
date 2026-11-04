@@ -39,7 +39,10 @@ function mapSteps(steps: ScriptStep[], fn: (id: string) => string | null) {
  * - 複製の中のスクリプト・{ID}・#ID の参照も、付け替えたIDへ合わせる（複製したメニューボタンは複製したメニューを開く）
  * - スクリプトとブロックには新しい内部IDを振る（元と同じだとスクリプト画面で元のブロックまで変わる）
  */
-export function refreshClonedIds(doc: SiteDoc, pageId: string, clones: DocNode[]) {
+export function refreshClonedIds(
+  doc: SiteDoc, pageId: string, clones: DocNode[],
+  replacing?: { rootId: string; attrId?: string }
+) {
   const used = new Set<string>();
   for (const id of pageNodeIds(doc, pageId)) {
     const n = doc.nodes[id];
@@ -54,7 +57,16 @@ export function refreshClonedIds(doc: SiteDoc, pageId: string, clones: DocNode[]
     }
   }
   const renamed = new Map<string, string>();
+  // 解除するインスタンスのIDは引き継ぎ、マスター内の参照も合わせる。
+  const replacement = clones.find((c) => c.id === replacing?.rootId);
+  const inheritedId = replacing?.attrId;
+  if (replacement && inheritedId) used.add(inheritedId);
   for (const c of clones) {
+    if (c === replacement && inheritedId) {
+      if (c.attrId && c.attrId !== inheritedId) renamed.set(c.attrId, inheritedId);
+      c.attrId = inheritedId;
+      continue;
+    }
     if (!c.attrId) continue;
     const prev = renamed.get(c.attrId);
     if (prev) {

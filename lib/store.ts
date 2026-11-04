@@ -1020,8 +1020,16 @@ export const useEditor = create<EditorStore>((set, get) => {
         return copy.id;
       };
       const newRootId = cloneTree(comp.rootId);
-      // 同じページの他のインスタンスとID属性が重ならないようにする
-      refreshClonedIds(doc, get().activePageId, clones);
+      // マスターの見た目と、使用箇所で設定した名前・ロック・非表示を残す。
+      const root = clones.find((n) => n.id === newRootId)!;
+      root.name = inst.name;
+      root.locked = inst.locked;
+      const hiddenOn = [...new Set([...(root.hiddenOn ?? []), ...(inst.hiddenOn ?? [])])];
+      root.hiddenOn = hiddenOn.length ? hiddenOn : undefined;
+      // 使用箇所のIDはそのまま引き継ぎ、複製したマスター内の参照も合わせる。
+      refreshClonedIds(doc, get().activePageId, clones, {
+        rootId: newRootId, attrId: inst.attrId,
+      });
       get().updateDoc((d) => {
         for (const c of clones) d.nodes[c.id] = c;
         const list =
