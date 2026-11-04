@@ -1,0 +1,132 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
+import { test } from "node:test";
+import * as helpers from "../lib/publish-files";
+
+// 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
+function fixture(truncated?: boolean) {
+  class NextResponse extends Response {
+    static json(data: unknown, init?: ResponseInit) {
+      return new NextResponse(JSON.stringify(data), init);
+    }
+  }
+  const entries = [
+    { path: "script.sh", mode: "100755", type: "blob", sha: "exec" },
+    { path: "link", mode: "120000", type: "blob", sha: "link" },
+    { path: "vendor", mode: "160000", type: "commit", sha: "submodule" },
+    { path: ".github/workflows/ci.yml", mode: "100644", type: "blob", sha: "workflow" },
+  ];
+  const trees: { tree: helpers.TreeEntry[] }[] = [];
+  const writes: string[] = [];
+  const refUpdates: { sha: string; force: boolean }[] = [];
+  let recorded = false;
+  const gh = async (path: string, options: { body?: string } = {}) => {
+    if (options.body) writes.push(path);
+    if (path.startsWith("/git/ref/heads/")) return NextResponse.json({ object: { sha: "head" } });
+    if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries, truncated });
+    if (path === "/git/trees") {
+      trees.push(JSON.parse(options.body!));
+      return NextResponse.json({ sha: "new-tree" });
+    }
+    if (path === "/git/commits") return NextResponse.json({ sha: "new-commit" });
+    if (path.startsWith("/git/refs/heads/")) refUpdates.push(JSON.parse(options.body!));
+    return NextResponse.json({});
+  };
+  const injected = {
+    GENERATED_MANIFEST_PATH: helpers.GENERATED_MANIFEST_PATH,
+    ASSET_MANIFEST_PATH: helpers.ASSET_MANIFEST_PATH,
+    isSafeCommitPath: helpers.isSafeCommitPath,
+    isProtectedPath: helpers.isProtectedPath,
+    parseGeneratedManifest: helpers.parseGeneratedManifest,
+    keptTreeEntries: helpers.keptTreeEntries,
+    NextResponse,
+    serverTr: async () => (text: string) => text,
+    requireAuth: async () => null,
+    siteIdOf: async () => "site",
+    siteDestOf: async () => ({}),
+    configError: () => null,
+    targetConfig: () => ({ repo: "test/site", branch: "main", token: "fake" }),
+    githubClient: () => ({ gh, fail: () => { throw new Error("Unexpected GitHub error"); } }),
+    toBranchPath: (path: string) => path,
+    recordPublish: async () => { recorded = true; },
+    userMessage: (error: Error) => error.message,
+  };
+  const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/publish/route.ts", import.meta.url), "utf8"))
+    .replace(/^import[\s\S]*?;\n/gm, "")
+    .replace(/^export /gm, "");
+  const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected)) as (req: Request) => Promise<Response>;
+  const send = (body: object) => post(new Request("https://example.com/api/publish", {
+    method: "POST", body: JSON.stringify({ ...body, site: "site", target: "production" }),
+  }));
+  return { entries, trees, writes, refUpdates, send, get recorded() { return recorded; } };
+}
+
+test("公開 API は手で追加した Git の項目をモード・種類ごと保持する", async () => {
+  const { entries, trees, send } = fixture();
+  const current = await (await send({ action: "tree" })).json();
+  assert.equal(current.blobs.vendor, "submodule");
+  const plan = helpers.planPublish(current.blobs, current.generated, ["app/page.tsx"]);
+  const response = await send({ action: "commit", files: { "app/page.tsx": "export default function Page() {}" }, keptPaths: Object.keys(plan.kept) });
+  assert.equal(response.status, 200);
+  assert.deepEqual(trees[0].tree.slice(1), entries);
+});
+
+test("保持する項目は先端に存在する安全なパスに限る", async () => {
+  for (const keptPaths of [["missing"], ["../outside"], [7]]) {
+    const { trees, send } = fixture();
+    const response = await send({ action: "commit", files: { "app/page.tsx": "page" }, keptPaths });
+    assert.equal(response.status, 400);
+    assert.equal(trees.length, 0);
+  }
+});
+
+
+test("既存の保持項目はテキスト・アセットの書き出しと重複させない", async () => {
+  const overlapping = [
+    { files: { "app/page.tsx": "page", "script.sh": "replacement" } },
+    { files: { "app/page.tsx": "page" }, assetShas: { "script.sh": "replacement-sha" } },
+  ];
+  for (const output of overlapping) {
+    const { trees, send } = fixture();
+    const response = await send({ action: "commit", ...output, keptPaths: ["script.sh"] });
+    assert.equal(response.status, 400);
+    assert.equal(trees.length, 0);
+  }
+});
+
+
+test("a truncated snapshot is rejected before a destructive replacement can be planned", async () => {
+  const f = fixture(true);
+  const response = await f.send({ action: "tree" });
+  assert.equal(response.status, 502);
+  const body = await response.json();
+  assert.match(body.error, /ファイル一覧/);
+  assert.equal(body.blobs, undefined);
+  assert.deepEqual(f.writes, []);
+  assert.equal(f.recorded, false);
+});
+
+test("a truncated commit-time tree is rejected even when requested entries are present", async () => {
+  for (const retained of [
+    { keptPaths: ["script.sh", "vendor"] },
+    { assetShas: { ".github/workflows/ci.yml": "workflow" } },
+  ]) {
+    const f = fixture(true);
+    const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, ...retained });
+    assert.equal(response.status, 502);
+    assert.match((await response.json()).error, /ファイル一覧/);
+    assert.deepEqual(f.writes, []);
+    assert.equal(f.recorded, false);
+  }
+});
+
+test("a complete tree still publishes with editor priority", async () => {
+  const f = fixture(false);
+  const snapshot = await f.send({ action: "tree" });
+  assert.equal(snapshot.status, 200);
+  const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, keptPaths: ["script.sh"] });
+  assert.equal(response.status, 200);
+  assert.equal(f.recorded, true);
+  assert.deepEqual(f.refUpdates, [{ sha: "new-commit", force: true }]);
+});
