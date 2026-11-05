@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
+import { renderLeafNode } from "../components/canvas/render";
 import { publishedScriptInputValue, scriptInputValueBundle, scriptInputValueDoc } from "./helpers/script-input-value";
 
 /** setterの結果は外から渡す。DOMの正規化自体はnative e2eで検証する。 */
@@ -67,3 +68,23 @@ test("input assignment regression bundles actual ScriptEditor, Canvas and genera
   assert.match(html, /type="number"/);
   assert.match(html, /data-scripts=/);
 });
+
+for (const kind of ["input", "textarea"] as const) {
+  test(`${kind}: Canvas records native input in capture phase before change scripts can rerender it`, () => {
+    const doc = scriptInputValueDoc({ kind, defaultValue: "before" }, "assigned", "restored");
+    const values = { entry: "before" };
+    const render = (interactive = true) => renderLeafNode(doc.nodes.entry, {}, {
+      interactive, fieldValues: values,
+      onField: (name, value) => { values[name as "entry"] = value; },
+    }) as any;
+    const leaf = render();
+    assert.equal(typeof leaf.props.onInputCapture, "function");
+    leaf.props.onInputCapture({ currentTarget: { value: "typed" } });
+    // スクリプトによる再描画がbubbleのonChangeより前でも、入力値を保持する。
+    assert.equal(render().props.value, "typed");
+    leaf.props.onChange({ target: { value: "typed" } });
+    assert.equal(render().props.value, "typed");
+    assert.equal(render(false).props.onInputCapture, undefined);
+    assert.equal(doc.nodes.entry.field!.defaultValue, "before");
+  });
+}

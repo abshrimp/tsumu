@@ -115,3 +115,26 @@ test("ScriptEditor numeric assignment preserves the document and undo history wh
   await value(page, "", 1);
   expect(errors).toEqual([]);
 });
+
+test("native typing is preserved before any assignment when change scripts rerender the Canvas", async ({ page }) => {
+  const doc = scriptInputValueDoc({ kind: "input", inputType: "number", defaultValue: "12" }, "invalid", "8");
+  const errors = await setup(page, true, doc);
+  const before = await snapshot(page);
+  await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
+  await value(page, "12", 0);
+  const input = page.locator("#entry");
+  await input.fill("7");
+  await value(page, "7", 1);
+  await input.pressSequentially("8");
+  await value(page, "78", 2);
+  await input.press("Backspace");
+  await value(page, "7", 3);
+  await input.fill("");
+  await value(page, "", 4);
+  await input.pressSequentially("9");
+  await value(page, "9", 5);
+  await input.blur();
+  await value(page, "9", 5);
+  expect(await snapshot(page)).toEqual(before);
+  expect(errors).toEqual([]);
+});
