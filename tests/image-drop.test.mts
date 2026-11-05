@@ -386,3 +386,32 @@ test("endGesture explicitly releases all owners and resumes the pending drop onc
   assert.equal(state().doc.pages.p.children.length, 3);
   state().undo(); assert.equal(state().doc.nodes.a.name, "Changed");
 });
+
+for (const change of ["page", "undo", "delete", "unmount"] as const) {
+  test(`deferred clipboard decoding captures intent before ${change}`, async () => {
+    const { startImageInsertion } = await import("../lib/image-drop");
+    let decoded!: (files: File[]) => void;
+    if (change === "undo") state().updateNode("b", { name: "Edited" });
+    const task = startImageInsertion(() => new Promise<File[]>((resolve) => { decoded = resolve; }), point, { quiet: true });
+    if (change === "page") { state().setActivePage("q"); state().select("c"); }
+    if (change === "undo") state().undo();
+    if (change === "delete") state().deletePage("p");
+    if (change === "unmount") task.cancel();
+    decoded(files("decoded.png")); await tick();
+    if (change === "page") { pending[0](); } else assert.equal(pending.length, 0, "cancel before starting an upload");
+    const result = await task.done;
+    assert.equal(result.inserted, change === "page");
+    if (change === "page") { assert.equal(state().doc.pages.p.children.length, 3); assert.equal(state().selection, "c"); }
+    if (change === "undo") assert.equal(state().future.length, 1);
+  });
+}
+
+test("a rejected clipboard decoder is returned without a drop alert or history entry", async () => {
+  const { startImageInsertion } = await import("../lib/image-drop");
+  const error = new Error("cannot decode");
+  const task = startImageInsertion(async () => { throw error; }, point, { quiet: true });
+  assert.equal((await task.done).error, error);
+  assert.equal(pending.length, 0);
+  assert.equal(state().past.length, 0);
+  assert.equal(useDialogs.getState().queue.length, 0);
+});
