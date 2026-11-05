@@ -11,7 +11,8 @@ test("コンポーネント化を取り消しても、コピーした要素を�
   await expect(page.getByText("サーバー保存済み")).toBeVisible();
 
   const canvas = page.locator('[data-tutorial="canvas"]');
-  const content = canvas.getByText("見出しをここに", { exact: true });
+  // プリセットの見出しには、この文字列に続いて二行目の案内も入っている。
+  const content = canvas.getByText("見出しをここに");
   await expect(content).toHaveCount(1);
   await page.locator('[data-tutorial="layers-panel"]').getByText("ヒーロー", { exact: true }).click({ button: "right" });
   await page.getByRole("menuitem", { name: "コンポーネント化", exact: true }).click();
