@@ -87,6 +87,7 @@ export function ScriptSummary({
 /* ---------- 本体 ---------- */
 
 export interface Drag {
+  pointerId: number;
   make: () => Payload;
   payload: Payload | null;
   started: boolean;
@@ -104,6 +105,7 @@ export interface Drag {
 
 /** 範囲選択（画面座標） */
 export interface Marquee {
+  pointerId: number;
   x0: number;
   y0: number;
   x: number;
@@ -378,8 +380,6 @@ function ScriptEditorInner({
     peekId,
   };
 
-  useScriptEditorKeys({ dragRef, setDrag, setActiveSlot, latest, setPeekId, setSelectedList });
-
   // 要素設定から開いたときは、その要素のスクリプトが見える位置までスクロールする
   useEffect(() => {
     // 一覧から選んだスクリプトがあれば、それを選択して真ん中に見せる
@@ -402,7 +402,7 @@ function ScriptEditorInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useScriptDrag({
+  const cancelGesture = useScriptDrag({
     wsRef,
     zoomRef,
     marqueeRef,
@@ -415,6 +415,7 @@ function ScriptEditorInner({
     latest,
     paletteRef,
   });
+  useScriptEditorKeys({ dragRef, cancelGesture, latest, setPeekId, setSelectedList });
 
   if (!page) return null;
 
@@ -423,7 +424,7 @@ function ScriptEditorInner({
    * （Shift / ⌘ は選択の追加・解除だけ、選択済みのものはそのまま複数ドラッグ）
    */
   const begin = (e: React.PointerEvent, make: () => Payload, key?: string) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || dragRef.current || marqueeRef.current) return;
     const t = e.target as HTMLElement;
     e.stopPropagation();
     if (key && isModifier(e)) {
@@ -444,6 +445,7 @@ function ScriptEditorInner({
     // つかんだ位置は倍率 1 の大きさで持つ（ワークスペースの中は表示倍率がかかっている）
     const z = wsRef.current?.contains(e.currentTarget as Node) ? zoom : 1;
     dragRef.current = {
+      pointerId: e.pointerId,
       make,
       payload: null,
       started: false,
@@ -782,7 +784,7 @@ function ScriptEditorInner({
             onPointerDown={(e) => {
               // 何もない所からドラッグすると範囲選択（Shift / ⌘ で追加）
               const t = e.target as HTMLElement;
-              if (e.button !== 0) return;
+              if (e.button !== 0 || dragRef.current || marqueeRef.current) return;
               if (t !== e.currentTarget && !t.classList.contains("se-ws-inner")) {
                 return;
               }
@@ -792,6 +794,7 @@ function ScriptEditorInner({
               const base = isModifier(e) ? selectedList : [];
               if (!isModifier(e)) setSelectedList([]);
               marqueeRef.current = {
+                pointerId: e.pointerId,
                 x0: e.clientX,
                 y0: e.clientY,
                 x: e.clientX,
