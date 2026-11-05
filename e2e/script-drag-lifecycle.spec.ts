@@ -12,6 +12,8 @@ const snapshot = (page: Page) => page.evaluate(() => {
   const s = (window as any).scriptDragEditor.getState();
   return { doc: s.doc, past: s.past.length, future: s.future.length };
 });
+// スクリプト全体のゴーストは絶対配置のカードを持つため、寸法0の親ではなくカードを確認する。
+const visibleGhost = (page: Page) => page.locator(".se-ghost .se-stack").first();
 const transient = (page: Page) => page.locator(".se-ghost, .se-marquee, .se-slot.is-active, .se-hat-slot.is-active");
 const owner = (kind: string) => kind === "marquee" ? ".se-ws" : kind === "palette" ? '[data-tutorial="se-block-wait"]' :
   kind === "step" ? '.se-ws [data-sel-key="step:wait"]' : ".se-ws .se-hat";
@@ -32,7 +34,7 @@ async function start(page: Page, kind: string) {
   await target.dispatchEvent("pointerdown", { pointerId: 1, pointerType: "touch", button: 0, buttons: 1, clientX: origin.x, clientY: origin.y });
   const p = await point(page);
   await pointer(page, "pointermove", { x: p.x - 50, y: p.y - 50 });
-  await expect(page.locator(kind === "marquee" ? ".se-marquee" : ".se-ghost")).toBeVisible();
+  await expect(kind === "marquee" ? page.locator(".se-marquee") : visibleGhost(page)).toBeVisible();
 }
 
 for (const kind of ["script", "step", "palette", "marquee"]) {
@@ -95,7 +97,7 @@ test("other pointers cannot replace, move, cancel, or finish the owner", async (
   await page.locator(".se-ws").dispatchEvent("pointerdown", { pointerId: 2, pointerType: "touch", button: 0, buttons: 1, clientX: p.x, clientY: p.y });
   for (const type of ["pointermove", "pointercancel", "pointerup"]) {
     await pointer(page, type, { id: 2, x: 100, y: 200, buttons: 0 });
-    await expect(ghost).toBeVisible(); expect(await ghost.getAttribute("style")).toBe(position);
+    await expect(visibleGhost(page)).toBeVisible(); expect(await ghost.getAttribute("style")).toBe(position);
     expect(await snapshot(page)).toEqual(before);
   }
   await pointer(page, "pointermove"); await pointer(page, "pointerup", { buttons: 0 });
@@ -120,7 +122,7 @@ test("a real mouse drop still moves one stack and supports Undo/Redo", async ({ 
   const before = await snapshot(page);
   const r = await page.locator(owner("script")).boundingBox(); const p = await point(page);
   await page.mouse.move(r!.x + 6, r!.y + 6); await page.mouse.down();
-  await page.mouse.move(p.x, p.y, { steps: 5 }); await expect(page.locator(".se-ghost")).toBeVisible();
+  await page.mouse.move(p.x, p.y, { steps: 5 }); await expect(visibleGhost(page)).toBeVisible();
   await page.mouse.up(); await expect(transient(page)).toHaveCount(0);
   const moved = await snapshot(page); expect(moved.past).toBe(1); expect(moved.doc).not.toEqual(before.doc);
   await page.keyboard.press("Control+z"); expect((await snapshot(page)).doc).toEqual(before.doc);
