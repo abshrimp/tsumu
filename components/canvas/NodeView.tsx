@@ -98,7 +98,7 @@ function GhostView({
   }
 
   if (node.type === "list") {
-    // リストの中のリスト: 項目ごとに並べる（項目が無ければテンプレートだけ）
+    // リストの中のリスト: 項目ごとに並べる（空のテンプレートはデザイン画面だけ）
     const from = listFromOf(node) ?? "";
     const items = node.list
       ? applyList(
@@ -111,17 +111,21 @@ function GhostView({
       "div",
       common,
       items.length
-        ? items.flatMap((item, i) =>
-            node.children.map((cid) => (
+        ? items.map((item, i) => {
+            const children = node.children.map((cid) => (
               <GhostView
                 key={`${i}-${cid}`}
                 id={cid}
                 isTop={false}
                 itemVars={{ ...scopedVars, ...item }}
               />
-            ))
-          )
-        : node.children.map((cid) => (
+            ));
+            // 後続の外側項目・インスタンス内でも、スクリプトの対象を同じ内側項目に限定する。
+            return ctx.preview ? createElement("div", {
+              key: `item-${i}`, style: { display: "contents" }, "data-item": JSON.stringify(item),
+            }, children) : children;
+          })
+        : ctx.preview ? [] : node.children.map((cid) => (
             <GhostView key={cid} id={cid} isTop={false} itemVars={scopedVars} />
           ))
     );
@@ -242,6 +246,8 @@ export function NodeView({
     // 画面上で値が決まる配列（ストレージから読み込んだものなど）
     const live = !!from && ctx.clientVars.has(from.split(".")[0]);
     if (ctx.preview && from) common["data-array"] = from;
+    // 公開サイトと同じく、プレビューで空の配列は行を作らない。編集用の案内は残さない。
+    if (ctx.preview && !items.length) return createElement("div", common);
     if (!from) {
       kids.push(
         createElement(

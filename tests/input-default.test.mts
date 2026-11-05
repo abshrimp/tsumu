@@ -141,6 +141,46 @@ test("document edits, undo/redo and remote changes recompute only untouched inpu
   });
 });
 
+for (const source of ["settings", "remote"] as const) test(`manual input is owned before a change script rerenders ${source} defaults`, () => {
+  useEditor.getState().replaceDoc(inputDefaultDoc({ kind: "input", inputType: "number", defaultValue: "12" }));
+  const render = canvasData();
+  const defaultValue = source === "settings" ? "invalid" : "24";
+  if (source === "settings") {
+    const field = useEditor.getState().doc.nodes.entry.field!;
+    useEditor.getState().updateNode("entry", { field: { ...field, defaultValue } });
+  } else {
+    const remote = structuredClone(useEditor.getState().doc);
+    remote.nodes.entry.field!.defaultValue = defaultValue;
+    useEditor.getState().applyRemoteDoc(remote);
+  }
+  const saved = snapshot();
+  nativeValues(() => source === "settings" ? "" : "24", () => {
+    const data = render();
+    const leaf = () => {
+      const current = render();
+      return renderLeafNode(saved.doc.nodes.entry, {}, {
+        interactive: true, fieldValues: current.fieldValues, vars: current.pageVars,
+        onField: (name, value) => current.setFieldValues((prev: object) => ({ ...prev, [name]: value })),
+      }) as any;
+    };
+    // ネイティブinputの伝播順をモデル化する。captureの後、フレームの変更スクリプトが
+    // Reactへ変数を書き戻す。rootのonChangeより前に再描画されても、入力値を失わない。
+    const input = { value: "7" };
+    leaf().props.onInputCapture?.({ currentTarget: input });
+    data.setClientValues({ changes: 1 });
+    input.value = leaf().props.value;
+    assert.equal(input.value, "7");
+    assert.equal(render().pageVars.entry, "7");
+    assert.equal(render().pageVars.changes, 1);
+    assert.deepEqual(snapshot(), saved);
+    // さらに同じイベントのスクリプトが値を変えた場合も、後続の描画で元へ戻さない。
+    render().setFieldValues({ entry: "8" });
+    assert.equal(leaf().props.value, "8");
+    assert.equal(render().pageVars.entry, "8");
+    assert.deepEqual(snapshot(), saved);
+  });
+});
+
 test("design rendering keeps authored defaults and server imports do not require a DOM", () => {
   const field: FieldContent = { kind: "input", inputType: "number", defaultValue: "invalid" };
   assert.equal(fieldInitialValue(field), "invalid", "without a browser, leave initial markup to the native control");
