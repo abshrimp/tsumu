@@ -10,13 +10,10 @@ import { LoaderCircle, Pencil } from "lucide-react";
 import { ancestorsOf, collectDescendants, findParentOf, useEditor } from "../../lib/store";
 import { BODY_NODE_ID } from "../../lib/types";
 import { canContainElements, resolveTag } from "../../lib/tags";
-import { assetSrc, uploadAsset } from "../../lib/assets";
-import { makeImage } from "../../lib/presets";
+import { useImageDrop } from "../../lib/image-drop";
 import { Icon } from "../icons";
 import { BP_INFO, BP_ORDER, hideToggleLabel, isHiddenAt } from "../../lib/style";
 import NodeContextMenu, { type CtxMenuState } from "../NodeContextMenu";
-import { userMessage } from "../../lib/errors";
-import { showAlert } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
 import {
   NO_DRAG,
@@ -26,7 +23,6 @@ import {
   useDragAutoScroll,
   type DragState,
   type DropPos,
-  type InsertPoint,
 } from "./drag";
 import { storageKey } from "../../lib/storage-keys";
 
@@ -323,12 +319,10 @@ export function LayersTab() {
   const activePageId = useEditor((s) => s.activePageId);
   const editingComponentId = useEditor((s) => s.editingComponentId);
   const moveNodes = useEditor((s) => s.moveNodes);
-  const insertNodes = useEditor((s) => s.insertNodes);
-  const updateDoc = useEditor((s) => s.updateDoc);
   const selection = useEditor((s) => s.selection);
   const select = useEditor((s) => s.select);
   const [drag, setDrag] = useState<DragState>(NO_DRAG);
-  const [uploading, setUploading] = useState(false);
+  const { uploading, dropFiles } = useImageDrop();
   const autoScroll = useDragAutoScroll();
   // 折りたたみはページ（編集中のコンポーネント）ごとに覚えておく。
   // タブを切り替えてこのパネルが作り直されても、閉じた状態のまま戻る
@@ -391,40 +385,6 @@ export function LayersTab() {
       else next.add(id);
       return next;
     });
-  };
-
-  // 画像ファイルのドロップ → アップロードして、ドロップした位置へ画像要素として追加
-  const dropFiles = async (files: FileList, point: InsertPoint) => {
-    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (!images.length) return;
-    setUploading(true);
-    try {
-      let index = point.index;
-      let lastId: string | null = null;
-      for (const file of images) {
-        const asset = await uploadAsset(file);
-        updateDoc((d) => void (d.assets[asset.id] = asset));
-        const node = makeImage();
-        node.name = asset.name;
-        node.image = {
-          src: assetSrc(asset),
-          alt: "",
-          width: asset.width,
-          height: asset.height,
-          assetId: asset.id,
-        };
-        insertNodes([node], node.id, point.parent, index);
-        if (index !== undefined) index++;
-        lastId = node.id;
-      }
-      if (lastId) select(lastId);
-    } catch (e) {
-      void showAlert(userMessage(e, tr("アップロードできませんでした")), {
-        title: tr("アップロードできませんでした"),
-      });
-    } finally {
-      setUploading(false);
-    }
   };
 
   return (

@@ -23,6 +23,20 @@ import { fieldDefaults, fieldStateValues } from "../../lib/fields";
 import { fetchRequestOf } from "../../lib/fetch-request";
 import type { Page, SiteDoc } from "../../lib/types";
 
+/** 公開サイトと同じく、クエリ条件が最も多く一致するページを選ぶ。 */
+function queryPage(pages: Page[], query: URLSearchParams): Page | undefined {
+  let best = pages[0];
+  let score = -1;
+  for (const page of pages) {
+    const conditions = Object.entries(pageQueryVars(page.query));
+    if (conditions.length > score && conditions.every(([key, value]) => query.get(key) === value)) {
+      best = page;
+      score = conditions.length;
+    }
+  }
+  return best;
+}
+
 /** Canvas から受け取る値 */
 export interface UseCanvasDataDeps {
   page: Page;
@@ -56,6 +70,8 @@ export function useCanvasData({
   const [fullData, setFullData] = useState<Record<string, unknown>>({});
   const [previewSlug, setPreviewSlug] = useState("1");
   const [refreshing, setRefreshing] = useState(false);
+  /** 再取得・ページ切替・プレビューの開始/終了で、以前の応答を無効にする。 */
+  const refreshRequest = useRef(0);
 
   /** [slug]のプレビュー値・プレビューバーの基準になるデータ（スクリプトで取得するもの） */
   const primary = page ? primaryDataStep(doc, page.id) : null;
@@ -152,6 +168,7 @@ export function useCanvasData({
   /** 送信ボタン / 再取得: ページのJSONを取り直す */
   const refreshData = useCallback(async () => {
     if (!page) return;
+    const request = ++refreshRequest.current;
     setRefreshing(true);
     try {
       const vars = { ...pageVars, slug: slugVal };
@@ -178,11 +195,12 @@ export function useCanvasData({
           }
         })
       );
+      if (request !== refreshRequest.current) return;
       setLiveSamples((prev) => ({ ...prev, ...results }));
       setLiveTotals((prev) => ({ ...prev, ...totals }));
       setFullData((prev) => ({ ...prev, ...full }));
     } finally {
-      setRefreshing(false);
+      if (request === refreshRequest.current) setRefreshing(false);
     }
   }, [page, doc, slugVal, pageVars]);
 
@@ -190,7 +208,9 @@ export function useCanvasData({
   const refreshRef = useRef(refreshData);
   refreshRef.current = refreshData;
   useEffect(() => {
+    setRefreshing(false);
     if (mode === "preview" && page) void refreshRef.current();
+    return () => { refreshRequest.current++; };
   }, [mode, page?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setActivePage = useEditor((s) => s.setActivePage);
@@ -206,13 +226,13 @@ export function useCanvasData({
       }
       const clean = (s: string) => s.replace(/^\/+|\/+$/g, "");
       const path = clean(raw.split(/[?#]/)[0]);
-      // 通常ページ（URL完全一致）
-      for (const pid of doc.pageOrder) {
-        const slug = clean(doc.pages[pid].slug);
-        if (!slug.includes("[slug]") && slug === path) {
-          setActivePage(pid);
-          return;
-        }
+      const query = new URLSearchParams(raw.split("#")[0].split("?").slice(1).join("?"));
+      const pages = doc.pageOrder.map((pid) => doc.pages[pid]);
+      // 通常ページ（URL完全一致）。同じパスのページはクエリで振り分ける。
+      const normal = queryPage(pages.filter((p) => !p.slug.includes("[slug]") && clean(p.slug) === path), query);
+      if (normal) {
+        setActivePage(normal.id);
+        return;
       }
       // [slug]ページ: 値を取り出してプレビュー対象に反映する
       for (const pid of doc.pageOrder) {
@@ -232,16 +252,17 @@ export function useCanvasData({
           path.slice(pre.length, path.length - post.length)
         );
         if (!val || val.includes("/")) continue;
+        const target = queryPage(pages.filter((p) => clean(p.slug) === slug), query)!;
         setPreviewSlug(val);
         // setActivePage は previewIndex を0に戻すので、先にページを切り替える
-        setActivePage(pid);
+        setActivePage(target.id);
         // 移動先の中心のデータが「{slug} のものを探す」なら、一致する項目を選ぶ
-        const main = primaryCandidates(doc, pid);
+        const main = primaryCandidates(doc, target.id);
         if (main?.field) {
           const idx = main.items.findIndex((it) => sameKey(keyOfItem(it, main.field), val));
           if (idx >= 0) setPreviewIndex(idx);
           // 一致しない値は入力したslugとして残し、404の状態を確認できるようにする
-          setTypedSlugOf(idx >= 0 ? null : { pageId: pid, value: val });
+          setTypedSlugOf(idx >= 0 ? null : { pageId: target.id, value: val });
         }
         return;
       }
