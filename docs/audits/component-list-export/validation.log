@@ -1,0 +1,237 @@
+Baseline focused regressions (exit 1, expected failures)
+========================================================
+✖ SettingsPanel component conversion retains nested list rows in Canvas and executed export, undo and reload (275.338185ms)
+✖ shared list components resolve each page and each placement's own data and server operations (38.789111ms)
+✖ client-list templates retain placeholders and raw content through conversion (22.982458ms)
+✖ component lists: runtime sort, filter and clear affect every rendered list (169.095304ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 0
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 908.730426
+
+✖ failing tests:
+
+test at tests/component-list-export.test.mts:1:2753
+✖ SettingsPanel component conversion retains nested list rows in Canvas and executed export, undo and reload (275.338185ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'Detail First:red',
+  -   'Detail First:blue',
+  -   'Detail Second:green',
+  -   'Detail Second:yellow'
+  - ]
+
+      at TestContext.<anonymous> (<checkout>/tests/component-list-export.test.mts:62:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'Detail First:red', 'Detail First:blue', 'Detail Second:green', 'Detail Second:yellow' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/component-list-export.test.mts:1:5915
+✖ shared list components resolve each page and each placement's own data and server operations (38.789111ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'Detail First:red',
+  -   'Detail First:blue',
+  -   'Detail First:red',
+  -   'Detail First:blue',
+  -   'Detail Second:green',
+  -   'Detail Second:yellow',
+  -   'Detail Second:green',
+  -   'Detail Second:yellow'
+  - ]
+
+      at TestContext.<anonymous> (<checkout>/tests/component-list-export.test.mts:117:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'Detail First:red', 'Detail First:blue', 'Detail First:red', 'Detail First:blue', 'Detail Second:green', 'Detail Second:yellow', 'Detail Second:green', 'Detail Second:yellow' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/component-list-export.test.mts:1:6969
+✖ client-list templates retain placeholders and raw content through conversion (22.982458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'Detail {name}:{label}'
+  - ]
+
+      at TestContext.<anonymous> (<checkout>/tests/component-list-export.test.mts:133:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'Detail {name}:{label}' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at tests/nested-list-operations.test.mts:1:4345
+✖ component lists: runtime sort, filter and clear affect every rendered list (169.095304ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   [
+  +     'red',
+  +     'blue'
+  +   ],
+  +   [
+  +     'green',
+  +     'yellow'
+  +   ]
+  + ]
+  - []
+
+      at TestContext.<anonymous> (<checkout>/tests/nested-list-operations.test.mts:116:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'red', 'blue' ], [ 'green', 'yellow' ] ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+Final npm test (exit 0; summary excerpt)
+========================================
+✔ local data assets drop cache queries without corrupting their bytes, even without a CSS root (0.196226ms)
+ℹ tests 1059
+ℹ suites 0
+ℹ pass 1059
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 23755.631907
+
+Final npm run typecheck (exit 0)
+================================
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> tsumu@0.3.0 typecheck
+> tsc --noEmit
+
+
+Final npm run i18n:check (exit 0)
+=================================
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> tsumu@0.3.0 i18n:check
+> node --import tsx scripts/i18n-check.mts
+
+All strings are translated for "en"
+
+Editor npm run build -- --webpack (exit 0; completion excerpt)
+==============================================================
+./auth.ts
+
+✓ Compiled successfully in 28.4s
+  Running TypeScript ...
+  Finished TypeScript in 5.3s ...
+  Collecting page data using 8 workers ...
+  Generating static pages using 8 workers (0/21) ...
+  Generating static pages using 8 workers (5/21)
+  Generating static pages using 8 workers (10/21)
+  Generating static pages using 8 workers (15/21)
+✓ Generating static pages using 8 workers (21/21) in 1138ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /api/activity
+├ ƒ /api/ai
+├ ƒ /api/allowed-users
+├ ƒ /api/assets
+├ ƒ /api/assets/file
+├ ƒ /api/assets/sign
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/collab/authorize
+├ ƒ /api/collab/events
+├ ƒ /api/comments
+├ ƒ /api/doc
+├ ƒ /api/doc/backups
+├ ƒ /api/fetch-json
+├ ƒ /api/publish
+├ ƒ /api/publish/history
+├ ƒ /api/sites
+├ ƒ /api/sites/[id]
+├ ƒ /api/status
+├ ƒ /login
+├ ○ /robots.txt
+└ ƒ /sites/[id]
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+Generated project npm run build -- --webpack (exit 0)
+=====================================================
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> component-list-conversion@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.4.3 (webpack)
+✓ Running next.config.mjs took 25ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 5.7s
+  Running TypeScript ...
+  Finished TypeScript in 943ms ...
+  Collecting page data using 4 workers ...
+  Generating static pages using 4 workers (0/2) ...
+✓ Generating static pages using 4 workers (2/2) in 534ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ƒ /
+└ ○ /_not-found
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+Native test collection only (exit 0; browser not launched)
+==========================================================
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> tsumu@0.3.0 test:e2e
+> playwright test --list e2e/component-list-export.spec.ts e2e/nested-list-operations.spec.ts
+
+Listing tests:
+  [chromium] › component-list-export.spec.ts:25:5 › convert a nested-list card in SettingsPanel, undo/redo/reload, then run the same saved export
+  [chromium] › component-list-export.spec.ts:52:5 › converted client list keeps its template and renders browser-loaded items
+  [chromium] › nested-list-operations.spec.ts:41:44 › repeated nested lists: select script arrays, sort, filter, clear and reopen preview
+  [chromium] › nested-list-operations.spec.ts:41:44 › component-contained lists: select script arrays, sort, filter, clear and reopen preview
+Total: 4 tests in 2 files

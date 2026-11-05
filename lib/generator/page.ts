@@ -29,6 +29,7 @@ import {
   imageRefSrc,
   jsxString,
   scriptsAttr,
+  hasListsInside,
 } from "./render-helpers";
 import { renderNode, type JsxContext } from "./render";
 import { RUNNABLE_SCRIPT } from "./templates";
@@ -132,13 +133,21 @@ export function generatePageFile(
   ctx.liveNames = new Set(plan.clientVars);
   for (const n of idVarNodesOf(doc, pageId)) if (n.type === "field") fieldVarNames(n).forEach((v) => ctx.liveNames.add(v));
 
-  // ページ内のリスト（コンポーネント内は未対応）と、ページを開いたときに取得するデータ
+  // リストを含む部品は、ページごとの配列・項目・ブラウザ変数のスコープで展開する。
+  ctx.inlineComponents = new Set(Object.values(doc.components ?? {})
+    .filter((comp) => hasListsInside(doc, comp.rootId)).map((comp) => comp.id));
+  // 部品の中も含むリストと、ページを開いたときに取得するデータ
   const listNodes: { node: DocNode; from: string }[] = [];
   const listSeen = new Set<string>();
   const walkLists = (id: string) => {
     const n = doc.nodes[id];
     if (!n || listSeen.has(id)) return;
     listSeen.add(id);
+    if (n.type === "instance") {
+      const comp = doc.components?.[n.componentId ?? ""];
+      if (comp) walkLists(comp.rootId);
+      return;
+    }
     const from = n.type === "list" && n.list ? listFromOf(n) : undefined;
     if (from) listNodes.push({ node: n, from });
     n.children.forEach(walkLists);
