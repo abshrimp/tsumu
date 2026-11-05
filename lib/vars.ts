@@ -290,6 +290,13 @@ export function pageHrefOf(page: { slug: string; query?: string }): string {
   return page.query ? `${path}?${page.query}` : path;
 }
 
+/** クエリを比較用にそろえる（キー順に並べ替え） */
+export function normalizeQuery(query: string | undefined): string {
+  const params = new URLSearchParams(query ?? "");
+  params.sort();
+  return params.toString();
+}
+
 /** ページのクエリを変数として取り出す（プレビュー・変数候補用） */
 export function pageQueryVars(query: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};
