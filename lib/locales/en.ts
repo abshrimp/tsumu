@@ -1556,6 +1556,12 @@ const en: Dict = {
     "Site URL",
   "公開したサイトのアドレスです（例: https://example.com）。シェア用画像のURLなどに使います。":
     "Your published site's address (e.g. https://example.com). Used for things like share image URLs.",
+  "カスタム言語コード":
+    "Custom language code",
+  "言語コードを入力してください（例: en-US、pt-BR）。変更は保存されていません。":
+    "Enter a language code (e.g. en-US or pt-BR). Your change has not been saved.",
+  "言語コードを入力します（例: en-US、pt-BR）。":
+    "Enter a language code (e.g. en-US or pt-BR).",
   "言語":
     "Language",
   "このページの文章の言語です。「サイトと同じ」のときは、サイト設定の言語になります。":
