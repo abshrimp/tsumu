@@ -40,6 +40,10 @@ test("compact documents can be embedded in a ZIP without changing the SiteDoc", 
   doc.customHeadHtml = "<meta name=\"test\" content=\"ok\">".repeat(1000);
   const zip = new JSZip();
   zip.file("_tsumu/doc.json", await serializePortableDoc(doc, IMPORT_LIMITS.docBytes));
+  zip.file("_tsumu/assets.json", JSON.stringify({
+    version: 1,
+    assets: Object.fromEntries(Object.keys(doc.assets).map((id) => [id, "public/assets/" + id + ".bin"])),
+  }));
   const imported = await parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip");
   assert.deepEqual(imported.doc, doc);
 });
