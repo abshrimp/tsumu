@@ -15,7 +15,7 @@ async function openSite(page: Page) {
   expect((await page.request.put(`/api/doc?site=${site.id}`, { data: doc })).ok()).toBeTruthy();
   await page.goto(`/sites/${site.id}`);
   await expect(page.locator('[data-node="text"]')).toBeVisible();
-  await expect(page.getByText("サーバー保存済み", { exact: true })).toBeVisible();
+  await expect(page.locator('[data-tutorial="save-status"]')).toContainText("サーバー保存済み");
   return site.id as string;
 }
 
