@@ -70,7 +70,11 @@ export function cssValue(
       ? `/api/assets/file?path=${encodeURIComponent(asset.path)}`
       : asset.dataUrl;
     if (source && output.includes(source)) {
-      output = output.split(source).join(`/assets/${name}`);
+      // The editor proxy already has ?path=, so imported asset queries use
+      // & (or &amp; in serialized HTML). Published files need their first ?.
+      output = output.split(source).map((part, index) =>
+        index && asset.path ? part.replace(/^&(?:amp;)?/, "?") : part
+      ).join(`/assets/${name}`);
     }
   }
   return output;
