@@ -65,9 +65,14 @@ function seedDoc(id: string, name: string) {
     const doc = createInitialDoc();
     doc.siteName = name;
     window.localStorage.setItem(siteKey(DOC_STORAGE_KEY, id), JSON.stringify(doc));
+    return true;
   } catch {
-    // 置けなくても、エディタが既定の内容で始める
+    return false;
   }
+}
+
+function localSaveError() {
+  return new Error(tr("ブラウザに変更を保存できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。"));
 }
 
 /** サイトの編集データ（ブラウザ保存）を、新しいサイトへ写す。元に無ければ新しいサイトと同じく作る */
@@ -89,7 +94,7 @@ function forgetLocal(id: string) {
     try {
       window.localStorage.removeItem(siteKey(key, id));
     } catch {
-      // 消せなくても実害はない
+      // 掃除はベストエフォート。保存先が使えない間は残ることがある。
     }
   }
 }
@@ -497,13 +502,22 @@ export default function Home() {
     if (store === "server") {
       const data = await api<{ site: SiteRecord }>("/api/sites", { method: "POST", body: JSON.stringify(input) });
       id = data.site.id;
+      // サーバーには登録済みなので、ブラウザに置けなくてもエディタで初期データを作れる。
+      seedDoc(id, name);
     } else {
       id = newSiteId();
       const now = Date.now();
       const site = { ...emptyDest(), ...input, name, id, createdAt: now, updatedAt: now } as SiteRecord;
-      saveLocalSites([site, ...loadLocalSites()]);
+      let seeded = false;
+      try {
+        const list = loadLocalSites({ strict: true });
+        seeded = seedDoc(id, name);
+        if (!seeded || !saveLocalSites([site, ...list])) throw localSaveError();
+      } catch {
+        if (seeded) forgetLocal(id);
+        throw localSaveError();
+      }
     }
-    seedDoc(id, name);
     window.location.href = sitePath(id);
   };
 
@@ -519,12 +533,15 @@ export default function Home() {
     } else {
       const now = Date.now();
       site = { ...emptyDest(), ...input, name: input.name ?? "", id: newSiteId(), createdAt: now, updatedAt: now } as SiteRecord;
+      let copied = false;
       try {
+        const list = loadLocalSites({ strict: true });
         copyLocalDoc(src.id, site.id, site.name);
-        if (!saveLocalSites([site, ...loadLocalSites()])) throw new Error("Site list write failed");
+        copied = true;
+        if (!saveLocalSites([site, ...list])) throw new Error("Site list write failed");
       } catch {
-        // 一覧への登録に失敗したときも、孤立した複製の編集データを残さない。
-        forgetLocal(site.id);
+        // 一覧への登録に失敗したら、書けた複製データの掃除を試みる。
+        if (copied) forgetLocal(site.id);
         throw new Error(tr("サイトを複製できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。"));
       }
     }
@@ -540,9 +557,13 @@ export default function Home() {
       });
       setSites((list) => list?.map((s) => (s.id === site.id ? data.site : s)) ?? null);
     } else {
-      const next = loadLocalSites().map((s) => (s.id === site.id ? { ...s, ...input, updatedAt: Date.now() } : s));
-      saveLocalSites(next);
-      setSites(next);
+      try {
+        const next = loadLocalSites({ strict: true }).map((s) => (s.id === site.id ? { ...s, ...input, updatedAt: Date.now() } : s));
+        if (!saveLocalSites(next)) throw localSaveError();
+        setSites(next);
+      } catch {
+        throw localSaveError();
+      }
     }
     setDialog(null);
   };
@@ -559,7 +580,13 @@ export default function Home() {
       if (store === "server") {
         await api(`/api/sites/${encodeURIComponent(site.id)}`, { method: "DELETE" });
       } else {
-        saveLocalSites(loadLocalSites().filter((s) => s.id !== site.id));
+        try {
+          const next = loadLocalSites({ strict: true }).filter((s) => s.id !== site.id);
+          // 一覧の保存に失敗したときは、まだ一覧にあるサイトの編集データを消さない。
+          if (!saveLocalSites(next)) throw localSaveError();
+        } catch {
+          throw localSaveError();
+        }
       }
       forgetLocal(site.id);
       setSites((list) => list?.filter((s) => s.id !== site.id) ?? null);
