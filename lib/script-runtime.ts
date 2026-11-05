@@ -830,7 +830,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         var baseFilters = ops.filter(function (op) { return op.kind === "filter"; }).map(function (op) {
           return { join: op.join, conds: op.conds.map(function (c) {
             return { field: c.field, op: c.op, and: c.and, value: c.parts.map(function (part) {
-              return typeof part === "string" ? part : text(lookup(part.name, null, parentScope));
+              if (typeof part === "string") return part;
+              // 空・null・存在しない子も、親項目の根があればページ値で補わない。
+              if (has(parentScope, part.name) || has(parentScope, part.name.split(".")[0])) {
+                return text(has(parentScope, part.name) ? parentScope[part.name] : dig(parentScope, part.name));
+              }
+              return has(part, "fallback") ? part.fallback : text(lookup(part.name, null, parentScope));
             }).join("") };
           }) };
         });

@@ -221,7 +221,7 @@ ${indent}  })}`;
       // 生の取得配列は渡さず、以前から表示する項目だけをお手本に残す。
       const fallback = ctx.inTemplate && !lv.client ? serverItems(true) : "";
       const ops = ctx.listOps?.get(lv.from) ?? [];
-      // 配信時に決まった値の {文字} を、複製時にもう一度変数として消費しない。
+      // 項目の値を優先し、配信時の代替値は文字列として保持する（波括弧を再解決しない）。
       const filterParts = (value: string) => {
         const parts: string[] = [];
         let end = 0;
@@ -231,7 +231,7 @@ ${indent}  })}`;
           else {
             const token = m[1] ?? "slug";
             const name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
-            parts.push(`(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? interpolate(${JSON.stringify(m[0])}, ${base}) : { name: ${name} })`);
+            parts.push(`{ name: ${name}, ...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: interpolate(${JSON.stringify(m[0])}, { ...${base} }) } : {}) }`);
           }
           end = m.index + m[0].length;
         }

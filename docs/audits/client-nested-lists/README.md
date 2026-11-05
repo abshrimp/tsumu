@@ -63,3 +63,31 @@ mixed-scope cases require a separate design; the fallback preserves prior output
 
 Commands: `node --import tsx --test tests/client-nested-lists.test.mts`,
 `npm run test:e2e -- --list e2e/client-nested-lists.spec.ts`.
+
+## Static filter scope follow-up
+
+A review found that a known server token in a nested static filter was frozen before
+its client parent row existed. With server `wanted = red` and parent values `blue`
+and `red`, Canvas selected blue/red while the export selected red/red.
+
+Filter parts now retain the token name and a resolved string fallback. Parent item
+values take precedence, including null, empty strings, missing dotted children and
+literal dotted keys. Server fallbacks remain strings, not raw arrays or objects,
+and literal braces are never interpreted a second time. `[slug]` follows the same
+rule. The fallback resolves against ordinary server properties rather than the
+placeholder Proxy so dotted server fields work when the parent omits the root.
+
+The focused regression fails on the previous head and passes after the correction.
+It compares executed export with Canvas for conflicting and missing values. A native
+CI regression checks repeated loading and asserts that the fixture has a server-only
+fallback and a static list operation. Native browser execution remains deferred to CI.
+
+A real browser-write instruction targeting the filter token causes `pagePlan` to move
+that dependent filter out of static `listOps` and into browser operations. Such dynamic
+filters retain their existing action-time value semantics; this change does not add
+reactive dependencies or alter general text interpolation.
+
+Follow-up validation: all **1,073 unit tests** passed; typecheck, English translation
+coverage and `git diff --check` passed. Editor production webpack build and a separate
+generated-project webpack/TypeScript build passed. Three native client-nested-list
+tests enumerate, including the added regression; native execution was not attempted.

@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { nestedScopeItems } from "../tests/helpers/nested-script-scope";
+import { pagePlan } from "../lib/data";
 import { scriptsFile } from "../lib/script-runtime";
-import { clientNestedBundle, publishedClientNested } from "../tests/helpers/client-nested-lists";
+import { clientNestedBundle, clientNestedDoc, publishedClientNested } from "../tests/helpers/client-nested-lists";
 
 const snapshot = (page: Page) => page.evaluate(() => {
   const { doc, past, future } = (window as any).clientNestedStore.getState(); return { doc, past, future };
@@ -67,5 +68,37 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   await expect(details(page)).toHaveCount(0);
   await page.evaluate(content => { document.body.innerHTML = content; }, html);
   await check(page);
+  expect(errors).toEqual([]);
+});
+
+
+test('nested static filters shadow server values without reinterpreting literal braces', async ({ page }) => {
+  const doc = clientNestedDoc();
+  for (const action of ['descending', 'ascending', 'filter', 'empty', 'clear']) {
+    doc.pages.p.children = doc.pages.p.children.filter(id => id !== action); delete doc.nodes[action];
+  }
+  const tags = [{ label: 'red{literal}' }, { label: 'blue{literal}' }, { label: '' }];
+  const items = [
+    { name: 'First', wanted: 'blue{literal}', tags },
+    { name: 'Second', wanted: 'red{literal}', tags },
+    { name: 'Missing', tags },
+    { name: 'Null', wanted: null, tags },
+  ];
+  (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: 'global-wanted', kind: 'set-var', value: '{response.1.wanted}', into: 'wanted' },
+    { id: 'base-filter', kind: 'filter-array', array: 'tags', field: 'label', op: 'eq', value: '{wanted}' },
+  );
+  const plan = pagePlan(doc, 'p');
+  expect(plan.serverIds.has('global-wanted')).toBe(true);
+  expect(plan.listOps.get('tags')?.some(op => op.kind === 'filter')).toBe(true);
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto('/robots.txt');
+  await page.setContent(await publishedClientNested(doc, 'app/page.tsx', items));
+  await page.addScriptTag({ content: scriptsFile(doc) });
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole('button', { name: 'Load items', exact: true }).click();
+    await expect(details(page)).toHaveText(['Detail First:blue{literal}', 'Detail Second:red{literal}', 'Detail Missing:red{literal}', 'Detail Null:']);
+  }
   expect(errors).toEqual([]);
 });

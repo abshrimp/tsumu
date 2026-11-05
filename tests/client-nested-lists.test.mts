@@ -222,3 +222,31 @@ test('static filter values resolve server and item tokens once, preserving liter
     runtime.dispose();
   }
 });
+
+test('static nested filters prefer each parent value over a conflicting server fallback', async () => {
+  for (const value of ['{wanted}', '{choice.wanted}', '[slug]']) {
+    const doc = clientNestedDoc();
+    for (const action of ['descending', 'ascending', 'filter', 'empty', 'clear']) {
+      doc.pages.p.children = doc.pages.p.children.filter(id => id !== action); delete doc.nodes[action];
+    }
+    const tags = [{ label: 'red{literal}' }, { label: 'blue{literal}' }, { label: '' }];
+    const items = [
+      { name: 'First', wanted: 'blue{literal}', choice: { wanted: 'blue{literal}' }, slug: 'blue{literal}', tags },
+      { name: 'Second', wanted: 'red{literal}', choice: { wanted: 'red{literal}' }, slug: 'red{literal}', tags },
+      { name: 'Missing', tags },
+      { name: 'Null', wanted: null, choice: null, slug: null, tags },
+      { name: 'Empty', wanted: '', choice: {}, slug: '', tags },
+      { name: 'Literal key', wanted: null, 'choice.wanted': null, choice: { wanted: 'red{literal}' }, slug: null, tags },
+    ];
+    (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+    for (const into of ['wanted', 'choice', 'slug']) doc.pages.p.pageScripts![0].steps.push({
+      id: `global-${into}`, kind: 'set-var', value: `{response.1.${into}}`, into,
+    });
+    doc.pages.p.pageScripts![0].steps.push({ id: 'base-filter', kind: 'filter-array', array: 'tags', field: 'label', op: 'eq', value });
+    const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
+    await runtime.click('reload');
+    assert.deepEqual(details(runtime), canvasDetails(doc, items), value);
+    assert.deepEqual(details(runtime), ['Detail First:blue{literal}', 'Detail Second:red{literal}', 'Detail Missing:red{literal}', 'Detail Null:', 'Detail Empty:', 'Detail Literal key:']);
+    runtime.dispose();
+  }
+});
