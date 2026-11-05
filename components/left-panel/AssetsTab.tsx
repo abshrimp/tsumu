@@ -9,6 +9,7 @@ import { cssUsesAssetUrl } from "@/lib/css-assets";
  * アセットタブ（画像などの一覧・アップロード・使用量）
  */
 
+import { ASSET_WINDOW_THRESHOLD, assetWindow } from "../../lib/asset-window";
 import { isEnterKey } from "../../lib/keys";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -201,6 +202,24 @@ export function AssetsTab() {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const mounted = useRef(false);
+  const [viewport, setViewport] = useState({ width: 260, height: 600, top: assetScrollTop });
+  const [focusedAsset, setFocusedAsset] = useState<string | null>(null);
+  const [draggedAsset, setDraggedAsset] = useState<string | null>(null);
+  const focusRequest = useRef<{ id: string; last: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const measure = () => setViewport((v) => {
+      const width = list.clientWidth || v.width;
+      const height = list.clientHeight || v.height;
+      return width === v.width && height === v.height ? v : { ...v, width, height };
+    });
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(list);
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, []);
   useLayoutEffect(() => {
     mounted.current = true;
     if (listRef.current) listRef.current.scrollTop = assetScrollTop;
@@ -229,9 +248,6 @@ export function AssetsTab() {
   }, [revealAssetId, revealAsset]);
   useEffect(() => {
     if (!revealed) return;
-    document
-      .querySelector(`[data-asset-id="${CSS.escape(revealed)}"]`)
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
     const t = window.setTimeout(() => setRevealed(null), 1600);
     return () => window.clearTimeout(t);
   }, [revealed]);
@@ -262,12 +278,58 @@ export function AssetsTab() {
     };
   };
 
-  const assets = Object.values(doc.assets);
+  const assets = useMemo(() => Object.values(doc.assets), [doc.assets]);
   const usage = useMemo(() => assetUsage(doc), [doc]);
   const usedBy = (asset: Asset) => usage.get(asset.id) ?? 0;
-  const unused = assets.filter((a) => !usage.has(a.id));
+  const unused = useMemo(() => assets.filter((a) => !usage.has(a.id)), [assets, usage]);
   const q = query.trim().toLowerCase();
-  const shown = q ? assets.filter((a) => a.name.toLowerCase().includes(q)) : assets;
+  const shown = useMemo(() => q ? assets.filter((a) => a.name.toLowerCase().includes(q)) : assets, [assets, q]);
+  const windowed = shown.length > ASSET_WINDOW_THRESHOLD;
+  const pinnedIndices = [focusedAsset, renaming, draggedAsset].map((id) => id ? shown.findIndex((a) => a.id === id) : -1);
+  const layout = assetWindow(shown.length, viewport.width, viewport.height, viewport.top, pinnedIndices);
+  const visible = windowed ? layout.indices.map((index) => ({ asset: shown[index], index }))
+    : shown.map((asset, index) => ({ asset, index }));
+  const scrollToAsset = (index: number, center = true) => {
+    const list = listRef.current;
+    if (!list) return;
+    const rowTop = Math.floor(index / 2) * layout.rowHeight;
+    const desired = center ? rowTop - (viewport.height - layout.rowHeight) / 2
+      : rowTop < list.scrollTop ? rowTop : Math.max(list.scrollTop, rowTop + layout.rowHeight - viewport.height);
+    const top = Math.max(0, Math.min(desired, layout.totalHeight - viewport.height));
+    list.scrollTop = top;
+    assetScrollTop = top;
+    setViewport((v) => v.top === top ? v : { ...v, top });
+  };
+  useLayoutEffect(() => {
+    // 検索・削除・パネル幅の変更でも、表示領域を実際の一覧の範囲に収める。
+    const list = listRef.current;
+    if (!list || !windowed) return;
+    list.scrollTop = layout.top;
+    assetScrollTop = layout.top;
+  }, [windowed, layout.top, layout.totalHeight, viewport.width]);
+  useLayoutEffect(() => {
+    if (!revealed) return;
+    const index = shown.findIndex((a) => a.id === revealed);
+    if (index < 0) return;
+    if (windowed) scrollToAsset(index);
+    else listRef.current?.querySelector(`[data-asset-id="${CSS.escape(revealed)}"]`)
+      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [revealed, shown, windowed, layout.rowHeight]);
+  useLayoutEffect(() => {
+    const request = focusRequest.current;
+    if (!request) return;
+    focusRequest.current = null;
+    const card = listRef.current?.querySelector(`[data-asset-id="${CSS.escape(request.id)}"]`);
+    const controls = card?.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled)");
+    const control = request.last ? controls?.[controls.length - 1] : controls?.[0];
+    control?.focus({ preventScroll: true });
+  }, [visible]);
+  const changeQuery = (value: string) => {
+    setQuery(value);
+    if (listRef.current) listRef.current.scrollTop = 0;
+    assetScrollTop = 0;
+    setViewport((v) => v.top === 0 ? v : { ...v, top: 0 });
+  };
 
   /** どこからも使われていないアセットをまとめて削除する */
   const removeUnused = async () => {
@@ -515,9 +577,9 @@ export function AssetsTab() {
                 type="search"
                 placeholder={tr("アセットを検索")}
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => changeQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Escape") setQuery("");
+                  if (e.key === "Escape") changeQuery("");
                 }}
               />
               {query && (
@@ -525,7 +587,7 @@ export function AssetsTab() {
                   type="button"
                   className="asset-search-clear"
                   aria-label={tr("検索をクリア")}
-                  onClick={() => setQuery("")}
+                  onClick={() => changeQuery("")}
                 >
                   <X size={12} />
                 </button>
@@ -557,6 +619,8 @@ export function AssetsTab() {
         className="panel-body"
         onScroll={(e) => {
           assetScrollTop = e.currentTarget.scrollTop;
+          const top = assetScrollTop;
+          setViewport((v) => v.top === top ? v : { ...v, top });
         }}
       >
         {assets.length === 0 ? (
@@ -569,8 +633,42 @@ export function AssetsTab() {
           shown.length === 0 ? (
             <div className="panel-empty">{tr("「{p1}」に一致するアセットはありません", { p1: query.trim() })}</div>
           ) : (
-          <div className="asset-grid">
-            {shown.map((asset) => {
+          <>
+          {windowed && <span className="asset-focus-edge" role="group" tabIndex={pinnedIndices[0] >= 0 ? -1 : 0} aria-label={tr("アセット")}
+            onFocus={() => {
+              focusRequest.current = { id: shown[0].id, last: false };
+              setFocusedAsset(shown[0].id);
+              scrollToAsset(0, false);
+            }} />}
+          <div
+            className={`asset-grid${windowed ? " is-windowed" : ""}`}
+            role="list"
+            style={windowed ? { height: layout.totalHeight } : undefined}
+            onFocusCapture={(e) => {
+              const card = (e.target as HTMLElement).closest<HTMLElement>("[data-asset-id]");
+              setFocusedAsset(card?.dataset.assetId ?? null);
+            }}
+            onBlurCapture={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusedAsset(null);
+            }}
+            onKeyDownCapture={(e) => {
+              if (!windowed || e.key !== "Tab" || e.ctrlKey || e.altKey || e.metaKey) return;
+              const target = e.target as HTMLElement;
+              const card = target.closest<HTMLElement>("[data-asset-id]");
+              if (!card) return;
+              const controls = card.querySelectorAll<HTMLElement>("button:not(:disabled),input:not(:disabled)");
+              if (target !== (e.shiftKey ? controls[0] : controls[controls.length - 1])) return;
+              const index = shown.findIndex((a) => a.id === card.dataset.assetId) + (e.shiftKey ? -1 : 1);
+              if (index < 0 || index >= shown.length) return;
+              // DOMにまだ無い隣のカードにも、従来どおりTab/Shift+Tabで順番に移動する。
+              e.preventDefault();
+              const id = shown[index].id;
+              focusRequest.current = { id, last: e.shiftKey };
+              setFocusedAsset(id);
+              scrollToAsset(index, false);
+            }}
+          >
+            {visible.map(({ asset, index }) => {
               const used = usedBy(asset);
               const kind = assetKind(asset);
               return (
@@ -578,6 +676,13 @@ export function AssetsTab() {
                   key={asset.id}
                   className={`asset-card${revealed === asset.id ? " is-revealed" : ""}`}
                   data-asset-id={asset.id}
+                  role="listitem"
+                  aria-posinset={index + 1}
+                  aria-setsize={shown.length}
+                  style={windowed ? {
+                    top: Math.floor(index / 2) * layout.rowHeight,
+                    left: index % 2 ? "calc(50% + 5px)" : 12,
+                  } : undefined}
                 >
                 <button
                   className="asset-thumb"
@@ -594,7 +699,9 @@ export function AssetsTab() {
                     if (kind !== "image") return;
                     e.dataTransfer.setData(ASSET_DRAG_TYPE, asset.id);
                     e.dataTransfer.effectAllowed = "copy";
+                    setDraggedAsset(asset.id);
                   }}
+                  onDragEnd={() => setDraggedAsset(null)}
                 >
                   {kind === "image" ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -602,6 +709,7 @@ export function AssetsTab() {
                       src={assetSrc(asset)}
                       alt={asset.name}
                       loading="lazy"
+                      decoding="async"
                       draggable={false}
                     />
                   ) : (
@@ -626,7 +734,10 @@ export function AssetsTab() {
                       onKeyDown={(e) => {
                         if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
                         if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
-                        if (e.key === "Escape") setRenaming(null);
+                        if (e.key === "Escape") {
+                          focusRequest.current = { id: asset.id, last: false };
+                          setRenaming(null);
+                        }
                       }}
                     />
                   ) : (
@@ -649,6 +760,7 @@ export function AssetsTab() {
                     className="layer-act is-active asset-del"
                     style={{ right: 56 }}
                     data-tip={tr("サーバーへアップロード")}
+                    aria-label={tr("サーバーへアップロード")}
                     disabled={busy}
                     onClick={() => void migrateAsset(asset)}
                   >
@@ -668,6 +780,7 @@ export function AssetsTab() {
                   className="layer-act is-active asset-del"
                   style={{ right: 30 }}
                   data-tip={tr("ダウンロード")}
+                  aria-label={tr("ダウンロード")}
                   onClick={() => void downloadAsset(asset)}
                 >
                   <Download size={12} />
@@ -675,6 +788,7 @@ export function AssetsTab() {
                 <button
                   className="layer-act is-active asset-del"
                   data-tip={tr("削除")}
+                  aria-label={tr("削除")}
                   onClick={() => removeAsset(asset)}
                 >
                   <Icon name="trash" size={12} />
@@ -683,6 +797,14 @@ export function AssetsTab() {
               );
             })}
           </div>
+          {windowed && <span className="asset-focus-edge" role="group" tabIndex={pinnedIndices[0] >= 0 ? -1 : 0} aria-label={tr("アセット")}
+            onFocus={() => {
+              const index = shown.length - 1;
+              focusRequest.current = { id: shown[index].id, last: true };
+              setFocusedAsset(shown[index].id);
+              scrollToAsset(index, false);
+            }} />}
+          </>
           )
         )}
       </div>
