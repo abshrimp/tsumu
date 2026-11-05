@@ -96,11 +96,13 @@ export default function PageHtml({ html }: { html: string }) {
   const ref = useRef<HTMLDivElement>(null);
   // ハイドレーション中だけ true（サーバーのHTMLをそのまま使う = 中のスクリプトはもう動いた）
   const hydrating = useSyncExternalStore(subscribe, () => false, () => true);
-  const fromServer = useRef(hydrating);
+  // サーバーで動いたHTMLだけを飛ばす。同じコンポーネントで別のHTMLに変われば動かす。
+  const serverHtml = useRef(hydrating ? html : null);
 
   useEffect(() => {
     const box = ref.current;
-    if (fromServer.current || !box) return;
+    if (!box || serverHtml.current === html) return;
+    serverHtml.current = null;
     let cancelled = false;
     (async () => {
       for (const old of Array.from(box.querySelectorAll("script"))) {
