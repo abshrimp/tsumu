@@ -190,6 +190,19 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
   return usage;
 }
 
+/** 連続編集とアップロードのUndoを混ぜず、履歴や移行元が変わった場合は待機を終える。 */
+async function waitForAssetGesture(current: () => boolean) {
+  while (current() && useEditor.getState().gestureActive) {
+    await new Promise<void>((resolve) => {
+      const unsubscribe = useEditor.subscribe(() => {
+        if (current() && useEditor.getState().gestureActive) return;
+        unsubscribe();
+        resolve();
+      });
+    });
+  }
+}
+
 /** アセット一覧のスクロール位置（他のタブを開いて戻ってきても保つ） */
 let assetScrollTop = 0;
 
@@ -202,7 +215,15 @@ export function AssetsTab() {
   const insertNodes = useEditor((s) => s.insertNodes);
   const updateNode = useEditor((s) => s.updateNode);
   const setLeftTab = useEditor((s) => s.setLeftTab);
-  const [busy, setBusy] = useState(false);
+  const [uploadCount, setUploadCount] = useState(0);
+  const busy = uploadCount > 0;
+  const uploadRevision = useRef(0);
+  const uploadMounted = useRef(false);
+  useLayoutEffect(() => {
+    uploadMounted.current = true;
+    return () => { uploadMounted.current = false; };
+  }, []);
+
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -245,6 +266,20 @@ export function AssetsTab() {
     });
   };
 
+  // タブを閉じても追加・移行は続ける。古い処理で新しい処理の表示を上書きしない。
+  const beginUpload = () => {
+    const revision = ++uploadRevision.current;
+    const history = useEditor.getState().historyRevision;
+    setUploadCount((count) => count + 1);
+    setError(null);
+    const historyChanged = () => useEditor.getState().historyRevision !== history;
+    return {
+      historyChanged,
+      current: () => uploadMounted.current && uploadRevision.current === revision && !historyChanged(),
+      finish: () => { if (uploadMounted.current) setUploadCount((count) => count - 1); },
+    };
+  };
+
   const assets = Object.values(doc.assets);
   const usage = useMemo(() => assetUsage(doc), [doc]);
   const usedBy = (asset: Asset) => usage.get(asset.id) ?? 0;
@@ -271,47 +306,57 @@ export function AssetsTab() {
   };
 
   const upload = async (files: FileList | File[]) => {
-    setBusy(true);
-    setError(null);
+    const request = beginUpload();
     try {
       let fellBack = false;
       for (const file of Array.from(files)) {
         if (!/^(image|video|audio)\//.test(file.type)) continue;
         const asset = await uploadAsset(file);
         if (!asset.path) fellBack = true;
-        updateDoc((d) => void (d.assets[asset.id] = asset));
+        await waitForAssetGesture(() => !request.historyChanged());
+        // Undo/Redoや文書置換後も完了したファイルを残し、やり直す編集は消さない。
+        if (request.historyChanged()) useEditor.getState().retainUploadedAssets([asset]);
+        else updateDoc((d) => void (d.assets[asset.id] = asset));
       }
-      if (fellBack) {
+      if (fellBack && request.current()) {
         setError(
           tr("サーバーに保存できないため、このブラウザ内に保存しました。画面下の保存状態を確認してください。")
         );
       }
     } catch (e) {
-      setError(userMessage(e, tr("アップロードできませんでした")));
+      if (request.current()) setError(userMessage(e, tr("アップロードできませんでした")));
     } finally {
-      setBusy(false);
+      request.finish();
     }
   };
 
   /** ローカル（dataURL）のアセットをサーバーへ移行する */
   const migrateAsset = async (asset: Asset) => {
     if (!asset.dataUrl) return;
-    setBusy(true);
-    setError(null);
+    const request = beginUpload();
+    const current = () => {
+      const latest = useEditor.getState().doc.assets[asset.id];
+      return !request.historyChanged() && latest?.dataUrl === asset.dataUrl && latest?.path === asset.path;
+    };
     try {
       const path = await uploadEmbeddedAsset(asset);
+      // 待機中に履歴・同じIDのファイルが変わったら、古い内容へ差し戻さない。
+      if (!current()) return;
       if (!path) {
+        if (!request.current()) return;
         setError(
           tr("まだサーバーに保存できません。画面下の保存状態を確認してください。")
         );
         return;
       }
+      await waitForAssetGesture(current);
+      if (!current()) return;
       // 使っている要素の src と、背景画像などのスタイルも差し替える
       updateDoc((d) => replaceEmbeddedAsset(d, asset.id, path));
     } catch (e) {
-      setError(userMessage(e, tr("サーバーへ移せませんでした")));
+      if (request.current()) setError(userMessage(e, tr("サーバーへ移せませんでした")));
     } finally {
-      setBusy(false);
+      request.finish();
     }
   };
 
