@@ -16,6 +16,7 @@ test.afterEach(async ({ page }) => { expect(errors.get(page)).toEqual([]); });
 
 const folder = (page: Page, name: string) => page.locator(".page-folder").filter({ has: page.locator(".folder-name").filter({ hasText: new RegExp(`^${name}$`) }) });
 async function rename(page: Page, from: string, to: string) {
+  await folder(page, from).locator(".folder-row").hover();
   await folder(page, from).locator('[data-tip="名前を変更"]').click();
   await page.locator(".folder-rename").fill(to);
   await page.locator(".folder-rename").press("Enter");
@@ -84,6 +85,7 @@ test("フォルダのドラッグ並べ替えと別フォルダの改名を両�
 });
 
 test("フォルダ削除のUndoとRedoは他のフォルダの改名を取り消さない", async ({ page }) => {
+  await folder(page, "First").locator(".folder-row").hover();
   await folder(page, "First").locator('[data-tip="フォルダを削除（中のページはフォルダの外へ出ます）"]').click();
   await page.evaluate(() => {
     const remote = structuredClone((window as any).folderBase);
