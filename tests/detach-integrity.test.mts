@@ -76,3 +76,42 @@ test('detach without an instance anchor keeps normal clone ID collision handling
   const after = useEditor.getState().doc;
   assert.equal(after.nodes[after.pages.p.children[0]].attrId, 'card-2');
 });
+
+test('detach in an unused component preserves instance settings and avoids edited-master collisions', () => {
+  const doc: SiteDoc = {
+    siteName: 'Nested detach', assets: {}, pageOrder: ['p'],
+    pages: { p: { id: 'p', name: 'Home', slug: '', title: '', description: '', children: [] } },
+    components: {
+      outer: { id: 'outer', name: 'Outer', rootId: 'outerRoot' },
+      inner: { id: 'inner', name: 'Inner', rootId: 'innerRoot' },
+    },
+    nodes: {
+      outerRoot: { ...makeBox(), id: 'outerRoot', children: ['instance', 'sibling'] },
+      sibling: { ...makeBox(), id: 'sibling', attrId: 'nested-anchor-2' },
+      innerRoot: { ...makeBox(), id: 'innerRoot', attrId: 'master-anchor', hiddenOn: ['lg'], children: ['child'] },
+      child: { ...makeBox(), id: 'child', attrId: 'nested-anchor', link: { kind: 'url', url: '#master-anchor' } },
+      instance: { ...makeBox(), id: 'instance', type: 'instance', componentId: 'inner', attrId: 'nested-anchor', name: 'Nested card', locked: true, hiddenOn: ['sm'] },
+    },
+  };
+  useEditor.getState().replaceDoc(doc);
+  useEditor.getState().setActivePage('p');
+  useEditor.getState().setEditingComponent('outer');
+  const before = structuredClone(useEditor.getState().doc);
+  useEditor.getState().detachInstance('instance');
+  const after = useEditor.getState().doc;
+  const root = after.nodes[after.nodes.outerRoot.children[0]];
+  const child = after.nodes[root.children[0]];
+  assert.equal(root.attrId, 'nested-anchor');
+  assert.equal(root.name, 'Nested card');
+  assert.equal(root.locked, true);
+  assert.deepEqual(new Set(root.hiddenOn), new Set(['lg', 'sm']));
+  assert.equal(child.attrId, 'nested-anchor-3');
+  assert.equal(child.link?.url, '#nested-anchor');
+  assert.deepEqual(after.nodes.innerRoot, before.nodes.innerRoot);
+  assert.deepEqual(after.nodes.sibling, before.nodes.sibling);
+  assert.equal(after.nodes.instance, undefined);
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc, before);
+  useEditor.getState().redo();
+  assert.deepEqual(useEditor.getState().doc, after);
+});

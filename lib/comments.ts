@@ -234,28 +234,25 @@ export async function runCommentAction(
       await db.batch([
         {
           sql: `INSERT INTO comment_threads (id, site_id, page_id, node_id, x, y, bp, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [a.id, siteId, a.pageId, a.nodeId, a.x, a.y, a.bp, now, now],
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM sites WHERE id = ?)`,
+          args: [a.id, siteId, a.pageId, a.nodeId, a.x, a.y, a.bp, now, now, siteId],
         },
         {
           sql: `INSERT INTO comment_messages (id, thread_id, site_id, email, name, image, body, at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          args: [`${a.id}-0`, a.id, siteId, me.email, me.name, me.image, a.body, now],
+            SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM comment_threads WHERE id = ? AND site_id = ?)`,
+          args: [`${a.id}-0`, a.id, siteId, me.email, me.name, me.image, a.body, now, a.id, siteId],
         },
       ]);
       return true;
     case "reply": {
-      const rs = await db.execute({
-        sql: "SELECT id FROM comment_threads WHERE id = ? AND site_id = ?",
-        args: [a.threadId, siteId],
-      });
-      // ほかの人が消したスレッドへの返信は、何もしない（返す一覧に出ない）
-      if (!rs.rows.length) return true;
+      // 存在確認と書き込みを同じSQLで行い、削除と競合しても返信だけを残さない。
       await db.batch([
         {
           sql: `INSERT INTO comment_messages (id, thread_id, site_id, email, name, image, body, at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
-          args: [a.id, a.threadId, siteId, me.email, me.name, me.image, a.body, now],
+            SELECT ?, ?, ?, ?, ?, ?, ?, ?
+            WHERE EXISTS (SELECT 1 FROM comment_threads WHERE id = ? AND site_id = ?)
+            ON CONFLICT(id) DO NOTHING`,
+          args: [a.id, a.threadId, siteId, me.email, me.name, me.image, a.body, now, a.threadId, siteId],
         },
         bump(a.threadId),
       ]);

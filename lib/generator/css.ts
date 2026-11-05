@@ -70,7 +70,11 @@ export function cssValue(
       ? `/api/assets/file?path=${encodeURIComponent(asset.path)}`
       : asset.dataUrl;
     if (source && output.includes(source)) {
-      output = output.split(source).join(`/assets/${name}`);
+      // The editor proxy already has ?path=, so imported asset queries use
+      // & (or &amp; in serialized HTML). Published files need their first ?.
+      output = output.split(source).map((part, index) =>
+        index && asset.path ? part.replace(/^&(?:amp;)?/, "?") : part
+      ).join(`/assets/${name}`);
     }
   }
   return output;
@@ -233,7 +237,12 @@ export function generateSiteCss(
     }
     // デバイス別の非表示は、その画面幅の範囲だけに効かせる
     for (const bp of BP_ORDER) {
-      if (isHiddenAt(node, bp)) hideRules[bp].push(`  .${cls} {\n    display: none;\n  }`);
+      if (isHiddenAt(node, bp)) {
+        const selector = node.type === "instance"
+          ? `[data-instance-hidden~=${JSON.stringify(cls)}]`
+          : `.${cls}`;
+        hideRules[bp].push(`  ${selector} {\n    display: none${node.type === "instance" ? " !important" : ""};\n  }`);
+      }
     }
   }
 

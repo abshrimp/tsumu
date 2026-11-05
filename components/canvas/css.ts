@@ -58,6 +58,10 @@ export function buildCanvasCss(
     if (node.type === "instance") {
       const comp = doc.components?.[node.componentId ?? ""];
       if (comp) walk(comp.rootId);
+      if (isHiddenAt(node, bp)) {
+        const safeId = JSON.stringify(id);
+        rules.push(`.cv-root :is([data-node=${safeId}], [data-instance-node~=${safeId}]) { display: none !important; }`);
+      }
       return;
     }
     // 通常の data-node と、インスタンス内の data-ghost の両方に効かせる

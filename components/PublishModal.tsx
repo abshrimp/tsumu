@@ -365,7 +365,6 @@ export default function PublishModal({
         generated[path] = await gitBlobShaOf(new TextEncoder().encode(content));
       }
       files[GENERATED_MANIFEST_PATH] = serializeGeneratedManifest(generated);
-      Object.assign(assetShas, plan.kept);
       setProgress(tr("GitHubへコミットしています…"));
 
       const data = await postPublish<{ commitUrl?: string }>(
@@ -374,6 +373,7 @@ export default function PublishModal({
           target: site,
           files,
           assetShas,
+          keptPaths: Object.keys(plan.kept),
           message: `${site === "test" ? "Test publish" : "Publish"}: ${target.siteName} (${new Date().toLocaleString(getLang())})`,
         },
         tr("公開できませんでした")

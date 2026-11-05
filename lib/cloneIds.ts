@@ -40,11 +40,14 @@ function mapSteps(steps: ScriptStep[], fn: (id: string) => string | null) {
  * - スクリプトとブロックには新しい内部IDを振る（元と同じだとスクリプト画面で元のブロックまで変わる）
  */
 export function refreshClonedIds(
-  doc: SiteDoc, pageId: string, clones: DocNode[],
+  doc: SiteDoc,
+  pageId: string,
+  clones: DocNode[],
+  extraRootIds: string[] = [],
   replacing?: { rootId: string; attrId?: string }
 ) {
   const used = new Set<string>();
-  for (const id of pageNodeIds(doc, pageId)) {
+  for (const id of pageNodeIds(doc, pageId, extraRootIds)) {
     const n = doc.nodes[id];
     if (n?.attrId) used.add(n.attrId);
     if (n?.type === "field" && n.field?.kind === "radio" && n.field.group?.trim()) {
