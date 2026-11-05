@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { commitFieldsBundle, commitFieldsDoc, commitPageFieldsBundle } from "../tests/helpers/commit-fields";
 
-const seoField = (page: Page, field: "title" | "description") => page.locator(`[data-tutorial="page-seo"] ${field === "title" ? "input" : "textarea"}`);
+const seoField = (page: Page, field: "title" | "description") => page.locator(`[data-tutorial="page-seo"] ${field === "title" ? ".row > input.input" : "textarea"}`);
 
 for (const field of ["title", "description"] as const) {
   for (const editing of ["fresh", "previously-committed", "pending"] as const) {
@@ -39,6 +39,7 @@ for (const field of ["title", "description"] as const) {
       if (editing === "pending") await expect(input).toHaveValue("Deliberate local draft");
       if (field === "title") await input.press("Enter");
       else await input.blur();
+      console.info("commit-field native result", JSON.stringify({ field, editing, value: await input.inputValue(), stored: (await (await page.request.get(endpoint)).json()).doc.pages.p[field] }));
       const expected = structuredClone(remote);
       if (editing === "pending") expected.pages.p[field] = "Deliberate local draft";
       await expect(input).toHaveValue(expected.pages.p[field]);
