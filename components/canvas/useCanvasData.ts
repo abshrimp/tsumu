@@ -19,7 +19,7 @@ import {
   makeSample,
 } from "../../lib/data";
 import { hasVars, interpolate, interpolateUrl, isSlugPage, pageQueryVars } from "../../lib/vars";
-import { fieldDefaults, fieldStateValues } from "../../lib/fields";
+import { fieldDefaults, fieldStateValues, type FieldValues } from "../../lib/fields";
 import { fetchRequestOf } from "../../lib/fetch-request";
 import type { Page, SiteDoc } from "../../lib/types";
 
@@ -56,7 +56,7 @@ export function useCanvasData({
   setPreviewIndex,
 }: UseCanvasDataDeps) {
   /* ---- 変数（要素のデータ / フォーム値 / slug） ---- */
-  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [fieldValues, setFieldValues] = useState<FieldValues>({});
   /** プレビューで、スクリプトが画面上で値を入れた変数（ストレージ・分解した配列など） */
   const [clientValues, setClientValues] = useState<Record<string, unknown>>({});
   /** 再取得したデータ（取得ブロックのID → JSON） */
