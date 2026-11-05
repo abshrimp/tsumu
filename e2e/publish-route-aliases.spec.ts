@@ -24,7 +24,7 @@ test("同じ書き出し先のURLを検出し、URL修正後は両方のクエ�
   await page.goto(`/sites/${site.id}`);
   await expect(page.getByText("サーバー保存済み")).toBeVisible();
   const openExport = async () => {
-    await page.locator('[data-tutorial="menu"] .dd').click();
+    await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）", exact: true }).click();
     await page.getByRole("button", { name: "zipでエクスポート", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Next.jsプロジェクトとして書き出し" })).toBeVisible();
   };
