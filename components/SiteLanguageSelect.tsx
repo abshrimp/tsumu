@@ -34,7 +34,7 @@ export default function SiteLanguageSelect({ value, onChange, inheritLabel }: {
     }
     setDraft(next);
     setInvalid(false);
-    onChange(next);
+    if (next !== value) onChange(next);
   };
 
   return (

@@ -52,6 +52,7 @@ test("サイトとページの言語を候補・カスタム入力で設定し�
 
   // 既存のカスタム値も再読み込み後にそのまま編集できる。
   await page.reload();
+  await expect(page.getByText("サーバー保存済み")).toBeVisible();
   await page.locator('[data-tutorial="left-tab-site"]').click();
   await expect(siteCode).toHaveValue("pt-BR");
   await expect(pageCode).toHaveValue("en-US");
