@@ -195,7 +195,8 @@ export function scriptsAttr(
   const compiled = compileScripts(
     node,
     (pageId) => pageHref(ctx, pageId),
-    (str, kind) => {
+    (str, kind, item) => {
+      if (item && !ctx.inTemplate) return str;
       if (ctx.inTemplate) {
         exprs.push(scriptExpression(ctx, str));
         return `__script_var_${exprs.length - 1}__`;
@@ -211,7 +212,8 @@ export function scriptsAttr(
     },
     false,
     skip,
-    (name) => {
+    (name, item) => {
+      if (item && !ctx.inTemplate) return undefined;
       if (ctx.inTemplate) {
         exprs.push(scriptReference(ctx, name, true));
         return `__script_raw_ref_${exprs.length - 1}__`;
