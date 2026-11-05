@@ -157,9 +157,33 @@ export function raiseOverCrispSvg(doc: SiteDoc): void {
   }
 }
 
+/** 項目がまだないお手本では、参照名と必要な代替値だけを渡す。 */
+function scriptReference(ctx: JsxContext, token: string, raw: boolean): string {
+  const base = ctx.varsExpr ?? "vars";
+  const name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
+  if (ctx.liveNames.has(token.split(".")[0])) return `{ name: ${name} }`;
+  ctx.usesLookup = true;
+  const value = raw
+    ? `lookupVar({ ...${base} }, ${name}) ?? null`
+    : `interpolate(${JSON.stringify(`{${token}}`)}, { ...${base} })`;
+  return `{ name: ${name}, ...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: ${value} } : {}) }`;
+}
+
+function scriptExpression(ctx: JsxContext, value: string): string {
+  const parts: string[] = [];
+  let end = 0;
+  for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g)) {
+    parts.push(JSON.stringify(value.slice(end, m.index)));
+    parts.push(m[0] === "\\{" ? JSON.stringify("{") : scriptReference(ctx, m[1] ?? "slug", false));
+    end = m.index + m[0].length;
+  }
+  parts.push(JSON.stringify(value.slice(end)));
+  return `{ scriptParts: [${parts.join(", ")}] }`;
+}
+
 /**
- * スクリプトの data-scripts 属性（URL・値の {変数} は描画時に解決する。
- * 画面上で値が決まる変数・入力欄は {名前} のまま残し、ブラウザで置き換える）
+ * スクリプトの data-scripts 属性。配信前の値は描画時に解決する。
+ * ブラウザで並べる項目内は式を渡し、画面上の変数・入力欄も実行時に読む。
  */
 export function scriptsAttr(
   ctx: JsxContext,
@@ -172,19 +196,26 @@ export function scriptsAttr(
     node,
     (pageId) => pageHref(ctx, pageId),
     (str, kind) => {
+      if (ctx.inTemplate) {
+        exprs.push(scriptExpression(ctx, str));
+        return `__script_var_${exprs.length - 1}__`;
+      }
       if (!hasVars(str)) return str;
       const fn = kind === "url" ? "interpolateUrl" : "interpolate";
       // 画面上の変数は {名前} のまま、文字としての「{」は「\{」のまま渡し、ランタイムが置き換える
       const keep = { ...keepTokens(str, ctx.liveNames), [KEEP_ESCAPES]: true };
       const base = ctx.varsExpr ?? "vars";
-      // お手本の Proxy は無い名前を {名前} のまま・「\{」もそのまま返すので、展開せずに渡す
-      const vars = ctx.inTemplate ? base : `{ ...${base}, ...${JSON.stringify(keep)} }`;
+      const vars = `{ ...${base}, ...${JSON.stringify(keep)} }`;
       exprs.push(`${fn}(${JSON.stringify(str)}, ${vars})`);
       return `__script_var_${exprs.length - 1}__`;
     },
     false,
     skip,
     (name) => {
+      if (ctx.inTemplate) {
+        exprs.push(scriptReference(ctx, name, true));
+        return `__script_raw_ref_${exprs.length - 1}__`;
+      }
       if (ctx.liveNames.has(name.split(".")[0])) return undefined;
       ctx.usesLookup = true;
       exprs.push(`lookupVar(${ctx.varsExpr ?? "vars"}, ${JSON.stringify(name)}) ?? null`);
@@ -195,7 +226,9 @@ export function scriptsAttr(
   const json = JSON.stringify(compiled);
   if (!exprs.length) return ` data-scripts={${JSON.stringify(json)}}`;
   ctx.usesInterpolate = true;
-  const code = json.replace(/"__script_var_(\d+)__"/g, (_, i) => exprs[Number(i)]);
+  const code = json
+    .replace(/"raw":"__script_raw_ref_(\d+)__"/g, (_, i) => `"rawRef":${exprs[Number(i)]}`)
+    .replace(/"__script_var_(\d+)__"/g, (_, i) => exprs[Number(i)]);
   return ` data-scripts={JSON.stringify(${code})}`;
 }
 
