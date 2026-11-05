@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。": "Could not read the destination site’s document. Check the destination site and try again.",
   ...help,
   "プレビューのアセットURLの有効期限が近づいています。更新すると入力内容やページ内の状態がリセットされます。": "The preview asset URLs will expire soon. Refreshing resets form entries and the page's current state.",
   "プレビューを更新": "Refresh preview",
