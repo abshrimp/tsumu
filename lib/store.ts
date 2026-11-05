@@ -406,7 +406,7 @@ export interface EditorStore {
   insertMode: InsertMode;
   setInsertMode: (m: InsertMode) => void;
 
-  clipboard: { nodes: DocNode[]; rootIds: string[] } | null;
+  clipboard: ClipPayload | null;
   /** 要素をコピーする（複数選択中で nodeId を含むなら選択中の全要素） */
   copyNode: (nodeId: string) => void;
   /**
@@ -905,17 +905,18 @@ export const useEditor = create<EditorStore>((set, get) => {
       const rootIds = targets
         .filter((id) => !inside.has(id))
         .sort((a, b) => comparePosition(treePosition(doc, a), treePosition(doc, b)));
-      const clipboard = {
+      // 取り消し・削除でコピー元が消えても、同じタブから貼り付けられるよう依存も控える。
+      const clipboard = buildClipPayload(doc, {
         nodes: rootIds.flatMap((root) =>
           collectDescendants(doc, root).map((id) => structuredClone(doc.nodes[id]))
         ),
         rootIds,
-      };
+      });
       set({ clipboard });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("tsumu-internal-copy"));
         // ほかのサイトでも貼り付けられるよう、OS のクリップボードにも書く
-        writeClipPayload(buildClipPayload(doc, clipboard));
+        writeClipPayload(clipboard);
       }
     },
 
@@ -1157,8 +1158,8 @@ export const useEditor = create<EditorStore>((set, get) => {
         }
       }
       get().updateDoc((d) => {
-        // ほかのサイトの要素なら、使っているアセット・コンポーネント・フォントを先に足す
-        const remap = external ? mergeClipDeps(d, external).assetIds : new Map<string, string>();
+        // 同じタブでも、コピー後の取り消し・削除で失われた依存を戻す。残っているマスターは優先する。
+        const remap = mergeClipDeps(d, clip).assetIds;
         for (const n of clones) d.nodes[n.id] = remapAssetIds(n, remap);
         const list = childrenOf(d, parent);
         list.splice(index === undefined ? list.length : index, 0, ...newRootIds);
