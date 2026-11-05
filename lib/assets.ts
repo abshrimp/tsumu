@@ -1,6 +1,8 @@
 "use client";
 
-import { replaceCssAssetUrls } from "./css-assets";
+import { CSS_ASSET_ATTRIBUTES, replaceCssAssetUrls, rewriteCssAssetUrls } from "./css-assets";
+import { zipAssetClosure, zipCssPreviewUrls, zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
+import { appendAssetSuffix } from "./zip-references";
 import type { Asset, SiteDoc } from "./types";
 import { genId } from "./presets";
 import { tr } from "./i18n";
@@ -275,36 +277,122 @@ export async function uploadEmbeddedAsset(asset: Asset): Promise<string | null> 
   return fresh.path ?? null;
 }
 
-const ASSET_URL_RE = /\/api\/assets\/file\?path=([A-Za-z0-9%._~-]+)/g;
+const ASSET_URL_RE = /(?<![\w/:%~.-])(?:([Hh][Tt][Tt][Pp][Ss]?:\/\/[^/\s"'<>]+|\/\/[^/\s"'<>]+))?\/api\/assets\/file\?path=([A-Za-z0-9%._~-]+)/g;
 
 /**
  * HTMLの中のアセットのURLを、期限付きの署名URLにする（HTMLページのプレビュー用）。
  * プレビューはエディタの権限を使えない別オリジンで表示するため、ログインの Cookie が送られない
  */
-export async function withSignedAssetUrls(html: string): Promise<string> {
+const ZIP_CSS_URL_RE = /tsumu-zip-css:([A-Za-z0-9%._~-]+)/g;
+
+export function zipPreviewRoots(html: string, assets: Record<string, Asset>): string[] {
+  return [...new Set([...html.matchAll(ZIP_CSS_URL_RE)].map((m) => {
+    try { return decodeURIComponent(m[1]); } catch { return ""; }
+  }))];
+}
+
+export async function withSignedAssetUrls(
+  html: string, assets: Record<string, Asset> = {}, options: { signal?: AbortSignal; baseUrl?: string; onExpiresAt?: (time: number) => void } = {}
+): Promise<string> {
+  options.signal?.throwIfAborted();
+  const roots = zipPreviewRoots(html, assets);
+  const base = options.baseUrl ?? (typeof window !== "undefined" ? window.location.href : undefined);
+  const sameOrigin = (prefix: string | undefined) => {
+    if (!prefix) return true;
+    try { return !!base && new URL(prefix, base).origin === new URL(base).origin; }
+    catch { return false; }
+  };
+  if (roots.some((id) => !zipStylesheet(assets[id]))) throw new Error(tr("ZIPのCSSデータを読み込めません。ZIPを再読み込みしてください。"));
+  if (roots.length && html.length > ZIP_CSS_LIMITS.output) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+  const reachable = zipAssetClosure(assets, roots);
   const paths = new Set<string>();
   for (const m of html.matchAll(ASSET_URL_RE)) {
+    if (!sameOrigin(m[1])) continue;
+    try { paths.add(decodeURIComponent(m[2])); } catch { /* Keep malformed legacy URLs unchanged. */ }
+  }
+  for (const id of reachable) if (assets[id].path) paths.add(assets[id].path!);
+  const signed: Record<string, string> = {};
+  const list = [...paths];
+  // The endpoint accepts at most 500 paths. Each distinct path is signed exactly once.
+  for (let i = 0; i < list.length; i += 500) {
+    options.signal?.throwIfAborted();
+    const res = await fetch("/api/assets/sign", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths: list.slice(i, i + 500) }), signal: options.signal,
+    });
+    if (!res.ok) {
+      if (roots.length) throw new Error(tr("HTMLプレビューのアセットを読み込めませんでした"));
+      return html;
+    }
+    const { urls } = (await res.json()) as { urls: Record<string, string> };
+    Object.assign(signed, urls);
+  }
+  options.signal?.throwIfAborted();
+  let expiresAt = Infinity;
+  const absolute = (url: string) => {
+    const parsed = new URL(url, base);
+    const exp = Number(parsed.searchParams.get("exp"));
+    if (exp > 0 && Number.isFinite(exp) && parsed.searchParams.has("sig")) expiresAt = Math.min(expiresAt, exp);
+    return parsed.href;
+  };
+  const cssUrls = zipCssPreviewUrls(assets, roots, (asset) => {
+    if (!asset.path) return assetSrc(asset);
+    const url = signed[asset.path];
+    if (!url) throw new Error(tr("HTMLプレビューのアセットを読み込めませんでした"));
+    return absolute(url);
+  }, { baseUrl: base });
+  let output = html.replace(ASSET_URL_RE, (m, prefix: string | undefined, enc: string) => {
+    if (!sameOrigin(prefix)) return m;
     try {
-      paths.add(decodeURIComponent(m[1]));
-    } catch {
-      // 壊れたURLはそのまま
+      const url = signed[decodeURIComponent(enc)];
+      return url ? (base ? absolute(url) : url) : m;
+    } catch { return m; }
+  });
+  if (!roots.length) return output;
+  const resolve = (url: string): string | undefined => {
+    const match = /^tsumu-zip-css:([^?#]+)([?#][\s\S]*)?$/.exec(url);
+    if (match) {
+      const target = cssUrls.get(decodeURIComponent(match[1]));
+      if (!target) throw new Error(tr("HTMLプレビューのアセットを読み込めませんでした"));
+      return appendAssetSuffix(target, match[2] ?? "");
+    }
+    for (const asset of Object.values(assets)) {
+      if (!asset.zip || !asset.dataUrl || !url.startsWith(asset.dataUrl)) continue;
+      const suffix = url.slice(asset.dataUrl.length);
+      if (/^[?#]/.test(suffix)) return appendAssetSuffix(asset.dataUrl, suffix);
+    }
+    return undefined;
+  };
+  const parsed = new DOMParser().parseFromString(output, "text/html");
+  let inserted = 0;
+  const bounded = (url: string) => {
+    const target = resolve(url);
+    inserted += target?.length ?? 0;
+    if (inserted > ZIP_CSS_LIMITS.output) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+    return target;
+  };
+  for (const el of Array.from(parsed.querySelectorAll("[href],[src],[poster]"))) {
+    for (const attr of ["href", "src", "poster"]) {
+      const value = el.getAttribute(attr);
+      const target = value ? bounded(value) : undefined;
+      if (target !== undefined) {
+        el.setAttribute(attr, target);
+        if (attr === "href" && el.tagName.toLowerCase() === "link" && value?.startsWith("tsumu-zip-css:")) el.removeAttribute("integrity");
+      }
     }
   }
-  if (!paths.size) return html;
-  const res = await fetch("/api/assets/sign", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ paths: [...paths] }),
-  });
-  if (!res.ok) return html;
-  const { urls } = (await res.json()) as { urls: Record<string, string> };
-  return html.replace(ASSET_URL_RE, (m, enc: string) => {
-    try {
-      return urls[decodeURIComponent(enc)] ?? m;
-    } catch {
-      return m;
+  for (const attr of CSS_ASSET_ATTRIBUTES) {
+    for (const el of Array.from(parsed.querySelectorAll(`[${attr}]`))) {
+      el.setAttribute(attr, rewriteCssAssetUrls(el.getAttribute(attr) ?? "", bounded, ZIP_CSS_LIMITS.output));
     }
-  });
+  }
+  for (const el of Array.from(parsed.querySelectorAll("style"))) {
+    el.textContent = rewriteCssAssetUrls(el.textContent ?? "", bounded, ZIP_CSS_LIMITS.output);
+  }
+  output = `<!DOCTYPE html>\n${parsed.documentElement.outerHTML}`;
+  if (output.length > ZIP_CSS_LIMITS.output) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+  if (Number.isFinite(expiresAt)) options.onExpiresAt?.(expiresAt);
+  return output;
 }
 
 /** アセットを元のファイル名でダウンロードする */

@@ -1,3 +1,5 @@
+import { zipCssUrl, zipStylesheet } from "../zip-css";
+import { tr } from "../i18n";
 /**
  * サイト全体のCSS（要素のスタイル・画面幅・状態・フォント）の書き出し
  */
@@ -71,11 +73,19 @@ export function cssValue(
       ? `/api/assets/file?path=${encodeURIComponent(asset.path)}`
       : asset.dataUrl;
     if (source) sources.set(source, `/assets/${name}`);
+    if (zipStylesheet(asset)) sources.set(zipCssUrl(asset.id), `/assets/${name}`);
   }
   if (prop === "rawHtml") {
     // HTML ZIPの参照はCSSトークンではないため、既存のHTML書き出し処理を保つ。
-    let output = value;
+    let output = value.replace(/tsumu-zip-css:([A-Za-z0-9%._~-]+)/g, (_token, encoded: string) => {
+      let id = "";
+      try { id = decodeURIComponent(encoded); } catch { /* explicit error below */ }
+      const name = assetNames.get(id);
+      if (!name || !zipStylesheet(doc.assets[id])) throw new Error(tr("ZIPのCSSデータを読み込めません。ZIPを再読み込みしてください。"));
+      return `/assets/${name}`;
+    });
     for (const [source, target] of sources) {
+      if (source.startsWith("tsumu-zip-css:")) continue;
       output = output.split(source).map((part, index) =>
         index && source.startsWith("/api/assets/file?path=")
           ? part.replace(/^&(?:amp;)?/, "?") : part
