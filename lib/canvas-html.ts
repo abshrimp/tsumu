@@ -10,7 +10,8 @@ import DOMPurify from "dompurify";
  */
 
 /** 埋め込みの iframe は残すが、エディタの画面を移動させたりはさせない */
-const IFRAME_SANDBOX = "allow-scripts allow-same-origin allow-popups allow-forms allow-presentation";
+// Never combine allow-scripts with allow-same-origin for untrusted custom HTML.
+const IFRAME_SANDBOX = "allow-scripts allow-popups allow-forms allow-presentation";
 
 let purify: ReturnType<typeof DOMPurify> | null = null;
 

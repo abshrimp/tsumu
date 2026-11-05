@@ -246,8 +246,8 @@ test("latest #136 filters, sorts and generated expressions avoid unsafe object c
     ] },
   ]), [items[2]]);
   const filters = filterConds({
-    kind: "filter-array", id: "legacy-condition", array: "items",
-    field: "value", op: "eq", value: "none",
+    kind: "list-display", id: "filter-conditions", mode: "filter", array: "items",
+    field: "value", op: "eq", value: "none", dir: "asc" as const,
     or: [
       { field: "", op: "eq", value: "", and: false },
       { field: "value", op: "eq", value: "x,,y", and: true },

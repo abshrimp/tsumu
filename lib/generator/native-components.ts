@@ -9,7 +9,7 @@ import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
-import { safeNavigationUrl } from "../url-policy";
+import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { pageDataPlan, pageDataServerIds } from "./browser-data";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 
@@ -37,7 +37,7 @@ const q = (value: unknown) => JSON.stringify(value)
   .replace(/</g, "\\u003c").replace(/>/g, "\\u003e")
   .replace(/\{/g, "\\u007b").replace(/\}/g, "\\u007d");
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) =>
-  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 // Vue parses {{...}} in text and Svelte parses {...} in text/attributes.
 // Encode braces as HTML entities so authored plain text is never executable.
 const staticText = (s: string) => esc(s).replace(/\{/g, "&#123;").replace(/\}/g, "&#125;");
@@ -61,12 +61,6 @@ function valueAttr(ctx: Context, name: string, value: string | undefined): strin
   if (!value) return value === "" ? literal(name, "") : "";
   if (hasVars(value)) return dynamicAttr(ctx, name, expr(ctx, "resolveText", value));
   return literal(name, value);
-}
-function safeResourceUrl(value: string): string {
-  const url = value.trim();
-  if (/^data:(?:image|video|audio)\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+$/i.test(url)) return url;
-  if (/^blob:/i.test(url)) return url;
-  return safeNavigationUrl(url);
 }
 function srcAttr(ctx: Context, name: string, value: string, mediaResource = false): string {
   return hasVars(value)
@@ -141,7 +135,7 @@ function node(ctx: Context, id: string, top = false): string {
       const tag = media.kind === "audio" ? "audio" : "video";
       const source = media.assetId && ctx.assets.get(media.assetId) ?
         "/assets/" + ctx.assets.get(media.assetId) : media.src;
-      return "<" + tag + attrs + srcAttr(ctx, "src", source) + " controls" +
+      return "<" + tag + attrs + srcAttr(ctx, "src", source, true) + " controls" +
         truth("autoplay", media.autoplay) + truth("loop", media.loop) +
         truth("muted", media.muted || media.autoplay) +
         (tag === "video" ? " playsinline" : "") + "></" + tag + ">";
