@@ -125,8 +125,12 @@ export async function toSingleHtmlProject(
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
-    const type = response.headers.get("content-type")?.split(";")[0].trim();
-    if (type) responseMime.set(path, type);
+    // An external server controls this header. Only use a valid MIME type:
+    // quotes or whitespace here could escape generated HTML/CSS attributes.
+    const type = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+    if (type && /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/.test(type)) {
+      responseMime.set(path, type);
+    }
     return bytes;
   };
   const embed = async (ref: string, base: string): Promise<string> => {
@@ -162,6 +166,29 @@ export async function toSingleHtmlProject(
       cursor = (m.index || 0) + m[0].length;
     }
     return result + text.slice(cursor);
+  }
+
+  // Rewriting HTML with a plain regex must not treat JavaScript strings, CSS,
+  // comments or text-only elements as actual HTML start tags. Preserve those
+  // regions byte for byte while transforming markup around them.
+  async function replaceOutsideRawHtml(
+    text: string,
+    regex: RegExp,
+    fn: (whole: string, ...captures: string[]) => Promise<string>,
+    allowRawTag?: "style" | "script",
+  ): Promise<string> {
+    const raw = /<!--[\s\S]*?-->|<(script|style|textarea|title)\b((?:"[^"]*"|'[^']*'|[^'">])*)>[\s\S]*?<\/\1\s*>/gi;
+    const withoutStyles = /<!--[\s\S]*?-->|<(script|textarea|title)\b((?:"[^"]*"|'[^']*'|[^'">])*)>[\s\S]*?<\/\1\s*>/gi;
+    const withoutScripts = /<!--[\s\S]*?-->|<(style|textarea|title)\b((?:"[^"]*"|'[^']*'|[^'">])*)>[\s\S]*?<\/\1\s*>/gi;
+    const excluded = allowRawTag === "style" ? withoutStyles : allowRawTag === "script" ? withoutScripts : raw;
+    let result = "", cursor = 0;
+    for (const match of text.matchAll(excluded)) {
+      const at = match.index ?? 0;
+      result += await replaceAsync(text.slice(cursor, at), regex, fn);
+      result += match[0];
+      cursor = at + match[0].length;
+    }
+    return result + await replaceAsync(text.slice(cursor), regex, fn);
   }
 
   const processCss = async (content: string, base: string, parents = new Set<string>()): Promise<string> => {
@@ -204,7 +231,7 @@ export async function toSingleHtmlProject(
 
   let html = source.files["index.html"];
   // In-place stylesheets, including CSS url() images and font data.
-  html = await replaceAsync(html, /<link\b[^>]*>/gi, async (tag) => {
+  html = await replaceOutsideRawHtml(html, /<link\b[^>]*>/gi, async (tag) => {
     const rel = /\brel\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1]?.toLowerCase() || "";
     const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
     if (rel.includes("manifest")) return ""; // service worker not supported in one file
@@ -222,11 +249,11 @@ export async function toSingleHtmlProject(
   });
 
   // Inline styles authored directly in HTML also need their background assets.
-  html = await replaceAsync(html, /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
-    async (whole, css) => whole.replace(css, escInlineCss(await processCss(css, "index.html"))));
+  html = await replaceOutsideRawHtml(html, /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
+    async (whole, css) => whole.replace(css, escInlineCss(await processCss(css, "index.html"))), "style");
 
   // Embed source media and poster attributes. Keep ordinary navigation hrefs.
-  html = await replaceAsync(html, /<(?:img|source|video|audio|input)\b[^>]*>/gi, async (tag) => {
+  html = await replaceOutsideRawHtml(html, /<(?:img|source|video|audio|input)\b[^>]*>/gi, async (tag) => {
     let updated = await replaceAsync(tag, /\b(src|poster)\s*=\s*(["'])([^"']+)\2/gi,
       async (whole, key, quote, ref) => key + "=" + quote + await embed(ref, "index.html") + quote);
     updated = await replaceAsync(updated, /\bsrcset\s*=\s*(["'])([^"']+)\1/gi,
@@ -245,7 +272,7 @@ export async function toSingleHtmlProject(
   });
 
   // Browser runtime JS loads after the body is parsed, so inlining is safe.
-  html = await replaceAsync(html, /<script\b([^>]*)\bsrc\s*=\s*(["'])([^"']+)\2([^>]*)><\/script>/gi,
+  html = await replaceOutsideRawHtml(html, /<script\b([^>]*)\bsrc\s*=\s*(["'])([^"']+)\2([^>]*)><\/script>/gi,
     async (whole, attrsBefore, _quote, ref, attrsAfter) => {
       if (/pwa\.js(?:[?#]|$)/i.test(ref)) return "";
       const file = resolved(ref, "index.html");
@@ -253,12 +280,15 @@ export async function toSingleHtmlProject(
         .replace(/\bdefer\b/g, "").replace(/\basync\b/g, "").trim();
       return "<script" + (attrs ? " " + attrs : "") +
         ">\n" + escInlineJs(await loadText(file)) + "\n</script>";
-    });
+    }, "script");
 
-  // Replace styles in inline style="background:url(...)" attributes.
-  html = await replaceAsync(html, /\bstyle\s*=\s*(["'])([\s\S]*?)\1/gi,
-    async (whole, quote, css) => "style=" + quote +
-      (await processCss(css, "index.html")).replaceAll(quote, quote === '"' ? "&quot;" : "&#39;") + quote);
+  // Process only actual start-tag attributes, not script strings or CSS
+  // containing text that happens to look like style="...".
+  html = await replaceOutsideRawHtml(html,
+    /<[a-z][\w:-]*(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi,
+    async (tag) => replaceAsync(tag, /(\s)style\s*=\s*(["'])([\s\S]*?)\2/gi,
+      async (_whole, space, quote, css) => space + "style=" + quote +
+        (await processCss(css, "index.html")).replaceAll(quote, quote === '"' ? "&quot;" : "&#39;") + quote));
 
   check(new TextEncoder().encode(html).length);
   return { files: { "index.html": html }, binaries: {}, remoteAssets: {} };
