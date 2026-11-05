@@ -77,8 +77,7 @@ function mapSteps(steps: ScriptStep[] | undefined, fn: (pageId: string) => strin
  * 戻り値は足したページの数
  */
 export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
-  const existingNodeIds = new Set(Object.keys(d.nodes));
-  const assetMap = mergeClipDeps(d, p.deps);
+  const { assetIds: assetMap, componentNodes } = mergeClipDeps(d, p.deps);
   const pageMap = new Map<string, string>();
   for (const page of p.pages) pageMap.set(page.id, genId("page"));
   const urlKey = (slug: string, query?: string) => JSON.stringify([slug, normalizeQuery(query)]);
@@ -91,10 +90,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
   };
 
   // 新しく取り込んだマスター内のリンクも付け替える。既存のマスターは変更しない。
-  for (const raw of p.deps.componentNodes) {
-    if (existingNodeIds.has(raw.id)) continue;
-    const n = d.nodes[raw.id];
-    if (!n) continue;
+  for (const n of componentNodes) {
     if (n.link?.kind === "page" && n.link.pageId) n.link.pageId = toPage(n.link.pageId);
     for (const s of n.scripts ?? []) mapSteps(s.steps, toPage);
   }
