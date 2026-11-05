@@ -28,7 +28,7 @@ export function useScriptEditorKeys({
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       const typing =
-        t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable;
+        t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable;
       // 確認ダイアログを開いている間は、ダイアログに任せる
       if (document.querySelector(".dialog-backdrop:not(.is-leaving)")) return;
       const mod = e.metaKey || e.ctrlKey;
