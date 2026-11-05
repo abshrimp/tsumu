@@ -35,7 +35,6 @@ export default function PagePanel() {
   const activePageId = useEditor((s) => s.activePageId);
   const updatePage = useEditor((s) => s.updatePage);
   const updateDoc = useEditor((s) => s.updateDoc);
-  const checkpoint = useEditor((s) => s.checkpoint);
   const htmlFileRef = useRef<HTMLInputElement>(null);
   const htmlZipRef = useRef<HTMLInputElement>(null);
   const [zipBusy, setZipBusy] = useState(false);
@@ -241,7 +240,7 @@ export default function PagePanel() {
               onChange={(v) =>
                 updatePage(page.id, { htmlBackground: v ?? undefined })
               }
-              onChangeStart={checkpoint}
+              onChangeStart={() => useEditor.getState().beginGesture()}
               onChangeTransient={(v) =>
                 updateDoc(
                   (draft) => {
@@ -314,6 +313,7 @@ export default function PagePanel() {
             <InfoTip text={tr("SNSでリンクがシェアされたときに表示される画像です。未設定のときはサイト設定の画像を使います。1200×630pxがおすすめです。")} />
           </label>
           <ImagePicker
+            editTarget={page.id}
             value={page.ogImage}
             onChange={(v) => updatePage(page.id, { ogImage: v })}
           />
