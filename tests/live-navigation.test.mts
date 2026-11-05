@@ -57,5 +57,5 @@ test('live fields initialize after client navigation without requiring typing', 
   assert.equal(output.firstChild.nodeValue, 'Hello Bobby');
   assert.equal(field.placeholder, 'For Bobby');
   assert.equal(field.value, 'Custom');
-  assert.equal(JSON.stringify(observedOptions), JSON.stringify({ childList: true, subtree: true, attributes: true, attributeFilter: ['data-scripts'] }));
+  assert.equal(JSON.stringify(observedOptions), JSON.stringify({ childList: true, subtree: true, attributes: true, attributeFilter: ['data-scripts', 'data-page-body'] }));
 });
