@@ -1070,6 +1070,7 @@ export function Dropdown({
   menuWidth,
   trigger,
   title,
+  truncateDescriptions = false,
 }: {
   value: string | undefined;
   options: DdOption[];
@@ -1080,6 +1081,8 @@ export function Dropdown({
   /** 通常の選択欄ではなく、アイコン等を開閉ボタンとして使う */
   trigger?: ReactNode;
   title?: string;
+  /** 説明文を折り返さず省略し、全文をツールチップに残す */
+  truncateDescriptions?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -1135,6 +1138,7 @@ export function Dropdown({
         style={style}
         data-tip={title}
         aria-label={title}
+        title={truncateDescriptions && typeof selected?.label === "string" ? selected.label : undefined}
         onClick={() => setOpen(!open)}
       >
         {trigger ?? (
@@ -1154,7 +1158,7 @@ export function Dropdown({
         )}
       </button>
       {open && (
-        <div ref={menuRef} className="dd-menu" style={pos}>
+        <div ref={menuRef} className={`dd-menu${truncateDescriptions ? " dd-truncate-desc" : ""}`} style={pos}>
           {options.map((o) => {
             const isSel = o.value === (value ?? "");
             return (
@@ -1162,6 +1166,7 @@ export function Dropdown({
                 key={o.value}
                 type="button"
                 className={`dd-item${o.desc ? " tall" : ""}${isSel ? " is-sel" : ""}`}
+                title={truncateDescriptions ? [typeof o.label === "string" ? o.label : undefined, o.desc].filter(Boolean).join("\n") : undefined}
                 onClick={() => {
                   // 選択による親側の再描画より先にメニューを閉じる。
                   // 親が選択結果に応じて構造を変える場合でも、開いたメニューの
