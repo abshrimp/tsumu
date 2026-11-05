@@ -635,9 +635,10 @@ export function TextField({
   onChange: (v: string | null) => void;
   placeholder?: string;
 }) {
+  const editTarget = useContext(InspectorCtx)?.editTarget;
   return (
     <input
-      key={value ?? "_"}
+      key={JSON.stringify([editTarget, value ?? "_"])}
       className="input"
       defaultValue={value ?? ""}
       placeholder={placeholder ?? tr("未設定")}
@@ -658,7 +659,7 @@ export function TextField({
 
 /**
  * blur で確定する入力欄を、外での変更（元に戻す・レイヤーでの名前変更・他の編集者の変更）に
- * 合わせて表示し直す。入力中（フォーカス中）は書き換えない。
+ * 合わせて表示し直す。未確定の入力中は書き換えない。
  * 確定した値が整形された・空欄を取り消したときも、書き込まれた値を表示し直す
  */
 function useCommitSync<T extends HTMLInputElement | HTMLTextAreaElement>(value: string, editing?: { current: boolean }) {
@@ -667,7 +668,7 @@ function useCommitSync<T extends HTMLInputElement | HTMLTextAreaElement>(value: 
   latest.current = value;
   const sync = () => {
     const el = ref.current;
-    // 数値欄は矢印キーでフォーカス中にも確定するため、未確定の入力がある間だけ保護する。
+    // フォーカスだけでは保護せず、未確定の入力がある間だけ保護する。
     const busy = editing?.current ?? document.activeElement === el;
     if (el && !busy && el.value !== latest.current) {
       el.value = latest.current;
@@ -689,14 +690,22 @@ export function CommitInput({
   onCommit,
   ...rest
 }: CommitProps<InputHTMLAttributes<HTMLInputElement>>) {
-  const { ref, afterCommit } = useCommitSync<HTMLInputElement>(value);
+  const editing = useRef(false);
+  const { ref, afterCommit } = useCommitSync<HTMLInputElement>(value, editing);
   return (
     <input
       {...rest}
       ref={ref}
       defaultValue={value}
+      onInput={(e) => {
+        editing.current = true;
+        rest.onInput?.(e);
+      }}
       onBlur={(e) => {
-        onCommit(e.target.value);
+        // 入力せずに離れただけなら、他の編集者やUndoの変更を古い表示値で上書きしない。
+        const changed = editing.current;
+        editing.current = false;
+        if (changed) onCommit(e.target.value);
         afterCommit();
       }}
     />
@@ -709,14 +718,22 @@ export function CommitTextarea({
   onCommit,
   ...rest
 }: CommitProps<TextareaHTMLAttributes<HTMLTextAreaElement>>) {
-  const { ref, afterCommit } = useCommitSync<HTMLTextAreaElement>(value);
+  const editing = useRef(false);
+  const { ref, afterCommit } = useCommitSync<HTMLTextAreaElement>(value, editing);
   return (
     <textarea
       {...rest}
       ref={ref}
       defaultValue={value}
+      onInput={(e) => {
+        editing.current = true;
+        rest.onInput?.(e);
+      }}
       onBlur={(e) => {
-        onCommit(e.target.value);
+        // 入力せずに離れただけなら、他の編集者やUndoの変更を古い表示値で上書きしない。
+        const changed = editing.current;
+        editing.current = false;
+        if (changed) onCommit(e.target.value);
         afterCommit();
       }}
     />
