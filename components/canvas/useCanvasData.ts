@@ -189,7 +189,8 @@ export function useCanvasData({
             full[st.id] = data.json;
             const made = makeSample(data.json);
             results[st.id] = made.sample;
-            if (made.totals) totals[st.id] = made.totals;
+            // 切り詰め不要になった応答でも、以前の件数を残さない。
+            totals[st.id] = made.totals ?? {};
           } catch {
             // 失敗したデータは保存済みの見本を使い続ける
           }
