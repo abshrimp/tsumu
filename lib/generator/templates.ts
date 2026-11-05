@@ -256,7 +256,7 @@ From then on, every publish from the editor (a push to this repository) is built
 
 ## Editing this repository
 
-Publishing from the editor rewrites the files it generates (listed in \`_site-data/generated.json\`).
+Publishing from the editor rewrites the files it generates (listed in \`_tsumu/generated.json\`).
 
 - If you edit a generated file on GitHub, the editor asks before the next publish and then replaces it with the editor's version (the previous content stays in the Git history).
 - Files you add yourself under names the editor doesn't generate are kept when you publish.
@@ -297,7 +297,7 @@ Cloudflare ダッシュボード → Workers & Pages → Create でこのリポ�
 
 ## このリポジトリでの編集
 
-エディタの「公開」は、エディタが書き出すファイル（一覧は \`_site-data/generated.json\`）をエディタの内容で書き換えます。
+エディタの「公開」は、エディタが書き出すファイル（一覧は \`_tsumu/generated.json\`）をエディタの内容で書き換えます。
 
 - 書き出したファイルを GitHub 上で直接編集した場合は、次の公開の前に確認が出て、エディタの内容で上書きされます（上書き前の内容は Git の履歴に残ります）。
 - エディタが書き出さない名前で手で追加したファイルは、公開してもそのまま残ります。
