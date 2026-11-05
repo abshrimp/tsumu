@@ -3,6 +3,7 @@ import { pageFolderFixture } from "../tests/helpers/page-folder-merge";
 
 async function renameFolder(page: Page, from: string, to: string) {
   const folder = page.locator(".page-folder").filter({ has: page.locator(".folder-name").filter({ hasText: new RegExp(`^${from}$`) }) });
+  await folder.locator(".folder-row").hover();
   await folder.locator('[data-tip="名前を変更"]').click();
   await page.locator(".folder-rename").fill(to);
   await page.locator(".folder-rename").press("Enter");
