@@ -222,11 +222,11 @@ export function renderLeafNode(
           disabled,
           ...(live
             ? {
-                value: value || (options[0] ?? ""),
+                value,
                 onChange: (e: React.ChangeEvent<HTMLSelectElement>) =>
                   opts.onField?.(name, e.target.value),
               }
-            : { value: fill(f.defaultValue) || options[0] || "", onChange: () => {} }),
+            : { value: fieldInitialValue(f, opts.vars), onChange: () => {} }),
         },
         options.map((o, i) => createElement("option", { key: i, value: o }, o))
       );
