@@ -16,8 +16,16 @@ for (const width of [240, 288]) {
     await page.locator('[data-tutorial="right-tab-settings"]').click();
     const trigger = page.locator('[data-tutorial="settings-semantic"] .dd');
     const menu = page.locator(".dd-menu");
-    await trigger.click();
-    await expect(menu).toBeVisible();
+    const openMenu = async () => {
+      // Playwright が自動でスクロールした直後の scroll 通知で閉じないよう、先に位置を合わせる。
+      await trigger.scrollIntoViewIfNeeded();
+      await trigger.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      await trigger.click();
+      await expect(menu).toBeVisible();
+      // 拡大アニメーション中の座標ではなく、描画が落ち着いた後の余白を測る。
+      await menu.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
+    };
+    await openMenu();
 
     // 長い説明も一行のまま、全項目で上下の余白・全文・選択操作を保つ。
     const items = menu.locator(".dd-item");
@@ -62,14 +70,14 @@ for (const width of [240, 288]) {
     await expect(trigger.locator(".dd-label")).toHaveCSS("text-overflow", "ellipsis");
 
     // 再度開いたときの選択表示と、Escape・外側クリック・再選択を確認する。
-    await trigger.click();
+    await openMenu();
     await expect(menu.locator(".is-sel")).toContainText(label);
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
-    await trigger.click();
+    await openMenu();
     await page.locator('[data-tutorial="right-tab-settings"]').click();
     await expect(menu).toHaveCount(0);
-    await trigger.click();
+    await openMenu();
     await menu.getByRole("button", { name: /^カスタム/ }).click();
     await expect(page.locator('[data-tutorial="settings-semantic"] input')).toBeVisible();
     await expect(menu).toHaveCount(0);
