@@ -177,18 +177,76 @@ function renderNodeInner(
     const lv = ctx.listVars?.get(id);
     if (!lv) return "";
     const { ivar } = lv;
+    // 外側の項目がブラウザで決まるなら、項目内の配列も配信前には展開しない。
+    const client = lv.client || !!ctx.inTemplate;
     const base = ctx.varsExpr ?? "vars";
     const filterFields = [...(ctx.listFilterFields.get(lv.from) ?? [])];
     const listIdAttr = instanceVisibilityAttr +
       anchorAttr +
       toggleAttrs +
       inViewAttr +
-      (filterFields.length || lv.client ? ` data-array=${jsxString(lv.from)}` : "");
-    if (lv.client) {
+      (filterFields.length || client ? ` data-array=${jsxString(lv.from)}` : "");
+    const serverItems = (forceWrap = false) => {
+      const itemsExpr = listItemsExpr(node.list!, base, lv.from, ctx.listOps?.get(lv.from) ?? []);
+      const prevVars = ctx.varsExpr;
+      const prevTemplate = ctx.inTemplate;
+      ctx.varsExpr = ivar;
+      ctx.inTemplate = false;
+      const inner = node.children
+        .map((cid) => renderNode(ctx, cid, indent + "        ", false))
+        .join("\n");
+      ctx.varsExpr = prevVars;
+      ctx.inTemplate = prevTemplate;
+      // スクリプトの絞り込みで使う項目だけを、各項目の data-item に持たせる
+      const itemAttr = filterFields.length
+        ? ` data-item={JSON.stringify({ ${filterFields
+            .map((f) => `${JSON.stringify(f)}: ${fieldExpr("item", f)}`)
+            .join(", ")} })}`
+        : "";
+      // 項目の中にスクリプトがあれば、項目ごとに包む（IDの指す要素を同じ項目の中から探すため）
+      const wrap = forceWrap || !!itemAttr || node.children.some((cid) => hasScriptsInside(ctx.doc, cid, ctx.inlineComponents));
+      return `${indent}  {${itemsExpr}.map((item, i) => {
+${indent}    const ${ivar} = { ...${base}, ...item };
+${indent}    return (
+${indent}      ${wrap ? `<div key={i} style={{ display: "contents" }} data-row${itemAttr}>` : ((ctx.usesFragment = true), "<Fragment key={i}>")}
+${inner}
+${indent}      ${wrap ? "</div>" : "</Fragment>"}
+${indent}    );
+${indent}  })}`;
+    };
+    if (client) {
       // ブラウザで並べる: お手本を {名前} を残したまま出力し、項目ごとに複製して置き換える
       const l = node.list;
+      // 項目に配列が無いときは、従来の配信済み表示を使う。
+      // 生の取得配列は渡さず、以前から表示する項目だけをお手本に残す。
+      const fallback = ctx.inTemplate && !lv.client ? serverItems(true) : "";
+      const ops = ctx.listOps?.get(lv.from) ?? [];
+      // 配信時に決まった値の {文字} を、複製時にもう一度変数として消費しない。
+      const filterParts = (value: string) => {
+        const parts: string[] = [];
+        let end = 0;
+        for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g)) {
+          parts.push(JSON.stringify(value.slice(end, m.index)));
+          if (m[0] === "\\{") parts.push(JSON.stringify("{"));
+          else {
+            const token = m[1] ?? "slug";
+            const name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
+            parts.push(`(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? interpolate(${JSON.stringify(m[0])}, ${base}) : { name: ${name} })`);
+          }
+          end = m.index + m[0].length;
+        }
+        parts.push(JSON.stringify(value.slice(end)));
+        return `[${parts.join(", ")}]`;
+      };
+      const opExpr = ops.map((op) => op.kind === "sort" ? JSON.stringify(op) :
+        `{ ...${JSON.stringify(op)}, conds: [${op.conds.map((c) =>
+          `{ ...${JSON.stringify(c)}, parts: ${filterParts(c.value)} }`
+        ).join(", ")}] }`
+      ).join(", ");
+      if (ops.length) ctx.usesInterpolate = true;
       const listAttrs = [
         " data-client-list",
+        ctx.inTemplate && ops.length ? ` data-list-ops={JSON.stringify([${opExpr}])}` : "",
         l.limit && l.limit > 0 ? ` data-limit="${l.limit}"` : "",
       ].join("");
       const prevVars = ctx.varsExpr;
@@ -208,36 +266,11 @@ ${indent}      <>
 ${inner}
 ${indent}      </>
 ${indent}    ))(templateVars(${base}))}
-${indent}  </div>
+${indent}  </div>${fallback ? `\n${indent}  <div data-tpl data-list-fallback hidden style={{ display: "none" }}>\n${fallback}\n${indent}  </div>` : ""}
 ${indent}</div>`;
     }
-    const itemsExpr = listItemsExpr(node.list, base, lv.from, ctx.listOps?.get(lv.from) ?? []);
-    const prevVars = ctx.varsExpr;
-    const prevTemplate = ctx.inTemplate;
-    ctx.varsExpr = ivar;
-    ctx.inTemplate = false;
-    const inner = node.children
-      .map((cid) => renderNode(ctx, cid, indent + "        ", false))
-      .join("\n");
-    ctx.varsExpr = prevVars;
-    ctx.inTemplate = prevTemplate;
-    // スクリプトの絞り込みで使う項目だけを、各項目の data-item に持たせる
-    const itemAttr = filterFields.length
-      ? ` data-item={JSON.stringify({ ${filterFields
-          .map((f) => `${JSON.stringify(f)}: ${fieldExpr("item", f)}`)
-          .join(", ")} })}`
-      : "";
-    // 項目の中にスクリプトがあれば、項目ごとに包む（IDの指す要素を同じ項目の中から探すため）
-    const wrap = !!itemAttr || node.children.some((cid) => hasScriptsInside(ctx.doc, cid, ctx.inlineComponents));
     return `${indent}<div${listIdAttr} className="${cls}">
-${indent}  {${itemsExpr}.map((item, i) => {
-${indent}    const ${ivar} = { ...${base}, ...item };
-${indent}    return (
-${indent}      ${wrap ? `<div key={i} style={{ display: "contents" }} data-row${itemAttr}>` : ((ctx.usesFragment = true), "<Fragment key={i}>")}
-${inner}
-${indent}      ${wrap ? "</div>" : "</Fragment>"}
-${indent}    );
-${indent}  })}
+${serverItems()}
 ${indent}</div>`;
   }
 
