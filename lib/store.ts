@@ -446,9 +446,12 @@ export interface EditorStore {
   checkpoint: () => void;
   /**
    * ドラッグでの数値変更など、続けて起きる変更を1つの「元に戻す」にまとめる。
-   * beginGesture 〜 endGesture の間の updateDoc は履歴を積まない（最初の変更前だけを積む）
+   * beginGesture 〜 endGesture の間の updateDoc は履歴を積まない（最初の変更前だけを積む）。
+   * beginGestureの戻り値で自分の操作だけを終了する。endGestureは全操作を終了する。
+   * 非同期の配置は、全ての連続編集が終わってから別の履歴として適用する。
    */
-  beginGesture: () => void;
+  gestureActive: boolean;
+  beginGesture: () => () => void;
   endGesture: () => void;
   undo: () => void;
   redo: () => void;
@@ -596,8 +599,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     refreshClonedIds(doc, activePageId, clones, rootId ? [rootId] : [], replacing);
   };
 
-  /** beginGesture 〜 endGesture の間か */
-  let gesture = false;
+  const gestureOwners = new Set<symbol>();
   const pushHistory = (snapshot: SiteDoc) => {
     pendingBase = null;
     set((s) => ({
@@ -1178,12 +1180,21 @@ export const useEditor = create<EditorStore>((set, get) => {
       });
     },
 
+    gestureActive: false,
     beginGesture: () => {
-      get().checkpoint();
-      gesture = true;
+      const owner = Symbol();
+      // 同時に操作している別の欄の開始で、最初の変更前を上書きしない。
+      if (!gestureOwners.size) get().checkpoint();
+      gestureOwners.add(owner);
+      if (!get().gestureActive) set({ gestureActive: true });
+      return () => {
+        if (!gestureOwners.delete(owner)) return;
+        if (!gestureOwners.size) set({ gestureActive: false });
+      };
     },
     endGesture: () => {
-      gesture = false;
+      gestureOwners.clear();
+      if (get().gestureActive) set({ gestureActive: false });
     },
     checkpoint: () => {
       pendingBase = structuredClone(get().doc);
@@ -1274,7 +1285,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const current = get().doc;
       const next = structuredClone(current);
       fn(next);
-      if (opts?.history === false || gesture) {
+      if (opts?.history === false || get().gestureActive) {
         // checkpoint() 後の最初の実際の変更で、変更前の状態を履歴へ積む
         if (pendingBase && !sameDoc(next, current)) pushHistory(pendingBase);
         set({ doc: next });
