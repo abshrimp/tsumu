@@ -36,7 +36,7 @@ for (const failure of ["read", "json", "shape"] as const) {
     }, { key, listKey: storageKey("sites-v1"), site: { ...emptyDest(), id: "destination", name: "Destination", createdAt: 1, updatedAt: 1 }, bad, failure });
     await page.addScriptTag({ content: bundle });
     const button = page.locator(".copy-site-item");
-    await expect(button).toHaveText("Destination");
+    await expect(button.locator(".copy-site-name")).toHaveText("Destination");
     await button.click();
     await expect(page.locator(".copy-site-error")).toContainText("コピー先の編集データを読み込めませんでした");
     await expect(page.locator(".copy-site-done")).toHaveCount(0);
