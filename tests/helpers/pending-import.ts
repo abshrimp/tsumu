@@ -9,12 +9,13 @@ import * as assets from "../../lib/assets";
 const require = createRequire(resolve("package.json"));
 
 /** 実際のコールバックを、完了順と再描画を制御して実行する。DOMでの同じ操作はE2Eでも確認する。 */
-export function importCallbacks(kind: "image" | "font" | "html", upload = assets.uploadAsset, readZip = readHtmlZip) {
+export function importCallbacks(kind: "image" | "font" | "html" | "style", upload = assets.uploadAsset, readZip = readHtmlZip) {
   let cursor = 0;
   let effects: (() => void)[] = [];
   const cells: any[] = [];
   const equal = (a: unknown[], b?: unknown[]) => !!b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
   const hooks = {
+    useMemo(compute: () => unknown) { return compute(); },
     useState(initial: unknown) {
       const i = cursor++;
       if (!(i in cells)) cells[i] = { value: initial };
@@ -57,7 +58,7 @@ export function importCallbacks(kind: "image" | "font" | "html", upload = assets
       if (name.endsWith("/store")) return { useEditor: Object.assign((select: (s: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState, subscribe: useEditor.subscribe }) };
       if (name.endsWith("/html-zip")) return { readHtmlZip: readZip };
       if (name.endsWith("/assets")) return { ...assets, uploadAsset: upload };
-      if (name.endsWith("/controls")) return { useInspector: inspector };
+      if (name.endsWith("/controls")) return { useInspector: inspector, InspectorCtx: { Provider: "inspector" } };
       if (name.endsWith("/dialog")) return {
         showAlert: (...args: unknown[]) => { alerts.push(args); },
         showConfirm: () => new Promise<boolean>(resolve => { confirmations.push({ resolve }); }),
@@ -70,6 +71,7 @@ export function importCallbacks(kind: "image" | "font" | "html", upload = assets
   const component = kind === "image"
     ? evaluate("components/ImagePicker.tsx").default
     : kind === "html" ? evaluate("components/PagePanel.tsx").default
+    : kind === "style" ? evaluate("components/StylePanel.tsx").default
     : evaluate("components/style-panel/TypographySec.tsx", "\nexport { FontPicker };").FontPicker;
   return {
     alerts,
