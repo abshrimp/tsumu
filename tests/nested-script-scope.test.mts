@@ -36,6 +36,7 @@ test("each inner row has its own script scope, including ghost-rendered outer ro
 test("design retains the same unwrapped editable list contents", () => {
   const html = render(false);
   assert.doesNotMatch(html, /data-item=|data-scripts=/);
+  assert.equal((html.replace(/<[^>]+>/g, "").match(/Detail \{name\}:\{label\}/g) ?? []).length, 4);
   assert.equal((html.match(/id="detail"/g) ?? []).length, 4);
 });
 

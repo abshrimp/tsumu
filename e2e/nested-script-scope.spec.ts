@@ -39,7 +39,13 @@ for (const preview of [true, false]) test(`${preview ? "preview" : "exported"}: 
   expect(await snapshot(page)).toEqual(before);
   if (preview) {
     await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
-    await visible([]);
+    // デザイン画面は変数を展開せず、テンプレートの文字を見せる。
+    const designDetails = page.locator('[id="detail"]');
+    await expect(designDetails).toHaveCount(4);
+    for (let i = 0; i < 4; i++) {
+      await expect(designDetails.nth(i)).toHaveText("Detail {name}:{label}");
+      await expect(designDetails.nth(i)).toBeVisible();
+    }
     await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
     await page.getByRole("button", { name: "hide green", exact: true }).click();
     await visible(["green"]);
