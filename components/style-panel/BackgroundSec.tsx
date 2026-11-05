@@ -155,7 +155,7 @@ export function BackgroundSec() {
               value={c1}
               allowClear={false}
               onChange={(v) => v && setGradient(angle, v, c2)}
-              onChangeStart={insp.checkpoint}
+              onChangeStart={() => useEditor.getState().beginGesture()}
               onChangeTransient={(v) =>
                 v && setGradientTransient(angle, v, c2)
               }
@@ -166,7 +166,7 @@ export function BackgroundSec() {
               value={c2}
               allowClear={false}
               onChange={(v) => v && setGradient(angle, c1, v)}
-              onChangeStart={insp.checkpoint}
+              onChangeStart={() => useEditor.getState().beginGesture()}
               onChangeTransient={(v) =>
                 v && setGradientTransient(angle, c1, v)
               }
@@ -187,6 +187,7 @@ export function BackgroundSec() {
             onReset={() => insp.set({ backgroundImage: null })}
           >
             <ImagePicker
+              editTarget={insp.editTarget}
               value={(() => {
                 const src = um?.[1];
                 if (!src) return null;

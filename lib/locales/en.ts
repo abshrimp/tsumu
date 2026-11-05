@@ -3179,6 +3179,8 @@ const en: Dict = {
     "Edited in the last 10 minutes ({n})",
   "いません":
     "No one",
+  "サイトを複製できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。":
+    "Could not duplicate the site. Check your browser's storage space and settings, then try again.",
   "サイトを複製":
     "Duplicate site",
   "「{name}」のページ・要素・設定をそのまま写した、新しいサイトを作ります。公開先は複製しないので、必要なら設定してください。":

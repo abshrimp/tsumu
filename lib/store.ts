@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type {
+  Asset,
   Breakpoint,
   DocNode,
   Page,
@@ -326,6 +327,8 @@ export interface EditorStore {
   doc: SiteDoc;
   past: SiteDoc[];
   future: SiteDoc[];
+  /** Undo/Redo・文書の置き換えで進む。通常の編集・共同編集では変えない。 */
+  historyRevision: number;
   activePageId: string;
   selection: string | null;
   /** 選択中の全要素。selection はこの配列内の主選択（最後に選んだ要素） */
@@ -443,15 +446,20 @@ export interface EditorStore {
   checkpoint: () => void;
   /**
    * ドラッグでの数値変更など、続けて起きる変更を1つの「元に戻す」にまとめる。
-   * beginGesture 〜 endGesture の間の updateDoc は履歴を積まない（最初の変更前だけを積む）
+   * beginGesture 〜 endGesture の間の updateDoc は履歴を積まない（最初の変更前だけを積む）。
+   * beginGestureの戻り値で自分の操作だけを終了する。endGestureは全操作を終了する。
+   * 非同期の配置は、全ての連続編集が終わってから別の履歴として適用する。
    */
-  beginGesture: () => void;
+  gestureActive: boolean;
+  beginGesture: () => () => void;
   endGesture: () => void;
   undo: () => void;
   redo: () => void;
 
   /** history: 省略時 true。transient操作は checkpoint() を先に呼び history:false で更新する */
   updateDoc: (fn: (doc: SiteDoc) => void, opts?: { history?: boolean }) => void;
+  /** 中断した読み込みのファイルだけを、Undo/Redoを壊さず全履歴にも残す。 */
+  retainUploadedAssets: (assets: Asset[]) => void;
 
   setStyleProps: (
     nodeId: string,
@@ -591,8 +599,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     refreshClonedIds(doc, activePageId, clones, rootId ? [rootId] : [], replacing);
   };
 
-  /** beginGesture 〜 endGesture の間か */
-  let gesture = false;
+  const gestureOwners = new Set<symbol>();
   const pushHistory = (snapshot: SiteDoc) => {
     pendingBase = null;
     set((s) => ({
@@ -609,6 +616,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     doc: initialDoc,
     past: [],
     future: [],
+    historyRevision: 0,
     activePageId: loadActivePageId(initialDoc),
     selection: null,
     selectedIds: [],
@@ -811,6 +819,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         doc,
         past: [],
         future: [],
+        historyRevision: get().historyRevision + 1,
         activePageId: doc.pages[currentPageId]
           ? currentPageId
           : loadActivePageId(doc),
@@ -832,6 +841,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const selectedIds = validSelectedIds(doc, get().selectedIds);
       set({
         doc,
+        historyRevision: get().historyRevision + 1,
         activePageId: doc.pages[get().activePageId] ? get().activePageId : doc.pageOrder[0],
         selection: validSelection(doc, get().selection) ?? selectedIds[selectedIds.length - 1] ?? null,
         selectedIds,
@@ -1170,12 +1180,21 @@ export const useEditor = create<EditorStore>((set, get) => {
       });
     },
 
+    gestureActive: false,
     beginGesture: () => {
-      get().checkpoint();
-      gesture = true;
+      const owner = Symbol();
+      // 同時に操作している別の欄の開始で、最初の変更前を上書きしない。
+      if (!gestureOwners.size) get().checkpoint();
+      gestureOwners.add(owner);
+      if (!get().gestureActive) set({ gestureActive: true });
+      return () => {
+        if (!gestureOwners.delete(owner)) return;
+        if (!gestureOwners.size) set({ gestureActive: false });
+      };
     },
     endGesture: () => {
-      gesture = false;
+      gestureOwners.clear();
+      if (get().gestureActive) set({ gestureActive: false });
     },
     checkpoint: () => {
       pendingBase = structuredClone(get().doc);
@@ -1204,6 +1223,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         doc: prev,
         past,
         future: [doc, ...get().future],
+        historyRevision: get().historyRevision + 1,
         editingText: null,
         selection:
           validSelection(prev, get().selection) ??
@@ -1243,6 +1263,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         doc: next,
         past: [...get().past.slice(-HISTORY_LIMIT + 1), doc],
         future,
+        historyRevision: get().historyRevision + 1,
         editingText: null,
         selection:
           validSelection(next, get().selection) ??
@@ -1264,7 +1285,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const current = get().doc;
       const next = structuredClone(current);
       fn(next);
-      if (opts?.history === false || gesture) {
+      if (opts?.history === false || get().gestureActive) {
         // checkpoint() 後の最初の実際の変更で、変更前の状態を履歴へ積む
         if (pendingBase && !sameDoc(next, current)) pushHistory(pendingBase);
         set({ doc: next });
@@ -1274,6 +1295,30 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (sameDoc(next, current)) return;
       pushHistory(current);
       set({ doc: next });
+    },
+
+    retainUploadedAssets: (assets) => {
+      const current = get().doc;
+      const fresh = new Map<string, Asset>();
+      for (const asset of assets) {
+        if (!Object.hasOwn(current.assets, asset.id) && !fresh.has(asset.id)) {
+          fresh.set(asset.id, structuredClone(asset));
+        }
+      }
+      if (!fresh.size) return;
+      const retain = (doc: SiteDoc): SiteDoc => {
+        const missing = [...fresh].filter(([id]) => !Object.hasOwn(doc.assets, id));
+        return missing.length
+          ? { ...doc, assets: { ...doc.assets, ...Object.fromEntries(missing) } }
+          : doc;
+      };
+      // checkpointを消費せず、その後のジェスチャーをUndoしてもファイルは残す。
+      if (pendingBase) pendingBase = retain(pendingBase);
+      set((s) => ({
+        doc: retain(s.doc),
+        past: s.past.map(retain),
+        future: s.future.map(retain),
+      }));
     },
 
     setStyleProps: (nodeId, props, opts) => {
@@ -1736,6 +1781,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const doc = createInitialDoc();
       set({
         doc,
+        historyRevision: get().historyRevision + 1,
         activePageId: doc.pageOrder[0],
         selection: null,
         selectedIds: [],

@@ -7,6 +7,7 @@ import { useEditor } from "../lib/store";
 import type { Asset, ImageRef } from "../lib/types";
 import { assetKind, assetSrc, uploadAsset } from "../lib/assets";
 import { userMessage } from "../lib/errors";
+import { usePendingImport } from "../lib/use-pending-import";
 import { showAlert } from "../lib/dialog";
 import { tr } from "../lib/i18n";
 
@@ -18,32 +19,49 @@ export default function ImagePicker({
   value,
   onChange,
   placeholder = "https://",
+  editTarget = "",
 }: {
   value: ImageRef | null | undefined;
   onChange: (v: ImageRef | null) => void;
   placeholder?: string;
+  /** ページ・要素・画面幅など、同じ入力欄の書き込み先を識別する。 */
+  editTarget?: string;
 }) {
   const doc = useEditor((s) => s.doc);
   const updateDoc = useEditor((s) => s.updateDoc);
   const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const pending = usePendingImport(JSON.stringify([editTarget, value ?? null]));
+  const { busy } = pending;
   const inputRef = useRef<HTMLInputElement>(null);
 
   const asset = value?.assetId ? doc.assets[value.assetId] : null;
   const previewSrc = asset ? assetSrc(asset) : value?.url?.trim() || null;
 
   const upload = async (file: File) => {
-    setBusy(true);
+    const request = pending.begin();
     try {
       const a = await uploadAsset(file);
+      // Undo/Redoや文書置換後は、やり直す編集を消さずファイルだけを残す。
+      if (request.historyChanged()) {
+        useEditor.getState().retainUploadedAssets([a]);
+        return;
+      }
+      // 読み込み済みのファイルはアセット一覧に残し、古い選択先への割り当てだけを取り消す。
       updateDoc((d) => void (d.assets[a.id] = a));
+      if (!request.current()) return;
       onChange({ assetId: a.id });
       setOpen(false);
     } catch (e) {
+      if (!request.current()) return;
       void showAlert(userMessage(e, tr("アップロードできませんでした")), { title: tr("アップロードできませんでした") });
     } finally {
-      setBusy(false);
+      request.finish();
     }
+  };
+
+  const toggle = () => {
+    if (open) pending.cancel();
+    setOpen(!open);
   };
 
   return (
@@ -55,7 +73,7 @@ export default function ImagePicker({
           aria-label={tr("アセットから選択")}
           aria-expanded={open}
           data-tip={tr("アセットから選択")}
-          onClick={() => setOpen(!open)}
+          onClick={toggle}
         >
           {previewSrc ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -70,7 +88,7 @@ export default function ImagePicker({
             className={`img-pick-asset${open ? " is-open" : ""}`}
             aria-expanded={open}
             data-tip={tr("クリックで別の画像を選択")}
-            onClick={() => setOpen(!open)}
+            onClick={toggle}
           >
             <span>{asset.name}</span>
             <ChevronDown size={12} className="img-pick-chev" />
@@ -82,6 +100,7 @@ export default function ImagePicker({
             defaultValue={value?.url ?? ""}
             placeholder={placeholder}
             onBlur={(e) => {
+              pending.cancel();
               const url = e.target.value.trim();
               onChange(url ? { url } : null);
             }}
@@ -96,7 +115,7 @@ export default function ImagePicker({
             className={`icon-btn${open ? " is-on" : ""}`}
             aria-label={tr("アセットから選択")}
             data-tip={tr("アセットから選択")}
-            onClick={() => setOpen(!open)}
+            onClick={toggle}
           >
             <Images size={13} />
           </button>
@@ -107,6 +126,7 @@ export default function ImagePicker({
             className="icon-btn"
             data-tip={tr("クリア")}
             onClick={() => {
+              pending.cancel();
               onChange(null);
               setOpen(false);
             }}
@@ -121,6 +141,7 @@ export default function ImagePicker({
           kind="image"
           selectedId={value?.assetId}
           onPick={(a) => {
+            pending.cancel();
             onChange({ assetId: a.id });
             setOpen(false);
           }}
