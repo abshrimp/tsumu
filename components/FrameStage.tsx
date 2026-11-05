@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useEditor } from "../lib/store";
 import { BP_INFO, BP_ORDER } from "../lib/style";
 import type { Breakpoint } from "../lib/types";
@@ -29,7 +29,38 @@ export default function FrameStage({
 }) {
   const breakpoint = useEditor((s) => s.breakpoint);
   const [drag, setDrag] = useState<null | { side: -1 | 1 }>(null);
-  const dragRef = useRef<{ side: -1 | 1; scale: number } | null>(null);
+  const dragRef = useRef<{
+    side: -1 | 1;
+    scale: number;
+    pointerId: number;
+    target: HTMLElement;
+  } | null>(null);
+
+  const finish = useCallback(() => {
+    const d = dragRef.current;
+    if (!d) return;
+    // キャプチャ解除で再び終了通知が来ても、同じドラッグは一度だけ終える。
+    dragRef.current = null;
+    setDrag(null);
+    onDragScale(null);
+    document.body.classList.remove("is-resizing-frame");
+    if (d.target.hasPointerCapture(d.pointerId)) d.target.releasePointerCapture(d.pointerId);
+    // ブレークポイントの幅ちょうどなら、そのデバイス表示として扱う
+    const s = useEditor.getState();
+    const bp = BP_ORDER.find(
+      (b) => s.customWidth !== null && BP_INFO[b].width === s.customWidth
+    );
+    if (bp) s.setBreakpoint(bp as Breakpoint);
+  }, [onDragScale]);
+
+  useEffect(() => {
+    window.addEventListener("blur", finish);
+    return () => {
+      window.removeEventListener("blur", finish);
+      // ページの切替などでハンドルが消えても、カーソルと固定倍率を残さない。
+      finish();
+    };
+  }, [finish]);
 
   const widthAt = (clientX: number, side: -1 | 1, s: number, free: boolean) => {
     const area = areaRef.current;
@@ -50,11 +81,11 @@ export default function FrameStage({
   };
 
   const onPointerDown = (e: React.PointerEvent, side: -1 | 1) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || dragRef.current) return;
     e.preventDefault();
     e.stopPropagation();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragRef.current = { side, scale };
+    dragRef.current = { side, scale, pointerId: e.pointerId, target: e.currentTarget as HTMLElement };
     onDragScale(scale);
     setDrag({ side });
     document.body.classList.add("is-resizing-frame");
@@ -62,22 +93,17 @@ export default function FrameStage({
 
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
-    if (!d) return;
+    if (!d || e.pointerId !== d.pointerId) return;
+    // ウィンドウ外で離して戻った場合も、ホバーだけで幅を変え続けない。
+    if (!(e.buttons & 1)) {
+      finish();
+      return;
+    }
     useEditor.getState().setCustomWidth(widthAt(e.clientX, d.side, d.scale, e.altKey));
   };
 
-  const end = () => {
-    if (!dragRef.current) return;
-    dragRef.current = null;
-    setDrag(null);
-    onDragScale(null);
-    document.body.classList.remove("is-resizing-frame");
-    // ブレークポイントの幅ちょうどなら、そのデバイス表示として扱う
-    const s = useEditor.getState();
-    const bp = BP_ORDER.find(
-      (b) => s.customWidth !== null && BP_INFO[b].width === s.customWidth
-    );
-    if (bp) s.setBreakpoint(bp as Breakpoint);
+  const end = (e: React.PointerEvent) => {
+    if (e.pointerId === dragRef.current?.pointerId) finish();
   };
 
   const handle = (side: -1 | 1) => (
@@ -89,6 +115,7 @@ export default function FrameStage({
       onPointerMove={onPointerMove}
       onPointerUp={end}
       onPointerCancel={end}
+      onLostPointerCapture={end}
       onDoubleClick={() => useEditor.getState().setBreakpoint(breakpoint)}
     >
       <div
