@@ -74,14 +74,13 @@ artificial recursive-component fixture and exhausted that test process's heap. I
 not retried; baseline failure evidence was then collected using the four non-recursive
 regressions. The fixed page-expansion cycle test passes.
 
-## Existing limitation, not claimed fixed
+## Original baseline limitation
 
-A client-rendered outer list whose item contains a nested array can still have the
-inner list classified as server-rendered. Its template then contains no inner rows.
-The same valid pre-conversion document and converted document each produce one outer
-client template and zero inner rows. This predates the component-conversion issue and
-requires separate client-list planning/runtime work. Ordinary client lists inside a
-converted component retain their templates and have dedicated native coverage here.
+The original client-rendered outer-list fixture produced zero item-local inner rows,
+both before and after component conversion. That separate issue is now covered by
+[the client-parent nested list correction](../client-nested-lists/README.md).
+Server-parent/client-child scope transport and known server/global text shadowing
+remain outside these focused corrections; the linked audit records those limits.
 
 Portable focused checks:
 
