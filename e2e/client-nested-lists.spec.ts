@@ -102,3 +102,36 @@ test('nested static filters shadow server values without reinterpreting literal 
   }
   expect(errors).toEqual([]);
 });
+
+for (const component of [false, true]) test(`${component ? 'component' : 'plain'} client text overrides the server scalar through real controls`, async ({ page }) => {
+  const doc = clientNestedDoc(component);
+  doc.pages.p.pageScripts![0].steps.push({ id: 'global-name', kind: 'set-var', value: '{response.0.name}', into: 'name' });
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: nestedScopeItems } }));
+  await page.goto('/robots.txt');
+  await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
+  await page.addScriptTag({ content: await clientNestedBundle(component, doc) });
+  const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^並べる配列$/ }) }).locator('button');
+  await source.click();
+  await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
+  const configured = await snapshot(page);
+  await page.getByRole('button', { name: 'Edit loading', exact: true }).click();
+  const value = page.locator('.se-ws [data-sel-key="step:reload-step"] input').first();
+  await value.fill('{response}'); await value.press('Tab');
+  await page.getByRole('button', { name: '閉じる', exact: true }).click();
+  const saved = await snapshot(page);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  expect((await snapshot(page)).doc).toEqual(configured.doc);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  expect((await snapshot(page)).doc).toEqual(saved.doc);
+  await page.getByRole('button', { name: 'Reload saved', exact: true }).click();
+  await page.getByRole('button', { name: 'Toggle preview', exact: true }).click();
+  await check(page);
+  const html = await publishedClientNested(saved.doc);
+  await page.setContent(html); await page.addScriptTag({ content: scriptsFile(saved.doc) });
+  await check(page);
+  await page.evaluate(() => { document.body.innerHTML = '<span data-page-body="other"></span>'; });
+  await expect(details(page)).toHaveCount(0);
+  await page.evaluate(content => { document.body.innerHTML = content; }, html);
+  await check(page); expect(errors).toEqual([]);
+});

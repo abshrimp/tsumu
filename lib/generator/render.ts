@@ -27,6 +27,24 @@ import {
 } from "./render-helpers";
 import { EMPTY_GIF } from "./templates";
 
+/** 文字列で参照する値だけを代替値として残す。項目の値はブラウザで優先する。 */
+function textParts(value: string, base: string): string {
+  const parts: string[] = [];
+  let end = 0;
+  for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g)) {
+    parts.push(JSON.stringify(value.slice(end, m.index)));
+    if (m[0] === "\\{") parts.push(JSON.stringify("{"));
+    else {
+      const token = m[1] ?? "slug";
+      const name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
+      parts.push(`{ name: ${name}, ...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: interpolate(${JSON.stringify(m[0])}, { ...${base} }) } : {}) }`);
+    }
+    end = m.index + m[0].length;
+  }
+  parts.push(JSON.stringify(value.slice(end)));
+  return `[${parts.join(", ")}]`;
+}
+
 /* ---------- JSX生成 ---------- */
 
 export interface JsxContext {
@@ -458,9 +476,11 @@ ${indent}</div>`;
     if (hasVars(node.text.content)) {
       ctx.usesInterpolate = true;
       const base = ctx.varsExpr ?? "vars";
-      inner.push(
-        `${indent}  {interpolate(${JSON.stringify(node.text.content)}, ${base})}`
-      );
+      if (ctx.inTemplate) {
+        // 最初のテキストだけを埋める。子要素は壊さず、データ中の波括弧も再解決しない。
+        liveAttr = ` data-text-parts={JSON.stringify(${textParts(node.text.content, base)})}`;
+      }
+      inner.push(`${indent}  {interpolate(${JSON.stringify(node.text.content)}, ${base})}`);
       // 画面上で値が決まる {変数}（件数など）は、値が変わるたびにブラウザで書き直す
       //（リストの項目内はお手本の複製で埋めるので対象外）
       const keep = livesHere(ctx) ? keepTokens(node.text.content, ctx.liveNames) : {};
