@@ -137,3 +137,55 @@ test("画像ピッカーを閉じると遅いアップロードで背景を変�
   expect({ ...completed, assets: before.assets }).toEqual(before);
   expect(Object.values(completed.assets)).toContainEqual(expect.objectContaining({ path: "assets/new.svg" }));
 });
+
+for (const boundary of ["undo", "undo-redo", "replace", "restore"] as const) {
+  test(`画像読み込み中の${boundary}後は編集履歴と完了ファイルを保ち、古い割り当てをしない`, async ({ page }) => {
+    await page.evaluate(() => (window as any).importEditor.getState().updateNode("b", { name: "Edit to redo" }));
+    const pending = await startImage(page);
+    await page.evaluate((boundary) => {
+      const s = (window as any).importEditor.getState();
+      if (boundary === "undo" || boundary === "undo-redo") s.undo();
+      if (boundary === "undo-redo") s.redo();
+      if (boundary === "replace") s.replaceDoc(structuredClone(s.doc));
+      if (boundary === "restore") s.restoreDoc({ ...structuredClone(s.doc), siteName: "Restored" });
+    }, boundary);
+    const before = await page.evaluate(() => {
+      const s = (window as any).importEditor.getState();
+      return { doc: s.doc, past: s.past, future: s.future, selection: s.selection, selectedIds: s.selectedIds };
+    });
+    await pending.finish(); await settle(page);
+    const after = await page.evaluate(() => {
+      const s = (window as any).importEditor.getState();
+      return { doc: s.doc, past: s.past, future: s.future, selection: s.selection, selectedIds: s.selectedIds };
+    });
+    const file = Object.values(after.doc.assets).find((asset: any) => asset.path === "assets/new.svg") as any;
+    expect(file).toBeTruthy();
+    const retained = (doc: any) => ({ ...doc, assets: { ...doc.assets, [file.id]: file } });
+    expect(after).toEqual({ ...before, doc: retained(before.doc), past: before.past.map(retained), future: before.future.map(retained) });
+    for (let i = 0; i < 2; i++) {
+      if (before.future.length) {
+        await page.evaluate(() => (window as any).importEditor.getState().redo());
+        expect(await doc(page)).toEqual(retained(before.future[0]));
+        await page.evaluate(() => (window as any).importEditor.getState().undo());
+        expect(await doc(page)).toEqual(retained(before.doc));
+      } else if (before.past.length) {
+        await page.evaluate(() => (window as any).importEditor.getState().undo());
+        expect(await doc(page)).toEqual(retained(before.past.at(-1)));
+        await page.evaluate(() => (window as any).importEditor.getState().redo());
+        expect(await doc(page)).toEqual(retained(before.doc));
+      }
+    }
+  });
+}
+
+test("フォント読み込み中の無関係なUndo後もRedoを残し、古いフォントを登録しない", async ({ page }) => {
+  await page.evaluate(() => (window as any).importEditor.getState().updateNode("b", { name: "Edit to redo" }));
+  const pending = await startFont(page);
+  await page.evaluate(() => (window as any).importEditor.getState().undo());
+  const before = await doc(page);
+  await pending.finish(); await settle(page);
+  expect(await doc(page)).toEqual(before);
+  await page.evaluate(() => (window as any).importEditor.getState().redo());
+  expect((await doc(page)).nodes.b.name).toBe("Edit to redo");
+  expect((await doc(page)).customFonts).toBeUndefined();
+});

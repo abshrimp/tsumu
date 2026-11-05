@@ -41,6 +41,11 @@ export default function ImagePicker({
     const request = pending.begin();
     try {
       const a = await uploadAsset(file);
+      // Undo/Redoや文書置換後は、やり直す編集を消さずファイルだけを残す。
+      if (request.historyChanged()) {
+        useEditor.getState().retainUploadedAssets([a]);
+        return;
+      }
       // 読み込み済みのファイルはアセット一覧に残し、古い選択先への割り当てだけを取り消す。
       updateDoc((d) => void (d.assets[a.id] = a));
       if (!request.current()) return;

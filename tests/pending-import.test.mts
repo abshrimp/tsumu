@@ -25,8 +25,9 @@ function deferred<T>() {
 const uploaded: Asset = { id: "new", name: "new.png", width: 1, height: 1, path: "assets/new.png" };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-function imageFixture(apply: (v: ImageRef | null) => void = () => {}) {
+function imageFixture(apply: (v: ImageRef | null) => void = () => {}, setup = () => {}) {
   open();
+  setup();
   const work = deferred<Asset>();
   const ui = importCallbacks("image", () => work.promise);
   const writes: (ImageRef | null)[] = [];
@@ -147,6 +148,66 @@ test("uninterrupted image upload preserves unrelated edits and the complete undo
   } finally { f.ui.unmount(); }
 });
 
+
+test("an upload interrupted by unrelated Undo retains its file without clearing Redo, even before a rerender", async () => {
+  const f = imageFixture(undefined, () => state().updateNode("b", { name: "Redo this edit" }));
+  try {
+    const edited = structuredClone(state().doc);
+    state().undo();
+    assert.equal(state().future.length, 1);
+    f.work.resolve(uploaded); await tick();
+    assert.deepEqual(f.writes, []);
+    assert.equal(state().past.length, 0); assert.equal(state().future.length, 1);
+    assert.deepEqual(state().doc.assets.new, uploaded);
+    state().redo(); assert.deepEqual(state().doc, { ...edited, assets: { new: uploaded } });
+    state().undo(); assert.deepEqual(state().doc.assets.new, uploaded);
+    state().redo(); assert.deepEqual(state().doc, { ...edited, assets: { new: uploaded } });
+  } finally { f.ui.unmount(); }
+});
+
+test("Undo then Redo invalidates the old assignment even when its target and content return unchanged", async () => {
+  const f = imageFixture(undefined, () => state().updateNode("b", { name: "Same when complete" }));
+  try {
+    const edited = structuredClone(state().doc);
+    state().undo(); state().redo();
+    f.work.resolve(uploaded); await tick();
+    assert.deepEqual(f.writes, []);
+    assert.equal(state().past.length, 1); assert.equal(state().future.length, 0);
+    assert.deepEqual(state().doc, { ...edited, assets: { new: uploaded } });
+    state().undo(); assert.deepEqual(state().doc.assets.new, uploaded);
+  } finally { f.ui.unmount(); }
+});
+
+test("replacement, restoration, and reset retain the completed upload without applying an old picker", async () => {
+  for (const boundary of ["replace", "restore", "reset"]) {
+    const f = imageFixture();
+    try {
+      const replacement = structuredClone(state().doc);
+      if (boundary === "replace") state().replaceDoc(replacement);
+      if (boundary === "restore") { replacement.siteName = "Restored"; state().restoreDoc(replacement); }
+      if (boundary === "reset") state().resetDoc();
+      const before = structuredClone(state().doc);
+      const past = state().past.length;
+      f.work.resolve(uploaded); await tick();
+      assert.deepEqual(f.writes, [], boundary);
+      assert.deepEqual(state().doc, { ...before, assets: { ...before.assets, new: uploaded } });
+      assert.equal(state().past.length, past);
+    } finally { f.ui.unmount(); }
+  }
+});
+
+test("an ineffective Undo or Redo leaves the pending upload valid and normally undoable", async () => {
+  const f = imageFixture((value) => state().updatePage("p", { ogImage: value }));
+  try {
+    const before = structuredClone(state().doc);
+    state().undo(); state().redo(); f.render();
+    f.work.resolve(uploaded); await tick();
+    assert.deepEqual(f.writes, [{ assetId: "new" }]);
+    state().undo(); state().undo(); assert.deepEqual(state().doc, before);
+    state().redo(); state().redo(); assert.deepEqual(state().doc.pages.p.ogImage, { assetId: "new" });
+  } finally { f.ui.unmount(); }
+});
+
 function fontFixture() {
   open();
   const work = deferred<Response>();
@@ -206,6 +267,22 @@ test("uninterrupted font import preserves unrelated edits and undo/redo data", a
     state().undo(); state().undo(); assert.deepEqual(state().doc, before);
     state().redo(); state().redo(); assert.deepEqual(state().doc, imported);
   } finally { f.close(); }
+});
+
+
+test("font validation cannot add a font after unrelated Undo or document replacement", async () => {
+  for (const replace of [false, true]) {
+    const f = fontFixture();
+    try {
+      if (replace) state().replaceDoc(structuredClone(state().doc));
+      else { state().updateNode("b", { name: "Redo this edit" }); state().undo(); }
+      const before = structuredClone(state().doc);
+      const future = structuredClone(state().future);
+      f.work.resolve(new Response("@font-face { font-weight: 100 900; }")); await tick(); await tick();
+      assert.deepEqual(state().doc, before);
+      assert.deepEqual(state().future, future);
+    } finally { f.close(); }
+  }
 });
 
 test("pending import browser fixture bundles the actual inspector and upload path", async () => {
