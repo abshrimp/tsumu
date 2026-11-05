@@ -55,7 +55,8 @@ test("editing away the default option keeps preview, bindings and generated form
   expect(await snapshot()).toEqual(edited);
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
-  await selection(page, "A", 1);
+  // 同じページのプレビューへ戻ると、利用者が選んだ値は維持される。
+  await selection(page, "C", 2);
   expect(await snapshot()).toEqual(edited);
   await published(page, edited.doc, "A", 1);
   expect(errors).toEqual([]);
