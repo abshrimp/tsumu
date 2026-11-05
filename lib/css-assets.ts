@@ -113,8 +113,19 @@ function references(css: string): Reference[] {
 }
 
 /** 完全一致を優先し、SVG等のフラグメントだけは元の参照から引き継ぐ。 */
-function replacement(url: string, sources: ReadonlyMap<string, string>): string | undefined {
+function replacement(
+  url: string, sources: ReadonlyMap<string, string>, proxyQueries = false
+): string | undefined {
   if (sources.has(url)) return sources.get(url);
+  // ZIPから読み込んだプロキシURLの追加クエリを、書き出すファイルへ引き継ぐ。
+  // パスの一部が同じ別アセットやdata URLには適用しない。
+  if (proxyQueries && url.startsWith("/api/assets/file?path=")) {
+    const suffix = url.search(/[&#]/);
+    if (suffix >= 0 && url[suffix] === "&") {
+      const target = sources.get(url.slice(0, suffix));
+      if (target !== undefined) return target + url.slice(suffix).replace(/^&(?:amp;)?/, "?");
+    }
+  }
   const hash = url.indexOf("#");
   if (hash < 0) return undefined;
   const target = sources.get(url.slice(0, hash));
@@ -129,11 +140,13 @@ function encode(url: string, quote: string): string {
   });
 }
 
-export function replaceCssAssetUrls(css: string, sources: ReadonlyMap<string, string>): string {
+export function replaceCssAssetUrls(
+  css: string, sources: ReadonlyMap<string, string>, options: { proxyQueries?: boolean } = {}
+): string {
   let result = "";
   let from = 0;
   for (const ref of references(css)) {
-    const target = replacement(ref.url, sources);
+    const target = replacement(ref.url, sources, options.proxyQueries);
     if (target === undefined || target === ref.url) continue;
     result += css.slice(from, ref.start) + encode(target, ref.quote);
     from = ref.end;

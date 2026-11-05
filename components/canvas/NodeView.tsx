@@ -39,10 +39,12 @@ function GhostView({
   id,
   isTop,
   itemVars,
+  instanceIds = [],
 }: {
   id: string;
   isTop: boolean;
   itemVars?: Record<string, unknown>;
+  instanceIds?: string[];
 }): ReactNode {
   const doc = useEditor((s) => s.doc);
   const setActivePage = useEditor((s) => s.setActivePage);
@@ -54,6 +56,7 @@ function GhostView({
   const scopedVars = itemVars;
   const vars = { ...ctx.pageVars, ...scopedVars };
   const common: Record<string, unknown> = { "data-ghost": id };
+  if (instanceIds.length) common["data-instance-node"] = instanceIds.join(" ");
   if (node.attrId) common.id = node.attrId;
   if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars);
 
@@ -89,7 +92,7 @@ function GhostView({
     if (chain.includes(comp.id)) return recursiveInstance(common);
     return (
       <InstanceChainCtx.Provider value={[...chain, comp.id]}>
-        <GhostView key={id} id={comp.rootId} isTop={isTop} itemVars={scopedVars} />
+        <GhostView key={id} id={comp.rootId} isTop={isTop} itemVars={scopedVars} instanceIds={[...instanceIds, id]} />
       </InstanceChainCtx.Provider>
     );
   }
@@ -318,6 +321,32 @@ export function NodeView({
     }
     if (chain.includes(comp.id)) return recursiveInstance(common);
     const tag = resolveTag(root, isTop);
+    // プレビューではインスタンスの外枠にもマスターのID・スクリプト・リンクを反映する。
+    if (ctx.preview) {
+      if (root.attrId) common.id = root.attrId;
+      applyScriptsAttr(root, common, doc, vars, ctx.clientVars);
+      if (root.link) {
+        const link = root.link;
+        const rawUrl = link.kind === "page" ? "#" : link.url || "#";
+        const href = safeNavigationUrl(hasVars(rawUrl) ? interpolateUrl(rawUrl, vars) : rawUrl);
+        common.href = href;
+        if (link.kind === "page" && link.pageId) {
+          common.onClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            setActivePage(link.pageId!);
+          };
+        } else if (link.newTab) {
+          common.target = "_blank";
+          common.rel = "noopener noreferrer";
+        } else if (!href.startsWith("#")) {
+          common.onClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            ctx.navigate(href);
+          };
+        }
+      }
+      if (tag === "button") applyButton(root, common, true, ctx.refresh);
+    }
     const children: ReactNode[] = [];
     if (root.text) {
       children.push(
@@ -332,7 +361,7 @@ export function NodeView({
     return (
       <InstanceChainCtx.Provider key={id} value={[...chain, comp.id]}>
         {createElement(
-          tag === "a" ? "div" : tag,
+          tag === "a" && !ctx.preview ? "div" : tag,
           { ...common, "data-instance": comp.id, "data-ghost": root.id },
           children.length ? children : undefined
         )}

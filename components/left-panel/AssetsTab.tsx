@@ -29,6 +29,7 @@ import {
   downloadAsset,
   nodeAssetSrc,
   replaceEmbeddedAsset,
+  removePageAssetBackgrounds,
   uploadAsset,
   uploadEmbeddedAsset,
 } from "../../lib/assets";
@@ -402,6 +403,7 @@ export function AssetsTab() {
       for (const page of Object.values(d.pages)) {
         if (page.ogImage?.assetId === asset.id) page.ogImage = null;
       }
+      removePageAssetBackgrounds(d, asset);
       delete d.assets[asset.id];
     });
     void deleteAssetRemote(asset);

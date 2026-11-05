@@ -62,6 +62,27 @@ function mergeRecord<T>(
   return out;
 }
 
+/**
+ * 子の削除・移動元からの取り外しだけでは、相手が消した空の親を復活させない。
+ * 残すべき子の編集があれば、後で必要な祖先として戻す。
+ */
+function mergeContainers<T extends { children: string[] }>(
+  base: Record<string, T>, local: Record<string, T>, remote: Record<string, T>
+): Record<string, T> {
+  const out = mergeRecord(base, local, remote);
+  for (const id of Object.keys(out)) {
+    if (!base[id] || !local[id] || remote[id]) continue;
+    const { children: before, ...baseProps } = base[id];
+    const { children: after, ...localProps } = local[id];
+    if (after.length >= before.length || JSON.stringify(baseProps) !== JSON.stringify(localProps)) continue;
+    // 順序変更・追加は取り消さず、元の並びから取り除いただけの場合に限る。
+    let index = 0;
+    for (const child of before) if (child === after[index]) index++;
+    if (index === after.length) delete out[id];
+  }
+  return out;
+}
+
 /** ID単位でマージするコレクション（設定の値としては扱わない） */
 const COLLECTION_KEYS = new Set(["pages", "pageOrder", "nodes", "assets", "components"]);
 
@@ -89,7 +110,10 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
   const roots = new Set(Object.values(merged.components ?? {}).map((c) => c.rootId));
   for (const id of Object.keys(merged.nodes)) {
     if (roots.has(id)) continue;
-    const parent = pick(bp.get(id), lp.get(id), rp.get(id));
+    // 編集と削除が競合して要素を残した場合は、配置もローカルから残す。
+    const parent = local.nodes[id] && !remote.nodes[id]
+      ? lp.get(id)
+      : pick(bp.get(id), lp.get(id), rp.get(id));
     if (parent && available.has(parent)) parents.set(id, parent);
   }
 
@@ -146,6 +170,95 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
   }
 }
 
+/**
+ * ローカルの編集を優先して残した要素が、リモートで消された親の下に取り残されないようにする。
+ * 必要な祖先だけを戻す。未編集の兄弟や、ローカルで削除した要素は戻さない。
+ */
+function restoreEditedTreePaths(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteDoc) {
+  const parents = new Map<string, { kind: "page" | "node"; id: string }>();
+  for (const page of Object.values(local.pages)) {
+    for (const id of page.children) parents.set(id, { kind: "page", id: page.id });
+  }
+  for (const node of Object.values(local.nodes)) {
+    for (const id of node.children) parents.set(id, { kind: "node", id: node.id });
+  }
+  // 移動は親の children だけを変えるため、ノード単体の比較では未編集に見える。
+  // ローカルで別の親へ動かした要素は、削除との競合でも中身ごと残す。
+  const baseParents = new Map<string, string>();
+  for (const page of Object.values(base.pages)) {
+    for (const id of page.children) baseParents.set(id, `page:${page.id}`);
+  }
+  for (const node of Object.values(base.nodes)) {
+    for (const id of node.children) baseParents.set(id, `node:${node.id}`);
+  }
+  const moved = [...parents].filter(([id, parent]) =>
+    base.nodes[id] && !remote.nodes[id] &&
+    baseParents.get(id) !== `${parent.kind}:${parent.id}`
+  ).map(([id]) => id);
+  const visitedMoves = new Set<string>();
+  for (let id = moved.pop(); id !== undefined; id = moved.pop()) {
+    if (visitedMoves.has(id)) continue;
+    visitedMoves.add(id);
+    const node = local.nodes[id];
+    if (!node) continue;
+    if (!merged.nodes[id] && !remote.nodes[id]) merged.nodes[id] = node;
+    moved.push(...node.children);
+  }
+  const localComponents = Object.values(local.components ?? {});
+  const queue = Object.keys(merged.nodes).filter((id) => local.nodes[id] && !remote.nodes[id]);
+  const seen = new Set<string>();
+  const restoredComponents = new Set<string>();
+  const restoreComponent = (id: string) => {
+    const comp = local.components?.[id];
+    if (!comp || remote.components?.[id] || restoredComponents.has(id)) return;
+    restoredComponents.add(id);
+    (merged.components ??= {})[id] ??= comp;
+    // 残したインスタンス・コンポーネント設定に必要なマスターは、内容も一緒に残す。
+    const stack = [comp.rootId];
+    const visited = new Set<string>();
+    for (let nodeId = stack.pop(); nodeId !== undefined; nodeId = stack.pop()) {
+      if (visited.has(nodeId)) continue;
+      visited.add(nodeId);
+      const node = local.nodes[nodeId];
+      if (!node) continue;
+      if (!merged.nodes[nodeId]) merged.nodes[nodeId] = node;
+      queue.push(nodeId);
+      stack.push(...node.children);
+    }
+  };
+  for (const id of Object.keys(merged.components ?? {})) restoreComponent(id);
+  for (const node of Object.values(merged.nodes)) {
+    if (node.type === "instance" && node.componentId) restoreComponent(node.componentId);
+  }
+  for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = merged.nodes[id];
+    if (node?.type === "instance" && node.componentId) restoreComponent(node.componentId);
+    const parent = parents.get(id);
+    if (!parent) {
+      const comp = localComponents.find((c) => c.rootId === id);
+      // マスター内部の編集だけが残った場合は、コンポーネント定義を戻す。
+      // この経路では、消された未編集の兄弟までは戻さない。
+      if (comp && !merged.components?.[comp.id]) (merged.components ??= {})[comp.id] = comp;
+      continue;
+    }
+    if (parent.kind === "page") {
+      if (!merged.pages[parent.id] && local.pages[parent.id] && !remote.pages[parent.id]) {
+        merged.pages[parent.id] = local.pages[parent.id];
+        if (local.pageOrder.includes(parent.id) && !merged.pageOrder.includes(parent.id)) {
+          merged.pageOrder.push(parent.id);
+        }
+      }
+    } else {
+      if (!merged.nodes[parent.id] && local.nodes[parent.id] && !remote.nodes[parent.id]) {
+        merged.nodes[parent.id] = local.nodes[parent.id];
+      }
+      if (merged.nodes[parent.id] && !remote.nodes[parent.id]) queue.push(parent.id);
+    }
+  }
+}
+
 export function mergeDocs(
   base: SiteDoc,
   local: SiteDoc,
@@ -178,8 +291,8 @@ function mergeOnce(
   local: SiteDoc,
   remote: SiteDoc
 ): SiteDoc {
-  const nodes = mergeRecord(base.nodes, local.nodes, remote.nodes);
-  const pages = mergeRecord(base.pages, local.pages, remote.pages);
+  const nodes = mergeContainers(base.nodes, local.nodes, remote.nodes);
+  const pages = mergeContainers(base.pages, local.pages, remote.pages);
 
   // ページ順: 変更した側を採用し、存在と過不足を整える
   let pageOrder = [
@@ -215,6 +328,7 @@ function mergeOnce(
     assets: mergeRecord(base.assets, local.assets, remote.assets),
     components: mergeRecord(base.components, local.components, remote.components),
   };
+  restoreEditedTreePaths(base, local, remote, merged);
   mergeTree(base, local, remote, merged);
   return merged;
 }

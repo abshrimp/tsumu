@@ -582,6 +582,13 @@ export const useEditor = create<EditorStore>((set, get) => {
    */
   let pendingBase: SiteDoc | null = null;
 
+  // 開いているページに置かれていないマスターも、複製先のID重複チェックに含める。
+  const refreshEditorClones = (doc: SiteDoc, clones: DocNode[]) => {
+    const { activePageId, editingComponentId } = get();
+    const rootId = editingComponentId ? doc.components?.[editingComponentId]?.rootId : undefined;
+    refreshClonedIds(doc, activePageId, clones, rootId ? [rootId] : []);
+  };
+
   /** beginGesture 〜 endGesture の間か */
   let gesture = false;
   const pushHistory = (snapshot: SiteDoc) => {
@@ -592,9 +599,9 @@ export const useEditor = create<EditorStore>((set, get) => {
     }));
   };
 
-  /** リモートの変更（current → next）を履歴の各スナップショットにも反映する */
+  /** リモートの変更（current → next）を履歴にも反映し、同じ項目の競合は最新の変更を優先する */
   const rebaseHistory = (list: SiteDoc[], current: SiteDoc, next: SiteDoc) =>
-    list.map((snap) => mergeDocs(current, snap, next));
+    list.map((snap) => mergeDocs(current, next, snap));
 
   return {
     doc: initialDoc,
@@ -1021,7 +1028,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       };
       const newRootId = cloneTree(comp.rootId);
       // 同じページの他のインスタンスとID属性が重ならないようにする
-      refreshClonedIds(doc, get().activePageId, clones);
+      refreshEditorClones(doc, clones);
       get().updateDoc((d) => {
         for (const c of clones) d.nodes[c.id] = c;
         const list =
@@ -1115,7 +1122,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
       const { selection, doc, activePageId, editingComponentId } = get();
       // 貼り付け先のページで ID属性が重ならないように付け替える（中のスクリプトの参照も合わせる）
-      refreshClonedIds(doc, activePageId, clones);
+      refreshEditorClones(doc, clones);
       const editingComp = editingComponentId
         ? doc.components?.[editingComponentId]
         : null;
@@ -1312,7 +1319,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     insertNodes: (nodes, rootId, parent, index) => {
       get().updateDoc((doc) => {
-        refreshClonedIds(doc, get().activePageId, nodes);
+        refreshEditorClones(doc, nodes);
         for (const n of nodes) doc.nodes[n.id] = n;
         const list = childrenOf(doc, parent);
         const i = index === undefined ? list.length : index;
@@ -1414,7 +1421,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       };
       const pairs = roots.map((id) => ({ from: id, copy: cloneTree(id) }));
       // 複製のID属性が元と重ならないように付け替える（中のスクリプトの参照も合わせる）
-      refreshClonedIds(doc, get().activePageId, clones);
+      refreshEditorClones(doc, clones);
       get().updateDoc((d) => {
         for (const c of clones) d.nodes[c.id] = c;
         for (const { from, copy } of pairs) {

@@ -620,7 +620,6 @@ export default function Canvas() {
     doc,
     editingComp,
     activePageId,
-    rootIds,
     mode,
     editingText,
     moveState,

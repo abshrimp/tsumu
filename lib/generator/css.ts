@@ -72,7 +72,18 @@ export function cssValue(
       : asset.dataUrl;
     if (source) sources.set(source, `/assets/${name}`);
   }
-  return replaceCssAssetUrls(value, sources);
+  if (prop === "rawHtml") {
+    // HTML ZIPの参照はCSSトークンではないため、既存のHTML書き出し処理を保つ。
+    let output = value;
+    for (const [source, target] of sources) {
+      output = output.split(source).map((part, index) =>
+        index && source.startsWith("/api/assets/file?path=")
+          ? part.replace(/^&(?:amp;)?/, "?") : part
+      ).join(target);
+    }
+    return output;
+  }
+  return replaceCssAssetUrls(value, sources, { proxyQueries: true });
 }
 
 function ruleFor(
@@ -232,7 +243,12 @@ export function generateSiteCss(
     }
     // デバイス別の非表示は、その画面幅の範囲だけに効かせる
     for (const bp of BP_ORDER) {
-      if (isHiddenAt(node, bp)) hideRules[bp].push(`  .${cls} {\n    display: none;\n  }`);
+      if (isHiddenAt(node, bp)) {
+        const selector = node.type === "instance"
+          ? `[data-instance-hidden~=${JSON.stringify(cls)}]`
+          : `.${cls}`;
+        hideRules[bp].push(`  ${selector} {\n    display: none${node.type === "instance" ? " !important" : ""};\n  }`);
+      }
     }
   }
 

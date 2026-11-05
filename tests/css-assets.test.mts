@@ -59,11 +59,26 @@ test("migration and export do not corrupt distinct prefix-sharing asset referenc
     backgroundImage: `url(${data}BBBB), image-set("${data}" 1x)`,
     content: `"${data}"`,
   } } } };
-  const doc = { nodes: { box: node }, assets: { a: { id: 'a', name: 'logo.svg', width: 1, height: 1, dataUrl: data } } } as unknown as SiteDoc;
+  const doc = { pages: {}, nodes: { box: node }, assets: { a: { id: 'a', name: 'logo.svg', width: 1, height: 1, dataUrl: data } } } as unknown as SiteDoc;
   const original = node.styles.base.default.backgroundImage;
   assert.equal(cssValue(doc, 'backgroundImage', original, new Map([['a', 'logo.svg']])), `url(${data}BBBB), image-set("${target}" 1x)`);
   replaceEmbeddedAsset(doc, 'a', 'assets/logo.svg');
   assert.equal(node.styles.base.default.backgroundImage, `url(${data}BBBB), image-set("${source}" 1x)`);
   assert.equal(node.styles.base.default.content, `"${data}"`);
   assert.equal(cssValue(doc, 'backgroundImage', `url(${source}.backup), url(${source}#mark)`, new Map([['a', 'logo.svg']])), `url(${source}.backup), url(${target}#mark)`);
+});
+
+test("export preserves imported ZIP queries without replacing longer CSS URLs or ordinary strings", () => {
+  const doc = { assets: {
+    a: { id: 'a', name: 'logo.svg', path: 'assets/logo.svg', width: 1, height: 1 },
+  } } as unknown as SiteDoc;
+  const names = new Map([['a', 'logo.svg']]);
+  const value = `image-set("${source}&v=1&theme=dark#mark" 1x), url('${source}.backup&v=2'), url(${source}#icon&part)`;
+  assert.equal(cssValue(doc, 'backgroundImage', value, names),
+    `image-set("${target}?v=1&theme=dark#mark" 1x), url('${source}.backup&v=2'), url(${target}#icon&part)`);
+  assert.equal(cssValue(doc, 'content', `"${source}&v=1"`, names), `"${source}&v=1"`);
+  assert.equal(cssValue(doc, 'backgroundImage', `url('${source}&amp;v=1&amp;theme=dark#mark')`, names),
+    `url('${target}?v=1&amp;theme=dark#mark')`);
+  // 書き出しのクエリ変換を、使用箇所判定や削除へ広げない。
+  assert.equal(cssUsesAssetUrl(`url('${source}&v=1')`, source), false);
 });
