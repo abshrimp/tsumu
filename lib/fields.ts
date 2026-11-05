@@ -1,6 +1,9 @@
 import type { DocNode, FieldContent } from "./types";
 import { hasVars, interpolate } from "./vars";
 
+/** プレビュー専用の入力値。null はセレクトの選択解除（空文字の選択肢とは別）。 */
+export type FieldValues = Record<string, string | null>;
+
 /** 最小値・最大値・刻みを持てる入力欄の type */
 export const RANGED_INPUTS = new Set(["number", "range", "date", "time", "datetime-local", "month", "week"]);
 /** 文字数の上限を持てる入力欄の type */
@@ -122,8 +125,9 @@ export function fieldStateValues(
     }
     if (!name) continue;
     if (f.kind === "select") {
-      const at = (f.options ?? []).map((o) => fill(o, vars)).indexOf(v);
-      out[`${name}.index`] = String(at < 0 ? (f.options?.length ? 1 : 0) : at + 1);
+      const at = values[name] === null ? -1 : (f.options ?? []).map((o) => fill(o, vars)).indexOf(v);
+      out[name] = at < 0 ? "" : v;
+      out[`${name}.index`] = String(at + 1);
     }
     out[`${name}.length`] = String(v.length);
     out[`${name}.disabled`] = String(!!f.disabled);
@@ -139,9 +143,9 @@ export function fieldValuePatch(
   fields: DocNode[],
   name: string,
   v: string,
-  values: Record<string, string>,
+  values: FieldValues,
   vars?: Record<string, unknown>
-): Record<string, string> | null {
+): FieldValues | null {
   const item = fields.find((n) => n.type === "field" && isRadioItem(n) && n.attrId === name);
   if (item) {
     const group = fieldVarName(item);
@@ -152,5 +156,9 @@ export function fieldValuePatch(
   }
   const hit = fields.find((n) => n.type === "field" && fieldVarName(n) === name);
   if (!hit) return null;
+  // 初期値と違い、選択肢にない値の代入は選択を外す（HTMLSelectElement.value と同じ）。
+  if (hit.field?.kind === "select") {
+    return { [name]: (hit.field.options ?? []).some((o) => fill(o, vars) === v) ? v : null };
+  }
   return { [name]: hit.field?.kind === "checkbox" ? String(truthy(v)) : v };
 }
