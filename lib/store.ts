@@ -1158,7 +1158,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       }
       get().updateDoc((d) => {
         // ほかのサイトの要素なら、使っているアセット・コンポーネント・フォントを先に足す
-        const remap = external ? mergeClipDeps(d, external) : new Map<string, string>();
+        const remap = external ? mergeClipDeps(d, external).assetIds : new Map<string, string>();
         for (const n of clones) d.nodes[n.id] = remapAssetIds(n, remap);
         const list = childrenOf(d, parent);
         list.splice(index === undefined ? list.length : index, 0, ...newRootIds);
