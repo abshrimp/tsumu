@@ -33,6 +33,7 @@ for (const mode of ["no-op", "change", "cancel"] as const) {
     await page.addScriptTag({ content: await aiChatBundle() });
     await page.locator(".ai-suggest button").first().click();
     await page.evaluate(() => (window as any).aiHistoryEditor.getState().setActivePage("q"));
+    const beforeManual = await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc);
     const scrub = page.locator(".field-pre.scrub");
     const box = (await scrub.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -44,14 +45,23 @@ for (const mode of ["no-op", "change", "cancel"] as const) {
     await expect(page.locator('[aria-busy="true"]')).toBeVisible();
     await expect(page.locator(".ai-msg-meta button")).toHaveCount(0);
     await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2);
+    const manual = await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc);
+    expect(manual.nodes.b.styles.base.default.fontSize).toBe(`${parseFloat(beforeManual.nodes.b.styles.base.default.fontSize) + 20}px`);
     if (mode === "cancel") await page.locator(".ai-activity-head button").evaluate((button) => (button as HTMLButtonElement).click());
     await page.mouse.up();
     await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
     const undo = page.locator(".ai-msg-meta button");
     await expect(undo).toHaveCount(mode === "change" ? 1 : 0);
     if (mode === "change") await undo.click();
-    expect(await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc.nodes.b.styles.base.default.fontSize)).toBe("40px");
+    expect(await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc)).toEqual(manual);
     await page.evaluate(() => (window as any).aiHistoryEditor.getState().undo());
-    expect(await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc.nodes.b.styles.base?.default?.fontSize)).not.toBe("40px");
+    expect(await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc)).toEqual(beforeManual);
+    await page.evaluate(() => (window as any).aiHistoryEditor.getState().redo());
+    expect(await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc)).toEqual(manual);
+    if (mode === "change") {
+      await page.evaluate(() => (window as any).aiHistoryEditor.getState().redo());
+      expect(await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc.nodes.a.text.content)).toBe("AI A");
+      expect(await page.evaluate(() => (window as any).aiHistoryEditor.getState().doc.nodes.b)).toEqual(manual.nodes.b);
+    }
   });
 }
