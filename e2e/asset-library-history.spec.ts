@@ -22,7 +22,11 @@ async function start(page: Page, kind: "upload" | "migration", path = "assets/co
     arrived(); await gate; await route.fulfill({ contentType: "application/json", body: JSON.stringify({ path }) });
   });
   if (kind === "upload") await page.locator('input[type="file"]').setInputFiles({ name: "new.wav", mimeType: "audio/wav", buffer: Buffer.from("audio") });
-  else await page.locator('[data-tip="サーバーへアップロード"]').click();
+  else {
+    const card = page.locator('[data-asset-id="embedded"]');
+    await card.hover();
+    await card.locator('[data-tip="サーバーへアップロード"]').click();
+  }
   await started;
   return async () => { const response = page.waitForResponse("http://asset-library.test/api/assets"); release(); await (await response).finished(); await settle(page); };
 }
