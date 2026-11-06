@@ -868,6 +868,9 @@ export const SCRIPT_RUNTIME = `function (env) {
         }
         if (n.nodeType !== 1 || n.hasAttribute("data-tpl")) return;
         Array.prototype.slice.call(n.attributes).forEach(function (a) {
+          // 画像の代替テキスト・メディア・埋め込みURLは、エディタと配信前のリスト同様にリテラルを保つ。
+          if ((a.name === "alt" && n.tagName === "IMG") ||
+              (a.name === "src" && (n.tagName === "AUDIO" || n.tagName === "VIDEO" || n.tagName === "IFRAME"))) return;
           // 操作の値は親項目を使い、並べるときに解決する。
           if (a.name.indexOf("data-field-") === 0 || n.hasAttribute("data-field-" + a.name + "-parts") ||
               a.name === "data-list-ops" || a.name === "data-text-parts" || a.name === "data-href-parts" || a.name === "data-image-src-parts" ||
