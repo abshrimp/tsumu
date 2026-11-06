@@ -181,7 +181,12 @@ test("無効なJSONは送れず、空値は明示して使用でき、未確定U
   // URL の blur を引き起こす同じクリックは、古いリクエストを送ってはならない。
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await requests(page, 1);
-  await expect(result(page)).toBeVisible(); await refresh(page).click(); await requests(page, 2);
+  await expect(result(page)).toBeVisible();
+  expect((await currentStep(page)).url).toBe("https://example.test/uncommitted");
+  // リクエストを変えた後は、以前のテスト用の値を暗黙に流用しない。
+  await expect(refresh(page)).toBeDisabled();
+  await result(page).getByRole("button", { name: "空の値を使う", exact: true }).click();
+  await requests(page, 1); await refresh(page).click(); await requests(page, 2);
   expect(await page.evaluate(() => (window as any).refetchRequests[1].input.url)).toBe("https://example.test/uncommitted");
   await finish(page, 1, { ok: true }); await close(page);
   await block(page).locator("textarea").fill('{"name":"NEW"}');

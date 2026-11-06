@@ -68,8 +68,9 @@ function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loop
   const source = transformSync(readFileSync("components/script-editor/fetch.tsx", "utf8"), {
     loader: "tsx", jsx: "automatic", format: "cjs",
   }).code;
+  const browserDocument = { activeElement: null as { blur(): void } | null };
   new Function("require", "module", "exports", "fetch", "document", source)(
-    (id: string) => id === "react" ? hooks : require(id), mod, mod.exports, fetch, { activeElement: null },
+    (id: string) => id === "react" ? hooks : require(id), mod, mod.exports, fetch, browserDocument,
   );
   const step = (id = "fetch") => {
     const doc = useEditor.getState().doc;
@@ -95,7 +96,7 @@ function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loop
     (id: string) => id === "react" ? hooks : id === "./fetch" ? mod.exports : require(id), peek, peek.exports,
   );
   return {
-    requests, step, render, opened,
+    requests, step, render, opened, browserDocument,
     action: () => render()[1],
     currentSample: () => mod.exports.hasCurrentSample(step()),
     values: () => render().find((v: any) => v?.type?.name === "FetchValues")?.props.state,
@@ -474,7 +475,10 @@ test("inline runtime inputs enable the one send action and reach the result with
   const view = mounted.result()();
   assert.equal(view.props.children[1].props.children[1].props.children, "https://example.test/001");
   await mounted.finish(0, latest);
-  assert.equal(JSON.stringify(mounted.step()).includes("001"), false);
+  // 取得時刻の数字に偶然 "001" が含まれても、テスト値の保存とは判定しない。
+  const { fetchedAt, ...saved } = mounted.step()!;
+  assert.equal(typeof fetchedAt, "number");
+  assert.equal(JSON.stringify(saved).includes("001"), false);
 });
 
 test("a failed direct request retains fallback, shares the modal error, and can be retried", async () => {
@@ -779,5 +783,40 @@ test("page-load and unconnected page scripts with identical step IDs are distinc
     const actual = useEditor.getState().doc.pages.p;
     assert.deepEqual((actual.pageScripts![0].steps[0] as FetchStep).sample, nodeId === null ? [{ name: "Initial" }] : latest);
     assert.deepEqual((actual.scripts![0].steps[0] as FetchStep).sample, nodeId === null ? latest : [{ name: "Loose" }]);
+  }
+});
+
+
+test("view pointer activation commits a draft on click without becoming a send or losing the viewer", async () => {
+  for (const field of ["url", "body"] as const) {
+    const mounted = mount();
+    mounted.setOptions({ method: "POST", body: '{"name":"{missing}"}' });
+    mounted.values().setValue("missing", ""); mounted.action().props.onClick();
+    await mounted.finish(0, { ok: true });
+    let blurs = 0;
+    mounted.browserDocument.activeElement = { blur() {
+      blurs++;
+      if (field === "url") mounted.commitUrl("https://example.test/draft");
+      else mounted.setOptions({ body: '{"name":"NEW"}' });
+    } };
+    const view = mounted.action(); let prevented = false;
+    view.props.onPointerDown({ button: 0, preventDefault() { prevented = true; } });
+    assert.equal(prevented, true, "prevent premature blur from disabling or changing the clicked action");
+    assert.equal(blurs, 0); assert.equal(mounted.requests.length, 1);
+    const opened = mounted.opened.length; view.props.onClick();
+    assert.equal(blurs, 1); assert.equal(mounted.opened.length, opened + 1);
+    assert.equal(mounted.requests.length, 1, "a view click must never send the newly committed draft");
+    assert.equal(mounted.step()![field], field === "url" ? "https://example.test/draft" : '{"name":"NEW"}');
+    const result = mounted.result();
+    const refresh = () => result().props.children[0].props.children[1];
+    if (field === "url") {
+      assert.equal(refresh().props.disabled, true);
+      const state = result().props.children.find((v: any) => v?.type?.name === "FetchValues").props.state;
+      state.setValue("missing", "");
+    }
+    assert.equal(refresh().props.disabled, false); refresh().props.onClick();
+    assert.equal(mounted.requests.length, 2);
+    assert.equal(mounted.requests[1].input[field], field === "url" ? "https://example.test/draft" : '{"name":"NEW"}');
+    await mounted.finish(1, { ok: true });
   }
 });

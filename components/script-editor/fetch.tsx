@@ -434,10 +434,12 @@ export function FetchBody({ step }: { step: FetchStep }) {
         disabled={!step.url.trim() || (!hasResult && !busy && (values.missing || values.invalid))}
         onPointerDown={(e) => {
           blockedClick.current = composing.current;
-          if (blockedClick.current) e.preventDefault();
+          // blur で設定が変わっても、「見る」を押し始めた操作を無効化・送信に変えない。
+          if (blockedClick.current || ((hasResult || busy) && e.button === 0)) e.preventDefault();
         }}
         onClick={() => {
           if (composing.current || blockedClick.current) { blockedClick.current = false; return; }
+          if (hasResult || busy) (document.activeElement as HTMLElement | null)?.blur?.();
           openPeek(step.id, scope);
           if (!hasResult && !busy) void run(step.url, step, values.prepare());
         }}>
