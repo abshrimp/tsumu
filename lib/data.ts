@@ -1350,9 +1350,9 @@ export function renameVarInPage(doc: SiteDoc, pageId: string, from: string, to: 
   }
 }
 
-// 書き出し専用の join 項目参照。保存する文書には名前・メタデータを足さない。
+// 書き出し専用の join・count 項目参照。保存する文書には名前・メタデータを足さない。
 const joinItemSources = new WeakMap<ScriptStep, string>();
-export function joinItemSource(step: Extract<ScriptStep, { kind: "join" }>): string {
+export function joinItemSource(step: Extract<ScriptStep, { kind: "join" | "count" }>): string {
   return joinItemSources.get(step) ?? step.array;
 }
 
@@ -1437,7 +1437,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
   };
   for (const steps of stepLists) {
     walkAll(steps, (st) => {
-      if (st.kind === "join" && fn(st.array) != null) joinItemSources.set(st, st.array);
+      if ((st.kind === "join" || st.kind === "count") && fn(st.array) != null) joinItemSources.set(st, st.array);
     });
   }
   for (const n of Object.values(out.nodes)) {
