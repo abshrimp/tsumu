@@ -396,6 +396,14 @@ const en: Dict = {
     "Saving to server…",
   "サーバー保存済み":
     "Saved to server",
+  "このブラウザの保存先は削除済み":
+    "Browser save location deleted",
+  "サーバーに保存できません（ブラウザの保存先は削除済み）":
+    "Couldn't save to server (browser save location deleted)",
+  "このブラウザの保存先は削除されています。画面の内容は残っています。必要な内容は、閉じる前にコピーするかZIPに書き出してください。":
+    "The save location in this browser was deleted. Your content is still on screen. Copy what you need or export a ZIP before closing.",
+  "このブラウザの保存先は削除されています。サーバーへの保存状態は上の表示を確認してください。":
+    "The save location in this browser was deleted. Check the status above for server saving.",
   "このブラウザにのみ保存":
     "Saved in this browser only",
   "このブラウザへ保存中…":
@@ -858,8 +866,8 @@ const en: Dict = {
     "/new-page or https://example.com/...",
   "外部サイトを表示（リバースプロキシ）":
     "Show an external site (reverse proxy)",
-  "ブラウザのURLは変えず、指定した外部サイトの内容をこのURLで中継して表示します。このページ以下のパスも転送先の同じパスへ中継されます。301リダイレクトとは同時に設定できません。":
-    "Shows the external site's content at this URL without changing the address bar. Paths under this page are forwarded to the same paths on the target. Can't be combined with a 301 redirect.",
+  "ブラウザのURLは変えず、指定した外部サイトの内容をこのURLで中継して表示します。トップページ（/）の配下では、このサイトのページ・ファイルを優先し、見つからないパスを中継します。転送先URLに ? または # がある場合は、このページのURLに一致するパスだけを中継します。301リダイレクトとは同時に設定できません。":
+    "Shows the external site's content at this URL without changing the address bar. Under the home page (/), this site's pages and files take priority. Only unmatched paths are forwarded. If the destination URL contains ? or #, only paths matching this page's URL are forwarded. Can't be combined with a 301 redirect.",
   "HTMLファイルを読み込む":
     "Load an HTML file",
   "index.html を優先して読み込みます。同梱のファイルはアセットにアップロードし、HTML内のパスを自動で書き換えます":
