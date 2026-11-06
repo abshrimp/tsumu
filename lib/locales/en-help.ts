@@ -1119,6 +1119,8 @@ const en: Dict = {
     "reverse proxy",
   "転送先には「/new-page」のようなサイト内のURLか、「https://」から始まる外部のURLを入れます。検索エンジンにも「移転した」と正しく伝わる転送（301）になります。":
     "Enter a site URL like \"/new-page\" or an external URL starting with \"https://\". It's a 301 redirect, which tells search engines the page has moved.",
+  "301転送はURLの大文字・小文字を区別せず、末尾の / が違っても一致します。クエリ（?以降）や # だけを変えても同じ転送に戻るため、転送元と異なるパスを指定してください。[slug] を含む転送元でも、転送先が同じルールに戻らないようにしてください。":
+    "301 redirects ignore letter case and also match a trailing /. Changing only the query (after ?) or # still returns to the same redirect, so choose a different path. For sources containing [slug], make sure the destination does not return to the same rule either.",
   "「外部サイトを表示」を使うと、アドレスはそのままで別のサイトの内容を表示できます（リバースプロキシ）。":
     "\"Show an external site\" displays another site's content while keeping your address (a reverse proxy).",
   "公開済みのページのURLを変えるときは、古いURLにリダイレクトを置いておくと、SNSなどに貼られたリンクが切れません。":
