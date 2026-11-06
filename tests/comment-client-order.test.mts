@@ -306,3 +306,26 @@ test("an ID conflict preserves the live discussion and allows retrying with a fr
   assert.deepEqual(useComments.getState().threads[0].messages.map(m => m.body), ["one", "Keep this reply"]);
   assert.equal(useComments.getState().error, null);
 });
+
+for (const selectAnother of [false, true]) test(`a site-missing create keeps the draft or newer selection intact: ${selectAnother}`, async () => {
+  reset(); useComments.setState({ active: true, threads: threads("other"), total: 1, unresolvedCount: 1 });
+  const draft = { pageId: "page", nodeId: null, x: .5, y: .5, bp: "base" };
+  useComments.getState().setDraft(draft);
+  const response = deferred<Response>(); mock.method(globalThis, "fetch", async () => response.promise);
+  const pending = useComments.getState().run(create("new")).then(ok => {
+    if (ok) openPostedComment(draft, "new");
+    return ok;
+  });
+  await Promise.resolve();
+  if (selectAnother) useComments.getState().open("other");
+  response.resolve(Response.json({ error: "サイトが見つかりません", code: "comment_site_missing" }, { status: 404 }));
+  assert.equal(await pending, false);
+  assert.equal(useComments.getState().draft, selectAnother ? null : draft);
+  assert.equal(useComments.getState().openId, selectAnother ? "other" : null);
+  assert.equal(useComments.getState().focusedThread?.id ?? null, selectAnother ? "other" : null);
+  assert.equal(useComments.getState().threadUnavailable, false);
+  assert.deepEqual(useComments.getState().threads, threads("other"));
+  assert.equal(useComments.getState().total, 1); assert.equal(useComments.getState().unresolvedCount, 1);
+  assert.equal(useComments.getState().store, "server"); assert.equal(useComments.getState().saving, false);
+  assert.equal(useComments.getState().error, "サイトが見つかりません");
+});

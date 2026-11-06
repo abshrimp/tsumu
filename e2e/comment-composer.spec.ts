@@ -73,6 +73,29 @@ test("IME Escape and modified Enter do not cancel or submit a new comment draft"
   await input.press("Escape"); await expect(input).toHaveCount(0);
 });
 
+test("a site deleted while posting a new discussion keeps the unsent text", async ({ page }) => {
+  const site = await openSite(page, false);
+  await page.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
+  const input = detail(page).getByPlaceholder("コメントを書く", { exact: true });
+  await input.fill("Keep this unsent new comment");
+  await page.route("**/api/comments?*", async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    // 送信開始後、実際のコメントAPIへ届く直前に別タブ相当の削除を行う。
+    expect((await page.request.delete(`/api/sites/${site}`)).ok()).toBeTruthy();
+    await route.continue();
+  });
+  const failed = page.waitForResponse(response => response.url().includes("/api/comments?") && response.request().method() === "POST");
+  await detail(page).getByRole("button", { name: "投稿", exact: true }).click();
+  const response = await failed;
+  expect(response.status()).toBe(404);
+  expect((await response.json()).code).toBe("comment_site_missing");
+  await expect(input).toHaveValue("Keep this unsent new comment");
+  await expect(input).not.toHaveAttribute("readonly", "");
+  await expect(page.getByText("サイトが見つかりません", { exact: true })).toBeVisible();
+  expect((await page.request.get(`/api/sites/${site}`)).status()).toBe(404);
+  expect((await (await page.request.get(`/api/comments?site=${site}`)).json()).threads).toHaveLength(0);
+});
+
 
 test("oversized comments stay editable and are rejected without silently truncating", async ({ page }) => {
   const site = await openSite(page); const reply = detail(page).getByPlaceholder("返信", { exact: true });
