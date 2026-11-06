@@ -13,7 +13,7 @@ import type {
 } from "../types";
 import { needsJsonType, sendsBody } from "../fetch-request";
 import { hardNavPatterns, hasVars, KEEP_ESCAPES, matchesHardNav, pageHrefOf } from "../vars";
-import { condGroups, listFromOf, type ListOp } from "../data";
+import { condGroups, joinItemSource, listFromOf, type ListOp } from "../data";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, keepTokens, walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
@@ -221,6 +221,27 @@ export function scriptsAttr(
       if (ctx.liveNames.has(name.split(".")[0])) return undefined;
       ctx.usesLookup = true;
       exprs.push(`lookupVar(${ctx.varsExpr ?? "vars"}, ${JSON.stringify(name)}) ?? null`);
+      return `__script_var_${exprs.length - 1}__`;
+    },
+    (st) => {
+      const live = ctx.liveNames.has(st.array.split(".")[0]);
+      const itemArray = joinItemSource(st);
+      const scopes = ctx.joinItemScopes ?? [];
+      if (live && !scopes.length) return undefined;
+      scopes.forEach((scope) => { scope.used = true; });
+      ctx.usesLookup = true;
+      // 各サーバー行は自分の項目だけを持つ。近い所有者を選び、行境界も実行側へ渡す。
+      const value = st.field
+        ? `x && typeof x === "object" ? lookupVar({ item: x }, ${JSON.stringify(`item.${st.field}`)}) : x`
+        : "x";
+      const scalar = `(x: unknown) => x == null || typeof x === "object" ? "" : String(x)`;
+      const joined = (source: string) => `((v: unknown) => Array.isArray(v) ? v.map((x: unknown) => ${value}).map(${scalar}).filter(Boolean).join(${JSON.stringify(st.sep)}) : (${scalar})(v))(${source})`;
+      let fallback = live ? "undefined" : `{ value: ${joined(`lookupVar({ ...${ctx.varsExpr ?? "vars"} }, ${JSON.stringify(st.array)})`)} }`;
+      for (const scope of scopes) {
+        const owns = `(Object.prototype.hasOwnProperty.call(${scope.expr}, ${JSON.stringify(itemArray)}) || Object.prototype.hasOwnProperty.call(${scope.expr}, ${JSON.stringify(itemArray.split(".")[0])}))`;
+        fallback = `${owns} ? { value: ${joined(`lookupVar(${scope.expr}, ${JSON.stringify(itemArray)})`)}, owned: true, rowOffset: ${(ctx.joinRowDepth ?? 0) - scope.depth} } : ${fallback}`;
+      }
+      exprs.push(fallback);
       return `__script_var_${exprs.length - 1}__`;
     }
   );

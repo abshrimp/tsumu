@@ -1350,6 +1350,12 @@ export function renameVarInPage(doc: SiteDoc, pageId: string, from: string, to: 
   }
 }
 
+// 書き出し専用の join 項目参照。保存する文書には名前・メタデータを足さない。
+const joinItemSources = new WeakMap<ScriptStep, string>();
+export function joinItemSource(step: Extract<ScriptStep, { kind: "join" }>): string {
+  return joinItemSources.get(step) ?? step.array;
+}
+
 /**
  * 公開用に、スクリプトで作る変数（取得したデータ・配列・件数など）の名前を
  * 意味のない短い名前に付け替えた複製を返す（配信するHTML・スクリプトに名前を出さない）。
@@ -1429,6 +1435,11 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
     }
     return null;
   };
+  for (const steps of stepLists) {
+    walkAll(steps, (st) => {
+      if (st.kind === "join" && fn(st.array) != null) joinItemSources.set(st, st.array);
+    });
+  }
   for (const n of Object.values(out.nodes)) {
     mapNodeTokens(n, fn);
     if (n.list?.from) n.list.from = fn(n.list.from) ?? n.list.from;
