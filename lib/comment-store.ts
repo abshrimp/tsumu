@@ -5,7 +5,7 @@
  */
 
 import { create } from "zustand";
-import { applyCommentAction, type CommentAction, type CommentPage, type CommentThread } from "./comments";
+import { applyCommentAction, MAX_COMMENT_LENGTH, type CommentAction, type CommentPage, type CommentThread } from "./comments";
 import { siteApi, siteKey } from "./site";
 import { tr } from "./i18n";
 import { userMessage } from "./errors";
@@ -163,6 +163,11 @@ export const useComments = create<CommentsState>((set, get) => ({
     }
   },
   run: (a) => {
+    // ローカル保存でもサーバーと同じ上限を守り、失敗時は入力・保存済み一覧を残す。
+    if ("body" in a && a.body.trim().length > MAX_COMMENT_LENGTH) {
+      set({ error: tr("コメントは{max}文字以内で入力してください", { max: MAX_COMMENT_LENGTH }) });
+      return Promise.resolve(false);
+    }
     ++readRequest;
     pageRequest = null;
     ++pendingWrites;
