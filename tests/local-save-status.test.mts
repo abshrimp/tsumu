@@ -11,16 +11,18 @@ const messages = {
     pending: "このブラウザへ保存中…",
     saved: "このブラウザにのみ保存",
     error: "このブラウザに保存できません",
+    deleted: "このブラウザの保存先は削除済み",
   },
   error: {
     pending: "サーバーに保存できません（ブラウザへの保存を確認中…）",
     saved: "サーバーに保存できません（このブラウザには保存済み）",
     error: "サーバーにもこのブラウザにも保存できません",
+    deleted: "サーバーに保存できません（ブラウザの保存先は削除済み）",
   },
 };
 
 for (const cloudState of ["local", "error", "synced", "saving", "checking"] as const) {
-  for (const localSaveState of ["pending", "saved", "error"] as const) {
+  for (const localSaveState of ["pending", "saved", "error", "deleted"] as const) {
     test(`${cloudState}/${localSaveState}: the footer reports the current browser save result`, () => {
       // SSRではZustandが初期スナップショットを読むので、検証用の初期値を指定する。
       Object.assign(useEditor.getInitialState(), { cloudState, savedAt: 1, cloudSavedAt: 1, cloudError: null });
