@@ -17,6 +17,8 @@ export function clientLiteralAttributesDoc(component = false) {
   for (const kind of ['audio', 'video'] as const) doc.nodes[kind] = {
     ...makeMedia(kind), id: kind, attrId: kind, media: { kind, src: literalSource },
   };
+  // この回帰テストは属性の保存を検証する。音声の既定の height:auto による縮小とは分離する。
+  doc.nodes.audio.styles.base!.default!.height = "54px";
   doc.nodes.frame = { ...makeEmbed('url'), id: 'frame', attrId: 'frame', embed: { kind: 'url', src: literalEmbed } };
   doc.nodes.row.children.push('svg', 'audio', 'video', 'frame');
   return doc;
