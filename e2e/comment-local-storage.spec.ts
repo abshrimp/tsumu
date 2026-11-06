@@ -38,7 +38,7 @@ async function seedComment(page: Page) {
   await startComment(page);
   await page.getByPlaceholder("コメントを書く", { exact: true }).fill("Saved comment");
   await page.getByRole("button", { name: "投稿", exact: true }).click();
-  await expect(page.locator(".cm-pop .cm-msg-body")).toHaveText("Saved comment");
+  await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText("Saved comment");
 }
 
 for (const failure of ["write", "read", "invalid"]) {
@@ -57,7 +57,7 @@ for (const failure of ["write", "read", "invalid"]) {
     await setFailure(page, "none");
     if (failure === "invalid") await page.evaluate(k => localStorage.setItem(k, "[]"), key);
     await page.getByRole("button", { name: "投稿", exact: true }).click();
-    await expect(page.locator(".cm-pop .cm-msg-body")).toHaveText("Keep this unsent comment");
+    await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText("Keep this unsent comment");
     await expect(error(page)).toHaveCount(0);
     expect(JSON.parse(await saved(page, key))[0].messages[0].body).toBe("Keep this unsent comment");
     await page.reload();
@@ -76,8 +76,8 @@ for (const operation of ["reply", "edit"]) {
       await page.getByRole("button", { name: "コメントの操作", exact: true }).click();
       await page.getByText("コメントを編集", { exact: true }).click();
     }
-    const input = page.locator(".cm-pop").getByPlaceholder(operation === "edit" ? "コメント" : "返信", { exact: true });
-    const submit = page.locator(".cm-pop").getByRole("button", { name: operation === "edit" ? "保存" : "返信", exact: true });
+    const input = page.locator(".cm-detail").getByPlaceholder(operation === "edit" ? "コメント" : "返信", { exact: true });
+    const submit = page.locator(".cm-detail").getByRole("button", { name: operation === "edit" ? "保存" : "返信", exact: true });
     await input.fill("Keep my changed text");
     await setFailure(page, "write");
     await submit.click();
@@ -86,7 +86,7 @@ for (const operation of ["reply", "edit"]) {
     expect(await saved(page, key)).toBe(before);
     await setFailure(page, "none");
     await submit.click();
-    await expect(page.locator(".cm-pop .cm-msg-body")).toHaveText(operation === "edit" ? ["Keep my changed text"] : ["Saved comment", "Keep my changed text"]);
+    await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText(operation === "edit" ? ["Keep my changed text"] : ["Saved comment", "Keep my changed text"]);
     await expect(error(page)).toHaveCount(0);
     expect(JSON.parse(await saved(page, key))[0].messages.at(-1).body).toBe("Keep my changed text");
   });
@@ -105,7 +105,7 @@ for (const operation of ["delete", "resolve"]) {
     await perform();
     await expect(error(page)).toHaveText("コメントを保存できませんでした");
     await expect(page.locator(".cm-item-body")).toHaveText("Saved comment");
-    await expect(page.locator(".cm-pop .cm-msg-body")).toHaveText("Saved comment");
+    await expect(page.locator(".cm-detail .cm-msg-body")).toHaveText("Saved comment");
     expect(await saved(page, key)).toBe(before);
     await setFailure(page, "none");
     await perform();
@@ -120,7 +120,7 @@ test("定期読み込みが失敗しても既存コメントと返信の下書�
   const key = await openSite(page);
   await seedComment(page);
   const before = await saved(page, key);
-  const reply = page.locator(".cm-pop").getByPlaceholder("返信", { exact: true });
+  const reply = page.locator(".cm-detail").getByPlaceholder("返信", { exact: true });
   await reply.fill("Unsent draft during refresh");
   await setFailure(page, "read");
   await expect(error(page)).toHaveText("コメントを読み込めませんでした", { timeout: 20_000 });
