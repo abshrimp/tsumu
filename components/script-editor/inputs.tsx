@@ -7,7 +7,7 @@
 import { isEnterKey } from "../../lib/keys";
 import { Fragment, useContext, useMemo, useState, type ReactNode } from "react";
 import { VarInput } from "../controls";
-import { dataVarNames, fieldLabel, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
+import { dataVarNames, fieldLabel, flattenFields, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
 import { lookupVar, splitRegexVars } from "../../lib/vars";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
 import { readableValue } from "../DataView";
@@ -103,8 +103,11 @@ function VarTextIn({
     );
     const item = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
     const raw = variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), item);
+    // 取得したデータの項目と親のまとまりも、同じスコープの見本から選べるようにする。
+    const nested = localVariableNames(flattenFields(raw, 4).map((field) => field.field));
+    const available = [...new Set([...at, ...made, ...nested])];
     return {
-      names: [...item, ...[...at, ...made].filter((n) => !item.includes(n) && canPickVariable(lookupVar(raw, n), valueContext))],
+      names: [...item, ...available.filter((n) => !item.includes(n) && canPickVariable(lookupVar(raw, n), valueContext))],
       samples: {
         ...Object.fromEntries(Object.entries(varSamplesAt(doc, pageId, nodeId)).filter(([name]) => !item.some((n) => n.split(".")[0] === name.split(".")[0]))),
         ...Object.assign({}, ...[...loops].reverse().map((l) => l.samples)),

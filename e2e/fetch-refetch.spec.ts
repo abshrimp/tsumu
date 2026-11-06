@@ -139,7 +139,9 @@ test("保留中のUndoと削除は応答で戻らない", async ({ page }) => {
   expect(await snapshot(page)).toEqual(before);
   await page.getByRole("button", { name: "やり直す", exact: true }).click();
   expect((await currentStep(page)).url).toBe("https://example.test/slow");
-  await send(page); await close(page);
+  // Redo でも送信済みの事実は残す。見る操作では再送せず、明示して更新する。
+  await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
+  await requests(page, 1); await refresh(page).click(); await requests(page, 2); await close(page);
   await block(page).click({ button: "right", position: { x: 8, y: 8 } });
   await page.getByRole("button", { name: "このブロックを削除", exact: true }).click();
   await finish(page, 1, [{ name: "REMOVED" }]);
@@ -178,11 +180,13 @@ test("無効なJSONは送れず、空値は明示して使用でき、未確定U
   await url.fill("https://example.test/uncommitted");
   // URL の blur を引き起こす同じクリックは、古いリクエストを送ってはならない。
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
-  await requests(page, 2);
+  await requests(page, 1);
+  await expect(result(page)).toBeVisible(); await refresh(page).click(); await requests(page, 2);
   expect(await page.evaluate(() => (window as any).refetchRequests[1].input.url)).toBe("https://example.test/uncommitted");
   await finish(page, 1, { ok: true }); await close(page);
   await block(page).locator("textarea").fill('{"name":"NEW"}');
-  await block(page).getByRole("button", { name: "データを見る", exact: true }).click(); await requests(page, 3);
+  await block(page).getByRole("button", { name: "データを見る", exact: true }).click(); await requests(page, 2);
+  await expect(result(page)).toBeVisible(); await refresh(page).click(); await requests(page, 3);
   expect(await page.evaluate(() => (window as any).refetchRequests[2].input.body)).toBe('{"name":"NEW"}');
   await finish(page, 2, { ok: true });
 });
@@ -230,8 +234,13 @@ test("入れ子の取得はブロック・小窓ともloopの親と空object・a
 for (const gesture of ["step-cancel", "script-drop"]) test(`pending POST survives ${gesture} without turning view into a second send`, async ({ page }) => {
   await options(page, "POST"); await send(page); await requests(page, 1); await close(page);
   const source = gesture === "step-cancel" ? block(page) : page.locator(".se-ws .se-hat").first();
-  const rect = await source.boundingBox(); const workspace = await page.locator(".se-ws").boundingBox();
-  await page.mouse.move(rect!.x + 6, rect!.y + 6); await page.mouse.down();
+  // 設定欄へのスクロールで左端がパレットの裏に隠れていても、本物のブロックをつかむ。
+  const grip = source.locator(".se-ico").first();
+  await grip.scrollIntoViewIfNeeded();
+  const rect = await grip.boundingBox(); const workspace = await page.locator(".se-ws").boundingBox();
+  const origin = { x: rect!.x + rect!.width / 2, y: rect!.y + rect!.height / 2 };
+  expect(await source.evaluate((el, point) => el.contains(document.elementFromPoint(point.x, point.y)), origin)).toBe(true);
+  await page.mouse.move(origin.x, origin.y); await page.mouse.down();
   await page.mouse.move(workspace!.x + workspace!.width - 70, workspace!.y + workspace!.height - 80, { steps: 5 });
   await expect(page.locator(".se-ghost .se-stack").first()).toBeVisible();
   if (gesture === "step-cancel") await page.keyboard.press("Escape");
@@ -297,7 +306,9 @@ test("same-page cloned node opens and refreshes its own result modal", async ({ 
     (window as any).copiedFetchNode = store.getState().selection;
   }, fetchScopeDoc("node"));
   const copyId = await page.evaluate(() => (window as any).copiedFetchNode);
-  const copied = page.locator(`[data-script-node="${copyId}"] [data-sel-key="step:scoped"]`);
+  const copyStepId = await page.evaluate((id) => (window as any).refetchEditor.getState().doc.nodes[id].scripts[0].steps[0].id, copyId);
+  expect(copyStepId).not.toBe("scoped");
+  const copied = page.locator(`[data-script-node="${copyId}"] [data-sel-key="step:${copyStepId}"]`);
   await copied.getByRole("button", { name: "データを見る", exact: true }).click();
   await refresh(page).click(); await finish(page, 0, { origin: "COPY-NODE" });
   await expect(result(page).getByText("COPY-NODE", { exact: true })).toBeVisible();

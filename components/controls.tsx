@@ -1047,8 +1047,8 @@ export function VarInput({
         defaultValue={value}
         placeholder={placeholder}
         onFocus={() => {
-          // 「{」なしで出すときは、フォーカスした時点で候補を見せる（空欄なら一覧）
-          if (eager && !explore) requestAnimationFrame(() => update(true));
+          // 入力・blur より後に候補を開き直さないよう、フォーカス時に同期して表示する。
+          if (eager && !explore) update(true);
         }}
         onInput={(e) => {
           if ((e.nativeEvent as InputEvent).isComposing) return;

@@ -72,19 +72,20 @@ test("unified value candidates retain object roots while text still excludes the
 
 function mountInput(eager: boolean) {
   const slots: any[] = []; let cursor = 0;
+  const frames: (() => void)[] = [];
   const hooks = { ...React, useEffect() {}, useRef(initial: any) { return slots[cursor++] ??= { current: initial }; },
     useState(initial: any) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;
       return [slots[i], (next: any) => { slots[i] = typeof next === "function" ? next(slots[i]) : next; }]; } };
   const require = createRequire(resolve("components/controls.tsx")); const mod = { exports: {} as any };
   new Function("require", "module", "exports", "window", "requestAnimationFrame", transformSync(readFileSync("components/controls.tsx", "utf8"), {
     loader: "tsx", jsx: "automatic", format: "cjs",
-  }).code)((id: string) => id === "react" ? hooks : require(id), mod, mod.exports, { innerWidth: 1000, innerHeight: 800 }, (fn: any) => fn());
+  }).code)((id: string) => id === "react" ? hooks : require(id), mod, mod.exports, { innerWidth: 1000, innerHeight: 800 }, (fn: any) => frames.push(fn));
   const el = { value: "", selectionStart: 0, selectionEnd: 0, focus() {}, setSelectionRange() {}, getBoundingClientRect: () => ({ left: 0, top: 0, bottom: 20, width: 150 }) };
   const render = () => { cursor = 0; return mod.exports.VarInput({ value: "", onCommit() {}, names: ["alpha", "beta"], nodeId: "", eager, valueContext: "value" }).props.children; };
   const input = () => { const props = render()[0].props; props.ref.current = el; return props; };
   const press = (key: string, extra = {}) => input().onKeyDown({ key, ctrlKey: true, metaKey: false, altKey: false,
     preventDefault() {}, nativeEvent: {}, ...extra });
-  return { input, press, render, el, menu: () => render().find((v: any) => v?.type?.name === "VarSuggestMenu"),
+  return { input, press, render, el, flushFrames: () => { while (frames.length) frames.shift()!(); }, menu: () => render().find((v: any) => v?.type?.name === "VarSuggestMenu"),
     explorer: () => render().find((v: any) => v?.type?.name === "VarExplorer") };
 }
 
@@ -125,4 +126,27 @@ test("selecting only the name inside a raw reference still replaces the whole re
     else { h.input().onFocus(); h.menu().props.onPick("beta"); }
     assert.equal(h.el.value, "{beta}");
   }
+});
+
+
+test("focus cannot reopen stale suggestions after filling a complete value or blurring", () => {
+  for (const value of ["{alpha}", "literal", "\\{alpha}"]) {
+    const h = mountInput(true); h.input().onFocus();
+    h.el.value = value; h.el.selectionStart = h.el.selectionEnd = value.length;
+    h.input().onInput({ nativeEvent: {} }); h.flushFrames();
+    assert.equal(h.menu(), undefined);
+    h.press("Tab", { ctrlKey: false }); assert.equal(h.el.value, value);
+  }
+  const h = mountInput(true); h.input().onFocus();
+  h.input().onBlur({ target: h.el }); h.flushFrames(); assert.equal(h.menu(), undefined);
+});
+
+test("inline value choices include nested arrays and objects without leaking shadowed roots", () => {
+  const input = candidates();
+  for (const name of ["data.tags", "data.detail", "data.detail.title", "data.rows"]) assert.ok(input.names.includes(name), name);
+  const local = candidates(scriptDataPickerDoc(), ["data.local"]);
+  assert.ok(local.names.includes("data.local"));
+  assert.ok(!local.names.includes("data.tags"));
+  assert.ok(!local.names.includes("data.detail.title"));
+  assert.ok(!candidates(scriptDataPickerDoc(), [], "text").names.includes("data.detail"));
 });
