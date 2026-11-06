@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Check, CornerDownLeft, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useEditor } from "../lib/store";
-import { commentId, useComments, type CommentDraft } from "../lib/comment-store";
+import { commentId, openPostedComment, closeCommentIfOpen, useComments, type CommentDraft } from "../lib/comment-store";
 import { isAuthor, type CommentMessage, type CommentThread } from "../lib/comments";
 import { useServerStatus } from "../lib/status";
 import { BP_INFO } from "../lib/style";
@@ -454,6 +454,13 @@ export function CommentLayer({
 
 export function CommentsPanel() {
   const threads = useComments((s) => s.threads);
+  const focusedThread = useComments((s) => s.focusedThread);
+  const cursor = useComments((s) => s.cursor);
+  const previousCursors = useComments((s) => s.previousCursors);
+  const nextCursor = useComments((s) => s.nextCursor);
+  const total = useComments((s) => s.total);
+  const saving = useComments((s) => s.saving);
+  const navigate = useComments((s) => s.navigate);
   const showResolved = useComments((s) => s.showResolved);
   const setShowResolved = useComments((s) => s.setShowResolved);
   const openId = useComments((s) => s.openId);
@@ -469,10 +476,11 @@ export function CommentsPanel() {
   const [deletedOnly, setDeletedOnly] = useState(false);
   const targetOf = useMemo(() => commentTargetResolver(doc, bp), [doc, bp]);
   // 閲覧中のスレッドはページ・絞り込み・ピン位置から独立させ、共同編集の削除でも入力を保つ。
-  const openThread = openId ? threads.find((t) => t.id === openId) : undefined;
+  const openThread = openId ? (focusedThread?.id === openId ? focusedThread : threads.find(t => t.id === openId)) : undefined;
   useEffect(() => {
-    if (openId && !threads.some((t) => t.id === openId)) open(null);
-  }, [openId, threads, open]);
+    if (openId && !openThread) open(null);
+  }, [openId, openThread, open]);
+  const partial = !!cursor || !!nextCursor || total > threads.length;
   const shown = threads
     .filter((t) => (showResolved || !t.resolvedAt) && (allPages || targetOf(t).pageId === activePageId) && (!deletedOnly || isDeletedCommentTarget(targetOf(t))))
     .sort((a, b) => b.updatedAt - a.updatedAt);
@@ -521,9 +529,19 @@ export function CommentsPanel() {
         <p className="hint cm-panel-hint">{tr("サーバーの保存先が無いため、コメントはこのブラウザにだけ保存されます。")}</p>
       )}
       {error && <p className="hint is-error cm-panel-hint">{error}</p>}
+      {partial && (
+        <div className="cm-pagination">
+          <p className="hint">{tr("全{total}件中{loaded}件の一覧です。絞り込みとピンは、この一覧の範囲に適用されます。", { total, loaded: threads.length })}</p>
+          <div className="cm-pagination-actions">
+            <button type="button" className="btn btn-sm" disabled={loading || saving || !previousCursors.length} onClick={() => void navigate("newer")}>{tr("新しい一覧")}</button>
+            <button type="button" className="btn btn-sm" disabled={loading || saving || !nextCursor} onClick={() => void navigate("older")}>{tr("古い一覧")}</button>
+            {cursor && <button type="button" className="btn btn-sm btn-ghost" disabled={loading || saving} onClick={() => void navigate("newest")}>{tr("最新の一覧")}</button>}
+          </div>
+        </div>
+      )}
       <div className="cm-list">
         {shown.length === 0 ? (
-          <p className="cm-empty">{loading ? tr("読み込み中…") : tr("コメントはありません")}</p>
+          <p className="cm-empty">{loading ? tr("読み込み中…") : partial ? tr("この一覧に条件に合うコメントはありません。ほかの一覧も確認できます。") : tr("コメントはありません")}</p>
         ) : (
           shown.map((t) => {
             const first = t.messages[0];
@@ -575,13 +593,13 @@ export function CommentsPanel() {
                 onSubmit={async (body) => {
                   const id = commentId();
                   const ok = await run({ action: "create", id, ...draft, body });
-                  if (ok) open(id);
+                  if (ok) openPostedComment(draft, id);
                   return ok;
                 }}
               />
             </>
           ) : (
-            openThread && <ThreadView key={openThread.id} thread={openThread} onClose={() => open(null)} />
+            openThread && <ThreadView key={openThread.id} thread={openThread} onClose={() => closeCommentIfOpen(openThread.id)} />
           )}
         </section>
       )}

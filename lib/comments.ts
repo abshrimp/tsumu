@@ -167,45 +167,74 @@ const userOf = (r: Record<string, unknown>, prefix = ""): ActivityUser => ({
   image: r[`${prefix}image`] == null ? null : String(r[`${prefix}image`]),
 });
 
-export async function listComments(db: Db, siteId: string): Promise<CommentThread[]> {
-  const [threads, messages] = await db.batch([
+/** 一覧は作成順の安定したカーソルで区切る。返信・解決で境界は動かさない。 */
+export const COMMENT_PAGE_SIZE = 1000;
+export interface CommentCursor { createdAt: number; id: string }
+export function parseCommentCursor(value: string | null): CommentCursor | null {
+  if (!value) return null;
+  const match = /^(\d+):([a-zA-Z0-9_-]{1,64})$/.exec(value);
+  if (!match || !Number.isSafeInteger(Number(match[1]))) return null;
+  return { createdAt: Number(match[1]), id: match[2] };
+}
+export const commentCursor = (t: { createdAt: number; id: string }) => `${t.createdAt}:${t.id}`;
+export interface CommentPage {
+  threads: CommentThread[];
+  nextCursor: string | null;
+  total: number;
+  unresolvedCount: number;
+  /** 一覧の範囲外でも、閲覧中の詳細を独立して返す。null は削除済み。 */
+  focusedThread: CommentThread | null;
+}
+
+export async function listCommentPage(
+  db: Db, siteId: string, before: CommentCursor | null = null, focus: string | null = null
+): Promise<CommentPage> {
+  const where = `site_id = ?${before ? " AND (created_at < ? OR (created_at = ? AND id < ?))" : ""}`;
+  const args = before ? [siteId, before.createdAt, before.createdAt, before.id] : [siteId];
+  const select = `SELECT id FROM comment_threads WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ${COMMENT_PAGE_SIZE}`;
+  // 同じスナップショットで件数・一覧・本文を読む。ほかの一覧ページの本文は取得しない。
+  const [threads, messages, focused, counts] = await db.batch([
+    { sql: `SELECT * FROM comment_threads WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ${COMMENT_PAGE_SIZE + 1}`, args },
     {
-      sql: `SELECT id, page_id, node_id, x, y, bp, created_at, updated_at, resolved_at, resolved_email, resolved_name, resolved_image
-        FROM comment_threads WHERE site_id = ? ORDER BY created_at LIMIT 1000`,
-      args: [siteId],
+      sql: `SELECT id, thread_id, email, name, image, body, at, edited_at FROM comment_messages
+        WHERE site_id = ? AND thread_id IN (SELECT id FROM (${select}) UNION SELECT ?) ORDER BY at, CASE WHEN id = thread_id || '-0' THEN 0 ELSE 1 END, id`,
+      args: [siteId, ...args, focus],
     },
-    {
-      sql: "SELECT id, thread_id, email, name, image, body, at, edited_at FROM comment_messages WHERE site_id = ? ORDER BY at",
-      args: [siteId],
-    },
+    { sql: "SELECT * FROM comment_threads WHERE site_id = ? AND id = ?", args: [siteId, focus] },
+    { sql: "SELECT COUNT(*) AS total, COUNT(CASE WHEN resolved_at IS NULL THEN 1 END) AS unresolved FROM comment_threads WHERE site_id = ?", args: [siteId] },
   ]);
   const byThread = new Map<string, CommentMessage[]>();
   for (const r of messages.rows) {
     const list = byThread.get(String(r.thread_id)) ?? [];
     list.push({
-      id: String(r.id),
-      author: userOf(r),
-      body: String(r.body),
-      at: Number(r.at),
+      id: String(r.id), author: userOf(r), body: String(r.body), at: Number(r.at),
       ...(r.edited_at == null ? {} : { editedAt: Number(r.edited_at) }),
     });
     byThread.set(String(r.thread_id), list);
   }
-  return threads.rows
-    .map((r) => ({
-      id: String(r.id),
-      pageId: String(r.page_id),
-      nodeId: r.node_id == null ? null : String(r.node_id),
-      x: Number(r.x),
-      y: Number(r.y),
-      bp: String(r.bp ?? "base"),
-      createdAt: Number(r.created_at),
-      updatedAt: Number(r.updated_at),
-      resolvedAt: r.resolved_at == null ? null : Number(r.resolved_at),
-      resolvedBy: r.resolved_at == null ? null : userOf(r, "resolved_"),
-      messages: byThread.get(String(r.id)) ?? [],
-    }))
-    .filter((t) => t.messages.length > 0);
+  const threadOf = (r: Record<string, unknown>): CommentThread => ({
+    id: String(r.id), pageId: String(r.page_id), nodeId: r.node_id == null ? null : String(r.node_id),
+    x: Number(r.x), y: Number(r.y), bp: String(r.bp ?? "base"),
+    createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
+    resolvedAt: r.resolved_at == null ? null : Number(r.resolved_at),
+    resolvedBy: r.resolved_at == null ? null : userOf(r, "resolved_"),
+    messages: byThread.get(String(r.id)) ?? [],
+  });
+  const rows = threads.rows.slice(0, COMMENT_PAGE_SIZE);
+  const last = rows.at(-1);
+  const focusedThread = focused.rows[0] ? threadOf(focused.rows[0]) : null;
+  return {
+    threads: rows.map(threadOf).filter(t => t.messages.length > 0),
+    nextCursor: threads.rows.length > COMMENT_PAGE_SIZE && last ? commentCursor({ createdAt: Number(last.created_at), id: String(last.id) }) : null,
+    total: Number(counts.rows[0]?.total ?? 0),
+    unresolvedCount: Number(counts.rows[0]?.unresolved ?? 0),
+    focusedThread: focusedThread?.messages.length ? focusedThread : null,
+  };
+}
+
+/** 単一ページを扱う既存の呼び出し用。続きを読むときは listCommentPage を使う。 */
+export async function listComments(db: Db, siteId: string): Promise<CommentThread[]> {
+  return (await listCommentPage(db, siteId)).threads;
 }
 
 /** 操作を D1 に当てはめる。他人のコメントを編集・削除しようとしたら false */
@@ -296,7 +325,7 @@ export async function runCommentAction(
     }
     case "delete-thread": {
       const rs = await db.execute({
-        sql: "SELECT email, name, image FROM comment_messages WHERE thread_id = ? AND site_id = ? ORDER BY at LIMIT 1",
+        sql: "SELECT email, name, image FROM comment_messages WHERE thread_id = ? AND site_id = ? ORDER BY at, CASE WHEN id = thread_id || '-0' THEN 0 ELSE 1 END, id LIMIT 1",
         args: [a.threadId, siteId],
       });
       if (rs.rows[0] && !isAuthor(userOf(rs.rows[0]), user)) return false;
