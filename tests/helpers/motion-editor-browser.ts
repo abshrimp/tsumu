@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { resolve } from "node:path";
 
 /** Mount the real modal and controls; the fixture owns only Apply/Cancel state. */
-export async function motionEditorBundle() {
+export async function motionEditorBundle(initialCss = "0% { opacity: 0; } 50% { opacity: 0.5; } 100% { opacity: 1; }") {
   return (await build({
     stdin: {
       contents: `
@@ -10,9 +10,11 @@ import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { KeyframeEditorModal } from "./components/MotionEditors";
 function Fixture() {
-  const [css, setCss] = useState("0% { opacity: 0; } 50% { opacity: 0.5; } 100% { opacity: 1; }");
+  const [css, setCss] = useState(${JSON.stringify(initialCss)});
   const [open, setOpen] = useState(true);
   return <>
+    <style>{"@keyframes keyframe-test {" + css + "}"}</style>
+    <div id="motion-probe" style={{ animation: "keyframe-test 100s linear paused both", position: "absolute", left: -10000, width: 10, height: 10 }} />
     <button id="reopen" onClick={() => setOpen(true)}>Open keyframes</button>
     <output id="saved">{css}</output>
     {open && <KeyframeEditorModal css={css} duration={1} easing="linear"
