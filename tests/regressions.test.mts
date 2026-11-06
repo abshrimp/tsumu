@@ -55,6 +55,49 @@ test("custom head attributes preserve HTML entities and embedded quotes", () => 
   assert.equal(tree.props.content, 'Say "hello" & goodbye');
 });
 
+test("custom head HTML boolean attributes use presence rather than string values", () => {
+  for (const value of ["", "true", "false", "async", "0"]) {
+    const jsx = headHtmlToJsx(`<script ASYNC="${value}" defer='${value}' nomodule=${value || 'nomodule'} src="/tag.js"></script><link disabled="${value}" rel="stylesheet" href="/theme.css"><meta itemscope="${value}" name="scope">`, "");
+    const [script, link, meta] = evaluate(`export default function Head() { return (<>${jsx}</>); }`).props.children;
+    assert.equal(script.props.async, true);
+    assert.equal(script.props.defer, true);
+    assert.equal(script.props.noModule, true);
+    assert.equal(link.props.disabled, true);
+    assert.equal(meta.props.itemScope, true);
+  }
+});
+
+test("custom head tag boundaries respect both quote styles and preserve following tags", () => {
+  const jsx = headHtmlToJsx(`<meta name="description" content="Revenue > cost"><link title='A > B < C' href="/x?a=1&amp;b=2"><base href="/" target="_blank"><title data-label="x > y">A &amp; B</title>`, "");
+  const [meta, link, base, title] = evaluate(`export default function Head() { return (<>${jsx}</>); }`).props.children;
+  assert.deepEqual(meta.props, { name: "description", content: "Revenue > cost" });
+  assert.deepEqual(link.props, { title: "A > B < C", href: "/x?a=1&b=2" });
+  assert.deepEqual(base.props, { href: "/", target: "_blank" });
+  assert.equal(title.props["data-label"], "x > y");
+  assert.equal(title.props.dangerouslySetInnerHTML.__html, "A &amp; B");
+});
+
+test("custom head raw contents and comments remain separate from quoted opening tags", () => {
+  const scriptBody = 'if (3 > 2) { window.value = "<meta name=wrong>"; }';
+  const styleBody = '.a > .b::before { content: "<tag>"; }';
+  const noScriptBody = '<link rel="stylesheet" href="/fallback.css">';
+  const jsx = headHtmlToJsx(`<!-- <meta name="commented"> --><script data-label="a > b">${scriptBody}</script><style title='c > d'>${styleBody}</style><noscript data-label="e > f">${noScriptBody}</noscript>`, "  ");
+  const [script, style, noScript] = evaluate(`export default function Head() { return (<>${jsx}</>); }`).props.children;
+  assert.equal(script.props.dangerouslySetInnerHTML.__html, scriptBody);
+  assert.equal(style.props.dangerouslySetInnerHTML.__html, styleBody);
+  assert.equal(noScript.props.dangerouslySetInnerHTML.__html, noScriptBody);
+  assert.doesNotMatch(jsx, /commented/);
+});
+
+test("custom head empty string attributes stay strings and data or aria values are not booleans", () => {
+  const jsx = headHtmlToJsx(`<meta name content data-flag="false" aria-hidden="true"><script src defer data-async="false"></script>`, "");
+  const [meta, script] = evaluate(`export default function Head() { return (<>${jsx}</>); }`).props.children;
+  assert.deepEqual(meta.props, { name: "", content: "", "data-flag": "false", "aria-hidden": "true" });
+  assert.equal(script.props.src, "");
+  assert.equal(script.props.defer, true);
+  assert.equal(script.props["data-async"], "false");
+});
+
 test("custom head attributes unknown to React's types do not break the typecheck", () => {
   const jsx = headHtmlToJsx(`<script language="javascript" src="/x.js?a=1&amp;b=2" style="color:red" data-id="7"></script><meta name="a" content="b" scheme="&#x41;&amp;">`, "");
   assert.doesNotMatch(jsx, / language=| scheme=|style/);
@@ -93,7 +136,7 @@ test("generated components avoid framework names and the exported project typech
   // 計測タグなどのスクリプトを含むページ専用コード（ページ遷移で開いたときにも動かす）
   doc.pages.p.customEndHtml = `<script src="/tag.js"></script><script>window.tagged = true;</script>`;
   doc.pages.p.customTopHtml = `<script type="application/ld+json">{"@type":"Thing"}</script>`;
-  doc.customHeadHtml = `<script language="javascript" src="/x.js"></script><meta name="a" content="b" scheme="c" style="x">`;
+  doc.customHeadHtml = `<script language="javascript" async="" defer="defer" nomodule="false" src="/x.js" data-label="a > b"></script><meta name="a" content="Revenue > cost" scheme="c" style="x"><link disabled="" rel="stylesheet" href="/style.css"><meta itemscope="" name content>`;
   const { files } = generateProject(doc);
   assert.match(files["app/page.tsx"], /<PageHtml html=\{"<script src=/);
   // 取得先のホストが {変数} で決まるときも、接続時に宛先を確かめる fetchPublic で取得する
