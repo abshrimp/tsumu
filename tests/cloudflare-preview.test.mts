@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { parseJsonc } from "../scripts/cloudflare.mjs";
 import { test } from "node:test";
 import { isolatedPreviewConfig, previewArguments, assertSupportedOpenNextConfig, previewLaunch } from "../scripts/cloudflare-preview.mjs";
 
@@ -106,4 +108,25 @@ test("Preview pins the inspected top-level Worker even when dotenv or CI names a
   assert.doesNotThrow(() => previewLaunch("config.jsonc", "tsumu", [], { WRANGLER_CI_OVERRIDE_NAME: "tsumu" }));
   assert.throws(() => previewLaunch("config.jsonc", "tsumu", [], { WRANGLER_CI_OVERRIDE_NAME: "other" }), /different Worker/);
   assert.throws(() => previewLaunch("config.jsonc", undefined, []), /explicit Worker name/);
+});
+
+
+test("repository review configuration is anonymous and browser-only without changing production", () => {
+  const config = parseJsonc(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
+  const before = structuredClone(config);
+  const preview = isolatedPreviewConfig(config, {
+    D1_DATABASE_ID: "production-db", KV_NAMESPACE_ID: "production-kv",
+    PREVIEW_D1_DATABASE_ID: "unexpected-test-db", PREVIEW_KV_NAMESPACE_ID: "unexpected-test-kv",
+    AUTH_SECRET: "must-not-be-copied", GITHUB_TOKEN: "must-not-be-copied",
+  });
+  assert.deepEqual(config, before);
+  assert.deepEqual(preview.previews, {
+    vars: { ALLOW_ANONYMOUS: "true" }, d1_databases: [], kv_namespaces: [],
+    durable_objects: { bindings: [{ name: "COLLAB_ROOM", class_name: "CollaborationRoom" }] },
+  });
+  assert.equal(config.vars?.ALLOW_ANONYMOUS, undefined);
+  assert.deepEqual(preview.d1_databases, config.d1_databases);
+  assert.deepEqual(preview.kv_namespaces, config.kv_namespaces);
+  assert.deepEqual(preview.durable_objects, config.durable_objects);
+  assert.deepEqual(preview.migrations, config.migrations);
 });
