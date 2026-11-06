@@ -30,6 +30,13 @@
 			"database_id": "<YOUR_D1_DATABASE_ID>"
 		}
 	],
+	// Hosted review builds are public demos: no production database, asset storage or secrets.
+	// These settings apply only to Worker Previews, not production or local preview.
+	"previews": {
+		"vars": { "ALLOW_ANONYMOUS": "true" },
+		"d1_databases": [],
+		"kv_namespaces": []
+	},
 	"durable_objects": {
 		"bindings": [
 			{

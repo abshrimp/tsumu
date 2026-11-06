@@ -171,6 +171,10 @@ To deploy on every push with Cloudflare Workers Builds, connect the repository a
 
 The editor exports a Durable Object, so legacy `opennextjs-cloudflare upload` / `wrangler versions upload` Version URLs cannot preview it. Existing Workers Builds projects need a one-time, **irreversible** switch to Worker Previews. Do not just enable a Version URL. See [isolated hosted previews](docs/worker-previews.md) for setup, separate storage, authentication, and verification. `npm run preview` remains local-only; `npm run preview:deploy` creates a hosted Preview.
 
+Hosted review builds from this repository are **public, anonymous demos**. The checked-in `previews` configuration explicitly has no D1/KV and only `ALLOW_ANONYMOUS=true`; the helper adds the Preview's own DO. It does not copy production secrets. Site documents and images stay in the browser for that Preview origin, so use disposable test data. A build variable alone does not set the runtime anonymous mode. Private `WRANGLER_CONFIG` / `wrangler.local.jsonc` overrides must explicitly preserve the same isolation.
+
+The repository change does not perform the Dashboard switch. Before switching, verify the current production deployment and existing Previews, prepare a Preview Base with no production bindings/secrets, and inspect the complete commands. Keep the production command unchanged. After switching, use the helper as the Preview command and test a branch that contains it; older PR branches need the setup changes too. Check the actual URL in the Cloudflare build output / GitHub PR integration, open it, create a disposable local site, and reload it. Do not treat a green build or guessed Version URL as proof of a working Preview. [Full checklist](docs/worker-previews.md#workers-builds-cutover-checklist).
+
 At build time the script writes a deploy config (`wrangler.generated.jsonc`) from `wrangler.jsonc`, filling in the IDs from the build variables and dropping bindings that have none, so the IDs never have to be committed.
 
 ### Node.js
@@ -249,7 +253,7 @@ After the first publish, connect the site's repository to a host.
 |---|---|---|
 | **Vercel** | Import the repository. No configuration needed | Every non-production branch gets a preview URL |
 | **Netlify** | Import the repository | Enable branch deploys |
-| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | Non-production branch deploy command: `npx opennextjs-cloudflare upload` (enable preview URLs) |
+| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | Configure [Worker Previews](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/) separately for the generated project. Its Preview command must invoke `wrangler preview` with that project's own isolated bindings; the editor helper does not configure other repositories. |
 | **Node.js** | `npm install && npm run build && npm start` | Build the test branch separately |
 
 ### Data refresh interval and Cloudflare
