@@ -14,9 +14,10 @@ async function openSite(page: Page, seed = true) {
   expect(created.ok()).toBeTruthy();
   const { site } = await created.json();
   const doc = commentTargetDoc();
+  const threadId = `discussion_${site.id}`;
   await saveDoc(page, site.id, doc);
   if (seed) expect((await page.request.post(`/api/comments?site=${site.id}`, { data: {
-    action: "create", id: "discussion", pageId: "p", nodeId: "target", x: .5, y: .5, bp: "base", body: "Original discussion",
+    action: "create", id: threadId, pageId: "p", nodeId: "target", x: .5, y: .5, bp: "base", body: "Original discussion",
   } })).ok()).toBeTruthy();
   const connected = page.waitForRequest(request => request.url().includes("/api/collab/events"));
   await page.goto(`/sites/${site.id}`);
@@ -24,7 +25,7 @@ async function openSite(page: Page, seed = true) {
   await connected;
   await page.getByRole("button", { name: "コメント", exact: true }).click();
   if (seed) await page.locator(".cm-item").filter({ hasText: "Original discussion" }).click();
-  return { site: site.id as string, doc };
+  return { site: site.id as string, doc, threadId };
 }
 const detail = (page: Page) => page.getByRole("region", { name: "コメントの詳細", exact: true });
 
@@ -63,7 +64,7 @@ for (const target of ["element", "page"] as const) test(`remote ${target} deleti
 });
 
 test("local subtree delete, undo and redo retain comment identity and do not mistake responsive hiding for deletion", async ({ page }) => {
-  const { site, doc } = await openSite(page);
+  const { site, doc, threadId } = await openSite(page);
   await page.locator('[data-tutorial="layers-panel"] .layer-name').filter({ hasText: /^Comment parent$/ }).click();
   await page.keyboard.press("Delete");
   await expect(detail(page).getByRole("status")).toContainText("対象の要素は削除されています");
@@ -85,7 +86,7 @@ test("local subtree delete, undo and redo retain comment identity and do not mis
   await expect(page.locator(".cm-item")).toHaveCount(0);
   await expect(detail(page).locator(".cm-msg-body")).toHaveText("Original discussion");
   const stored = await (await page.request.get(`/api/comments?site=${site}`)).json();
-  expect(stored.threads).toHaveLength(1); expect(stored.threads[0].id).toBe("discussion");
+  expect(stored.threads).toHaveLength(1); expect(stored.threads[0].id).toBe(threadId);
   expect(stored.threads[0].resolvedAt).toBeNull();
 });
 

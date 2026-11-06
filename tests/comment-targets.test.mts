@@ -73,3 +73,20 @@ test("new comment draft retains its original target after the page disappears", 
   state().deletePage("p");
   assert.deepEqual(useComments.getState().draft, { ...anchor, x: .5, y: .5, bp: "base" });
 });
+
+test("restoring an element never rolls back replies or resolution made while it was deleted", () => {
+  setup(); state().deleteNode("parent");
+  let threads = applyCommentAction(useComments.getState().threads, { action: "reply", threadId: "thread", id: "later", body: "Reply after deletion" }, null, 2);
+  threads = applyCommentAction(threads, { action: "resolve", threadId: "thread", resolved: true }, null, 3);
+  useComments.setState({ threads }); state().undo();
+  assert.equal(commentTargetResolver(state().doc, "base")(anchor).kind, "node");
+  assert.deepEqual(useComments.getState().threads, threads);
+  assert.equal(threads[0].messages.length, 2); assert.equal(threads[0].resolvedAt, 3);
+});
+
+test("a replacement with the same name does not inherit the deleted element's discussion", () => {
+  const doc = commentTargetDoc();
+  doc.nodes.replacement = { ...doc.nodes.target, id: "replacement" };
+  delete doc.nodes.target; doc.nodes.parent.children = ["replacement"];
+  assert.equal(commentTargetResolver(doc, "base")(anchor).kind, "deleted-node");
+});
