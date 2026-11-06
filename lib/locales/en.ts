@@ -2245,6 +2245,8 @@ const en: Dict = {
     "Redirect page \"{name}\" has no redirect target or external site set",
   "リダイレクトページ「{name}」の301転送先は / から始まるサイト内URLか http(s) URLにしてください":
     "The 301 target of redirect page \"{name}\" must be a site URL starting with / or an http(s) URL",
+  "リダイレクトページ「{name}」の301転送先「{destination}」は転送元と同じURLに一致します（転送が繰り返されるため、別のパスに変更してください）":
+    "The 301 target \"{destination}\" of redirect page \"{name}\" matches its own source URL, causing a redirect loop. Change it to a different path.",
   "リダイレクトページ「{name}」の表示する外部サイトは http(s):// から始まるURLにしてください":
     "The external site of redirect page \"{name}\" must be a URL starting with http(s)://",
   "「{name}」のスクリプトで、配列の要素を探す項目が選ばれていません":
