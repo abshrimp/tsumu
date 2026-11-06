@@ -31,6 +31,7 @@
     "build": "next build",
     "start": "next start",
     "preview": "npm run build:worker && node scripts/cloudflare.mjs preview",
+    "preview:deploy": "npm run build:worker && node scripts/cloudflare-preview.mjs",
     "deploy": "npm run build:worker && node scripts/cloudflare.mjs deploy",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.mts",
