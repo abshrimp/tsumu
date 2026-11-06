@@ -82,6 +82,14 @@ textarea {
   min-height: 0;
 }
 
+.local-save-notice {
+  flex: none;
+  padding: 8px 16px;
+  color: var(--warn);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ============ ヘッダー / フッター ============ */
 
 .hdr {

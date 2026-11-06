@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
+import { emptyDest } from "../lib/site";
+import JSZip from "jszip";
 import type { SiteDoc } from "../lib/types";
 
 const status = (page: Page) => page.locator('[data-tutorial="save-status"]');
@@ -170,5 +172,115 @@ test("reconnecting after both saves fail can save to the server without hiding t
   const server = await (await page.request.get(`/api/doc?site=${id}`)).json();
   expect(server.exists).toBe(true);
   expect(Object.values(server.doc.nodes).some((n: any) => n.name === "ヒーロー")).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+const warnsOnUnload = (page: Page) => page.evaluate(() => {
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  return event.defaultPrevented;
+});
+
+test("Home deletion invalidates an already saved local editor, preserving its draft, undo, copy and ZIP export", async ({ page: home, context }) => {
+  const site = { ...emptyDest(), id: "local-autosave-deletion", name: "Local autosave deletion", createdAt: 1, updatedAt: 1 };
+  const marker = `tsumu-site-deleted-v1:${site.id}`;
+  await context.route("**/api/**", route => {
+    const path = new URL(route.request().url()).pathname;
+    if (/^\/api\/(sites(?:\/.*)?|doc|comments|collab\/.*)$/.test(path)) return route.fulfill({ status: 503, json: {} });
+    return route.continue();
+  });
+  await context.addInitScript(() => {
+    localStorage.setItem("tsumu-help-seen-v1", "1");
+    localStorage.setItem("tsumu-lang", "ja");
+  });
+  await home.goto("/");
+  const doc = createInitialDoc(); doc.siteName = site.name;
+  await home.evaluate(({ site, doc }) => {
+    localStorage.setItem("tsumu-sites-v1", JSON.stringify([site]));
+    localStorage.setItem(`tsumu-doc-v1:${site.id}`, JSON.stringify(doc));
+  }, { site, doc });
+  await home.reload();
+  await expect(home.locator(".home-card-name")).toHaveText(site.name);
+  const editor = await context.newPage();
+  const errors: string[] = [];
+  editor.on("pageerror", error => errors.push(error.message));
+  await editor.goto(`/sites/${site.id}`);
+  await expect(status(editor)).toContainText(localSaved);
+  expect(await warnsOnUnload(editor)).toBe(false);
+  await editor.evaluate(() => { (window as any).savedCanvas = document.querySelector('[data-tutorial="canvas"]'); });
+  // Unsubmitted text must not disappear when the surrounding site's saved status changes.
+  await editor.getByRole("button", { name: "コメント", exact: true }).click();
+  await editor.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
+  const draft = editor.getByRole("region", { name: "コメントの詳細", exact: true }).getByPlaceholder("コメントを書く", { exact: true });
+  await draft.fill("Keep this unsent draft");
+  await home.getByRole("button", { name: "サイトの操作", exact: true }).click();
+  await home.getByRole("menuitem", { name: "削除", exact: true }).click();
+  await home.locator(".dialog-input").fill(site.name);
+  await home.getByRole("dialog").getByRole("button", { name: "削除", exact: true }).click();
+  await expect(home.locator(".home-card")).toHaveCount(0);
+  // No new document edit or manual refresh: the real cross-tab storage event invalidates saved.
+  await expect(status(editor)).toHaveText("このブラウザの保存先は削除済み");
+  await expect(editor.locator(".local-save-notice")).toContainText("コピーするかZIPに書き出してください");
+  await expect(draft).toHaveValue("Keep this unsent draft");
+  expect(await warnsOnUnload(editor)).toBe(true);
+  expect(await editor.evaluate(() => (window as any).savedCanvas === document.querySelector('[data-tutorial="canvas"]'))).toBe(true);
+  await expect(editor).toHaveURL(new RegExp(`/sites/${site.id}$`));
+  expect(await stored(editor, site.id)).toBeNull();
+  await editor.getByRole("button", { name: "コメント", exact: true }).click();
+  await pauseClock(editor);
+  await deleteHero(editor);
+  await editor.clock.runFor(600);
+  await expect(status(editor)).toHaveText("このブラウザの保存先は削除済み");
+  await editor.keyboard.press("ControlOrMeta+z");
+  await expect(canvas(editor).getByText("見出しをここに", { exact: false }).first()).toBeVisible();
+  await editor.keyboard.press("ControlOrMeta+Shift+z");
+  await expect(canvas(editor).getByText("見出しをここに", { exact: false })).toHaveCount(0);
+  await editor.keyboard.press("ControlOrMeta+z");
+  await editor.locator('[data-tutorial="layers-panel"]').getByText("ヒーロー", { exact: true }).click();
+  await editor.keyboard.press("ControlOrMeta+c");
+  expect(await editor.evaluate(() => JSON.parse(localStorage.getItem("tsumu-clipboard-v1")!).nodes.some((node: any) => node.name === "ヒーロー"))).toBe(true);
+  await editor.clock.runFor(600);
+  expect(await stored(editor, site.id)).toBeNull();
+  await editor.locator('[data-tutorial="menu"]').click();
+  await editor.getByText("zipでエクスポート", { exact: true }).click();
+  const downloading = editor.waitForEvent("download");
+  await editor.getByRole("button", { name: "zipをダウンロード", exact: true }).click();
+  const stream = await (await downloading).createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(chunk as Buffer);
+  const zip = await JSZip.loadAsync(Buffer.concat(chunks));
+  const pageFile = Object.keys(zip.files).find(name => name.endsWith("app/page.tsx"))!;
+  expect(await zip.file(pageFile)!.async("string")).toContain("見出しをここに");
+  expect(await stored(editor, site.id)).toBeNull();
+  expect(await editor.evaluate(key => localStorage.getItem(key), marker)).toBe("1");
+  expect(errors).toEqual([]);
+});
+
+test("deleting only the browser copy leaves an authoritative server site's saving and unload behavior intact", async ({ page, context }) => {
+  const { id, errors } = await prepare(page, { blocked: false, remote: createInitialDoc() });
+  await page.goto(`/sites/${id}`);
+  await expect(status(page)).toContainText("サーバー保存済み");
+  await expect.poll(() => stored(page, id)).not.toBeNull();
+  const other = await context.newPage();
+  await other.goto("/");
+  // The server record remains valid. This marker concerns only this browser's old copy.
+  await other.evaluate(id => {
+    localStorage.setItem(`tsumu-site-deleted-v1:${id}`, "1");
+    localStorage.removeItem(`tsumu-doc-v1:${id}`);
+  }, id);
+  await status(page).hover();
+  await expect(page.getByRole("tooltip")).toContainText("このブラウザの保存先は削除されています");
+  await expect(status(page)).toContainText("サーバー保存済み");
+  await expect(page.locator(".local-save-notice")).toHaveCount(0);
+  expect(await warnsOnUnload(page)).toBe(false);
+  await deleteHero(page);
+  await expect(status(page)).toContainText("サーバー保存済み");
+  await expect.poll(async () => {
+    const snapshot = await (await page.request.get(`/api/doc?site=${id}`)).json();
+    return Object.values(snapshot.doc.nodes).some((node: any) => node.name === "ヒーロー");
+  }).toBe(false);
+  expect(await stored(page, id)).toBeNull();
+  expect(await warnsOnUnload(page)).toBe(false);
+  expect(await page.evaluate(id => localStorage.getItem(`tsumu-site-deleted-v1:${id}`), id)).toBe("1");
   expect(errors).toEqual([]);
 });
