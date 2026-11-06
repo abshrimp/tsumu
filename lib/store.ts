@@ -29,6 +29,7 @@ import { refreshClonedIds } from "./cloneIds";
 import { tr } from "./i18n";
 import { readLocalStorage } from "./local-storage";
 import { DOC_STORAGE_KEY, siteKey, touchLocalSite } from "./site";
+import { localSaveBlock, type LocalSaveResult } from "./local-save";
 import {
   buildClipPayload,
   mergeClipDeps,
@@ -1848,16 +1849,26 @@ if (typeof window !== "undefined") {
 }
 
 /** ドキュメントの自動保存（Editorコンポーネントから購読） */
-export function persistDoc(doc: SiteDoc) {
+export function persistDoc(doc: SiteDoc): LocalSaveResult {
   try {
+    let blocked = localSaveBlock();
+    if (blocked) return blocked;
     const json = JSON.stringify(doc);
-    if (window.localStorage.getItem(STORAGE_KEY) === json) return true;
-    window.localStorage.setItem(STORAGE_KEY, json);
-    // 開いただけでは変わらず、中身が変わったときだけホームの「最終編集」を進める
-    touchLocalSite();
+    const unchanged = window.localStorage.getItem(STORAGE_KEY) === json;
+    // 読み込み中の削除も確認し、同一内容の早期成功・直後の再保存を防ぐ。
+    blocked = localSaveBlock();
+    if (blocked) return blocked;
+    if (!unchanged) {
+      window.localStorage.setItem(STORAGE_KEY, json);
+      blocked = localSaveBlock();
+      if (blocked) return blocked;
+      // 開いただけでは変わらず、中身が変わったときだけホームの「最終編集」を進める。
+      touchLocalSite();
+    }
+    // localStorage はトランザクションではない。重なった削除を成功とせず、
+    // さらに後の削除は storage イベントで通知する。文書・削除記録は消さない。
+    return localSaveBlock() ?? "saved";
   } catch {
-    // 容量超過などは呼び出し元に知らせ、保存済みと表示しない。
-    return false;
+    return "error";
   }
-  return true;
 }
