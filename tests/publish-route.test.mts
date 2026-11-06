@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { test } from "node:test";
+import * as preconditions from "../lib/publish-preconditions";
 import * as helpers from "../lib/publish-files";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
@@ -34,6 +35,8 @@ function fixture(truncated?: boolean) {
     return NextResponse.json({});
   };
   const injected = {
+    matchesPublishTarget: preconditions.matchesPublishTarget,
+    publishConflictMessage: preconditions.publishConflictMessage,
     GENERATED_MANIFEST_PATH: helpers.GENERATED_MANIFEST_PATH,
     ASSET_MANIFEST_PATH: helpers.ASSET_MANIFEST_PATH,
     isSafeCommitPath: helpers.isSafeCommitPath,
@@ -57,7 +60,7 @@ function fixture(truncated?: boolean) {
     .replace(/^export /gm, "");
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected)) as (req: Request) => Promise<Response>;
   const send = (body: object) => post(new Request("https://example.com/api/publish", {
-    method: "POST", body: JSON.stringify({ ...body, site: "site", target: "production" }),
+    method: "POST", body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", ...body, site: "site", target: "production" }),
   }));
   return { entries, trees, writes, refUpdates, send, get recorded() { return recorded; } };
 }
@@ -128,5 +131,5 @@ test("a complete tree still publishes with editor priority", async () => {
   const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, keptPaths: ["script.sh"] });
   assert.equal(response.status, 200);
   assert.equal(f.recorded, true);
-  assert.deepEqual(f.refUpdates, [{ sha: "new-commit", force: true }]);
+  assert.deepEqual(f.refUpdates, [{ sha: "new-commit", force: false }]);
 });
