@@ -680,6 +680,35 @@ export function dataVarNames(doc: SiteDoc, pageId: string, exceptStepId?: string
   return out;
 }
 
+/** 候補用の文書。編集中のブロック自身を実行・列挙せず、同名の別producerやフォームは保つ。 */
+export function scriptInputDoc(doc: SiteDoc, stepId?: string): SiteDoc {
+  if (!stepId) return doc;
+  const steps = (list: ScriptStep[]): ScriptStep[] => {
+    let changed = false;
+    const next = list.flatMap((step): ScriptStep[] => {
+      if (step.id === stepId) { changed = true; return []; }
+      if (step.kind === "if" || step.kind === "repeat" || step.kind === "for-each") {
+        const then = steps(step.then);
+        const other = step.kind === "if" && step.else ? steps(step.else) : undefined;
+        if (then !== step.then || (step.kind === "if" && other !== step.else)) {
+          changed = true;
+          return [{ ...step, then, ...(step.kind === "if" ? { else: other } : {}) }];
+        }
+      }
+      return [step];
+    });
+    return changed ? next : list;
+  };
+  const scripts = <T extends { steps: ScriptStep[] }>(list: T[] | undefined) =>
+    list?.map((script) => { const next = steps(script.steps); return next === script.steps ? script : { ...script, steps: next }; });
+  return { ...doc,
+    pages: Object.fromEntries(Object.entries(doc.pages).map(([id, page]) => [id, { ...page,
+      pageScripts: scripts(page.pageScripts), scripts: scripts(page.scripts),
+    }])),
+    nodes: Object.fromEntries(Object.entries(doc.nodes).map(([id, node]) => [id, { ...node, scripts: scripts(node.scripts) }])),
+  };
+}
+
 /** 名前の候補を、ページ内の既存の変数と重ならないようにする */
 export function uniqueVarName(doc: SiteDoc, pageId: string, base: string, exceptStepId?: string): string {
   const used = dataVarNames(doc, pageId, exceptStepId);

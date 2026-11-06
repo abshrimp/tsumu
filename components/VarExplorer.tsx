@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight, Search, SlidersHorizontal, X } from "lucide-react";
 import { useEditor } from "../lib/store";
-import { fieldLabel, looksLikeImage, varGroupsAt, type VarGroup } from "../lib/data";
+import { fieldLabel, looksLikeImage, scriptInputDoc, varGroupsAt, type VarGroup } from "../lib/data";
 import { readableValue } from "./DataView";
 import { tr } from "../lib/i18n";
 import { canPickVariable, localVariableNames, type ValueContext } from "../lib/variable-choice";
@@ -144,6 +144,7 @@ export default function VarExplorer({
   nodeId,
   extraNames,
   localNames,
+  sourceStepId,
   context = "value",
   onPick,
   onClose,
@@ -154,6 +155,7 @@ export default function VarExplorer({
   extraNames?: string[];
   /** 型が不明でも、くり返し中の名前をページの見本より優先する。 */
   localNames?: string[];
+  sourceStepId?: string;
   context?: ValueContext;
   onPick: (name: string) => void;
   onClose: () => void;
@@ -167,7 +169,7 @@ export default function VarExplorer({
   const allGroups = useMemo(() => {
     const local = localVariableNames(localKey ? localKey.split("\n") : []);
     const roots = new Set(local.map((name) => name.split(".")[0]));
-    const at = varGroupsAt(doc, activePageId, nodeId);
+    const at = varGroupsAt(scriptInputDoc(doc, sourceStepId), activePageId, nodeId);
     const itemRoots = new Set(at.filter((g) => g.key === "item").flatMap((g) => Object.keys(g.vars).map((name) => name.split(".")[0])));
     const gs = at.map((g) => ({
       ...g, vars: Object.fromEntries(Object.entries(g.vars).filter(([name]) => {
@@ -187,7 +189,7 @@ export default function VarExplorer({
       });
     }
     return gs;
-  }, [doc, activePageId, nodeId, extraKey, localKey]);
+  }, [doc, activePageId, nodeId, extraKey, localKey, sourceStepId]);
   const hasAdvanced = allGroups.some((g) => g.advanced);
   const groups = useMemo(() => allGroups.filter((g) => advanced || !g.advanced), [allGroups, advanced]);
   const [query, setQuery] = useState("");

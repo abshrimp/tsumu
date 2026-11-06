@@ -6,31 +6,39 @@ import { resolve } from "node:path";
 import { transformSync } from "esbuild";
 import * as React from "react";
 import { useEditor } from "../lib/store";
-import { applyPageScripts, pageScriptsOf } from "../lib/script";
+import { applyPageScripts, pageScriptsOf, walkSteps } from "../lib/script";
 import { mapStep, numberFilters } from "../components/script-editor/step-tree";
 import { previewDataVars, type FetchStep } from "../lib/data";
 import type { FetchOptions } from "../lib/fetch-request";
-import type { ScriptStep } from "../lib/types";
+import { lookupVar } from "../lib/vars";
+import { PAGE_TARGET, type ScriptStep, type SiteDoc } from "../lib/types";
+import { makeText, makeBox } from "../lib/presets";
+import * as scriptContexts from "../components/script-editor/context";
+const { ScriptNodeCtx, ScriptOwnerCtx, LoopCtx } = scriptContexts;
 import { fetchRefetchBundle, fetchRefetchDoc } from "./helpers/fetch-refetch";
 
 // 実ソースの FetchBody の入力確定と useRefetch を動かす。DOM の代わりにフックの状態を保持する。
-function mount() {
-  useEditor.getState().replaceDoc(fetchRefetchDoc());
+function mount(options: { doc?: SiteDoc; nodeId?: string; roots?: string[]; loops?: any[]; owner?: { scriptId: string; nodeId: string | null } } = {}) {
+  useEditor.getState().replaceDoc(options.doc ?? fetchRefetchDoc());
+  let nodeId = options.nodeId ?? "";
+  let loops = options.loops ?? [];
+  let scriptOwner = options.owner;
   const instance = () => ({ slots: [] as any[], pending: [] as (() => void)[] });
-  const root = instance();
+  let root = instance();
   const runner = instance();
   let current = root;
   let cursor = 0;
   let selected = "fetch";
+  const opened: any[] = [];
   const context = {
-    doc: useEditor.getState().doc, pageId: "p", renameVar() {}, openPeek() {},
+    doc: useEditor.getState().doc, pageId: "p", scriptRootIds: options.roots ?? [], readOnly: false, renameVar() {}, openPeek(...args: any[]) { opened.push(args); },
     updateStep(id: string, fn: (step: ScriptStep) => ScriptStep) {
       const scripts = numberFilters(mapStep(pageScriptsOf(useEditor.getState().doc, [], "p"), id, fn));
       useEditor.getState().updateDoc((doc) => applyPageScripts(doc, "p", [], scripts));
     },
   };
   const hooks = {
-    ...React, useContext: (ctx: any) => ctx._currentValue === null ? context : ctx._currentValue,
+    ...React, useContext: (ctx: any) => ctx === ScriptNodeCtx ? nodeId : ctx === ScriptOwnerCtx ? scriptOwner : ctx === LoopCtx ? loops : ctx._currentValue === null ? context : ctx._currentValue,
     useSyncExternalStore(_subscribe: unknown, getSnapshot: () => any) { return getSnapshot(); },
     useState(initial: any) {
       const index = cursor++;
@@ -60,10 +68,16 @@ function mount() {
   const source = transformSync(readFileSync("components/script-editor/fetch.tsx", "utf8"), {
     loader: "tsx", jsx: "automatic", format: "cjs",
   }).code;
-  new Function("require", "module", "exports", "fetch", source)(
-    (id: string) => id === "react" ? hooks : require(id), mod, mod.exports, fetch,
+  new Function("require", "module", "exports", "fetch", "document", source)(
+    (id: string) => id === "react" ? hooks : require(id), mod, mod.exports, fetch, { activeElement: null },
   );
-  const step = (id = "fetch") => useEditor.getState().doc.pages.p.pageScripts?.[0].steps.find((s) => s.id === id) as FetchStep | undefined;
+  const step = (id = "fetch") => {
+    const doc = useEditor.getState().doc;
+    const scripts = nodeId ? doc.nodes[nodeId]?.scripts ?? [] : scriptOwner?.nodeId === null ? doc.pages.p.scripts ?? [] : doc.pages.p.pageScripts ?? [];
+    let found: FetchStep | undefined;
+    for (const script of scripts) walkSteps(script.steps, (s) => { if (s.id === id && s.kind === "fetch") found = s; });
+    return found;
+  };
   const renderInstance = (owner: typeof root, draw: () => any) => {
     current = owner; cursor = 0; context.doc = useEditor.getState().doc;
     const view = draw(); owner.pending.splice(0).forEach((effect) => effect()); return view;
@@ -81,12 +95,32 @@ function mount() {
     (id: string) => id === "react" ? hooks : id === "./fetch" ? mod.exports : require(id), peek, peek.exports,
   );
   return {
-    requests, step, render,
+    requests, step, render, opened,
+    action: () => render()[1],
+    currentSample: () => mod.exports.hasCurrentSample(step()),
+    values: () => render().find((v: any) => v?.type?.name === "FetchValues")?.props.state,
+    compose(active: boolean) {
+      const view = renderInstance(root, () => mod.exports.FetchBody({ step: step(selected) }));
+      view.props[active ? "onCompositionStartCapture" : "onCompositionEndCapture"]();
+    },
+    dragRemount() {
+      unmount(root);
+      const source = step(); const savedScope = { nodeId, loops, scriptOwner };
+      context.readOnly = true; nodeId = ""; loops = []; scriptOwner = undefined;
+      const ghost = instance(); renderInstance(ghost, () => mod.exports.FetchBody({ step: source })); unmount(ghost);
+      context.readOnly = false; ({ nodeId, loops, scriptOwner } = savedScope);
+      root = instance(); render();
+    },
+    result(scope?: any) {
+      const owner = instance();
+      return () => renderInstance(owner, () => mod.exports.FetchResult({ step: step(),
+        scope: scope ?? opened.at(-1)?.[1] ?? { nodeId: "", localNames: [] }, onClose() {} }));
+    },
     run: (vars: Record<string, unknown> = {}) => hook().run(step(selected)!.url, step(selected), vars),
     unmount: () => { unmount(root); unmount(runner); },
     openTest(id = "fetch") {
       const owner = instance();
-      const draw = () => renderInstance(owner, () => mod.exports.useRefetch(step(id), true));
+      const draw = () => renderInstance(owner, () => mod.exports.useRefetch(step(id)));
       draw();
       return { run: () => draw().run(), close: () => unmount(owner), status: () => {
         const { busy, error } = draw(); return { busy, error };
@@ -162,7 +196,7 @@ test("latest failures keep the saved fallback and cannot be overwritten by an ol
   await mounted.finish(1, undefined, "新しい取得に失敗しました");
   await mounted.finish(0, old);
   assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
-  assert.equal(mounted.step()!.fetchedAt, 1);
+  assert.equal(mounted.step()!.fetchedAt, undefined);
   assert.deepEqual(mounted.status(), { busy: false, error: "新しい取得に失敗しました" });
 });
 
@@ -303,7 +337,7 @@ test("repeated clicks and reopening a pending test cannot duplicate a request", 
   assert.equal(second.status().busy, true);
   void second.run(); assert.equal(mounted.requests.length, 1);
   await mounted.finish(0, old);
-  assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }], "closing cancels saving, not the transmitted request");
+  assert.deepEqual(mounted.step()!.sample, old, "closing a view does not discard a document-owned request");
   assert.equal(second.status().busy, false);
   void second.run(); await mounted.finish(1, latest);
   assert.deepEqual(mounted.step()!.sample, latest);
@@ -375,4 +409,375 @@ test("the browser regression fixture bundles the real script editor", async () =
   const bundle = await fetchRefetchBundle();
   assert.match(bundle, /function ScriptEditorInner/);
   assert.match(bundle, /function FetchBody/);
+});
+
+
+test("one block action executes immediately, opens the result, then becomes view-only", async () => {
+  const mounted = mount();
+  assert.equal(mounted.action().props.children[1], "データを見る");
+  mounted.action().props.onClick();
+  assert.equal(mounted.requests.length, 0);
+  mounted.commitUrl("https://example.test/new");
+  assert.equal(mounted.action().props.children[1], "データ取得");
+  mounted.action().props.onClick();
+  assert.equal(mounted.requests.length, 1, "no confirmation step before sending");
+  assert.equal(mounted.opened.length, 2);
+  mounted.action().props.onClick();
+  assert.equal(mounted.requests.length, 1, "reopening a pending result does not send");
+  await mounted.finish(0, latest);
+  assert.equal(mounted.action().props.children[1], "データを見る");
+  mounted.action().props.onClick();
+  assert.equal(mounted.requests.length, 1);
+  const result = mounted.result();
+  const refresh = () => result().props.children[0].props.children[1];
+  assert.equal(mounted.requests.length, 1, "rendering the result is read-only");
+  refresh().props.onClick(); refresh().props.onClick();
+  assert.equal(mounted.requests.length, 2, "upper-right refresh sends directly, only once");
+  await mounted.finish(1, old);
+  assert.deepEqual(mounted.step()!.sample, old);
+});
+
+test("settings invalidate only the current-result marker across save/load and Undo", () => {
+  const mounted = mount();
+  mounted.setOptions({ method: "POST", body: '{"version":2}' });
+  assert.equal(mounted.currentSample(), false);
+  assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
+  assert.equal(mounted.step()!.fetchedAt, undefined);
+  useEditor.getState().replaceDoc(JSON.parse(JSON.stringify(useEditor.getState().doc)));
+  assert.equal(mounted.currentSample(), false);
+  assert.equal(mounted.action().props.children[1], "データ取得");
+  assert.equal(mounted.requests.length, 0);
+  const original = mount(); original.commitUrl("https://example.test/changed");
+  useEditor.getState().undo();
+  assert.equal(original.currentSample(), true);
+  original.commitUrl("https://example.test/initial");
+  assert.equal(original.currentSample(), true, "unchanged settings do not invalidate");
+});
+
+test("samples without a valid success timestamp remain fallback data, not a confirmed current result", () => {
+  for (const fetchedAt of [undefined, 0, -1, NaN]) {
+    const mounted = mount();
+    useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[0] as FetchStep).fetchedAt = fetchedAt; });
+    assert.equal(mounted.currentSample(), false);
+    assert.equal(mounted.action().props.children[1], "データ取得");
+    assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
+  }
+});
+
+test("inline runtime inputs enable the one send action and reach the result without saving", async () => {
+  const mounted = mount(); mounted.commitUrl("https://example.test/{missing}");
+  assert.equal(mounted.action().props.disabled, true);
+  mounted.values().setValue("missing", "001");
+  assert.equal(mounted.action().props.disabled, false);
+  mounted.action().props.onClick();
+  assert.equal(mounted.requests[0].input.url, "https://example.test/001");
+  const view = mounted.result()();
+  assert.equal(view.props.children[1].props.children[1].props.children, "https://example.test/001");
+  await mounted.finish(0, latest);
+  assert.equal(JSON.stringify(mounted.step()).includes("001"), false);
+});
+
+test("a failed direct request retains fallback, shares the modal error, and can be retried", async () => {
+  const mounted = mount(); mounted.commitUrl("https://example.test/failure");
+  mounted.action().props.onClick();
+  await mounted.finish(0, undefined, "失敗しました");
+  const result = mounted.result();
+  assert.equal(result().props.children.find((v: any) => v?.props?.role === "alert").props.children, "失敗しました");
+  assert.equal(mounted.currentSample(), false);
+  assert.equal(mounted.action().props.children[1], "データを見る");
+  mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1, "viewing a failed result never retries");
+  result().props.children[0].props.children[1].props.onClick(); await mounted.finish(1, latest);
+  assert.equal(mounted.currentSample(), true);
+});
+
+test("an action during IME composition never submits an uncommitted request", () => {
+  const mounted = mount(); mounted.commitUrl("https://example.test/new");
+  mounted.compose(true);
+  let prevented = false;
+  mounted.action().props.onPointerDown({ preventDefault() { prevented = true; } });
+  mounted.compose(false);
+  mounted.action().props.onClick();
+  assert.equal(prevented, true);
+  assert.equal(mounted.requests.length, 0);
+  assert.equal(mounted.opened.length, 0);
+});
+
+
+test("result refresh also refuses a partially composed test value", () => {
+  const mounted = mount(); const result = mounted.result();
+  result().props.onCompositionStartCapture();
+  let prevented = false;
+  result().props.children[0].props.children[1].props.onPointerDown({ preventDefault() { prevented = true; } });
+  result().props.onCompositionEndCapture();
+  result().props.children[0].props.children[1].props.onClick();
+  assert.equal(prevented, true);
+  assert.equal(mounted.requests.length, 0);
+});
+
+
+test("visual drag unmounts never abandon a transmitted POST or silently turn viewing into resending", async () => {
+  for (const error of [undefined, "POSTの取得に失敗しました"]) {
+    const mounted = mount(); mounted.setOptions({ method: "POST" });
+    mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
+    mounted.dragRemount(); assert.equal(mounted.action().props.children[1], "送信中…");
+    await mounted.finish(0, latest, error);
+    assert.deepEqual(mounted.step()!.sample, error ? [{ name: "Initial" }] : latest);
+    assert.equal(mounted.action().props.children[1], "データを見る");
+    mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
+    if (error) assert.equal(mounted.result()().props.children.find((v: any) => v?.props?.role === "alert").props.children, error);
+  }
+});
+
+test("identical page and step IDs in a replacement document cannot inherit pending writes, errors, or attempts", async () => {
+  for (const error of [undefined, "old document failed"]) {
+    const mounted = mount(); mounted.setOptions({ method: "POST" }); mounted.action().props.onClick();
+    const other = structuredClone(useEditor.getState().doc); other.siteName = "Different document";
+    useEditor.getState().replaceDoc(other);
+    assert.equal(mounted.status().busy, false);
+    assert.equal(mounted.action().props.children[1], "データ取得");
+    await mounted.finish(0, latest, error);
+    assert.deepEqual(useEditor.getState().doc, other);
+    assert.equal(mounted.status().error, null);
+    assert.equal(mounted.action().props.children[1], "データ取得");
+  }
+});
+
+test("restoring a backup with identical request IDs isolates late success, errors and attempts", async () => {
+  for (const error of [undefined, "old document failed"]) {
+    const mounted = mount(); mounted.setOptions({ method: "POST" });
+    mounted.action().props.onClick();
+    const restored = structuredClone(useEditor.getState().doc);
+    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).sample = [{ name: "Backup" }];
+    const session = useEditor.getState().documentSession;
+    useEditor.getState().restoreDoc(restored);
+    assert.equal(useEditor.getState().documentSession, session + 1);
+    assert.deepEqual(mounted.status(), { busy: false, error: null });
+    assert.equal(mounted.action().props.children[1], "データ取得");
+    const past = structuredClone(useEditor.getState().past);
+    await mounted.finish(0, latest, error);
+    assert.deepEqual(useEditor.getState().doc, restored);
+    assert.deepEqual(useEditor.getState().past, past);
+    assert.equal(mounted.cached(), undefined);
+    assert.deepEqual(mounted.status(), { busy: false, error: null });
+    assert.equal(mounted.action().props.children[1], "データ取得");
+    mounted.action().props.onClick();
+    assert.equal(mounted.requests.length, 2, "the restored document can explicitly send the same request");
+    await mounted.finish(1, latest);
+    assert.deepEqual(mounted.step()!.sample, latest);
+  }
+});
+
+test("restore clears completed attempts, errors and temporary inputs without changing the request", async () => {
+  const mounted = mount(); mounted.commitUrl("https://example.test/{missing}");
+  mounted.values().setValue("missing", "Before restore");
+  mounted.action().props.onClick(); await mounted.finish(0, undefined, "古い取得に失敗しました");
+  assert.equal(mounted.status().error, "古い取得に失敗しました");
+  const restored = structuredClone(useEditor.getState().doc); restored.siteName = "Backup";
+  useEditor.getState().restoreDoc(restored);
+  assert.deepEqual(mounted.values().values, {});
+  assert.deepEqual(mounted.status(), { busy: false, error: null });
+  assert.equal(mounted.action().props.children[1], "データ取得");
+  assert.equal(mounted.action().props.disabled, true);
+  assert.equal(mounted.requests.length, 1, "restore and viewing never send automatically");
+});
+
+test("Undo and Redo preserve restore history without reviving a pre-restore response or temporary inputs", async () => {
+  for (const error of [undefined, "old document failed"]) {
+    const mounted = mount();
+    const original = structuredClone(useEditor.getState().doc);
+    mounted.commitUrl("https://example.test/{missing}");
+    const before = structuredClone(useEditor.getState().doc);
+    mounted.values().setValue("missing", "Before restore"); mounted.action().props.onClick();
+    const restored = structuredClone(before);
+    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).sample = [{ name: "Backup" }];
+    useEditor.getState().restoreDoc(restored);
+    const session = useEditor.getState().documentSession;
+    useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc, before);
+    assert.equal(useEditor.getState().documentSession, session, "session identity is not part of undo history");
+    assert.deepEqual(mounted.values().values, {});
+    const past = structuredClone(useEditor.getState().past);
+    const future = structuredClone(useEditor.getState().future);
+    await mounted.finish(0, latest, error);
+    assert.deepEqual(useEditor.getState().doc, before);
+    assert.deepEqual(useEditor.getState().past, past);
+    assert.deepEqual(useEditor.getState().future, future);
+    assert.deepEqual(mounted.status(), { busy: false, error: null });
+    useEditor.getState().redo(); assert.deepEqual(useEditor.getState().doc, restored);
+    useEditor.getState().undo(); useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc, original, "edits before restore remain undoable");
+    useEditor.getState().redo(); useEditor.getState().redo();
+    assert.deepEqual(useEditor.getState().doc, restored);
+  }
+});
+
+test("an identical no-op restore preserves the session and a valid pending response", async () => {
+  const mounted = mount(); void mounted.run();
+  const before = useEditor.getState();
+  useEditor.getState().restoreDoc(structuredClone(before.doc));
+  assert.equal(useEditor.getState(), before);
+  await mounted.finish(0, latest);
+  assert.deepEqual(mounted.step()!.sample, latest);
+});
+
+test("deleting and undo-restoring a pending block rejects its late result but retains the fact it was sent", async () => {
+  const mounted = mount(); mounted.setOptions({ method: "POST" }); mounted.action().props.onClick();
+  useEditor.getState().updateDoc((doc) => { doc.pages.p.pageScripts![0].steps.shift(); });
+  useEditor.getState().undo(); const saved = structuredClone(useEditor.getState().doc);
+  await mounted.finish(0, latest);
+  assert.deepEqual(useEditor.getState().doc, saved);
+  assert.equal(mounted.action().props.children[1], "データを見る");
+  mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
+  assert.match(mounted.status().error!, /送信済み/);
+});
+
+test("modal runtime edits and result provenance persist across closing, reopening and block remount", async () => {
+  const mounted = mount(); mounted.commitUrl("https://example.test/{missing}");
+  mounted.values().setValue("missing", "A"); mounted.action().props.onClick(); await mounted.finish(0, { result: "A" });
+  const first = mounted.result();
+  const state = (view: any) => view.props.children.find((v: any) => v?.type?.name === "FetchValues").props.state;
+  state(first()).setValue("missing", "B");
+  assert.equal(first().props.children[1].props.children[1].props.children, "https://example.test/B");
+  const oldResult = first().props.children.at(-1).props.children[0];
+  first().props.children[0].props.children[1].props.onClick();
+  assert.equal(mounted.requests[1].input.url, "https://example.test/B"); await mounted.finish(1, { result: "B" });
+  mounted.action().props.onClick();
+  const reopened = mounted.result();
+  assert.equal(state(reopened()).values.missing, "B");
+  assert.ok(JSON.stringify(oldResult).includes("https://example.test/A"), "old result provenance does not follow the unsent draft");
+  assert.equal(reopened().props.children[1].props.children[1].props.children, "https://example.test/B");
+  assert.equal(reopened().props.children.at(-1).props.children[0], false, "the same destination is not repeated");
+  assert.deepEqual(mounted.step()!.sample, { result: "B" });
+  mounted.dragRemount(); mounted.action().props.onClick();
+  const afterDrag = mounted.result(); assert.equal(state(afterDrag()).values.missing, "B");
+  afterDrag().props.children[0].props.children[1].props.onClick();
+  assert.equal(mounted.requests[2].input.url, "https://example.test/B"); await mounted.finish(2, { result: "B" });
+  assert.equal(JSON.stringify(mounted.step()).includes('"missing":"B"'), false);
+});
+
+test("temporary values clear for request, scope and document changes", () => {
+  const mounted = mount(); mounted.commitUrl("https://example.test/{missing}");
+  mounted.values().setValue("missing", "A");
+  mounted.setOptions({ method: "POST" }); assert.deepEqual(mounted.values().values, {});
+  mounted.values().setValue("missing", "B");
+  const scoped = mounted.result({ nodeId: "", localNames: ["missing"] });
+  const state = scoped().props.children.find((v: any) => v?.type?.name === "FetchValues").props.state;
+  assert.deepEqual(state.values, {});
+  useEditor.getState().replaceDoc(structuredClone(useEditor.getState().doc));
+  assert.deepEqual(mounted.values().values, {});
+});
+
+
+function nodeFetchDoc(): SiteDoc {
+  const doc = fetchRefetchDoc();
+  const fetch = doc.pages.p.pageScripts![0].steps.shift()!;
+  doc.nodes.act = { ...makeText("Act"), id: "act", scripts: [{ id: "node-script", trigger: "click", pos: { x: 32, y: 32 }, steps: [fetch] }] };
+  doc.pages.p.children = ["act"];
+  return doc;
+}
+
+test("real duplicatePage cannot redirect a node fetch response into the copied page's identical step ID", async () => {
+  const mounted = mount({ doc: nodeFetchDoc(), nodeId: "act", owner: { nodeId: "act", scriptId: "node-script" } });
+  useEditor.getState().duplicatePage("p");
+  const copiedPage = useEditor.getState().activePageId;
+  const copiedNode = useEditor.getState().doc.pages[copiedPage].children[0];
+  const originalCopy = structuredClone(useEditor.getState().doc.nodes[copiedNode]);
+  assert.equal(originalCopy.scripts![0].steps[0].id, "fetch");
+  void mounted.run(); await mounted.finish(0, latest);
+  assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(useEditor.getState().doc.nodes[copiedNode], originalCopy);
+});
+
+test("same-page duplicateNode keeps response writes and caches on the actual authoring node", async () => {
+  const mounted = mount({ doc: nodeFetchDoc(), nodeId: "act", owner: { nodeId: "act", scriptId: "node-script" } });
+  useEditor.getState().duplicateNode("act");
+  const copyId = useEditor.getState().selection!;
+  const copy = structuredClone(useEditor.getState().doc.nodes[copyId]);
+  void mounted.run(); await mounted.finish(0, latest);
+  assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(useEditor.getState().doc.nodes[copyId], copy);
+});
+
+test("an explicit component root is writable, but an unrelated off-page node is not", async () => {
+  const doc = nodeFetchDoc(); doc.pages.p.children = [];
+  doc.nodes.component = { ...makeBox(), id: "component", children: ["act"] };
+  doc.components = { c: { id: "c", name: "Component", rootId: "component" } };
+  const mounted = mount({ doc, nodeId: "act", roots: ["component"], owner: { nodeId: "act", scriptId: "node-script" } });
+  void mounted.run(); await mounted.finish(0, latest); assert.deepEqual(mounted.step()!.sample, latest);
+  const outside = mount({ doc, nodeId: "act", owner: { nodeId: "act", scriptId: "node-script" } });
+  void outside.run(); assert.equal(outside.requests.length, 0);
+});
+
+test("refresh resolves the latest upstream sample while preserving the old result's actual destination", async () => {
+  const mounted = mount(); mounted.commitUrl("https://example.test/{other.0.name}");
+  mounted.action().props.onClick(); await mounted.finish(0, { answer: "first" });
+  useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[1] as FetchStep).sample = [{ name: "LATEST" }]; });
+  mounted.action().props.onClick(); const result = mounted.result();
+  assert.equal(result().props.children[1].props.children[1].props.children, "https://example.test/LATEST");
+  assert.ok(JSON.stringify(result().props.children.at(-1).props.children[0]).includes("https://example.test/Other"));
+  result().props.children[0].props.children[1].props.onClick();
+  assert.equal(mounted.requests[1].input.url, "https://example.test/LATEST"); await mounted.finish(1, { answer: "latest" });
+});
+
+for (const target of ["url", "body"] as const) {
+  for (const value of target === "url" ? ["LATEST", false, 0] : ["LATEST", null, false, 0]) {
+    test(`resolved ${target} input ${JSON.stringify(value)} replaces its previously missing temporary value`, async () => {
+      const mounted = mount();
+      const name = "other.0.newfield";
+      mounted.commitUrl(target === "url" ? `https://example.test/{${name}}` : "https://example.test/body");
+      if (target === "body") mounted.setOptions({ method: "POST", body: `{"value":{${name}}}` });
+      mounted.values().setValue(name, "TEMP");
+      mounted.action().props.onClick(); await mounted.finish(0, { answer: "temporary" });
+      assert.equal(target === "url" ? mounted.requests[0].input.url : JSON.parse(mounted.requests[0].input.body!).value,
+        target === "url" ? "https://example.test/TEMP" : "TEMP");
+      useEditor.getState().updateDoc((doc) => {
+        (doc.pages.p.pageScripts![0].steps[1] as FetchStep).sample = [{ name: "Other", newfield: value }];
+      });
+      mounted.action().props.onClick(); const result = mounted.result();
+      const state = result().props.children.find((v: any) => v?.type?.name === "FetchValues").props.state;
+      assert.deepEqual(state.inputs, [{ name, value, missing: false }]);
+      assert.equal(lookupVar(state.vars, name), value, "hidden temporary input must not override current data");
+      assert.equal(mounted.requests.length, 1, "upstream changes and reopening do not send");
+      if (target === "url") assert.equal(result().props.children[1].props.children[1].props.children, `https://example.test/${value}`);
+      result().props.children[0].props.children[1].props.onClick();
+      assert.equal(target === "url" ? mounted.requests[1].input.url : JSON.parse(mounted.requests[1].input.body!).value,
+        target === "url" ? `https://example.test/${value}` : value);
+      await mounted.finish(1, { answer: "current" });
+    });
+  }
+}
+
+test("a read-only standalone drag ghost cannot erase the real loop's temporary runtime inputs", () => {
+  const doc = fetchRefetchDoc(); (doc.pages.p.pageScripts![0].steps[0] as FetchStep).url = "https://example.test/{local}";
+  delete (doc.pages.p.pageScripts![0].steps[0] as FetchStep).fetchedAt;
+  const mounted = mount({ doc, loops: [{ array: "rows", fields: ["local"], samples: {} }] });
+  mounted.values().setValue("local", "LOCAL"); mounted.dragRemount();
+  assert.equal(mounted.values().values.local, "LOCAL");
+  assert.equal(mounted.action().props.disabled, false);
+});
+
+
+test("same-page nodes with copied identical script and step IDs remain separate request owners", async () => {
+  const mounted = mount({ doc: nodeFetchDoc(), nodeId: "act", owner: { nodeId: "act", scriptId: "node-script" } });
+  useEditor.getState().duplicatePage("p");
+  const copiedPage = useEditor.getState().activePageId;
+  const copiedNode = useEditor.getState().doc.pages[copiedPage].children[0];
+  useEditor.getState().updateDoc((doc) => { doc.pages[copiedPage].children = []; doc.pages.p.children.push(copiedNode); });
+  const copy = structuredClone(useEditor.getState().doc.nodes[copiedNode]);
+  assert.equal(copy.scripts![0].id, "node-script"); assert.equal(copy.scripts![0].steps[0].id, "fetch");
+  void mounted.run(); await mounted.finish(0, latest);
+  assert.deepEqual(mounted.step()!.sample, latest); assert.deepEqual(useEditor.getState().doc.nodes[copiedNode], copy);
+});
+
+test("page-load and unconnected page scripts with identical step IDs are distinct owners", async () => {
+  for (const nodeId of [PAGE_TARGET, null]) {
+    const doc = fetchRefetchDoc();
+    const loose = structuredClone(doc.pages.p.pageScripts![0]); loose.id = "loose";
+    (loose.steps[0] as FetchStep).sample = [{ name: "Loose" }]; doc.pages.p.scripts = [loose];
+    const mounted = mount({ doc, owner: { nodeId, scriptId: nodeId === null ? "loose" : "script" } });
+    void mounted.run(); await mounted.finish(0, latest);
+    const actual = useEditor.getState().doc.pages.p;
+    assert.deepEqual((actual.pageScripts![0].steps[0] as FetchStep).sample, nodeId === null ? [{ name: "Initial" }] : latest);
+    assert.deepEqual((actual.scripts![0].steps[0] as FetchStep).sample, nodeId === null ? latest : [{ name: "Loose" }]);
+  }
 });

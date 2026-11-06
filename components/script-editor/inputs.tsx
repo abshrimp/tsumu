@@ -5,17 +5,16 @@
  */
 
 import { isEnterKey } from "../../lib/keys";
-import { Fragment, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useContext, useMemo, useState, type ReactNode } from "react";
 import { VarInput } from "../controls";
-import { dataVarNames, fieldLabel, ITEM_VALUE, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
+import { dataVarNames, fieldLabel, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
 import { lookupVar, splitRegexVars } from "../../lib/vars";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
-import VarExplorer from "../VarExplorer";
 import { readableValue } from "../DataView";
 import { fieldVarName, isRadioItem } from "../../lib/fields";
 import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
 import { tr, trNodes } from "../../lib/i18n";
-import { Ctx, LoopCtx, ScriptNodeCtx } from "./context";
+import { Ctx, LoopCtx, ScriptNodeCtx, ScriptStepCtx } from "./context";
 import { TargetSelect } from "./targets";
 
 export function TextIn({
@@ -91,7 +90,9 @@ function VarTextIn({
   itemSamples?: Record<string, string>;
   valueContext?: ValueContext;
 }) {
-  const { doc, pageId, readOnly } = useContext(Ctx);
+  const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
+  const stepId = useContext(ScriptStepCtx);
+  const doc = useMemo(() => scriptInputDoc(savedDoc, stepId), [savedDoc, stepId]);
   const nodeId = useContext(ScriptNodeCtx);
   const loops = useContext(LoopCtx);
   // 候補: 配列の要素の項目 + くり返し中の要素の項目 + その位置で使える変数 + スクリプトで作る変数
@@ -129,6 +130,7 @@ function VarTextIn({
       names={names}
       samples={samples}
       nodeId={nodeId}
+      sourceStepId={stepId}
       extraNames={extra}
       localNames={localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])])}
       valueContext={valueContext}
@@ -145,42 +147,25 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
   value: string; onCommit: (v: string) => void; itemFields?: string[];
   itemSamples?: Record<string, string>; width?: number;
 }) {
-  const { doc, pageId, readOnly } = useContext(Ctx);
+  const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
+  const stepId = useContext(ScriptStepCtx);
+  const doc = useMemo(() => scriptInputDoc(savedDoc, stepId), [savedDoc, stepId]);
   const nodeId = useContext(ScriptNodeCtx);
   const loops = useContext(LoopCtx);
   const source = singleValueReference(value);
-  // 入力表示を切り替えるだけでは、保存済みの式を書き換えない。
-  const [view, setView] = useState<{ value: string; mode: "data" | "text" } | null>(null);
-  const mode = view?.value === value ? view.mode : source ? "data" : "text";
-  const [open, setOpen] = useState(false);
   const local = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
   const sample = source ? lookupVar(variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), local), source) : undefined;
-  const editor = useRef<HTMLSpanElement>(null);
   const kind = sample === undefined ? tr("実行時") : sample === null ? "null" : Array.isArray(sample) ? tr("一覧") :
     typeof sample === "object" ? tr("まとまり") : typeof sample === "boolean" ? tr("はい／いいえ") :
     typeof sample === "number" ? tr("数値") : tr("文字");
   if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
-  return <span className="se-value-choice" ref={editor}>
-    <select className="se-in se-value-mode" aria-label={tr("値の入力方法")} value={mode}
-      onChange={(e) => {
-        // フォーカス移動を伴わない変更でも、消える入力欄の未確定文字を残す。
-        const draft = mode === "text" ? editor.current?.querySelector("input")?.value ?? value : value;
-        if (draft !== value) onCommit(draft);
-        setView({ value: draft, mode: e.target.value as "data" | "text" });
-      }}>
-      <option value="text">{tr("文字を組み立てる")}</option>
-      <option value="data">{tr("データを渡す")}</option>
-    </select>
-    {mode === "data" ? <button type="button" className="se-value-source" onClick={() => setOpen(true)}>
-      <span>{source ? fieldLabel(source) : tr("データを選ぶ")}</span>
-      {source && <span className="vx-kind">{kind}</span>}
-      {source && sample != null && typeof sample !== "object" && <span className="se-value-sample">{readableValue(sample)}</span>}
-    </button> : <TextIn value={value} onCommit={onCommit} vars valueContext="text" width={width}
-      itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("値 / {変数}")} />}
-    {open && <VarExplorer nodeId={nodeId} context="value" localNames={local}
-      extraNames={[...dataVarNames(doc, pageId)].filter((n) => n !== ITEM_VALUE && n !== "slug")}
-      onPick={(name) => { onCommit(`{${name}}`); setView(null); setOpen(false); }}
-      onClose={() => setOpen(false)} />}
+  return <span className="se-value-choice">
+    <TextIn value={value} onCommit={onCommit} vars valueContext="value" width={width}
+      itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("値 / {変数}")} />
+    {source && <span className="se-value-info">
+      <span className="vx-kind">{kind}</span>
+      {sample != null && typeof sample !== "object" && <span className="se-value-sample">{readableValue(sample)}</span>}
+    </span>}
   </span>;
 }
 

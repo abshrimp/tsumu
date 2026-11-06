@@ -82,6 +82,14 @@ textarea {
   min-height: 0;
 }
 
+.local-save-notice {
+  flex: none;
+  padding: 8px 16px;
+  color: var(--warn);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ============ ヘッダー / フッター ============ */
 
 .hdr {
@@ -12274,11 +12282,7 @@ a.btn {
 
 /* スクリプトの値選択。既存のテンプレートを変えず、参照を直接選ぶ。 */
 .se-value-choice { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; flex-wrap: wrap; }
-.se-value-mode { max-width: 155px; }
-.se-value-source { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg); color: inherit; padding: 4px 8px; border-radius: 6px; cursor: pointer; max-width: 290px; }
-.se-value-source > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.se-value-info { display: inline-flex; align-items: center; gap: 6px; }
 .se-value-sample { opacity: .65; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.se-pick-data { display: inline-flex; align-items: center; justify-content: center; background: transparent; color: inherit; border: 0; padding: 4px; border-radius: 4px; cursor: pointer; vertical-align: middle; }
-.se-pick-data:hover, .se-value-source:hover { background: var(--field-hover); }
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
 .se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }

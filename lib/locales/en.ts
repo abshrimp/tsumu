@@ -4,6 +4,12 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "次の送信先": "Next request destination",
+  "最後に送信": "Last request",
+  "この結果の送信先": "Result request destination",
+  "送信済みですが、文書の変更により結果を反映していません": "The request was sent, but its result was not applied because the document changed",
+  "データ取得": "Fetch data",
+  "現在の設定で未確認の見本です": "This sample has not been verified with the current settings.",
   "くり返し中の項目": "Current loop item",
   "データを選ぶ": "Choose data",
   "（保存された見本を表示しています。一覧は先頭20件まで）": " (Showing the saved sample, with up to 20 items per list.)",
@@ -416,6 +422,14 @@ const en: Dict = {
     "Saving to server…",
   "サーバー保存済み":
     "Saved to server",
+  "このブラウザの保存先は削除済み":
+    "Browser save location deleted",
+  "サーバーに保存できません（ブラウザの保存先は削除済み）":
+    "Couldn't save to server (browser save location deleted)",
+  "このブラウザの保存先は削除されています。画面の内容は残っています。必要な内容は、閉じる前にコピーするかZIPに書き出してください。":
+    "The save location in this browser was deleted. Your content is still on screen. Copy what you need or export a ZIP before closing.",
+  "このブラウザの保存先は削除されています。サーバーへの保存状態は上の表示を確認してください。":
+    "The save location in this browser was deleted. Check the status above for server saving.",
   "このブラウザにのみ保存":
     "Saved in this browser only",
   "このブラウザへ保存中…":
@@ -2257,6 +2271,8 @@ const en: Dict = {
     "Redirect page \"{name}\" has no redirect target or external site set",
   "リダイレクトページ「{name}」の301転送先は / から始まるサイト内URLか http(s) URLにしてください":
     "The 301 target of redirect page \"{name}\" must be a site URL starting with / or an http(s) URL",
+  "リダイレクトページ「{name}」の301転送先「{destination}」は転送元と同じURLに一致します（転送が繰り返されるため、別のパスに変更してください）":
+    "The 301 target \"{destination}\" of redirect page \"{name}\" matches its own source URL, causing a redirect loop. Change it to a different path.",
   "リダイレクトページ「{name}」の表示する外部サイトは http(s):// から始まるURLにしてください":
     "The external site of redirect page \"{name}\" must be a URL starting with http(s)://",
   "「{name}」のスクリプトで、配列の要素を探す項目が選ばれていません":

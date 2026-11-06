@@ -334,6 +334,9 @@ function ScriptEditorInner({
   const [peekScope, setPeekScope] = useState<FetchPreviewScope>({ nodeId: "", localNames: [] });
   const peekStep = useMemo(() => {
     for (const sc of scripts) {
+      const owner = peekScope.owner;
+      if (owner && (sc.id !== owner.scriptId || sc.nodeId !== owner.nodeId)) continue;
+      if (!owner && peekScope.nodeId && sc.nodeId !== peekScope.nodeId) continue;
       let found: FetchStep | null = null;
       walkSteps(sc.steps, (step) => {
         if (step.kind === "fetch" && step.id === peekId) found = step;
@@ -341,7 +344,7 @@ function ScriptEditorInner({
       if (found) return found;
     }
     return null;
-  }, [scripts, peekId]);
+  }, [scripts, peekId, peekScope]);
 
   const commit = (next: PageScript[]) => {
     updateDoc((d) => applyPageScripts(d, activePageId, nodeIds, numberFilters(next)));
@@ -478,6 +481,7 @@ function ScriptEditorInner({
   const ctx: EdCtx = {
     doc,
     pageId: activePageId,
+    scriptRootIds: extraRootsKey ? extraRootsKey.split(",") : [],
     targets,
     tree,
     scripts,

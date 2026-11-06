@@ -16,7 +16,6 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
   await page.getByRole('button', { name: 'Edit action', exact: true }).click();
   const block = page.locator('.se-ws [data-sel-key="step:field"]');
   await expect(block.locator('select').first()).toHaveValue('targets');
-  await block.getByRole('combobox', { name: '値の入力方法', exact: true }).selectOption('text');
   const input = block.locator('.se-value-choice input');
   await input.fill('{name}|{counter}|{entry}|\\{name}'); await input.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();

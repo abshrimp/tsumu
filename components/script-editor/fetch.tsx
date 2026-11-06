@@ -7,8 +7,8 @@
 import { isEnterKey } from "../../lib/keys";
 import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Play, Plus, SlidersHorizontal, Table2, X } from "lucide-react";
-import { readableValue } from "../DataView";
+import { ChevronLeft, ChevronRight, Play, Plus, RefreshCw, SlidersHorizontal, Table2, X } from "lucide-react";
+import { JsonPeek, readableValue } from "../DataView";
 import { anchoredMenuPos } from "../controls";
 import {
   cleanVarName,
@@ -31,10 +31,12 @@ import {
   sendsBody,
   type FetchOptions,
 } from "../../lib/fetch-request";
-import { type FetchHeader, type FetchMethod, type ScriptStep } from "../../lib/types";
+import { type FetchHeader, type FetchMethod, type ScriptStep, type SiteDoc, PAGE_TARGET } from "../../lib/types";
+import { useEditor } from "../../lib/store";
+import { pageNodeIds, walkSteps } from "../../lib/script";
 import { userMessage } from "../../lib/errors";
 import { getLang, tr, trc } from "../../lib/i18n";
-import { Ctx, LoopCtx, ScriptNodeCtx, type FetchPreviewScope } from "./context";
+import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, type FetchPreviewScope } from "./context";
 import { Phrase, TextIn } from "./inputs";
 
 /** テスト実行で明示的に送る。未解決の値を空文字や仮の slug に置き換えない。 */
@@ -55,13 +57,31 @@ export async function fetchWhole(url: string, options: FetchOptions = {}, vars: 
 
 /** 「データを見る」で取得した全件（取得ブロックの設定ごと。エディタを開いている間だけ覚えておく） */
 export const wholeCache = new Map<string, unknown>();
-export const wholeKey = (st: FetchStep) => JSON.stringify([st.id, st.url, st.method, st.headers, st.body, st.fetchedAt]);
+const sourceKey = (scope?: FetchPreviewScope) => scope?.owner ?? { nodeId: scope?.nodeId ?? "" };
+export const wholeKey = (st: FetchStep, pageId = useEditor.getState().activePageId, session = useEditor.getState().documentSession, scope?: FetchPreviewScope) =>
+  JSON.stringify([session, pageId, sourceKey(scope), st.id, st.url, st.method, st.headers, st.body, st.fetchedAt]);
+const ownerKey = (stepId: string, pageId: string, scope?: FetchPreviewScope) => JSON.stringify([useEditor.getState().documentSession, pageId, sourceKey(scope), stepId]);
 
 /** 見本を取得したリクエストと、保存先の現在の設定を比べる（見本の更新時刻は除く） */
-const requestKey = (url: string, options: FetchOptions) =>
+export const requestKey = (url: string, options: FetchOptions) =>
   JSON.stringify([url.trim(), options.method ?? "GET", options.headers ?? [], options.body ?? ""]);
 export const fetchTestKey = (step: FetchStep, scope: FetchPreviewScope) =>
-  JSON.stringify([requestKey(step.url, step), scope]);
+  JSON.stringify([requestKey(step.url, step), scope.nodeId, scope.localNames]);
+
+/** 時刻のある見本だけが現在の設定で確認済み。未確認の見本もフォールバックには残す。 */
+export const hasCurrentSample = (step: FetchStep) => step.sample !== undefined &&
+  typeof step.fetchedAt === "number" && Number.isFinite(step.fetchedAt) && step.fetchedAt > 0;
+
+/** 設定変更は取得済みの印だけを外し、見本のフォールバックは保持する。 */
+export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?: string }, pageId = useEditor.getState().activePageId, scope?: FetchPreviewScope): FetchStep {
+  const next = { ...step, ...patch };
+  if (requestKey(step.url, step) !== requestKey(next.url, next)) {
+    delete next.fetchedAt;
+    const owner = ownerKey(step.id, pageId, scope);
+    attemptedRequests.delete(owner); requestErrors.delete(owner); submittedRequests.delete(owner); temporaryValues.delete(owner);
+  }
+  return next;
+}
 
 /** 葉のパスだけでなく、空のまとまり・一覧を含むローカルな名前全体を保つ。 */
 export function fetchPreviewScope(nodeId: string, loops: readonly { fields: string[]; roots?: string[] }[]): FetchPreviewScope {
@@ -71,6 +91,13 @@ export function fetchPreviewScope(nodeId: string, loops: readonly { fields: stri
 /** 画面を閉じても、送信済みの同じ要求を重ねて送らない。別設定の応答は最新だけを採用する。 */
 const activeRefetches = new Map<string, symbol>();
 const pendingRefetches = new Map<string, Map<string, symbol>>();
+const attemptedRequests = new Map<string, string>();
+const requestErrors = new Map<string, { key: string; message: string }>();
+const submittedRequests = new Map<string, { key: string; method: string; url: string }>();
+const resultRequests = new Map<string, { method: string; url: string; fetchedAt: number }>();
+interface TemporaryValues { key: string; values: Record<string, string> }
+const temporaryValues = new Map<string, TemporaryValues>();
+const EMPTY_VALUES: Record<string, string> = {};
 const requestListeners = new Set<() => void>();
 const subscribeRequests = (listener: () => void) => {
   requestListeners.add(listener);
@@ -78,130 +105,202 @@ const subscribeRequests = (listener: () => void) => {
 };
 const notifyRequests = () => requestListeners.forEach((listener) => listener());
 
-/** 「取得する」ブロックの見本を取り直す（成功するとブロックに保存する） */
-export function useRefetch(step: FetchStep, cancelOnUnmount = false) {
-  const { updateStep } = useContext(Ctx);
-  const [error, setError] = useState<{ key: string; message: string } | null>(null);
-  const request = useRef<symbol | null>(null);
-  useEffect(() => {
-    if (cancelOnUnmount) return () => {
-      if (activeRefetches.get(step.id) === request.current) activeRefetches.delete(step.id);
-      request.current = null;
-      // 送信は取り消せない。応答が返るまで pending は残し、開き直した画面でも重複を防ぐ。
-    };
-  }, [cancelOnUnmount, step.id]);
+/** 実文書から探す。ドラッグ表示の一時的な除外は含まれない。 */
+function currentFetch(doc: SiteDoc, pageId: string, id: string, scope: FetchPreviewScope, roots: string[]): FetchStep | undefined {
+  const page = doc.pages[pageId];
+  if (!page) return undefined;
+  const nodeId = scope.owner?.nodeId ?? (scope.owner ? null : scope.nodeId);
+  const eligible = pageNodeIds(doc, pageId, roots);
+  const scripts = nodeId && nodeId !== PAGE_TARGET
+    ? eligible.includes(nodeId) ? doc.nodes[nodeId]?.scripts ?? [] : []
+    : scope.owner ? nodeId === PAGE_TARGET ? page.pageScripts ?? [] : page.scripts ?? []
+      : [...(page.pageScripts ?? []), ...(page.scripts ?? [])];
+  const matches: FetchStep[] = [];
+  for (const script of scripts) {
+    if (scope.owner && script.id !== scope.owner.scriptId) continue;
+    walkSteps(script.steps, (step) => { if (step.id === id && step.kind === "fetch") matches.push(step); });
+  }
+  // 同じ所有範囲にも壊れた重複IDがあれば、別ブロックを推測で更新しない。
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+/** 送信の所有者は文書セッション。ブロック・小窓のmount状態には依存しない。 */
+export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
+  const { pageId, scriptRootIds = [] } = useContext(Ctx);
+  const nodeId = useContext(ScriptNodeCtx);
+  const scriptOwner = useContext(ScriptOwnerCtx);
+  const scope = suppliedScope ?? { nodeId, localNames: [], ...(scriptOwner ? { owner: scriptOwner } : {}) };
+  const session = useEditor.getState().documentSession;
+  const owner = ownerKey(step.id, pageId, scope);
+  const error = useSyncExternalStore(subscribeRequests, () => requestErrors.get(owner), () => undefined);
+  const submitted = useSyncExternalStore(subscribeRequests, () => submittedRequests.get(owner), () => undefined);
+  const resultSource = useSyncExternalStore(subscribeRequests, () => resultRequests.get(owner), () => undefined);
   const currentKey = requestKey(step.url, step);
+  const attempted = useSyncExternalStore(subscribeRequests,
+    () => attemptedRequests.get(owner) === currentKey, () => false);
   const busy = useSyncExternalStore(subscribeRequests,
-    () => pendingRefetches.get(step.id)?.has(currentKey) ?? false, () => false);
+    () => pendingRefetches.get(owner)?.has(currentKey) ?? false, () => false);
   const run = async (url = step.url, options: FetchOptions = step, vars: Vars = {}) => {
     const key = requestKey(url, options);
-    if (!url.trim() || pendingRefetches.get(step.id)?.has(key)) return false;
+    const source = currentFetch(useEditor.getState().doc, pageId, step.id, scope, scriptRootIds);
+    if (!url.trim() || pendingRefetches.get(owner)?.has(key) || useEditor.getState().documentSession !== session ||
+      !source || requestKey(source.url, source) !== key) return false;
     const token = Symbol();
-    request.current = token;
-    activeRefetches.set(step.id, token);
-    const pending = pendingRefetches.get(step.id) ?? new Map<string, symbol>();
+    activeRefetches.set(owner, token);
+    const pending = pendingRefetches.get(owner) ?? new Map<string, symbol>();
     pending.set(key, token);
-    pendingRefetches.set(step.id, pending);
+    pendingRefetches.set(owner, pending);
+    attemptedRequests.set(owner, key);
+    submittedRequests.set(owner, { key, method: options.method ?? "GET", url: interpolateUrl(url, vars) });
+    requestErrors.delete(owner);
     notifyRequests();
-    const isCurrent = () => request.current === token && activeRefetches.get(step.id) === token;
-    setError(null);
+    let valid = !!currentFetch(useEditor.getState().doc, pageId, step.id, scope, scriptRootIds);
+    const unsubscribe = useEditor.subscribe((state) => {
+      if (state.documentSession !== session || !currentFetch(state.doc, pageId, step.id, scope, scriptRootIds)) valid = false;
+    });
+    const isCurrent = () => valid && useEditor.getState().documentSession === session && activeRefetches.get(owner) === token;
     try {
       const whole = await fetchWhole(url.trim(), options, vars);
       const { sample, totals } = makeSample(whole);
-      // 後から始めた取得の結果・エラーを、古い応答で戻さない。
       if (!isCurrent()) return false;
-      updateStep(step.id, (s) => {
-        // Undo や別の場所での設定変更にも、取得元の違う見本を保存しない。
-        if (s.kind !== "fetch" || requestKey(s.url, s) !== key) return s;
-        const next = { ...s, sample, sampleTotals: totals, fetchedAt: Math.max(Date.now(), (s.fetchedAt ?? 0) + 1) };
-        wholeCache.set(wholeKey(next), whole);
-        return next;
+      let saved = false;
+      useEditor.getState().updateDoc((doc) => {
+        const current = currentFetch(doc, pageId, step.id, scope, scriptRootIds);
+        if (!isCurrent() || !current || requestKey(current.url, current) !== key) return;
+        Object.assign(current, { sample, sampleTotals: totals, fetchedAt: Math.max(Date.now(), (current.fetchedAt ?? 0) + 1) });
+        wholeCache.set(wholeKey(current, pageId, session, scope), whole);
+        resultRequests.set(owner, { method: options.method ?? "GET", url: interpolateUrl(url, vars), fetchedAt: current.fetchedAt! });
+        saved = true;
       });
-      return true;
+      return saved;
     } catch (e) {
       if (!isCurrent()) return false;
       const msg = userMessage(e, tr("読み込めませんでした"));
-      setError({ key, message: msg.includes(tr("JSONとして読み取れませんでした"))
+      requestErrors.set(owner, { key, message: msg.includes(tr("JSONとして読み取れませんでした"))
         ? tr("データを読み取れませんでした。WebページではなくJSONを返すURLか確認してください") : msg });
       return false;
     } finally {
+      unsubscribe();
+      if (!valid && useEditor.getState().documentSession === session && activeRefetches.get(owner) === token) {
+        requestErrors.set(owner, { key, message: tr("送信済みですが、文書の変更により結果を反映していません") });
+      }
       if (pending.get(key) === token) pending.delete(key);
-      if (!pending.size) pendingRefetches.delete(step.id);
-      if (activeRefetches.get(step.id) === token) activeRefetches.delete(step.id);
+      if (!pending.size) pendingRefetches.delete(owner);
+      if (activeRefetches.get(owner) === token) activeRefetches.delete(owner);
       notifyRequests();
     }
   };
-  return { busy, error: error?.key === currentKey ? error.message : null, run };
+  return { busy, attempted, resultSource: resultSource?.fetchedAt === step.fetchedAt ? resultSource : undefined, submitted: submitted?.key === currentKey ? submitted : undefined,
+    error: error?.key === currentKey ? error.message : null, run };
 }
 
-/** 設定と送信を分けたテスト画面。入力値は文書に保存しない。 */
-export function FetchTest({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
-  const { doc, pageId } = useContext(Ctx);
-  const { busy, error, run } = useRefetch(step, true);
-  const [testValues, setTestValues] = useState<Record<string, string>>({});
-  const [done, setDone] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const [samples] = useState<Vars>(() => {
-    // ローカルな親の名前も覆い、同名のページのまとまりや dotted key を送らない。
-    return variableChoiceSamples(varGroupsAt(doc, pageId, scope.nodeId), scope.localNames);
-  });
+/** 一時入力と送信に使う見本を、文書・ブロック・リクエスト・文脈ごとに共有する。 */
+function useFetchValues(step: FetchStep, scope: FetchPreviewScope) {
+  const { doc, pageId, readOnly } = useContext(Ctx);
+  const owner = ownerKey(step.id, pageId, scope);
+  const key = fetchTestKey(step, scope);
+  const snapshot = useSyncExternalStore(subscribeRequests,
+    () => temporaryValues.get(owner)?.key === key ? temporaryValues.get(owner) : undefined, () => undefined);
   useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    dialogRef.current?.querySelector<HTMLElement>("input, button")?.focus();
-    return () => { if (previous?.isConnected) previous.focus(); };
-  }, []);
+    if (!readOnly && temporaryValues.has(owner) && temporaryValues.get(owner)?.key !== key) {
+      temporaryValues.delete(owner); notifyRequests();
+    }
+  }, [owner, key, readOnly]);
+  const values = snapshot?.values ?? EMPTY_VALUES;
+  const samples = variableChoiceSamples(varGroupsAt(doc, pageId, scope.nodeId), scope.localNames);
   const inputs = fetchPreviewInputs(step.url, step, samples);
-  const vars = { ...samples, ...testValues };
+  const vars: Vars = { ...samples };
+  // 一時入力は今も未解決の項目だけに使う。入力欄が消えた値は最新の見本に従う。
+  for (const input of inputs) {
+    if (input.missing && Object.hasOwn(values, input.name)) vars[input.name] = values[input.name];
+  }
   const missing = fetchPreviewInputs(step.url, step, vars).some((input) => input.missing);
   const invalid = sendsBody(step.method) && bodyJsonError(step.body);
+  return { inputs, values, samples, vars, missing, invalid,
+    prepare: () => vars,
+    setValue: (name: string, value: string) => {
+      if (readOnly) return;
+      temporaryValues.set(owner, { key, values: { ...values, [name]: value } }); notifyRequests();
+    } };
+}
+
+function FetchValues({ state, busy }: { state: ReturnType<typeof useFetchValues>; busy: boolean }) {
+  const { inputs, values, setValue } = state;
+  return <>
+    {inputs.filter((input) => input.missing).map((input) => <label key={input.name} className="se-fetch-test-value">
+      <code>{`{${input.name}}`}</code>
+      <input className="se-in" aria-label={tr("{name} のテスト用の値", { name: input.name })}
+        placeholder={tr("テスト用の値")} disabled={busy} value={values[input.name] ?? ""}
+        onChange={(e) => setValue(input.name, e.target.value)} />
+      {!Object.hasOwn(values, input.name) && <button type="button" className="se-mini se-mini-text"
+        onClick={() => setValue(input.name, "")}>{tr("空の値を使う")}</button>}
+    </label>)}
+    {inputs.some((input) => input.missing) && <p className="hint">{tr("テスト用の値は保存されません")}</p>}
+    {state.invalid && <p className="se-badge is-warn">{tr("JSONとして読み取れません")}</p>}
+  </>;
+}
+
+/** 開くだけでは送らない。右上の更新ボタンだけが明示的な送信操作。 */
+export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
+  const { busy, error, submitted, resultSource, run } = useRefetch(step, scope);
+  const state = useFetchValues(step, scope);
+  const composing = useRef(false);
+  const blockedClick = useRef(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLElement>("input, button:not(:disabled)")?.focus();
+    return () => { if (previous?.isConnected) previous.focus(); };
+  }, []);
+  const key = wholeKey(step, useContext(Ctx).pageId, undefined, scope);
+  const full = wholeCache.has(key);
   const method = step.method ?? "GET";
-  return createPortal(
-    <div className="modal-backdrop" data-se-popover=""
-      onMouseDown={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
-      onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
-        if (e.key === "Escape") onClose();
-        if (e.key === "Tab") {
-          const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), summary") ?? []);
-          const first = controls[0], last = controls[controls.length - 1];
-          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
-          if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
-        }
-      }}>
-      <div ref={dialogRef} className="modal se-fetch-test" role="dialog" aria-modal="true" aria-label={tr("取得のテスト")}>
-        <div className="se-modal-head">
-          <h3>{tr("取得のテスト")}</h3>
-          <button type="button" className="se-close" onClick={onClose} aria-label={tr("閉じる")}><X size={16} /></button>
-        </div>
-        <div className="se-fetch-destination"><b>{method}</b><span>{missing ? step.url : interpolateUrl(step.url, vars)}</span></div>
-        {inputs.map((input) => <label key={input.name} className="se-fetch-test-value">
-          <code>{`{${input.name}}`}</code>
-          {input.missing ? <input className="se-in" aria-label={tr("{name} のテスト用の値", { name: input.name })}
-            placeholder={tr("テスト用の値")} disabled={busy} value={testValues[input.name] ?? ""}
-            onChange={(e) => { setTestValues((v) => ({ ...v, [input.name]: e.target.value })); setDone(false); }} />
-            : <span>{readableValue(input.value)}</span>}
-          {input.missing && !Object.hasOwn(testValues, input.name) && <button type="button" className="se-mini se-mini-text"
-            onClick={() => setTestValues((v) => ({ ...v, [input.name]: "" }))}>{tr("空の値を使う")}</button>}
-        </label>)}
-        {inputs.some((input) => input.missing) && <p className="hint">{tr("テスト用の値は保存されません")}</p>}
-        {!missing && (step.headers?.length || sendsBody(step.method) && step.body) ? <details className="se-fetch-payload">
-          <summary>{tr("送る内容")}</summary><pre>{JSON.stringify(fetchRequestOf(step, vars), null, 2)}</pre>
-        </details> : null}
-        {method !== "GET" && <p className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</p>}
-        {invalid && <p className="se-badge is-warn">{tr("JSONとして読み取れません")}</p>}
-        {error && <p className="se-badge is-warn" role="alert">{error}</p>}
-        {done && <p role="status">{tr("取得しました")}</p>}
-        <div className="se-fetch-test-actions">
-          <button type="button" className="btn" onClick={onClose}>{tr("閉じる")}</button>
-          <button type="button" className="btn btn-primary" disabled={busy || missing || invalid || !step.url.trim()}
-            onClick={async () => { setDone(false); if (await run(step.url, step, vars)) setDone(true); }}>
-            {busy ? tr("送信中…") : tr("{method}で送信", { method })}
-          </button>
-        </div>
-      </div>
-    </div>, document.body);
+  const destination = state.missing ? step.url : interpolateUrl(step.url, state.vars);
+  return <div ref={dialogRef} className="se-modal se-fetch-test" role="dialog" aria-modal="true"
+    aria-label={tr("取得したデータ")} data-se-popover=""
+    onCompositionStartCapture={() => { composing.current = true; }}
+    onCompositionEndCapture={() => { composing.current = false; }}
+    onKeyDown={(e) => {
+      e.stopPropagation();
+      if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+      if (e.key === "Escape") onClose();
+      if (e.key === "Tab") {
+        const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), summary") ?? []);
+        const first = controls[0], last = controls[controls.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
+    }}>
+    <div className="se-modal-head">
+      <h3>{tr("取得したデータ")}</h3>
+      <button type="button" className="se-close" aria-label={tr("取得し直す")}
+        title={`${method} ${destination}`} disabled={busy || state.missing || state.invalid || !step.url.trim()}
+        onPointerDown={(e) => {
+          blockedClick.current = composing.current;
+          if (blockedClick.current) e.preventDefault();
+        }}
+        onClick={() => {
+          if (composing.current || blockedClick.current) { blockedClick.current = false; return; }
+          void run(step.url, step, state.prepare());
+        }}><RefreshCw size={15} /></button>
+      <button type="button" className="se-close" onClick={onClose} aria-label={tr("閉じる")}><X size={16} /></button>
+    </div>
+    <div className="se-fetch-destination"><b>{method}</b><span>{destination}</span><small>{tr("次の送信先")}</small></div>
+    {submitted && (submitted.url !== destination || submitted.method !== method) && (!resultSource || submitted.url !== resultSource.url || submitted.method !== resultSource.method) && <p className="hint se-fetch-submitted">{tr("最後に送信")}: {submitted.method} {submitted.url}</p>}
+    <FetchValues state={state} busy={busy} />
+    {!state.missing && (step.headers?.length || sendsBody(step.method) && step.body) ? <details className="se-fetch-payload">
+      <summary>{tr("送る内容")}</summary><pre>{JSON.stringify(fetchRequestOf(step, state.vars), null, 2)}</pre>
+    </details> : null}
+    {method !== "GET" && <p className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</p>}
+    {busy && <p role="status">{tr("送信中…")}</p>}
+    {error && <p className="se-badge is-warn" role="alert">{error}</p>}
+    {step.sample !== undefined && <>
+      {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("この結果の送信先")}: {resultSource.method} {resultSource.url}</p>}
+      {!hasCurrentSample(step) && <p className="se-badge is-warn">{tr("現在の設定で未確認の見本です")}</p>}
+      {!full && <p className="hint">{tr("（保存された見本を表示しています。一覧は先頭20件まで）")}</p>}
+      <JsonPeek value={full ? wholeCache.get(key) : step.sample} />
+    </>}
+  </div>;
 }
 
 /** 取得ブロックの「リクエストの設定」（メソッド・ヘッダー・送る本文） */
@@ -294,17 +393,22 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
 /** 「［URL］のデータを取得して［名前］とする」 */
 export function FetchBody({ step }: { step: FetchStep }) {
   const { doc, pageId, updateStep, renameVar, openPeek } = useContext(Ctx);
-  const scope = fetchPreviewScope(useContext(ScriptNodeCtx), useContext(LoopCtx));
-  const { busy } = useRefetch(step);
-  const [testOpen, setTestOpen] = useState(false);
+  const scriptOwner = useContext(ScriptOwnerCtx);
+  const scope = { ...fetchPreviewScope(useContext(ScriptNodeCtx), useContext(LoopCtx)), ...(scriptOwner ? { owner: scriptOwner } : {}) };
+  const { busy, attempted, run } = useRefetch(step, scope);
+  const hasResult = hasCurrentSample(step) || attempted;
+  const values = useFetchValues(step, scope);
+  const composing = useRef(false);
+  const blockedClick = useRef(false);
   const customized = !!(step.method && step.method !== "GET") || !!step.headers?.length;
   const [open, setOpen] = useState(false);
   const setOptions = (patch: FetchOptions) => {
-    const next = { ...step, ...patch } as FetchStep;
-    updateStep(step.id, () => next);
+    updateStep(step.id, (s) => s.kind === "fetch" ? changeFetchRequest(s, patch, pageId, scope) : s);
   };
   return (
-    <>
+    <span className="se-fetch-controls" style={{ display: "contents" }}
+      onCompositionStartCapture={() => { composing.current = true; }}
+      onCompositionEndCapture={() => { composing.current = false; }}>
       <Phrase
         text="{url}のデータを取得して{as}とする"
         parts={{
@@ -316,7 +420,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
               width={240}
               onCommit={(v) => {
                 const url = v.trim();
-                updateStep(step.id, (s) => ({ ...s, url }) as ScriptStep);
+                updateStep(step.id, (s) => s.kind === "fetch" ? changeFetchRequest(s, { url }, pageId, scope) : s);
                 // 名前が空なら付けておく
                 if (url && !step.as) renameVar(step.id, "", uniqueVarName(doc, pageId, trc("変数名", "データ"), step.id));
               }}
@@ -325,19 +429,21 @@ export function FetchBody({ step }: { step: FetchStep }) {
           as: <VarNameIn stepId={step.id} value={step.as ?? ""} placeholder={tr("名前（例: 商品データ）")} />,
         }}
       />
-      <button type="button" className="se-mini se-mini-text" onClick={() => setTestOpen(true)} disabled={!step.url.trim()}>
-        <Play size={12} />{busy ? tr("送信中…") : tr("テスト実行…")}
+      <button type="button" className="se-mini se-mini-text"
+        title={`${step.method ?? "GET"} ${values.missing ? step.url : interpolateUrl(step.url, values.vars)}`}
+        disabled={!step.url.trim() || (!hasResult && !busy && (values.missing || values.invalid))}
+        onPointerDown={(e) => {
+          blockedClick.current = composing.current;
+          if (blockedClick.current) e.preventDefault();
+        }}
+        onClick={() => {
+          if (composing.current || blockedClick.current) { blockedClick.current = false; return; }
+          openPeek(step.id, scope);
+          if (!hasResult && !busy) void run(step.url, step, values.prepare());
+        }}>
+        {hasResult ? <Table2 size={12} /> : <Play size={12} />}
+        {busy ? tr("送信中…") : hasResult ? tr("データを見る") : tr("データ取得")}
       </button>
-      {step.sample !== undefined ? (
-        <button
-          type="button"
-          className="se-mini se-mini-text"
-          onClick={() => openPeek(step.id, scope)}
-        >
-          <Table2 size={12} />
-          {tr("データを見る")}
-        </button>
-      ) : null}
       <button
         type="button"
         className={`se-mini se-mini-text${open ? " is-on" : ""}`}
@@ -347,14 +453,16 @@ export function FetchBody({ step }: { step: FetchStep }) {
         <SlidersHorizontal size={12} />
         {customized ? tr("リクエストの設定（{method}）", { method: step.method ?? "GET" }) : tr("リクエストの設定")}
       </button>
-      {testOpen && <FetchTest key={fetchTestKey(step, scope)} step={step} scope={scope} onClose={() => setTestOpen(false)} />}
+      <span className="se-fetch-destination"><b>{step.method ?? "GET"}</b><span>{values.missing ? step.url : interpolateUrl(step.url, values.vars)}</span></span>
+      {!hasResult && <FetchValues state={values} busy={busy} />}
+      {step.method && step.method !== "GET" && <span className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</span>}
       {open && (
         <>
           <span className="se-br" />
           <FetchOptionsPanel step={step} onChange={setOptions} />
         </>
       )}
-    </>
+    </span>
   );
 }
 

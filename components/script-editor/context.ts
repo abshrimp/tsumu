@@ -15,11 +15,15 @@ import { type MenuTarget, type Target, type TreeRow } from "./targets";
 export interface FetchPreviewScope {
   nodeId: string;
   localNames: string[];
+  /** 実際にブロックを所有するスクリプト。変数の参照位置とは分ける。 */
+  owner?: { scriptId: string; nodeId: string | null };
 }
 
 export interface EdCtx {
   doc: SiteDoc;
   pageId: string;
+  /** ページ外でも明示的に編集中のコンポーネントroot。 */
+  scriptRootIds?: string[];
   targets: Target[];
   /** 要素選択で見せる、ページの要素の階層 */
   tree: TreeRow[];
@@ -57,6 +61,10 @@ export const Ctx = createContext<EdCtx>(null!);
 
 /** スクリプトがきっかけにしている要素（"" = ページ・未選択）。変数の候補をその位置で出す */
 export const ScriptNodeCtx = createContext<string>("");
+export const ScriptOwnerCtx = createContext<FetchPreviewScope["owner"]>(undefined);
+
+/** 入力候補から、自分がいま作ろうとしている出力だけを除く。 */
+export const ScriptStepCtx = createContext<string>("");
 
 /** 囲んでいる「要素ごとにくり返す」（内側が先頭）。中の入力で要素の項目を候補に出す */
 interface LoopInfo {

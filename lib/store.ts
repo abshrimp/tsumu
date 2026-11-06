@@ -29,6 +29,7 @@ import { refreshClonedIds } from "./cloneIds";
 import { tr } from "./i18n";
 import { readLocalStorage } from "./local-storage";
 import { DOC_STORAGE_KEY, siteKey, touchLocalSite } from "./site";
+import { localSaveBlock, type LocalSaveResult } from "./local-save";
 import {
   buildClipPayload,
   mergeClipDeps,
@@ -325,6 +326,8 @@ function loadActivePageId(doc: SiteDoc): string {
 
 export interface EditorStore {
   doc: SiteDoc;
+  /** 文書の読み替えで更新する非永続ID。非同期処理を別文書へ持ち越さない。 */
+  documentSession: number;
   past: SiteDoc[];
   future: SiteDoc[];
   /** Undo/Redo・文書の置き換えで進む。通常の編集・共同編集では変えない。 */
@@ -614,6 +617,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
   return {
     doc: initialDoc,
+    documentSession: 0,
     past: [],
     future: [],
     historyRevision: 0,
@@ -815,6 +819,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const currentPageId = get().activePageId;
       set({
         doc,
+        documentSession: get().documentSession + 1,
         past: [],
         future: [],
         historyRevision: get().historyRevision + 1,
@@ -839,6 +844,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       const selectedIds = validSelectedIds(doc, get().selectedIds);
       set({
         doc,
+        // 履歴は残しつつ、復元前の非同期処理や一時入力は引き継がない。
+        documentSession: get().documentSession + 1,
         historyRevision: get().historyRevision + 1,
         activePageId: doc.pages[get().activePageId] ? get().activePageId : doc.pageOrder[0],
         selection: validSelection(doc, get().selection) ?? selectedIds[selectedIds.length - 1] ?? null,
@@ -1779,6 +1786,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const doc = createInitialDoc();
       set({
         doc,
+        documentSession: get().documentSession + 1,
         historyRevision: get().historyRevision + 1,
         activePageId: doc.pageOrder[0],
         selection: null,
@@ -1848,16 +1856,26 @@ if (typeof window !== "undefined") {
 }
 
 /** ドキュメントの自動保存（Editorコンポーネントから購読） */
-export function persistDoc(doc: SiteDoc) {
+export function persistDoc(doc: SiteDoc): LocalSaveResult {
   try {
+    let blocked = localSaveBlock();
+    if (blocked) return blocked;
     const json = JSON.stringify(doc);
-    if (window.localStorage.getItem(STORAGE_KEY) === json) return true;
-    window.localStorage.setItem(STORAGE_KEY, json);
-    // 開いただけでは変わらず、中身が変わったときだけホームの「最終編集」を進める
-    touchLocalSite();
+    const unchanged = window.localStorage.getItem(STORAGE_KEY) === json;
+    // 読み込み中の削除も確認し、同一内容の早期成功・直後の再保存を防ぐ。
+    blocked = localSaveBlock();
+    if (blocked) return blocked;
+    if (!unchanged) {
+      window.localStorage.setItem(STORAGE_KEY, json);
+      blocked = localSaveBlock();
+      if (blocked) return blocked;
+      // 開いただけでは変わらず、中身が変わったときだけホームの「最終編集」を進める。
+      touchLocalSite();
+    }
+    // localStorage はトランザクションではない。重なった削除を成功とせず、
+    // さらに後の削除は storage イベントで通知する。文書・削除記録は消さない。
+    return localSaveBlock() ?? "saved";
   } catch {
-    // 容量超過などは呼び出し元に知らせ、保存済みと表示しない。
-    return false;
+    return "error";
   }
-  return true;
 }

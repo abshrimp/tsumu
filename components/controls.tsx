@@ -42,7 +42,7 @@ import {
 } from "../lib/vars";
 import { glyphs } from "./Glyph";
 import VarExplorer from "./VarExplorer";
-import type { ValueContext } from "../lib/variable-choice";
+import { singleValueReference, type ValueContext } from "../lib/variable-choice";
 import { tr } from "../lib/i18n";
 
 /** ブレークポイントの絵柄（幅から選ぶ） */
@@ -824,7 +824,9 @@ export function VarSuggestMenu({
   onPick,
   onExplore,
   menuRef,
+  exploreShortcut,
 }: {
+  exploreShortcut?: boolean;
   suggest: VarSuggest;
   samples?: Record<string, string>;
   onPick: (name: string) => void;
@@ -879,10 +881,8 @@ export function VarSuggestMenu({
             key={name}
             type="button"
             className={`dd-item${i === index ? " is-sel-key" : ""}`}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onPick(name);
-            }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onPick(name)}
           >
             <span className="var-chip">{mark(name)}</span>
             {samples?.[name] && <span className="var-comp-sample">{samples[name]}</span>}
@@ -893,10 +893,8 @@ export function VarSuggestMenu({
         <button
           type="button"
           className={`dd-item var-comp-explore${index === matches.length ? " is-sel-key" : ""}`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onExplore();
-          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onExplore}
         >
           <Search size={13} />
           <span>{tr("変数を探す…")}</span>
@@ -911,9 +909,9 @@ export function VarSuggestMenu({
         <span>
           <kbd>{query.mode === "word" ? "Tab" : "Enter"}</kbd> {tr("挿入")}
         </span>
-        <span>
-          <kbd>{glyphs(VAR_LIST_KBD)}</kbd> {tr("一覧")}
-        </span>
+        {exploreShortcut && <span>
+          <kbd>{glyphs(VAR_LIST_KBD)}</kbd> {tr("変数を探す")}
+        </span>}
       </div>
     </div>,
     document.body
@@ -932,6 +930,7 @@ export function VarInput({
   eager,
   extraNames,
   localNames,
+  sourceStepId,
   valueContext,
   className,
   style,
@@ -951,6 +950,7 @@ export function VarInput({
   /** 「変数を探す」に足す、見本の無い変数（スクリプトで作る変数など） */
   extraNames?: string[];
   localNames?: string[];
+  sourceStepId?: string;
   valueContext?: ValueContext;
   className?: string;
   style?: CSSProperties;
@@ -1001,20 +1001,26 @@ export function VarInput({
     el.setSelectionRange(caret, caret);
   };
 
+  const replacementRange = (el: HTMLInputElement) => {
+    const pos = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? pos;
+    const query = sug?.query ?? findVarQuery(el.value.slice(0, pos), names, false);
+    return valueContext === "value" && singleValueReference(el.value)
+      ? { start: 0, end: el.value.length }
+      : pos !== end ? { start: pos, end }
+      : { start: query ? Math.min(query.start, pos) : pos, end: query ? varQueryEnd(el.value, query, pos) : pos };
+  };
   const insert = (name: string) => {
     const el = ref.current;
     if (!el || !sug) return;
-    const pos = el.selectionStart ?? el.value.length;
-    replace(Math.min(sug.query.start, pos), varQueryEnd(el.value, sug.query, pos), name);
+    const { start, end } = replacementRange(el);
+    replace(start, end, name);
     setSug(null);
   };
-
   const openExplore = () => {
     const el = ref.current;
     if (!el) return;
-    const pos = el.selectionStart ?? el.value.length;
-    const query = sug?.query ?? findVarQuery(el.value.slice(0, pos), names, false);
-    setExplore({ start: query ? Math.min(query.start, pos) : pos, end: query ? varQueryEnd(el.value, query, pos) : pos });
+    setExplore(replacementRange(el));
     setSug(null);
   };
 
@@ -1042,7 +1048,7 @@ export function VarInput({
         placeholder={placeholder}
         onFocus={() => {
           // 「{」なしで出すときは、フォーカスした時点で候補を見せる（空欄なら一覧）
-          if (eager && !explore) requestAnimationFrame(() => update());
+          if (eager && !explore) requestAnimationFrame(() => update(true));
         }}
         onInput={(e) => {
           if ((e.nativeEvent as InputEvent).isComposing) return;
@@ -1057,7 +1063,8 @@ export function VarInput({
           if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
           if (isVarListShortcut(e)) {
             e.preventDefault();
-            update(true);
+            if (eager && explorable && e.key === "/") openExplore();
+            else update(true);
             return;
           }
           if (sug) {
@@ -1083,14 +1090,9 @@ export function VarInput({
           if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
         }}
       />
-      {valueContext && explorable && (
-        <button type="button" className="se-pick-data" aria-label={tr("データを選ぶ")}
-          onMouseDown={(e) => e.preventDefault()} onClick={openExplore}>
-          <Search size={13} />
-        </button>
-      )}
       {sug && (
         <VarSuggestMenu
+          exploreShortcut={!!eager && explorable}
           suggest={sug}
           samples={samples}
           onPick={insert}
@@ -1103,6 +1105,7 @@ export function VarInput({
           nodeId={nodeId}
           extraNames={extraNames}
           localNames={localNames}
+          sourceStepId={sourceStepId}
           context={valueContext}
           onPick={(name) => {
             replace(explore.start, explore.end, name);

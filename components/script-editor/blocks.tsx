@@ -4,17 +4,17 @@
  * ワークスペースに並ぶブロックの見た目（きっかけ・動作・繰り返し・差し込み位置）
  */
 
-import { useContext, useMemo, useState, type ReactNode } from "react";
-import { Plus, Repeat, IterationCw, RefreshCw, Split, X } from "lucide-react";
-import { JsonPeek, readableValue } from "../DataView";
+import { useContext, useMemo, type ReactNode } from "react";
+import { Plus, Repeat, IterationCw, Split, X } from "lucide-react";
+import { readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
 import { isDataStep, keyOfItem, pagePlan, toListItems, type FetchStep } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/types";
 import { tr } from "../../lib/i18n";
 import { AnyArraySelect, itemFieldsOf } from "./arrays";
-import { Ctx, LoopCtx, ScriptNodeCtx, type FetchPreviewScope } from "./context";
-import { FetchTest, fetchTestKey, wholeCache, wholeKey } from "./fetch";
+import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, ScriptStepCtx, type FetchPreviewScope } from "./context";
+import { FetchResult } from "./fetch";
 import { CondEditor, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
@@ -213,7 +213,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
       {...handlers}
     >
       <Ico icon={STEP_ICON[step.kind]} cat={cat} />
-      <StepBody step={step} />
+      <ScriptStepCtx.Provider value={step.id}><StepBody step={step} /></ScriptStepCtx.Provider>
       {isDataStep(step) && !ctx.readOnly && !ctx.isPageLoadRoot(loc) && (
         <span className="se-badge is-warn">
           {tr("ページを開いたときのスクリプトの下に置くと動きます")}
@@ -363,6 +363,7 @@ export function StackView({ script }: { script: PageScript }) {
   const scriptKey = `script:${script.id}`;
   const runnable = !!script.trigger && !!script.nodeId;
   return (
+    <ScriptOwnerCtx.Provider value={{ scriptId: script.id, nodeId: script.nodeId }}>
     <ScriptNodeCtx.Provider value={script.nodeId && script.nodeId !== PAGE_TARGET ? script.nodeId : ""}>
     <div
       className={`se-stack${runnable ? "" : " is-idle"}${
@@ -438,39 +439,13 @@ export function StackView({ script }: { script: PageScript }) {
       <StepList scriptId={script.id} list="root" steps={script.steps} />
     </div>
     </ScriptNodeCtx.Provider>
+    </ScriptOwnerCtx.Provider>
   );
 }
 
 /** 取得したデータを表で見る小窓 */
 export function PeekModal({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
-  const [testOpen, setTestOpen] = useState(false);
-  const key = wholeKey(step);
-  const full = wholeCache.has(key);
-  return (
-    <div className="se-modal" role="dialog" aria-label={tr("取得したデータ")}>
-      <div className="se-modal-head">
-        <h3>{tr("取得したデータ")}</h3>
-        <button
-          className="se-close"
-          onClick={() => setTestOpen(true)}
-          aria-label={tr("取得し直す")}
-          data-tip={tr("取得し直す")}
-        >
-          <RefreshCw size={15} />
-        </button>
-        <button className="se-close" onClick={onClose} aria-label={tr("閉じる")}>
-          <X size={16} />
-        </button>
-      </div>
-      <p className="hint" style={{ margin: 0, wordBreak: "break-all" }}>
-        {step.method && step.method !== "GET" ? `${step.method} ` : ""}
-        {step.url}
-        {!full && tr("（保存された見本を表示しています。一覧は先頭20件まで）")}
-      </p>
-      <JsonPeek value={full ? wholeCache.get(key) : step.sample} />
-      {testOpen && <FetchTest key={fetchTestKey(step, scope)} step={step} scope={scope} onClose={() => setTestOpen(false)} />}
-    </div>
-  );
+  return <FetchResult step={step} scope={scope} onClose={onClose} />;
 }
 
 export function PaletteLabel({ label }: { label: string }) {

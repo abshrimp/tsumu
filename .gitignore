@@ -35,3 +35,6 @@ wrangler.generated.jsonc
 *.sqlite
 *.sqlite3
 tsumu-data*.tgz
+
+# Isolated hosted Worker Preview config (may contain private resource IDs)
+wrangler.preview.generated.jsonc
