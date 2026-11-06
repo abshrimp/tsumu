@@ -16,7 +16,8 @@ const testDialog = (page: Page) => page.getByRole("dialog", { name: "取得の�
 const dataDialog = (page: Page) => page.getByRole("dialog", { name: "取得したデータ", exact: true });
 async function setUrl(page: Page, url: string) {
   const input = block(page).locator("input").first();
-  await input.fill(url); await input.press("Escape"); await input.press("Enter");
+  await input.fill(url); await input.blur();
+  await expect.poll(async () => (await currentStep(page)).url).toBe(url);
 }
 async function openTest(page: Page) {
   await block(page).getByRole("button", { name: /^(テスト実行…|送信中…)$/ }).click();
