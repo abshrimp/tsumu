@@ -4,6 +4,16 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "対象のページは削除されています。入力中の内容は保持されています。": "The page has been deleted. Your unfinished comment is retained.",
+  "対象の要素は削除されています。入力中の内容は保持されています。": "The element has been deleted. Your unfinished comment is retained.",
+  "削除された対象のみ": "Deleted targets only",
+  "削除されたページ": "Deleted page",
+  "この画面幅では非表示": "Hidden at this screen width",
+  "コメントの詳細": "Comment details",
+  "対象のページは削除されています。コメントは残っています。": "The page has been deleted. Its comments are retained.",
+  "対象の要素は削除されています。コメントは残っています。": "The element has been deleted. Its comments are retained.",
+  "対象の要素はこの画面幅では非表示です。": "The element is hidden at this screen width.",
+
   "コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。": "Could not read the destination site’s document. Check the destination site and try again.",
   ...help,
   "プレビューのアセットURLの有効期限が近づいています。更新すると入力内容やページ内の状態がリセットされます。": "The preview asset URLs will expire soon. Refreshing resets form entries and the page's current state.",

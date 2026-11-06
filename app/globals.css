@@ -11950,22 +11950,31 @@ a.btn {
   line-height: 16px;
 }
 
-.cm-pop {
-  position: absolute;
-  z-index: 25;
+.cm-detail {
   display: flex;
   flex-direction: column;
+  flex: 2;
+  min-height: 180px;
+  max-height: 65%;
   gap: 10px;
-  width: 300px;
-  max-height: 460px;
-  padding: 12px;
-  border-radius: var(--radius-l);
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
   background: var(--panel);
-  box-shadow: var(--shadow-pop);
   color: var(--text);
-  cursor: default;
   font-size: 12px;
-  animation: fade-in 120ms var(--ease);
+  overflow-y: auto;
+}
+
+.cm-detail > .cm-compose,
+.cm-detail > .cm-pop-head {
+  flex: none;
+}
+
+.cm-target-notice {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .cm-pop-head {
