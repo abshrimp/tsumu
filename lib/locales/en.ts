@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "公開先の設定または内容が変更されました。画面を閉じて開き直し、公開先と変更内容を確認してから、もう一度お試しください": "The publish destination or its contents changed. Close and reopen this dialog, then review the destination and changes before trying again.",
   "対象のページは削除されています。入力中の内容は保持されています。": "The page has been deleted. Your unfinished comment is retained.",
   "対象の要素は削除されています。入力中の内容は保持されています。": "The element has been deleted. Your unfinished comment is retained.",
   "削除された対象のみ": "Deleted targets only",
