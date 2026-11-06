@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
 import { useComments } from "../lib/comment-store";
-import { applyCommentAction, type CommentAction } from "../lib/comments";
+import { applyCommentAction, parseCommentAction, MAX_COMMENT_LENGTH, type CommentAction } from "../lib/comments";
 
 const key = "tsumu-comments-v1:local-comments";
 const create = (id: string): CommentAction => ({ action: "create", id, pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: id });
@@ -106,3 +106,16 @@ test("an absent local list still accepts the first comment and preserves later q
   await useComments.getState().load();
   assert.deepEqual(useComments.getState().threads[0].messages.map(m => m.body), ["new", "Reply"]);
 });
+
+
+for (const action of [create("long"), { action: "reply", threadId: "existing", id: "long-reply", body: "" }, { action: "edit", messageId: "existing-0", body: "" }] as CommentAction[]) {
+  test(`${action.action} rejects oversize bodies instead of truncating or storing them locally`, async () => {
+    const oversized = { ...action, body: "x".repeat(MAX_COMMENT_LENGTH + 1) } as CommentAction;
+    assert.equal(parseCommentAction(oversized), null);
+    assert.ok(parseCommentAction({ ...action, body: "x".repeat(MAX_COMMENT_LENGTH) }));
+    const storage = setup("local", null);
+    assert.equal(await useComments.getState().run(oversized), false);
+    assert.equal(storage.writes(), 0); assert.equal(storage.memory.get(key), JSON.stringify(initial));
+    assert.deepEqual(useComments.getState().threads, initial); assert.ok(useComments.getState().error);
+  });
+}

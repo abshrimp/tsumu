@@ -45,7 +45,11 @@ export const MAX_COMMENT_LENGTH = 5000;
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 const num01 = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : null);
-const text = (v: unknown) => (typeof v === "string" ? v.trim().slice(0, MAX_COMMENT_LENGTH) : "");
+const text = (v: unknown) => {
+  const body = typeof v === "string" ? v.trim() : "";
+  // 長文を黙って切り捨てると、成功応答のあとに元の入力を失う。
+  return body.length <= MAX_COMMENT_LENGTH ? body : "";
+};
 
 /** 受け取った操作を確かめる（壊れていれば null） */
 export function parseCommentAction(raw: unknown): CommentAction | null {
