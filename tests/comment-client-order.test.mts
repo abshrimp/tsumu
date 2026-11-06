@@ -6,7 +6,7 @@ import { applyCommentAction, type CommentAction, type CommentThread } from "../l
 const create = (id: string): CommentAction => ({ action: "create", id, pageId: "page", nodeId: null, x: .5, y: .5, bp: "base", body: id });
 const threads = (...ids: string[]) => ids.reduce((all, id, i) => applyCommentAction(all, create(id), null, i + 1), [] as CommentThread[]);
 function deferred<T>() { let resolve!: (v: T) => void; const promise = new Promise<T>((r) => { resolve = r; }); return { promise, resolve }; }
-function reset() { useComments.setState({ focusedThread: null, cursor: null, previousCursors: [], nextCursor: null, total: 0, unresolvedCount: 0, saving: false, active: false, store: "server", threads: [], loading: false, error: null, openId: null, draft: null }); }
+function reset() { useComments.setState({ threadUnavailable: false, focusedThread: null, cursor: null, previousCursors: [], nextCursor: null, total: 0, unresolvedCount: 0, saving: false, active: false, store: "server", threads: [], loading: false, error: null, openId: null, draft: null }); }
 afterEach(() => mock.reset());
 
 test("a poll started before a successful post cannot remove the acknowledged thread", async () => {
@@ -182,11 +182,13 @@ test("failed page navigation retains the old batch, cursor and open detail", asy
   assert.ok(useComments.getState().error);
 });
 
-test("authoritative removal of an off-batch thread clears focus without treating page absence as deletion", async () => {
+test("authoritative removal marks only the open detail unavailable and retains its draft host", async () => {
   reset(); useComments.setState({ threads: threads("new"), nextCursor: "2:new" }); useComments.getState().open("new");
   mock.method(globalThis, "fetch", async () => Response.json(pageData(["old"], null)));
   await useComments.getState().navigate("older");
-  assert.equal(useComments.getState().focusedThread, null);
+  assert.equal(useComments.getState().focusedThread?.id, "new");
+  assert.equal(useComments.getState().threadUnavailable, true);
+  assert.equal(useComments.getState().openId, "new");
 });
 
 
@@ -233,4 +235,57 @@ test("legacy threads-only reads do not infer deletion of an off-batch detail", a
   mock.method(globalThis, "fetch", async () => Response.json({ threads: threads("old") }));
   await useComments.getState().navigate("older");
   assert.equal(useComments.getState().focusedThread?.id, "new"); assert.equal(useComments.getState().openId, "new");
+});
+
+
+test("a missing-target reply fails honestly and subsequent polls preserve the cached detail until Close", async () => {
+  reset(); useComments.setState({ threads: threads("one"), active: true }); useComments.getState().open("one");
+  mock.method(globalThis, "fetch", async (_url, init) => init?.method
+    ? Response.json({ error: "Thread deleted", code: "comment_thread_missing" }, { status: 404 })
+    : Response.json({ ...pageData([]), total: 0, unresolvedCount: 0 }));
+  assert.equal(await useComments.getState().run({ action: "reply", threadId: "one", id: "reply", body: "Unsent reply" }), false);
+  assert.equal(useComments.getState().threadUnavailable, true); assert.equal(useComments.getState().focusedThread?.id, "one");
+  await useComments.getState().load();
+  assert.deepEqual(useComments.getState().threads, []); assert.equal(useComments.getState().unresolvedCount, 0);
+  assert.equal(useComments.getState().threadUnavailable, true); assert.equal(useComments.getState().focusedThread?.id, "one");
+  useComments.getState().open(null); assert.equal(useComments.getState().focusedThread, null); assert.equal(useComments.getState().threadUnavailable, false);
+});
+
+test("missing-target completion does not disable another discussion selected meanwhile", async () => {
+  reset(); useComments.setState({ threads: threads("one", "two") }); useComments.getState().open("one");
+  const response = deferred<Response>(); mock.method(globalThis, "fetch", async () => response.promise);
+  const pending = useComments.getState().run({ action: "reply", threadId: "one", id: "reply", body: "Reply" });
+  await Promise.resolve(); useComments.getState().open("two");
+  response.resolve(Response.json({ error: "Deleted", code: "comment_thread_missing" }, { status: 404 }));
+  assert.equal(await pending, false); assert.equal(useComments.getState().openId, "two");
+  assert.deepEqual(useComments.getState().threads.map(t => t.id), ["two"]);
+  assert.equal(useComments.getState().threadUnavailable, false); assert.equal(useComments.getState().focusedThread?.id, "two");
+});
+
+
+test("known missing replies are removed from list and counts even if the next poll fails", async () => {
+  reset(); useComments.setState({ threads: threads("one"), total: 1, unresolvedCount: 1 }); useComments.getState().open("one");
+  mock.method(globalThis, "fetch", async (_url, init) => init?.method
+    ? Response.json({ code: "comment_thread_missing" }, { status: 404 }) : Response.json({ error: "Offline" }, { status: 502 }));
+  const reply = { action: "reply" as const, threadId: "one", id: "reply", body: "Unsent" };
+  assert.equal(await useComments.getState().run(reply), false);
+  assert.deepEqual(useComments.getState().threads, []); assert.equal(useComments.getState().total, 0); assert.equal(useComments.getState().unresolvedCount, 0);
+  assert.equal(useComments.getState().focusedThread?.id, "one"); assert.equal(useComments.getState().threadUnavailable, true);
+  assert.equal(await useComments.getState().run(reply), false); assert.equal(useComments.getState().total, 0);
+  useComments.getState().open(null); await useComments.getState().load();
+  assert.deepEqual(useComments.getState().threads, []); assert.equal(useComments.getState().focusedThread, null);
+});
+
+
+test("an older focused cache is not subtracted from a newer authoritative count twice", async () => {
+  reset(); useComments.setState({ threads: threads("one", "two"), total: 2, unresolvedCount: 2 }); useComments.getState().open("two");
+  const response = deferred<Response>();
+  mock.method(globalThis, "fetch", async (_url, init) => init?.method ? Response.json({ code: "comment_thread_missing" }, { status: 404 }) : response.promise);
+  const pending = useComments.getState().load(); useComments.getState().open("one");
+  response.resolve(Response.json({ ...pageData(["two"], "two"), total: 1, unresolvedCount: 1 })); await pending;
+  assert.equal(useComments.getState().focusedThread?.id, "one");
+  assert.equal(await useComments.getState().run({ action: "reply", threadId: "one", id: "reply", body: "Unsent" }), false);
+  assert.deepEqual(useComments.getState().threads.map(t => t.id), ["two"]);
+  assert.equal(useComments.getState().total, 1); assert.equal(useComments.getState().unresolvedCount, 1);
+  assert.equal(useComments.getState().threadUnavailable, true);
 });
