@@ -4,11 +4,13 @@ async function openSite(page: Page, seeded = true) {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const created = await page.request.post("/api/sites", { data: { name: "Comment composer lifecycle" } });
   expect(created.ok()).toBeTruthy(); const { site } = await created.json();
-  const { doc } = await (await page.request.get(`/api/doc?site=${site.id}`)).json();
+  // 新規サイトの編集データは、エディタの初回保存が終わってから参照する。
+  await page.goto(`/sites/${site.id}`); await expect(page.getByText("サーバー保存済み")).toBeVisible();
+  const saved = await page.request.get(`/api/doc?site=${site.id}`); expect(saved.ok()).toBeTruthy();
+  const { doc } = await saved.json(); expect(doc).toBeDefined();
   if (seeded) expect((await page.request.post(`/api/comments?site=${site.id}`, { data: {
     action: "create", id: `composer_${site.id}`, pageId: doc.pageOrder[0], nodeId: null, x: .5, y: .5, bp: "base", body: "Original discussion",
   } })).ok()).toBeTruthy();
-  await page.goto(`/sites/${site.id}`); await expect(page.getByText("サーバー保存済み")).toBeVisible();
   await page.getByRole("button", { name: "コメント", exact: true }).click();
   if (seeded) await page.locator(".cm-item").click();
   return site.id as string;

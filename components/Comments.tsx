@@ -327,7 +327,7 @@ export function CommentLayer({
   useEffect(() => {
     if (!on) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || document.querySelector(".modal-backdrop")) return;
+      if (e.key !== "Escape" || e.isComposing || e.keyCode === 229 || document.querySelector(".modal-backdrop")) return;
       const s = useComments.getState();
       if (s.draft || s.openId) s.open(null);
       else s.setActive(false);

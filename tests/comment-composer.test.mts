@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { transformSync } from "esbuild";
 
-// Exercise the actual private component handlers with deterministic hook instances.
-// Native browser regressions cover DOM readOnly and real React mounting separately.
+// 実際の内部コンポーネントの処理を、状態を再現できるフックで検証する。
+// DOMのreadOnlyとReactの実際のマウントは、別途ブラウザテストで確かめる。
 function harness() {
   const source = readFileSync(new URL("../components/Comments.tsx", import.meta.url), "utf8");
   const start = source.indexOf("function Composer("); const end = source.indexOf("function ThreadView(");
@@ -45,7 +45,7 @@ for (const ok of [true, false]) test(`pending submission is read-only and ${ok ?
   const h = harness(); const response = deferred<boolean>(); const sent: string[] = [];
   const composer = h.instance(h.Composer, { initial: "First reply", placeholder: "", submitLabel: "", onSubmit: (body: string) => { sent.push(body); return response.promise; } });
   const click = submit(composer.render()).props.onClick;
-  click(); click(); // A second event before React rerenders must not submit twice.
+  click(); click(); // 再描画前の2回目の操作でも、二重送信しない。
   assert.equal(textarea(composer.render()).props.readOnly, true);
   assert.equal(submit(composer.render()).props.disabled, true);
   assert.deepEqual(sent, ["First reply"]);
@@ -89,4 +89,21 @@ test("oversized input is kept intact, visibly rejected and never submitted", () 
   assert.equal(submit(composer.render()).props.disabled, true);
   assert.ok(find(composer.render(), node => node.props.role === "alert"));
   submit(composer.render()).props.onClick(); assert.equal(sent, 0);
+});
+
+
+test("the comment layer's bubbling Escape listener also ignores IME events", () => {
+  const source = readFileSync(new URL("../components/Comments.tsx", import.meta.url), "utf8");
+  const start = source.indexOf("const onKey = (e: KeyboardEvent)");
+  const end = source.indexOf('window.addEventListener("keydown", onKey)', start);
+  assert.ok(start >= 0 && end > start);
+  const code = transformSync(source.slice(start, end) + "\nexport { onKey };", { loader: "ts", format: "cjs" }).code;
+  const closed: unknown[] = []; const active: boolean[] = [];
+  const context: any = { module: { exports: {} }, document: { querySelector: () => null },
+    useComments: { getState: () => ({ draft: {}, openId: null, open: (id: unknown) => closed.push(id), setActive: (value: boolean) => active.push(value) }) } };
+  runInNewContext(code, context);
+  const onKey = context.module.exports.onKey;
+  onKey({ key: "Escape", isComposing: true }); onKey({ key: "Escape", isComposing: false, keyCode: 229 });
+  assert.deepEqual(closed, []); assert.deepEqual(active, []);
+  onKey({ key: "Escape", isComposing: false, keyCode: 27 }); assert.deepEqual(closed, [null]);
 });
