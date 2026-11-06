@@ -12263,3 +12263,22 @@ a.btn {
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* データ取得のテストは設定編集と分け、送る先と値をまとめて確認する。 */
+.se-fetch-test { width: min(560px, calc(100vw - 32px)); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.se-fetch-destination { display: flex; gap: 10px; align-items: baseline; word-break: break-all; }
+.se-fetch-test-value { display: flex; align-items: center; gap: 12px; }
+.se-fetch-test-value code { min-width: 100px; overflow-wrap: anywhere; }
+.se-fetch-test-value .se-in { flex: 1; min-width: 0; }
+.se-fetch-test-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* スクリプトの値選択。既存のテンプレートを変えず、参照を直接選ぶ。 */
+.se-value-choice { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; flex-wrap: wrap; }
+.se-value-mode { max-width: 155px; }
+.se-value-source { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--bg); color: inherit; padding: 4px 8px; border-radius: 6px; cursor: pointer; max-width: 290px; }
+.se-value-source > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.se-value-sample { opacity: .65; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.se-pick-data { display: inline-flex; align-items: center; justify-content: center; background: transparent; color: inherit; border: 0; padding: 4px; border-radius: 4px; cursor: pointer; vertical-align: middle; }
+.se-pick-data:hover, .se-value-source:hover { background: var(--field-hover); }
+.vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
+.se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }

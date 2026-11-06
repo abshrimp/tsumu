@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Ctx, type EdCtx } from '../components/script-editor/context';
-import { pageArrays, previewDataVars } from '../lib/data';
+import { fieldLabel, pageArrays, previewDataVars } from '../lib/data';
 import { makeText } from '../lib/presets';
 import { scriptsFile } from '../lib/script-runtime';
 import { useEditor } from '../lib/store';
@@ -31,7 +31,8 @@ for (const component of [false, true]) test(`${component ? 'component' : 'plain'
     const html = renderToStaticMarkup(React.createElement(Ctx.Provider, { value: {
       doc, pageId: 'p', samples: previewDataVars(doc, 'p'), arrays: pageArrays(doc, 'p'), updateStep() {}, renameVar() {},
     } as unknown as EdCtx }, React.createElement(StepBody, { step })));
-    assert.ok(html.includes(`value="${(step as any).value}"`)); assert.ok(html.includes(`value="${(step as any).into}"`));
+    assert.equal(parse(html).querySelector(".se-value-source > span")?.textContent, fieldLabel((step as any).value.slice(1, -1)));
+    assert.ok(html.includes(`value="${(step as any).into}"`));
   }
   const saved = JSON.stringify(doc), html = await publishedClientNested(doc, 'app/page.tsx', items);
   const canvas = parse(clientNestedCanvas(doc, items)).querySelectorAll('#detail').map((n: any) => n.textContent);

@@ -42,6 +42,7 @@ import {
 } from "../lib/vars";
 import { glyphs } from "./Glyph";
 import VarExplorer from "./VarExplorer";
+import type { ValueContext } from "../lib/variable-choice";
 import { tr } from "../lib/i18n";
 
 /** ブレークポイントの絵柄（幅から選ぶ） */
@@ -930,6 +931,8 @@ export function VarInput({
   nodeId,
   eager,
   extraNames,
+  localNames,
+  valueContext,
   className,
   style,
 }: {
@@ -947,6 +950,8 @@ export function VarInput({
   eager?: boolean;
   /** 「変数を探す」に足す、見本の無い変数（スクリプトで作る変数など） */
   extraNames?: string[];
+  localNames?: string[];
+  valueContext?: ValueContext;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -1006,9 +1011,10 @@ export function VarInput({
 
   const openExplore = () => {
     const el = ref.current;
-    if (!el || !sug) return;
+    if (!el) return;
     const pos = el.selectionStart ?? el.value.length;
-    setExplore({ start: Math.min(sug.query.start, pos), end: varQueryEnd(el.value, sug.query, pos) });
+    const query = sug?.query ?? findVarQuery(el.value.slice(0, pos), names, false);
+    setExplore({ start: query ? Math.min(query.start, pos) : pos, end: query ? varQueryEnd(el.value, query, pos) : pos });
     setSug(null);
   };
 
@@ -1077,6 +1083,12 @@ export function VarInput({
           if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
         }}
       />
+      {valueContext && explorable && (
+        <button type="button" className="se-pick-data" aria-label={tr("データを選ぶ")}
+          onMouseDown={(e) => e.preventDefault()} onClick={openExplore}>
+          <Search size={13} />
+        </button>
+      )}
       {sug && (
         <VarSuggestMenu
           suggest={sug}
@@ -1090,6 +1102,8 @@ export function VarInput({
         <VarExplorer
           nodeId={nodeId}
           extraNames={extraNames}
+          localNames={localNames}
+          context={valueContext}
           onPick={(name) => {
             replace(explore.start, explore.end, name);
             setExplore(null);

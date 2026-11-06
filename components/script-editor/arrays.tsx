@@ -21,7 +21,7 @@ import { type FilterCond, type ScriptStep } from "../../lib/types";
 import { tr } from "../../lib/i18n";
 import { Ctx, LoopCtx } from "./context";
 import { PathMenu, RESERVED_VARS, VarNameIn, nameFromPath } from "./fetch";
-import { OpEditor, Phrase, TextIn } from "./inputs";
+import { OpEditor, Phrase, TextIn, ValueIn } from "./inputs";
 import { filterNumbersOf } from "./step-tree";
 
 /** 配列を選ぶ */
@@ -229,11 +229,9 @@ export function ArrayFieldBody({ step }: { step: Extract<ScriptStep, { kind: "ar
         parts={{
           array: <AnyArraySelect value={step.array} onChange={(array) => set({ array })} />,
           value: (
-            <TextIn
+            <ValueIn
               value={step.value}
-              placeholder={tr("値 / {項目}")}
-              vars
-              itemFields={fields}
+              itemFields={[...new Set([...fields, ...Object.keys(first ?? {}).filter((name) => name !== step.field)])]}
               itemSamples={itemSamples}
               width={110}
               onCommit={(v) => set({ value: v })}

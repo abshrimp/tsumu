@@ -7,13 +7,13 @@ import { componentOf, useEditor } from "../lib/store";
 import SafeBoundary from "./SafeBoundary";
 import { glyphs } from "./Glyph";
 import { InfoTip } from "./controls";
-import { applyPageScripts, cloneSteps, pageNodeIds, pageScriptsOf, scriptUid, TRIGGER_LABELS, type PageScript } from "../lib/script";
+import { applyPageScripts, cloneSteps, pageNodeIds, pageScriptsOf, scriptUid, walkSteps, TRIGGER_LABELS, type PageScript } from "../lib/script";
 import { stepText } from "../lib/script-text";
 import { pageArrays, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
 import { PAGE_TARGET, type Script, type ScriptStep } from "../lib/types";
 import { tr, trNodes } from "../lib/i18n";
 import { HatView, PaletteLabel, PeekModal, StackView, StepList } from "./script-editor/blocks";
-import { Ctx, type EdCtx } from "./script-editor/context";
+import { Ctx, type EdCtx, type FetchPreviewScope } from "./script-editor/context";
 import {
   CAT_INFO,
   CAT_OF,
@@ -331,9 +331,13 @@ function ScriptEditorInner({
   const zOrder = useMemo(() => new Map(front.map((id, i) => [id, i + 1])), [front]);
   /** 取得したデータを表で見る小窓（取得ブロックのID） */
   const [peekId, setPeekId] = useState<string | null>(null);
+  const [peekScope, setPeekScope] = useState<FetchPreviewScope>({ nodeId: "", localNames: [] });
   const peekStep = useMemo(() => {
     for (const sc of scripts) {
-      const found = sc.steps.find((x): x is FetchStep => x.kind === "fetch" && x.id === peekId);
+      let found: FetchStep | null = null;
+      walkSteps(sc.steps, (step) => {
+        if (step.kind === "fetch" && step.id === peekId) found = step;
+      });
       if (found) return found;
     }
     return null;
@@ -511,7 +515,10 @@ function ScriptEditorInner({
         );
         if (from) renameVarInPage(d, activePageId, from, to);
       }),
-    openPeek: (fetchStepId) => setPeekId(fetchStepId),
+    openPeek: (fetchStepId, scope) => {
+      setPeekScope(scope);
+      setPeekId(fetchStepId);
+    },
     arrays,
     samples,
     beginSteps: (e, loc, stepId) =>
@@ -856,7 +863,7 @@ function ScriptEditorInner({
           >
             <Ctx.Provider value={ctx}>
               <SafeBoundary label={tr("取得したデータ")} onClose={() => setPeekId(null)}>
-                <PeekModal step={peekStep} onClose={() => setPeekId(null)} />
+                <PeekModal step={peekStep} scope={peekScope} onClose={() => setPeekId(null)} />
               </SafeBoundary>
             </Ctx.Provider>
           </div>

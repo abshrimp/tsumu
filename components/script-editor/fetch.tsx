@@ -5,9 +5,9 @@
  */
 
 import { isEnterKey } from "../../lib/keys";
-import { useContext, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useContext, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Plus, SlidersHorizontal, Table2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play, Plus, SlidersHorizontal, Table2, X } from "lucide-react";
 import { readableValue } from "../DataView";
 import { anchoredMenuPos } from "../controls";
 import {
@@ -18,9 +18,12 @@ import {
   ITEM_VALUE,
   makeSample,
   uniqueVarName,
+  varGroupsAt,
   type FetchStep,
 } from "../../lib/data";
-import { hasVars, interpolateUrl } from "../../lib/vars";
+import { interpolateUrl, type Vars } from "../../lib/vars";
+import { fetchPreviewInputs } from "../../lib/fetch-preview";
+import { localVariableNames, variableChoiceSamples } from "../../lib/variable-choice";
 import {
   bodyJsonError,
   FETCH_METHODS,
@@ -31,21 +34,15 @@ import {
 import { type FetchHeader, type FetchMethod, type ScriptStep } from "../../lib/types";
 import { userMessage } from "../../lib/errors";
 import { getLang, tr, trc } from "../../lib/i18n";
-import { Ctx } from "./context";
+import { Ctx, LoopCtx, ScriptNodeCtx, type FetchPreviewScope } from "./context";
 import { Phrase, TextIn } from "./inputs";
 
-/** 取得してエディタ用の見本にする（{slug} は 1、ほかの {変数} は空で試す） */
-async function fetchSample(
-  url: string,
-  options: FetchOptions = {}
-): Promise<{ sample: unknown; totals?: Record<string, number> }> {
-  return makeSample(await fetchWhole(url, options));
-}
-
-/** 取得ブロックのデータを、切り詰めずに取得する（{slug} は 1、ほかの {変数} は空で試す） */
-export async function fetchWhole(url: string, options: FetchOptions = {}): Promise<unknown> {
-  const vars = { slug: "1" };
-  const resolved = hasVars(url) ? interpolateUrl(url, vars) : url;
+/** テスト実行で明示的に送る。未解決の値を空文字や仮の slug に置き換えない。 */
+export async function fetchWhole(url: string, options: FetchOptions = {}, vars: Vars = {}): Promise<unknown> {
+  if (fetchPreviewInputs(url, options, vars).some((input) => input.missing)) {
+    throw new Error(tr("テスト用の値を入力してください"));
+  }
+  const resolved = interpolateUrl(url, vars);
   const res = await fetch("/api/fetch-json", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -58,68 +55,153 @@ export async function fetchWhole(url: string, options: FetchOptions = {}): Promi
 
 /** 「データを見る」で取得した全件（取得ブロックの設定ごと。エディタを開いている間だけ覚えておく） */
 export const wholeCache = new Map<string, unknown>();
-export const wholeKey = (st: FetchStep) => JSON.stringify([st.url, st.method, st.headers, st.body, st.fetchedAt]);
+export const wholeKey = (st: FetchStep) => JSON.stringify([st.id, st.url, st.method, st.headers, st.body, st.fetchedAt]);
 
 /** 見本を取得したリクエストと、保存先の現在の設定を比べる（見本の更新時刻は除く） */
 const requestKey = (url: string, options: FetchOptions) =>
   JSON.stringify([url.trim(), options.method ?? "GET", options.headers ?? [], options.body ?? ""]);
+export const fetchTestKey = (step: FetchStep, scope: FetchPreviewScope) =>
+  JSON.stringify([requestKey(step.url, step), scope]);
 
-/** 画面や小窓を開き直しても、同じブロックの最新の取得だけを保存する。完了時に取り除く。 */
+/** 葉のパスだけでなく、空のまとまり・一覧を含むローカルな名前全体を保つ。 */
+export function fetchPreviewScope(nodeId: string, loops: readonly { fields: string[]; roots?: string[] }[]): FetchPreviewScope {
+  return { nodeId, localNames: localVariableNames(loops.flatMap((loop) => [...(loop.roots ?? []), ...loop.fields])) };
+}
+
+/** 画面を閉じても、送信済みの同じ要求を重ねて送らない。別設定の応答は最新だけを採用する。 */
 const activeRefetches = new Map<string, symbol>();
+const pendingRefetches = new Map<string, Map<string, symbol>>();
+const requestListeners = new Set<() => void>();
+const subscribeRequests = (listener: () => void) => {
+  requestListeners.add(listener);
+  return () => { requestListeners.delete(listener); };
+};
+const notifyRequests = () => requestListeners.forEach((listener) => listener());
 
 /** 「取得する」ブロックの見本を取り直す（成功するとブロックに保存する） */
 export function useRefetch(step: FetchStep, cancelOnUnmount = false) {
   const { updateStep } = useContext(Ctx);
-  const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
   const request = useRef<symbol | null>(null);
   useEffect(() => {
     if (cancelOnUnmount) return () => {
       if (activeRefetches.get(step.id) === request.current) activeRefetches.delete(step.id);
       request.current = null;
+      // 送信は取り消せない。応答が返るまで pending は残し、開き直した画面でも重複を防ぐ。
     };
   }, [cancelOnUnmount, step.id]);
   const currentKey = requestKey(step.url, step);
-  const run = async (url = step.url, options: FetchOptions = step) => {
+  const busy = useSyncExternalStore(subscribeRequests,
+    () => pendingRefetches.get(step.id)?.has(currentKey) ?? false, () => false);
+  const run = async (url = step.url, options: FetchOptions = step, vars: Vars = {}) => {
+    const key = requestKey(url, options);
+    if (!url.trim() || pendingRefetches.get(step.id)?.has(key)) return false;
     const token = Symbol();
     request.current = token;
     activeRefetches.set(step.id, token);
+    const pending = pendingRefetches.get(step.id) ?? new Map<string, symbol>();
+    pending.set(key, token);
+    pendingRefetches.set(step.id, pending);
+    notifyRequests();
     const isCurrent = () => request.current === token && activeRefetches.get(step.id) === token;
     setError(null);
-    if (!url.trim()) {
-      activeRefetches.delete(step.id);
-      setBusyKey(null);
-      return;
-    }
-    const key = requestKey(url, options);
-    setBusyKey(key);
     try {
-      const { sample, totals } = await fetchSample(url.trim(), options);
-      // 後から始めた取得の結果・エラー・読み込み表示を、古い応答で戻さない。
-      if (!isCurrent()) return;
-      updateStep(
-        step.id,
-        // 取得中の Undo や別の場所での設定変更にも、取得元の違う見本を保存しない。
-        (s) => s.kind === "fetch" && requestKey(s.url, s) === key
-          ? { ...s, sample, sampleTotals: totals, fetchedAt: Date.now() }
-          : s
-      );
-    } catch (e) {
-      if (!isCurrent()) return;
-      const msg = userMessage(e, tr("読み込めませんでした"));
-      setError({
-        key,
-        message: msg.includes(tr("JSONとして読み取れませんでした"))
-          ? tr("データを読み取れませんでした。WebページではなくJSONを返すURLか確認してください")
-          : msg,
+      const whole = await fetchWhole(url.trim(), options, vars);
+      const { sample, totals } = makeSample(whole);
+      // 後から始めた取得の結果・エラーを、古い応答で戻さない。
+      if (!isCurrent()) return false;
+      updateStep(step.id, (s) => {
+        // Undo や別の場所での設定変更にも、取得元の違う見本を保存しない。
+        if (s.kind !== "fetch" || requestKey(s.url, s) !== key) return s;
+        const next = { ...s, sample, sampleTotals: totals, fetchedAt: Math.max(Date.now(), (s.fetchedAt ?? 0) + 1) };
+        wholeCache.set(wholeKey(next), whole);
+        return next;
       });
+      return true;
+    } catch (e) {
+      if (!isCurrent()) return false;
+      const msg = userMessage(e, tr("読み込めませんでした"));
+      setError({ key, message: msg.includes(tr("JSONとして読み取れませんでした"))
+        ? tr("データを読み取れませんでした。WebページではなくJSONを返すURLか確認してください") : msg });
+      return false;
     } finally {
-      if (request.current === token) setBusyKey(null);
+      if (pending.get(key) === token) pending.delete(key);
+      if (!pending.size) pendingRefetches.delete(step.id);
       if (activeRefetches.get(step.id) === token) activeRefetches.delete(step.id);
+      notifyRequests();
     }
   };
-  // Undo など再取得を始めない設定変更でも、別の取得元の状態を表示しない。
-  return { busy: busyKey === currentKey, error: error?.key === currentKey ? error.message : null, run };
+  return { busy, error: error?.key === currentKey ? error.message : null, run };
+}
+
+/** 設定と送信を分けたテスト画面。入力値は文書に保存しない。 */
+export function FetchTest({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
+  const { doc, pageId } = useContext(Ctx);
+  const { busy, error, run } = useRefetch(step, true);
+  const [testValues, setTestValues] = useState<Record<string, string>>({});
+  const [done, setDone] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const [samples] = useState<Vars>(() => {
+    // ローカルな親の名前も覆い、同名のページのまとまりや dotted key を送らない。
+    return variableChoiceSamples(varGroupsAt(doc, pageId, scope.nodeId), scope.localNames);
+  });
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+    return () => { if (previous?.isConnected) previous.focus(); };
+  }, []);
+  const inputs = fetchPreviewInputs(step.url, step, samples);
+  const vars = { ...samples, ...testValues };
+  const missing = fetchPreviewInputs(step.url, step, vars).some((input) => input.missing);
+  const invalid = sendsBody(step.method) && bodyJsonError(step.body);
+  const method = step.method ?? "GET";
+  return createPortal(
+    <div className="modal-backdrop" data-se-popover=""
+      onMouseDown={(e) => { e.stopPropagation(); if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
+        if (e.key === "Escape") onClose();
+        if (e.key === "Tab") {
+          const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), summary") ?? []);
+          const first = controls[0], last = controls[controls.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+          if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+        }
+      }}>
+      <div ref={dialogRef} className="modal se-fetch-test" role="dialog" aria-modal="true" aria-label={tr("取得のテスト")}>
+        <div className="se-modal-head">
+          <h3>{tr("取得のテスト")}</h3>
+          <button type="button" className="se-close" onClick={onClose} aria-label={tr("閉じる")}><X size={16} /></button>
+        </div>
+        <div className="se-fetch-destination"><b>{method}</b><span>{missing ? step.url : interpolateUrl(step.url, vars)}</span></div>
+        {inputs.map((input) => <label key={input.name} className="se-fetch-test-value">
+          <code>{`{${input.name}}`}</code>
+          {input.missing ? <input className="se-in" aria-label={tr("{name} のテスト用の値", { name: input.name })}
+            placeholder={tr("テスト用の値")} disabled={busy} value={testValues[input.name] ?? ""}
+            onChange={(e) => { setTestValues((v) => ({ ...v, [input.name]: e.target.value })); setDone(false); }} />
+            : <span>{readableValue(input.value)}</span>}
+          {input.missing && !Object.hasOwn(testValues, input.name) && <button type="button" className="se-mini se-mini-text"
+            onClick={() => setTestValues((v) => ({ ...v, [input.name]: "" }))}>{tr("空の値を使う")}</button>}
+        </label>)}
+        {inputs.some((input) => input.missing) && <p className="hint">{tr("テスト用の値は保存されません")}</p>}
+        {!missing && (step.headers?.length || sendsBody(step.method) && step.body) ? <details className="se-fetch-payload">
+          <summary>{tr("送る内容")}</summary><pre>{JSON.stringify(fetchRequestOf(step, vars), null, 2)}</pre>
+        </details> : null}
+        {method !== "GET" && <p className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</p>}
+        {invalid && <p className="se-badge is-warn">{tr("JSONとして読み取れません")}</p>}
+        {error && <p className="se-badge is-warn" role="alert">{error}</p>}
+        {done && <p role="status">{tr("取得しました")}</p>}
+        <div className="se-fetch-test-actions">
+          <button type="button" className="btn" onClick={onClose}>{tr("閉じる")}</button>
+          <button type="button" className="btn btn-primary" disabled={busy || missing || invalid || !step.url.trim()}
+            onClick={async () => { setDone(false); if (await run(step.url, step, vars)) setDone(true); }}>
+            {busy ? tr("送信中…") : tr("{method}で送信", { method })}
+          </button>
+        </div>
+      </div>
+    </div>, document.body);
 }
 
 /** 取得ブロックの「リクエストの設定」（メソッド・ヘッダー・送る本文） */
@@ -212,13 +294,14 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
 /** 「［URL］のデータを取得して［名前］とする」 */
 export function FetchBody({ step }: { step: FetchStep }) {
   const { doc, pageId, updateStep, renameVar, openPeek } = useContext(Ctx);
-  const { busy, error, run } = useRefetch(step);
+  const scope = fetchPreviewScope(useContext(ScriptNodeCtx), useContext(LoopCtx));
+  const { busy } = useRefetch(step);
+  const [testOpen, setTestOpen] = useState(false);
   const customized = !!(step.method && step.method !== "GET") || !!step.headers?.length;
   const [open, setOpen] = useState(false);
   const setOptions = (patch: FetchOptions) => {
     const next = { ...step, ...patch } as FetchStep;
     updateStep(step.id, () => next);
-    void run(next.url, next);
   };
   return (
     <>
@@ -236,20 +319,20 @@ export function FetchBody({ step }: { step: FetchStep }) {
                 updateStep(step.id, (s) => ({ ...s, url }) as ScriptStep);
                 // 名前が空なら付けておく
                 if (url && !step.as) renameVar(step.id, "", uniqueVarName(doc, pageId, trc("変数名", "データ"), step.id));
-                void run(url);
               }}
             />
           ),
           as: <VarNameIn stepId={step.id} value={step.as ?? ""} placeholder={tr("名前（例: 商品データ）")} />,
         }}
       />
-      {busy ? (
-        <span className="se-blk-note">{tr("読み込み中…")}</span>
-      ) : step.sample !== undefined ? (
+      <button type="button" className="se-mini se-mini-text" onClick={() => setTestOpen(true)} disabled={!step.url.trim()}>
+        <Play size={12} />{busy ? tr("送信中…") : tr("テスト実行…")}
+      </button>
+      {step.sample !== undefined ? (
         <button
           type="button"
           className="se-mini se-mini-text"
-          onClick={() => openPeek(step.id)}
+          onClick={() => openPeek(step.id, scope)}
         >
           <Table2 size={12} />
           {tr("データを見る")}
@@ -264,7 +347,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
         <SlidersHorizontal size={12} />
         {customized ? tr("リクエストの設定（{method}）", { method: step.method ?? "GET" }) : tr("リクエストの設定")}
       </button>
-      {error && <span className="se-badge is-warn">{error}</span>}
+      {testOpen && <FetchTest key={fetchTestKey(step, scope)} step={step} scope={scope} onClose={() => setTestOpen(false)} />}
       {open && (
         <>
           <span className="se-br" />

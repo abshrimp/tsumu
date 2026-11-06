@@ -24,7 +24,7 @@ import {
 } from "./arrays";
 import { Ctx } from "./context";
 import { FetchBody, VarNameIn, isNested, nameFromPath } from "./fetch";
-import { FieldValueIn, NewTabCheck, Phrase, TextIn, regexError } from "./inputs";
+import { FieldValueIn, NewTabCheck, Phrase, TextIn, ValueIn, regexError } from "./inputs";
 import { TargetSelect } from "./targets";
 
 export function StepBody({ step }: { step: ScriptStep }) {
@@ -354,6 +354,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
             expr: (
               <TextIn
                 value={step.expr}
+                valueContext="number"
                 placeholder={tr("{数} + 1")}
                 vars
                 width={130}
@@ -517,10 +518,8 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
         text="{value}を変数{into}とする"
         parts={{
           value: (
-            <TextIn
+            <ValueIn
               value={step.value}
-              placeholder={tr("値 / {データ.位置}")}
-              vars
               width={150}
               onCommit={(v) => {
                 updateStep(step.id, (s) => ({ ...s, value: v }) as ScriptStep);

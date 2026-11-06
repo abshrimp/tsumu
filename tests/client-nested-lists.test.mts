@@ -36,7 +36,9 @@ test('the real settings and script controls configure the nested source and brow
   const control = renderToStaticMarkup(React.createElement(Ctx.Provider, { value: {
     doc, pageId: 'p', samples: previewDataVars(doc, 'p'), arrays: pageArrays(doc, 'p'), updateStep() {}, renameVar() {},
   } as unknown as EdCtx }, React.createElement(StepBody, { step })));
-  assert.match(control, /value="\{response\}"/); assert.match(control, /value="items"/);
+  assert.equal(parse(control).querySelector(".se-value-source > span")?.textContent, "response");
+  assert.equal((step as { value: string }).value, "{response}");
+  assert.match(control, /value="items"/);
   assert.ok(pagePlan(doc, 'p').clientVars.has('items'));
 });
 

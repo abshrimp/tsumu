@@ -4,6 +4,26 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "くり返し中の項目": "Current loop item",
+  "データを選ぶ": "Choose data",
+  "（保存された見本を表示しています。一覧は先頭20件まで）": " (Showing the saved sample, with up to 20 items per list.)",
+  "テスト用の値を入力してください": "Enter test values to continue",
+  "取得のテスト": "Test request",
+  "{name} のテスト用の値": "Test value for {name}",
+  "テスト用の値": "Test value",
+  "空の値を使う": "Use an empty value",
+  "テスト用の値は保存されません": "Test values are not saved",
+  "送る内容": "Request contents",
+  "この送信は接続先のデータを変更する場合があります": "This request may change data at the destination",
+  "取得しました": "Response received",
+  "送信中…": "Sending…",
+  "{method}で送信": "Send {method}",
+  "テスト実行…": "Test request…",
+  "実行時": "At runtime",
+  "値の入力方法": "Value input mode",
+  "文字を組み立てる": "Compose text",
+  "データを渡す": "Pass data",
+
   "公開先の設定または内容が変更されました。画面を閉じて開き直し、公開先と変更内容を確認してから、もう一度お試しください": "The publish destination or its contents changed. Close and reopen this dialog, then review the destination and changes before trying again.",
   "対象のページは削除されています。入力中の内容は保持されています。": "The page has been deleted. Your unfinished comment is retained.",
   "対象の要素は削除されています。入力中の内容は保持されています。": "The element has been deleted. Your unfinished comment is retained.",

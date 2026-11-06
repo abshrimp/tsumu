@@ -4,17 +4,17 @@
  * ワークスペースに並ぶブロックの見た目（きっかけ・動作・繰り返し・差し込み位置）
  */
 
-import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useContext, useMemo, useState, type ReactNode } from "react";
 import { Plus, Repeat, IterationCw, RefreshCw, Split, X } from "lucide-react";
 import { JsonPeek, readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
 import { isDataStep, keyOfItem, pagePlan, toListItems, type FetchStep } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/types";
-import { getLang, tr } from "../../lib/i18n";
+import { tr } from "../../lib/i18n";
 import { AnyArraySelect, itemFieldsOf } from "./arrays";
-import { Ctx, LoopCtx, ScriptNodeCtx } from "./context";
-import { fetchWhole, useRefetch, wholeCache, wholeKey } from "./fetch";
+import { Ctx, LoopCtx, ScriptNodeCtx, type FetchPreviewScope } from "./context";
+import { FetchTest, fetchTestKey, wholeCache, wholeKey } from "./fetch";
 import { CondEditor, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
@@ -43,7 +43,7 @@ function ForEachView({
     const samples = Object.fromEntries(
       fields.map((f) => [f, readableValue(item ? keyOfItem(item, f) : undefined)])
     );
-    return [{ array: step.array, fields, samples }, ...outer];
+    return [{ array: step.array, fields, roots: Object.keys(item ?? {}), samples }, ...outer];
   }, [sample, step.array, outer]);
   // 配信前に値が決まる配列（見本がある）は、配信前に動く形でないと何もしない
   const { doc, pageId } = ctx;
@@ -442,47 +442,21 @@ export function StackView({ script }: { script: PageScript }) {
 }
 
 /** 取得したデータを表で見る小窓 */
-export function PeekModal({ step, onClose }: { step: FetchStep; onClose: () => void }) {
-  // 閉じた小窓の取得が、開き直して取得した新しい見本を上書きしないようにする。
-  const { busy, error, run } = useRefetch(step, true);
-  // 見本は配列を先頭だけに切り詰めているため、開いたら全件を取り直して見せる
+export function PeekModal({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
+  const [testOpen, setTestOpen] = useState(false);
   const key = wholeKey(step);
-  const [whole, setWhole] = useState<{ key: string; value: unknown } | null>(() =>
-    wholeCache.has(key) ? { key, value: wholeCache.get(key) } : null
-  );
-  const [wholeError, setWholeError] = useState(false);
-  const stepRef = useRef(step);
-  stepRef.current = step;
-  useEffect(() => {
-    const st = stepRef.current;
-    if (wholeCache.has(key) || !st.url.trim()) return;
-    let alive = true;
-    setWholeError(false);
-    fetchWhole(st.url.trim(), st)
-      .then((value) => {
-        wholeCache.set(key, value);
-        if (alive) setWhole({ key, value });
-      })
-      .catch(() => {
-        if (alive) setWholeError(true);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [key]);
-  const full = whole?.key === key;
+  const full = wholeCache.has(key);
   return (
     <div className="se-modal" role="dialog" aria-label={tr("取得したデータ")}>
       <div className="se-modal-head">
         <h3>{tr("取得したデータ")}</h3>
         <button
           className="se-close"
-          onClick={() => void run()}
-          disabled={busy}
+          onClick={() => setTestOpen(true)}
           aria-label={tr("取得し直す")}
           data-tip={tr("取得し直す")}
         >
-          <RefreshCw size={15} className={busy ? "spin" : undefined} />
+          <RefreshCw size={15} />
         </button>
         <button className="se-close" onClick={onClose} aria-label={tr("閉じる")}>
           <X size={16} />
@@ -491,16 +465,10 @@ export function PeekModal({ step, onClose }: { step: FetchStep; onClose: () => v
       <p className="hint" style={{ margin: 0, wordBreak: "break-all" }}>
         {step.method && step.method !== "GET" ? `${step.method} ` : ""}
         {step.url}
-        {full
-          ? ""
-          : wholeError
-            ? tr("（全件を取得できなかったため、{p1} に取得した見本を表示しています。一覧は先頭20件まで）", {
-                p1: new Date(step.fetchedAt ?? Date.now()).toLocaleString(getLang()),
-              })
-            : tr("（全件を読み込み中… いまは見本の先頭20件を表示しています）")}
+        {!full && tr("（保存された見本を表示しています。一覧は先頭20件まで）")}
       </p>
-      {error && <p className="hint is-error" style={{ margin: 0 }}>{error}</p>}
-      <JsonPeek value={full ? whole!.value : step.sample} />
+      <JsonPeek value={full ? wholeCache.get(key) : step.sample} />
+      {testOpen && <FetchTest key={fetchTestKey(step, scope)} step={step} scope={scope} onClose={() => setTestOpen(false)} />}
     </div>
   );
 }

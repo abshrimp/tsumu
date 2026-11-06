@@ -16,38 +16,37 @@ import { fetchRefetchBundle, fetchRefetchDoc } from "./helpers/fetch-refetch";
 // 実ソースの FetchBody の入力確定と useRefetch を動かす。DOM の代わりにフックの状態を保持する。
 function mount() {
   useEditor.getState().replaceDoc(fetchRefetchDoc());
-  const root = { slots: [] as any[], pending: [] as (() => void)[] };
+  const instance = () => ({ slots: [] as any[], pending: [] as (() => void)[] });
+  const root = instance();
+  const runner = instance();
   let current = root;
   let cursor = 0;
   let selected = "fetch";
   const context = {
     doc: useEditor.getState().doc, pageId: "p", renameVar() {}, openPeek() {},
-    // ScriptEditor と同じ、応答時点のストアにステップ単位で書き込む経路。
     updateStep(id: string, fn: (step: ScriptStep) => ScriptStep) {
       const scripts = numberFilters(mapStep(pageScriptsOf(useEditor.getState().doc, [], "p"), id, fn));
       useEditor.getState().updateDoc((doc) => applyPageScripts(doc, "p", [], scripts));
     },
   };
   const hooks = {
-    ...React, useContext: () => context,
+    ...React, useContext: (ctx: any) => ctx._currentValue === null ? context : ctx._currentValue,
+    useSyncExternalStore(_subscribe: unknown, getSnapshot: () => any) { return getSnapshot(); },
     useState(initial: any) {
       const index = cursor++;
       const slots = current.slots;
       if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial;
       return [slots[index], (next: any) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
-    useRef(initial: any) {
-      const index = cursor++;
-      return current.slots[index] ??= { current: initial };
-    },
+    useRef(initial: any) { return current.slots[cursor++] ??= { current: initial }; },
     useEffect(effect: () => void | (() => void), deps: unknown[]) {
       const index = cursor++;
-      const instance = current;
-      const previous = instance.slots[index];
+      const owner = current;
+      const previous = owner.slots[index];
       if (!previous || deps.some((value, i) => value !== previous.deps[i])) {
-        instance.pending.push(() => {
+        owner.pending.push(() => {
           previous?.cleanup?.();
-          instance.slots[index] = { effect: true, deps, cleanup: effect() };
+          owner.slots[index] = { effect: true, deps, cleanup: effect() };
         });
       }
     },
@@ -65,65 +64,52 @@ function mount() {
     (id: string) => id === "react" ? hooks : require(id), mod, mod.exports, fetch,
   );
   const step = (id = "fetch") => useEditor.getState().doc.pages.p.pageScripts?.[0].steps.find((s) => s.id === id) as FetchStep | undefined;
-  const renderInstance = (instance: typeof root, draw: () => any) => {
-    current = instance;
-    cursor = 0;
-    context.doc = useEditor.getState().doc;
-    const view = draw();
-    instance.pending.splice(0).forEach((effect) => effect());
-    return view;
+  const renderInstance = (owner: typeof root, draw: () => any) => {
+    current = owner; cursor = 0; context.doc = useEditor.getState().doc;
+    const view = draw(); owner.pending.splice(0).forEach((effect) => effect()); return view;
   };
-  const unmount = (instance: typeof root) => {
-    for (const slot of instance.slots) if (slot?.effect) slot.cleanup?.();
+  const unmount = (owner: typeof root) => {
+    for (const slot of owner.slots) if (slot?.effect) slot.cleanup?.();
   };
   const render = () => renderInstance(root, () => mod.exports.FetchBody({ step: step(selected) }).props.children);
+  const hook = () => renderInstance(runner, () => mod.exports.useRefetch(step(selected)));
+  const peek = { exports: {} as any };
+  const blocksCode = transformSync(readFileSync("components/script-editor/blocks.tsx", "utf8"), {
+    loader: "tsx", jsx: "automatic", format: "cjs",
+  }).code;
+  new Function("require", "module", "exports", blocksCode)(
+    (id: string) => id === "react" ? hooks : id === "./fetch" ? mod.exports : require(id), peek, peek.exports,
+  );
   return {
     requests, step, render,
-    unmount: () => unmount(root),
-    openBody(id = "fetch") {
-      const instance = { slots: [] as any[], pending: [] as (() => void)[] };
-      const render = () => renderInstance(instance, () => mod.exports.FetchBody({ step: step(id) }).props.children);
-      return {
-        commitUrl: (url: string) => render()[0].props.parts.url.props.onCommit(url),
-        close: () => unmount(instance),
-      };
+    run: (vars: Record<string, unknown> = {}) => hook().run(step(selected)!.url, step(selected), vars),
+    unmount: () => { unmount(root); unmount(runner); },
+    openTest(id = "fetch") {
+      const owner = instance();
+      const draw = () => renderInstance(owner, () => mod.exports.useRefetch(step(id), true));
+      draw();
+      return { run: () => draw().run(), close: () => unmount(owner), status: () => {
+        const { busy, error } = draw(); return { busy, error };
+      } };
     },
-    openModal() {
-      const instance = { slots: [] as any[], pending: [] as (() => void)[] };
-      const blocks = { exports: {} as any };
-      const blocksCode = transformSync(readFileSync("components/script-editor/blocks.tsx", "utf8"), {
-        loader: "tsx", jsx: "automatic", format: "cjs",
-      }).code;
-      new Function("require", "module", "exports", blocksCode)(
-        (id: string) => id === "react" ? hooks : id === "./fetch" ? mod.exports : require(id), blocks, blocks.exports,
-      );
-      const close = () => unmount(instance);
-      const render = () => renderInstance(instance, () => blocks.exports.PeekModal({ step: step(), onClose: close }));
-      render();
-      return {
-        refresh: () => render().props.children[0].props.children[1].props.onClick(),
-        close: () => render().props.children[0].props.children[2].props.onClick(),
-        status: () => {
-          const view = render().props.children;
-          return { busy: view[0].props.children[1].props.disabled, error: view[2]?.props.children ?? null };
-        },
-      };
+    openPeek() {
+      const owner = instance();
+      return renderInstance(owner, () => peek.exports.PeekModal({ step: step(), scope: { nodeId: "", localNames: [] }, onClose() {} }));
     },
+    cached: () => mod.exports.wholeCache.get(mod.exports.wholeKey(step())),
     select(id: string) { selected = id; },
     commitUrl(url: string) { render()[0].props.parts.url.props.onCommit(url); },
     setOptions(patch: FetchOptions) {
       let view = render();
-      if (!view[4]) { view[2].props.onClick(); view = render(); }
-      view[4].props.children[1].props.onChange(patch);
+      const options = () => view.find((v: any) => v?.props?.children?.[1]?.type?.name === "FetchOptionsPanel");
+      if (!options()) { view.find((v: any) => v?.props?.["aria-expanded"] !== undefined).props.onClick(); view = render(); }
+      options().props.children[1].props.onChange(patch);
     },
     async finish(index: number, sample: unknown, error?: string) {
       requests[index].finish(new Response(JSON.stringify(error ? { error } : { json: sample }), { status: error ? 502 : 200 }));
       await new Promise((done) => setTimeout(done, 0));
     },
-    status() {
-      const view = render();
-      return { busy: view[1]?.props.className === "se-blk-note", error: view[3]?.props.children ?? null };
-    },
+    status() { const { busy, error } = hook(); return { busy, error }; },
   };
 }
 
@@ -132,8 +118,8 @@ const latest = [{ name: "LATEST" }];
 
 test("changing the source keeps the newest sample in the document and variable preview", async () => {
   const mounted = mount();
-  mounted.commitUrl("https://example.test/slow");
-  mounted.commitUrl("https://example.test/latest");
+  mounted.commitUrl("https://example.test/slow"); void mounted.run();
+  mounted.commitUrl("https://example.test/latest"); void mounted.run();
   await mounted.finish(1, latest);
   const saved = structuredClone(useEditor.getState().doc);
   const historyLength = useEditor.getState().past.length;
@@ -149,8 +135,8 @@ test("changing the source keeps the newest sample in the document and variable p
 test("an earlier success or error cannot end the newest loading state", async () => {
   for (const error of [undefined, "古い取得に失敗しました"]) {
     const mounted = mount();
-    mounted.commitUrl("https://example.test/slow");
-    mounted.commitUrl("https://example.test/latest");
+    mounted.commitUrl("https://example.test/slow"); void mounted.run();
+    mounted.commitUrl("https://example.test/latest"); void mounted.run();
     await mounted.finish(0, old, error);
     assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
     assert.deepEqual(mounted.status(), { busy: true, error: null });
@@ -161,8 +147,8 @@ test("an earlier success or error cannot end the newest loading state", async ()
 
 test("late older errors do not replace the latest successful result", async () => {
   const mounted = mount();
-  mounted.commitUrl("https://example.test/slow");
-  mounted.commitUrl("https://example.test/latest");
+  mounted.commitUrl("https://example.test/slow"); void mounted.run();
+  mounted.commitUrl("https://example.test/latest"); void mounted.run();
   await mounted.finish(1, latest);
   await mounted.finish(0, undefined, "古い取得に失敗しました");
   assert.deepEqual(mounted.step()!.sample, latest);
@@ -171,8 +157,8 @@ test("late older errors do not replace the latest successful result", async () =
 
 test("latest failures keep the saved fallback and cannot be overwritten by an older success", async () => {
   const mounted = mount();
-  mounted.commitUrl("https://example.test/slow");
-  mounted.commitUrl("https://example.test/latest");
+  mounted.commitUrl("https://example.test/slow"); void mounted.run();
+  mounted.commitUrl("https://example.test/latest"); void mounted.run();
   await mounted.finish(1, undefined, "新しい取得に失敗しました");
   await mounted.finish(0, old);
   assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
@@ -182,9 +168,9 @@ test("latest failures keep the saved fallback and cannot be overwritten by an ol
 
 test("requests to the same URL also follow the newest method, headers and JSON body", async () => {
   const mounted = mount();
-  mounted.setOptions({ method: "POST" });
-  mounted.setOptions({ headers: [{ name: "X-Version", value: "new" }] });
-  mounted.setOptions({ body: '{"version":2}' });
+  mounted.setOptions({ method: "POST" }); void mounted.run();
+  mounted.setOptions({ headers: [{ name: "X-Version", value: "new" }] }); void mounted.run();
+  mounted.setOptions({ body: '{"version":2}' }); void mounted.run();
   assert.deepEqual(mounted.requests.map((r) => r.input.url), Array(3).fill("https://example.test/initial"));
   await mounted.finish(2, latest);
   await mounted.finish(0, old);
@@ -197,8 +183,8 @@ test("requests to the same URL also follow the newest method, headers and JSON b
 
 test("clearing a source invalidates its pending response and loading state", async () => {
   const mounted = mount();
-  mounted.commitUrl("https://example.test/slow");
-  mounted.commitUrl("");
+  mounted.commitUrl("https://example.test/slow"); void mounted.run();
+  mounted.commitUrl(""); void mounted.run();
   assert.deepEqual(mounted.status(), { busy: false, error: null });
   const saved = structuredClone(useEditor.getState().doc);
   await mounted.finish(0, old);
@@ -213,7 +199,7 @@ test("Undo rejects pending samples for a different URL or request configuration"
     (mounted: ReturnType<typeof mount>) => mounted.setOptions({ body: '{"version":2}' }),
   ]) {
     const mounted = mount();
-    change(mounted);
+    change(mounted); void mounted.run();
     useEditor.getState().undo();
     const saved = structuredClone(useEditor.getState().doc);
     const future = structuredClone(useEditor.getState().future);
@@ -233,7 +219,7 @@ test("Undo and external source changes hide late errors from the abandoned reque
   ]) {
     for (const renderBeforeResponse of [true, false]) {
       const mounted = mount();
-      mounted.commitUrl("https://example.test/slow");
+      mounted.commitUrl("https://example.test/slow"); void mounted.run();
       change();
       // React の再描画より先に応答が返る場合も、旧設定の状態を表示しない。
       if (renderBeforeResponse) assert.deepEqual(mounted.status(), { busy: false, error: null });
@@ -249,7 +235,7 @@ test("Undo and external source changes hide late errors from the abandoned reque
 
 test("Undo also hides an already displayed error without starting another request", async () => {
   const mounted = mount();
-  mounted.commitUrl("https://example.test/failed");
+  mounted.commitUrl("https://example.test/failed"); void mounted.run();
   await mounted.finish(0, undefined, "現在の取得に失敗しました");
   assert.deepEqual(mounted.status(), { busy: false, error: "現在の取得に失敗しました" });
   useEditor.getState().undo();
@@ -259,7 +245,7 @@ test("Undo also hides an already displayed error without starting another reques
 
 test("a removed block is not recreated and another selected block is not overwritten", async () => {
   const mounted = mount();
-  mounted.commitUrl("https://example.test/slow");
+  mounted.commitUrl("https://example.test/slow"); void mounted.run();
   mounted.select("other");
   mounted.render();
   useEditor.getState().updateDoc((doc) => { doc.pages.p.pageScripts![0].steps = doc.pages.p.pageScripts![0].steps.filter((s) => s.id !== "fetch"); });
@@ -272,7 +258,7 @@ test("a removed block is not recreated and another selected block is not overwri
 
 test("a valid response follows a reordered block and preserves unrelated edits", async () => {
   const mounted = mount();
-  mounted.commitUrl("https://example.test/latest");
+  mounted.commitUrl("https://example.test/latest"); void mounted.run();
   useEditor.getState().updateDoc((doc) => {
     doc.pages.p.pageScripts![0].steps.reverse();
     const fetched = doc.pages.p.pageScripts![0].steps[1] as FetchStep;
@@ -286,123 +272,103 @@ test("a valid response follows a reordered block and preserves unrelated edits",
   assert.deepEqual(previewDataVars(useEditor.getState().doc, "p").renamed, latest);
 });
 
-test("closing and reopening the data modal invalidates the old refresh success and error", async () => {
-  for (const error of [undefined, "閉じた小窓の取得に失敗しました"]) {
-    const mounted = mount();
-    const first = mounted.openModal();
-    await mounted.finish(0, [{ name: "Initial" }]);
-    first.refresh();
-    first.close();
-    const reopened = mounted.openModal();
-    reopened.refresh();
-    await mounted.finish(2, latest);
-    assert.deepEqual(reopened.status(), { busy: false, error: null });
-    // 最新の見本になった小窓は、同じ取得元の全件も読み直す。
-    await mounted.finish(3, latest);
-    const saved = structuredClone(useEditor.getState().doc);
-    const historyLength = useEditor.getState().past.length;
-    await mounted.finish(1, old, error);
-    assert.deepEqual(useEditor.getState().doc, saved);
-    assert.equal(useEditor.getState().past.length, historyLength);
-    assert.deepEqual(previewDataVars(saved, "p").products, latest);
-    assert.deepEqual(reopened.status(), { busy: false, error: null });
-  }
-});
-
-test("a reopened modal keeps its latest failure and fallback after the closed refresh succeeds", async () => {
+test("settings changes and viewing a saved GET or DELETE sample do not send requests", () => {
   const mounted = mount();
-  const first = mounted.openModal();
-  await mounted.finish(0, [{ name: "Initial" }]);
-  first.refresh();
-  first.close();
-  const reopened = mounted.openModal();
-  reopened.refresh();
-  await mounted.finish(2, undefined, "新しい小窓の取得に失敗しました");
-  await mounted.finish(1, old);
+  mounted.commitUrl("https://example.test/edited");
+  mounted.setOptions({ method: "DELETE" });
+  mounted.setOptions({ headers: [{ name: "X-Confirm", value: "yes" }] });
+  mounted.openPeek(); mounted.openPeek();
+  assert.equal(mounted.requests.length, 0);
   assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
-  assert.deepEqual(reopened.status(), { busy: false, error: "新しい小窓の取得に失敗しました" });
+  useEditor.getState().undo(); useEditor.getState().redo();
+  assert.equal(mounted.requests.length, 0);
 });
 
-test("closing the modal cancels explicit refresh while background FetchBody work still saves", async () => {
-  const mounted = mount();
-  const modal = mounted.openModal();
-  await mounted.finish(0, [{ name: "Initial" }]);
-  modal.refresh();
-  modal.close();
-  const saved = structuredClone(useEditor.getState().doc);
-  await mounted.finish(1, old);
-  assert.deepEqual(useEditor.getState().doc, saved);
+test("one explicit execution caches the full response and viewing it never resends a write", async () => {
+  const mounted = mount(); mounted.setOptions({ method: "POST" });
+  const all = Array.from({ length: 23 }, (_, i) => ({ name: String(i) }));
+  void mounted.run(); await mounted.finish(0, all);
+  assert.deepEqual(mounted.step()!.sample, all.slice(0, 20));
+  assert.deepEqual(mounted.cached(), all);
+  mounted.openPeek(); mounted.openPeek();
+  assert.equal(mounted.requests.length, 1);
+});
 
-  mounted.commitUrl("https://example.test/background");
-  mounted.unmount();
-  await mounted.finish(2, latest);
+test("repeated clicks and reopening a pending test cannot duplicate a request", async () => {
+  const mounted = mount(); mounted.setOptions({ method: "DELETE" });
+  const first = mounted.openTest(); void first.run(); void first.run();
+  assert.equal(mounted.requests.length, 1);
+  first.close();
+  const second = mounted.openTest();
+  assert.equal(second.status().busy, true);
+  void second.run(); assert.equal(mounted.requests.length, 1);
+  await mounted.finish(0, old);
+  assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }], "closing cancels saving, not the transmitted request");
+  assert.equal(second.status().busy, false);
+  void second.run(); await mounted.finish(1, latest);
   assert.deepEqual(mounted.step()!.sample, latest);
-  assert.equal(mounted.step()!.url, "https://example.test/background");
 });
 
-test("a newer modal refresh supersedes background work from the closed script editor", async () => {
-  for (const oldFirst of [false, true]) {
-    for (const error of [undefined, "新しい取得に失敗しました"]) {
-      const mounted = mount();
-      mounted.commitUrl("https://example.test/background");
-      mounted.unmount();
-      const modal = mounted.openModal();
-      await mounted.finish(1, [{ name: "Initial" }]);
-      modal.refresh();
-      if (oldFirst) {
-        await mounted.finish(0, old);
-        assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
-        assert.deepEqual(modal.status(), { busy: true, error: null });
-      }
-      await mounted.finish(2, latest, error);
-      assert.deepEqual(modal.status(), { busy: false, error: error ?? null });
-      if (!error) await mounted.finish(3, latest);
-      const saved = structuredClone(useEditor.getState().doc);
-      const historyLength = useEditor.getState().past.length;
-      if (!oldFirst) await mounted.finish(0, old);
-      assert.deepEqual(useEditor.getState().doc, saved);
-      assert.equal(useEditor.getState().past.length, historyLength);
-      assert.deepEqual(mounted.step()!.sample, error ? [{ name: "Initial" }] : latest);
-    }
+test("a closed test and its error cannot change a different setting's latest test", async () => {
+  for (const error of [undefined, "閉じたテストの取得に失敗しました"]) {
+    const mounted = mount();
+    const first = mounted.openTest(); void first.run(); first.close();
+    mounted.commitUrl("https://example.test/new");
+    const second = mounted.openTest(); void second.run();
+    await mounted.finish(0, old, error);
+    assert.deepEqual(second.status(), { busy: true, error: null });
+    await mounted.finish(1, latest);
+    assert.deepEqual(second.status(), { busy: false, error: null });
+    assert.deepEqual(mounted.step()!.sample, latest);
   }
 });
 
-test("an old modal cleanup or response cannot remove another hook's current request", async () => {
+test("pending state is independent for different blocks and identical writes retry only after settlement", async () => {
   const mounted = mount();
-  const first = mounted.openModal();
-  await mounted.finish(0, [{ name: "Initial" }]);
-  first.refresh();
-  const second = mounted.openModal();
-  second.refresh();
-  // 古い画面の cleanup が新しい要求の登録より後でも、所有者を確かめて片付ける。
-  first.close();
-  await mounted.finish(1, old);
-  assert.deepEqual(second.status(), { busy: true, error: null });
-  await mounted.finish(2, latest);
+  const first = mounted.openTest(); void first.run();
+  const other = mounted.openTest("other"); void other.run();
+  await mounted.finish(1, latest); assert.equal(first.status().busy, true);
+  await mounted.finish(0, old); assert.equal(first.status().busy, false);
+  void first.run(); await mounted.finish(2, latest);
   assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(mounted.step("other")!.sample, latest);
 });
 
-test("background work is independent for different blocks and latest-first across reopened bodies", async () => {
-  const mounted = mount();
-  mounted.commitUrl("https://example.test/background");
-  mounted.unmount();
-  const other = mounted.openBody("other");
-  other.commitUrl("https://example.test/other-latest");
-  await mounted.finish(1, [{ name: "OTHER LATEST" }]);
+test("unresolved URL values fail without sending; explicit temporary values are encoded without saving", async () => {
+  const mounted = mount(); mounted.commitUrl("https://example.test/[slug]/{q}");
+  await mounted.run(); assert.equal(mounted.requests.length, 0);
+  assert.equal(mounted.status().error, "テスト用の値を入力してください");
+  void mounted.run({ slug: "001", q: "a b" });
+  assert.equal(mounted.requests[0].input.url, "https://example.test/001/a%20b");
   await mounted.finish(0, latest);
-  assert.deepEqual(mounted.step()!.sample, latest);
-  assert.deepEqual(mounted.step("other")!.sample, [{ name: "OTHER LATEST" }]);
+  assert.equal(mounted.step()!.url, "https://example.test/[slug]/{q}");
+  assert.equal(JSON.stringify(mounted.step()).includes("a b"), false);
+});
 
-  const before = mounted.openBody();
-  before.commitUrl("https://example.test/again");
-  before.close();
-  const reopened = mounted.openBody();
-  reopened.commitUrl("https://example.test/different");
-  reopened.commitUrl("https://example.test/again");
-  await mounted.finish(4, latest);
-  await mounted.finish(2, old);
-  await mounted.finish(3, old);
-  assert.deepEqual(mounted.step()!.sample, latest);
+test("explicit tests preserve raw JSON body types and saved templates", async () => {
+  const mounted = mount();
+  mounted.commitUrl("https://example.test/{code}");
+  mounted.setOptions({ method: "POST", headers: [{ name: "X-Flag", value: "{flag}" }],
+    body: '{"data":{data},"nil":{nil},"code":"{code}","flag":{flag}}' });
+  const config = structuredClone(mounted.step());
+  void mounted.run({ data: [1, { text: "A" }], nil: null, code: "001", flag: false });
+  assert.deepEqual(mounted.requests[0].input, {
+    url: "https://example.test/001", method: "POST", headers: { "X-Flag": "false", "Content-Type": "application/json" },
+    body: '{"data":[1,{"text":"A"}],"nil":null,"code":"001","flag":false}',
+  });
+  await mounted.finish(0, latest);
+  for (const field of ["url", "method", "headers", "body"] as const) assert.deepEqual(mounted.step()![field], config![field]);
+});
+
+test("null, empty, boolean and numeric samples keep their type on fetch, viewing and save/load", async () => {
+  for (const sample of [null, "", false, 0, []]) {
+    const mounted = mount(); void mounted.run(); await mounted.finish(0, sample);
+    assert.deepEqual(mounted.step()!.sample, sample);
+    assert.deepEqual(mounted.cached(), sample);
+    mounted.openPeek(); assert.equal(mounted.requests.length, 1);
+    useEditor.getState().replaceDoc(JSON.parse(JSON.stringify(useEditor.getState().doc)));
+    assert.deepEqual(mounted.step()!.sample, sample);
+  }
 });
 
 test("the browser regression fixture bundles the real script editor", async () => {
