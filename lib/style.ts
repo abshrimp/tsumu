@@ -8,6 +8,7 @@ import type {
   NodeStyles,
   StyleMap,
   StyleState,
+  PageTheme,
 } from "./types";
 import { tr } from "./i18n";
 import { filterFunctions } from "./filter-edit";
@@ -199,6 +200,31 @@ export function resolveStyleMap(
   return out;
 }
 
+/** ライトのスタイルに、ダーク用の差分を重ねる。画面幅と状態の優先順位も保つ。 */
+export function resolveThemeStyleMap(
+  styles: NodeStyles | undefined,
+  darkStyles: NodeStyles | undefined,
+  bp: Breakpoint,
+  state: StyleState,
+  theme: PageTheme
+): StyleMap {
+  if (theme === "light") return resolveStyleMap(styles, bp, state);
+  const out = resolveStyleMap(styles, bp, "default");
+  const put = (map: StyleMap | undefined) => {
+    for (const [key, value] of Object.entries(map ?? {})) {
+      delete out[key];
+      out[key] = value;
+    }
+  };
+  const chain = bpChain(bp);
+  for (const b of chain) put(darkStyles?.[b]?.default);
+  if (state !== "default") {
+    for (const b of chain) put(styles?.[b]?.[state]);
+    for (const b of chain) put(darkStyles?.[b]?.[state]);
+  }
+  return out;
+}
+
 /** 実効値がカスケードのどの段から来ているか（大きいほど後。未設定は -1）。一括指定と個別の指定の優先を決めるのに使う */
 function cascadeLayer(
   styles: NodeStyles | undefined,
@@ -222,9 +248,10 @@ function cascadeLayer(
 export function resolveStyles(
   node: DocNode,
   bp: Breakpoint,
-  state: StyleState
+  state: StyleState,
+  theme: PageTheme = "light"
 ): StyleMap {
-  return resolveStyleMap(node.styles, bp, state);
+  return resolveThemeStyleMap(node.styles, node.darkStyles, bp, state, theme);
 }
 
 /** そのデバイスだけに当たる画面幅のメディアクエリ（例: (min-width: 479px) and (max-width: 767px)） */
@@ -389,18 +416,20 @@ export function getProp(
   state: StyleState,
   prop: string,
   /** 親要素で効いている値（親から受け継ぐプロパティの比べる相手。パソコンの既定で使う） */
-  parentValue?: (prop: string) => string | undefined
+  parentValue?: (prop: string) => string | undefined,
+  theme: PageTheme = "light"
 ): PropInfo {
-  const resolved = resolveStyles(node, bp, state);
-  const here = node.styles[bp]?.[state]?.[prop];
+  const resolved = resolveStyles(node, bp, state, theme);
+  const themeStyles = theme === "dark" ? node.darkStyles : node.styles;
+  const here = themeStyles?.[bp]?.[state]?.[prop];
   return {
     value: resolved[prop],
     setHere: here !== undefined,
-    changed: here !== undefined && isChangedValue(node, bp, state, prop, here, parentValue),
-    baseline: baselineValue(node, bp, state, prop),
+    changed: here !== undefined && isChangedValue(node, bp, state, prop, here, parentValue, theme),
+    baseline: baselineValue(node, bp, state, prop, theme),
     set: resolved[prop] !== undefined,
-    layer: cascadeLayer(node.styles, bp, state, prop),
-    reference: referenceValue(node, bp, state, prop, parentValue),
+    layer: cascadeLayer(themeStyles, bp, state, prop),
+    reference: referenceValue(node, bp, state, prop, parentValue, theme),
   };
 }
 
@@ -410,9 +439,10 @@ function referenceValue(
   bp: Breakpoint,
   state: StyleState,
   prop: string,
-  parentValue?: (prop: string) => string | undefined
+  parentValue?: (prop: string) => string | undefined,
+  theme: PageTheme = "light"
 ): string | undefined {
-  const baseline = baselineValue(node, bp, state, prop);
+  const baseline = baselineValue(node, bp, state, prop, theme);
   if (baseline !== undefined) return baseline;
   const preset = presetDefault(node, prop);
   if (preset !== undefined) return preset;
@@ -438,9 +468,10 @@ export function clearedValue(
   node: DocNode,
   bp: Breakpoint,
   state: StyleState,
-  prop: string
+  prop: string,
+  theme: PageTheme = "light"
 ): string | null {
-  if (bp === "base" || state !== "default") return null;
+  if (theme === "dark" || bp === "base" || state !== "default") return null;
   const baseline = baselineValue(node, bp, state, prop);
   if (isInitialValue(prop, baseline)) return null;
   return initialValueOf(prop) ?? null;
@@ -544,8 +575,19 @@ function baselineValue(
   node: DocNode,
   bp: Breakpoint,
   state: StyleState,
-  prop: string
+  prop: string,
+  theme: PageTheme = "light"
 ): string | undefined {
+  if (theme === "dark") {
+    if (state !== "default") return resolveStyles(node, bp, "default", "dark")[prop];
+    const light = resolveStyles(node, bp, "default", "light")[prop];
+    if (bp === "base") return light;
+    const inherited: NodeStyles = {};
+    for (const b of bpChain(bp).slice(0, -1)) {
+      if (node.darkStyles?.[b]) inherited[b] = node.darkStyles[b];
+    }
+    return resolveThemeStyleMap(node.styles, inherited, bp, "default", "dark")[prop];
+  }
   // ホバーなどは、同じ画面幅の通常時の値と比べる
   if (state !== "default") return resolveStyles(node, bp, "default")[prop];
   if (bp === "base") return undefined;
@@ -561,9 +603,10 @@ function isChangedValue(
   state: StyleState,
   prop: string,
   here: string,
-  parentValue?: (prop: string) => string | undefined
+  parentValue?: (prop: string) => string | undefined,
+  theme: PageTheme = "light"
 ): boolean {
-  const baseline = baselineValue(node, bp, state, prop);
+  const baseline = baselineValue(node, bp, state, prop, theme);
   const v = normValue(here);
   if (baseline !== undefined) return normValue(baseline) !== v;
   const preset = presetDefault(node, prop);

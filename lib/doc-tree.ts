@@ -76,7 +76,8 @@ export function validStyleDefinitions(value: unknown): boolean {
 export function validDocNodeShape(value: unknown): boolean {
   if (!isObject(value) || !NODE_TYPES.has(value.type as string) ||
       typeof value.name !== "string" || !SEMANTICS.has(value.semantic as string) ||
-      !validStyleDefinitions(value.styles)) return false;
+      (!validStyleDefinitions(value.styles) ||
+       (value.darkStyles !== undefined && !validStyleDefinitions(value.darkStyles)))) return false;
   if (value.text != null && (!isObject(value.text) ||
       typeof value.text.content !== "string" || typeof value.text.heading !== "number" ||
       !Number.isInteger(value.text.heading) || value.text.heading < 0 || value.text.heading > 6)) return false;
@@ -88,6 +89,7 @@ export function validDocPageShape(value: unknown): boolean {
   return isObject(value) && typeof value.name === "string" &&
     typeof value.title === "string" && typeof value.description === "string" &&
     (value.bodyStyles == null || validStyleDefinitions(value.bodyStyles)) &&
+    (value.bodyDarkStyles == null || validStyleDefinitions(value.bodyDarkStyles)) &&
     (value.pageScripts == null || validDocumentScripts(value.pageScripts)) &&
     [value.rawHtml, value.redirectTo, value.rewriteTo].filter(v => v != null).length <= 1 &&
     validPageAdditionalFields(value);

@@ -25,7 +25,7 @@ function textStyleScope(s: EditorStore, nodeId: string): string {
   const node = s.doc.nodes[nodeId];
   return JSON.stringify([
     s.activePageId, s.editingComponentId, s.mode, s.rightTab,
-    nodeId, s.selection, s.selectedIds, s.breakpoint, s.styleState,
+    nodeId, s.selection, s.selectedIds, s.breakpoint, s.styleState, s.pageTheme,
     node?.type, node?.text?.content, node?.children,
   ]);
 }
@@ -50,6 +50,7 @@ export function BodyStylePanel() {
   const doc = useEditor((s) => s.doc);
   const activePageId = useEditor((s) => s.activePageId);
   const breakpoint = useEditor((s) => s.breakpoint);
+  const pageTheme = useEditor((s) => s.pageTheme);
   const updateDoc = useEditor((s) => s.updateDoc);
   const checkpoint = useEditor((s) => s.checkpoint);
 
@@ -63,6 +64,7 @@ export function BodyStylePanel() {
       link: null,
       children: [],
       styles: doc.pages[activePageId]?.bodyStyles ?? {},
+      darkStyles: doc.pages[activePageId]?.bodyDarkStyles,
     }),
     [doc.pages, activePageId]
   );
@@ -75,7 +77,7 @@ export function BodyStylePanel() {
       (draft) => {
         const page = draft.pages[activePageId];
         if (!page) return;
-        const styles = (page.bodyStyles ??= {});
+        const styles = pageTheme === "dark" ? (page.bodyDarkStyles ??= {}) : (page.bodyStyles ??= {});
         const bpStyles = (styles[breakpoint] ??= {});
         const map = (bpStyles.default ??= {});
         for (const [key, value] of Object.entries(props)) {
@@ -90,14 +92,14 @@ export function BodyStylePanel() {
 
   const insp: Inspector = useMemo(
     () => ({
-      editTarget: JSON.stringify(["body", activePageId, breakpoint]),
-      get: (prop) => getProp(bodyNode, breakpoint, "default", prop),
+      editTarget: JSON.stringify(["body", activePageId, breakpoint, pageTheme]),
+      get: (prop) => getProp(bodyNode, breakpoint, "default", prop, undefined, pageTheme),
       set: (props) => setBodyProps(props),
-      cleared: (prop) => clearedValue(bodyNode, breakpoint, "default", prop),
+      cleared: (prop) => clearedValue(bodyNode, breakpoint, "default", prop, pageTheme),
       setTransient: (props) => setBodyProps(props, true),
       checkpoint,
     }),
-    [bodyNode, activePageId, breakpoint, checkpoint]
+    [bodyNode, activePageId, breakpoint, pageTheme, checkpoint]
   );
 
   return (
@@ -125,6 +127,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
   const doc = useEditor((s) => s.doc);
   const breakpoint = useEditor((s) => s.breakpoint);
   const styleState = useEditor((s) => s.styleState);
+  const pageTheme = useEditor((s) => s.pageTheme);
   const selectedIds = useEditor((s) => s.selectedIds);
   const setStyleState = useEditor((s) => s.setStyleState);
   const setStyleProps = useEditor((s) => s.setStyleProps);
@@ -136,10 +139,10 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
 
   const insp: Inspector = useMemo(
     () => ({
-      editTarget: JSON.stringify([nodeId, breakpoint, styleState, selectedIds]),
+      editTarget: JSON.stringify([nodeId, breakpoint, styleState, selectedIds, pageTheme]),
       get: (prop) =>
-        getProp(node, breakpoint, styleState, prop, (p) => inheritedPropValue(doc, nodeId, breakpoint, styleState, p)),
-      cleared: (prop) => clearedValue(node, breakpoint, styleState, prop),
+        getProp(node, breakpoint, styleState, prop, (p) => inheritedPropValue(doc, nodeId, breakpoint, styleState, p, pageTheme), pageTheme),
+      cleared: (prop) => clearedValue(node, breakpoint, styleState, prop, pageTheme),
       set: (props) => {
         // テキストの一部だけを選択していた場合は、span に分けることを提案する
         const s = useEditor.getState();
@@ -180,7 +183,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
       setTransient: (props) => setStyleProps(nodeId, props, { transient: true }),
       checkpoint,
     }),
-    [doc, node, breakpoint, styleState, selectedIds, nodeId, setStyleProps, checkpoint, scope, pending]
+    [doc, node, breakpoint, styleState, pageTheme, selectedIds, nodeId, setStyleProps, checkpoint, scope, pending]
   );
 
   if (!node) return null;

@@ -15,7 +15,13 @@ export function removeUploadedFont(doc: SiteDoc, assetId: string): number {
       }
     }
   };
-  for (const node of Object.values(doc.nodes)) clearStyles(node.styles);
-  for (const page of Object.values(doc.pages)) clearStyles(page.bodyStyles);
+  for (const node of Object.values(doc.nodes)) {
+    clearStyles(node.styles);
+    clearStyles(node.darkStyles);
+  }
+  for (const page of Object.values(doc.pages)) {
+    clearStyles(page.bodyStyles);
+    clearStyles(page.bodyDarkStyles);
+  }
   return removed.length;
 }

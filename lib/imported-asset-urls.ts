@@ -109,9 +109,11 @@ export function rebindImportedAssetUrls(original: SiteDoc, doc: SiteDoc) {
     if (node.icon?.svg) node.icon.svg = markup(node.icon.svg);
     if (node.htmlAttrs) for (const [key, value] of Object.entries(node.htmlAttrs)) node.htmlAttrs[key] = attr(key.toLowerCase(), value);
     styles(node.styles);
+    styles(node.darkStyles);
   }
   for (const page of Object.values(doc.pages)) {
     styles(page.bodyStyles);
+    styles(page.bodyDarkStyles);
     if (page.rawHtml) page.rawHtml = markup(page.rawHtml);
     if (page.customTopHtml) page.customTopHtml = markup(page.customTopHtml);
     if (page.customEndHtml) page.customEndHtml = markup(page.customEndHtml);

@@ -3869,6 +3869,12 @@ const ja: Dict = {
   "Ready": "動きます",
   "Click an element on the page": "ページの上で、要素をクリック",
   "Click it on the page": "ページの上でクリックして選ぶ",
+  "Editor appearance": "エディターの外観",
+  "System setting": "端末の設定に合わせる",
+  "Light mode": "ライトモード",
+  "Dark mode": "ダークモード",
+  "Page appearance": "ページの配色",
+  "The editor appearance is separate from the website's styles.": "エディターの配色を変更しても、制作するページのスタイルは変更されません。",
 };
 
 export default ja;

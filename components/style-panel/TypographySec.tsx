@@ -23,8 +23,8 @@ import {
   Underline,
 } from "lucide-react";
 import { ancestorsOf, findParentOf, useEditor } from "../../lib/store";
-import type { Breakpoint, DocNode, SiteDoc, StyleState } from "../../lib/types";
-import { getProp, resolveStyleMap, isInitialValue, initialValueOf } from "../../lib/style";
+import type { Breakpoint, DocNode, PageTheme, SiteDoc, StyleState } from "../../lib/types";
+import { getProp, resolveThemeStyleMap, isInitialValue, initialValueOf } from "../../lib/style";
 import {
   Dropdown,
   Grp,
@@ -47,20 +47,21 @@ export function inheritedPropValue(
   nodeId: string,
   breakpoint: Breakpoint,
   styleState: StyleState,
-  prop: string
+  prop: string,
+  theme: PageTheme = "light"
 ): string | undefined {
   let parent = findParentOf(doc, nodeId);
   while (parent?.kind === "node") {
     const parentNode = doc.nodes[parent.id];
     if (!parentNode) break;
-    const value = getProp(parentNode, breakpoint, styleState, prop).value;
+    const value = getProp(parentNode, breakpoint, styleState, prop, undefined, theme).value;
     if (value) return value;
     parent = findParentOf(doc, parent.id);
   }
   // ページの直下まで来たら、そのページの body の設定を受け継ぐ
   if (parent?.kind === "page") {
-    const body = doc.pages[parent.id]?.bodyStyles;
-    return resolveStyleMap(body, breakpoint, "default")[prop] || undefined;
+    const page = doc.pages[parent.id];
+    return resolveThemeStyleMap(page?.bodyStyles, page?.bodyDarkStyles, breakpoint, "default", theme)[prop] || undefined;
   }
   return undefined;
 }

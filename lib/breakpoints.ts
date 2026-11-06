@@ -15,12 +15,14 @@ const BP_MIN_GAP = 20;
 export function breakpointUsage(doc: SiteDoc, id: Breakpoint): number {
   let n = 0;
   for (const node of Object.values(doc.nodes)) {
-    const s = node.styles[id];
-    if ((s && Object.values(s).some((m) => m && Object.keys(m).length)) || node.hiddenOn?.includes(id)) n++;
+    const s = node.styles[id], dark = node.darkStyles?.[id];
+    if ((s && Object.values(s).some((m) => m && Object.keys(m).length)) ||
+        (dark && Object.values(dark).some((m) => m && Object.keys(m).length)) || node.hiddenOn?.includes(id)) n++;
   }
   for (const page of Object.values(doc.pages)) {
-    const s = page.bodyStyles?.[id];
-    if (s && Object.values(s).some((m) => m && Object.keys(m).length)) n++;
+    const s = page.bodyStyles?.[id], dark = page.bodyDarkStyles?.[id];
+    if ((s && Object.values(s).some((m) => m && Object.keys(m).length)) ||
+        (dark && Object.values(dark).some((m) => m && Object.keys(m).length))) n++;
   }
   return n;
 }
@@ -57,15 +59,20 @@ function save(d: SiteDoc, list: BreakpointDef[]) {
 function dropUsage(d: SiteDoc, ids: Set<string>) {
   if (!ids.size) return;
   for (const node of Object.values(d.nodes)) {
-    for (const id of ids) delete node.styles[id];
+    for (const id of ids) {
+      delete node.styles[id];
+      if (node.darkStyles) delete node.darkStyles[id];
+    }
     if (node.hiddenOn) {
       node.hiddenOn = node.hiddenOn.filter((b) => !ids.has(b));
       if (!node.hiddenOn.length) node.hiddenOn = undefined;
     }
   }
   for (const page of Object.values(d.pages)) {
-    if (!page.bodyStyles) continue;
-    for (const id of ids) delete page.bodyStyles[id];
+    for (const id of ids) {
+      if (page.bodyStyles) delete page.bodyStyles[id];
+      if (page.bodyDarkStyles) delete page.bodyDarkStyles[id];
+    }
   }
 }
 

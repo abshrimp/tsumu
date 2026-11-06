@@ -328,11 +328,13 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
     if (node.media?.assetId === assetId) node.media.src = src;
     for (const source of node.media?.sources ?? []) if (source.assetId === assetId) source.src = src;
     if (!data) continue;
-    for (const bp of Object.values(node.styles)) {
-      for (const styles of Object.values(bp ?? {})) {
-        if (!styles) continue;
-        for (const [prop, value] of Object.entries(styles)) {
-          if (typeof value === "string") styles[prop] = replaceCssAssetUrls(value, sources);
+    for (const variants of [node.styles, node.darkStyles]) {
+      for (const bp of Object.values(variants ?? {})) {
+        for (const styles of Object.values(bp ?? {})) {
+          if (!styles) continue;
+          for (const [prop, value] of Object.entries(styles)) {
+            if (typeof value === "string") styles[prop] = replaceCssAssetUrls(value, sources);
+          }
         }
       }
     }
@@ -340,10 +342,12 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
   if (!data) return;
   // 背景のパネルが保存する形式だけを扱い、カスタム CSS の値は書き換えない。
   for (const page of Object.values(doc.pages)) {
-    for (const bp of Object.values(page.bodyStyles ?? {})) {
-      for (const styles of Object.values(bp ?? {})) {
-        if (styles?.backgroundImage === `url("${data}")`) {
-          styles.backgroundImage = `url("${src}")`;
+    for (const variants of [page.bodyStyles, page.bodyDarkStyles]) {
+      for (const bp of Object.values(variants ?? {})) {
+        for (const styles of Object.values(bp ?? {})) {
+          if (styles?.backgroundImage === `url("${data}")`) {
+            styles.backgroundImage = `url("${src}")`;
+          }
         }
       }
     }
@@ -543,9 +547,11 @@ export function removePageAssetBackgrounds(doc: SiteDoc, asset: Asset): void {
   if (!src) return;
   const backgroundImage = `url("${src}")`;
   for (const page of Object.values(doc.pages)) {
-    for (const bp of Object.values(page.bodyStyles ?? {})) {
-      for (const styles of Object.values(bp ?? {})) {
-        if (styles?.backgroundImage === backgroundImage) delete styles.backgroundImage;
+    for (const variants of [page.bodyStyles, page.bodyDarkStyles]) {
+      for (const bp of Object.values(variants ?? {})) {
+        for (const styles of Object.values(bp ?? {})) {
+          if (styles?.backgroundImage === backgroundImage) delete styles.backgroundImage;
+        }
       }
     }
   }

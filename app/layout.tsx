@@ -9,6 +9,7 @@ import "./styles/page-folders.css";
 import "./styles/home.css";
 import "./styles/comments.css";
 import "./styles/font-add.css";
+import "./styles/editor-dark.css";
 import { serverLang, serverTr } from "../lib/i18n-server";
 
 export async function generateMetadata(): Promise<Metadata> {

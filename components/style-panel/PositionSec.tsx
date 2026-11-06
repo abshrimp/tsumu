@@ -306,12 +306,13 @@ export function useParentFlexDir(): "row" | "column" | null {
   const doc = useEditor((s) => s.doc);
   const selection = useEditor((s) => s.selection);
   const breakpoint = useEditor((s) => s.breakpoint);
+  const pageTheme = useEditor((s) => s.pageTheme);
   if (!selection) return null;
   const parent = findParentOf(doc, selection);
   if (parent?.kind !== "node") return null;
   const parentNode = doc.nodes[parent.id];
   if (!parentNode) return null;
-  const resolved = resolveStyles(parentNode, breakpoint, "default");
+  const resolved = resolveStyles(parentNode, breakpoint, "default", pageTheme);
   if (resolved.display !== "flex" && resolved.display !== "inline-flex") return null;
   return resolved.flexDirection?.startsWith("column") ? "column" : "row";
 }

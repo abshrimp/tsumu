@@ -5,7 +5,7 @@
 import { escapeStyleContent } from "../../lib/css-assets";
 import { safeCssDeclaration, safeCustomCssDeclarations } from "../../lib/css-declaration";
 import { keyframesCss, motionCss } from "../../lib/motion";
-import type { Breakpoint, DocNode, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
+import type { Breakpoint, DocNode, NodeStyles, PageTheme, SiteDoc, StyleState } from "../../lib/types";
 import { customStateSelector } from "../../lib/custom-states";
 import { cssQuotedAttributeValue } from "../../lib/css-selector";
 import {
@@ -13,7 +13,7 @@ import {
   isHiddenAt,
   extractPartStyles,
   extractSelectionStyles,
-  resolveStyleMap,
+  resolveThemeStyleMap,
   resolveStyles,
 } from "../../lib/style";
 
@@ -32,13 +32,15 @@ function cssBody(map: Record<string, string>): string {
 export function previewHtmlWithBodyStyles(
   html: string,
   styles: NodeStyles | undefined,
-  bp: Breakpoint
+  bp: Breakpoint,
+  pageTheme: PageTheme = "light",
+  darkStyles?: NodeStyles
 ): string {
-  const map = resolveStyleMap(styles, bp, "default");
+  const map = resolveThemeStyleMap(styles, darkStyles, bp, "default", pageTheme);
   map.width ??= "auto";
   map.height ??= "auto";
   const safeCss = escapeStyleContent(cssBody(map));
-  const style = `<style data-editor-body-style>body { ${safeCss} }</style>`;
+  const style = `<style data-editor-body-style>html { color-scheme: ${pageTheme}; } body { ${safeCss} }</style>`;
   return /<\/head>/i.test(html)
     ? html.replace(/<\/head>/i, (end) => `${style}${end}`)
     : `${style}${html}`;
@@ -65,7 +67,8 @@ function buildNodeCss(
   bp: Breakpoint,
   mode: "design" | "preview",
   state: StyleState,
-  hasAbsChild: boolean
+  hasAbsChild: boolean,
+  pageTheme: PageTheme
 ): NodeCss {
   const rules: string[] = [];
   // 通常の data-node と、インスタンス内の data-ghost の両方に適用する
@@ -89,7 +92,7 @@ function buildNodeCss(
   const safeCustom = safeCustomCssDeclarations(node.customCss);
   const extra = safeCustom.length ? ` ${safeCustom.join(" ")}` : "";
 
-  const map = resolveStyles(node, bp, state);
+  const map = resolveStyles(node, bp, state, pageTheme);
   map.width ??= "auto";
   // 音声はブラウザ標準の操作部の高さを保つ（auto で上書きすると潰れる）。
   if (node.type !== "media" || node.media?.kind !== "audio") map.height ??= "auto";
@@ -105,12 +108,16 @@ function buildNodeCss(
   }
   for (const p of parts) rules.push(`${p.selector(sel)} { ${cssBody(p.map)} }`);
   if (mode === "preview") {
-    const customStates = [...new Set(Object.values(node.styles)
+    const customStates = [...new Set([node.styles, node.darkStyles]
+      .flatMap((styles) => Object.values(styles ?? {}))
       .flatMap((states) => Object.keys(states))
       .filter((state) => customStateSelector(state) !== null))];
     for (const st of [...["hover", "active", "focus"], ...customStates] as StyleState[]) {
       const merged: Record<string, string> = {};
       for (const b of bpChain(bp)) Object.assign(merged, node.styles[b]?.[st]);
+      if (pageTheme === "dark") {
+        for (const b of bpChain(bp)) Object.assign(merged, node.darkStyles?.[b]?.[st]);
+      }
       const suffix = customStateSelector(st) ?? `:${st}`;
       const stSel = extractSelectionStyles(merged);
       for (const p of extractPartStyles(merged)) {
@@ -141,11 +148,13 @@ export function buildCanvasCss(
   selection: string | null,
   styleState: StyleState,
   bodyStyles?: NodeStyles,
-  cache?: CanvasCssCache
+  cache?: CanvasCssCache,
+  pageTheme: PageTheme = "light",
+  bodyDarkStyles?: NodeStyles
 ): string {
   // 独自のブレークポイントの順序を変えると、ノードを置き換えなくても CSS の優先順位が変わる。
   const chain = bpChain(bp);
-  const context = JSON.stringify([mode, bp, ...chain]);
+  const context = JSON.stringify([mode, bp, pageTheme, ...chain]);
   const rules: string[] = [];
   const walked = new Set<string>();
   const usedKeyframes: string[] = [];
@@ -167,12 +176,8 @@ export function buildCanvasCss(
     }
     // 直下に絶対配置の子がある場合、このノードがその配置の基準になる。
     const hasAbsChild = node.children.some((cid) => {
-      const styles = doc.nodes[cid]?.styles;
-      for (let i = chain.length - 1; i >= 0; i--) {
-        const defaults = styles?.[chain[i]]?.default;
-        if (defaults && Object.hasOwn(defaults, "position")) return defaults.position === "absolute";
-      }
-      return false;
+      const child = doc.nodes[cid];
+      return child && resolveStyles(child, bp, "default", pageTheme).position === "absolute";
     });
     const state = mode === "design" && id === selection ? styleState : "default";
     const cached = cache?.get(id);
@@ -181,7 +186,7 @@ export function buildCanvasCss(
         cached.state === state && cached.hasAbsChild === hasAbsChild) {
       css = cached.css;
     } else {
-      css = buildNodeCss(node, id, bp, mode, state, hasAbsChild);
+      css = buildNodeCss(node, id, bp, mode, state, hasAbsChild, pageTheme);
       cache?.set(id, { node, context, state, hasAbsChild, css });
     }
     rules.push(css.rules);
@@ -189,7 +194,7 @@ export function buildCanvasCss(
     customKeyframes.push(...css.customKeyframes);
     node.children.forEach(walk);
   };
-  const bodyMap = resolveStyleMap(bodyStyles, bp, "default");
+  const bodyMap = resolveThemeStyleMap(bodyStyles, bodyDarkStyles, bp, "default", pageTheme);
   bodyMap.width ??= "auto";
   bodyMap.height ??= "auto";
   if (Object.keys(bodyMap).length) {

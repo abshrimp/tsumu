@@ -78,6 +78,7 @@ function outline(doc: SiteDoc, id: string, depth: number): unknown {
   if (n.type === "code") o.html = (n.code?.html ?? "").slice(0, 200);
   if (n.type === "list") o.list = n.list;
   if (Object.keys(n.styles).length) o.styles = n.styles;
+  if (n.darkStyles && Object.keys(n.darkStyles).length) o.darkStyles = n.darkStyles;
   if (n.customCss) o.customCss = n.customCss;
   if (n.hiddenOn?.length) o.hiddenOn = n.hiddenOn;
   if (n.locked) o.locked = true;
@@ -109,6 +110,7 @@ function summarizeContext(context: AiContext, componentId?: string): string {
       : {
           page: { id: page?.id, name: page?.name, url: `/${page?.slug ?? ""}`, title: page?.title, description: page?.description },
           bodyStyles: page?.bodyStyles,
+          bodyDarkStyles: page?.bodyDarkStyles,
         },
     viewingBreakpoint: context.breakpoint ?? "base",
     selectedElementId: context.selection && (Object.hasOwn(doc.nodes, context.selection) || context.selection === BODY_NODE_ID) ? context.selection : null,

@@ -31,16 +31,20 @@ import { cssDecls, safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyN
 function usedFontFamilies(doc: SiteDoc) {
   const families = new Set<string>();
   for (const page of Object.values(doc.pages)) {
-    for (const bp of Object.values(page.bodyStyles ?? {})) {
-      for (const map of Object.values(bp)) {
-        if (map?.fontFamily) families.add(map.fontFamily);
+    for (const styles of [page.bodyStyles, page.bodyDarkStyles]) {
+      for (const bp of Object.values(styles ?? {})) {
+        for (const map of Object.values(bp)) {
+          if (map?.fontFamily) families.add(map.fontFamily);
+        }
       }
     }
   }
   for (const node of Object.values(doc.nodes)) {
-    for (const bp of Object.values(node.styles)) {
-      for (const map of Object.values(bp)) {
-        if (map?.fontFamily) families.add(map.fontFamily);
+    for (const styles of [node.styles, node.darkStyles]) {
+      for (const bp of Object.values(styles ?? {})) {
+        for (const map of Object.values(bp)) {
+          if (map?.fontFamily) families.add(map.fontFamily);
+        }
       }
     }
   }
@@ -273,6 +277,9 @@ export function generateSiteCss(
   const mediaBlocks: Record<Breakpoint, string[]> = Object.fromEntries(
     BP_ORDER.map((bp) => [bp, [] as string[]])
   );
+  const darkMediaBlocks: Record<Breakpoint, string[]> = Object.fromEntries(
+    BP_ORDER.map((bp) => [bp, [] as string[]])
+  );
   const hideRules: Record<Breakpoint, string[]> = Object.fromEntries(
     BP_ORDER.map((bp) => [bp, [] as string[]])
   );
@@ -296,6 +303,11 @@ export function generateSiteCss(
       );
       if (bp === "base") blocks.push(rule);
       else mediaBlocks[bp].push(rule);
+    }
+    for (const bp of BP_ORDER) {
+      const map = { ...(page.bodyDarkStyles?.[bp]?.default ?? {}) };
+      if (!Object.keys(map).length) continue;
+      darkMediaBlocks[bp].push(ruleFor(resolveValue, selector, map, bp === "base" ? "" : "  "));
     }
   }
 
@@ -398,6 +410,46 @@ export function generateSiteCss(
         }
       }
     }
+    // ダーク時の差分。ライトの基本ルールとレスポンシブ指定を残したまま上書きする。
+    for (const bp of BP_ORDER) {
+      const lightPosition = resolveStyles(node, bp, "default").position;
+      const darkPosition = resolveStyles(node, bp, "default", "dark").position;
+      const hasAbsoluteChild = (theme: "light" | "dark") => node.children.some((id) => {
+        const child = doc.nodes[id];
+        return child && resolveStyles(child, bp, "default", theme).position === "absolute";
+      });
+      // ダーク側だけで子が絶対配置になる場合も、キャンバスと同じ配置基準にする。
+      // ライト側の自動配置が不要になった場合は static へ明示的に戻す。
+      const lightEffective = lightPosition ??
+        (!hasCustomPosition && hasAbsoluteChild("light") ? "relative" : "static");
+      const darkEffective = darkPosition ??
+        (!hasCustomPosition && hasAbsoluteChild("dark") ? "relative" : "static");
+      const inferredDarkPosition = lightEffective === darkEffective ? undefined : darkEffective;
+      const bpStyles = node.darkStyles?.[bp] ?? (inferredDarkPosition ? {} : undefined);
+      if (!bpStyles) continue;
+      const customStates = Object.keys(bpStyles)
+        .filter((state) => customStateSelector(state) !== null) as Array<keyof typeof bpStyles>;
+      for (const state of [...STATE_ORDER, ...customStates]) {
+        const map = { ...bpStyles[state] };
+        if (state === "default" && inferredDarkPosition && !Object.hasOwn(map, "position")) {
+          map.position = inferredDarkPosition;
+        }
+        if (!Object.keys(map).length) continue;
+        const suffix = customStateSelector(state) ?? STATE_INFO[state as keyof typeof STATE_INFO].pseudo;
+        const selector = `.${cls}${suffix}`;
+        for (const part of extractPartStyles(map)) {
+          darkMediaBlocks[bp].push(ruleFor(resolveValue, part.selector(selector), part.map, bp === "base" ? "" : "  "));
+        }
+        const selection = extractSelectionStyles(map);
+        if (selection) {
+          darkMediaBlocks[bp].push(ruleFor(
+            resolveValue, `${selector}::selection, ${selector} *::selection`,
+            selection, bp === "base" ? "" : "  "
+          ));
+        }
+        darkMediaBlocks[bp].push(ruleFor(resolveValue, selector, map, bp === "base" ? "" : "  "));
+      }
+    }
     // デバイスごとの非表示は、その画面幅の範囲だけに効かせる
     for (const bp of BP_ORDER) {
       if (isHiddenAt(node, bp)) {
@@ -417,6 +469,16 @@ export function generateSiteCss(
     blocks.push(
       `@media (max-width: ${BP_INFO[bp].maxWidth}px) {\n${mergeIdenticalRules(mediaBlocks[bp]).join("\n\n")}\n}`
     );
+  }
+  const darkRules: string[] = mergeIdenticalRules(darkMediaBlocks.base);
+  for (const bp of BP_ORDER.slice(1)) {
+    if (!darkMediaBlocks[bp].length) continue;
+    darkRules.push(
+      `@media (max-width: ${BP_INFO[bp].maxWidth}px) {\n${mergeIdenticalRules(darkMediaBlocks[bp]).join("\n\n")}\n}`
+    );
+  }
+  if (darkRules.length) {
+    blocks.push(`@media (prefers-color-scheme: dark) {\n${darkRules.join("\n\n")}\n}`);
   }
   // 非表示は各デバイスのスタイルより後に置き、画面幅の範囲で区切る
   for (const bp of BP_ORDER) {
@@ -480,6 +542,8 @@ export function rawHtmlWithBodyStyles(
   const resolveValue = createCssValueResolver(doc, assetNames);
   const base: string[] = [];
   const responsive: string[] = [];
+  const darkBase: string[] = [];
+  const darkResponsive: string[] = [];
   if (page.htmlBackground) {
     base.push(htmlBackgroundCss(page.htmlBackground, "html", "body"));
   }
@@ -498,7 +562,17 @@ export function rawHtmlWithBodyStyles(
       );
     }
   }
-  const css = escapeStyleContent([...base, ...responsive].join("\n\n"));
+  for (const bp of BP_ORDER) {
+    const map = { ...(page.bodyDarkStyles?.[bp]?.default ?? {}) };
+    if (!Object.keys(map).length) continue;
+    const rule = ruleFor(resolveValue, "body", map, bp === "base" ? "" : "  ");
+    if (bp === "base") darkBase.push(rule);
+    else darkResponsive.push(`@media (max-width: ${BP_INFO[bp].maxWidth}px) {\n${rule}\n}`);
+  }
+  const darkCss = [...darkBase, ...darkResponsive];
+  const css = escapeStyleContent([...base, ...responsive,
+    ...(darkCss.length ? [`@media (prefers-color-scheme: dark) {\n${darkCss.join("\n\n")}\n}`] : [])
+  ].join("\n\n"));
   const head = [
     css ? `<style data-editor-body-style>\n${css}\n</style>` : "",
     target === "production" && page.noindex ? '<meta name="robots" content="noindex, nofollow">' : "",

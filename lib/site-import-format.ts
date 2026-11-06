@@ -64,6 +64,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
     if (typeof page.slug !== "string" || typeof page.name !== "string" ||
         typeof page.title !== "string" || typeof page.description !== "string" ||
         (page.bodyStyles != null && !validStyleDefinitions(page.bodyStyles)) ||
+        (page.bodyDarkStyles != null && !validStyleDefinitions(page.bodyDarkStyles)) ||
         !Array.isArray(page.children)) {
       throw new Error(tr("The page structure is invalid."));
     }

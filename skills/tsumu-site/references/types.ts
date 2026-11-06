@@ -163,6 +163,7 @@ export interface BreakpointDef {
   maxWidth: number;
 }
 export type StyleState = "default" | "hover" | "active" | "focus" | `custom:${string}`;
+export type PageTheme = "light" | "dark";
 
 export type StyleMap = Record<string, string>;
 
@@ -399,6 +400,7 @@ export interface DocNode {
   componentId?: string;
   children: string[];
   styles: NodeStyles;
+  darkStyles?: NodeStyles;
   
   customCss?: string;
   
@@ -440,6 +442,7 @@ export interface Page {
   lang?: string;
   
   bodyStyles?: NodeStyles;
+  bodyDarkStyles?: NodeStyles;
   
   htmlBackground?: string;
   noindex?: boolean;

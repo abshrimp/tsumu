@@ -22,6 +22,7 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
     add(node.media?.assetId);
     node.media?.sources?.forEach(source => add(source.assetId));
     findCssAssets(node.styles, node.customCss).forEach(add);
+    findCssAssets(node.darkStyles).forEach(add);
   }
   add(doc.favicon?.assetId);
   add(doc.appleTouchIcon?.assetId);
@@ -31,6 +32,7 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
     add(page.ogImage?.assetId);
     for (const id of page.htmlZip?.assetIds ?? []) add(id);
     findCssAssets(page.bodyStyles).forEach(add);
+    findCssAssets(page.bodyDarkStyles).forEach(add);
   }
 
   // The remaining scans only mark assets that have no counted use yet.

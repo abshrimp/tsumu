@@ -32,9 +32,11 @@ export function customStatesForNode(doc: SiteDoc, nodeId: string): StyleState[] 
   const node = doc.nodes[nodeId];
   if (!node) return [];
   const found = new Set<StyleState>();
-  for (const bp of Object.values(node.styles)) {
-    for (const state of Object.keys(bp)) {
-      if (customStateName(state) !== null) found.add(state as StyleState);
+  for (const styles of [node.styles, node.darkStyles]) {
+    for (const bp of Object.values(styles ?? {})) {
+      for (const state of Object.keys(bp)) {
+        if (customStateName(state) !== null) found.add(state as StyleState);
+      }
     }
   }
   const walk = (steps: ScriptStep[], isOwnScript: boolean): void => {

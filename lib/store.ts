@@ -9,6 +9,7 @@ import type {
   ScriptStep,
   SiteDoc,
   StyleState,
+  PageTheme,
 } from "./types";
 import { BODY_NODE_ID } from "./types";
 import { renamePage, setPageTitle } from "./pageTitle";
@@ -381,6 +382,8 @@ export interface EditorStore {
   /** キャンバスのカスタムの画面幅（null = ブレークポイントの表示幅） */
   customWidth: number | null;
   styleState: StyleState;
+  /** 制作するページの配色（サイトデータには保存しない） */
+  pageTheme: PageTheme;
   mode: EditorMode;
   leftTab: LeftTab;
   editingText: string | null;
@@ -411,6 +414,7 @@ export interface EditorStore {
   /** カスタムの幅を設定する（対応するブレークポイントへ自動で切り替える） */
   setCustomWidth: (w: number | null) => void;
   setStyleState: (s: StyleState) => void;
+  setPageTheme: (theme: PageTheme) => void;
   setMode: (m: EditorMode) => void;
   setLeftTab: (t: LeftTab) => void;
   /** アセットのパネルで目立たせて表示するアセット（表示し終えたら null に戻す） */
@@ -705,6 +709,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     breakpoint: "base",
     customWidth: null,
     styleState: "default",
+    pageTheme: readLocalStorage("tsumu-page-theme") === "dark" ? "dark" : "light",
     mode: "design",
     leftTab: "layers",
     revealAssetId: null,
@@ -805,6 +810,10 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({ customWidth: width, breakpoint: breakpointForWidth(width) });
     },
     setStyleState: (s) => set({ styleState: s }),
+    setPageTheme: (theme) => {
+      set({ pageTheme: theme });
+      try { window.localStorage.setItem("tsumu-page-theme", theme); } catch { /* Storage is optional. */ }
+    },
     setMode: (m) => set({ mode: m, editingText: null, textSel: null }),
     setLeftTab: (t) => set({ leftTab: t }),
     revealAsset: (id) => set(id ? { leftTab: "assets", revealAssetId: id } : { revealAssetId: null }),
@@ -832,7 +841,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (start >= end) return null;
       if (ancestorsOf(doc, nodeId).length + 2 > MAX_NODE_DEPTH) return null;
 
-      const { breakpoint, styleState } = get();
+      const { breakpoint, styleState, pageTheme } = get();
       const makeSpan = (part: string): DocNode => ({
         id: genId("node"),
         type: "box",
@@ -851,7 +860,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       const spans = parts.map((p) => (p ? makeSpan(p) : null));
       const target = spans[1]!;
       if (props) {
-        const bpStyles = (target.styles[breakpoint] ??= {});
+        const styles = pageTheme === "dark" ? (target.darkStyles ??= {}) : target.styles;
+        const bpStyles = (styles[breakpoint] ??= {});
         const map = (bpStyles[styleState] ??= {});
         for (const [k, v] of Object.entries(props)) {
           if (v !== null) map[k] = v;
@@ -1450,10 +1460,11 @@ export const useEditor = create<EditorStore>((set, get) => {
     },
 
     setStyleProps: (nodeId, props, opts) => {
-      const { breakpoint, styleState } = get();
+      const { breakpoint, styleState, pageTheme } = get();
       const targetIds = targetIdsFor(get().selectedIds, nodeId);
       updateNodes(targetIds, (node) => {
-        const bpStyles = (node.styles[breakpoint] ??= {});
+        const styles = pageTheme === "dark" ? (node.darkStyles ??= {}) : node.styles;
+        const bpStyles = (styles[breakpoint] ??= {});
         const map = (bpStyles[styleState] ??= {});
         for (const [k, v] of Object.entries(props)) {
           // 空文字は「未設定」として消す（空の値で、設定済みを示す色だけが付いて残らないようにする）

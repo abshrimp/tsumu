@@ -41,6 +41,7 @@ import { userMessage } from "../lib/errors";
 import SafeBoundary from "./SafeBoundary";
 import { getLang, tr } from "../lib/i18n";
 import { readLocalStorage } from "../lib/local-storage";
+import { useApplyEditorTheme } from "../lib/editor-theme";
 import { useServerStatus } from "../lib/status";
 import { currentSiteId, siteApi, siteKey } from "../lib/site";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
@@ -133,6 +134,7 @@ function PanelResizer({
 export type EditorProps = { onReady?: () => void; siteRole?: "owner" | "editor" | "viewer" | null };
 
 export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
+  useApplyEditorTheme();
   // モジュール内の仮の初期データは見せず、最初の読み込み結果が決まるまで準備画面を表示し続ける。
   // 再接続や保存の途中では準備画面に戻さない（入力欄やキャンバスをアンマウントしないため）。
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);

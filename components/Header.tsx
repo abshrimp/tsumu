@@ -10,6 +10,8 @@ import {
   Globe,
   History,
   LayoutGrid,
+  Moon,
+  Sun,
   LoaderCircle,
   LogOut,
   MessageSquare,
@@ -32,6 +34,8 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { useEditor } from "../lib/store";
+import type { PageTheme } from "../lib/types";
+import { useEditorThemePreference, setEditorThemePreference } from "../lib/editor-theme";
 import { useDocumentConfirmation } from "../lib/use-document-confirmation";
 import { closeHelp, toggleHelp, useHelp } from "../lib/help";
 import { useServerStatus } from "../lib/status";
@@ -67,6 +71,25 @@ function ModalLoading({ onClose }: { onClose: () => void }) {
 
 /* ---------- 設定（表示言語・サイトのリセット） ---------- */
 
+function EditorAppearanceSelector() {
+  const appearance = useEditorThemePreference();
+  return (
+    <div className="seg seg-full appearance-seg" role="group" aria-label={tr("Editor appearance")}>
+      {(["system", "light", "dark"] as const).map((value) => (
+        <button
+          key={value}
+          type="button"
+          className={appearance === value ? "is-on" : ""}
+          aria-pressed={appearance === value}
+          onClick={() => setEditorThemePreference(value)}
+        >
+          {value === "system" ? tr("System setting") : value === "light" ? tr("Light mode") : tr("Dark mode")}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** エディタの設定（ログインできるアカウントなど、全サイト共通の設定はホームの設定にある） */
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const confirmReset = useDocumentConfirmation("document-reset");
@@ -81,6 +104,12 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           <h3>{tr("Language (display)")}</h3>
           <LanguageSelector />
           <p className="hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
+        </section>
+
+        <section className="settings-sec">
+          <h3>{tr("Editor appearance")}</h3>
+          <EditorAppearanceSelector />
+          <p className="hint">{tr("The editor appearance is separate from the website's styles.")}</p>
         </section>
 
         <section className="settings-sec">
@@ -216,6 +245,8 @@ export default function Header({
   const setBreakpoint = useEditor((s) => s.setBreakpoint);
   const customWidth = useEditor((s) => s.customWidth);
   const setCustomWidth = useEditor((s) => s.setCustomWidth);
+  const pageTheme = useEditor((s) => s.pageTheme);
+  const setPageTheme = useEditor((s) => s.setPageTheme);
   const mode = useEditor((s) => s.mode);
   const setMode = useEditor((s) => s.setMode);
   const canUndo = useEditor((s) => s.past.length > 0);
@@ -403,6 +434,18 @@ export default function Header({
       </div>
 
       <div className="hdr-group">
+        <div className="hdr-page-theme">
+          <Dropdown
+            value={pageTheme}
+            title={tr("Page appearance")}
+            menuWidth={250}
+            options={[
+              { value: "light", label: tr("Light mode"), icon: <Sun size={13} /> },
+              { value: "dark", label: tr("Dark mode"), icon: <Moon size={13} /> },
+            ]}
+            onChange={(value) => setPageTheme(value as PageTheme)}
+          />
+        </div>
         <div className="hdr-zoom" data-tutorial="zoom" data-tip={tr("You can also zoom with ⌘ + scroll")}>
           <Dropdown
             value={String(zoom)}

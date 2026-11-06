@@ -1,0 +1,68 @@
+/* The editor UI theme is independent from the site's canvas and generated CSS. */
+html[data-editor-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111318;
+  --bg-canvas: #171b21;
+  --panel: #20242b;
+  --border: #383e48;
+  --border-strong: #535b68;
+  --field: #2d333c;
+  --field-hover: #3a414d;
+  --text: #e9edf4;
+  --text-2: #c5cbd5;
+  --text-3: #a1a9b5;
+  --accent: #a9c7ff;
+  --accent-hover: #d0e2ff;
+  --accent-soft: #2c4161;
+  --accent-ink: #e4efff;
+  --accent-border: #526e9c;
+  --danger: #ffb4ab;
+  --warn: #f6c882;
+  --state-hover: rgba(220, 228, 240, 0.09);
+  --state-press: rgba(220, 228, 240, 0.15);
+  --shadow-1: 0 2px 5px rgba(0, 0, 0, 0.34);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.42);
+}
+
+/* Existing light-only surfaces in the inspector and supporting dialogs. */
+html[data-editor-theme="dark"] .state-bar {
+  background: var(--panel);
+}
+html[data-editor-theme="dark"] .cv-design .cv-placeholder,
+html[data-editor-theme="dark"] .boot-page {
+  background: var(--field);
+  color: var(--text-3);
+}
+html[data-editor-theme="dark"] .appearance-seg {
+  width: 100%;
+  border-radius: var(--radius);
+}
+html[data-editor-theme="dark"] .appearance-seg button.is-on {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.appearance-seg {
+  width: 100%;
+}
+.appearance-seg button {
+  padding-inline: 12px;
+}
+.hdr-page-theme {
+  flex: none;
+  min-width: 100px;
+}
+
+/* Accent-filled controls use dark ink against the lighter dark-theme accent. */
+html[data-editor-theme="dark"] :is(
+  .btn-primary,
+  .dyn-bar,
+  .canvas-drop-overlay,
+  .sel-badge,
+  .sel-name
+) {
+  color: #101d32;
+}
+html[data-editor-theme="dark"] .dyn-bar .dyn-select {
+  background: var(--panel);
+  color: var(--text);
+}

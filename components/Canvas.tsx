@@ -83,6 +83,7 @@ export default function Canvas() {
   const breakpoint = useEditor((s) => s.breakpoint);
   const setBreakpoint = useEditor((s) => s.setBreakpoint);
   const styleState = useEditor((s) => s.styleState);
+  const pageTheme = useEditor((s) => s.pageTheme);
   const mode = useEditor((s) => s.mode);
   const zoom = useEditor((s) => s.zoom);
   const editingText = useEditor((s) => s.editingText);
@@ -779,11 +780,11 @@ export default function Canvas() {
   const cssCache = useMemo<CanvasCssCache>(() => new Map(), []);
   const css = useMemo(
     () => page
-      ? buildCanvasCss(doc, rootIds, breakpoint, mode, cssSelection, styleState, page.bodyStyles, cssCache)
+      ? buildCanvasCss(doc, rootIds, breakpoint, mode, cssSelection, styleState, page.bodyStyles, cssCache, pageTheme, page.bodyDarkStyles)
       : "",
     // rootIds and page are derived from doc, activePageId and editingComponentId.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, activePageId, editingComponentId, breakpoint, mode, cssSelection, styleState, cssCache]
+    [doc, activePageId, editingComponentId, breakpoint, mode, cssSelection, styleState, pageTheme, cssCache]
   );
 
   if (!page) return <div className="canvas-area" ref={areaRef} />;
@@ -842,10 +843,13 @@ export default function Canvas() {
                 </div> : page.rawHtml.trim() ? (
                   <iframe
                     className="rawhtml-frame"
+                    style={{ colorScheme: pageTheme }}
                     srcDoc={previewHtmlWithBodyStyles(
                       rawHtmlForPreview,
                       page.bodyStyles,
-                      breakpoint
+                      breakpoint,
+                      pageTheme,
+                      page.bodyDarkStyles
                     )}
                     // allow-same-origin は付けない（付けると、中のスクリプトがエディタと同じオリジンで動き、
                     // ログイン中の権限で公開やアカウントの追加などができてしまう）
@@ -1040,6 +1044,7 @@ export default function Canvas() {
         >
           <div
             className={`cv-root${mode === "design" ? " cv-design" : ""}`}
+            style={{ colorScheme: pageTheme }}
             // 公開サイトと同じ言語の字形（日本語と中国語で異なる漢字など）で表示する
             lang={editingComp ? siteLangOf(doc) : pageLangOf(doc, page)}
             data-body="true"

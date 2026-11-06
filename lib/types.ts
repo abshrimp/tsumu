@@ -165,6 +165,8 @@ export interface BreakpointDef {
   maxWidth: number;
 }
 export type StyleState = "default" | "hover" | "active" | "focus" | `custom:${string}`;
+/** 編集中に確認するページの配色。エディタ本体の配色とは独立する。 */
+export type PageTheme = "light" | "dark";
 
 /** camelCase の CSS プロパティ → 値 */
 export type StyleMap = Record<string, string>;
@@ -426,6 +428,8 @@ export interface DocNode {
   componentId?: string;
   children: string[];
   styles: NodeStyles;
+  /** OS のダークモードに合わせて通常スタイルを上書きする宣言 */
+  darkStyles?: NodeStyles;
   /** この要素に常に適用する、生の CSS の宣言（「プロパティ: 値;」の並び） */
   customCss?: string;
   /** 取り込んだセレクターやスクリプトのために残す、元の HTML のクラス。 */
@@ -475,6 +479,8 @@ export interface Page {
   lang?: string;
   /** このページにだけ適用する body のスタイル */
   bodyStyles?: NodeStyles;
+  /** ダークモード時の body スタイル */
+  bodyDarkStyles?: NodeStyles;
   /** html の背景色（オーバースクロールのときに見える色）。未設定なら body の背景が広がる */
   htmlBackground?: string;
   noindex?: boolean;

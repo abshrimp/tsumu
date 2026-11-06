@@ -100,11 +100,15 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
   const styles = (value: NodeStyles | undefined): NodeStyles | undefined =>
     value && Object.fromEntries(Object.entries(value).map(([key, style]) => [id(key), style]));
   const p = structuredClone(payload);
-  for (const page of p.pages) page.bodyStyles = styles(page.bodyStyles);
+  for (const page of p.pages) {
+    if (page.bodyStyles) page.bodyStyles = styles(page.bodyStyles);
+    if (page.bodyDarkStyles) page.bodyDarkStyles = styles(page.bodyDarkStyles);
+  }
   // 外から来たマスターが、コピー先のコンポーネントと同じ ID を持つことがある。
   // コピー元のマスターはすべて新しい ID で取り込めるため、そのスタイルを正規化する。
   for (const node of [...p.nodes, ...p.deps.componentNodes]) {
     node.styles = styles(node.styles)!;
+    if (node.darkStyles) node.darkStyles = styles(node.darkStyles);
     if (node.hiddenOn) node.hiddenOn = node.hiddenOn.map(id);
   }
   return p;

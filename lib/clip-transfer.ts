@@ -79,8 +79,12 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
   const cssIds = new Set<string>();
   for (const node of [...clip.nodes, ...componentNodes]) {
     findCssAssets(node.styles, node.customCss).forEach((id) => cssIds.add(id));
+    findCssAssets(node.darkStyles).forEach((id) => cssIds.add(id));
   }
-  for (const page of clip.pages ?? []) findCssAssets(page.bodyStyles).forEach((id) => cssIds.add(id));
+  for (const page of clip.pages ?? []) {
+    findCssAssets(page.bodyStyles).forEach((id) => cssIds.add(id));
+    findCssAssets(page.bodyDarkStyles).forEach((id) => cssIds.add(id));
+  }
   const uploadedFonts = (doc.uploadedFonts ?? []).filter(font => text.includes(font.family));
   const fileIds = new Set(uploadedFonts.map(font => font.assetId));
   const assets: Record<string, Asset> = {};
@@ -126,7 +130,9 @@ export function prepareClipBreakpoints(doc: SiteDoc, payload: ClipPayload): Clip
     return normalized;
   };
   const responsive = nodes.some((node) =>
-    Object.keys(node.styles).some((id) => id !== "base") || node.hiddenOn?.some((id) => id !== "base"));
+    Object.keys(node.styles).some((id) => id !== "base") ||
+    Object.keys(node.darkStyles ?? {}).some((id) => id !== "base") ||
+    node.hiddenOn?.some((id) => id !== "base"));
   const source = checked(payload.breakpoints);
   const target = checked(doc.breakpoints ?? DEFAULT_BREAKPOINTS);
   if (!source || !target) return null;
@@ -138,8 +144,12 @@ export function prepareClipBreakpoints(doc: SiteDoc, payload: ClipPayload): Clip
   const copy = structuredClone(payload);
   for (const node of [...copy.nodes, ...copy.componentNodes]) {
     if (Object.keys(node.styles).some((id) => !ids.has(id)) ||
+        Object.keys(node.darkStyles ?? {}).some((id) => !ids.has(id)) ||
         node.hiddenOn?.some((id) => !ids.has(id))) return null;
     node.styles = Object.fromEntries(Object.entries(node.styles).map(([id, styles]) => [ids.get(id)!, styles]));
+    if (node.darkStyles) {
+      node.darkStyles = Object.fromEntries(Object.entries(node.darkStyles).map(([id, styles]) => [ids.get(id)!, styles]));
+    }
     if (node.hiddenOn) node.hiddenOn = node.hiddenOn.map((id) => ids.get(id)!);
   }
   copy.breakpoints = structuredClone(target);
