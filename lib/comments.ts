@@ -241,14 +241,14 @@ export async function listComments(db: Db, siteId: string): Promise<CommentThrea
   return (await listCommentPage(db, siteId)).threads;
 }
 
-/** 操作を D1 に当てはめる。他人のコメントを編集・削除しようとしたら false */
+/** 操作を D1 に当てはめる。他人の変更は false、削除済みの返信先は missing。 */
 export async function runCommentAction(
   db: Db,
   siteId: string,
   a: CommentAction,
   user: ActivityUser | null,
   now = Date.now()
-): Promise<boolean> {
+): Promise<boolean | "missing"> {
   const me = user ?? ANON;
   const authorOf = async (messageId: string): Promise<{ thread: string; author: ActivityUser } | null> => {
     const rs = await db.execute({
@@ -279,7 +279,7 @@ export async function runCommentAction(
       return true;
     case "reply": {
       // 存在確認と書き込みを同じSQLで行い、削除と競合しても返信だけを残さない。
-      await db.batch([
+      const results = await db.batch([
         {
           sql: `INSERT INTO comment_messages (id, thread_id, site_id, email, name, image, body, at)
             SELECT ?, ?, ?, ?, ?, ?, ?, ?
@@ -289,7 +289,10 @@ export async function runCommentAction(
         },
         bump(a.threadId),
       ]);
-      return true;
+      if (results[0].rowsAffected > 0) return true;
+      // 同じIDの再送は成功として扱うが、消えた返信先への未保存を成功扱いしない。
+      const exists = await db.execute({ sql: "SELECT id FROM comment_threads WHERE id = ? AND site_id = ?", args: [a.threadId, siteId] });
+      return exists.rows.length ? true : "missing";
     }
     case "edit": {
       const m = await authorOf(a.messageId);
