@@ -76,6 +76,10 @@ function localSaveError() {
   return new Error(tr("ブラウザに変更を保存できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。"));
 }
 
+function localDuplicateError() {
+  return new Error(tr("サイトを複製できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。"));
+}
+
 /** サイトの編集データ（ブラウザ保存）を、新しいサイトへ写す。元に無ければ新しいサイトと同じく作る */
 function copyLocalDoc(from: string, to: string, name: string) {
   const raw = window.localStorage.getItem(siteKey(DOC_STORAGE_KEY, from));
@@ -525,6 +529,7 @@ export default function Home() {
   /** サイトを複製する（開かずに、一覧のいちばん上に足す） */
   const duplicate = async (src: SiteRecord, input: SiteInput) => {
     let site: SiteRecord;
+    let localSites: SiteRecord[] | undefined;
     if (store === "server") {
       const data = await api<{ site: SiteRecord }>("/api/sites", {
         method: "POST",
@@ -534,19 +539,27 @@ export default function Home() {
     } else {
       const now = Date.now();
       site = { ...emptyDest(), ...input, name: input.name ?? "", id: newSiteId(), createdAt: now, updatedAt: now } as SiteRecord;
+      let list: SiteRecord[];
+      try {
+        list = loadLocalSites({ strict: true });
+      } catch {
+        throw localDuplicateError();
+      }
+      // ダイアログを開いてから、別のタブで元のサイトが削除されることがある。
+      if (!list.some((s) => s.id === src.id)) throw new Error(tr("サイトが見つかりません"));
       let copied = false;
       try {
-        const list = loadLocalSites({ strict: true });
         copyLocalDoc(src.id, site.id, site.name);
         copied = true;
-        if (!saveLocalSites([site, ...list])) throw new Error("Site list write failed");
+        localSites = [site, ...list];
+        if (!saveLocalSites(localSites)) throw new Error("Site list write failed");
       } catch {
         // 一覧への登録に失敗したら、書けた複製データの掃除を試みる。
         if (copied) forgetLocal(site.id);
-        throw new Error(tr("サイトを複製できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。"));
+        throw localDuplicateError();
       }
     }
-    setSites((list) => [site, ...(list ?? [])]);
+    setSites((list) => localSites ?? [site, ...(list ?? [])]);
     setDialog(null);
   };
 
@@ -558,13 +571,16 @@ export default function Home() {
       });
       setSites((list) => list?.map((s) => (s.id === site.id ? data.site : s)) ?? null);
     } else {
+      let list: SiteRecord[];
       try {
-        const next = loadLocalSites({ strict: true }).map((s) => (s.id === site.id ? { ...s, ...input, updatedAt: Date.now() } : s));
-        if (!saveLocalSites(next)) throw localSaveError();
-        setSites(next);
+        list = loadLocalSites({ strict: true });
       } catch {
         throw localSaveError();
       }
+      if (!list.some((s) => s.id === site.id)) throw new Error(tr("サイトが見つかりません"));
+      const next = list.map((s) => (s.id === site.id ? { ...s, ...input, updatedAt: Date.now() } : s));
+      if (!saveLocalSites(next)) throw localSaveError();
+      setSites(next);
     }
     setDialog(null);
   };
