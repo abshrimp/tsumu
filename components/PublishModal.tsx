@@ -17,6 +17,7 @@ import { docFingerprint, useEditor } from "../lib/store";
 import { HelpLink } from "./HelpCenter";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publish-preconditions";
+import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import type { SiteDoc } from "../lib/types";
 import { detectSvgFilters } from "../lib/assets";
 import { generateProject, type PublishTarget } from "../lib/generator";
@@ -335,6 +336,7 @@ export default function PublishModal({
       if (!(existing.head === null || (typeof existing.head === "string" && existing.head.length > 0))) {
         throw new PublishConflictError(tr(publishConflictMessage));
       }
+      addPwaRetirementWorker(target, existing.generated, files, outputPaths);
       const plan = planPublish(existing.blobs, existing.generated, outputPaths);
       const overwritten = [...plan.edited, ...plan.clashing];
       if (overwritten.length && !(await confirmOverwrite(overwritten))) {
