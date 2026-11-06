@@ -11,9 +11,9 @@ let bundle: string;
 test.beforeAll(async () => { bundle = await homeSiteStorageBundle(); });
 
 type Action = "create" | "rename" | "duplicate" | "delete";
-type Failure = "list" | "document" | "read" | "corrupt";
+type Failure = "list" | "document" | "read" | "corrupt" | "marker";
 const cases: [Action, Failure][] = [
-  ["create", "list"], ["create", "document"], ["rename", "list"], ["delete", "list"],
+  ["create", "list"], ["create", "document"], ["rename", "list"], ["delete", "marker"],
   ...(["create", "rename", "duplicate", "delete"] as const).flatMap((action): [Action, Failure][] => [
     [action, "read"], [action, "corrupt"],
   ]),
@@ -65,7 +65,7 @@ for (const [action, failure] of cases) {
         return state.homeRead.call(this, key);
       };
       Storage.prototype.setItem = function (key, value) {
-        if (state.homeBlocked && ((failure === "list" && key === listKey) || (failure === "document" && key.startsWith(`${docKey}:`)))) {
+        if (state.homeBlocked && ((failure === "marker" && key.startsWith("tsumu-site-deleted-v1:")) || (failure === "list" && key === listKey) || (failure === "document" && key.startsWith(`${docKey}:`)))) {
           throw new DOMException("Storage full", "QuotaExceededError");
         }
         state.homeWrite.call(this, key, value);

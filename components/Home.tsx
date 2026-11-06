@@ -31,6 +31,7 @@ import {
   DOC_STORAGE_KEY,
   SITE_SCOPED_KEYS,
   emptyDest,
+  deleteLocalSite,
   loadLocalSites,
   saveLocalSites,
   siteKey,
@@ -581,9 +582,8 @@ export default function Home() {
         await api(`/api/sites/${encodeURIComponent(site.id)}`, { method: "DELETE" });
       } else {
         try {
-          const next = loadLocalSites({ strict: true }).filter((s) => s.id !== site.id);
-          // 一覧の保存に失敗したときは、まだ一覧にあるサイトの編集データを消さない。
-          if (!saveLocalSites(next)) throw localSaveError();
+          // 削除記録が保存できるまでは一覧も内容も変更しない。確定後の掃除は失敗しても取り消さない。
+          deleteLocalSite(site.id);
         } catch {
           throw localSaveError();
         }

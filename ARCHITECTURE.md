@@ -52,6 +52,14 @@ IDs are stable and globally unique within a doc. Merge, undo, comments and AI op
 | i18n | `lib/i18n.ts`. Source strings are Japanese, wrapped in `tr("…")`. Translations are in `lib/locales/`. |
 | Help and tutorial | `lib/manualTopics.ts`, `components/HelpCenter.tsx`, `HelpFigures.tsx`, `Tutorial.tsx` |
 
+### Explicit local site deletion
+
+Browser comments do not require a browser-local site record: a server-backed site can legitimately fall back to browser comments after a 503. Missing records, missing comment keys, and network errors therefore never imply deletion.
+
+Confirmed deletion in Home validates local metadata, then commits a permanent per-site `tsumu-site-deleted-v1:<id>` marker. If that write fails, the list and site content remain unchanged. Once it succeeds, list compaction and content cleanup are best-effort; deletion remains successful even if the list write fails. `loadLocalSites` filters marked IDs, so stale list writes cannot restore them. Markers are separate from `SITE_SCOPED_KEYS` and are never removed by failed creation/duplication cleanup. New and duplicated sites receive fresh random IDs; there is no same-ID local site restore or deletion undo. Element/page undo does not change site markers.
+
+Browser comment reads and queued writes check the marker, including POST-to-503 fallback and checks immediately before and after persistence. Known deletion hides rows/pins, returns failure, and preserves active draft/detail hosts for copying. Unreadable markers fail writes without claiming deletion. Successful server operations remain authoritative. This provides deletion-wins logical visibility, not atomic removal of every stored byte: a stale tab can stop between persistence and its post-write check, or cleanup can fail. It does not add cross-tab locks or change document autosave.
+
 ## Publishing
 
 1. The client generates the project and adds `_tsumu/doc.json`, a copy of the doc used for restoring and rollback.

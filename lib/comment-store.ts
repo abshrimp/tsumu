@@ -6,7 +6,7 @@
 
 import { create } from "zustand";
 import { applyCommentAction, hasCommentIdConflict, MAX_COMMENT_LENGTH, type CommentAction, type CommentPage, type CommentThread } from "./comments";
-import { siteApi, siteKey } from "./site";
+import { currentSiteId, isLocalSiteDeleted, siteApi, siteKey } from "./site";
 import { tr } from "./i18n";
 import { userMessage } from "./errors";
 import { useEditor } from "./store";
@@ -52,16 +52,35 @@ interface CommentsState {
   run: (a: CommentAction) => Promise<boolean>;
 }
 
-function readLocal(): CommentThread[] {
+class LocalSiteDeletedError extends Error {
+  constructor() { super(tr("サイトが見つかりません")); }
+}
+function assertLocalSiteAvailable(id: string) {
+  if (isLocalSiteDeleted(id)) throw new LocalSiteDeletedError();
+}
+function readLocal(id = currentSiteId()): CommentThread[] {
+  assertLocalSiteAvailable(id);
   // 読めなかった一覧を空扱いすると、次の投稿で以前のコメントを上書きしてしまう。
-  const v = JSON.parse(window.localStorage.getItem(siteKey(LOCAL_KEY)) ?? "[]");
+  const v = JSON.parse(window.localStorage.getItem(siteKey(LOCAL_KEY, id)) ?? "[]");
   if (!Array.isArray(v)) throw new Error("Invalid local comment list");
+  assertLocalSiteAvailable(id);
   return v;
 }
 
-function writeLocal(threads: CommentThread[]) {
-  // 保存できたときだけ成功を返し、失敗時は投稿・返信・編集の入力を残す。
-  window.localStorage.setItem(siteKey(LOCAL_KEY), JSON.stringify(threads));
+function writeLocal(id: string, threads: CommentThread[]) {
+  // 待機中や別タブでの削除を、保存の直前・直後にも確認する。
+  const raw = JSON.stringify(threads);
+  assertLocalSiteAvailable(id);
+  window.localStorage.setItem(siteKey(LOCAL_KEY, id), raw);
+  try {
+    assertLocalSiteAvailable(id);
+  } catch (error) {
+    if (error instanceof LocalSiteDeletedError) {
+      try { window.localStorage.removeItem(siteKey(LOCAL_KEY, id)); } catch { /* 削除記録により表示・再保存は防ぐ。 */ }
+    }
+    // 保存後でも削除と重なった場合は失敗を返し、投稿・返信・編集の入力を残す。
+    throw error;
+  }
 }
 
 /** スレッド・コメントのID */
@@ -162,7 +181,8 @@ export const useComments = create<CommentsState>((set, get) => ({
       set({ ...serverSnapshot(data), cursor, previousCursors,
         ...(state.openId === openId ? focusSnapshot(data, openId, focusOf(state), state.threadUnavailable) : {}) });
     } catch (e) {
-      if (request === readRequest) set({ error: userMessage(e, tr("コメントを読み込めませんでした")) });
+      if (request === readRequest) set({ ...(e instanceof LocalSiteDeletedError ? localSnapshot([], get()) : {}),
+        error: userMessage(e, tr("コメントを読み込めませんでした")) });
     } finally {
       if (pageRequest === request) pageRequest = null;
       if (request === readRequest) set({ loading: false });
@@ -180,7 +200,8 @@ export const useComments = create<CommentsState>((set, get) => ({
     set({ loading: false, saving: true });
     const result = writeQueue.then(async () => {
       const local = () => {
-        const existing = readLocal();
+        const id = currentSiteId();
+        const existing = readLocal(id);
         if (a.action === "reply" && !existing.some(t => t.id === a.threadId)) {
           set(localSnapshot(existing, get()));
           throw new Error(tr("返信先のスレッドは削除されています"));
@@ -189,7 +210,7 @@ export const useComments = create<CommentsState>((set, get) => ({
           throw new Error(tr("コメントのIDが重複しています。もう一度送信してください"));
         }
         const next = applyCommentAction(existing, a, null);
-        writeLocal(next);
+        writeLocal(id, next);
         set(localSnapshot(next, get()));
         return true;
       };
@@ -223,7 +244,8 @@ export const useComments = create<CommentsState>((set, get) => ({
         });
         return true;
       } catch (e) {
-        set({ error: userMessage(e, tr("コメントを保存できませんでした")) });
+        set({ ...(e instanceof LocalSiteDeletedError ? localSnapshot([], get()) : {}),
+          error: userMessage(e, tr("コメントを保存できませんでした")) });
         return false;
       } finally {
         --pendingWrites;
