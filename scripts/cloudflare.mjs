@@ -10,18 +10,20 @@
  *
  *   node scripts/cloudflare.mjs build
  *   node scripts/cloudflare.mjs deploy
- *   node scripts/cloudflare.mjs upload    （本番以外のブランチのプレビュー版）
+ *   node scripts/cloudflare.mjs upload    （従来のversion upload。DOを含むエディタのURL表示には使えない）
  *   node scripts/cloudflare.mjs preview
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const GENERATED = "wrangler.generated.jsonc";
 const D1_PLACEHOLDER = "<YOUR_D1_DATABASE_ID>";
 const KV_PLACEHOLDER = "<YOUR_KV_NAMESPACE_ID>";
 
 /** JSONC のコメントと末尾のカンマを取り除いて読む（文字列の中はそのまま） */
-function parseJsonc(src) {
+export function parseJsonc(src) {
   let out = "";
   for (let i = 0; i < src.length; i++) {
     const c = src[i];
@@ -70,7 +72,7 @@ export function wranglerConfigPath() {
 }
 
 const [command, ...rest] = process.argv.slice(2);
-if (command) {
+if (command && process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const config = wranglerConfigPath();
   const args = [command, ...(config ? ["--config", config] : []), ...rest];
   console.log(`Using ${config ?? "wrangler.jsonc"}`);
