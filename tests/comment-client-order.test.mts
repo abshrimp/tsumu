@@ -289,3 +289,20 @@ test("an older focused cache is not subtracted from a newer authoritative count 
   assert.equal(useComments.getState().total, 1); assert.equal(useComments.getState().unresolvedCount, 1);
   assert.equal(useComments.getState().threadUnavailable, true);
 });
+
+
+test("an ID conflict preserves the live discussion and allows retrying with a fresh ID", async () => {
+  reset(); useComments.setState({ threads: threads("one"), total: 1, unresolvedCount: 1 }); useComments.getState().open("one");
+  let requests = 0;
+  mock.method(globalThis, "fetch", async () => ++requests === 1
+    ? Response.json({ error: "コメントのIDが重複しています。もう一度送信してください", code: "comment_id_conflict" }, { status: 409 })
+    : Response.json({ threads: applyCommentAction(threads("one"), { action: "reply", threadId: "one", id: "fresh", body: "Keep this reply" }, null, 2) }));
+  assert.equal(await useComments.getState().run({ action: "reply", threadId: "one", id: "collision", body: "Keep this reply" }), false);
+  assert.equal(useComments.getState().openId, "one"); assert.equal(useComments.getState().focusedThread?.id, "one");
+  assert.equal(useComments.getState().threadUnavailable, false); assert.equal(useComments.getState().total, 1);
+  assert.equal(useComments.getState().unresolvedCount, 1); assert.deepEqual(useComments.getState().threads, threads("one"));
+  assert.ok(useComments.getState().error);
+  assert.equal(await useComments.getState().run({ action: "reply", threadId: "one", id: "fresh", body: "Keep this reply" }), true);
+  assert.deepEqual(useComments.getState().threads[0].messages.map(m => m.body), ["one", "Keep this reply"]);
+  assert.equal(useComments.getState().error, null);
+});
