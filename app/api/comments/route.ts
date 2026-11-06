@@ -52,6 +52,9 @@ export async function POST(req: Request) {
     if (ok === "missing") {
       return NextResponse.json({ error: tr("返信先のスレッドは削除されています"), code: "comment_thread_missing" }, { status: 404 });
     }
+    if (ok === "conflict") {
+      return NextResponse.json({ error: tr("コメントのIDが重複しています。もう一度送信してください"), code: "comment_id_conflict" }, { status: 409 });
+    }
     if (!ok) {
       return NextResponse.json({ error: tr("ほかの人のコメントは変更できません") }, { status: 403 });
     }

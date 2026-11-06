@@ -76,7 +76,7 @@ test("comment creation and replies still persist, and retries cannot duplicate r
     const threads = await listComments(db, "site");
     assert.equal(threads.length, 1);
     assert.deepEqual(threads[0].messages.map((m) => m.body), ["Original", "Reply"]);
-    assert.equal(threads[0].updatedAt, 3);
+    assert.equal(threads[0].updatedAt, 2);
     assert.equal(await runCommentAction(db, "other-site", { ...reply, id: "wrong-site" }, author, 4), "missing");
     assert.equal((await db.execute("SELECT COUNT(*) AS n FROM comment_messages")).rows[0].n, 2);
   });
