@@ -444,6 +444,11 @@ export interface PagePlan {
  * Page-load control structures are eligible for SSR only when every nested
  * step is data-only. Browser actions are never swallowed by server evaluation.
  */
+function repeatVarName(value: number | string): string | null {
+  if (typeof value !== "string") return null;
+  return /^\\{([^{}\\s]+)\\}$/.exec(value.trim())?.[1] ?? null;
+}
+
 function pureLoadStep(st: ScriptStep): boolean {
   switch (st.kind) {
     case "set-var": return !!st.into;
@@ -451,7 +456,7 @@ function pureLoadStep(st: ScriptStep): boolean {
     case "if": return st.cond.subject === "var" && st.then.every(pureLoadStep) &&
       (st.else ?? []).every(pureLoadStep);
     case "for-each": return !!st.array && st.then.length > 0 && st.then.every(pureLoadStep);
-    case "repeat": return Number.isInteger(st.times) && st.times > 0 && st.times <= 1000 && st.then.every(pureLoadStep);
+    case "repeat": return (typeof st.times === "number" ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000 : !!repeatVarName(st.times)) && st.then.every(pureLoadStep);
     default: return false;
   }
 }
@@ -535,8 +540,12 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       !extractVars(st.cond.left ?? "").some(isClient) &&
       !extractVars(st.cond.value ?? "").some(isClient) &&
       st.then.every(isServerPure) && (st.else ?? []).every(isServerPure);
-    if (st.kind === "repeat") return Number.isInteger(st.times) &&
-      st.times > 0 && st.times <= 1000 && st.then.every(isServerPure);
+    if (st.kind === "repeat") {
+      const name = repeatVarName(st.times);
+      return (typeof st.times === "number"
+        ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000
+        : !!name && !isClient(name)) && st.then.every(isServerPure);
+    }
     return false;
   };
   for (const s of page?.pageScripts ?? []) {
@@ -1215,7 +1224,10 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       if (st.cond.left !== undefined) st.cond.left = mapVarTokens(st.cond.left, fn);
       mapStepTokens(st.then, fn);
       if (st.else) mapStepTokens(st.else, fn);
+    } else if (st.kind === "wait" && typeof st.seconds === "string") {
+      st.seconds = mapVarTokens(st.seconds, fn);
     } else if (st.kind === "repeat" || st.kind === "for-each") {
+      if (st.kind === "repeat" && typeof st.times === "string") st.times = mapVarTokens(st.times, fn);
       mapStepTokens(st.then, fn);
     }
   }
