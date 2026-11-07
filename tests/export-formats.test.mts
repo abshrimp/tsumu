@@ -208,6 +208,10 @@ test("JavaScript option produces actual JS and JSX files", async () => {
   const { toJavaScriptProject } = await import("../lib/generator/javascript-export");
   const output = await toJavaScriptProject(generateExportProject(fixture(), "react"), "react");
   assert.ok(output.files["src/App.jsx"]);
+  assert.ok(output.files["src/main.jsx"]);
+  assert.equal(output.files["src/main.tsx"], undefined);
+  assert.match(output.files["index.html"], /src\\/main\\.jsx/);
+  assert.doesNotMatch(output.files["index.html"], /src\\/main\\.tsx/);
   assert.ok(output.files["vite.config.js"]);
   assert.equal(output.files["src/App.tsx"], undefined);
   assert.ok(output.files["jsconfig.json"]);
