@@ -156,20 +156,21 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             : step.operand;
           const rhs = numberLike(right);
           if (left === undefined || rhs === undefined) return failure("type-mismatch");
-          current = left;
+          let arithmetic = left;
           switch (step.operation) {
-            case "add": current += rhs; break;
-            case "subtract": current -= rhs; break;
-            case "multiply": current *= rhs; break;
+            case "add": arithmetic += rhs; break;
+            case "subtract": arithmetic -= rhs; break;
+            case "multiply": arithmetic *= rhs; break;
             case "divide":
               if (rhs === 0) return failure("division-by-zero");
-              current /= rhs; break;
+              arithmetic /= rhs; break;
             case "remainder":
               if (rhs === 0) return failure("division-by-zero");
-              current %= rhs; break;
+              arithmetic %= rhs; break;
             default: return failure("invalid-recipe");
           }
-          if (!Number.isFinite(current)) return failure("limit-exceeded");
+          if (!Number.isFinite(arithmetic)) return failure("limit-exceeded");
+          current = arithmetic;
           break;
         }
         case "compare": {
