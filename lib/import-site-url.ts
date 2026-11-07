@@ -98,13 +98,25 @@ export async function createSiteFromUrl(
   progress("編集データを確認しています…");
   const parsed = await parseSiteImport(source, request.mode, request.url);
   progress("画像などのアセットを復元しています…");
-  const { doc, warnings } = await restoreImportAssets(parsed,
+  const { doc, warnings, createdPaths } = await restoreImportAssets(parsed,
     (url) => fetchImportedFile(url, "asset"), progress);
   progress("新規サイトを保存しています…");
   const raw = JSON.stringify(doc);
-  const id = mode === "server"
-    ? await serverWrite(raw, doc.siteName)
-    : localWrite(raw, doc.siteName);
+  let id: string;
+  try {
+    id = mode === "server"
+      ? await serverWrite(raw, doc.siteName)
+      : localWrite(raw, doc.siteName);
+  } catch (error) {
+    // The site has not been committed; remove any asset uploads created by this
+    // failed attempt. The storage service verifies cross-site references.
+    const cleanupId = newSiteId();
+    await Promise.allSettled(createdPaths.map((path) =>
+      fetch("/api/assets?site=" + encodeURIComponent(cleanupId) +
+        "&path=" + encodeURIComponent(path), { method: "DELETE" })
+    ));
+    throw error;
+  }
   try {
     window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));
   } catch {
