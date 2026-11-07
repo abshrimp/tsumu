@@ -135,31 +135,82 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
     return <ForEachView step={step} loc={loc} sel={sel} handlers={handlers} />;
   }
   if (step.kind === "if") {
+    const conditions = step.conditions ?? [];
+    const changeCondition = (index: number, patch: Partial<(typeof conditions)[number]>) =>
+      ctx.updateStep(step.id, (current) => current.kind !== "if" ? current : {
+        ...current, conditions: (current.conditions ?? []).map((condition, i) =>
+          i === index ? { ...condition, ...patch } : condition),
+      });
+    const removeCondition = (index: number) =>
+      ctx.updateStep(step.id, (current) => current.kind !== "if" ? current : {
+        ...current, conditions: (current.conditions ?? []).filter((_, i) => i !== index),
+      });
+    const addCondition = (and: boolean) =>
+      ctx.updateStep(step.id, (current) => current.kind !== "if" ? current : {
+        ...current, conditions: [...(current.conditions ?? []), {
+          subject: "var" as const, target: "", left: "", op: "eq" as const, value: "", and,
+        }],
+      });
     return (
       <div className={`se-c${sel}`} {...handlers}>
         <div className="se-blk se-c-head" data-sel-key={key}>
           <Ico icon={Split} cat={cat} />
-          <Phrase
-            text="もし{cond}なら"
-            parts={{
-              cond: (
-                <CondEditor
-                  cond={step.cond}
-                  onChange={(c) => ctx.updateStep(step.id, (s) => ({ ...s, cond: c }) as ScriptStep)}
+          <div className="se-if-conditions">
+            <div className="se-if-condition-line">
+              <Phrase text={conditions.length ? "もし{cond}" : "もし{cond}なら"} parts={{
+                cond: <CondEditor cond={step.cond}
+                  onChange={(cond) => ctx.updateStep(step.id, (current) =>
+                    current.kind === "if" ? { ...current, cond } : current)} />,
+              }} />
+            </div>
+            {conditions.map((condition, index) => (
+              <div key={index} className="se-if-condition-line">
+                <Phrase
+                  text={index === conditions.length - 1 ? "{join}{cond}なら" : "{join}{cond}"}
+                  parts={{
+                    join: (
+                      <select className="se-in se-fixed-select"
+                        aria-label={tr("条件のつなぎ方")}
+                        value={condition.and ? "and" : "or"}
+                        disabled={ctx.readOnly}
+                        onChange={(event) => changeCondition(index, { and: event.target.value === "and" })}>
+                        <option value="and">{tr("かつ")}</option>
+                        <option value="or">{tr("または")}</option>
+                      </select>
+                    ),
+                    cond: <CondEditor cond={condition}
+                      onChange={(next) => changeCondition(index, next)} />,
+                  }}
                 />
-              ),
-            }}
-          />
-          {!ctx.readOnly && !step.else && (
-            <button
-              type="button"
-              className="se-mini se-mini-text"
-              onClick={() => ctx.updateStep(step.id, (s) => ({ ...s, else: [] }) as ScriptStep)}
-            >
-              <Plus size={12} />
-              {tr("でなければ")}
-            </button>
-          )}
+                {!ctx.readOnly && (
+                  <button type="button" className="se-mini"
+                    aria-label={tr("この条件を削除")}
+                    onClick={() => removeCondition(index)}>
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+            {!ctx.readOnly && (
+              <div className="se-composer-condition-actions">
+                <button type="button" className="se-mini se-mini-text"
+                  disabled={conditions.length >= 32} onClick={() => addCondition(true)}>
+                  <Plus size={12} />{tr("かつ")}
+                </button>
+                <button type="button" className="se-mini se-mini-text"
+                  disabled={conditions.length >= 32} onClick={() => addCondition(false)}>
+                  <Plus size={12} />{tr("または")}
+                </button>
+                {!step.else && (
+                  <button type="button" className="se-mini se-mini-text"
+                    onClick={() => ctx.updateStep(step.id, (current) =>
+                      current.kind === "if" ? { ...current, else: [] } : current)}>
+                    <Plus size={12} />{tr("でなければ")}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="se-c-body">
           <StepList
