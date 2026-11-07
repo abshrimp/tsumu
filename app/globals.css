@@ -12392,26 +12392,39 @@ a.btn {
 .se-value-sample { opacity: .65; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
 .se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }
-
-/* Local editable-site import */
-.home-import-drop {
+ 
+/* ファイルをドラッグしている間だけ表示する。通常のホーム画面には場所を取らない。 */
+.home-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  pointer-events: none;
+  background: rgba(245, 248, 253, 0.67);
+  backdrop-filter: blur(2px);
+}
+.home-drop-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 2px dashed var(--accent-border);
+  border-radius: 18px;
+}
+.home-drop-overlay-content {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 9px;
-  min-height: 70px;
-  margin-bottom: 20px;
-  padding: 14px 18px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 12px;
+  gap: 12px;
+  padding: 26px 32px;
+  border-radius: 14px;
   background: var(--panel);
-  color: var(--text-2);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 150ms, border-color 150ms;
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
 }
-.home-import-drop:hover, .home-import-drop.is-dragging, .home-import-drop:focus-visible {
-  border-color: var(--accent-border);
-  background: var(--state-hover);
-}
-.home-import-drop[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.home-drop-overlay-content svg { color: var(--accent); }
