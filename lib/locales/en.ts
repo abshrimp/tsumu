@@ -18,7 +18,7 @@ const en: Dict = {
   "GitHubへPushしました。ホスティング側のビルド・公開設定をご確認ください。": "Pushed to GitHub. Verify your hosting provider's build and publish settings.",
   "ページの表示前にサーバーでデータを取得・加工する設定があります。Reactのクライアント描画では現在この処理を移行できません。Next.jsまたはHTML形式を選択してください。": "This page fetches or transforms data on the server before rendering. The current React SPA exporter cannot reproduce that workflow yet. Use Next.js or HTML instead.",
   "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。HTMLに直接書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。": "This data request includes an authorization header or secret API key. Exporting it into HTML would expose the credentials. Use a public API or a trusted server proxy.",
-  "外部データの取得・加工はブラウザのJavaScriptで実行します。APIのCORS許可が必要です。file://での利用には制約があるため、データ取得を使う場合は静的ホスティングで確認してください。": "External data fetching and processing run in the browser. The API must allow CORS. file:// has restrictions; test data-dependent pages on static hosting.",
+  "外部データの取得にはAPIのCORS許可が必要です。file://での利用には制約があるため、localhostなどの環境で確認してください。": "Fetching external data requires the API to allow CORS. file:// has restrictions, so test on localhost or a similar environment.",
   "HTML・CSS・JavaScript・画像をまとめたZIPをダウンロードします。展開後、index.htmlをブラウザで開くだけで表示できます。npmやビルドは不要です。": "Download a ZIP with ready-to-use HTML, CSS, JavaScript and images. Extract it and open index.html in your browser. No npm or build step is needed.",
   "選んだ範囲をReact + Viteプロジェクトとして保存します。展開後に {cmd} で起動できます。": "Download the selected scope as a React + Vite project. Extract it, then run {cmd} to start.",
   "選んだ範囲をNext.jsプロジェクトとして保存します。展開後に {cmd} で起動できます。": "Download the selected scope as a Next.js project. Extract it, then run {cmd} to start.",
