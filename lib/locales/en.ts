@@ -3671,7 +3671,7 @@ const en: Dict = {
   "リスト{array}を{sep}でつないで変数{into}とする": "Join list {array} with {sep} into variable {into}",
   "リスト{array}を{field}の{dir}に並べ替える": "Sort list {array} by {field} {dir}",
   "リスト{array}を{field}が{cond}": "Filter list {array} to items where {field} {cond}",
-  "ページを開いたときの処理では、このリストを「要素ごとにくり返す」で加工できません。代わりに「値を加工する」を使ってください。": "When the page opens, this list cannot be modified with a For each block. Use Transform value instead.",
+  "この繰り返しには、ページの配信前に実行できない操作または変数参照があります。中のブロックを確認してください。": "This loop contains actions or variable references that cannot run before the page is served. Check the nested blocks.",
   "リスト{array}の要素ごとにくり返す": "For each item in list {array}",
   "保存された見本を表示しています。": "Showing the saved sample.",
   "見本にはリストの先頭20件のみ保存されています。全件を見るには右上の「取得し直す」で再取得してください。": "Only the first 20 items of each list are saved in the sample. To view all items, use Fetch again in the top-right corner.",
