@@ -105,3 +105,37 @@ test("server copy retries against the latest revision, preserving concurrent tar
     assert.equal(bodies[1].pageOrder.length, concurrent.pageOrder.length + payload.pages.length);
   } finally { globalThis.fetch = oldFetch; }
 });
+
+test("server conflict rechecks screen widths before attempting another write", async () => {
+  const before = createInitialDoc(), concurrent = createInitialDoc();
+  concurrent.breakpoints = [{ id: "custom", label: "Custom", maxWidth: 800 }];
+  let writes = 0;
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async (_input, init) => {
+    if (!init) return Response.json({ exists: true, rev: "1", doc: before });
+    writes++;
+    return Response.json({ conflict: true, rev: "2", doc: concurrent }, { status: 409 });
+  };
+  try {
+    await assert.rejects(copyPagesToSite(target, payload, "server"), /画面幅|screen-width/);
+    assert.equal(writes, 1);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("local incompatible copy leaves the saved destination byte-for-byte unchanged", async () => {
+  const destination = createInitialDoc();
+  destination.breakpoints = [{ id: "custom", label: "Custom", maxWidth: 800 }];
+  const original = JSON.stringify(destination);
+  let writes = 0;
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: {
+    getItem() { return original; }, setItem() { writes++; },
+  } } });
+  try {
+    await assert.rejects(copyPagesToSite(target, payload, "local"), /画面幅|screen-width/);
+    assert.equal(writes, 0);
+  } finally {
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  }
+});
