@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { PathMenu } from "./fetch";
+import { TextIn } from "./inputs";
 import { tr } from "../../lib/i18n";
 import type {
   ValueTransform, ValueTransformKind, CompareOperation,
@@ -19,8 +20,8 @@ export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
   format: "文字列に変換する",
   stringify: "JSON文字列に変換する",
   parse: "JSON文字列を読み取る",
-  fallback: "値がないとき文字列を使う",
-  "fallback-nullish": "値がないかnullなら文字列を使う",
+  fallback: "値がないとき別の値を使う",
+  "fallback-nullish": "値がないかnullなら別の値を使う",
   math: "数値を計算する",
   compare: "値を比較する",
   not: "真偽値を反転する",
@@ -267,23 +268,19 @@ function ValueOperandEditor({ type, text, onChange, samples, purpose = "compare"
         <option value="number">{tr("数値")}</option>
         <option value="boolean">{tr("真偽値")}</option>
         <option value="null">null</option>
-        <option value="variable">{tr("変数")}</option>
       </select>
-      {type === "variable" ? (
-        <PathMenu root={samples} path={text} mode="any" allowRoot={false}
-          ariaLabel={isList ? tr("リストに使う変数") : tr("比較する変数")} placeholder={tr("変数を選択")}
-          onChange={(path) => onChange(path, type)} portalZIndex={560} />
-      ) : type === "boolean" ? (
+      {type === "boolean" ? (
         <select className="se-in se-fixed-select" aria-label={isList ? tr("操作する値") : tr("比較する値")} value={text}
           onChange={(e) => onChange(e.target.value, type)}>
           <option value="true">true</option>
           <option value="false">false</option>
         </select>
       ) : type !== "null" && (
-        <input aria-label={isList ? tr("操作する値") : tr("比較する値")} type={type === "number" ? "number" : "text"}
-          value={text} maxLength={type === "text" ? 4096 : undefined}
-          placeholder={type === "text" ? (isList ? tr("追加・削除する文字列") : tr("比較する文字列")) : "0"}
-          onChange={(e) => onChange(e.target.value, type)} />
+        <TextIn vars value={type === "variable" ? "{" + text + "}" : text}
+          valueContext="value" width={144}
+          type={type === "number" ? "number" : "text"}
+          placeholder={type === "number" ? "0" : (isList ? tr("追加・削除する文字列") : tr("比較する文字列"))}
+          onCommit={(next) => onChange(next, type === "variable" ? "text" : type)} />
       )}
     </div>
   );
@@ -333,20 +330,17 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
 
   if (transform.kind === "split" || transform.kind === "join") return (
     <div className="se-composer-step-settings">
-      <input aria-label={tr("区切り文字")} value={transform.separator} maxLength={256}
-        placeholder={tr("区切り文字")}
-        onChange={(e) => onChange({ ...transform, separator: e.target.value })} />
+      <TextIn vars value={transform.separator} width={144} placeholder={tr("区切り文字")}
+        onCommit={(separator) => onChange({ ...transform, separator })} />
     </div>
   );
 
   if (transform.kind === "replace") return (
     <div className="se-composer-step-settings">
-      <input aria-label={tr("探す文字列")} value={transform.find} maxLength={256}
-        placeholder={tr("探す文字列")}
-        onChange={(e) => onChange({ ...transform, find: e.target.value })} />
-      <input aria-label={tr("置き換え後")} value={transform.replacement} maxLength={10000}
-        placeholder={tr("置き換え後")}
-        onChange={(e) => onChange({ ...transform, replacement: e.target.value })} />
+      <TextIn vars value={transform.find} width={144} placeholder={tr("探す文字列")}
+        onCommit={(find) => onChange({ ...transform, find })} />
+      <TextIn vars value={transform.replacement} width={144} placeholder={tr("置き換え後")}
+        onCommit={(replacement) => onChange({ ...transform, replacement })} />
       <label className="se-composer-regex">
         <input type="checkbox" checked={transform.regex}
           onChange={(e) => onChange({ ...transform, regex: e.target.checked })} />
@@ -416,8 +410,8 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
   );
   if (transform.kind === "fallback" || transform.kind === "fallback-nullish") return (
     <div className="se-composer-step-settings">
-      <input aria-label={tr("値がないときの文字列")} maxLength={10000} value={transform.text}
-        onChange={(e) => onChange({ ...transform, text: e.target.value })} />
+      <TextIn vars value={transform.text} width={174} placeholder={tr("代わりに使う値 / {変数}")}
+        onCommit={(text) => onChange({ ...transform, text })} />
     </div>
   );
   return <RecipeStepSettings transform={transform} options={options} onChange={onChange} samples={samples} />;
