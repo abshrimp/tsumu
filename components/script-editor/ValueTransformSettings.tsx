@@ -248,15 +248,17 @@ function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
 }
 
 
-function ValueOperandEditor({ type, text, onChange, samples }: {
+function ValueOperandEditor({ type, text, onChange, samples, purpose = "compare" }: {
   type: ValueOperandType;
   text: string;
   onChange: (text: string, type: ValueOperandType) => void;
   samples: Record<string, unknown>;
+  purpose?: "compare" | "list";
 }) {
+  const isList = purpose === "list";
   return (
     <div className="se-composer-operand">
-      <select className="se-in" aria-label={tr("比較する値の種類")} value={type}
+      <select className="se-in" aria-label={isList ? tr("操作する値の種類") : tr("比較する値の種類")} value={type}
         onChange={(e) => {
           const next = e.target.value as ValueOperandType;
           onChange(next === "number" ? "0" : next === "boolean" ? "true" : "", next);
@@ -269,18 +271,18 @@ function ValueOperandEditor({ type, text, onChange, samples }: {
       </select>
       {type === "variable" ? (
         <PathMenu root={samples} path={text} mode="any" allowRoot={false}
-          ariaLabel={tr("比較する変数")} placeholder={tr("変数を選択")}
+          ariaLabel={isList ? tr("リストに使う変数") : tr("比較する変数")} placeholder={tr("変数を選択")}
           onChange={(path) => onChange(path, type)} portalZIndex={560} />
       ) : type === "boolean" ? (
-        <select className="se-in" aria-label={tr("比較する値")} value={text}
+        <select className="se-in" aria-label={isList ? tr("操作する値") : tr("比較する値")} value={text}
           onChange={(e) => onChange(e.target.value, type)}>
           <option value="true">true</option>
           <option value="false">false</option>
         </select>
       ) : type !== "null" && (
-        <input aria-label={tr("比較する値")} type={type === "number" ? "number" : "text"}
+        <input aria-label={isList ? tr("操作する値") : tr("比較する値")} type={type === "number" ? "number" : "text"}
           value={text} maxLength={type === "text" ? 4096 : undefined}
-          placeholder={type === "text" ? tr("比較する文字列") : "0"}
+          placeholder={type === "text" ? (isList ? tr("追加・削除する文字列") : tr("比較する文字列")) : "0"}
           onChange={(e) => onChange(e.target.value, type)} />
       )}
     </div>
@@ -324,7 +326,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
 
   if (transform.kind === "append" || transform.kind === "remove") return (
     <div className="se-composer-step-settings">
-      <ValueOperandEditor type={transform.operandType} text={transform.operand} samples={samples}
+      <ValueOperandEditor type={transform.operandType} text={transform.operand} samples={samples} purpose="list"
         onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
     </div>
   );
