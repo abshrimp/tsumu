@@ -450,6 +450,7 @@ function transformReferences(transform: TransformStep["transform"]): string[] {
   switch (transform.kind) {
     case "field":
     case "has": fields = refs(transform.key); break;
+    case "object-entries": fields = [...refs(transform.keyField), ...refs(transform.valueField)]; break;
     case "fallback":
     case "fallback-nullish": fields = refs(transform.text); break;
     case "split":
