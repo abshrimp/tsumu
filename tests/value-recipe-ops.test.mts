@@ -7,7 +7,7 @@ const run = (input: unknown, steps: readonly ValueTransform[]) => evaluateValueR
 const val = (value: unknown) => ({ kind: "value", value });
 
 test("all advertised transforms have stable, serializable defaults", () => {
-  assert.equal(VALUE_TRANSFORM_KINDS.length, 20);
+  assert.equal(VALUE_TRANSFORM_KINDS.length, 23);
   assert.equal(new Set(VALUE_TRANSFORM_KINDS).size, VALUE_TRANSFORM_KINDS.length);
   for (const kind of VALUE_TRANSFORM_KINDS) {
     const transform = defaultTransform(kind);
@@ -24,7 +24,8 @@ test("numeric arithmetic and comparison have explicit types and errors", () => {
   assert.deepEqual(run(8, [{ kind: "math", operation: "remainder", operand: 3 }]), val(2));
   assert.deepEqual(run(8, [{ kind: "math", operation: "subtract", operand: 3 }]), val(5));
   assert.deepEqual(run(3, [{ kind: "math", operation: "multiply", operand: 3 }]), val(9));
-  assert.deepEqual(run("12", [{ kind: "math", operation: "add", operand: 1 }]),
+  assert.deepEqual(run("12", [{ kind: "math", operation: "add", operand: 1 }]), val(13));
+  assert.deepEqual(run("not a number", [{ kind: "math", operation: "add", operand: 1 }]),
     { kind: "error", code: "type-mismatch" });
   assert.deepEqual(run(12, [{ kind: "math", operation: "divide", operand: 0 }]),
     { kind: "error", code: "division-by-zero" });
@@ -109,3 +110,44 @@ test("comparisons and list operations resolve typed variables, including nested 
     { kind: "compare", operation: "eq", operandType: "variable", operand: "missing" },
   ], {}), { kind: "error", code: "invalid-literal" });
 });
+
+test("math operands can resolve nested variables and safely parse numeric form strings", () => {
+  assert.deepEqual(evaluateValueRecipe("12.5", [
+    { kind: "math", operation: "multiply", operandType: "variable", operand: "settings.taxRate" },
+  ], { settings: { taxRate: "1.1" } }), val(13.750000000000002));
+  assert.deepEqual(evaluateValueRecipe(12, [
+    { kind: "math", operation: "divide", operandType: "variable", operand: "rate" },
+  ], { rate: "0" }), { kind: "error", code: "division-by-zero" });
+  assert.deepEqual(evaluateValueRecipe(12, [
+    { kind: "math", operation: "add", operandType: "variable", operand: "bad" },
+  ], { bad: "twelve" }), { kind: "error", code: "type-mismatch" });
+  assert.deepEqual(evaluateValueRecipe(12, [
+    { kind: "math", operation: "add", operandType: "variable", operand: "missing" },
+  ], {}), { kind: "error", code: "type-mismatch" });
+  assert.deepEqual(evaluateValueRecipe(12, [
+    { kind: "math", operation: "add", operand: 3 },
+  ]), val(15)); // Existing documents without operandType still work.
+});
+
+test("list additions and removals compose without changing their inputs", () => {
+  const original = [1, 2, 2, 3];
+  const data = { value: { id: 7 } };
+  assert.deepEqual(evaluateValueRecipe(original, [
+    { kind: "append", operandType: "variable", operand: "value" },
+  ], data), val([1, 2, 2, 3, { id: 7 }]));
+  assert.deepEqual(run(original, [
+    { kind: "remove", operandType: "number", operand: "2" },
+    { kind: "append", operandType: "number", operand: "4" },
+    { kind: "remove-at", index: 0 },
+  ]), val([3, 4]));
+  assert.deepEqual(run(original, [{ kind: "remove-at", index: -1 }]), val([1, 2, 2]));
+  assert.deepEqual(run(original, [{ kind: "remove-at", index: 100 }]), val(original));
+  assert.deepEqual(run(original, [{ kind: "append", operandType: "variable", operand: "missing" }]),
+    { kind: "error", code: "invalid-literal" });
+  assert.deepEqual(run("not a list", [{ kind: "append", operandType: "null", operand: "" }]),
+    { kind: "error", code: "type-mismatch" });
+  assert.deepEqual(run(Array(10000).fill(1), [{ kind: "append", operandType: "number", operand: "2" }]),
+    { kind: "error", code: "limit-exceeded" });
+  assert.deepEqual(original, [1, 2, 2, 3]);
+});
+
