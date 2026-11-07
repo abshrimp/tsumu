@@ -6,6 +6,7 @@ import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME } from "./browser-data";
 import { reactClientPageFragment } from "./html-export";
 import { usedGoogleFonts } from "./css";
+import { applyNativeFramework } from "./native-scaffold";
 
 /**
  * Vue, Nuxt and SvelteKit run the existing browser-only data and event
@@ -290,5 +291,5 @@ export function buildAdditionalFramework(
     });
   }
   files[".gitignore"] = "node_modules/\ndist/\n.nuxt/\n.output/\n.svelte-kit/\nbuild/\n";
-  return { files, binaries: common.binaries, remoteAssets: common.remoteAssets };
+  return applyNativeFramework(doc, { files, binaries: common.binaries, remoteAssets: common.remoteAssets }, framework, language);
 }
