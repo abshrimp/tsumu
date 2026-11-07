@@ -27,8 +27,9 @@ function ZIndexControl() {
   const bump = (d: number) => {
     const next = (z ?? 0) + d;
     const props: Record<string, string | null> = { zIndex: String(next) };
-    // z-index を効かせるため、未配置の要素には relative を付ける
-    if (!insp.get("position").value) props.position = "relative";
+    // z-index を効かせるため、未配置の要素には relative を付ける。
+    // 小さい画面で「自動」に戻した場合は明示的な static が入る。
+    if (isInitialValue("position", insp.get("position").value)) props.position = "relative";
     insp.set(props);
   };
 
