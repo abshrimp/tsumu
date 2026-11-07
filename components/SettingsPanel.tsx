@@ -245,11 +245,11 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               </button>
               <button
                 className="btn btn-sm"
-                data-tip={tr("このボックスをお手本にして、データの件数分くり返すリストにします")}
+                data-tip={tr("このボックスをお手本にして、データの件数分くり返すリスト表示を作ります")}
                 onClick={() => createList(nodeId)}
               >
                 <Icon name="list" size={12} />
-                {tr("リスト化")}
+                {tr("リスト表示にする")}
               </button>
             </div>
           )}
@@ -289,15 +289,15 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
       {node.type === "list" && node.list && (
         <div className="sec">
           <div className="sec-head is-open">
-            <span className="sec-title">{tr("リスト")}</span>
+            <span className="sec-title">{tr("リスト表示")}</span>
             <InfoTip
-              text={tr("リストの1つ目がお手本のカードです。カードの中の文字で「{」を入力して項目を選ぶと、すべてのカードに反映されます。\n並べ替えや絞り込みは、スクリプトの「並べ替える」「絞り込む」で行います。")}
+              text={tr("リスト表示の1つ目がお手本のカードです。カードの中の文字で「{」を入力して項目を選ぶと、すべてのカードに反映されます。\n並べ替えや絞り込みは、スクリプトの「並べ替える」「絞り込む」で行います。")}
             />
           </div>
           <div className="sec-body">
             {(() => {
               const from = node.list.from ?? "";
-              // 選べるのは、スクリプトで変数・配列に入れた一覧だけ
+              // 選べるのは、スクリプトで変数・リストに入れた一覧だけ
               //（取得したデータの中を自動で探した一覧は出さない）
               const arrays = pageArrays(doc, activePageId);
               // 入れ子のリストでは、外側のリストの項目が持つ一覧（各商品の tags など）も並べられる
@@ -317,22 +317,22 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                     value: a.name,
                     label: a.name,
                     desc: a.client
-                      ? tr("配列 · ページを開いてから値が決まる")
+                      ? tr("リスト · ページを開いてから値が決まる")
                       : Array.isArray(v)
-                        ? tr("配列 · 見本{length}件", { length: v.length })
-                        : tr("配列"),
+                        ? tr("リスト · 見本{length}件", { length: v.length })
+                        : tr("リスト"),
                   };
                 }),
                 ...nested.map((c) => ({
                   value: c.path,
                   label: fieldLabel(c.path),
-                  desc: tr("外側のリストの項目 · 見本{count}件", { count: c.count }),
+                  desc: tr("外側のリスト表示の項目 · 見本{count}件", { count: c.count }),
                 })),
               ];
               return (
                 <>
                   <div className="row">
-                    <label>{tr("並べる配列")}</label>
+                    <label>{tr("表示するリスト")}</label>
                     <Dropdown
                       value={from}
                       placeholder={tr("選択してください")}
@@ -342,7 +342,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                           ? [
                               {
                                 value: from,
-                                label: tr("{p1}（配列になっていません）", { p1: fieldLabel(from) }),
+                                label: tr("{p1}（リストになっていません）", { p1: fieldLabel(from) }),
                                 desc: tr("スクリプトで変数に入れると選べるようになります"),
                               },
                             ]
@@ -358,10 +358,10 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                       <button
                         className="btn btn-sm"
                         style={{ justifyContent: "center" }}
-                        data-tip={tr("スクリプトでデータを変数に入れるか、文字列を分解して配列にすると、ここで選べるようになります")}
+                        data-tip={tr("スクリプトでデータを変数に入れるか、文字列を分解してリストにすると、ここで選べるようになります")}
                         onClick={() => openScriptEditor({ focusNodeId: nodeId })}
                       >
-                        {tr("スクリプトで配列を作る")}
+                        {tr("スクリプトでリストを作る")}
                       </button>
                     </>
                   )}

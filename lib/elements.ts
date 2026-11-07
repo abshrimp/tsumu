@@ -107,7 +107,7 @@ export const ELEMENT_SECTIONS: { title: string; items: ElementDef[] }[] = [
   {
     title: tr("データ"),
     items: [
-      { key: "list", label: tr("リスト"), icon: "list", make: () => makeList() },
+      { key: "list", label: tr("リスト表示"), icon: "list", make: () => makeList() },
     ],
   },
   {

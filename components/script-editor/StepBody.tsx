@@ -197,7 +197,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "split":
       return (
         <Phrase
-          text="文字列{source}を{sep}で分解して配列{into}とする"
+          text="文字列{source}を{sep}で分解してリスト{into}とする"
           parts={{
             source: (
               <TextIn
@@ -216,7 +216,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
                 onCommit={(v) => set((s) => ({ ...s, sep: v }) as ScriptStep)}
               />
             ),
-            into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 一覧）")} />,
+            into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: リスト）")} />,
           }}
         />
       );
@@ -233,7 +233,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "unfilter-array":
       return (
         <Phrase
-          text="配列{array}の{which}を解除する"
+          text="リスト{array}の{which}を解除する"
           parts={{
             array: (
               <ArraySelect
@@ -321,7 +321,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "count":
       return (
         <Phrase
-          text="配列{array}の件数を変数{into}とする"
+          text="リスト{array}の件数を変数{into}とする"
           parts={{
             array: (
               <AnyArraySelect
@@ -507,7 +507,7 @@ function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page
   );
 }
 
-/** 「［値］を変数［］とする」（{名前} 1つだけなら配列・まとまりもそのまま入る） */
+/** 「［値］を変数［］とする」（{名前} 1つだけならリスト・まとまりもそのまま入る） */
 function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }) {
   const { doc, pageId, updateStep, samples, renameVar } = useContext(Ctx);
   const src = setVarSource(step);
@@ -537,7 +537,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
       {step.into && value !== undefined && value !== null && (
         <span className="se-blk-note">
           {Array.isArray(value)
-            ? tr("{length}件の一覧（リスト要素で並べられます）", { length: value.length })
+            ? tr("{length}件のリスト（リスト表示で並べられます）", { length: value.length })
             : isNested(value)
               ? tr("要素では {{into}.項目名} のように使えます", { into: step.into })
               : tr("見本: {p1}", { p1: readableValue(value) })}
