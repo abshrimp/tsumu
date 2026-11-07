@@ -89,10 +89,12 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     return Number.isFinite(number) ? number : undefined;
   };
   const compare = (left: unknown, right: unknown, operator: string): boolean | undefined => {
+    if (operator === "empty") return left === "" || left === null || left === undefined;
     if (!scalar(left) || !scalar(right)) return undefined;
     switch (operator) {
       case "eq": return left === right;
-      case "neq": return left !== right;
+      case "in": return typeof right === "string" &&
+        right.split(",").some((part) => part.trim() === String(left));
       case "gt":
       case "gte":
       case "lt":
@@ -114,6 +116,40 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         return left.endsWith(right);
       default: return undefined;
     }
+  };
+
+  // Same grouping rule as visual list filters: AND binds inside OR groups.
+  const matchesConditions = (
+    value: unknown,
+    first: { readonly operation: string; readonly operand: string; readonly operandType: string; readonly not?: boolean; readonly field?: string },
+    additional: readonly { readonly operation: string; readonly operand: string; readonly operandType: string; readonly not?: boolean; readonly and?: boolean; readonly field: string }[],
+    itemMode: boolean,
+  ): { ok: true; value: boolean } | { ok: false; code: string } => {
+    if (additional.length > 32) return { ok: false, code: "limit-exceeded" };
+    let any = false;
+    let all = true;
+    const clauses = [first, ...additional];
+    for (let index = 0; index < clauses.length; index++) {
+      const clause = clauses[index];
+      if (index > 0 && !("and" in clause && clause.and)) {
+        any = any || all;
+        all = true;
+      }
+      const rhs = argument(clause);
+      if (!rhs.ok) return { ok: false, code: "invalid-literal" };
+      let lhs = value;
+      if (itemMode) {
+        const field = textParam(clause.field ?? "", 256);
+        if (!field.ok) return { ok: false, code: "type-mismatch" };
+        lhs = valueAt(value, field.value);
+      }
+      // A missing item field never satisfies a condition, including its negation.
+      if (itemMode && lhs === undefined) { all = false; continue; }
+      const result = compare(lhs, rhs.value, clause.operation);
+      if (result === undefined) return { ok: false, code: "type-mismatch" };
+      all = all && (clause.not ? !result : result);
+    }
+    return { ok: true, value: any || all };
   };
 
   let current: unknown = input;
@@ -207,11 +243,9 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         }
         case "compare": {
           if (absent) break;
-          const rhs = argument(step);
-          if (!rhs.ok) return failure("invalid-literal");
-          const answer = compare(current, rhs.value, step.operation);
-          if (answer === undefined) return failure("type-mismatch");
-          current = answer;
+          const result = matchesConditions(current, step, step.conditions ?? [], false);
+          if (!result.ok) return failure(result.code);
+          current = result.value;
           break;
         }
         case "not":
@@ -259,18 +293,13 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         case "find":
         case "filter": {
           if (absent) break;
-          const field = textParam(step.field, 256);
-          if (!Array.isArray(current) || !field.ok || current.length > 10000) return failure("type-mismatch");
-          const rhs = argument(step);
-          if (!rhs.ok) return failure("invalid-literal");
+          if (!Array.isArray(current) || current.length > 10000) return failure("type-mismatch");
           const kept: unknown[] = [];
           let match: unknown = undefined;
           for (const item of current) {
-            const lhs = valueAt(item, field.value);
-            if (lhs === undefined) continue;
-            const yes = compare(lhs, rhs.value, step.operation);
-            if (yes === undefined) return failure("type-mismatch");
-            if (yes) {
+            const result = matchesConditions(item, step, step.conditions ?? [], true);
+            if (!result.ok) return failure(result.code);
+            if (result.value) {
               if (step.kind === "find") { match = item; break; }
               kept.push(item);
             }
