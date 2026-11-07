@@ -88,8 +88,8 @@ test("single HTML does not silently discard pages with different fixed URLs", ()
   const doc = fixture();
   doc.pages.about = { ...doc.pages.home, id: "about", slug: "about" };
   doc.pageOrder.push("about");
-  assert.ok(exportLimitations(doc, "single-html").some((m) => m.includes("固定パス")));
-  assert.throws(() => generateExportProject(doc, "single-html"), /固定パス/);
+  assert.ok(exportLimitations(doc, "single-html").some((m) => m.includes("1ページ")));
+  assert.throws(() => generateExportProject(doc, "single-html"), /1ページ/);
   const current = {
     framework: "single-html" as const, language: "javascript" as const,
     style: "css" as const, scope: "page" as const, pageId: "about",
