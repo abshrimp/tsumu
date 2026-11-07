@@ -57,7 +57,9 @@ export const SCRIPT_RUNTIME = `function (env) {
     for (var i = 0; i < keys.length; i++) {
       if (v == null || typeof v !== "object") return undefined;
       var k = keys[i];
-      v = Array.isArray(v) && k === "-1" ? v[v.length - 1] : v[k];
+      var part = Array.isArray(v) && k === "-1" ? v.length - 1 : k;
+      if (!has(v, part)) return undefined;
+      v = v[part];
     }
     return v;
   }
@@ -338,7 +340,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         }
         if (pid !== pageId) {
           if (pageId !== null) {
-            vars = {};
+            vars = Object.create(null);
             /*#filter*/
             filters.clear();
             sorts.clear();
@@ -356,7 +358,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         };
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
-      var vars = {};
+      var vars = Object.create(null);
       function getVar(name) {
         return has(vars, name) ? vars[name] : dig(vars, name);
       }
@@ -370,12 +372,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         var cur = vars;
         for (var i = 0; i < ks.length - 1; i++) {
           var k = ks[i].trim();
-          var nx = cur[k];
+          var nx = has(cur, k) ? cur[k] : undefined;
           if (nx == null || typeof nx !== "object" || Array.isArray(nx)) {
             vars[name] = v;
             return;
           }
-          var cp = {};
+          var cp = Object.create(null);
           for (var ok in nx) if (has(nx, ok)) cp[ok] = nx[ok];
           cur[k] = cp;
           cur = cp;
@@ -1035,12 +1037,12 @@ export const SCRIPT_RUNTIME = `function (env) {
       // くり返し中の要素（cx: { array, index, item, up, run }）の項目を、外側から順に重ねた値
       function scopeOf(cx) {
         if (!cx) return undefined;
-        var o = scopeOf(cx.up) || {};
+        var o = scopeOf(cx.up) || Object.create(null);
         for (var k in cx.item) if (has(cx.item, k)) o[k] = cx.item[k];
         return o;
       }
       function merged(a, b) {
-        var o = {};
+        var o = Object.create(null);
         var k;
         for (k in a || {}) if (has(a, k)) o[k] = a[k];
         for (k in b || {}) if (has(b, k)) o[k] = b[k];
