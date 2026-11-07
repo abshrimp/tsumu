@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { filterItems, pagePlan, previewDataVars } from "../lib/data";
+import { filterItems, matchOp, pagePlan, previewDataVars } from "../lib/data";
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
@@ -42,6 +42,34 @@ test("list filters invert individual conditions without duplicating negative ope
   assert.match(expr ?? "", /&&/);
   assert.deepEqual(filterItems(items, [{ kind: "filter",
     conds: [{ field: "active", op: "empty", value: "", not: true }] }]), items);
+});
+
+test(">= and <= are consistent in list filters and server-side page-load if", () => {
+  assert.equal(matchOp("10", "gte", "10"), true);
+  assert.equal(matchOp("10", "lte", "10"), true);
+  assert.equal(matchOp("9", "gte", "10"), false);
+  assert.equal(matchOp("11", "lte", "10"), false);
+  const items = [{ score: 9 }, { score: 10 }, { score: 15 }, { score: 20 }, { score: 21 }];
+  const ops = [{ kind: "filter" as const, conds: [
+    { field: "score", op: "gte" as const, value: "10" },
+    { field: "score", op: "lte" as const, value: "20", and: true },
+  ] }];
+  assert.deepEqual(filterItems(items, ops), items.slice(1, 4));
+  const predicate = filterPredicate(ops, "vars");
+  assert.match(predicate ?? "", />=/);
+  assert.match(predicate ?? "", /<=/);
+  const vars: Record<string, unknown> = { score: "10" };
+  const steps: ScriptStep[] = [
+    { id: "positive", kind: "if", cond: {
+      subject: "var", target: "", left: "{score}", op: "gte", value: "10",
+    }, then: [{ id: "yes", kind: "set-var", value: "yes", into: "result" }],
+       else: [{ id: "no", kind: "set-var", value: "no", into: "result" }] },
+    { id: "negative", kind: "if", cond: {
+      subject: "var", target: "", left: "{score}", op: "lte", value: "10", not: true,
+    }, then: [{ id: "unexpected", kind: "set-var", value: "wrong", into: "result" }] },
+  ];
+  assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+  assert.equal(vars.result, "yes");
 });
 
 test("three ordinary blocks compose a value in preview and server generated output", () => {
