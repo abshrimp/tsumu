@@ -43,6 +43,11 @@ async function localImport(page: Page, type: "zip" | "doc", includeAsset = true)
   const doc = sample();
   const bytes = await sourceBytes(doc, type, includeAsset);
   await page.route("**/api/sites", (route) => route.fulfill({ status: 503, json: {} }));
+  await page.route("**/api/sites/*", (route) => route.fulfill({ status: 503, json: {} }));
+  await page.route("**/api/doc?*", (route) => route.fulfill({ status: 503, json: {} }));
+  await page.route("**/api/status", (route) => route.fulfill({
+    json: { auth: false, db: false, assets: false, user: null },
+  }));
   await page.route("**/api/assets/file?*", (route) => route.fulfill({ status: 404, json: {} }));
   await page.route("**/api/assets", (route) => route.fulfill({ status: 503, json: {} }));
   await page.route("**/api/import-source?*", (route) => route.fulfill({
@@ -62,6 +67,7 @@ async function localImport(page: Page, type: "zip" | "doc", includeAsset = true)
   expect(saved.doc.nodes.photo.image.assetId).toBe("cover");
   expect(saved.doc.pages[doc.pageOrder[0]].pageScripts[0].steps[0].kind).toBe("split");
   expect(saved.list.filter((record: any) => record.id === saved.id)).toHaveLength(1);
+  await expect(page.locator(".editor")).toBeVisible();
   return saved;
 }
 
@@ -97,7 +103,7 @@ test("Invalid archive does not create a partial site and a reload cannot duplica
     contentType: "application/octet-stream", body: Buffer.from("not a zip"),
   }));
   await page.goto("/?zip=" + encodeURIComponent(importUrl));
-  await expect(page.getByRole("alert")).toContainText("サイトを復元できませんでした");
+  await expect(page.locator(".home-notice.is-error")).toContainText("サイトを復元できませんでした");
   expect(await page.evaluate(() => localStorage.getItem("tsumu-sites-v1"))).toBeNull();
   expect(new URL(page.url()).search).toBe("");
   await page.reload();
