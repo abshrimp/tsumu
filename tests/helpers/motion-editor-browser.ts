@@ -1,4 +1,4 @@
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { resolve } from "node:path";
 
 let compiledMotionBundle: Promise<string> | undefined;

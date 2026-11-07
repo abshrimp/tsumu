@@ -1,6 +1,9 @@
-import { expect, test, type Page, type Route, type Request } from "@playwright/test";
+import { test, expect, type Page, type Route, type Request } from "@playwright/test";
 import { previewRefreshDoc, previewRows } from "../tests/helpers/preview-refresh";
+import { makeText } from "../lib/presets";
+import { previewQueryDoc } from "../tests/helpers/preview-query-navigation";
 
+test.describe("preview-refresh", () => {
 async function setup(page: Page, doc = previewRefreshDoc()) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -129,4 +132,81 @@ test("page navigation aborts the old fetch and starts with the destination field
   await finish(1, "destination", 23);
   await expect(canvas.locator('[data-node="other-result"]')).toHaveText("destination: 23");
   await unchanged();
+});
+});
+
+test.describe("query-variant-conditions", () => {
+for (const slug of ["results", "posts/[slug]"]) {
+  test(`repeated query conditions keep ordinary links on their intended ${slug} page`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+    const response = await page.request.post("/api/sites", { data: { name: "Repeated query conditions" } });
+    expect(response.ok()).toBeTruthy();
+    const { site } = await response.json();
+    const endpoint = `/api/doc?site=${site.id}`;
+    const doc = previewQueryDoc(slug, ["", "category=books&category=music", "category=music&category=books", "%71=hello+world&q=later"]);
+    const path = `/${slug.replace("[slug]", "article")}`;
+    for (const target of Object.values(doc.pages)) {
+      for (const [label, suffix] of [
+        ["Books URL", "?category=books&category=music"],
+        ["Music URL", "?category=music&category=books"],
+        ["Encoded URL", "?%71=hello%20world&q=later"],
+        ["Default URL", "?category=other"],
+      ]) {
+        const node = { ...makeText(label), id: `${target.id}-${label.toLowerCase().replaceAll(" ", "-")}`, link: { kind: "url" as const, url: `${path}${suffix}` } };
+        doc.nodes[node.id] = node;
+        target.children.push(node.id);
+      }
+      const node = { ...makeText("Books page"), id: `${target.id}-books-page`, link: { kind: "page" as const, pageId: "variant1" } };
+      doc.nodes[node.id] = node;
+      target.children.push(node.id);
+    }
+    expect((await page.request.put(endpoint, { data: doc })).ok()).toBeTruthy();
+    await page.goto(`/sites/${site.id}`);
+    await expect(page.getByText("サーバー保存済み")).toBeVisible();
+    const saved = (await (await page.request.get(endpoint)).json()).doc;
+    await page.getByRole("button", { name: "プレビュー", exact: true }).click();
+    const canvas = page.locator('[data-tutorial="canvas"]');
+    for (const [label, destination] of [
+      ["Books URL", "variant1"],
+      ["Music URL", "variant2"],
+      ["Encoded URL", "variant3"],
+      ["Books page", "variant1"],
+      ["Default URL", "variant0"],
+      ["Books URL", "variant1"],
+    ]) {
+      await canvas.getByText(label, { exact: true }).click();
+      await expect(canvas.getByText(`Page ${destination}`, { exact: true })).toBeVisible();
+    }
+    expect((await (await page.request.get(endpoint)).json()).doc).toEqual(saved);
+    expect(errors).toEqual([]);
+  });
+}
+
+for (const slug of ["blog", "posts/[slug]"]) {
+  test(`preview URL links and scripts choose the matching ${slug} query page`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+    const response = await page.request.post("/api/sites", { data: { name: "Preview query navigation" } });
+    expect(response.ok()).toBeTruthy();
+    const { site } = await response.json();
+    const endpoint = `/api/doc?site=${site.id}`;
+    expect((await page.request.put(endpoint, { data: previewQueryDoc(slug) })).ok()).toBeTruthy();
+    await page.goto(`/sites/${site.id}`);
+    await expect(page.getByText("サーバー保存済み")).toBeVisible();
+    const saved = (await (await page.request.get(endpoint)).json()).doc;
+    await page.getByRole("button", { name: "プレビュー", exact: true }).click();
+    const canvas = page.locator('[data-tutorial="canvas"]');
+    await expect(canvas.getByText("Page home", { exact: true })).toBeVisible();
+    for (const [link, destination] of [["news-link", "variant1"], ["specific-button", "variant2"], ["archive-link", "variant3"], ["default-link", "variant0"], ["news-link", "variant1"]]) {
+      await canvas.getByText(link, { exact: true }).click();
+      await expect(canvas.getByText(`Page ${destination}`, { exact: true })).toBeVisible();
+      await expect(canvas.getByText("Page home", { exact: true })).toHaveCount(0);
+    }
+    expect((await (await page.request.get(endpoint)).json()).doc).toEqual(saved);
+    expect(errors).toEqual([]);
+  });
+}
 });

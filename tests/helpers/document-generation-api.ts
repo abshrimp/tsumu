@@ -3,7 +3,7 @@ import { type TestContext } from "node:test";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { DatabaseSync } from "node:sqlite";
-import { transformSync } from "esbuild";
+import { transformSync } from "./bundle";
 import { getDbFromBinding, type Db, type D1LikeDatabase } from "../../lib/db";
 import * as sites from "../../lib/sites";
 import * as docStorage from "../../lib/doc-storage";

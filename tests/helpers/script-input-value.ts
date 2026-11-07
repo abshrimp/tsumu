@@ -1,5 +1,5 @@
 import { readEditorCss } from "./editor-css";
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { resolve } from "node:path";
 import { makeBox, makeText } from "../../lib/presets";
 import type { DocNode, FieldContent, ScriptStep, SiteDoc } from "../../lib/types";

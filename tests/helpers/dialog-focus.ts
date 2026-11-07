@@ -1,5 +1,5 @@
 import { readEditorCss } from "./editor-css";
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { resolve } from "node:path";
 
 /** 実際のポータル、ダイアログの Promise、翻訳、CSS を使う。サーバーは要らない。 */

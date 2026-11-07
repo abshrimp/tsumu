@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { build } from "esbuild";
+import { build } from "./helpers/bundle";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { splitVarTokens } from "../lib/vars";

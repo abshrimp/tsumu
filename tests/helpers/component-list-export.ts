@@ -1,5 +1,5 @@
 import { readEditorCss } from "./editor-css";
-import { build, transformSync } from "esbuild";
+import { build, transformSync } from "./bundle";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { createElement } from "react";

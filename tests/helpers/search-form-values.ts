@@ -1,4 +1,4 @@
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { SEARCH_FORM_COMPONENT } from "../../lib/generator/templates";
 import { REACT_SEARCH_FORM } from "../../lib/generator/react-form";
 

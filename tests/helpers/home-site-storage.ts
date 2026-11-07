@@ -1,4 +1,4 @@
-import { build, type Plugin } from "esbuild";
+import { build, type Plugin } from "./bundle";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import * as React from "react";

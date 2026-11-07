@@ -1,4 +1,4 @@
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { resolve } from "node:path";
 
 /** 実際の数値の欄を、保存した値と外からの更新を確かめられる、小さな画面で使う。 */

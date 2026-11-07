@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { transformSync } from "esbuild";
+import { transformSync } from "./bundle";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { generateProject } from "../../lib/generator";

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { build, transformSync } from "esbuild";
+import { build, transformSync } from "./bundle";
 import { useEditor } from "../../lib/store";
 import * as editorStore from "../../lib/store";
 import { applyHtmlZipPage, readHtmlZip } from "../../lib/html-zip";

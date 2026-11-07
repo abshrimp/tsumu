@@ -1,5 +1,5 @@
 import { readEditorCss } from "./editor-css";
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { resolve } from "node:path";
 
 /** 実際のキャンバス・レイヤーとアップロードの処理を、通信の完了の順序だけ制御して確かめる。 */

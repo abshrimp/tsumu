@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
-import { build } from "esbuild";
+import { build } from "./helpers/bundle";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { createInitialDoc, makeBox } from "../lib/presets";

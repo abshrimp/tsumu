@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
@@ -74,8 +74,22 @@ if (Object.keys(project.remoteAssets).length) {
   throw new Error("Build fixture cannot depend on remote editor assets");
 }
 const root = join(process.cwd(), ".generated-export-smoke");
-await rm(root, { recursive: true, force: true });
+const smokeKey = `${framework}:${style}`;
+const cleanAll = process.argv.includes("--clean");
 await mkdir(root, { recursive: true });
+let prevKey = "";
+if (!cleanAll) {
+  try {
+    const { readFile } = await import("node:fs/promises");
+    prevKey = (await readFile(join(root, ".smoke-key"), "utf8")).trim();
+  } catch { /* fresh directory */ }
+}
+const reuseDeps = !cleanAll && prevKey === smokeKey;
+for (const entry of await readdir(root)) {
+  if (reuseDeps && (entry === "node_modules" || entry === "package-lock.json")) continue;
+  await rm(join(root, entry), { recursive: true, force: true });
+}
+await writeFile(join(root, ".smoke-key"), smokeKey);
 for (const [path, content] of Object.entries(project.files)) {
   const target = join(root, path);
   await mkdir(dirname(target), { recursive: true });

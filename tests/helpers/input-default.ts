@@ -1,5 +1,5 @@
 import { readEditorCss } from "./editor-css";
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { resolve } from "node:path";
 import type { FieldContent, SiteDoc } from "../../lib/types";
 import { scriptInputValueDoc } from "./script-input-value";

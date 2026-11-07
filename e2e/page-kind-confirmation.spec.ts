@@ -1,6 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { pageKindBundle } from "../tests/helpers/page-kind-confirmation";
+import { buildSync } from "../tests/helpers/bundle";
+import { resolve } from "node:path";
+import { PAGE_HTML_COMPONENT } from "../lib/generator/templates";
 
+test.describe("page-kind-confirmation", () => {
 let bundle: string;
 test.beforeAll(async () => { bundle = await pageKindBundle(); });
 test.beforeEach(async ({ page }) => {
@@ -108,3 +112,176 @@ for (const [from, to] of browserTransitions) {
     expect(await page.evaluate(() => (window as any).pageKindEditor.getState().doc)).toEqual(after);
   });
 }
+});
+
+test.describe("page-form-accessibility", () => {
+test("page settings, element inspector, and site settings fields have stable identifiers and associated labels", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+  const response = await page.request.post("/api/sites", { data: { name: "Form accessibility" } });
+  expect(response.ok()).toBeTruthy();
+  const { site } = (await response.json()) as { site: { id: string } };
+
+  await page.goto(`/sites/${site.id}`);
+  const pageSettings = page.locator('[data-tutorial="page-settings"]');
+  await expect(pageSettings).toBeVisible();
+  await expect(pageSettings.getByRole("textbox", { name: "名前", exact: true })).toBeVisible();
+  await expect(pageSettings.getByRole("textbox", { name: /^URL/ })).toBeVisible();
+  await expect(pageSettings.getByRole("combobox", { name: "言語", exact: true })).toBeVisible();
+
+  const audit = (locator: import("@playwright/test").Locator) => locator.evaluate((root) => {
+    const labels = [...root.querySelectorAll("label")]
+      .filter((label) => !label.control)
+      .map((label) => label.textContent?.trim() ?? "");
+    const fields = [...root.querySelectorAll("input, select, textarea")];
+    const unnamedFields = fields.filter((field) => !field.id && !field.getAttribute("name"))
+      .map((field) => field.outerHTML.slice(0, 180));
+    const ids = fields.map((field) => field.id).filter(Boolean);
+    return {
+      labels,
+      unnamedFields,
+      duplicateIds: ids.filter((id, index) => ids.indexOf(id) !== index),
+    };
+  });
+
+  expect(await audit(pageSettings)).toEqual({ labels: [], unnamedFields: [], duplicateIds: [] });
+
+  await page.locator('[data-tutorial="layers-panel"]').getByText("ボタン", { exact: true }).click();
+  await page.locator('[data-tutorial="right-tab-settings"]').click();
+  const inspector = page.locator('[data-tutorial="settings-panel"]');
+  await expect(inspector).toBeVisible();
+  expect(await audit(inspector)).toEqual({ labels: [], unnamedFields: [], duplicateIds: [] });
+
+  await page.locator('[data-tutorial="left-tab-site"]').click();
+  const siteSettings = page.locator('[data-tutorial="site-settings"]');
+  await expect(siteSettings).toBeVisible();
+  expect(await audit(siteSettings)).toEqual({ labels: [], unnamedFields: [], duplicateIds: [] });
+});
+
+test("Site and page language settings accept suggested and custom values and survive saving", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+  const response = await page.request.post("/api/sites", { data: { name: "Custom languages" } });
+  expect(response.ok()).toBeTruthy();
+  const { site } = await response.json();
+  await page.goto(`/sites/${site.id}`);
+  await expect(page.getByText("サーバー保存済み")).toBeVisible();
+  await page.locator('[data-tutorial="left-tab-site"]').click();
+
+  const siteSettings = page.locator('[data-tutorial="site-basics"]');
+  const siteSelect = siteSettings.getByRole("combobox", { name: "言語", exact: true });
+  const siteCode = siteSettings.getByRole("textbox", { name: "カスタム言語コード" });
+  const readDoc = async () => (await (await page.request.get(`/api/doc?site=${site.id}`)).json()).doc;
+
+  await expect(siteSelect).toHaveValue("ja");
+  await siteSelect.selectOption({ label: "カスタム…" });
+  await siteCode.fill(" pt-BR ");
+  await siteCode.press("Enter");
+  await expect(siteCode).toHaveValue("pt-BR");
+  await expect.poll(async () => (await readDoc()).lang).toBe("pt-BR");
+
+  for (const invalid of ["", "en_US", "not a language", "<script>"]) {
+    await siteCode.fill(invalid);
+    await siteCode.press("Enter");
+    await expect(siteCode).toHaveAttribute("aria-invalid", "true");
+    await expect(siteSettings.getByRole("alert")).toContainText("変更は保存されていません");
+    expect((await readDoc()).lang).toBe("pt-BR");
+  }
+  await siteCode.press("Escape");
+  await expect(siteCode).toHaveValue("pt-BR");
+  await expect(siteSettings.getByRole("alert")).toHaveCount(0);
+
+  await siteSelect.selectOption("en");
+  await expect(siteCode).toHaveCount(0);
+  await expect.poll(async () => (await readDoc()).lang).toBe("en");
+  await page.locator('[data-tutorial="undo"]').click();
+  await expect(siteCode).toHaveValue("pt-BR");
+
+  const pageSettings = page.locator('[data-tutorial="page-settings"]');
+  const pageSelect = pageSettings.getByRole("combobox", { name: "言語", exact: true });
+  const pageCode = pageSettings.getByRole("textbox", { name: "カスタム言語コード" });
+  await expect(pageSelect).toHaveValue("");
+  await expect(pageSelect.locator('option[value=""]')).toHaveText("サイトと同じ（pt-BR）");
+  await pageSelect.selectOption({ label: "カスタム…" });
+  await pageCode.fill("en-US");
+  await pageCode.press("Enter");
+  await expect.poll(async () => { const doc = await readDoc(); return doc.pages[doc.pageOrder[0]].lang; }).toBe("en-US");
+
+  // 既存の独自の言語の値は、再読み込みした後も編集できる。
+  await page.reload();
+  await expect(page.getByText("サーバー保存済み")).toBeVisible();
+  await page.locator('[data-tutorial="left-tab-site"]').click();
+  await expect(siteCode).toHaveValue("pt-BR");
+  await expect(pageCode).toHaveValue("en-US");
+  await pageSelect.selectOption("");
+  await expect(pageCode).toHaveCount(0);
+  await expect.poll(async () => { const doc = await readDoc(); return doc.pages[doc.pageOrder[0]].lang; }).toBeUndefined();
+  expect((await readDoc()).lang).toBe("pt-BR");
+  expect(errors).toEqual([]);
+});
+});
+
+test.describe("page-html", () => {
+// 実際のハイドレーションを試すため、実際に書き出したコンポーネントを React と一緒にバンドルする。
+const buildFixture = () => buildSync({
+  stdin: {
+    contents: `
+${PAGE_HTML_COMPONENT.replace("export default function PageHtml", "function PageHtml")}
+import { createElement, StrictMode, useEffect as useReadyEffect } from "react";
+import { hydrateRoot } from "react-dom/client";
+
+const htmlFor = (name) => '<script>window.recorded.push(' + JSON.stringify(name) + '); document.getElementById("marquee").textContent = "WELCOME WELCOME";<\\/script>';
+const inertFor = (name) => htmlFor(name).replace("<script>", '<script data-tsumu-deferred="" type="application/x-tsumu-deferred">');
+function App({ name }) {
+  useReadyEffect(() => { window.ready = name; }, [name]);
+  return createElement("main", null,
+    createElement("span", { id: "marquee" }, "WELCOME"),
+    createElement(PageHtml, { html: htmlFor(name), staticHtml: inertFor(name) }));
+}
+const tree = (name) => createElement(StrictMode, null, createElement(App, { name }));
+const root = hydrateRoot(document.getElementById("app"), tree("a"), {
+  onRecoverableError: (error) => window.hydrationErrors.push(error.message),
+});
+window.renderHtml = (name) => root.render(tree(name));
+`,
+    loader: "tsx",
+    sourcefile: "page-html-browser.tsx",
+    resolveDir: resolve(__dirname, ".."),
+  },
+  bundle: true,
+  write: false,
+  format: "iife",
+  platform: "browser",
+  jsx: "automatic",
+  define: { "process.env.NODE_ENV": '"development"' },
+}).outputFiles[0].text;
+
+test("Page-level scripts do not run twice during hydration and run on subsequent HTML changes", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  // An imported script must not modify server-rendered React text before hydration.
+  await page.setContent(`
+    <script>window.recorded = []; window.hydrationErrors = [];</script>
+    <div id="app"><main><span id="marquee">WELCOME</span><div style="display:contents"><script data-tsumu-deferred="" type="application/x-tsumu-deferred">window.recorded.push("a"); document.getElementById("marquee").textContent = "WELCOME WELCOME";</script></div></main></div>
+  `);
+  expect(await page.evaluate(() => (window as any).recorded)).toEqual([]);
+  expect(await page.locator("#marquee").textContent()).toBe("WELCOME");
+
+  await page.addScriptTag({ content: buildFixture() });
+  await expect.poll(() => page.evaluate(() => (window as any).ready)).toBe("a");
+  await expect.poll(() => page.evaluate(() => (window as any).recorded)).toEqual(["a"]);
+  expect(await page.locator("#marquee").textContent()).toBe("WELCOME WELCOME");
+  // StrictMode's effect replay must not run the initial script twice.
+  expect(await page.evaluate(() => (window as any).recorded)).toEqual(["a"]);
+
+  const expected = ["a"];
+  for (const name of ["b", "a", "c"]) {
+    await page.evaluate((value) => (window as any).renderHtml(value), name);
+    await expect.poll(() => page.evaluate(() => (window as any).ready)).toBe(name);
+    expected.push(name);
+    await expect.poll(() => page.evaluate(() => (window as any).recorded)).toEqual(expected);
+  }
+  expect(await page.evaluate(() => (window as any).hydrationErrors)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+});

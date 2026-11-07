@@ -1,8 +1,10 @@
+import { test, expect, type Page } from "@playwright/test";
 import { readEditorCss } from "../tests/helpers/editor-css";
-import { expect, test, type Page } from "@playwright/test";
 import { siteBootstrapBundle } from "../tests/helpers/site-bootstrap";
 import { setBrowserDoc } from "./helpers/browser-doc";
+import { editorTitleBundle, editorTitleHydrationHtml } from "../tests/helpers/editor-title";
 
+test.describe("site-bootstrap", () => {
 let bundle: string;
 const css = readEditorCss();
 test.beforeAll(async () => { bundle = await siteBootstrapBundle(true); });
@@ -241,4 +243,161 @@ test("Editor page query supports direct links and browser back/forward without r
   expect(await page.evaluate(() => (window as any).bootstrapEditor.getState().doc)).toEqual(originalDocument);
   expect(await page.locator("[data-bootstrap-document]").evaluate(el => el === (window as any).originalHistoryCanvas)).toBe(true);
   await page.evaluate(() => (window as any).disposeBootstrap());
+});
+});
+
+test.describe("editor-title", () => {
+let bundle: string;
+test.beforeAll(async () => { bundle = await editorTitleBundle(); });
+
+for (const source of ["server", "local"] as const) {
+  test(`Late shared metadata does not overwrite the ${source === "server" ? "server" : "local-storage"} site title`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.setContent('<html><head></head><body><div id="app"></div></body></html>');
+    await page.evaluate((source) => {
+      const state = window as any;
+      state.titleLocalSites = [{ id: "title-test", name: "Local title" }];
+      state.titleFetch = async () => Response.json(
+        source === "server" ? { site: { name: "Server title" } } : { error: "unavailable" },
+        { status: source === "server" ? 200 : 503 },
+      );
+    }, source);
+    await page.addScriptTag({ content: bundle });
+    const title = `${source === "server" ? "Server" : "Local"} title | Tsumu`;
+    await expect(page.locator("[data-editor-ready]")).toBeVisible();
+    await expect(page).toHaveTitle(title);
+    // Next.js と同じように、メタデータは後から、別の Suspense の境界で解決する。
+    await page.evaluate(() => (window as any).finishMetadata());
+    await expect.poll(() => page.evaluate(() => (window as any).metadataReady)).toBe(true);
+    await expect(page).toHaveTitle(title);
+    await expect(page.locator("head title")).toHaveCount(1);
+    expect(errors).toEqual([]);
+  });
+}
+
+test("Editor errors and retries preserve the site name in the page title", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setContent('<html><head></head><body><div id="app"></div></body></html>');
+  await page.evaluate(() => {
+    (window as any).titleFetch = async () => Response.json({ site: { name: "Recovery title" } });
+  });
+  await page.addScriptTag({ content: bundle });
+  await expect(page.locator("[data-editor-ready]")).toBeVisible();
+  await expect(page).toHaveTitle("Recovery title | Tsumu");
+  await page.evaluate(() => {
+    (window as any).titleBeforeError = document.querySelector("title");
+    (window as any).failTitleEditor();
+  });
+  await expect(page.locator(".safe-page")).toBeVisible();
+  await expect(page.locator("[data-editor-ready]")).toHaveCount(0);
+  await expect(page).toHaveTitle("Recovery title | Tsumu");
+  await page.evaluate(() => (window as any).finishMetadata());
+  await expect.poll(() => page.evaluate(() => (window as any).metadataReady)).toBe(true);
+  await expect(page).toHaveTitle("Recovery title | Tsumu");
+  await page.evaluate(() => { (window as any).titleEditorFailed = false; });
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(page.locator("[data-editor-ready]")).toBeVisible();
+  await expect(page.locator(".safe-page")).toHaveCount(0);
+  await expect(page).toHaveTitle("Recovery title | Tsumu");
+  await expect(page.locator("head title")).toHaveCount(1);
+  expect(await page.evaluate(() => document.querySelector("title") === (window as any).titleBeforeError)).toBe(true);
+  expect(await page.evaluate(() => (window as any).titleCaughtErrors)).toEqual(["title fixture editor failure"]);
+  expect(errors).toEqual([]);
+});
+
+test("SSR's default title changes to the site name without duplicates or hydration errors", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setContent(await editorTitleHydrationHtml());
+  await expect(page).toHaveTitle("Tsumu");
+  await expect(page.locator("head title")).toHaveCount(1);
+  await page.evaluate(() => {
+    (window as any).titleHydrate = true;
+    (window as any).titleFetch = async () => Response.json({ site: { name: "Hydrated title" } });
+  });
+  await page.addScriptTag({ content: bundle });
+  await expect(page.locator("[data-editor-ready]")).toBeVisible();
+  await expect(page).toHaveTitle("Hydrated title | Tsumu");
+  await expect(page.locator("head title")).toHaveCount(1);
+  expect(await page.evaluate(() => (window as any).titleHydrationErrors)).toEqual([]);
+  expect(errors).toEqual([]);
+});
+});
+
+test.describe("editor-appearance", () => {
+test("numeric fields use readable backgrounds in editor dark mode and orange for dark page overrides", async ({ page }) => {
+  await page.setContent(`<html><body><aside class="panel-r">
+    <div class="grp is-set">
+      <span class="grp-label is-set" id="label">Spacing</span>
+      <div style="--field: var(--field-base); --field-hover: var(--field-base-hover)">
+        <div class="field" id="base"><input aria-label="Inherited margin" /></div>
+      </div>
+      <div style="--field: var(--field-set); --field-hover: var(--field-set-hover)">
+        <div class="field" id="set"><input aria-label="Changed margin" /></div>
+      </div>
+    </div>
+  </aside></body></html>`);
+  await page.addStyleTag({ content: readEditorCss() });
+
+  await page.evaluate(() => { document.documentElement.dataset.editorTheme = "dark"; });
+  await expect(page.locator("#base")).toHaveCSS("background-color", "rgb(45, 51, 60)");
+  await expect(page.locator("#set")).toHaveCSS("background-color", "rgb(44, 65, 97)");
+
+  await page.locator(".panel-r").evaluate(el => el.classList.add("is-dark"));
+  await expect(page.locator("#label")).toHaveCSS("color", "rgb(255, 178, 124)");
+  await expect(page.locator("#set")).toHaveCSS("background-color", "rgb(81, 54, 38)");
+  await page.locator("#set input").focus();
+  await expect(page.locator("#set")).toHaveCSS("background-color", "rgb(81, 54, 38)");
+  await expect(page.locator("#set")).toHaveCSS("border-color", "rgb(255, 178, 124)");
+  await page.locator("#set input").blur();
+  await page.locator("#base").hover();
+  await expect(page.locator("#base")).toHaveCSS("background-color", "rgb(58, 65, 77)");
+  await page.locator("#set").hover();
+  await expect(page.locator("#set")).toHaveCSS("background-color", "rgb(104, 67, 46)");
+
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => { document.documentElement.dataset.editorTheme = "light"; });
+  await expect(page.locator("#base")).toHaveCSS("background-color", "rgb(240, 244, 249)");
+  await expect(page.locator("#set")).toHaveCSS("background-color", "rgb(255, 232, 214)");
+  await expect(page.locator("#label")).toHaveCSS("color", "rgb(194, 65, 12)");
+});
+
+test("home and editor share appearance preference without changing page theme", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+  await page.goto("/");
+  await page.locator(".home-top .home-top-btn").filter({ hasText: "設定" }).click();
+  const homeSettings = page.locator(".home-dialog");
+  await expect(homeSettings.locator(".appearance-seg")).toBeVisible();
+  await homeSettings.locator(".appearance-seg").getByRole("button", { name: "ダークモード" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-editor-theme", "dark");
+  await homeSettings.getByRole("button", { name: "閉じる" }).click();
+
+  const result = await page.request.post("/api/sites", { data: { name: "Appearance sync" } });
+  expect(result.ok()).toBeTruthy();
+  const { site } = await result.json();
+  await page.goto(`/sites/${site.id}`);
+  await expect(page.locator("html")).toHaveAttribute("data-editor-theme", "dark");
+  await expect(page.locator(".hdr-page-theme")).toBeVisible();
+
+  await page.locator(".hdr-page-theme .dd").click();
+  await page.locator(".dd-menu .dd-item").filter({ hasText: "ダークモード" }).click();
+  await page.locator(".panel-l .layer-row").first().click();
+  await expect(page.locator(".panel-r")).toHaveClass(/is-dark/);
+  await expect(page.locator(".panel-r .state-bar-theme")).toHaveText("ダークモードのスタイルを編集中");
+
+  await page.locator(".hdr-more .icon-btn").click();
+  await page.locator(".dd-menu .dd-item").filter({ hasText: "設定" }).click();
+  await page.locator(".modal .appearance-seg").getByRole("button", { name: "ライトモード" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-editor-theme", "light");
+  await expect(page.locator(".panel-r .state-bar-theme")).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("tsumu-editor-appearance"))).toBe("light");
+
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-editor-theme", "light");
+  await page.locator(".home-top .home-top-btn").filter({ hasText: "設定" }).click();
+  await expect(page.locator(".home-dialog .appearance-seg").getByRole("button", { name: "ライトモード" }))
+    .toHaveAttribute("aria-pressed", "true");
+});
 });

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { build, transformSync } from "esbuild";
+import { build, transformSync } from "./bundle";
 import * as store from "../../lib/store";
 import { makeImage, makeMedia } from "../../lib/presets";
 import type { Asset, SiteDoc } from "../../lib/types";

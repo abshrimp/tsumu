@@ -1,4 +1,4 @@
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 

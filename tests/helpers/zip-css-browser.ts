@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { buildSync, transformSync } from "esbuild";
+import { buildSync, transformSync } from "./bundle";
 import JSZip from "jszip";
 import { resolve } from "node:path";
 import type { Page } from "@playwright/test";

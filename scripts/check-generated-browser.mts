@@ -29,11 +29,11 @@ let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   const url = "http://127.0.0.1:" + port + "/";
   let running = false;
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 180; i++) {
     if (child.exitCode !== null) throw new Error("Generated server exited: " + output);
     try { running = (await fetch(url)).ok; } catch { /* server starting */ }
     if (running) break;
-    await new Promise((done) => setTimeout(done, 200));
+    await new Promise((done) => setTimeout(done, 100));
   }
   if (!running) throw new Error("Generated server failed to start: " + output);
   browser = await chromium.launch({ headless: true });
@@ -68,11 +68,21 @@ try {
   await check("page robots", () => page.locator('head meta[name="robots"][content*="noindex"]').first().waitFor({ state: "attached" }));
   await check("Alpha row", () => page.getByText("Alpha", { exact: true }).first().waitFor({ timeout: 7000 }));
   await check("Beta row", () => page.getByText("Beta", { exact: true }).first().waitFor({ timeout: 7000 }));
-  await check("button", () => page.getByRole("button", { name: "Tap" }).waitFor({ timeout: 7000 }));
-  // イベントのランタイムは、DOM の準備ができた時点ではなく、ハイドレーションとスクリプトの読み込みの後に登録される。
-  await page.waitForTimeout(600);
-  await page.getByRole("button", { name: "Tap" }).click();
-  await check("status after click", () => page.getByText("Status: done", { exact: true }).first().waitFor({ timeout: 7000 }));
+  const tapButton = page.getByRole("button", { name: "Tap" });
+  await check("button", () => tapButton.waitFor({ timeout: 7000 }));
+  // イベントのランタイムはハイドレーション後に登録されるため、状態変化が確認できるまで短周期で再試行する。
+  await check("status after click", async () => {
+    for (let attempt = 0; attempt < 35; attempt++) {
+      await tapButton.click();
+      try {
+        await page.getByText("Status: done", { exact: true }).first().waitFor({ timeout: 200 });
+        return;
+      } catch {
+        // Hydrating; retry on next tick.
+      }
+    }
+    await page.getByText("Status: done", { exact: true }).first().waitFor({ timeout: 1000 });
+  });
   if (errors.length) throw new Error("Generated browser JavaScript errors:\n" + errors.join("\n"));
   console.log(framework + " generated browser: hydrated and updated a variable after click");
 } finally {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { build } from "esbuild";
+import { build } from "../tests/helpers/bundle";
 import { resolve } from "node:path";
 import { parseColor } from "../components/controls";
 import { aspectRatioBundle } from "../tests/helpers/aspect-ratio";

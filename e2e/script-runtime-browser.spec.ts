@@ -1,5 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
+import { generateProject } from "../lib/generator";
 import { applyPagePayload, buildPagePayload } from "../lib/page-transfer";
+import { makeBox } from "../lib/presets";
+import { compileScripts } from "../lib/script";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import type { ScriptStep, ScriptTrigger, SiteDoc } from "../lib/types";
 import { anchorFixture, renderAnchorExport } from "../tests/helpers/instance-anchor";
@@ -439,4 +442,377 @@ test.describe("Published radio clear bindings", () => {
     await expect(page.locator("#counts")).toHaveText("|1|");
     expect(await page.evaluate(() => (window as any).radioEvents)).toEqual(["medium:input", "medium:change"]);
   });
+});
+
+async function withCleanPage(page: Page, run: (errors: string[]) => Promise<void>) {
+  await page.goto("about:blank");
+  const errors: string[] = [];
+  const onError = (error: Error) => errors.push(error.message);
+  page.on("pageerror", onError);
+  try {
+    await run(errors);
+    expect(errors).toEqual([]);
+  } finally {
+    page.off("pageerror", onError);
+  }
+}
+
+async function runChain(page: Page, exported: boolean, input: string, transforms: ScriptStep[], expectedValue: string) {
+  await withCleanPage(page, async () => {
+    const steps: ScriptStep[] = [
+      { id: "literal", kind: "set-var", into: "items", value: input },
+      ...transforms,
+      { id: "display", kind: "set-value", target: "answer", value: "{items}" },
+    ];
+    const node = {
+      ...makeBox(), id: "button", attrId: "button", scripts: [{ id: "s", trigger: "click" as const, steps }],
+    };
+    const doc: SiteDoc = {
+      schemaVersion: 1, siteName: "Block composition", assets: {}, nodes: { button: node }, pageOrder: ["p"],
+      pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["button"] } },
+    };
+    const compiled = compileScripts(node, () => "/");
+    await page.setContent('<html><body><button id="button">Run</button><input id="answer" /></body></html>');
+    await page.locator("#button").evaluate((element, scripts) =>
+      element.setAttribute("data-scripts", JSON.stringify(scripts)), compiled);
+    await page.addScriptTag({ content: exported ? scriptsFile(doc) : "(" + SCRIPT_RUNTIME + ")({}).install(document);" });
+    await page.locator("#button").click();
+    await expect(page.locator("#answer")).toHaveValue(expectedValue);
+  });
+}
+
+// 書き出しのランタイムは、使う機能だけを残した SCRIPT_RUNTIME（pickFeatures）なので、
+// 個々のブロックは書き出し側で確かめる。プレビュー（全機能のランタイム）は、この組で動くことだけを確かめる。
+test("preview and exported runtimes compose value transforms, conditions, loops, and list filters", async ({ page }) => {
+  for (const exported of [false, true]) {
+    const label = exported ? "exported" : "preview";
+    await test.step(`${label} numeric value blocks`, () =>
+      runChain(page, exported, "12", [
+        { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+        { id: "math", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "multiply", operandType: "number", operand: 2 } },
+        { id: "add", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "add", operandType: "number", operand: 3 } },
+      ], "27"));
+
+    await test.step(`${label} text operations convert numbers and booleans`, () =>
+      runChain(page, exported, "12345", [
+        { id: "split", kind: "transform", source: "items", into: "items", transform: { kind: "split", separator: "3" } },
+        { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "-" } },
+      ], "12-45"));
+
+    await test.step(`${label} equality matches typed boolean and text variables`, () =>
+      runChain(page, exported, "true", [
+        { id: "as-text", kind: "set-var", into: "expected", value: '"true"' },
+        { id: "compare", kind: "if",
+          cond: { subject: "var", target: "", left: "{items}", op: "eq", value: "{expected}" },
+          then: [{ id: "yes", kind: "set-var", into: "items", value: "matched" }],
+          else: [{ id: "no", kind: "set-var", into: "items", value: "unmatched" }],
+        },
+      ], "matched"));
+  }
+
+  await test.step("exported runtime repeats using a variable count", () =>
+    runChain(page, true, "", [
+      { id: "count", kind: "set-var", into: "count", value: "3" },
+      { id: "sum", kind: "set-var", into: "sum", value: "0" },
+      { id: "parse-sum", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
+      { id: "repeat", kind: "repeat", times: "{count}", then: [
+        { id: "increase", kind: "transform", source: "sum", into: "sum",
+          transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
+      ] },
+      { id: "result", kind: "set-var", into: "items", value: "{sum}" },
+    ], "3"));
+
+  await test.step("exported runtime waits for variable seconds", () =>
+    runChain(page, true, "before", [
+      { id: "delay", kind: "set-var", into: "delay", value: "0.01" },
+      { id: "wait", kind: "wait", seconds: "{delay}" },
+      { id: "result", kind: "set-var", into: "items", value: "after" },
+    ], "after"));
+
+  await test.step("scripted named state changes a distant element and reset restores its default style", () =>
+    withCleanPage(page, async () => {
+      const button = { ...makeBox(), id: "trigger", attrId: "trigger", scripts: [{
+        id: "script-trigger", trigger: "click" as const, steps: [{ id: "activate", kind: "set-state" as const, target: "remote", state: "selected" }],
+      }] };
+      const reset = { ...makeBox(), id: "reset", attrId: "reset", scripts: [{
+        id: "script-reset", trigger: "click" as const, steps: [{ id: "restore", kind: "set-state" as const, target: "remote", state: "default" }],
+      }] };
+      const remote = { ...makeBox(), id: "remote", attrId: "remote",
+        styles: { base: { default: { backgroundColor: "#eeeeee" }, "custom:selected": { backgroundColor: "#ff0000" } } } };
+      const doc: SiteDoc = {
+        schemaVersion: 1, siteName: "Named states", assets: {}, nodes: { trigger: button, reset, remote },
+        pageOrder: ["p"], pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["trigger", "reset", "remote"] } },
+      };
+      const css = generateProject(doc).files["styles/site.css"];
+      const className = /\.([a-zA-Z0-9_-]+)\[data-site-state="selected"\]/.exec(css)?.[1];
+      expect(className).toBeTruthy();
+      await page.setContent('<html><body><button id="trigger">Activate</button><button id="reset">Reset</button><div id="remote">Target</div></body></html>');
+      await page.addStyleTag({ content: css });
+      await page.locator("#remote").evaluate((el, cls) => el.classList.add(cls), className!);
+      await page.locator("#trigger").evaluate((el, steps) =>
+        el.setAttribute("data-scripts", JSON.stringify(steps)), compileScripts(button, () => "/"));
+      await page.locator("#reset").evaluate((el, steps) =>
+        el.setAttribute("data-scripts", JSON.stringify(steps)), compileScripts(reset, () => "/"));
+      await page.addScriptTag({ content: scriptsFile(doc) });
+      await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(238, 238, 238)");
+      await page.locator("#trigger").click();
+      await expect(page.locator("#remote")).toHaveAttribute("data-site-state", "selected");
+      await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(255, 0, 0)");
+      await page.locator("#reset").click();
+      await expect(page.locator("#remote")).not.toHaveAttribute("data-site-state");
+      await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    }));
+
+  await test.step("exported runtime branches on the negation of a positive comparison", () =>
+    runChain(page, true, "initial", [
+      { id: "flag", kind: "set-var", into: "flag", value: "blue" },
+      { id: "branch", kind: "if",
+        cond: { subject: "var", target: "", left: "{flag}", op: "contains", value: "red", not: true },
+        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ], "accepted"));
+
+  await test.step("exported runtime displays only entries matching an inverted list condition", () =>
+    withCleanPage(page, async () => {
+      const button = { ...makeBox(), id: "filterButton", attrId: "filterButton", scripts: [{
+        id: "on-click", trigger: "click" as const, steps: [{ id: "filter", kind: "list-display" as const, mode: "filter" as const,
+          array: "results", field: "name", op: "contains" as const, value: "red", not: true, dir: "asc" as const }],
+      }] };
+      const doc: SiteDoc = {
+        schemaVersion: 1, siteName: "Negated filter", assets: {}, nodes: { filterButton: button }, pageOrder: ["p"],
+        pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["filterButton"] } },
+      };
+      await page.setContent('<html><body><button id="filterButton">Filter</button><section data-array="results"><div data-item=\'{"name":"red"}\' id="red">red</div><div data-item=\'{"name":"blue"}\' id="blue">blue</div></section></body></html>');
+      await page.locator("#filterButton").evaluate((element, scripts) =>
+        element.setAttribute("data-scripts", JSON.stringify(scripts)), compileScripts(button, () => "/"));
+      await page.addScriptTag({ content: scriptsFile(doc) });
+      await page.locator("#filterButton").click();
+      await expect(page.locator("#red")).toHaveCSS("display", "none");
+      await expect(page.locator("#blue")).toHaveCSS("display", "contents");
+    }));
+
+  await test.step("exported interpolates mixed text in fallback blocks", () =>
+    runChain(page, true, "unused", [
+      { id: "name", kind: "set-var", into: "name", value: "田中" },
+      { id: "fallback", kind: "transform", source: "missing", into: "items",
+        transform: { kind: "fallback", when: "missing", text: "こんにちは、{name}さん" } },
+    ], "こんにちは、田中さん"));
+
+  await test.step("exported reads a holiday dictionary using a variable date key", () =>
+    runChain(page, true, JSON.stringify({ "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" }), [
+      { id: "date", kind: "set-var", into: "selectedDate", value: "2026-11-23" },
+      { id: "parse-holidays", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "read-holiday", kind: "transform", source: "items", into: "items", transform: { kind: "field", key: "{selectedDate}" } },
+    ], "勤労感謝の日"));
+
+  await test.step("exported JSON keys cannot pollute script variables", async () => {
+    await runChain(page, true, '{"polluted":"unsafe"}', [
+      { id: "parse-object", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "store-prototype", kind: "set-var", into: "__proto__", value: "{items}" },
+      { id: "safe-fallback", kind: "transform", source: "polluted", into: "items",
+        transform: { kind: "fallback", when: "missing", text: "safe" } },
+    ], "safe");
+    expect(await page.evaluate(() => ({} as Record<string, unknown>).polluted)).toBeUndefined();
+  });
+
+  await test.step("exported evaluates AND before OR in multi-clause if blocks", () =>
+    runChain(page, true, "", [
+      { id: "first", kind: "set-var", into: "first", value: "yes" },
+      { id: "second", kind: "set-var", into: "second", value: "no" },
+      { id: "third", kind: "set-var", into: "third", value: "blue" },
+      { id: "if-combined", kind: "if",
+        cond: { subject: "var", target: "", left: "{first}", op: "eq", value: "yes" },
+        conditions: [
+          { subject: "var", target: "", left: "{second}", op: "eq", value: "yes", and: true },
+          { subject: "var", target: "", left: "{third}", op: "eq", value: "red", not: true, and: false },
+        ],
+        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ], "accepted"));
+
+  await test.step("exported retains variable predicates when the first if clause reads an element", () =>
+    runChain(page, true, "", [
+      { id: "status", kind: "set-var", into: "status", value: "ready" },
+      { id: "mixed-if", kind: "if",
+        cond: { subject: "value", target: "answer", op: "eq", value: "absent" },
+        conditions: [{ subject: "var", target: "", left: "{status}", op: "eq", value: "ready", and: false }],
+        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ], "accepted"));
+
+  await test.step("exported ignores unfinished AND/OR if conditions", () =>
+    runChain(page, true, "", [
+      { id: "status", kind: "set-var", into: "status", value: "waiting" },
+      { id: "if-unfinished", kind: "if",
+        cond: { subject: "var", target: "", left: "{status}", op: "eq", value: "ready" },
+        conditions: [
+          { subject: "var", target: "", left: "", op: "eq", value: "", and: true },
+          { subject: "var", target: "", left: "", op: "eq", value: "", and: false },
+        ],
+        then: [{ id: "accept", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "reject", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ], "rejected"));
+
+  await test.step("exported reads form fields in arithmetic operands", () =>
+    runChain(page, true, "4", [
+      { id: "rate-field", kind: "set-value", target: "answer", value: "3" },
+      { id: "math", kind: "transform", source: "items", into: "items",
+        transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "answer" } },
+    ], "12"));
+
+  await test.step("exported interpolates form values in transform parameters", () =>
+    runChain(page, true, "", [
+      { id: "input-value", kind: "set-value", target: "answer", value: "東京" },
+      { id: "fallback", kind: "transform", source: "absent", into: "items",
+        transform: { kind: "fallback", when: "missing", text: "行き先: {answer}" } },
+    ], "行き先: 東京"));
+
+  for (const [label, condition] of [
+    ["unconfigured", { subject: "value" as const, target: "", op: "eq" as const, value: "" }],
+    ["deleted", { subject: "value" as const, target: "deleted-element", op: "eq" as const, value: "", not: true }],
+    ["negated-visibility", { subject: "visible" as const, target: "deleted-element", not: true }],
+  ] as const) {
+    await test.step(`exported rejects ${label} if element targets`, () =>
+      runChain(page, true, "", [
+        { id: "target-if", kind: "if", cond: condition,
+          then: [{ id: "accepted", kind: "set-var", into: "items", value: "accepted" }],
+          else: [{ id: "rejected", kind: "set-var", into: "items", value: "rejected" }],
+        },
+      ], "rejected"));
+  }
+
+  await test.step("exported preserves OR grouping around incomplete if clauses", () =>
+    runChain(page, true, "", [
+      { id: "left-value", kind: "set-var", into: "left", value: "no" },
+      { id: "right-value", kind: "set-var", into: "right", value: "yes" },
+      { id: "or-with-gap", kind: "if",
+        cond: { subject: "var", target: "", left: "{left}", op: "eq", value: "yes" },
+        conditions: [
+          { subject: "var", target: "", left: "", op: "eq", value: "", and: false },
+          { subject: "var", target: "", left: "{right}", op: "eq", value: "yes", and: true },
+        ],
+        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ], "accepted"));
+
+  await test.step("exported keeps OR logic across unfinished list filter clauses", () =>
+    withCleanPage(page, async () => {
+      const filter = {
+        ...makeBox(), id: "filterButton", attrId: "filterButton",
+        scripts: [{ id: "filterScript", trigger: "click" as const, steps: [{
+          id: "filterWithGap", kind: "list-display" as const, mode: "filter" as const,
+          array: "results", field: "name", op: "eq" as const, value: "red", dir: "asc" as const,
+          or: [
+            { field: "", op: "eq" as const, value: "", and: false },
+            { field: "active", op: "eq" as const, value: "yes", and: true },
+          ],
+        }] }],
+      };
+      const doc: SiteDoc = {
+        schemaVersion: 1, siteName: "Filter gap", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
+        pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["filterButton"] } },
+      };
+      await page.setContent('<html><body><button id="filterButton">Run</button><section data-array="results">' +
+        '<div data-item=\'{"name":"red","active":"no"}\' id="red">red</div>' +
+        '<div data-item=\'{"name":"blue","active":"yes"}\' id="blue">blue</div>' +
+        '<div data-item=\'{"name":"blue","active":"no"}\' id="other">other</div>' +
+        '</section></body></html>');
+      await page.locator("#filterButton").evaluate((el, script) =>
+        el.setAttribute("data-scripts", JSON.stringify(script)), compileScripts(filter, () => "/"));
+      await page.addScriptTag({ content: scriptsFile(doc) });
+      await page.locator("#filterButton").click();
+      await expect(page.locator("#red")).toHaveCSS("display", "contents");
+      await expect(page.locator("#blue")).toHaveCSS("display", "contents");
+      await expect(page.locator("#other")).toHaveCSS("display", "none");
+    }));
+
+  await test.step("exported safely filters object-valued fields from JSON", () =>
+    withCleanPage(page, async () => {
+      const filter = {
+        ...makeBox(), id: "filterButton", attrId: "filterButton",
+        scripts: [{ id: "filterScript", trigger: "click" as const, steps: [{
+          id: "filterObjectField", kind: "list-display" as const, mode: "filter" as const,
+          array: "results", field: "meta", op: "has-key" as const, value: "toString", dir: "asc" as const,
+        }] }],
+      };
+      const doc: SiteDoc = {
+        schemaVersion: 1, siteName: "Safe JSON filter", assets: {}, nodes: { filterButton: filter }, pageOrder: ["p"],
+        pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["filterButton"] } },
+      };
+      await page.setContent('<html><body><button id="filterButton">Run</button><section data-array="results">' +
+        '<div data-item=\'{"meta":{"toString":"broken"}}\' id="obj">object</div>' +
+        '<div data-item=\'{"meta":"other"}\' id="other">other</div>' +
+        '</section></body></html>');
+      await page.locator("#filterButton").evaluate((el, script) =>
+        el.setAttribute("data-scripts", JSON.stringify(script)), compileScripts(filter, () => "/"));
+      await page.addScriptTag({ content: scriptsFile(doc) });
+      await page.locator("#filterButton").click();
+      await expect(page.locator("#obj")).toHaveCSS("display", "contents");
+      await expect(page.locator("#other")).toHaveCSS("display", "none");
+    }));
+
+  await test.step("exported nested list item fields shadow global variables in transforms", () =>
+    runChain(page, true, '[{"profile":{}}]', [
+      { id: "global-profile", kind: "set-var", into: "profile", value: '{"age":20}' },
+      { id: "parse-global", kind: "transform", source: "profile", into: "profile", transform: { kind: "parse" } },
+      { id: "parse-rows", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "each-row", kind: "for-each", array: "items", then: [
+        { id: "local-age", kind: "transform", source: "profile.age", into: "picked",
+          transform: { kind: "fallback", when: "missing", text: "missing" } },
+        { id: "display-picked", kind: "set-var", into: "items", value: "{picked}" },
+      ] },
+    ], "missing"));
+
+  await test.step("exported extracts nested JSON keys and final array positions", () =>
+    runChain(page, true, '{"meta":{"scores":[3,7],"city":"Kyoto"}}', [
+      { id: "parse-object", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "nested-final", kind: "transform", source: "items", into: "items", transform: { kind: "field", key: "meta.scores.-1" } },
+    ], "7"));
+
+  await test.step("exported list loops select matching entries with values, keys and early exit", () =>
+    runChain(page, true, '{"apple":100,"banana":200,"orange":300}', [
+      { id: "result", kind: "set-var", into: "chosen", value: "none" },
+      { id: "each", kind: "for-each", array: "items", then: [
+        { id: "check", kind: "if",
+          cond: { subject: "var", target: "", left: "{ループ.値}", op: "gte", value: "200" },
+          then: [
+            { id: "save", kind: "set-var", into: "chosen", value: "{ループ.キー}" },
+            { id: "stop", kind: "break-loop" },
+          ] },
+      ] },
+      { id: "display-result", kind: "set-var", into: "items", value: "{chosen}" },
+    ], "banana"));
+
+  await test.step("exported removes all equal list items with typed values", () =>
+    runChain(page, true, '["red","blue","red","green"]', [
+      { id: "delete-red", kind: "remove-list-item", list: "items", mode: "value", value: '"red"' },
+      { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "|" } },
+    ], "blue|green"));
+
+  await test.step("exported removes a single positional item and keeps list order", () =>
+    runChain(page, true, '["a","b","c","d"]', [
+      { id: "delete-second", kind: "remove-list-item", list: "items", mode: "key", value: "1" },
+      { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "|" } },
+    ], "a|c|d"));
+
+  await test.step("exported removes dictionary entries by value and key", () =>
+    runChain(page, true, '{"a":1,"b":2,"c":"2","d":3}', [
+      { id: "delete-twos", kind: "remove-list-item", list: "items", mode: "value", value: "2" },
+      { id: "delete-first", kind: "remove-list-item", list: "items", mode: "key", value: "a" },
+      { id: "stringify", kind: "transform", source: "items", into: "items", transform: { kind: "stringify" } },
+    ], '{"d":3}'));
+
+  await test.step("exported list construction uses keyed assignments and keeps typed values", () =>
+    runChain(page, true, "unused", [
+      { id: "empty", kind: "set-var", into: "basket", value: "[]" },
+      { id: "first", kind: "set-list-item", list: "basket", key: "", value: "10" },
+      { id: "second", kind: "set-list-item", list: "basket", key: "", value: "20" },
+      { id: "total", kind: "transform", source: "basket", into: "count", transform: { kind: "length" } },
+      { id: "result", kind: "set-var", into: "items", value: "{count}" },
+    ], "2"));
 });

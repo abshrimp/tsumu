@@ -1,4 +1,4 @@
-import { build } from "esbuild";
+import { build } from "./bundle";
 import { resolve } from "node:path";
 
 /** 実際の Canvas・FrameStage・ストアを使い、外部のデータ無しで幅の変更を確かめる。 */
