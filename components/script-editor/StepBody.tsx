@@ -138,6 +138,25 @@ export function StepBody({ step }: { step: ScriptStep }) {
           }}
         />
       );
+    case "set-state":
+      return (
+        <Phrase
+          text="{target}を{state}にする"
+          parts={{
+            target: (
+              <TargetSelect value={step.target}
+                onChange={(target) => set((s) => ({ ...s, target }) as ScriptStep)} />
+            ),
+            state: (
+              <TextIn value={step.state} width={120}
+                placeholder={tr("状態名（既定で戻す）")}
+                onCommit={(state) => set((s) => ({
+                  ...s, state: state.trim().slice(0, 40),
+                }) as ScriptStep)} />
+            ),
+          }}
+        />
+      );
     case "set-enabled":
       return (
         <Phrase
