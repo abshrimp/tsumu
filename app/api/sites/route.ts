@@ -5,13 +5,14 @@ import { requireAuth } from "../../../lib/server";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
 import { readCurrentDoc, saveCurrentDoc, validateDocBody, DocTooLargeError } from "../../../lib/doc-storage";
-import { DOCUMENT_LIMIT } from "../../../lib/url-site-import";
+import { DOCUMENT_LIMIT, parseRestoredDoc } from "../../../lib/url-site-import";
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
   deleteSite,
   getSite,
   insertSite,
+  insertSiteWithDoc,
   isSiteId,
   listSites,
   newSiteId,
@@ -65,6 +66,12 @@ export async function POST(req: Request) {
     if (invalid) {
       return NextResponse.json({ error: tr(invalid) }, { status: 400 });
     }
+    try {
+      parseRestoredDoc(importRaw);
+    } catch {
+      return NextResponse.json({ error: tr("Tsumuの編集データとして読み込めません") },
+        { status: 400 });
+    }
   }
   const parsed = normalizeSiteInput(input, {
     name: "",
@@ -81,12 +88,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("複製するサイトが見つかりません") }, { status: 404 });
     }
     const id = newSiteId();
-    await insertSite(db, id, parsed.value);
-    if (copyFrom || importRaw !== null) {
+    if (importRaw !== null) {
+      await insertSiteWithDoc(db, id, parsed.value, importRaw);
+    } else {
+      await insertSite(db, id, parsed.value);
+    }
+    if (copyFrom) {
       try {
         // Imported sites are only visible after their complete document is saved.
         const src = copyFrom ? await readCurrentDoc(db, copyFrom) : null;
-        const body = importRaw ?? src?.body;
+        const body = src?.body;
         if (body) {
           const result = await saveCurrentDoc(db, id, body, null);
           if (result.kind !== "saved") throw new Error("Imported document was not saved");
