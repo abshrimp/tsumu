@@ -38,7 +38,7 @@ test("ZIP export preserves the editable SiteDoc and archive asset IDs for direct
     assert.equal(mapped.version, 1);
     assert.equal(mapped.assets["original-asset"], "public/assets/mark.svg");
     assert.ok(zip.file("zip-roundtrip/public/assets/mark.svg"));
-    const imported = await parseSiteImport(bytes, "zip", "https://files.example.test/export.zip");
+    const imported = await parseSiteImport(bytes, "zip");
     assert.deepEqual(imported.doc, doc);
     assert.equal(imported.doc.assets["original-asset"].id, "original-asset");
     assert.equal(new TextDecoder().decode(imported.assets.get("original-asset")), svg);
@@ -80,7 +80,7 @@ test("HTML, Vue and SvelteKit ZIP exports round-trip editable data and asset IDs
       assert.deepEqual(missing, []);
       assert.ok(blob, `Missing ${framework} ZIP`);
       const archive = new Uint8Array(await (blob as Blob).arrayBuffer());
-      const imported = await parseSiteImport(archive, "zip", "https://files.example.test/export.zip");
+      const imported = await parseSiteImport(archive, "zip");
       assert.deepEqual(imported.doc, doc);
       assert.equal(imported.doc.assets["roundtrip-logo"].id, "roundtrip-logo");
       assert.equal(new TextDecoder().decode(imported.assets.get("roundtrip-logo")), svg);

@@ -4,6 +4,22 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "圧縮された編集データが大きすぎます。": "The compressed edit data exceeds the size limit.",
+  "圧縮された編集データが不正です。": "The compressed edit data is invalid.",
+  "編集データが容量上限を超えています。": "The edit data exceeds the size limit.",
+  "対応していない編集データの形式です。": "This edit data format is not supported.",
+  "このブラウザでは圧縮された編集データを開けません。": "This browser cannot open compressed edit data.",
+  "展開後の編集データが容量上限を超えています。": "The decompressed edit data exceeds the size limit.",
+  "圧縮された編集データをJSONとして読み込めませんでした。": "Could not parse the compressed edit data as JSON.",
+  "バックアップファイルを作成できませんでした。": "Could not create the backup file.",
+  "編集データを読み込み中…": "Reading edit data…",
+  "インポート": "Import",
+  "ZIPまたはdoc.jsonをドロップしてサイトをインポート": "Drop a ZIP or doc.json here to import a site",
+  "ZIPまたはdoc.jsonをドロップしてインポート": "Drop a ZIP or doc.json to import",
+  "ZIPまたはdoc.jsonファイルを選択": "Choose a ZIP or doc.json file",
+  "ZIPまたはdoc.jsonファイルを選択してください。": "Choose a ZIP or doc.json file.",
+  "ファイルが空です。": "The file is empty.",
+  "別のファイルを選択": "Choose another file",
   "GitHubへPushすると、編集データには非公開ページや設定も含まれ、公開リポジトリでは第三者が閲覧できます。公開前に内容を確認してください。": "Pushing to GitHub also includes editable data, unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.",
   "認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。": "Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead.",
   "ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。": "The ZIP contains the site’s complete editable source (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.",

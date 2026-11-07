@@ -10615,9 +10615,14 @@ a.btn {
 }
 
 .home-notice.is-error {
+  align-items: center;
   background: #fef2f2;
   box-shadow: none;
   color: #991b1b;
+}
+
+.home-notice.is-error svg {
+  margin-top: 0;
 }
 
 .home-grid {
@@ -12438,3 +12443,39 @@ a.btn {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ファイルをドラッグしている間だけ表示する。通常のホーム画面には場所を取らない。 */
+.home-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  pointer-events: none;
+  background: rgba(245, 248, 253, 0.67);
+  backdrop-filter: blur(2px);
+}
+.home-drop-overlay::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 2px dashed var(--accent-border);
+  border-radius: 18px;
+}
+.home-drop-overlay-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 26px 32px;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow-pop);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+.home-drop-overlay-content svg { color: var(--accent); }

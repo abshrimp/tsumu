@@ -68,7 +68,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
     root.file(path, await res.arrayBuffer());
   });
 
-  const blob = await zip.generateAsync({ type: "blob" });
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 9 } });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

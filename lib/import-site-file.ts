@@ -1,39 +1,16 @@
 import { DOC_STORAGE_KEY, emptyDest, loadLocalSites, saveLocalSites, siteKey } from "./site";
 import { newSiteId, type SiteRecord } from "./sites";
-import { parseSiteImport, restoreImportAssets } from "./site-import";
+import { IMPORT_LIMITS, parseSiteImport, restoreImportAssets } from "./site-import";
 import { storageKey } from "./storage-keys";
 
-export type ImportRequest = { mode: "zip" | "doc"; url: string };
 export type SaveMode = "server" | "local";
 export const importWarningsKey = (id: string) => storageKey("import-warnings-v1") + ":" + id;
 
-export function requestedSiteImport(params: URLSearchParams): ImportRequest | null {
-  const zip = params.get("zip");
-  const doc = params.get("doc");
-  if (!zip && !doc) return null;
-  if (zip && doc) throw new Error("ZIPとdoc.jsonのURLは同時に指定できません。");
-  const raw = zip || doc!;
-  if (raw.length > 2048) throw new Error("URLが長すぎます。");
-  let parsed: URL;
-  try { parsed = new URL(raw); }
-  catch { throw new Error("取得するファイルのURLが正しくありません。"); }
-  if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password) {
-    throw new Error("HTTP(S)の公開URLを指定してください。");
-  }
-  return { mode: zip ? "zip" : "doc", url: parsed.href };
-}
-
-async function fetchImportedFile(url: string, kind: "zip" | "doc" | "asset"): Promise<Uint8Array> {
-  const response = await fetch("/api/import-source", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, kind }),
-  });
-  if (!response.ok) {
-    const data = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(data?.error || "外部URLから取得できませんでした。");
-  }
-  return new Uint8Array(await response.arrayBuffer());
+export function importFileKind(file: Pick<File, "name">): "zip" | "doc" {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".zip")) return "zip";
+  if (name.endsWith(".json")) return "doc";
+  throw new Error("ZIPまたはdoc.jsonファイルを選択してください。");
 }
 
 function localWrite(doc: string, name: string): string {
@@ -88,18 +65,21 @@ async function serverWrite(doc: string, name: string): Promise<string> {
 }
 
 /** Prepare everything before creating the site, then commit its document. */
-export async function createSiteFromUrl(
-  request: ImportRequest,
+export async function createSiteFromFile(
+  file: File,
   mode: SaveMode,
   progress: (message: string) => void = () => {},
 ): Promise<{ id: string; warnings: string[] }> {
-  progress("インポート元のファイルを取得しています…");
-  const source = await fetchImportedFile(request.url, request.mode);
+  const kind = importFileKind(file);
+  const limit = kind === "zip" ? IMPORT_LIMITS.zipBytes : IMPORT_LIMITS.docBytes;
+  if (!file.size) throw new Error("ファイルが空です。");
+  if (file.size > limit) throw new Error("インポートするファイルが大きすぎます。");
+  progress("編集データを読み込み中…");
+  const source = new Uint8Array(await file.arrayBuffer());
   progress("編集データを確認しています…");
-  const parsed = await parseSiteImport(source, request.mode, request.url);
+  const parsed = await parseSiteImport(source, kind);
   progress("画像などのアセットを復元しています…");
-  const { doc, warnings, createdPaths } = await restoreImportAssets(parsed,
-    (url) => fetchImportedFile(url, "asset"), progress);
+  const { doc, warnings, createdPaths } = await restoreImportAssets(parsed, progress);
   progress("新規サイトを保存しています…");
   const raw = JSON.stringify(doc);
   let id: string;

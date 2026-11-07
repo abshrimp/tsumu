@@ -137,7 +137,14 @@ test("client-list templates retain placeholders and raw content through conversi
   const before = await publishedComponentList(doc), after = await publishedComponentList(convert(doc));
   assert.deepEqual(details(after), details(before));
   assert.match(after, /data-client-list/); assert.match(after, /data-tpl/);
-  assert.match(after, /data-raw/); assert.match(after, /Detail \{name\}:\{label\}/);
+  assert.match(after, /data-raw/);
+  // The current compiler preserves variable placeholders as structured text
+  // parts rather than leaving raw {name} strings in generated markup.
+  const detail = parse(after).querySelector("[data-tpl] #detail");
+  assert.ok(detail);
+  const parts = JSON.parse(detail.getAttribute("data-text-parts") || "[]");
+  assert.deepEqual(parts.filter((p: unknown) => typeof p === "object" && p !== null)
+    .map((p: { name: string }) => p.name), ["name", "label"]);
   const templateScripts = (html: string) => parse(html).querySelectorAll("[data-tpl] [data-scripts]")
     .map((el: any) => JSON.parse(el.getAttribute("data-scripts")));
   assert.deepEqual(templateScripts(after), templateScripts(before));
