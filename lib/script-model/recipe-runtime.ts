@@ -88,41 +88,35 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     const number = Number(input.trim());
     return Number.isFinite(number) ? number : undefined;
   };
-  const compare = (left: unknown, right: unknown, operator: string): boolean | undefined => {
-    if (operator === "empty") return left === "" || left === null || left === undefined;
-    if (!scalar(left) || !scalar(right)) return undefined;
+  // Condition predicates use the same text comparison rules as if/list filters.
+  // Arithmetic remains numeric; equality compares the displayed value as text.
+  const conditionText = (value: unknown): string => {
+    if (value == null) return "";
+    if (Array.isArray(value)) return value.map(conditionText).filter(Boolean).join(", ");
+    if (typeof value === "object") return "";
+    return String(value);
+  };
+  const compare = (left: unknown, right: string, operator: string): boolean => {
+    const value = conditionText(left);
     switch (operator) {
-      case "eq": return left === right;
-      case "in": return typeof right === "string" &&
-        right.split(",").some((part) => part.trim() === String(left));
-      case "gt":
-      case "gte":
-      case "lt":
-      case "lte": {
-        if (typeof left !== typeof right ||
-            (typeof left !== "number" && typeof left !== "string") ||
-            (typeof right !== "number" && typeof right !== "string")) return undefined;
-        if (operator === "gt") return left > right;
-        if (operator === "gte") return left >= right;
-        if (operator === "lt") return left < right;
-        return left <= right;
-      }
-      case "contains":
-      case "starts-with":
-      case "ends-with":
-        if (typeof left !== "string" || typeof right !== "string") return undefined;
-        if (operator === "contains") return left.includes(right);
-        if (operator === "starts-with") return left.startsWith(right);
-        return left.endsWith(right);
-      default: return undefined;
+      case "contains": return value.includes(right);
+      case "starts-with": return value.startsWith(right);
+      case "ends-with": return value.endsWith(right);
+      case "gt": return parseFloat(value) > parseFloat(right);
+      case "gte": return parseFloat(value) >= parseFloat(right);
+      case "lt": return parseFloat(value) < parseFloat(right);
+      case "lte": return parseFloat(value) <= parseFloat(right);
+      case "empty": return value === "";
+      case "in": return right.split(",").some((part) => part.trim() === value);
+      default: return value === right;
     }
   };
 
   // Same grouping rule as visual list filters: AND binds inside OR groups.
   const matchesConditions = (
     value: unknown,
-    first: { readonly operation: string; readonly operand: string; readonly operandType: string; readonly not?: boolean; readonly field?: string },
-    additional: readonly { readonly operation: string; readonly operand: string; readonly operandType: string; readonly not?: boolean; readonly and?: boolean; readonly field: string }[],
+    first: { readonly operation: string; readonly operand: string; readonly not?: boolean; readonly field?: string },
+    additional: readonly { readonly operation: string; readonly operand: string; readonly not?: boolean; readonly and?: boolean; readonly field: string }[],
     itemMode: boolean,
   ): { ok: true; value: boolean } | { ok: false; code: string } => {
     if (additional.length > 32) return { ok: false, code: "limit-exceeded" };
@@ -136,7 +130,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         all = true;
       }
       const rhs = clause.operation === "empty"
-        ? { ok: true as const, value: "" } : argument(clause);
+        ? { ok: true as const, value: "" } : interpolateText(clause.operand, 4096);
       if (!rhs.ok) return { ok: false, code: "invalid-literal" };
       let lhs = value;
       if (itemMode) {
@@ -146,8 +140,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       }
       // A missing item field never satisfies a condition, including its negation.
       if (itemMode && lhs === undefined) { all = false; continue; }
-      const result = compare(lhs, rhs.value, clause.operation);
-      if (result === undefined) return { ok: false, code: "type-mismatch" };
+      const result = compare(lhs, conditionText(rhs.value), clause.operation);
       all = all && (clause.not ? !result : result);
     }
     return { ok: true, value: any || all };
