@@ -930,6 +930,10 @@ export function previewDataVars(
             origins[st.into] = { totals: origin.totals,
               path: [origin.path, st.transform.key].filter(Boolean).join(".") };
           } else delete origins[st.into];
+        } else if (result.kind === "missing") {
+          // Avoid reusing the result from a previous run in a connected block.
+          out[st.into] = undefined;
+          delete origins[st.into];
         }
         break;
       }
