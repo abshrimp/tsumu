@@ -44,20 +44,32 @@ for (const target of ["element", "page"] as const) test(`remote ${target} deleti
   await expect(input).toHaveValue("Reply typed before deletion");
   await expect(detail(page).locator(".cm-msg-body")).toHaveText("Original discussion");
   await expect(page.locator(".cm-pin:not(.is-draft)")).toHaveCount(0);
-  await page.getByLabel("削除された対象のみ", { exact: true }).check();
+  // 一覧に戻っても、削除された対象のコメントは見つけられ、書きかけの返信も残る。
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
+  if (target === "page") {
+    await expect(page.locator(".cm-item")).toHaveCount(0);
+    await page.locator(".cm-list-notice").click();
+  }
   await expect(page.locator(".cm-item-meta")).toContainText(target === "page" ? "削除されたページ" : "削除された要素");
+  await page.locator(".cm-item").click();
+  await expect(input).toHaveValue("Reply typed before deletion");
   await detail(page).getByRole("button", { name: "返信", exact: true }).click();
   await expect(detail(page).locator(".cm-msg-body")).toHaveText(["Original discussion", "Reply typed before deletion"]);
   await detail(page).getByRole("button", { name: "解決済みにする", exact: true }).click();
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   await expect(page.locator(".cm-item")).toHaveCount(0);
+  await page.getByLabel("解決済みも表示", { exact: true }).check();
+  await page.locator(".cm-item").click();
   await detail(page).getByRole("button", { name: "未解決に戻す", exact: true }).click();
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
+  await page.getByLabel("解決済みも表示", { exact: true }).uncheck();
   await expect(page.locator(".cm-item")).toHaveCount(1);
   const stored = await (await page.request.get(`/api/comments?site=${site}`)).json();
   expect(stored.threads[0].nodeId).toBe("target"); expect(stored.threads[0].pageId).toBe("p");
   expect(stored.threads[0].resolvedAt).toBeNull(); expect(stored.threads[0].messages).toHaveLength(2);
   await page.reload(); await expect(page.getByText("サーバー保存済み")).toBeVisible();
   await page.getByRole("button", { name: "コメント", exact: true }).click();
-  await page.getByLabel("削除された対象のみ", { exact: true }).check();
+  if (target === "page") await page.getByRole("button", { name: "すべてのページ", exact: true }).click();
   await page.locator(".cm-item").click();
   await expect(detail(page).locator(".cm-msg-body")).toHaveText(["Original discussion", "Reply typed before deletion"]);
   expect(errors).toEqual([]);
@@ -82,8 +94,11 @@ test("local subtree delete, undo and redo retain comment identity and do not mis
   await page.locator('[data-tutorial="breakpoint-sm"]').click();
   await expect(detail(page).getByRole("status")).toHaveText("対象の要素はこの画面幅では非表示です。", { timeout: 20_000 });
   await expect(page.locator(".cm-pin:not(.is-draft)")).toHaveCount(0);
-  await page.getByLabel("削除された対象のみ", { exact: true }).check();
-  await expect(page.locator(".cm-item")).toHaveCount(0);
+  // 画面幅で非表示なだけの対象は、削除されたものとして扱わない。
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
+  await expect(page.locator(".cm-item-meta")).toContainText("この画面幅では非表示");
+  await expect(page.locator(".cm-item-place.is-deleted")).toHaveCount(0);
+  await page.locator(".cm-item").click();
   await expect(detail(page).locator(".cm-msg-body")).toHaveText("Original discussion");
   const stored = await (await page.request.get(`/api/comments?site=${site}`)).json();
   expect(stored.threads).toHaveLength(1); expect(stored.threads[0].id).toBe(threadId);

@@ -16,7 +16,7 @@ function harness() {
   const slot = (initial: any) => { const instance = current; const i = instance.index++; if (!(i in instance.slots)) instance.slots[i] = initial; return { instance, i }; };
   let run: (...args: any[]) => any = () => false;
   const context: any = {
-    module: { exports: {} }, MAX_COMMENT_LENGTH: 5000,
+    module: { exports: {} }, MAX_COMMENT_LENGTH: 5000, unsentBodies: new Map<string, string>(),
     useState: (initial: any) => { const { instance, i } = slot(initial); return [instance.slots[i], (value: any) => { instance.slots[i] = typeof value === "function" ? value(instance.slots[i]) : value; }]; },
     useRef: (initial: any) => { const { instance, i } = slot({ current: initial }); return instance.slots[i]; },
     useEffect: () => {},
@@ -34,7 +34,7 @@ function harness() {
   function instance(fn: any, props: any) {
     return { slots: [] as any[], index: 0, render() { current = this; this.index = 0; const tree = fn(props); current = undefined; return tree; } };
   }
-  return { Composer, Message, instance, closed, setCommentState: (state: typeof commentState) => { commentState = state; }, setRun: (fn: typeof run) => { run = fn; } };
+  return { Composer, Message, instance, closed, unsentBodies: context.unsentBodies as Map<string, string>, setCommentState: (state: typeof commentState) => { commentState = state; }, setRun: (fn: typeof run) => { run = fn; } };
 }
 function find(node: any, predicate: (node: any) => boolean): any {
   if (!node || typeof node !== "object") return undefined;
@@ -45,6 +45,25 @@ const textarea = (tree: any) => find(tree, node => node.type === "textarea");
 const submit = (tree: any) => find(tree, node => node.type === "button" && node.props.className === "btn btn-sm btn-primary");
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
+
+test("unsent text is kept per discussion until it is sent or cancelled", async () => {
+  const h = harness();
+  const props = (draftKey: string, onCancel?: () => void) => ({ placeholder: "", submitLabel: "", draftKey, onCancel, onSubmit: async () => true });
+  const typed = h.instance(h.Composer, props("reply:a"));
+  textarea(typed.render()).props.onChange({ target: { value: "Half-written reply" } });
+  // 一覧に戻って開き直す（作り直す）と、そのスレッドの書きかけだけが戻る。
+  const reopened = h.instance(h.Composer, props("reply:a"));
+  assert.equal(textarea(reopened.render()).props.value, "Half-written reply");
+  assert.equal(textarea(h.instance(h.Composer, props("reply:b")).render()).props.value, "");
+  submit(reopened.render()).props.onClick(); await tick();
+  assert.equal(textarea(h.instance(h.Composer, props("reply:a")).render()).props.value, "");
+  // キャンセルした新しいコメントは、次に開いたときに戻さない。
+  const draft = h.instance(h.Composer, props("new", () => {}));
+  textarea(draft.render()).props.onChange({ target: { value: "Discard me" } });
+  find(draft.render(), node => node.type === "button" && node.props.className === "btn btn-sm btn-ghost").props.onClick();
+  assert.equal(textarea(h.instance(h.Composer, props("new")).render()).props.value, "");
+  assert.equal(h.unsentBodies.size, 0);
+});
 
 for (const ok of [true, false]) test(`pending submission is read-only and ${ok ? "clears on success" : "retains text on failure"}`, async () => {
   const h = harness(); const response = deferred<boolean>(); const sent: string[] = [];

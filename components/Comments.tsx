@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Check, CornerDownLeft, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ChevronsLeft, CornerDownLeft, Eye, EyeOff, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useEditor } from "../lib/store";
 import { commentId, openPostedComment, closeCommentIfOpen, useComments, type CommentDraft } from "../lib/comment-store";
 import { isAuthor, MAX_COMMENT_LENGTH, type CommentMessage, type CommentThread } from "../lib/comments";
@@ -41,24 +41,36 @@ export function usePageThreads(): CommentThread[] {
 
 /* ---------- 書き込み欄 ---------- */
 
+/** 送信していない本文（スレッドごと）。一覧へ戻ったり別のスレッドを開いたりしても失わないようにする */
+const unsentBodies = new Map<string, string>();
+
 function Composer({
   placeholder,
   initial = "",
   submitLabel,
   autoFocus,
   disabled = false,
+  draftKey,
   onSubmit,
   onCancel,
 }: {
   placeholder: string;
   initial?: string;
+  /** 指定すると、送信前の本文をこのキーで保持する */
+  draftKey?: string;
   submitLabel: string;
   autoFocus?: boolean;
   disabled?: boolean;
   onSubmit: (body: string) => Promise<boolean> | boolean;
   onCancel?: () => void;
 }) {
-  const [body, setBody] = useState(initial);
+  const [body, setBodyState] = useState((draftKey && unsentBodies.get(draftKey)) || initial);
+  const setBody = (next: string) => {
+    setBodyState(next);
+    if (!draftKey) return;
+    if (next) unsentBodies.set(draftKey, next);
+    else unsentBodies.delete(draftKey);
+  };
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const tooLong = body.trim().length > MAX_COMMENT_LENGTH;
@@ -104,7 +116,7 @@ function Composer({
       {tooLong && <p className="hint is-error" role="alert">{tr("コメントは{max}文字以内で入力してください", { max: MAX_COMMENT_LENGTH })}</p>}
       <div className="cm-compose-acts">
         {onCancel && (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={onCancel}>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => { if (draftKey) unsentBodies.delete(draftKey); onCancel(); }}>
             {tr("キャンセル")}
           </button>
         )}
@@ -220,14 +232,17 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
   );
 }
 
-function ThreadView({ thread, onClose, unavailable }: { thread: CommentThread; onClose: () => void; unavailable: boolean }) {
+function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: CommentThread; onClose: () => void; unavailable: boolean; place: string; notices: ReactNode }) {
   const run = useComments((s) => s.run);
   const user = useServerStatus()?.user ?? null;
   const owner = thread.messages[0] ? isAuthor(thread.messages[0].author, user) : true;
   return (
     <>
+      <div className="cm-detail-head">
       <div className="cm-pop-head">
-        <span className="cm-pop-title">{thread.resolvedAt ? tr("解決済み") : tr("コメント")}</span>
+        <BackButton onClick={onClose} />
+        <span className="cm-pop-title" title={place}>{place}</span>
+        {thread.resolvedAt && <span className="cm-badge">{tr("解決済み")}</span>}
         <button
           type="button"
           className={`icon-btn sm${thread.resolvedAt ? " is-on" : ""}`}
@@ -260,9 +275,6 @@ function ThreadView({ thread, onClose, unavailable }: { thread: CommentThread; o
             <Trash2 size={13} />
           </button>
         )}
-        <button type="button" className="icon-btn sm" aria-label={tr("閉じる")} onClick={onClose}>
-          <X size={14} />
-        </button>
       </div>
       {thread.resolvedAt && thread.resolvedBy && (
         <p className="cm-resolved">
@@ -272,6 +284,8 @@ function ThreadView({ thread, onClose, unavailable }: { thread: CommentThread; o
           })}
         </p>
       )}
+      </div>
+      {notices}
       <div className="cm-msgs">
         {thread.messages.map((m) => (
           <Message key={m.id} m={m} thread={thread} unavailable={unavailable} />
@@ -282,6 +296,7 @@ function ThreadView({ thread, onClose, unavailable }: { thread: CommentThread; o
         disabled={unavailable}
         submitLabel={tr("返信")}
         autoFocus
+        draftKey={`reply:${thread.id}`}
         onSubmit={(body) => run({ action: "reply", threadId: thread.id, id: commentId(), body })}
       />
     </>
@@ -313,6 +328,9 @@ export function CommentLayer({
   const breakpoint = useEditor((s) => s.breakpoint);
   const openId = useComments((s) => s.openId);
   const draft = useComments((s) => s.draft);
+  const pinsHidden = useComments((s) => s.pinsHidden);
+  /** ⌥（Alt）を押している間だけピンを隠す */
+  const [peeking, setPeeking] = useState(false);
   const threads = usePageThreads();
   const { open, setDraft, load } = useComments.getState();
   const [frameBox, setFrameBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -341,6 +359,25 @@ export function CommentLayer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [on]);
+
+  useEffect(() => {
+    if (!on) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Windows では Alt を単独で離すとブラウザのメニューに移るので止める
+      if (e.type === "keyup" && e.key === "Alt") e.preventDefault();
+      setPeeking(e.altKey && !e.metaKey && !e.ctrlKey);
+    };
+    const reset = () => setPeeking(false);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    window.addEventListener("blur", reset);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", reset);
+      setPeeking(false);
+    };
   }, [on]);
 
   // ピンの位置（スクロール・拡大・幅の変更についていくため、毎フレーム測る）
@@ -443,7 +480,7 @@ export function CommentLayer({
       {hover && !draft && !openId && (
         <div className="cm-hover" style={{ left: hover.left, top: hover.top, width: hover.width, height: hover.height }} />
       )}
-      {pins.map((p) => {
+      {!pinsHidden && !peeking && pins.map((p) => {
         const t = threads.find((x) => x.id === p.id);
         if (!t) return null;
         const n = threads.indexOf(t) + 1;
@@ -466,12 +503,20 @@ export function CommentLayer({
           </button>
         );
       })}
-      {draft && draftPos && <span className="cm-pin is-draft" style={{ left: draftPos.left, top: draftPos.top }} />}
+      {draft && draftPos && !pinsHidden && !peeking && <span className="cm-pin is-draft" style={{ left: draftPos.left, top: draftPos.top }} />}
     </>
   );
 }
 
 /* ---------- 右パネルの一覧 ---------- */
+
+function BackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="icon-btn sm" aria-label={tr("一覧に戻る")} data-tip={tr("一覧に戻る（Esc）")} onClick={onClick}>
+      <ArrowLeft size={14} />
+    </button>
+  );
+}
 
 export function CommentsPanel() {
   const threads = useComments((s) => s.threads);
@@ -493,9 +538,9 @@ export function CommentsPanel() {
   const activePageId = useEditor((s) => s.activePageId);
   const bp = useEditor((s) => s.breakpoint);
   const draft = useComments((s) => s.draft);
-  const { open, setDraft, run } = useComments.getState();
+  const pinsHidden = useComments((s) => s.pinsHidden);
+  const { open, setDraft, run, setPinsHidden } = useComments.getState();
   const [allPages, setAllPages] = useState(false);
-  const [deletedOnly, setDeletedOnly] = useState(false);
   const targetOf = useMemo(() => commentTargetResolver(doc, bp), [doc, bp]);
   // 閲覧中のスレッドはページ・絞り込み・ピン位置から独立させ、共同編集の削除でも入力を保つ。
   const openThread = openId ? (focusedThread?.id === openId ? focusedThread : threads.find(t => t.id === openId)) : undefined;
@@ -503,12 +548,24 @@ export function CommentsPanel() {
     if (openId && !openThread) open(null);
   }, [openId, openThread, open]);
   const partial = !!cursor || !!nextCursor || total > threads.length;
-  const shown = threads
-    .filter((t) => (showResolved || !t.resolvedAt) && (allPages || targetOf(t).pageId === activePageId) && (!deletedOnly || isDeletedCommentTarget(targetOf(t))))
+  const visible = threads.filter((t) => showResolved || !t.resolvedAt);
+  const shown = visible
+    .filter((t) => allPages || targetOf(t).pageId === activePageId)
     .sort((a, b) => b.updatedAt - a.updatedAt);
-  const pageThreads = threads
-    .filter((t) => targetOf(t).pageId === activePageId && (showResolved || !t.resolvedAt))
+  // 削除されたページのコメントは「このページ」には出ないので、あることだけ知らせる
+  const onDeletedPages = allPages ? 0 : visible.filter((t) => targetOf(t).kind === "deleted-page").length;
+  const pageThreads = visible
+    .filter((t) => targetOf(t).pageId === activePageId)
     .sort((a, b) => a.createdAt - b.createdAt);
+
+  /** 対象の場所（ページ名と要素名） */
+  const placeOf = (t: CommentThread | CommentDraft, withPage: boolean) => {
+    const target = targetOf(t);
+    const page = doc.pages[target.pageId];
+    const node = t.nodeId ? doc.nodes[t.nodeId] : null;
+    const where = target.kind === "deleted-page" ? tr("削除されたページ") : t.nodeId ? (node ? node.name : tr("削除された要素")) : tr("ページ全体");
+    return withPage && page && target.kind !== "deleted-page" ? `${page.name} · ${where}` : where;
+  };
 
   const jump = (t: CommentThread) => {
     const s = useEditor.getState();
@@ -519,99 +576,46 @@ export function CommentsPanel() {
     useComments.getState().open(t.id);
   };
 
+  const detailOpen = !!(draft || openThread);
+
   return (
     <div className="cm-panel">
       <div className="cm-panel-head">
         <MessageSquare size={14} />
         <strong>{tr("コメント")}</strong>
+        <button
+          type="button"
+          className={`icon-btn sm${pinsHidden ? " is-on" : ""}`}
+          aria-label={pinsHidden ? tr("ピンを表示") : tr("ピンを隠す")}
+          aria-pressed={pinsHidden}
+          data-tip={pinsHidden ? tr("キャンバスにピンを表示") : tr("キャンバスのピンを隠す（⌥を押している間も隠せます）")}
+          onClick={() => setPinsHidden(!pinsHidden)}
+        >
+          {pinsHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
         <button type="button" className="icon-btn sm" aria-label={tr("コメントモードを終える")} data-tip={tr("コメントモードを終える（Esc）")} onClick={() => useComments.getState().setActive(false)}>
           <X size={14} />
         </button>
       </div>
-      <p className="hint cm-panel-hint">{tr("キャンバスをクリックすると、その場所の要素にコメントを付けられます。")}</p>
-      <div className="cm-panel-filters">
-        <div className="seg seg-full">
-          <button type="button" className={allPages ? "" : "is-on"} onClick={() => setAllPages(false)}>
-            {tr("このページ")}
-          </button>
-          <button type="button" className={allPages ? "is-on" : ""} onClick={() => setAllPages(true)}>
-            {tr("すべてのページ")}
-          </button>
-        </div>
-        <label className="lbl cm-panel-check">
-          <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />
-          {tr("解決済みも表示")}
-        </label>
-        <label className="lbl cm-panel-check">
-          <input type="checkbox" checked={deletedOnly} onChange={(e) => { setDeletedOnly(e.target.checked); if (e.target.checked) setAllPages(true); }} />
-          {tr("削除された対象のみ")}
-        </label>
-      </div>
-      {store === "local" && (
-        <p className="hint cm-panel-hint">{tr("サーバーの保存先が無いため、コメントはこのブラウザにだけ保存されます。")}</p>
-      )}
       {error && <p className="hint is-error cm-panel-hint">{error}</p>}
-      {partial && (
-        <div className="cm-pagination">
-          <p className="hint">{tr("全{total}件中{loaded}件の一覧です。絞り込みとピンは、この一覧の範囲に適用されます。", { total, loaded: threads.length })}</p>
-          <div className="cm-pagination-actions">
-            <button type="button" className="btn btn-sm" disabled={loading || saving || !previousCursors.length} onClick={() => void navigate("newer")}>{tr("新しい一覧")}</button>
-            <button type="button" className="btn btn-sm" disabled={loading || saving || !nextCursor} onClick={() => void navigate("older")}>{tr("古い一覧")}</button>
-            {cursor && <button type="button" className="btn btn-sm btn-ghost" disabled={loading || saving} onClick={() => void navigate("newest")}>{tr("最新の一覧")}</button>}
-          </div>
-        </div>
-      )}
-      <div className="cm-list">
-        {shown.length === 0 ? (
-          <p className="cm-empty">{loading ? tr("読み込み中…") : partial ? tr("この一覧に条件に合うコメントはありません。ほかの一覧も確認できます。") : tr("コメントはありません")}</p>
-        ) : (
-          shown.map((t) => {
-            const first = t.messages[0];
-            const last = t.messages[t.messages.length - 1];
-            const n = pageThreads.indexOf(t) + 1;
-            const node = t.nodeId ? doc.nodes[t.nodeId] : null;
-            const target = targetOf(t);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className={`cm-item${t.id === openId ? " is-on" : ""}${t.resolvedAt ? " is-resolved" : ""}`}
-                onClick={() => jump(t)}
-              >
-                <span className="cm-item-head">
-                  {n > 0 && <span className="cm-item-num">{n}</span>}
-                  <UserAvatar user={first.author} size={20} />
-                  <strong>{userLabel(first.author, tr("ゲスト"))}</strong>
-                  <time>{relativeTime(last.at)}</time>
-                </span>
-                <span className="cm-item-body">{first.body}</span>
-                <span className="cm-item-meta">
-                  {allPages && doc.pages[target.pageId] ? `${doc.pages[target.pageId].name} · ` : ""}
-                  {target.kind === "deleted-page" ? tr("削除されたページ") : t.nodeId ? (node ? node.name : tr("削除された要素")) : tr("ページ")}
-                  {target.hidden ? ` · ${tr("この画面幅では非表示")}` : ""}
-                  {t.messages.length === 2 ? ` · ${tr("返信1件")}` : t.messages.length > 2 ? ` · ${tr("返信{n}件", { n: t.messages.length - 1 })}` : ""}
-                  {t.resolvedAt ? ` · ${tr("解決済み")}` : ""}
-                </span>
-              </button>
-            );
-          })
-        )}
-      </div>
-      {(draft || openThread) && (
+      {detailOpen ? (
         <section className="cm-detail" aria-label={tr("コメントの詳細")}>
-          {threadUnavailable && openThread && <p className="cm-target-notice" role="alert">{tr("このスレッドは削除されています。入力中の文章は閉じるまで残るので、必要ならコピーしてください。")}</p>}
-          <TargetNotice target={targetOf(draft ?? openThread!)} draft={!!draft} />
           {draft ? (
             <>
-              <div className="cm-pop-head">
-                <span className="cm-pop-title">{tr("新しいコメント")}</span>
-                <span className="cm-pop-sub">{BP_INFO[draft.bp]?.label}</span>
-                <button type="button" className="icon-btn sm" aria-label={tr("閉じる")} onClick={() => setDraft(null)}><X size={14} /></button>
+              <div className="cm-detail-head">
+                <div className="cm-pop-head">
+                  <BackButton onClick={() => setDraft(null)} />
+                  <span className="cm-pop-title">{tr("新しいコメント")}</span>
+                  <span className="cm-pop-sub">{BP_INFO[draft.bp]?.label}</span>
+                </div>
+                <p className="cm-detail-context">{placeOf(draft, true)}</p>
               </div>
+              <TargetNotice target={targetOf(draft)} draft />
               <Composer
                 placeholder={tr("コメントを書く")}
                 submitLabel={tr("投稿")}
                 autoFocus
+                draftKey="new"
                 onCancel={() => setDraft(null)}
                 onSubmit={async (body) => {
                   const id = commentId();
@@ -622,9 +626,104 @@ export function CommentsPanel() {
               />
             </>
           ) : (
-            openThread && <ThreadView key={openThread.id} thread={openThread} unavailable={threadUnavailable} onClose={() => closeCommentIfOpen(openThread.id)} />
+            openThread && (
+              <ThreadView
+                key={openThread.id}
+                thread={openThread}
+                unavailable={threadUnavailable}
+                place={placeOf(openThread, true)}
+                onClose={() => closeCommentIfOpen(openThread.id)}
+                notices={
+                  <>
+                    {threadUnavailable && <p className="cm-target-notice is-alert" role="alert">{tr("このスレッドは削除されています。入力中の文章は閉じるまで残るので、必要ならコピーしてください。")}</p>}
+                    <TargetNotice target={targetOf(openThread)} draft={false} />
+                  </>
+                }
+              />
+            )
           )}
         </section>
+      ) : (
+        <>
+          <div className="cm-panel-filters">
+            <div className="seg seg-full">
+              <button type="button" className={allPages ? "" : "is-on"} onClick={() => setAllPages(false)}>
+                {tr("このページ")}
+              </button>
+              <button type="button" className={allPages ? "is-on" : ""} onClick={() => setAllPages(true)}>
+                {tr("すべてのページ")}
+              </button>
+            </div>
+            <label className="lbl cm-panel-check">
+              <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />
+              {tr("解決済みも表示")}
+            </label>
+          </div>
+          <div className="cm-list">
+            {onDeletedPages > 0 && (
+              <button type="button" className="cm-list-notice" onClick={() => setAllPages(true)}>
+                {tr("削除されたページのコメントが{n}件あります。「すべてのページ」で表示できます。", { n: onDeletedPages })}
+              </button>
+            )}
+            {shown.length === 0 ? (
+              <div className="cm-empty">
+                <p>{loading ? tr("読み込み中…") : partial ? tr("この一覧に条件に合うコメントはありません。ほかの一覧も確認できます。") : tr("コメントはありません")}</p>
+                {!loading && !partial && <p className="hint">{tr("キャンバスをクリックすると、その場所の要素にコメントを付けられます。")}</p>}
+              </div>
+            ) : (
+              shown.map((t) => {
+                const first = t.messages[0];
+                const last = t.messages[t.messages.length - 1];
+                const n = pageThreads.indexOf(t) + 1;
+                const target = targetOf(t);
+                const replies = t.messages.length - 1;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`cm-item${t.resolvedAt ? " is-resolved" : ""}`}
+                    onClick={() => jump(t)}
+                  >
+                    <span className="cm-item-head">
+                      {n > 0 && <span className="cm-item-num">{n}</span>}
+                      <UserAvatar user={first.author} size={20} />
+                      <strong>{userLabel(first.author, tr("ゲスト"))}</strong>
+                      <time>{relativeTime(last.at)}</time>
+                    </span>
+                    <span className="cm-item-body">{first.body}</span>
+                    <span className="cm-item-meta">
+                      <span className={isDeletedCommentTarget(target) ? "cm-item-place is-deleted" : "cm-item-place"}>{placeOf(t, allPages)}</span>
+                      {target.hidden && <span>{tr("この画面幅では非表示")}</span>}
+                      {replies === 1 ? <span>{tr("返信1件")}</span> : replies > 1 ? <span>{tr("返信{n}件", { n: replies })}</span> : null}
+                      {t.resolvedAt && <span>{tr("解決済み")}</span>}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          {partial && (
+            <div className="cm-pagination" title={tr("絞り込みとピンは、表示中の一覧の範囲に適用されます。")}>
+              <span className="hint">{tr("全{total}件中{loaded}件", { total, loaded: threads.length })}</span>
+              <span className="cm-pagination-actions">
+                {cursor && (
+                  <button type="button" className="icon-btn sm" aria-label={tr("最新の一覧")} data-tip={tr("最新の一覧")} disabled={loading || saving} onClick={() => void navigate("newest")}>
+                    <ChevronsLeft size={14} />
+                  </button>
+                )}
+                <button type="button" className="icon-btn sm" aria-label={tr("新しい一覧")} data-tip={tr("新しい一覧")} disabled={loading || saving || !previousCursors.length} onClick={() => void navigate("newer")}>
+                  <ChevronLeft size={14} />
+                </button>
+                <button type="button" className="icon-btn sm" aria-label={tr("古い一覧")} data-tip={tr("古い一覧")} disabled={loading || saving || !nextCursor} onClick={() => void navigate("older")}>
+                  <ChevronRight size={14} />
+                </button>
+              </span>
+            </div>
+          )}
+          {store === "local" && (
+            <p className="hint cm-panel-foot">{tr("サーバーの保存先が無いため、コメントはこのブラウザにだけ保存されます。")}</p>
+          )}
+        </>
       )}
     </div>
   );
