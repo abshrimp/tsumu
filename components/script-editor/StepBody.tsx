@@ -369,7 +369,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
               renameVar(step.id, "", uniqueVarName(doc, pageId, nameFromPath(match[1].trim()), step.id));
             }
           }} />,
-        into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 合計）")} />,
+        into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前")} />,
       }} />
       {step.into && value !== undefined && value !== null && (
         <span className="se-blk-note">{Array.isArray(value)
