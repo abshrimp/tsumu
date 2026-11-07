@@ -27,6 +27,11 @@ import AllowedAccounts from "./AllowedAccounts";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
+import { uploadStaticAsset } from "../lib/assets";
+import {
+  SOURCE_LIMIT, readRestorableArchive, readRestorableJson, restoreAssets,
+  importWarningsKey,
+} from "../lib/url-site-import";
 import {
   DOC_STORAGE_KEY,
   SITE_SCOPED_KEYS,
@@ -461,6 +466,10 @@ export default function Home() {
   /** 開いているダイアログ（"new" = 新しいサイト / サイト = その設定 / copy = そのサイトの複製） */
   const [dialog, setDialog] = useState<"new" | SiteRecord | { copy: SiteRecord } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const importStarted = useRef(false);
+  const [sourceImport, setSourceImport] = useState<{
+    url: string; kind: "zip" | "doc"; busy: boolean; error?: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -500,6 +509,96 @@ export default function Home() {
     if (site) setDialog(site);
     window.history.replaceState(null, "", "/");
   }, [sites]);
+
+  const restoreFromUrl = useCallback(async (url: string, kind: "zip" | "doc") => {
+    if (!store) return;
+    setSourceImport({ url, kind, busy: true });
+    try {
+      const parsed = new URL(url);
+      if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password ||
+          url.length > 2048) {
+        throw new Error(tr("URLの指定が正しくありません"));
+      }
+      let response = await fetch("/api/import-source?url=" + encodeURIComponent(url));
+      if (response.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      // Browser-only deployments can still import public CORS-enabled URLs.
+      if (response.status === 503) response = await fetch(url, { credentials: "omit" });
+      if (!response.ok) {
+        const info = await response.json().catch(() => ({}));
+        throw new Error(info.error ?? tr("URLのファイルを取得できませんでした"));
+      }
+      const length = Number(response.headers.get("content-length") || "0");
+      if (length > SOURCE_LIMIT) throw new Error(tr("URLから取得できるファイルは5MBまでです"));
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength > SOURCE_LIMIT) throw new Error(tr("URLから取得できるファイルは5MBまでです"));
+      const snapshot = kind === "zip"
+        ? await readRestorableArchive(bytes)
+        : await readRestorableJson(bytes);
+      const { doc, warnings } = await restoreAssets(
+        snapshot.doc,
+        snapshot.assets,
+        uploadStaticAsset,
+        async (asset) => {
+          if (!asset.path || !/^assets\/[\w.-]+(?:\/[\w.-]+)*$/.test(asset.path)) return false;
+          const res = await fetch("/api/assets/file?path=" + encodeURIComponent(asset.path));
+          await res.body?.cancel().catch(() => {});
+          return res.ok;
+        },
+      );
+      const name = doc.siteName.trim() || tr("復元したサイト");
+      let id: string;
+      if (store === "server") {
+        const result = await api<{ site: SiteRecord }>("/api/sites", {
+          method: "POST",
+          body: JSON.stringify({ name, importDoc: doc }),
+        });
+        id = result.site.id;
+      } else {
+        id = newSiteId();
+        const now = Date.now();
+        const site = { ...emptyDest(), name, id, createdAt: now, updatedAt: now } as SiteRecord;
+        const list = loadLocalSites({ strict: true });
+        let wrote = false;
+        try {
+          window.localStorage.setItem(siteKey(DOC_STORAGE_KEY, id), JSON.stringify(doc));
+          wrote = true;
+          if (!saveLocalSites([site, ...list])) throw localSaveError();
+        } catch {
+          if (wrote) forgetLocal(id);
+          throw localSaveError();
+        }
+      }
+      if (warnings.length) {
+        try { window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings)); }
+        catch { /* Saving warnings is best effort; the imported doc is already durable. */ }
+      }
+      window.location.assign(sitePath(id));
+    } catch (error) {
+      setSourceImport({ url, kind, busy: false,
+        error: error instanceof Error ? error.message : tr("復元できませんでした") });
+    }
+  }, [store]);
+
+  useEffect(() => {
+    if (!store || importStarted.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const zip = params.get("zip");
+    const doc = params.get("doc");
+    if (!zip && !doc) return;
+    importStarted.current = true;
+    // Remove the auto-import instruction before any side effects: reloads and
+    // React Strict Mode must never create a second site.
+    window.history.replaceState(null, "", "/");
+    if (zip && doc) {
+      setSourceImport({ url: zip, kind: "zip", busy: false,
+        error: tr("zipとdocを同時には指定できません") });
+      return;
+    }
+    void restoreFromUrl(zip || doc!, zip ? "zip" : "doc");
+  }, [store, restoreFromUrl]);
 
   const create = async (input: SiteInput) => {
     let id: string;
@@ -667,6 +766,24 @@ export default function Home() {
             </button>
           </div>
         </div>
+
+
+        {sourceImport && (
+          <div className={"home-notice" + (sourceImport.error ? " is-error" : "")}
+            role={sourceImport.error ? "alert" : "status"} aria-busy={sourceImport.busy}>
+            {sourceImport.busy ? <LoaderCircle size={14} className="spin" /> :
+              <TriangleAlert size={14} />}
+            <p>{sourceImport.busy
+              ? tr("URLからサイトを復元しています…")
+              : tr("サイトを復元できませんでした: {reason}", { reason: sourceImport.error ?? "" })}</p>
+            {!sourceImport.busy && (
+              <button type="button" className="btn btn-sm"
+                onClick={() => void restoreFromUrl(sourceImport.url, sourceImport.kind)}>
+                {tr("再試行")}
+              </button>
+            )}
+          </div>
+        )}
 
         {store === "local" && (
           <div className="home-notice">
