@@ -172,6 +172,45 @@ test("if blocks with browser-only additional clauses do not run during SSR", () 
   assert.ok(!plan.serverIds.has("element-if"));
 });
 
+test("a missing transform result clears stale values before connected fallback blocks", () => {
+  const steps: ScriptStep[] = [
+    { id: "previous", kind: "set-var", into: "selected", value: "stale" },
+    { id: "find", kind: "transform", source: "records", into: "selected",
+      transform: { kind: "find", field: "name", operation: "eq", operand: "missing" } },
+    { id: "fallback", kind: "transform", source: "selected", into: "selected",
+      transform: { kind: "fallback", text: "no match" } },
+  ];
+  const vars: Record<string, unknown> = { records: [{ name: "first" }] };
+  assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+  assert.equal(vars.selected, "no match");
+
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "saved", kind: "set-var", into: "selected", value: "stale" },
+    { id: "find-missing", kind: "transform", source: "data.rows", into: "selected",
+      transform: { kind: "find", field: "title", operation: "eq", operand: "absent" } },
+    { id: "fallback-missing", kind: "transform", source: "selected", into: "selected",
+      transform: { kind: "fallback", text: "no match" } },
+  );
+  assert.equal(previewDataVars(doc, "p").selected, "no match");
+  const files = generateProject(doc).files;
+  assert.match(files["app/page.tsx"], /result\.kind === "missing"/);
+  assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
+});
+
+test("failed value transforms preserve earlier values instead of treating errors as missing", () => {
+  const steps: ScriptStep[] = [
+    { id: "previous", kind: "set-var", into: "selected", value: "original" },
+    { id: "bad", kind: "transform", source: "not-a-list", into: "selected",
+      transform: { kind: "find", field: "name", operation: "eq", operand: "anything" } },
+    { id: "fallback", kind: "transform", source: "selected", into: "selected",
+      transform: { kind: "fallback", text: "replacement" } },
+  ];
+  const vars: Record<string, unknown> = { "not-a-list": "invalid" };
+  assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+  assert.equal(vars.selected, "original");
+});
+
 test("three ordinary blocks compose a value in preview and server generated output", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
