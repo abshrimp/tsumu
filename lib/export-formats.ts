@@ -128,9 +128,8 @@ export function exportLimitations(
       "同じパスに取り込んだHTMLページとクエリ別ページが混在しています。通常ページに変更するか、別の固定URLに分けてください。");
   }
   if (options.framework === "single-html") {
-    const fixed = new Set(pages.map((p) => p.slug.replace(/^\/+|\/+$/g, "")));
-    add(fixed.size !== 1 || !pages.length,
-      "単一HTMLは1つの固定パスだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。");
+    add(pages.length !== 1,
+      "単一HTMLは1ページだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。");
   }
   // All non-Next.js formats execute public API requests in the browser.
   // Refuse credentials that must not be shipped to every site visitor.
