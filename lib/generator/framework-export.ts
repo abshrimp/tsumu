@@ -45,7 +45,7 @@ function generatedRoutes(doc: SiteDoc, language: ExportLanguage): string {
     "  matched.sort((a, b) => Object.keys(b.query).length - Object.keys(a.query).length);",
     "  return matched[0] || candidates[0] || null;",
     "}",
-    "export function pageTitle(route) {",
+    "export function pageTitle(route" + (language === "typescript" ? ": SiteRoute | null" : "") + ") {",
     "  return route ? route.title + ' | ' + " + json(doc.siteName) + " : " + json(doc.siteName) + ";",
     "}",
     "",
