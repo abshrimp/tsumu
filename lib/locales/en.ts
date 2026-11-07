@@ -4,6 +4,10 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "操作を探す": "Find an action",
+  "例：数える、保存、表示": "e.g. count, save, show",
+  "検索をクリア": "Clear search",
+  "一致する操作がありません": "No matching actions",
   "アセットをダウンロードできませんでした": "Could not download the asset.",
   "現在の設定の送信先": "Destination for current settings",
   "最後に送信": "Last request",

@@ -4076,6 +4076,75 @@ textarea {
   padding: 10px 12px 16px;
 }
 
+.se-pal-search {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 36px;
+  margin-bottom: 12px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--panel);
+  color: var(--text-2);
+}
+
+.se-pal-search:focus-within {
+  border-color: var(--accent);
+}
+
+.se-pal-search-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+/* Keep the custom clear button as the only X, including in WebKit. */
+.se-pal-search-input::-webkit-search-cancel-button,
+.se-pal-search-input::-webkit-search-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
+
+/* Override the later global :focus-visible outline; the wrapper owns the focus border. */
+.se-pal-search-input:focus-visible {
+  outline: none;
+}
+
+.se-pal-search-clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-s);
+  color: var(--text-2);
+}
+
+.se-pal-search-clear:hover {
+  background: var(--field);
+}
+
+.se-pal-empty {
+  margin: 10px 0 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
 .se-pal-group + .se-pal-group {
   margin-top: 12px;
 }
@@ -6147,7 +6216,8 @@ a.btn {
 
 .var-comp-explore {
   border-top: 1px solid var(--border);
-  border-radius: 0 0 8px 8px;
+  /* The keyboard-help footer follows this row; it is not the menu's bottom edge. */
+  border-radius: 0;
   margin-top: 2px;
   color: var(--accent);
   font-weight: 500;
