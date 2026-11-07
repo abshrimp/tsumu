@@ -318,8 +318,14 @@ test("canvas fixed-option dropdowns shrink to their widest choice", async ({ pag
       const borders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
       return { actual: select.getBoundingClientRect().width, required: longest + left + right + borders, right };
     });
-    expect(measurements.right).toBeGreaterThanOrEqual(30);
+    expect(measurements.right).toBe(30);
+    // Reject both clipped labels and unnecessarily wide boxes.
     expect(measurements.actual).toBeGreaterThanOrEqual(measurements.required - 2);
+    expect(measurements.actual).toBeLessThanOrEqual(measurements.required + 3);
+    const initialWidth = measurements.actual;
+    await control.selectOption({ index: 1 });
+    await expect.poll(async () => control.evaluate((element) =>
+      element.getBoundingClientRect().width)).toBeCloseTo(initialWidth, 1);
   }
 });
 
