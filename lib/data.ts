@@ -441,7 +441,7 @@ export interface PagePlan {
  */
 function repeatVarName(value: number | string): string | null {
   if (typeof value !== "string") return null;
-  return /^\\{([^{}\\s]+)\\}$/.exec(value.trim())?.[1] ?? null;
+  return /^\{([^{}\s]+)\}$/.exec(value.trim())?.[1] ?? null;
 }
 
 function pureLoadStep(st: ScriptStep): boolean {
