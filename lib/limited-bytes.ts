@@ -3,7 +3,7 @@ export class SourceTooLargeError extends Error {
   constructor() { super("Source exceeds size limit"); }
 }
 
-export async function readLimitedBytes(response: Response, maximum: number): Promise<Uint8Array> {
+export async function readLimitedBytes(response: Response, maximum: number): Promise<Uint8Array<ArrayBuffer>> {
   const length = Number(response.headers.get("content-length") || "0");
   if (length > maximum) {
     await response.body?.cancel().catch(() => {});
