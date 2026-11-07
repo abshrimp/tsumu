@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { pagePlan, previewDataVars } from "../lib/data";
+import { filterItems, pagePlan, previewDataVars } from "../lib/data";
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
 import { generateProject } from "../lib/generator";
+import { filterPredicate } from "../lib/generator/render-helpers";
 import { makeBox } from "../lib/presets";
 import { compileScripts } from "../lib/script";
 import { scriptsFile } from "../lib/script-runtime";
@@ -22,6 +23,25 @@ test("every supported palette action is visible without hidden compatibility gro
   assert.ok(PALETTE.some(item => item.key === "list-display"));
   assert.ok(PALETTE.some(item => item.key === "set-state"));
   assert.ok(findPaletteItems("値を加工").some(item => item.key === "transform"));
+});
+
+test("list filters invert individual conditions without duplicating negative operators", () => {
+  const items = [
+    { name: "red", active: "yes" },
+    { name: "blue", active: "yes" },
+    { name: "red-blue", active: "no" },
+  ];
+  const filter = { kind: "filter" as const, conds: [
+    { field: "name", op: "contains" as const, value: "red", not: true },
+    { field: "active", op: "eq" as const, value: "no", not: true, and: true },
+  ] };
+  assert.deepEqual(filterItems(items, [filter]), [items[1]]);
+  const expr = filterPredicate([filter], "vars");
+  assert.match(expr ?? "", /!\\(/);
+  assert.match(expr ?? "", /includes/);
+  assert.match(expr ?? "", /&&/);
+  assert.deepEqual(filterItems(items, [{ kind: "filter",
+    conds: [{ field: "active", op: "empty", value: "", not: true }] }]), items);
 });
 
 test("three ordinary blocks compose a value in preview and server generated output", () => {
