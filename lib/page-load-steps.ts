@@ -70,6 +70,7 @@ export function runPurePageSteps(
           if (!step.into || !step.source) break;
           const result = evaluate(lookup(scope, step.source), [step.transform], scope);
           if (result.kind === "value") write(step.into, result.value);
+          else if (result.kind === "missing") write(step.into, undefined);
           break;
         }
         case "if": {
