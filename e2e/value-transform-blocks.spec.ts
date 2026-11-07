@@ -50,7 +50,7 @@ for (const exported of [false, true]) {
       '[{"name":"C","price":1},{"name":"A","price":3},{"name":"B","price":2}]', [
       { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
       { id: "filter", kind: "transform", source: "items", into: "items",
-        transform: { kind: "filter", field: "price", operation: "gt", operandType: "number", operand: "1" } },
+        transform: { kind: "filter", field: "price", operation: "gt", operand: "1" } },
       { id: "sort", kind: "transform", source: "items", into: "items", transform: { kind: "sort", field: "name", direction: "asc" } },
       { id: "map", kind: "transform", source: "items", into: "items", transform: { kind: "map-field", field: "name" } },
       { id: "join", kind: "transform", source: "items", into: "items", transform: { kind: "join", separator: "、" } },
@@ -211,10 +211,10 @@ for (const exported of [false, true]) {
       { id: "parse-number", kind: "transform", source: "items", into: "items",
         transform: { kind: "parse" } },
       { id: "grouped", kind: "transform", source: "items", into: "items",
-        transform: { kind: "compare", operation: "gte", operand: "10", operandType: "number",
+        transform: { kind: "compare", operation: "gte", operand: "10",
           conditions: [
-            { field: "", operation: "lte", operand: "20", operandType: "number", and: true },
-            { field: "", operation: "eq", operand: "40", operandType: "number", and: false },
+            { field: "", operation: "lte", operand: "20", and: true },
+            { field: "", operation: "eq", operand: "40", and: false },
           ] } },
     ]);
     await expect(answer).toHaveValue("true");
@@ -227,10 +227,10 @@ for (const exported of [false, true]) {
         { id: "parse-items", kind: "transform", source: "items", into: "items",
           transform: { kind: "parse" } },
         { id: "filter", kind: "transform", source: "items", into: "items",
-          transform: { kind: "filter", field: "score", operation: "gte", operand: "10", operandType: "number",
+          transform: { kind: "filter", field: "score", operation: "gte", operand: "10",
             conditions: [
-              { field: "score", operation: "lte", operand: "20", operandType: "number", and: true },
-              { field: "name", operation: "contains", operand: "Del", operandType: "text", and: false },
+              { field: "score", operation: "lte", operand: "20", and: true },
+              { field: "name", operation: "contains", operand: "Del", and: false },
             ] } },
         { id: "names", kind: "transform", source: "items", into: "items",
           transform: { kind: "map-field", field: "name" } },
@@ -468,7 +468,7 @@ test("canvas value comparisons use the same predicates and joined clauses as lis
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push({
         id: "compound", kind: "transform", source: "data.price", into: "eligible",
-        transform: { kind: "compare", operation: "eq", operand: "12", operandType: "number" },
+        transform: { kind: "compare", operation: "eq", operand: "12" },
       });
     });
   });
@@ -492,20 +492,18 @@ test("canvas comparison offers existing variables and keeps the chosen reference
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push({
         id: "compare-native", kind: "transform", source: "data.price", into: "selected",
-        transform: { kind: "compare", operation: "gt", operand: "", operandType: "text" },
+        transform: { kind: "compare", operation: "gt", operand: "" },
       });
     });
   });
   const box = page.locator('[data-sel-key="step:compare-native"]');
-  const type = box.getByRole("combobox", { name: "比較する値の種類" });
-  await expect(type).toHaveCSS("height", "24px");
-  await expect(type.locator('option[value="variable"]')).toHaveCount(0);
-  const operand = box.getByPlaceholder("比較する文字列");
+  await expect(box.getByRole("combobox", { name: "比較する値の種類" })).toHaveCount(0);
+  const operand = box.getByPlaceholder("値 / {変数}");
   await expect(operand).toBeVisible();
   await operand.fill("{data.price}");
   await operand.blur();
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "compare-native").transform;
-  })).toMatchObject({ kind: "compare", operandType: "text", operand: "{data.price}" });
+  })).toMatchObject({ kind: "compare", operand: "{data.price}" });
 });
