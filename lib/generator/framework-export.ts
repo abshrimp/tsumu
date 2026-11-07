@@ -229,6 +229,8 @@ export function buildAdditionalFramework(
       scripts: { dev: "nuxt dev", build: "nuxt build", generate: "nuxt generate",
         preview: "nuxt preview", postinstall: "nuxt prepare" },
       dependencies: { nuxt: "^4.6.4", vue: "^3.5.25" },
+      // Bypass vulnerable older transitive glob/minimatch releases in Nuxt tooling.
+      overrides: { glob: "^14.0.2", minimatch: "^11.0.1" },
       devDependencies: ts ? { typescript: "^5.9.3" } : {},
     });
   } else {
