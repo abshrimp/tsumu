@@ -77,6 +77,18 @@ test("server preview can calculate using numeric strings from another variable a
   assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
 });
 
+test("a browser-only operand keeps its arithmetic block in the client runtime", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "browser-rate", kind: "store-load", key: "tax", into: "rate" },
+    { id: "dynamic-total", kind: "transform", source: "data.price", into: "total",
+      transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "rate" } },
+  );
+  const plan = pagePlan(doc, "p");
+  assert.ok(!plan.serverIds.has("dynamic-total"));
+  assert.ok(plan.clientVars.has("total"));
+});
+
 test("a canvas transform chain serializes to the browser runtime without losing step order", () => {
   const doc = scriptDataPickerDoc();
   const node = { ...makeBox(), id: "action", attrId: "action", scripts: [{
