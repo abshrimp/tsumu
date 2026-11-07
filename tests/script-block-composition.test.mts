@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { filterItems, matchOp, pagePlan, previewDataVars } from "../lib/data";
+import { filterItems, matchOp, pageArrays, pagePlan, previewDataVars } from "../lib/data";
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
@@ -111,6 +111,7 @@ test("holiday dictionary transforms are previewable and serializable in generate
     { "日付": "2026-11-03", "祝日名": "文化の日" },
     { "日付": "2026-11-23", "祝日名": "勤労感謝の日" },
   ]);
+  assert.ok(pageArrays(doc, "p").some(({ name }) => name === "祝日一覧"));
   const plan = pagePlan(doc, "p");
   assert.ok(plan.serverIds.has("todays-holiday"));
   assert.ok(plan.serverIds.has("holiday-rows"));
