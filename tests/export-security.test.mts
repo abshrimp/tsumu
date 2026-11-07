@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { generateExportProject } from "../lib/export-formats";
 import { toSingleHtmlProject } from "../lib/generator/single-html";
+import { nativeDataModule } from "../lib/generator/native-data";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
@@ -35,6 +36,7 @@ test("generated Vue and Svelte components never compile authored plain text into
       framework === "vue" ? "src/pages/Page0.vue" : "src/lib/pages/Page0.svelte";
     const source = project.files[path];
     assert.ok(source, path);
+    assert.match(source, /src="data:image\\/png;base64,AQID"/);
     // Entity-encoded braces are ordinary HTML text, not compiled expressions.
     assert.match(source, /Literal &#123;&#123; 3 \+ 4 &#125;&#125; and &#123;1 \+ 2&#125;/);
     assert.doesNotMatch(source, /Literal \{\{/);
@@ -66,6 +68,23 @@ test("new #136 composite conditions and template operands use the current recipe
     kind: "compare", operation: "contains", operand: "{needle}",
   }], { needle: "pha" });
   assert.deepEqual(interpolated, { kind: "value", value: true });
+});
+
+test("native framework links reject active URL schemes without breaking images", async () => {
+  const source = nativeDataModule();
+  const uri = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
+  const resolver = await import(uri);
+  for (const unsafe of [
+    "javascript:alert(1)", "data:text/html,<script>alert(1)</script>",
+    "data:image/svg+xml;base64,PHN2Zy8+", "//attacker.invalid/path",
+    "java\\nscript:alert(1)",
+  ]) {
+    assert.equal(resolver.resolveUrl(unsafe, {}), "#", unsafe);
+  }
+  assert.equal(resolver.resolveUrl("https://example.test/", {}), "https://example.test/");
+  assert.equal(resolver.resolveResourceUrl("data:image/png;base64,AQID", {}),
+    "data:image/png;base64,AQID");
+  assert.equal(resolver.resolveResourceUrl("javascript:alert(1)", {}), "#");
 });
 
 test("single HTML preserves srcset data URLs and filenames containing commas", async () => {
