@@ -4,6 +4,11 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "である": "Is",
+  "でない": "Is not",
+  "条件の判定": "Condition polarity",
+  "リスト［］を絞り込む": "Filter list ［］",
+  "{phrase}ではない": "Not ({phrase})",
   "要素［］を［状態名］にする": "Set element ［］ to state ［state name］",
   "{target}を{state}にする": "Set {target} to state {state}",
   "状態名（既定で戻す）": "State name (default to reset)",
