@@ -45,6 +45,20 @@ function rewriteRootUrls(source: string, prefix: string): string {
     .replace(/(url\(\s*["']?)\/(?!\/)/gi, "$1" + prefix);
 }
 
+/** Preserve list item tokens until Tsumu's browser runtime clones each row. */
+function templateParts(value: string): string {
+  const out: (string | { name: string })[] = [];
+  let from = 0;
+  for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>]+)\}|\[slug\]/g)) {
+    const at = m.index ?? 0;
+    out.push(value.slice(from, at));
+    out.push(m[0] === "\\{" ? "{" : { name: m[1] ?? "slug" });
+    from = at + m[0].length;
+  }
+  out.push(value.slice(from));
+  return JSON.stringify(out);
+}
+
 type Context = {
   doc: SiteDoc;
   page: Page;
@@ -109,20 +123,25 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
     return "<textarea" + attrs + shared + attr("placeholder", f.placeholder) +
       dynamic("placeholder", f.placeholder) +
       attr("rows", f.rows) + attr("maxlength", f.maxLength) +
-      dynamic("value", f.defaultValue) + ">" +
+      dynamic("value", f.defaultValue) +
+      (f.defaultValue && ctx.template && hasVars(f.defaultValue) ? attr("data-field-value-parts", templateParts(f.defaultValue)) : "") + ">" +
       escapeHtml(f.defaultValue || "") + "</textarea>";
   }
   if (f.kind === "select") {
     const values = f.options || [];
     const selected = f.defaultValue && values.includes(f.defaultValue) ? f.defaultValue : values[0];
     return "<select" + attrs + shared + ">" + values.map((v) =>
-      "<option" + flag("selected", v === selected) + ">" + escapeHtml(v) + "</option>").join("") + "</select>";
+      "<option" + flag("selected", v === selected) +
+      (hasVars(v) ? attr("data-static-option", v) : "") +
+      (hasVars(v) && ctx.template ? attr("data-field-text-parts", templateParts(v)) : "") +
+      ">" + escapeHtml(v) + "</option>").join("") + "</select>";
   }
   if (f.kind === "checkbox" || f.kind === "radio") {
     const text = f.label || "";
     return "<label" + attrs + "><input" + attr("type", f.kind) + shared +
       attr("value", f.kind === "checkbox" ? "true" : text) + flag("checked", f.checked) + ">" +
-      "<span" + (hasVars(text) ? attr("data-live", text) : "") + ">" +
+      "<span" + (hasVars(text) ? attr("data-live", text) : "") +
+      (hasVars(text) && ctx.template ? attr("data-field-text-parts", templateParts(text)) : "") + ">" +
       escapeHtml(text) + "</span></label>";
   }
   if (f.kind === "file") {
@@ -165,7 +184,9 @@ function render(ctx: Context, id: string, top: boolean): string {
       const im = n.image;
       const src = im.assetId ? resource(ctx, im.assetId) : href(ctx, im.src);
       const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
-        (hasVars(src) ? attr("data-static-src", src) : "") + attr("alt", im.alt);
+        (hasVars(src) ? attr("data-static-src", src) : "") +
+        (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src)) : "") +
+        attr("alt", im.alt);
       const crisp = crispSvgSize(ctx.doc, n);
       if (crisp) return "<span" + commonAttrs.replace(attr("class", cls), attr("class", "crisp-svg " + cls)) + ">" +
         '<svg aria-hidden="true" width="' + crisp.width + '" height="' + crisp.height +
@@ -219,7 +240,8 @@ function render(ctx: Context, id: string, top: boolean): string {
       tag = "div"; extra = ' data-p=""';
     }
     const text = n.text?.content || "";
-    if (hasVars(text) && !ctx.template) extra += attr("data-live", text);
+    if (hasVars(text)) extra += ctx.template
+      ? attr("data-text-parts", templateParts(text)) : attr("data-live", text);
     if (tag === "form") extra += ' method="get"';
     if (tag === "button") extra += attr("type",
       ctx.form && !n.scripts?.some((s) => s.trigger === "click") ? "submit" : "button");
@@ -340,6 +362,11 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     '  if(name==="value"&&"value" in el)el.value=v;',
     '  else el.setAttribute(name,v);',
     ' });}',
+    ' document.querySelectorAll("[data-static-option]").forEach(function(el){',
+    '  if(el.closest("[data-tpl]"))return;',
+    '  const v=resolve(el.getAttribute("data-static-option")||"",false);',
+    '  if(el.textContent!==v)el.textContent=v;',
+    ' });',
     ' document.querySelectorAll("[data-static-href],[data-static-src]").forEach(function(el){',
     '  if(el.closest("[data-tpl]"))return;',
     '  for(const kind of ["href","src"]){',
