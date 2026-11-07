@@ -12663,3 +12663,46 @@ a.btn {
 @media (max-width: 540px) {
   .se-composer-step-settings { grid-column: 2 / 4; grid-row: 2; }
 }
+
+
+/* New block-first value composition: each canvas block applies one operation. */
+.se-transform-settings {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-left: 26px;
+  display: flex;
+  align-items: center;
+}
+.se-transform-settings > .se-composer-step-settings {
+  grid-column: auto;
+  grid-row: auto;
+  flex: 1;
+  max-width: 610px;
+}
+.se-transform-settings .se-composer-field-menu { z-index: 560; }
+.se-display-mode {
+  flex: none;
+  max-width: 155px;
+}
+.se-pal-legacy-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 6px;
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 500;
+}
+.se-pal-legacy-toggle:hover {
+  background: var(--field);
+  color: var(--text);
+}
+.se-pal-legacy-toggle svg { transition: transform 130ms ease; }
+.se-pal-legacy-toggle svg.is-open { transform: rotate(180deg); }
+@media (max-width: 540px) {
+  .se-transform-settings { margin-left: 0; }
+}

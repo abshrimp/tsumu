@@ -21,7 +21,7 @@ import { singleValueReference } from "../../lib/variable-choice";
 import { PathMenu } from "./fetch";
 import { tr } from "../../lib/i18n";
 
-const LABELS: Record<ValueTransformKind, string> = {
+export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
   field: "項目を取り出す",
   index: "リストから1件取り出す",
   has: "項目があるか調べる",
@@ -67,7 +67,7 @@ const DESCRIPTIONS: Record<ValueTransformKind, string> = {
   sort: "項目の値を基準にリストを並べ替えます。元の順番は変更しません。",
 };
 
-const GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
+export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
   { label: "値を取り出す", kinds: ["field", "index", "find", "map-field"] },
   { label: "値を調べる", kinds: ["has", "length", "compare", "not"] },
   { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "split", "join", "replace"] },
@@ -411,6 +411,35 @@ function RecipeStepSettings({ transform, options, onChange }: {
   return null;
 }
 
+
+/** Standalone controls for a block on the script canvas, not a modal recipe. */
+export function ValueTransformSettings({ transform, options, onChange }: {
+  transform: ValueTransform;
+  options: string[];
+  onChange: (next: ValueTransform) => void;
+}) {
+  if (transform.kind === "field" || transform.kind === "has") return (
+    <div className="se-composer-step-settings">
+      <FieldKeyPicker value={transform.key} options={options}
+        onChange={(key) => onChange({ ...transform, key })} />
+    </div>
+  );
+  if (transform.kind === "index") return (
+    <div className="se-composer-step-settings">
+      <input aria-label={tr("取り出す位置")} type="number" min="-1" step="1"
+        value={transform.index}
+        onChange={(e) => onChange({ ...transform, index: e.target.value === "" ? -1 : Number(e.target.value) })} />
+    </div>
+  );
+  if (transform.kind === "fallback" || transform.kind === "fallback-nullish") return (
+    <div className="se-composer-step-settings">
+      <input aria-label={tr("値がないときの文字列")} maxLength={10000} value={transform.text}
+        onChange={(e) => onChange({ ...transform, text: e.target.value })} />
+    </div>
+  );
+  return <RecipeStepSettings transform={transform} options={options} onChange={onChange} />;
+}
+
 function RecipeDialog({
   currentValue, samples, excludedName, initialRecipe, onApply, onClose,
 }: {
@@ -555,7 +584,7 @@ function RecipeDialog({
               return (
                 <li key={row.id} className="se-composer-step">
                   <span className="se-composer-number">{index + 1}</span>
-                  <span className="se-composer-step-label" title={tr(DESCRIPTIONS[operation.kind])}>{tr(LABELS[operation.kind])}</span>
+                  <span className="se-composer-step-label" title={tr(DESCRIPTIONS[operation.kind])}>{tr(VALUE_TRANSFORM_LABELS[operation.kind])}</span>
                   {(operation.kind === "field" || operation.kind === "has") && (
                     <FieldKeyPicker value={operation.key} options={suggestedFields.get(row.id) ?? []}
                       onChange={(key) => update(row.id, { ...operation, key })} />
@@ -591,9 +620,9 @@ function RecipeDialog({
               if (kind) add(kind);
             }}>
               <option value="">{tr("加工を追加")}</option>
-              {GROUPS.map((group) => (
+              {VALUE_TRANSFORM_GROUPS.map((group) => (
                 <optgroup key={group.label} label={tr(group.label)}>
-                  {group.kinds.map((kind) => <option key={kind} value={kind} title={tr(DESCRIPTIONS[kind])}>{tr(LABELS[kind])}</option>)}
+                  {group.kinds.map((kind) => <option key={kind} value={kind} title={tr(DESCRIPTIONS[kind])}>{tr(VALUE_TRANSFORM_LABELS[kind])}</option>)}
                 </optgroup>
               ))}
             </select>

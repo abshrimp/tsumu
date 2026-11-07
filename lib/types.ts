@@ -1,4 +1,4 @@
-import type { ValueRecipe } from "./script-model/compose";
+import type { ValueRecipe, ValueTransform } from "./script-model/compose";
 
 export type NodeType =
   | "box"
@@ -334,6 +334,15 @@ export type ScriptStep = { id: string } & (
       into: string;
       /** Optional composed value; takes precedence over the legacy value string. */
       recipe?: ValueRecipe;
+    }
+  | {
+      /** A single composable pure operation on a variable. Multiple blocks run in order. */
+      kind: "transform";
+      /** Variable or nested path to read; no braces. */
+      source: string;
+      /** Output variable. May be the same as source for a sequential pipeline. */
+      into: string;
+      transform: ValueTransform;
     }
   | {
       /** 文字列の中の find をすべて to に置き換えて変数に入れる（{変数} を使える） */

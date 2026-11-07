@@ -120,6 +120,10 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
       return tr("「{value}」をコピーする", { value: st.value });
     case "set-var":
       return tr("「{value}」を変数 {{p2}} とする", { value: st.value, p2: st.into || "?" });
+    case "transform":
+      return tr("変数{source}を加工して変数{into}に入れる", {
+        source: st.source || tr("（未選択）"), into: st.into || "?",
+      });
     case "list-edit":
       {
         const vars = { into: st.into || "?", sep: st.sep || ",", value: st.value };

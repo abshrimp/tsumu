@@ -384,6 +384,13 @@ export function compileScripts(
           const v = one && raw ? raw(one[1].trim()) : undefined;
           return v !== undefined ? { ...rest, raw: v } : { ...rest, value: str(st.value, "value") };
         }
+        case "transform": {
+          const { id: _id, ...rest } = st;
+          // Provide an SSR fallback only. A preceding browser-side assignment
+          // takes priority at runtime, allowing several blocks to rewrite one variable.
+          const v = st.source ? raw?.(st.source) : undefined;
+          return v !== undefined ? { ...rest, raw: v } : rest;
+        }
         case "calc": {
           const { id: _id, ...rest } = st;
           return { ...rest, expr: str(st.expr, "value") };

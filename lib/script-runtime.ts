@@ -810,7 +810,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (Array.isArray(value)) return value.map(fillValue);
           var out = Object.create(null);
           Object.keys(value).forEach(function (key) {
-            out[key] = (key === "rawRef" || key === "recipe" || key === "raw" || key === "joinFallback" || key === "countFallback") ? value[key] : fillValue(value[key]);
+            out[key] = (key === "rawRef" || key === "recipe" || key === "transform" || key === "raw" || key === "joinFallback" || key === "countFallback") ? value[key] : fillValue(value[key]);
           });
           return out;
         }
@@ -1234,6 +1234,20 @@ export const SCRIPT_RUNTIME = `function (env) {
             break;
           /*/store*/
           /*#setvar*/
+          case "transform": {
+            if (!st.source || !st.into) break;
+            var inputValue = sc && (has(sc, st.source) ? sc[st.source] : dig(sc, st.source));
+            if (inputValue === undefined) inputValue = getVar(st.source);
+            /*#clist*/
+            if (inputValue === undefined && st.rawRef) inputValue = scriptReference(st.rawRef, self, sc);
+            /*/clist*/
+            if (inputValue === undefined && "raw" in st) inputValue = st.raw;
+            if (inputValue === undefined) inputValue = lookup(st.source, self, sc);
+            var transformed = evalRecipe(inputValue, [st.transform]);
+            if (transformed.kind === "value") setVar(st.into, transformed.value);
+            else if (transformed.kind === "error") console.warn("Invalid value transform:", transformed.code);
+            break;
+          }
           case "set-var": {
             if (st.recipe) {
               var recipeInput = sc && (has(sc, st.recipe.source) ? sc[st.recipe.source] : dig(sc, st.recipe.source));
@@ -1967,6 +1981,7 @@ const STEP_FEATURE: Record<
   split: "split",
   "list-edit": "ledit",
   "set-var": "setvar",
+  transform: "setvar",
   calc: "calc",
   replace: "replace",
   "array-find": "item",

@@ -7,10 +7,11 @@
 import { useContext } from "react";
 import { readableValue } from "../DataView";
 import { sharedCookieDomain } from "../../lib/script-runtime";
-import { setVarSource, uniqueVarName } from "../../lib/data";
+import { dataVarNames, setVarSource, uniqueVarName } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { type ScriptStep } from "../../lib/types";
-import type { ValueRecipe } from "../../lib/script-model/compose";
+import { defaultTransform, type ValueRecipe, type ValueTransformKind } from "../../lib/script-model/compose";
+import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
 import { tr } from "../../lib/i18n";
 import {
   AnyArraySelect,
@@ -24,9 +25,9 @@ import {
   VarSelect,
 } from "./arrays";
 import { Ctx } from "./context";
-import { FetchBody, VarNameIn, isNested, nameFromPath } from "./fetch";
+import { FetchBody, PathMenu, VarNameIn, isNested, nameFromPath } from "./fetch";
 import { FieldValueIn, NewTabCheck, Phrase, TextIn, ValueIn, regexError } from "./inputs";
-import { ValueComposerPreview } from "./ValueComposerPreview";
+import { ValueComposerPreview, ValueTransformSettings, VALUE_TRANSFORM_GROUPS, VALUE_TRANSFORM_LABELS } from "./ValueComposerPreview";
 import { TargetSelect } from "./targets";
 
 export function StepBody({ step }: { step: ScriptStep }) {
@@ -229,11 +230,13 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "join":
       return <JoinBody step={step} />;
     case "filter-array":
-      return <FilterArrayBody step={step} />;
+      return <><ListDisplayMode step={step} /><FilterArrayBody step={step} /></>;
     case "sort-array":
-      return <SortArrayBody step={step} />;
+      return <><ListDisplayMode step={step} /><SortArrayBody step={step} /></>;
     case "unfilter-array":
       return (
+        <>
+          <ListDisplayMode step={step} />
         <Phrase
           text="リスト{array}の{which}を解除する"
           parts={{
@@ -246,6 +249,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
             which: <UnfilterSelect step={step} />,
           }}
         />
+        </>
       );
     case "store-save":
       return (
@@ -348,6 +352,8 @@ export function StepBody({ step }: { step: ScriptStep }) {
       );
     case "set-var":
       return <SetVarBody step={step} />;
+    case "transform":
+      return <TransformBody step={step} />;
     case "calc":
       return (
         <Phrase
@@ -487,6 +493,36 @@ export function StepBody({ step }: { step: ScriptStep }) {
   }
 }
 
+/** Three display-state actions share one palette entry; saved kinds remain compatible. */
+function ListDisplayMode({ step }: {
+  step: Extract<ScriptStep, { kind: "filter-array" | "sort-array" | "unfilter-array" }>;
+}) {
+  const { updateStep } = useContext(Ctx);
+  return (
+    <select
+      className="se-in se-display-mode"
+      aria-label={tr("リスト表示の操作")}
+      value={step.kind}
+      onChange={(event) => updateStep(step.id, () => {
+        const kind = event.target.value;
+        if (kind === "sort-array") {
+          return { id: step.id, kind, array: step.array,
+            field: "field" in step ? step.field : "", dir: "asc" };
+        }
+        if (kind === "unfilter-array") {
+          return { id: step.id, kind, array: step.array };
+        }
+        return { id: step.id, kind: "filter-array", array: step.array,
+          field: "field" in step ? step.field : "", op: "eq", value: "" };
+      })}
+    >
+      <option value="filter-array">{tr("絞り込む")}</option>
+      <option value="sort-array">{tr("並べ替える")}</option>
+      <option value="unfilter-array">{tr("絞り込みを解除")}</option>
+    </select>
+  );
+}
+
 /** 「ページ / URL」を開く（ブロックの種類を切り替える） */
 function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page" | "open-url" }> }) {
   const { updateStep } = useContext(Ctx);
@@ -546,7 +582,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
           into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 合計）")} />,
         }}
       />
-      {!readOnly && <ValueComposerPreview currentValue={step.value} samples={samples}
+      {!readOnly && step.recipe && <ValueComposerPreview currentValue={step.value} samples={samples}
         excludedName={step.into} recipe={step.recipe} onApply={saveRecipe} />}
       {step.recipe && !readOnly && (
         <button type="button" className="se-mini se-mini-text" onClick={() =>
@@ -562,6 +598,66 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
               : tr("見本: {p1}", { p1: readableValue(value) })}
         </span>
       )}
+    </>
+  );
+}
+
+
+/** One native block applies one pure operation. Stacking blocks composes them. */
+function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform" }> }) {
+  const { doc, pageId, updateStep, samples } = useContext(Ctx);
+  const set = (patch: Partial<typeof step>) => updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
+  const available = new Set([...dataVarNames(doc, pageId, step.id), ...Object.keys(samples).filter((key) => !key.startsWith("#"))]);
+  const sourceValues = Object.fromEntries([
+    ...Object.entries(samples).filter(([name]) => !name.startsWith("#")),
+    ...[...available].filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined]),
+  ]);
+  const sample = step.source ? lookupVar(samples, step.source) : undefined;
+  const first = Array.isArray(sample)
+    ? sample.find((item) => item !== null && typeof item === "object" && !Array.isArray(item))
+    : undefined;
+  const candidate = step.transform.kind === "field" || step.transform.kind === "has" ? sample : first;
+  const options = candidate && typeof candidate === "object" && !Array.isArray(candidate)
+    ? Object.keys(candidate) : [];
+  const preview = sample === undefined ? null : evaluateValueRecipe(sample, [step.transform]);
+
+  return (
+    <>
+      <Phrase
+        text="変数{source}に{operation}を行い、変数{into}に入れる"
+        parts={{
+          source: <PathMenu root={sourceValues} path={step.source}
+            ariaLabel={tr("加工する元の変数")} placeholder={tr("変数を選択")}
+            mode="any" allowRoot={false} portalZIndex={550}
+            onChange={(source) => updateStep(step.id, (s) => ({
+              ...s, source,
+              // Reuse the source variable by default, so vertical blocks
+              // form a pipeline without needing intermediate variable names.
+              into: !s.into || (s.kind === "transform" && s.into === s.source) ? source : s.into,
+            }) as ScriptStep)} />,
+          operation: <select className="se-in" aria-label={tr("加工の種類")}
+            value={step.transform.kind}
+            onChange={(e) => set({ transform: defaultTransform(e.target.value as ValueTransformKind) })}>
+            {VALUE_TRANSFORM_GROUPS.map((group) =>
+              <optgroup key={group.label} label={tr(group.label)}>
+                {group.kinds.map((kind) =>
+                  <option key={kind} value={kind}>{tr(VALUE_TRANSFORM_LABELS[kind])}</option>)}
+              </optgroup>)}
+          </select>,
+          into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("変数名")} />,
+        }}
+      />
+      <div className="se-transform-settings">
+        <ValueTransformSettings transform={step.transform} options={options}
+          onChange={(transform) => set({ transform })} />
+      </div>
+      {preview?.kind === "value" && (
+        <span className="se-blk-note">
+          {tr("見本: {p1}", { p1: typeof preview.value === "object"
+            ? JSON.stringify(preview.value).slice(0, 90) : String(preview.value) })}
+        </span>
+      )}
+      {preview?.kind === "error" && <span className="se-blk-note">{tr("見本を加工できません（{code}）", { code: preview.code })}</span>}
     </>
   );
 }

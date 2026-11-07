@@ -205,7 +205,7 @@ export function generatePageFile(
     ? []
     : ['import type { Metadata } from "next";'];
   if (loads.length) imports.push('import { fetchPublic, readTextLimited } from "@/lib/safe-fetch";');
-  if (loads.some((st) => st.kind === "set-var" && st.recipe))
+  if (loads.some((st) => st.kind === "transform" || (st.kind === "set-var" && st.recipe)))
     imports.push('import { evaluateValueRecipe as __evalValueRecipe } from "@/lib/value-recipe";');
   if (isSlugPg && primary)
     imports.push('import { notFound } from "next/navigation";');
@@ -222,7 +222,7 @@ export function generatePageFile(
   if (ctx.usesPageHtml) imports.push('import PageHtml from "@/components/PageHtml";');
   if (needsVars)
     imports.push(
-      `import { safeNavigationUrl, interpolate, interpolateUrl${loads.some((st) => st.kind === "fetch" && !!fetchInitExpr(st)?.includes("interpolateJson(")) ? ", interpolateJson" : ""}${listNodes.length || ctx.usesLookup || loads.some((st) => st.kind === "array-find" || st.kind === "array-field" || st.kind === "for-each" || st.kind === "join" || st.kind === "count" || st.kind === "set-var") ? ", lookupVar" : ""}${loads.some((st) => st.kind === "join") ? ", varText" : ""} } from "@/lib/vars";`
+      `import { safeNavigationUrl, interpolate, interpolateUrl${loads.some((st) => st.kind === "fetch" && !!fetchInitExpr(st)?.includes("interpolateJson(")) ? ", interpolateJson" : ""}${listNodes.length || ctx.usesLookup || loads.some((st) => st.kind === "array-find" || st.kind === "array-field" || st.kind === "for-each" || st.kind === "join" || st.kind === "count" || st.kind === "set-var" || st.kind === "transform") ? ", lookupVar" : ""}${loads.some((st) => st.kind === "join") ? ", varText" : ""} } from "@/lib/vars";`
     );
   for (const compId of ctx.usedComponents) {
     const name = ctx.componentNames.get(compId)!;
@@ -456,6 +456,12 @@ ${body}
         const [root, ...rest] = st.array.split(".");
         return `  if (${JSON.stringify(st.array)} in vars) vars[${JSON.stringify(st.array)}] = ${val};\n  else vars[${JSON.stringify(root)}] = setIn(vars[${JSON.stringify(root)}], ${JSON.stringify(rest)}, ${val});`;
       }
+      case "transform":
+        if (!st.into || !st.source) return "";
+        return `  {
+    const result = __evalValueRecipe(lookupVar(vars, ${JSON.stringify(st.source)}), [${JSON.stringify(st.transform)}]);
+    if (result.kind === "value") vars[${JSON.stringify(st.into)}] = result.value;
+  }`;
       case "set-var": {
         if (st.recipe && st.into) {
           return `  {
@@ -753,6 +759,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
       return true;
     }
     if ("value" in st && unknown(st.value, false)) return true;
+    if (st.kind === "transform" && unknown(`{${st.source}}`, false)) return true;
     if (st.kind === "split" && unknown(st.source, false)) return true;
     if (st.kind === "for-each") {
       // 中では要素の項目も使える

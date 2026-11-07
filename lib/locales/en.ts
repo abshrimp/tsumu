@@ -4,6 +4,18 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "変数［］の値を［加工］して変数［］に入れる": "Apply an operation to a variable and store the result",
+  "以前のブロックを表示": "Show legacy blocks",
+  "以前のブロックを隠す": "Hide legacy blocks",
+  "変数{source}に{operation}を行い、変数{into}に入れる": "Apply {operation} to variable {source} and assign to {into}",
+  "加工する元の変数": "Source variable",
+  "加工の種類": "Operation",
+  "変数名": "Variable name",
+  "見本を加工できません（{code}）": "Cannot process sample value ({code})",
+  "リスト表示の操作": "List display operation",
+  "絞り込む": "Filter",
+  "並べ替える": "Sort",
+  "絞り込みを解除": "Clear filters",
   "比較する値を正しく入力してください": "Enter a valid comparison value.",
   "0で割ることはできません": "Cannot divide by zero.",
   "正規表現が正しくありません": "The regular expression is invalid.",

@@ -406,7 +406,7 @@ export default function manifest(): MetadataRoute.Manifest {
   // Generated SSR pages share the same pure recipe evaluator as editor and client scripts.
   // Output plain JavaScript so the emitted function can be compiled without implicit-any errors.
   if (Object.values(doc.pages).some((page) => !page.unpublished &&
-    pagePlan(doc, page.id).steps.some((step) => step.kind === "set-var" && step.recipe))) {
+    pagePlan(doc, page.id).steps.some((step) => step.kind === "transform" || (step.kind === "set-var" && step.recipe)))) {
     files["lib/value-recipe.js"] =
       "const __name = (fn) => fn;\n" +
       "export const evaluateValueRecipe = (" + evaluateValueRecipe.toString() + ");\n";

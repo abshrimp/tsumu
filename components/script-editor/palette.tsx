@@ -39,6 +39,7 @@ import {
   Timer,
   ToggleRight,
   Variable,
+  Workflow,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -82,6 +83,7 @@ export const CAT_OF: Record<ScriptStep["kind"], Cat> = {
   copy: "input",
   "list-edit": "var",
   "set-var": "var",
+  transform: "var",
   calc: "var",
   replace: "var",
   repeat: "control",
@@ -122,6 +124,7 @@ export const STEP_ICON: Record<ScriptStep["kind"], LucideIcon> = {
   copy: ClipboardCopy,
   "list-edit": ListChecks,
   "set-var": Variable,
+  transform: Workflow,
   calc: Calculator,
   replace: Replace,
   repeat: Repeat,
@@ -262,7 +265,7 @@ export const PALETTE: PaletteItem[] = [
     key: "filter-array",
     cat: "array",
     icon: Funnel,
-    label: tr("リスト［］を［項目］で絞り込む"),
+    label: tr("リスト表示を［絞り込む / 並べ替える / 解除する］"),
     make: () =>
       one({
         id: st(),
@@ -307,6 +310,15 @@ export const PALETTE: PaletteItem[] = [
     icon: Variable,
     label: tr("［値 / {データ.位置}］を変数［］とする"),
     make: () => one({ id: st(), kind: "set-var", value: "", into: "" }),
+  },
+  {
+    key: "transform",
+    cat: "var",
+    icon: Workflow,
+    label: tr("変数［］の値を［加工］して変数［］に入れる"),
+    make: () => one({
+      id: st(), kind: "transform", source: "", into: "", transform: { kind: "format" },
+    }),
   },
   {
     key: "calc",
@@ -393,6 +405,7 @@ const SEARCH_TERMS: Record<string, string> = {
   "store-save": "保存 保存する 記録 記憶 ブラウザ ストレージ 保存領域 端末に保存 ブラウザに保存 設定を保存 データを保存 次回にも残す 次に開いたときも使う ローカルストレージ 永続化 localstorage storage save persist",
   "store-load": "読み込む 読み出す 呼び出す 復元 復元する 記録を読む 保存した値を使う 保存したデータを読む 保存データを取り出す 前回の値を読む 前回の状態に戻す ブラウザ保存 ローカルストレージ localstorage storage load restore retrieve",
   "set-var": "変数 変数を作る 変数に入れる 変数を設定 代入 値を入れる 名前をつける 新しい変数 既存の変数を上書き 上書き 値を保持 値を渡す 変数に保存 変数を変更 変数を更新 assign set variable",
+  transform: "値を加工 データを加工 変数を加工 加工する 組み合わせ 演算 分割 結合 検索 置換 比較 ソート フィルタ 加工ブロック 変換処理 transform operation pipeline math list text",
   calc: "数値 算術 計算 計算する 数式 算数 四則演算 足し算 引き算 掛け算 割り算 足す 引く 掛ける 割る 加算 減算 乗算 除算 合計 算出 結果を計算 math arithmetic calculate sum multiply divide",
   replace: "置き換え 置換 置き換える 書き換える 修正 一部変更 文字列の一部変更 文字列の置き換え 文字を直す 言葉を変える 検索して置換 文字列編集 正規表現 パターン置換 replace regex substitute",
   "list-edit": "追加 削除 切り替え 区切り 区切り付き文字列 値を足す 値を取り除く 含まれる値を切り替える カンマ区切り 区切り文字で管理 値を追加 値を削除 トグル セパレータ toggle add remove delimited",
@@ -404,10 +417,19 @@ const SEARCH_TERMS: Record<string, string> = {
 
 const normalizeSearch = (text: string) => text.normalize("NFKC").toLocaleLowerCase();
 
-/** Keep all actions available; search only changes what appears in the palette. */
-export function findPaletteItems(query: string): PaletteItem[] {
+/**
+ * Legacy actions remain editable/runnable and searchable, but the default palette
+ * presents the small set of composable primitives instead of duplicate actions.
+ */
+export const LEGACY_ACTION_KEYS = new Set([
+  "split", "join", "count", "array-find", "array-field",
+  "calc", "replace", "list-edit", "sort-array", "unfilter-array",
+]);
+
+/** Searching always finds old blocks. An explicit toggle can also reveal them. */
+export function findPaletteItems(query: string, showLegacy = false): PaletteItem[] {
   const words = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return PALETTE;
+  if (!words.length) return showLegacy ? PALETTE : PALETTE.filter((item) => !LEGACY_ACTION_KEYS.has(item.key));
   return PALETTE.filter((item) => {
     const text = normalizeSearch([
       item.key, item.label, CAT_INFO[item.cat].label, SEARCH_TERMS[item.key] ?? "",

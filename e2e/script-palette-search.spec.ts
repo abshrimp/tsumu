@@ -60,7 +60,7 @@ test("用途を検索して必要なブロックを探せる。検索しても�
   const search = palette(page).getByRole("searchbox", { name: "操作を探す" });
   const cards = palette(page).locator(".se-pal-item");
   const originalCount = await cards.count();
-  expect(originalCount).toBeGreaterThan(25);
+  expect(originalCount).toBe(22); // 6 triggers + 16 composable actions; legacy actions are collapsed
 
   await search.fill("数える");
   await expect(cards).toHaveCount(1);
@@ -128,4 +128,30 @@ test("目的や言い換えから関連する操作が見つかる", async ({ pa
     await search.fill(query);
     await expect(palette(page).locator(`[data-tutorial="se-block-${key}"]`), query).toBeVisible();
   }
+});
+
+test("通常の一覧は最小限で、旧ブロックは明示的に表示または検索できる", async ({ page }) => {
+  const paletteRoot = palette(page);
+  const search = paletteRoot.getByRole("searchbox", { name: "操作を探す" });
+  const cards = paletteRoot.locator(".se-pal-item");
+  const initialDocument = await page.evaluate(() => JSON.stringify((window as any).dataPickerStore.getState().doc));
+  await expect(cards).toHaveCount(22);
+  await expect(paletteRoot.locator('[data-tutorial="se-block-transform"]')).toBeVisible();
+  await expect(paletteRoot.locator('[data-tutorial="se-block-calc"]')).toHaveCount(0);
+  await expect(paletteRoot.locator('[data-tutorial="se-block-sort-array"]')).toHaveCount(0);
+
+  const toggle = paletteRoot.getByRole("button", { name: "以前のブロックを表示" });
+  await toggle.click();
+  await expect(cards).toHaveCount(32);
+  await expect(paletteRoot.locator('[data-tutorial="se-block-calc"]')).toBeVisible();
+  await paletteRoot.getByRole("button", { name: "以前のブロックを隠す" }).click();
+  await expect(cards).toHaveCount(22);
+
+  await search.fill("足し算");
+  await expect(paletteRoot.locator('[data-tutorial="se-block-calc"]')).toBeVisible();
+  await search.fill("値を加工");
+  await expect(paletteRoot.locator('[data-tutorial="se-block-transform"]')).toBeVisible();
+  await search.press("Escape");
+  await expect(cards).toHaveCount(22);
+  expect(await page.evaluate(() => JSON.stringify((window as any).dataPickerStore.getState().doc))).toBe(initialDocument);
 });

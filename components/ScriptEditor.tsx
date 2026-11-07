@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Search, Undo2, X, Zap } from "lucide-react";
+import { ChevronDown, Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Search, Undo2, X, Zap } from "lucide-react";
 import { componentOf, useEditor } from "../lib/store";
 import SafeBoundary from "./SafeBoundary";
 import { glyphs } from "./Glyph";
@@ -206,7 +206,8 @@ function ScriptEditorInner({
   const wsRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
   const [paletteQuery, setPaletteQuery] = useState("");
-  const visiblePalette = useMemo(() => findPaletteItems(paletteQuery), [paletteQuery]);
+  const [showLegacy, setShowLegacy] = useState(false);
+  const visiblePalette = useMemo(() => findPaletteItems(paletteQuery, showLegacy), [paletteQuery, showLegacy]);
   /** ワークスペースの表示倍率（ブラウザに覚えておく） */
   const [zoom, setZoomState] = useState(() => {
     try {
@@ -783,6 +784,14 @@ function ScriptEditorInner({
                   </div>
                 );
               })}
+              {!paletteQuery.trim() && (
+                <button type="button" className="se-pal-legacy-toggle"
+                  aria-expanded={showLegacy}
+                  onClick={() => setShowLegacy((open) => !open)}>
+                  <ChevronDown size={13} className={showLegacy ? "is-open" : ""} aria-hidden="true" />
+                  {showLegacy ? tr("以前のブロックを隠す") : tr("以前のブロックを表示")}
+                </button>
+              )}
               {visiblePalette.length === 0 && (
                 <p className="se-pal-empty" role="status">{tr("一致する操作がありません")}</p>
               )}

@@ -369,8 +369,9 @@ export type HybridStep = Extract<
 >;
 export type ForEachStep = Extract<ScriptStep, { kind: "for-each" }>;
 export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
+export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
 /** ページを配信する前に実行するブロック */
-export type ServerStep = DataStep | HybridStep | ForEachStep | SetVarStep;
+export type ServerStep = DataStep | HybridStep | ForEachStep | SetVarStep | TransformStep;
 
 /** 「［{名前}］を変数［］とする」の {名前}（値が {名前} 1つだけでなければ null） */
 export function setVarSource(st: SetVarStep): string | null {
@@ -545,6 +546,9 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       if (st.kind === "set-var" && st.into && !(loadRoot.has(st) && (st.recipe?.source || setVarSource(st)))) {
         clientVars.add(st.into);
       }
+      if (st.kind === "transform" && st.into && !(loadRoot.has(st) && st.source)) {
+        clientVars.add(st.into);
+      }
       if (isHybridStep(st) && !loadRoot.has(st) && "into" in st && st.into) clientVars.add(st.into);
     });
   }
@@ -602,9 +606,10 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
             if (fs.length) countFilters.set(st.id, fs);
           }
         }
-      } else if (st.kind === "set-var") {
-        // {名前} だけで、その値が配信前にそろい、ほかで画面上から書き換えなければ配信前に動く
-        const src = st.recipe?.source || setVarSource(st);
+      } else if (st.kind === "set-var" || st.kind === "transform") {
+        // A load-time, pure value chain can run before rendering.
+        // A chain that reads or overwrites a browser-owned value remains on the client.
+        const src = st.kind === "transform" ? st.source : st.recipe?.source || setVarSource(st);
         if (!st.into || !src) continue;
         if (isClient(src) || clientVars.has(st.into)) {
           clientVars.add(st.into);
@@ -763,6 +768,21 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
         added = true;
       }
     }
+  }
+  // New ordinary transform blocks can also create list variables. Keep their
+  // results selectable even before runtime data is available.
+  let transformedSamples: Record<string, unknown> | undefined;
+  for (const steps of scriptsInPage(doc, pageId)) {
+    walkAll(steps, (st) => {
+      if (st.kind !== "transform" || !st.into || seen.has(st.into)) return;
+      const listProducing = ["split", "filter", "map-field", "map-set", "sort"].includes(st.transform.kind);
+      if (!listProducing) {
+        transformedSamples ??= previewDataVars(doc, pageId);
+        if (!Array.isArray(lookupVar(transformedSamples, st.into))) return;
+      }
+      seen.add(st.into);
+      out.push({ name: st.into, client: clientVars.has(st.into) });
+    });
   }
   return out;
 }
@@ -948,6 +968,12 @@ export function previewDataVars(
           const o = originOf(src);
           if (o) origins[st.into] = o;
         }
+        break;
+      }
+      case "transform": {
+        if (!st.into || !st.source) break;
+        const result = evaluateValueRecipe(lookupVar(scope(), st.source), [st.transform]);
+        if (result.kind === "value") out[st.into] = result.value;
         break;
       }
       case "array-field":
@@ -1307,6 +1333,8 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       if (st.body) st.body = mapVarTokens(st.body, fn);
     }
     else if (st.kind === "split") st.source = mapVarTokens(st.source, fn);
+    // A transform's source is a variable path, not a template.
+    else if (st.kind === "transform") st.source = fn(st.source) ?? st.source;
     else if (st.kind === "calc") st.expr = mapVarTokens(st.expr, fn);
     else if (st.kind === "replace") {
       st.source = mapVarTokens(st.source, fn);
