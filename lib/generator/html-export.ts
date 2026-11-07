@@ -252,13 +252,16 @@ function importedHtml(next: GeneratedProject, page: Page): string {
 }
 
 function fontsCss(doc: SiteDoc): string {
-  return usedGoogleFonts(doc).map((f) => {
+  const fonts = usedGoogleFonts(doc);
+  const imports = fonts.map((f) => {
     const g = f.google!;
     return '@import url("https://fonts.googleapis.com/css2?family=' +
       encodeURIComponent(f.value).replace(/%20/g, "+") + ':wght@' +
-      (g.weights?.length ? g.weights.join(";") : "400") + '&display=swap");\n' +
-      ':root {' + g.cssVar + ': "' + f.value.replace(/"/g, '\\"') + '", sans-serif;}';
-  }).join("\n");
+      (g.weights?.length ? g.weights.join(";") : "400") + '&display=swap");';
+  });
+  const variables = fonts.map((f) =>
+    "  " + f.google!.cssVar + ': "' + f.value.replace(/"/g, '\\"') + '", sans-serif;');
+  return imports.join("\n") + (variables.length ? "\n:root {\n" + variables.join("\n") + "\n}" : "");
 }
 
 export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): GeneratedProject {
@@ -310,7 +313,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     }, null, 2) + "\n";
   }
   files["styles/site.css"] = rewriteRootUrls(next.files["styles/site.css"], "../");
-  files["styles/globals.css"] = next.files["app/globals.css"] + "\n" + fontsCss(normalized);
+  files["styles/globals.css"] = fontsCss(normalized) + "\n" + next.files["app/globals.css"];
   files["static-values.js"] = [
     '(function(){',
     'function value(name){',
@@ -408,6 +411,15 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       normalized.customBodyEndHtml ? rewriteRootUrls(normalized.customBodyEndHtml, prefix) : "",
       scripts, "</body>", "</html>", "",
     ].join("\n");
+  }
+  // Ensure the archive always has an openable entry point, even when the
+  // published pages have no dedicated root route.
+  if (!files["index.html"] && pages.length) {
+    const first = pageFilename(pages[0], false);
+    const target = first === "404.html" ? "./404.html" : "./" + first.replace(/index\.html$/, "");
+    files["index.html"] = '<!doctype html><html><head><meta charset="utf-8">' +
+      '<meta http-equiv="refresh" content="0;url=' + escapeHtml(target) + '">' +
+      '</head><body><a href="' + escapeHtml(target) + '">Open site</a></body></html>';
   }
   return { files, binaries, remoteAssets };
 }
