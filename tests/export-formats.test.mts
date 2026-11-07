@@ -59,11 +59,22 @@ test("unsupported dynamic routes and reverse proxies fail explicitly", () => {
   assert.throws(() => generateExportProject(doc, "react"));
 });
 
-test("server-side variables are blocked instead of emitting broken React", () => {
+test("client-only variables do not force a server-only export error", () => {
   const doc = fixture();
   doc.nodes.hero.text!.content = "Hello {username}";
-  const messages = exportLimitations(doc, "react");
-  assert.ok(messages.length > 0);
+  const react = generateExportProject(doc, "react");
+  assert.match(react.files["src/pages/Page0.tsx"], /export default function Page/);
+  const html = generateExportProject(doc, "html");
+  assert.doesNotMatch(html.files["app/page.tsx"], /^export const revalidate =/m);
+});
+
+test("actual server-only data access remains blocked in React", () => {
+  const doc = fixture();
+  doc.pages.home.pageScripts = [{
+    id: "load", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "fetch", kind: "fetch", url: "https://example.com/data.json", as: "response" }],
+  }];
+  assert.ok(exportLimitations(doc, "react").length > 0);
   assert.throws(() => generateExportProject(doc, "react"));
 });
 
