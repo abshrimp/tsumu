@@ -77,7 +77,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   const description = format === "html"
     ? tr("HTML・CSS・JavaScript・画像をまとめたZIPをダウンロードします。展開後、index.htmlをブラウザで開くだけで表示できます。npmやビルドは不要です。")
     : format === "single-html"
-      ? tr("画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数の異なるページURLは1つにまとめられません。")
+      ? tr("画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数のページを同時に出力することはできません。")
       : trNodes("{framework}プロジェクトとして保存します。展開後に {cmd} で起動できます。", {
           framework: tr(EXPORT_FRAMEWORK_OPTIONS.find((item) => item.value === format)?.label ?? "Next.js"),
           cmd: <span className="kbd">npm install && npm run dev</span>,
