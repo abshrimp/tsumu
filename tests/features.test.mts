@@ -253,7 +253,7 @@ test("slug page generateMetadata preserves description, noindex and openGraph", 
             pos: { x: 0, y: 0 },
             steps: [
               { id: "f", kind: "fetch", url: "https://api.example.com/posts", as: "posts", sample: [{ slug: "a", title: "Hello" }] },
-              { id: "af", kind: "transform", source: "posts", into: "post", transform: { kind: "find", field: "slug", operation: "eq", operand: "slug", operandType: "variable" } },
+              { id: "af", kind: "transform", source: "posts", into: "post", transform: { kind: "find", field: "slug", operation: "eq", operand: "{slug}" } },
             ],
           },
         ],
