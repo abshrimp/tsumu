@@ -4,7 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
-  "次の送信先": "Next request destination",
+  "現在の設定の送信先": "Destination for current settings",
   "最後に送信": "Last request",
   "この結果の送信先": "Result request destination",
   "送信済みですが、文書の変更により結果を反映していません": "The request was sent, but its result was not applied because the document changed",
@@ -26,6 +26,7 @@ const en: Dict = {
   "{method}で送信": "Send {method}",
   "テスト実行…": "Test request…",
   "実行時": "At runtime",
+  "文字列": "String",
   "値の入力方法": "Value input mode",
   "文字を組み立てる": "Compose text",
   "データを渡す": "Pass data",
@@ -977,11 +978,11 @@ const en: Dict = {
     "Set variable ［］ to ［value / {data.path}］",
   "［{数} + 1］を計算して変数［］とする":
     "Calculate ［{count} + 1］ into variable ［］",
-  "［文字］の［A］を［B］に置き換えて変数［］とする":
+  "［文字列］の［A］を［B］に置き換えて変数［］とする":
     "Replace ［A］ with ［B］ in ［text］ into variable ［］",
   "変数［］の［.］区切りに［値］を［切り替える］":
     "［Toggle］［value］ in variable ［］ (separated by ［.］)",
-  "［文字］をコピーする":
+  "［文字列］をコピーする":
     "Copy ［text］",
   "［1］秒待つ":
     "Wait ［1］ seconds",
@@ -1107,10 +1108,10 @@ const en: Dict = {
     "Name (e.g. total)",
   "{source}の{find}を{to}に置き換えて変数{into}とする":
     "Replace {find} with {to} in {source} into variable {into}",
-  "{文字}":
+  "{文字列}":
     "{text}",
-  "置き換える文字":
-    "Text to replace",
+  "探す文字列":
+    "String to find",
   "空なら取り除く / $1":
     "Empty removes it / $1",
   "空なら取り除く":
@@ -1129,8 +1130,8 @@ const en: Dict = {
     "Remove",
   "{value}をコピーする":
     "Copy {value}",
-  "文字 / {変数}":
-    "text / {variable}",
+  "文字列 / {変数}":
+    "string / {variable}",
   "{value}を変数{into}とする":
     "Set variable {into} to {value}",
   "値 / {データ.位置}":
@@ -3263,7 +3264,7 @@ const en: Dict = {
     "Off (unchecked)",
   "選択…":
     "Choose…",
-  "その他（変数・文字）…":
+  "その他（変数・文字列）…":
     "Other (variable or text)…",
   "メソッド":
     "Method",
@@ -3484,6 +3485,73 @@ const en: Dict = {
   "コメントのIDが重複しています。もう一度送信してください": "This comment ID is already in use. Please send again.",
   "返信先のスレッドは削除されています": "The discussion you are replying to has been deleted.",
   "このスレッドは削除されています。入力中の文章は閉じるまで残るので、必要ならコピーしてください。": "This discussion has been deleted. Your draft remains until you close it, so copy it if you need it.",
+  // Script data terminology review (#132)
+  "リスト表示の項目（1件ずつ変わる）": "List display item (changes for each entry)",
+  "行をクリックすると、リストや項目付きデータの中身まで確認できます。": "Click a row to inspect lists and nested data objects.",
+  "リスト・{length}件": "List · {length} items",
+  "項目付きデータ・{length}項目": "Data object · {length} fields",
+  "リスト表示にする": "Turn into list display",
+  "データを表示するときは、「［URL］のデータを取得して［名前］とする」の下に「［値］を変数［］とする」をつなげて中身を取り出します（ページを開いたときに実行されます）。リストを入れた変数をリスト表示の設定で選ぶと、1件ずつ並びます。": "To show data, attach \"Set variable ［］ to ［value］\" under \"Fetch data from ［URL］ as ［name］\" to pull out what you need (it runs when the page opens). Choose a variable holding a list in a List display element's settings to show each item.",
+  "このボックスをお手本にして、データの件数分くり返すリスト表示を作ります": "Create a list display using this box as a template for each data item",
+  "リスト表示": "List display",
+  "リスト表示の1つ目がお手本のカードです。カードの中の文字で「{」を入力して項目を選ぶと、すべてのカードに反映されます。\n並べ替えや絞り込みは、スクリプトの「並べ替える」「絞り込む」で行います。": "The first item in the list display is the template card. Type \"{\" in its text and pick a field to apply it to every card.\nSort and filter with the \"Sort\" and \"Filter\" script actions.",
+  "リスト · ページを開いてから値が決まる": "List · set after the page opens",
+  "リスト · 見本{length}件": "List · {length} sample items",
+  "外側のリスト表示の項目 · 見本{count}件": "Outer list display item · {count} sample items",
+  "表示するリスト": "List to display",
+  "{p1}（リストになっていません）": "{p1} (not a list)",
+  "スクリプトでデータを変数に入れるか、文字列を分解してリストにすると、ここで選べるようになります": "Store data in a variable or split text into a list with a script, and it will appear here",
+  "スクリプトでリストを作る": "Create a list with a script",
+  "クリックで挿入します。リストや項目付きデータは左の矢印で中身を開けます。": "Click to insert. Use the arrow on the left to expand lists and data objects.",
+  "リスト表示の設定で、表示するリストを選んでください": "Choose the list to display in the list display settings",
+  "リスト・{length}件（リスト表示で並べられます）": "List · {length} items (can be shown in a list display)",
+  "文字列{source}を{sep}で分解してリスト{into}とする": "Split text {source} by {sep} into a list {into}",
+  "リスト{array}の{which}を解除する": "Clear {which} on list {array}",
+  "リスト{array}の件数を変数{into}とする": "Store the count of list {array} in variable {into}",
+  "リストを選択": "Select a list",
+  "リストがありません": "No lists",
+  "変数の中のリスト": "Lists inside variables",
+  "リスト表示の項目では {{field}} として使えます（見本: {sample}）": "Use {{field}} in each list display item (sample: {sample})",
+  "同じリストのほかの絞り込みとのつなぎ方": "How this combines with other filters on the same list",
+  "リスト{array}の要素のうち、項目{field}が{value}のものを変数{into}とする": "Find the item in list {array} whose {field} is {value} and store it in {into}",
+  "リスト{array}の{value}を項目{field}として格納する": "Store {value} as field {field} in each item of list {array}",
+  "リスト{array}の{field}を{sep}でつないで変数{into}とする": "Join {field} of list {array} with {sep} into variable {into}",
+  "リスト{array}を{sep}でつないで変数{into}とする": "Join list {array} with {sep} into variable {into}",
+  "リスト{array}を{field}の{dir}に並べ替える": "Sort list {array} by {field} {dir}",
+  "リスト{array}を{field}が{cond}": "Filter list {array} to items where {field} {cond}",
+  "取得したデータのリストは、ページを開いたときのスクリプトの直下で、中を「項目として格納」と変数の「もし」だけにすると動きます": "For fetched data lists, this only works directly under the page's \"When the page opens\" script, with only \"Store as field\" and variable \"If\" blocks inside",
+  "リスト{array}の要素ごとにくり返す": "For each item in list {array}",
+  "保存された見本を表示しています。": "Showing the saved sample.",
+  "見本にはリストの先頭20件のみ保存されています。全件を見るには右上の「取得し直す」で再取得してください。": "Only the first 20 items of each list are saved in the sample. To view all items, use Fetch again in the top-right corner.",
+  "リストの位置（例: products）": "List path (e.g. products)",
+  "リストが見つかりません": "No list found",
+  "既存の変数を上書き": "Overwrite an existing variable",
+  "項目付きデータ": "Data object",
+  "文字列［］を［,］で分解してリスト［］とする": "Split text ［］ by ［,］ into a list ［］",
+  "リスト［］を［、］でつないで変数［］とする": "Join list ［］ with ［, ］ into variable ［］",
+  "リスト［］の件数を変数［］とする": "Store the count of list ［］ in variable ［］",
+  "リスト［］の要素のうち、項目［］が［値］のものを変数［］とする": "Find the item in list ［］ whose ［］ is ［value］ and store it in ［］",
+  "リスト［］の［…］を項目［］として格納する": "Store ［…］ as field ［］ in each item of list ［］",
+  "リスト［］の要素ごとにくり返す": "For each item in list ［］",
+  "リスト［］を［項目］で絞り込む": "Filter list ［］ by ［field］",
+  "リスト［］の絞り込みを解除する": "Clear filters on list ［］",
+  "リスト［］を［項目］の［小さい順］に並べ替える": "Sort list ［］ by ［field］ ［ascending］",
+  "「{name}」のスクリプトで、リストの要素を探す項目が選ばれていません": "A script on \"{name}\" doesn't choose the field to search the list by",
+  "「{name}」のスクリプトで、リストの要素に格納する項目名が空です": "A script on \"{name}\" stores into a list items with an empty field name",
+  "「{name}」のリスト表示「{name2}」に表示するリストが選ばれていません（出力されません）": "List display \"{name2}\" in \"{name}\" has no list selected (it won't be output)",
+  "{head}リスト{p2}を {conds} ものに絞り込む": "{head}Filter list {p2} to items where {conds}",
+  "リスト{p1}の絞り込み{no}を解除する": "Clear filter {no} on list {p1}",
+  "リスト{p1}のすべての絞り込みを解除する": "Clear all filters on list {p1}",
+  "リスト{array}を {field} の大きい順に並べ替える": "Sort list {array} by {field}, descending",
+  "リスト{array}を {field} の小さい順に並べ替える": "Sort list {array} by {field}, ascending",
+  "「{source}」を「{p2}」で分解してリスト{p3}とする": "Split \"{source}\" by \"{p2}\" into a list {p3}",
+  "リスト{p1}の要素のうち、{p2} が「{value}」のものを変数 {{p4}} とする": "Find the item in list {p1} whose {p2} is \"{value}\" and store it in {{p4}}",
+  "リスト{p1}の「{value}」を項目 {p3} として格納する": "Store \"{value}\" as field {p3} in each item of list {p1}",
+  "リスト{p1}の件数を変数 {{p2}} とする": "Store the count of list {p1} in variable {{p2}}",
+  "リスト{p1}の要素ごとにくり返す…": "For each item in list {p1}…",
+  "リスト{array}の {field} を「{sep}」でつないで変数 {{into}} とする": "Join {field} of list {array} with \"{sep}\" into variable {{into}}",
+  "リスト{array}を「{sep}」でつないで変数 {{into}} とする": "Join list {array} with \"{sep}\" into variable {{into}}",
+
 };
 
 export default en;

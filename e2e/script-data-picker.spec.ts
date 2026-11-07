@@ -35,12 +35,26 @@ test("one value input keeps raw objects, save/load and Undo without mode or redu
   await expect(b.getByRole("button", { name: "データを選ぶ", exact: true })).toHaveCount(0);
   await openPicker(page); await pick(page, "data");
   expect(await selected(page)).toBe("{data}");
-  await expect(b.locator(".se-value-info")).toContainText("まとまり");
+  await expect(b.locator(".se-value-info")).toContainText("項目付きデータ");
   const changed = await snapshot(page);
   await page.getByRole("button", { name: "取り消す", exact: true }).click(); expect(await snapshot(page)).toEqual(before);
   await page.getByRole("button", { name: "やり直す", exact: true }).click(); expect(await snapshot(page)).toEqual(changed);
   await page.evaluate((doc) => (window as any).dataPickerStore.getState().replaceDoc(JSON.parse(JSON.stringify(doc))), changed);
   expect(await snapshot(page)).toEqual(changed);
+});
+
+test("string value hints and card hover remain inside rounded borders", async ({ page }) => {
+  await openPicker(page); await pick(page, "data.name");
+  await expect(block(page, "value").locator(".se-value-info .vx-kind")).toHaveText("文字列");
+  await expect(block(page, "value").locator(".se-value-sample")).toHaveCount(0);
+  const valueBlock = block(page, "value");
+  await valueBlock.hover();
+  const style = await valueBlock.evaluate(el => {
+    const stack = el.closest(".se-stack")!;
+    const computed = getComputedStyle(stack);
+    return { overflow: computed.overflow, radius: computed.borderTopLeftRadius, borderWidth: computed.borderTopWidth };
+  });
+  expect(style).toEqual({ overflow: "clip", radius: "10px", borderWidth: "1px" });
 });
 
 test("focus suggestions offer a touch/click route to nested data and Cmd+/ opens unfiltered exploration", async ({ page }) => {
@@ -60,7 +74,9 @@ test("text picker expands object rows and keyboard chooses a scalar leaf without
   const b = block(page, "copy"); await openPicker(page, "copy");
   const data = row(page, "{data}"); await data.focus(); await data.press("Enter");
   await expect(picker(page)).toBeVisible();
-  const title = row(page, "{data.name}"); await title.focus(); await title.press("Enter");
+  const title = row(page, "{data.name}");
+  await expect(title.locator(".vx-kind")).toHaveText("文字列");
+  await title.focus(); await title.press("Enter");
   await expect(picker(page)).toHaveCount(0);
   await expect(b.locator("input").first()).toHaveValue("{data.name}");
   await b.locator("input").first().blur();
@@ -163,7 +179,7 @@ test("inline dropdown selection replaces an existing raw object reference with a
   await page.locator(".var-comp-list button").filter({ has: page.locator(".var-chip").filter({ hasText: /^data.tags$/ }) }).click();
   await expect(input).toHaveValue("{data.tags}"); await input.blur();
   expect(await selected(page)).toBe("{data.tags}");
-  await expect(block(page, "value").locator(".se-value-info")).toContainText("一覧");
+  await expect(block(page, "value").locator(".se-value-info")).toContainText("リスト");
 });
 
 for (const width of [1440, 375, 320]) {

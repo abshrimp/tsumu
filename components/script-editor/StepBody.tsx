@@ -197,7 +197,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "split":
       return (
         <Phrase
-          text="文字列{source}を{sep}で分解して配列{into}とする"
+          text="文字列{source}を{sep}で分解してリスト{into}とする"
           parts={{
             source: (
               <TextIn
@@ -216,7 +216,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
                 onCommit={(v) => set((s) => ({ ...s, sep: v }) as ScriptStep)}
               />
             ),
-            into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 一覧）")} />,
+            into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 商品）")} />,
           }}
         />
       );
@@ -233,7 +233,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "unfilter-array":
       return (
         <Phrase
-          text="配列{array}の{which}を解除する"
+          text="リスト{array}の{which}を解除する"
           parts={{
             array: (
               <ArraySelect
@@ -321,7 +321,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
     case "count":
       return (
         <Phrase
-          text="配列{array}の件数を変数{into}とする"
+          text="リスト{array}の件数を変数{into}とする"
           parts={{
             array: (
               <AnyArraySelect
@@ -374,7 +374,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               source: (
                 <TextIn
                   value={step.source}
-                  placeholder={tr("{文字}")}
+                  placeholder={tr("{文字列}")}
                   vars
                   width={110}
                   onCommit={(v) => set((s) => ({ ...s, source: v }) as ScriptStep)}
@@ -383,7 +383,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
               find: (
                 <TextIn
                   value={step.find}
-                  placeholder={step.regex ? "\\d+" : tr("置き換える文字")}
+                  placeholder={step.regex ? "\\d+" : tr("探す文字列")}
                   vars
                   width={100}
                   onCommit={(v) => set((s) => ({ ...s, find: v }) as ScriptStep)}
@@ -469,7 +469,7 @@ export function StepBody({ step }: { step: ScriptStep }) {
             value: (
               <TextIn
                 value={step.value}
-                placeholder={tr("文字 / {変数}")}
+                placeholder={tr("文字列 / {変数}")}
                 vars
                 width={150}
                 onCommit={(v) => set((s) => ({ ...s, value: v }) as ScriptStep)}
@@ -507,7 +507,7 @@ function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page
   );
 }
 
-/** 「［値］を変数［］とする」（{名前} 1つだけなら配列・まとまりもそのまま入る） */
+/** 「［値］を変数［］とする」（{名前} 1つだけならリスト・まとまりもそのまま入る） */
 function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }) {
   const { doc, pageId, updateStep, samples, renameVar } = useContext(Ctx);
   const src = setVarSource(step);
@@ -537,7 +537,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
       {step.into && value !== undefined && value !== null && (
         <span className="se-blk-note">
           {Array.isArray(value)
-            ? tr("{length}件の一覧（リスト要素で並べられます）", { length: value.length })
+            ? tr("リスト・{length}件（リスト表示で並べられます）", { length: value.length })
             : isNested(value)
               ? tr("要素では {{into}.項目名} のように使えます", { into: step.into })
               : tr("見本: {p1}", { p1: readableValue(value) })}

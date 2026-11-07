@@ -21,7 +21,7 @@ import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";
 import { NodePicker } from "./targets";
 
-/** 「配列［］の要素ごとにくり返す」。中では要素の項目を {項目} で使える */
+/** 「リスト［］の要素ごとにくり返す」。中では要素の項目を {項目} で使える */
 function ForEachView({
   step,
   loc,
@@ -45,7 +45,7 @@ function ForEachView({
     );
     return [{ array: step.array, fields, roots: Object.keys(item ?? {}), samples }, ...outer];
   }, [sample, step.array, outer]);
-  // 配信前に値が決まる配列（見本がある）は、配信前に動く形でないと何もしない
+  // 配信前に値が決まるリスト（見本がある）は、配信前に動く形でないと何もしない
   const { doc, pageId } = ctx;
   const stuck = useMemo(
     () => sample !== undefined && !pagePlan(doc, pageId).serverIds.has(step.id),
@@ -56,7 +56,7 @@ function ForEachView({
       <div className="se-blk se-c-head" data-sel-key={key}>
         <Ico icon={IterationCw} cat={CAT_OF[step.kind]} />
         <Phrase
-          text="配列{array}の要素ごとにくり返す"
+          text="リスト{array}の要素ごとにくり返す"
           parts={{
             array: (
               <AnyArraySelect
@@ -69,7 +69,7 @@ function ForEachView({
         {step.array && <span className="se-blk-note">{tr("中では要素の項目を {項目} で使えます")}</span>}
         {stuck && !ctx.readOnly && (
           <span className="se-badge is-warn">
-            {tr("取得したデータの配列は、ページを開いたときのスクリプトの直下で、中を「項目として格納」と変数の「もし」だけにすると動きます")}
+            {tr("取得したデータのリストは、ページを開いたときのスクリプトの直下で、中を「項目として格納」と変数の「もし」だけにすると動きます")}
           </span>
         )}
       </div>

@@ -158,16 +158,16 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
   const source = singleValueReference(value);
   const local = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
   const sample = source ? lookupVar(variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), local), source) : undefined;
-  const kind = sample === undefined ? tr("実行時") : sample === null ? "null" : Array.isArray(sample) ? tr("一覧") :
-    typeof sample === "object" ? tr("まとまり") : typeof sample === "boolean" ? tr("はい／いいえ") :
-    typeof sample === "number" ? tr("数値") : tr("文字");
+  const kind = sample === undefined ? tr("実行時") : sample === null ? "null" : Array.isArray(sample) ? tr("リスト") :
+    typeof sample === "object" ? tr("項目付きデータ") : typeof sample === "boolean" ? tr("はい／いいえ") :
+    typeof sample === "number" ? tr("数値") : tr("文字列");
   if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
   return <span className="se-value-choice">
     <TextIn value={value} onCommit={onCommit} vars valueContext="value" width={width}
       itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("値 / {変数}")} />
     {source && <span className="se-value-info">
       <span className="vx-kind">{kind}</span>
-      {sample != null && typeof sample !== "object" && <span className="se-value-sample">{readableValue(sample)}</span>}
+      {(typeof sample === "number" || typeof sample === "boolean") && <span className="se-value-sample">{readableValue(sample)}</span>}
     </span>}
   </span>;
 }
@@ -254,7 +254,7 @@ export function FieldValueIn({
           {c.label}
         </option>
       ))}
-      <option value={OTHER_VALUE}>{tr("その他（変数・文字）…")}</option>
+      <option value={OTHER_VALUE}>{tr("その他（変数・文字列）…")}</option>
     </select>
   );
 }

@@ -16,11 +16,11 @@ const isNested = (v: unknown) => v != null && typeof v === "object";
 /** 値の種類（一覧 3件 / 4項目 / 文字 など） */
 function kindOf(v: unknown, note?: string): string {
   if (v === undefined) return note ? "" : tr("見本なし");
-  if (Array.isArray(v)) return tr("一覧・{length}件", { length: v.length });
-  if (v && typeof v === "object") return tr("{length}項目", { length: Object.keys(v).length });
+  if (Array.isArray(v)) return tr("リスト・{length}件", { length: v.length });
+  if (v && typeof v === "object") return tr("項目付きデータ・{length}項目", { length: Object.keys(v).length });
   if (typeof v === "number") return tr("数値");
   if (typeof v === "boolean") return tr("はい／いいえ");
-  return "";
+  return tr("文字列");
 }
 
 /** 中の子要素（配列は先頭5件まで） */
@@ -307,7 +307,7 @@ export default function VarExplorer({
           )}
         </div>
         <div className="vx-foot">
-          {context === "value" && <span>{tr("クリックで挿入します。まとまりは左の矢印で中の項目を開けます。")}</span>}
+          {context === "value" && <span>{tr("クリックで挿入します。リストや項目付きデータは左の矢印で中身を開けます。")}</span>}
           {hasAdvanced && (
             <button
               type="button"

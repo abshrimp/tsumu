@@ -30,8 +30,8 @@ function fixture(sample: readonly unknown[]) {
   state().replaceDoc(doc); state().setActivePage("p"); state().select("tag");
   const { default: SettingsPanel } = load("components/SettingsPanel.tsx", true);
   const panel = () => SettingsPanel({ nodeId: state().selection });
-  nodes(panel()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("リスト化"))!.props.onClick();
-  const row = nodes(panel()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "label" && x.props.children === "並べる配列"));
+  nodes(panel()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("リスト表示にする"))!.props.onClick();
+  const row = nodes(panel()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "label" && x.props.children === "表示するリスト"));
   const dropdown = nodes(row).find(n => n.props?.options && n.props?.placeholder === "選択してください").props;
   assert.ok(dropdown.options.some((o: any) => o.value === "tags"));
   dropdown.onChange("tags");

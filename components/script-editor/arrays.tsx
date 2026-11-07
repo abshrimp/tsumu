@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 一覧（配列）を扱うブロック（探す・項目を取り出す・つなげる・並べ替える・絞り込む）
+ * 一覧（リスト）を扱うブロック（探す・項目を取り出す・つなげる・並べ替える・絞り込む）
  */
 
 import { useContext, useMemo } from "react";
@@ -24,9 +24,9 @@ import { PathMenu, RESERVED_VARS, VarNameIn, nameFromPath } from "./fetch";
 import { OpEditor, Phrase, TextIn, ValueIn } from "./inputs";
 import { filterNumbersOf } from "./step-tree";
 
-/** 配列を選ぶ */
+/** リストを選ぶ */
 export function ArraySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  // 分解した配列・一覧を入れた変数（リスト要素で選べるものとそろえる）
+  // 分解したリスト・一覧を入れた変数（リスト要素で選べるものとそろえる）
   const { arrays } = useContext(Ctx);
   const known = !value || arrays.some((a) => a.name === value);
   return (
@@ -36,7 +36,7 @@ export function ArraySelect({ value, onChange }: { value: string; onChange: (v: 
       onChange={(e) => onChange(e.target.value)}
     >
       <option value="" disabled>
-        {arrays.length ? tr("配列を選択") : tr("配列がありません")}
+        {arrays.length ? tr("リストを選択") : tr("リストがありません")}
       </option>
       {arrays.map((a) => (
         <option key={a.name} value={a.name}>
@@ -48,7 +48,7 @@ export function ArraySelect({ value, onChange }: { value: string; onChange: (v: 
   );
 }
 
-/** 変数の見本から、配列の入った位置を探す（「記事.tags」のような入れ子も） */
+/** 変数の見本から、リストの入った位置を探す（「記事.tags」のような入れ子も） */
 function arrayPathsIn(samples: Record<string, unknown>): string[] {
   const out: string[] = [];
   const walk = (v: unknown, path: string, depth: number) => {
@@ -108,7 +108,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
       onChange={(e) => onChange(e.target.value)}
     >
       <option value="" disabled>
-        {all.length ? tr("配列を選択") : tr("配列がありません")}
+        {all.length ? tr("リストを選択") : tr("リストがありません")}
       </option>
       {named.map((n) => (
         <option key={n} value={n}>
@@ -116,7 +116,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
         </option>
       ))}
       {nested.length > 0 && (
-        <optgroup label={tr("変数の中の配列")}>
+        <optgroup label={tr("変数の中のリスト")}>
           {nested.map((n) => (
             <option key={n} value={n}>
               {fieldLabel(n)}
@@ -129,7 +129,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
   );
 }
 
-/** 配列の要素の項目（入れ子は「category.name」のような位置）を、見本から並べる */
+/** リストの要素の項目（入れ子は「category.name」のような位置）を、見本から並べる */
 export function itemFieldsOf(sample: unknown): string[] {
   const first = toListItems(sample)[0];
   if (!first) return [];
@@ -138,7 +138,7 @@ export function itemFieldsOf(sample: unknown): string[] {
     .filter((f) => !/(^|\.)\d+(\.|$)/.test(f));
 }
 
-/** 「配列［］の要素のうち、項目［］が［値］のものを変数［］とする」 */
+/** 「リスト［］の要素のうち、項目［］が［値］のものを変数［］とする」 */
 export function ArrayFindBody({ step }: { step: Extract<ScriptStep, { kind: "array-find" }> }) {
   const { doc, pageId, updateStep, samples } = useContext(Ctx);
   const set = (patch: Record<string, unknown>) =>
@@ -149,7 +149,7 @@ export function ArrayFindBody({ step }: { step: Extract<ScriptStep, { kind: "arr
   return (
     <>
       <Phrase
-        text="配列{array}の要素のうち、項目{field}が{value}のものを変数{into}とする"
+        text="リスト{array}の要素のうち、項目{field}が{value}のものを変数{into}とする"
         parts={{
           array: (
             <AnyArraySelect
@@ -204,7 +204,7 @@ export function ArrayFindBody({ step }: { step: Extract<ScriptStep, { kind: "arr
   );
 }
 
-/** 「配列［］の［…］を項目［］として格納する」 */
+/** 「リスト［］の［…］を項目［］として格納する」 */
 export function ArrayFieldBody({ step }: { step: Extract<ScriptStep, { kind: "array-field" }> }) {
   const { updateStep, samples } = useContext(Ctx);
   const set = (patch: Record<string, unknown>) =>
@@ -225,7 +225,7 @@ export function ArrayFieldBody({ step }: { step: Extract<ScriptStep, { kind: "ar
   return (
     <>
       <Phrase
-        text="配列{array}の{value}を項目{field}として格納する"
+        text="リスト{array}の{value}を項目{field}として格納する"
         parts={{
           array: <AnyArraySelect value={step.array} onChange={(array) => set({ array })} />,
           value: (
@@ -250,7 +250,7 @@ export function ArrayFieldBody({ step }: { step: Extract<ScriptStep, { kind: "ar
       {inLoop && <span className="se-blk-note">{tr("くり返し中の要素だけに格納します")}</span>}
       {step.field && result !== undefined && (
         <span className="se-blk-note">
-          {tr("リストの項目では {{field}} として使えます（見本: {sample}）", {
+          {tr("リスト表示の項目では {{field}} として使えます（見本: {sample}）", {
             field: step.field,
             sample: readableValue(result),
           })}
@@ -260,7 +260,7 @@ export function ArrayFieldBody({ step }: { step: Extract<ScriptStep, { kind: "ar
   );
 }
 
-/** 「配列［］を［、］でつないで変数［］とする」 */
+/** 「リスト［］を［、］でつないで変数［］とする」 */
 export function JoinBody({ step }: { step: Extract<ScriptStep, { kind: "join" }> }) {
   const { doc, pageId, updateStep, samples } = useContext(Ctx);
   const set = (patch: Record<string, unknown>) =>
@@ -313,9 +313,9 @@ export function JoinBody({ step }: { step: Extract<ScriptStep, { kind: "join" }>
   return (
     <>
       {objects || step.field ? (
-        <Phrase text="配列{array}の{field}を{sep}でつないで変数{into}とする" parts={parts} />
+        <Phrase text="リスト{array}の{field}を{sep}でつないで変数{into}とする" parts={parts} />
       ) : (
-        <Phrase text="配列{array}を{sep}でつないで変数{into}とする" parts={parts} />
+        <Phrase text="リスト{array}を{sep}でつないで変数{into}とする" parts={parts} />
       )}
       {step.into && typeof result === "string" && result && (
         <span className="se-blk-note">{tr("見本:")} {readableValue(result)}</span>
@@ -325,8 +325,8 @@ export function JoinBody({ step }: { step: Extract<ScriptStep, { kind: "join" }>
 }
 
 /**
- * 配列の項目を選ぶ（見本の1件目から。「›」で入れ子の中の項目も選べる）。
- * 文字や数値の配列は、各要素の値が {値} の項目になる
+ * リストの項目を選ぶ（見本の1件目から。「›」で入れ子の中の項目も選べる）。
+ * 文字や数値のリストは、各要素の値が {値} の項目になる
  */
 function ArrayFieldSelect({
   array,
@@ -348,7 +348,7 @@ export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "sor
     updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
   return (
     <Phrase
-      text="配列{array}を{field}の{dir}に並べ替える"
+      text="リスト{array}を{field}の{dir}に並べ替える"
       parts={{
         array: <ArraySelect value={step.array} onChange={(array) => set({ array })} />,
         field: <ArrayFieldSelect array={step.array} value={step.field} onChange={(field) => set({ field })} />,
@@ -440,7 +440,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "f
           <select
             className="se-in"
             value={step.join ?? "and"}
-            data-tip={tr("同じ配列のほかの絞り込みとのつなぎ方")}
+            data-tip={tr("同じリストのほかの絞り込みとのつなぎ方")}
             onChange={(e) => set({ join: e.target.value === "or" ? "or" : undefined })}
           >
             <option value="and">{tr("ほかの絞り込みと「かつ」")}</option>
@@ -448,7 +448,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "f
           </select>
         )}
         <Phrase
-          text="配列{array}を{field}が{cond}"
+          text="リスト{array}を{field}が{cond}"
           parts={{
             array: <ArraySelect value={step.array} onChange={(array) => set({ array })} />,
             field: <ArrayFieldSelect array={step.array} value={step.field} onChange={(field) => set({ field })} />,
