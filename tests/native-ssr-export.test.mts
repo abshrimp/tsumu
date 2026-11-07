@@ -104,7 +104,8 @@ test("Nuxt and SvelteKit enable SSR with server-side route data loading", () => 
   assert.match(nuxt.files["app/pages/index.vue"], /<Page0/);
   assert.match(nuxt.files["app/pages/[...slug].vue"], /useAsyncData/);
   const svelte = generateExportProject(site(), "sveltekit");
-  assert.match(svelte.files["svelte.config.js"], /adapter-node/);
+  assert.match(svelte.files["vite.config.ts"], /adapter-node/);
+  assert.equal(svelte.files["svelte.config.js"], undefined);
   assert.match(svelte.files["src/routes/+page.server.js"], /export async function load/);
   assert.match(svelte.files["src/routes/+page.server.js"], /requestPublic/);
   assert.match(svelte.files["src/routes/+page.svelte"], /<Page0/);
