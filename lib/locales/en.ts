@@ -3411,8 +3411,8 @@ const en: Dict = {
     "Disable",
   "有効・無効を切り替える":
     "Toggle enabled",
-  "ほかのブロックで作る変数":
-    "Variables made by other blocks",
+  "既存の変数を上書き":
+    "Overwrite an existing variable",
   "例: size（空 = ID属性）":
     "e.g. size (empty = ID attribute)",
   "同じグループのラジオボタンから1つだけ選べます。{{group}} が選んだボタンの値（表示テキスト）になります。":
