@@ -17,11 +17,21 @@ const fixtureFiles: Record<string, string | Buffer> = {
     <link id="print-sheet" rel="stylesheet" href="css/print.css" media="print">
     <link id="disabled-sheet" rel="stylesheet" href="css/disabled.css" disabled>
     <link id="alternate-sheet" rel="alternate stylesheet" href="css/alternate.css" title="Alternate">
+    <style>#inline-raw-query { background-image:url("images/background.svg?quot;"); }</style>
   </head><body>
     <div id="version">Original</div><input id="draft" aria-label="Draft"><div id="nested-rule">Nested import</div>
     <div id="import-order">Import order</div><div id="namespace-scope">HTML namespace</div>
     <svg width="7" height="5"><defs><filter id="identity"><feGaussianBlur stdDeviation="0" /></filter></defs><rect id="svg-rect" width="7" height="5" filter="url(#identity)" /></svg>
     <div id="background"></div><div id="external-resource">External resources</div><span id="font">X</span>
+    <style-card><div id="inline-custom" style='background-image:url("images/background.svg")'></div></style-card>
+    <div id="inline-double" style='background-image:url("images/background.svg")'></div>
+    <div id="inline-single" style="background-image:url('images/background.svg')"></div>
+    <div id="inline-unquoted" style="background-image:url(images/background.svg)"></div>
+    <div id="inline-query" style='background-image:url("images/background.svg?v=1&amp;theme=dark#paint")'></div>
+    <div id="inline-fragment" style='background-image:url("images/background.svg#paint")'></div>
+    <div id="inline-numeric" style="background-image:url(&#34;images/background.svg&#34;)"></div>
+    <div id="inline-image-set" style='background-image:image-set("images/background.svg" 1x)'></div>
+    <div id="inline-raw-query"></div>
     <img id="direct-image" src="images/direct.svg?cache=5#direct" alt="Fixture">
     <div id="print-only">Print</div><div id="disabled-only">Disabled</div>
     <div id="alternate-only">Alternate</div><div id="blocked-import">False condition</div>
