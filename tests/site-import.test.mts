@@ -8,6 +8,7 @@ import {
   parseSiteImport, validateImportedDoc,
 } from "../lib/site-import";
 import { requestedSiteImport } from "../lib/import-site-url";
+import { assertPublicUrl, BlockedUrlError } from "../lib/safe-fetch";
 
 const enc = new TextEncoder();
 const source = "https://downloads.example.test/site.zip";
@@ -114,4 +115,26 @@ test("import URL accepts one HTTP(S) query and rejects ambiguous or private sche
   assert.throws(() => requestedSiteImport(new URLSearchParams({
     doc: "file:///etc/passwd",
   })), /HTTP/);
+});
+
+test("remote URL fetching rejects private, metadata and credentialed destinations", async () => {
+  for (const url of [
+    "http://127.0.0.1/admin",
+    "http://169.254.169.254/latest/meta-data/",
+    "http://10.0.0.1/internal",
+    "http://localhost:8080/private",
+    "file:///etc/passwd",
+    "https://user:pass@example.com/doc.json",
+  ]) {
+    await assert.rejects(assertPublicUrl(url),
+      (error: unknown) => error instanceof BlockedUrlError, url);
+  }
+});
+
+test("archives with multiple editable documents are rejected before restoring assets", async () => {
+  const zip = new JSZip();
+  zip.file("first/_tsumu/doc.json", JSON.stringify(fixture()));
+  zip.file("second/_tsumu/doc.json", JSON.stringify(fixture()));
+  await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
+    "zip", source), /複数の編集データ/);
 });
