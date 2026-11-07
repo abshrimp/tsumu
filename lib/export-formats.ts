@@ -1,65 +1,132 @@
 import type { SiteDoc } from "./types";
 import { generateProject, type GeneratedProject } from "./generator";
 import { buildReactProject } from "./generator/react-export";
+import { applyExportStyle } from "./generator/style-export";
 import { tr } from "./i18n";
 
 export type ExportFormat = "nextjs" | "react" | "html";
+export type ExportLanguage = "typescript" | "javascript";
+export type ExportStyle = "css" | "css-modules" | "tailwind";
+export type ExportScope = "project" | "page" | "component";
+
+export interface ExportOptions {
+  framework: ExportFormat;
+  language: ExportLanguage;
+  style: ExportStyle;
+  scope: ExportScope;
+  pageId?: string;
+  nodeId?: string;
+}
+
+export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
+  framework: "nextjs",
+  language: "typescript",
+  style: "css",
+  scope: "project",
+};
+
+function optionsOf(options: ExportFormat | ExportOptions): ExportOptions {
+  return typeof options === "string"
+    ? { ...DEFAULT_EXPORT_OPTIONS, framework: options }
+    : options;
+}
+
+/** Export a page or selection without editing the source site. */
+export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
+  if (options.scope === "project") return doc;
+  const page = options.pageId ? doc.pages[options.pageId] : undefined;
+  if (!page) throw new Error(tr("書き出すページを選択してください。"));
+  if (options.scope === "page") {
+    return { ...doc, pages: { [page.id]: page }, pageOrder: [page.id] };
+  }
+  const node = options.nodeId ? doc.nodes[options.nodeId] : undefined;
+  if (!node) throw new Error(tr("書き出すコンポーネントを選択してください。"));
+  let id = "__tsumu_export_component__";
+  while (doc.pages[id]) id += "_";
+  const scopedPage = {
+    ...page,
+    id,
+    name: node.name || "Component",
+    title: node.name || "Component",
+    slug: "",
+    description: "",
+    query: undefined,
+    unpublished: false,
+    rawHtml: undefined,
+    redirectTo: undefined,
+    rewriteTo: undefined,
+    customTopHtml: undefined,
+    customEndHtml: undefined,
+    pageScripts: undefined,
+    children: [node.id],
+  };
+  return { ...doc, pages: { [id]: scopedPage }, pageOrder: [id] };
+}
 
 function publishedPages(doc: SiteDoc) {
   return doc.pageOrder.map((id) => doc.pages[id]).filter((page) => page && !page.unpublished);
 }
 
-/** Exports that cannot preserve a feature are blocked instead of silently dropping it. */
+/** Return concise unsupported feature names; the UI shows one shared explanation. */
 export function exportLimitations(
   doc: SiteDoc,
-  format: ExportFormat,
+  request: ExportFormat | ExportOptions,
   existing?: GeneratedProject,
 ): string[] {
-  if (format === "nextjs") return [];
+  const options = optionsOf(request);
+  try {
+    doc = exportScopeDoc(doc, options);
+  } catch (e) {
+    return [(e as Error).message];
+  }
+  if (options.framework === "nextjs") return [];
   const pages = publishedPages(doc);
   const reasons: string[] = [];
   const add = (bad: boolean, message: string) => {
     if (bad) reasons.push(tr(message));
   };
   add(pages.some((p) => /\[[^\]]+\]/.test(p.slug)),
-    "動的URL（[slug]など）はこの形式では出力できません。");
-  add(pages.some((p) => p.redirectTo !== undefined || p.rewriteTo !== undefined),
-    "リダイレクトとリバースプロキシはこの形式では出力できません。");
-  add(pages.some((p) => !!p.rawHtml?.trim()),
-    "HTMLページはこの形式では出力できません。");
-  add(pages.some((p) => !!p.query?.trim()),
-    "URLのクエリでページを区別する設定はこの形式では出力できません。");
-  const routes = pages.map((p) => p.slug.replace(/^\/+|\/+$/g, ""));
-  add(new Set(routes).size !== routes.length,
-    "同じURLに複数のページがある場合はこの形式では出力できません。");
-
-  // The generated file is authoritative: even a client-looking variable may
-  // cause Next.js to emit request-time rendering or ISR.
+    "動的URL（[slug]など）");
+  add(pages.some((p) => p.rewriteTo !== undefined || p.redirectTo !== undefined),
+    "リダイレクト・リバースプロキシ");
+  if (options.framework === "react") {
+    add(pages.some((p) => !!p.rawHtml?.trim()), "HTMLページ");
+  }
+  if (options.framework === "html") {
+    add(pages.some((p) => !!p.query?.trim()) ||
+      new Set(pages.map((p) => p.slug.replace(/^\/+|\/+$/g, ""))).size !== pages.length,
+      "クエリ別ページ");
+  }
   const project = existing ?? generateProject(doc);
   add(Object.entries(project.files).some(([path, source]) =>
-    /^app\/(?:.*\/)?page\.tsx$/.test(path) && /export default async function Page\b/.test(source)
-  ), "サーバーでデータや変数を処理するページはこの形式では出力できません。");
+    /^app\/(?:.*\/)?(?:_q\/p\d+|page)\.tsx$/.test(path) &&
+    /export default async function Page\b/.test(source)
+  ), "サーバーでのデータ取得・変数処理");
 
-  if (format === "react") {
-    add(!!project.files["components/SmartLink.tsx"],
-      "React出力では変数を含むリンク先に対応していません。");
-    add(!!project.files["components/SearchForm.tsx"],
-      "React出力では検索フォームに対応していません。");
-    add(!!doc.pwa?.enabled,
-      "React出力ではPWAに対応していません。");
-    add(!!doc.customBodyEndHtml?.trim(),
-      "React出力ではbody末尾のカスタムHTMLに対応していません。");
+  if (options.framework === "react") {
+    add(!!doc.customBodyEndHtml?.match(/<script\b/i),
+      "body末尾の実行スクリプト");
   }
   return reasons;
 }
 
-/** ZIP-only export choice. Publishing is deliberately unchanged and remains Next.js. */
-export function generateExportProject(doc: SiteDoc, format: ExportFormat = "nextjs"): GeneratedProject {
-  const next = generateProject(doc);
-  if (format === "nextjs") return next;
-  const limitations = exportLimitations(doc, format, next);
-  if (limitations.length) throw new Error(limitations.join("\n"));
-  return format === "react" ? buildReactProject(doc, next) : buildStaticHtmlProject(next);
+/** Synchronous generator for tests and normal TS/CSS code output. */
+export function generateExportProject(
+  doc: SiteDoc,
+  request: ExportFormat | ExportOptions = "nextjs",
+): GeneratedProject {
+  const options = optionsOf(request);
+  const scoped = exportScopeDoc(doc, options);
+  const next = generateProject(scoped);
+  const limitations = exportLimitations(scoped, { ...options, scope: "project" }, next);
+  if (limitations.length) {
+    throw new Error(tr("選択した形式では次の機能を利用できません。") + "\n" + limitations.join("\n"));
+  }
+  const generated = options.framework === "react"
+    ? buildReactProject(scoped, next)
+    : options.framework === "html" ? buildStaticHtmlProject(next) : next;
+  return options.style === "css" ? generated
+    : applyExportStyle(generated, options.framework, options.style);
 }
 
 /** A Next.js build that generates deployable HTML/CSS/JS in out/, not a server app. */
