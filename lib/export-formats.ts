@@ -1,6 +1,6 @@
 import type { SiteDoc } from "./types";
 import { pagePlan } from "./data";
-import { generateProject, type GeneratedProject } from "./generator";
+import { generateProject, type GeneratedProject, type PublishTarget } from "./generator";
 import { buildReactProject } from "./generator/react-export";
 import { generateStandaloneHtml } from "./generator/html-export";
 import { applyExportStyle } from "./generator/style-export";
@@ -148,10 +148,11 @@ export function exportLimitations(
 export function generateExportProject(
   doc: SiteDoc,
   request: ExportFormat | ExportOptions = "nextjs",
+  target: PublishTarget = "production",
 ): GeneratedProject {
   const options = optionsOf(request);
   const scoped = exportScopeDoc(doc, options);
-  const next = generateProject(scoped);
+  const next = generateProject(scoped, target);
   const limitations = exportLimitations(scoped, { ...options, scope: "project" }, next);
   if (limitations.length) {
     throw new Error(tr("選択した形式では次の機能を利用できません。") + "\n" + limitations.join("\n"));
@@ -163,3 +164,40 @@ export function generateExportProject(
     : applyExportStyle(generated, options.framework, options.style);
 }
 
+/**
+ * Common ZIP / GitHub Push pipeline: identical output files for both actions.
+ * The preview branch retains non-indexing protections even without Next.js.
+ */
+export async function prepareExportProject(
+  doc: SiteDoc,
+  request: ExportFormat | ExportOptions = "nextjs",
+  target: PublishTarget = "production",
+): Promise<GeneratedProject> {
+  const options = optionsOf(request);
+  let project = generateExportProject(doc, options, target);
+  if (options.framework !== "html" && options.language === "javascript") {
+    const { toJavaScriptProject } = await import("./generator/javascript-export");
+    project = await toJavaScriptProject(project, options.framework);
+  }
+  if (target !== "test" || options.framework === "nextjs") return project;
+
+  const files = { ...project.files };
+  const robots = "noindex, nofollow, noarchive, nosnippet, noimageindex";
+  const robotsMeta = '<meta name="robots" content="' + robots + '">';
+  const htmlFiles = options.framework === "html"
+    ? Object.keys(files).filter((path) => /\.html?$/i.test(path))
+    : ["index.html"];
+  for (const path of htmlFiles) {
+    if (!files[path]) continue;
+    if (/<head(?:\s[^>]*)?>/i.test(files[path])) {
+      files[path] = files[path].replace(/<head(?:\s[^>]*)?>/i, (head) => head + "\n" + robotsMeta);
+    } else {
+      files[path] = robotsMeta + "\n" + files[path];
+    }
+  }
+  files[options.framework === "html" ? "robots.txt" : "public/robots.txt"] =
+    "User-agent: *\nDisallow: /\n";
+  files[options.framework === "html" ? "_headers" : "public/_headers"] =
+    "/*\n  X-Robots-Tag: " + robots + "\n";
+  return { ...project, files };
+}
