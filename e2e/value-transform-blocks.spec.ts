@@ -122,7 +122,7 @@ test("scripted named state changes a distant element and reset restores its defa
   };
   const project = generateProject(doc);
   const css = project.files["styles/site.css"];
-  const className = /\\.([a-zA-Z0-9_-]+)\\[data-tsumu-state="selected"\\]/.exec(css)?.[1];
+  const className = /\.([a-zA-Z0-9_-]+)\[data-tsumu-state="selected"\]/.exec(css)?.[1];
   expect(className).toBeTruthy();
   await page.setContent('<html><body><button id="trigger">Activate</button><button id="reset">Reset</button><div id="remote">Target</div></body></html>');
   await page.addStyleTag({ content: css });
