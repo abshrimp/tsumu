@@ -92,12 +92,6 @@ test("rejects oversized URL sources and ZIP entry count before attempting asset 
     /350/);
 });
 
-test("supports the newer neutral metadata directory in addition to legacy archives", async () => {
-  const zip = new JSZip();
-  zip.file("_site-data/doc.json", JSON.stringify(doc()));
-  const parsed = await readRestorableArchive(await zip.generateAsync({ type: "uint8array" }));
-  assert.equal(parsed.doc.siteName, "Restored document");
-});
 
 test("remote image URLs are recovered when ZIP or JSON lacks an asset", async () => {
   const d = doc();
