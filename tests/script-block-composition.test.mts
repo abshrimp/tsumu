@@ -121,6 +121,18 @@ test("holiday dictionary transforms are previewable and serializable in generate
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
 });
 
+test("browser-only object-entry column names keep the transform out of SSR", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "dynamic-column", kind: "store-load", key: "chosen-field", into: "keyName" },
+    { id: "client-entries", kind: "transform", source: "data", into: "rows",
+      transform: { kind: "object-entries", keyField: "{keyName}", valueField: "値" } },
+  );
+  const plan = pagePlan(doc, "p");
+  assert.ok(!plan.serverIds.has("client-entries"));
+  assert.ok(plan.clientVars.has("rows"));
+});
+
 test("server data transforms interpolate strings and source variables without client-only adapters", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
