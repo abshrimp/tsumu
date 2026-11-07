@@ -33,6 +33,14 @@ try {
   if (!html.includes("Alpha") || !html.includes("Beta") || !html.includes("Reusable")) {
     throw new Error("SSR omitted a list row or reusable component: " + html.slice(0, 3500));
   }
+  // Native template delimiters entered as ordinary text must never execute.
+  const literal = "Literal {1 + 2} and {{ 3 + 4 }}";
+  if (!html.includes(literal) && !html.includes(literal.replaceAll("{", "&#123;").replaceAll("}", "&#125;"))) {
+    throw new Error("SSR interpreted authored text as template expressions:\n" + html.slice(0, 5000));
+  }
+  if (framework === "sveltekit" && !html.includes("Build smoke {1 + 2} test")) {
+    throw new Error("SvelteKit evaluated the authored site name as source code");
+  }
   console.log(framework + " SSR response rendered native heading, data rows and component");
 } finally {
   child.kill("SIGTERM");
