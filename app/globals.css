@@ -6561,6 +6561,11 @@ button.vx-chev:hover {
   overscroll-behavior: contain;
 }
 
+/* Give the first special target ("このページ" / trigger element) room below search. */
+.np-list > .np-special:first-child {
+  margin-top: 5px;
+}
+
 .np-row {
   display: flex;
   align-items: center;
@@ -12510,8 +12515,10 @@ a.btn {
 .se-composer-field-menu > button[aria-selected="true"] { font-weight: 600; }
 .se-composer-field-empty { margin: 0; padding: 10px 8px; color: var(--text-2); font-size: 12px; }
 .se-composer-step-actions {
+  grid-column: 4;
   display: flex;
   align-items: center;
+  justify-self: end;
   gap: 2px;
 }
 .se-composer-step-actions button {
@@ -12542,6 +12549,15 @@ a.btn {
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+/* Focus the entire add-action row, not only the native select inside its dashed edge. */
+.se-composer-add:focus-within {
+  border-style: solid;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.se-composer-add select:focus-visible {
+  outline: none;
 }
 .se-composer-result {
   display: flex;

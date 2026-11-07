@@ -40,18 +40,18 @@ test("検索欄のフォーカスは入力欄と外枠に二重表示されな�
 test("検索文字の有無で高さが変わらず、クリア操作は1つだけ", async ({ page }) => {
   const search = palette(page).getByRole("searchbox", { name: "操作を探す" });
   const wrapper = palette(page).locator(".se-pal-search");
-  const before = await wrapper.boundingBox();
-  expect(before).not.toBeNull();
+  // The workspace uses CSS zoom. boundingBox() includes transient zoom changes
+  // during the initial opening, so measure the element's actual CSS box instead.
+  const height = () => wrapper.evaluate((el) => (el as HTMLElement).offsetHeight);
+  const before = await height();
+  await expect(wrapper).toHaveCSS("height", "36px");
   await search.fill("件数");
   await expect(palette(page).getByRole("button", { name: "検索をクリア" })).toHaveCount(1);
-  const after = await wrapper.boundingBox();
-  expect(after).not.toBeNull();
-  expect(after!.height).toBe(before!.height);
+  expect(await height()).toBe(before);
   await expect(search).toHaveCSS("appearance", "none");
   await palette(page).getByRole("button", { name: "検索をクリア" }).click();
   await expect(search).toHaveValue("");
-  const cleared = await wrapper.boundingBox();
-  expect(cleared!.height).toBe(before!.height);
+  expect(await height()).toBe(before);
   await expect(palette(page).getByRole("button", { name: "検索をクリア" })).toHaveCount(0);
 });
 

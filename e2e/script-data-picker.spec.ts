@@ -215,3 +215,11 @@ for (const width of [1440, 375, 320]) {
     await expect(input).toHaveValue("Legacy {data.name}");
   });
 }
+
+
+test("きっかけの要素選択で「このページ」の上に適切な余白がある", async ({ page }) => {
+  await page.locator(".se-hat .np-btn").first().click();
+  const special = page.locator(".np .np-list > .np-special").filter({ hasText: "このページ" });
+  await expect(special).toBeVisible();
+  expect(await special.evaluate((el) => parseFloat(getComputedStyle(el).marginTop))).toBeGreaterThanOrEqual(4);
+});

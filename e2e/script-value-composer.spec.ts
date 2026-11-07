@@ -163,3 +163,34 @@ test("狭い幅でも項目の候補がモーダルに切られず選択でき�
   await expect(input).toHaveValue("detail");
   await expect(modal(page).locator("output")).toHaveText('{"title":"Nested"}');
 });
+
+
+test("加工追加のフォーカス枠は外側と揃い、アクションは入力の有無を問わず右端にある", async ({ page }) => {
+  await open(page);
+  const select = modal(page).getByRole("combobox", { name: "加工を追加" });
+  const wrapper = modal(page).locator(".se-composer-add");
+  const before = await wrapper.boundingBox();
+  await select.focus();
+  await expect(select).toBeFocused();
+  const styles = await select.evaluate((el) => ({
+    outline: getComputedStyle(el).outlineStyle,
+    border: getComputedStyle(el.closest(".se-composer-add")!).borderTopStyle,
+    color: getComputedStyle(el.closest(".se-composer-add")!).borderTopColor,
+  }));
+  expect(styles).toMatchObject({ outline: "none", border: "solid" });
+  expect(styles.color).not.toBe("rgba(0, 0, 0, 0)");
+  const after = await wrapper.boundingBox();
+  expect(after?.height).toBe(before?.height);
+
+  await add(page, "length"); // no parameter input: actions still occupy the last grid column
+  const row = modal(page).locator(".se-composer-step");
+  const actions = row.locator(".se-composer-step-actions");
+  await expect(actions).toBeVisible();
+  expect(await actions.evaluate((el) => getComputedStyle(el).gridColumnStart)).toBe("4");
+  const wideRow = await row.boundingBox(), wideActions = await actions.boundingBox();
+  expect(wideRow!.x + wideRow!.width - wideActions!.x - wideActions!.width).toBeLessThan(18);
+  await page.setViewportSize({ width: 390, height: 740 });
+  expect(await actions.evaluate((el) => getComputedStyle(el).gridColumnStart)).toBe("3");
+  const narrowRow = await row.boundingBox(), narrowActions = await actions.boundingBox();
+  expect(narrowRow!.x + narrowRow!.width - narrowActions!.x - narrowActions!.width).toBeLessThan(18);
+});
