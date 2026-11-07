@@ -18,6 +18,7 @@ export function reactSource(source: string): string {
     .replace(/^import type \{ Metadata \} from "next";\r?\n/gm, "")
     .replace(/export const metadata: Metadata = \{[\s\S]*?\n\};\s*/g, "")
     .replace(/^import (?:Link|Image) from "next\/(?:link|image)";\r?\n/gm, "")
+    .replace(/export default async function Page\(/g, "export default function Page(")
     .replace(/<Link(?=[\s>])/g, "<a")
     .replace(/<\/Link>/g, "</a>")
     .replace(/<Image(?=[\s>])/g, "<img")
