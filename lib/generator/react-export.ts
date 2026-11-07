@@ -241,6 +241,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
     'import { defineConfig } from "vite";',
     'import { fileURLToPath } from "node:url";', "",
     "export default defineConfig({",
+    '  esbuild: { jsx: "automatic" },',
     '  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },',
     "});", "",
   ].join("\n");
