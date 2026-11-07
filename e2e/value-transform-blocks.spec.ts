@@ -141,6 +141,44 @@ test("scripted named state changes a distant element and reset restores its defa
   await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(238, 238, 238)");
 });
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " runtime branches on the negation of a positive comparison", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "initial", [
+      { id: "flag", kind: "set-var", into: "flag", value: "blue" },
+      { id: "branch", kind: "if",
+        cond: { subject: "var", target: "", left: "{flag}", op: "contains", value: "red", not: true },
+        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ]);
+    await expect(answer).toHaveValue("accepted");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " runtime displays only entries matching an inverted list condition", async ({ page }) => {
+    const button = { ...makeBox(), id: "filterButton", attrId: "filterButton", scripts: [{
+      id: "on-click", trigger: "click" as const, pos: { x: 0, y: 0 },
+      steps: [{ id: "filter", kind: "list-display" as const, mode: "filter" as const,
+        array: "results", field: "name", op: "contains" as const,
+        value: "red", not: true, dir: "asc" as const }],
+    }] };
+    const doc: SiteDoc = {
+      siteName: "Negated filter", assets: {}, nodes: { filterButton: button }, pageOrder: ["p"],
+      pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["filterButton"] } },
+    };
+    await page.setContent('<html><body><button id="filterButton">Filter</button><section data-array="results"><div data-item=\'{"name":"red"}\' id="red">red</div><div data-item=\'{"name":"blue"}\' id="blue">blue</div></section></body></html>');
+    await page.locator("#filterButton").evaluate((element, scripts) =>
+      element.setAttribute("data-scripts", JSON.stringify(scripts)), compileScripts(button, () => "/"));
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.addScriptTag({ content: exported ? scriptsFile(doc) : "(" + SCRIPT_RUNTIME + ")({}).install(document);" });
+    await page.locator("#filterButton").click();
+    await expect(page.locator("#red")).toHaveCSS("display", "none");
+    await expect(page.locator("#blue")).toHaveCSS("display", "contents");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
