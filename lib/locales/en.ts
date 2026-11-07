@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。": "The ZIP contains the site’s complete editable source (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.",
   "単一のHTML": "Single HTML",
   "単一HTMLは1つの固定パスだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。": "Single HTML can export only one fixed path. If the project has multiple pages, choose Current page or export an HTML ZIP.",
   "画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数のページを同時に出力することはできません。": "Download one HTML file with embedded images, fonts, CSS and JavaScript. Multiple pages cannot be exported at the same time.",
