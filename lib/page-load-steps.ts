@@ -16,11 +16,15 @@ export function runPurePageSteps(
   interpolate: (text: string, scope: Record<string, unknown>) => string,
   evaluate: (input: unknown, transforms: readonly any[], variables?: Record<string, unknown>) => RecipeEvaluation,
   external: Record<string, unknown> = {},
-): void {
+): boolean {
   let budget = 0;
+  let exhausted = false;
   const maxBudget = 100_000;
+  // Commit only after the subtree completes, never publish partially updated data.
+  const staged = Object.assign(Object.create(null), vars) as Record<string, unknown>;
+  const changed = new Set<string>();
   const scopeOf = (locals: Record<string, unknown>) =>
-    Object.assign(Object.create(null), external, vars, locals) as Record<string, unknown>;
+    Object.assign(Object.create(null), external, staged, locals) as Record<string, unknown>;
   const compare = (left: string, right: string, operation: string): boolean => {
     switch (operation) {
       case "eq": return left === right;
@@ -40,14 +44,16 @@ export function runPurePageSteps(
   const rawRef = /^\{([^{}]+)\}$/;
   const write = (name: string, result: unknown) => {
     if (!name) return;
-    Object.defineProperty(vars, name, {
+    Object.defineProperty(staged, name, {
       value: result, enumerable: true, writable: true, configurable: true,
     });
+    changed.add(name);
   };
   const execute = (body: readonly ScriptStep[], locals: Record<string, unknown>, depth: number): void => {
-    if (depth > 16) return;
+    if (depth > 16) { exhausted = true; return; }
     for (const step of body) {
-      if (++budget > maxBudget) return;
+      if (exhausted) return;
+      if (++budget > maxBudget) { exhausted = true; return; }
       const scope = scopeOf(locals);
       switch (step.kind) {
         case "set-var": {
@@ -80,7 +86,8 @@ export function runPurePageSteps(
           if (!Array.isArray(source)) break;
           // The browser runtime skips nulls and nested arrays, and exposes
           // primitive items through the special `値` field.
-          for (let i = 0; i < source.length && budget < maxBudget; i++) {
+          for (let i = 0; i < source.length && !exhausted; i++) {
+            if (++budget > maxBudget) { exhausted = true; break; }
             const item = source[i];
             if (item == null || Array.isArray(item)) continue;
             const child = Object.assign(
@@ -93,11 +100,18 @@ export function runPurePageSteps(
         }
         case "repeat": {
           if (!Number.isInteger(step.times) || step.times < 1 || step.times > 1000) break;
-          for (let i = 0; i < step.times && budget < maxBudget; i++) execute(step.then, locals, depth + 1);
+          for (let i = 0; i < step.times && !exhausted; i++) execute(step.then, locals, depth + 1);
           break;
         }
       }
     }
   };
   execute(steps, Object.create(null) as Record<string, unknown>, 0);
+  if (exhausted) return false;
+  for (const key of changed) {
+    Object.defineProperty(vars, key, {
+      value: staged[key], enumerable: true, writable: true, configurable: true,
+    });
+  }
+  return true;
 }
