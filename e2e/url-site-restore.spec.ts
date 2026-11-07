@@ -67,7 +67,7 @@ async function localImport(page: Page, type: "zip" | "doc", includeAsset = true)
   expect(saved.doc.nodes.photo.image.assetId).toBe("cover");
   expect(saved.doc.pages[doc.pageOrder[0]].pageScripts[0].steps[0].kind).toBe("split");
   expect(saved.list.filter((record: any) => record.id === saved.id)).toHaveLength(1);
-  await expect(page.locator(".editor")).toBeVisible();
+  await expect(page.locator(".app")).toBeVisible();
   return saved;
 }
 
