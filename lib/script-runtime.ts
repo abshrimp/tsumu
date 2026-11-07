@@ -720,7 +720,8 @@ export const SCRIPT_RUNTIME = `function (env) {
             grp = true;
           }
           var fv = fieldOf(item, c.field);
-          grp = grp && cmp(fv == null ? "" : String(fv), c.op, c.value);
+          var matched = cmp(fv == null ? "" : String(fv), c.op, c.value);
+          grp = grp && (c.not ? !matched : matched);
         });
         return ok || grp;
       }
