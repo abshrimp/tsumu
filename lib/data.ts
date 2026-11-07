@@ -70,12 +70,8 @@ export function detectFields(items: Record<string, unknown>[]): string[] {
  */
 export function matchOp(v: string, op: ScriptOp | undefined, w: string): boolean {
   switch (op) {
-    case "neq":
-      return v !== w;
     case "contains":
       return v.includes(w);
-    case "not-contains":
-      return !v.includes(w);
     case "starts-with":
       return v.startsWith(w);
     case "ends-with":
@@ -86,8 +82,6 @@ export function matchOp(v: string, op: ScriptOp | undefined, w: string): boolean
       return parseFloat(v) < parseFloat(w);
     case "empty":
       return v === "";
-    case "not-empty":
-      return v !== "";
     case "in":
       return w.split(",").some((x) => x.trim() === v);
     default:
@@ -108,7 +102,7 @@ export function compareValues(a: unknown, b: unknown): number {
 export function filterConds(
   st: Extract<ScriptStep, { kind: "list-display" }>
 ): FilterCond[] {
-  return [{ field: st.field, op: st.op, value: st.value }, ...(st.or ?? [])].filter(
+  return [{ field: st.field, op: st.op, value: st.value, not: st.not }, ...(st.or ?? [])].filter(
     (c) => c.field
   );
 }
@@ -143,7 +137,8 @@ export function filterItems(
   const pass = (o: Extract<ListOp, { kind: "filter" }>, item: Record<string, unknown>) =>
     condGroups(o.conds).some((g) =>
       g.every((c) =>
-        matchOp(String(keyOfItem(item, c.field) ?? ""), c.op, c.value)
+        c.not ? !matchOp(String(keyOfItem(item, c.field) ?? ""), c.op, c.value) :
+          matchOp(String(keyOfItem(item, c.field) ?? ""), c.op, c.value)
       )
     );
   return items.filter((item) =>
