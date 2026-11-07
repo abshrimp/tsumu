@@ -16,7 +16,7 @@ test("all advertised transforms have stable, serializable defaults", () => {
   }
 });
 
-test("numeric arithmetic and comparison have explicit types and errors", () => {
+test("numeric arithmetic and text comparisons follow shared if/list rules", () => {
   assert.deepEqual(run(12, [
     { kind: "math", operation: "add", operand: 8 },
     { kind: "math", operation: "divide", operand: 4 },
@@ -32,23 +32,23 @@ test("numeric arithmetic and comparison have explicit types and errors", () => {
   assert.deepEqual(run(1e308, [{ kind: "math", operation: "multiply", operand: 10 }]),
     { kind: "error", code: "limit-exceeded" });
   assert.deepEqual(run(12, [
-    { kind: "compare", operation: "gt", operandType: "number", operand: "10" },
+    { kind: "compare", operation: "gt", operand: "10" },
     { kind: "not" },
   ]), val(false));
-  assert.deepEqual(run("10", [{ kind: "compare", operation: "eq", operandType: "number", operand: "10" }]), val(false));
-  assert.deepEqual(run("B", [{ kind: "compare", operation: "contains", operandType: "text", operand: "B" }]), val(true));
+  assert.deepEqual(run("10", [{ kind: "compare", operation: "eq", operand: "10" }]), val(true));
+  assert.deepEqual(run("B", [{ kind: "compare", operation: "contains", operand: "B" }]), val(true));
   assert.deepEqual(run(false, [{ kind: "not" }]), val(true));
   assert.deepEqual(run(0, [{ kind: "not" }]), { kind: "error", code: "type-mismatch" });
-  assert.deepEqual(run(10, [{ kind: "compare", operation: "gt", operandType: "number", operand: "NaN" }]), { kind: "error", code: "invalid-literal" });
+  assert.deepEqual(run(10, [{ kind: "compare", operation: "gt", operand: "NaN" }]), val(false));
 });
 
 test("value operations use if/list operators with negation and grouped AND/OR conditions", () => {
-  // Numeric fields use number-type operands; string templates remain available separately.
+  // A numeric comparison parses its input without a separate operand-type selector.
   const numeric = (input: unknown, not = false) => evaluateValueRecipe(input, [{
-    kind: "compare", operation: "gte", operand: "10", operandType: "number", not,
+    kind: "compare", operation: "gte", operand: "10", not,
     conditions: [
-      { field: "", operation: "lte", operand: "20", operandType: "number", and: true },
-      { field: "", operation: "eq", operand: "40", operandType: "number", and: false },
+      { field: "", operation: "lte", operand: "20", and: true },
+      { field: "", operation: "eq", operand: "40", and: false },
     ],
   }]);
   assert.deepEqual(numeric(15), val(true));
@@ -56,16 +56,16 @@ test("value operations use if/list operators with negation and grouped AND/OR co
   assert.deepEqual(numeric(40), val(true));
   assert.deepEqual(numeric(15, true), val(false));
   assert.deepEqual(evaluateValueRecipe("hello", [
-    { kind: "compare", operation: "contains", operandType: "text", operand: "lo", not: true },
+    { kind: "compare", operation: "contains", operand: "lo", not: true },
   ]), val(false));
   assert.deepEqual(evaluateValueRecipe("b", [
-    { kind: "compare", operation: "in", operandType: "text", operand: "a, b, c" },
+    { kind: "compare", operation: "in", operand: "a, b, c" },
   ]), val(true));
   assert.deepEqual(evaluateValueRecipe("", [
-    { kind: "compare", operation: "empty", operandType: "text", operand: "" },
+    { kind: "compare", operation: "empty", operand: "" },
   ]), val(true));
   assert.deepEqual(evaluateValueRecipe("text", [
-    { kind: "compare", operation: "empty", operandType: "text", operand: "", not: true },
+    { kind: "compare", operation: "empty", operand: "", not: true },
   ]), val(true));
 
   const items = [
@@ -73,20 +73,20 @@ test("value operations use if/list operators with negation and grouped AND/OR co
     { name: "Gamma", score: 25 }, { name: "Delta", score: 40 },
   ];
   const conditions = [
-    { field: "score", operation: "lte" as const, operand: "20", operandType: "number" as const, and: true },
-    { field: "name", operation: "contains" as const, operand: "Del", operandType: "text" as const, and: false },
+    { field: "score", operation: "lte" as const, operand: "20", and: true },
+    { field: "name", operation: "contains" as const, operand: "Del", and: false },
   ];
   assert.deepEqual(evaluateValueRecipe(items, [{
-    kind: "filter", field: "score", operation: "gte", operand: "10", operandType: "number",
+    kind: "filter", field: "score", operation: "gte", operand: "10",
     conditions,
   }]), val([items[0], items[1], items[3]]));
   assert.deepEqual(evaluateValueRecipe(items, [{
-    kind: "find", field: "name", operation: "contains", operand: "mm", operandType: "text",
+    kind: "find", field: "name", operation: "contains", operand: "mm",
     not: true,
   }]), val(items[0]));
   assert.deepEqual(evaluateValueRecipe(items, [{
-    kind: "filter", field: "score", operation: "gte", operand: "10", operandType: "number",
-    conditions: [{ field: "name", operation: "contains", operand: "t", operandType: "text", not: true, and: true }],
+    kind: "filter", field: "score", operation: "gte", operand: "10",
+    conditions: [{ field: "name", operation: "contains", operand: "t", not: true, and: true }],
   }]), val([items[0], items[2]]));
 });
 
@@ -135,7 +135,7 @@ test("text fields combine text and variables without switching input modes", () 
 
   const records = [{ name: "a", city: "京都" }, { name: "b", city: "東京" }];
   assert.deepEqual(evaluate(records, [{
-    kind: "filter", field: "{filterField}", operation: "eq", operandType: "text", operand: "{city}",
+    kind: "filter", field: "{filterField}", operation: "eq", operand: "{city}",
   }]), val([records[0]]));
   assert.deepEqual(evaluate(records, [{ kind: "map-field", field: "{dynamicField}" }]), val(["a", "b"]));
   assert.equal(JSON.stringify(evaluate(records, [{
@@ -148,7 +148,7 @@ test("text fields combine text and variables without switching input modes", () 
     kind: "append", operandType: "text", operand: "{entry}",
   }]), val([{ id: 3 }]), "a single token retains its native object value");
   assert.deepEqual(evaluate("田中さん", [{
-    kind: "compare", operation: "eq", operandType: "text", operand: "{name}{suffix}",
+    kind: "compare", operation: "eq", operand: "{name}{suffix}",
   }]), val(true));
   assert.deepEqual(evaluate([{ name: "a" }], [{
     kind: "map-set", field: "{danger}", operandType: "text", operand: "unsafe",
@@ -166,16 +166,16 @@ test("list find/filter/sort/map are immutable and distinguish missing from null"
   ];
   const before = structuredClone(original);
   assert.deepEqual(run(original, [
-    { kind: "filter", field: "meta.active", operation: "eq", operandType: "boolean", operand: "true" },
+    { kind: "filter", field: "meta.active", operation: "eq", operand: "true" },
     { kind: "sort", field: "id", direction: "desc" },
     { kind: "map-field", field: "name" },
   ]), val(["Beta", "Alpha"]));
   assert.deepEqual(run(original, [
-    { kind: "find", field: "id", operation: "eq", operandType: "number", operand: "3" },
+    { kind: "find", field: "id", operation: "eq", operand: "3" },
     { kind: "field", key: "name" },
   ]), val("Gamma"));
   assert.deepEqual(run(original, [
-    { kind: "find", field: "id", operation: "eq", operandType: "number", operand: "99" },
+    { kind: "find", field: "id", operation: "eq", operand: "99" },
   ]), { kind: "missing" });
   assert.deepEqual(run(original, [
     { kind: "map-set", field: "selected", operandType: "boolean", operand: "true" },
@@ -183,7 +183,7 @@ test("list find/filter/sort/map are immutable and distinguish missing from null"
   ]), val([true, true, true]));
   assert.deepEqual(original, before);
   assert.deepEqual(run(["red", "blue", "red"], [
-    { kind: "filter", field: "", operation: "eq", operandType: "text", operand: "red" },
+    { kind: "filter", field: "", operation: "eq", operand: "red" },
   ]), val(["red", "red"]));
   assert.deepEqual(run([{ score: 1 }, { score: null }], [
     { kind: "sort", field: "score", direction: "asc" },
@@ -203,16 +203,16 @@ test("runtime source serialization works with the generated helper shim", () => 
   assert.deepEqual(pure(5, [{ kind: "math", operation: "divide", operand: 2 }]), val(2.5));
 });
 
-test("comparisons and list operations resolve typed variables, including nested paths", () => {
+test("comparison fields interpolate variables without operand types", () => {
   assert.deepEqual(evaluateValueRecipe(12, [
-    { kind: "compare", operation: "gt", operandType: "variable", operand: "limit" },
+    { kind: "compare", operation: "gt", operand: "{limit}" },
   ], { limit: 10 }), { kind: "value", value: true });
   assert.deepEqual(evaluateValueRecipe([{ score: 2 }, { score: 5 }], [
-    { kind: "filter", field: "score", operation: "gte", operandType: "variable", operand: "settings.minimum" },
+    { kind: "filter", field: "score", operation: "gte", operand: "{settings.minimum}" },
     { kind: "map-field", field: "score" },
   ], { settings: { minimum: 5 } }), { kind: "value", value: [5] });
   assert.deepEqual(evaluateValueRecipe("abc", [
-    { kind: "compare", operation: "eq", operandType: "variable", operand: "missing" },
+    { kind: "compare", operation: "eq", operand: "{missing}" },
   ], {}), { kind: "error", code: "invalid-literal" });
 });
 
