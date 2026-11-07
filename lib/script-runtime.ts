@@ -1069,6 +1069,51 @@ export const SCRIPT_RUNTIME = `function (env) {
         for (k in b || {}) if (has(b, k)) o[k] = b[k];
         return o;
       }
+      /*#setvar*/
+      // Runtime data transforms also accept form values and URL parameters.
+      // Collect only actual variable tokens; do not turn unknown names into empty
+      // strings, since a missing whole-value reference must remain missing.
+      function transformScope(transform, self, local) {
+        var scope = merged(vars, local);
+        var count = 0;
+        function include(name) {
+          if (!name || count++ >= 64) return;
+          var rootName = name.split(".")[0];
+          if (has(scope, name) || has(scope, rootName)) return;
+          var exists = !!find(self, rootName).length || !!groupOf(rootName).length;
+          if (!exists) {
+            try { exists = new URLSearchParams(location.search).has(name); } catch (e) {}
+          }
+          if (exists) scope[name] = lookup(name, self, local);
+        }
+        function scan(value, depth) {
+          if (depth > 4) return;
+          if (typeof value === "string") {
+            var pos = 0;
+            while ((pos = value.indexOf("{", pos)) >= 0) {
+              var end = value.indexOf("}", pos + 1);
+              if (end < 0) break;
+              var name = value.slice(pos + 1, end);
+              var escaped = pos > 0 && value.charCodeAt(pos - 1) === 92;
+              if (!escaped && name && !Array.from(name).some(function (char) {
+                return char <= " " || char === "{" || char === "}" ||
+                  char === '"' || char === "'" || char === "<" || char === ">" ||
+                  char.charCodeAt(0) === 96;
+              })) include(name);
+              pos = end + 1;
+            }
+          } else if (Array.isArray(value)) {
+            value.forEach(function (entry) { scan(entry, depth + 1); });
+          } else if (value && typeof value === "object") {
+            Object.keys(value).forEach(function (key) { scan(value[key], depth + 1); });
+          }
+        }
+        scan(transform, 0);
+        if (transform.operandType === "variable" && typeof transform.operand === "string")
+          include(transform.operand);
+        return scope;
+      }
+      /*/setvar*/
       function exec(st, self, cx) {
         var sc = scopeOf(cx);
         switch (st.kind) {
@@ -1207,7 +1252,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (inputValue === undefined && !shadowed &&
                 st.transform.kind !== "fallback" && st.transform.kind !== "fallback-nullish")
               inputValue = lookup(st.source, self, sc);
-            var transformed = evalRecipe(inputValue, [st.transform], merged(vars, sc));
+            var transformed = evalRecipe(inputValue, [st.transform], transformScope(st.transform, self, sc));
             if (transformed.kind === "value") setVar(st.into, transformed.value);
             else if (transformed.kind === "missing") setVar(st.into, undefined);
             else if (transformed.kind === "error")
