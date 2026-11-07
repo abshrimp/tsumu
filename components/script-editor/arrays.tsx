@@ -184,17 +184,18 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
         >
           {tr("絞り込み{n}", { n: step.no ?? "?" })}
         </span>
-        {(others.length > 0 || step.join === "or") && (
-          <select
-            className="se-in"
-            value={step.join ?? "and"}
-            data-tip={tr("同じリストのほかの絞り込みとのつなぎ方")}
-            onChange={(e) => set({ join: e.target.value === "or" ? "or" : undefined })}
-          >
-            <option value="and">{tr("ほかの絞り込みと「かつ」")}</option>
-            <option value="or">{tr("ほかの絞り込みと「または」")}</option>
-          </select>
-        )}
+        <select
+          className="se-in se-fixed-select"
+          aria-label={tr("ほかの絞り込みとのつなぎ方")}
+          value={step.join ?? "and"}
+          data-tip={others.length
+            ? tr("同じリストのほかの絞り込みとのつなぎ方")
+            : tr("同じリストにほかの絞り込みがない間は結果に影響しません")}
+          onChange={(e) => set({ join: e.target.value === "or" ? "or" : undefined })}
+        >
+          <option value="and">{tr("ほかの絞り込みと「かつ」")}</option>
+          <option value="or">{tr("ほかの絞り込みと「または」")}</option>
+        </select>
         <Phrase
           text="リスト{array}を{field}が{cond}"
           parts={{
