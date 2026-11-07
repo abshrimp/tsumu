@@ -214,6 +214,9 @@ export async function restoreImportAssets(
         const result = await uploadStaticAsset(new File([bytes as Uint8Array<ArrayBuffer>], asset.name, { type: mime }));
         doc.assets[id] = {
           ...asset, ...result, id, name: asset.name,
+          width: asset.width > 0 ? asset.width : result.width,
+          height: asset.height > 0 ? asset.height : result.height,
+          svgFilter: asset.svgFilter ?? result.svgFilter,
           ...(result.path ? { dataUrl: undefined } : { path: undefined }),
         };
         if (result.path) createdPaths.push(result.path);
