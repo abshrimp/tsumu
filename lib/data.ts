@@ -439,6 +439,31 @@ export interface PagePlan {
  * Page-load control structures are eligible for SSR only when every nested
  * step is data-only. Browser actions are never swallowed by server evaluation.
  */
+/** References inside user-written text parameters also determine server/client placement. */
+function transformReferences(transform: TransformStep["transform"]): string[] {
+  const refs = (text: string) => extractVars(text);
+  let fields: string[] = [];
+  switch (transform.kind) {
+    case "field":
+    case "has": fields = refs(transform.key); break;
+    case "fallback":
+    case "fallback-nullish": fields = refs(transform.text); break;
+    case "split":
+    case "join": fields = refs(transform.separator); break;
+    case "replace": fields = [...refs(transform.find), ...refs(transform.replacement)]; break;
+    case "find":
+    case "filter":
+    case "map-set":
+    case "map-field":
+    case "sort": fields = refs(transform.field); break;
+  }
+  if ("operandType" in transform && transform.operandType === "variable" &&
+      typeof transform.operand === "string") fields.push(transform.operand);
+  else if ("operandType" in transform && transform.operandType === "text" &&
+      typeof transform.operand === "string") fields.push(...refs(transform.operand));
+  return fields;
+}
+
 function repeatVarName(value: number | string): string | null {
   if (typeof value !== "string") return null;
   return /^\{([^{}\s]+)\}$/.exec(value.trim())?.[1] ?? null;
@@ -526,8 +551,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       !clientVars.has(st.into) && !extractVars(st.value).some(isClient);
     if (st.kind === "transform") {
       if (!st.into || !st.source || clientVars.has(st.into) || isClient(st.source)) return false;
-      return !("operandType" in st.transform && st.transform.operandType === "variable" &&
-        typeof st.transform.operand === "string" && isClient(st.transform.operand));
+      return !transformReferences(st.transform).some(isClient);
     }
     if (st.kind === "for-each") return !!st.array && !isClient(st.array) &&
       st.then.length > 0 && st.then.every(isServerPure);
@@ -552,10 +576,9 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         // A load-time, pure value chain or constant assignment can run on the server.
         const src = st.kind === "transform" ? st.source : setVarSource(st);
         if (!st.into || (!src && !(st.kind === "set-var" && !extractVars(st.value).length))) continue;
-        const operand = st.kind === "transform" && "operandType" in st.transform &&
-          st.transform.operandType === "variable" && typeof st.transform.operand === "string"
-          ? st.transform.operand : null;
-        if ((src && isClient(src)) || (operand && isClient(operand)) || clientVars.has(st.into)) {
+        const clientParameter = st.kind === "transform" &&
+          transformReferences(st.transform).some(isClient);
+        if ((src && isClient(src)) || clientParameter || clientVars.has(st.into)) {
           clientVars.add(st.into);
         } else {
           steps.push(st);
@@ -772,8 +795,8 @@ export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimarySt
   const all = pageDataSteps(doc, pageId);
   for (const st of all) {
     if (st.kind === "transform" && st.into && st.source &&
-        st.transform.kind === "find" && st.transform.operandType === "variable" &&
-        st.transform.operand === "slug" && st.transform.field) return { step: st };
+        st.transform.kind === "find" && (st.transform.operandType === "variable" || st.transform.operandType === "text") &&
+        (st.transform.operand === "slug" || st.transform.operand === "{slug}") && st.transform.field) return { step: st };
   }
   const slugFetches = new Set(all.filter((st) =>
     st.kind === "fetch" && st.as && urlHasSlug(st.url)).map((st) => (st as FetchStep).as!));
@@ -881,7 +904,7 @@ export function previewDataVars(
           break;
         }
         const vars = scope();
-        const result = evaluateValueRecipe(lookupVar(vars, st.source), [st.transform], vars);
+        const result = evaluateValueRecipe(lookupVar(scope(), st.source), [st.transform], scope());
         if (result.kind === "value") {
           const origin = originFor(st.source);
           if (st.transform.kind === "length" && origin?.totals &&
@@ -1198,10 +1221,19 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
     }
     else if (st.kind === "transform") {
       st.source = fn(st.source) ?? st.source;
-      if ("operandType" in st.transform && st.transform.operandType === "variable" &&
-          typeof st.transform.operand === "string") {
-        st.transform = { ...st.transform, operand: fn(st.transform.operand) ?? st.transform.operand };
+      const t = st.transform;
+      let next = { ...t };
+      if ("operandType" in t && typeof t.operand === "string") {
+        if (t.operandType === "variable") next = { ...next, operand: fn(t.operand) ?? t.operand };
+        if (t.operandType === "text") next = { ...next, operand: mapVarTokens(t.operand, fn) };
       }
+      if (t.kind === "field" || t.kind === "has") next = { ...next, key: mapVarTokens(t.key, fn) };
+      if (t.kind === "fallback" || t.kind === "fallback-nullish") next = { ...next, text: mapVarTokens(t.text, fn) };
+      if (t.kind === "split" || t.kind === "join") next = { ...next, separator: mapVarTokens(t.separator, fn) };
+      if (t.kind === "replace") next = { ...next,
+        find: mapVarTokens(t.find, fn), replacement: mapVarTokens(t.replacement, fn) };
+      if ("field" in t) next = { ...next, field: mapVarTokens(t.field, fn) };
+      st.transform = next;
     }
     else if (
       st.kind === "copy" ||
