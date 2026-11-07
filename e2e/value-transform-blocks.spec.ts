@@ -443,6 +443,76 @@ test("canvas math supports selecting an existing variable as the arithmetic oper
   })).toMatchObject({ kind: "math", operandType: "variable", operand: "data" });
 });
 
+
+test("canvas list value transforms use one input without literal type dropdowns", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push(
+        { id: "append-value", kind: "transform", source: "data.tags", into: "added",
+          transform: { kind: "append", operand: "", operandType: "text" } },
+        { id: "remove-value", kind: "transform", source: "data.tags", into: "removed",
+          transform: { kind: "remove", operand: "", operandType: "text" } },
+        { id: "map-value", kind: "transform", source: "data.rows", into: "mapped",
+          transform: { kind: "map-set", field: "selected", operand: "", operandType: "text" } },
+      );
+    });
+  });
+  for (const id of ["append-value", "remove-value", "map-value"]) {
+    const box = page.locator(`[data-sel-key="step:${id}"]`);
+    await expect(box.getByRole("combobox", { name: "操作する値の種類" })).toHaveCount(0);
+    await expect(box.getByRole("combobox", { name: "比較する値の種類" })).toHaveCount(0);
+    await expect(box.locator(".se-composer-operand input")).toHaveCount(1);
+  }
+  const append = page.locator('[data-sel-key="step:append-value"]');
+  const appendValue = append.getByPlaceholder("追加・削除する値 / {変数}");
+  await appendValue.fill("42");
+  await appendValue.blur();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "append-value").transform;
+  })).toMatchObject({ operand: "42", operandType: "number" });
+  await appendValue.fill("{data.price}");
+  await appendValue.blur();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "append-value").transform;
+  })).toMatchObject({ operand: "{data.price}", operandType: "text" });
+  const remove = page.locator('[data-sel-key="step:remove-value"]');
+  await remove.getByPlaceholder("追加・削除する値 / {変数}").fill('"true"');
+  await remove.locator(".se-composer-operand input").blur();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "remove-value").transform;
+  })).toMatchObject({ operand: "true", operandType: "text" });
+  const map = page.locator('[data-sel-key="step:map-value"]');
+  await map.getByPlaceholder("設定する値 / {変数}").fill("null");
+  await map.locator(".se-composer-operand input").blur();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "map-value").transform;
+  })).toMatchObject({ operand: "", operandType: "null" });
+});
+
+test("canvas list sort uses ascending and descending labels", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "sort-labels", kind: "list-display", mode: "sort", array: "data.rows",
+        field: "title", op: "eq", value: "", dir: "asc",
+      });
+    });
+  });
+  const box = page.locator('[data-sel-key="step:sort-labels"]');
+  const direction = box.locator('select:has(option[value="asc"])');
+  await expect(direction.locator('option[value="asc"]')).toHaveText("昇順");
+  await expect(direction.locator('option[value="desc"]')).toHaveText("降順");
+  await direction.selectOption("desc");
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "sort-labels").dir;
+  })).toBe("desc");
+});
+
 test("canvas fallback uses one text field for text mixed with variables", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
