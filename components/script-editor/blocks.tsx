@@ -68,7 +68,7 @@ function ForEachView({
         {step.array && <span className="se-blk-note">{tr("中では要素の項目を {項目} で使えます")}</span>}
         {stuck && !ctx.readOnly && (
           <span className="se-badge is-warn">
-            {tr("この繰り返しはページの配信前には実行されません。読み込み時に取得したリストを加工するには「値を加工する」を使用してください。")}
+            {tr("ページを開いたときの処理では、このリストを「要素ごとにくり返す」で加工できません。代わりに「値を加工する」を使ってください。")}
           </span>
         )}
       </div>
