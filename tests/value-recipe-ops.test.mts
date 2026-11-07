@@ -43,15 +43,7 @@ test("numeric arithmetic and comparison have explicit types and errors", () => {
 });
 
 test("value operations use if/list operators with negation and grouped AND/OR conditions", () => {
-  const vars = { limit: 10, ceiling: 20, other: 40 };
-  const compare = (input: unknown, not = false) => evaluateValueRecipe(input, [{
-    kind: "compare", operation: "gt", operand: "{limit}", operandType: "text", not,
-    conditions: [
-      { field: "", operation: "lte", operand: "{ceiling}", operandType: "text", and: true },
-      { field: "", operation: "eq", operand: "{other}", operandType: "text", and: false },
-    ],
-  }], vars);
-  // Numeric fields require number-type operands, not stringified interpolation.
+  // Numeric fields use number-type operands; string templates remain available separately.
   const numeric = (input: unknown, not = false) => evaluateValueRecipe(input, [{
     kind: "compare", operation: "gte", operand: "10", operandType: "number", not,
     conditions: [
@@ -89,12 +81,12 @@ test("value operations use if/list operators with negation and grouped AND/OR co
     conditions,
   }]), val([items[0], items[1], items[3]]));
   assert.deepEqual(evaluateValueRecipe(items, [{
-    kind: "find", field: "name", operation: "contains", operand: "a", operandType: "text",
+    kind: "find", field: "name", operation: "contains", operand: "mm", operandType: "text",
     not: true,
   }]), val(items[0]));
   assert.deepEqual(evaluateValueRecipe(items, [{
     kind: "filter", field: "score", operation: "gte", operand: "10", operandType: "number",
-    conditions: [{ field: "name", operation: "contains", operand: "a", operandType: "text", not: true, and: true }],
+    conditions: [{ field: "name", operation: "contains", operand: "t", operandType: "text", not: true, and: true }],
   }]), val([items[0]]));
 });
 
