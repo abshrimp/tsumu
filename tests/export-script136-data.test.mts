@@ -173,7 +173,7 @@ test("new #136 object-entries produces named entry rows in generated browser and
   ]);
 });
 
-test("export preserves #136 variable references after obfuscating a transformation chain", () => {
+test("export preserves #136 variable references after obfuscating a transformation chain", async () => {
   const { doc, page } = fixture();
   page.pageScripts = [{ id: "chain", trigger: "load", pos: { x: 0, y: 0 },
     steps: [
