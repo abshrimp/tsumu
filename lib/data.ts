@@ -265,7 +265,7 @@ export function varGroupsAt(doc: SiteDoc, pageId: string, nodeId: string): VarGr
   const { item, pageVars } = scopeAt(doc, pageId, nodeId);
   const groups: VarGroup[] = [];
   if (item && Object.keys(item).length) {
-    groups.push({ key: "item", label: tr("リストの項目（1件ずつ変わる）"), vars: item });
+    groups.push({ key: "item", label: tr("リスト表示の項目（1件ずつ変わる）"), vars: item });
   }
   const data = namedVars(pageVars);
   if (Object.keys(data).length) {
@@ -336,7 +336,7 @@ export function varSamplesAt(
 ): Record<string, string> {
   const describe = (v: unknown): string => {
     if (Array.isArray(v)) return tr("{length}件のリスト", { length: v.length });
-    if (v && typeof v === "object") return tr("項目のまとまり");
+    if (v && typeof v === "object") return tr("項目付きデータ");
     const t = varText(v).replace(/\s+/g, " ");
     return t.length > 28 ? `${t.slice(0, 28)}…` : t;
   };

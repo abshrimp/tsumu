@@ -1027,14 +1027,26 @@ export function VarInput({
   const open = !!sug;
   useEffect(() => {
     if (!open) return;
-    const onScroll = (e: Event) => {
-      if (!menuRef.current?.contains(e.target as Node)) setSug(null);
+    const reposition = (e: Event) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      const input = ref.current;
+      if (!input || document.activeElement !== input) {
+        setSug(null);
+        return;
+      }
+      // Focusing an off-screen input scrolls the workspace. Keep the suggestion
+      // open, but follow the input instead of dismissing it on that scroll.
+      const rect = input.getBoundingClientRect();
+      setSug((current) => current && ({
+        ...current,
+        pos: varSuggestPos(rect, current.matches.length + (current.explore ? 1 : 0), rect.width),
+      }));
     };
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
     return () => {
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
     };
   }, [open]);
 

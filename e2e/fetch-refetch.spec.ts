@@ -49,9 +49,13 @@ test("初回は二つの操作だけ。取得は確認なしで一度送信し�
     const step = doc.pages.p.pageScripts[0].steps[0]; delete step.sample; delete step.fetchedAt;
   }));
   await expect(block(page).getByRole("button")).toHaveCount(2);
+  await expect(block(page).locator(".se-fetch-destination")).toHaveCount(0);
   await expect(block(page).getByRole("button", { name: "データ取得", exact: true })).toBeVisible();
   await expect(block(page).getByRole("button", { name: "リクエストの設定", exact: true })).toBeVisible();
   await send(page); await requests(page, 1);
+  await expect(result(page).locator(".se-fetch-destination")).toHaveCount(1);
+  await expect(result(page).locator(".se-fetch-destination")).toContainText("現在の設定の送信先");
+  await expect(result(page).locator(".se-fetch-destination")).not.toContainText("次の送信先");
   await expect(result(page).getByRole("status")).toHaveText("送信中…");
   await expect(page.getByRole("dialog", { name: "取得のテスト", exact: true })).toHaveCount(0);
   await expect(refresh(page)).toBeDisabled();
@@ -113,6 +117,32 @@ test("未知のslugはブロック内のテスト値を使い、取得と結果�
   await refresh(page).click(); await requests(page, 2);
   expect(await page.evaluate(() => (window as any).refetchRequests[1].input.url)).toBe("https://example.test/Row0/001/a%20b");
   await finish(page, 1, all);
+});
+
+test("保存済みの見本は最大20件で、全件の再取得方法を案内する", async ({ page }) => {
+  await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
+    const step = doc.pages.p.pageScripts[0].steps[0];
+    delete step.sample; delete step.fetchedAt;
+  }));
+  await send(page);
+  const all = Array.from({ length: 23 }, (_, i) => ({ name: `Row${i}` }));
+  await finish(page, 0, all);
+  await expect(result(page).getByText("Row22", { exact: true })).toBeVisible();
+  await expect(result(page)).not.toContainText("見本にはリストの先頭20件のみ保存されています");
+  await close(page);
+
+  // Restoring the saved document loses the full in-memory response, but not the preview.
+  await page.evaluate(() => {
+    const store = (window as any).refetchEditor.getState();
+    store.replaceDoc(JSON.parse(JSON.stringify(store.doc)));
+  });
+  await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
+  await expect(result(page)).toContainText("見本にはリストの先頭20件のみ保存されています");
+  await expect(result(page)).toContainText("全件を見るには右上の「取得し直す」");
+  await requests(page, 1);
+  await refresh(page).click(); await requests(page, 2);
+  await finish(page, 1, all);
+  await expect(result(page).getByText("Row22", { exact: true })).toBeVisible();
 });
 
 test("旧設定の応答やエラーは新設定の保留状態・見本・エラーを戻さず失敗後に再試行できる", async ({ page }) => {

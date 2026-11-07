@@ -83,7 +83,7 @@ export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?
   return next;
 }
 
-/** 葉のパスだけでなく、空のまとまり・一覧を含むローカルな名前全体を保つ。 */
+/** 葉のパスだけでなく、空のまとまり・リストを含むローカルな名前全体を保つ。 */
 export function fetchPreviewScope(nodeId: string, loops: readonly { fields: string[]; roots?: string[] }[]): FetchPreviewScope {
   return { nodeId, localNames: localVariableNames(loops.flatMap((loop) => [...(loop.roots ?? []), ...loop.fields])) };
 }
@@ -254,6 +254,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
   }, []);
   const key = wholeKey(step, useContext(Ctx).pageId, undefined, scope);
   const full = wholeCache.has(key);
+  const truncatedSample = Object.keys(step.sampleTotals ?? {}).length > 0;
   const method = step.method ?? "GET";
   const destination = state.missing ? step.url : interpolateUrl(step.url, state.vars);
   return <div ref={dialogRef} className="se-modal se-fetch-test" role="dialog" aria-modal="true"
@@ -285,7 +286,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
         }}><RefreshCw size={15} /></button>
       <button type="button" className="se-close" onClick={onClose} aria-label={tr("閉じる")}><X size={16} /></button>
     </div>
-    <div className="se-fetch-destination"><b>{method}</b><span>{destination}</span><small>{tr("次の送信先")}</small></div>
+    <div className="se-fetch-destination"><b>{method}</b><span>{destination}</span><small>{tr("現在の設定の送信先")}</small></div>
     {submitted && (submitted.url !== destination || submitted.method !== method) && (!resultSource || submitted.url !== resultSource.url || submitted.method !== resultSource.method) && <p className="hint se-fetch-submitted">{tr("最後に送信")}: {submitted.method} {submitted.url}</p>}
     <FetchValues state={state} busy={busy} />
     {!state.missing && (step.headers?.length || sendsBody(step.method) && step.body) ? <details className="se-fetch-payload">
@@ -297,7 +298,9 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
     {step.sample !== undefined && <>
       {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("この結果の送信先")}: {resultSource.method} {resultSource.url}</p>}
       {!hasCurrentSample(step) && <p className="se-badge is-warn">{tr("現在の設定で未確認の見本です")}</p>}
-      {!full && <p className="hint">{tr("（保存された見本を表示しています。一覧は先頭20件まで）")}</p>}
+      {!full && <p className="hint">{truncatedSample
+        ? tr("見本にはリストの先頭20件のみ保存されています。全件を見るには右上の「取得し直す」で再取得してください。")
+        : tr("保存された見本を表示しています。")}</p>}
       <JsonPeek value={full ? wholeCache.get(key) : step.sample} />
     </>}
   </div>;
@@ -455,7 +458,6 @@ export function FetchBody({ step }: { step: FetchStep }) {
         <SlidersHorizontal size={12} />
         {customized ? tr("リクエストの設定（{method}）", { method: step.method ?? "GET" }) : tr("リクエストの設定")}
       </button>
-      <span className="se-fetch-destination"><b>{step.method ?? "GET"}</b><span>{values.missing ? step.url : interpolateUrl(step.url, values.vars)}</span></span>
       {!hasResult && <FetchValues state={values} busy={busy} />}
       {step.method && step.method !== "GET" && <span className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</span>}
       {open && (
@@ -474,7 +476,7 @@ interface PathOption {
   value: unknown;
 }
 
-/** 位置の1段分の選択肢（オブジェクトは項目名、配列は「〇番目」と「最後」） */
+/** 位置の1段分の選択肢（オブジェクトは項目名、リストは「〇番目」と「最後」） */
 function childOptions(value: unknown): PathOption[] {
   if (Array.isArray(value)) {
     const out: PathOption[] = value
@@ -491,7 +493,7 @@ function childOptions(value: unknown): PathOption[] {
   return [];
 }
 
-/** 中身の分からない配列（画面を開いてから値が決まるもの）の位置の選択肢 */
+/** 中身の分からないリスト（画面を開いてから値が決まるもの）の位置の選択肢 */
 const UNKNOWN_ITEMS: PathOption[] = [
   ...[0, 1, 2, 3, 4].map((i) => ({ key: String(i), label: tr("{p1}番目", { p1: i + 1 }), value: undefined })),
   { key: "-1", label: tr("最後"), value: undefined },
@@ -500,10 +502,10 @@ const UNKNOWN_ITEMS: PathOption[] = [
 export const isNested = (v: unknown) => v != null && typeof v === "object";
 
 /**
- * 「取得したデータの［…］」「配列の［…］」の位置を選ぶメニュー。
+ * 「取得したデータの［…］」「リストの［…］」の位置を選ぶメニュー。
  * 項目を選ぶと決まり、「›」で中の項目へ進む。
- * mode: any = どこでも / list = 一覧（配列）だけ / item = 配列の何番目か（とその中）/
- *       field = 1件の中の項目（入れ子も可。比べられる値＝文字・数値と、文字や数値の一覧だけ選べる）
+ * mode: any = どこでも / list = リスト（リスト）だけ / item = リストの何番目か（とその中）/
+ *       field = 1件の中の項目（入れ子も可。比べられる値＝文字・数値と、文字や数値のリストだけ選べる）
  */
 export function PathMenu({
   root,
@@ -546,14 +548,14 @@ export function PathMenu({
     };
   }, [open]);
 
-  // 見本が無ければ位置を文字で入力する（配列の何番目かは選べる）
+  // 見本が無ければ位置を文字で入力する（リストの何番目かは選べる）
   if (root === undefined && mode !== "item") {
     return (
       <TextIn
         value={path}
         placeholder={
           mode === "list"
-            ? tr("一覧の位置（例: products）")
+            ? tr("リストの位置（例: products）")
             : mode === "field"
               ? tr("項目（例: name）")
               : tr("位置（例: data.title）")
@@ -568,7 +570,7 @@ export function PathMenu({
   const levelValue = at ? digPath(root, at) : root;
   const rows = !known ? (at ? [] : UNKNOWN_ITEMS) : childOptions(levelValue);
   const join = (key: string) => (at ? `${at}.${key}` : key);
-  /** 文字・数値だけの一覧（比べるときは「,」でつないだ文字になる） */
+  /** 文字・数値だけのリスト（比べるときは「,」でつないだ文字になる） */
   const primitiveList = (v: unknown) =>
     Array.isArray(v) && v.every((x) => x == null || typeof x !== "object");
   const canPick = (v: unknown) =>
@@ -581,7 +583,7 @@ export function PathMenu({
   const label = path
     ? fieldLabel(path)
     : mode === "list"
-      ? tr("一覧を選択")
+      ? tr("リストを選択")
       : mode === "item"
         ? tr("位置を選択")
         : mode === "field"
@@ -676,7 +678,7 @@ export function PathMenu({
             })}
             {known && !rows.length && <div className="se-pm-none">{tr("中に項目がありません")}</div>}
             {mode === "list" && known && !at && !findsList(root) && (
-              <div className="se-pm-none">{tr("一覧（配列）が見つかりません")}</div>
+              <div className="se-pm-none">{tr("リストが見つかりません")}</div>
             )}
           </div>,
           document.body
@@ -685,14 +687,14 @@ export function PathMenu({
   );
 }
 
-/** 中に一覧（配列）があるか */
+/** 中にリスト（リスト）があるか */
 function findsList(value: unknown, depth = 0): boolean {
   if (Array.isArray(value)) return true;
   if (!isNested(value) || depth > 4) return false;
   return Object.values(value as object).some((v) => findsList(v, depth + 1));
 }
 
-/** 上書きできない変数名（ページのURLの slug、配列の各要素の 値） */
+/** 上書きできない変数名（ページのURLの slug、リストの各要素の 値） */
 export const RESERVED_VARS = new Set(["slug", ITEM_VALUE]);
 
 /** 変数名の入力（同じ名前ならその変数を上書きする。名前を変えると、使っている箇所も書き換える） */
@@ -788,7 +790,7 @@ export function VarNameIn({
         matches.length > 0 &&
         createPortal(
           <div className="dd-menu var-comp" style={pos} data-se-popover="" onMouseDown={(e) => e.preventDefault()}>
-            <div className="var-comp-head">{tr("ほかのブロックで作る変数")}</div>
+            <div className="var-comp-head">{tr("既存の変数を上書き")}</div>
             <div className="var-comp-list">
               {matches.map((name, i) => (
                 <button
