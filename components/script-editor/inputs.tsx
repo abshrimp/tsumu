@@ -343,13 +343,15 @@ const COND_SUBJECTS: { value: string; label: string }[] = [
   { value: "hovered", label: tr("にホバーしている") },
 ];
 
-const OPS: { value: ScriptOp; label: string }[] = [
+export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string }[] = [
   { value: "eq", label: tr("と同じ") },
   { value: "contains", label: tr("を含む") },
   { value: "starts-with", label: tr("で始まる") },
   { value: "ends-with", label: tr("で終わる") },
   { value: "gt", label: tr("より大きい") },
+  { value: "gte", label: tr("以上") },
   { value: "lt", label: tr("より小さい") },
+  { value: "lte", label: tr("以下") },
   { value: "in", label: tr("のいずれかと同じ") },
   { value: "empty", label: tr("空") },
 ];
@@ -411,7 +413,7 @@ export function OpEditor({
             value={op}
             onChange={(e) => onChange(e.target.value as ScriptOp, value)}
           >
-            {OPS.map((o) => (
+            {CONDITION_OPERATORS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
