@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { digPath, filterItems, matchOp, pageArrays, pagePlan, previewDataVars, renameVarInPage } from "../lib/data";
+import { digPath, filterItems, matchOp, pageArrays, pagePlan, previewDataVars, renameVarInPage, setVarPath } from "../lib/data";
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
@@ -14,6 +14,24 @@ import { scriptDataPickerDoc } from "./helpers/script-data-picker";
 import { findPaletteItems, PALETTE } from "../components/script-editor/palette";
 import { connectNewTransform } from "../components/script-editor/step-tree";
 import type { ScriptStep } from "../lib/types";
+
+test("nested variable assignment never mutates prototypes or reads inherited paths", () => {
+  const vars: Record<string, unknown> = {};
+  setVarPath(vars, "__proto__", { polluted: true });
+  assert.deepEqual(Object.getPrototypeOf(vars), Object.prototype);
+  assert.equal(Object.prototype.hasOwnProperty.call(vars, "__proto__"), true);
+  assert.equal(lookupVar(vars, "__proto__.polluted"), true);
+  setVarPath(vars, "constructor.name", "owned");
+  assert.equal(lookupVar(vars, "constructor.name"), "owned");
+  setVarPath(vars, "result.__proto__.polluted", "local");
+  assert.equal(lookupVar(vars, "result.__proto__.polluted"), "local");
+  assert.equal(({} as Record<string, unknown>).polluted, undefined);
+  const original = { tags: ["red", "blue"] };
+  const nested: Record<string, unknown> = { data: original };
+  setVarPath(nested, "data.tags.0", "green");
+  assert.equal(lookupVar(nested, "data.tags.0"), "green");
+  assert.deepEqual(original.tags, ["red", "blue"], "nested writes must copy source values");
+});
 
 test("JSON lookup resolves own keys without traversing inherited prototypes", () => {
   const json = JSON.parse('{"2026-11-23":"勤労感謝の日","__proto__":{"polluted":true},"constructor":{"name":"own"}}');
