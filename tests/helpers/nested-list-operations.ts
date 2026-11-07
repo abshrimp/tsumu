@@ -21,7 +21,7 @@ export function nestedOperationsDoc(component = false, selected = true) {
     { id: "ascending-step", kind: "sort-array", array, field: "label", dir: "asc" },
     { id: "filter-step", kind: "filter-array", array, field: "label", op: "contains", value: "r", no: 1 },
     { id: "empty-step", kind: "filter-array", array, field: "label", op: "eq", value: "missing", no: 2 },
-    { id: "clear-step", kind: "unfilter-array", array },
+    { id: "clear-step", kind: "list-display", mode: "clear", array, field: "", op: "eq", value: "", dir: "asc" },
   ];
   for (const [i, action] of listActions.entries()) doc.nodes[action] = {
     ...makeText(action), id: action, attrId: action, semantic: "button",

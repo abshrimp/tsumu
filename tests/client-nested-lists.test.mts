@@ -89,10 +89,11 @@ test('newly deferred global sources keep literals and item roots shadow fallback
   const items: any[] = [{ name: 'Fallback' }, { name: 'Own', tags: [{ label: 'own' }] }, { name: 'Empty', tags: [] }, { name: 'Null', tags: null }, { name: 'Text', tags: 'not array' }];
   doc.pages.p.pageScripts![0].steps = [
     { id: 'fetch', kind: 'fetch', as: 'response', url: 'https://example.test/products', sample: items },
-    { id: 'fallback', kind: 'split', source: 'a"{literal},b', sep: ',', into: 'tags' },
+    { id: 'fallback-value', kind: 'set-var', value: 'a"{literal},b', into: 'tags' },
+    { id: 'fallback', kind: 'transform', source: 'tags', into: 'tags', transform: { kind: 'split', separator: ',' } },
   ];
   // 配信前の分解でも文字としての波括弧を保つ。
-  (doc.pages.p.pageScripts![0].steps[1] as any).source = 'a"\\{literal},b';
+  (doc.pages.p.pageScripts![0].steps[1] as Extract<import('../lib/types').ScriptStep, { kind: 'set-var' }>).value = 'a"\\{literal},b';
   doc.nodes.detail.text!.content = '{name}:{値}{label}';
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
   await runtime.click('reload');
@@ -108,8 +109,8 @@ test('static per-parent filters and sorting run before the nested limit', async 
   }
   const items = [{ name: 'First', wanted: 'r', tags: [{ label: 'red' }, { label: 'brown' }, { label: 'blue' }] }, { name: 'Second', wanted: 'e', tags: [{ label: 'yellow' }, { label: 'green' }, { label: 'black' }] }];
   doc.pages.p.pageScripts![0].steps.push(
-    { id: 'base-filter', kind: 'filter-array', array: 'tags', field: 'label', op: 'contains', value: '{wanted}' },
-    { id: 'base-sort', kind: 'sort-array', array: 'tags', field: 'label', dir: 'asc' },
+    { id: 'base-filter', kind: 'list-display', mode: 'filter', array: 'tags', field: 'label', op: 'contains', value: '{wanted}', dir: 'asc' },
+    { id: 'base-sort', kind: 'list-display', mode: 'sort', array: 'tags', field: 'label', dir: 'asc', op: 'eq', value: '' },
   );
   doc.nodes.tags.list!.limit = 1;
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
@@ -140,11 +141,11 @@ test('server fallback exposes only rendered fields and supports count without ac
     { id: 'fetch', kind: 'fetch', as: 'response', url: 'https://example.test/products', sample: items },
     { id: 'alias', kind: 'set-var', value: '{response}', into: 'tags' },
   ];
-  doc.nodes.reload.scripts![0].steps = [{ id: 'reload-step', kind: 'split', source: 'outer', sep: ',', into: 'items' }];
+  doc.nodes.reload.scripts![0].steps = [{ id: 'reload-raw', kind: 'set-var', value: 'outer', into: 'items' }, { id: 'reload-step', kind: 'transform', source: 'items', into: 'items', transform: { kind: 'split', separator: ',' } }];
   doc.nodes.detail.text!.content = '{label}';
   doc.nodes.detail.scripts = [{ id: 'hide-load', trigger: 'load', pos: { x: 0, y: 0 }, steps: [{ id: 'hide-load-step', kind: 'hide', target: '@self' }] }];
   doc.nodes.count = { ...makeText('count'), id: 'count', attrId: 'count', semantic: 'button', scripts: [{
-    id: 'count-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: 'count-step', kind: 'count', array: 'tags', into: 'total' }],
+    id: 'count-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: 'count-step', kind: 'transform', source: 'tags', into: 'total', transform: { kind: 'length' } }],
   }] };
   doc.nodes.total = { ...makeText('{total}'), id: 'total', attrId: 'total' };
   doc.pages.p.children.push('count', 'total');
@@ -181,7 +182,7 @@ test('live global arrays update independently without overwriting item-local arr
   doc.nodes.tags.list!.from = 'labels'; doc.nodes.detail.text!.content = '{name}:{値}';
   for (const [id, value] of [['global-a', 'one,two'], ['global-b', 'three']]) {
     doc.nodes[id] = { ...makeText(id), id, attrId: id, semantic: 'button', scripts: [{
-      id: `${id}-script`, trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: `${id}-step`, kind: 'split', source: value, sep: ',', into: 'labels' }],
+      id: `${id}-script`, trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: `${id}-raw`, kind: 'set-var', value, into: 'labels' }, { id: `${id}-step`, kind: 'transform', source: 'labels', into: 'labels', transform: { kind: 'split', separator: ',' } }],
     }] }; doc.pages.p.children.push(id);
   }
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
@@ -215,7 +216,7 @@ test('static filter values resolve server and item tokens once, preserving liter
       { id: 'needle', kind: 'set-var', value: '{response.0.needle}', into: 'needle' },
       { id: 'prefix', kind: 'set-var', value: '{response.0.prefix}', into: 'prefix' },
       { id: 'slug', kind: 'set-var', value: '{response.0.slug}', into: 'slug' },
-      { id: 'base-filter', kind: 'filter-array', array: 'tags', field: 'label', op: 'eq', value },
+      { id: 'base-filter', kind: 'list-display', mode: 'filter', array: 'tags', field: 'label', op: 'eq', value, dir: 'asc' },
     );
     const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
     await runtime.click('reload');
@@ -244,7 +245,7 @@ test('static nested filters prefer each parent value over a conflicting server f
     for (const into of ['wanted', 'choice', 'slug']) doc.pages.p.pageScripts![0].steps.push({
       id: `global-${into}`, kind: 'set-var', value: `{response.1.${into}}`, into,
     });
-    doc.pages.p.pageScripts![0].steps.push({ id: 'base-filter', kind: 'filter-array', array: 'tags', field: 'label', op: 'eq', value });
+    doc.pages.p.pageScripts![0].steps.push({ id: 'base-filter', kind: 'list-display', mode: 'filter', array: 'tags', field: 'label', op: 'eq', value, dir: 'asc' });
     const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
     await runtime.click('reload');
     assert.deepEqual(details(runtime), canvasDetails(doc, items), value);

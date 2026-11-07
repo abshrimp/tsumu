@@ -12405,16 +12405,23 @@ a.btn {
   flex: 1 1 90px;
   min-width: 0;
   max-width: 225px;
-  min-height: 30px;
-  font-size: 12px;
-}
-.se-composer-step-settings > input:not([type="checkbox"]),
-.se-composer-step-settings .se-composer-operand > input {
-  padding: 4px 8px;
-  border: 1px solid var(--border-strong);
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid transparent;
   border-radius: var(--radius-s);
-  background: var(--panel);
+  background: var(--field);
   color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+.se-composer-step-settings > .se-in:focus,
+.se-composer-step-settings .se-composer-operand > .se-in:focus,
+.se-composer-step-settings > input:not([type="checkbox"]):focus,
+.se-composer-step-settings .se-composer-operand > input:focus {
+  border-color: var(--accent);
+  background: var(--panel);
+  outline: none;
 }
 .se-composer-operand {
   display: flex;

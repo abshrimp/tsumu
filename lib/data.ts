@@ -13,6 +13,7 @@ import {
   lookupVar,
   pageQueryVars,
   urlHasSlug,
+  varText,
 } from "./vars";
 import { fieldStateNotes, fieldVarName, fieldVarNames, isRadioItem } from "./fields";
 import { tr, trc } from "./i18n";

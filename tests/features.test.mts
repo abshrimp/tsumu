@@ -209,7 +209,7 @@ test("pageReadsQuery detects POST body variables and keeps ISR for array-field i
       pos: { x: 0, y: 0 },
       steps: [
         { id: "f1", kind: "fetch", url: "https://api.example.com/items", as: "items", sample: [{ id: 1 }] },
-        { id: "af", kind: "array-field", array: "items", field: "badge", value: "NEW" },
+        { id: "af", kind: "transform", source: "items", into: "items", transform: { kind: "map-set", field: "badge", operand: "NEW", operandType: "text" } },
       ],
     },
   ]);
@@ -253,7 +253,7 @@ test("slug page generateMetadata preserves description, noindex and openGraph", 
             pos: { x: 0, y: 0 },
             steps: [
               { id: "f", kind: "fetch", url: "https://api.example.com/posts", as: "posts", sample: [{ slug: "a", title: "Hello" }] },
-              { id: "af", kind: "array-find", array: "posts", field: "slug", value: "{slug}", into: "post" },
+              { id: "af", kind: "transform", source: "posts", into: "post", transform: { kind: "find", field: "slug", operation: "eq", operand: "slug", operandType: "variable" } },
             ],
           },
         ],
@@ -281,7 +281,7 @@ test("obfuscateVarNames preserves array-field item keys and cloning renames grou
       pos: { x: 0, y: 0 },
       steps: [
         { id: "f1", kind: "fetch", url: "https://api.example.com/items", as: "items" },
-        { id: "af", kind: "array-field", array: "items", field: "label", value: "x" },
+        { id: "af", kind: "transform", source: "items", into: "items", transform: { kind: "map-set", field: "label", operand: "x", operandType: "text" } },
         { id: "sv", kind: "set-var", value: "y", into: "label" },
       ],
     },

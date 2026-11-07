@@ -129,8 +129,9 @@ test("generated components avoid framework names and the exported project typech
     id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
       { id: "fetch", kind: "fetch", url: "https://example.com/?q={q}", as: "items" },
       { id: "dyn", kind: "fetch", url: "{api}/items", as: "more" },
-      { id: "join", kind: "join", array: "items", field: "title", sep: ",", into: "titles" },
-      { id: "split", kind: "split", source: "{titles}", sep: ",", into: "parts" },
+      { id: "map", kind: "transform", source: "items", into: "titles", transform: { kind: "map-field", field: "title" } },
+      { id: "join", kind: "transform", source: "titles", into: "titles", transform: { kind: "join", separator: "," } },
+      { id: "split", kind: "transform", source: "titles", into: "parts", transform: { kind: "split", separator: "," } },
     ],
   }];
   // 計測タグなどのスクリプトを含むページ専用コード（ページ遷移で開いたときにも動かす）
@@ -220,7 +221,10 @@ test("a component whose root renders nothing returns null", () => {
 test("scripts in a browser-rendered list template keep the item's {names}", () => {
   const button: DocNode = { ...makeBox(), id: "pick", semantic: "button", text: { content: "Pick", heading: 0 }, scripts: click([{ id: "s", kind: "set-value", target: "kw", value: "{値}" }]) };
   const list: DocNode = { ...makeBox(), id: "list", type: "list", list: { from: "tags" }, children: ["pick"] };
-  const make: DocNode = { ...makeBox(), id: "make", scripts: click([{ id: "sp", kind: "split", source: "a,b", sep: ",", into: "tags" }]) };
+  const make: DocNode = { ...makeBox(), id: "make", scripts: click([
+    { id: "sp-source", kind: "set-var", value: "a,b", into: "tags" },
+    { id: "sp", kind: "transform", source: "tags", into: "tags", transform: { kind: "split", separator: "," } },
+  ]) };
   const page = generateProject(site([make, list], [button])).files["app/page.tsx"];
   assert.match(page, /data-client-list/);
   // 項目がまだない段階では空文字にせず、実行時に読む参照名を残す。

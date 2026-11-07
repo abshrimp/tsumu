@@ -11,7 +11,7 @@ import { dataVarNames, setVarSource, uniqueVarName } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { type ScriptStep } from "../../lib/types";
 import { filterNumbersOf } from "./step-tree";
-import { defaultTransform, type ValueRecipe, type ValueTransformKind } from "../../lib/script-model/compose";
+import { defaultTransform, type ValueTransformKind } from "../../lib/script-model/compose";
 import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
 import { tr } from "../../lib/i18n";
 import { ArraySelect, FilterArrayBody, SortArrayBody } from "./arrays";
@@ -414,7 +414,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
         }}
       />
       <div className="se-transform-settings">
-        <ValueTransformSettings transform={step.transform} options={options} samples={samples}
+        <ValueTransformSettings transform={step.transform} options={options} samples={sourceValues}
           onChange={(transform) => set({ transform })} />
       </div>
       {preview?.kind === "value" && (
