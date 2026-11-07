@@ -205,6 +205,43 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " value compare supports grouped AND/OR and not", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "15", [
+      { id: "parse-number", kind: "transform", source: "items", into: "items",
+        transform: { kind: "parse" } },
+      { id: "grouped", kind: "transform", source: "items", into: "items",
+        transform: { kind: "compare", operation: "gte", operand: "10", operandType: "number",
+          conditions: [
+            { field: "", operation: "lte", operand: "20", operandType: "number", and: true },
+            { field: "", operation: "eq", operand: "40", operandType: "number", and: false },
+          ] } },
+    ]);
+    await expect(answer).toHaveValue("true");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " filters records through OR groups and negative conditions", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported,
+      '[{"name":"Alpha","score":12},{"name":"Beta","score":18},{"name":"Gamma","score":25},{"name":"Delta","score":40}]', [
+        { id: "parse-items", kind: "transform", source: "items", into: "items",
+          transform: { kind: "parse" } },
+        { id: "filter", kind: "transform", source: "items", into: "items",
+          transform: { kind: "filter", field: "score", operation: "gte", operand: "10", operandType: "number",
+            conditions: [
+              { field: "score", operation: "lte", operand: "20", operandType: "number", and: true },
+              { field: "name", operation: "contains", operand: "Del", operandType: "text", and: false },
+            ] } },
+        { id: "names", kind: "transform", source: "items", into: "items",
+          transform: { kind: "map-field", field: "name" } },
+        { id: "join", kind: "transform", source: "items", into: "items",
+          transform: { kind: "join", separator: "," } },
+      ]);
+    await expect(answer).toHaveValue("Alpha,Beta,Delta");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
@@ -424,6 +461,30 @@ test("canvas fallback uses one text field for text mixed with variables", async 
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "fallback-inline").transform.text;
   })).toBe("こんにちは、{data.name}さん");
+});
+
+test("canvas value comparisons use the same predicates and joined clauses as list filters", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "compound", kind: "transform", source: "data.price", into: "eligible",
+        transform: { kind: "compare", operation: "eq", operand: "12", operandType: "number" },
+      });
+    });
+  });
+  const box = page.locator('[data-sel-key="step:compound"]');
+  await box.getByRole("combobox", { name: "比較方法" }).first().selectOption("gte");
+  await box.getByRole("combobox", { name: "条件の判定" }).first().selectOption("not");
+  await box.getByRole("button", { name: /かつ/ }).last().click();
+  await expect(box.getByRole("combobox", { name: "条件のつなぎ方" })).toHaveValue("and");
+  await box.getByRole("combobox", { name: "比較方法" }).nth(1).selectOption("lte");
+  await box.getByRole("button", { name: /または/ }).last().click();
+  await box.getByRole("combobox", { name: "条件のつなぎ方" }).nth(1).selectOption("or");
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "compound")?.transform;
+  })).toMatchObject({ kind: "compare", operation: "gte", not: true,
+    conditions: [{ operation: "lte", and: true }, { and: false }] });
 });
 
 test("canvas comparison offers existing variables and keeps the chosen reference", async ({ page }) => {
