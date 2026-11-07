@@ -19,6 +19,7 @@ import { CondEditor, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";
+import { ValueOperationSelect } from "./ValueOperationSelect";
 import { NodePicker } from "./targets";
 
 /** 「リスト［］の要素ごとにくり返す」。中では要素の項目を {項目} で使える */
@@ -213,6 +214,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
       {...handlers}
     >
       <Ico icon={STEP_ICON[step.kind]} cat={cat} />
+      <ValueOperationSelect step={step} />
       <ScriptStepCtx.Provider value={step.id}><StepBody step={step} /></ScriptStepCtx.Provider>
       {isDataStep(step) && !ctx.readOnly && !ctx.isPageLoadRoot(loc) && (
         <span className="se-badge is-warn">

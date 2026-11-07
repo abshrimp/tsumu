@@ -5,6 +5,15 @@ import help from "./en-help";
 
 const en: Dict = {
   "操作を探す": "Find an action",
+  "値の作り方": "Value operation",
+  "値をそのまま入れる": "Use a value",
+  "リストの件数を数える": "Count list items",
+  "リストを文字列につなぐ": "Join list into text",
+  "文字列をリストに分ける": "Split text into a list",
+  "リストから1件探す": "Find one item in a list",
+  "式を計算する": "Calculate an expression",
+  "文字列を置き換える": "Replace text",
+  "操作を変えても変数名は残ります。入力内容は必要に応じて設定し直してください。": "The output variable name is kept when switching operations. Update the inputs if needed.",
   "例：数える、保存、表示": "e.g. count, save, show",
   "検索をクリア": "Clear search",
   "一致する操作がありません": "No matching actions",
