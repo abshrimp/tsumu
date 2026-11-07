@@ -10,6 +10,11 @@ async function openExport(page: import("@playwright/test").Page) {
   const { site } = await result.json();
   const doc = createInitialDoc();
   doc.siteName = "Export UI";
+  // The starter site has a dynamic route unsupported by non-Next.js formats.
+  // Hide it only in this download-focused fixture; keep the restriction intact.
+  for (const item of Object.values(doc.pages)) {
+    if (/\[[^\]]+\]/.test(item.slug)) item.unpublished = true;
+  }
   expect((await page.request.put("/api/doc?site=" + site.id, { data: doc })).ok()).toBeTruthy();
   await page.goto("/sites/" + site.id);
   await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
