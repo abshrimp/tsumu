@@ -11,6 +11,40 @@ export interface ValueCondition {
 }
 export type SortDirection = "asc" | "desc";
 export type ValueOperandType = "text" | "number" | "boolean" | "null" | "variable";
+
+/**
+ * Use one editable text field for list-operation values. A whole {variable}
+ * reference retains its actual runtime type, and mixed text is interpolated.
+ * Numeric, boolean and null literals are inferred rather than selected.
+ * JSON-quoted strings disambiguate strings like "123", "true" and "null".
+ */
+const NUMERIC_LITERAL = /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/;
+const inferredLiteral = (text: string) =>
+  text === "null" || text === "true" || text === "false" ||
+  (NUMERIC_LITERAL.test(text) && Number.isFinite(Number(text)));
+
+export function parseValueOperandInput(input: string): { operand: string; operandType: ValueOperandType } {
+  if (input.startsWith('"') && input.endsWith('"')) {
+    try {
+      const literal: unknown = JSON.parse(input);
+      if (typeof literal === "string") return { operand: literal, operandType: "text" };
+    } catch { /* Invalid JSON quotes remain literal text. */ }
+  }
+  if (input === "null") return { operand: "", operandType: "null" };
+  if (input === "true" || input === "false") return { operand: input, operandType: "boolean" };
+  if (NUMERIC_LITERAL.test(input) && Number.isFinite(Number(input)))
+    return { operand: input, operandType: "number" };
+  return { operand: input, operandType: "text" };
+}
+
+export function formatValueOperandInput(operand: string, operandType: ValueOperandType): string {
+  if (operandType === "variable") return `{${operand}}`;
+  if (operandType === "null") return "null";
+  if (operandType === "text" && (inferredLiteral(operand) || operand.startsWith('"')))
+    return JSON.stringify(operand);
+  return operand;
+}
+
 export type ValueTransform =
   | { readonly kind: "field" | "has"; readonly key: string }
   | { readonly kind: "index"; readonly index: number }
