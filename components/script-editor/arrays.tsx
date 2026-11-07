@@ -132,8 +132,8 @@ export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "lis
         field: <ArrayFieldSelect array={step.array} value={step.field} onChange={(field) => set({ field })} />,
         dir: (
           <select className="se-in" value={step.dir} onChange={(e) => set({ dir: e.target.value })}>
-            <option value="asc">{tr("小さい順")}</option>
-            <option value="desc">{tr("大きい順")}</option>
+            <option value="asc">{tr("昇順")}</option>
+            <option value="desc">{tr("降順")}</option>
           </select>
         ),
       }}
