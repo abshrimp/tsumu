@@ -12303,3 +12303,50 @@ a.btn {
 .se-value-sample { opacity: .65; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
 .se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }
+
+
+/* Export dialog uses the editor's Dropdown and Seg controls. */
+.export-options {
+  border: 0;
+  padding: 0;
+  margin: 0 0 16px;
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+.export-option-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 14px;
+}
+.export-option {
+  min-width: 0;
+}
+.export-option-label {
+  font-size: 12px;
+  color: var(--text-2);
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+.export-modal .seg {
+  width: 100%;
+}
+.export-modal .seg > button {
+  min-width: 0;
+  white-space: normal;
+  font-size: 11px;
+  padding: 7px 5px;
+  line-height: 1.3;
+}
+.export-modal .dd {
+  width: 100%;
+}
+.export-modal .export-note {
+  margin: -5px 0 16px;
+  line-height: 1.55;
+}
+@media (max-width: 520px) {
+  .export-option-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
