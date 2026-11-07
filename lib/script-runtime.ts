@@ -205,9 +205,22 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   /*/value|var|filter*/
   /*#wait|repeat*/
+  // Numbers are literal unless the entire value is a {variable.path} reference.
+  function numericAmount(source, self, locals) {
+    var value = source;
+    if (typeof source === "string") {
+      var match = /^\\{([^{}\\s]+)\\}$/.exec(source.trim());
+      if (!match) return NaN;
+      value = lookup(match[1], self, locals);
+    }
+    if (value === null || value === undefined || typeof value === "boolean" ||
+        (typeof value === "string" && !value.trim())) return NaN;
+    var number = Number(value);
+    return Number.isFinite(number) ? number : NaN;
+  }
   function sleep(s) {
     return new Promise(function (res) {
-      setTimeout(res, Math.max(0, (Number(s) || 0) * 1000));
+      setTimeout(res, Math.min(86400, Math.max(0, s)) * 1000);
     });
   }
   /*/wait|repeat*/
@@ -1217,15 +1230,14 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*#repeat*/
       // times 回（0 = ずっと）中のブロックをくり返す。ずっとのときは止まらないよう少し間をあける
-      function loop(st, self, cx, n, active) {
-        var times = Number(st.times) || 0;
-        if (!active() || (times > 0 && n >= times)) return Promise.resolve();
+      function loop(st, self, cx, n, active, times, forever) {
+        if (!active() || (!forever && n >= times)) return Promise.resolve();
         return runSteps(st.then, self, cx, active)
           .then(function () {
-            return !active() || times > 0 ? null : sleep(0.05);
+            return !active() || !forever ? null : sleep(0.05);
           })
           .then(function () {
-            return loop(st, self, cx, n + 1, active);
+            return loop(st, self, cx, n + 1, active, times, forever);
           });
       }
       /*/repeat*/
@@ -1252,7 +1264,11 @@ export const SCRIPT_RUNTIME = `function (env) {
           while (active() && i < steps.length) {
             var st = steps[i++];
             /*#wait*/
-            if (st.kind === "wait") return sleep(st.seconds).then(next);
+            if (st.kind === "wait") {
+              var seconds = numericAmount(st.seconds, self, scopeOf(cx));
+              if (!Number.isFinite(seconds) || seconds < 0) continue;
+              return sleep(seconds).then(next);
+            }
             /*/wait*/
             /*#if*/
             if (st.kind === "if") {
@@ -1266,7 +1282,11 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*#repeat*/
             if (st.kind === "repeat") {
               if (!st.then || !st.then.length) continue;
-              return loop(st, self, cx, 0, active).then(next);
+              var count = numericAmount(st.times, self, scopeOf(cx));
+              if (!Number.isInteger(count) || count < 0 || count > 1000) continue;
+              var forever = typeof st.times === "number" && st.times === 0;
+              if (!forever && count === 0) continue;
+              return loop(st, self, cx, 0, active, count, forever).then(next);
             }
             /*/repeat*/
             /*#each*/
