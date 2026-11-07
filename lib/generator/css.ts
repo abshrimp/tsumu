@@ -18,6 +18,7 @@ import {
   STATE_ORDER,
 } from "../style";
 import { keyframesCss, motionCss } from "../motion";
+import { customStateSelector } from "../custom-states";
 
 /* ---------- フォント ---------- */
 
@@ -211,8 +212,10 @@ export function generateSiteCss(
       const bpStyles =
         node.styles[bp] ?? (bp === "base" ? {} : undefined);
       if (!bpStyles) continue;
-      for (const state of STATE_ORDER) {
+      const customStates = Object.keys(bpStyles).filter((state) => customStateSelector(state) !== null);
+      for (const state of [...STATE_ORDER, ...customStates]) {
         const map = { ...bpStyles[state] };
+        const suffix = customStateSelector(state) ?? STATE_INFO[state as keyof typeof STATE_INFO].pseudo;
         const isBaseDefault = bp === "base" && state === "default";
         // 画像・動画は width / height 属性の大きさで表示されるため、未指定なら auto に戻す
         //（他の要素は auto が既定値なので書かない）
@@ -225,7 +228,7 @@ export function generateSiteCss(
         for (const part of extractPartStyles(map)) {
           const rule = ruleFor(
             doc,
-            part.selector(`.${cls}${STATE_INFO[state].pseudo}`),
+            part.selector(`.${cls}${suffix}`),
             part.map,
             assetNames,
             bp === "base" ? "" : "  "
@@ -236,7 +239,7 @@ export function generateSiteCss(
         // テキスト選択（::selection）の色は専用ルールに分離する
         const selMap = extractSelectionStyles(map);
         if (selMap) {
-          const base = `.${cls}${STATE_INFO[state].pseudo}`;
+          const base = `.${cls}${suffix}`;
           const rule = ruleFor(
             doc,
             `${base}::selection, ${base} *::selection`,
@@ -264,7 +267,7 @@ export function generateSiteCss(
           ...(isBaseDefault ? motionDecls : []),
         ];
         if (!Object.keys(map).length && !extraDecls.length) continue;
-        const selector = `.${cls}${STATE_INFO[state].pseudo}`;
+        const selector = `.${cls}${suffix}`;
         let rule = ruleFor(
           doc,
           selector,
