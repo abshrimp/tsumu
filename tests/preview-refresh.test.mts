@@ -229,7 +229,7 @@ test("design refreshes replace nested and aliased totals, including removed or c
   const doc = previewRefreshDoc();
   doc.pages.home.pageScripts![0].steps.push(
     { id: "nested-alias", kind: "set-var", value: "{response.nested}", into: "nested" },
-    { id: "nested-count", kind: "count", array: "nested.rows", into: "nestedTotal" },
+    { id: "nested-count", kind: "transform", source: "nested.rows", into: "nestedTotal", transform: { kind: "length" } },
   );
   const m = mount("design", doc);
   const responses = [
@@ -243,16 +243,16 @@ test("design refreshes replace nested and aliased totals, including removed or c
   for (const [index, response] of responses.entries()) {
     void m.render().refreshData();
     await m.finish(index, response);
-    assert.equal(m.render().pageVars.total, Array.isArray(response.rows) ? response.rows.length : 0);
-    assert.equal(m.render().pageVars.nestedTotal, response.nested.rows?.length ?? 0);
+    assert.equal(m.render().pageVars.total, Array.isArray(response.rows) ? response.rows.length : undefined);
+    assert.equal(m.render().pageVars.nestedTotal, response.nested.rows?.length);
   }
   m.unmount();
 });
 
 test("a root array response clears its previous root sample total", async () => {
   const doc = previewRefreshDoc();
-  const count = doc.pages.home.pageScripts![0].steps.find((step) => step.kind === "count")!;
-  if (count.kind === "count") count.array = "response";
+  const count = doc.pages.home.pageScripts![0].steps.find((step) => step.id === "home-count")!;
+  if (count.kind === "transform") count.source = "response";
   const m = mount("design", doc);
   for (const [index, length] of [32, 3, 0, 23].entries()) {
     void m.render().refreshData();
@@ -273,7 +273,7 @@ test("successful blocks clear only their own totals while failed blocks retain l
   const savedAux = makeSample(previewRows("saved aux", 67));
   doc.pages.home.pageScripts![0].steps.push(
     { id: "auxiliary", kind: "fetch", url: "https://example.test/aux", as: "aux", sample: savedAux.sample, sampleTotals: savedAux.totals },
-    { id: "aux-count", kind: "count", array: "aux.rows", into: "auxTotal" },
+    { id: "aux-count", kind: "transform", source: "aux.rows", into: "auxTotal", transform: { kind: "length" } },
   );
   const m = mount("design", doc);
   void m.render().refreshData();

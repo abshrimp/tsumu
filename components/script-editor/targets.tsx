@@ -297,7 +297,6 @@ export function NodePicker({
       >
         <span>{label ?? placeholder}</span>
         {sub && <small className="np-sub">{sub}</small>}
-        <ChevronRight size={11} className="se-pm-chev" />
       </button>
       {open &&
         createPortal(

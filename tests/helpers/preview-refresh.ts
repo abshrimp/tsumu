@@ -20,7 +20,7 @@ export function previewRefreshDoc(): SiteDoc {
       pageScripts: [{ id: `${id}-load`, trigger: "load", pos: { x: 0, y: 0 }, steps: [
         { id: `${id}-fetch`, kind: "fetch", url: `https://example.test/${id}?q={q}&slug={slug}`, as: "response", sample: { label: `${id} saved`, rows: [{ id: "saved" }] } },
         { id: `${id}-value`, kind: "set-var", value: "{response}", into: "item" },
-        { id: `${id}-count`, kind: "count", array: "response.rows", into: "total" },
+        { id: `${id}-count`, kind: "transform", source: "response.rows", into: "total", transform: { kind: "length" } },
       ] }],
     }])),
   };
