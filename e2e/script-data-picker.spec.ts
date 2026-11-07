@@ -43,10 +43,19 @@ test("one value input keeps raw objects, save/load and Undo without mode or redu
   expect(await snapshot(page)).toEqual(changed);
 });
 
+test("numeric and boolean variable references show the type without duplicating sample values", async ({ page }) => {
+  for (const [reference, kind] of [["data.price", "数値"], ["data.available", "true/false"]] as const) {
+    await openPicker(page); await pick(page, reference);
+    const info = block(page, "value").locator(".se-value-info");
+    await expect(info.locator(".vx-kind")).toHaveText(kind);
+    await expect(info.locator(":scope > *")).toHaveCount(1);
+  }
+});
+
 test("string value hints and card hover remain inside rounded borders", async ({ page }) => {
   await openPicker(page); await pick(page, "data.name");
   await expect(block(page, "value").locator(".se-value-info .vx-kind")).toHaveText("文字列");
-  await expect(block(page, "value").locator(".se-value-sample")).toHaveCount(0);
+  await expect(block(page, "value").locator(".se-value-info > *")).toHaveCount(1);
   const valueBlock = block(page, "value");
   await valueBlock.hover();
   const style = await valueBlock.evaluate(el => {
