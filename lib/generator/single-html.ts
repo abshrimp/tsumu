@@ -217,8 +217,10 @@ export async function toSingleHtmlProject(
     async (whole, attrsBefore, _quote, ref, attrsAfter) => {
       if (/pwa\.js(?:[?#]|$)/i.test(ref)) return "";
       const file = resolved(ref, "index.html");
-      return "<script" + attrsBefore.replace(/\bdefer\b/g, "").replace(/\basync\b/g, "") +
-        attrsAfter + ">\n" + escInlineJs(await loadText(file)) + "\n</script>";
+      const attrs = (attrsBefore + " " + attrsAfter)
+        .replace(/\bdefer\b/g, "").replace(/\basync\b/g, "").trim();
+      return "<script" + (attrs ? " " + attrs : "") +
+        ">\n" + escInlineJs(await loadText(file)) + "\n</script>";
     });
 
   // Replace styles in inline style="background:url(...)" attributes.
