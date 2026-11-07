@@ -3,6 +3,7 @@ import { requireAuth } from "../../../lib/server";
 import { serverTr } from "../../../lib/i18n-server";
 import { BlockedUrlError, fetchPublic, TooLargeError } from "../../../lib/safe-fetch";
 import { SOURCE_LIMIT } from "../../../lib/url-site-import";
+import { readLimitedBytes, SourceTooLargeError } from "../../../lib/limited-bytes";
 
 export const maxDuration = 30;
 
@@ -29,17 +30,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: tr("取得元からファイルを読み込めませんでした") },
         { status: 502 });
     }
-    const length = Number(response.headers.get("content-length") || "0");
-    if (length > SOURCE_LIMIT) {
-      await response.body?.cancel().catch(() => {});
-      return NextResponse.json({ error: tr("URLから取得できるファイルは5MBまでです") },
-        { status: 413 });
-    }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > SOURCE_LIMIT) {
-      return NextResponse.json({ error: tr("URLから取得できるファイルは5MBまでです") },
-        { status: 413 });
-    }
+    const bytes = await readLimitedBytes(response, SOURCE_LIMIT);
     return new Response(bytes, {
       headers: {
         "Content-Type": "application/octet-stream",
@@ -52,7 +43,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: tr("安全でないURLからは取得できません") },
         { status: 400 });
     }
-    if (error instanceof TooLargeError) {
+    if (error instanceof TooLargeError || error instanceof SourceTooLargeError) {
       return NextResponse.json({ error: tr("URLから取得できるファイルは5MBまでです") },
         { status: 413 });
     }
