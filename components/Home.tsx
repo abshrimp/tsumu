@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { signOut } from "next-auth/react";
 import {
   ChevronRight,
@@ -515,12 +515,53 @@ export default function Home() {
     }
   }, [store]);
 
-  const onFileDrop = useCallback((event: DragEvent<HTMLElement>) => {
-    event.preventDefault();
-    setDraggingFile(false);
-    const file = event.dataTransfer.files[0];
-    if (file) void runFileImport(file);
-  }, [runFileImport]);
+  // ホーム画面のどこに落としても受け取る。通常のテキスト/リンクのドラッグは妨げない。
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (event: DragEvent) =>
+      !!event.dataTransfer && Array.from(event.dataTransfer.types).includes("Files");
+    const clear = () => {
+      depth = 0;
+      setDraggingFile(false);
+    };
+    const onEnter = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      depth++;
+      setDraggingFile(true);
+    };
+    const onOver = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = store && !importActive.current ? "copy" : "none";
+      if (depth === 0) depth = 1;
+      setDraggingFile(true);
+    };
+    const onLeave = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      depth = Math.max(0, depth - 1);
+      if (depth === 0) setDraggingFile(false);
+    };
+    const onDrop = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); // 未対応ファイルでもブラウザのファイル表示への遷移を防ぐ
+      const file = event.dataTransfer?.files[0];
+      clear();
+      if (file && store && !importActive.current) void runFileImport(file);
+    };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragover", onOver);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onDrop);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragover", onOver);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onDrop);
+      window.removeEventListener("blur", clear);
+    };
+  }, [store, runFileImport]);
 
   // エディタの「サイトの設定を開く」から来たときは、そのサイトの設定を開く
   useEffect(() => {
@@ -715,40 +756,6 @@ export default function Home() {
           </div>
         </div>
 
-        <div
-          className={`home-import-drop${draggingFile ? " is-dragging" : ""}`}
-          role="button"
-          tabIndex={store && !importActive.current ? 0 : -1}
-          aria-label={tr("ZIPまたはdoc.jsonをドロップしてインポート")}
-          aria-disabled={!store || importActive.current}
-          onClick={() => { if (store && !importActive.current) importFileInput.current?.click(); }}
-          onKeyDown={(event) => {
-            if ((event.key === "Enter" || event.key === " ") && store && !importActive.current) {
-              event.preventDefault();
-              importFileInput.current?.click();
-            }
-          }}
-          onDragEnter={(event) => {
-            if (!event.dataTransfer.types.includes("Files")) return;
-            event.preventDefault();
-            setDraggingFile(true);
-          }}
-          onDragOver={(event) => {
-            if (!event.dataTransfer.types.includes("Files")) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "copy";
-            setDraggingFile(true);
-          }}
-          onDragLeave={(event) => {
-            if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
-            setDraggingFile(false);
-          }}
-          onDrop={onFileDrop}
-        >
-          <FileUp size={18} />
-          <span>{tr("ZIPまたはdoc.jsonをドロップしてサイトをインポート")}</span>
-        </div>
-
         {importStatus && (
           <div className={`home-notice${importStatus.kind === "error" ? " is-error" : ""}`}
             role={importStatus.kind === "error" ? "alert" : "status"}>
@@ -830,6 +837,14 @@ export default function Home() {
       )}
       {settingsOpen && <AppSettings auth={!!status?.auth} onClose={() => setSettingsOpen(false)} />}
       <DialogHost />
+      {draggingFile && (
+        <div className="home-drop-overlay" aria-hidden="true">
+          <div className="home-drop-overlay-content">
+            <FileUp size={24} />
+            <span>{tr("ZIPまたはdoc.jsonをドロップしてサイトをインポート")}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
