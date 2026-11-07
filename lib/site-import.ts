@@ -139,8 +139,7 @@ export async function parseSiteImport(
   const docBytes = await documentEntry.async("uint8array");
   if (docBytes.length > IMPORT_LIMITS.docBytes) throw new Error("doc.jsonが大きすぎます。");
   const doc = validateImportedDoc(jsonText(docBytes));
-  const root = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("_") === -1
-    ? 0 : documentEntry.name.search(/(?:_tsumu|_site-data)\/doc\.json$/i));
+  const root = documentEntry.name.replace(/(?:_tsumu|_site-data)\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
   const mapEntry = zip.file(parent + "assets.json");
   let map: ArchiveAssetMap | null = null;
