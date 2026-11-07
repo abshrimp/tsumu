@@ -482,7 +482,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
   // published pages have no dedicated root route.
   if (!files["index.html"] && pages.length) {
     const first = pageFilename(pages[0], false);
-    const target = first === "404.html" ? "./404.html" : "./" + first.replace(/index\.html$/, "");
+    const target = "./" + first;
     files["index.html"] = '<!doctype html><html><head><meta charset="utf-8">' +
       '<meta http-equiv="refresh" content="0;url=' + escapeHtml(target) + '">' +
       '</head><body><a href="' + escapeHtml(target) + '">Open site</a></body></html>';
