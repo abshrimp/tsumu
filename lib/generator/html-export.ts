@@ -18,6 +18,7 @@ import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { EMPTY_GIF, pwaIconType } from "./templates";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME, pageDataPlan } from "./browser-data";
+import { QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeNavigationUrl } from "../url-policy";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
@@ -73,16 +74,17 @@ type Context = {
   form: boolean;
   template: boolean;
   instance?: { id?: string; hidden?: string };
+  spa?: boolean;
 };
 
 function resource(ctx: Context, assetId?: string): string {
   const name = ctx.assets.get(assetId || "");
-  return name ? ctx.prefix + "assets/" + name : "";
+  return name ? (ctx.spa ? "/assets/" : ctx.prefix + "assets/") + name : "";
 }
 
 function href(ctx: Context, value: string): string {
   const safe = safeNavigationUrl(value);
-  if (!/^\/(?!\/)/.test(safe)) return safe;
+  if (ctx.spa || !/^\/(?!\/)/.test(safe)) return safe;
   const match = /^([^?#]*)(.*)$/.exec(safe);
   const slug = (match?.[1] ?? safe).replace(/^\/+|\/+$/g, "");
   const page = Object.values(ctx.doc.pages).find((p) =>
@@ -95,6 +97,7 @@ function href(ctx: Context, value: string): string {
 function pageHref(ctx: Context, id: string): string {
   const p = ctx.doc.pages[id];
   if (!p) return "#";
+  if (ctx.spa) return "/" + p.slug.replace(/^\/+|\/+$/g, "");
   if (ctx.single && p.id === ctx.page.id) return ctx.prefix + "index.html";
   if (p.slug.replace(/^\/+|\/+$/g, "") === "404") return ctx.prefix + "404.html";
   const slug = p.slug.replace(/^\/+|\/+$/g, "");
@@ -282,6 +285,48 @@ function importedHtml(next: GeneratedProject, page: Page): string {
   return JSON.parse(match[1]) as string;
 }
 
+/**
+ * Render a data-driven page body that the shared browser runtime can populate.
+ * React can mount it through a component, and static HTML can embed it directly.
+ */
+function pageFragment(ctx: Context, page: Page): string {
+  const dataPlan = JSON.stringify(pageDataPlan(ctx.doc, page)).replace(/</g, "\\u003c");
+  const pageScripts = compiledAttr(ctx, { scripts: page.pageScripts }, pagePlan(ctx.doc, page.id).serverIds);
+  const body = page.children.map((id) => render(ctx, id, true)).join("\n");
+  return [
+    "<span hidden" + attr("data-page-body", page.id) + pageScripts + "></span>",
+    '<script type="application/json" data-page-plan>' + dataPlan + "</script>",
+    page.customTopHtml ? rewriteRootUrls(page.customTopHtml, ctx.prefix) : "",
+    body,
+    page.customEndHtml ? rewriteRootUrls(page.customEndHtml, ctx.prefix) : "",
+  ].filter(Boolean).join("\n");
+}
+
+export function reactClientPageFragment(doc: SiteDoc, page: Page): string {
+  const normalized = obfuscateVarNames(doc);
+  unnestLinks(normalized);
+  applyBreakpoints(normalized);
+  raiseOverCrispSvg(normalized);
+  const ctx: Context = {
+    doc: normalized,
+    page: normalized.pages[page.id],
+    prefix: "/",
+    single: false,
+    spa: true,
+    classes: buildClassNames(normalized),
+    assets: buildAssetNames(normalized),
+    toggles: new Set([
+      ...Object.values(normalized.nodes).flatMap((n) => scriptTargetIds(n, ["show", "toggle"])),
+      ...Object.values(normalized.pages).flatMap((p) =>
+        scriptTargetIds({ scripts: p.pageScripts }, ["show", "toggle"])),
+    ]),
+    seen: new Set(),
+    form: false,
+    template: false,
+  };
+  return pageFragment(ctx, ctx.page);
+}
+
 function fontsCss(doc: SiteDoc): string {
   const fonts = usedGoogleFonts(doc);
   const imports = fonts.map((f) => {
@@ -360,13 +405,19 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
   const pages = normalized.pageOrder.map((id) => normalized.pages[id])
     .filter((p) => p && !p.unpublished);
   const single = pages.length === 1;
+  const groups = new Map<string, Page[]>();
+  for (const page of pages) {
+    const key = page.slug.replace(/^\/+|\/+$/g, "");
+    groups.set(key, [...(groups.get(key) ?? []), page]);
+  }
   const outputPaths = new Set<string>();
   const toggles = new Set([
     ...Object.values(normalized.nodes).flatMap((n) => scriptTargetIds(n, ["show", "toggle"])),
     ...Object.values(normalized.pages).flatMap((p) =>
       scriptTargetIds({ scripts: p.pageScripts }, ["show", "toggle"])),
   ]);
-  for (const page of pages) {
+  for (const group of groups.values()) {
+    const page = group[0];
     const path = pageFilename(page, single);
     if (outputPaths.has(path)) throw new Error("Duplicate HTML output: " + path);
     outputPaths.add(path);
@@ -379,9 +430,24 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       doc: normalized, page, prefix, single, classes, assets, toggles,
       seen: new Set(), form: false, template: false,
     };
-    const dataPlan = JSON.stringify(pageDataPlan(normalized, page)).replace(/</g, "\\u003c");
-    const pageScripts = compiledAttr(ctx, { scripts: page.pageScripts }, pagePlan(normalized, page.id).serverIds);
-    const body = page.children.map((id) => render(ctx, id, true)).join("\n");
+    const body = group.length === 1
+      ? pageFragment(ctx, page)
+      : (() => {
+          files["query-router.js"] = QUERY_VARIANT_RUNTIME;
+          const variants = group.map((variant) => {
+            const context = { ...ctx, page: variant, seen: new Set<string>() };
+            return {
+              query: Object.fromEntries(new URLSearchParams(variant.query ?? "")),
+              title: variant.title || variant.name,
+              description: variant.description,
+              lang: variant.lang || normalized.lang || "ja",
+              html: pageFragment(context, variant),
+            };
+          });
+          return '<script type="application/json" data-page-variants>' +
+            JSON.stringify(variants).replace(/</g, "\\u003c") + '</script>' +
+            '<div data-variant-root style="display:contents"></div>';
+        })();
     const icon = normalized.favicon?.assetId ? resource(ctx, normalized.favicon.assetId) :
       normalized.favicon?.url ? href(ctx, normalized.favicon.url) : "";
     const head = [
@@ -396,17 +462,18 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       '<link rel="stylesheet" href="' + prefix + 'styles/site.css">',
       normalized.customHeadHtml || "",
     ].filter(Boolean).join("\n");
-    const scripts = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"].filter((name) => name in files)
+    const scripts = [
+      "inview.js",
+      ...(group.length > 1 ? ["query-router.js"] : []),
+      "data-loader.js", "scripts.js", "pwa.js",
+    ].filter((name) => name in files)
       .map((name) => '<script defer src="' + prefix + name + '"></script>').join("\n");
     files[path] = [
       "<!doctype html>",
       '<html lang="' + escapeHtml(page.lang || normalized.lang || "ja") + '">',
       "<head>", rewriteRootUrls(head, prefix), "</head>",
-      "<body>", "<span hidden" + attr("data-page-body", page.id) + pageScripts + "></span>",
-      '<script type="application/json" data-page-plan>' + dataPlan + "</script>",
-      page.customTopHtml ? rewriteRootUrls(page.customTopHtml, prefix) : "",
+      "<body>",
       body,
-      page.customEndHtml ? rewriteRootUrls(page.customEndHtml, prefix) : "",
       normalized.customBodyEndHtml ? rewriteRootUrls(normalized.customBodyEndHtml, prefix) : "",
       scripts, "</body>", "</html>", "",
     ].join("\n");
