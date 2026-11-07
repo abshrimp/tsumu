@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, ChevronsLeft, CornerDownLeft, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, ChevronsLeft, CornerDownLeft, Eye, EyeOff, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useEditor } from "../lib/store";
 import { commentId, openPostedComment, closeCommentIfOpen, useComments, type CommentDraft } from "../lib/comment-store";
 import { isAuthor, MAX_COMMENT_LENGTH, type CommentMessage, type CommentThread } from "../lib/comments";
@@ -328,6 +328,9 @@ export function CommentLayer({
   const breakpoint = useEditor((s) => s.breakpoint);
   const openId = useComments((s) => s.openId);
   const draft = useComments((s) => s.draft);
+  const pinsHidden = useComments((s) => s.pinsHidden);
+  /** ⌥（Alt）を押している間だけピンを隠す */
+  const [peeking, setPeeking] = useState(false);
   const threads = usePageThreads();
   const { open, setDraft, load } = useComments.getState();
   const [frameBox, setFrameBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
@@ -356,6 +359,25 @@ export function CommentLayer({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, [on]);
+
+  useEffect(() => {
+    if (!on) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Windows では Alt を単独で離すとブラウザのメニューに移るので止める
+      if (e.type === "keyup" && e.key === "Alt") e.preventDefault();
+      setPeeking(e.altKey && !e.metaKey && !e.ctrlKey);
+    };
+    const reset = () => setPeeking(false);
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    window.addEventListener("blur", reset);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", reset);
+      setPeeking(false);
+    };
   }, [on]);
 
   // ピンの位置（スクロール・拡大・幅の変更についていくため、毎フレーム測る）
@@ -458,7 +480,7 @@ export function CommentLayer({
       {hover && !draft && !openId && (
         <div className="cm-hover" style={{ left: hover.left, top: hover.top, width: hover.width, height: hover.height }} />
       )}
-      {pins.map((p) => {
+      {!pinsHidden && !peeking && pins.map((p) => {
         const t = threads.find((x) => x.id === p.id);
         if (!t) return null;
         const n = threads.indexOf(t) + 1;
@@ -481,7 +503,7 @@ export function CommentLayer({
           </button>
         );
       })}
-      {draft && draftPos && <span className="cm-pin is-draft" style={{ left: draftPos.left, top: draftPos.top }} />}
+      {draft && draftPos && !pinsHidden && !peeking && <span className="cm-pin is-draft" style={{ left: draftPos.left, top: draftPos.top }} />}
     </>
   );
 }
@@ -516,7 +538,8 @@ export function CommentsPanel() {
   const activePageId = useEditor((s) => s.activePageId);
   const bp = useEditor((s) => s.breakpoint);
   const draft = useComments((s) => s.draft);
-  const { open, setDraft, run } = useComments.getState();
+  const pinsHidden = useComments((s) => s.pinsHidden);
+  const { open, setDraft, run, setPinsHidden } = useComments.getState();
   const [allPages, setAllPages] = useState(false);
   const targetOf = useMemo(() => commentTargetResolver(doc, bp), [doc, bp]);
   // 閲覧中のスレッドはページ・絞り込み・ピン位置から独立させ、共同編集の削除でも入力を保つ。
@@ -560,6 +583,16 @@ export function CommentsPanel() {
       <div className="cm-panel-head">
         <MessageSquare size={14} />
         <strong>{tr("コメント")}</strong>
+        <button
+          type="button"
+          className={`icon-btn sm${pinsHidden ? " is-on" : ""}`}
+          aria-label={pinsHidden ? tr("ピンを表示") : tr("ピンを隠す")}
+          aria-pressed={pinsHidden}
+          data-tip={pinsHidden ? tr("キャンバスにピンを表示") : tr("キャンバスのピンを隠す（⌥を押している間も隠せます）")}
+          onClick={() => setPinsHidden(!pinsHidden)}
+        >
+          {pinsHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+        </button>
         <button type="button" className="icon-btn sm" aria-label={tr("コメントモードを終える")} data-tip={tr("コメントモードを終える（Esc）")} onClick={() => useComments.getState().setActive(false)}>
           <X size={14} />
         </button>
