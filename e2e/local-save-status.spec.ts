@@ -181,6 +181,43 @@ const warnsOnUnload = (page: Page) => page.evaluate(() => {
   return event.defaultPrevented;
 });
 
+test("browser-only mode warns only until the current edit is saved locally", async ({ page }) => {
+  const { id, errors } = await prepare(page, { blocked: false });
+  await page.route("**/api/status", route => route.fulfill({
+    json: { auth: false, db: false, assets: false, user: null },
+  }));
+  await failServer(page, 503);
+  await page.goto(`/sites/${id}`);
+  await expect(status(page)).toContainText(localSaved);
+  expect(await warnsOnUnload(page)).toBe(false);
+
+  await blockWrites(page, true);
+  await deleteHero(page);
+  expect(await warnsOnUnload(page)).toBe(true);
+  await expect(status(page)).toHaveText(localFailed);
+  expect(await warnsOnUnload(page)).toBe(true);
+
+  await blockWrites(page, false);
+  await status(page).click();
+  await expect(status(page)).toContainText(localSaved);
+  expect(await warnsOnUnload(page)).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test("a configured server still warns for unsynced edits even when the browser copy is saved", async ({ page }) => {
+  const { id, errors } = await prepare(page, { blocked: false });
+  await page.route("**/api/status", route => route.fulfill({
+    json: { auth: false, db: true, assets: false, user: null },
+  }));
+  await failServer(page, 503);
+  await page.goto(`/sites/${id}`);
+  await expect(status(page)).toContainText(localSaved);
+  await deleteHero(page);
+  await expect(status(page)).toContainText(localSaved);
+  expect(await warnsOnUnload(page)).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test("Home deletion invalidates an already saved local editor, preserving its draft, undo, copy and ZIP export", async ({ page: home, context }) => {
   const site = { ...emptyDest(), id: "local-autosave-deletion", name: "Local autosave deletion", createdAt: 1, updatedAt: 1 };
   const marker = `tsumu-site-deleted-v1:${site.id}`;
