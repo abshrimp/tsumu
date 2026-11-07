@@ -4,6 +4,18 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "HTML・CSS・JavaScript・画像をまとめたZIPをダウンロードします。展開後、index.htmlをブラウザで開くだけで表示できます。npmやビルドは不要です。": "Download a ZIP with ready-to-use HTML, CSS, JavaScript and images. Extract it and open index.html in your browser. No npm or build step is needed.",
+  "選んだ範囲をReact + Viteプロジェクトとして保存します。展開後に {cmd} で起動できます。": "Download the selected scope as a React + Vite project. Extract it, then run {cmd} to start.",
+  "選んだ範囲をNext.jsプロジェクトとして保存します。展開後に {cmd} で起動できます。": "Download the selected scope as a Next.js project. Extract it, then run {cmd} to start.",
+  "HTML形式はそのまま開けるファイルを出力するため、言語はJavaScript、スタイルはCSSに固定されます。": "The HTML format provides ready-to-open files, so language is JavaScript and styling is CSS.",
+  "動的URL（[slug]など）は、アクセス時にURLから値を取り出す必要があります。固定URLのページに変更するか、Next.js形式を選択してください。": "Dynamic URLs such as [slug] require request-time routing. Use fixed page URLs or select Next.js.",
+  "リダイレクトとリバースプロキシにはサーバーの処理が必要です。転送先への通常のリンクに変更するか、Next.js形式を選択してください。": "Redirects and reverse proxies require a server. Replace them with regular destination links or select Next.js.",
+  "取り込んだHTMLページをReactコンポーネントへ安全に変換できません。HTML形式なら元のHTMLをそのまま出力できます。": "Imported HTML pages cannot be reliably converted into React components. The HTML export preserves the original HTML.",
+  "同じURLをクエリ文字列で切り替えるページは、静的ファイルだけでは振り分けられません。ページごとに異なるURLに変更してください。": "Static files cannot choose between pages sharing one URL based on query strings. Give each page its own URL.",
+  "ページの表示前にサーバーでデータを取得・加工する設定があります。静的HTMLやブラウザのみのReactでは同じ結果を保証できません。Next.js形式を選択するか、取得処理をブラウザ実行に変更してください。": "Some pages fetch or transform data on the server before rendering. Plain HTML and client-only React cannot preserve that behavior. Select Next.js or move the data work to the browser.",
+  "body末尾のカスタムスクリプトは、Reactの画面更新時に実行タイミングが異なります。HTML形式で書き出すか、React用の処理へ移行してください。": "Custom end-of-body scripts may execute at a different time in React. Export as HTML or adapt the scripts to React.",
+  "CSS Modulesはモジュールを読み込むビルド工程が必要です。ビルド不要のHTML形式ではCSSを選択してください。": "CSS Modules require a bundler. For build-free HTML, select CSS.",
+  "Tailwind CSSのユーティリティ生成にはビルド工程が必要です。ビルド不要のHTML形式ではCSSを選択してください。": "Generating Tailwind utilities requires a build step. For build-free HTML, select CSS.",
   "フレームワーク": "Framework",
   "出力範囲": "Export scope",
   "選択したコンポーネント": "Selected component",
