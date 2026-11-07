@@ -160,7 +160,8 @@ function addTailwind(files: Record<string, string>, framework: ExportFormat) {
   const css = framework === "react" || framework === "vue" || framework === "sveltekit"
     ? "src/globals.css" : framework === "nuxt" ? "app/assets/globals.css" : "app/globals.css";
   // Preflight は読み込まない。書かれた見出し・レイアウト・フォームの既定値を変えてしまうため。
-  files[css] = '@import "tailwindcss/theme.css";\n@import "tailwindcss/utilities.css";\n\n' + files[css];
+  const [, leadingImports = "", rest = ""] = /^((?:@import\b[^\n]*;\n)*)([\s\S]*)$/.exec(files[css]) ?? [];
+  files[css] = leadingImports + '@import "tailwindcss/theme.css";\n@import "tailwindcss/utilities.css";\n\n' + rest;
   const pkg = JSON.parse(files["package.json"]) as { devDependencies: Record<string, string> };
   pkg.devDependencies.tailwindcss = "^4.1.0";
   if (framework === "react" || framework === "vue" || framework === "sveltekit") {

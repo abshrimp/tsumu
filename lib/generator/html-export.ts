@@ -562,14 +562,24 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
         })();
     const icon = normalized.favicon?.assetId ? resource(ctx, normalized.favicon.assetId) :
       normalized.favicon?.url ? sourceHref(ctx, normalized.favicon.url) : "";
+    const appleIcon = normalized.appleTouchIcon?.assetId ? resource(ctx, normalized.appleTouchIcon.assetId) :
+      normalized.appleTouchIcon?.url ? sourceHref(ctx, normalized.appleTouchIcon.url) : "";
+    const ogRef = page.ogImage ?? normalized.ogImage;
+    const ogSrc = ogRef?.assetId ? resource(ctx, ogRef.assetId) :
+      ogRef?.url ? sourceHref(ctx, ogRef.url) : "";
+    const pwaThemeColor = normalized.pwa?.enabled ? normalized.pwa.themeColor?.trim() : "";
     const head = [
       '<meta charset="utf-8">',
       '<meta name="viewport" content="width=device-width,initial-scale=1">',
       "<title>" + escapeHtml(page.title || page.name) + "</title>",
       group.some((variant) => variant.description) ? '<meta name="description" content="' + escapeHtml(page.description || "") + '">' : "",
       allNoindex ? '<meta name="robots" content="noindex,nofollow">' : "",
-      icon ? '<link rel="icon"' + attr("href", icon) + ">" : "",
+      icon && icon !== "#" ? '<link rel="icon"' + attr("href", icon) + ">" : "",
+      appleIcon && appleIcon !== "#" ? '<link rel="apple-touch-icon"' + attr("href", appleIcon) + ">" : "",
+      ogSrc && ogSrc !== "#" ? '<meta property="og:image"' + attr("content", ogSrc) + ">" : "",
+      ogSrc && ogSrc !== "#" ? '<meta name="twitter:card" content="summary_large_image">' : "",
       normalized.pwa?.enabled ? '<link rel="manifest" href="' + prefix + 'manifest.webmanifest">' : "",
+      pwaThemeColor ? '<meta name="theme-color"' + attr("content", pwaThemeColor) + ">" : "",
       '<link rel="stylesheet" href="' + prefix + 'styles/globals.css">',
       '<link rel="stylesheet" href="' + prefix + 'styles/site.css">',
       adobeHead ??= adobeFontHead(normalized),

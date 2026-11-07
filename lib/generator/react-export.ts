@@ -190,6 +190,8 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
   const assetNames = buildAssetNames(doc);
   const favicon = imageRefSrc(assetNames, doc.favicon);
   const appleIcon = imageRefSrc(assetNames, doc.appleTouchIcon);
+  const ogSrc = imageRefSrc(assetNames, doc.ogImage);
+  const pwaThemeColor = doc.pwa?.enabled ? doc.pwa.themeColor?.trim() : "";
   // Vite ではマニフェストと Service Worker は public のアセットなので、Next.js のルートは不要。
   const manifest = buildPwaManifest(doc, assetNames);
   if (manifest) {
@@ -197,8 +199,11 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
   }
   const icons = [
     doc.pwa?.enabled ? '<link rel="manifest" href="/manifest.webmanifest">' : "",
+    pwaThemeColor ? '<meta name="theme-color" content="' + esc(pwaThemeColor) + '">' : "",
     favicon ? '<link rel="icon" href="' + esc(favicon) + '">' : "",
     appleIcon ? '<link rel="apple-touch-icon" href="' + esc(appleIcon) + '">' : "",
+    ogSrc ? '<meta property="og:image" content="' + esc(ogSrc) + '">' : "",
+    ogSrc ? '<meta name="twitter:card" content="summary_large_image">' : "",
   ].filter(Boolean).join("\n    ");
   files["index.html"] = [
     "<!doctype html>", '<html lang="' + esc(doc.lang || "ja") + '">', "  <head>",

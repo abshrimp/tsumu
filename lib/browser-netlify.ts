@@ -41,8 +41,33 @@ function validProject(value: unknown): value is BrowserNetlifyProject {
     URL.canParse(project.url) && new URL(project.url).protocol === "https:";
 }
 
+function safeGetItem(storage: "localStorage" | "sessionStorage", key: string): string | null {
+  try {
+    return globalThis[storage]?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(storage: "localStorage" | "sessionStorage", key: string, value: string): void {
+  try {
+    if (!globalThis[storage]) throw new Error("Storage unavailable");
+    globalThis[storage].setItem(key, value);
+  } catch {
+    throw new Error("Browser storage is unavailable. Allow site data in your browser settings to connect Netlify.");
+  }
+}
+
+function safeRemoveItem(storage: "localStorage" | "sessionStorage", key: string): void {
+  try {
+    globalThis[storage]?.removeItem(key);
+  } catch {
+    // Ignore cleanup failures when storage access is blocked.
+  }
+}
+
 export function readNetlifyAccount(): BrowserNetlifyAccount | null {
-  const data = parseObject(localStorage.getItem(ACCOUNT_KEY));
+  const data = parseObject(safeGetItem("localStorage", ACCOUNT_KEY));
   if (!data || typeof data.token !== "string" || data.token.length < 12 ||
       data.token.length > 4096) return null;
   return { token: data.token,
@@ -53,16 +78,16 @@ export function readNetlifyAccount(): BrowserNetlifyAccount | null {
 
 /** The token is deliberately browser-owned, never included in the editable document. */
 export function saveNetlifyAccount(account: BrowserNetlifyAccount): void {
-  localStorage.setItem(ACCOUNT_KEY, JSON.stringify(account));
+  safeSetItem("localStorage", ACCOUNT_KEY, JSON.stringify(account));
 }
 
 export function disconnectNetlifyAccount(): void {
-  localStorage.removeItem(ACCOUNT_KEY);
+  safeRemoveItem("localStorage", ACCOUNT_KEY);
 }
 
 export function readNetlifySite(siteId: string): BrowserNetlifySite | null {
   if (!isSiteId(siteId)) return null;
-  const data = parseObject(localStorage.getItem(siteKey(SITE_KEY, siteId)));
+  const data = parseObject(safeGetItem("localStorage", siteKey(SITE_KEY, siteId)));
   if (!data || !validId(data.userId) || !validId(data.teamId) ||
       typeof data.teamSlug !== "string" || !/^[a-z0-9][a-z0-9-]{0,62}$/.test(data.teamSlug) ||
       !(data.production === null || validProject(data.production)) ||
@@ -77,12 +102,12 @@ export function saveNetlifySite(siteId: string, value: BrowserNetlifySite): void
       !(value.production === null || validProject(value.production))) {
     throw new Error("Invalid Netlify site settings.");
   }
-  localStorage.setItem(siteKey(SITE_KEY, siteId), JSON.stringify(value));
+  safeSetItem("localStorage", siteKey(SITE_KEY, siteId), JSON.stringify(value));
 }
 
 export function disconnectNetlifySite(siteId: string): void {
   if (!isSiteId(siteId)) return;
-  localStorage.removeItem(siteKey(SITE_KEY, siteId));
+  safeRemoveItem("localStorage", siteKey(SITE_KEY, siteId));
 }
 
 export function saveNetlifyProject(siteId: string, target: Target, project: BrowserNetlifyProject): void {
@@ -103,7 +128,7 @@ export function startNetlifyOAuth(siteId: string, config: { clientId: string; re
     throw new Error("The registered Netlify callback URL does not match this Tsumu origin.");
   }
   const state = crypto.randomUUID();
-  sessionStorage.setItem(OAUTH_KEY, JSON.stringify({ siteId, state, at: Date.now() }));
+  safeSetItem("sessionStorage", OAUTH_KEY, JSON.stringify({ siteId, state, at: Date.now() }));
   const url = new URL("https://app.netlify.com/authorize");
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", redirect.toString());
@@ -114,8 +139,8 @@ export function startNetlifyOAuth(siteId: string, config: { clientId: string; re
 
 /** Accept one login redirect, bound to the initiating tab and local site. */
 export function finishNetlifyOAuth(state: string, token: string): string {
-  const pending = parseObject(sessionStorage.getItem(OAUTH_KEY));
-  sessionStorage.removeItem(OAUTH_KEY);
+  const pending = parseObject(safeGetItem("sessionStorage", OAUTH_KEY));
+  safeRemoveItem("sessionStorage", OAUTH_KEY);
   if (!pending || typeof pending.state !== "string" || pending.state !== state ||
       !isSiteId(pending.siteId) || typeof pending.at !== "number" ||
       Date.now() - pending.at > 10 * 60_000 || Date.now() < pending.at ||

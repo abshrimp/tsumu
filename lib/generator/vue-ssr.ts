@@ -1,6 +1,7 @@
 import type { SiteDoc } from "../types";
 import type { ExportLanguage } from "./export-options";
 import { adobeFontHead } from "./adobe-fonts";
+import { frameworkHeadTags } from "./framework-export";
 
 export function withVueSsr(
   files: Record<string, string>, doc: SiteDoc, language: ExportLanguage,
@@ -147,6 +148,7 @@ export function withVueSsr(
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
     '<meta name="description" content="<!--page-description-->">',
     '<!--page-robots-->',
+    frameworkHeadTags(doc),
     "<title><!--page-title--></title>",
     adobeFontHead(doc),
     "</head><body>",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  finishNetlifyOAuth, startNetlifyOAuth, readNetlifyAccount,
+  finishNetlifyOAuth, startNetlifyOAuth, readNetlifyAccount, saveNetlifyAccount, disconnectNetlifyAccount,
   readNetlifySite, saveNetlifySite, saveNetlifyProject, disconnectNetlifySite,
 } from "../lib/browser-netlify";
 
@@ -78,5 +78,38 @@ test("Netlify project IDs are pinned to one browser site and never silently repl
     assert.equal(readNetlifySite("local123456"), null);
   } finally {
     (globalThis as { localStorage?: unknown }).localStorage = saved;
+  }
+});
+
+test("Netlify storage helpers degrade gracefully when browser storage is blocked", () => {
+  const saved = {
+    window: (globalThis as { window?: unknown }).window,
+    localStorage: (globalThis as { localStorage?: unknown }).localStorage,
+    sessionStorage: (globalThis as { sessionStorage?: unknown }).sessionStorage,
+  };
+  const blocked = {
+    getItem: () => { throw new DOMException("Access denied", "SecurityError"); },
+    setItem: () => { throw new DOMException("Access denied", "SecurityError"); },
+    removeItem: () => { throw new DOMException("Access denied", "SecurityError"); },
+  };
+  (globalThis as { window?: unknown }).window = {
+    location: { origin: "https://tsumu.example.test", assign: () => {} },
+  };
+  (globalThis as { localStorage?: unknown }).localStorage = blocked;
+  (globalThis as { sessionStorage?: unknown }).sessionStorage = blocked;
+  try {
+    assert.equal(readNetlifyAccount(), null);
+    assert.equal(readNetlifySite("local123456"), null);
+    assert.doesNotThrow(() => disconnectNetlifyAccount());
+    assert.doesNotThrow(() => disconnectNetlifySite("local123456"));
+    assert.throws(() => saveNetlifyAccount({ token: "opaque-oauth-token-1234567" }), /Browser storage is unavailable/);
+    assert.throws(() => startNetlifyOAuth("local123456", {
+      clientId: "registered-client-123456",
+      redirectUri: "https://tsumu.example.test/netlify/callback",
+    }), /Browser storage is unavailable/);
+  } finally {
+    (globalThis as { window?: unknown }).window = saved.window;
+    (globalThis as { localStorage?: unknown }).localStorage = saved.localStorage;
+    (globalThis as { sessionStorage?: unknown }).sessionStorage = saved.sessionStorage;
   }
 });

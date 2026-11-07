@@ -122,7 +122,7 @@ export async function toSingleHtmlProject(
       } else if (rel.includes("preload") && get("as").toLowerCase() === "image") {
         if (href) set("href", await resources.embed(href, base, get("integrity")));
         if (get("imagesrcset")) set("imagesrcset", await embedSrcset(get("imagesrcset")));
-      } else if (href && rel.includes("icon")) set("href", await resources.embed(href, base));
+      } else if (href && (rel.includes("icon") || rel.includes("apple-touch-icon"))) set("href", await resources.embed(href, base));
     } else if (htmlTag && name === "script" && get("src")) {
       const url = new URL(get("src"), base);
       if (url.origin === EXPORT_BASE.origin && url.pathname === "/pwa.js" && Object.hasOwn(source.files, "pwa.js")) {

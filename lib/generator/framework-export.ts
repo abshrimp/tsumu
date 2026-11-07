@@ -4,6 +4,9 @@ import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "./export-options";
 import { googleFontsCss, usedAdobeFonts } from "./css";
 import { adobeFontHead, adobeFontLoader, adobeFontProjects } from "./adobe-fonts";
+import { buildAssetNames } from "./names";
+import { imageRefSrc } from "./render-helpers";
+import { buildPwaManifest } from "./templates";
 import { applyNativeFramework } from "./native-scaffold";
 
 /**
@@ -16,6 +19,21 @@ type AdditionalFramework = "vue" | "nuxt" | "sveltekit";
 const escapeTemplateHtml = (value: string): string =>
   value.replace(/[&<>"']/g, (ch) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+
+export function frameworkHeadTags(doc: SiteDoc, assetNames = buildAssetNames(doc)): string {
+  const favicon = imageRefSrc(assetNames, doc.favicon);
+  const appleIcon = imageRefSrc(assetNames, doc.appleTouchIcon);
+  const ogSrc = imageRefSrc(assetNames, doc.ogImage);
+  const pwaThemeColor = doc.pwa?.enabled ? doc.pwa.themeColor?.trim() : "";
+  return [
+    doc.pwa?.enabled ? '<link rel="manifest" href="/manifest.webmanifest">' : "",
+    pwaThemeColor ? '<meta name="theme-color" content="' + escapeTemplateHtml(pwaThemeColor) + '">' : "",
+    favicon ? '<link rel="icon" href="' + escapeTemplateHtml(favicon) + '">' : "",
+    appleIcon ? '<link rel="apple-touch-icon" href="' + escapeTemplateHtml(appleIcon) + '">' : "",
+    ogSrc ? '<meta property="og:image" content="' + escapeTemplateHtml(ogSrc) + '">' : "",
+    ogSrc ? '<meta name="twitter:card" content="summary_large_image">' : "",
+  ].filter(Boolean).join("");
+}
 
 function json(value: unknown): string {
   return JSON.stringify(value);
@@ -32,13 +50,18 @@ function commonFiles(doc: SiteDoc, next: GeneratedProject, framework: Additional
   for (const [path, content] of Object.entries(next.files)) {
     if (path.startsWith("public/")) files[assetPrefix + path.slice(7)] = content;
   }
+  const assetNames = buildAssetNames(doc);
+  const manifest = buildPwaManifest(doc, assetNames);
+  if (manifest) {
+    files[assetPrefix + "manifest.webmanifest"] = JSON.stringify(manifest, null, 2) + "\n";
+  }
   const binaries = Object.fromEntries(Object.entries(next.binaries).map(([path, b64]) =>
     [path.startsWith("public/") ? assetPrefix + path.slice(7) : path, b64]));
   const remoteAssets = Object.fromEntries(Object.entries(next.remoteAssets).map(([path, source]) =>
     [path.startsWith("public/") ? assetPrefix + path.slice(7) : path, source]));
   const baseCss = googleFontsCss(doc) + next.files["app/globals.css"];
   const siteCss = next.files["styles/site.css"];
-  return { files, binaries, remoteAssets, baseCss, siteCss };
+  return { files, binaries, remoteAssets, baseCss, siteCss, assetNames };
 }
 
 const jsonIndent = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
@@ -51,6 +74,7 @@ export function buildAdditionalFramework(
   const files = common.files;
   const ts = language === "typescript";
   const ext = ts ? "ts" : "js";
+  const headExtras = frameworkHeadTags(doc, common.assetNames);
   if (framework === "vue") {
     files["src/globals.css"] = common.baseCss;
     files["src/site.css"] = common.siteCss;
@@ -64,7 +88,7 @@ export function buildAdditionalFramework(
     files["index.html"] = [
       "<!doctype html>", '<html lang="' + escapeTemplateHtml(doc.lang || "ja") + '">',
       '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-      '<meta name="description" content=""><title>' + escapeTemplateHtml(doc.siteName) + "</title></head>",
+      '<meta name="description" content="">' + headExtras + '<title>' + escapeTemplateHtml(doc.siteName) + "</title></head>",
       '<body><div id="app"></div><script type="module" src="/src/main.' + ext + '"></script></body>',
       '</html>', "",
     ].join("\n");
@@ -96,20 +120,34 @@ export function buildAdditionalFramework(
     // Nuxt には、共通のプレビューの後処理で使う HTML の入口のファイルが無い。
     // すべての SSR のルートが受け取れるよう、全体の head に指定を置く。
     const adobe = adobeFontProjects(usedAdobeFonts(doc));
-    const adobeLinks = adobe.filter(p => p.loading === "css").map(p => ({
-      rel: "stylesheet", href: `https://use.typekit.net/${p.kitId}.css`,
-    }));
+    const favicon = imageRefSrc(common.assetNames, doc.favicon);
+    const appleIcon = imageRefSrc(common.assetNames, doc.appleTouchIcon);
+    const ogSrc = imageRefSrc(common.assetNames, doc.ogImage);
+    const pwaThemeColor = doc.pwa?.enabled ? doc.pwa.themeColor?.trim() : "";
+    const links: Array<{ rel: string; href: string }> = [
+      ...(doc.pwa?.enabled ? [{ rel: "manifest", href: "/manifest.webmanifest" }] : []),
+      ...(favicon ? [{ rel: "icon", href: favicon }] : []),
+      ...(appleIcon ? [{ rel: "apple-touch-icon", href: appleIcon }] : []),
+      ...adobe.filter(p => p.loading === "css").map(p => ({
+        rel: "stylesheet", href: `https://use.typekit.net/${p.kitId}.css`,
+      })),
+    ];
     const adobeScripts = adobe.filter(p => p.loading === "dynamic").map(p => ({
       innerHTML: adobeFontLoader(p.kitId),
     }));
-    const meta = [{ name: "description", content: "" }, ...(target === "test"
-      ? [{ name: "robots", content: "noindex, nofollow, noarchive, nosnippet, noimageindex" }] : [])];
+    const meta: Array<Record<string, string>> = [
+      { name: "description", content: "" },
+      ...(pwaThemeColor ? [{ name: "theme-color", content: pwaThemeColor }] : []),
+      ...(ogSrc ? [{ property: "og:image", content: ogSrc }, { name: "twitter:card", content: "summary_large_image" }] : []),
+      ...(target === "test"
+        ? [{ name: "robots", content: "noindex, nofollow, noarchive, nosnippet, noimageindex" }] : []),
+    ];
     files["nuxt.config." + ext] = [
       'export default defineNuxtConfig({',
       '  ssr: true,',
       '  css: ["~/assets/globals.css", "~/assets/site.css"],',
       '  app: { head: { title: ' + json(doc.siteName) + ', meta: ' + json(meta) +
-        ', link: ' + json(adobeLinks) + ', script: ' + json(adobeScripts) + ' } },',
+        ', link: ' + json(links) + ', script: ' + json(adobeScripts) + ' } },',
       '});', "",
     ].join("\n");
     files["package.json"] = jsonIndent({
@@ -127,7 +165,7 @@ export function buildAdditionalFramework(
     files["src/app.html"] = [
       "<!doctype html>", '<html lang="%page.language%">',
       '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-      adobeFontHead(doc) + '%sveltekit.head%</head><body data-sveltekit-preload-data="hover">',
+      headExtras + adobeFontHead(doc) + '%sveltekit.head%</head><body data-sveltekit-preload-data="hover">',
       '<div style="display:contents">%sveltekit.body%</div></body></html>', "",
     ].join("\n");
     files["src/routes/+layout." + ext] = 'export const ssr = true;\nexport const prerender = false;\n';

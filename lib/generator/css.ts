@@ -77,7 +77,7 @@ export function uploadedFontsCss(doc: SiteDoc, assetNames: Map<string, string>):
     if (!format || !asset || !/^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(font.family)) return "";
     return "@font-face { font-family: " + cssQuoted(font.family) +
       "; src: url(" + cssQuoted("/assets/" + name) + ") format(" + cssQuoted(format) +
-      "); font-style: normal; font-weight: 400; font-display: swap; }\\n";
+      "); font-style: normal; font-weight: 400; font-display: swap; }\n";
   }).join("");
 }
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import JSZip from "jszip";
 import { hostingProjectName } from "../lib/publish-provider";
-import { isPublicStaticPath, pagesAssetHash, readStaticZip } from "../lib/static-hosting";
+import { isPublicStaticPath, listStaticDeployments, pagesAssetHash, readStaticZip } from "../lib/static-hosting";
 
 test("each provider isolates site projects, including Netlify previews", () => {
   const a = hostingProjectName("abc123", "netlify", "production", "tsumu");
@@ -52,4 +52,25 @@ test("Cloudflare asset hashes are content- and extension-dependent", () => {
   assert.equal(hash, pagesAssetHash(file, "pages/about.html"));
   assert.notEqual(hash, pagesAssetHash(file, "index.js"));
   assert.notEqual(hash, pagesAssetHash(new TextEncoder().encode("other"), "index.html"));
+});
+
+test("listStaticDeployments returns an empty list when Cloudflare Pages project does not exist yet", async () => {
+  const savedAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const savedToken = process.env.CLOUDFLARE_API_TOKEN;
+  const savedFetch = globalThis.fetch;
+  process.env.CLOUDFLARE_ACCOUNT_ID = "0123456789abcdef0123456789abcdef";
+  process.env.CLOUDFLARE_API_TOKEN = "cf-test-token";
+  try {
+    let status = 404;
+    globalThis.fetch = async () => new Response(JSON.stringify({ success: false }), { status });
+    assert.deepEqual(await listStaticDeployments("abc123", "cloudflare", "production"), []);
+    status = 500;
+    await assert.rejects(listStaticDeployments("abc123", "cloudflare", "production"), /HTTP 500/);
+  } finally {
+    globalThis.fetch = savedFetch;
+    if (savedAccount === undefined) delete process.env.CLOUDFLARE_ACCOUNT_ID;
+    else process.env.CLOUDFLARE_ACCOUNT_ID = savedAccount;
+    if (savedToken === undefined) delete process.env.CLOUDFLARE_API_TOKEN;
+    else process.env.CLOUDFLARE_API_TOKEN = savedToken;
+  }
 });

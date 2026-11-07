@@ -11,7 +11,7 @@ import { applyAiEdits } from "../ai/client";
 import { persistDoc, useEditor } from "../store";
 import { currentSiteId, sitePath } from "../site";
 import { createLocalBrowserSite } from "../browser-site-create";
-import { serverStatusSnapshot } from "../status";
+import { loadServerStatus, serverStatusSnapshot } from "../status";
 import { tr } from "../i18n";
 import { resolveMcpEndpoint } from "./config";
 import { rememberMcpPairingCodeIssued } from "./pairing-history";
@@ -49,6 +49,8 @@ export const useExternalEdit = create<ExternalEditState>(() => ({
 }));
 
 let active: { ws: WebSocket; session: BridgeSession; siteId: string; canEdit: boolean } | null = null;
+let connectAttempt = 0;
+let pendingAbort: AbortController | null = null;
 const completed = new Map<string, unknown>();
 
 const asObject = (value: unknown): Record<string, unknown> =>
@@ -67,8 +69,12 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
   if (currentSiteId() !== siteId) throw new Error(tr("The active Tsumu site changed"));
   const args = asObject(rawArgs);
   const s = useEditor.getState();
+  const status = serverStatusSnapshot() ?? await loadServerStatus();
+  const isServerBacked = Boolean(status?.db);
 
-  if (action === "list_sites") return [{ id: siteId, name: s.doc.siteName, storage: "browser" }];
+  if (action === "list_sites") {
+    return [{ id: siteId, name: s.doc.siteName, storage: isServerBacked ? "server" : "browser" }];
+  }
   if (action === "list_pages") {
     return s.doc.pageOrder.map((id) => {
       const page = s.doc.pages[id];
@@ -92,7 +98,8 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
   if (typeof requestId !== "string" || !/^[\w-]{8,80}$/.test(requestId)) {
     throw new Error(tr("A unique requestId is required"));
   }
-  if (completed.has(requestId)) return completed.get(requestId);
+  const cacheKey = `${siteId}:${action}:${requestId}`;
+  if (completed.has(cacheKey)) return completed.get(cacheKey);
   if (writeInProgress) throw new Error(tr("Another external edit is in progress. Try again after it finishes."));
   if (s.gestureActive || s.editingText !== null) throw new Error(tr("Finish the current editor gesture before using MCP"));
 
@@ -104,7 +111,6 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
       if (typeof name !== "string" || !name.trim() || name.trim().length > 100) {
         throw new Error(tr("Enter a site name"));
       }
-      const status = serverStatusSnapshot();
       if (!status || status.db) {
         throw new Error(tr("MCP site creation currently requires browser-only storage. Create server-backed sites in Tsumu."));
       }
@@ -133,7 +139,7 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
         pageId: id,
         name: page.name,
         slug: page.slug,
-        savedToBrowser: true,
+        savedToBrowser: !isServerBacked,
         revision: await revision(buildAiContext(useEditor.getState().doc, { pageId: id }).doc),
       };
     } else {
@@ -164,12 +170,12 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
       }
       result = {
         applied: verified.applied,
-        savedToBrowser: true,
+        savedToBrowser: !isServerBacked,
         cloudState: useEditor.getState().cloudState,
         revision: await revision(buildAiContext(useEditor.getState().doc, { pageId }).doc),
       };
     }
-    completed.set(requestId, result);
+    completed.set(cacheKey, result);
     if (completed.size > 100) completed.delete(completed.keys().next().value!);
     return result;
   } finally {
@@ -198,6 +204,9 @@ async function onMessage(socket: WebSocket, siteId: string, canEdit: boolean, da
 }
 
 export async function disconnectExternalEdit(): Promise<void> {
+  connectAttempt++;
+  pendingAbort?.abort();
+  pendingAbort = null;
   const session = active;
   active = null;
   completed.clear();
@@ -215,21 +224,27 @@ export async function disconnectExternalEdit(): Promise<void> {
 
 export async function connectExternalEdit(canEdit: boolean): Promise<void> {
   await disconnectExternalEdit();
+  const attempt = ++connectAttempt;
   const siteId = currentSiteId();
   if (!siteId) {
     useExternalEdit.setState({ error: tr("No active site"), phase: "disconnected" });
     return;
   }
+  const abort = new AbortController();
+  pendingAbort = abort;
   useExternalEdit.setState({ phase: "connecting", error: null, canEdit });
   try {
     const response = await fetch(ENDPOINT + "/bridge/sessions", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ siteId, siteName: useEditor.getState().doc.siteName || "Tsumu site", canEdit }),
-      credentials: "omit", cache: "no-store",
+      credentials: "omit", cache: "no-store", signal: abort.signal,
     });
+    if (attempt !== connectAttempt || abort.signal.aborted) return;
     if (!response.ok) throw new Error(tr("MCP connection failed ({status})", { status: response.status }));
     const session = await response.json() as BridgeSession;
+    if (attempt !== connectAttempt || abort.signal.aborted) return;
     if (!session.wsUrl || !session.connectToken || !session.pairingCode) throw new Error(tr("Invalid MCP session"));
+    if (pendingAbort === abort) pendingAbort = null;
     const ws = new WebSocket(session.wsUrl, ["tsumu-editor", session.connectToken]);
     rememberMcpPairingCodeIssued(window.location.hostname, (cookie) => { document.cookie = cookie; });
     active = { ws, session, siteId, canEdit };
@@ -250,6 +265,8 @@ export async function connectExternalEdit(canEdit: boolean): Promise<void> {
       }
     };
   } catch (error) {
+    if (pendingAbort === abort) pendingAbort = null;
+    if (attempt !== connectAttempt || abort.signal.aborted) return;
     useExternalEdit.setState({ phase: "disconnected", error: error instanceof Error ? error.message : tr("Connection failed") });
   }
 }

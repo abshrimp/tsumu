@@ -35,7 +35,7 @@ export type AssetDeletion =
 let cached: Promise<ServerStatus | null> | null = null;
 let loaded: ServerStatus | null = null;
 
-function loadServerStatus(): Promise<ServerStatus | null> {
+export function loadServerStatus(): Promise<ServerStatus | null> {
   cached ??= fetch("/api/status")
     .then((res) => (res.ok ? (res.json() as Promise<ServerStatus>) : null))
     .catch(() => null)

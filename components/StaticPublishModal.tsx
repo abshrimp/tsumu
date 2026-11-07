@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ExternalLink, Globe, History, LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
 import { docFingerprint, useEditor } from "../lib/store";
 import { exportLimitations } from "../lib/export-formats";
@@ -12,6 +12,7 @@ import { userMessage } from "../lib/errors";
 import { showConfirm } from "../lib/dialog";
 import type { PublishTarget } from "../lib/generator";
 import type { StaticPublishProvider } from "../lib/publish-provider";
+import { Seg } from "./controls";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 
 interface Target {
@@ -67,6 +68,7 @@ export default function StaticPublishModal({
   const [history, setHistory] = useState<Deployment[] | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const historyRequestRef = useRef(0);
 
   useEscapeToClose(onClose, phase !== "busy" && !restoring);
   const checks = useMemo<CheckResult[]>(() => [
@@ -79,6 +81,7 @@ export default function StaticPublishModal({
   const providerName = providerLabel(conf.provider);
 
   const loadHistory = useCallback(async (nextTarget: PublishTarget) => {
+    const requestId = ++historyRequestRef.current;
     setHistory(null);
     setHistoryError(null);
     const params = new URLSearchParams({
@@ -89,16 +92,22 @@ export default function StaticPublishModal({
     try {
       const response = await fetch("/api/publish/static/history?" + params);
       const data = await response.json().catch(() => null);
+      if (historyRequestRef.current !== requestId) return;
       if (!response.ok) throw new Error(data?.error ?? tr("Couldn't load publish history"));
       if (data.provider !== conf.provider) throw new Error(tr("The publishing provider changed. Reopen this dialog."));
       setHistory(data.deployments as Deployment[]);
     } catch (cause) {
+      if (historyRequestRef.current !== requestId) return;
       setHistoryError(userMessage(cause, tr("Couldn't load publish history")));
     }
   }, [conf.site, conf.provider]);
 
   useEffect(() => {
-    if (historyOpen) void loadHistory(historyTarget);
+    if (!historyOpen) {
+      historyRequestRef.current++;
+      return;
+    }
+    void loadHistory(historyTarget);
   }, [historyOpen, historyTarget, loadHistory]);
 
   const publish = async (nextTarget: PublishTarget) => {
@@ -174,37 +183,41 @@ export default function StaticPublishModal({
             <p className="modal-desc">
               {tr("Deployment history is stored by {provider}. Static hosting does not publish the editor document.", { provider: providerName })}
             </p>
-            <div className="seg-group">
-              <button className={"seg" + (historyTarget === "production" ? " active" : "")}
-                onClick={() => setHistoryTarget("production")}>{tr("Live site")}</button>
-              <button className={"seg" + (historyTarget === "test" ? " active" : "")}
-                onClick={() => setHistoryTarget("test")}>{tr("Test site")}</button>
-            </div>
+            <Seg
+              value={historyTarget}
+              options={[
+                { value: "production", label: tr("Live site") },
+                { value: "test", label: tr("Test site") },
+              ]}
+              onChange={(next) => setHistoryTarget(next as PublishTarget)}
+            />
             {history === null && !historyError && (
               <div className="pub-loading"><LoaderCircle className="spin" size={14} />{tr("Loading…")}</div>
             )}
             {historyError && <p className="pub-card-error" role="alert">{historyError}</p>}
             {history?.length === 0 && <p className="hint">{tr("Not published yet.")}</p>}
-            {history && (
-              <div className="hist-list">
+            {history && history.length > 0 && (
+              <ol className="hist-list">
                 {history.map((item) => (
-                  <div className="hist-item" key={item.id}>
-                    <div>
-                      <a href={item.url} target="_blank" rel="noopener noreferrer">
+                  <li key={item.id}>
+                    <div className="hist-main">
+                      <a className="hist-msg" href={item.url} target="_blank" rel="noopener noreferrer">
                         {item.date ? new Date(item.date).toLocaleString() : item.id}
                       </a>
-                      <p className="hint">{item.state}</p>
+                      <span className="hist-date">{item.state}</span>
                     </div>
                     {item.canRestore && (
-                      <button className="btn btn-sm" onClick={() => void restore(item)}
-                        disabled={!!restoring}>
-                        <RotateCcw size={13} />
-                        {restoring === item.id ? tr("Restoring…") : tr("Restore this version")}
-                      </button>
+                      <div className="hist-acts">
+                        <button className="btn btn-sm" onClick={() => void restore(item)}
+                          disabled={!!restoring}>
+                          <RotateCcw size={13} />
+                          {restoring === item.id ? tr("Restoring…") : tr("Restore this version")}
+                        </button>
+                      </div>
                     )}
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ol>
             )}
             <div className="modal-actions">
               <button className="btn" onClick={() => setHistoryOpen(false)} disabled={!!restoring}>{tr("Back")}</button>

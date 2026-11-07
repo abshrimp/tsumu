@@ -37,6 +37,7 @@ const ja: Dict = {
   "Publish this site to your own Netlify account. Netlify usage is charged to the selected team.": "自分のNetlifyアカウントにサイトを公開します。Netlifyの利用枠と請求は選択したチームに属します。",
   "Checking Netlify connection…": "Netlifyの接続を確認しています…",
   "Choose the Netlify team that will own this site's publication.": "公開先となるNetlifyチームを選択してください。",
+  "Continue": "続ける",
   "Continue to publish": "公開へ進む",
   "Log in to Netlify": "Netlifyにログイン",
   "Netlify connection": "Netlifyの接続",

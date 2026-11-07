@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ExternalLink, Globe, History, LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
 import { useEditor, docFingerprint } from "../lib/store";
 import { exportLimitations } from "../lib/export-formats";
@@ -12,6 +12,7 @@ import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { showConfirm } from "../lib/dialog";
 import type { PublishTarget } from "../lib/generator";
 import type { StaticPublishModalConfig } from "./StaticPublishModal";
+import { Seg } from "./controls";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 import {
   readNetlifyAccount, saveNetlifyAccount, disconnectNetlifyAccount,
@@ -45,8 +46,12 @@ export default function NetlifyPublishModal({
   const [result, setResult] = useState<PublishResult | null>(null);
   const [history, setHistory] = useState<Deployment[] | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
+  const historyRequestRef = useRef(0);
 
   useEscapeToClose(onClose, phase !== "busy" && !restoring);
+  useEffect(() => {
+    if (phase !== "history") historyRequestRef.current++;
+  }, [phase]);
   const checks = useMemo<CheckResult[]>(() => [
     ...runChecks(doc),
     ...exportLimitations(doc, {
@@ -189,6 +194,7 @@ export default function NetlifyPublishModal({
   };
 
   const openHistory = async (nextTarget: PublishTarget) => {
+    const requestId = ++historyRequestRef.current;
     setPhase("history");
     setTarget(nextTarget);
     setHistory(null);
@@ -201,8 +207,10 @@ export default function NetlifyPublishModal({
         action: "history", token: account.token,
         projectId: project.id, teamId: binding.teamId,
       });
+      if (historyRequestRef.current !== requestId) return;
       setHistory(data.deployments);
     } catch (cause) {
+      if (historyRequestRef.current !== requestId) return;
       setError(userMessage(cause, tr("Couldn't load publish history")));
     }
   };
@@ -356,35 +364,41 @@ export default function NetlifyPublishModal({
         {phase === "history" && (
           <>
             <p className="modal-desc">{tr("Netlify keeps deployment history. Editing data remains in your browser.")}</p>
-            <div className="seg-group">
-              {(["production","test"] as const).map(item => (
-                <button key={item} className={"seg" + (target === item ? " active" : "")}
-                  onClick={() => void openHistory(item)}>{item === "production" ? tr("Live site") : tr("Test site")}</button>
-              ))}
-            </div>
+            <Seg
+              value={target}
+              options={[
+                { value: "production", label: tr("Live site") },
+                { value: "test", label: tr("Test site") },
+              ]}
+              onChange={(next) => void openHistory(next as PublishTarget)}
+            />
             {history === null && !error && <div className="pub-loading"><LoaderCircle className="spin" size={14}/>{tr("Loading…")}</div>}
             {error && <p className="pub-card-error" role="alert">{error}</p>}
             {history?.length === 0 && <p className="hint">{tr("Not published yet.")}</p>}
-            <div className="hist-list">
-              {history?.map(entry => (
-                <div className="hist-item" key={entry.id}>
-                  <div>
-                    <a href={entry.url} target="_blank" rel="noopener noreferrer">
-                      {entry.date ? new Date(entry.date).toLocaleString() : entry.id}
-                    </a>
-                    <p className="hint">{entry.state}</p>
-                  </div>
-                  {entry.canRestore && (
-                    <button className="btn btn-sm" disabled={!!restoring} onClick={() => void restore(entry)}>
-                      <RotateCcw size={13}/>{restoring === entry.id ? tr("Restoring…") : tr("Restore this version")}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+            {history && history.length > 0 && (
+              <ol className="hist-list">
+                {history.map(entry => (
+                  <li key={entry.id}>
+                    <div className="hist-main">
+                      <a className="hist-msg" href={entry.url} target="_blank" rel="noopener noreferrer">
+                        {entry.date ? new Date(entry.date).toLocaleString() : entry.id}
+                      </a>
+                      <span className="hist-date">{entry.state}</span>
+                    </div>
+                    {entry.canRestore && (
+                      <div className="hist-acts">
+                        <button className="btn btn-sm" disabled={!!restoring} onClick={() => void restore(entry)}>
+                          <RotateCcw size={13}/>{restoring === entry.id ? tr("Restoring…") : tr("Restore this version")}
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
             <div className="modal-actions">
-              <button className="btn" onClick={() => setPhase("check")}>{tr("Back")}</button>
-              <button className="btn" onClick={onClose}>{tr("Close")}</button>
+              <button className="btn" disabled={!!restoring} onClick={() => setPhase("check")}>{tr("Back")}</button>
+              <button className="btn" disabled={!!restoring} onClick={onClose}>{tr("Close")}</button>
             </div>
           </>
         )}

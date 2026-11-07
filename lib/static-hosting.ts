@@ -266,13 +266,22 @@ export async function listStaticDeployments(
   const project = hostingProjectName(siteId, provider, target);
   if (provider !== "cloudflare") throw new Error("Netlify requires a browser-owned deployment.");
   // History must not create an empty Pages project.
-  const path = cloudflarePath(project);
-  const deployments = await cloudflareRequest<Array<{
+  const path = cloudflarePath(project) + "/deployments?per_page=25";
+  const token = envVar("CLOUDFLARE_API_TOKEN");
+  if (!token) throw new Error("CLOUDFLARE_API_TOKEN is not configured.");
+  const response = await fetch(CLOUDFLARE_API + path, {
+    headers: { Authorization: "Bearer " + token },
+    redirect: "error",
+  });
+  if (response.status === 404) return [];
+  if (!response.ok) throw new Error("Read Pages deployments failed (HTTP " + response.status + ").");
+  const data = await response.json() as CloudflareEnvelope<Array<{
     id?: string; url?: string; created_on?: string; environment?: string;
     latest_stage?: { status?: string };
     deployment_trigger?: { metadata?: { branch?: string } };
-  }>>(path + "/deployments?per_page=25", "Read Pages deployments");
-  return deployments.filter((x) => x.id && (target === "production"
+  }>>;
+  if (!data.success) throw new Error("Read Pages deployments was rejected by Cloudflare.");
+  return data.result.filter((x) => x.id && (target === "production"
     ? x.environment === "production"
     : x.environment === "preview" && x.deployment_trigger?.metadata?.branch === "tsumu-preview"))
     .map((x) => ({

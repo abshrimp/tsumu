@@ -297,3 +297,51 @@ test("native HTML leaves raw text alone and recognizes a real module after a scr
   assert.ok(html.includes(literal));
   assert.ok(html.includes('<script-card></script-card><script type="module" src="./assets/_imports/g/js/entry.js"></script>'));
 });
+
+test("non-Next.js exports emit icons, social preview tags, theme-color, and PWA manifest consistently", async () => {
+  const doc = fixture();
+  const pngDataUrl = "data:image/png;base64,iVBORw0KGgo=";
+  for (const id of ["fav", "apple", "og"]) {
+    doc.assets[id] = { id, name: `${id}.png`, width: 64, height: 64, mimeType: "image/png", dataUrl: pngDataUrl };
+  }
+  doc.favicon = { assetId: "fav" };
+  doc.appleTouchIcon = { assetId: "apple" };
+  doc.ogImage = { assetId: "og" };
+  doc.pwa = { enabled: true, themeColor: "#112233", backgroundColor: "#ffffff" };
+
+  const html = generateExportProject(doc, "html");
+  assert.match(html.files["index.html"], /rel="icon"/);
+  assert.match(html.files["index.html"], /rel="apple-touch-icon"/);
+  assert.match(html.files["index.html"], /property="og:image"/);
+  assert.match(html.files["index.html"], /name="twitter:card" content="summary_large_image"/);
+  assert.match(html.files["index.html"], /name="theme-color" content="#112233"/);
+  assert.ok(html.files["manifest.webmanifest"]);
+
+  const single = await prepareExportProject({ ...doc, pwa: undefined }, "single-html");
+  assert.match(single.files["index.html"], /rel="apple-touch-icon" href="data:image\/png;base64,/);
+  assert.match(single.files["index.html"], /property="og:image"/);
+
+  for (const framework of ["react", "vue"] as const) {
+    const out = generateExportProject(doc, { framework, language: "typescript", style: "css", scope: "project" });
+    assert.match(out.files["index.html"], /rel="manifest" href="\/manifest\.webmanifest"/, framework);
+    assert.match(out.files["index.html"], /rel="apple-touch-icon"/, framework);
+    assert.match(out.files["index.html"], /property="og:image"/, framework);
+    assert.match(out.files["index.html"], /name="theme-color" content="#112233"/, framework);
+    assert.ok(out.files["public/manifest.webmanifest"], framework);
+  }
+
+  const nuxt = generateExportProject(doc, { framework: "nuxt", language: "typescript", style: "css", scope: "project" });
+  const nuxtConfig = nuxt.files["nuxt.config.ts"];
+  assert.match(nuxtConfig, /manifest\.webmanifest/);
+  assert.match(nuxtConfig, /apple-touch-icon/);
+  assert.match(nuxtConfig, /og:image/);
+  assert.match(nuxtConfig, /#112233/);
+  assert.ok(nuxt.files["public/manifest.webmanifest"]);
+
+  const svelte = generateExportProject(doc, { framework: "sveltekit", language: "typescript", style: "css", scope: "project" });
+  assert.match(svelte.files["src/app.html"], /rel="manifest" href="\/manifest\.webmanifest"/);
+  assert.match(svelte.files["src/app.html"], /rel="apple-touch-icon"/);
+  assert.match(svelte.files["src/app.html"], /property="og:image"/);
+  assert.match(svelte.files["src/app.html"], /name="theme-color" content="#112233"/);
+  assert.ok(svelte.files["static/manifest.webmanifest"]);
+});
