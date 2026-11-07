@@ -6,7 +6,7 @@ import help from "./en-help";
 const en: Dict = {
   "単一のHTML": "Single HTML",
   "単一HTMLは1つの固定パスだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。": "Single HTML can export only one fixed path. If the project has multiple pages, choose Current page or export an HTML ZIP.",
-  "画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数の異なるページURLは1つにまとめられません。": "Download one HTML file with embedded images, fonts, CSS and JavaScript. Distinct page URLs cannot be combined into one file.",
+  "画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数のページを同時に出力することはできません。": "Download one HTML file with embedded images, fonts, CSS and JavaScript. Multiple pages cannot be exported at the same time.",
   "{framework}プロジェクトとして保存します。展開後に {cmd} で起動できます。": "Export as a {framework} project. After extracting the files, run {cmd} to start.",
   "外部APIや埋め込み動画はインターネット接続が必要です。外部画像などを埋め込めない場合は、アセットとして取り込んでから再試行してください。": "External APIs and embedded videos still require an internet connection. If external images cannot be embedded, import them into the asset library and retry.",
   "HTMLを生成できませんでした": "Could not generate the HTML file",
