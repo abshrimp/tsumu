@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import JSZip from "jszip";
 import { createInitialDoc, makeImage } from "../lib/presets";
 import { DOC_STORAGE_KEY } from "../lib/site";
+import { serializePortableDoc } from "../lib/portable-doc";
+import { IMPORT_LIMITS } from "../lib/site-import";
 import { storageKey } from "../lib/storage-keys";
 
 const listKey = storageKey("sites-v1");
@@ -121,6 +123,24 @@ test("normal text drag on the homepage does not trigger file import", async ({ p
   expect(prevented).toBe(false);
   await expect(page.locator(".home-drop-overlay")).toHaveCount(0);
   expect((await getLocalSite(page)).list).toHaveLength(0);
+});
+
+test("compressed standalone doc.json imports as a visually editable site", async ({ page }) => {
+  await localMode(page);
+  const doc = fixture();
+  doc.customBodyEndHtml = "<!-- compact -->".repeat(3000);
+  const packed = await serializePortableDoc(doc, IMPORT_LIMITS.docBytes);
+  expect(JSON.parse(packed).format).toBe("tsumu-doc");
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIPまたはdoc.jsonファイルを選択").setInputFiles({
+    name: "doc.json", mimeType: "application/json", buffer: Buffer.from(packed),
+  });
+  await expect(page).toHaveURL(/\\/sites\\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
+  const imported = await getLocalSite(page);
+  expect(imported.doc.siteName).toBe(doc.siteName);
+  expect(imported.doc.customBodyEndHtml).toBe(doc.customBodyEndHtml);
 });
 
 test("invalid JSON is rejected without creating a site", async ({ page }) => {
