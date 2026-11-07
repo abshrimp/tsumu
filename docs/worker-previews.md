@@ -4,15 +4,10 @@ Cloudflare Workers Builds can deploy every non-production branch of the editor a
 
 This page is about the editor only. A published site has no storage bindings or Durable Objects, so none of this applies to it; just turn on preview builds for non-production branches in its own hosting project.
 
-## Why Worker Previews
-
-The editor exports a Durable Object (`CollaborationRoom`). Cloudflare doesn't generate the older **Version URLs** for Workers with Durable Objects, so a version uploaded with `opennextjs-cloudflare upload` or `wrangler versions upload` builds successfully but can't be opened. Worker Previews don't have this limitation.
-
 ## Setup
 
-1. **Turn on Worker Previews.** New Workers Builds projects already use them. A project created earlier needs **Settings → Builds → Set up Worker Previews → Switch to Worker Previews**. This switch can't be undone.
-2. **Set the Preview command** to `node scripts/cloudflare-preview.mjs`. Leave the Build command (`node scripts/cloudflare.mjs build`) and the production Deploy command (`node scripts/cloudflare.mjs deploy`) as they are. Don't use the default `npx wrangler preview`: the script is what keeps the Preview away from production storage and secrets.
-3. **Check it.** Push a branch and open the URL the bot posts on the pull request. Create a throwaway site and reload the page. A successful build alone doesn't prove the Preview works.
+1. **Set the Preview command** to `node scripts/cloudflare-preview.mjs`. Leave the Build command (`node scripts/cloudflare.mjs build`) and the production Deploy command (`node scripts/cloudflare.mjs deploy`) as they are. Don't use the default `npx wrangler preview`: the script is what keeps the Preview away from production storage and secrets.
+2. **Check it.** Push a branch and open the URL the bot posts on the pull request. Create a throwaway site and reload the page. A successful build alone doesn't prove the Preview works.
 
 To create or update a Preview from your own machine, run `npm run preview:deploy -- --name <name>`. `npm run preview` only runs the editor locally.
 
@@ -49,16 +44,15 @@ These checks only cover the config the script is given. They can't see settings 
 
 ## 日本語の要点
 
-- エディタは Durable Object を持つため、従来の Version URL では表示できません。プルリクエストのプレビューには Worker Previews を使用します。このリポジトリでは設定済みです。
-- 自分の Workers Builds プロジェクトで使用する場合は、Worker Previews を有効にし（以前に作成したプロジェクトでは元に戻せない切り替えが必要です）、Preview command に `node scripts/cloudflare-preview.mjs` を指定します。Build command と本番の Deploy command は変更しません。
+- プルリクエストのプレビューには Worker Previews を使用します。このリポジトリでは設定済みです。
+- 自分の Workers Builds プロジェクトで使用する場合は、Preview command に `node scripts/cloudflare-preview.mjs` を指定します。Build command と本番の Deploy command は変更しません。
 - プレビューは、ログイン不要の公開デモです。D1・KV を使用せず、データはプレビューのURLごとにブラウザ内に保存されます。本番の変数・シークレット・保存先は使用しません。
 - テスト用の保存先を使用する場合は、本番とは別のリソースを用意し、`previews` の空の配列を削除したうえで ID を指定します。その場合は匿名アクセスを無効にし、ログインを設定してください。
 - 公開サイトにはバインディングも Durable Object もないため、この手順は不要です。
 
 ## References (checked 2026-11-06)
 
-- [Version URLs limitations](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/)
 - [Worker Previews setup](https://developers.cloudflare.com/workers/previews/get-started/)
-- [Existing Workers Builds and the irreversible switch](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)
+- [Builds for non-production branches](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)
 - [Preview configuration and secrets](https://developers.cloudflare.com/workers/previews/configuration/)
 - [Resources and isolation](https://developers.cloudflare.com/workers/previews/resources/)

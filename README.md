@@ -188,7 +188,7 @@ At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wr
 
 #### Previewing pull requests (Worker Previews)
 
-With the Preview command above, Workers Builds deploys each pull request as a **Worker Preview** and posts its URL on the pull request. A Preview is a public demo that needs no sign-in and keeps its data in the browser; it never uses production storage or secrets. Older Workers Builds projects first need a one-time, irreversible switch to Worker Previews; the older Version URLs can't serve the editor, because it has a Durable Object.
+With the Preview command above, Workers Builds deploys each pull request as a **Worker Preview** and posts its URL on the pull request. A Preview is a public demo that needs no sign-in and keeps its data in the browser; it never uses production storage or secrets.
 
 See [Previewing pull requests of the editor](docs/worker-previews.md) for setup and for giving Previews test storage.
 
