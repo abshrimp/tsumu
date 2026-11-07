@@ -6,7 +6,7 @@ import { PAGE_DATA_RUNTIME } from "./browser-data";
  * The generated module contains no window, document, or HTML DOM dependency.
  */
 export function nativeDataModule(): string {
-  const start = PAGE_DATA_RUNTIME.indexOf("  function read(vars, path) {");
+  const start = PAGE_DATA_RUNTIME.indexOf("  // #136 shared pure page-data helpers");
   const end = PAGE_DATA_RUNTIME.indexOf("  window.__pageDataReady = ");
   if (start < 0 || end < 0 || end <= start) {
     throw new Error("The page data evaluator no longer exposes the expected functions");
