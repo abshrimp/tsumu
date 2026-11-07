@@ -191,7 +191,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       case "starts-with": return v.lastIndexOf(w, 0) === 0;
       case "ends-with": return v.length >= w.length && v.indexOf(w, v.length - w.length) >= 0;
       case "gt": return parseFloat(v) > parseFloat(w);
+      case "gte": return parseFloat(v) >= parseFloat(w);
       case "lt": return parseFloat(v) < parseFloat(w);
+      case "lte": return parseFloat(v) <= parseFloat(w);
       case "empty": return v === "";
       case "in":
         return w.split(",").some(function (x) {
