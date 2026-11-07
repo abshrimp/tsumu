@@ -297,7 +297,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
     {step.sample !== undefined && <>
       {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("この結果の送信先")}: {resultSource.method} {resultSource.url}</p>}
       {!hasCurrentSample(step) && <p className="se-badge is-warn">{tr("現在の設定で未確認の見本です")}</p>}
-      {!full && <p className="hint">{tr("（保存された見本を表示しています。一覧は先頭20件まで）")}</p>}
+      {!full && <p className="hint">{tr("（保存された見本を表示しています。リストは先頭20件まで）")}</p>}
       <JsonPeek value={full ? wholeCache.get(key) : step.sample} />
     </>}
   </div>;
@@ -474,7 +474,7 @@ interface PathOption {
   value: unknown;
 }
 
-/** 位置の1段分の選択肢（オブジェクトは項目名、配列は「〇番目」と「最後」） */
+/** 位置の1段分の選択肢（オブジェクトは項目名、リストは「〇番目」と「最後」） */
 function childOptions(value: unknown): PathOption[] {
   if (Array.isArray(value)) {
     const out: PathOption[] = value
@@ -491,7 +491,7 @@ function childOptions(value: unknown): PathOption[] {
   return [];
 }
 
-/** 中身の分からない配列（画面を開いてから値が決まるもの）の位置の選択肢 */
+/** 中身の分からないリスト（画面を開いてから値が決まるもの）の位置の選択肢 */
 const UNKNOWN_ITEMS: PathOption[] = [
   ...[0, 1, 2, 3, 4].map((i) => ({ key: String(i), label: tr("{p1}番目", { p1: i + 1 }), value: undefined })),
   { key: "-1", label: tr("最後"), value: undefined },
@@ -500,9 +500,9 @@ const UNKNOWN_ITEMS: PathOption[] = [
 export const isNested = (v: unknown) => v != null && typeof v === "object";
 
 /**
- * 「取得したデータの［…］」「配列の［…］」の位置を選ぶメニュー。
+ * 「取得したデータの［…］」「リストの［…］」の位置を選ぶメニュー。
  * 項目を選ぶと決まり、「›」で中の項目へ進む。
- * mode: any = どこでも / list = 一覧（配列）だけ / item = 配列の何番目か（とその中）/
+ * mode: any = どこでも / list = 一覧（リスト）だけ / item = リストの何番目か（とその中）/
  *       field = 1件の中の項目（入れ子も可。比べられる値＝文字・数値と、文字や数値の一覧だけ選べる）
  */
 export function PathMenu({
@@ -546,14 +546,14 @@ export function PathMenu({
     };
   }, [open]);
 
-  // 見本が無ければ位置を文字で入力する（配列の何番目かは選べる）
+  // 見本が無ければ位置を文字で入力する（リストの何番目かは選べる）
   if (root === undefined && mode !== "item") {
     return (
       <TextIn
         value={path}
         placeholder={
           mode === "list"
-            ? tr("一覧の位置（例: products）")
+            ? tr("リストの位置（例: products）")
             : mode === "field"
               ? tr("項目（例: name）")
               : tr("位置（例: data.title）")
@@ -581,7 +581,7 @@ export function PathMenu({
   const label = path
     ? fieldLabel(path)
     : mode === "list"
-      ? tr("一覧を選択")
+      ? tr("リストを選択")
       : mode === "item"
         ? tr("位置を選択")
         : mode === "field"
@@ -676,7 +676,7 @@ export function PathMenu({
             })}
             {known && !rows.length && <div className="se-pm-none">{tr("中に項目がありません")}</div>}
             {mode === "list" && known && !at && !findsList(root) && (
-              <div className="se-pm-none">{tr("一覧（配列）が見つかりません")}</div>
+              <div className="se-pm-none">{tr("リストが見つかりません")}</div>
             )}
           </div>,
           document.body
@@ -685,14 +685,14 @@ export function PathMenu({
   );
 }
 
-/** 中に一覧（配列）があるか */
+/** 中に一覧（リスト）があるか */
 function findsList(value: unknown, depth = 0): boolean {
   if (Array.isArray(value)) return true;
   if (!isNested(value) || depth > 4) return false;
   return Object.values(value as object).some((v) => findsList(v, depth + 1));
 }
 
-/** 上書きできない変数名（ページのURLの slug、配列の各要素の 値） */
+/** 上書きできない変数名（ページのURLの slug、リストの各要素の 値） */
 export const RESERVED_VARS = new Set(["slug", ITEM_VALUE]);
 
 /** 変数名の入力（同じ名前ならその変数を上書きする。名前を変えると、使っている箇所も書き換える） */
