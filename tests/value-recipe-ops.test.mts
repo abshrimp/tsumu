@@ -42,6 +42,62 @@ test("numeric arithmetic and comparison have explicit types and errors", () => {
   assert.deepEqual(run(10, [{ kind: "compare", operation: "gt", operandType: "number", operand: "NaN" }]), { kind: "error", code: "invalid-literal" });
 });
 
+test("value operations use if/list operators with negation and grouped AND/OR conditions", () => {
+  const vars = { limit: 10, ceiling: 20, other: 40 };
+  const compare = (input: unknown, not = false) => evaluateValueRecipe(input, [{
+    kind: "compare", operation: "gt", operand: "{limit}", operandType: "text", not,
+    conditions: [
+      { field: "", operation: "lte", operand: "{ceiling}", operandType: "text", and: true },
+      { field: "", operation: "eq", operand: "{other}", operandType: "text", and: false },
+    ],
+  }], vars);
+  // Numeric fields require number-type operands, not stringified interpolation.
+  const numeric = (input: unknown, not = false) => evaluateValueRecipe(input, [{
+    kind: "compare", operation: "gte", operand: "10", operandType: "number", not,
+    conditions: [
+      { field: "", operation: "lte", operand: "20", operandType: "number", and: true },
+      { field: "", operation: "eq", operand: "40", operandType: "number", and: false },
+    ],
+  }]);
+  assert.deepEqual(numeric(15), val(true));
+  assert.deepEqual(numeric(25), val(false));
+  assert.deepEqual(numeric(40), val(true));
+  assert.deepEqual(numeric(15, true), val(false));
+  assert.deepEqual(evaluateValueRecipe("hello", [
+    { kind: "compare", operation: "contains", operandType: "text", operand: "lo", not: true },
+  ]), val(false));
+  assert.deepEqual(evaluateValueRecipe("b", [
+    { kind: "compare", operation: "in", operandType: "text", operand: "a, b, c" },
+  ]), val(true));
+  assert.deepEqual(evaluateValueRecipe("", [
+    { kind: "compare", operation: "empty", operandType: "text", operand: "" },
+  ]), val(true));
+  assert.deepEqual(evaluateValueRecipe("text", [
+    { kind: "compare", operation: "empty", operandType: "text", operand: "", not: true },
+  ]), val(true));
+
+  const items = [
+    { name: "Alpha", score: 12 }, { name: "Beta", score: 18 },
+    { name: "Gamma", score: 25 }, { name: "Delta", score: 40 },
+  ];
+  const conditions = [
+    { field: "score", operation: "lte" as const, operand: "20", operandType: "number" as const, and: true },
+    { field: "name", operation: "contains" as const, operand: "Del", operandType: "text" as const, and: false },
+  ];
+  assert.deepEqual(evaluateValueRecipe(items, [{
+    kind: "filter", field: "score", operation: "gte", operand: "10", operandType: "number",
+    conditions,
+  }]), val([items[0], items[1], items[3]]));
+  assert.deepEqual(evaluateValueRecipe(items, [{
+    kind: "find", field: "name", operation: "contains", operand: "a", operandType: "text",
+    not: true,
+  }]), val(items[0]));
+  assert.deepEqual(evaluateValueRecipe(items, [{
+    kind: "filter", field: "score", operation: "gte", operand: "10", operandType: "number",
+    conditions: [{ field: "name", operation: "contains", operand: "a", operandType: "text", not: true, and: true }],
+  }]), val([items[0]]));
+});
+
 test("split, join and replace compose without implicit coercion", () => {
   const items = run(" blue, , red, green ", [{ kind: "split", separator: "," }]);
   assert.deepEqual(items, val(["blue", "red", "green"]));
