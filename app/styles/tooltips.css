@@ -1251,6 +1251,7 @@ body {
 
 :root {
   --field-base: #f0f4f9;
+  --field-base-hover: #e7ecf3;
   --field-set: var(--accent-soft);
 }
 
@@ -2062,6 +2063,7 @@ body.is-scrubbing * {
   --field-set-hover: #c6d9fb;
   --bp-color: #c2410c;
   --bp-soft: #ffe8d6;
+  --bp-field-hover: #ffd9bd;
 }
 
 .grp-label.is-set,
@@ -2097,10 +2099,17 @@ body.is-scrubbing * {
   display: none;
 }
 
-.panel-r.is-bp {
+.panel-r.is-bp,
+.panel-r.is-dark {
   --set-color: var(--bp-color);
   --field-set: var(--bp-soft);
-  --field-set-hover: #ffd9bd;
+  --field-set-hover: var(--bp-field-hover);
+}
+
+/* Editing a value must not hide its orange override under the focus surface. */
+.panel-r.is-dark .field:focus-within {
+  background: var(--field);
+  border-color: var(--set-color);
 }
 
 /* キャンバス上部の「〜を編集中」も同じ色にそろえる */

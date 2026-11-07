@@ -605,9 +605,12 @@ export function PropNum({
         e.preventDefault();
         insp.set({ [prop]: null });
       }}
-      // 変更済みの欄は青くする。複数の欄をまとめたグループ（余白の4方向など）では、
-      // グループ全体の色を受け継がず、欄ごとに変更済みかどうかで塗り分ける
-      style={{ ["--field" as string]: info.changed ? "var(--field-set)" : "var(--field-base)" }}
+      // 余白の4方向などは個々の設定状況で背景とホバー色を決める。
+      // ダークモードでもライト用の明るい色が残らないようテーマ変数を使用する。
+      style={{
+        ["--field" as string]: info.changed ? "var(--field-set)" : "var(--field-base)",
+        ["--field-hover" as string]: info.changed ? "var(--field-set-hover)" : "var(--field-base-hover)",
+      }}
     >
       <NumField
         value={info.value ?? emptyValue}

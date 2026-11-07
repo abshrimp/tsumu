@@ -22,6 +22,13 @@ html[data-editor-theme="dark"] {
   --state-press: rgba(220, 228, 240, 0.15);
   --shadow-1: 0 2px 5px rgba(0, 0, 0, 0.34);
   --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.42);
+  /* Keep number and spacing fields readable; their default palette is light. */
+  --field-base: #2d333c;
+  --field-base-hover: #3a414d;
+  --field-set-hover: #385275;
+  --bp-color: #ffb27c;
+  --bp-soft: #513626;
+  --bp-field-hover: #68432e;
 }
 
 /* Existing light-only surfaces in the inspector and supporting dialogs. */

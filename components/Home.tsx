@@ -29,6 +29,8 @@ import { tr } from "../lib/i18n";
 import type { PublishProvider } from "../lib/publish-provider";
 import { readNetlifySite } from "../lib/browser-netlify";
 import LanguageSelector from "./LanguageSelector";
+import EditorAppearanceSelector from "./EditorAppearanceSelector";
+import { useApplyEditorTheme } from "../lib/editor-theme";
 import { relativeTime } from "../lib/time";
 import AllowedAccounts from "./AllowedAccounts";
 import SiteMembers from "./SiteMembers";
@@ -528,6 +530,12 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
           <p className="home-field-hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>
 
+        <section className="home-set-sec">
+          <h3>{tr("Editor appearance")}</h3>
+          <EditorAppearanceSelector />
+          <p className="home-field-hint">{tr("The editor appearance is separate from the website's styles.")}</p>
+        </section>
+
         {auth && (
           <section className="home-set-sec">
             <h3>{tr("Accounts with access")}</h3>
@@ -547,6 +555,12 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
 }
 
 /* ---------- 本体 ---------- */
+
+/** Rendered as a child so the Home entry point can also be inspected without a React dispatcher. */
+function HomeThemeApplier() {
+  useApplyEditorTheme();
+  return null;
+}
 
 export default function Home() {
   const status = useServerStatus();
@@ -851,6 +865,7 @@ export default function Home() {
 
   return (
     <div className="home">
+      <HomeThemeApplier />
       {importStatus?.kind === "loading" && importStatus.source === "remote" && (
         <div className="home-import-overlay" role="status" aria-live="polite" aria-busy="true">
           <div className="home-import-skeleton" aria-hidden="true">

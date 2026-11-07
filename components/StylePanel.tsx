@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Focus, MousePointer2, MousePointerClick, Pointer } from "lucide-react";
+import { Focus, Moon, MousePointer2, MousePointerClick, Pointer } from "lucide-react";
 import { useEditor, type EditorStore } from "../lib/store";
 import { showConfirm } from "../lib/dialog";
 import { usePendingImport } from "../lib/use-pending-import";
@@ -41,6 +41,16 @@ function BpScopeChip({ style }: { style?: React.CSSProperties }) {
       data-tip={tr("{scope}", { scope: info.scope })}
     >
       {breakpoint === "base" ? tr("All devices") : tr("For {label}", { label: info.label })}
+    </span>
+  );
+}
+
+/** ライトの値とは別にダーク用の値を編集中であることを明示する。 */
+function DarkStyleIndicator() {
+  return (
+    <span className="state-bar-theme">
+      <Moon size={12} aria-hidden="true" />
+      {tr("Editing dark mode styles")}
     </span>
   );
 }
@@ -109,6 +119,7 @@ export function BodyStylePanel() {
           {tr("body ({name})", { name: doc.pages[activePageId]?.name ?? "" })}
         </strong>
         <BpScopeChip style={{ marginLeft: "auto" }} />
+        {pageTheme === "dark" && <DarkStyleIndicator />}
       </div>
       <div className="panel-body">
         <LayoutSec />
@@ -215,6 +226,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
           />
         </div>
         <BpScopeChip />
+        {pageTheme === "dark" && <DarkStyleIndicator />}
       </div>
       <div className="panel-body">
         <VisibilitySec node={node} />

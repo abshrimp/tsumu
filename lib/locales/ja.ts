@@ -3874,6 +3874,7 @@ const ja: Dict = {
   "Light mode": "ライトモード",
   "Dark mode": "ダークモード",
   "Page appearance": "ページの配色",
+  "Editing dark mode styles": "ダークモードのスタイルを編集中",
   "The editor appearance is separate from the website's styles.": "エディターの配色を変更しても、制作するページのスタイルは変更されません。",
 };
 

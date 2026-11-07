@@ -12,6 +12,7 @@ import { CommentsPanel } from "./Comments";
 export default function RightPanel() {
   const selection = useEditor((s) => s.selection);
   const breakpoint = useEditor((s) => s.breakpoint);
+  const pageTheme = useEditor((s) => s.pageTheme);
   const selectedType = useEditor((s) =>
     s.selection ? s.doc.nodes[s.selection]?.type ?? null : null
   );
@@ -22,10 +23,9 @@ export default function RightPanel() {
   const mode = useEditor((s) => s.mode);
 
   return (
-    // パソコン以外の画面幅で編集しているときは、変更済みの色を青ではなくオレンジにする
-    //（その画面幅だけの変更だと分かるようにするため）
+    // 画面幅別・ダークモード別のスタイルを、通常の編集と区別できるようオレンジにする。
     <aside
-      className={`panel-r${breakpoint === "base" ? "" : " is-bp"}`}
+      className={`panel-r${breakpoint === "base" ? "" : " is-bp"}${pageTheme === "dark" ? " is-dark" : ""}`}
       data-tutorial="inspector"
       onContextMenu={(e) => {
         // 右クリックは項目のリセットなどに使うため、ブラウザのメニューは表示しない

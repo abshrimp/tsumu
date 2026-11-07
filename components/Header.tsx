@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { useEditor } from "../lib/store";
 import type { PageTheme } from "../lib/types";
-import { useEditorThemePreference, setEditorThemePreference } from "../lib/editor-theme";
+import EditorAppearanceSelector from "./EditorAppearanceSelector";
 import { useDocumentConfirmation } from "../lib/use-document-confirmation";
 import { closeHelp, toggleHelp, useHelp } from "../lib/help";
 import { useServerStatus } from "../lib/status";
@@ -70,25 +70,6 @@ function ModalLoading({ onClose }: { onClose: () => void }) {
 }
 
 /* ---------- 設定（表示言語・サイトのリセット） ---------- */
-
-function EditorAppearanceSelector() {
-  const appearance = useEditorThemePreference();
-  return (
-    <div className="seg seg-full appearance-seg" role="group" aria-label={tr("Editor appearance")}>
-      {(["system", "light", "dark"] as const).map((value) => (
-        <button
-          key={value}
-          type="button"
-          className={appearance === value ? "is-on" : ""}
-          aria-pressed={appearance === value}
-          onClick={() => setEditorThemePreference(value)}
-        >
-          {value === "system" ? tr("System setting") : value === "light" ? tr("Light mode") : tr("Dark mode")}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 /** エディタの設定（ログインできるアカウントなど、全サイト共通の設定はホームの設定にある） */
 function SettingsModal({ onClose }: { onClose: () => void }) {
