@@ -7,7 +7,7 @@ let bundle: string;
 const css = readFileSync(resolve("app/globals.css"), "utf8");
 test.beforeAll(async () => { bundle = await siteBootstrapBundle(true); });
 
-/** 実際のページ・エディタを動かし、通信の完了順だけを制御する。 */
+/** Exercise the real page and editor while controlling only request completion order. */
 async function prepare(page: Page, { strict = true, cached = false, localSite = false } = {}) {
   await page.route("**/sites/bootstrap-test", (route) => route.fulfill({
     contentType: "text/html", body: '<html><head></head><body><div id="app"></div></body></html>',
@@ -60,7 +60,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
     }
     w.WebSocket = w.EventSource = OfflineTransport;
   }, { strict, cached, localSite });
-  // エディタの動的 import より前に、実際の形式のキャッシュを準備する。
+  // Seed a cache in the actual format before the editor's dynamic import.
   await page.addScriptTag({ content: bundle });
   if (cached) await page.evaluate(() => {
     const local = (window as any).bootstrapDoc(); local.siteName = "Cached local document";
@@ -84,7 +84,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
     });
     w.loaderObserver.observe(document.getElementById("app"), { childList: true, subtree: true });
   });
-  // 最初の登場アニメーションが終わってから段階を進める。
+  // Advance the state only after the initial entrance animation ends.
   await page.waitForTimeout(420);
   await page.evaluate(() => { (window as any).startsBeforeImport = (window as any).loaderStarts; });
 }
@@ -106,7 +106,7 @@ async function expectSameLoader(page: Page) {
 }
 
 for (const strict of [false, true]) for (const first of ["site", "module"] as const) {
-  test(`準備画面を再表示しない: ${strict ? "StrictMode" : "通常"}・${first}が先に完了`, async ({ page }) => {
+  test(`The boot screen stays continuous when ${strict ? "StrictMode" : "normal mode"} is used and ${first} completes first`, async ({ page }) => {
     await prepare(page, { strict });
     await page.evaluate((first) => (window as any).bootstrap[first === "site" ? "releaseSite" : "releaseModule"](), first);
     await page.waitForTimeout(100);
@@ -123,7 +123,7 @@ for (const strict of [false, true]) for (const first of ["site", "module"] as co
 }
 
 for (const mode of ["server", "offline", "error", "network", "invalid", "new"] as const) {
-  test(`文書取得が${mode}でも同じ準備画面から終了する`, async ({ page }) => {
+  test(`Document loading in ${mode} mode exits through the same boot screen`, async ({ page }) => {
     await prepare(page, { cached: mode !== "new", localSite: mode === "offline" });
     await page.evaluate((mode) => {
       (window as any).bootstrap.releaseSite(mode === "offline" ? 503 : 200);
@@ -149,7 +149,7 @@ for (const mode of ["server", "offline", "error", "network", "invalid", "new"] a
 }
 
 for (const status of [400, 404, 503]) {
-  test(`サイト確認が${status}で存在しなければエディタを起動しない`, async ({ page }) => {
+  test(`A ${status} site check for a missing site never starts the editor`, async ({ page }) => {
     await prepare(page);
     await page.evaluate((status) => (window as any).bootstrap.releaseSite(status), status);
     await expect(page.getByText("サイトが見つかりません", { exact: true })).toBeVisible();
@@ -161,7 +161,7 @@ for (const status of [400, 404, 503]) {
   });
 }
 
-test("本体の読み込み失敗は既存のエラー画面を出し、再試行で一度だけ準備する", async ({ page }) => {
+test("Editor import failure shows the existing error screen and retry performs one bootstrap", async ({ page }) => {
   await prepare(page);
   await page.evaluate(() => { (window as any).bootstrap.releaseSite(); (window as any).bootstrap.failModule(); });
   await expect(page.locator(".safe-page")).toBeVisible();
@@ -178,7 +178,7 @@ test("本体の読み込み失敗は既存のエラー画面を出し、再試�
 });
 
 for (const phase of ["site", "module", "document"] as const) {
-  test(`${phase}の待機中に離れると遅い応答で準備画面を復活させない`, async ({ page }) => {
+  test(`Leaving during the ${phase} stage prevents a late response from reopening the boot screen`, async ({ page }) => {
     await prepare(page);
     if (phase !== "site") await page.evaluate(() => (window as any).bootstrap.releaseSite());
     if (phase === "document") {
@@ -195,7 +195,7 @@ for (const phase of ["site", "module", "document"] as const) {
     await page.waitForTimeout(100);
     await expect(page.locator(".boot, [data-bootstrap-document]")).toHaveCount(0);
     expect(await page.evaluate(() => (window as any).bootstrap.docRequests)).toBe(phase === "document" ? 1 : 0);
-    // 同じルートを再度開くと、新しい一連の準備が正常に完了する。
+    // Reopening the same route completes a new bootstrap normally.
     await page.evaluate(() => (window as any).mountBootstrap());
     await expect(page.locator("[data-bootstrap-document]")).toHaveText("Saved server document");
     await expect(page.locator(".boot")).toHaveCount(0);

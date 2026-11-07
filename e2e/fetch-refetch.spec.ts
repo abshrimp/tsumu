@@ -44,7 +44,7 @@ async function options(page: Page, method: string) {
   await block(page).locator("select").selectOption(method);
 }
 
-test("初回は二つの操作だけ。取得は確認なしで一度送信し、以降は見るだけ、右上から直接更新する", async ({ page }) => {
+test("Initial fetch sends once without confirmation; subsequent views are read-only until explicit refresh", async ({ page }) => {
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
     const step = doc.pages.p.pageScripts[0].steps[0]; delete step.sample; delete step.fetchedAt;
   }));
@@ -75,7 +75,7 @@ test("初回は二つの操作だけ。取得は確認なしで一度送信し�
   await expect(result(page).getByText("REFRESHED", { exact: true })).toBeVisible();
 });
 
-test("URL・POST本文・ヘッダー・DELETEの編集は送信せず、古い見本を保持して取得へ戻る", async ({ page }) => {
+test("Editing URL, POST body, headers, or DELETE settings does not send requests and preserves the previous sample", async ({ page }) => {
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await expect(result(page)).toContainText("保存された見本"); await close(page);
   await setUrl(page, "https://example.test/edited"); await options(page, "POST");
@@ -98,7 +98,7 @@ test("URL・POST本文・ヘッダー・DELETEの編集は送信せず、古い�
   await finish(page, 0, { ok: true });
 });
 
-test("未知のslugはブロック内のテスト値を使い、取得と結果・更新で同じ値を保ち文書には保存しない", async ({ page }) => {
+test("Unknown slugs use the block test values consistently without saving them to the document", async ({ page }) => {
   await setUrl(page, "https://example.test/{products.0.name}/[slug]/{q}");
   await expect(block(page).getByRole("button", { name: "データ取得", exact: true })).toBeDisabled();
   await block(page).getByRole("textbox", { name: "slug のテスト用の値" }).fill("001");
@@ -119,7 +119,7 @@ test("未知のslugはブロック内のテスト値を使い、取得と結果�
   await finish(page, 1, all);
 });
 
-test("保存済みの見本は最大20件で、全件の再取得方法を案内する", async ({ page }) => {
+test("Saved samples are limited to 20 and explain how to fetch all results again", async ({ page }) => {
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
     const step = doc.pages.p.pageScripts[0].steps[0];
     delete step.sample; delete step.fetchedAt;
@@ -145,7 +145,7 @@ test("保存済みの見本は最大20件で、全件の再取得方法を案内
   await expect(result(page).getByText("Row22", { exact: true })).toBeVisible();
 });
 
-test("旧設定の応答やエラーは新設定の保留状態・見本・エラーを戻さず失敗後に再試行できる", async ({ page }) => {
+test("Stale responses or errors do not replace the new pending state, sample, or error and allow retry", async ({ page }) => {
   await setUrl(page, "https://example.test/slow"); await send(page); await close(page);
   await setUrl(page, "https://example.test/latest"); await send(page); await requests(page, 2);
   await finish(page, 0, undefined, "古い取得に失敗しました");
@@ -162,14 +162,14 @@ test("旧設定の応答やエラーは新設定の保留状態・見本・エ�
   await expect(result(page).getByText("RECOVERED", { exact: true })).toBeVisible();
 });
 
-test("保留中のUndoと削除は応答で戻らない", async ({ page }) => {
+test("Pending responses do not undo Undo or deletion", async ({ page }) => {
   await setUrl(page, "https://example.test/slow"); await send(page); await requests(page, 1);
   await page.evaluate(() => (window as any).refetchEditor.getState().undo()); await close(page);
   const before = await snapshot(page); await finish(page, 0, [{ name: "OLD" }]);
   expect(await snapshot(page)).toEqual(before);
   await page.getByRole("button", { name: "やり直す", exact: true }).click();
   expect((await currentStep(page)).url).toBe("https://example.test/slow");
-  // Redo でも送信済みの事実は残す。見る操作では再送せず、明示して更新する。
+  // Redo preserves the fact that the request was sent; viewing never resends without an explicit refresh.
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await requests(page, 1); await refresh(page).click(); await requests(page, 2); await close(page);
   await block(page).click({ button: "right", position: { x: 8, y: 8 } });
@@ -179,7 +179,7 @@ test("保留中のUndoと削除は応答で戻らない", async ({ page }) => {
   await expect(page.locator('[data-sel-key="step:other"]')).toBeVisible();
 });
 
-test("スクリプトを閉じて開き直しても保留中のPOSTを再送せず、失敗後に再試行できる", async ({ page }) => {
+test("Reopening the script editor does not resend a pending POST and allows retry after failure", async ({ page }) => {
   await options(page, "POST"); await send(page); await close(page);
   await page.getByRole("dialog", { name: "スクリプト", exact: true }).getByRole("button", { name: "閉じる", exact: true }).click();
   await page.locator("#reopen-script").click();
@@ -195,7 +195,7 @@ test("スクリプトを閉じて開き直しても保留中のPOSTを再送せ�
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click(); await requests(page, 3);
 });
 
-test("無効なJSONは送れず、空値は明示して使用でき、未確定URL・本文を古い内容で送らない", async ({ page }) => {
+test("Invalid JSON cannot be sent, explicit empty values work, and uncommitted URL/body values are not sent", async ({ page }) => {
   await options(page, "POST");
   await block(page).locator("textarea").fill('{"broken":'); await block(page).locator("textarea").blur();
   await expect(block(page).getByRole("button", { name: "データ取得", exact: true })).toBeDisabled();
@@ -208,12 +208,12 @@ test("無効なJSONは送れず、空値は明示して使用でき、未確定U
   await finish(page, 0, { ok: true }); await close(page);
   const url = block(page).locator("input").first();
   await url.fill("https://example.test/uncommitted");
-  // URL の blur を引き起こす同じクリックは、古いリクエストを送ってはならない。
+  // A click that blurs the URL must not send the previous request.
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await requests(page, 1);
   await expect(result(page)).toBeVisible();
   expect((await currentStep(page)).url).toBe("https://example.test/uncommitted");
-  // リクエストを変えた後は、以前のテスト用の値を暗黙に流用しない。
+  // After changing the request, never silently reuse the previous test values.
   await expect(refresh(page)).toBeDisabled();
   await result(page).getByRole("button", { name: "空の値を使う", exact: true }).click();
   await requests(page, 1); await refresh(page).click(); await requests(page, 2);
@@ -226,7 +226,7 @@ test("無効なJSONは送れず、空値は明示して使用でき、未確定U
   await finish(page, 2, { ok: true });
 });
 
-test("リスト内のブロック実行と小窓の更新は同じ行の値を送る", async ({ page }) => {
+test("Executing a block inside a list and refreshing its dialog send the same row values", async ({ page }) => {
   const doc = fetchScopeDoc("node");
   delete (doc.nodes.act.scripts![0].steps[0] as any).fetchedAt;
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
@@ -243,7 +243,7 @@ test("リスト内のブロック実行と小窓の更新は同じ行の値を�
   }
 });
 
-test("入れ子の取得はブロック・小窓ともloopの親と空object・arrayをページ値から遮蔽する", async ({ page }) => {
+test("Nested fetches prevent parent loop values and empty objects or arrays from falling back to page values", async ({ page }) => {
   const doc = fetchScopeDoc("loop");
   delete (doc.pages.p.pageScripts![0].steps[2] as any).then[0].then[0].fetchedAt;
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
@@ -269,7 +269,7 @@ test("入れ子の取得はブロック・小窓ともloopの親と空object・a
 for (const gesture of ["step-cancel", "script-drop"]) test(`pending POST survives ${gesture} without turning view into a second send`, async ({ page }) => {
   await options(page, "POST"); await send(page); await requests(page, 1); await close(page);
   const source = gesture === "step-cancel" ? block(page) : page.locator(".se-ws .se-hat").first();
-  // 設定欄へのスクロールで左端がパレットの裏に隠れていても、本物のブロックをつかむ。
+  // Grab the actual block even if scrolling settings leaves its left edge under the palette.
   const grip = source.locator(".se-ico").first();
   await grip.scrollIntoViewIfNeeded();
   const rect = await grip.boundingBox(); const workspace = await page.locator(".se-ws").boundingBox();

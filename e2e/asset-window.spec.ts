@@ -31,7 +31,7 @@ test.beforeEach(async ({ page }) => {
   await expect(card(page, 0)).toBeVisible();
 });
 
-test("5,000画像でもDOMと画像要求を表示領域付近に限定し、末尾まで到達できる", async ({ page }) => {
+test("Virtualizing 5,000 images limits DOM nodes and requests to the viewport while keeping the end reachable", async ({ page }) => {
   await bounded(page);
   expect(await page.locator(".asset-card").first().getAttribute("aria-setsize")).toBe("5000");
   await expect.poll(() => imageRequests.size).toBeLessThan(40);
@@ -46,7 +46,7 @@ test("5,000画像でもDOMと画像要求を表示領域付近に限定し、末
   await expect(card(page, 0)).toBeVisible();
 });
 
-test("深いスクロール位置から検索・クリアしても全件を検索できる", async ({ page }) => {
+test("Searching and clearing a search from a deep scroll position still finds every asset", async ({ page }) => {
   await scroll(page, "bottom");
   const search = page.locator(".asset-search input");
   await search.fill("Photo 004999");
@@ -65,7 +65,7 @@ test("深いスクロール位置から検索・クリアしても全件を検�
   await expect(card(page, 0)).toBeVisible();
 });
 
-test("未描画のアセットを表示する要求で検索を外し、対象まで移動する", async ({ page }) => {
+test("Reveal requests remove the filter and scroll to an asset that was not rendered", async ({ page }) => {
   await page.locator(".asset-search input").fill("Photo 000001");
   await page.evaluate((id) => (window as any).assetEditor.getState().revealAsset(id), id(4500));
   await expect(page.locator(".asset-search input")).toHaveValue("");
@@ -74,7 +74,7 @@ test("未描画のアセットを表示する要求で検索を外し、対象�
   await bounded(page);
 });
 
-test("タブを閉じて戻るとスクロールを復元し、幅・高さ変更でも行を重ねない", async ({ page }) => {
+test("Reopening a tab restores scroll, and resizing does not overlap rows", async ({ page }) => {
   await scroll(page, 20000);
   const before = await page.locator(".panel-body").evaluate((el) => el.scrollTop);
   await page.evaluate(() => (window as any).setAssetPanelOpen(false));
@@ -91,7 +91,7 @@ test("タブを閉じて戻るとスクロールを復元し、幅・高さ変�
   await bounded(page);
 });
 
-test("画面外のフォーカスを保持し、Tab/Shift+Tabで論理順を飛ばさない", async ({ page }) => {
+test("Offscreen focus and Tab/Shift+Tab retain the logical navigation order", async ({ page }) => {
   await card(page, 0).locator(".asset-thumb").focus();
   await scroll(page, "bottom");
   await expect(card(page, 0).locator(".asset-thumb")).toBeFocused();
@@ -118,7 +118,7 @@ test("画面外のフォーカスを保持し、Tab/Shift+Tabで論理順を飛�
   await bounded(page);
 });
 
-test("名前変更中にスクロールしても入力を失わず、Enter保存とEscape取消ができる", async ({ page }) => {
+test("Scrolling during rename preserves the input, Enter saves, and Escape cancels", async ({ page }) => {
   await card(page, 0).hover();
   await card(page, 0).getByRole("button", { name: "名前を変更" }).click();
   const input = card(page, 0).locator(".asset-rename");
@@ -135,7 +135,7 @@ test("名前変更中にスクロールしても入力を失わず、Enter保存
   await expect(card(page, 0).locator(".asset-name")).toHaveText("Edited.png");
 });
 
-test("ドラッグ中のカードを保持し、キャンバス用のIDをそのまま渡す", async ({ page }) => {
+test("An actively dragged card remains mounted and passes its asset ID to the canvas", async ({ page }) => {
   await card(page, 0).locator(".asset-thumb").evaluate((el) => {
     const transfer = new DataTransfer();
     el.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
@@ -149,7 +149,7 @@ test("ドラッグ中のカードを保持し、キャンバス用のIDをその
   await bounded(page);
 });
 
-test("画面外の画像差し替え後も最新のプレビューと挿入元を使う", async ({ page }) => {
+test("Replacing an offscreen image uses the latest preview and insertion source", async ({ page }) => {
   await page.evaluate((id) => {
     const s = (window as any).assetEditor.getState(), d = structuredClone(s.doc);
     d.assets[id].path = "assets/replaced.png"; s.applyRemoteDoc(d); s.revealAsset(id);
@@ -160,7 +160,7 @@ test("画面外の画像差し替え後も最新のプレビューと挿入元�
     .toContain("/api/assets/file?path=assets%2Freplaced.png");
 });
 
-test("末尾を削除しても空白一覧にならず、ドロップした新規画像も見つかる", async ({ page }) => {
+test("Deleting the last row does not leave an empty viewport, and newly dropped images remain discoverable", async ({ page }) => {
   await scroll(page, "bottom");
   await card(page, 4999).hover();
   await card(page, 4999).getByRole("button", { name: "削除", exact: true }).click();

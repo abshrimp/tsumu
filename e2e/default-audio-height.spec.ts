@@ -51,7 +51,7 @@ test(`component default audio controls survive settings save, design, preview an
     await page.getByRole('button', { name: 'Toggle preview', exact: true }).click();
     expect(await snapshot(page)).toEqual(reloaded);
   }
-  // 生成したページだけでなく、実際に出力するCSSも適用する。
+  // Apply the actual exported CSS as well as the generated page markup.
   const { files } = generateProject(saved.doc);
   const html = await publishedComponentList(saved.doc);
   await page.setContent(`<html><head><style>${files['app/globals.css']}\n${files['styles/site.css']}</style></head><body>${html}</body></html>`);

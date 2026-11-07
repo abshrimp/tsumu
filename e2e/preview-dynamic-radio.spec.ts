@@ -47,7 +47,7 @@ async function setupPreview(page: Page, source: "query" | "data" | "literal") {
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.evaluate(() => {
     (window as any).radioLabels = { smallLabel: "S", mediumLabel: "M" };
-    // JSONだけを置き換え、Canvasの再取得・描画・スクリプト処理は実装そのものを使う。
+    // Replace only the JSON while using the real Canvas fetch, render, and script implementations.
     window.fetch = async (input) => {
       if (input !== "/api/fetch-json") throw new Error(`Unexpected fetch: ${input}`);
       return new Response(JSON.stringify({ json: (window as any).radioLabels }), { status: 200 });
@@ -105,7 +105,7 @@ for (const source of ["query", "data"] as const) {
     const { doc, html } = await publishedDynamicRadio(source);
     await page.setContent(html);
     await page.addScriptTag({ content: scriptsFile(doc) });
-    // 公開側との対比ではラジオの選択状態を確かめる。
+    // Compare the published radio selection state with the preview.
     await exerciseRadio(page, false);
     expect(errors).toEqual([]);
   });
@@ -128,7 +128,7 @@ for (const source of ["data"] as const) {
       ["group-small-clear", "", ""],
       ["small-group-clear", "", ""],
     ]) {
-      // 直前のclickの状態が残る場合も、1本のscript内の順番を守る。
+      // Execute steps in order within a single script even when the preceding click already left that state active.
       for (let repeat = 0; repeat < 3; repeat++) {
         await page.getByRole("button", { name: action, exact: true }).click();
         await expectSelection(page, value, selected);

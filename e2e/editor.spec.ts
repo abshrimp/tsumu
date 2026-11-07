@@ -3,14 +3,14 @@ import JSZip from "jszip";
 
 const HEADING = "見出しをここに";
 
-/** ページで起きた例外（画面が壊れていないか）を集める */
+/** Collect page exceptions to detect a broken UI. */
 function watchErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   return errors;
 }
 
-/** サイトを API で作り、ヘルプを自動で開かない状態でエディタを開く */
+/** Create a site through the API, suppress the help dialog, and open the editor. */
 async function openNewSite(page: Page, name = "E2E"): Promise<string> {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const res = await page.request.post("/api/sites", { data: { name } });
@@ -31,7 +31,7 @@ async function deleteHero(page: Page) {
   await expect(canvas(page).getByText(HEADING)).toHaveCount(0);
 }
 
-test("ホームからサイトを作り、エディタで開ける", async ({ page }) => {
+test("Create a site from Home and open it in the editor", async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto("/");
   await page.getByRole("button", { name: "新しいサイト" }).first().click();
@@ -43,7 +43,7 @@ test("ホームからサイトを作り、エディタで開ける", async ({ pa
   expect(errors).toEqual([]);
 });
 
-test("Tsumu の画面名と保存設定が、再読み込みしても保たれる", async ({ page, context }) => {
+test("Tsumu page title and save preferences survive a reload", async ({ page, context }) => {
   const id = await openNewSite(page, "Tsumu smoke");
   await saved(page);
   await expect(page).toHaveTitle("Tsumu smoke | Tsumu");
@@ -54,7 +54,7 @@ test("Tsumu の画面名と保存設定が、再読み込みしても保たれ�
   await expect(page.getByRole("button", { name: "始める" })).toHaveCount(0);
 });
 
-test("要素の削除は元に戻せて、保存されて再読み込みしても残る", async ({ page }) => {
+test("Deleting a node is undoable, persists, and survives a reload", async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   await deleteHero(page);
@@ -68,8 +68,8 @@ test("要素の削除は元に戻せて、保存されて再読み込みして�
   expect(errors).toEqual([]);
 });
 
-test("ほかの人の編集が、すぐ（ポーリングを待たずに）届く", async ({ browser }) => {
-  // 別々の人として開く（終わったら、SSE の接続ごと閉じる）
+test("Edits from another user arrive immediately without waiting for polling", async ({ browser }) => {
+  // Open two isolated browser contexts and close their SSE connections afterward.
   const ctxA = await browser.newContext();
   const ctxB = await browser.newContext();
   try {
@@ -77,7 +77,7 @@ test("ほかの人の編集が、すぐ（ポーリングを待たずに）届�
     const siteId = await openNewSite(a);
     const b = await ctxB.newPage();
     await b.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
-    // WebSocket が使えないサーバーでは、更新の通知（SSE）につながるのを待つ
+    // Where WebSocket is unavailable, wait for SSE update notifications to connect.
     const events = b.waitForRequest((r) => r.url().includes("/api/collab/events"));
     await b.goto(`/sites/${siteId}`);
     await expect(canvas(b).getByText(HEADING).first()).toBeVisible();
@@ -85,7 +85,7 @@ test("ほかの人の編集が、すぐ（ポーリングを待たずに）届�
     await b.waitForTimeout(500);
     await deleteHero(a);
     await saved(a);
-    // ポーリング（10秒ごと）より早く届く
+    // The update should arrive before the 10-second polling interval.
     await expect(canvas(b).getByText(HEADING)).toHaveCount(0, { timeout: 5_000 });
   } finally {
     await ctxA.close();
@@ -93,7 +93,7 @@ test("ほかの人の編集が、すぐ（ポーリングを待たずに）届�
   }
 });
 
-test("スタイル・設定・スクリプトの画面を開ける", async ({ page }) => {
+test("Style, Settings, and Script panels open", async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   await layers(page).getByText("ボタン", { exact: true }).click();
@@ -107,13 +107,13 @@ test("スタイル・設定・スクリプトの画面を開ける", async ({ pa
   expect(errors).toEqual([]);
 });
 
-test("GitHub が未設定なら、公開画面で設定を案内する", async ({ page }) => {
+test("Publishing explains the missing GitHub configuration", async ({ page }) => {
   await openNewSite(page);
   await page.locator('[data-tutorial="publish"]').click();
   await expect(page.getByText("GitHubへの公開が設定されていません")).toBeVisible();
 });
 
-test("zip で書き出すと、普通の Next.js プロジェクトになる", async ({ page }) => {
+test("ZIP export produces a standard Next.js project", async ({ page }) => {
   await openNewSite(page, "Zip export");
   await page.locator('[data-tutorial="menu"]').click();
   await page.getByText("zipでエクスポート").click();
@@ -130,7 +130,7 @@ test("zip で書き出すと、普通の Next.js プロジェクトになる", a
   expect(await zip.file(`${root}app/page.tsx`)!.async("string")).toContain(HEADING);
 });
 
-test("キャンバスで要素をドラッグして並べ替えられる", async ({ page }) => {
+test("Drag a canvas node to reorder it", async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   const order = async () => {
@@ -144,7 +144,7 @@ test("キャンバスで要素をドラッグして並べ替えられる", async
   const to = (await heading.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  // 6px 以上動かすとドラッグになる。見出しの上側に落とす
+  // A drag starts after 6px of movement; drop above the heading.
   for (let i = 1; i <= 10; i++) {
     await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 + ((to.y + 4 - from.y - from.height / 2) * i) / 10);
   }
@@ -153,7 +153,7 @@ test("キャンバスで要素をドラッグして並べ替えられる", async
   expect(errors).toEqual([]);
 });
 
-test("スクリプト画面で、パレットのブロックをワークスペースに置ける", async ({ page }) => {
+test("Drag a palette block into the script workspace", async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);
   await layers(page).getByText("ボタン", { exact: true }).click();
@@ -175,11 +175,11 @@ test("スクリプト画面で、パレットのブロックをワークスペ�
   expect(errors).toEqual([]);
 });
 
-test("編集データのカスタムコードやアイコンのスクリプトは、エディタの画面では動かない", async ({ page }) => {
+test("Custom code and icon scripts stored in documents never execute inside the editor", async ({ page }) => {
   const errors = watchErrors(page);
   const siteId = await openNewSite(page);
   await saved(page);
-  // 取り込んだデータ・公開履歴から戻した版などに、onerror を仕込んだコードとアイコンが入っていたとする
+  // Simulate imported or restored documents containing onerror handlers in custom code and icons.
   const cur = await (await page.request.get(`/api/doc?site=${siteId}`)).json();
   const doc = cur.doc;
   const pageId = doc.pageOrder[0];

@@ -63,7 +63,7 @@ test(`component server parent and browser child: configure, preview, reload and 
   expect(html).not.toContain('PRIVATE_SERVER_SENTINEL');
   await page.setContent(html); await page.addScriptTag({ content: scriptsFile(saved.doc) });
   await check(page);
-  // 本番と同じ常駐ランタイムで別ページへ移動し、戻ったときの変数と操作をリセットする。
+  // Navigate away and back with the production-style persistent runtime to reset temporary values and operations.
   await page.evaluate(() => { document.body.innerHTML = '<span data-page-body="other"></span>'; });
   await expect(details(page)).toHaveCount(0);
   await page.evaluate(content => { document.body.innerHTML = content; }, html);

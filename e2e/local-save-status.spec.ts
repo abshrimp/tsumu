@@ -29,7 +29,7 @@ async function prepare(page: Page, { blocked = true, cached, remote }: {
     state.blockDocSave = blocked;
     state.failedDocSaves = 0;
     const write = Storage.prototype.setItem;
-    // このテストが作ったサイトの本文だけを失敗させ、他の保存・サイトには影響させない。
+    // Fail document saves only for the site created by this test, without affecting other sites or saves.
     Storage.prototype.setItem = function (key, value) {
       if (key === `tsumu-doc-v1:${id}` && state.blockDocSave) {
         state.failedDocSaves++;

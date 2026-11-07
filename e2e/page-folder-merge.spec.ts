@@ -29,7 +29,7 @@ async function history(page: Page, action: "undo" | "redo", count = 1) {
 }
 
 for (const receiveAfterUndo of [false, true]) {
-  test(`別フォルダの改名を${receiveAfterUndo ? "Undo後" : "編集中"}に受信しても履歴に残す`, async ({ page }) => {
+  test(`Receiving a different folder rename ${receiveAfterUndo ? "after Undo" : "while editing"} preserves it in history`, async ({ page }) => {
     await rename(page, "First", "Local name");
     if (receiveAfterUndo) await history(page, "undo");
     await page.evaluate(() => {
@@ -45,7 +45,7 @@ for (const receiveAfterUndo of [false, true]) {
   });
 }
 
-test("同時に作ったフォルダと移動したページを、作成・移動のUndo後も残す", async ({ page }) => {
+test("Concurrent folder creation and page moves survive Undo of creation and movement", async ({ page }) => {
   await folder(page, "First").locator(".folder-pages .page-row").click({ modifiers: ["Control"] });
   await page.getByRole("button", { name: "フォルダへ移動", exact: true }).click();
   await page.getByRole("button", { name: "新しいフォルダ", exact: true }).click();
@@ -69,7 +69,7 @@ test("同時に作ったフォルダと移動したページを、作成・移�
   await expect(folder(page, "Remote folder").locator(".folder-pages .page-row")).toContainText("Q");
 });
 
-test("フォルダのドラッグ並べ替えと別フォルダの改名を両方残す", async ({ page }) => {
+test("Dragging a folder to reorder it preserves a concurrent rename of another folder", async ({ page }) => {
   await folder(page, "Third").locator(".folder-row").dragTo(folder(page, "First").locator(".folder-row"), { targetPosition: { x: 60, y: 2 } });
   await expect(page.locator(".folder-name")).toHaveText(["Third", "First", "Second"]);
   await page.evaluate(() => {
@@ -84,7 +84,7 @@ test("フォルダのドラッグ並べ替えと別フォルダの改名を両�
   await expect(page.locator(".folder-name")).toHaveText(["Third", "First", "Remote name"]);
 });
 
-test("フォルダ削除のUndoとRedoは他のフォルダの改名を取り消さない", async ({ page }) => {
+test("Undo/Redo of folder deletion does not undo a remote rename of a different folder", async ({ page }) => {
   await folder(page, "First").locator(".folder-row").hover();
   await folder(page, "First").locator('[data-tip="フォルダを削除（中のページはフォルダの外へ出ます）"]').click();
   await page.evaluate(() => {

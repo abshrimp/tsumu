@@ -78,7 +78,7 @@ for (const storage of ["local", "remote"] as const) {
   test(`ZIP inline CSS ${storage}: quoted assets survive native import, preview and route export`, async ({ page }) => {
     const fixture = await zipCssBrowser(page, storage);
     const source = assetSrc(fixtureAsset(fixture.doc, "site/images/background.svg"));
-    // ブラウザ自身のHTML直列化で生じる &quot; が、修正対象の入力になる。
+    // The browser's own HTML serialization produces &quot;, which becomes the input to be corrected.
     expect(fixture.doc.pages.p.rawHtml).toContain(`id="inline-double" style="background-image:url(&quot;${source}&quot;)"`);
     expect(fixture.doc.pages.p.rawHtml).toContain(`id="inline-numeric" style="background-image:url(&quot;${source}&quot;)"`);
 

@@ -45,7 +45,7 @@ test(`component-contained lists: select script arrays, sort, filter, clear and r
   for (const action of listActions) {
     await page.getByRole("button", { name: `Edit ${action}`, exact: true }).click();
     const choice = page.locator(`.se-ws [data-sel-key="step:${action}-step"] select.se-in-strong`);
-    // 項目内の変数を直接書き込まず、実際の配列選択で名前付き配列を選ぶ。
+    // Select named arrays through the real array selector rather than writing a loop variable directly.
     await expect(choice.locator('option[value="tags"]')).toHaveText("tags");
     await choice.selectOption("tags");
     await expect(choice).toHaveValue("tags");
@@ -66,7 +66,7 @@ test(`component-contained lists: select script arrays, sort, filter, clear and r
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
   expect(await runOperations(page)).toEqual(previewResults);
   expect(await snapshot(page)).toEqual(before);
-  // 部品内も含め、スクリプト画面で保存した文書を生成して同じ操作を確かめる。
+  // Generate the document saved through the script editor, including component scripts, and verify the same operations.
   await page.setContent(await publishedNestedOperations(before.doc));
   await page.addScriptTag({ content: scriptsFile(before.doc) });
   expect(await runOperations(page)).toEqual(previewResults);

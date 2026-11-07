@@ -63,7 +63,7 @@ test(`component nested browser arrays: configure, preview, reload and execute ex
   const html = await publishedClientNested(saved.doc);
   await page.setContent(html); await page.addScriptTag({ content: scriptsFile(saved.doc) });
   await check(page);
-  // 本番と同じ常駐ランタイムで別ページへ移動し、戻ったときの変数と操作をリセットする。
+  // Navigate away and back with the production-style persistent runtime to reset temporary values and operations.
   await page.evaluate(() => { document.body.innerHTML = '<span data-page-body="other"></span>'; });
   await expect(details(page)).toHaveCount(0);
   await page.evaluate(content => { document.body.innerHTML = content; }, html);
@@ -151,7 +151,7 @@ test(`component generated client links retain row URLs after reload and navigati
   const value = page.locator('.se-ws [data-sel-key="step:reload-step"] input').first();
   await value.fill('{response}'); await value.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();
-  // 選択だけを補助し、URL の編集・履歴・保存は実際の設定画面を通す。
+  // Only selection is assisted; URL editing, history, and saving go through the actual Settings panel.
   await page.evaluate(() => (window as any).clientNestedStore.getState().select('detail'));
   const before = await snapshot(page);
   const url = page.getByPlaceholder('https://…・#ID・{変数}', { exact: true });
