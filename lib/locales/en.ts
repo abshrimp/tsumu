@@ -70,6 +70,7 @@ const en: Dict = {
   "操作する値": "List value",
   "リストに使う変数": "Variable for list operation",
   "追加・削除する文字列": "Text to add or remove",
+  "値の指定方法": "Value source",
   "計算する値の種類": "Arithmetic operand type",
   "計算する変数": "Variable for calculation",
   "削除する位置": "Position to remove",
