@@ -366,7 +366,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   /*/store*/
   return {
-    install: function (root) {
+    install: function (root, initialVars) {
       var alive = true;
       var pageGeneration = 0;
       var pageBody = null;
@@ -399,7 +399,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         };
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
-      var vars = {};
+      var vars = initialVars && typeof initialVars === "object" ? initialVars : {};
       function getVar(name) {
         return has(vars, name) ? vars[name] : dig(vars, name);
       }
@@ -579,6 +579,24 @@ export const SCRIPT_RUNTIME = `function (env) {
           }
           var next = resolve(el.getAttribute("data-live"), el);
           if (t.nodeValue !== next) t.nodeValue = next;
+        });
+        root.querySelectorAll("[data-static-href], [data-static-src], [data-static-option]").forEach(function (el) {
+          if (inTpl(el)) return;
+          var targetHref = el.getAttribute("data-static-href");
+          var src = el.getAttribute("data-static-src");
+          var option = el.getAttribute("data-static-option");
+          if (targetHref !== null) {
+            var target = safeNavigationUrl(resolveUrl(targetHref, el));
+            if (el.getAttribute("href") !== target) el.setAttribute("href", target);
+          }
+          if (src !== null) {
+            var targetSrc = resolve(src, el) || "${EMPTY_GIF}";
+            if (el.getAttribute("src") !== targetSrc) el.setAttribute("src", targetSrc);
+          }
+          if (option !== null) {
+            var targetText = resolve(option, el);
+            if (el.textContent !== targetText) el.textContent = targetText;
+          }
         });
         root.querySelectorAll("[data-live-placeholder]").forEach(function (el) {
           if (inTpl(el)) return;
@@ -2051,8 +2069,15 @@ export function compactJs(src: string): string {
 }
 
 /** 書き出しサイト用の /scripts.js（サイトで使う機能だけを含める） */
-export function scriptsFile(doc: SiteDoc): string {
-  const runtime = pickFeatures(SCRIPT_RUNTIME, runtimeFeatures(doc));
+export function scriptsFile(doc: SiteDoc, clientData = false): string {
+  const features = runtimeFeatures(doc);
+  if (clientData) {
+    // Standalone pages run the data plan before installing the DOM runtime.
+    features.add("clist");
+    features.add("live");
+    features.add("scan");
+  }
+  const runtime = pickFeatures(SCRIPT_RUNTIME, features);
   const domain = sharedCookieDomain(doc);
   const hardNav = hardNavPatterns(Object.values(doc.pages));
   const envObj = {
@@ -2060,7 +2085,10 @@ export function scriptsFile(doc: SiteDoc): string {
     ...(hardNav.length ? { hardNav } : {}),
   };
   const env = Object.keys(envObj).length ? JSON.stringify(envObj) : "";
-  return compactJs(`(${runtime})(${env}).install(document);`) + "\n";
+  const start = clientData
+    ? `Promise.resolve(window.__pageDataReady).then(function (vars) { (${runtime})(${env}).install(document, vars); });`
+    : `(${runtime})(${env}).install(document);`;
+  return compactJs(start) + "\n";
 }
 
 /** 共有ストレージのクッキーのドメイン（公開URLのホスト。先頭の www. は除く） */
