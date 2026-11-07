@@ -91,8 +91,8 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
         ? tr("リスト{p1}の絞り込み{no}を解除する", { p1: arrayText(st.array), no: st.no })
         : tr("リスト{p1}のすべての絞り込みを解除する", { p1: arrayText(st.array) });
       if (st.mode === "sort") return st.dir === "desc"
-        ? tr("リスト{array}を {field} の大きい順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") })
-        : tr("リスト{array}を {field} の小さい順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") });
+        ? tr("リスト{array}を {field} の降順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") })
+        : tr("リスト{array}を {field} の昇順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") });
       const conds = [{ field: st.field, op: st.op, value: st.value, not: st.not }, ...(st.or ?? [])]
         .map((c, i) => {
           const detail = opText(c.field || tr("（項目未選択）"), c.op, c.value);
