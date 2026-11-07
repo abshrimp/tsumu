@@ -3,6 +3,8 @@ import type { GeneratedProject } from "../generator";
 import { usedGoogleFonts } from "./css";
 import { buildAssetNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
+import { pwaIconType } from "./templates";
+import { REACT_SEARCH_FORM } from "./react-form";
 
 const esc = (value: string) =>
   value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);
@@ -30,13 +32,17 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   const files: Record<string, string> = {};
   for (const [path, source] of Object.entries(next.files)) {
     if (path.startsWith("public/")) files[path] = source;
-    else if (path.startsWith("components/")) {
-      // SearchForm is rejected earlier; SmartLink needs navigation semantics and
-      // cannot be implemented by a blind import rewrite.
-      if (path === "components/SearchForm.tsx" || path === "components/SmartLink.tsx")
-        throw new Error("This project requires Next.js-specific navigation components.");
-      files["src/" + path] = reactSource(source);
-    } else if (path === "lib/vars.ts") files["src/lib/vars.ts"] = source;
+    else if (path === "components/SearchForm.tsx") {
+      files["src/components/SearchForm.tsx"] = REACT_SEARCH_FORM;
+    } else if (path === "components/SmartLink.tsx") {
+      files["src/components/SmartLink.tsx"] = [
+        'import type { ComponentPropsWithoutRef } from "react";',
+        'export default function SmartLink({ href, ...props }: Omit<ComponentPropsWithoutRef<"a">, "href"> & { href: string }) {',
+        '  return <a href={href} {...props} />;',
+        '}', '',
+      ].join("\n");
+    } else if (path.startsWith("components/")) files["src/" + path] = reactSource(source);
+    else if (path === "lib/vars.ts") files["src/lib/vars.ts"] = source;
   }
   const pages = doc.pageOrder.map((id) => doc.pages[id])
     .filter((page) => page && !page.unpublished && page.slug.replace(/^\/+|\/+$/g, "") !== "404");
@@ -44,11 +50,18 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   const entries: string[] = [];
   for (const [i, page] of pages.entries()) {
     const slug = page.slug.replace(/^\/+|\/+$/g, "");
-    const generated = next.files["app/" + (slug ? slug + "/" : "") + "page.tsx"];
-    if (!generated) throw new Error("Missing generated page: " + page.slug);
+    const variants = pages.filter((candidate) =>
+      candidate.slug.replace(/^\/+|\/+$/g, "") === slug && !candidate.rawHtml?.trim());
+    const variant = variants.length > 1 ? variants.indexOf(page) : -1;
+    const generatedPath = "app/" + (slug ? slug + "/" : "") +
+      (variant < 0 ? "page.tsx" : "_q/p" + variant + ".tsx");
+    const generated = next.files[generatedPath];
+    if (!generated) throw new Error("Missing generated page: " + generatedPath);
     files["src/pages/Page" + i + ".tsx"] = reactSource(generated);
     imports.push('import Page' + i + ' from "./pages/Page' + i + '";');
+    const query = Object.fromEntries(new URLSearchParams(page.query ?? ""));
     entries.push("  { path: " + JSON.stringify(slug ? "/" + slug : "/") +
+      ", query: " + JSON.stringify(query) +
       ", title: " + JSON.stringify(page.title || page.name) +
       ", description: " + JSON.stringify(page.description) +
       ", lang: " + JSON.stringify(page.lang || doc.lang || "ja") +
@@ -63,20 +76,22 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   if (loading) imports.push('import SiteLoadingScreen from "./components/SiteLoadingScreen";');
   // A browser runtime is installed after the initial React mount so the
   // script DOM queries see actual elements.
-  const scripts = ["inview.js", "scripts.js"].filter((name) => !!files["public/" + name]);
+  const scripts = ["inview.js", "scripts.js", "pwa.js"].filter((name) => !!files["public/" + name]);
   const app = [
     'import { useEffect, type ComponentType } from "react";',
     ...imports, "",
     "const SITE_NAME = " + JSON.stringify(doc.siteName) + ";",
     "const scripts = " + JSON.stringify(scripts.map((name) => "/" + name)) + ";",
-    "type Route = { path: string; title: string; description: string; lang: string; Component: ComponentType };",
+    "type Route = { path: string; query: Record<string, string>; title: string; description: string; lang: string; Component: ComponentType };",
     "const routes: Route[] = [", ...entries, "];", "",
     "export default function App() {",
     '  const pathname = (() => {',
     '    try { return decodeURI(window.location.pathname); }',
     '    catch { return window.location.pathname; }',
     '  })().replace(/\\/+$/, "") || "/";',
-    '  const route = routes.find((item) => item.path === pathname);',
+    '  const search = new URLSearchParams(window.location.search);',
+    '  const matches = routes.filter((item) => item.path === pathname && Object.entries(item.query).every(([key, value]) => search.get(key) === value));',
+    '  const route = matches.sort((a, b) => Object.keys(b.query).length - Object.keys(a.query).length)[0] ?? routes.find((item) => item.path === pathname);',
     '  const Page = route?.Component ?? NotFound;',
     '  useEffect(() => {',
     '    document.title = route ? route.title + " | " + SITE_NAME : SITE_NAME;',
@@ -107,6 +122,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
     '    <>',
     loading ? '      <SiteLoadingScreen />' : '',
     '      <Page />',
+    doc.customBodyEndHtml?.trim() ? '      <div dangerouslySetInnerHTML={{ __html: ' + JSON.stringify(doc.customBodyEndHtml) + ' }} />' : '',
     '    </>',
     '  );',
     '}', "",
@@ -138,7 +154,30 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   const assetNames = buildAssetNames(doc);
   const favicon = imageRefSrc(assetNames, doc.favicon);
   const appleIcon = imageRefSrc(assetNames, doc.appleTouchIcon);
+  // Manifest and SW are public assets in Vite, no Next.js route needed.
+  if (doc.pwa?.enabled) {
+    const pwa = doc.pwa;
+    const iconRef = [pwa.icon, doc.appleTouchIcon, doc.favicon].find((ref) => imageRefSrc(assetNames, ref));
+    const iconSrc = imageRefSrc(assetNames, iconRef);
+    const asset = iconRef?.assetId ? doc.assets[iconRef.assetId] : undefined;
+    files["public/manifest.webmanifest"] = JSON.stringify({
+      name: pwa.name?.trim() || doc.siteName,
+      short_name: pwa.shortName?.trim() || doc.siteName,
+      start_url: "/", scope: "/",
+      display: pwa.display ?? "standalone",
+      lang: doc.lang || "ja",
+      ...(pwa.themeColor?.trim() ? { theme_color: pwa.themeColor.trim() } : {}),
+      ...(pwa.backgroundColor?.trim() ? { background_color: pwa.backgroundColor.trim() } : {}),
+      icons: iconSrc ? [{
+        src: iconSrc,
+        sizes: asset?.width && asset?.height ? asset.width + "x" + asset.height : "any",
+        ...(pwaIconType(asset?.mimeType, iconSrc) ? { type: pwaIconType(asset?.mimeType, iconSrc) } : {}),
+        purpose: "any",
+      }] : [],
+    }, null, 2) + "\n";
+  }
   const icons = [
+    doc.pwa?.enabled ? '<link rel="manifest" href="/manifest.webmanifest">' : "",
     favicon ? '<link rel="icon" href="' + esc(favicon) + '">' : "",
     appleIcon ? '<link rel="apple-touch-icon" href="' + esc(appleIcon) + '">' : "",
   ].filter(Boolean).join("\n    ");
