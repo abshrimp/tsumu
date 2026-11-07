@@ -204,7 +204,7 @@ export async function restoreAssets(
     }
     try {
       const name = names.get(id) ?? previous.name;
-      const copy = new Uint8Array(data.byteLength);
+      const copy = new Uint8Array(new ArrayBuffer(data.byteLength));
       copy.set(data);
       const file = new File([copy], name, {
         type: previous.mimeType || mimeOf(name),
