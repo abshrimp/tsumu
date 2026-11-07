@@ -198,7 +198,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
               })}
             </p>
           )}
-          <div style={{ display: "flex", gap: 6 }}>
+          <div className="settings-node-actions">
             <button className="btn btn-sm" onClick={() => duplicateNodes(targetIds)}>
               <Icon name="copy" size={12} />
               {tr("複製")}
@@ -234,7 +234,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
             </button>
           </div>
           {node.type === "box" && !inComponent && (
-            <div style={{ display: "flex", gap: 6 }} data-tutorial="settings-make">
+            <div className="settings-node-actions" data-tutorial="settings-make">
               <button
                 className="btn btn-sm"
                 data-tip={tr("複数のページで使い回せる部品にします（マスターを編集すると、すべての使用箇所に反映されます）")}
