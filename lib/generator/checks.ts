@@ -301,14 +301,15 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       for (const sc of node.scripts ?? []) {
         if (!sc.trigger) continue;
         walkSteps(sc.steps, (st) => {
-          const t =
-            "target" in st
-              ? st.target
-              : st.kind === "if" && st.cond.subject !== "var"
-                ? st.cond.target
-                : null;
-          if (t !== null && t !== SELF_TARGET) {
-            scriptRefs.push({ name: node.name, targetId: t });
+          if (st.kind === "if") {
+            // Every predicate has its own target; checking only the first
+            // condition misses broken references in joined AND/OR clauses.
+            for (const condition of [st.cond, ...(st.conditions ?? [])]) {
+              if (condition.subject !== "var" && condition.target !== SELF_TARGET)
+                scriptRefs.push({ name: node.name, targetId: condition.target });
+            }
+          } else if ("target" in st && st.target !== SELF_TARGET) {
+            scriptRefs.push({ name: node.name, targetId: st.target });
           }
           if (st.kind === "open-page" && !doc.pages[st.pageId]) {
             results.push({
