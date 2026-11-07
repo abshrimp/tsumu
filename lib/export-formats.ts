@@ -81,7 +81,7 @@ function publishedPages(doc: SiteDoc) {
 export function exportLimitations(
   doc: SiteDoc,
   request: ExportFormat | ExportOptions,
-  existing?: GeneratedProject,
+  _existing?: GeneratedProject,
 ): string[] {
   const options = optionsOf(request);
   try {
@@ -96,7 +96,7 @@ export function exportLimitations(
     if (bad) reasons.push(tr(message));
   };
   add(pages.some((p) => /\[[^\]]+\]/.test(p.slug)),
-    "動的URL（[slug]など）は、アクセス時にURLから値を取り出す必要があります。固定URLのページに変更するか、Next.js形式を選択してください。");
+    "動的パス（[slug]など）は、静的ホスティングで任意のURLへ直接アクセスできる設定が必要です。固定パスに変更するか、Next.js形式を選択してください。");
   add(pages.some((p) => p.rewriteTo !== undefined || p.redirectTo !== undefined),
     "リダイレクトとリバースプロキシにはサーバーの処理が必要です。転送先への通常のリンクに変更するか、Next.js形式を選択してください。");
   if (options.framework === "react") {
@@ -104,32 +104,30 @@ export function exportLimitations(
       "取り込んだHTMLページをReactコンポーネントへ安全に変換できません。HTML形式なら元のHTMLをそのまま出力できます。");
   }
   if (options.framework === "html") {
-    add(pages.some((p) => !!p.query?.trim()) ||
-      new Set(pages.map((p) => p.slug.replace(/^\/+|\/+$/g, ""))).size !== pages.length,
-      "同じURLをクエリ文字列で切り替えるページは、静的ファイルだけでは振り分けられません。ページごとに異なるURLに変更してください。");
+    // A query variant cannot share its output with an imported HTML document,
+    // because imported documents are opaque and may contain arbitrary scripts.
+    const grouped = new Map<string, typeof pages>();
+    for (const page of pages) {
+      const key = page.slug.replace(/^\/+|\/+$/g, "");
+      grouped.set(key, [...(grouped.get(key) ?? []), page]);
+    }
+    add([...grouped.values()].some((group) =>
+      group.length > 1 && group.some((page) => !!page.rawHtml?.trim())),
+      "同じパスに取り込んだHTMLページとクエリ別ページが混在しています。通常ページに変更するか、別の固定URLに分けてください。");
   }
-  const project = existing ?? generateProject(doc);
-  if (options.framework === "react") {
-    add(Object.entries(project.files).some(([path, source]) => {
-      if (!/^app\/(?:.*\/)?(?:_q\/p\d+|page)\.tsx$/.test(path)) return false;
-      // React query dispatchers are replaced with a browser routing table.
-      if (source.includes("const variants: Variant[]")) return false;
-      return needsServerRuntime(source.replaceAll("await searchParams", ""));
-    }), "ページの表示前にサーバーでデータを取得・加工する設定があります。Reactのクライアント描画では現在この処理を移行できません。Next.jsまたはHTML形式を選択してください。");
-  }
-  if (options.framework === "html") {
-    const fetched = pages.flatMap((page) => pagePlan(doc, page.id).steps)
-      .filter((step) => step.kind === "fetch");
-    const secret = fetched.some((step) => {
-      const credentialHeader = (step.headers ?? []).some((h) =>
-        /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token|x-client-secret)$/i.test(h.name.trim())
-      );
-      const secretUrl = /[?&](?:api[_-]?key|secret|access[_-]?token|auth[_-]?token)=/i.test(step.url);
-      return credentialHeader || secretUrl;
-    });
-    add(secret,
-      "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。HTMLに直接書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");
-  }
+  // Both HTML and React execute public API requests in the browser.
+  // Refuse credentials that must not be shipped to every site visitor.
+  const fetched = pages.flatMap((page) => pagePlan(doc, page.id).steps)
+    .filter((step) => step.kind === "fetch");
+  const secret = fetched.some((step) => {
+    const credentialHeader = (step.headers ?? []).some((h) =>
+      /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token|x-client-secret)$/i.test(h.name.trim())
+    );
+    const secretUrl = /[?&](?:api[_-]?key|secret|access[_-]?token|auth[_-]?token)=/i.test(step.url);
+    return credentialHeader || secretUrl;
+  });
+  add(secret,
+    "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");
 
   if (options.framework === "react") {
     add(!!doc.customBodyEndHtml?.match(/<script\b/i),
