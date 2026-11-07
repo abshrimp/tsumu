@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { makeBox } from "../lib/presets";
+import type { SiteDoc } from "../lib/types";
 
 test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", async ({ page }) => {
   const messages: Array<{ action: string; files?: Record<string, string>; path?: string }> = [];
@@ -26,6 +28,17 @@ test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", a
   const response = await page.request.post("/api/sites", { data: { name: "Multi-format Push" } });
   expect(response.ok()).toBe(true);
   const { site } = await response.json();
+  const doc: SiteDoc = {
+    siteName: "Push formats",
+    pageOrder: ["home"],
+    pages: {
+      home: { id: "home", name: "Home", slug: "", title: "Home", description: "",
+        children: ["heading"] },
+    },
+    nodes: { heading: { ...makeBox(), id: "heading", text: { content: "見出しをここに", heading: 1 } } },
+    assets: {},
+  };
+  expect((await page.request.put("/api/doc?site=" + site.id, { data: doc })).ok()).toBe(true);
   await page.goto("/sites/" + site.id);
   await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
   await page.locator('[data-tutorial="publish"]').click();
