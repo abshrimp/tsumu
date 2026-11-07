@@ -313,19 +313,22 @@ function RecipeConditionLine({ condition, fieldEnabled, options, onChange,
         <option value="and">{tr("かつ")}</option>
         <option value="or">{tr("または")}</option>
       </select>}
-      {fieldEnabled && <FieldKeyPicker value={condition.field} options={options}
-        ariaLabel={tr("リスト内の項目名")} placeholder={tr("項目（空なら要素自身）")}
-        onChange={(field) => onChange({ field })} />}
+      {fieldEnabled && <>
+        <FieldKeyPicker value={condition.field} options={options}
+          ariaLabel={tr("リスト内の項目名")} placeholder={tr("項目（空なら要素自身）")}
+          onChange={(field) => onChange({ field })} />
+        <span>{tr("が")}</span>
+      </>}
+      {condition.operation !== "empty" &&
+        <TextIn vars value={condition.operand} width={150}
+          valueContext="value" placeholder={tr("値 / {変数}")}
+          onCommit={(operand) => onChange({ operand })} />}
       <select className="se-in se-fixed-select" aria-label={tr("比較方法")}
         value={condition.operation}
         onChange={(e) => onChange({ operation: e.target.value as CompareOperation })}>
         {CONDITION_OPERATORS.map((op) =>
           <option key={op.value} value={op.value}>{op.label}</option>)}
       </select>
-      {condition.operation !== "empty" &&
-        <TextIn vars value={condition.operand} width={150}
-          valueContext="value" placeholder={tr("値 / {変数}")}
-          onCommit={(operand) => onChange({ operand })} />}
       <NegationSelect not={condition.not} onChange={(not) => onChange({ not })} />
       {onRemove && <button type="button" className="se-mini"
         aria-label={tr("この条件を削除")} onClick={onRemove}><X size={12} /></button>}
