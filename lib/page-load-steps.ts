@@ -99,8 +99,15 @@ export function runPurePageSteps(
           break;
         }
         case "repeat": {
-          if (!Number.isInteger(step.times) || step.times < 1 || step.times > 1000) break;
-          for (let i = 0; i < step.times && !exhausted; i++) execute(step.then, locals, depth + 1);
+          const matched = typeof step.times === "string"
+            ? /^\\{([^{}\\s]+)\\}$/.exec(step.times.trim()) : null;
+          const raw = typeof step.times === "string"
+            ? matched ? lookup(scope, matched[1]) : undefined : step.times;
+          if (raw === null || raw === undefined || typeof raw === "boolean" ||
+              (typeof raw === "string" && !raw.trim())) break;
+          const count = Number(raw);
+          if (!Number.isInteger(count) || count < 1 || count > 1000) break;
+          for (let i = 0; i < count && !exhausted; i++) execute(step.then, locals, depth + 1);
           break;
         }
       }
