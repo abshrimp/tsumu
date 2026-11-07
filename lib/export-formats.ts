@@ -9,6 +9,16 @@ import { applyExportStyle } from "./generator/style-export";
 import { tr } from "./i18n";
 
 export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
+export const EXPORT_FRAMEWORK_OPTIONS: { value: ExportFormat; label: string }[] = [
+  { value: "nextjs", label: "Next.js" },
+  { value: "react", label: "React + Vite" },
+  { value: "vue", label: "Vue 3 + Vite" },
+  { value: "nuxt", label: "Nuxt" },
+  { value: "sveltekit", label: "SvelteKit" },
+  { value: "html", label: "HTML / CSS / JavaScript" },
+  { value: "single-html", label: "Single HTML" },
+];
+
 export type ExportLanguage = "typescript" | "javascript";
 export type ExportStyle = "css" | "css-modules" | "tailwind";
 export type ExportScope = "project" | "page" | "component";
