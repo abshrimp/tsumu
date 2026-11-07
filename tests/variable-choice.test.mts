@@ -82,7 +82,7 @@ test("real raw chip uses node samples and treats loop roots as runtime values", 
   assert.doesNotMatch(render("Hello {price}"), /se-value-info/, "a mixed template is not labelled as a raw boolean");
   assert.doesNotMatch(render("\\{price}"), /se-value-info/, "an escaped reference remains literal text");
   const loopChip = render("{details}", [{ fields: ["details.id"], samples: { "details.id": "LOCAL" } }]);
-  assert.match(loopChip, /実行時/);
+  assert.doesNotMatch(loopChip, /実行時|se-value-info|vx-kind/);
   assert.doesNotMatch(loopChip, /まとまり|LOCAL/);
 });
 
