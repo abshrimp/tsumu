@@ -354,7 +354,7 @@ ${loads
       case "for-each":
       case "if":
       case "repeat":
-        return `  __runPurePageSteps(${JSON.stringify([st])}, vars, lookupVar, interpolate, __evalValueRecipe);`;
+        return `  if (!__runPurePageSteps(${JSON.stringify([st])}, vars, lookupVar, interpolate, __evalValueRecipe)) console.warn("Page-load script exceeded execution limits");`;
       case "transform":
         if (!st.into || !st.source) return "";
         return `  {
