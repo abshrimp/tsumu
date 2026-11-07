@@ -170,6 +170,11 @@ for (const width of [1440, 375, 320]) {
   test(`スクリプトの変数候補の3つの操作案内は幅 ${width}px でも一行に収まる`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const input = block(page, "value").locator("input").first();
+    // Narrow viewports place this step to the right of the palette. Make it visible
+    // before focusing: focus-induced scrolling dismisses the suggestion popover.
+    // This test measures the menu after a user can actually reach the input.
+    await input.scrollIntoViewIfNeeded();
+    await expect(input).toBeInViewport();
     await input.focus();
     await expectVariableMenuLayout(page, width, 3);
     await input.press("Escape");
