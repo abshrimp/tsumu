@@ -131,7 +131,7 @@ test("加工9種類を4つの目的に分け、nullとmissingの補完を区別�
   await open(page);
   await chooseSource(page, "data");
   const groups = modal(page).getByRole("combobox", { name: "加工を追加" }).locator("optgroup");
-  await expect(groups).toHaveCount(4);
+  await expect(groups).toHaveCount(5);
   await add(page, "has");
   await modal(page).getByRole("combobox", { name: "取り出す項目名" }).fill("empty");
   await expect(modal(page).locator("output")).toHaveText("true");
@@ -193,4 +193,89 @@ test("加工追加のフォーカス枠は外側と揃い、アクションは�
   expect(await actions.evaluate((el) => getComputedStyle(el).gridColumnStart)).toBe("3");
   const narrowRow = await row.boundingBox(), narrowActions = await actions.boundingBox();
   expect(narrowRow!.x + narrowRow!.width - narrowActions!.x - narrowActions!.width).toBeLessThan(18);
+});
+
+
+test("number operations, comparisons and NOT are applied and saved in the same step", async ({ page }) => {
+  await open(page);
+  await chooseSource(page, "data");
+  await add(page, "field");
+  await modal(page).getByRole("combobox", { name: "取り出す項目名" }).fill("price");
+  await add(page, "math");
+  await modal(page).getByRole("combobox", { name: "計算方法" }).selectOption("add");
+  await modal(page).getByRole("spinbutton", { name: "計算する数" }).fill("8");
+  await expect(modal(page).locator("output")).toHaveText("20");
+  await add(page, "compare");
+  await modal(page).getByRole("combobox", { name: "比較する値の種類" }).selectOption("number");
+  await modal(page).getByRole("spinbutton", { name: "比較する値" }).fill("20");
+  await expect(modal(page).locator("output")).toHaveText("true");
+  await add(page, "not");
+  await expect(modal(page).locator("output")).toHaveText("false");
+  await modal(page).getByRole("button", { name: "ブロックに反映" }).click();
+  const saved = await step(page);
+  expect(saved.recipe.steps.map((transform: {kind:string}) => transform.kind))
+    .toEqual(["field", "math", "compare", "not"]);
+  await open(page, "加工を編集");
+  await expect(modal(page).locator("output")).toHaveText("false");
+});
+
+test("replace, split and join compose and persist without changing the source string", async ({ page }) => {
+  await open(page);
+  await chooseSource(page, "data");
+  await add(page, "field");
+  await modal(page).getByRole("combobox", { name: "取り出す項目名" }).fill("name");
+  await add(page, "replace");
+  await modal(page).getByRole("textbox", { name: "探す文字列" }).fill("Pro");
+  await modal(page).getByRole("textbox", { name: "置き換え後" }).fill("New");
+  await expect(modal(page).locator("output")).toHaveText('"Newduct"');
+  await add(page, "split");
+  await modal(page).getByRole("textbox", { name: "区切り文字" }).fill("d");
+  await expect(modal(page).locator("output")).toHaveText('["New","uct"]');
+  await add(page, "join");
+  await modal(page).getByRole("textbox", { name: "区切り文字" }).last().fill("-");
+  await expect(modal(page).locator("output")).toHaveText('"New-uct"');
+  await modal(page).getByRole("button", { name: "ブロックに反映" }).click();
+  const saved = await step(page);
+  expect(saved.value).toBe("{data}");
+  expect(saved.recipe.steps).toHaveLength(4);
+});
+
+test("list filtering, first-match, per-item mapping and sorting use sample data", async ({ page }) => {
+  await open(page);
+  await chooseSource(page, "data");
+  await add(page, "field");
+  await modal(page).getByRole("combobox", { name: "取り出す項目名" }).fill("rows");
+  await add(page, "map-set");
+  await modal(page).getByRole("combobox", { name: "リスト内の項目名" }).fill("rank");
+  await modal(page).getByRole("combobox", { name: "比較する値の種類" }).selectOption("number");
+  await modal(page).getByRole("spinbutton", { name: "比較する値" }).fill("3");
+  await expect(modal(page).locator("output")).toHaveText('[{"title":"First","rank":3}]');
+  await add(page, "filter");
+  await modal(page).getByRole("combobox", { name: "リスト内の項目名" }).last().fill("rank");
+  await modal(page).getByRole("combobox", { name: "比較する値の種類" }).last().selectOption("number");
+  await modal(page).getByRole("spinbutton", { name: "比較する値" }).last().fill("3");
+  await expect(modal(page).locator("output")).toHaveText('[{"title":"First","rank":3}]');
+  await add(page, "sort");
+  await modal(page).getByRole("combobox", { name: "リスト内の項目名" }).last().fill("rank");
+  await modal(page).getByRole("combobox", { name: "並び順" }).selectOption("desc");
+  await add(page, "map-field");
+  await modal(page).getByRole("combobox", { name: "リスト内の項目名" }).last().fill("title");
+  await expect(modal(page).locator("output")).toHaveText('["First"]');
+  await modal(page).getByRole("button", { name: "ブロックに反映" }).click();
+  expect((await step(page)).recipe.steps.map((x: {kind:string}) => x.kind))
+    .toEqual(["field", "map-set", "filter", "sort", "map-field"]);
+});
+
+test("find returns missing when no items match and fallback can supply a result", async ({ page }) => {
+  await open(page);
+  await chooseSource(page, "data");
+  await add(page, "field");
+  await modal(page).getByRole("combobox", { name: "取り出す項目名" }).fill("rows");
+  await add(page, "find");
+  await modal(page).getByRole("combobox", { name: "リスト内の項目名" }).fill("title");
+  await modal(page).getByRole("textbox", { name: "比較する値" }).fill("Unknown");
+  await expect(modal(page).locator("output")).toHaveText("値がありません（未取得）");
+  await add(page, "fallback");
+  await modal(page).getByRole("textbox", { name: "値がないときの文字列" }).fill("なし");
+  await expect(modal(page).locator("output")).toHaveText('"なし"');
 });

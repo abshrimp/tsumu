@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Review-only UI for composing value expressions. Recipes stay in local state,
- * never change SiteDoc, and use sample data only.
+ * Compact, editable value pipeline. Draft changes stay local until Apply;
+ * the parent saves a recipe on the actual set-var step.
  */
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
@@ -13,6 +13,9 @@ import {
   type ValueTransform,
   type ValueTransformKind,
   type ValueRecipe,
+  type CompareOperation,
+  type NumericOperation,
+  type ValueOperandType,
 } from "../../lib/script-model/compose";
 import { singleValueReference } from "../../lib/variable-choice";
 import { PathMenu } from "./fetch";
@@ -28,6 +31,17 @@ const LABELS: Record<ValueTransformKind, string> = {
   parse: "JSON文字列を読み取る",
   fallback: "値がないとき文字列を使う",
   "fallback-nullish": "値がないかnullなら文字列を使う",
+  math: "数値を計算する",
+  compare: "値を比較する",
+  not: "真偽値を反転する",
+  split: "文字列を分割する",
+  join: "リストを文字列につなぐ",
+  replace: "文字列を置き換える",
+  find: "条件に合う1件を探す",
+  filter: "条件に合うリストを作る",
+  "map-field": "各項目から値を取り出す",
+  "map-set": "各項目に値を入れる",
+  sort: "リストを並べ替える",
 };
 
 const DESCRIPTIONS: Record<ValueTransformKind, string> = {
@@ -40,13 +54,37 @@ const DESCRIPTIONS: Record<ValueTransformKind, string> = {
   parse: "JSON形式の文字列を読み取り、データとして使える値にします。",
   fallback: "値が存在しない場合だけ代わりの文字列を使います。nullには適用しません。",
   "fallback-nullish": "値が存在しない場合とnullの場合に、代わりの文字列を使います。",
+  math: "数値に指定した数を足す・引く・掛ける・割るなどを行います。0で割るとエラーになります。",
+  compare: "値と指定した値を型を保って比較し、trueまたはfalseを返します。",
+  not: "trueをfalseに、falseをtrueに反転します。",
+  split: "文字列を指定した区切り文字で分割し、空欄を除いたリストにします。",
+  join: "リストの値を指定した区切り文字で連結します。",
+  replace: "文字列の一致する部分をすべて置き換えます。正規表現も指定できます。",
+  find: "リストから、条件に一致する最初の1件を取得します。見つからなければ値がありません。",
+  filter: "リストから、条件に一致した項目だけを残した新しいリストを作ります。",
+  "map-field": "リスト内の各データから同じ項目を取り出し、新しいリストにします。",
+  "map-set": "各データに項目を追加・上書きし、新しいリストにします。元のデータは変更しません。",
+  sort: "項目の値を基準にリストを並べ替えます。元の順番は変更しません。",
 };
 
 const GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
-  { label: "値を取り出す", kinds: ["field", "index"] },
-  { label: "値を調べる", kinds: ["has", "length"] },
-  { label: "値を変換する", kinds: ["format", "stringify", "parse"] },
+  { label: "値を取り出す", kinds: ["field", "index", "find", "map-field"] },
+  { label: "値を調べる", kinds: ["has", "length", "compare", "not"] },
+  { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "split", "join", "replace"] },
+  { label: "リストを加工する", kinds: ["filter", "map-set", "sort"] },
   { label: "値を補う", kinds: ["fallback", "fallback-nullish"] },
+];
+const MATH: readonly { value: NumericOperation; label: string }[] = [
+  { value: "add", label: "足す" }, { value: "subtract", label: "引く" },
+  { value: "multiply", label: "掛ける" }, { value: "divide", label: "割る" },
+  { value: "remainder", label: "余り" },
+];
+const COMPARISONS: readonly { value: CompareOperation; label: string }[] = [
+  { value: "eq", label: "等しい" }, { value: "neq", label: "等しくない" },
+  { value: "gt", label: "より大きい" }, { value: "gte", label: "以上" },
+  { value: "lt", label: "より小さい" }, { value: "lte", label: "以下" },
+  { value: "contains", label: "含む" }, { value: "starts-with", label: "から始まる" },
+  { value: "ends-with", label: "で終わる" },
 ];
 
 interface Row {
@@ -82,6 +120,12 @@ function describeResult(result: ReturnType<typeof evaluateValueRecipe> | null): 
   if (result.kind === "missing") return tr("値がありません（未取得）");
   if (result.code === "type-mismatch") return tr("値の種類が合わないため、この加工はできません");
   if (result.code === "invalid-json") return tr("JSON文字列の形式が正しくありません");
+  if (result.code === "invalid-literal") return tr("比較する値を正しく入力してください");
+  if (result.code === "division-by-zero") return tr("0で割ることはできません");
+  if (result.code === "invalid-regex") return tr("正規表現が正しくありません");
+  if (result.code === "missing-value") return tr("一部の項目に指定した値がありません");
+  if (result.code === "invalid-path") return tr("この項目名は使用できません");
+  if (result.code === "limit-exceeded") return tr("データが大きすぎるため加工できません");
   return tr("この処理は見本データに適用できません（{code}）", { code: result.code });
 }
 
@@ -90,10 +134,12 @@ function describeResult(result: ReturnType<typeof evaluateValueRecipe> | null): 
  * options are never clipped by the modal. We close only on a genuine outside
  * pointer/focus event, not on the input's blur before an option click.
  */
-function FieldKeyPicker({ value, onChange, options }: {
+function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
   value: string;
   onChange: (next: string) => void;
   options: string[];
+  ariaLabel?: string;
+  placeholder?: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -161,14 +207,14 @@ function FieldKeyPicker({ value, onChange, options }: {
       <input
         ref={inputRef}
         role="combobox"
-        aria-label={tr("取り出す項目名")}
+        aria-label={ariaLabel ?? tr("取り出す項目名")}
         aria-autocomplete="list"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
         aria-activedescendant={open && filtered.length ? listId + "-" + selectedIndex : undefined}
         value={value}
         maxLength={256}
-        placeholder={tr("項目名")}
+        placeholder={placeholder ?? tr("項目名")}
         onFocus={() => { setOpen(true); setShowAll(true); setActive(0); }}
         onChange={(event) => {
           onChange(event.target.value);
@@ -252,6 +298,119 @@ function FieldKeyPicker({ value, onChange, options }: {
   );
 }
 
+
+function ValueOperandEditor({ type, text, onChange }: {
+  type: ValueOperandType;
+  text: string;
+  onChange: (text: string, type: ValueOperandType) => void;
+}) {
+  return (
+    <div className="se-composer-operand">
+      <select aria-label={tr("比較する値の種類")} value={type}
+        onChange={(e) => {
+          const next = e.target.value as ValueOperandType;
+          onChange(next === "number" ? "0" : next === "boolean" ? "true" : "", next);
+        }}>
+        <option value="text">{tr("文字列")}</option>
+        <option value="number">{tr("数値")}</option>
+        <option value="boolean">{tr("真偽値")}</option>
+        <option value="null">null</option>
+      </select>
+      {type === "boolean" ? (
+        <select aria-label={tr("比較する値")} value={text}
+          onChange={(e) => onChange(e.target.value, type)}>
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      ) : type !== "null" && (
+        <input aria-label={tr("比較する値")} type={type === "number" ? "number" : "text"}
+          value={text} maxLength={type === "text" ? 4096 : undefined}
+          placeholder={type === "text" ? tr("比較する文字列") : "0"}
+          onChange={(e) => onChange(e.target.value, type)} />
+      )}
+    </div>
+  );
+}
+
+function RecipeStepSettings({ transform, options, onChange }: {
+  transform: ValueTransform;
+  options: string[];
+  onChange: (next: ValueTransform) => void;
+}) {
+  if (transform.kind === "math") return (
+    <div className="se-composer-step-settings">
+      <select aria-label={tr("計算方法")} value={transform.operation}
+        onChange={(e) => onChange({ ...transform, operation: e.target.value as NumericOperation })}>
+        {MATH.map((method) => <option key={method.value} value={method.value}>{tr(method.label)}</option>)}
+      </select>
+      <input aria-label={tr("計算する数")} type="number" step="any"
+        value={Number.isFinite(transform.operand) ? transform.operand : ""}
+        onChange={(e) => onChange({ ...transform, operand: e.target.value === "" ? NaN : Number(e.target.value) })} />
+    </div>
+  );
+
+  if (transform.kind === "split" || transform.kind === "join") return (
+    <div className="se-composer-step-settings">
+      <input aria-label={tr("区切り文字")} value={transform.separator} maxLength={256}
+        placeholder={tr("区切り文字")}
+        onChange={(e) => onChange({ ...transform, separator: e.target.value })} />
+    </div>
+  );
+
+  if (transform.kind === "replace") return (
+    <div className="se-composer-step-settings">
+      <input aria-label={tr("探す文字列")} value={transform.find} maxLength={256}
+        placeholder={tr("探す文字列")}
+        onChange={(e) => onChange({ ...transform, find: e.target.value })} />
+      <input aria-label={tr("置き換え後")} value={transform.replacement} maxLength={10000}
+        placeholder={tr("置き換え後")}
+        onChange={(e) => onChange({ ...transform, replacement: e.target.value })} />
+      <label className="se-composer-regex">
+        <input type="checkbox" checked={transform.regex}
+          onChange={(e) => onChange({ ...transform, regex: e.target.checked })} />
+        {tr("正規表現")}
+      </label>
+    </div>
+  );
+
+  if (transform.kind === "compare" || transform.kind === "find" || transform.kind === "filter" || transform.kind === "map-set") {
+    return (
+      <div className="se-composer-step-settings">
+        {(transform.kind === "find" || transform.kind === "filter" || transform.kind === "map-set") && (
+          <FieldKeyPicker value={transform.field} options={options}
+            ariaLabel={tr("リスト内の項目名")} placeholder={transform.kind === "map-set" ? tr("追加する項目") : tr("項目（空なら要素自身）")}
+            onChange={(field) => onChange({ ...transform, field })} />
+        )}
+        {transform.kind !== "map-set" && (
+          <select aria-label={tr("比較方法")} value={transform.operation}
+            onChange={(e) => onChange({ ...transform, operation: e.target.value as CompareOperation })}>
+            {COMPARISONS.map((op) => <option key={op.value} value={op.value}>{tr(op.label)}</option>)}
+          </select>
+        )}
+        <ValueOperandEditor type={transform.operandType} text={transform.operand}
+          onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
+      </div>
+    );
+  }
+
+  if (transform.kind === "map-field" || transform.kind === "sort") return (
+    <div className="se-composer-step-settings">
+      <FieldKeyPicker value={transform.field} options={options}
+        ariaLabel={tr("リスト内の項目名")}
+        placeholder={transform.kind === "sort" ? tr("項目（空なら要素自身）") : tr("取り出す項目名")}
+        onChange={(field) => onChange({ ...transform, field })} />
+      {transform.kind === "sort" && (
+        <select aria-label={tr("並び順")} value={transform.direction}
+          onChange={(e) => onChange({ ...transform, direction: e.target.value as "asc" | "desc" })}>
+          <option value="asc">{tr("昇順")}</option>
+          <option value="desc">{tr("降順")}</option>
+        </select>
+      )}
+    </div>
+  );
+  return null;
+}
+
 function RecipeDialog({
   currentValue, samples, excludedName, initialRecipe, onApply, onClose,
 }: {
@@ -298,11 +457,18 @@ function RecipeDialog({
     const suggestions = new Map<number, string[]>();
     if (!source) return suggestions;
     rows.forEach((row, index) => {
-      if (row.transform.kind !== "field" && row.transform.kind !== "has") return;
+      const kind = row.transform.kind;
+      const objectField = kind === "field" || kind === "has";
+      const listField = kind === "find" || kind === "filter" || kind === "map-field" ||
+        kind === "map-set" || kind === "sort";
+      if (!objectField && !listField) return;
       const previous = evaluateValueRecipe(variables[source], rows.slice(0, index).map((item) => item.transform));
-      if (previous.kind === "value" && previous.value &&
-        typeof previous.value === "object" && !Array.isArray(previous.value)) {
-        suggestions.set(row.id, Object.keys(previous.value));
+      if (previous.kind !== "value") return;
+      const candidate = objectField ? previous.value
+        : Array.isArray(previous.value) ? previous.value.find((item) =>
+            item !== null && typeof item === "object" && !Array.isArray(item)) : undefined;
+      if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
+        suggestions.set(row.id, Object.keys(candidate));
       }
     });
     return suggestions;
@@ -329,8 +495,21 @@ function RecipeDialog({
     onApply({ source, steps: rows.map((row) => row.transform) });
     onClose();
   };
-  const invalid = !source || rows.length > 32 || rows.some((row) =>
-    (row.transform.kind === "field" || row.transform.kind === "has") && !row.transform.key.trim());
+  const invalid = !source || rows.length > 32 || rows.some(({ transform }) => {
+    if (transform.kind === "field" || transform.kind === "has") return !transform.key.trim();
+    if (transform.kind === "map-field") return !transform.field.trim();
+    if (transform.kind === "math") return !Number.isFinite(transform.operand);
+    if (transform.kind === "compare" || transform.kind === "find" ||
+        transform.kind === "filter" || transform.kind === "map-set") {
+      if (transform.kind === "map-set" && (!transform.field.trim() ||
+          ["__proto__", "constructor", "prototype"].includes(transform.field))) return true;
+      if (transform.operandType === "number") return !transform.operand.trim() ||
+        !/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(transform.operand.trim()) ||
+        !Number.isFinite(Number(transform.operand));
+      if (transform.operandType === "boolean") return !["true", "false"].includes(transform.operand);
+    }
+    return false;
+  });
 
   return createPortal(
     <div
@@ -399,6 +578,8 @@ function RecipeDialog({
                     <button type="button" aria-label={tr("削除")} title={tr("削除")}
                       onClick={() => setRows((before) => before.filter((item) => item.id !== row.id))}><Trash2 size={14} aria-hidden="true"/></button>
                   </div>
+                  <RecipeStepSettings transform={operation} options={suggestedFields.get(row.id) ?? []}
+                    onChange={(next) => update(row.id, next)} />
                 </li>
               );
             })}

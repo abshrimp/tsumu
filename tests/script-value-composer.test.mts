@@ -18,8 +18,8 @@ test("value operations nest from left to right without extra variable blocks", (
   });
   assert.deepEqual(operations, original, "building an expression never mutates the recipe");
   assert.deepEqual(defaultTransform("field"), { kind: "field", key: "" });
-  assert.equal(VALUE_TRANSFORM_KINDS.length, 9);
-  assert.equal(new Set(VALUE_TRANSFORM_KINDS).size, 9);
+  assert.equal(VALUE_TRANSFORM_KINDS.length, 20);
+  assert.equal(new Set(VALUE_TRANSFORM_KINDS).size, 20);
 });
 
 test("dotted literal object keys and numeric list indices are distinct", () => {
@@ -88,4 +88,11 @@ test("nullish fallback covers null and missing, but preserves false and zero", (
   assert.deepEqual(evaluateExpression(expression, { data: { optional: false } }), { kind: "value", value: false });
   assert.deepEqual(evaluateExpression(expression, { data: { optional: 0 } }), { kind: "value", value: 0 });
   assert.equal(validateExpression(expression).ok, true);
+});
+
+test("new recipe-only transforms do not silently become no-ops in the old AST", () => {
+  assert.throws(() => composeValueExpression("data", [defaultTransform("math")]));
+  assert.deepEqual(defaultTransform("math"), { kind: "math", operation: "add", operand: 1 });
+  assert.deepEqual(defaultTransform("split"), { kind: "split", separator: "," });
+  assert.deepEqual(defaultTransform("find"), { kind: "find", field: "", operation: "eq", operand: "", operandType: "text" });
 });

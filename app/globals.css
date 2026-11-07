@@ -12601,3 +12601,65 @@ a.btn {
   .se-composer-no-samples { margin-left: 67px; }
   .se-composer-result { flex-direction: column; gap: 6px; }
 }
+
+
+/* Compact parameters for composable-value operations. Keep the actions pinned
+   to the first row; extended settings occupy only the space they need. */
+.se-composer-step-settings {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.se-composer-step-settings > select,
+.se-composer-step-settings > input,
+.se-composer-step-settings .se-composer-operand > select,
+.se-composer-step-settings .se-composer-operand > input {
+  flex: 1 1 85px;
+  min-width: 0;
+  max-width: 220px;
+  height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.se-composer-step-settings > .se-composer-field {
+  flex: 1 1 130px;
+  min-width: 100px;
+  max-width: 220px;
+}
+.se-composer-operand {
+  display: flex;
+  flex: 2 1 175px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.se-composer-step-settings .se-composer-operand > select {
+  flex: 0 1 95px;
+}
+.se-composer-step-settings .se-composer-operand > input {
+  flex: 1 1 90px;
+}
+.se-composer-regex {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 5px;
+  color: var(--text-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.se-composer-regex input {
+  accent-color: var(--accent);
+}
+@media (max-width: 540px) {
+  .se-composer-step-settings { grid-column: 2 / 4; grid-row: 2; }
+}
