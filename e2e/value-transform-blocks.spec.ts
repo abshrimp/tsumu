@@ -290,6 +290,43 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " evaluates AND before OR in multi-clause if blocks", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "", [
+      { id: "first", kind: "set-var", into: "first", value: "yes" },
+      { id: "second", kind: "set-var", into: "second", value: "no" },
+      { id: "third", kind: "set-var", into: "third", value: "blue" },
+      { id: "if-combined", kind: "if",
+        cond: { subject: "var", target: "", left: "{first}", op: "eq", value: "yes" },
+        conditions: [
+          { subject: "var", target: "", left: "{second}", op: "eq", value: "yes", and: true },
+          { subject: "var", target: "", left: "{third}", op: "eq", value: "red", not: true, and: false },
+        ],
+        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ]);
+    await expect(answer).toHaveValue("accepted");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " retains variable predicates when the first if clause reads an element", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "", [
+      { id: "status", kind: "set-var", into: "status", value: "ready" },
+      { id: "mixed-if", kind: "if",
+        cond: { subject: "value", target: "answer", op: "eq", value: "absent" },
+        conditions: [
+          { subject: "var", target: "", left: "{status}", op: "eq", value: "ready", and: false },
+        ],
+        then: [{ id: "pass", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "fail", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ]);
+    await expect(answer).toHaveValue("accepted");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
@@ -613,6 +650,42 @@ test("canvas fallback uses one text field for text mixed with variables", async 
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "fallback-inline").transform.text;
   })).toBe("こんにちは、{data.name}さん");
+});
+
+test("canvas if blocks add, edit and remove AND/OR conditions on separate rows", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "joined-if", kind: "if",
+        cond: { subject: "var", target: "", left: "{data.price}", op: "gte", value: "10" },
+        then: [], else: [],
+      });
+    });
+  });
+  const box = page.locator('[data-sel-key="step:joined-if"]');
+  const actions = box.locator(".se-composer-condition-actions");
+  await expect(actions.getByRole("button", { name: "かつ", exact: true })).toBeVisible();
+  await actions.getByRole("button", { name: "かつ", exact: true }).click();
+  const connectors = box.getByRole("combobox", { name: "条件のつなぎ方" });
+  await expect(connectors).toHaveCount(1);
+  await expect(connectors).toHaveValue("and");
+  await connectors.selectOption("or");
+  await actions.getByRole("button", { name: "または", exact: true }).click();
+  await expect(connectors).toHaveCount(2);
+  await connectors.nth(1).selectOption("and");
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "joined-if").conditions.map((condition: any) => condition.and);
+  })).toEqual([false, true]);
+  const actionBounds = await actions.boundingBox();
+  const clauseBounds = await box.locator(".se-if-condition-line").last().boundingBox();
+  expect(actionBounds).not.toBeNull();
+  expect(clauseBounds).not.toBeNull();
+  expect(actionBounds!.y).toBeGreaterThan(clauseBounds!.y);
+  await box.getByRole("button", { name: "この条件を削除" }).first().click();
+  await expect(connectors).toHaveCount(1);
+  await expect(connectors).toHaveValue("and");
+  await expect(box.locator(".se-if-condition-line")).toHaveCount(2);
 });
 
 test("canvas value comparisons use the same predicates and joined clauses as list filters", async ({ page }) => {
