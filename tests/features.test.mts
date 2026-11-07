@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseTransform, serializeTransform, extractPartStyles } from "../lib/style";
+import { parseTransform, serializeTransform, parseFilter, serializeFilter, extractPartStyles } from "../lib/style";
 import { interpolateJson, interpolateUrl } from "../lib/vars";
 import { fetchRequestOf, bodyJsonError } from "../lib/fetch-request";
 import { fieldDefaults, fieldInitialValue, fieldStateValues, fieldValuePatch, fieldVarName } from "../lib/fields";
@@ -466,4 +466,21 @@ test("unsupported scale values are retained instead of reading a numeric prefix"
     assert.equal(parts.rest, source);
     assert.equal(serializeTransform(parts), source);
   }
+});
+
+test("editing blur preserves number-form filter strengths", () => {
+  const parsed = parseFilter("brightness(0.5) contrast(1.2) saturate(0) grayscale(.25) sepia(1)");
+  assert.deepEqual(parsed, { blur: 0, brightness: 50, contrast: 120, saturate: 0, grayscale: 25, sepia: 100, hueRotate: 0 });
+  const edited = serializeFilter({ ...parsed, blur: 4 });
+  assert.equal(edited, "blur(4px) brightness(50%) contrast(120%) saturate(0%) grayscale(25%) sepia(100%)");
+  assert.deepEqual(parseFilter(edited!), { ...parsed, blur: 4 });
+});
+
+test("number and percentage filter inputs have equivalent editable values", () => {
+  assert.deepEqual(
+    parseFilter("brightness( +5e-1 ) contrast(1.2e2%) saturate( 0% ) grayscale(25%) sepia(1e0)"),
+    parseFilter("brightness(50%) contrast(120%) saturate(0) grayscale(.25) sepia(100%)")
+  );
+  assert.equal(parseFilter("brightness(1e309)").brightness, 100);
+  assert.equal(parseFilter("contrast(2px)").contrast, 100);
 });
