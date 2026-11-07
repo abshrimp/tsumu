@@ -93,3 +93,9 @@ jobs:
         working-directory: .generated-export-smoke
       - name: Verify production SSR response
         run: node --import tsx scripts/check-generated-ssr.mts ${{ matrix.framework }}
+      - name: Install Chromium for generated-site checks
+        if: (matrix.framework == 'vue' && matrix.language == 'typescript') || (matrix.framework == 'nuxt' && matrix.language == 'javascript') || (matrix.framework == 'sveltekit' && matrix.language == 'typescript') || (matrix.framework == 'react' && matrix.language == 'javascript')
+        run: npx playwright install --with-deps chromium
+      - name: Verify generated project in Chromium
+        if: (matrix.framework == 'vue' && matrix.language == 'typescript') || (matrix.framework == 'nuxt' && matrix.language == 'javascript') || (matrix.framework == 'sveltekit' && matrix.language == 'typescript') || (matrix.framework == 'react' && matrix.language == 'javascript')
+        run: node --import tsx scripts/check-generated-browser.mts ${{ matrix.framework }}
