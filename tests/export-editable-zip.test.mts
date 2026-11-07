@@ -53,7 +53,7 @@ test("HTML, Vue and SvelteKit ZIP exports round-trip editable data and asset IDs
   doc.siteName = "Format roundtrip";
   // The starter includes a dynamic route that static frameworks intentionally reject.
   for (const page of Object.values(doc.pages)) {
-    if (/\\[[^\\]]+\\]/.test(page.slug)) page.unpublished = true;
+    if (/\[[^\]]+\]/.test(page.slug)) page.unpublished = true;
   }
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"></svg>';
   doc.assets["roundtrip-logo"] = {
