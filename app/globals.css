@@ -4076,6 +4076,58 @@ textarea {
   padding: 10px 12px 16px;
 }
 
+.se-pal-search {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--panel);
+  color: var(--text-2);
+}
+
+.se-pal-search:focus-within {
+  border-color: var(--accent);
+}
+
+.se-pal-search-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.se-pal-search-clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-s);
+  color: var(--text-2);
+}
+
+.se-pal-search-clear:hover {
+  background: var(--field);
+}
+
+.se-pal-empty {
+  margin: 10px 0 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
 .se-pal-group + .se-pal-group {
   margin-top: 12px;
 }
