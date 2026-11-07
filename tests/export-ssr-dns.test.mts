@@ -75,6 +75,6 @@ test("generated Node SSR transport blocks private DNS answers at socket connecti
     assert.equal(outbound, 0);
   } finally {
     if (descriptor) Object.defineProperty(processModule, "getBuiltinModule", descriptor);
-    else delete processModule.getBuiltinModule;
+    else Reflect.deleteProperty(processModule, "getBuiltinModule");
   }
 });
