@@ -153,6 +153,31 @@ export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" 
   });
 }
 
+/** Create a fully restorable site and its document in a single DB transaction. */
+export async function insertSiteWithDoc(
+  db: Db,
+  id: string,
+  v: Pick<SiteRecord, "name" | keyof SiteDest>,
+  body: string,
+): Promise<void> {
+  const now = Date.now();
+  const [site, doc] = await db.batch([
+    {
+      sql: `INSERT INTO sites
+        (id, name, repo, branch, preview_branch, site_url, preview_url, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [id, v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
+    },
+    {
+      sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, 1, ?, ?)",
+      args: [id, now, body],
+    },
+  ]);
+  if (site.rowsAffected !== 1 || doc.rowsAffected !== 1) {
+    throw new Error("Imported site transaction was not committed");
+  }
+}
+
 export async function updateSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>): Promise<void> {
   await db.execute({
     sql: `UPDATE sites SET name = ?, repo = ?, branch = ?, preview_branch = ?, site_url = ?, preview_url = ?, updated_at = ?

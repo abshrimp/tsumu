@@ -4,6 +4,20 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "Tsumuの編集データとして読み込めません": "The file is not a valid editable Tsumu document.",
+  "URLの指定が正しくありません": "Invalid import URL.",
+  "URLのファイルを取得できませんでした": "Could not retrieve the file from the URL.",
+  "URLから取得できるファイルは5MBまでです": "URL imports are limited to 5 MB.",
+  "復元したサイト": "Restored site",
+  "復元できませんでした": "Could not restore the site.",
+  "zipとdocを同時には指定できません": "Specify either zip or doc, not both.",
+  "URLからサイトを復元しています…": "Restoring the site from the URL…",
+  "サイトを復元できませんでした: {reason}": "Could not restore the site: {reason}",
+  "サイトは復元されましたが、一部のアセットは読み込めませんでした。\n{items}": "The site was restored, but some assets could not be loaded.\n{items}",
+  "アセットを一部復元できませんでした": "Some assets could not be restored",
+  "取得元からファイルを読み込めませんでした": "Could not download the source file.",
+  "安全でないURLからは取得できません": "Cannot import from an unsafe URL.",
+  "doc.jsonが大きすぎます（3MBまで）": "doc.json exceeds the 3 MB limit.",
   "アセットをダウンロードできませんでした": "Could not download the asset.",
   "現在の設定の送信先": "Destination for current settings",
   "最後に送信": "Last request",

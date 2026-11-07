@@ -4,13 +4,15 @@ import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
-import { readCurrentDoc, saveCurrentDoc } from "../../../lib/doc-storage";
+import { readCurrentDoc, saveCurrentDoc, validateDocBody, DocTooLargeError } from "../../../lib/doc-storage";
+import { DOCUMENT_LIMIT, parseRestoredDoc } from "../../../lib/url-site-import";
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
   deleteSite,
   getSite,
   insertSite,
+  insertSiteWithDoc,
   isSiteId,
   listSites,
   newSiteId,
@@ -43,13 +45,33 @@ export async function POST(req: Request) {
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
 
-  const input = (await req.json().catch(() => null)) as (SiteInput & { copyFrom?: unknown }) | null;
+  const input = (await req.json().catch(() => null)) as (SiteInput & { copyFrom?: unknown; importDoc?: unknown }) | null;
   if (!input || typeof input !== "object") {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
   const copyFrom = input.copyFrom;
   if (copyFrom !== undefined && !isSiteId(copyFrom)) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+  }
+  if (copyFrom !== undefined && input.importDoc !== undefined) {
+    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+  }
+  const importRaw = input.importDoc === undefined ? null : JSON.stringify(input.importDoc);
+  if (importRaw !== null) {
+    if (new TextEncoder().encode(importRaw).length > DOCUMENT_LIMIT) {
+      return NextResponse.json({ error: tr("doc.jsonが大きすぎます（3MBまで）") },
+        { status: 413 });
+    }
+    const invalid = validateDocBody(importRaw);
+    if (invalid) {
+      return NextResponse.json({ error: tr(invalid) }, { status: 400 });
+    }
+    try {
+      parseRestoredDoc(importRaw);
+    } catch {
+      return NextResponse.json({ error: tr("Tsumuの編集データとして読み込めません") },
+        { status: 400 });
+    }
   }
   const parsed = normalizeSiteInput(input, {
     name: "",
@@ -66,12 +88,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("複製するサイトが見つかりません") }, { status: 404 });
     }
     const id = newSiteId();
-    await insertSite(db, id, parsed.value);
+    if (importRaw !== null) {
+      await insertSiteWithDoc(db, id, parsed.value, importRaw);
+    } else {
+      await insertSite(db, id, parsed.value);
+    }
     if (copyFrom) {
       try {
-        // まだ一度も開いていないサイトには編集データが無い（新しいサイトと同じく、開いたときに作る）
-        const src = await readCurrentDoc(db, copyFrom);
-        if (src) await saveCurrentDoc(db, id, src.body, null);
+        // Imported sites are only visible after their complete document is saved.
+        const src = copyFrom ? await readCurrentDoc(db, copyFrom) : null;
+        const body = src?.body;
+        if (body) {
+          const result = await saveCurrentDoc(db, id, body, null);
+          if (result.kind !== "saved") throw new Error("Imported document was not saved");
+        }
       } catch (e) {
         await deleteSite(db, id).catch(() => {});
         throw e;
@@ -79,6 +109,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ site: await getSite(db, id) });
   } catch (e) {
+    if (e instanceof DocTooLargeError) {
+      return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
+    }
     return NextResponse.json({ error: tr(userMessage(e, "作成できませんでした")) }, { status: 502 });
   }
 }

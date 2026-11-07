@@ -41,6 +41,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build
+      - run: npx playwright test e2e/url-site-restore.spec.ts
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7.0.2
         if: failure()
