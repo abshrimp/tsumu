@@ -432,14 +432,13 @@ test("canvas comparison offers existing variables and keeps the chosen reference
   const box = page.locator('[data-sel-key="step:compare-native"]');
   const type = box.getByRole("combobox", { name: "比較する値の種類" });
   await expect(type).toHaveCSS("height", "24px");
-  await type.selectOption("variable");
-  await box.getByRole("button", { name: "比較する変数" }).click();
-  const menu = page.locator(".se-pm").last();
-  await expect(menu).toBeVisible();
-  await expect(menu).toContainText("data");
-  await menu.locator(".se-pm-row").filter({ hasText: "data" }).first().locator(".dd-item").click();
+  await expect(type.locator('option[value="variable"]')).toHaveCount(0);
+  const operand = box.getByPlaceholder("比較する文字列");
+  await expect(operand).toBeVisible();
+  await operand.fill("{data.price}");
+  await operand.blur();
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "compare-native").transform;
-  })).toMatchObject({ kind: "compare", operandType: "variable", operand: "data" });
+  })).toMatchObject({ kind: "compare", operandType: "text", operand: "{data.price}" });
 });
