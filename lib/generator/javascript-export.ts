@@ -58,6 +58,12 @@ export async function toJavaScriptProject(
     devDependencies?: Record<string, string>;
   };
   if (framework === "react") {
+    // Vite reads this entry from index.html; transpiling main.tsx to main.jsx
+    // without rewriting the entry leaves a ZIP that cannot be built.
+    if (files["index.html"]) {
+      files["index.html"] = files["index.html"]
+        .replace(/(\\/src\\/main)\\.tsx(?=["'?\\s>])/g, "$1.jsx");
+    }
     pkg.scripts.build = "vite build";
     delete pkg.devDependencies?.typescript;
     delete pkg.devDependencies?.["@types/react"];
