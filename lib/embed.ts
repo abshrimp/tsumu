@@ -6,10 +6,16 @@ export function embedSrc(embed: EmbedContent): string | null {
   if (!src) return null;
 
   if (embed.kind === "youtube") {
+    // v はクエリのキーとして読む。rv などの別のキーやフラグメントに
+    // 含まれる「v=」で、指定された動画を上書きしない。
+    const watch = /youtube\.com\/watch\?([^#]*)/.exec(src);
+    const watchId = watch ? new URLSearchParams(watch[1]).get("v") : null;
     const id =
-      /(?:youtube\.com\/(?:watch\?.*v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{6,})/.exec(
-        src
-      )?.[1] ?? (/^[\w-]{6,}$/.test(src) ? src : null);
+      watch
+        ? (watchId && /^[\w-]{6,}$/.test(watchId) ? watchId : null)
+        : /(?:youtube\.com\/(?:shorts\/|embed\/|live\/)|youtube-nocookie\.com\/embed\/|youtu\.be\/)([\w-]{6,})/.exec(
+            src
+          )?.[1] ?? (/^[\w-]{6,}$/.test(src) ? src : null);
     return id ? `https://www.youtube-nocookie.com/embed/${id}` : null;
   }
 
