@@ -4,6 +4,7 @@
 
 import { type PageScript } from "../../lib/script";
 import { type ScriptStep } from "../../lib/types";
+import { stepOutName } from "../../lib/data";
 
 /* ---------- スクリプト操作（純粋関数） ---------- */
 
@@ -76,6 +77,23 @@ export function insertAt(
   if (!list) return scripts;
   list.splice(loc.index, 0, ...steps);
   return next;
+}
+
+/**
+ * Connect a newly dropped processing block to the preceding output in the
+ * same script list. Moving an existing step must never rewrite its source.
+ */
+export function connectNewTransform(scripts: PageScript[], loc: Loc, steps: ScriptStep[]): ScriptStep[] {
+  const script = scripts.find((s) => s.id === loc.scriptId);
+  const list = script && listIn(script, loc.list);
+  const preceding = loc.index > 0 ? list?.[loc.index - 1] : undefined;
+  const name = preceding ? stepOutName(preceding) : null;
+  if (!name) return steps;
+  return steps.map((step) =>
+    step.kind === "transform" && !step.source
+      ? { ...step, source: name, into: step.into || name }
+      : step
+  );
 }
 
 /** ステップIDの位置を探す */

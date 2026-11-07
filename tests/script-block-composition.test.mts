@@ -8,6 +8,7 @@ import { compileScripts } from "../lib/script";
 import { scriptsFile } from "../lib/script-runtime";
 import { scriptDataPickerDoc } from "./helpers/script-data-picker";
 import { findPaletteItems, LEGACY_ACTION_KEYS, PALETTE } from "../components/script-editor/palette";
+import { connectNewTransform } from "../components/script-editor/step-tree";
 import type { ScriptStep } from "../lib/types";
 
 test("a small palette exposes composable blocks without deleting legacy kinds", () => {
@@ -87,4 +88,21 @@ test("pure transformation output remains distinct from list display filtering", 
     name: "Product", price: 12, code: "001", available: false, empty: null,
     detail: { title: "Nested" }, tags: ["red", "blue"], rows: [{ title: "First" }],
   });
+});
+
+test("dropping a new processing block after an output connects it without new variable names", () => {
+  const doc = scriptDataPickerDoc();
+  const script = { ...doc.pages.p.pageScripts![0], nodeId: null };
+  const incoming: ScriptStep[] = [
+    { id: "next", kind: "transform", source: "", into: "", transform: { kind: "length" } },
+  ];
+  const connected = connectNewTransform([script], { scriptId: script.id, list: "root", index: 2 }, incoming);
+  assert.deepEqual(connected, [
+    { id: "next", kind: "transform", source: "chosen", into: "chosen", transform: { kind: "length" } },
+  ]);
+  assert.deepEqual(incoming, [
+    { id: "next", kind: "transform", source: "", into: "", transform: { kind: "length" } },
+  ], "the palette template is never mutated");
+  const unconnected = connectNewTransform([script], { scriptId: script.id, list: "root", index: 0 }, incoming);
+  assert.equal((unconnected[0] as Extract<ScriptStep, {kind:"transform"}>).source, "");
 });
