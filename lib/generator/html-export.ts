@@ -4,7 +4,7 @@
  */
 import type { DocNode, Page, SiteDoc } from "../types";
 import type { GeneratedProject } from "../generator";
-import { obfuscateVarNames } from "../data";
+import { obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { usedGoogleFonts } from "./css";
@@ -16,6 +16,8 @@ import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { EMPTY_GIF, pwaIconType } from "./templates";
+import { scriptsFile } from "../script-runtime";
+import { PAGE_DATA_RUNTIME, pageDataPlan } from "./browser-data";
 import { safeNavigationUrl } from "../url-policy";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
@@ -92,9 +94,9 @@ function pageHref(ctx: Context, id: string): string {
   return ctx.prefix + (slug ? slug + "/" : "");
 }
 
-function compiledAttr(ctx: Context, node: Pick<DocNode, "scripts">): string {
+function compiledAttr(ctx: Context, node: Pick<DocNode, "scripts">, skip?: Set<string>): string {
   if (!hasRunnableScripts(node)) return "";
-  const scripts = compileScripts(node, (id) => pageHref(ctx, id), (s) => s, false);
+  const scripts = compileScripts(node, (id) => pageHref(ctx, id), (s) => s, false, skip);
   return scripts.length ? attr("data-scripts", JSON.stringify(scripts)) : "";
 }
 
@@ -336,49 +338,10 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
   }
   files["styles/site.css"] = rewriteRootUrls(next.files["styles/site.css"], "../");
   files["styles/globals.css"] = fontsCss(normalized) + "\n" + next.files["app/globals.css"];
-  files["static-values.js"] = [
-    '(function(){',
-    'function value(name){',
-    ' const el=document.getElementById(name);',
-    ' if(el){const f=el.matches("input,select,textarea")?el:el.querySelector("input,select,textarea");',
-    ' if(f)return f.type==="checkbox"?String(f.checked):f.value;',
-    ' return el.textContent||"";}',
-    ' return new URLSearchParams(location.search).get(name)||"";',
-    '}',
-    'function resolve(tpl,encode){return tpl.replace(/\\\\{([^{}]+)\\\\}/g,function(m,name){',
-    ' const v=value(name);return encode?encodeURIComponent(v):v;',
-    '});}',
-    'function update(){',
-    ' document.querySelectorAll("[data-live]").forEach(function(el){',
-    '  if(el.closest("[data-tpl]"))return;',
-    '  const v=resolve(el.getAttribute("data-live")||"",false);',
-    '  if(el.firstChild&&el.firstChild.nodeType===3)el.firstChild.nodeValue=v;',
-    '  else el.insertBefore(document.createTextNode(v),el.firstChild);',
-    ' });',
-    ' for(const name of ["placeholder","value"]){',
-    ' document.querySelectorAll("[data-live-"+name+"]").forEach(function(el){',
-    '  if(el.closest("[data-tpl]")||(name==="value"&&el.dataset.edited!==undefined))return;',
-    '  const v=resolve(el.getAttribute("data-live-"+name)||"",false);',
-    '  if(name==="value"&&"value" in el)el.value=v;',
-    '  else el.setAttribute(name,v);',
-    ' });}',
-    ' document.querySelectorAll("[data-static-option]").forEach(function(el){',
-    '  if(el.closest("[data-tpl]"))return;',
-    '  const v=resolve(el.getAttribute("data-static-option")||"",false);',
-    '  if(el.textContent!==v)el.textContent=v;',
-    ' });',
-    ' document.querySelectorAll("[data-static-href],[data-static-src]").forEach(function(el){',
-    '  if(el.closest("[data-tpl]"))return;',
-    '  for(const kind of ["href","src"]){',
-    '   const tpl=el.getAttribute("data-static-"+kind);',
-    '   if(tpl!==null)el.setAttribute(kind,resolve(tpl,kind==="href"));',
-    '  }',
-    ' });',
-    '}',
-    'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",update);else update();',
-    'document.addEventListener("input",update);',
-    '})();',
-  ].join("\n") + "\n";
+  // The page plan runs before the shared DOM runtime installs listeners,
+  // so its fetched variables are available for live text and client lists.
+  files["data-loader.js"] = PAGE_DATA_RUNTIME;
+  files["scripts.js"] = scriptsFile(normalized, true);
   files["README.txt"] = [
     "Tsumu standalone HTML export", "",
     "Open index.html directly or copy all files to static hosting.",
@@ -409,7 +372,8 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       doc: normalized, page, prefix, single, classes, assets, toggles,
       seen: new Set(), form: false, template: false,
     };
-    const pageScripts = compiledAttr(ctx, { scripts: page.pageScripts });
+    const dataPlan = JSON.stringify(pageDataPlan(normalized, page)).replace(/</g, "\\u003c");
+    const pageScripts = compiledAttr(ctx, { scripts: page.pageScripts }, pagePlan(normalized, page.id).serverIds);
     const body = page.children.map((id) => render(ctx, id, true)).join("\n");
     const icon = normalized.favicon?.assetId ? resource(ctx, normalized.favicon.assetId) :
       normalized.favicon?.url ? href(ctx, normalized.favicon.url) : "";
@@ -425,13 +389,14 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       '<link rel="stylesheet" href="' + prefix + 'styles/site.css">',
       normalized.customHeadHtml || "",
     ].filter(Boolean).join("\n");
-    const scripts = ["inview.js", "scripts.js", "static-values.js", "pwa.js"].filter((name) => name in files)
+    const scripts = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"].filter((name) => name in files)
       .map((name) => '<script defer src="' + prefix + name + '"></script>').join("\n");
     files[path] = [
       "<!doctype html>",
       '<html lang="' + escapeHtml(page.lang || normalized.lang || "ja") + '">',
       "<head>", rewriteRootUrls(head, prefix), "</head>",
       "<body>", "<span hidden" + attr("data-page-body", page.id) + pageScripts + "></span>",
+      '<script type="application/json" data-page-plan>' + dataPlan + "</script>",
       page.customTopHtml ? rewriteRootUrls(page.customTopHtml, prefix) : "",
       body,
       page.customEndHtml ? rewriteRootUrls(page.customEndHtml, prefix) : "",
