@@ -55,7 +55,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       case "lt":
       case "lte": {
         if (typeof left !== typeof right ||
-            (typeof left !== "number" && typeof left !== "string")) return undefined;
+            (typeof left !== "number" && typeof left !== "string") ||
+            (typeof right !== "number" && typeof right !== "string")) return undefined;
         if (operator === "gt") return left > right;
         if (operator === "gte") return left >= right;
         if (operator === "lt") return left < right;
@@ -185,7 +186,6 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             pieces.push(String(part));
           }
           current = pieces.join(step.separator);
-          if (current.length > 100000) return failure("limit-exceeded");
           break;
         }
         case "replace": {
@@ -200,7 +200,6 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             try { pattern = new RegExp(step.find, "g"); } catch { return failure("invalid-regex"); }
             current = current.replace(pattern, step.replacement);
           } else current = current.split(step.find).join(step.replacement);
-          if (current.length > 100000) return failure("limit-exceeded");
           break;
         }
         case "find":
