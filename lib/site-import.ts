@@ -122,6 +122,17 @@ export async function parseSiteImport(
   catch { throw new Error("ZIPファイルを展開できませんでした。"); }
   const entries = Object.values(zip.files).filter((entry) => !entry.dir);
   if (entries.length > IMPORT_LIMITS.entries) throw new Error("ZIP内のファイルが多すぎます。");
+  for (const entry of entries) {
+    const original = (entry as JSZip.JSZipObject & { unsafeOriginalName?: string }).unsafeOriginalName;
+    if (original && original !== entry.name) {
+      throw new Error("ZIPに安全でないファイルパスがあります。");
+    }
+  }
+  const editableDocs = entries.filter((entry) =>
+    /^(?:[^/]+\/)?(?:_tsumu|_site-data)\/doc\.json$/i.test(entry.name));
+  if (editableDocs.length > 1) {
+    throw new Error("ZIPに複数の編集データが見つかりました。");
+  }
   let size = 0;
   for (const entry of entries) {
     if (!pathOK(entry.name)) throw new Error("ZIPに安全でないファイルパスがあります。");
