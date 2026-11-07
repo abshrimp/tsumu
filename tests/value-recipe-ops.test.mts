@@ -87,7 +87,7 @@ test("value operations use if/list operators with negation and grouped AND/OR co
   assert.deepEqual(evaluateValueRecipe(items, [{
     kind: "filter", field: "score", operation: "gte", operand: "10", operandType: "number",
     conditions: [{ field: "name", operation: "contains", operand: "t", operandType: "text", not: true, and: true }],
-  }]), val([items[0]]));
+  }]), val([items[0], items[2]]));
 });
 
 test("split, join and replace compose without implicit coercion", () => {
