@@ -17,7 +17,7 @@ The importer accepts both an ordinary `SiteDoc` and the following wrapper:
 }
 ```
 
-The wrapper's `version` identifies the transport format. `payload` decompresses to the same JSON `SiteDoc` structure described below. Unknown versions or codecs are rejected rather than guessed.
+The wrapper's `version` identifies the portable file contract. It must be revised with explicit conversion rules if an incompatible document shape or encoding is introduced. Plain `SiteDoc` JSON is treated as the current direct form. `payload` decompresses to the same `SiteDoc` structure described below. Unknown versions or codecs are rejected rather than guessed.
 
 Use this Python recipe when generating a standalone `doc.json`:
 
