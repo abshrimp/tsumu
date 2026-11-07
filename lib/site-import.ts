@@ -15,14 +15,13 @@ export interface SiteImport {
   doc: SiteDoc;
   /** Original asset ID -> bytes from the archive, if present. */
   assets: Map<string, Uint8Array>;
-  sourceUrl: string;
   warnings: string[];
 }
 
 export const IMPORT_LIMITS = {
-  zipBytes: 24 * 1024 * 1024,
+  zipBytes: 100 * 1024 * 1024,
   docBytes: 12 * 1024 * 1024,
-  expandedBytes: 100 * 1024 * 1024,
+  expandedBytes: 300 * 1024 * 1024,
   assetBytes: 25 * 1024 * 1024,
   entries: 500,
   assets: 250,
@@ -99,23 +98,19 @@ function uncompressedSize(entry: JSZip.JSZipObject): number | null {
 }
 
 function findEditDoc(entries: JSZip.JSZipObject[]) {
-  const preferred = entries.find((entry) =>
-    /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name));
-  return preferred ?? entries.find((entry) =>
-    /^(?:[^/]+\/)?_site-data\/doc\.json$/i.test(entry.name));
+  return entries.find((entry) => /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name));
 }
 
 export async function parseSiteImport(
   bytes: Uint8Array,
   mode: "zip" | "doc",
-  sourceUrl: string,
 ): Promise<SiteImport> {
   if (bytes.byteLength > (mode === "zip" ? IMPORT_LIMITS.zipBytes : IMPORT_LIMITS.docBytes)) {
     throw new Error("インポートするファイルが大きすぎます。");
   }
   if (mode === "doc") {
     return { doc: validateImportedDoc(jsonText(bytes)), assets: new Map(),
-      warnings: [], sourceUrl };
+      warnings: [] };
   }
   let zip: JSZip;
   try { zip = await JSZip.loadAsync(bytes); }
@@ -129,7 +124,7 @@ export async function parseSiteImport(
     }
   }
   const editableDocs = entries.filter((entry) =>
-    /^(?:[^/]+\/)?(?:_tsumu|_site-data)\/doc\.json$/i.test(entry.name));
+    /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name));
   if (editableDocs.length > 1) {
     throw new Error("ZIPに複数の編集データが見つかりました。");
   }
@@ -150,7 +145,7 @@ export async function parseSiteImport(
   const docBytes = await documentEntry.async("uint8array");
   if (docBytes.length > IMPORT_LIMITS.docBytes) throw new Error("doc.jsonが大きすぎます。");
   const doc = validateImportedDoc(jsonText(docBytes));
-  const root = documentEntry.name.replace(/(?:_tsumu|_site-data)\/doc\.json$/i, "");
+  const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
   const mapEntry = zip.file(parent + "assets.json");
   let map: ArchiveAssetMap | null = null;
@@ -187,13 +182,12 @@ export async function parseSiteImport(
     }
     assets.set(id, contents);
   }
-  return { doc, assets, warnings, sourceUrl };
+  return { doc, assets, warnings };
 }
 
 /** Preserve every asset ID: only its storage location is replaced. */
 export async function restoreImportAssets(
   imported: SiteImport,
-  fetchSource: (url: string) => Promise<Uint8Array>,
   progress: (message: string) => void = () => {},
 ): Promise<{ doc: SiteDoc; warnings: string[]; createdPaths: string[] }> {
   const doc = structuredClone(imported.doc);
@@ -204,20 +198,11 @@ export async function restoreImportAssets(
     number++;
     progress("アセットを復元中… " + number + " / " + Object.keys(doc.assets).length);
     let bytes = imported.assets.get(id);
-    let attemptedRemote = false;
     if (!bytes && asset.dataUrl) {
       try {
         const blob = await (await fetch(asset.dataUrl)).blob();
         if (blob.size <= IMPORT_LIMITS.assetBytes) bytes = new Uint8Array(await blob.arrayBuffer());
       } catch { /* Warn below if a usable source is unavailable. */ }
-    }
-    if (!bytes && asset.path) {
-      try {
-        const from = /^https?:\/\//i.test(asset.path)
-          ? asset.path : new URL("/api/assets/file?path=" + encodeURIComponent(asset.path), imported.sourceUrl).href;
-        attemptedRemote = true;
-        bytes = await fetchSource(from);
-      } catch { /* The original host may not provide its asset API. */ }
     }
     if (bytes && bytes.byteLength <= IMPORT_LIMITS.assetBytes) {
       const mime = asset.mimeType || guessMime(asset.name);
@@ -244,9 +229,7 @@ export async function restoreImportAssets(
       delete asset.path;
       continue;
     }
-    if (attemptedRemote || !bytes) {
-      warnings.push("アセットを取得できませんでした: " + asset.name);
-    }
+    if (!bytes) warnings.push("アセットを取得できませんでした: " + asset.name);
     // Do not point at an unrelated asset key in the destination installation.
     if (asset.path) delete asset.path;
   }
