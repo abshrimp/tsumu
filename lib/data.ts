@@ -960,7 +960,7 @@ export function previewDataVars(
   for (let added = true; added; ) {
     added = false;
     for (const copy of copies) {
-      if (copy.into in out) continue;
+      if (Object.prototype.hasOwnProperty.call(out, copy.into)) continue;
       const value = lookupVar(scope(), copy.src);
       if (value === undefined) continue;
       out[copy.into] = value;
@@ -972,23 +972,30 @@ export function previewDataVars(
 
 /** 変数に値を入れる（"記事.tags" のような入れ子は、元の値を変えずに途中を複製して入れる） */
 export function setVarPath(vars: Record<string, unknown>, name: string, value: unknown) {
-  if (name in vars || !name.includes(".")) {
-    vars[name] = value;
+  const owns = (obj: object, key: string | number) =>
+    Object.prototype.hasOwnProperty.call(obj, key);
+  // Object.defineProperty writes __proto__ as a normal own key, not as a
+  // prototype mutation. Only own keys may shadow a path.
+  const write = (key: string, next: unknown) =>
+    Object.defineProperty(vars, key, { value: next, writable: true, enumerable: true, configurable: true });
+  if (owns(vars, name) || !name.includes(".")) {
+    write(name, value);
     return;
   }
   const put = (cur: unknown, keys: string[]): unknown => {
     if (!keys.length) return value;
     const [k, ...rest] = keys;
-    if (Array.isArray(cur)) {
-      const copy = cur.slice();
-      copy[Number(k)] = put(cur[Number(k)], rest);
+    if (Array.isArray(cur) && /^(0|[1-9][0-9]*)$/.test(k)) {
+      const index = Number(k), copy = cur.slice();
+      if (!Number.isSafeInteger(index) || index > 1000000) return copy;
+      copy[index] = put(owns(cur, index) ? cur[index] : undefined, rest);
       return copy;
     }
-    const obj = cur && typeof cur === "object" ? (cur as Record<string, unknown>) : {};
-    return { ...obj, [k]: put(obj[k], rest) };
+    const obj = cur && typeof cur === "object" ? cur as Record<string, unknown> : {};
+    return { ...obj, [k]: put(owns(obj, k) ? obj[k] : undefined, rest) };
   };
   const [root, ...rest] = name.split(".");
-  vars[root] = put(vars[root], rest);
+  write(root, put(owns(vars, root) ? vars[root] : undefined, rest));
 }
 
 /** {名前} で書ける変数だけにする（「#」で始まる内部の変数を除く） */
