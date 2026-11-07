@@ -258,7 +258,7 @@ function ValueOperandEditor({ type, text, onChange, samples, purpose = "compare"
   const isList = purpose === "list";
   return (
     <div className="se-composer-operand">
-      <select className="se-in" aria-label={isList ? tr("操作する値の種類") : tr("比較する値の種類")} value={type}
+      <select className="se-in se-fixed-select" aria-label={isList ? tr("操作する値の種類") : tr("比較する値の種類")} value={type}
         onChange={(e) => {
           const next = e.target.value as ValueOperandType;
           onChange(next === "number" ? "0" : next === "boolean" ? "true" : "", next);
@@ -274,7 +274,7 @@ function ValueOperandEditor({ type, text, onChange, samples, purpose = "compare"
           ariaLabel={isList ? tr("リストに使う変数") : tr("比較する変数")} placeholder={tr("変数を選択")}
           onChange={(path) => onChange(path, type)} portalZIndex={560} />
       ) : type === "boolean" ? (
-        <select className="se-in" aria-label={isList ? tr("操作する値") : tr("比較する値")} value={text}
+        <select className="se-in se-fixed-select" aria-label={isList ? tr("操作する値") : tr("比較する値")} value={text}
           onChange={(e) => onChange(e.target.value, type)}>
           <option value="true">true</option>
           <option value="false">false</option>
@@ -297,12 +297,12 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
 }) {
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
-      <select className="se-in" aria-label={tr("計算方法")} value={transform.operation}
+      <select className="se-in se-fixed-select" aria-label={tr("計算方法")} value={transform.operation}
         onChange={(e) => onChange({ ...transform, operation: e.target.value as NumericOperation })}>
         {MATH.map((method) => <option key={method.value} value={method.value}>{tr(method.label)}</option>)}
       </select>
       <div className="se-composer-operand">
-        <select className="se-in" aria-label={tr("計算する値の種類")}
+        <select className="se-in se-fixed-select" aria-label={tr("計算する値の種類")}
           value={transform.operandType === "variable" ? "variable" : "number"}
           onChange={(e) => onChange(e.target.value === "variable"
             ? { ...transform, operandType: "variable", operand: "" }
@@ -364,7 +364,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
             onChange={(field) => onChange({ ...transform, field })} />
         )}
         {transform.kind !== "map-set" && (
-          <select className="se-in" aria-label={tr("比較方法")} value={transform.operation}
+          <select className="se-in se-fixed-select" aria-label={tr("比較方法")} value={transform.operation}
             onChange={(e) => onChange({ ...transform, operation: e.target.value as CompareOperation })}>
             {COMPARISONS.map((op) => <option key={op.value} value={op.value}>{tr(op.label)}</option>)}
           </select>
@@ -382,7 +382,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
         placeholder={transform.kind === "sort" ? tr("項目（空なら要素自身）") : tr("取り出す項目名")}
         onChange={(field) => onChange({ ...transform, field })} />
       {transform.kind === "sort" && (
-        <select className="se-in" aria-label={tr("並び順")} value={transform.direction}
+        <select className="se-in se-fixed-select" aria-label={tr("並び順")} value={transform.direction}
           onChange={(e) => onChange({ ...transform, direction: e.target.value as "asc" | "desc" })}>
           <option value="asc">{tr("昇順")}</option>
           <option value="desc">{tr("降順")}</option>
