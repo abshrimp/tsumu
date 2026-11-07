@@ -327,6 +327,22 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " missing list matches clear stale values for subsequent fallback", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, '[{"name":"first"}]', [
+      { id: "previous", kind: "set-var", into: "chosen", value: "stale" },
+      { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "find-missing", kind: "transform", source: "items", into: "chosen",
+        transform: { kind: "find", field: "name", operation: "eq", operand: "absent" } },
+      { id: "fallback", kind: "transform", source: "chosen", into: "chosen",
+        transform: { kind: "fallback", text: "not found" } },
+      { id: "result", kind: "set-var", into: "items", value: "{chosen}" },
+    ]);
+    await expect(answer).toHaveValue("not found");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
