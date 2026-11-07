@@ -24,6 +24,8 @@ import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
   /*#setvar*/
+  // esbuild may annotate named inner functions with __name when serializing .toString().
+  var __name = function (fn) { return fn; };
   var evalRecipe = (${evaluateValueRecipe.toString()});
   /*/setvar*/
   /*#env*/

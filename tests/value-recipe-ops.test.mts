@@ -90,9 +90,9 @@ test("list find/filter/sort/map are immutable and distinguish missing from null"
   ]), { kind: "error", code: "invalid-path" });
 });
 
-test("runtime source serialization runs with no external imports in generated sites", () => {
+test("runtime source serialization works with the generated helper shim", () => {
   const source = evaluateValueRecipe.toString();
-  const pure = new Function("return (" + source + ")")() as typeof evaluateValueRecipe;
+  const pure = new Function("const __name = (fn) => fn; return (" + source + ")")() as typeof evaluateValueRecipe;
   assert.deepEqual(pure([3, 1, 2], [{ kind: "sort", field: "", direction: "asc" }]), val([1, 2, 3]));
   assert.deepEqual(pure(5, [{ kind: "math", operation: "divide", operand: 2 }]), val(2.5));
 });

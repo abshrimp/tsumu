@@ -408,6 +408,7 @@ export default function manifest(): MetadataRoute.Manifest {
   if (Object.values(doc.pages).some((page) => !page.unpublished &&
     pagePlan(doc, page.id).steps.some((step) => step.kind === "set-var" && step.recipe))) {
     files["lib/value-recipe.js"] =
+      "const __name = (fn) => fn;\n" +
       "export const evaluateValueRecipe = (" + evaluateValueRecipe.toString() + ");\n";
   }
 
