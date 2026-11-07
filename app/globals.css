@@ -6496,6 +6496,12 @@ button.vx-chev:hover {
   color: var(--text-2);
 }
 
+.se-blk.has-lines > .se-composer-condition-actions {
+  grid-column: 2;
+  justify-self: start;
+  padding-left: 0;
+}
+
 /* スクリプト画面の表示倍率 */
 .se-zoom {
   display: inline-flex;
