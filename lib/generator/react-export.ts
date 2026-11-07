@@ -65,11 +65,12 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   // script DOM queries see actual elements.
   const scripts = ["inview.js", "scripts.js"].filter((name) => !!files["public/" + name]);
   const app = [
-    'import { useEffect } from "react";',
+    'import { useEffect, type ComponentType } from "react";',
     ...imports, "",
     "const SITE_NAME = " + JSON.stringify(doc.siteName) + ";",
     "const scripts = " + JSON.stringify(scripts.map((name) => "/" + name)) + ";",
-    "const routes = [", ...entries, "];", "",
+    "type Route = { path: string; title: string; description: string; lang: string; Component: ComponentType };",
+    "const routes: Route[] = [", ...entries, "];", "",
     "export default function App() {",
     '  const pathname = (() => {',
     '    try { return decodeURI(window.location.pathname); }',
