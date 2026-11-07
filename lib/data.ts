@@ -1,5 +1,4 @@
 import type {
-import type { ValueTransform } from "./script-model/compose";
   DocNode,
   ListContent,
   FilterCond,
@@ -7,6 +6,7 @@ import type { ValueTransform } from "./script-model/compose";
   ScriptStep,
   SiteDoc,
 } from "./types";
+import type { ValueTransform } from "./script-model/compose";
 import {
   extractVars,
   interpolate,
