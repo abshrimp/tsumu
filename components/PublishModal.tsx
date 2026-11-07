@@ -20,6 +20,7 @@ import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publi
 import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import type { SiteDoc } from "../lib/types";
 import { detectSvgFilters } from "../lib/assets";
+import { hasPublishCredentials } from "../lib/publish-security";
 import type { PublishTarget } from "../lib/generator";
 import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
@@ -315,6 +316,9 @@ export default function PublishModal({
     let target = doc;
     try {
       target = await docWithSvgFilters();
+      if (hasPublishCredentials(target)) {
+        throw new Error(tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"));
+      }
       const { files, binaries, remoteAssets } = await prepareExportProject(target, options, site);
       // 編集データも同梱（バックアップ兼、履歴から編集内容を戻すときに使う）
       files[DOC_PATH] = JSON.stringify(target, null, 2) + "\n";
