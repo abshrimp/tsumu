@@ -9,6 +9,7 @@ import { idVarNodesOf, obfuscateVarNames, pagePlan } from "./data";
 import { hasRunnableScripts, listFilterFields, scriptTargetIds } from "./script";
 import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
+import { runPurePageSteps } from "./page-load-steps";
 import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
@@ -405,12 +406,21 @@ export default function manifest(): MetadataRoute.Manifest {
   if (needsScripts) files["public/scripts.js"] = scriptsFile(doc);
   // Generated SSR pages share the same pure recipe evaluator as editor and client scripts.
   // Output plain JavaScript so the emitted function can be compiled without implicit-any errors.
-  if (Object.values(doc.pages).some((page) => !page.unpublished &&
+  const needsPurePageControls = Object.values(doc.pages).some((page) => !page.unpublished &&
+    pagePlan(doc, page.id).steps.some((step) =>
+      step.kind === "for-each" || step.kind === "if" || step.kind === "repeat"));
+  if (needsPurePageControls || Object.values(doc.pages).some((page) => !page.unpublished &&
     pagePlan(doc, page.id).steps.some((step) => step.kind === "transform"))) {
     files["lib/value-recipe.ts"] =
       "// @ts-nocheck\n" +
       "const __name = (fn) => fn;\n" +
       "export const evaluateValueRecipe = (" + evaluateValueRecipe.toString() + ");\n";
+  }
+  if (needsPurePageControls) {
+    files["lib/page-load-steps.ts"] =
+      "// @ts-nocheck\n" +
+      "const __name = (fn) => fn;\n" +
+      "export const runPurePageSteps = (" + runPurePageSteps.toString() + ");\n";
   }
 
   const loading = doc.loadingScreen?.enabled ? doc.loadingScreen : null;
