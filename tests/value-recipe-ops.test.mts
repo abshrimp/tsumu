@@ -40,7 +40,7 @@ const run = (input: unknown, steps: readonly ValueTransform[]) => evaluateValueR
 const val = (value: unknown) => ({ kind: "value", value });
 
 test("all advertised transforms have stable, serializable defaults", () => {
-  assert.equal(VALUE_TRANSFORM_KINDS.length, 23);
+  assert.equal(VALUE_TRANSFORM_KINDS.length, 24);
   assert.equal(new Set(VALUE_TRANSFORM_KINDS).size, VALUE_TRANSFORM_KINDS.length);
   for (const kind of VALUE_TRANSFORM_KINDS) {
     const transform = defaultTransform(kind);
@@ -189,6 +189,55 @@ test("text fields combine text and variables without switching input modes", () 
   assert.deepEqual(evaluateValueRecipe([{ name: "a" }], [{
     kind: "map-set", field: "{danger}", operandType: "text", operand: "unsafe",
   }], { danger: "__proto__" }), { kind: "error", code: "invalid-path" });
+});
+
+test("object dictionaries support dynamic date keys and configurable entry-list fields", () => {
+  const holidays = { "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日", "2027-01-01": "元日" };
+  const original = structuredClone(holidays);
+  const vars = { date: "2026-11-23", dateLabel: "日付", holidayLabel: "祝日名" };
+  assert.deepEqual(evaluateValueRecipe(holidays, [{ kind: "field", key: "{date}" }], vars), val("勤労感謝の日"));
+  assert.deepEqual(evaluateValueRecipe(holidays, [{ kind: "has", key: "{date}" }], vars), val(true));
+  assert.deepEqual(evaluateValueRecipe(holidays, [{ kind: "has", key: "2026-11-24" }], vars), val(false));
+  assert.deepEqual(evaluateValueRecipe(holidays, [{ kind: "field", key: "2026-11-24" }], vars),
+    { kind: "missing" });
+  assert.deepEqual(evaluateValueRecipe(holidays, [{
+    kind: "object-entries", keyField: "{dateLabel}", valueField: "{holidayLabel}",
+  }], vars), val([
+    { "日付": "2026-11-03", "祝日名": "文化の日" },
+    { "日付": "2026-11-23", "祝日名": "勤労感謝の日" },
+    { "日付": "2027-01-01", "祝日名": "元日" },
+  ]));
+  assert.deepEqual(evaluateValueRecipe(holidays, [
+    { kind: "object-entries", keyField: "日付", valueField: "祝日名" },
+    { kind: "filter", field: "祝日名", operation: "contains", operand: "の日" },
+    { kind: "sort", field: "日付", direction: "desc" },
+    { kind: "map-field", field: "祝日名" },
+    { kind: "join", separator: "・" },
+  ]), val("文化の日"));
+  assert.deepEqual(holidays, original, "Object conversion must not mutate the original JSON");
+});
+
+test("object entry conversion validates input types, field names and limits", () => {
+  const good = { kind: "object-entries", keyField: "キー", valueField: "値" } as const;
+  assert.deepEqual(run({}, [good]), val([]));
+  assert.deepEqual(run({ one: null, two: 2 }, [good]),
+    val([{ "キー": "one", "値": null }, { "キー": "two", "値": 2 }]));
+  assert.deepEqual(run(null, [good]), { kind: "error", code: "type-mismatch" });
+  assert.deepEqual(run(["one"], [good]), { kind: "error", code: "type-mismatch" });
+  assert.deepEqual(run("value", [good]), { kind: "error", code: "type-mismatch" });
+  assert.deepEqual(run({}, [{ ...good, keyField: "" }]), { kind: "error", code: "invalid-path" });
+  assert.deepEqual(run({}, [{ ...good, valueField: "キー" }]), { kind: "error", code: "invalid-path" });
+  assert.deepEqual(run({}, [{ ...good, keyField: "__proto__" }]), { kind: "error", code: "invalid-path" });
+  assert.deepEqual(run({}, [{ ...good, valueField: "constructor" }]), { kind: "error", code: "invalid-path" });
+  const malicious = JSON.parse('{"__proto__": "safe", "constructor": 17, "2026-11-23": "勤労感謝の日"}');
+  assert.deepEqual(run(malicious, [good]), val([
+    { "キー": "__proto__", "値": "safe" },
+    { "キー": "constructor", "値": 17 },
+    { "キー": "2026-11-23", "値": "勤労感謝の日" },
+  ]));
+  assert.equal(({} as Record<string, unknown>).polluted, undefined);
+  const oversized = Object.fromEntries(Array.from({ length: 10001 }, (_, i) => ["k" + i, i]));
+  assert.deepEqual(run(oversized, [good]), { kind: "error", code: "limit-exceeded" });
 });
 
 test("list find/filter/sort/map are immutable and distinguish missing from null", () => {
