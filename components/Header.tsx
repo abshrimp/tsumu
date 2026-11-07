@@ -39,7 +39,7 @@ import { showAlert, showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { exportProjectZip } from "../lib/exportZip";
-import { exportLimitations, DEFAULT_EXPORT_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/export-formats";
+import { exportLimitations, exportScopeDoc, DEFAULT_EXPORT_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/export-formats";
 import { BpIcon, Dropdown, NumField, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
 import { getLang, LANGS, setLang, tr, type Lang } from "../lib/i18n";
@@ -60,8 +60,14 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   };
   const checks = useMemo<CheckResult[]>(() => {
     const compatibility = exportLimitations(doc, options);
+    let scoped: typeof doc | null = null;
+    try {
+      scoped = exportScopeDoc(doc, options);
+    } catch {
+      // The scope error is already included in the compatibility list.
+    }
     return [
-      ...runChecks(doc),
+      ...(scoped ? runChecks(scoped) : []),
       ...compatibility.map((message): CheckResult => ({ level: "error", message })),
     ];
   }, [doc, activePageId, selectedNodeId, format, language, style, scope]);
