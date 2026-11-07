@@ -51,6 +51,7 @@ test("ZIP file picker imports an editable site with original asset IDs", async (
   root.file("public/assets/logo.svg",
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>');
   await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIPまたはdoc.jsonファイルを選択").setInputFiles({
     name: "website.zip", mimeType: "application/zip",
     buffer: await zip.generateAsync({ type: "nodebuffer" }),
@@ -72,6 +73,7 @@ test("dropping a JSON file imports a new editable site", async ({ page }) => {
   await localMode(page);
   const doc = fixture();
   await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   const file = {
     name: "doc.json", mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(doc)),
@@ -106,6 +108,7 @@ test("dropping a JSON file imports a new editable site", async ({ page }) => {
 test("normal text drag on the homepage does not trigger file import", async ({ page }) => {
   await localMode(page);
   await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   const prevented = await page.evaluate(() => {
     const target = document.querySelector(".home-top");
     if (!target) throw new Error("Home header missing");
@@ -123,6 +126,7 @@ test("normal text drag on the homepage does not trigger file import", async ({ p
 test("invalid JSON is rejected without creating a site", async ({ page }) => {
   await localMode(page);
   await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIPまたはdoc.jsonファイルを選択").setInputFiles({
     name: "doc.json", mimeType: "application/json", buffer: Buffer.from("{not-json"),
   });
@@ -153,6 +157,7 @@ test("local file import persists the SiteDoc on the server when configured", asy
     return route.fulfill({ json: { exists: true, doc: stored, rev: "1", savedAt: 1 } });
   });
   await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIPまたはdoc.jsonファイルを選択").setInputFiles({
     name: "site.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(doc)),
   });
