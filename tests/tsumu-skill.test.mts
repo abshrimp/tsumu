@@ -1,13 +1,23 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import * as ts from "typescript";
 import { validateImportedDoc } from "../lib/site-import";
 
 const read = (relative: string) => readFileSync(new URL("../" + relative, import.meta.url), "utf8");
 
-test("bundled AI skill type reference matches the current SiteDoc definitions", () => {
-  assert.equal(read("skills/tsumu-site/references/types.ts"), read("lib/types.ts"),
-    "Update the AI skill type snapshot whenever lib/types.ts changes.");
+test("the English AI Skill type reference matches the current SiteDoc model", () => {
+  const snapshot = read("skills/tsumu-site/references/types.ts");
+  const current = read("lib/types.ts");
+  const normalized = (source: string) => {
+    const file = ts.createSourceFile("site-doc.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    assert.equal(file.parseDiagnostics.length, 0);
+    return ts.createPrinter({ removeComments: true }).printFile(file);
+  };
+  assert.equal(normalized(snapshot), normalized(current),
+    "Update the AI Skill TypeScript snapshot when lib/types.ts changes.");
+  assert.doesNotMatch(snapshot, /[\u3040-\u30ff\u3400-\u9fff]/,
+    "The AI Skill TypeScript documentation should be in English.");
 });
 
 test("the AI skill example imports as a valid editable site with resolved references", () => {
