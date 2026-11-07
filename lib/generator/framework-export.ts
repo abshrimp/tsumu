@@ -129,7 +129,7 @@ export function buildAdditionalFramework(
   const routesPath = root + "site-routes." + ext;
   files[routesPath] = generatedRoutes(doc);
   files[root + "browser-start." + ext] = files[(framework === "sveltekit" ? "static/" : "public/") +
-    "browser-start.js"];
+    "browser-start.js"].replace("new Promise((resolve)", ts ? "new Promise<void>((resolve)" : "new Promise((resolve)");
   delete files[(framework === "sveltekit" ? "static/" : "public/") + "browser-start.js"];
 
   if (framework === "vue") {
