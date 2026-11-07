@@ -28,6 +28,7 @@ import {
   TextCursorInput,
   Timer,
   ToggleRight,
+  Palette,
   Variable,
   Workflow,
   Zap,
@@ -57,6 +58,7 @@ export const CAT_ORDER: Cat[] = ["event", "look", "move", "input", "var", "load"
 
 export const CAT_OF: Record<ScriptStep["kind"], Cat> = {
   show: "look",
+  "set-state": "look",
   hide: "look",
   toggle: "look",
   "open-page": "move",
@@ -95,6 +97,7 @@ export const TRIGGER_ICON: Record<ScriptTrigger, LucideIcon> = {
 
 export const STEP_ICON: Record<ScriptStep["kind"], LucideIcon> = {
   show: Eye,
+  "set-state": Palette,
   hide: EyeOff,
   toggle: ToggleRight,
   "open-page": FileText,
@@ -173,6 +176,13 @@ export const PALETTE: PaletteItem[] = [
     icon: Eye,
     label: tr("［要素］を［表示する / 隠す / 切り替える］"),
     make: () => one({ id: st(), kind: "show", target: "" }),
+  },
+  {
+    key: "set-state",
+    cat: "look",
+    icon: Palette,
+    label: tr("要素［］を［状態名］にする"),
+    make: () => one({ id: st(), kind: "set-state", target: "", state: "" }),
   },
   {
     key: "open-page",
@@ -293,6 +303,7 @@ const SEARCH_TERMS: Record<string, string> = {
   "in-view": "画面内 現れる 見える 画面に入る 表示領域 表示領域に入る スクロールして見える 見えたとき ビューポート スクロールで出現 要素が現れたとき viewport intersection observer inview visible",
   fetch: "取得 データ取得 データを読む API WebAPI HTTP HTTPS GET POST リクエスト REST JSON サーバーから取得 サーバーと通信 サーバーデータ 外部データ 通信 送信 受信 ダウンロード URL 接続 エンドポイント レスポンス request response fetch download",
   show: "見せる 隠す 表示 非表示 表示する 非表示にする 消す 出す 見えるようにする 見えなくする 開閉 表示切り替え 表示を切り替える トグル 可視 非表示解除 visibility display show hide toggle visible",
+  "set-state": "状態を変更する スタイルを切り替える 別の要素の色を変える 状態名 状態切り替え 色変更 set state style variant",
   "open-page": "ページ移動 ページを開く ページを切り替える ページ遷移 リンク リンクを開く リンク先 別ページ 別タブ 別ウィンドウ 外部サイトへ移動 サイト移動 URLを開く URLに飛ぶ 遷移 リダイレクト ジャンプ navigate redirect open link href location",
   "scroll-to": "スクロール スクロールする ページ内移動 ページの中を移動 位置に移動 要素まで移動 アンカーへ移動 アンカーリンク 特定の場所へ 位置へジャンプ 要素へ飛ぶ ジャンプ scroll anchor jump scrollto",
   "set-value": "入力する 入力欄に入れる フォームに入力 フォームの値 テキストボックスに入れる 入力値を変える 入力値更新 選択欄を設定 フィールドの値を設定 フォームに書く setvalue set input field form",
