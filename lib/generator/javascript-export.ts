@@ -9,7 +9,7 @@ export async function toJavaScriptProject(
   project: GeneratedProject,
   framework: ExportFormat,
 ): Promise<GeneratedProject> {
-  const ts = await import("typescript");
+  const { default: ts } = await import("@typescript/typescript6");
   const files: Record<string, string> = {};
   for (const [path, source] of Object.entries(project.files)) {
     if (!/\.(?:tsx?|mts|cts)$/.test(path)) {
