@@ -114,6 +114,20 @@ test("React uses the same browser data loader for API calls and transformations"
   assert.doesNotMatch(project.files["src/pages/Page0.tsx"], /fetchPublic|next\/navigation/);
 });
 
+test("React preserves #136 list-display operations even without a fetch", () => {
+  const doc = fixture();
+  doc.pages.home.pageScripts = [{
+    id: "filter-on-load", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "filter", kind: "list-display", mode: "filter",
+      array: "products", field: "status", op: "eq",
+      value: "published", dir: "asc" }],
+  }] as unknown as typeof doc.pages.home.pageScripts;
+  const output = generateExportProject(doc, "react");
+  assert.ok(output.files["public/data-loader.js"]);
+  assert.ok(output.files["src/pages/Page0.tsx"].includes("data-page-plan"));
+  assert.ok(output.files["src/pages/Page0.tsx"].includes("filter"));
+});
+
 test("React JSX adaptation removes only framework-specific JSX wrappers", () => {
   const source = 'import type { Metadata } from "next";\n' +
     'import Link from "next/link";\nimport Image from "next/image";\n' +
