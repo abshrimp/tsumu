@@ -93,14 +93,24 @@ test("client-only variables do not force a server-only export error", () => {
   assert.match(html, /data-live="Hello \{username\}"/);
 });
 
-test("actual server-only data access remains blocked in React", () => {
+test("React uses the same browser data loader for API calls and transformations", () => {
   const doc = fixture();
+  doc.nodes.hero.text!.content = "Found {total} records";
   doc.pages.home.pageScripts = [{
     id: "load", trigger: "load", pos: { x: 0, y: 0 },
-    steps: [{ id: "fetch", kind: "fetch", url: "https://example.com/data.json", as: "response" }],
+    steps: [
+      { id: "fetch", kind: "fetch", url: "https://example.com/data.json?tab={tab}", as: "results" },
+      { id: "count", kind: "count", array: "results", into: "total" },
+    ],
   }];
-  assert.ok(exportLimitations(doc, "react").length > 0);
-  assert.throws(() => generateExportProject(doc, "react"));
+  assert.deepEqual(exportLimitations(doc, "react"), []);
+  const project = generateExportProject(doc, "react");
+  assert.ok(project.files["public/data-loader.js"].includes("fetch(url, init)"));
+  assert.ok(project.files["public/scripts.js"].includes("__pageDataReady"));
+  assert.match(project.files["src/pages/Page0.tsx"], /data-page-plan/);
+  assert.match(project.files["src/pages/Page0.tsx"], /Found \{total\} records/);
+  assert.match(project.files["src/App.tsx"], /data-loader\.js/);
+  assert.doesNotMatch(project.files["src/pages/Page0.tsx"], /fetchPublic|next\/navigation/);
 });
 
 test("React JSX adaptation removes only framework-specific JSX wrappers", () => {
@@ -124,6 +134,34 @@ test("React export preserves query-variant routing", () => {
   assert.match(result.files["src/App.tsx"], /"tab":"2"/);
   assert.match(result.files["src/App.tsx"], /matches\.sort/);
   assert.ok(result.files["src/pages/Page1.tsx"]);
+});
+
+test("HTML supports query-based page variants without a server rewrite", () => {
+  const doc = fixture();
+  doc.nodes.hero.text!.content = "Default";
+  doc.pages.other = {
+    ...doc.pages.home, id: "other", title: "Other", query: "tab=2",
+    children: ["other-text"],
+  };
+  doc.nodes["other-text"] = {
+    ...makeBox(), id: "other-text", text: { content: "Second tab", heading: 1 },
+  };
+  doc.pageOrder.push("other");
+  assert.deepEqual(exportLimitations(doc, "html"), []);
+  const html = generateExportProject(doc, "html");
+  assert.ok(html.files["query-router.js"]);
+  assert.match(html.files["index.html"], /data-page-variants/);
+  assert.match(html.files["index.html"], /query-router\.js/);
+  assert.match(html.files["index.html"], /Second tab/);
+  assert.equal(Object.keys(html.files).filter((name) => name.endsWith("index.html")).length, 1);
+});
+
+test("HTML accepts ordinary query variables even without separate page variants", () => {
+  const doc = fixture();
+  doc.pages.home.query = "tab=default";
+  doc.nodes.hero.text!.content = "Tab {tab}";
+  assert.deepEqual(exportLimitations(doc, "html"), []);
+  assert.match(generateExportProject(doc, "html").files["index.html"], /data-live="Tab \{tab\}"/);
 });
 
 test("React export includes native forms and PWA manifest", () => {
