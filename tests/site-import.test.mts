@@ -10,7 +10,6 @@ import {
 import { importFileKind } from "../lib/import-site-file";
 
 const enc = new TextEncoder();
-const source = "https://downloads.example.test/site.zip";
 
 function fixture() {
   const doc = createInitialDoc();
@@ -24,7 +23,7 @@ function fixture() {
   return doc;
 }
 
-test("doc.json URL restores an editable SiteDoc and original IDs", async () => {
+test("local doc.json restores an editable SiteDoc and original IDs", async () => {
   const doc = fixture();
   const result = await parseSiteImport(enc.encode(JSON.stringify(doc)), "doc");
   assert.deepEqual(result.doc, doc);
