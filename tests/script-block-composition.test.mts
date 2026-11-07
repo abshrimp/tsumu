@@ -64,6 +64,28 @@ test("three ordinary blocks compose a value in preview and server generated outp
   assert.doesNotThrow(() => transformSync(server, { loader: "tsx", jsx: "automatic" }));
 });
 
+test("server data transforms interpolate strings and source variables without client-only adapters", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "person", kind: "set-var", into: "person", value: "田中" },
+    { id: "fallback", kind: "transform", source: "missing", into: "greeting",
+      transform: { kind: "fallback", text: "こんにちは、{person}さん" } },
+    { id: "dynamic-name", kind: "set-var", into: "lookupField", value: "price" },
+    { id: "read-price", kind: "transform", source: "data", into: "cost",
+      transform: { kind: "field", key: "{lookupField}" } },
+  );
+  const plan = pagePlan(doc, "p");
+  assert.ok(plan.serverIds.has("fallback"));
+  assert.ok(plan.serverIds.has("read-price"));
+  const vars = previewDataVars(doc, "p");
+  assert.equal(vars.greeting, "こんにちは、田中さん");
+  assert.equal(vars.cost, 12);
+  const generated = generateProject(doc).files["app/page.tsx"];
+  assert.match(generated, /こんにちは、\\\\{person\\\\}さん/);
+  assert.match(generated, /"key":"\\\\{lookupField\\\\}"/);
+  assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
+});
+
 test("comparison operands can refer to another variable", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push({
