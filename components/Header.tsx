@@ -79,7 +79,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
     : format === "single-html"
       ? tr("画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数の異なるページURLは1つにまとめられません。")
       : trNodes("{framework}プロジェクトとして保存します。展開後に {cmd} で起動できます。", {
-          framework: EXPORT_FRAMEWORK_OPTIONS.find((item) => item.value === format)?.label ?? "Next.js",
+          framework: tr(EXPORT_FRAMEWORK_OPTIONS.find((item) => item.value === format)?.label ?? "Next.js"),
           cmd: <span className="kbd">npm install && npm run dev</span>,
         });
 
@@ -94,9 +94,10 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             <div className="export-option-label">{tr("フレームワーク")}</div>
             <Dropdown
               value={format}
-              options={EXPORT_FRAMEWORK_OPTIONS}
+              options={EXPORT_FRAMEWORK_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))}
               onChange={(value) => {
                 setFormat(value as ExportFormat);
+                if (value === "single-html" && scope === "project") setScope("page");
                 if (value === "html" || value === "single-html") {
                   setLanguage("javascript");
                   setStyle("css");
@@ -146,7 +147,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
               options={[
                 { value: "component", label: tr("選択したコンポーネント") },
                 { value: "page", label: tr("現在のページ") },
-                { value: "project", label: tr("プロジェクト全体") },
+                ...(format === "single-html" ? [] : [{ value: "project", label: tr("プロジェクト全体") }]),
               ]}
               onChange={(value) => setScope(value as ExportScope)}
               style={{ width: "100%" }}
