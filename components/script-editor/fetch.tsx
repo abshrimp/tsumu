@@ -623,7 +623,6 @@ export function PathMenu({
         onClick={() => (open ? setOpen(false) : show())}
       >
         <span>{label}</span>
-        <ChevronRight size={11} className="se-pm-chev" />
       </button>
       {open &&
         createPortal(
