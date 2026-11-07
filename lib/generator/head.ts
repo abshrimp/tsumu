@@ -50,8 +50,13 @@ function decodeEntities(value: string): string {
 export function headHtmlToJsx(html: string, indent: string): string {
   const attrsJsx = (raw: string) => {
     const out: string[] = [];
+    const seen = new Set<string>();
     for (const m of raw.matchAll(/([^\s=/>"']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?/g)) {
       const name = m[1].toLowerCase();
+      // HTML と同じく、大小文字を区別せず最初の属性を採用する。
+      // 重複を JSX に残すと、生成したサイトの型チェックが失敗する。
+      if (seen.has(name)) continue;
+      seen.add(name);
       // style は React では文字列にできない（head の中は表示されないので落とす）。
       // 属性名は JSX にそのまま書くので、名前の形でないもの（{ や ( を含むなど）も落とす
       if (name.startsWith("on") || name === "style" || !/^[a-z][a-z0-9._:-]*$/.test(name)) continue;
