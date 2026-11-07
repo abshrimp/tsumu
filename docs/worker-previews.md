@@ -1,66 +1,150 @@
 # Hosted previews of the editor / エディタのプレビュー
 
+This guide explains how to get working hosted previews of the Tsumu editor on Cloudflare — for example, one per pull request — without touching production. A [summary in Japanese](#日本語の要点) follows the English text.
+
 ## Why a successful build can still return 404
 
-The editor exports `CollaborationRoom`, a Durable Object. OpenNext 1.20.14's `upload` command calls `wrangler versions upload`. Cloudflare does not generate legacy **Version URLs** for Workers implementing Durable Objects. A successful build or uploaded version therefore does not establish that its URL serves the editor.
+The editor exports a Durable Object called `CollaborationRoom`. That has one important consequence:
 
-Use **Worker Previews**, supported by the installed Wrangler 4.154.0. Keep these commands distinct:
+- OpenNext 1.20.14's `upload` command calls `wrangler versions upload`.
+- Cloudflare doesn't generate the older **Version URLs** for Workers that implement Durable Objects.
 
-- `npm run preview`: builds and starts OpenNext's **local** Wrangler development server.
-- `npm run preview:deploy -- --name pr-116`: builds and creates/updates a **hosted** Worker Preview.
-- `node scripts/cloudflare-preview.mjs --name pr-116`: deploys an already-built hosted Preview.
-- `node scripts/cloudflare.mjs deploy`: deploys production, unchanged.
-- `node scripts/cloudflare.mjs upload`: retained as the old version upload, unchanged. It is not a working preview route for this editor.
+So a successful build, or a successfully uploaded version, tells you nothing about whether its URL actually serves the editor.
 
-Committing these files does not switch dashboard settings, create D1/KV resources, migrate data, or deploy production. The existing upload command is intentionally not silently redirected, since Workers Builds may execute it automatically on a PR branch.
+The fix is to use **Worker Previews**, which the installed Wrangler 4.154.0 supports.
+
+### Which command does what
+
+| Command | What it does |
+|---|---|
+| `npm run preview` | Builds and starts OpenNext's **local** Wrangler development server. |
+| `npm run preview:deploy -- --name pr-116` | Builds, then creates or updates a **hosted** Worker Preview. |
+| `node scripts/cloudflare-preview.mjs --name pr-116` | Deploys an already-built hosted Preview. |
+| `node scripts/cloudflare.mjs deploy` | Deploys production. Unchanged. |
+| `node scripts/cloudflare.mjs upload` | The old version upload, kept as is. It is **not** a working way to preview this editor. |
+
+### What committing these files does not do
+
+Committing the preview setup to the repository does **not**:
+
+- change any setting in the Cloudflare dashboard,
+- create D1 or KV resources,
+- migrate any data, or
+- deploy production.
+
+The existing `upload` command is intentionally left alone rather than silently redirected, because Workers Builds may run it automatically on a pull request branch.
 
 ## Setup and isolation
 
-1. Inspect the current Worker and Workers Builds configuration first. For an existing legacy project, Cloudflare requires **Settings → Builds → Set up Worker Previews**. The switch is **irreversible**. Review it before accepting it. New projects may already use Worker Previews.
-2. Keep the build command `node scripts/cloudflare.mjs build`, the production deploy command unchanged, and set the Preview command to `node scripts/cloudflare-preview.mjs` after reviewing the switch. Do not leave the default `npx wrangler preview`: the helper generates the isolated configuration and performs additional checks.
-3. The checked-in configuration opts into anonymous, browser-only review builds with `previews.vars.ALLOW_ANONYMOUS="true"` and explicit empty D1/KV arrays. The helper binds only the Preview's own `COLLAB_ROOM` Durable Object and leaves D1/KV absent. The editor uses browser-local storage. Cloudflare creates separate DO storage for each Preview; no production DO is removed or rebound.
-4. Shared test data is not enabled by this repository's review setup. To opt into it, first review authentication and storage, create **separate test resources**, remove/replace the explicit empty Preview arrays, then provide `PREVIEW_D1_DATABASE_ID` and/or `PREVIEW_KV_NAMESPACE_ID` as build variables. Apply the required schema to that test D1 separately. There is no resource provisioning or automatic data migration in this helper. Branches using the same Preview ID share that test resource with one another.
-5. Alternatively, add explicit `previews.d1_databases`, `previews.kv_namespaces` and `previews.vars` to a private JSON/JSONC config selected by `WRANGLER_CONFIG` or `wrangler.local.jsonc`. Explicit Preview arrays win over build-variable defaults, including an explicit empty array. Do not put secrets into a config file. TOML is not supported by this helper.
-6. Review Preview-specific authentication and access before entering data. The helper itself does **not** infer anonymous access from build variables, copy production variables/secrets, or configure OAuth. This repository explicitly opts into anonymous access in its Preview configuration; production has no such opt-in. It passes `--ignore-base-config` to avoid silently inheriting dashboard Base bindings on creation. Configure required secrets directly for the Preview, using Cloudflare's supported secure tooling, and use a Preview callback URL and a narrow allowlist. Existing Preview secrets are not erased by this command. For an existing Preview, also inspect its script-level settings: earlier tail consumers, observability and logpush can persist because ignoring Base only applies at creation. Prefer a fresh reviewed Preview name when that history is unknown. For a private Preview, remove the explicit anonymous opt-in and configure separate authentication before using it. Do not add private test storage to an anonymous demo.
+1. **Inspect the current setup first.** Look at the current Worker and its Workers Builds configuration. An existing legacy project must go through **Settings → Builds → Set up Worker Previews**. This switch is **irreversible**, so review it before accepting. New projects may already use Worker Previews.
 
-The helper rejects configured D1/KV IDs that equal production IDs (including `D1_DATABASE_ID` and `KV_NAMESPACE_ID`), missing placeholders, and cross-Worker DO bindings or class transfers. It compares IDs from all named environment blocks too, pins the top-level Worker, and rejects a mismatched Workers Builds target name. Additional resource types require a separate isolation review. This is a check against the supplied configuration, **not proof about an uninspected dashboard**. Confirm the actual resource IDs and Preview bindings there before use. In particular, Cloudflare does not isolate D1/KV automatically.
+2. **Set the commands.** Keep the build command `node scripts/cloudflare.mjs build` and the production deploy command as they are. After reviewing the switch, set the Preview command to `node scripts/cloudflare-preview.mjs`. Don't leave the default `npx wrangler preview`: the helper script generates the isolated configuration and runs extra checks.
 
-The generated `wrangler.preview.generated.jsonc` stays beside its source config so relative asset/entry paths keep their meaning. It is Git-ignored inside this repository; an external config directory must provide its own ignore rules and access protection. CLI passthrough accepts only `--name`, `--tag`, `--message` and `--json`; it cannot override config, environment, entrypoint or secrets.
+3. **Know what the default configuration does.** The checked-in configuration opts into anonymous, browser-only review builds. It sets `previews.vars.ALLOW_ANONYMOUS="true"` and explicitly empty D1 and KV arrays.
+   - The helper binds only the Preview's own `COLLAB_ROOM` Durable Object, and leaves D1 and KV absent.
+   - The editor therefore stores data in the browser.
+   - Cloudflare creates separate Durable Object storage for each Preview. No production Durable Object is removed or rebound.
+
+4. **Shared test data is off by default.** If you want it:
+   1. Review authentication and storage first.
+   2. Create **separate test resources**.
+   3. Remove or replace the explicitly empty Preview arrays.
+   4. Provide `PREVIEW_D1_DATABASE_ID` and/or `PREVIEW_KV_NAMESPACE_ID` as build variables.
+   5. Apply the required schema to the test D1 database yourself.
+
+   The helper doesn't provision resources or migrate data. Note that all branches using the same Preview resource ID share that test data with each other.
+
+5. **Or use a private config.** Instead of build variables, you can add explicit `previews.d1_databases`, `previews.kv_namespaces` and `previews.vars` to a private JSON or JSONC config, selected by `WRANGLER_CONFIG` or `wrangler.local.jsonc`.
+   - Explicit Preview arrays win over build-variable defaults — including an explicitly empty array.
+   - Don't put secrets in a config file.
+   - The helper doesn't support TOML.
+
+6. **Review authentication and access before entering any data.**
+   - The helper does **not** infer anonymous access from build variables, copy production variables or secrets, or configure OAuth.
+   - This repository opts into anonymous access in its Preview configuration only. Production has no such opt-in.
+   - The helper passes `--ignore-base-config`, so a new Preview doesn't silently inherit bindings from the dashboard's Base.
+   - Configure any secrets a Preview needs directly on that Preview, using Cloudflare's supported secure tooling. Use a Preview-specific OAuth callback URL and a narrow allowlist. This command doesn't erase secrets a Preview already has.
+   - For an existing Preview, also check its script-level settings. Earlier tail consumers, observability and logpush settings can persist, because ignoring the Base only applies when a Preview is created. If you don't know a Preview's history, prefer a fresh, reviewed Preview name.
+   - For a private Preview, remove the explicit anonymous opt-in and set up separate authentication before using it. Never add private test storage to an anonymous demo.
+
+### What the helper checks
+
+The helper refuses to deploy if it finds:
+
+- configured D1 or KV IDs that equal production IDs (including `D1_DATABASE_ID` and `KV_NAMESPACE_ID`),
+- missing placeholders, or
+- Durable Object bindings to another Worker, or class transfers.
+
+It also compares IDs found in every named environment block, pins the top-level Worker, and rejects a Workers Builds target name that doesn't match. Any other resource type needs its own isolation review.
+
+> [!WARNING]
+> These checks only cover the configuration you give the helper. They are **not proof about a dashboard nobody has inspected**. Confirm the actual resource IDs and Preview bindings in the dashboard before use. In particular, Cloudflare does not isolate D1 or KV automatically.
+
+### Generated files and command-line options
+
+- The generated `wrangler.preview.generated.jsonc` is written next to its source config, so relative asset and entry paths keep their meaning. Inside this repository it's ignored by Git. If your config lives in an external directory, that directory needs its own ignore rules and access protection.
+- The helper passes through only `--name`, `--tag`, `--message` and `--json`. It can't be used to override the config, environment, entry point or secrets.
 
 ## OpenNext and verification
 
-The editor currently uses OpenNext's default dummy caches and no skew protection. Those settings need no remote cache population. The helper checks the compiled OpenNext configuration before deploying and refuses a future custom cache, queue or skew-protection setup, rather than silently skipping adapter work or writing into production caches.
+The editor currently uses OpenNext's default dummy caches and no skew protection, so there's no remote cache to populate. Before deploying, the helper checks the compiled OpenNext configuration. If a future change adds a custom cache, queue or skew protection, the helper refuses to deploy — rather than silently skipping adapter work or writing into production caches.
 
-After deployment:
+After deploying, verify the Preview:
 
-- Use the URL returned by the **Worker Preview deployment**, not a guessed version-prefix URL.
-- Check HTTP status and the editor UI separately from build success.
-- Verify anonymous access and a new disposable local site's save/reload. Browser-only Previews do not provide cross-device storage, server uploads, or collaboration. Test isolated server uploads and two-client collaboration only in a separately authenticated Preview with its own test D1/KV configured.
-- Confirm that production bindings/data did not change. Do not copy production documents into a test Preview merely to test it.
-- Check both the stable Preview URL and the unique deployment URL if reviewing an exact revision.
+- **Use the right URL.** Open the URL returned by the **Worker Preview deployment**, not a guessed version-prefix URL.
+- **Check the page itself.** Look at the HTTP status and the editor UI; a successful build is a separate thing.
+- **Check the basics.** Confirm anonymous access works, and that a new throwaway local site saves and survives a reload.
+- **Know the limits of a browser-only Preview.** It doesn't offer cross-device storage, server uploads or collaboration. Test isolated server uploads and two-client collaboration only on a separately authenticated Preview with its own test D1 and KV.
+- **Confirm production is untouched.** Production bindings and data should not have changed. Don't copy production documents into a test Preview just to test it.
+- **Reviewing an exact revision?** Check both the stable Preview URL and the unique deployment URL.
 
-These hosted/runtime checks require an authorized Cloudflare setup. Unit tests and a successful local build alone cannot establish them.
+These hosted, runtime checks need an authorized Cloudflare setup. Unit tests and a successful local build alone can't establish them.
 
 ## 日本語の要点
 
-ビルド成功とURL表示は別です。tsumuエディタの Durable Object は従来の Version URLs に非対応なので、新しい Worker Previews を使います。既存 Workers Builds の切替は元に戻せません。実設定を確認し、プレビュー専用の認証と保存先を決めてから切り替えてください。
+**ビルドの成功と、URLで表示できることは別の話です。** Tsumu のエディタは Durable Object を持っているため、従来の Version URL では表示できません。代わりに新しい Worker Previews を使います。既存の Workers Builds での切り替えは元に戻せないので、実際の設定を確認し、プレビュー専用の認証と保存先を決めてから切り替えてください。
 
-新しいスクリプトは本番設定を変更せず、既定ではD1/KVなし・プレビュー固有のDOで動かします。D1/KVを使う場合は本番とは別に用意したIDを指定します。同じテストIDを使う複数のプレビュー同士はデータを共有します。このリポジトリではプレビュー限定で匿名アクセスを明示しています。本番の認証は変更せず、本番のシークレットも複製しません。
+**本番には影響しません。** 新しいスクリプトは本番の設定を変更せず、既定では D1・KV なし、プレビュー専用の Durable Object で動きます。
 
-`npm run preview` はローカル、`npm run preview:deploy` はクラウドへの作成/更新です。既存の `upload` を自動置換していないため、この変更をPRに載せただけで新方式への切替は実行されません。切替後は新コマンドが返したURLで、表示・匿名アクセス・ブラウザ内のテストデータの保存と本番データの分離を確認します。ブラウザ保存だけのプレビューでは端末間の共有や共同編集はできません。
+- D1・KV を使う場合は、本番とは別に用意したIDを指定してください。同じテスト用のIDを使うプレビュー同士は、データを共有します。
+- このリポジトリでは、プレビューに限って匿名アクセスを明示的に許可しています。本番の認証は変えず、本番のシークレットも複製しません。
+
+**コマンドの違い**: `npm run preview` は手元で動かすもの、`npm run preview:deploy` はクラウド上のプレビューを作成・更新するものです。既存の `upload` は自動では置き換えていないので、この変更をプルリクエストに含めただけでは新方式への切り替えは起きません。
+
+**切り替えたあとの確認**: 新しいコマンドが返したURLを開き、表示されること、匿名でアクセスできること、ブラウザ内のテストデータを保存できること、本番のデータと分かれていることを確かめます。ブラウザに保存するだけのプレビューでは、端末をまたいだ共有や同時編集はできません。
 
 ## Workers Builds cutover checklist
 
-1. Record the current production deployment, production command, connected repository/branch, and existing Preview identities. Verify the account and plan. Do not infer that a successful old version upload is a working Preview.
-2. Review all build variables/secrets and the Preview Base. Do not put production D1/KV IDs, OAuth/GitHub secrets, external DO bindings, tail consumers, or other production resources into Preview settings. The helper's `--ignore-base-config` avoids copying the Base on creation; it does not erase secrets or settings from an existing Preview.
-3. In **Workers & Pages → tsumu → Settings → Builds → Set up Worker Previews**, inspect the isolated settings and select **Switch to Worker Previews**. This one-time switch cannot be reversed. The public Builds API's `previews_enabled` and `previews_base_config` fields do not substitute for this legacy-to-new Dashboard switch.
-4. Keep Build `node scripts/cloudflare.mjs build` and production Deploy `node scripts/cloudflare.mjs deploy`. Set Preview command `node scripts/cloudflare-preview.mjs`, not the old upload command or the unreviewed default. Both the helper and the checked-in browser-only configuration must be present in each branch being tested. Enable preview builds for the intended branches only.
-5. Existing standalone Previews need not be rewritten. Do not select an apply-to-existing option or use `patch_existing_previews=true` merely to configure the Base. Inspect any reused Preview's actual settings; choose a fresh name if its history is unknown. At the service's Preview limit, creation can evict a Preview, so inspect the current count before creating more. Never delete a review environment as an unmentioned side effect.
-6. Push an authorized test change on a non-production branch. Verify the exact commit, the actual Build/Preview command, and its returned URL. GitHub integration can add a PR comment; inspect it instead of assuming the link appears in any particular check field. Confirm home/editor assets load, anonymous access works, and a disposable local site's save/reload succeeds. Verify that `/api/doc` and `/api/sites` have no server database, actual bindings contain no production storage/secrets, and the production deployment/settings stayed unchanged.
+1. **Record the starting point.** Note the current production deployment, the production command, the connected repository and branch, and the identities of any existing Previews. Check the account and plan. A successful old version upload does not mean you have a working Preview.
 
-Browser-local data belongs to the Preview URL's origin. A different stable Preview URL or a unique deployment URL has different browser storage. CI updates do not migrate production data or copy local data between URLs. No production data migration is part of this setup.
+2. **Review the Preview settings.** Go through all build variables and secrets, and the Preview Base. Don't put any of these into Preview settings: production D1 or KV IDs, OAuth or GitHub secrets, Durable Object bindings to other Workers, tail consumers, or any other production resource. The helper's `--ignore-base-config` avoids copying the Base when a Preview is created, but it doesn't erase secrets or settings that an existing Preview already has.
 
-Builds and Worker Preview traffic use the account's applicable limits. Confirm Free limits and current usage before enabling a broad branch pattern; do not upgrade plans or add paid resources implicitly. Logging out of a temporary setup session does not remove the existing Cloudflare Git integration used for builds.
+3. **Make the switch.** In **Workers & Pages → tsumu → Settings → Builds → Set up Worker Previews**, inspect the isolated settings and select **Switch to Worker Previews**. This is a one-time switch and can't be reversed. The public Builds API fields `previews_enabled` and `previews_base_config` are not a substitute for this legacy-to-new switch in the dashboard.
+
+4. **Set the commands.**
+   - Keep Build as `node scripts/cloudflare.mjs build` and the production Deploy as `node scripts/cloudflare.mjs deploy`.
+   - Set the Preview command to `node scripts/cloudflare-preview.mjs` — not the old upload command, and not the unreviewed default.
+   - Every branch you test must contain both the helper and the checked-in browser-only configuration.
+   - Enable preview builds only for the branches you intend.
+
+5. **Leave existing Previews alone.** Existing standalone Previews don't need to be rewritten.
+   - Don't choose an apply-to-existing option, or use `patch_existing_previews=true`, just to configure the Base.
+   - If you reuse a Preview, inspect its actual settings. If you don't know its history, pick a fresh name.
+   - At the service's Preview limit, creating a new Preview can evict an old one, so check the current count before creating more.
+   - Never delete a review environment as an unannounced side effect.
+
+6. **Test end to end.** Push an authorized test change to a non-production branch, then verify:
+   - the exact commit, the actual Build and Preview commands that ran, and the URL they returned. (The GitHub integration may post the link as a pull request comment; look for it rather than assuming it appears in a particular check field.)
+   - that the home screen and editor assets load, anonymous access works, and a throwaway local site saves and survives a reload;
+   - that `/api/doc` and `/api/sites` have no server database, and the actual bindings include no production storage or secrets;
+   - that the production deployment and its settings are unchanged.
+
+### Things to keep in mind
+
+- **Browser data is per origin.** Data stored in the browser belongs to the Preview URL's origin. A different stable Preview URL, or a unique deployment URL, has separate browser storage.
+- **Nothing is migrated.** CI updates don't migrate production data or copy local data between URLs. No production data migration is part of this setup.
+- **Plan limits apply.** Builds and Worker Preview traffic count against the account's limits. Check the Free plan limits and your current usage before enabling a broad branch pattern. Don't upgrade the plan or add paid resources implicitly.
+- **Logging out doesn't disconnect builds.** Logging out of a temporary setup session doesn't remove the existing Cloudflare Git integration used for builds.
 
 ## Official references (checked 2026-11-06)
 

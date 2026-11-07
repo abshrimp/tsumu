@@ -4,7 +4,14 @@ This is a map of the codebase for contributors. For setup and deployment, see th
 
 ## The one idea
 
-Everything the editor knows about a site is a single JSON value, `SiteDoc` (`lib/types.ts`). The editor UI reads and changes it, the collaboration layer syncs it, the AI proposes edits to it, and the generator turns it into a Next.js project. If you understand `SiteDoc`, you can find your way around everything else.
+Everything the editor knows about a site is a single JSON value: `SiteDoc` (`lib/types.ts`).
+
+- The editor UI reads and changes it.
+- The collaboration layer syncs it.
+- The AI proposes edits to it.
+- The generator turns it into a Next.js project.
+
+Once you understand `SiteDoc`, you can find your way around everything else.
 
 ```
            ┌────────── edit (zustand store, undo) ────────────┐
@@ -20,72 +27,106 @@ Everything the editor knows about a site is a single JSON value, `SiteDoc` (`lib
 
 | Field | What it holds |
 |---|---|
-| `pages`, `pageOrder`, `pageFolders` | Pages (slug, title, metadata, page scripts) and their order. A page lists its top-level node IDs in `children`. |
-| `nodes` | A flat map of `DocNode` by ID. The tree is expressed by each node's `children` (IDs), never by nesting. |
-| `components` | Reusable node trees. An `instance` node points at one with `componentId`. |
-| `assets` | Uploaded images, video, audio and fonts. The bytes live in KV (or the browser); the doc keeps metadata and the storage key. |
-| `breakpoints`, site settings | Responsive widths, fonts, palette, favicon/OGP, PWA, hosting choice, data refresh interval, language. |
+| `pages`, `pageOrder`, `pageFolders` | Pages (slug, title, metadata, page scripts) and their order. Each page lists its top-level node IDs in `children`. |
+| `nodes` | A flat map of `DocNode`s by ID. The tree comes from each node's `children` (a list of IDs), never from nesting. |
+| `components` | Reusable node trees. An `instance` node points at one through `componentId`. |
+| `assets` | Uploaded images, video, audio and fonts. The bytes live in KV (or the browser); the doc keeps only the metadata and the storage key. |
+| `breakpoints`, site settings | Responsive widths, fonts, palette, favicon/OGP, PWA, hosting choice, data refresh interval and language. |
 
-A `DocNode` has a `type`, a `semantic` (which HTML tag to emit), optional content (`text`, `image`, `field`, `media`, `list`, …), `styles`, `scripts` and `motions`.
+A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also have content (`text`, `image`, `field`, `media`, `list`, …), `styles`, `scripts` and `motions`.
 
-- **Styles** are `styles[breakpoint][state][cssProperty]`. The state is `default`, `hover`, `active` or `focus`. Values are plain CSS strings.
-- **Scripts** are "trigger → steps" data (`Script`, `ScriptStep`), not code. `lib/script.ts` holds the model, `lib/script-runtime.ts` is the runtime shared by the canvas preview and exported sites, and the generator keeps only the runtime features a site uses.
-- **Lists** repeat a template child over an array, from a fetch step or static data. A list can generate a detail page per item (`/news/[slug]`).
+- **Styles** are stored as `styles[breakpoint][state][cssProperty]`. The state is `default`, `hover`, `active` or `focus`, and every value is a plain CSS string.
+- **Scripts** are data, not code: a trigger followed by steps (`Script`, `ScriptStep`). `lib/script.ts` defines the model. `lib/script-runtime.ts` is the runtime, shared by the canvas preview and exported sites; the generator keeps only the runtime features a site actually uses.
+- **Lists** repeat a template child once for each item in an array. The array comes from a fetch step or from static data. A list can also generate a detail page per item (such as `/news/[slug]`).
 
-IDs are stable and globally unique within a doc. Merge, undo, comments and AI ops all key on node IDs, so do not reuse or renumber them. `lib/cloneIds.ts` is the only safe way to copy a subtree.
+> [!IMPORTANT]
+> Node IDs are stable and unique within a doc. Merging, undo, comments and AI ops all key on them, so never reuse or renumber an ID. `lib/cloneIds.ts` is the only safe way to copy a subtree.
 
 ## Where things live
 
 | Area | Files |
 |---|---|
-| Editor state, undo/redo | `lib/store.ts` (zustand). Every mutation goes through the store so undo and sync see it. |
-| Canvas and panels | `components/Canvas.tsx` (+ `canvas/`: CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`), `LeftPanel.tsx` (+ `left-panel/`: one file per tab), `StylePanel.tsx` (+ `style-panel/`: one file per section), `ScriptEditor.tsx` (+ `script-editor/`: palette, blocks, step bodies, inputs, `useScriptDrag`, `useScriptEditorKeys`), `SitePanel.tsx` |
+| Editor state, undo/redo | `lib/store.ts` (zustand). Every change goes through the store, so that undo and sync both see it. |
+| Canvas and panels | `components/Canvas.tsx` and `canvas/` (CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`)<br>`LeftPanel.tsx` and `left-panel/` (one file per tab)<br>`StylePanel.tsx` and `style-panel/` (one file per section)<br>`ScriptEditor.tsx` and `script-editor/` (palette, blocks, step bodies, inputs, `useScriptDrag`, `useScriptEditorKeys`)<br>`SitePanel.tsx` |
 | Style model → CSS | `lib/style.ts`, `lib/breakpoints.ts`, `lib/motion.ts`, `lib/keyframes.ts` |
-| Generator | `lib/generator.ts`: `generateProject(doc, target)` returns `{ files, binaries, remoteAssets }`. The parts live in `lib/generator/`: `names.ts`, `css.ts`, `render.ts` (+ `render-helpers.ts`), `page.ts`, `head.ts`, `templates.ts` |
-| Publish | `components/PublishModal.tsx` (client) → `app/api/publish/route.ts` (GitHub Git Data API). See below. |
-| Pre-publish checks | `runChecks` in `lib/generator/checks.ts` (broken links, alt text, heading order, small text, overflow) |
-| Persistence | `lib/doc-storage.ts` (D1, one row per site, optimistic `rev`), `lib/local-storage.ts` (no-D1 fallback), `lib/kv.ts` (assets), `lib/node-storage.ts` (SQLite and files when running outside Cloudflare) |
-| Collaboration | `custom-worker.ts` (Durable Object per site, WebSocket), `lib/collab-events.ts` + `app/api/collab/events` (Server-Sent Events on Node.js and Docker), `lib/collab.ts` (messages), `lib/merge.ts` (three-way merge per ID, then per property; arrays are one value) |
-| AI | `lib/ai/` (providers, prompt, streaming), `lib/aiOps.ts` (op schema and the apply function used on both server and client) |
+| Generator | `lib/generator.ts`. `generateProject(doc, target)` returns `{ files, binaries, remoteAssets }`. Its parts live in `lib/generator/`: `names.ts`, `css.ts`, `render.ts` (with `render-helpers.ts`), `page.ts`, `head.ts`, `templates.ts`. |
+| Publish | `components/PublishModal.tsx` (client) → `app/api/publish/route.ts` (GitHub Git Data API). See [Publishing](#publishing). |
+| Pre-publish checks | `runChecks` in `lib/generator/checks.ts`: broken links, alt text, heading order, small text, overflow |
+| Persistence | `lib/doc-storage.ts`: D1, one row per site, optimistic `rev`<br>`lib/local-storage.ts`: fallback when there's no D1<br>`lib/kv.ts`: assets<br>`lib/node-storage.ts`: SQLite and files when running outside Cloudflare |
+| Collaboration | `custom-worker.ts`: one Durable Object per site, over WebSocket<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
+| AI | `lib/ai/` (providers, prompt, streaming); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client) |
 | Comments, activity | `lib/comments.ts`, `lib/comment-store.ts`, `lib/activity.ts` |
-| Auth | `auth.ts`, `middleware.ts`, `lib/allowlist.ts`. Without `AUTH_*` the editor opens only in `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
+| Auth | `auth.ts`, `middleware.ts`, `lib/allowlist.ts`. Without `AUTH_*`, the editor opens only under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
 | i18n | `lib/i18n.ts`. Source strings are Japanese, wrapped in `tr("…")`. Translations are in `lib/locales/`. |
 | Help and tutorial | `lib/manualTopics.ts`, `components/HelpCenter.tsx`, `HelpFigures.tsx`, `Tutorial.tsx` |
 
-### Explicit local site deletion
+### Deleting a local site
 
-Browser comments do not require a browser-local site record: a server-backed site can legitimately fall back to browser comments after a 503. Missing records, missing comment keys, and network errors therefore never imply deletion.
+This section covers sites whose records are kept in the browser.
 
-Confirmed deletion in Home validates local metadata, then commits a permanent per-site `tsumu-site-deleted-v1:<id>` marker. If that write fails, the list and site content remain unchanged. Once it succeeds, list compaction and content cleanup are best-effort; deletion remains successful even if the list write fails. `loadLocalSites` filters marked IDs, so stale list writes cannot restore them. Markers are separate from `SITE_SCOPED_KEYS` and are never removed by failed creation/duplication cleanup. New and duplicated sites receive fresh random IDs; there is no same-ID local site restore or deletion undo. Element/page undo does not change site markers.
+**Why deletion needs an explicit marker.** A missing record can't be taken as proof that a site was deleted. Browser comments don't require a browser-local site record: a server-backed site can legitimately fall back to browser comments after a 503. So a missing site record, a missing comment key or a network error never means "deleted".
 
-Browser comment reads and queued writes check the marker, including POST-to-503 fallback and checks immediately before and after persistence. Known deletion hides rows/pins, returns failure, and preserves active draft/detail hosts for copying. Unreadable markers fail writes without claiming deletion. Successful server operations remain authoritative. This provides deletion-wins logical visibility, not atomic removal of every stored byte: a stale tab can stop between persistence and its post-write check, or cleanup can fail. It does not add cross-tab locks or change document autosave.
+**How deletion works.** When the user confirms deletion on the home screen:
+
+1. The local metadata is validated.
+2. A permanent marker, `tsumu-site-deleted-v1:<id>`, is written for that site. **This write is the deletion.** If it fails, the site list and the site's content stay exactly as they were.
+3. After the marker is written, the site list is compacted and the content is cleaned up. Both steps are best-effort: the deletion still counts as successful even if writing the list fails.
+
+**Why a deleted site can't come back.**
+
+- `loadLocalSites` filters out marked IDs, so a stale write of the site list can't restore a deleted site.
+- Markers are kept apart from `SITE_SCOPED_KEYS`, and the cleanup that runs after a failed create or duplicate never removes them.
+- New and duplicated sites always get fresh random IDs. There is no way to restore a local site under the same ID, and site deletion can't be undone.
+- Undoing an element or page edit doesn't touch site markers.
+
+**How browser comments respect the marker.** Comment reads and queued comment writes check the marker. This includes the fallback after a POST returns 503, and checks made immediately before and after each write.
+
+- If the site is known to be deleted, its comment rows and pins are hidden and the operation reports failure. Any open draft or detail view stays on screen so the user can still copy their text.
+- If the marker can't be read, writes fail, but the site is not reported as deleted.
+- Successful server operations remain authoritative.
+
+**What this does and doesn't guarantee.** Deletion always wins for what the user can *see*. It does not promise that every stored byte is removed at once: a stale tab may stop between writing and its post-write check, or cleanup may fail. This design adds no cross-tab locking and doesn't change document autosave.
 
 ## Publishing
 
-1. The client generates the project and adds `_tsumu/doc.json`, a copy of the doc used for restoring and rollback.
-2. It asks the server for the current branch tree (`action: "tree"`). Assets whose blob SHA already exists are not uploaded again (`_tsumu/assets.json` maps storage keys to SHAs).
-3. Large files and assets are uploaded one request each (`action: "upload"`). This stays under the Workers free-plan subrequest limit.
+A publish takes four steps:
+
+1. The client generates the project and adds `_tsumu/doc.json`, a copy of the doc used for restoring edits and rolling back.
+2. It asks the server for the branch's current tree (`action: "tree"`). Assets whose blob SHA is already there aren't uploaded again; `_tsumu/assets.json` maps storage keys to SHAs.
+3. Large files and assets are uploaded one request each (`action: "upload"`). This keeps each request under the Workers free-plan subrequest limit.
 4. The client commits (`action: "commit"`). The server builds the tree in chunks and moves the branch.
 
-The editor owns every file it generates. `_tsumu/generated.json` records each generated path and its blob SHA (`lib/publish-files.ts`). On the next publish:
+### Generated files and hand-added files
 
-- Files that are **not** in that list were added by hand. They are carried over unchanged, so you can add API routes, components or config to the site repository.
-- Generated files whose SHA changed were edited on GitHub. They are overwritten, and the publish dialog asks first.
+The editor owns every file it generates. `_tsumu/generated.json` records each generated path and its blob SHA (see `lib/publish-files.ts`). On the next publish:
 
-On a first publish, existing files are treated as hand-added files: unrelated files are kept and matching output paths require confirmation. An invalid manifest stops publishing. The `_tsumu/` directory is reserved for the editor.
+- **Files not in that list** were added by hand. They're carried over unchanged, so you can add API routes, components or config to the site repository.
+- **Generated files whose SHA changed** were edited on GitHub. They're overwritten, and the publish dialog asks first.
 
-Rollback (`app/api/publish/history/route.ts`) re-commits an older tree on top of the branch, so history is never rewritten.
+On a first publish, every existing file is treated as hand-added: unrelated files are kept, and any file at a path the editor wants to write needs confirmation. An invalid manifest stops publishing. The `_tsumu/` directory is reserved for the editor.
+
+### Rollback
+
+Rollback (`app/api/publish/history/route.ts`) commits an older tree again on top of the branch, so history is never rewritten.
 
 ## AI edits
 
-The AI never writes the doc. It returns a list of ops (`AiOp` in `lib/aiOps.ts`). The server applies them to a copy of the page. If an op fails (for example, it names a node that does not exist), the error goes back to the model to fix. Only ops that applied cleanly reach the browser, which applies them with the same function as a single undo step. A change that arrives after the user has edited the same page is dropped.
+The AI never writes the doc directly. Instead:
+
+1. It returns a list of operations (`AiOp` in `lib/aiOps.ts`).
+2. The server applies them to a copy of the page. If an op fails — for example, because it names a node that doesn't exist — the error goes back to the model to fix.
+3. Only the ops that applied cleanly reach the browser. The browser applies them with the same function, as a single undo step.
+
+If the user edited the same page while the AI was working, the AI's change is dropped.
 
 ## Conventions
 
-- Comments and UI strings are in Japanese. Add an English translation for every new `tr()` string (`npm run i18n:check`).
-- Keep generated code readable. Output that a developer would not write by hand is a bug.
-- Browser state uses `tsumu-` keys and clipboard data uses `application/x-tsumu+json`. The initial public format has no migration layer for predecessor applications.
-- New behavior needs a test. Unit tests live in `tests/` (Node's built-in test runner via `tsx`) and import modules from `lib/` directly. UI flows live in `e2e/` (Playwright): they start the built editor on Node.js with a throwaway `TSUMU_DATA_DIR` and `ALLOW_ANONYMOUS=true`.
+- **Language.** Comments and UI strings are in Japanese. Every new `tr()` string needs an English translation (`npm run i18n:check`).
+- **Readable output.** Generated code should look hand-written. Output a developer wouldn't write by hand is a bug.
+- **Formats.** Browser state uses `tsumu-` keys, and clipboard data uses the `application/x-tsumu+json` type. The initial public format has no migration layer for predecessor applications.
+- **Tests.** New behavior needs a test.
+  - Unit tests live in `tests/`. They use Node's built-in test runner through `tsx` and import modules from `lib/` directly.
+  - UI flows live in `e2e/` (Playwright). They start the built editor on Node.js with a throwaway `TSUMU_DATA_DIR` and `ALLOW_ANONYMOUS=true`.
 
 ```bash
 npm run typecheck

@@ -23,25 +23,27 @@
   <img src="docs/screenshots/en/editor.png" alt="The Tsumu editor: layers on the left, the page on the canvas, and the style inspector on the right">
 </p>
 
-Tsumu lets you lay out and style pages on a canvas, then publishes them as a **plain Next.js project** to your GitHub repository. The exported site has no runtime dependency on Tsumu, so there's no lock-in: host it on Vercel, Netlify, Cloudflare Workers or any Node.js server. Files you add to the site repository by hand (API routes, components, config) are kept on the next publish, so you can mix the editor with your own code.
+Tsumu is a visual editor for building websites. You lay out and style pages on a canvas, and Tsumu publishes them to your GitHub repository as a **plain Next.js project**.
 
-One editor manages any number of sites. Each site has its own editing data and its own repository to publish to, and you create, duplicate and switch between them on the home screen.
+The published site doesn't depend on Tsumu at runtime, so you're never locked in. Host it on Vercel, Netlify, Cloudflare Workers or any Node.js server. You can also add your own code to the site's repository — API routes, components, config — and Tsumu keeps those files the next time you publish.
+
+One editor can manage as many sites as you like. Each site has its own editing data and its own repository. You create, duplicate and switch between sites on the home screen.
 
 ## Features
 
-- **Plain code you own**: the published site is readable Next.js that depends only on `next`, `react` and `react-dom`
-- **Visual editing**: flexbox and grid layout, per-breakpoint styles, hover and active states, motion, components and lists
-- **Scripts without code**: "when → do" blocks for clicks, menus, scrolling, form input, filtering, sorting and storage
-- **External data**: fetch JSON from any API, show it in lists, and generate a detail page per item (`/news/[slug]`)
-- **Real-time collaboration**: several people can edit at once with per-property merging, leave comments on the canvas, and see who edited and published
-- **Publishing through GitHub**: one click commits the generated project; test publishes go to a preview branch that search engines skip
-- **Pre-publish checks**: broken links, missing alt text, heading order, text too small on phones and layouts that overflow on phones are caught before going live
-- **History and rollback**: return the live site to any published version, or restore the editor content from a published version or a daily server backup
-- **Ask AI (optional)**: describe a change in plain language and AI edits the page; one undo reverts it. Works with Claude, Gemini, OpenAI or any OpenAI-compatible API
-- **Built-in help**: a tutorial, a searchable Q&A manual with diagrams, and guided tours that point at the screen
-- **Multiple sites**: create, duplicate and delete sites; copy elements or whole pages between sites along with their images and components
-- **Run it anywhere**: the editor runs on Cloudflare Workers (the free plan is enough), Node.js or Docker, and every service is optional
-- **English and Japanese UI**, with room for more languages
+- **Code you own.** The published site is readable Next.js that depends only on `next`, `react` and `react-dom`.
+- **Visual editing.** Flexbox and grid layouts, styles per screen width, hover and active states, motion, components and lists.
+- **Scripts without code.** Build interactions from "when → do" blocks: clicks, menus, scrolling, form input, filtering, sorting and storage.
+- **External data.** Fetch JSON from any API, show it in a list, and generate a detail page for each item (such as `/news/[slug]`).
+- **Real-time collaboration.** Several people can edit at once. Changes merge property by property, you can leave comments on the canvas, and you can see who edited and published.
+- **Publishing through GitHub.** One click commits the generated project. Test publishes go to a separate preview branch that search engines ignore.
+- **Pre-publish checks.** Before a page goes live, Tsumu catches broken links, missing alt text, skipped heading levels, text too small to read on a phone and layouts that overflow on a phone.
+- **History and rollback.** Return the live site to any version you published. You can also restore the editor's content from a published version or from a daily server backup.
+- **Ask AI (optional).** Describe a change in plain language and AI makes the edit; a single undo reverts it. Works with Claude, Gemini, OpenAI or any OpenAI-compatible API.
+- **Built-in help.** A tutorial, a searchable Q&A manual with diagrams, and guided tours that point at the screen.
+- **Multiple sites.** Create, duplicate and delete sites. Copy elements or whole pages between sites, together with the images and components they use.
+- **Runs anywhere.** The editor runs on Cloudflare Workers (the free plan is enough), Node.js or Docker. Every external service is optional.
+- **English and Japanese UI**, with room for more languages.
 
 ## Screenshots
 
@@ -78,26 +80,29 @@ Hosting (your choice)
    Vercel / Netlify / Cloudflare Workers / Node.js
 ```
 
-- **The editor** is a Next.js app that runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). The list of sites, editing data, comments, the edit/publish activity log, the sign-in allowlist and uploaded images, video and audio (shared by all sites) go to the storage that matches where it runs.
-- **The published site** is an ordinary Next.js app committed to that site's repository. It does **not** need to run where the editor runs.
-- **Test publishing** commits to another branch (`preview` by default) of the same repository. Vercel, Cloudflare Workers Builds and Netlify build non-production branches as previews automatically, so one hosting project covers both. The test build is excluded from search engines (robots.txt, `noindex`, `X-Robots-Tag` and crawler blocking).
+There are three moving parts:
+
+- **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded images, video and audio. Uploads are shared by all sites. Where all of this is stored depends on where the editor runs.
+- **The published site** is an ordinary Next.js app, committed to that site's own repository. It does **not** have to run where the editor runs.
+- **Test publishing** commits to a second branch of the same repository (`preview` by default). Vercel, Cloudflare Workers Builds and Netlify automatically build non-production branches as previews, so one hosting project covers both the live and the test site. The test build is kept out of search engines with robots.txt, `noindex`, the `X-Robots-Tag` header and crawler blocking.
 
 ## What you need
 
-Everything is **optional**. The editor opens and edits even when something is missing.
+Every setting below is **optional**. The editor opens and lets you edit even when something is missing; you just lose the feature that depends on it.
 
 | Setting | Without it | With it |
 |---|---|---|
-| Server storage (D1 and KV on Cloudflare, `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and images are saved in the browser (only that browser sees them; images up to 2 MB each) | Saved on the server: edit and comment from other devices and with other people, with daily backups and a record of who edited and published (images up to 25 MB each) |
-| Google sign-in (`AUTH_*`) | Doesn't open (shows how to set it up). With `ALLOW_ANONYMOUS=true`, and in `npm run dev`, it opens without signing in (**anyone with the URL can edit and publish**) | Only the Google accounts you allow can use it |
-| `GITHUB_TOKEN` | **Publish** explains what to set up (zip export still works) | Publishes to the repository set in each site's settings |
-| `AI_*` | No **Ask AI** button | **Ask AI** is available |
+| Server storage (D1 and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and images are saved in the browser. Only that browser can see them, and each image is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each image can be up to 25 MB. |
+| Google sign-in (`AUTH_*`) | The editor doesn't open; it shows how to set sign-in up instead. With `ALLOW_ANONYMOUS=true`, or under `npm run dev`, it opens without sign-in — and then **anyone with the URL can edit and publish**. | Only the Google accounts you allow can use the editor. |
+| `GITHUB_TOKEN` | **Publish** explains what to set up. Exporting a zip still works. | Publishes to the repository set in each site's settings. |
+| `AI_*` | No **Ask AI** button. | **Ask AI** is available. |
 
-Always set up Google sign-in for an editor that's reachable from the internet. Run without sign-in only on your own machine, or for a demo with no publish target (`GITHUB_TOKEN`).
+> [!IMPORTANT]
+> If the editor can be reached from the internet, always set up Google sign-in. Run it without sign-in only on your own machine, or as a demo that has no publish target (no `GITHUB_TOKEN`).
 
 ## Quick start (local)
 
-Requires Node.js 26.12.1+ and npm 12.2.1+. If you use nvm, run `nvm use` after cloning.
+You need Node.js 26.12.1+ and npm 12.2.1+. If you use nvm, run `nvm use` after cloning.
 
 ```bash
 git clone https://github.com/abshrimp/tsumu.git
@@ -106,13 +111,17 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:3000 to see the home screen (the list of sites). **New site** creates one and opens its editor at `/sites/<id>`.
+Open http://localhost:3000 to see the home screen, which lists your sites. Click **New site** to create one; its editor opens at `/sites/<id>`.
 
-`npm run dev` emulates Cloudflare's D1 and KV locally from `wrangler.jsonc` (data goes to `.wrangler/state` and takes precedence over `TSUMU_DATA_DIR`). It runs without any environment variables, and sign-in is skipped (only in `npm run dev`; for `npm run preview`, put `ALLOW_ANONYMOUS=true` in `.dev.vars`). Collaboration falls back to polling there; use `npm run preview` to try the WebSocket path.
+A few things to know about `npm run dev`:
+
+- It emulates Cloudflare's D1 and KV locally, based on `wrangler.jsonc`. Data goes to `.wrangler/state`, and this takes precedence over `TSUMU_DATA_DIR`.
+- It needs no environment variables, and it skips sign-in. This applies to `npm run dev` only. To skip sign-in under `npm run preview`, put `ALLOW_ANONYMOUS=true` in `.dev.vars`.
+- Collaborators' changes arrive by polling. To try the real-time WebSocket connection, use `npm run preview`.
 
 ## Deploying the editor
 
-The editor runs on any of the three below. The features are the same; what differs is the storage and how collaborators' changes arrive.
+The editor runs in any of three environments. The features are identical; what differs is where data is stored and how collaborators' changes reach you.
 
 | | Cloudflare Workers | Node.js | Docker |
 |---|---|---|---|
@@ -121,25 +130,27 @@ The editor runs on any of the three below. The features are the same; what diffe
 | Cost | Runs on the free plan (see [Limits](#limits)) | Your server | Your server |
 | Good for | Running without a server of your own | Running on your machine or an existing server | Managing it as a container |
 
-In every case, tables are created on first access (no migrations). Without server storage, data is kept in the browser (see [What you need](#what-you-need)).
+In every environment, database tables are created on first access, so there are no migrations to run. If you don't set up server storage, data is kept in the browser (see [What you need](#what-you-need)).
 
 ### Common setup
 
 #### Google sign-in
 
-1. Create an OAuth client ID (web application) in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Add the authorized redirect URIs
+1. In the [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create an OAuth client ID of type "Web application".
+2. Add these authorized redirect URIs:
    - `https://<editor-domain>/api/auth/callback/google`
-   - `http://localhost:3000/api/auth/callback/google` (to try sign-in locally)
-3. The OAuth consent screen can stay in testing mode (add yourself as a test user)
+   - `http://localhost:3000/api/auth/callback/google` (only if you want to try sign-in locally)
+3. You can leave the OAuth consent screen in testing mode. Add yourself as a test user.
 
-Sign-in turns on once `AUTH_SECRET`, `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are all set. Set `AUTH_URL` to the editor's URL. Accounts in `ALLOWED_EMAILS` can always sign in; add others on the home screen under **Settings → Accounts that can sign in** (needs server storage).
+Sign-in turns on once `AUTH_SECRET`, `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are all set. Also set `AUTH_URL` to the editor's URL.
+
+Accounts listed in `ALLOWED_EMAILS` can always sign in. To allow more accounts, go to the home screen and open **Settings → Accounts that can sign in** (this needs server storage).
 
 #### GitHub token
 
-Create a **fine-grained personal access token** with **Contents: Read and write** on every repository you publish to. One token is shared by all sites. When you add a site, add its repository to the token too (or give the token access to "All repositories").
+Create a **fine-grained personal access token** with **Contents: Read and write** on every repository you publish to. All sites share this one token, so when you add a site, give the token access to its repository too — or give the token access to "All repositories" up front.
 
-Each site's repository is set on the home screen under the site's **… → Settings** (see [Publish targets](#publish-targets)).
+You choose each site's repository on the home screen, under the site's **… → Settings** (see [Publish targets](#publish-targets)).
 
 ### Cloudflare Workers
 
@@ -152,34 +163,59 @@ npx wrangler d1 create tsumu                  # put the printed database_id in w
 npx wrangler kv namespace create ASSETS_KV    # put the printed id in wrangler.local.jsonc
 ```
 
-`wrangler.local.jsonc` is ignored by Git, so your IDs never end up in the repository. `npm run dev`, `npm run preview` and `npm run deploy` use it automatically when it exists (or the file named by `WRANGLER_CONFIG`). Bindings without an ID are dropped at deploy time, so you can create one of the two, or neither.
+Git ignores `wrangler.local.jsonc`, so your resource IDs never end up in the repository. When the file exists, `npm run dev`, `npm run preview` and `npm run deploy` use it automatically. (To use a different file, name it in `WRANGLER_CONFIG`.)
+
+Any binding without an ID is dropped at deploy time. That means you can create just D1, just KV, or neither.
 
 **2. Set the secrets and deploy**
 
-Set each variable with `npx wrangler secret put <NAME>` (see [Environment variables](#environment-variables); add `--config wrangler.local.jsonc` if you use that file), then deploy:
+Set each variable you need with `npx wrangler secret put <NAME>` (see [Environment variables](#environment-variables)). If you use `wrangler.local.jsonc`, add `--config wrangler.local.jsonc`. Then deploy:
 
 ```bash
 npm run deploy
 ```
 
-To deploy on every push with Cloudflare Workers Builds, connect the repository and set:
+#### Deploying on every push (Workers Builds)
+
+To deploy automatically with Cloudflare Workers Builds, connect the repository and set:
 
 - Build command: `node scripts/cloudflare.mjs build`
 - Deploy command: `node scripts/cloudflare.mjs deploy`
-- Preview command (after setting up Worker Previews): `node scripts/cloudflare-preview.mjs`
-- Build variables (Settings → Build → Variables and secrets, optional): `D1_DATABASE_ID` and `KV_NAMESPACE_ID`
+- Preview command (once Worker Previews is set up — see below): `node scripts/cloudflare-preview.mjs`
+- Build variables (optional; under Settings → Build → Variables and secrets): `D1_DATABASE_ID` and `KV_NAMESPACE_ID`
 
-The editor exports a Durable Object, so legacy `opennextjs-cloudflare upload` / `wrangler versions upload` Version URLs cannot preview it. Existing Workers Builds projects need a one-time, **irreversible** switch to Worker Previews. Do not just enable a Version URL. See [isolated hosted previews](docs/worker-previews.md) for setup, separate storage, authentication, and verification. `npm run preview` remains local-only; `npm run preview:deploy` creates a hosted Preview.
+At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wrangler.generated.jsonc`. It fills in the IDs from the build variables and drops bindings that have none, so you never need to commit your IDs.
 
-Hosted review builds from this repository are **public, anonymous demos**. The checked-in `previews` configuration explicitly has no D1/KV and only `ALLOW_ANONYMOUS=true`; the helper adds the Preview's own DO. It does not copy production secrets. Site documents and images stay in the browser for that Preview origin, so use disposable test data. A build variable alone does not set the runtime anonymous mode. Private `WRANGLER_CONFIG` / `wrangler.local.jsonc` overrides must explicitly preserve the same isolation.
+#### Previewing pull requests (Worker Previews)
 
-The repository change does not perform the Dashboard switch. Before switching, verify the current production deployment and existing Previews, prepare a Preview Base with no production bindings/secrets, and inspect the complete commands. Keep the production command unchanged. After switching, use the helper as the Preview command and test a branch that contains it; older PR branches need the setup changes too. Check the actual URL in the Cloudflare build output / GitHub PR integration, open it, create a disposable local site, and reload it. Do not treat a green build or guessed Version URL as proof of a working Preview. [Full checklist](docs/worker-previews.md#workers-builds-cutover-checklist).
+The editor exports a Durable Object. Cloudflare's older **Version URLs** — what `opennextjs-cloudflare upload` and `wrangler versions upload` produce — can't serve a Worker like that. To preview pull requests you need **Worker Previews** instead.
 
-At build time the script writes a deploy config (`wrangler.generated.jsonc`) from `wrangler.jsonc`, filling in the IDs from the build variables and dropping bindings that have none, so the IDs never have to be committed.
+- **Switching is a one-time, irreversible change** for an existing Workers Builds project. Don't simply enable a Version URL instead.
+- `npm run preview` still runs locally only. `npm run preview:deploy` creates a hosted Preview.
+- [Hosted previews of the editor](docs/worker-previews.md) covers setup, separate storage, authentication and how to verify that a Preview works.
+
+Hosted review builds of this repository are **public, anonymous demos**:
+
+- The checked-in `previews` configuration explicitly binds no D1 or KV and sets only `ALLOW_ANONYMOUS=true`. The helper script adds a Durable Object that belongs to that Preview alone.
+- No production secrets are copied.
+- Site documents and images are stored in the browser, per Preview URL, so use throwaway test data.
+- Setting a build variable alone does not turn on anonymous mode at runtime.
+- If you use a private `WRANGLER_CONFIG` or `wrangler.local.jsonc`, it must keep the same isolation explicitly.
+
+Merging the repository change doesn't flip the switch in the Cloudflare dashboard; you do that yourself. In short:
+
+1. **Before switching**, check the current production deployment and any existing Previews. Prepare a Preview Base that has no production bindings or secrets, and read through the complete commands.
+2. **Leave the production deploy command unchanged.** After switching, set the helper as the Preview command.
+3. **Test with a branch that contains the helper.** Older pull request branches need these setup changes merged in too.
+4. **Check the real URL.** Take it from the Cloudflare build output or the GitHub pull request integration, open it, create a throwaway local site and reload the page. A green build or a guessed Version URL is not proof that the Preview works.
+
+See the [full checklist](docs/worker-previews.md#workers-builds-cutover-checklist).
 
 ### Node.js
 
-Requires Node.js 26.12.1+ and npm 12.2.1+. If you use nvm, run `nvm use` after cloning. Set `TSUMU_DATA_DIR` to a folder, and the editor keeps its data in `<folder>/tsumu.db` (SQLite) and uploads in `<folder>/assets/`. It uses the built-in `node:sqlite`, so there's nothing extra to install.
+You need Node.js 26.12.1+ and npm 12.2.1+. If you use nvm, run `nvm use` after cloning.
+
+Set `TSUMU_DATA_DIR` to a folder. The editor keeps its data in `<folder>/tsumu.db` (SQLite) and uploads in `<folder>/assets/`. It uses Node's built-in `node:sqlite`, so there's nothing extra to install.
 
 ```bash
 npm ci
@@ -187,14 +223,21 @@ npm run build
 TSUMU_DATA_DIR=./data npm start
 ```
 
-To try it on your machine without sign-in, add `ALLOW_ANONYMOUS=true`, as in `ALLOW_ANONYMOUS=true TSUMU_DATA_DIR=./data npm start`.
+To try it on your own machine without sign-in, add `ALLOW_ANONYMOUS=true`:
 
-Set the other variables in `.env.local` or the server's environment (see [Environment variables](#environment-variables)). `PORT` changes the port (default 3000).
+```bash
+ALLOW_ANONYMOUS=true TSUMU_DATA_DIR=./data npm start
+```
 
-- To back up, copy the whole `TSUMU_DATA_DIR` folder. SQLite also keeps recent writes in `tsumu.db-wal`, so copy `tsumu.db`, `tsumu.db-wal` and `tsumu.db-shm` together, ideally with the editor stopped.
-- Behind a reverse proxy such as nginx, set `AUTH_URL` to the public URL and have the proxy forward `X-Forwarded-Host` and `X-Forwarded-Proto`, so Google sign-in redirects back to the right address.
-- Run only one editor per `TSUMU_DATA_DIR` (collaborators' changes are relayed inside a single process).
-- Make sure the reverse proxy streams `/api/collab/events` without buffering (nginx does this automatically thanks to the `X-Accel-Buffering: no` response header).
+Set the other variables in `.env.local` or in the server's environment (see [Environment variables](#environment-variables)). `PORT` changes the port (default 3000).
+
+Things to keep in mind:
+
+- **Backups:** copy the whole `TSUMU_DATA_DIR` folder. SQLite keeps recent writes in `tsumu.db-wal`, so copy `tsumu.db`, `tsumu.db-wal` and `tsumu.db-shm` together — ideally with the editor stopped.
+- **One editor per folder:** run only one editor per `TSUMU_DATA_DIR`. Collaborators' changes are relayed inside a single process.
+- **Reverse proxy (nginx and similar):**
+  - Set `AUTH_URL` to the public URL, and have the proxy forward `X-Forwarded-Host` and `X-Forwarded-Proto`. Otherwise Google sign-in won't redirect back to the right address.
+  - Make sure the proxy streams `/api/collab/events` without buffering. nginx does this automatically, because the response carries an `X-Accel-Buffering: no` header.
 
 ### Docker
 
@@ -205,9 +248,9 @@ docker build -t tsumu .
 docker run -d --name tsumu -p 3000:3000 -v tsumu-data:/data --env-file .env.local tsumu
 ```
 
-To try it on your machine without sign-in, add `-e ALLOW_ANONYMOUS=true`.
+To try it on your own machine without sign-in, add `-e ALLOW_ANONYMOUS=true`.
 
-Pass environment variables with `--env-file` (or `-e`); see [Environment variables](#environment-variables). Leave `TSUMU_DATA_DIR` out of that file, or the data would be stored outside the volume.
+Pass environment variables with `--env-file` (or `-e`); see [Environment variables](#environment-variables). Leave `TSUMU_DATA_DIR` out of that file, or the data will be written outside the volume.
 
 **Where the data lives**
 
@@ -218,9 +261,9 @@ Pass environment variables with `--env-file` (or `-e`); see [Environment variabl
   assets/meta/                            Each file's Content-Type
 ```
 
-- `-v tsumu-data:/data` stores it in the Docker named volume `tsumu-data`. Recreate the container with the same volume and the data is still there.
-- To keep it in a folder on the host, use `-v "$(pwd)/data:/data"`. The container runs as the `node` user (UID 1000), so on Linux give that folder to it first (`sudo chown 1000:1000 data`).
-- **Don't start it without `-v`.** The data would go to an anonymous volume, and a recreated container wouldn't see it.
+- `-v tsumu-data:/data` stores the data in a Docker named volume called `tsumu-data`. If you recreate the container with the same volume, the data is still there.
+- To keep the data in a folder on the host instead, use `-v "$(pwd)/data:/data"`. The container runs as the `node` user (UID 1000), so on Linux hand the folder to that user first: `sudo chown 1000:1000 data`.
+- **Don't start the container without `-v`.** The data would go to an anonymous volume, and a recreated container wouldn't see it.
 
 To back up the named volume (stopping the container first is the safe way):
 
@@ -234,64 +277,77 @@ Reverse proxy setup is the same as for [Node.js](#nodejs).
 
 ## Publish targets
 
-On the home screen, open a site's **… → Settings** to set the following. You can set them when creating the site or later.
+On the home screen, open a site's **… → Settings** to set the fields below. You can fill them in when you create the site or at any time later.
 
 | Field | Description |
 |---|---|
-| GitHub repository | `owner/name`. You can edit without one, but you can't publish |
-| Production branch | Default `main` |
-| Test branch | Default `preview`. Leave empty to turn off test publishing |
-| Live site URL / test site URL | Optional. The Publish dialog links to them |
+| GitHub repository | `owner/name`. You can edit without one, but you can't publish. |
+| Production branch | Default: `main` |
+| Test branch | Default: `preview`. Leave it empty to turn test publishing off. |
+| Live site URL / test site URL | Optional. The Publish dialog links to them. |
 
-Create the repository for the generated site first (empty, or initialized with a README).
+Create the site's repository before the first publish. It can be empty or initialized with a README.
 
 ## Hosting the published site
 
-After the first publish, connect the site's repository to a host.
+After the first publish, connect the site's repository to a hosting service.
 
 | Host | Setup | Test publishes |
 |---|---|---|
-| **Vercel** | Import the repository. No configuration needed | Every non-production branch gets a preview URL |
-| **Netlify** | Import the repository | Enable branch deploys |
-| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | Configure [Worker Previews](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/) separately for the generated project. Its Preview command must invoke `wrangler preview` with that project's own isolated bindings; the editor helper does not configure other repositories. |
-| **Node.js** | `npm install && npm run build && npm start` | Build the test branch separately |
+| **Vercel** | Import the repository. No configuration needed. | Every non-production branch gets a preview URL. |
+| **Netlify** | Import the repository. | Turn on branch deploys. |
+| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | Set up [Worker Previews](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/) separately for the generated project. Its Preview command must run `wrangler preview` with that project's own isolated bindings. The editor's helper script doesn't configure other repositories. |
+| **Node.js** | `npm install && npm run build && npm start` | Build the test branch separately. |
 
 ### Data refresh interval and Cloudflare
 
-Pages that fetch external JSON are rebuilt at the **Data refresh interval** set in the editor's **Site** tab:
+Pages that fetch external JSON are rebuilt at the **Data refresh interval** you set in the editor's **Site** tab. How that happens depends on the host:
 
-- **Standard** hosting (Vercel, Netlify, Node.js) uses Next.js ISR: pages are prebuilt and regenerated in the background.
-- On **Cloudflare Workers**, ISR needs an extra incremental cache (R2) and queue. Without them, prebuilt pages are never regenerated. In the editor's **Site** tab, choose **Hosting → Cloudflare Workers** and the editor exports those pages to render on each request while caching the fetched JSON at Cloudflare's edge for the interval instead.
+- **Standard hosting** (Vercel, Netlify, Node.js) uses Next.js ISR: pages are built ahead of time and regenerated in the background.
+- **Cloudflare Workers** needs an extra incremental cache (R2) and a queue for ISR. Without them, prebuilt pages are never regenerated. To avoid this, go to the editor's **Site** tab and choose **Hosting → Cloudflare Workers**. The editor then exports those pages so they render on every request, and caches the fetched JSON at Cloudflare's edge for the refresh interval instead.
 
-An interval of `0` fetches on every request on any host.
+On any host, an interval of `0` fetches the data on every request.
 
 ### Rollback
 
-**Publish → Publish history & rollback** (or **⋯ → History**) lists the commits on each branch.
+**Publish → Publish history & rollback** (or **⋯ → History**) lists the commits on each branch. For any version you can:
 
-- **Restore site** commits the selected version's files again on top of the branch, so the history is kept and the rollback itself can be undone.
-- **Restore edits** loads the editor content saved with that publish (`_tsumu/doc.json`). It's a normal edit, so ⌘Z reverts it.
+- **Restore site** — commits the selected version's files again on top of the branch. History is kept, so the rollback itself can be undone.
+- **Restore edits** — loads the editor content that was saved with that publish (`_tsumu/doc.json`). This counts as a normal edit, so ⌘Z reverts it.
 
-The same dialog also lists the server's daily backups of the editor content (one per weekday, seven in total).
+The same dialog also lists the server's daily backups of the editor content: one per weekday, seven in total.
 
 ## Ask AI (optional)
 
-Set `AI_ENABLED=true` and an API key to show the **Ask AI** button. Requests run through `/api/ai` on the editor's server, so the key never reaches the browser.
+Set `AI_ENABLED=true` and an API key, and the **Ask AI** button appears. Requests go through `/api/ai` on the editor's server, so the API key never reaches the browser.
 
-How it works: the browser sends a compact outline of the page being edited (element tree, text and styles; other pages only by name). The server adds a fixed description of the editor's data model and an `edit_site` tool, and the model answers with edit operations (set a style, insert or move an element, change text, …). The server tries them on a copy of the page and returns any errors to the model so it can fix them; the operations that apply cleanly go back to the browser and are applied as one undoable change. It doesn't edit scripts, data sources or assets.
+### How it works
+
+1. The browser sends a compact outline of the page you're editing: the element tree, text and styles. Other pages are sent by name only.
+2. The server adds a fixed description of the editor's data model and an `edit_site` tool, and passes everything to the model.
+3. The model answers with edit operations — set a style, insert or move an element, change some text, and so on.
+4. The server tries those operations on a copy of the page. If any fail, it sends the errors back so the model can fix them.
+5. The operations that apply cleanly go back to the browser, which applies them as one change you can undo.
+
+Ask AI doesn't edit scripts, data sources or assets.
+
+### Choosing a provider
 
 | `AI_PROVIDER` | API key | Default `AI_MODEL` | Notes |
 |---|---|---|---|
 | `anthropic` (default) | `ANTHROPIC_API_KEY` | `claude-opus-5-5` | `claude-sonnet-5-5` or `claude-haiku-5-5` cost less |
-| `gemini` | `GEMINI_API_KEY` | `gemini-3.8-flash` | Uses Gemini's OpenAI-compatible endpoint. `gemini-2.5-flash-lite` is the cheapest; there's a free tier |
-| `openai` | `OPENAI_API_KEY` | set `AI_MODEL` | |
-| `openai-compatible` | `AI_API_KEY` | set `AI_MODEL` | Any Chat Completions API with tool calling (OpenRouter, Ollama, …). Set `AI_BASE_URL` |
+| `gemini` | `GEMINI_API_KEY` | `gemini-3.8-flash` | Uses Gemini's OpenAI-compatible endpoint. `gemini-2.5-flash-lite` is the cheapest, and there's a free tier |
+| `openai` | `OPENAI_API_KEY` | Set `AI_MODEL` | |
+| `openai-compatible` | `AI_API_KEY` | Set `AI_MODEL` | Any Chat Completions API with tool calling (OpenRouter, Ollama, …). Set `AI_BASE_URL` |
 
-`AI_API_KEY` works for every provider. `AI_EFFORT` (`low` … `max`, default `medium`) controls how much the model thinks; lower is cheaper. Smaller models make more mistakes with edit operations; the server catches them, but requests take more round trips. Note that some free tiers (such as Gemini's) may use your requests to improve the provider's products.
+- `AI_API_KEY` works with every provider.
+- `AI_EFFORT` (`low` … `max`, default `medium`) controls how much the model thinks. Lower is cheaper.
+- Smaller models make more mistakes with edit operations. The server catches them, but each request then takes more round trips.
+- Some free tiers, such as Gemini's, may use your requests to improve the provider's products.
 
-### Using Gemini
+### Example: using Gemini
 
-Set these on the environment running the editor (`.env.local` locally and on Node.js, `--env-file` on Docker, or the Worker's Variables and Secrets in Cloudflare):
+Set these wherever the editor's environment lives — `.env.local` locally and on Node.js, the `--env-file` on Docker, or the Worker's Variables and Secrets on Cloudflare:
 
 ```dotenv
 AI_ENABLED=true
@@ -300,73 +356,99 @@ AI_MODEL=gemini-3.8-flash
 GEMINI_API_KEY=your-api-key
 ```
 
-Store the API key as a secret. `AI_API_KEY` takes precedence over provider-specific keys, so remove an old shared key when switching providers. Use the table above to switch to Claude, OpenAI or a compatible API.
+Store the API key as a secret. `AI_API_KEY` takes precedence over provider-specific keys, so remove any old shared key when you switch providers. To use Claude, OpenAI or a compatible API instead, follow the table above.
 
-While signed in, open `/api/ai` to check availability and the selected model. If `AI_ENABLED` is set but AI stays unavailable, the missing configuration is written to the server log. Restart the editor (local, Node.js or Docker) or apply the Cloudflare configuration change, then return to the editor.
+### Checking that it works
 
-Edits are validated on a working copy. Connection failures, timeouts, unresolved tool errors and truncated generation do not apply changes. If you edit the target page while waiting, the AI result is rejected to preserve your work. Use the chat's stop button to cancel a request. Successful edits form a single undo step. The chat streams brief public explanations, preparation/validation/repair progress, and elapsed time. The activity log remains available after completion. Private reasoning and signatures are never displayed.
+While signed in, open `/api/ai` to see whether AI is available and which model is selected. If `AI_ENABLED` is set but AI stays unavailable, the server log names the missing configuration. After changing settings, restart the editor (locally, on Node.js or on Docker) or apply the configuration change on Cloudflare, then return to the editor.
+
+### What protects your work
+
+Every AI edit is validated on a working copy before it touches your page.
+
+- Nothing is applied if the connection drops, the request times out, a tool error goes unresolved or generation is cut off.
+- If you edit the same page while waiting, the AI's result is rejected so your own work isn't overwritten.
+- The chat's stop button cancels a request. A successful edit is a single undo step.
+- While it works, the chat streams short public explanations, progress through preparation, validation and repair, and the elapsed time. The activity log stays available afterwards. The model's private reasoning and signatures are never shown.
 
 ## Environment variables
 
-All optional (see [What you need](#what-you-need)).
+All variables are optional (see [What you need](#what-you-need)).
 
 | Variable | Description |
 |---|---|
-| `AUTH_SECRET` | Session secret. Generate with `npx auth secret` |
-| `ALLOW_ANONYMOUS` | `true` lets the editor open without sign-in when Google sign-in isn't set up (not needed in `npm run dev`). Anyone with the URL can then edit and publish, so use it only locally or for a demo |
+| `AUTH_SECRET` | Session secret. Generate one with `npx auth secret`. |
+| `ALLOW_ANONYMOUS` | `true` lets the editor open without sign-in when Google sign-in isn't set up (not needed under `npm run dev`). Anyone with the URL can then edit and publish, so use it only locally or for a demo. |
 | `AUTH_URL` | The editor's URL in production, e.g. `https://tsumu.example.com` |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth client |
-| `ALLOWED_EMAILS` | Google accounts that can always sign in (comma-separated; can't be removed in the UI). Manage more under **Settings** on the home screen |
+| `ALLOWED_EMAILS` | Google accounts that can always sign in, comma-separated. These can't be removed in the UI. Manage additional accounts under **Settings** on the home screen. |
 | `GITHUB_TOKEN` | Token with Contents: Read and write on every repository you publish to (shared by all sites) |
-| `AI_ENABLED` | `true` to enable Ask AI |
+| `AI_ENABLED` | `true` to turn on Ask AI |
 | `AI_PROVIDER` | `anthropic` (default), `gemini`, `openai` or `openai-compatible` |
 | `AI_API_KEY` | API key (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY`) |
-| `AI_MODEL` | Model ID. Defaults to `claude-opus-5-5` (anthropic) or `gemini-3.8-flash` (gemini) |
+| `AI_MODEL` | Model ID. Defaults to `claude-opus-5-5` (anthropic) or `gemini-3.8-flash` (gemini). |
 | `AI_BASE_URL` | API URL for `openai-compatible`, e.g. `https://openrouter.ai/api/v1` |
 | `AI_EFFORT` | `low`, `medium` (default), `high`, `xhigh` or `max` |
-| `TSUMU_DATA_DIR` | Storage folder on Node.js ([Node.js](#nodejs); fixed to `/data` on Docker) |
+| `TSUMU_DATA_DIR` | Storage folder on Node.js (see [Node.js](#nodejs)). Fixed to `/data` on Docker. |
 
-Put them in `.env.local` for local development and Node.js, in the `--env-file` file for Docker, or set them with `wrangler secret put` on Cloudflare (see [`.env.example`](.env.example)).
+Where to put them:
+
+- Local development and Node.js: `.env.local`
+- Docker: the file you pass with `--env-file`
+- Cloudflare: `wrangler secret put`
+
+[`.env.example`](.env.example) lists them all.
 
 ## Limits
 
-### Cloudflare free plan (when running on Cloudflare Workers)
+### Cloudflare free plan (when the editor runs on Cloudflare Workers)
 
-| Item | Limit | Effect |
+| Item | Limit | What it means |
 |---|---|---|
-| Workers CPU time | 10 ms per request | Publishing an asset-heavy site can exceed it. Workers Paid ($5/month, 30 s CPU) removes the issue |
-| D1 value size | 2 MB per value in Cloudflare's documentation (larger values are accepted in practice) | Tsumu doesn't cap the size of a site's editing data. If D1 refuses a save, the save status says the document is too large |
-| KV | 1 GB total, 25 MB per file, 1,000 writes/day | Storage is shared by all sites; the Assets tab shows the total for all sites |
-| KV consistency | Eventual | A new upload can take a few seconds to show up everywhere |
-| GitHub API | 5,000 requests/hour | A publish uses a few to a dozen or so |
+| Workers CPU time | 10 ms per request | Publishing a site with many assets can exceed it. Workers Paid ($5/month, 30 s CPU) removes the problem. |
+| D1 value size | 2 MB per value according to Cloudflare's documentation (larger values are accepted in practice) | Tsumu doesn't cap the size of a site's editing data. If D1 refuses a save, the save status says the document is too large. |
+| KV | 1 GB total, 25 MB per file, 1,000 writes per day | All sites share this storage. The Assets tab shows the total for all sites. |
+| KV consistency | Eventual | A new upload can take a few seconds to appear everywhere. |
+| GitHub API | 5,000 requests per hour | One publish uses anywhere from a few to a dozen or so. |
 
 ### Sites
 
-- Deleting a site deletes its editing data and automatic backups. The published repository and the images in storage stay.
-- Images copied between sites share the same file. A file another site uses isn't removed from storage when you delete it as unused.
-- Without D1, sites live only in that browser, so clearing the browser's data loses them.
+- Deleting a site deletes its editing data and automatic backups. The published repository and the images in storage remain.
+- Images copied between sites share the same stored file. If another site still uses a file, deleting it as unused doesn't remove it from storage.
+- Without D1, sites exist only in that browser. Clearing the browser's data loses them.
 
 ### Collaboration
 
-- Comments are stored separately from the editing data: they aren't published, aren't part of undo, and only their authors can edit or delete them.
-- Deleting an element or page retains its comments. Open their full discussion, reply or resolve them from the comment list, and use **Deleted targets only** to filter them. Undo reconnects comments to the same restored element ID. Deleting or hiding the target keeps an open reply or new-comment draft intact.
-- Comment lists load up to 1,000 threads per batch, newest-created first, with controls for older/newer batches. Filters and canvas pins apply to the loaded batch; the open discussion stays available while changing batches, and the header count covers all unresolved threads. Replies within a discussion are still loaded together.
-- If a discussion itself is deleted while you are replying, the unsent text stays available to copy until you close it. The deleted discussion is not restored, and further submissions are disabled.
-- Who edited and published is recorded per person (the latest time for each). Without Google sign-in, everyone appears as one guest.
-- Merging works per property. Edits to different elements, or to different properties of the same element (say, its text and its color), are both kept; for the same property, the later save wins. Lists such as a script's steps count as a single property.
-- While you have unsaved changes or are typing, other people's changes are applied once you're done.
-- Applying other people's changes rebuilds your undo history to match.
-- Removing an account from the allowlist blocks its existing sessions on the next API request. Open collaboration connections check permission before reading, writing or receiving further updates.
+**Comments**
+
+- Comments are stored separately from the editing data. They aren't published, they aren't part of undo, and only their authors can edit or delete them.
+- Deleting an element or page keeps its comments. You can still open the full discussion, reply or resolve it from the comment list, and the **Deleted targets only** filter shows just those. If you undo the deletion, the comments reconnect to the restored element, which keeps the same ID. Deleting or hiding the target doesn't discard a reply or new comment you're in the middle of writing.
+- The comment list loads up to 1,000 threads at a time, newest first, with controls to move to older or newer batches. Filters and canvas pins apply to the loaded batch. The discussion you have open stays open while you change batches, and the count in the header covers all unresolved threads. All replies within a discussion still load together.
+- If someone deletes a discussion while you're replying to it, your unsent text stays available to copy until you close it. The discussion isn't restored, and you can't submit further replies to it.
+
+**Merging edits**
+
+- Edits merge property by property. If two people edit different elements, or different properties of the same element (say, its text and its color), both changes are kept. If they edit the same property, the later save wins.
+- A list, such as a script's steps, counts as a single property.
+- While you have unsaved changes or are typing, other people's changes wait until you're done.
+- When other people's changes are applied, your undo history is rebuilt to match.
+
+**Activity and access**
+
+- The activity log records the latest time each person edited and published. Without Google sign-in, everyone appears as a single guest.
+- Removing an account from the allowlist blocks its existing sessions from the next API request onward. Open collaboration connections check permission again before reading, writing or receiving further updates.
 
 ### Editor and export
 
-- A publish is a normal commit. Files Tsumu generated are replaced with the editor's version, and files you added by hand are kept (`_tsumu/generated.json` tells them apart). If a generated file was edited on GitHub, the editor asks before overwriting it. To keep changing generated files by hand, do it on another branch.
-- The first publish also preserves existing files and asks before overwriting a matching path. `_tsumu/` is reserved for Tsumu metadata. A malformed generated-file manifest stops publishing.
+- **Publishing is a normal commit.** Files Tsumu generated are replaced with the editor's version, and files you added by hand are kept. `_tsumu/generated.json` tells the two apart.
+- **Edits on GitHub are detected.** If someone edited a generated file on GitHub, the editor asks before overwriting it. If you want to keep changing generated files by hand, do it on another branch.
+- **The first publish is careful too.** It keeps existing files and asks before overwriting any file at the same path.
+- **`_tsumu/` is reserved** for Tsumu's metadata. If the list of generated files there is malformed, publishing stops.
 - Page-specific custom code is inserted at the top of the page body, not in `<head>`.
-- On the canvas, custom code and icons are shown sanitized: their scripts and event handlers run only on the published site, so they can't act with your editor session.
+- On the canvas, custom code and icons are shown sanitized. Their scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
 - `next/image` is exported with `unoptimized` so it works on every host.
-- HTML pages (raw HTML) don't get the shared layout, metadata or custom code.
-- After splitting text into spans, edit each span separately.
+- HTML pages (pages written as raw HTML) don't get the shared layout, metadata or custom code.
+- After you split text into spans, each span is edited separately.
 - Sign-in supports Google accounts only.
 
 ## Development
@@ -414,26 +496,38 @@ npm run build && npm run test:e2e   # end-to-end tests in a real browser (Playwr
 
 ### Translations
 
-UI strings are written in Japanese and wrapped in `tr("…")` (`lib/i18n.ts`). Each other language has a dictionary in `lib/locales/<lang>.ts` that maps the Japanese source to the translation (help and tutorial strings for English are split into `en-help.ts`). A missing entry falls back to English, then to the Japanese source. Use `tr("{name}を削除", { name })` for placeholders.
+UI strings are written in Japanese and wrapped in `tr("…")` (see `lib/i18n.ts`). Every other language has a dictionary, `lib/locales/<lang>.ts`, that maps each Japanese source string to its translation. English help and tutorial strings live separately in `en-help.ts`.
+
+If a translation is missing, Tsumu falls back to English, and then to the Japanese source. For placeholders, write `tr("{name}を削除", { name })`.
 
 #### Adding a language
 
-1. Add the language to `LANGUAGES` in `lib/lang.ts` (the key is a BCP 47 code such as `zh`, `ko` or `fr`).
-2. Create `lib/locales/<code>.ts` exporting a `Dict`. Copying `en.ts` and translating the values is the quickest start; untranslated entries can simply be left out.
-3. Register it in `LOCALES` in `lib/locales/index.ts`.
-4. Run `npm run i18n:check -- <code>` to list what's left.
+1. Add the language to `LANGUAGES` in `lib/lang.ts`. The key is a BCP 47 code such as `zh`, `ko` or `fr`.
+2. Create `lib/locales/<code>.ts` that exports a `Dict`. The quickest start is to copy `en.ts` and translate the values; you can simply leave out entries you haven't translated yet.
+3. Register the dictionary in `LOCALES` in `lib/locales/index.ts`.
+4. Run `npm run i18n:check -- <code>` to see what's left.
 
-The language then appears under **Settings → Language** on the home screen (and **⋯ → Settings** in the editor), and is picked automatically from the browser's language.
+The language then appears under **Settings → Language** on the home screen (and under **⋯ → Settings** in the editor). It's also picked automatically from the browser's language.
 
 ### Help articles
 
-Articles are in `lib/manualTopics.ts`: a question, a one-line answer and a body of blocks (paragraphs, lists, tables, tips and diagrams). Inline `**bold**`, `` `code` `` and `[[article-id|link text]]` are supported. Diagrams are React components in `components/HelpFigures.tsx`, drawn with the same CSS they explain. A guide step's `target` matches a `data-tutorial` attribute in the UI.
+Help articles live in `lib/manualTopics.ts`. Each one has a question, a one-line answer and a body made of blocks: paragraphs, lists, tables, tips and diagrams.
+
+- Inline text supports `**bold**`, `` `code` `` and `[[article-id|link text]]`.
+- Diagrams are React components in `components/HelpFigures.tsx`. They're drawn with the same CSS they explain.
+- A guided-tour step's `target` matches a `data-tutorial` attribute in the UI.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution workflow, [SECURITY.md](SECURITY.md) for private vulnerability reports and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for how we work together. Issues and pull requests are welcome. Before sending a change, run `npm run typecheck`, `npm test` and `npm run i18n:check` (GitHub Actions also runs them on pull requests). Add a test in `tests/` (or `e2e/` for UI flows) when you change behavior, and add English translations for any new UI text.
+Issues and pull requests are welcome.
 
-Code comments and UI source strings are written in Japanese (English translations live in `lib/locales/`). Issues and pull requests in English are welcome.
+- [CONTRIBUTING.md](CONTRIBUTING.md) describes the contribution workflow.
+- [SECURITY.md](SECURITY.md) explains how to report a vulnerability privately.
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) describes how we work together.
+
+Before sending a change, run `npm run typecheck`, `npm test` and `npm run i18n:check`. GitHub Actions also runs them on every pull request. If you change behavior, add a test in `tests/` (or in `e2e/` for UI flows), and add English translations for any new UI text.
+
+Code comments and UI source strings are written in Japanese; English translations live in `lib/locales/`. Issues and pull requests in English are welcome.
 
 ## License
 

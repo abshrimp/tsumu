@@ -1,10 +1,12 @@
 # Publishing Tsumu
 
-The canonical repository is [abshrimp/tsumu](https://github.com/abshrimp/tsumu). Tsumu is a self-hosted application; `private: true` in `package.json` prevents accidental npm publication and does not restrict GitHub source visibility.
+This is the maintainer's checklist for publishing Tsumu's source and cutting a release.
 
-## Validate the source
+The canonical repository is [abshrimp/tsumu](https://github.com/abshrimp/tsumu). Tsumu is a self-hosted application. `private: true` in `package.json` only prevents accidental publication to npm; it doesn't affect whether the source is visible on GitHub.
 
-Use a clean checkout with Node.js 26.12.1+ and npm 12.2.1+:
+## 1. Validate the source
+
+Start from a clean checkout with Node.js 26.12.1+ and npm 12.2.1+, then run:
 
 ```sh
 npm ci
@@ -18,19 +20,43 @@ npm run build:worker
 npm audit
 ```
 
-Check the [English](../README.md) and [Japanese](../README.ja.md) setup instructions. Verify a new site can be created, edited and reopened without any credentials. Verify a production instance refuses access until sign-in or anonymous access is explicitly configured.
+Then check by hand:
 
-Only include source, documentation, the license and the lockfile in a source release. Do not include environment files, `wrangler.local.jsonc`, `.wrangler/`, build output, databases, backup archives or test artifacts. Inspect the files and Git history to be made public for credentials and private site content; ignored files are not removed from existing history automatically.
+- Follow the setup instructions in the [English](../README.md) and [Japanese](../README.ja.md) READMEs.
+- Without any credentials, create a new site, edit it and reopen it.
+- Confirm that a production instance refuses access until either sign-in or anonymous access has been explicitly configured.
 
-## Configure the GitHub repository
+### What goes into a source release
 
-- Confirm the repository name is `abshrimp/tsumu`, its description matches the README, and the MIT license is present.
-- Enable private vulnerability reporting before linking users to the private reporting form in [SECURITY.md](../SECURITY.md).
-- Require the CI checks for pull requests into `main` and enable dependency alerts.
-- Check that the demo URL works and contains only public sample data with no production publishing credentials.
+**Include** only source code, documentation, the license and the lockfile.
 
-## Create a release
+**Leave out** environment files, `wrangler.local.jsonc`, `.wrangler/`, build output, databases, backup archives and test artifacts.
 
-Once CI passes for the intended commit, create a version tag matching `package.json` and publish GitHub release notes describing the included features, runtime requirements and known limitations. Build artifacts and editor data are not part of the source release.
+> [!WARNING]
+> Inspect every file — and the Git history — that will become public, looking for credentials and private site content. Adding a file to `.gitignore` doesn't remove it from history that already exists.
 
-The initial public format uses `tsumu-` browser keys, `application/x-tsumu+json` clipboard data and `_tsumu/` publish metadata. It does not import or migrate predecessor formats. Normal Tsumu document backups, restore, undo and published-version rollback remain supported.
+## 2. Configure the GitHub repository
+
+- Confirm the repository is named `abshrimp/tsumu`, its description matches the README, and the MIT license is present.
+- Turn on private vulnerability reporting before pointing people to the private reporting form in [SECURITY.md](../SECURITY.md).
+- Require the CI checks on pull requests into `main`, and enable dependency alerts.
+- Check that the demo URL works, contains only public sample data, and has no production publishing credentials.
+
+## 3. Create a release
+
+Once CI passes on the commit you intend to release:
+
+1. Create a version tag that matches the version in `package.json`.
+2. Publish GitHub release notes that describe the included features, runtime requirements and known limitations.
+
+Build artifacts and editor data are not part of a source release.
+
+## Data formats
+
+The initial public format uses:
+
+- `tsumu-` keys for browser storage,
+- `application/x-tsumu+json` for clipboard data, and
+- `_tsumu/` for publish metadata.
+
+It doesn't import or migrate formats from predecessor applications. Normal Tsumu document backups, restoring, undo and rolling back to a published version all remain supported.
