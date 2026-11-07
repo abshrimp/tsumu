@@ -113,7 +113,10 @@ test("native HTML export downloads ready-to-open HTML, CSS and JavaScript withou
 test("single HTML format downloads an actual HTML file with inline CSS and scripts", async ({ page }) => {
   const modal = await openExport(page);
   await modal.getByRole("button", { name: "フレームワーク" }).click();
-  await page.getByRole("button", { name: "Single HTML" }).click();
+  await page.getByRole("button", { name: "単一のHTML" }).click();
+  await modal.getByRole("button", { name: "出力範囲" }).click();
+  await expect(page.getByRole("button", { name: "プロジェクト全体", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "現在のページ" }).click();
   await modal.getByRole("button", { name: "出力範囲" }).click();
   await page.getByRole("button", { name: "現在のページ" }).click();
   await expect(modal.locator(".modal-desc")).toContainText("HTMLファイル");
