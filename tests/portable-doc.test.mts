@@ -51,16 +51,16 @@ test("reject unsupported compressed document versions and encodings", async () =
   ));
   assert.equal(encoded.format, PORTABLE_DOC_FORMAT);
   await assert.rejects(decodePortableDoc({ ...encoded, version: 2 }, IMPORT_LIMITS.docBytes),
-    /Unsupported/);
+    /対応していない/);
   await assert.rejects(decodePortableDoc({ ...encoded, encoding: "brotli" }, IMPORT_LIMITS.docBytes),
-    /Unsupported/);
+    /対応していない/);
   await assert.rejects(decodePortableDoc({ ...encoded, payload: "invalid%base64" }, IMPORT_LIMITS.docBytes),
-    /Invalid compressed/);
+    /不正/);
 });
 
 test("enforce the decompressed byte cap to block compressed expansion attacks", async () => {
   const doc = { ...minimalDoc(), customHeadHtml: "x".repeat(200000) };
   const encoded = JSON.parse(await serializePortableDoc(doc, IMPORT_LIMITS.docBytes));
   assert.equal(encoded.format, PORTABLE_DOC_FORMAT);
-  await assert.rejects(decodePortableDoc(encoded, 4096), /size limit/);
+  await assert.rejects(decodePortableDoc(encoded, 4096), /容量上限|大きすぎ/);
 });
