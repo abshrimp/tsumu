@@ -58,7 +58,7 @@ function GhostView({
   const common: Record<string, unknown> = { "data-ghost": id };
   if (instanceIds.length) common["data-instance-node"] = instanceIds.join(" ");
   if (node.attrId) common.id = node.attrId;
-  if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars);
+  if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars, undefined, scopedVars);
 
   if (node.type === "image" && node.image) {
     const raw = mediaSrc(doc, node.image);
@@ -230,7 +230,7 @@ export function NodeView({
   ) {
     common["data-bound"] = "true";
   }
-  if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars);
+  if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars, undefined, scopedVars);
 
   // リスト: 1件目は編集可能なテンプレート、2件目以降はゴースト表示
   if (node.type === "list") {
@@ -331,7 +331,7 @@ export function NodeView({
     // プレビューではインスタンスの外枠にもマスターのID・スクリプト・リンクを反映する。
     if (ctx.preview) {
       if (root.attrId) common.id = root.attrId;
-      applyScriptsAttr(root, common, doc, vars, ctx.clientVars);
+      applyScriptsAttr(root, common, doc, vars, ctx.clientVars, undefined, scopedVars);
       if (root.link) {
         const link = root.link;
         const rawUrl = link.kind === "page" ? "#" : link.url || "#";
