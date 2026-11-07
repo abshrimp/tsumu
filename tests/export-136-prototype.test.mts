@@ -76,3 +76,40 @@ test("generated browser and SSR engines avoid inherited-key reads and nested __p
   assert.equal(server.nested["__proto__"].polluted, 42);
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
 });
+
+
+test("#136 gte/lte list-display filters yield identical browser and SSR results", async () => {
+  const rows = [
+    { tag: ["x", "y"], score: 9 },
+    { tag: ["x", "y"], score: 10 },
+    { tag: ["x", null, "y"], score: 15 },
+    { tag: ["x", "y"], score: 20 },
+    { tag: null, score: 21 },
+  ];
+  const plan = {
+    steps: [{ id: "fetch", kind: "fetch", as: "items", url: "/api/rows.json" }],
+    listOps: { items: [
+      { kind: "filter", conds: [{ field: "tag", op: "eq", value: "x,y" }] },
+      { kind: "filter", conds: [
+        { field: "score", op: "gte", value: "10" },
+        { field: "score", op: "lte", value: "20", and: true },
+      ] },
+    ] },
+  };
+  const response = async () => new Response(JSON.stringify(rows), {
+    status: 200, headers: { "Content-Type": "application/json" },
+  });
+  const sandbox: Record<string, any> = {
+    window: {}, location: { search: "" }, URLSearchParams,
+    document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) },
+    fetch: response, console,
+  };
+  runInNewContext(PAGE_DATA_RUNTIME, sandbox, { timeout: 5000 });
+  const browser = await sandbox.window.__pageDataReady;
+  const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
+  const { loadPageData } = await import(uri);
+  const server = await loadPageData(plan, "", response);
+  for (const result of [browser, server]) {
+    assert.deepEqual(JSON.parse(JSON.stringify(result.items)), [rows[1], rows[3]]);
+  }
+});
