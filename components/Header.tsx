@@ -39,7 +39,7 @@ import { showAlert, showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { exportProjectZip } from "../lib/exportZip";
-import { exportLimitations, exportScopeDoc, DEFAULT_EXPORT_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/export-formats";
+import { exportLimitations, exportScopeDoc, DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/export-formats";
 import { BpIcon, Dropdown, NumField, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
 import { getLang, LANGS, setLang, tr, trNodes, type Lang } from "../lib/i18n";
@@ -76,11 +76,10 @@ function ExportModal({ onClose }: { onClose: () => void }) {
 
   const description = format === "html"
     ? tr("HTML・CSS・JavaScript・画像をまとめたZIPをダウンロードします。展開後、index.htmlをブラウザで開くだけで表示できます。npmやビルドは不要です。")
-    : format === "react"
-      ? trNodes("選んだ範囲をReact + Viteプロジェクトとして保存します。展開後に {cmd} で起動できます。", {
-          cmd: <span className="kbd">npm install && npm run dev</span>,
-        })
-      : trNodes("選んだ範囲をNext.jsプロジェクトとして保存します。展開後に {cmd} で起動できます。", {
+    : format === "single-html"
+      ? tr("画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数の異なるページURLは1つにまとめられません。")
+      : trNodes("{framework}プロジェクトとして保存します。展開後に {cmd} で起動できます。", {
+          framework: EXPORT_FRAMEWORK_OPTIONS.find((item) => item.value === format)?.label ?? "Next.js",
           cmd: <span className="kbd">npm install && npm run dev</span>,
         });
 
@@ -95,14 +94,10 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             <div className="export-option-label">{tr("フレームワーク")}</div>
             <Dropdown
               value={format}
-              options={[
-                { value: "nextjs", label: "Next.js" },
-                { value: "react", label: "React + Vite" },
-                { value: "html", label: "HTML / CSS / JavaScript" },
-              ]}
+              options={EXPORT_FRAMEWORK_OPTIONS}
               onChange={(value) => {
                 setFormat(value as ExportFormat);
-                if (value === "html") {
+                if (value === "html" || value === "single-html") {
                   setLanguage("javascript");
                   setStyle("css");
                 }
@@ -116,7 +111,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
               <div className="export-option-label">{tr("言語")}</div>
               <Dropdown
                 value={language}
-                options={format === "html"
+                options={format === "html" || format === "single-html"
                   ? [{ value: "javascript", label: "JavaScript" }]
                   : [
                       { value: "typescript", label: "TypeScript" },
@@ -131,7 +126,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
               <div className="export-option-label">{tr("スタイル")}</div>
               <Dropdown
                 value={style}
-                options={format === "html"
+                options={format === "html" || format === "single-html"
                   ? [{ value: "css", label: "CSS" }]
                   : [
                       { value: "css", label: "CSS" },
@@ -169,14 +164,19 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             {tr("選択中の要素を単独のページとして書き出します。選択した要素の子要素も含まれます。")}
           </p>
         )}
-        {format === "html" && (
+        {(format === "html" || format === "single-html") && (
           <p className="hint export-note">
             {tr("HTML形式はそのまま開けるファイルを出力するため、言語はJavaScript、スタイルはCSSに固定されます。")}
           </p>
         )}
-        {format === "html" && (
+        {(format === "html" || format === "single-html") && (
           <p className="hint export-note">
             {tr("外部データの取得にはAPIのCORS許可が必要です。file://での利用には制約があるため、localhostなどの環境で確認してください。")}
+          </p>
+        )}
+        {format === "single-html" && (
+          <p className="hint export-note">
+            {tr("外部APIや埋め込み動画はインターネット接続が必要です。外部画像などを埋め込めない場合は、アセットとして取り込んでから再試行してください。")}
           </p>
         )}
         <CheckList checks={checks} onClose={onClose} />
@@ -200,14 +200,15 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                   );
                 }
               } catch (error) {
-                void showAlert(userMessage(error, tr("zipを生成できませんでした")), { title: tr("zipを生成できませんでした") });
+                const title = format === "single-html" ? tr("HTMLを生成できませんでした") : tr("zipを生成できませんでした");
+                void showAlert(userMessage(error, title), { title });
               } finally {
                 setBusy(false);
               }
             }}
           >
             <Download size={13} />
-            {busy ? tr("生成中…") : tr("zipをダウンロード")}
+            {busy ? tr("生成中…") : format === "single-html" ? tr("HTMLをダウンロード") : tr("zipをダウンロード")}
           </button>
         </div>
       </div>
