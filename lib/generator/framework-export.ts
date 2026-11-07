@@ -18,7 +18,7 @@ function json(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function generatedRoutes(doc: SiteDoc): string {
+function generatedRoutes(doc: SiteDoc, language: ExportLanguage): string {
   const pages = doc.pageOrder.map((id) => doc.pages[id])
     .filter((page) => page && !page.unpublished && page.slug.replace(/^\/+|\/+$/g, "") !== "404");
   const entries = pages.map((page) => ({
@@ -31,7 +31,10 @@ function generatedRoutes(doc: SiteDoc): string {
   }));
   return [
     "// Pages are data-driven DOM fragments with native browser event scripts.",
-    "export const routes = " + json(entries) + ";",
+    ...(language === "typescript" ? [
+      "export type SiteRoute = { path: string; query: Record<string, string>; title: string; description: string; lang: string; html: string };",
+    ] : []),
+    "export const routes" + (language === "typescript" ? ": SiteRoute[]" : "") + " = " + json(entries) + ";",
     "export function currentPage() {",
     '  const path = (() => { try { return decodeURI(window.location.pathname); }',
     '    catch { return window.location.pathname; } })().replace(/\\/+$/, "") || "/";',
@@ -127,7 +130,7 @@ export function buildAdditionalFramework(
   const ext = ts ? "ts" : "js";
   const root = framework === "nuxt" ? "app/" : "src/";
   const routesPath = root + "site-routes." + ext;
-  files[routesPath] = generatedRoutes(doc);
+  files[routesPath] = generatedRoutes(doc, language);
   files[root + "browser-start." + ext] = files[(framework === "sveltekit" ? "static/" : "public/") +
     "browser-start.js"].replace("new Promise((resolve)", ts ? "new Promise<void>((resolve)" : "new Promise((resolve)");
   delete files[(framework === "sveltekit" ? "static/" : "public/") + "browser-start.js"];
@@ -140,7 +143,7 @@ export function buildAdditionalFramework(
       'import { onMounted, nextTick, ref } from "vue";',
       'import { currentPage, pageTitle } from "./site-routes";',
       'import { startPage } from "./browser-start";',
-      ts ? 'const current = ref<ReturnType<typeof currentPage>>(null);' : 'const current = ref(null);',
+      ts ? 'const current = ref<ReturnType<typeof currentPage> | null>(null);' : 'const current = ref(null);',
       'onMounted(async () => {',
       '  current.value = currentPage();',
       '  document.title = pageTitle(current.value);',
