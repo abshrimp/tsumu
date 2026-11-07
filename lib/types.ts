@@ -212,6 +212,12 @@ export interface ScriptCond {
   not?: boolean;
 }
 
+/** Additional if conditions connect to the preceding condition; AND binds before OR. */
+export interface JoinedScriptCond extends ScriptCond {
+  /** true = かつ、false = または */
+  and: boolean;
+}
+
 /** 配列の絞り込みの条件 */
 export interface FilterCond {
   field: string;
@@ -331,6 +337,8 @@ export type ScriptStep = { id: string } & (
   | {
       kind: "if";
       cond: ScriptCond;
+      /** Additional conditions; omitted when the if block has only one condition. */
+      conditions?: JoinedScriptCond[];
       then: ScriptStep[];
       /** 未定義 = 「もし〜なら」、配列 = 「もし〜なら / でなければ」 */
       else?: ScriptStep[];
