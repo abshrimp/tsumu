@@ -210,8 +210,8 @@ test("JavaScript option produces actual JS and JSX files", async () => {
   assert.ok(output.files["src/App.jsx"]);
   assert.ok(output.files["src/main.jsx"]);
   assert.equal(output.files["src/main.tsx"], undefined);
-  assert.match(output.files["index.html"], /src\\/main\\.jsx/);
-  assert.doesNotMatch(output.files["index.html"], /src\\/main\\.tsx/);
+  assert.ok(output.files["index.html"].includes("src/main.jsx"));
+  assert.ok(!output.files["index.html"].includes("src/main.tsx"));
   assert.ok(output.files["vite.config.js"]);
   assert.equal(output.files["src/App.tsx"], undefined);
   assert.ok(output.files["jsconfig.json"]);
