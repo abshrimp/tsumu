@@ -1240,6 +1240,10 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
         if (t.operandType === "text") next.operand = mapVarTokens(t.operand, fn);
       }
       if (t.kind === "field" || t.kind === "has") next.key = mapVarTokens(t.key, fn);
+      if (t.kind === "object-entries") {
+        next.keyField = mapVarTokens(t.keyField, fn);
+        next.valueField = mapVarTokens(t.valueField, fn);
+      }
       if (t.kind === "fallback" || t.kind === "fallback-nullish") next.text = mapVarTokens(t.text, fn);
       if (t.kind === "split" || t.kind === "join") next.separator = mapVarTokens(t.separator, fn);
       if (t.kind === "replace") {
