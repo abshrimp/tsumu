@@ -12,7 +12,7 @@ import { lookupVar, splitRegexVars } from "../../lib/vars";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
 import { fieldVarName, isRadioItem } from "../../lib/fields";
 import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
-import { tr, trNodes } from "../../lib/i18n";
+import { tr, trc, trNodes } from "../../lib/i18n";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptStepCtx } from "./context";
 import { TargetSelect } from "./targets";
 
@@ -344,28 +344,32 @@ const COND_SUBJECTS: { value: string; label: string }[] = [
 ];
 
 export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string }[] = [
-  { value: "eq", label: tr("と同じ") },
-  { value: "contains", label: tr("を含む") },
-  { value: "starts-with", label: tr("で始まる") },
-  { value: "ends-with", label: tr("で終わる") },
-  { value: "gt", label: tr("より大きい") },
-  { value: "gte", label: tr("以上") },
-  { value: "lt", label: tr("より小さい") },
-  { value: "lte", label: tr("以下") },
-  { value: "in", label: tr("のいずれかと同じ") },
-  { value: "empty", label: tr("空") },
+  { value: "eq", label: trc("条件比較", "と同じ") },
+  { value: "contains", label: trc("条件比較", "を含む") },
+  { value: "starts-with", label: trc("条件比較", "で始まる") },
+  { value: "ends-with", label: trc("条件比較", "で終わる") },
+  { value: "gt", label: trc("条件比較", "より大きい") },
+  { value: "gte", label: trc("条件比較", "以上") },
+  { value: "lt", label: trc("条件比較", "より小さい") },
+  { value: "lte", label: trc("条件比較", "以下") },
+  { value: "in", label: trc("条件比較", "のいずれかと同じ") },
+  { value: "empty", label: trc("条件比較", "空") },
 ];
 
 /** "である / でない" is shared by if conditions and every list filter clause. */
-export function NegationSelect({ not, onChange }: {
+export function NegationSelect({ not, onChange, operation }: {
   not?: boolean;
   onChange: (not: boolean) => void;
+  operation?: ScriptOp;
 }) {
+  // Contextual translations let each language choose the appropriate auxiliary verb.
+  const context = operation === "contains" || operation === "starts-with" || operation === "ends-with"
+    ? "条件の判定・動詞" : "条件の判定";
   return (
     <select className="se-in se-fixed-select" aria-label={tr("条件の判定")}
       value={not ? "not" : "is"} onChange={(e) => onChange(e.target.value === "not")}>
-      <option value="is">{tr("である")}</option>
-      <option value="not">{tr("でない")}</option>
+      <option value="is">{trc(context, "である")}</option>
+      <option value="not">{trc(context, "でない")}</option>
     </select>
   );
 }
@@ -420,7 +424,7 @@ export function OpEditor({
             ))}
           </select>
         ),
-        negation: onNotChange && <NegationSelect not={not} onChange={onNotChange} />,
+        negation: onNotChange && <NegationSelect not={not} onChange={onNotChange} operation={op} />,
       }}
     />
   );
