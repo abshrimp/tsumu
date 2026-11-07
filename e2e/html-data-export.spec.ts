@@ -106,3 +106,58 @@ test("standalone HTML selects query-variant pages before loading their data", as
   await expect(page.locator("[data-variant-root]")).toContainText("Default page");
   await expect(page.locator("[data-page-body]")).toHaveAttribute("data-page-body", "default");
 });
+
+
+test("standalone HTML executes #136 transform and condition blocks in Chromium", async ({ page }) => {
+  const doc: SiteDoc = {
+    siteName: "Composable HTML data",
+    pageOrder: ["home"],
+    pages: {
+      home: { id: "home", name: "Home", slug: "", title: "Composable", description: "",
+        children: ["count", "list"],
+        pageScripts: [{
+          id: "load", trigger: "load", pos: { x: 0, y: 0 },
+          steps: [
+            { id: "fetch", kind: "fetch", url: "/__transform_probe__/items.json", as: "items" },
+            { id: "length", kind: "transform", source: "items", into: "total",
+              transform: { kind: "length" } },
+            { id: "condition", kind: "if",
+              cond: { subject: "var", left: "{total}", op: "gte", value: "2" },
+              then: [{ id: "yes", kind: "set-var", into: "state", value: "ready" }],
+              else: [{ id: "no", kind: "set-var", into: "state", value: "missing" }],
+            },
+          ],
+        }] as unknown as NonNullable<SiteDoc["pages"][string]["pageScripts"]>,
+      },
+    },
+    nodes: {
+      count: { ...makeBox(), id: "count", attrId: "data-status",
+        text: { heading: 1, content: "Found {total} items: {state}" } },
+      list: { ...makeBox(), id: "list", type: "list", list: { from: "items" }, children: ["item"] },
+      item: { ...makeBox(), id: "item", text: { heading: 0, content: "{name}" } },
+    },
+    assets: {},
+  };
+  const output = generateExportProject(doc, "html");
+  const prefix = "/__transform_probe__/";
+  await page.route("**/__transform_probe__/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname.slice(prefix.length);
+    if (pathname === "items.json") {
+      await route.fulfill({ contentType: "application/json",
+        body: JSON.stringify([{ name: "Alpha" }, { name: "Beta" }]) });
+      return;
+    }
+    const content = output.files[pathname];
+    await route.fulfill({ status: content === undefined ? 404 : 200,
+      contentType: pathname.endsWith(".html") ? "text/html" :
+        pathname.endsWith(".css") ? "text/css" : "text/javascript",
+      body: content ?? "Not Found" });
+  });
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.goto("/__transform_probe__/index.html");
+  await expect(page.locator("#data-status")).toHaveText("Found 2 items: ready");
+  await expect(page.locator("[data-client-list] [data-row]")).toHaveCount(2);
+  await expect(page.locator("[data-client-list] [data-row]").first()).toContainText("Alpha");
+  expect(errors).toEqual([]);
+});

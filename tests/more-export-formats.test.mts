@@ -123,7 +123,9 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     } else {
       assert.match(result.files["src/lib/pages/Page0.svelte"], /<h1/);
       assert.doesNotMatch(result.files["src/routes/+page.svelte"], /@html html/);
-      assert.match(result.files["svelte.config.js"], /adapter-node/);
+      assert.match(result.files["vite.config.ts"], /adapter-node/);
+      assert.equal(result.files["svelte.config.js"], undefined);
+      assert.match(result.files["package.json"], /"@sveltejs\/kit": "\^3/);
       assert.match(result.files["src/routes/+page.server.js"], /loadPageData/);
       assert.match(result.files["package.json"], /"@sveltejs\/kit"/);
     }

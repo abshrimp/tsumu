@@ -6,7 +6,10 @@ import { nativeDataModule } from "./native-data";
 import { withVueSsr } from "./vue-ssr";
 
 type Framework = "vue" | "nuxt" | "sveltekit";
-const json = JSON.stringify;
+// Data inserted into SFC <script> and template expressions must not contain
+// literal tag delimiters or the template interpolation sentinels.
+const json = (value: unknown) => JSON.stringify(value)
+  .replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
 
 function routesFile(pages: ReturnType<typeof generateNativeFiles>["pages"]): string {
   const plain = pages.map(({ id, name, title, description, slug, query, language, plan }) =>
@@ -38,21 +41,98 @@ function serverRequestSource(pages: ReturnType<typeof generateNativeFiles>["page
   return [
     "const allowed = new Set(" + json([...origins]) + ");",
     "function publicHost(host) {",
-    "  const name = host.toLowerCase().replace(/\\.$/, '');",
-    "  if (!name.includes('.') || /(?:^|\\.)(?:localhost|local|internal|intranet|lan)$/.test(name)) return false;",
-    "  if (/^(?:10|127|0|169\\.254|192\\.168|172\\.(?:1[6-9]|2\\d|3[01]))\\./.test(name)) return false;",
-    "  if (/^(?:\\[|::|fc|fd|fe80)/i.test(name)) return false;",
-    "  return true;",
+    "  const name = String(host).toLowerCase().replace(/\\.$/, '');",
+    "  if (!name.includes('.') || name.includes('..') ||",
+    "      /(?:^|\\.)(?:localhost|local|internal|intranet|lan|localdomain)$/.test(name)) return false;",
+    "  // Generated SSR disallows literal IPv6 hosts and IPv4 special networks.",
+    "  if (name.startsWith('[') || name.includes(':')) return false;",
+    "  const ip = /^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/.exec(name);",
+    "  if (ip) {",
+    "    const [a, b, c, d] = ip.slice(1).map(Number);",
+    "    if ([a, b, c, d].some((part) => part > 255)) return false;",
+    "    return !(a === 0 || a === 10 || a === 127 || a >= 224 ||",
+    "      (a === 100 && b >= 64 && b <= 127) ||",
+    "      (a === 169 && b === 254) ||",
+    "      (a === 172 && b >= 16 && b <= 31) ||",
+    "      (a === 192 && (b === 168 || (b === 0 && c === 0))) ||",
+    "      (a === 198 && (b === 18 || b === 19)));",
+    "  }",
+    "  return /^[a-z0-9.-]+$/.test(name);",
     "}",
     "export async function requestPublic(uri, init, base, localFetch) {",
     "  const origin = new URL(base);",
     "  const target = new URL(uri, origin);",
-    "  if (target.origin === origin.origin) return localFetch(target.href, init);",
+    '  if (target.username || target.password) throw new Error("Credentials in server URL are forbidden");',
+    '  const headers = new Headers(init?.headers);',
+    '  for (const key of headers.keys()) {',
+    '    if (/^(?:host|authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token|x-client-secret|x-metadata-token|metadata-flavor)$/i.test(key))',
+    '      throw new Error("Sensitive headers cannot be sent by generated pages");',
+    '  }',
+    '  const options = { ...init, headers, redirect: "error", credentials: "omit" };',
+    '  if (target.origin === origin.origin) {',
+    '    // Use only a relative path for internal requests; never trust a supplied Host.',
+    '    if (typeof uri !== "string" || !uri.startsWith("/") || uri.startsWith("//"))',
+    '      throw new Error("Absolute same-origin server fetches are not supported");',
+    '    return localFetch(target.pathname + target.search, options);',
+    '  }',
     '  if (!allowed.has(target.origin) || !publicHost(target.hostname))',
     '    throw new Error("Server data origin is not allowed: " + target.origin);',
-    "  // Refuse redirects so an external API cannot redirect SSR requests to an internal service.",
-    '  return fetch(target.href, { ...init, redirect: "error", credentials: "omit",',
-    "    signal: AbortSignal.timeout(15000) });",
+    "  // Pin the validated DNS answer to the actual Node socket lookup.",
+    "  // An up-front DNS test followed by a separate fetch is vulnerable to rebinding.",
+    "  const transport = globalThis.process?.getBuiltinModule;",
+    "  if (typeof transport !== \"function\") throw new Error(\"External SSR fetch requires Node 22+\");",
+    "  const http = transport(target.protocol === \"https:\" ? \"node:https\" : \"node:http\");",
+    "  const dns = transport(\"node:dns\");",
+    "  if (!http?.request || !dns?.lookup) throw new Error(\"Safe SSR transport unavailable\");",
+    "  const requestHeaders = new Headers(options.headers);",
+    "  requestHeaders.set(\"accept-encoding\", \"identity\");",
+    "  const signal = AbortSignal.timeout(15000);",
+    "  return new Promise((resolve, reject) => {",
+    "    const request = http.request(target, {",
+    "      method: options.method || \"GET\",",
+    "      headers: Object.fromEntries(requestHeaders),",
+    "      agent: false, signal,",
+    "      lookup(host, flags, callback) {",
+    "        dns.lookup(host, { all: true, family: 4 }, (error, addresses) => {",
+    "          if (error || !addresses?.length ||",
+    "              addresses.some((address) => !publicHost(address.address))) {",
+    "            callback(error || new Error(\"Private DNS address blocked\"), \"\", 4);",
+    "            return;",
+    "          }",
+    "          callback(null, addresses[0].address, 4);",
+    "        });",
+    "      },",
+    "    }, async (res) => {",
+    "      const status = res.statusCode || 502;",
+    "      if (status >= 300 && status < 400) {",
+    "        res.destroy(); reject(new Error(\"Public SSR redirects are disabled\")); return;",
+    "      }",
+    "      const encoding = String(res.headers[\"content-encoding\"] || \"identity\").toLowerCase();",
+    "      if (encoding !== \"identity\") {",
+    "        res.destroy(); reject(new Error(\"Unexpected compressed SSR response\")); return;",
+    "      }",
+    "      try {",
+    "        const chunks = []; let bytes = 0;",
+    "        for await (const chunk of res) {",
+    "          bytes += chunk.byteLength;",
+    "          if (bytes > 5 * 1024 * 1024) throw new Error(\"SSR response exceeds 5 MB\");",
+    "          chunks.push(chunk);",
+    "        }",
+    "        const responseHeaders = new Headers();",
+    "        for (const [key, value] of Object.entries(res.headers)) {",
+    "          if (value !== undefined && ![\"set-cookie\", \"content-length\", \"content-encoding\"].includes(key))",
+    "            responseHeaders.set(key, Array.isArray(value) ? value.join(\", \") : value);",
+    "        }",
+    "        const empty = options.method === \"HEAD\" || [204, 205, 304].includes(status);",
+    "        resolve(new Response(empty ? null : Buffer.concat(chunks),",
+    "          { status, headers: responseHeaders }));",
+    "      } catch (error) {",
+    "        res.destroy(); reject(error);",
+    "      }",
+    "    });",
+    "    request.on(\"error\", reject);",
+    "    request.end(options.body ?? undefined);",
+    "  });",
     "}", "",
   ].join("\n");
 }
@@ -92,6 +172,12 @@ function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
     js.push(
       "const route = useRoute();",
       "const requestUrl = useRequestURL();",
+      "const requestLocal = async (path, init) => {",
+      "  const raw = await $fetch.raw(path, { method: init?.method, headers: init?.headers,",
+      "    body: init?.body, retry: 0 });",
+      "  return new Response(JSON.stringify(raw._data ?? null),",
+      "    { status: raw.status, headers: { 'content-type': 'application/json' } });",
+      "};",
       "const query = computed(() => new URLSearchParams(route.fullPath.split('?')[1] || ''));",
       "const selected = computed(() => selectPage(route.path, query.value));",
       'const { data: loaded } = await useAsyncData(() => "page-" + route.fullPath,',
@@ -100,7 +186,7 @@ function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
       "    if (!current) return { vars: {} };",
       "    const vars = await loadPageData(current.plan, query.value,",
       "      (url, init) => requestPublic(url, init, requestUrl.origin,",
-      "        (u, options) => fetch(u, options)));",
+      "        requestLocal));",
       "    return { vars };",
       "  }, { default: () => ({ vars: {} }) });",
       lang === "typescript"
@@ -162,7 +248,7 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
     '});',
     '</script>',
     '<svelte:head>',
-    '  <title>{data.title} | ' + siteName.replace(/[<>&]/g, "") + '</title>',
+    '  <title>{data.title} | {' + json(siteName).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\{/g, "\\u007b").replace(/\}/g, "\\u007d") + '}</title>',
     '  <meta name="description" content={data.description} />',
     '</svelte:head>',
     ...pages.map((page, i) => (i ? "{:else if " : "{#if ") + "data.id === " + json(page.id) + "}",
@@ -223,13 +309,39 @@ export function applyNativeFramework(
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>; devDependencies: Record<string, string>;
     };
-    pkg.devDependencies["@sveltejs/adapter-node"] = "^5.5.4";
+    // SvelteKit 3 fixes the known advisories affecting the older v2 scaffold.
+    // Its configuration lives in the Vite plugin rather than svelte.config.js.
+    pkg.dependencies["@sveltejs/kit"] = "^3.1.1";
+    pkg.dependencies.svelte = "^5.57.1";
+    pkg.devDependencies["@sveltejs/adapter-node"] = "^6.0.0";
+    pkg.devDependencies["@sveltejs/vite-plugin-svelte"] = "^7.3.1";
+    pkg.devDependencies.vite = "^8.0.12";
+    pkg.devDependencies.typescript = "^6.0.0";
     delete pkg.devDependencies["@sveltejs/adapter-static"];
+    (pkg as typeof pkg & { imports: Record<string, string> }).imports = {
+      "#lib": "./src/lib/index.js",
+      "#lib/*": "./src/lib/*",
+    };
     files["package.json"] = JSON.stringify(pkg, null, 2) + "\n";
-    files["svelte.config.js"] = files["svelte.config.js"]
-      .replace('from "@sveltejs/adapter-static"', 'from "@sveltejs/adapter-node"')
-      .replace('adapter({ fallback: "200.html" })', "adapter()")
-      .replace('prerender: { entries: [] }', 'prerender: { entries: [] }');
+    delete files["svelte.config.js"];
+    const vite = Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js";
+    files[vite] = [
+      'import adapter from "@sveltejs/adapter-node";',
+      'import { sveltekit } from "@sveltejs/kit/vite";',
+      'import { defineConfig } from "vite";',
+      'export default defineConfig({ plugins: [sveltekit({ adapter: adapter() })] });',
+      "",
+    ].join("\n");
+    for (const [name, source] of Object.entries(files)) {
+      if (/\.(?:svelte|js|ts)$/.test(name) && source.includes("$lib/")) {
+        files[name] = source.replaceAll("$lib/", "#lib/");
+      }
+    }
+    if (files["tsconfig.json"]) {
+      const config = JSON.parse(files["tsconfig.json"]) as Record<string, unknown>;
+      config.extends = "$app/tsconfig";
+      files["tsconfig.json"] = JSON.stringify(config, null, 2) + "\n";
+    }
     const script = [
       'import { error } from "@sveltejs/kit";',
       'import { selectPage } from "$lib/site-routes.js";',
@@ -259,6 +371,15 @@ export function applyNativeFramework(
       '{@render children()}', "",
     ].join("\n");
   }
+  if (framework === "sveltekit") {
+    // Rewrite the final generated Svelte files as well as the preliminary
+    // component tree. Kit 3 no longer provides the old $lib alias.
+    for (const [path, source] of Object.entries(files)) {
+      if (/\.(?:js|ts|svelte)$/.test(path) && source.includes("$lib/")) {
+        files[path] = source.replaceAll("$lib/", "#lib/");
+      }
+    }
+  }
   files["README.md"] = [
     "# Native framework export", "",
     "Every editable node is emitted as a native Vue or Svelte element.",
@@ -267,6 +388,7 @@ export function applyNativeFramework(
     "Browser scripts retain editor-authored actions and update native reactive state.",
     "", "Run npm install and npm run dev. Run npm run build for production.",
     "Public APIs must allow server requests and may require CORS for client navigation.",
+    "External SSR API requests use pinned public IPv4 DNS answers and require Node.js 22+; non-Node/edge runtimes will fail closed.",
     "",
   ].join("\n");
   return { ...project, files };

@@ -4,6 +4,9 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "GitHubへPushすると、編集データには非公開ページや設定も含まれ、公開リポジトリでは第三者が閲覧できます。公開前に内容を確認してください。": "Pushing to GitHub also includes editable data, unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.",
+  "認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。": "Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead.",
+  "ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。": "The ZIP contains the site’s complete editable source (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.",
   "単一のHTML": "Single HTML",
   "単一HTMLは1つの固定パスだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。": "Single HTML can export only one fixed path. If the project has multiple pages, choose Current page or export an HTML ZIP.",
   "画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数のページを同時に出力することはできません。": "Download one HTML file with embedded images, fonts, CSS and JavaScript. Multiple pages cannot be exported at the same time.",

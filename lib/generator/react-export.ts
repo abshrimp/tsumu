@@ -1,7 +1,7 @@
 import type { SiteDoc } from "../types";
 import { pagePlan } from "../data";
 import { scriptsFile } from "../script-runtime";
-import { PAGE_DATA_RUNTIME } from "./browser-data";
+import { PAGE_DATA_RUNTIME, pageDataPlan } from "./browser-data";
 import { reactClientPageFragment } from "./html-export";
 import type { GeneratedProject } from "../generator";
 import { usedGoogleFonts } from "./css";
@@ -56,7 +56,16 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   const entries: string[] = [];
   // Data-dependent pages are populated by the shared browser runtime. Other
   // pages keep their normal generated JSX component trees.
-  const needsClientData = pages.some((page) => pagePlan(doc, page.id).steps.length > 0);
+  // Even without a fetch step, a client-owned variable or a list-display
+  // operation requires the DOM/runtime renderer. The Next.js JSX fallback
+  // cannot reproduce those browser-side data dependencies.
+  const needsClientRuntime = (page: (typeof pages)[number]) => {
+    const plan = pagePlan(doc, page.id);
+    const exportedPlan = pageDataPlan(doc, page);
+    return exportedPlan.steps.length > 0 || Object.keys(exportedPlan.listOps).length > 0 ||
+      plan.clientVars.size > 0;
+  };
+  const needsClientData = pages.some(needsClientRuntime);
   if (needsClientData) {
     files["public/data-loader.js"] = PAGE_DATA_RUNTIME;
     files["public/scripts.js"] = scriptsFile(doc, true);
@@ -70,7 +79,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
       (variant < 0 ? "page.tsx" : "_q/p" + variant + ".tsx");
     const generated = next.files[generatedPath];
     if (!generated) throw new Error("Missing generated page: " + generatedPath);
-    if (pagePlan(doc, page.id).steps.length) {
+    if (needsClientRuntime(page)) {
       const body = reactClientPageFragment(doc, page);
       files["src/pages/Page" + i + ".tsx"] = [
         "/** Client-side JSON data and DOM effects; no server is required. */",
@@ -232,6 +241,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
     'import { defineConfig } from "vite";',
     'import { fileURLToPath } from "node:url";', "",
     "export default defineConfig({",
+    '  esbuild: { jsx: "automatic" },',
     '  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },',
     "});", "",
   ].join("\n");

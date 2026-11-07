@@ -57,7 +57,9 @@ export const SCRIPT_RUNTIME = `function (env) {
     for (var i = 0; i < keys.length; i++) {
       if (v == null || typeof v !== "object") return undefined;
       var k = keys[i];
-      v = Array.isArray(v) && k === "-1" ? v[v.length - 1] : v[k];
+      var part = Array.isArray(v) && k === "-1" ? v.length - 1 : k;
+      if (!has(v, part)) return undefined;
+      v = v[part];
     }
     return v;
   }
@@ -246,6 +248,12 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   /*/go*/
   /*#value|var|filter*/
+  function conditionText(value) {
+    if (value == null) return "";
+    if (Array.isArray(value)) return value.map(conditionText).join(",");
+    if (typeof value === "object") return "[object Object]";
+    return String(value);
+  }
   function cmp(v, op, w) {
     switch (op) {
       case "neq": return v !== w;
@@ -254,7 +262,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       case "starts-with": return v.lastIndexOf(w, 0) === 0;
       case "ends-with": return v.length >= w.length && v.indexOf(w, v.length - w.length) >= 0;
       case "gt": return parseFloat(v) > parseFloat(w);
+      case "gte": return parseFloat(v) >= parseFloat(w);
       case "lt": return parseFloat(v) < parseFloat(w);
+      case "lte": return parseFloat(v) <= parseFloat(w);
       case "empty": return v === "";
       case "not-empty": return v !== "";
       case "in":
@@ -387,7 +397,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         }
         if (pid !== pageId) {
           if (pageId !== null) {
-            vars = {};
+            vars = Object.create(null);
             /*#filter*/
             filters.clear();
             sorts.clear();
@@ -405,7 +415,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         };
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
-      var vars = initialVars && typeof initialVars === "object" ? initialVars : {};
+      var vars = initialVars && typeof initialVars === "object"
+        ? Object.assign(Object.create(null), initialVars) : Object.create(null);
       function getVar(name) {
         return has(vars, name) ? vars[name] : dig(vars, name);
       }
@@ -425,13 +436,13 @@ export const SCRIPT_RUNTIME = `function (env) {
         var cur = vars;
         for (var i = 0; i < ks.length - 1; i++) {
           var k = ks[i].trim();
-          var nx = cur[k];
+          var nx = has(cur, k) ? cur[k] : undefined;
           if (nx == null || typeof nx !== "object" || Array.isArray(nx)) {
             vars[name] = v;
             notify();
             return;
           }
-          var cp = {};
+          var cp = Object.create(null);
           for (var ok in nx) if (has(nx, ok)) cp[ok] = nx[ok];
           cur[k] = cp;
           cur = cp;
@@ -700,6 +711,26 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/hovered*/
         return c.not ? !r : r;
       }
+      function testIf(step, self, sc) {
+        var conditions = [step.cond].concat(step.conditions || []);
+        if (conditions.length > 33) return false;
+        var any = false, all = true;
+        for (var i = 0; i < conditions.length; i++) {
+          var condition = conditions[i];
+          if (i > 0 && !condition.and) {
+            any = any || all;
+            all = true;
+          }
+          // "not" is already applied by test() for boolean subjects, but
+          // value and variable comparisons return before that final branch.
+          var matched = test(condition, self, sc);
+          if (condition.not && (condition.subject === "var" || condition.subject === "value")) {
+            matched = !matched;
+          }
+          all = all && matched;
+        }
+        return any || all;
+      }
       /*/if*/
       /*#filter*/
       // 配列の絞り込み: 配列の名前 → [{ no, join, conds: [{ field, op, value, and }] }]。
@@ -720,7 +751,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             grp = true;
           }
           var fv = fieldOf(item, c.field);
-          var matched = cmp(fv == null ? "" : String(fv), c.op, c.value);
+          var matched = cmp(conditionText(fv), c.op, c.value);
           grp = grp && (c.not ? !matched : matched);
         });
         return ok || grp;
@@ -746,7 +777,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       function order(x, y) {
         return typeof x === "number" && typeof y === "number"
           ? x - y
-          : String(x == null ? "" : x).localeCompare(String(y == null ? "" : y), "ja", {
+          : conditionText(x).localeCompare(conditionText(y), "ja", {
               numeric: true,
             });
       }
@@ -1126,12 +1157,12 @@ export const SCRIPT_RUNTIME = `function (env) {
       // くり返し中の要素（cx: { array, index, item, up, run }）の項目を、外側から順に重ねた値
       function scopeOf(cx) {
         if (!cx) return undefined;
-        var o = scopeOf(cx.up) || {};
+        var o = scopeOf(cx.up) || Object.create(null);
         for (var k in cx.item) if (has(cx.item, k)) o[k] = cx.item[k];
         return o;
       }
       function merged(a, b) {
-        var o = {};
+        var o = Object.create(null);
         var k;
         for (k in a || {}) if (has(a, k)) o[k] = a[k];
         for (k in b || {}) if (has(b, k)) o[k] = b[k];
@@ -1668,7 +1699,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*/wait*/
             /*#if*/
             if (st.kind === "if") {
-              var branch = test(st.cond, self, scopeOf(cx)) ? st.then : st.else;
+              var branch = testIf(st, self, scopeOf(cx)) ? st.then : st.else;
               if (branch && branch.length) {
                 return runSteps(branch, self, cx, active).then(next);
               }
@@ -2103,7 +2134,10 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
       if (futureKind === "transform") out.add("setvar");
       else if (futureKind === "list-display") out.add("filter");
       else out.add(STEP_FEATURE[st.kind]);
-      if (st.kind === "if") out.add(st.cond.subject);
+      if (st.kind === "if") {
+        out.add(st.cond.subject);
+        st.conditions?.forEach((condition) => out.add(condition.subject));
+      }
     });
   }
   // 画面上で値が決まる配列を並べるリスト

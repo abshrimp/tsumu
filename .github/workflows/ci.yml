@@ -59,7 +59,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        framework: [vue, nuxt, sveltekit]
+        include:
+          - { framework: nextjs, language: typescript }
+          - { framework: nextjs, language: javascript }
+          - { framework: react, language: typescript }
+          - { framework: react, language: javascript }
+          - { framework: vue, language: typescript }
+          - { framework: vue, language: javascript }
+          - { framework: nuxt, language: javascript }
+          - { framework: nuxt, language: typescript }
+          - { framework: sveltekit, language: typescript }
+          - { framework: sveltekit, language: javascript }
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v7.1.0
@@ -68,12 +78,24 @@ jobs:
           cache: npm
       - run: npm install --global npm@12.2.1
       - run: npm ci
-      - run: node --import tsx scripts/smoke-export-build.mts ${{ matrix.framework }}
+      - run: node --import tsx scripts/smoke-export-build.mts ${{ matrix.framework }} ${{ matrix.language }}
       - name: Install generated project dependencies
         run: npm install --no-audit --no-fund
         working-directory: .generated-export-smoke
       - name: Build generated framework project
         run: npm run build
         working-directory: .generated-export-smoke
+      - name: Audit generated production dependencies
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: .generated-export-smoke
+      - name: Audit generated dependencies including tooling
+        run: npm audit --audit-level=high
+        working-directory: .generated-export-smoke
       - name: Verify production SSR response
         run: node --import tsx scripts/check-generated-ssr.mts ${{ matrix.framework }}
+      - name: Install Chromium for generated-site checks
+        if: (matrix.framework == 'vue' && matrix.language == 'typescript') || (matrix.framework == 'nuxt' && matrix.language == 'javascript') || (matrix.framework == 'sveltekit' && matrix.language == 'typescript') || (matrix.framework == 'react' && matrix.language == 'javascript')
+        run: npx playwright install --with-deps chromium
+      - name: Verify generated project in Chromium
+        if: (matrix.framework == 'vue' && matrix.language == 'typescript') || (matrix.framework == 'nuxt' && matrix.language == 'javascript') || (matrix.framework == 'sveltekit' && matrix.language == 'typescript') || (matrix.framework == 'react' && matrix.language == 'javascript')
+        run: node --import tsx scripts/check-generated-browser.mts ${{ matrix.framework }}

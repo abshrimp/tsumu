@@ -6,6 +6,8 @@ export function withVueSsr(
   files: Record<string, string>, doc: SiteDoc, language: ExportLanguage,
 ): void {
   const pages = generateNativeFiles(doc, language).pages;
+  const escapedLang = (doc.lang || "ja").replace(/[&<>"\x27]/g, (ch) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
   const ts = language === "typescript";
   const ext = ts ? "ts" : "js";
   const app = files["src/App.vue"];
@@ -48,7 +50,9 @@ export function withVueSsr(
     '  if (!selected) return { status: 404, html: "<h1>Not Found</h1>", id: "", vars: {},',
     '    title: "Not Found", description: "" };',
     '  const vars = await loadPageData(selected.plan, url.searchParams,',
-    '    (uri, init) => requestPublic(uri, init, url.origin, fetch));',
+    '    (uri, init) => requestPublic(uri, init, url.origin,',
+    '      (path' + (ts ? ': string' : '') + ', options' + (ts ? ': RequestInit' : '') + ') =>',
+    '        fetch(new URL(path, url.origin).href, options)));',
     '  const app = createSSRApp(App, { initialPageId: selected.id, initialVars: vars });',
     '  const html = await renderToString(app);',
     '  return { status: 200, html, id: selected.id, vars,',
@@ -77,8 +81,9 @@ export function withVueSsr(
     'async function handle(req, res) {',
     '  const url = new URL(req.url || "/", "http://127.0.0.1");',
     '  if (production && url.pathname !== "/") {',
-    '    const file = resolve(dist, "." + decodeURIComponent(url.pathname));',
-    '    if (file.startsWith(dist + sep)) {',
+    '    let file;',
+    '    try { file = resolve(dist, "." + decodeURIComponent(url.pathname)); } catch {}',
+    '    if (file && file.startsWith(dist + sep)) {',
     '      try {',
     '        if ((await stat(file)).isFile()) {',
     '          const bytes = await readFile(file);',
@@ -88,17 +93,20 @@ export function withVueSsr(
     '      } catch {}',
     '    }',
     '  }',
-    '  const siteUrl = "http://" + (req.headers.host || "localhost") + (req.url || "/");',
+    '  // Never construct SSR fetch origins from the untrusted Host header.',
+    '  const path = req.url?.startsWith("/") && !req.url.startsWith("//") ? req.url : "/";',
+    '  const siteUrl = new URL(path, "http://127.0.0.1:" + Number(process.env.PORT || 3000)).href;',
     '  try {',
     '    const template = await readFile(templateFile, "utf8");',
     '    const result = await (vite ? (await vite.ssrLoadModule("/src/entry-server.' + ext + '")).render(siteUrl)',
     '      : render(siteUrl));',
     '    const sitePayload = JSON.stringify({ id: result.id, vars: result.vars })',
     '      .replace(/</g, "\\\\u003c");',
+    '    const escapeHtml = (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");',
     '    let html = template.replace("<!--app-html-->", result.html)',
     '      .replace("<!--app-data-->",',
     '        \'<script id="site-payload" type="application/json">\' + sitePayload + "</script>")',
-    '      .replace("<!--page-title-->", String(result.title).replace(/[&<>]/g, ""));',
+    '      .replace("<!--page-title-->", escapeHtml(result.title));',
     '    if (vite) html = await vite.transformIndexHtml(url.pathname, html);',
     '    res.writeHead(result.status, { "Content-Type": "text/html; charset=utf-8" });',
     '    res.end(html);',
@@ -117,7 +125,7 @@ export function withVueSsr(
   files["src/server-request.js"] = files["src/server-request.js"] || "";
   files["index.html"] = [
     "<!doctype html>",
-    '<html lang="' + (doc.lang || "ja") + '">',
+    '<html lang="' + escapedLang + '">',
     "<head>",
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
     "<title><!--page-title--></title>",

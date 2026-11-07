@@ -418,6 +418,13 @@ export function compileScripts(
               ...(st.cond.value !== undefined ? { value: str(st.cond.value, "value") } : {}),
               ...(st.cond.left !== undefined ? { left: str(st.cond.left, "value") } : {}),
             },
+            ...(st.conditions?.length ? {
+              conditions: st.conditions.map((condition) => ({
+                ...condition,
+                ...(condition.value !== undefined ? { value: str(condition.value, "value") } : {}),
+                ...(condition.left !== undefined ? { left: str(condition.left, "value") } : {}),
+              })),
+            } : {}),
             then: conv(st.then),
             ...(st.else ? { else: conv(st.else) } : {}),
           };

@@ -137,10 +137,19 @@ export function exportLimitations(
     .filter((step) => step.kind === "fetch");
   const secret = fetched.some((step) => {
     const credentialHeader = (step.headers ?? []).some((h) =>
-      /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token|x-client-secret)$/i.test(h.name.trim())
+      /^(?:authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x-api[-_]?key|x-auth[-_]?token|x-client[-_]?secret|x[-_]?token|x[-_]?secret|metadata-flavor|x-metadata-token)$/i.test(h.name.trim())
     );
-    const secretUrl = /[?&](?:api[_-]?key|secret|access[_-]?token|auth[_-]?token)=/i.test(step.url);
-    return credentialHeader || secretUrl;
+    const secretUrl = /[?&#](?:api[-_]?key|secret|access[-_]?token|auth[-_]?token|client[-_]?secret|password|passwd|token|key)=/i.test(step.url);
+    let embeddedCredentials = false;
+    try {
+      const url = new URL(step.url);
+      embeddedCredentials = !!(url.username || url.password);
+    } catch {
+      embeddedCredentials = /^https?:\/\/[^/\s@]+@/i.test(step.url);
+    }
+    // A literal credential inside an exported JSON POST body is browser-visible.
+    const secretBody = /"(?:(?:api|access|auth)[-_]?(?:key|token)|password|passwd|secret|client[-_]?secret)"\s*:\s*"(?!\{)[^"]+"/i.test(step.body ?? "");
+    return credentialHeader || secretUrl || embeddedCredentials || secretBody;
   });
   add(secret,
     "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");

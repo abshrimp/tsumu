@@ -15,6 +15,10 @@ import { applyNativeFramework } from "./native-scaffold";
  */
 export type AdditionalFramework = "vue" | "nuxt" | "sveltekit";
 
+const escapeTemplateHtml = (value: string): string =>
+  value.replace(/[&<>"']/g, (ch) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+
 function json(value: unknown): string {
   return JSON.stringify(value);
 }
@@ -168,9 +172,9 @@ export function buildAdditionalFramework(
       'createApp(App).mount("#app");', "",
     ].join("\n");
     files["index.html"] = [
-      "<!doctype html>", '<html lang="' + (doc.lang || "ja") + '">',
+      "<!doctype html>", '<html lang="' + escapeTemplateHtml(doc.lang || "ja") + '">',
       '<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-      '<meta name="description" content=""><title>' + doc.siteName.replace(/[<>&"]/g, "") + "</title></head>",
+      '<meta name="description" content=""><title>' + escapeTemplateHtml(doc.siteName) + "</title></head>",
       '<body><div id="app"></div><script type="module" src="/src/main.' + ext + '"></script></body>',
       '</html>', "",
     ].join("\n");
@@ -228,16 +232,18 @@ export function buildAdditionalFramework(
       name: packageName(doc), private: true, version: "0.1.0", type: "module",
       scripts: { dev: "nuxt dev", build: "nuxt build", generate: "nuxt generate",
         preview: "nuxt preview", postinstall: "nuxt prepare" },
-      dependencies: { nuxt: "^4.3.0", vue: "^3.5.25" },
+      dependencies: { nuxt: "^4.6.4", vue: "^3.5.25" },
+      // Bypass vulnerable older transitive glob/minimatch releases in Nuxt tooling.
+      overrides: { glob: "^14.0.2", minimatch: "^11.0.1" },
       devDependencies: ts ? { typescript: "^5.9.3" } : {},
     });
   } else {
     files["src/globals.css"] = common.baseCss;
     files["src/site.css"] = common.siteCss;
     files["src/app.html"] = [
-      "<!doctype html>", '<html lang="' + (doc.lang || "ja") + '">',
+      "<!doctype html>", '<html lang="' + escapeTemplateHtml(doc.lang || "ja") + '">',
       '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-      '<meta name="description" content=""><title>' + doc.siteName.replace(/[<>&"]/g, "") + '</title>',
+      '<meta name="description" content=""><title>' + escapeTemplateHtml(doc.siteName) + '</title>',
       '%sveltekit.head%</head><body data-sveltekit-preload-data="hover">',
       '<div style="display:contents">%sveltekit.body%</div></body></html>', "",
     ].join("\n");
