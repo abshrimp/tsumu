@@ -42,7 +42,7 @@ import { exportProjectZip } from "../lib/exportZip";
 import { exportLimitations, exportScopeDoc, DEFAULT_EXPORT_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/export-formats";
 import { BpIcon, Dropdown, NumField, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
-import { getLang, LANGS, setLang, tr, type Lang } from "../lib/i18n";
+import { getLang, LANGS, setLang, tr, trNodes, type Lang } from "../lib/i18n";
 
 function ExportModal({ onClose }: { onClose: () => void }) {
   const doc = useEditor((s) => s.doc);
@@ -75,10 +75,14 @@ function ExportModal({ onClose }: { onClose: () => void }) {
   useEscapeToClose(onClose, !busy);
 
   const description = format === "html"
-    ? tr("選んだ範囲を静的HTMLとして書き出すためのプロジェクトをZIPで保存します。展開後にnpm installとnpm run buildを実行すると、outフォルダにHTML・CSS・JavaScriptが生成されます。")
+    ? tr("HTML・CSS・JavaScript・画像をまとめたZIPをダウンロードします。展開後、index.htmlをブラウザで開くだけで表示できます。npmやビルドは不要です。")
     : format === "react"
-      ? tr("選んだ範囲をReact + ViteのプロジェクトとしてZIPで保存します。展開後にnpm installとnpm run devで起動できます。")
-      : tr("選んだ範囲をNext.jsプロジェクトとしてZIPで保存します。展開後にnpm installとnpm run devで起動できます。");
+      ? trNodes("選んだ範囲をReact + Viteプロジェクトとして保存します。展開後に {cmd} で起動できます。", {
+          cmd: <span className="kbd">npm install && npm run dev</span>,
+        })
+      : trNodes("選んだ範囲をNext.jsプロジェクトとして保存します。展開後に {cmd} で起動できます。", {
+          cmd: <span className="kbd">npm install && npm run dev</span>,
+        });
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
@@ -96,7 +100,13 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                 { value: "react", label: "React + Vite" },
                 { value: "html", label: "HTML / CSS / JavaScript" },
               ]}
-              onChange={(value) => setFormat(value as ExportFormat)}
+              onChange={(value) => {
+                setFormat(value as ExportFormat);
+                if (value === "html") {
+                  setLanguage("javascript");
+                  setStyle("css");
+                }
+              }}
               style={{ width: "100%" }}
               title={tr("フレームワーク")}
             />
@@ -104,31 +114,39 @@ function ExportModal({ onClose }: { onClose: () => void }) {
           <div className="export-option-grid">
             <div className="export-option">
               <div className="export-option-label">{tr("言語")}</div>
-              <Seg
+              <Dropdown
                 value={language}
-                options={[
-                  { value: "typescript", label: "TypeScript" },
-                  { value: "javascript", label: "JavaScript" },
-                ]}
+                options={format === "html"
+                  ? [{ value: "javascript", label: "JavaScript" }]
+                  : [
+                      { value: "typescript", label: "TypeScript" },
+                      { value: "javascript", label: "JavaScript" },
+                    ]}
                 onChange={(value) => setLanguage(value as ExportLanguage)}
+                style={{ width: "100%" }}
+                title={tr("言語")}
               />
             </div>
             <div className="export-option">
               <div className="export-option-label">{tr("スタイル")}</div>
-              <Seg
+              <Dropdown
                 value={style}
-                options={[
-                  { value: "css", label: "CSS" },
-                  { value: "css-modules", label: "CSS Modules" },
-                  { value: "tailwind", label: "Tailwind CSS" },
-                ]}
+                options={format === "html"
+                  ? [{ value: "css", label: "CSS" }]
+                  : [
+                      { value: "css", label: "CSS" },
+                      { value: "css-modules", label: "CSS Modules" },
+                      { value: "tailwind", label: "Tailwind CSS" },
+                    ]}
                 onChange={(value) => setStyle(value as ExportStyle)}
+                style={{ width: "100%" }}
+                title={tr("スタイル")}
               />
             </div>
           </div>
           <div className="export-option">
             <div className="export-option-label">{tr("出力範囲")}</div>
-            <Seg
+            <Dropdown
               value={scope}
               options={[
                 { value: "component", label: tr("選択したコンポーネント") },
@@ -136,6 +154,8 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                 { value: "project", label: tr("プロジェクト全体") },
               ]}
               onChange={(value) => setScope(value as ExportScope)}
+              style={{ width: "100%" }}
+              title={tr("出力範囲")}
             />
           </div>
         </fieldset>
@@ -147,6 +167,11 @@ function ExportModal({ onClose }: { onClose: () => void }) {
         {scope === "component" && (
           <p className="hint export-note">
             {tr("選択中の要素を単独のページとして書き出します。選択した要素の子要素も含まれます。")}
+          </p>
+        )}
+        {format === "html" && (
+          <p className="hint export-note">
+            {tr("HTML形式はそのまま開けるファイルを出力するため、言語はJavaScript、スタイルはCSSに固定されます。")}
           </p>
         )}
         <CheckList checks={checks} onClose={onClose} />
