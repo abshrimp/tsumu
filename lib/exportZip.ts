@@ -14,6 +14,9 @@ export async function exportProjectZip(doc: SiteDoc): Promise<string[]> {
       .replace(/[^a-z0-9-]+/g, "-")
       .replace(/^-+|-+$/g, "") || "my-site";
   const root = zip.folder(dirName)!;
+  // The original editable SiteDoc, not generated HTML, is the authoritative
+  // restoration source. Keep IDs and references exactly as authored.
+  root.file("_tsumu/doc.json", JSON.stringify(doc, null, 2) + "\n");
 
   for (const [path, content] of Object.entries(files)) {
     root.file(path, content);
