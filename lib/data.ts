@@ -1230,7 +1230,10 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       if (t.kind === "field" || t.kind === "has") next.key = mapVarTokens(t.key, fn);
       if (t.kind === "fallback" || t.kind === "fallback-nullish") next.text = mapVarTokens(t.text, fn);
       if (t.kind === "split" || t.kind === "join") next.separator = mapVarTokens(t.separator, fn);
-      if (t.kind === "replace") next.find = mapVarTokens(t.find, fn); next.replacement = mapVarTokens(t.replacement, fn);
+      if (t.kind === "replace") {
+        next.find = mapVarTokens(t.find, fn);
+        next.replacement = mapVarTokens(t.replacement, fn);
+      }
       if ("field" in t) next.field = mapVarTokens(t.field, fn);
       st.transform = next as typeof st.transform;
     }
