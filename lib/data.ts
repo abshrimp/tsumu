@@ -361,7 +361,7 @@ export function varSamplesAt(
 
 /** ページを配信する前（サーバー側）にだけ動くブロック（データの取得） */
 export type DataStep = Extract<ScriptStep, { kind: "fetch" }>;
-/** 入力がサーバー側でそろえばページを配信する前に、そうでなければ画面上で動くブロック */
+/** リストの各要素を処理するブロック（配信前の pagePlan では実行しない）。 */
 export type ForEachStep = Extract<ScriptStep, { kind: "for-each" }>;
 export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
 export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
@@ -654,7 +654,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
       if (st.kind !== "transform" || !st.into || seen.has(st.into)) return;
-      const listProducing = ["split", "filter", "map-field", "map-set", "sort"].includes(st.transform.kind);
+      const listProducing = ["split", "filter", "map-field", "map-set", "sort", "append", "remove", "remove-at"].includes(st.transform.kind);
       if (!listProducing) {
         transformedSamples ??= previewDataVars(doc, pageId);
         if (!Array.isArray(lookupVar(transformedSamples, st.into))) return;
