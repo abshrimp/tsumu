@@ -101,9 +101,9 @@ test("exported HTML carries the #136 page plan and executable data runtime", () 
   const html = project.files["index.html"];
   assert.ok(html, "The HTML export must have a downloadable entry point");
   assert.match(html, /data-page-plan/);
-  const match = /<script type="application\\/json" data-page-plan>([^<]+)<\\/script>/.exec(html);
-  assert.ok(match, "The generated HTML must embed a serializable page plan");
-  const exported = JSON.parse(match[1]);
+  const planSource = html.split("data-page-plan>")[1]?.split("</script>")[0];
+  assert.ok(planSource, "The generated HTML must embed a serializable page plan");
+  const exported = JSON.parse(planSource);
   assert.equal(exported.steps.filter((s: { kind: string }) => s.kind === "transform").length, 4);
   assert.ok(project.files["data-loader.js"].includes("runPurePageSteps"));
   assert.ok(project.files["data-loader.js"].includes("evaluateValueRecipe"));
