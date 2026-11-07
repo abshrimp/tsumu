@@ -77,9 +77,20 @@ test("dropping a JSON file imports a new editable site", async ({ page }) => {
     buffer: Buffer.from(JSON.stringify(doc)),
   };
   const payload = { name: file.name, type: file.mimeType, data: Array.from(file.buffer) };
+  await expect(page.locator(".home-import-drop")).toHaveCount(0);
   await page.evaluate((input) => {
-    const target = document.querySelector(".home-import-drop");
-    if (!target) throw new Error("Drop target missing");
+    const target = document.querySelector(".home-top");
+    if (!target) throw new Error("Home header missing");
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([new Uint8Array(input.data)], input.name, { type: input.type }));
+    target.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }, payload);
+  await expect(page.locator(".home-drop-overlay")).toBeVisible();
+  await page.evaluate((input) => {
+    // Drop on a different part of the homepage, not on a dedicated drop target.
+    const target = document.querySelector(".home-main");
+    if (!target) throw new Error("Home content missing");
     const transfer = new DataTransfer();
     transfer.items.add(new File([new Uint8Array(input.data)], input.name, { type: input.type }));
     target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
@@ -89,6 +100,24 @@ test("dropping a JSON file imports a new editable site", async ({ page }) => {
   expect(imported.list).toHaveLength(1);
   expect(imported.doc.siteName).toBe(doc.siteName);
   expect(imported.doc.customHeadHtml).toBe(doc.customHeadHtml);
+});
+
+
+test("normal text drag on the homepage does not trigger file import", async ({ page }) => {
+  await localMode(page);
+  await page.goto("/");
+  const prevented = await page.evaluate(() => {
+    const target = document.querySelector(".home-top");
+    if (!target) throw new Error("Home header missing");
+    const transfer = new DataTransfer();
+    transfer.setData("text/plain", "ordinary text");
+    const event = new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: transfer });
+    target.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(prevented).toBe(false);
+  await expect(page.locator(".home-drop-overlay")).toHaveCount(0);
+  expect((await getLocalSite(page)).list).toHaveLength(0);
 });
 
 test("invalid JSON is rejected without creating a site", async ({ page }) => {
