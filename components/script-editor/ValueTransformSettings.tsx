@@ -32,6 +32,9 @@ export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
   "map-field": "各項目から値を取り出す",
   "map-set": "各項目に値を入れる",
   sort: "リストを並べ替える",
+  append: "リストに要素を追加する",
+  remove: "リストから一致する要素を削除する",
+  "remove-at": "リストの指定位置を削除する",
 };
 
 const DESCRIPTIONS: Record<ValueTransformKind, string> = {
@@ -55,13 +58,16 @@ const DESCRIPTIONS: Record<ValueTransformKind, string> = {
   "map-field": "リスト内の各データから同じ項目を取り出し、新しいリストにします。",
   "map-set": "各データに項目を追加・上書きし、新しいリストにします。元のデータは変更しません。",
   sort: "項目の値を基準にリストを並べ替えます。元の順番は変更しません。",
+  append: "リストの末尾に値を1件追加した新しいリストを作ります。",
+  remove: "指定した値と等しい要素をすべて取り除いた新しいリストを作ります。",
+  "remove-at": "先頭を0とする指定位置の要素だけを削除した新しいリストを作ります。-1は末尾です。",
 };
 
 export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
   { label: "値を取り出す", kinds: ["field", "index", "find", "map-field"] },
   { label: "値を調べる", kinds: ["has", "length", "compare", "not"] },
   { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "split", "join", "replace"] },
-  { label: "リストを加工する", kinds: ["filter", "map-set", "sort"] },
+  { label: "リストを加工する", kinds: ["filter", "map-set", "sort", "append", "remove", "remove-at"] },
   { label: "値を補う", kinds: ["fallback", "fallback-nullish"] },
 ];
 const MATH: readonly { value: NumericOperation; label: string }[] = [
@@ -293,9 +299,33 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
         onChange={(e) => onChange({ ...transform, operation: e.target.value as NumericOperation })}>
         {MATH.map((method) => <option key={method.value} value={method.value}>{tr(method.label)}</option>)}
       </select>
-      <input aria-label={tr("計算する数")} type="number" step="any"
-        value={Number.isFinite(transform.operand) ? transform.operand : ""}
-        onChange={(e) => onChange({ ...transform, operand: e.target.value === "" ? NaN : Number(e.target.value) })} />
+      <div className="se-composer-operand">
+        <select className="se-in" aria-label={tr("計算する値の種類")}
+          value={transform.operandType === "variable" ? "variable" : "number"}
+          onChange={(e) => onChange(e.target.value === "variable"
+            ? { ...transform, operandType: "variable", operand: "" }
+            : { ...transform, operandType: "number", operand: 1 })}>
+          <option value="number">{tr("数値")}</option>
+          <option value="variable">{tr("変数")}</option>
+        </select>
+        {transform.operandType === "variable" ? (
+          <PathMenu root={samples} path={String(transform.operand)} mode="any" allowRoot={false}
+            ariaLabel={tr("計算する変数")} placeholder={tr("変数を選択")}
+            onChange={(path) => onChange({ ...transform, operand: path })}
+            portalZIndex={560} />
+        ) : (
+          <input aria-label={tr("計算する数")} type="number" step="any"
+            value={typeof transform.operand === "number" && Number.isFinite(transform.operand) ? transform.operand : ""}
+            onChange={(e) => onChange({ ...transform, operand: e.target.value === "" ? NaN : Number(e.target.value) })} />
+        )}
+      </div>
+    </div>
+  );
+
+  if (transform.kind === "append" || transform.kind === "remove") return (
+    <div className="se-composer-step-settings">
+      <ValueOperandEditor type={transform.operandType} text={transform.operand} samples={samples}
+        onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
     </div>
   );
 
@@ -375,9 +405,9 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
         onChange={(key) => onChange({ ...transform, key })} />
     </div>
   );
-  if (transform.kind === "index") return (
+  if (transform.kind === "index" || transform.kind === "remove-at") return (
     <div className="se-composer-step-settings">
-      <input aria-label={tr("取り出す位置")} type="number" min="-1" step="1"
+      <input aria-label={tr(transform.kind === "remove-at" ? "削除する位置" : "取り出す位置")} type="number" min="-1" step="1"
         value={transform.index}
         onChange={(e) => onChange({ ...transform, index: e.target.value === "" ? -1 : Number(e.target.value) })} />
     </div>
