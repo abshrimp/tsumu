@@ -3,10 +3,12 @@ import { pagePlan } from "./data";
 import { generateProject, type GeneratedProject, type PublishTarget } from "./generator";
 import { buildReactProject } from "./generator/react-export";
 import { generateStandaloneHtml } from "./generator/html-export";
+import { buildAdditionalFramework } from "./generator/framework-export";
+import { toSingleHtmlProject } from "./generator/single-html";
 import { applyExportStyle } from "./generator/style-export";
 import { tr } from "./i18n";
 
-export type ExportFormat = "nextjs" | "react" | "html";
+export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
 export type ExportLanguage = "typescript" | "javascript";
 export type ExportStyle = "css" | "css-modules" | "tailwind";
 export type ExportScope = "project" | "page" | "component";
@@ -99,11 +101,11 @@ export function exportLimitations(
     "動的パス（[slug]など）は、静的ホスティングで任意のURLへ直接アクセスできる設定が必要です。固定パスに変更するか、Next.js形式を選択してください。");
   add(pages.some((p) => p.rewriteTo !== undefined || p.redirectTo !== undefined),
     "リダイレクトとリバースプロキシにはサーバーの処理が必要です。転送先への通常のリンクに変更するか、Next.js形式を選択してください。");
-  if (options.framework === "react") {
+  if (!["html", "single-html"].includes(options.framework)) {
     add(pages.some((p) => !!p.rawHtml?.trim()),
       "取り込んだHTMLページをReactコンポーネントへ安全に変換できません。HTML形式なら元のHTMLをそのまま出力できます。");
   }
-  if (options.framework === "html") {
+  if (["html", "single-html"].includes(options.framework)) {
     // A query variant cannot share its output with an imported HTML document,
     // because imported documents are opaque and may contain arbitrary scripts.
     const grouped = new Map<string, typeof pages>();
@@ -115,7 +117,12 @@ export function exportLimitations(
       group.length > 1 && group.some((page) => !!page.rawHtml?.trim())),
       "同じパスに取り込んだHTMLページとクエリ別ページが混在しています。通常ページに変更するか、別の固定URLに分けてください。");
   }
-  // Both HTML and React execute public API requests in the browser.
+  if (options.framework === "single-html") {
+    const fixed = new Set(pages.map((p) => p.slug.replace(/^\/+|\/+$/g, "")));
+    add(fixed.size !== 1 || !pages.length,
+      "単一HTMLは1つの固定パスだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。");
+  }
+  // All non-Next.js formats execute public API requests in the browser.
   // Refuse credentials that must not be shipped to every site visitor.
   const fetched = pages.flatMap((page) => pagePlan(doc, page.id).steps)
     .filter((step) => step.kind === "fetch");
@@ -129,11 +136,11 @@ export function exportLimitations(
   add(secret,
     "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");
 
-  if (options.framework === "react") {
+  if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework)) {
     add(!!doc.customBodyEndHtml?.match(/<script\b/i),
       "body末尾のカスタムスクリプトは、Reactの画面更新時に実行タイミングが異なります。HTML形式で書き出すか、React用の処理へ移行してください。");
   }
-  if (options.framework === "html") {
+  if (["html", "single-html"].includes(options.framework)) {
     add(options.style === "css-modules",
       "CSS Modulesはモジュールを読み込むビルド工程が必要です。ビルド不要のHTML形式ではCSSを選択してください。");
     add(options.style === "tailwind",
@@ -157,7 +164,11 @@ export function generateExportProject(
   }
   const generated = options.framework === "react"
     ? buildReactProject(scoped, next)
-    : options.framework === "html" ? generateStandaloneHtml(scoped, next) : next;
+    : (options.framework === "html" || options.framework === "single-html")
+      ? generateStandaloneHtml(scoped, next)
+      : (options.framework === "vue" || options.framework === "nuxt" || options.framework === "sveltekit")
+        ? buildAdditionalFramework(scoped, next, options.framework, options.language)
+        : next;
   return options.style === "css" ? generated
     : applyExportStyle(generated, options.framework, options.style);
 }
@@ -173,29 +184,31 @@ export async function prepareExportProject(
 ): Promise<GeneratedProject> {
   const options = optionsOf(request);
   let project = generateExportProject(doc, options, target);
-  if (options.framework !== "html" && options.language === "javascript") {
+  if (["nextjs", "react"].includes(options.framework) && options.language === "javascript") {
     const { toJavaScriptProject } = await import("./generator/javascript-export");
     project = await toJavaScriptProject(project, options.framework);
   }
-  if (target !== "test" || options.framework === "nextjs") return project;
-
-  const files = { ...project.files };
-  const robots = "noindex, nofollow, noarchive, nosnippet, noimageindex";
-  const robotsMeta = '<meta name="robots" content="' + robots + '">';
-  const htmlFiles = options.framework === "html"
-    ? Object.keys(files).filter((path) => /\.html?$/i.test(path))
-    : ["index.html"];
-  for (const path of htmlFiles) {
-    if (!files[path]) continue;
-    if (/<head(?:\s[^>]*)?>/i.test(files[path])) {
-      files[path] = files[path].replace(/<head(?:\s[^>]*)?>/i, (head) => head + "\n" + robotsMeta);
-    } else {
-      files[path] = robotsMeta + "\n" + files[path];
+  if (target === "test" && options.framework !== "nextjs") {
+    const files = { ...project.files };
+    const robots = "noindex, nofollow, noarchive, nosnippet, noimageindex";
+    const robotsMeta = '<meta name="robots" content="' + robots + '">';
+    const htmlFiles = options.framework === "html" || options.framework === "single-html"
+      ? Object.keys(files).filter((path) => /\.html?$/i.test(path))
+      : ["index.html", "src/app.html"];
+    for (const path of htmlFiles) {
+      if (!files[path]) continue;
+      if (/<head(?:\s[^>]*)?>/i.test(files[path])) {
+        files[path] = files[path].replace(/<head(?:\s[^>]*)?>/i, (head) => head + "\n" + robotsMeta);
+      } else files[path] = robotsMeta + "\n" + files[path];
     }
+    const assetRoot = options.framework === "html" || options.framework === "single-html" ? ""
+      : options.framework === "sveltekit" ? "static/" : "public/";
+    if (options.framework !== "single-html") {
+      files[assetRoot + "robots.txt"] = "User-agent: *\nDisallow: /\n";
+      files[assetRoot + "_headers"] = "/*\n  X-Robots-Tag: " + robots + "\n";
+    }
+    project = { ...project, files };
   }
-  files[options.framework === "html" ? "robots.txt" : "public/robots.txt"] =
-    "User-agent: *\nDisallow: /\n";
-  files[options.framework === "html" ? "_headers" : "public/_headers"] =
-    "/*\n  X-Robots-Tag: " + robots + "\n";
-  return { ...project, files };
+  return options.framework === "single-html" ? toSingleHtmlProject(project) : project;
+
 }
