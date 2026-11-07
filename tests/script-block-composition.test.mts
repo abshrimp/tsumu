@@ -170,6 +170,25 @@ test("oversized page-load loops abort without leaving partial variable changes",
   assert.equal(vars.output, "unchanged");
 });
 
+test("page-load repeat count can come from a numeric-string variable", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "count", kind: "set-var", into: "count", value: "3" },
+    { id: "initial", kind: "set-var", into: "sum", value: "0" },
+    { id: "numeric", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
+    { id: "iterate", kind: "repeat", times: "{count}", then: [
+      { id: "increment", kind: "transform", source: "sum", into: "sum",
+        transform: { kind: "math", operation: "add", operand: 1 } },
+    ] },
+  );
+  const plan = pagePlan(doc, "p");
+  assert.ok(plan.serverIds.has("iterate"));
+  assert.equal(previewDataVars(doc, "p").sum, 3);
+  const files = generateProject(doc).files;
+  assert.match(files["app/page.tsx"], /"times":"\\{count\\}"/);
+  assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
+});
+
 test("page-load nested browser effects are not mistakenly executed or discarded by SSR", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
