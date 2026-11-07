@@ -15,11 +15,12 @@ import { connectNewTransform } from "../components/script-editor/step-tree";
 import type { ScriptStep } from "../lib/types";
 
 test("every supported palette action is visible without hidden compatibility groups", () => {
-  assert.equal(PALETTE.length, 22);
-  assert.equal(findPaletteItems("").length, 22);
-  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 16);
+  assert.equal(PALETTE.length, 23);
+  assert.equal(findPaletteItems("").length, 23);
+  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 17);
   assert.ok(PALETTE.some(item => item.key === "transform"));
   assert.ok(PALETTE.some(item => item.key === "list-display"));
+  assert.ok(PALETTE.some(item => item.key === "set-state"));
   assert.ok(findPaletteItems("値を加工").some(item => item.key === "transform"));
 });
 
