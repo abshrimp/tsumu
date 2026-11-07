@@ -26,7 +26,7 @@ test('the real settings and script controls configure the nested source and brow
   doc.nodes.tags.list!.from = '';
   useEditor.getState().replaceDoc(doc); useEditor.getState().setActivePage('p');
   const settings = loadNestedUi('components/SettingsPanel.tsx', true).default({ nodeId: 'tags' });
-  const row = treeNodes(settings).find(n => n.props?.className === 'row' && treeNodes(n).some(x => x.type === 'label' && x.props.children === '並べる配列'));
+  const row = treeNodes(settings).find(n => n.props?.className === 'row' && treeNodes(n).some(x => x.type === 'label' && x.props.children === '表示するリスト'));
   const dropdown = treeNodes(row).find(n => n.props?.options).props;
   assert.ok(dropdown.options.some((o: any) => o.value === 'tags'));
   dropdown.onChange('tags');
@@ -36,7 +36,9 @@ test('the real settings and script controls configure the nested source and brow
   const control = renderToStaticMarkup(React.createElement(Ctx.Provider, { value: {
     doc, pageId: 'p', samples: previewDataVars(doc, 'p'), arrays: pageArrays(doc, 'p'), updateStep() {}, renameVar() {},
   } as unknown as EdCtx }, React.createElement(StepBody, { step })));
-  assert.match(control, /value="\{response\}"/); assert.match(control, /value="items"/);
+  assert.equal(parse(control).querySelector(".se-value-choice input")?.getAttribute("value"), "{response}");
+  assert.equal((step as { value: string }).value, "{response}");
+  assert.match(control, /value="items"/);
   assert.ok(pagePlan(doc, 'p').clientVars.has('items'));
 });
 

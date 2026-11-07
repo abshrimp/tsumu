@@ -11,9 +11,19 @@ import { type MenuTarget, type Target, type TreeRow } from "./targets";
 
 /* ---------- 描画コンテキスト ---------- */
 
+/** テスト実行の出どころ。データ小窓へ移っても要素・くり返しの文脈を保つ。 */
+export interface FetchPreviewScope {
+  nodeId: string;
+  localNames: string[];
+  /** 実際にブロックを所有するスクリプト。変数の参照位置とは分ける。 */
+  owner?: { scriptId: string; nodeId: string | null };
+}
+
 export interface EdCtx {
   doc: SiteDoc;
   pageId: string;
+  /** ページ外でも明示的に編集中のコンポーネントroot。 */
+  scriptRootIds?: string[];
   targets: Target[];
   /** 要素選択で見せる、ページの要素の階層 */
   tree: TreeRow[];
@@ -37,7 +47,7 @@ export interface EdCtx {
   /** 変数・配列・取得したデータの名前を変える（ページ内で使っている箇所も書き換える） */
   renameVar: (stepId: string, from: string, to: string) => void;
   /** 取得したデータを表で見る小窓を開く */
-  openPeek: (fetchStepId: string) => void;
+  openPeek: (fetchStepId: string, scope: FetchPreviewScope) => void;
   /** ページの配列 */
   arrays: PageArray[];
   /** 見本で実行したときの変数の値（配列の中身を選ぶのに使う） */
@@ -51,11 +61,17 @@ export const Ctx = createContext<EdCtx>(null!);
 
 /** スクリプトがきっかけにしている要素（"" = ページ・未選択）。変数の候補をその位置で出す */
 export const ScriptNodeCtx = createContext<string>("");
+export const ScriptOwnerCtx = createContext<FetchPreviewScope["owner"]>(undefined);
+
+/** 入力候補から、自分がいま作ろうとしている出力だけを除く。 */
+export const ScriptStepCtx = createContext<string>("");
 
 /** 囲んでいる「要素ごとにくり返す」（内側が先頭）。中の入力で要素の項目を候補に出す */
 interface LoopInfo {
   array: string;
   fields: string[];
+  /** 葉の候補に出ない空のまとまり・一覧も含む、項目の名前。 */
+  roots?: string[];
   samples: Record<string, string>;
 }
 export const LoopCtx = createContext<LoopInfo[]>([]);
