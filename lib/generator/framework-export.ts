@@ -228,7 +228,7 @@ export function buildAdditionalFramework(
       name: packageName(doc), private: true, version: "0.1.0", type: "module",
       scripts: { dev: "nuxt dev", build: "nuxt build", generate: "nuxt generate",
         preview: "nuxt preview", postinstall: "nuxt prepare" },
-      dependencies: { nuxt: "^4.3.0", vue: "^3.5.25" },
+      dependencies: { nuxt: "^4.6.4", vue: "^3.5.25" },
       devDependencies: ts ? { typescript: "^5.9.3" } : {},
     });
   } else {
