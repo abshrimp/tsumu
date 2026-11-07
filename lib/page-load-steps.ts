@@ -76,7 +76,9 @@ export function runPurePageSteps(
         case "if": {
           const extra = step.conditions ?? [];
           if (extra.length > 32) break;
-          const conditions = [step.cond, ...extra];
+          const configured = extra.filter((condition) =>
+            condition.subject !== "var" || !!condition.left?.trim());
+          const conditions = [step.cond, ...configured];
           if (conditions.some((condition) => condition.subject !== "var")) break;
           let any = false;
           let all = true;
@@ -85,12 +87,14 @@ export function runPurePageSteps(
               any = any || all;
               all = true;
             }
-            const matches = compare(
+            // A blank variable source is not a valid predicate, even when negated.
+            const hasSource = !!condition.left?.trim();
+            const matches = hasSource && compare(
               interpolate(condition.left ?? "", scope),
               interpolate(condition.value ?? "", scope),
               condition.op ?? "eq",
             );
-            all = all && (condition.not ? !matches : matches);
+            all = all && hasSource && (condition.not ? !matches : matches);
           });
           const chosen = (any || all) ? step.then : step.else;
           if (chosen?.length) execute(chosen, locals, depth + 1);
