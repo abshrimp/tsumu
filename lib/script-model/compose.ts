@@ -5,7 +5,6 @@ export interface ValueCondition {
   readonly field: string;
   readonly operation: CompareOperation;
   readonly operand: string;
-  readonly operandType: ValueOperandType;
   readonly not?: boolean;
   /** Join with the preceding condition: true is AND, false/undefined is OR. */
   readonly and?: boolean;
@@ -18,10 +17,10 @@ export type ValueTransform =
   | { readonly kind: "length" | "format" | "stringify" | "parse" | "not" }
   | { readonly kind: "fallback" | "fallback-nullish"; readonly text: string }
   | { readonly kind: "math"; readonly operation: NumericOperation; readonly operand: number | string; readonly operandType?: "number" | "variable" }
-  | { readonly kind: "compare"; readonly operation: CompareOperation; readonly operand: string; readonly operandType: ValueOperandType; readonly not?: boolean; readonly conditions?: readonly ValueCondition[] }
+  | { readonly kind: "compare"; readonly operation: CompareOperation; readonly operand: string; readonly not?: boolean; readonly conditions?: readonly ValueCondition[] }
   | { readonly kind: "split" | "join"; readonly separator: string }
   | { readonly kind: "replace"; readonly find: string; readonly replacement: string; readonly regex: boolean }
-  | { readonly kind: "find" | "filter"; readonly field: string; readonly operation: CompareOperation; readonly operand: string; readonly operandType: ValueOperandType; readonly not?: boolean; readonly conditions?: readonly ValueCondition[] }
+  | { readonly kind: "find" | "filter"; readonly field: string; readonly operation: CompareOperation; readonly operand: string; readonly not?: boolean; readonly conditions?: readonly ValueCondition[] }
   | { readonly kind: "map-field"; readonly field: string }
   | { readonly kind: "map-set"; readonly field: string; readonly operand: string; readonly operandType: ValueOperandType }
   | { readonly kind: "sort"; readonly field: string; readonly direction: SortDirection }
@@ -44,12 +43,12 @@ export function defaultTransform(kind: ValueTransformKind): ValueTransform {
     case "fallback":
     case "fallback-nullish": return { kind, text: "" };
     case "math": return { kind, operation: "add", operand: 1, operandType: "number" };
-    case "compare": return { kind, operation: "eq", operand: "", operandType: "text" };
+    case "compare": return { kind, operation: "eq", operand: "" };
     case "split": return { kind, separator: "," };
     case "join": return { kind, separator: "、" };
     case "replace": return { kind, find: "", replacement: "", regex: false };
     case "find":
-    case "filter": return { kind, field: "", operation: "eq", operand: "", operandType: "text" };
+    case "filter": return { kind, field: "", operation: "eq", operand: "" };
     case "map-field": return { kind, field: "" };
     case "map-set": return { kind, field: "", operand: "", operandType: "text" };
     case "append":
