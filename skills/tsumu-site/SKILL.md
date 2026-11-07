@@ -11,7 +11,7 @@ Use this skill when a user asks for a site they can open and visually edit in Ts
 
 1. Read [the SiteDoc data format](references/site-doc.md) for required and optional fields, ID references, styling, scripts, components, and assets.
 2. Read [a valid editable site example](references/minimal-site.json) and use its structure as the starting point for a new site.
-3. If the current Tsumu repository is accessible, cross-check `lib/types.ts`, `lib/presets.ts`, and `lib/site-import.ts` for changed or advanced functionality. The current code is authoritative.
+3. For exact types (especially scripts, form controls, and component references), read [the complete TypeScript model snapshot](references/types.ts). If the current Tsumu repository is accessible, cross-check `lib/types.ts`, `lib/presets.ts`, and `lib/site-import.ts`: the current code is authoritative and the bundled snapshot must be updated when types change.
 
 ## Select the output
 
