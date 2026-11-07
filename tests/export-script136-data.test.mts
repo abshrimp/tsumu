@@ -4,6 +4,7 @@ import { runInNewContext } from "node:vm";
 import { createInitialDoc } from "../lib/presets";
 import { pageDataPlan, PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
 import { nativeDataModule } from "../lib/generator/native-data";
+import { generateExportProject } from "../lib/export-formats";
 
 function fixture() {
   const doc = createInitialDoc();
@@ -88,4 +89,22 @@ test("the same #136 transform semantics run in native SSR without browser global
     text: async () => JSON.stringify(response),
   }));
   expected(vars);
+});
+
+test("exported HTML carries the #136 page plan and executable data runtime", () => {
+  const { doc, page } = fixture();
+  // This test exercises the actual exported files, not only the interpreter.
+  // Other starter pages include a dynamic [slug] path that HTML intentionally rejects.
+  doc.pages = { [page.id]: page };
+  doc.pageOrder = [page.id];
+  const project = generateExportProject(doc, "html");
+  const html = project.files["index.html"];
+  assert.ok(html, "The HTML export must have a downloadable entry point");
+  assert.match(html, /data-page-plan/);
+  const match = /<script type="application\\/json" data-page-plan>([^<]+)<\\/script>/.exec(html);
+  assert.ok(match, "The generated HTML must embed a serializable page plan");
+  const exported = JSON.parse(match[1]);
+  assert.equal(exported.steps.filter((s: { kind: string }) => s.kind === "transform").length, 4);
+  assert.ok(project.files["data-loader.js"].includes("runPurePageSteps"));
+  assert.ok(project.files["data-loader.js"].includes("evaluateValueRecipe"));
 });
