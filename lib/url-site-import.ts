@@ -188,9 +188,18 @@ export async function restoreAssets(
   for (const [id, previous] of Object.entries(original.assets)) {
     const data = files.get(id);
     if (!data) {
-      if (previous.dataUrl) continue;
       const works = previous.path ? await checkExisting(previous).catch(() => false) : false;
-      if (!works) warnings.push("アセットを取得できませんでした: " + previous.name);
+      if (works) continue;
+      if (previous.dataUrl) {
+        // A stale path takes precedence over dataUrl in the renderer. Drop it
+        // so the embedded copy is actually used when the old host is unavailable.
+        const current = { ...previous };
+        delete current.path;
+        doc.assets[id] = current;
+        rewriteReferences(doc, previous, current, names.get(id) ?? previous.name);
+        continue;
+      }
+      warnings.push("アセットを取得できませんでした: " + previous.name);
       continue;
     }
     try {
