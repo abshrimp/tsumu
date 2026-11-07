@@ -187,10 +187,16 @@ function rewriteReferences(doc: SiteDoc, previous: Asset, current: Asset, filena
   const source = freshSource(current);
   if (!source) return;
   const resolvedSource: string = source;
+  const storedRefs = Object.values(doc.nodes)
+    .flatMap((node) => [node.image, node.media])
+    .filter((ref) => ref?.assetId === previous.id)
+    .map((ref) => ref!.src);
   const olds = [
     previous.path ? "/api/assets/file?path=" + encodeURIComponent(previous.path) : null,
+    previous.path?.startsWith("http") ? previous.path : null,
     previous.dataUrl,
     "/assets/" + filename,
+    ...storedRefs,
   ].filter((value): value is string => !!value && value !== source);
   if (!olds.length) return;
   function rewrite(value: unknown, depth = 0): void {
