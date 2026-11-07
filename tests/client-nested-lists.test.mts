@@ -97,7 +97,7 @@ test('newly deferred global sources keep literals and item roots shadow fallback
   doc.nodes.detail.text!.content = '{name}:{値}{label}';
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
   await runtime.click('reload');
-  assert.deepEqual(details(runtime), ['Fallback:a"{literal}', 'Fallback:b', 'Own:own']);
+  assert.deepEqual(details(runtime), [':a"{literal}', ':b', 'Own:own']);
   assert.deepEqual(runtime.active('#tags-list').map(l => l.children.filter(c => c.hasAttribute('data-row')).length), [2, 1, 0, 0, 0]);
   runtime.dispose();
 });
