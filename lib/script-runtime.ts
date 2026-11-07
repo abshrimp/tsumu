@@ -187,15 +187,12 @@ export const SCRIPT_RUNTIME = `function (env) {
   /*#value|var|filter*/
   function cmp(v, op, w) {
     switch (op) {
-      case "neq": return v !== w;
       case "contains": return v.indexOf(w) >= 0;
-      case "not-contains": return v.indexOf(w) < 0;
       case "starts-with": return v.lastIndexOf(w, 0) === 0;
       case "ends-with": return v.length >= w.length && v.indexOf(w, v.length - w.length) >= 0;
       case "gt": return parseFloat(v) > parseFloat(w);
       case "lt": return parseFloat(v) < parseFloat(w);
       case "empty": return v === "";
-      case "not-empty": return v !== "";
       case "in":
         return w.split(",").some(function (x) {
           return x.trim() === v;
@@ -567,7 +564,8 @@ export const SCRIPT_RUNTIME = `function (env) {
       function test(c, self, sc) {
         /*#var*/
         if (c.subject === "var") {
-          return cmp(resolve(c.left, self, sc), c.op, resolve(c.value, self, sc));
+          var matched = cmp(resolve(c.left, self, sc), c.op, resolve(c.value, self, sc));
+          return c.not ? !matched : matched;
         }
         /*/var*/
         var els = find(self, c.target);
@@ -579,14 +577,14 @@ export const SCRIPT_RUNTIME = `function (env) {
           var box = els.length ? inputOf(els[0]) : null;
           if (box && (box.type === "checkbox" || isRadioItem(els[0], box))) {
             var on = !!box.checked;
-            if (c.op === "empty") return !on;
-            if (c.op === "not-empty") return on;
-            if (!c.op || c.op === "eq" || c.op === "neq") {
+            if (c.op === "empty") return c.not ? on : !on;
+            if (!c.op || c.op === "eq") {
               var same = truthy(w) === on;
-              return c.op === "neq" ? !same : same;
+              return c.not ? !same : same;
             }
           }
-          return cmp(valueOf(els), c.op, w);
+          var matches = cmp(valueOf(els), c.op, w);
+          return c.not ? !matches : matches;
         }
         /*/value*/
         /*#checked*/
@@ -629,7 +627,8 @@ export const SCRIPT_RUNTIME = `function (env) {
             grp = true;
           }
           var fv = fieldOf(item, c.field);
-          grp = grp && cmp(fv == null ? "" : String(fv), c.op, c.value);
+          var matches = cmp(fv == null ? "" : String(fv), c.op, c.value);
+          grp = grp && (c.not ? !matches : matches);
         });
         return ok || grp;
       }
@@ -1132,7 +1131,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               var entry = {
                 key: key, no: st.no, join: st.join,
                 conds: st.conds.map(function (c) {
-                  return { field: c.field, op: c.op, value: resolve(c.value, self, sc), and: c.and };
+                  return { field: c.field, op: c.op, value: resolve(c.value, self, sc), not: c.not, and: c.and };
                 }),
               };
               var at = -1;
