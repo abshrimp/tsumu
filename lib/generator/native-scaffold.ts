@@ -6,7 +6,11 @@ import { nativeDataModule } from "./native-data";
 import { withVueSsr } from "./vue-ssr";
 
 type Framework = "vue" | "nuxt" | "sveltekit";
-const json = JSON.stringify;
+// Data inserted into SFC <script> and template expressions must not contain
+// literal tag delimiters or the template interpolation sentinels.
+const json = (value: unknown) => JSON.stringify(value)
+  .replace(/</g, "\\u003c").replace(/>/g, "\\u003e")
+  .replace(/\{/g, "\\u007b").replace(/\}/g, "\\u007d");
 
 function routesFile(pages: ReturnType<typeof generateNativeFiles>["pages"]): string {
   const plain = pages.map(({ id, name, title, description, slug, query, language, plan }) =>
