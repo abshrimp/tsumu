@@ -92,8 +92,10 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
   // Arithmetic remains numeric; equality compares the displayed value as text.
   const conditionText = (value: unknown): string => {
     if (value == null) return "";
-    if (Array.isArray(value)) return value.map(conditionText).filter(Boolean).join(", ");
-    if (typeof value === "object") return "";
+    // Match the String(value ?? "") semantics used by both display-list filters and if.
+    // Avoid calling untrusted object toString methods from fetched JSON.
+    if (Array.isArray(value)) return value.map(conditionText).join(",");
+    if (typeof value === "object") return "[object Object]";
     return String(value);
   };
   const compare = (left: unknown, right: string, operator: string): boolean => {
@@ -138,8 +140,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         if (!field.ok) return { ok: false, code: "type-mismatch" };
         lhs = valueAt(value, field.value);
       }
-      // A missing item field never satisfies a condition, including its negation.
-      if (itemMode && lhs === undefined) { all = false; continue; }
+      // Missing and null fields compare as empty text, just like list-display and if.
       const result = compare(lhs, conditionText(rhs.value), clause.operation);
       all = all && (clause.not ? !result : result);
     }
