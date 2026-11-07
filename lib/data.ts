@@ -1,4 +1,5 @@
 import type {
+import type { ValueTransform } from "./script-model/compose";
   DocNode,
   ListContent,
   FilterCond,
@@ -1294,6 +1295,48 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
     if (st.kind === "fetch") {
       st.headers = st.headers?.map((h) => ({ ...h, value: mapVarTokens(h.value, fn) }));
       if (st.body) st.body = mapVarTokens(st.body, fn);
+    }
+    // #136 saved documents use a single transform step instead of legacy
+    // split/count/find actions. Rename both its source path and any operands;
+    // otherwise emitted data plans read old variable names after obfuscation.
+    else if ((st as { kind: string }).kind === "transform") {
+      const future = st as unknown as { source: string; transform: ValueTransform };
+      future.source = fn(future.source) ?? future.source;
+      const t = future.transform;
+      const next: Record<string, unknown> = { ...t };
+      if (t.kind === "compare" || t.kind === "find" || t.kind === "filter") {
+        next.operand = mapVarTokens(t.operand, fn);
+      } else if ("operandType" in t && typeof t.operand === "string") {
+        if (t.operandType === "variable") next.operand = fn(t.operand) ?? t.operand;
+        if (t.operandType === "text") next.operand = mapVarTokens(t.operand, fn);
+      }
+      if (t.kind === "field" || t.kind === "has") next.key = mapVarTokens(t.key, fn);
+      if (t.kind === "fallback" || t.kind === "fallback-nullish") next.text = mapVarTokens(t.text, fn);
+      if (t.kind === "split" || t.kind === "join") next.separator = mapVarTokens(t.separator, fn);
+      if (t.kind === "replace") {
+        next.find = mapVarTokens(t.find, fn);
+        next.replacement = mapVarTokens(t.replacement, fn);
+      }
+      if ("field" in t) next.field = mapVarTokens(t.field, fn);
+      if (t.kind === "object-entries") {
+        next.keyField = mapVarTokens(t.keyField, fn);
+        next.valueField = mapVarTokens(t.valueField, fn);
+      }
+      if ("conditions" in t && t.conditions) {
+        next.conditions = t.conditions.map((condition) => ({
+          ...condition,
+          field: mapVarTokens(condition.field, fn),
+          operand: mapVarTokens(condition.operand, fn),
+        }));
+      }
+      future.transform = next as ValueTransform;
+    }
+    else if ((st as { kind: string }).kind === "list-display") {
+      const future = st as unknown as { value: string; or?: { value: string }[] };
+      future.value = mapVarTokens(future.value ?? "", fn);
+      future.or?.forEach((condition) => {
+        condition.value = mapVarTokens(condition.value, fn);
+      });
     }
     else if (st.kind === "split") st.source = mapVarTokens(st.source, fn);
     else if (st.kind === "calc") st.expr = mapVarTokens(st.expr, fn);
