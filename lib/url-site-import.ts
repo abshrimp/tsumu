@@ -151,6 +151,7 @@ const freshSource = (asset: Asset): string | null =>
 function rewriteReferences(doc: SiteDoc, previous: Asset, current: Asset, filename: string): void {
   const source = freshSource(current);
   if (!source) return;
+  const resolvedSource: string = source;
   const olds = [
     previous.path ? "/api/assets/file?path=" + encodeURIComponent(previous.path) : null,
     previous.dataUrl,
@@ -163,7 +164,7 @@ function rewriteReferences(doc: SiteDoc, previous: Asset, current: Asset, filena
       if (typeof item === "string") {
         if (olds.some((old) => item.includes(old))) {
           (value as Record<string, unknown>)[key] =
-            olds.reduce((text, old) => text.replaceAll(old, source), item);
+            olds.reduce((text, old) => text.replaceAll(old, resolvedSource), item);
         }
       } else rewrite(item, depth + 1);
     }
