@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
-import { generateExportProject, type ExportFormat, type ExportOptions } from "../lib/export-formats";
+import { prepareExportProject, type ExportFormat, type ExportOptions } from "../lib/export-formats";
 
 const framework = process.argv[2] as ExportFormat | undefined;
 if (!framework || !["nextjs", "react", "vue", "nuxt", "sveltekit"].includes(framework)) {
@@ -46,7 +46,11 @@ const doc: SiteDoc = {
   components: { card: { id: "card", name: "Reusable card", rootId: "card" } },
   assets: {},
 };
-const project = generateExportProject(doc, options);
+// Exercise the complete user-facing export pipeline (including JS conversion).
+const project = await prepareExportProject(doc, options);
+if (framework === "react" && language === "javascript" && !project.files["src/App.jsx"]) {
+  throw new Error("JavaScript export must emit JSX rather than TypeScript");
+}
 if (Object.keys(project.remoteAssets).length) {
   throw new Error("Build fixture cannot depend on remote editor assets");
 }
