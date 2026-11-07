@@ -44,6 +44,7 @@ import { userMessage } from "../lib/errors";
 import SafeBoundary from "./SafeBoundary";
 import { getLang, tr } from "../lib/i18n";
 import { readLocalStorage } from "../lib/local-storage";
+import { useServerStatus } from "../lib/status";
 import { currentSiteId, siteApi, siteKey } from "../lib/site";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { storageKey } from "../lib/storage-keys";
@@ -141,6 +142,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const localSiteDeleted = useRef(false);
   const browserSaveState = localSaveState(localSave, doc);
   const cloudState = useEditor((s) => s.cloudState);
+  // DB未設定と一時的な503を区別する。判定できない間は安全側で離脱を保護する。
+  const browserOnly = useServerStatus()?.db === false;
   const saveLocalDoc = useCallback((snapshot: SiteDoc) => {
     const result = localSiteDeleted.current ? "deleted" : persistDoc(snapshot);
     if (result === "deleted") localSiteDeleted.current = true;
@@ -1030,7 +1033,12 @@ export default function Editor({ onReady }: EditorProps = {}) {
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       const state = useEditor.getState();
-      if (cloudDirty.current || state.cloudState === "saving" || warnForDeletedLocalSave(browserSaveState, state.cloudState)) {
+      // ブラウザのみが保存先なら、現在の版がブラウザへ保存済みかで判断する。
+      // DBがある（または設定状況を取得できない）場合は未同期の変更を保護する。
+      const warn = browserOnly
+        ? browserSaveState !== "saved"
+        : cloudDirty.current || state.cloudState === "saving" || warnForDeletedLocalSave(browserSaveState, state.cloudState);
+      if (warn) {
         e.preventDefault();
         // Chrome向け（preventDefaultだけでは無効なバージョンがある）
         e.returnValue = "";
@@ -1038,7 +1046,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [browserSaveState]);
+  }, [browserOnly, browserSaveState]);
 
   // キーボードショートカット
   useEffect(() => {
