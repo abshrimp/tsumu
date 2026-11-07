@@ -244,7 +244,7 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
     'let scope = $state(data.vars || {});',
     '$effect(() => { scope = data.vars || {}; });',
     'onMount(() => {',
-    '  void startPage(scope, (name, value) => { scope[name] = value; });',
+    '  void startPage(scope, (name, value) => { scope = { ...scope, [name]: value }; });',
     '});',
     '</script>',
     '<svelte:head>',
