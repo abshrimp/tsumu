@@ -22,6 +22,49 @@ async function checkScopes(page: Page) {
   await expect(page.locator('[id="product-name"]').filter({ hasText: "Second" })).toBeVisible();
 }
 
+test("settings action buttons wrap without clipping in a narrow sidebar", async ({ page }) => {
+  await page.setContent('<html><body><div id="app"></div></body></html>');
+  await page.addScriptTag({ content: await componentListBundle() });
+
+  const panel = page.locator("#app aside");
+  const groups = panel.locator(".settings-node-actions");
+  await expect(groups).toHaveCount(2);
+  await panel.evaluate((el) => {
+    el.style.width = "190px";
+    el.style.boxSizing = "border-box";
+  });
+
+  const labels = [
+    ["複製", "ロック", "削除"],
+    ["コンポーネント化", "リスト表示にする"],
+  ];
+  for (const [index, names] of labels.entries()) {
+    const group = groups.nth(index);
+    const groupBounds = await group.boundingBox();
+    expect(groupBounds).not.toBeNull();
+    const tops: number[] = [];
+
+    for (const name of names) {
+      const button = group.getByRole("button", { name, exact: true });
+      await expect(button).toBeVisible();
+      const bounds = await button.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(groupBounds!.x - 1);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(groupBounds!.x + groupBounds!.width + 1);
+      tops.push(bounds!.y);
+    }
+    expect(new Set(tops).size).toBeGreaterThan(1);
+  }
+
+  await panel.evaluate((el) => { el.style.width = "360px"; });
+  for (const group of await groups.all()) {
+    const tops = await group.locator("button").evaluateAll((buttons) =>
+      buttons.map((button) => Math.round(button.getBoundingClientRect().top))
+    );
+    expect(new Set(tops).size).toBe(1);
+  }
+});
+
 test("convert a nested-list card in SettingsPanel, undo/redo/reload, then run the same saved export", async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", error => errors.push(error.message));
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
