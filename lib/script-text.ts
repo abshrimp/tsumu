@@ -30,8 +30,12 @@ function opText(subject: string, op: ScriptOp | undefined, value: string): strin
       return tr("{subject}が {v} で終わる", { subject, v });
     case "gt":
       return tr("{subject}が {v} より大きい", { subject, v });
+    case "gte":
+      return tr("{subject}が {v} 以上", { subject, v });
     case "lt":
       return tr("{subject}が {v} より小さい", { subject, v });
+    case "lte":
+      return tr("{subject}が {v} 以下", { subject, v });
     case "empty":
       return tr("{subject}が空", { subject });
     default:
