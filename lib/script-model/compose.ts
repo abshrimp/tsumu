@@ -3,21 +3,19 @@ export type NumericOperation = "add" | "subtract" | "multiply" | "divide" | "rem
 export type CompareOperation = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "starts-with" | "ends-with";
 export type SortDirection = "asc" | "desc";
 export type ValueOperandType = "text" | "number" | "boolean" | "null" | "variable";
-/** Literal text or a variable path evaluated when this operation runs. */
-export type TextSource = "text" | "variable";
 export type ValueTransform =
-  | { readonly kind: "field" | "has"; readonly key: string; readonly keyType?: TextSource }
+  | { readonly kind: "field" | "has"; readonly key: string }
   | { readonly kind: "index"; readonly index: number }
   | { readonly kind: "length" | "format" | "stringify" | "parse" | "not" }
-  | { readonly kind: "fallback" | "fallback-nullish"; readonly text: string; readonly textType?: TextSource }
+  | { readonly kind: "fallback" | "fallback-nullish"; readonly text: string }
   | { readonly kind: "math"; readonly operation: NumericOperation; readonly operand: number | string; readonly operandType?: "number" | "variable" }
   | { readonly kind: "compare"; readonly operation: CompareOperation; readonly operand: string; readonly operandType: ValueOperandType }
-  | { readonly kind: "split" | "join"; readonly separator: string; readonly separatorType?: TextSource }
-  | { readonly kind: "replace"; readonly find: string; readonly replacement: string; readonly regex: boolean; readonly findType?: TextSource; readonly replacementType?: TextSource }
-  | { readonly kind: "find" | "filter"; readonly field: string; readonly fieldType?: TextSource; readonly operation: CompareOperation; readonly operand: string; readonly operandType: ValueOperandType }
-  | { readonly kind: "map-field"; readonly field: string; readonly fieldType?: TextSource }
-  | { readonly kind: "map-set"; readonly field: string; readonly fieldType?: TextSource; readonly operand: string; readonly operandType: ValueOperandType }
-  | { readonly kind: "sort"; readonly field: string; readonly fieldType?: TextSource; readonly direction: SortDirection }
+  | { readonly kind: "split" | "join"; readonly separator: string }
+  | { readonly kind: "replace"; readonly find: string; readonly replacement: string; readonly regex: boolean }
+  | { readonly kind: "find" | "filter"; readonly field: string; readonly operation: CompareOperation; readonly operand: string; readonly operandType: ValueOperandType }
+  | { readonly kind: "map-field"; readonly field: string }
+  | { readonly kind: "map-set"; readonly field: string; readonly operand: string; readonly operandType: ValueOperandType }
+  | { readonly kind: "sort"; readonly field: string; readonly direction: SortDirection }
   | { readonly kind: "append" | "remove"; readonly operand: string; readonly operandType: ValueOperandType }
   | { readonly kind: "remove-at"; readonly index: number };
 export type ValueTransformKind = ValueTransform["kind"];
