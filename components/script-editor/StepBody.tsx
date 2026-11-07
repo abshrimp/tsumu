@@ -17,7 +17,7 @@ import { tr } from "../../lib/i18n";
 import { ArraySelect, FilterArrayBody, SortArrayBody } from "./arrays";
 import { Ctx } from "./context";
 import { FetchBody, PathMenu, VarNameIn, isNested, nameFromPath } from "./fetch";
-import { FieldValueIn, NewTabCheck, Phrase, TextIn, ValueIn } from "./inputs";
+import { FieldValueIn, NewTabCheck, NumericVariableIn, Phrase, TextIn, ValueIn } from "./inputs";
 import { ValueTransformSettings, VALUE_TRANSFORM_GROUPS, VALUE_TRANSFORM_LABELS } from "./ValueTransformSettings";
 import { TargetSelect } from "./targets";
 
@@ -297,14 +297,8 @@ export function StepBody({ step }: { step: ScriptStep }) {
           text="{seconds}秒待つ"
           parts={{
             seconds: (
-              <TextIn
-                type="number"
-                value={String(step.seconds)}
-                width={56}
-                onCommit={(v) =>
-                  set((s) => ({ ...s, seconds: Math.max(0, Number(v) || 0) }) as ScriptStep)
-                }
-              />
+              <NumericVariableIn value={step.seconds} width={56}
+                min={0} onCommit={(seconds) => set((s) => ({ ...s, seconds }) as ScriptStep)} />
             ),
           }}
         />
