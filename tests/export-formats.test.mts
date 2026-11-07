@@ -148,11 +148,13 @@ test("HTML supports query-based page variants without a server rewrite", () => {
     ...makeBox(), id: "other-text", text: { content: "Second tab", heading: 1 },
   };
   doc.pageOrder.push("other");
+  doc.nodes.hero.link = { kind: "page", pageId: "other" };
   assert.deepEqual(exportLimitations(doc, "html"), []);
   const html = generateExportProject(doc, "html");
   assert.ok(html.files["query-router.js"]);
   assert.match(html.files["index.html"], /data-page-variants/);
   assert.match(html.files["index.html"], /query-router\.js/);
+  assert.match(html.files["index.html"], /index\.html\?tab=2/);
   assert.match(html.files["index.html"], /Second tab/);
   assert.equal(Object.keys(html.files).filter((name) => name.endsWith("index.html")).length, 1);
 });
