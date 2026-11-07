@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { makeBox } from "../lib/presets";
+import { generateProject } from "../lib/generator";
 import { compileScripts } from "../lib/script";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { scriptDataPickerBundle } from "../tests/helpers/script-data-picker";
@@ -100,6 +101,45 @@ for (const exported of [false, true]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("scripted named state changes a distant element and reset restores its default style", async ({ page }) => {
+  const button = { ...makeBox(), id: "trigger", attrId: "trigger", scripts: [{
+    id: "script-trigger", trigger: "click" as const, pos: { x: 0, y: 0 },
+    steps: [{ id: "activate", kind: "set-state" as const, target: "remote", state: "selected" }],
+  }] };
+  const reset = { ...makeBox(), id: "reset", attrId: "reset", scripts: [{
+    id: "script-reset", trigger: "click" as const, pos: { x: 0, y: 0 },
+    steps: [{ id: "restore", kind: "set-state" as const, target: "remote", state: "default" }],
+  }] };
+  const remote = { ...makeBox(), id: "remote", attrId: "remote",
+    styles: { base: { default: { backgroundColor: "#eeeeee" },
+      "custom:selected": { backgroundColor: "#ff0000" } } } };
+  const doc: SiteDoc = {
+    siteName: "Named states", assets: {}, nodes: { trigger: button, reset, remote },
+    pageOrder: ["p"],
+    pages: { p: { id: "p", name: "Home", slug: "", title: "Home",
+      description: "", children: ["trigger", "reset", "remote"] } },
+  };
+  const project = generateProject(doc);
+  const css = project.files["styles/site.css"];
+  const className = /\\.([a-zA-Z0-9_-]+)\\[data-tsumu-state="selected"\\]/.exec(css)?.[1];
+  expect(className).toBeTruthy();
+  await page.setContent('<html><body><button id="trigger">Activate</button><button id="reset">Reset</button><div id="remote">Target</div></body></html>');
+  await page.addStyleTag({ content: css });
+  await page.locator("#remote").evaluate((el, cls) => el.classList.add(cls), className!);
+  await page.locator("#trigger").evaluate((el, steps) =>
+    el.setAttribute("data-scripts", JSON.stringify(steps)), compileScripts(button, () => "/"));
+  await page.locator("#reset").evaluate((el, steps) =>
+    el.setAttribute("data-scripts", JSON.stringify(steps)), compileScripts(reset, () => "/"));
+  await page.addScriptTag({ content: scriptsFile(doc) });
+  await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(238, 238, 238)");
+  await page.locator("#trigger").click();
+  await expect(page.locator("#remote")).toHaveAttribute("data-tsumu-state", "selected");
+  await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(255, 0, 0)");
+  await page.locator("#reset").click();
+  await expect(page.locator("#remote")).not.toHaveAttribute("data-tsumu-state");
+  await expect(page.locator("#remote")).toHaveCSS("background-color", "rgb(238, 238, 238)");
+});
 
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
