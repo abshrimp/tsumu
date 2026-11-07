@@ -17,7 +17,7 @@ import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { EMPTY_GIF, pwaIconType } from "./templates";
 import { scriptsFile } from "../script-runtime";
-import { PAGE_DATA_RUNTIME, pageDataPlan } from "./browser-data";
+import { PAGE_DATA_RUNTIME, pageDataPlan, pageDataServerIds } from "./browser-data";
 import { QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeNavigationUrl } from "../url-policy";
 
@@ -293,7 +293,7 @@ function importedHtml(next: GeneratedProject, page: Page): string {
  */
 function pageFragment(ctx: Context, page: Page): string {
   const dataPlan = JSON.stringify(pageDataPlan(ctx.doc, page)).replace(/</g, "\\u003c");
-  const pageScripts = compiledAttr(ctx, { scripts: page.pageScripts }, pagePlan(ctx.doc, page.id).serverIds);
+  const pageScripts = compiledAttr(ctx, { scripts: page.pageScripts }, pageDataServerIds(ctx.doc, page));
   const body = page.children.map((id) => render(ctx, id, true)).join("\n");
   return [
     "<span hidden" + attr("data-page-body", page.id) + pageScripts + "></span>",
