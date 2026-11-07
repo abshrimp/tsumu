@@ -343,6 +343,25 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " ignores unfinished AND/OR if conditions", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "", [
+      { id: "status", kind: "set-var", into: "status", value: "waiting" },
+      { id: "if-unfinished", kind: "if",
+        cond: { subject: "var", target: "", left: "{status}", op: "eq", value: "ready" },
+        conditions: [
+          { subject: "var", target: "", left: "", op: "eq", value: "", and: true },
+          { subject: "var", target: "", left: "", op: "eq", value: "", and: false },
+        ],
+        then: [{ id: "accept", kind: "set-var", into: "items", value: "accepted" }],
+        else: [{ id: "reject", kind: "set-var", into: "items", value: "rejected" }],
+      },
+    ]);
+    await expect(answer).toHaveValue("rejected");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
