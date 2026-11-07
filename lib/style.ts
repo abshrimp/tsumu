@@ -766,11 +766,18 @@ export function parseFilter(value: string | undefined): FilterParts {
     return m ? parseFloat(m[1]) : undefined;
   };
   out.blur = num(/blur\((-?\d*\.?\d+)px\)/) ?? out.blur;
-  out.brightness = num(/brightness\((-?\d*\.?\d+)%\)/) ?? out.brightness;
-  out.contrast = num(/contrast\((-?\d*\.?\d+)%\)/) ?? out.contrast;
-  out.saturate = num(/saturate\((-?\d*\.?\d+)%\)/) ?? out.saturate;
-  out.grayscale = num(/grayscale\((-?\d*\.?\d+)%\)/) ?? out.grayscale;
-  out.sepia = num(/sepia\((-?\d*\.?\d+)%\)/) ?? out.sepia;
+  // These CSS filters accept either a number (1 = 100%) or a percentage.
+  const strength = (name: string): number | undefined => {
+    const m = new RegExp(`${name}\\(\\s*([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[-+]?\\d+)?)(%)?\\s*\\)`, "i").exec(value);
+    if (!m) return undefined;
+    const n = Number(m[1]) * (m[2] ? 1 : 100);
+    return Number.isFinite(n) ? n : undefined;
+  };
+  out.brightness = strength("brightness") ?? out.brightness;
+  out.contrast = strength("contrast") ?? out.contrast;
+  out.saturate = strength("saturate") ?? out.saturate;
+  out.grayscale = strength("grayscale") ?? out.grayscale;
+  out.sepia = strength("sepia") ?? out.sepia;
   out.hueRotate = num(/hue-rotate\((-?\d*\.?\d+)deg\)/) ?? out.hueRotate;
   return out;
 }
