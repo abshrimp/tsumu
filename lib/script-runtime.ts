@@ -1713,7 +1713,10 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
     walkSteps(s.steps, (st) => {
       if (isDataStep(st)) return;
       out.add(STEP_FEATURE[st.kind]);
-      if (st.kind === "if") out.add(st.cond.subject);
+      if (st.kind === "if") {
+        for (const condition of [st.cond, ...(st.conditions ?? [])])
+          out.add(condition.subject);
+      }
     });
   }
   // 画面上で値が決まる配列を並べるリスト
