@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { filterItems, matchOp, pageArrays, pagePlan, previewDataVars, renameVarInPage } from "../lib/data";
+import { digPath, filterItems, matchOp, pageArrays, pagePlan, previewDataVars, renameVarInPage } from "../lib/data";
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
@@ -14,6 +14,22 @@ import { scriptDataPickerDoc } from "./helpers/script-data-picker";
 import { findPaletteItems, PALETTE } from "../components/script-editor/palette";
 import { connectNewTransform } from "../components/script-editor/step-tree";
 import type { ScriptStep } from "../lib/types";
+
+test("JSON lookup resolves own keys without traversing inherited prototypes", () => {
+  const json = JSON.parse('{"2026-11-23":"勤労感謝の日","__proto__":{"polluted":true},"constructor":{"name":"own"}}');
+  assert.equal(lookupVar(json, "2026-11-23"), "勤労感謝の日");
+  assert.equal(digPath(json, "2026-11-23"), "勤労感謝の日");
+  assert.equal(lookupVar(json, "__proto__.polluted"), true);
+  assert.equal(digPath(json, "__proto__.polluted"), true);
+  assert.equal(lookupVar(json, "constructor.name"), "own");
+  assert.equal(lookupVar({}, "constructor"), undefined);
+  assert.equal(lookupVar({}, "__proto__.polluted"), undefined);
+  assert.equal(digPath({}, "toString"), undefined);
+  assert.equal(digPath({}, "__proto__.polluted"), undefined);
+  assert.equal(lookupVar({ list: [11, 12] }, "list.-1"), 12);
+  assert.equal(lookupVar({ list: [] }, "list.-1"), undefined);
+  assert.equal(({} as Record<string, unknown>).polluted, undefined);
+});
 
 test("every supported palette action is visible without hidden compatibility groups", () => {
   assert.equal(PALETTE.length, 23);
