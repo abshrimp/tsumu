@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "代わりに使う値 / {変数}": "Replacement value / {variable}",
   "である": "Is",
   "でない": "Is not",
   "条件の判定": "Condition polarity",
@@ -105,7 +106,7 @@ const en: Dict = {
   "値を組み立てる": "Build a value",
   "リストから1件取り出す": "Get a list item",
   "項目があるか調べる": "Check whether a field exists",
-  "値がないかnullなら文字列を使う": "Use fallback text if missing or null",
+  "値がないかnullなら別の値を使う": "Use another value if missing or null",
   "項目付きデータから指定した項目の値を取り出します。": "Get the value of a named field from a data object.",
   "リストの先頭を0として、指定した位置の値を取り出します。": "Read an item by position, starting with 0 for the first item.",
   "指定した項目が存在するかをtrueまたはfalseで返します。": "Return true or false depending on whether the field exists.",
@@ -150,7 +151,7 @@ const en: Dict = {
   "文字列に変換する": "Convert to text",
   "JSON文字列に変換する": "Convert to JSON text",
   "JSON文字列を読み取る": "Parse JSON text",
-  "値がないとき文字列を使う": "Use fallback text if missing",
+  "値がないとき別の値を使う": "Use another value if missing",
   "取り出す項目名": "Field name to read",
   "取り出す位置": "Item index to read",
   "値がないときの文字列": "Fallback text",
