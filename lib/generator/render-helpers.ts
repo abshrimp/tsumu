@@ -277,8 +277,12 @@ function filterExpr(v: string, op: ScriptOp, w: string): string {
       return `${v}.endsWith(${w})`;
     case "gt":
       return `parseFloat(${v}) > parseFloat(${w})`;
+    case "gte":
+      return `parseFloat(${v}) >= parseFloat(${w})`;
     case "lt":
       return `parseFloat(${v}) < parseFloat(${w})`;
+    case "lte":
+      return `parseFloat(${v}) <= parseFloat(${w})`;
     case "empty":
       return `${v} === ""`;
     case "in":
