@@ -4,6 +4,16 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "単一HTMLは1つの固定パスだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。": "Single HTML can export only one fixed path. If the project has multiple pages, choose Current page or export an HTML ZIP.",
+  "画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数の異なるページURLは1つにまとめられません。": "Download one HTML file with embedded images, fonts, CSS and JavaScript. Distinct page URLs cannot be combined into one file.",
+  "{framework}プロジェクトとして保存します。展開後に {cmd} で起動できます。": "Export as a {framework} project. After extracting the files, run {cmd} to start.",
+  "外部APIや埋め込み動画はインターネット接続が必要です。外部画像などを埋め込めない場合は、アセットとして取り込んでから再試行してください。": "External APIs and embedded videos still require an internet connection. If external images cannot be embedded, import them into the asset library and retry.",
+  "HTMLを生成できませんでした": "Could not generate the HTML file",
+  "HTMLをダウンロード": "Download HTML",
+  "1つのHTMLファイルにCSS・JavaScript・画像などを埋め込んでGitHubへPushします。静的ホスティングではリポジトリのルートを配信してください。": "Push one HTML file with embedded CSS, JavaScript and images to GitHub. Configure static hosting to serve the repository root.",
+  "{framework}のソースをGitHubへPushします。ホスティング側でビルドし、distフォルダを配信してください。": "Push {framework} source to GitHub. Configure hosting to build the project and serve the dist directory.",
+  "SvelteKitプロジェクトをGitHubへPushします。ビルド後の公開ディレクトリはbuildです。": "Push the SvelteKit project to GitHub. Its build output is in the build directory.",
+  "NuxtプロジェクトをGitHubへPushします。ホスティング側でNuxt用のビルド設定が必要です。": "Push the Nuxt project to GitHub. Nuxt-specific build settings are required for hosting.",
   "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。": "The request contains authorization credentials or secret API keys. Browser-side code would expose them to visitors. Use a public API or securely proxy the request through a server.",
   "同じパスに取り込んだHTMLページとクエリ別ページが混在しています。通常ページに変更するか、別の固定URLに分けてください。": "An imported HTML document shares its path with query-variant pages. Use standard pages or distinct fixed URLs.",
   "動的パス（[slug]など）は、静的ホスティングで任意のURLへ直接アクセスできる設定が必要です。固定パスに変更するか、Next.js形式を選択してください。": "Dynamic paths such as [slug] require hosting configuration for direct URL access. Use a fixed path or select Next.js.",
