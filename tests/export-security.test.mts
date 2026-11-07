@@ -57,14 +57,13 @@ test("new #136 composite conditions and template operands use the current recipe
     { status: "draft", price: 9 }];
   const result = evaluateValueRecipe(ready, [{
     kind: "filter", field: "status", operation: "eq", operand: "ready",
-    operandType: "text",
     conditions: [{ field: "price", operation: "gte", operand: "5",
-      operandType: "number", and: true }],
+      and: true }],
   }], {});
   assert.equal(result.kind, "value");
   if (result.kind === "value") assert.deepEqual(result.value, [ready[0]]);
   const interpolated = evaluateValueRecipe("alphabet", [{
-    kind: "compare", operation: "contains", operand: "{needle}", operandType: "text",
+    kind: "compare", operation: "contains", operand: "{needle}",
   }], { needle: "pha" });
   assert.deepEqual(interpolated, { kind: "value", value: true });
 });
