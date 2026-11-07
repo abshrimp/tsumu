@@ -180,6 +180,11 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             {tr("外部APIや埋め込み動画はインターネット接続が必要です。外部画像などを埋め込めない場合は、アセットとして取り込んでから再試行してください。")}
           </p>
         )}
+        {format !== "single-html" && (
+          <p className="hint export-note">
+            {tr("ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。")}
+          </p>
+        )}
         <CheckList checks={checks} onClose={onClose} />
 
         <div className="modal-actions">
