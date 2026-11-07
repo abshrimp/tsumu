@@ -73,13 +73,25 @@ export function runPurePageSteps(
           break;
         }
         case "if": {
-          if (step.cond.subject !== "var") break;
-          const matches = compare(
-            interpolate(step.cond.left ?? "", scope),
-            interpolate(step.cond.value ?? "", scope),
-            step.cond.op ?? "eq",
-          );
-          const chosen = (step.cond.not ? !matches : matches) ? step.then : step.else;
+          const extra = step.conditions ?? [];
+          if (extra.length > 32) break;
+          const conditions = [step.cond, ...extra];
+          if (conditions.some((condition) => condition.subject !== "var")) break;
+          let any = false;
+          let all = true;
+          conditions.forEach((condition, index) => {
+            if (index > 0 && !("and" in condition && condition.and)) {
+              any = any || all;
+              all = true;
+            }
+            const matches = compare(
+              interpolate(condition.left ?? "", scope),
+              interpolate(condition.value ?? "", scope),
+              condition.op ?? "eq",
+            );
+            all = all && (condition.not ? !matches : matches);
+          });
+          const chosen = (any || all) ? step.then : step.else;
           if (chosen?.length) execute(chosen, locals, depth + 1);
           break;
         }
