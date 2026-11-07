@@ -118,5 +118,30 @@ test("canvas list-display block switches filter, sort and clear without changing
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "display").mode;
-  })).toBe("sort-array");
+  })).toBe("sort");
+});
+
+
+test("canvas comparison offers existing variables and keeps the chosen reference", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "compare-native", kind: "transform", source: "data.price", into: "selected",
+        transform: { kind: "compare", operation: "gt", operand: "", operandType: "text" },
+      });
+    });
+  });
+  const box = page.locator('[data-sel-key="step:compare-native"]');
+  const type = box.getByRole("combobox", { name: "比較する値の種類" });
+  await expect(type).toHaveCSS("height", "30px");
+  await type.selectOption("variable");
+  await box.getByRole("button", { name: "比較する変数" }).click();
+  const menu = page.locator(".se-pm").last();
+  await expect(menu).toBeVisible();
+  await expect(menu).toContainText("data");
+  await menu.locator(".se-pm-row").filter({ hasText: "data" }).first().locator(".dd-item").click();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "compare-native").transform;
+  })).toMatchObject({ kind: "compare", operandType: "variable", operand: "data" });
 });

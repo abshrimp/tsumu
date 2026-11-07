@@ -225,6 +225,25 @@ export function scriptsAttr(
     }
   );
   if (!compiled.length) return "";
+  // Server-side list lengths can be sent as scalars. Never serialize a whole
+  // fetched array just to compute its length after a click.
+  const useScalarLengthFallback = (steps: Array<Record<string, unknown>>) => {
+    for (const step of steps) {
+      if (step.kind === "transform" && (step.transform as { kind?: string } | undefined)?.kind === "length" &&
+          typeof step.raw === "string") {
+        const match = /^__script_var_([0-9]+)__$/.exec(step.raw);
+        if (match) {
+          const sourceExpr = exprs[Number(match[1])];
+          exprs.push(`((v) => Array.isArray(v) ? v.length : undefined)(${sourceExpr})`);
+          step.serverValue = `__script_var_${exprs.length - 1}__`;
+          delete step.raw;
+        }
+      }
+      if (Array.isArray(step.then)) useScalarLengthFallback(step.then as Array<Record<string, unknown>>);
+      if (Array.isArray(step.else)) useScalarLengthFallback(step.else as Array<Record<string, unknown>>);
+    }
+  };
+  for (const script of compiled) useScalarLengthFallback(script.steps as Array<Record<string, unknown>>);
   const json = JSON.stringify(compiled);
   if (!exprs.length) return ` data-scripts={${JSON.stringify(json)}}`;
   ctx.usesInterpolate = true;

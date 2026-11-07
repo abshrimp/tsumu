@@ -199,7 +199,7 @@ test("buttons, switches and radio groups are exported as working HTML", () => {
   assert.match(searchForm, /input\.defaultChecked/);
 });
 
-test("pageReadsQuery detects POST body variables and keeps ISR for array-field items", () => {
+test("pageReadsQuery detects POST body variables and preserves explicit list transforms", () => {
   const itemText: DocNode = { ...makeBox(), id: "it", text: { content: "{badge}", heading: 0 } };
   const list: DocNode = { ...makeBox(), id: "l", type: "list", list: { from: "items" }, children: ["it"] };
   const isrDoc = docWith([list], [
@@ -215,7 +215,7 @@ test("pageReadsQuery detects POST body variables and keeps ISR for array-field i
   ]);
   isrDoc.nodes.it = itemText;
   const isrPage = generateProject(isrDoc).files["app/page.tsx"];
-  assert.match(isrPage, /export const revalidate = 60;/);
+  assert.match(isrPage, /__evalValueRecipe/);
 
   const postDoc = docWith([ { ...makeBox(), id: "t", text: { content: "{res.ok}", heading: 0 } } ], [
     {
@@ -271,7 +271,7 @@ test("slug page generateMetadata preserves description, noindex and openGraph", 
   assert.match(page, /twitter: \{ card: "summary_large_image" \}/);
 });
 
-test("obfuscateVarNames preserves array-field item keys and cloning renames grouped radio item IDs", () => {
+test("obfuscateVarNames renames variable tokens and cloning renames grouped radio item IDs", () => {
   const itemText: DocNode = { ...makeBox(), id: "it", text: { content: "{label}", heading: 0 } };
   const list: DocNode = { ...makeBox(), id: "l", type: "list", list: { from: "items" }, children: ["it"] };
   const doc = docWith([list], [
@@ -288,7 +288,7 @@ test("obfuscateVarNames preserves array-field item keys and cloning renames grou
   ]);
   doc.nodes.it = itemText;
   const obf = obfuscateVarNames(doc);
-  assert.equal(obf.nodes.it.text?.content, "{label}");
+  assert.match(obf.nodes.it.text?.content ?? "", /^\{_\d+\}$/);
 
   // ラジオボタンはデフォルトで group="radio", attrId="radio-1" を持ち、追加・複製時に個別ID（radio-2, radio-3）へ自動採番される
   const r1 = makeField("radio");

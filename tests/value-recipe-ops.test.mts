@@ -96,3 +96,16 @@ test("runtime source serialization works with the generated helper shim", () => 
   assert.deepEqual(pure([3, 1, 2], [{ kind: "sort", field: "", direction: "asc" }]), val([1, 2, 3]));
   assert.deepEqual(pure(5, [{ kind: "math", operation: "divide", operand: 2 }]), val(2.5));
 });
+
+test("comparisons and list operations resolve typed variables, including nested paths", () => {
+  assert.deepEqual(evaluateValueRecipe(12, [
+    { kind: "compare", operation: "gt", operandType: "variable", operand: "limit" },
+  ], { limit: 10 }), { kind: "value", value: true });
+  assert.deepEqual(evaluateValueRecipe([{ score: 2 }, { score: 5 }], [
+    { kind: "filter", field: "score", operation: "gte", operandType: "variable", operand: "settings.minimum" },
+    { kind: "map-field", field: "score" },
+  ], { settings: { minimum: 5 } }), { kind: "value", value: [5] });
+  assert.deepEqual(evaluateValueRecipe("abc", [
+    { kind: "compare", operation: "eq", operandType: "variable", operand: "missing" },
+  ], {}), { kind: "error", code: "invalid-literal" });
+});

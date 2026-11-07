@@ -1144,8 +1144,15 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*#clist*/
             if (inputValue === undefined && st.rawRef) inputValue = scriptReference(st.rawRef, self, sc);
             /*/clist*/
+            if (inputValue === undefined && "serverValue" in st) {
+              setVar(st.into, st.serverValue);
+              break;
+            }
             if (inputValue === undefined && "raw" in st) inputValue = st.raw;
-            if (inputValue === undefined) inputValue = lookup(st.source, self, sc);
+            // A missing source stays undefined for explicit fallback operations;
+            // lookup() returns an empty string for unknown names by design.
+            if (inputValue === undefined && st.transform.kind !== "fallback" &&
+                st.transform.kind !== "fallback-nullish") inputValue = lookup(st.source, self, sc);
             var transformed = evalRecipe(inputValue, [st.transform], merged(vars, sc));
             if (transformed.kind === "value") setVar(st.into, transformed.value);
             else if (transformed.kind === "error") console.warn("Invalid value transform:", transformed.code);
