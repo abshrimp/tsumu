@@ -40,17 +40,38 @@ try {
   const page = await browser.newPage();
   const errors: string[] = [];
   page.on("pageerror", (error) => { errors.push(error.message); });
+  page.on("console", (message) => {
+    if (message.type() === "error" || message.type() === "warning")
+      errors.push("console." + message.type() + ": " + message.text());
+  });
+  page.on("requestfailed", (request) => {
+    errors.push("failed " + request.url() + ": " + request.failure()?.errorText);
+  });
   await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page.getByText("Smoke test", { exact: true }).first().waitFor({ timeout: 15000 });
+  async function check(name: string, action: () => Promise<unknown>) {
+    try { await action(); }
+    catch (error) {
+      const facts = await page.evaluate(() => ({
+        title: document.title,
+        body: document.body.innerText.slice(0, 3000),
+        html: document.body.innerHTML.slice(0, 6000),
+        scripts: Array.from(document.scripts).map((s) => ({ src: s.src, type: s.type })),
+      }));
+      console.error("Generated browser failure:", framework, name,
+        JSON.stringify({ facts, errors, exception: String(error) }, null, 2));
+      throw error;
+    }
+  }
+  await check("heading", () => page.getByText("Smoke test", { exact: true }).first().waitFor({ timeout: 7000 }));
   await page.getByText("Literal {1 + 2} and {{ 3 + 4 }}", { exact: true })
     .first().waitFor({ timeout: 15000 });
-  await page.getByText("Alpha", { exact: true }).first().waitFor({ timeout: 15000 });
-  await page.getByText("Beta", { exact: true }).first().waitFor({ timeout: 15000 });
-  await page.getByRole("button", { name: "Tap" }).waitFor({ timeout: 15000 });
+  await check("Alpha row", () => page.getByText("Alpha", { exact: true }).first().waitFor({ timeout: 7000 }));
+  await check("Beta row", () => page.getByText("Beta", { exact: true }).first().waitFor({ timeout: 7000 }));
+  await check("button", () => page.getByRole("button", { name: "Tap" }).waitFor({ timeout: 7000 }));
   // Event runtimes install after hydration and script loading, not just DOM readiness.
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: "Tap" }).click();
-  await page.getByText("Status: done", { exact: true }).first().waitFor({ timeout: 10000 });
+  await check("status after click", () => page.getByText("Status: done", { exact: true }).first().waitFor({ timeout: 7000 }));
   if (errors.length) throw new Error("Generated browser JavaScript errors:\n" + errors.join("\n"));
   console.log(framework + " generated browser: hydrated and updated a variable after click");
 } finally {
