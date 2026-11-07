@@ -4574,6 +4574,24 @@ input.se-in {
   color: var(--text-2);
 }
 
+.se-if-conditions {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.se-if-condition-line {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.se-if-conditions > .se-composer-condition-actions { margin-top: 1px; }
+
 .se-c-body {
   display: flex;
   flex-direction: column;
