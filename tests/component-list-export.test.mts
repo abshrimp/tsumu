@@ -121,7 +121,7 @@ test("shared list components resolve each page and each placement's own data and
   ]);
   assert.deepEqual(details(await publishedComponentList(doc, "app/second/page.tsx", [{ label: "a" }, { label: "z" }])), ["Detail :z", "Detail :a"]);
   doc.nodes.tags.list!.limit = 1;
-  doc.pages.second.pageScripts![0].steps.push({ id: "second-filter", kind: "list-display", mode: "filter", array: "tags", field: "label", op: "neq", value: "zz", dir: "asc" });
+  doc.pages.second.pageScripts![0].steps.push({ id: "second-filter", kind: "list-display", mode: "filter", array: "tags", field: "label", op: "eq", not: true, value: "zz", dir: "asc" });
   assert.deepEqual(details(await publishedComponentList(doc, "app/second/page.tsx", [{ label: "a" }, { label: "z" }, { label: "zz" }])), ["Detail :z"]);
 });
 
