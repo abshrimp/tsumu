@@ -339,34 +339,44 @@ export function NewTabCheck({
 const COND_SUBJECTS: { value: string; label: string }[] = [
   { value: "value", label: tr("の値が") },
   { value: "checked", label: tr("がチェックされている") },
-  { value: "!checked", label: tr("がチェックされていない") },
   { value: "visible", label: tr("が表示されている") },
-  { value: "!visible", label: tr("が隠れている") },
   { value: "hovered", label: tr("にホバーしている") },
-  { value: "!hovered", label: tr("にホバーしていない") },
 ];
 
 const OPS: { value: ScriptOp; label: string }[] = [
   { value: "eq", label: tr("と同じ") },
-  { value: "neq", label: tr("と違う") },
   { value: "contains", label: tr("を含む") },
-  { value: "not-contains", label: tr("を含まない") },
   { value: "starts-with", label: tr("で始まる") },
   { value: "ends-with", label: tr("で終わる") },
   { value: "gt", label: tr("より大きい") },
   { value: "lt", label: tr("より小さい") },
   { value: "in", label: tr("のいずれかと同じ") },
   { value: "empty", label: tr("空") },
-  { value: "not-empty", label: tr("空でない") },
 ];
 
-/** 「［値］［と同じ］」の比較部分（空・空でないは値を出さない） */
+/** "である / でない" is shared by if conditions and every list filter clause. */
+export function NegationSelect({ not, onChange }: {
+  not?: boolean;
+  onChange: (not: boolean) => void;
+}) {
+  return (
+    <select className="se-in se-fixed-select" aria-label={tr("条件の判定")}
+      value={not ? "not" : "is"} onChange={(e) => onChange(e.target.value === "not")}>
+      <option value="is">{tr("である")}</option>
+      <option value="not">{tr("でない")}</option>
+    </select>
+  );
+}
+
+/** The editor offers positive operations; the negation selector inverts any of them. */
 export function OpEditor({
   op,
   value,
   onChange,
   placeholder = tr("値"),
   target,
+  not,
+  onNotChange,
 }: {
   op: ScriptOp;
   value: string;
@@ -374,12 +384,14 @@ export function OpEditor({
   placeholder?: string;
   /** 比べる入力欄（あれば、チェックボックス・選択肢に合わせた入力にする） */
   target?: string;
+  not?: boolean;
+  onNotChange?: (not: boolean) => void;
 }) {
-  const noValue = op === "empty" || op === "not-empty";
-  const pick = target !== undefined && (op === "eq" || op === "neq");
+  const noValue = op === "empty";
+  const pick = target !== undefined && op === "eq";
   return (
     <Phrase
-      text="{value}{op}"
+      text="{value}{op}{negation}"
       parts={{
         value: !noValue &&
           (pick ? (
@@ -406,6 +418,7 @@ export function OpEditor({
             ))}
           </select>
         ),
+        negation: onNotChange && <NegationSelect not={not} onChange={onNotChange} />,
       }}
     />
   );
@@ -418,7 +431,7 @@ export function CondEditor({
   cond: ScriptCond;
   onChange: (c: ScriptCond) => void;
 }) {
-  const subject = `${cond.not ? "!" : ""}${cond.subject}`;
+  const subject = cond.subject;
   const op = cond.op ?? "eq";
   const isVar = cond.subject === "var";
   // 比べるもの: 要素（値・チェック・表示など） / 変数（{変数} と文字を混ぜて書ける）
@@ -429,8 +442,8 @@ export function CondEditor({
       onChange={(e) =>
         onChange(
           e.target.value === "var"
-            ? { subject: "var", target: "", left: "", op, value: cond.value ?? "" }
-            : { subject: "value", target: "", op, value: cond.value ?? "" }
+            ? { subject: "var", target: "", left: "", op, value: cond.value ?? "", ...(cond.not ? { not: true } : {}) }
+            : { subject: "value", target: "", op, value: cond.value ?? "", ...(cond.not ? { not: true } : {}) }
         )
       }
     >
@@ -460,6 +473,7 @@ export function CondEditor({
                 value={cond.value ?? ""}
                 placeholder={tr("値 / {変数}")}
                 onChange={(o, v) => onChange({ ...cond, op: o, value: v })}
+                not={cond.not} onNotChange={(not) => onChange({ ...cond, not })}
               />
             ),
           }}
@@ -478,13 +492,11 @@ export function CondEditor({
         className="se-in"
         value={subject}
         onChange={(e) => {
-          const v = e.target.value;
-          const not = v.startsWith("!");
-          const subj = (not ? v.slice(1) : v) as ScriptCond["subject"];
+          const subj = e.target.value as ScriptCond["subject"];
           onChange(
             subj === "value"
-              ? { subject: subj, target: cond.target, op, value: cond.value ?? "" }
-              : { subject: subj, target: cond.target, ...(not ? { not } : {}) }
+              ? { subject: subj, target: cond.target, op, value: cond.value ?? "", not: cond.not }
+              : { subject: subj, target: cond.target, not: cond.not }
           );
         }}
       >
@@ -500,8 +512,11 @@ export function CondEditor({
           value={cond.value ?? ""}
           target={cond.target}
           onChange={(o, v) => onChange({ ...cond, op: o, value: v })}
+          not={cond.not} onNotChange={(not) => onChange({ ...cond, not })}
         />
       )}
+      {cond.subject !== "value" && <NegationSelect not={cond.not}
+        onChange={(not) => onChange({ ...cond, not })} />}
     </>
   );
 }
