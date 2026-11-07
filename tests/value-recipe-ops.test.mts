@@ -90,9 +90,9 @@ test("text fields combine text and variables without switching input modes", () 
     kind: "filter", field: "{filterField}", operation: "eq", operandType: "text", operand: "{city}",
   }]), val([records[0]]));
   assert.deepEqual(evaluate(records, [{ kind: "map-field", field: "{dynamicField}" }]), val(["a", "b"]));
-  assert.deepEqual(evaluate(records, [{
+  assert.equal(JSON.stringify(evaluate(records, [{
     kind: "map-set", field: "{dynamicField}", operandType: "text", operand: "Hi {name}",
-  }]), val([{ name: "Hi 田中", city: "京都" }, { name: "Hi 田中", city: "東京" }]));
+  }])), JSON.stringify(val([{ name: "Hi 田中", city: "京都" }, { name: "Hi 田中", city: "東京" }])));
   assert.deepEqual(evaluate(records, [{
     kind: "sort", field: "{dynamicField}", direction: "desc",
   }]), val([records[1], records[0]]));
