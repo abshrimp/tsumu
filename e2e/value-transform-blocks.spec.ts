@@ -162,6 +162,21 @@ test("canvas native select and picker button share the same dropdown appearance"
   expect(focusedPicker).toEqual(focusedSelect);
 });
 
+test("canvas fixed-option dropdowns shrink to their widest choice", async ({ page }) => {
+  const box = page.locator('[data-sel-key="step:numeric"]');
+  const method = box.getByRole("combobox", { name: "計算方法" });
+  const kind = box.getByRole("combobox", { name: "計算する値の種類" });
+  await expect(method).toHaveCSS("width", /\\d+px/);
+  const dimensions = await Promise.all([method, kind].map(el => el.evaluate((node) => {
+    const styles = getComputedStyle(node);
+    return { width: node.getBoundingClientRect().width, intrinsic: styles.width, flex: styles.flexGrow };
+  })));
+  for (const dimension of dimensions) {
+    expect(dimension.width).toBeLessThan(120);
+    expect(dimension.flex).toBe("0");
+  }
+});
+
 test("canvas list-display block switches filter, sort and clear without changing the step ID", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
