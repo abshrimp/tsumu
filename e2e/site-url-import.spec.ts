@@ -175,7 +175,7 @@ test("failed download creates no site; retry succeeds without duplicates", async
     });
   });
   await page.goto("/?doc=" + encodeURIComponent(docUrl));
-  await expect(page.getByRole("alert")).toContainText("一時的に取得できませんでした。");
+  await expect(page.locator(".home-notice[role=alert]")).toContainText("一時的に取得できませんでした。");
   expect((await localState(page)).sites).toHaveLength(0);
   unavailable = false;
   await page.getByRole("button", { name: "再試行" }).click();
