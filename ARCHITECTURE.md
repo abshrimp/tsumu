@@ -109,6 +109,16 @@ On a first publish, every existing file is treated as hand-added: unrelated file
 
 Rollback (`app/api/publish/history/route.ts`) commits an older tree again on top of the branch, so history is never rewritten.
 
+## HTML ZIP imports
+
+`lib/html-zip.ts` imports a site packaged as a ZIP (up to 200 files). The original files are stored unchanged. For each CSS file, `lib/zip-css.ts` additionally records the archive paths of the files it depends on: relative `url()` resources, `image-set()` images and `@import`s, resolved against the stylesheet's own directory (`lib/zip-references.ts`). Only new imports carry this metadata; older imports aren't migrated, so re-import an old ZIP to get it.
+
+- **Preview.** Each stylesheet stays a separate sheet, so import order, conditions and layers are kept. Dependencies are served as signed URLs from remote storage, or as data URLs in the local fallback. Only an `@import` that points back at one of its own ancestors is replaced with an empty sheet. A preview whose signed URLs are about to expire offers a refresh instead of reloading itself, because a reload resets forms and scripts.
+- **Export.** Each CSS file is written as its own UTF-8 file, with references pointing at the generated asset filenames. Integrity hashes are dropped only from links to imported local CSS, whose bytes change.
+- **Copying and cleanup.** Copying a page copies every stylesheet dependency with it, and unused-asset cleanup keeps the dependencies of referenced stylesheets.
+- **Left as is.** JavaScript module imports, references to missing files and external URLs aren't rewritten. Root- and protocol-relative URLs outside the archive are made absolute in the preview only.
+- **Limits** (`ZIP_CSS_LIMITS`): UTF-8 CSS only; 2 MiB of CSS per import and per preview graph, 8 MiB of preview output, 64 MiB of total variant work, 4,096 variants and 200 nested sheets. A preview over the limits shows an error.
+
 ## AI edits
 
 The AI never writes the doc directly. Instead:

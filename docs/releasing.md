@@ -35,14 +35,7 @@ Then check by hand:
 > [!WARNING]
 > Inspect every file — and the Git history — that will become public, looking for credentials and private site content. Adding a file to `.gitignore` doesn't remove it from history that already exists.
 
-## 2. Configure the GitHub repository
-
-- Confirm the repository is named `abshrimp/tsumu`, its description matches the README, and the MIT license is present.
-- Turn on private vulnerability reporting before pointing people to the private reporting form in [SECURITY.md](../SECURITY.md).
-- Require the CI checks on pull requests into `main`, and enable dependency alerts.
-- Check that the demo URL works, contains only public sample data, and has no production publishing credentials.
-
-## 3. Create a release
+## 2. Create a release
 
 Once CI passes on the commit you intend to release:
 

@@ -500,15 +500,7 @@ Help articles live in `lib/manualTopics.ts`. Each one has a question, a one-line
 
 ## Contributing
 
-Issues and pull requests are welcome.
-
-- [CONTRIBUTING.md](CONTRIBUTING.md) describes the contribution workflow.
-- [SECURITY.md](SECURITY.md) explains how to report a vulnerability privately.
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) describes how we work together.
-
-Before sending a change, run `npm run typecheck`, `npm test` and `npm run i18n:check`. GitHub Actions also runs them on every pull request. If you change behavior, add a test in `tests/` (or in `e2e/` for UI flows), and add English translations for any new UI text.
-
-Code comments and UI source strings are written in Japanese; English translations live in `lib/locales/`. Issues and pull requests in English are welcome.
+Issues and pull requests are welcome, in English or Japanese. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and the checks to run, [SECURITY.md](SECURITY.md) for reporting a vulnerability privately, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## License
 

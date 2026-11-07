@@ -500,17 +500,7 @@ npm run build && npm run test:e2e   # 実際のブラウザによるE2Eテスト
 
 ## コントリビュート
 
-Issue およびプルリクエストを歓迎します。
-
-- 貢献の手順は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
-- 脆弱性を非公開で報告する方法は [SECURITY.md](SECURITY.md) を参照してください。
-- 参加者の行動規範は [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) を参照してください。
-
-いずれも英語で記述されています。
-
-変更を送る前に、`npm run typecheck`・`npm test`・`npm run i18n:check` を実行してください。プルリクエストでは GitHub Actions でも実行されます。動作を変更した場合は `tests/`（画面操作の場合は `e2e/`）にテストを追加し、画面に追加した文言には英訳も追加してください。
-
-コードのコメントと画面の文言は日本語で記述し、英訳は `lib/locales/` に配置します。Issue やプルリクエストは英語・日本語のいずれでも受け付けています。
+Issue およびプルリクエストを歓迎します（英語・日本語のいずれでも可）。手順と実行するチェックは [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性の非公開での報告は [SECURITY.md](SECURITY.md)、行動規範は [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) を参照してください（いずれも英語）。
 
 ## ライセンス
 
