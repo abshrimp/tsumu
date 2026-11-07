@@ -3,13 +3,13 @@ import { once } from "node:events";
 import { resolve } from "node:path";
 
 const framework = process.argv[2];
-if (!["nuxt", "sveltekit"].includes(framework)) process.exit(0);
+if (!["vue", "nuxt", "sveltekit"].includes(framework)) process.exit(0);
 const cwd = resolve(".generated-export-smoke");
-const command = framework === "nuxt" ? ".output/server/index.mjs" : "build/index.js";
-const port = framework === "nuxt" ? "48731" : "48732";
+const command = framework === "nuxt" ? ".output/server/index.mjs" : framework === "vue" ? "server.mjs" : "build/index.js";
+const port = framework === "nuxt" ? "48731" : framework === "vue" ? "48730" : "48732";
 const child = spawn(process.execPath, [command], {
   cwd,
-  env: { ...process.env, HOST: "127.0.0.1", PORT: port, NITRO_PORT: port, NITRO_HOST: "127.0.0.1" },
+  env: { ...process.env, NODE_ENV: "production", HOST: "127.0.0.1", PORT: port, NITRO_PORT: port, NITRO_HOST: "127.0.0.1" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let logs = "";
