@@ -12,24 +12,30 @@ const style = framework === "vue" ? "css" : framework === "nuxt" ? "tailwind" : 
 const language = framework === "nuxt" ? "javascript" : "typescript";
 const options: ExportOptions = { framework, language, style, scope: "project" };
 const doc: SiteDoc = {
-  siteName: "Build smoke test",
+  siteName: "Build smoke {1 + 2} test",
   pageOrder: ["home"],
   pages: {
     home: { id: "home", name: "Home", slug: "", title: "Home", description: "",
-      children: ["heading", "picture", "search", "items", "component-instance"],
+      children: ["heading", "literal-text", "picture", "search", "items", "component-instance"],
       pageScripts: [{
         id: "load", trigger: "load", pos: { x: 0, y: 0 },
-        steps: [{ id: "split", kind: "split", source: "Alpha,Beta", sep: ",", into: "names" }],
-      }],
+        steps: [
+          { id: "constant", kind: "set-var", into: "csv", value: "Alpha,Beta" },
+          { id: "split", kind: "transform", source: "csv", into: "names",
+            transform: { kind: "split", separator: "," } },
+        ],
+      }] as unknown as NonNullable<SiteDoc["pages"][string]["pageScripts"]>,
     },
   },
   nodes: {
     heading: { ...makeBox(), id: "heading", text: { content: "Smoke test", heading: 1 } },
+    "literal-text": { ...makeBox(), id: "literal-text",
+      text: { content: "Literal {1 + 2} and {{ 3 + 4 }}", heading: 0 } },
     picture: { ...makeBox(), id: "picture", type: "image",
       image: { src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
         alt: "Pixel", width: 1, height: 1 } },
     search: { ...makeBox(), id: "search", type: "field", attrId: "searchTerm",
-      field: { kind: "input", inputType: "text", defaultValue: "", placeholder: "Search" } },
+      field: { kind: "input", inputType: "text", defaultValue: "", placeholder: "Search {1 + 2}" } },
     items: { ...makeBox(), id: "items", type: "list", list: { from: "names" }, children: ["row"] },
     row: { ...makeBox(), id: "row", text: { content: "{値}", heading: 0 } },
     "component-instance": { ...makeBox(), id: "component-instance",
