@@ -56,7 +56,7 @@ test(`${drift} drift fails closed, then reopening requires a fresh plan and conf
   await expect(page.getByText("GitHub上の変更を上書きしますか？", { exact: true })).toBeVisible();
   expect(requests.filter(r => r.action === "commit")).toHaveLength(1);
   await page.getByRole("button", { name: "上書きして公開", exact: true }).click();
-  await expect(page.locator(".pub-modal")).toContainText("コミットしました");
+  await expect(page.locator(".pub-modal")).toContainText("GitHubへPushしました");
   expect(requests.filter(r => r.action === "commit")).toHaveLength(2);
   expect(requests.filter(r => r.action === "commit")[1]).toMatchObject({ expectedHead: head, expected: { branch, productionBranch: branch } });
   expect(errors).toEqual([]);

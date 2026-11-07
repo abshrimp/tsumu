@@ -8,6 +8,7 @@ import { isDataStep, listFromOf, pagePlan } from "./data";
 import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
+import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 
 /* ---------- 実行ランタイム ---------- */
 
@@ -22,6 +23,11 @@ import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
  */
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
+  /*#setvar*/
+  // Share the exact value semantics used by #136 page-load transforms.
+  var __name = function (fn) { return fn; };
+  var evalRecipe = (${evaluateValueRecipe.toString()});
+  /*/setvar*/
   /*#env*/
   env = env || {};
   function touch(el) {
@@ -366,7 +372,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   /*/store*/
   return {
-    install: function (root) {
+    install: function (root, initialVars) {
       var alive = true;
       var pageGeneration = 0;
       var pageBody = null;
@@ -399,14 +405,20 @@ export const SCRIPT_RUNTIME = `function (env) {
         };
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
-      var vars = {};
+      var vars = initialVars && typeof initialVars === "object" ? initialVars : {};
       function getVar(name) {
         return has(vars, name) ? vars[name] : dig(vars, name);
       }
       function writeVar(name, v) {
         if (!name) return;
+        function notify() {
+          if (typeof window !== "undefined" && typeof window.__siteVarsOnChange === "function") {
+            window.__siteVarsOnChange(name, v);
+          }
+        }
         if (name.indexOf(".") < 0 || has(vars, name)) {
           vars[name] = v;
+          notify();
           return;
         }
         var ks = name.split(".");
@@ -416,6 +428,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           var nx = cur[k];
           if (nx == null || typeof nx !== "object" || Array.isArray(nx)) {
             vars[name] = v;
+            notify();
             return;
           }
           var cp = {};
@@ -424,6 +437,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           cur = cp;
         }
         cur[ks[ks.length - 1].trim()] = v;
+        notify();
       }
       // リストのお手本（data-tpl）の中は {名前} が未解決の非表示の複製元なので対象にしない
       function inTpl(el) {
@@ -580,6 +594,24 @@ export const SCRIPT_RUNTIME = `function (env) {
           var next = resolve(el.getAttribute("data-live"), el);
           if (t.nodeValue !== next) t.nodeValue = next;
         });
+        root.querySelectorAll("[data-static-href], [data-static-src], [data-static-option]").forEach(function (el) {
+          if (inTpl(el)) return;
+          var targetHref = el.getAttribute("data-static-href");
+          var src = el.getAttribute("data-static-src");
+          var option = el.getAttribute("data-static-option");
+          if (targetHref !== null) {
+            var target = safeNavigationUrl(resolveUrl(targetHref, el));
+            if (el.getAttribute("href") !== target) el.setAttribute("href", target);
+          }
+          if (src !== null) {
+            var targetSrc = resolve(src, el) || "${EMPTY_GIF}";
+            if (el.getAttribute("src") !== targetSrc) el.setAttribute("src", targetSrc);
+          }
+          if (option !== null) {
+            var targetText = resolve(option, el);
+            if (el.textContent !== targetText) el.textContent = targetText;
+          }
+        });
         root.querySelectorAll("[data-live-placeholder]").forEach(function (el) {
           if (inTpl(el)) return;
           el.placeholder = resolve(el.getAttribute("data-live-placeholder"), el);
@@ -688,7 +720,8 @@ export const SCRIPT_RUNTIME = `function (env) {
             grp = true;
           }
           var fv = fieldOf(item, c.field);
-          grp = grp && cmp(fv == null ? "" : String(fv), c.op, c.value);
+          var matched = cmp(fv == null ? "" : String(fv), c.op, c.value);
+          grp = grp && (c.not ? !matched : matched);
         });
         return ok || grp;
       }
@@ -1168,6 +1201,42 @@ export const SCRIPT_RUNTIME = `function (env) {
             break;
           /*/set*/
           /*#filter*/
+          case "list-display": {
+            if (!st.array) break;
+            if (st.mode === "filter") {
+              var clauses = st.conds || [
+                { field: st.field, op: st.op, value: st.value, not: st.not },
+                ...(st.or || []),
+              ].filter(function (cond) { return cond.field; });
+              if (!clauses.length) break;
+              var fs = (filters.get(st.array) || []).slice();
+              var key = st.no != null ? "n" + st.no : "f" +
+                clauses.map(function (cond) { return cond.field; }).sort().join("|");
+              var entry = {
+                key: key, no: st.no, join: st.join,
+                conds: clauses.map(function (cond) {
+                  return {
+                    field: cond.field, op: cond.op, value: resolve(cond.value, self, sc),
+                    not: cond.not, and: cond.and,
+                  };
+                }),
+              };
+              var found = fs.findIndex(function (filter) { return filter.key === key; });
+              if (found >= 0) fs[found] = entry; else fs.push(entry);
+              filters.set(st.array, fs);
+            } else if (st.mode === "sort") {
+              if (!st.field) break;
+              sorts.set(st.array, { field: st.field, dir: st.dir });
+            } else if (st.mode === "clear") {
+              if (st.no != null) {
+                filters.set(st.array, (filters.get(st.array) || []).filter(function (filter) {
+                  return filter.no !== st.no;
+                }));
+              } else filters.delete(st.array);
+            } else break;
+            relist(st.array);
+            break;
+          }
           case "filter-array": {
             if (!st.array || !st.conds || !st.conds.length) break;
             var fs = (filters.get(st.array) || []).slice();
@@ -1228,6 +1297,25 @@ export const SCRIPT_RUNTIME = `function (env) {
             break;
           /*/store*/
           /*#setvar*/
+          case "transform": {
+            if (!st.source || !st.into || !st.transform) break;
+            var inputValue = sc && (has(sc, st.source) ? sc[st.source] : dig(sc, st.source));
+            if (inputValue === undefined) inputValue = getVar(st.source);
+            /*#clist*/
+            if (inputValue === undefined && st.rawRef) inputValue = scriptReference(st.rawRef, self, sc);
+            /*/clist*/
+            if (inputValue === undefined && "serverValue" in st) {
+              setVar(st.into, st.serverValue);
+              break;
+            }
+            if (inputValue === undefined && "raw" in st) inputValue = st.raw;
+            if (inputValue === undefined && st.transform.kind !== "fallback" &&
+                st.transform.kind !== "fallback-nullish") inputValue = lookup(st.source, self, sc);
+            var value = evalRecipe(inputValue, [st.transform], merged(vars, sc));
+            if (value.kind === "value") setVar(st.into, value.value);
+            else if (value.kind === "error") console.warn("Invalid value transform:", value.code);
+            break;
+          }
           case "set-var": {
             /*#clist*/
             if (st.rawRef) {
@@ -2011,7 +2099,10 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
     if (s.trigger === "hover-end" && s.keepOnShown) out.add("keep");
     walkSteps(s.steps, (st) => {
       if (isDataStep(st)) return;
-      out.add(STEP_FEATURE[st.kind]);
+      const futureKind = (st as { kind: string }).kind;
+      if (futureKind === "transform") out.add("setvar");
+      else if (futureKind === "list-display") out.add("filter");
+      else out.add(STEP_FEATURE[st.kind]);
       if (st.kind === "if") out.add(st.cond.subject);
     });
   }
@@ -2051,8 +2142,15 @@ export function compactJs(src: string): string {
 }
 
 /** 書き出しサイト用の /scripts.js（サイトで使う機能だけを含める） */
-export function scriptsFile(doc: SiteDoc): string {
-  const runtime = pickFeatures(SCRIPT_RUNTIME, runtimeFeatures(doc));
+export function scriptsFile(doc: SiteDoc, clientData = false): string {
+  const features = runtimeFeatures(doc);
+  if (clientData) {
+    // Standalone pages run the data plan before installing the DOM runtime.
+    features.add("clist");
+    features.add("live");
+    features.add("scan");
+  }
+  const runtime = pickFeatures(SCRIPT_RUNTIME, features);
   const domain = sharedCookieDomain(doc);
   const hardNav = hardNavPatterns(Object.values(doc.pages));
   const envObj = {
@@ -2060,7 +2158,10 @@ export function scriptsFile(doc: SiteDoc): string {
     ...(hardNav.length ? { hardNav } : {}),
   };
   const env = Object.keys(envObj).length ? JSON.stringify(envObj) : "";
-  return compactJs(`(${runtime})(${env}).install(document);`) + "\n";
+  const start = clientData
+    ? `Promise.resolve(window.__pageDataReady).then(function (vars) { (${runtime})(${env}).install(document, vars); });`
+    : `(${runtime})(${env}).install(document);`;
+  return compactJs(start) + "\n";
 }
 
 /** 共有ストレージのクッキーのドメイン（公開URLのホスト。先頭の www. は除く） */

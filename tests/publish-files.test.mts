@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   GENERATED_MANIFEST_PATH,
+  LEGACY_GENERATED_MANIFEST_PATH,
+  DOC_PATH,
   isProtectedPath,
   isSafeCommitPath,
   parseGeneratedManifest,
@@ -22,16 +24,28 @@ test("手で追加したファイルは残し、直接編集された書き出�
     "app/page.tsx": "edited",
     "app/layout.tsx": "same",
     "app/api/hello/route.ts": "mine",
-    "_tsumu/doc.json": "doc",
+    [DOC_PATH]: "doc",
     "_tsumu/notes.json": "stray",
+    "_site-data/stray.json": "stray2",
     [GENERATED_MANIFEST_PATH]: "list",
   };
-  const generated = { "app/page.tsx": "original", "app/layout.tsx": "same", "_tsumu/doc.json": "doc" };
-  const plan = planPublish(blobs, generated, ["app/page.tsx", "app/layout.tsx", "_tsumu/doc.json"]);
+  const generated = { "app/page.tsx": "original", "app/layout.tsx": "same", [DOC_PATH]: "doc" };
+  const plan = planPublish(blobs, generated, ["app/page.tsx", "app/layout.tsx", DOC_PATH]);
   assert.deepEqual(plan.edited, ["app/page.tsx"]);
   assert.deepEqual(plan.clashing, []);
-  // _tsumu/ はエディタの置き場所なので、手で追加したファイルとしては残さない
+  // 現行と旧形式の管理用ディレクトリは、手で追加したファイルとしては残さない
   assert.deepEqual(plan.kept, { "app/api/hello/route.ts": "mine" });
+});
+
+test("legacy managed files are retired when changing to neutral metadata paths", () => {
+  const blobs = {
+    "_tsumu/doc.json": "old-document",
+    [LEGACY_GENERATED_MANIFEST_PATH]: "old-index",
+    "manual.txt": "hand-written",
+  };
+  const generated = { "_tsumu/doc.json": "old-document" };
+  const plan = planPublish(blobs, generated, [DOC_PATH]);
+  assert.deepEqual(plan, { edited: [], clashing: [], kept: { "manual.txt": "hand-written" } });
 });
 
 test("手で追加したファイルと同じパスを書き出すときは上書きを知らせる", () => {

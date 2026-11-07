@@ -784,7 +784,7 @@ export default function SitePanel() {
         title={tr("バックアップ")}
         tutorialTarget="site-backup"
         help="pub-backup"
-        info={tr("サイト全体の編集データをバックアップファイルとして保存・復元します。公開時にリポジトリへ保存される _tsumu/doc.json も読み込めます。")}
+        info={tr("サイト全体の編集データをバックアップファイルとして保存・復元します。GitHubへのPush時に保存される編集データも読み込めます。")}
         defaultOpen={false}
       >
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

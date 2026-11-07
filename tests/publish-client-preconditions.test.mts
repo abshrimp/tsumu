@@ -30,7 +30,7 @@ function fixture({ conflict = false, legacy = false, asset = false, document, sn
     test: { repo: "owner/site", branch: "preview", url: null, error: null },
   };
   let cursor = 0;
-  const hooks = { ...React, useEffect() {}, useState(initial: any) {
+  const hooks = { ...React, useEffect() {}, useMemo(fn: () => unknown) { return fn(); }, useState(initial: any) {
     const index = cursor++;
     return [index === 0 ? conf : initial, (value: any) => updates.push({ index, value })];
   } };
@@ -41,6 +41,16 @@ function fixture({ conflict = false, legacy = false, asset = false, document, sn
     "../lib/dialog": { showConfirm: (message: string) => new Promise<boolean>(resolve => { confirmations.push(message); confirm = resolve; waiting = true; }) },
     "../lib/assets": { detectSvgFilters: async () => ({}) },
     "../lib/generator": { generateProject: document ? generateProject : () => ({ files: { "app/page.tsx": "NEW" }, binaries: asset ? { "public/p.png": "eA==" } : {}, remoteAssets: {} }) },
+    "../lib/export-formats": {
+      DEFAULT_EXPORT_OPTIONS: { framework: "nextjs", language: "typescript", style: "css", scope: "project" },
+      exportLimitations: () => [],
+      prepareExportProject: async (_doc: SiteDoc, _options: unknown, target: "test" | "production") =>
+        document ? generateProject(_doc, target) : {
+          files: { "app/page.tsx": "NEW" },
+          binaries: asset ? { "public/p.png": "eA==" } : {},
+          remoteAssets: {},
+        },
+    },
     "../lib/generator/checks": { runChecks: () => [] },
     "../lib/errors": { userMessage: (e: Error) => e.message },
     "../lib/site": { sitePublishFields: () => ({ site, dest: { repo: "owner/site", branch, previewBranch: "preview" } }) },
