@@ -269,12 +269,8 @@ export function showsSelf(node: DocNode): boolean {
 /** 絞り込みの比較（ブラウザの cmp・エディタの matchOp と同じ規則）を生成コードにする */
 function filterExpr(v: string, op: ScriptOp, w: string): string {
   switch (op) {
-    case "neq":
-      return `${v} !== ${w}`;
     case "contains":
       return `${v}.includes(${w})`;
-    case "not-contains":
-      return `!${v}.includes(${w})`;
     case "starts-with":
       return `${v}.startsWith(${w})`;
     case "ends-with":
@@ -285,8 +281,6 @@ function filterExpr(v: string, op: ScriptOp, w: string): string {
       return `parseFloat(${v}) < parseFloat(${w})`;
     case "empty":
       return `${v} === ""`;
-    case "not-empty":
-      return `${v} !== ""`;
     case "in":
       return `${w}.split(",").some((x) => x.trim() === ${v})`;
     default:
@@ -310,7 +304,8 @@ export function filterPredicate(ops: ListOp[], base: string): string | null {
     const w = hasVars(c.value)
       ? `interpolate(${JSON.stringify(c.value)}, ${base})`
       : JSON.stringify(c.value);
-    return filterExpr(`String(${fieldExpr("item", c.field)} ?? "")`, c.op, w);
+    const positive = filterExpr(`String(${fieldExpr("item", c.field)} ?? "")`, c.op, w);
+    return c.not ? `!(${positive})` : positive;
   };
   // 括弧は、優先順位が変わるところにだけ付ける
   const wrap = (parts: string[], op: string) =>
