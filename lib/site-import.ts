@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import type { Asset, SiteDoc } from "./types";
 import { buildAssetNames } from "./generator/names";
 import { uploadStaticAsset } from "./assets";
+import { decodePortableDoc } from "./portable-doc";
 
 export const EDITABLE_DOC_PATH = "_tsumu/doc.json";
 export const EDITABLE_ASSETS_PATH = "_tsumu/assets.json";
@@ -109,8 +110,8 @@ export async function parseSiteImport(
     throw new Error("インポートするファイルが大きすぎます。");
   }
   if (mode === "doc") {
-    return { doc: validateImportedDoc(jsonText(bytes)), assets: new Map(),
-      warnings: [] };
+    return { doc: validateImportedDoc(await decodePortableDoc(jsonText(bytes), IMPORT_LIMITS.docBytes)),
+      assets: new Map(), warnings: [] };
   }
   let zip: JSZip;
   try { zip = await JSZip.loadAsync(bytes); }
@@ -144,7 +145,7 @@ export async function parseSiteImport(
   }
   const docBytes = await documentEntry.async("uint8array");
   if (docBytes.length > IMPORT_LIMITS.docBytes) throw new Error("doc.jsonが大きすぎます。");
-  const doc = validateImportedDoc(jsonText(docBytes));
+  const doc = validateImportedDoc(await decodePortableDoc(jsonText(docBytes), IMPORT_LIMITS.docBytes));
   const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
   const mapEntry = zip.file(parent + "assets.json");
