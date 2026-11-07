@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { expectVariableMenuLayout } from "./helpers/variable-menu-layout";
 import { scriptDataPickerBundle } from "../tests/helpers/script-data-picker";
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
@@ -164,3 +165,22 @@ test("inline dropdown selection replaces an existing raw object reference with a
   expect(await selected(page)).toBe("{data.tags}");
   await expect(block(page, "value").locator(".se-value-info")).toContainText("一覧");
 });
+
+for (const width of [1440, 375, 320]) {
+  test(`スクリプトの変数候補の3つの操作案内は幅 ${width}px でも一行に収まる`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const input = block(page, "value").locator("input").first();
+    await input.focus();
+    await expectVariableMenuLayout(page, width, 3);
+    await input.press("Escape");
+    await expect(page.locator(".var-comp")).toHaveCount(0);
+    await input.blur();
+    await input.focus();
+    await expectVariableMenuLayout(page, width, 3);
+    await page.locator(".var-comp-explore").click();
+    await expect(picker(page)).toBeVisible();
+    await picker(page).getByPlaceholder("変数名・値で検索").press("Escape");
+    await expect(picker(page)).toHaveCount(0);
+    await expect(input).toHaveValue("Legacy {data.name}");
+  });
+}
