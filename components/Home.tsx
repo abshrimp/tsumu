@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from "react";
 import { signOut } from "next-auth/react";
 import {
   ChevronRight,
@@ -8,6 +8,7 @@ import {
   ExternalLink,
   GitBranch,
   HardDrive,
+  FileUp,
   LayoutGrid,
   LoaderCircle,
   LogOut,
@@ -27,7 +28,7 @@ import AllowedAccounts from "./AllowedAccounts";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
-import { createSiteFromUrl, requestedSiteImport, type ImportRequest } from "../lib/import-site-url";
+import { createSiteFromFile } from "../lib/import-site-file";
 import {
   DOC_STORAGE_KEY,
   SITE_SCOPED_KEYS,
@@ -462,8 +463,9 @@ export default function Home() {
   /** 開いているダイアログ（"new" = 新しいサイト / サイト = その設定 / copy = そのサイトの複製） */
   const [dialog, setDialog] = useState<"new" | SiteRecord | { copy: SiteRecord } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const importRequest = useRef<ImportRequest | null>(null);
+  const importFileInput = useRef<HTMLInputElement>(null);
   const importActive = useRef(false);
+  const [draggingFile, setDraggingFile] = useState(false);
   const [importStatus, setImportStatus] = useState<
     { kind: "loading"; message: string } | { kind: "error"; message: string } | null
   >(null);
@@ -497,40 +499,28 @@ export default function Home() {
 
   useEffect(() => installNoDblClickSelect(), []);
 
-  const runUrlImport = useCallback(async () => {
-    if (!store || !importRequest.current || importActive.current) return;
+  const runFileImport = useCallback(async (file: File) => {
+    if (!store || importActive.current) return;
     importActive.current = true;
-    setImportStatus({ kind: "loading", message: tr("編集データを取得しています…") });
+    setImportStatus({ kind: "loading", message: tr("編集データを読み込み中…") });
     try {
-      const { id } = await createSiteFromUrl(importRequest.current, store,
+      const { id } = await createSiteFromFile(file, store,
         (message) => setImportStatus({ kind: "loading", message: tr(message) }));
-      window.location.replace(sitePath(id));
+      window.location.assign(sitePath(id));
     } catch (error) {
-      setImportStatus({ kind: "error", message: error instanceof Error ?
-        tr(error.message) : tr("サイトを復元できませんでした。") });
+      setImportStatus({ kind: "error", message: error instanceof Error
+        ? tr(error.message) : tr("サイトを復元できませんでした。") });
     } finally {
       importActive.current = false;
     }
   }, [store]);
 
-  useEffect(() => {
-    if (!store || importRequest.current || importActive.current) return;
-    const search = new URLSearchParams(window.location.search);
-    if (!search.has("zip") && !search.has("doc")) return;
-    // Consume the one-shot URL before sending any request. Reloading while
-    // an import is in progress must not create a second site.
-    const url = new URL(window.location.href);
-    url.searchParams.delete("zip");
-    url.searchParams.delete("doc");
-    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-    try {
-      importRequest.current = requestedSiteImport(search);
-      void runUrlImport();
-    } catch (error) {
-      setImportStatus({ kind: "error", message: error instanceof Error ?
-        tr(error.message) : tr("インポートするURLが正しくありません。") });
-    }
-  }, [store, runUrlImport]);
+  const onFileDrop = useCallback((event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setDraggingFile(false);
+    const file = event.dataTransfer.files[0];
+    if (file) void runFileImport(file);
+  }, [runFileImport]);
 
   // エディタの「サイトの設定を開く」から来たときは、そのサイトの設定を開く
   useEffect(() => {
@@ -702,11 +692,61 @@ export default function Home() {
                 />
               </label>
             )}
+            <button type="button" className="btn home-new" onClick={() => importFileInput.current?.click()} disabled={!store || importActive.current}>
+              <FileUp size={14} />
+              {tr("インポート")}
+            </button>
+            <input
+              ref={importFileInput}
+              type="file"
+              accept=".zip,.json,application/zip,application/json"
+              aria-label={tr("ZIPまたはdoc.jsonファイルを選択")}
+              style={{ display: "none" }}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (file) void runFileImport(file);
+              }}
+            />
             <button type="button" className="btn btn-primary home-new" onClick={() => setDialog("new")} disabled={!store}>
               <Plus size={14} />
               {tr("新しいサイト")}
             </button>
           </div>
+        </div>
+
+        <div
+          className={`home-import-drop${draggingFile ? " is-dragging" : ""}`}
+          role="button"
+          tabIndex={store && !importActive.current ? 0 : -1}
+          aria-label={tr("ZIPまたはdoc.jsonをドロップしてインポート")}
+          aria-disabled={!store || importActive.current}
+          onClick={() => { if (store && !importActive.current) importFileInput.current?.click(); }}
+          onKeyDown={(event) => {
+            if ((event.key === "Enter" || event.key === " ") && store && !importActive.current) {
+              event.preventDefault();
+              importFileInput.current?.click();
+            }
+          }}
+          onDragEnter={(event) => {
+            if (!event.dataTransfer.types.includes("Files")) return;
+            event.preventDefault();
+            setDraggingFile(true);
+          }}
+          onDragOver={(event) => {
+            if (!event.dataTransfer.types.includes("Files")) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+            setDraggingFile(true);
+          }}
+          onDragLeave={(event) => {
+            if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+            setDraggingFile(false);
+          }}
+          onDrop={onFileDrop}
+        >
+          <FileUp size={18} />
+          <span>{tr("ZIPまたはdoc.jsonをドロップしてサイトをインポート")}</span>
         </div>
 
         {importStatus && (
@@ -716,9 +756,9 @@ export default function Home() {
               ? <TriangleAlert size={14} />
               : <LoaderCircle size={14} className="spin" />}
             <p>{importStatus.message}</p>
-            {importStatus.kind === "error" && importRequest.current && (
-              <button type="button" className="btn btn-sm" onClick={() => void runUrlImport()}>
-                {tr("再試行")}
+            {importStatus.kind === "error" && (
+              <button type="button" className="btn btn-sm" onClick={() => importFileInput.current?.click()}>
+                {tr("別のファイルを選択")}
               </button>
             )}
           </div>
