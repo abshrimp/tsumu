@@ -27,14 +27,14 @@ export function usedGoogleFonts(doc: SiteDoc) {
   for (const page of Object.values(doc.pages)) {
     for (const bp of Object.values(page.bodyStyles ?? {})) {
       for (const map of Object.values(bp)) {
-        if (map.fontFamily) families.add(map.fontFamily);
+        if (map?.fontFamily) families.add(map.fontFamily);
       }
     }
   }
   for (const node of Object.values(doc.nodes)) {
     for (const bp of Object.values(node.styles)) {
       for (const map of Object.values(bp)) {
-        if (map.fontFamily) families.add(map.fontFamily);
+        if (map?.fontFamily) families.add(map.fontFamily);
       }
     }
   }
@@ -212,7 +212,7 @@ export function generateSiteCss(
       const bpStyles =
         node.styles[bp] ?? (bp === "base" ? {} : undefined);
       if (!bpStyles) continue;
-      const customStates = Object.keys(bpStyles).filter((state) => customStateSelector(state) !== null);
+      const customStates = Object.keys(bpStyles).filter((state) => customStateSelector(state) !== null) as Array<keyof typeof bpStyles>;
       for (const state of [...STATE_ORDER, ...customStates]) {
         const map = { ...bpStyles[state] };
         const suffix = customStateSelector(state) ?? STATE_INFO[state as keyof typeof STATE_INFO].pseudo;
