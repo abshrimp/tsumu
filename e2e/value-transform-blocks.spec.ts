@@ -279,6 +279,22 @@ test("canvas fixed-option dropdowns shrink to their widest choice", async ({ pag
     expect(dimension.width).toBeLessThan(120);
     expect(dimension.flex).toBe("0");
   }
+  for (const control of [method, kind]) {
+    const measurements = await control.evaluate((node) => {
+      const select = node as HTMLSelectElement;
+      const style = getComputedStyle(select);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d")!;
+      ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const longest = Math.max(...Array.from(select.options, (option) => ctx.measureText(option.textContent ?? "").width));
+      const left = parseFloat(style.paddingLeft);
+      const right = parseFloat(style.paddingRight);
+      const borders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth);
+      return { actual: select.getBoundingClientRect().width, required: longest + left + right + borders, right };
+    });
+    expect(measurements.right).toBeGreaterThanOrEqual(30);
+    expect(measurements.actual).toBeGreaterThanOrEqual(measurements.required - 2);
+  }
 });
 
 test("canvas list-display block switches filter, sort and clear without changing the step ID", async ({ page }) => {
