@@ -1048,6 +1048,19 @@ export const SCRIPT_RUNTIME = `function (env) {
               else hide(el);
             });
             break;
+          case "set-state": {
+            var state = typeof st.state === "string" ? st.state.trim() : "";
+            var valid = state === "default" || state === "" ||
+              (state.length <= 40 && /^[\\p{L}\\p{N}_][\\p{L}\\p{N}_ -]*$/u.test(state) &&
+                ["hover", "active", "focus"].indexOf(state) < 0);
+            if (!valid) break;
+            find(self, st.target).forEach(function (el) {
+              if (!state || state === "default") el.removeAttribute("data-tsumu-state");
+              else el.setAttribute("data-tsumu-state", state);
+            });
+            break;
+          }
+
           /*/show*/
           /*#scroll*/
           case "scroll-to": {
@@ -1593,6 +1606,7 @@ const STEP_FEATURE: Record<
   RuntimeFeature
 > = {
   show: "show",
+  "set-state": "show",
   hide: "show",
   toggle: "show",
   "scroll-to": "scroll",
