@@ -360,6 +360,7 @@ ${loads
         return `  {
     const result = __evalValueRecipe(lookupVar(vars, ${JSON.stringify(st.source)}), [${JSON.stringify(st.transform)}], vars);
     if (result.kind === "value") vars[${JSON.stringify(st.into)}] = result.value;
+    else if (result.kind === "missing") vars[${JSON.stringify(st.into)}] = undefined;
   }`;
       case "set-var": {
         if (!st.into) return "";
