@@ -14,6 +14,7 @@ const en: Dict = {
   "URLのクエリでページを区別する設定はこの形式では出力できません。": "Query-specific page variants are not supported by this format.",
   "同じURLに複数のページがある場合はこの形式では出力できません。": "Multiple pages for the same URL are not supported by this format.",
   "サーバーでデータや変数を処理するページはこの形式では出力できません。": "Pages requiring server-side data or variables are not supported by this format.",
+  "React出力では変数を含むリンク先に対応していません。": "React export does not support variable-based link destinations.",
   "React出力では検索フォームに対応していません。": "React export does not support search forms.",
   "React出力ではPWAに対応していません。": "React export does not support PWA.",
   "React出力ではbody末尾のカスタムHTMLに対応していません。": "React export does not support custom end-of-body HTML.",
