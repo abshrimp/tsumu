@@ -302,6 +302,24 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           else current = kept;
           break;
         }
+        case "object-entries": {
+          if (absent) break;
+          if (!current || typeof current !== "object" || Array.isArray(current))
+            return failure("type-mismatch");
+          const keyName = textParam(step.keyField, 128);
+          const valueName = textParam(step.valueField, 128);
+          if (!keyName.ok || !valueName.ok || !keyName.value.trim() || !valueName.value.trim() ||
+              keyName.value === valueName.value ||
+              [keyName.value, valueName.value].some((name) =>
+                name === "__proto__" || name === "constructor" || name === "prototype"))
+            return failure("invalid-path");
+          const source = current as Record<string, unknown>;
+          const entries = Object.entries(source);
+          if (entries.length > 10000) return failure("limit-exceeded");
+          current = entries.map(([key, value]) =>
+            Object.fromEntries([[keyName.value, key], [valueName.value, value]]));
+          break;
+        }
         case "map-field": {
           if (absent) break;
           const field = textParam(step.field, 256);
