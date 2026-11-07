@@ -1184,22 +1184,28 @@ export const SCRIPT_RUNTIME = `function (env) {
           case "transform": {
             if (!st.source || !st.into) break;
             var inputValue = sc && (has(sc, st.source) ? sc[st.source] : dig(sc, st.source));
+            var sourceRoot = st.source.split(".")[0];
+            var shadowed = has(vars, st.source) || has(vars, sourceRoot) ||
+              !!(sc && (has(sc, st.source) || has(sc, sourceRoot)));
             if (inputValue === undefined) inputValue = getVar(st.source);
             /*#clist*/
-            if (inputValue === undefined && st.rawRef) inputValue = scriptReference(st.rawRef, self, sc);
+            if (inputValue === undefined && !shadowed && st.rawRef) inputValue = scriptReference(st.rawRef, self, sc);
             /*/clist*/
-            if (inputValue === undefined && "serverValue" in st) {
+            if (inputValue === undefined && !shadowed && "serverValue" in st) {
               setVar(st.into, st.serverValue);
               break;
             }
-            if (inputValue === undefined && "raw" in st) inputValue = st.raw;
-            // A missing source stays undefined for explicit fallback operations;
-            // lookup() returns an empty string for unknown names by design.
-            if (inputValue === undefined && st.transform.kind !== "fallback" &&
-                st.transform.kind !== "fallback-nullish") inputValue = lookup(st.source, self, sc);
+            if (inputValue === undefined && !shadowed && "raw" in st) inputValue = st.raw;
+            // An explicitly missing local variable must not fall back to stale server data
+            // or a similarly named element. This keeps connected fallback blocks reliable.
+            if (inputValue === undefined && !shadowed &&
+                st.transform.kind !== "fallback" && st.transform.kind !== "fallback-nullish")
+              inputValue = lookup(st.source, self, sc);
             var transformed = evalRecipe(inputValue, [st.transform], merged(vars, sc));
             if (transformed.kind === "value") setVar(st.into, transformed.value);
-            else if (transformed.kind === "error") console.warn("Invalid value transform:", transformed.code);
+            else if (transformed.kind === "missing") setVar(st.into, undefined);
+            else if (transformed.kind === "error")
+              console.warn("Value transform failed:", transformed.code, st.transform.kind, st.source, st.into);
             break;
           }
           case "set-var": {
