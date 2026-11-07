@@ -135,7 +135,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         any = any || all;
         all = true;
       }
-      const rhs = argument(clause);
+      const rhs = clause.operation === "empty"
+        ? { ok: true as const, value: "" } : argument(clause);
       if (!rhs.ok) return { ok: false, code: "invalid-literal" };
       let lhs = value;
       if (itemMode) {
