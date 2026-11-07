@@ -100,7 +100,7 @@ export function runPurePageSteps(
         }
         case "repeat": {
           const matched = typeof step.times === "string"
-            ? /^\\{([^{}\\s]+)\\}$/.exec(step.times.trim()) : null;
+            ? /^\{([^{}\s]+)\}$/.exec(step.times.trim()) : null;
           const raw = typeof step.times === "string"
             ? matched ? lookup(scope, matched[1]) : undefined : step.times;
           if (raw === null || raw === undefined || typeof raw === "boolean" ||
