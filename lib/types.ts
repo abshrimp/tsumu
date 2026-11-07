@@ -286,11 +286,11 @@ export type ScriptStep = { id: string } & (
       kind: "copy";
       value: string;
     }
-  | { kind: "wait"; seconds: number }
+  | { kind: "wait"; seconds: number | string }
   | {
       /** 中のブロックを times 回くり返す（0 = ずっと。止まらないよう1回ごとに少し間をあける） */
       kind: "repeat";
-      times: number;
+      times: number | string;
       then: ScriptStep[];
     }
   | {
