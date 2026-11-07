@@ -4,6 +4,19 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "コードをエクスポート": "Export code",
+  "出力形式": "Export format",
+  "HTML形式はZIPを展開してnpm run buildを実行すると、outフォルダに静的ファイルが生成されます。": "For HTML export, extract the ZIP and run npm run build to generate standalone files in out/.",
+  "React形式はViteを使ったSPAです。サーバー処理には対応していません。": "React export creates a Vite SPA without server-side rendering.",
+  "動的URL（[slug]など）はこの形式では出力できません。": "Dynamic URL routes (such as [slug]) are not supported by this format.",
+  "リダイレクトとリバースプロキシはこの形式では出力できません。": "Redirects and reverse proxies are not supported by this format.",
+  "HTMLページはこの形式では出力できません。": "Raw HTML pages are not supported by this format.",
+  "URLのクエリでページを区別する設定はこの形式では出力できません。": "Query-specific page variants are not supported by this format.",
+  "同じURLに複数のページがある場合はこの形式では出力できません。": "Multiple pages for the same URL are not supported by this format.",
+  "サーバーでデータや変数を処理するページはこの形式では出力できません。": "Pages requiring server-side data or variables are not supported by this format.",
+  "React出力では検索フォームに対応していません。": "React export does not support search forms.",
+  "React出力ではPWAに対応していません。": "React export does not support PWA.",
+  "React出力ではbody末尾のカスタムHTMLに対応していません。": "React export does not support custom end-of-body HTML.",
   "アセットをダウンロードできませんでした": "Could not download the asset.",
   "現在の設定の送信先": "Destination for current settings",
   "最後に送信": "Last request",
