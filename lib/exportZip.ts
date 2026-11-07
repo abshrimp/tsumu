@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import type { SiteDoc } from "./types";
-import { generateExportProject, type ExportFormat, type ExportOptions } from "./export-formats";
+import { prepareExportProject, type ExportFormat, type ExportOptions } from "./export-formats";
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
 import { tr } from "./i18n";
 
@@ -9,11 +9,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   const options: ExportOptions = typeof request === "string"
     ? { framework: request, language: "typescript", style: "css", scope: "project" }
     : request;
-  let project = generateExportProject(doc, options);
-  if (options.language === "javascript" && options.framework !== "html") {
-    const { toJavaScriptProject } = await import("./generator/javascript-export");
-    project = await toJavaScriptProject(project, options.framework);
-  }
+  const project = await prepareExportProject(doc, options);
   const { files, binaries, remoteAssets } = project;
   const zip = new JSZip();
   const dirName =
