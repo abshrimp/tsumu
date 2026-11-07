@@ -24,7 +24,8 @@ import {
 import { startImageInsertion } from "../lib/image-drop";
 import { clipboardArtworkFile, hasClipboardArtwork } from "../lib/clipboard";
 import { activeContentNames, CLIP_MIME, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
-import { showConfirm } from "../lib/dialog";
+import { showConfirm, showAlert } from "../lib/dialog";
+import { importWarningsKey } from "../lib/url-site-import";
 import EditorLoading from "./EditorLoading";
 import Header from "./Header";
 import Footer from "./Footer";
@@ -135,6 +136,23 @@ export default function Editor({ onReady }: EditorProps = {}) {
   useLayoutEffect(() => {
     if (initialLoadComplete) onReady?.();
   }, [initialLoadComplete, onReady]);
+  useEffect(() => {
+    if (!initialLoadComplete) return;
+    const key = importWarningsKey(currentSiteId());
+    try {
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return;
+      window.sessionStorage.removeItem(key);
+      const warnings = JSON.parse(raw) as string[];
+      if (!Array.isArray(warnings) || !warnings.length) return;
+      void showAlert(
+        tr("サイトは復元されましたが、一部のアセットは読み込めませんでした。\n{items}", {
+          items: warnings.join("\n"),
+        }),
+        { title: tr("アセットを一部復元できませんでした") }
+      );
+    } catch { /* A failed notice must not affect the imported document. */ }
+  }, [initialLoadComplete]);
   const doc = useEditor((s) => s.doc);
   const markSaved = useEditor((s) => s.markSaved);
   // 保存した版を覚え、次の編集を前の「保存済み」と取り違えない。
