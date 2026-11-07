@@ -97,11 +97,13 @@ function href(ctx: Context, value: string): string {
 function pageHref(ctx: Context, id: string): string {
   const p = ctx.doc.pages[id];
   if (!p) return "#";
-  if (ctx.spa) return "/" + p.slug.replace(/^\/+|\/+$/g, "");
-  if (ctx.single && p.id === ctx.page.id) return ctx.prefix + "index.html";
-  if (p.slug.replace(/^\/+|\/+$/g, "") === "404") return ctx.prefix + "404.html";
+  const suffix = p.query?.trim().replace(/^\?/, "");
+  const withQuery = (url: string) => suffix ? url + (url.includes("?") ? "&" : "?") + suffix : url;
+  if (ctx.spa) return withQuery("/" + p.slug.replace(/^\/+|\/+$/g, ""));
+  if (ctx.single && p.id === ctx.page.id) return withQuery(ctx.prefix + "index.html");
+  if (p.slug.replace(/^\/+|\/+$/g, "") === "404") return withQuery(ctx.prefix + "404.html");
   const slug = p.slug.replace(/^\/+|\/+$/g, "");
-  return ctx.prefix + (slug ? slug + "/index.html" : "index.html");
+  return withQuery(ctx.prefix + (slug ? slug + "/index.html" : "index.html"));
 }
 
 function compiledAttr(ctx: Context, node: Pick<DocNode, "scripts">, skip?: Set<string>): string {
