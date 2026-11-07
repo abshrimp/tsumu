@@ -73,3 +73,6 @@ jobs:
       - name: Build generated framework project
         run: npm run build
         working-directory: .generated-export-smoke
+      - name: Verify production SSR response
+        if: matrix.framework != 'vue'
+        run: node --import tsx scripts/check-generated-ssr.mts ${{ matrix.framework }}
