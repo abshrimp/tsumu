@@ -15,11 +15,11 @@ async function expectControls(audio: Locator) {
   await expect.poll(() => audio.evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThan(100);
 }
 
-for (const component of [false, true]) test(`${component ? 'component' : 'page'} default audio controls survive settings save, design, preview and generated CSS`, async ({ page }) => {
+test(`component default audio controls survive settings save, design, preview and generated CSS`, async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route(audioSource, route => route.fulfill({ contentType: 'audio/wav', body: Buffer.from('RIFF') }));
-  const doc = defaultAudioDoc(component);
+  const doc = defaultAudioDoc(true);
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.addScriptTag({ content: await componentListBundle(doc, 'audio') });

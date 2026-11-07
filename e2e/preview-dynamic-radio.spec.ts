@@ -111,7 +111,9 @@ for (const source of ["query", "data"] as const) {
   });
 }
 
-for (const source of ["literal", "query", "data"] as const) {
+// Assignment order uses the same runtime regardless of label source. Keep one browser path.
+// Query/data resolution is separately exercised above and in Node tests.
+for (const source of ["data"] as const) {
   test(`consecutive radio assignments compose in order with ${source} labels`, async ({ page }) => {
     const { errors, snapshot } = await setupPreview(page, source);
     await expectSelection(page, "M", "medium");

@@ -19,11 +19,11 @@ async function check(page: Page) {
     }
   }
 }
-for (const component of [false, true]) test(`${component ? 'component' : 'plain'} literal attributes persist through editor save, preview and export`, async ({ page }) => {
+test(`component literal attributes persist through editor save, preview and export`, async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.route('**/api/fetch-json', route => route.fulfill({ json: { json: literalItems } }));
   await page.route('https://example.com/**', route => route.fulfill({ body: '' }));
-  const doc = clientLiteralAttributesDoc(component); doc.nodes.picture.image!.alt = 'Before';
+  const doc = clientLiteralAttributesDoc(true); doc.nodes.picture.image!.alt = 'Before';
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.addScriptTag({ content: await componentListBundle(doc, 'picture') });

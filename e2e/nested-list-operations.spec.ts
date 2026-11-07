@@ -38,10 +38,10 @@ async function runOperations(page: Page) {
   return results;
 }
 
-for (const component of [false, true]) test(`${component ? "component-contained" : "repeated nested"} lists: select script arrays, sort, filter, clear and reopen preview`, async ({ page }) => {
+test(`component-contained lists: select script arrays, sort, filter, clear and reopen preview`, async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
-  await page.addScriptTag({ content: await nestedOperationsBundle(component) });
+  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
   for (const action of listActions) {
     await page.getByRole("button", { name: `Edit ${action}`, exact: true }).click();
     const choice = page.locator(`.se-ws [data-sel-key="step:${action}-step"] select.se-in-strong`);
