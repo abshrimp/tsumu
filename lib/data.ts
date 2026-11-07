@@ -1134,7 +1134,8 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
     }
     else if (st.kind === "transform") {
       st.source = fn(st.source) ?? st.source;
-      if ("operandType" in st.transform && st.transform.operandType === "variable") {
+      if ("operandType" in st.transform && st.transform.operandType === "variable" &&
+          typeof st.transform.operand === "string") {
         st.transform = { ...st.transform, operand: fn(st.transform.operand) ?? st.transform.operand };
       }
     }
