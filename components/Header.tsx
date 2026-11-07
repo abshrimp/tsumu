@@ -176,7 +176,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
         )}
         {format === "html" && (
           <p className="hint export-note">
-            {tr("外部データの取得・加工はブラウザのJavaScriptで実行します。APIのCORS許可が必要です。file://での利用には制約があるため、データ取得を使う場合は静的ホスティングで確認してください。")}
+            {tr("外部データの取得にはAPIのCORS許可が必要です。file://での利用には制約があるため、localhostなどの環境で確認してください。")}
           </p>
         )}
         <CheckList checks={checks} onClose={onClose} />
