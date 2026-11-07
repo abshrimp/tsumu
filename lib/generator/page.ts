@@ -7,6 +7,7 @@ import { pageLangOf, siteLangOf } from "../site-lang";
 import { fieldVarNames } from "../fields";
 import { sendsBody } from "../fetch-request";
 import { extractVars, hasVars, pageQueryVars } from "../vars";
+import { pageQueryConditions } from "../page-query";
 import {
   filterConds,
   idVarNodesOf,
@@ -46,11 +47,7 @@ export function queryDispatcherFile(queries: (string | undefined)[]): string {
     .map((_, i) => `import * as p${i} from "./_q/p${i}";`)
     .join("\n");
   const entries = queries
-    .map((q, i) => {
-      const query: Record<string, string> = {};
-      for (const [k, v] of new URLSearchParams(q ?? "")) if (k) query[k] = v;
-      return `  { query: ${JSON.stringify(query)}, mod: p${i} as unknown as Variant["mod"] },`;
-    })
+    .map((q, i) => `  { query: ${JSON.stringify(pageQueryConditions(q))}, mod: p${i} as unknown as Variant["mod"] },`)
     .join("\n");
   return `import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -61,7 +58,7 @@ type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 type Variant = {
-  query: Record<string, string>;
+  query: [string, string][];
   mod: {
     default: (props: Props) => ReactNode | Promise<ReactNode>;
     metadata?: Metadata;
@@ -81,14 +78,13 @@ async function pick(props: Props): Promise<Variant["mod"]> {
   let best = variants[0];
   let score = -1;
   for (const v of variants) {
-    const keys = Object.keys(v.query);
-    const ok = keys.every((k) => {
-      const value = sp[k];
-      return (Array.isArray(value) ? value[0] : value) === v.query[k];
+    const ok = v.query.every(([key, expected]) => {
+      const value = sp[key];
+      return (Array.isArray(value) ? value[0] : value) === expected;
     });
-    if (ok && keys.length > score) {
+    if (ok && v.query.length > score) {
       best = v;
-      score = keys.length;
+      score = v.query.length;
     }
   }
   return best.mod;
