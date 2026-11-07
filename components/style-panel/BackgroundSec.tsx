@@ -35,8 +35,8 @@ function backgroundMode(image: string | undefined, color: string | undefined) {
   return color && !isInitialValue("backgroundColor", color) ? "color" : "none";
 }
 
-function parseGradient(v: string | undefined) {
-  const gm = /linear-gradient\((\d+)deg,\s*(.+?)\s+0%,\s*(.+?)\s+100%\)/.exec(v ?? "");
+export function parseGradient(v: string | undefined) {
+  const gm = /linear-gradient\((-?\d*\.?\d+)deg,\s*(.+?)\s+0%,\s*(.+?)\s+100%\)/.exec(v ?? "");
   return {
     angle: gm ? +gm[1] : 180,
     c1: gm ? gm[2] : "#ffffff",
