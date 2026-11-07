@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
+import JSZip from "jszip";
+import { readFile } from "node:fs/promises";
 
 async function openExport(page: import("@playwright/test").Page) {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
@@ -49,4 +51,26 @@ test("compatibility errors never appear alongside the success check", async ({ p
   await modal.getByRole("button", { name: "選択したコンポーネント" }).click();
   await expect(modal.locator(".check-list li.is-error")).toHaveCount(1);
   await expect(modal.locator(".check-ok")).toHaveCount(0);
+});
+
+
+test("JavaScript export downloads an actual JSX ZIP through the browser", async ({ page }) => {
+  const modal = await openExport(page);
+  await modal.getByRole("button", { name: "フレームワーク" }).click();
+  await page.getByRole("button", { name: "React + Vite" }).click();
+  await modal.getByRole("button", { name: "JavaScript", exact: true }).click();
+  const downloadButton = modal.getByRole("button", { name: "zipをダウンロード" });
+  await expect(downloadButton).toBeEnabled();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    downloadButton.click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/react-javascript\.zip$/);
+  const zipPath = await download.path();
+  expect(zipPath).not.toBeNull();
+  const zip = await JSZip.loadAsync(await readFile(zipPath!));
+  const paths = Object.keys(zip.files);
+  expect(paths.some((p) => p.endsWith("/src/App.jsx"))).toBe(true);
+  expect(paths.some((p) => p.endsWith("/src/App.tsx"))).toBe(false);
+  expect(paths.some((p) => p.endsWith("/jsconfig.json"))).toBe(true);
 });
