@@ -105,6 +105,7 @@ export function cloneSteps(steps: ScriptStep[], makeId = () => scriptUid("st")):
           ...st,
           id: makeId(),
           cond: { ...st.cond },
+          ...(st.conditions ? { conditions: st.conditions.map((condition) => ({ ...condition })) } : {}),
           then: cloneSteps(st.then, makeId),
           ...(st.else ? { else: cloneSteps(st.else, makeId) } : {}),
         }
@@ -280,7 +281,10 @@ export function scriptTargetIds(
     walkSteps(s.steps, (st) => {
       if (kinds && !kinds.includes(st.kind)) return;
       if ("target" in st) add(st.target);
-      if (!kinds && st.kind === "if") add(st.cond.target);
+      if (!kinds && st.kind === "if") {
+        add(st.cond.target);
+        (st.conditions ?? []).forEach((condition) => add(condition.target));
+      }
     });
   }
   return [...out];
@@ -384,6 +388,11 @@ export function compileScripts(
               ...(st.cond.value !== undefined ? { value: str(st.cond.value, "value") } : {}),
               ...(st.cond.left !== undefined ? { left: str(st.cond.left, "value") } : {}),
             },
+            ...(st.conditions?.length ? { conditions: st.conditions.map((condition) => ({
+              ...condition,
+              ...(condition.value !== undefined ? { value: str(condition.value, "value") } : {}),
+              ...(condition.left !== undefined ? { left: str(condition.left, "value") } : {}),
+            })) } : {}),
             then: conv(st.then),
             ...(st.else ? { else: conv(st.else) } : {}),
           };
