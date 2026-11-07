@@ -4,6 +4,9 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "要素［］を［状態名］にする": "Set element ［］ to state ［state name］",
+  "{target}を{state}にする": "Set {target} to state {state}",
+  "状態名（既定で戻す）": "State name (default to reset)",
   "リスト表示を［絞り込む / 並べ替える / 解除する］": "Control list display ［filter / sort / clear］",
   "変数{source}を加工して変数{into}に入れる": "Transform variable {source} and save into {into}",
   "変数［］の値を［加工］して変数［］に入れる": "Apply an operation to a variable and store the result",
