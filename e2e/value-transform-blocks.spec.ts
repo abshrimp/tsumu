@@ -59,6 +59,22 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " runtime appends and removes list elements without mutation", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, '["red","blue","red"]', [
+      { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "remove", kind: "transform", source: "items", into: "items",
+        transform: { kind: "remove", operandType: "text", operand: "red" } },
+      { id: "append", kind: "transform", source: "items", into: "items",
+        transform: { kind: "append", operandType: "text", operand: "green" } },
+      { id: "join", kind: "transform", source: "items", into: "items",
+        transform: { kind: "join", separator: "/" } },
+    ]);
+    await expect(answer).toHaveValue("blue/green");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
@@ -122,6 +138,19 @@ test("canvas list-display block switches filter, sort and clear without changing
   })).toBe("sort");
 });
 
+
+test("canvas math supports selecting an existing variable as the arithmetic operand", async ({ page }) => {
+  const box = page.locator('[data-sel-key="step:numeric"]');
+  await box.getByRole("combobox", { name: "計算する値の種類" }).selectOption("variable");
+  await box.getByRole("button", { name: "計算する変数" }).click();
+  const menu = page.locator(".se-pm").last();
+  await expect(menu).toBeVisible();
+  await menu.locator(".se-pm-row").filter({ hasText: "data" }).first().locator(".dd-item").click();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "numeric").transform;
+  })).toMatchObject({ kind: "math", operandType: "variable", operand: "data" });
+});
 
 test("canvas comparison offers existing variables and keeps the chosen reference", async ({ page }) => {
   await page.evaluate(() => {
