@@ -31,13 +31,13 @@ function base64(bytes: Uint8Array): string {
 
 function fromBase64(value: string, maxBytes: number): Uint8Array {
   if (value.length > Math.ceil(maxBytes / 3) * 4 + 4) {
-    throw new Error("Compressed document exceeds the size limit.");
+    throw new Error("圧縮された編集データが大きすぎます。");
   }
   if (value.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) {
-    throw new Error("Invalid compressed document payload.");
+    throw new Error("圧縮された編集データが不正です。");
   }
   const raw = atob(value);
-  if (raw.length > maxBytes) throw new Error("Compressed document exceeds the size limit.");
+  if (raw.length > maxBytes) throw new Error("圧縮された編集データが大きすぎます。");
   return Uint8Array.from(raw, (char) => char.charCodeAt(0));
 }
 
@@ -49,7 +49,7 @@ function fromBase64(value: string, maxBytes: number): Uint8Array {
 export async function serializePortableDoc(doc: SiteDoc, maxBytes: number): Promise<string> {
   const plain = JSON.stringify(doc);
   const input = new TextEncoder().encode(plain);
-  if (input.byteLength > maxBytes) throw new Error("Document exceeds the size limit.");
+  if (input.byteLength > maxBytes) throw new Error("編集データが容量上限を超えています。");
   if (typeof CompressionStream === "undefined") return plain;
   const compressed = new Uint8Array(await new Response(
     new Blob([input as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new CompressionStream("gzip")),
@@ -73,10 +73,10 @@ export async function decodePortableDoc(value: unknown, maxBytes: number): Promi
   if (!isRecord(value) || value.format !== PORTABLE_DOC_FORMAT) return value;
   if (value.version !== PORTABLE_DOC_VERSION || value.encoding !== "gzip+base64" ||
       typeof value.payload !== "string") {
-    throw new Error("Unsupported Tsumu document format.");
+    throw new Error("対応していない編集データの形式です。");
   }
   if (typeof DecompressionStream === "undefined") {
-    throw new Error("This browser cannot open compressed Tsumu documents.");
+    throw new Error("このブラウザでは圧縮された編集データを開けません。");
   }
   const compressed = fromBase64(value.payload, maxBytes);
   const reader = new Blob([compressed as Uint8Array<ArrayBuffer>]).stream()
@@ -91,7 +91,7 @@ export async function decodePortableDoc(value: unknown, maxBytes: number): Promi
       length += chunk.byteLength;
       if (length > maxBytes) {
         await reader.cancel().catch(() => {});
-        throw new Error("Uncompressed document exceeds the size limit.");
+        throw new Error("展開後の編集データが容量上限を超えています。");
       }
       result += decoder.decode(chunk, { stream: true });
     }
@@ -102,6 +102,6 @@ export async function decodePortableDoc(value: unknown, maxBytes: number): Promi
   try {
     return JSON.parse(result) as unknown;
   } catch {
-    throw new Error("Could not parse the compressed Tsumu document.");
+    throw new Error("圧縮された編集データをJSONとして読み込めませんでした。");
   }
 }
