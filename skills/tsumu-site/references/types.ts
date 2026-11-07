@@ -37,38 +37,35 @@ export type InputType =
 
 export interface FieldContent {
   kind: FieldKind;
-  /** kind="input" のときのHTML input type */
+  /** HTML input type used when kind is input. */
   inputType?: InputType;
-  /** checkbox / radio の隣に表示するテキスト（{変数} を使える） */
+  /** Text displayed beside a checkbox or radio button; supports {variable} interpolation. */
   label?: string;
-  /** input / textarea / select の初期値（{変数} を使える） */
+  /** Initial input, textarea, or select value; supports {variable} interpolation. */
   defaultValue?: string;
-  /** 未入力のときに薄く出す案内文（{変数} を使える） */
+  /** Hint shown when a field is empty; supports {variable} interpolation. */
   placeholder?: string;
-  /** select の選択肢（{変数} を使える） */
+  /** Select options; support {variable} interpolation. */
   options?: string[];
-  /** checkbox / radio: 最初からチェックしておく */
+  /** Whether a checkbox or radio button is checked initially. */
   checked?: boolean;
-  /**
-   * radio: グループ名（同じグループのラジオボタンから1つだけ選べる。送信するときの名前で、
-   * {グループ名} が選んだボタンの値になる）
-   */
+  /** Radio group name. Only one button per group can be selected; the selected value is available through {groupName}. */
   group?: string;
-  /** 操作できない状態にする（disabled） */
+  /** Whether the control is disabled. */
   disabled?: boolean;
-  /** 送信する前に入力が必要 */
+  /** Require a value before submitting the form. */
   required?: boolean;
-  /** number / range / 日付・時刻: 最小値・最大値・刻み */
+  /** Minimum, maximum, and step values for numeric and date/time controls. */
   min?: string;
   max?: string;
   step?: string;
-  /** 文字の入力欄・textarea: 入力できる文字数の上限 */
+  /** Maximum character count for text inputs and textareas. */
   maxLength?: number;
-  /** textarea: 表示する行数 */
+  /** Number of visible rows in a textarea. */
   rows?: number;
-  /** file: 選べるファイルの種類（例: image/*, .pdf） */
+  /** Accepted file types, such as image/* or .pdf. */
   accept?: string;
-  /** file: 複数のファイルを選べる */
+  /** Whether the file input accepts multiple files. */
   multiple?: boolean;
 }
 
@@ -83,33 +80,33 @@ export interface MediaContent {
 
 export interface EmbedContent {
   kind: "youtube" | "map" | "url";
-  /** ユーザー入力（YouTubeのURL / 住所 / 埋め込みたいURL） */
+  /** User input: a YouTube URL, an address, or an embeddable URL. */
   src: string;
 }
 
 export interface IconContent {
-  /** lucide のアイコン名（kebab-case） */
+  /** Lucide icon name in kebab-case. */
   name: string;
-  /** インライン展開用のSVGマークアップ */
+  /** SVG markup used for inline rendering. */
   svg: string;
 }
 
 export interface Motion {
   id: string;
-  /** state = transition、それ以外 = animation */
+  /** State triggers create transitions; other triggers create animations. */
   trigger: "state" | "hover" | "active" | "load" | "in-view";
-  /** state: 変化を監視するプロパティ */
+  /** CSS property monitored by a state transition. */
   property?: string;
-  /** animation: KEYFRAMES のキー（"custom" = customKeyframes を使用） */
+  /** Named animation keyframes, or custom when customKeyframes is supplied. */
   keyframes?: string;
-  /** keyframes="custom" のときの @keyframes 本体（from {...} to {...}） */
+  /** Body of an @keyframes rule, e.g. from {...} to {...}. */
   customKeyframes?: string;
-  /** 秒 */
+  /** Duration in seconds. */
   duration: number;
-  /** 秒 */
+  /** Delay in seconds. */
   delay: number;
   easing: string;
-  /** -1 = 無限 */
+  /** A repeat count of -1 means infinite repetitions. */
   repeat?: number;
   direction?: "normal" | "reverse" | "alternate";
   fillMode?: "both" | "forwards" | "backwards" | "none";
@@ -129,28 +126,25 @@ export type Semantic =
   | "span"
   | "custom";
 
-/**
- * "base"（すべての画面）か、ブレークポイントのID。
- * 既定は lg（タブレット）/ md（スマホ横向き）/ sm（スマホ）で、サイト設定で追加・削除できる
- */
+/** The base breakpoint applies at every width. Others use breakpoint IDs; defaults include lg (tablet), md (landscape mobile), and sm (mobile). Custom breakpoints may be added in site settings. */
 export type Breakpoint = string;
 
-/** サイトのブレークポイント（この幅以下の画面に効くスタイルの区切り） */
+/** A responsive breakpoint for styles at or below a specified width. */
 export interface BreakpointDef {
   id: string;
   label: string;
-  /** この幅以下に効く（max-width） */
+  /** Maximum viewport width in pixels (max-width). */
   maxWidth: number;
 }
 export type StyleState = "default" | "hover" | "active" | "focus";
 
-/** camelCase CSS プロパティ → 値 */
+/** Map of camelCase CSS properties to string values. */
 export type StyleMap = Record<string, string>;
 
-/** ブレークポイント → 状態 → スタイル（無いブレークポイントは undefined） */
+/** Breakpoints map to interaction states, then to style declarations; absent breakpoints have no overrides. */
 export type NodeStyles = Record<Breakpoint, Partial<Record<StyleState, StyleMap>>>;
 
-/** UI上でbodyを通常要素と同じ選択状態にするための予約ID */
+/** Reserved ID used to select the document body as an editable element. */
 export const BODY_NODE_ID = "__body__";
 
 export interface LinkSetting {
@@ -158,16 +152,16 @@ export interface LinkSetting {
   url?: string;
   pageId?: string;
   newTab?: boolean;
-  /** スクリプトエディタ上の位置（「クリックしたとき → 開く」として表示する） */
+  /** Position of the synthetic click-to-open event in the script editor. */
   pos?: ScriptPos;
 }
 
-/* ---------- スクリプト（きっかけ → 動作） ---------- */
+/* Script events and actions. */
 
-/** 動作の対象に「この要素自身」を指定するときの予約値 */
+/** Reserved target for the current element. */
 export const SELF_TARGET = "@self";
 
-/** スクリプト画面で、きっかけに「このページ」を指定するときの予約値 */
+/** Reserved target for the current page in the script editor. */
 export const PAGE_TARGET = "@page";
 
 export type ScriptTrigger =
@@ -194,30 +188,30 @@ export type ScriptOp =
   | "lt"
   | "empty"
   | "not-empty"
-  /** 「,」区切りの値・配列のどれかと同じ */
+  /** Matches any item in a comma-separated value or array. */
   | "in";
 
 export interface ScriptCond {
-  /** value = 値 / checked = チェック / visible = 表示中 / hovered = ホバー中 / var = 変数 */
+  /** Condition subject: element value, checked state, visibility, hover state, or a variable. */
   subject: "value" | "checked" | "visible" | "hovered" | "var";
-  /** 対象のID属性（SELF_TARGET = この要素。subject="var" では使わない） */
+  /** Target attribute ID; SELF_TARGET means the current element. Not used for variable conditions. */
   target: string;
-  /** subject="var" で比べる値（{変数} と文字を混ぜて書ける） */
+  /** Left-hand operand for variable conditions; may interpolate {variables} into text. */
   left?: string;
-  /** subject="value" / "var" の比較方法 */
+  /** Comparison operator for value and variable conditions. */
   op?: ScriptOp;
   value?: string;
-  /** checked / visible / hovered を否定する */
+  /** Negate checked, visible, or hovered conditions. */
   not?: boolean;
 }
 
-/** 配列の絞り込みの条件 */
+/** Condition used for array filtering. */
 export interface FilterCond {
   field: string;
   op: ScriptOp;
-  /** {変数} は実行時の値に置き換える */
+  /** Expand {variables} at runtime. */
   value: string;
-  /** 直前の条件と「かつ」でつなぐ（無ければ「または」） */
+  /** Combine with the preceding condition using AND; otherwise use OR. */
   and?: boolean;
 }
 
@@ -227,187 +221,168 @@ export type ScriptStep = { id: string } & (
   | { kind: "open-url"; url: string; newTab?: boolean }
   | { kind: "scroll-to"; target: string }
   | { kind: "set-value"; target: string; value: string }
-  /** 入力欄・ボタンを操作できる / できない状態にする（disabled） */
+  /** Enable, disable, or toggle an input or button. */
   | { kind: "set-enabled"; target: string; op: "enable" | "disable" | "toggle" }
   | {
-      /** 配列を使うリストの項目を field の値で絞り込む（同じ項目への絞り込みは置き換え） */
+      /** Filter array entries by a field. Replaces an existing filter on the same field. */
       kind: "filter-array";
-      /** 配列の名前 */
+      /** Array variable name. */
       array: string;
       field: string;
       op: ScriptOp;
-      /** {変数} は実行時の値に置き換える */
+      /** Expand {variables} at runtime. */
       value: string;
-      /** 「かつ」「または」で足す条件（「かつ」でつないだ組のどれか1つを満たせば残す） */
+      /** Extra filter conditions connected by AND/OR. Items pass if any AND-connected group matches. */
       or?: FilterCond[];
-      /** 絞り込みの番号（同じ配列の中で自動で振る。同じ番号の絞り込みをもう一度動かすと置き換わる） */
+      /** Filter slot number. Re-running a filter using the same number replaces it. */
       no?: number;
-      /** 同じ配列にかかっているほかの絞り込みとのつなぎ方（既定 = かつ） */
+      /** Combine this filter with the other filters on this array using AND by default. */
       join?: "and" | "or";
     }
   | {
       kind: "unfilter-array";
       array: string;
-      /** 解除する絞り込みの番号（未設定 = すべて解除） */
+      /** Filter slot number to remove; omit to remove all filters. */
       no?: number;
     }
   | {
-      /** 配列を使うリストの項目を field の値で並べ替える（同じ配列への並べ替えは置き換え） */
+      /** Sort entries in an array by the given field. Replaces the existing sort on that array. */
       kind: "sort-array";
       array: string;
       field: string;
       dir: "asc" | "desc";
     }
   | {
-      /** ブラウザに文字列を保存する（localStorage → このホストのクッキー → メモリの順に試す） */
+      /** Save a string in the browser (localStorage, then cookies, then in-memory fallback). */
       kind: "store-save";
       key: string;
-      /** {変数} を使える */
+      /** Value may interpolate {variables}. */
       value: string;
-      /** 公開URLのドメインの全サブドメインで共有するクッキーにも保存する */
+      /** Also store a cookie shared across subdomains of the published site. */
       shared?: boolean;
     }
   | {
-      /** ブラウザに保存した文字列を変数に入れる（無ければ空） */
+      /** Load a stored string into a variable; use an empty string when missing. */
       kind: "store-load";
       key: string;
       into: string;
-      /** 全サブドメインで共有するクッキーを先に読む */
+      /** Read the shared cross-subdomain cookie first. */
       shared?: boolean;
     }
   | {
-      /** 文字列を区切り文字で分解して配列にする */
+      /** Split a string into an array using a delimiter. */
       kind: "split";
-      /** 分解する文字列（{変数} を使える） */
+      /** Source text may interpolate {variables}. */
       source: string;
-      /** 区切り文字（空 = 「,」） */
+      /** Delimiter; an empty string defaults to a comma. */
       sep: string;
       into: string;
     }
   | {
-      /** 配列の要素のうち、項目 field が value の最初の1件を変数に入れる（無ければ空） */
+      /** Find the first array element whose field equals the value; use an empty value when absent. */
       kind: "array-find";
       array: string;
-      /** "slug" / "category.name" のような項目の位置 */
+      /** Nested field path, such as slug or category.name. */
       field: string;
-      /** {slug} などの {変数} を使える */
+      /** Value may interpolate {variables}, including {slug}. */
       value: string;
       into: string;
     }
   | {
-      /** 配列の要素を区切り文字でつないだ文字列を変数に入れる */
+      /** Join array items into a string using a delimiter. */
       kind: "join";
       array: string;
-      /** 要素がまとまり（オブジェクト）のとき、つなぐ項目の位置（空 = 要素そのもの） */
+      /** Path of the field to join when items are objects; omit for the item itself. */
       field?: string;
-      /** 区切り文字（空ならそのままつなぐ） */
+      /** Delimiter; an empty string concatenates values directly. */
       sep: string;
       into: string;
     }
   | {
-      /**
-       * 配列の各要素に、value の値を項目 field として入れる
-       * （文字や数値の要素は {値} を持つまとまりにする）
-       */
+      /** Set a field on each array item. Primitive items are wrapped as objects with a {value} field. */
       kind: "array-field";
       array: string;
-      /** 固定の値・{要素の項目}・{変数}（{項目} だけなら値をそのまま入れる） */
+      /** Literal text, {itemField}, or {variable}; a single placeholder preserves the source value's type. */
       value: string;
-      /** 入れる項目名 */
+      /** Name of the field to set. */
       field: string;
     }
   | {
-      /** 配列の要素の数を変数に入れる（配列でなければ 0） */
+      /** Store the array length in a variable, or zero when the source is not an array. */
       kind: "count";
       array: string;
       into: string;
     }
   | {
-      /**
-       * 値を変数に入れる（{変数} と文字を混ぜて書ける）。
-       * {名前} 1つだけなら値をそのまま入れる（配列・まとまりも。{データ.items.0} のような位置も使える）
-       */
+      /** Assign a value to a variable. A single {variable} placeholder preserves the original type, including arrays and objects; nested paths such as {data.items.0} are supported. */
       kind: "set-var";
       value: string;
       into: string;
     }
   | {
-      /** 文字列の中の find をすべて to に置き換えて変数に入れる（{変数} を使える） */
+      /** Replace every occurrence of find in source with to and assign the result to a variable. */
       kind: "replace";
       source: string;
-      /** 置き換える文字（空なら置き換えない） */
+      /** Text to replace; do nothing if empty. */
       find: string;
-      /** 置き換え後の文字（空 = 取り除く）。正規表現なら $1・$& も使える */
+      /** Replacement text. An empty value deletes matches; regex replacements support $1 and $&. */
       to: string;
       into: string;
-      /**
-       * find を正規表現として扱う。{変数} の値は文字そのものとして埋め込み、
-       * {2}・{2,}・{2,4} と \{ … } は正規表現の書き方として残す
-       */
+      /** Treat find as a regular expression. Interpolated variable values are escaped as literals; repetition forms {2}, {2,}, {2,4} and escaped braces remain regex syntax. */
       regex?: boolean;
     }
   | {
-      /** 式（+ - * / % とかっこ。{変数} を使える）を計算して変数に入れる */
+      /** Arithmetic expression with +, -, *, /, %, parentheses, and {variables}. */
       kind: "calc";
       expr: string;
       into: string;
     }
   | {
-      /**
-       * 区切りの文字の変数（例: "12.34.56"）に value を足す・取り除く・切り替える
-       * （同じ値は2つ入れず、空の区切りは残さない）
-       */
+      /** Add, remove, or toggle a value in a delimiter-separated list stored as a string. Avoid duplicates and empty segments. */
       kind: "list-edit";
-      /** 書き換える変数の名前 */
+      /** Target variable name. */
       into: string;
-      /** toggle = 入っていれば取り除き、無ければ足す */
+      /** Toggle removes an existing value or adds a missing value. */
       op: "add" | "remove" | "toggle";
-      /** {変数} を使える */
+      /** Value may interpolate {variables}. */
       value: string;
-      /** 区切り文字（空 = 「,」） */
+      /** Delimiter; an empty string defaults to a comma. */
       sep: string;
     }
   | {
-      /** 文字をクリップボードにコピーする（{変数} を使える） */
+      /** Text to copy to the clipboard; may interpolate {variables}. */
       kind: "copy";
       value: string;
     }
   | { kind: "wait"; seconds: number }
   | {
-      /** 中のブロックを times 回くり返す（0 = ずっと。止まらないよう1回ごとに少し間をあける） */
+      /** Repeat nested steps times times; zero repeats indefinitely with a brief pause each iteration. */
       kind: "repeat";
       times: number;
       then: ScriptStep[];
     }
   | {
-      /**
-       * 配列の要素ごとに中のブロックをくり返す。中では要素の項目を {項目} で使え、
-       * 同じ配列への「項目として格納」はくり返し中の要素だけに入れる
-       */
+      /** Run nested steps for each array element. Item fields are available as {field}; writing a field on the iterated array changes only the current item. */
       kind: "for-each";
       array: string;
       then: ScriptStep[];
     }
-  /*
-   * データの取得。「このページ｜ページを開いたとき」の直下でだけ動き、
-   * 公開サイトではページを配信する前（サーバー側）に上から順に実行する。
-   * 中身は {名前.項目} で「値を変数とする」「配列の要素のうち〜」などから使う
-   */
+  /* Fetch page data. This action runs only directly under the current page's load trigger. Published sites normally run these requests on the server before rendering, in order. Results are available via {name.field}. */
   | {
-      /** URLからJSONを取得して、as の名前を付ける（{変数} を使える） */
+      /** Fetch JSON from a URL; may interpolate {variables}. Assign the result to the as name. */
       kind: "fetch";
       url: string;
-      /** HTTPメソッド（未設定 = GET） */
+      /** HTTP method; defaults to GET. */
       method?: FetchMethod;
-      /** 送るヘッダー（値に {変数} を使える） */
+      /** Request headers; values may interpolate {variables}. */
       headers?: FetchHeader[];
-      /** GET 以外で送る本文（JSON。{変数} を使え、文字列の中では値を JSON 用にエスケープする） */
+      /** JSON request body for non-GET methods. Interpolated placeholders inside strings are JSON-escaped. */
       body?: string;
-      /** 取得したデータの名前（要素では {名前.項目} としても使える） */
+      /** Result name; elements can reference nested values with {name.field}. */
       as?: string;
-      /** エディタで見せる取得結果の見本（配列は先頭だけ残す） */
+      /** Sample response shown in the editor; arrays may be truncated. */
       sample?: unknown;
-      /** 見本で切り詰めた配列の、元の件数（位置 → 件数。エディタで件数を正しく出すため） */
+      /** Original lengths of truncated sample arrays, keyed by their paths. */
       sampleTotals?: Record<string, number>;
       fetchedAt?: number;
     }
@@ -415,7 +390,7 @@ export type ScriptStep = { id: string } & (
       kind: "if";
       cond: ScriptCond;
       then: ScriptStep[];
-      /** 未定義 = 「もし〜なら」、配列 = 「もし〜なら / でなければ」 */
+      /** Omit else for a one-branch condition; provide an array for the alternative branch. */
       else?: ScriptStep[];
     }
 );
@@ -431,9 +406,9 @@ export interface FetchHeader {
 
 export interface Script {
   id: string;
-  /** 未設定 = きっかけの無いブロックの集まり（実行されない） */
+  /** A script without a trigger represents disconnected blocks and does not execute. */
   trigger?: ScriptTrigger;
-  /** hover-end: 「ホバーし始めたとき」に表示した要素の上にいる間は、外れたとしない */
+  /** When leaving a hovered element, do not fire hover-end if the pointer is over content shown by hover-start. */
   keepOnShown?: boolean;
   steps: ScriptStep[];
   pos: ScriptPos;
@@ -441,7 +416,7 @@ export interface Script {
 
 export interface TextContent {
   content: string;
-  /** 0 = 本文(p) / 1〜6 = h1〜h6 */
+  /** Heading 0 represents paragraph text; levels 1 through 6 represent h1 through h6. */
   heading: number;
 }
 
@@ -452,7 +427,7 @@ export interface ImageContent {
   height: number;
   assetId?: string;
   priority?: boolean;
-  /** false = シャドウ付きSVGのiOS Safari向けぼやけ対策を適用しない */
+  /** Disable iOS Safari's anti-blur workaround for SVGs with shadows. */
   crispShadow?: boolean;
 }
 
@@ -461,12 +436,12 @@ export interface DocNode {
   type: NodeType;
   name: string;
   semantic: Semantic;
-  /** semantic === "custom" のときに出力するタグ名（pre・aside など） */
+  /** HTML tag name to render when semantic is custom, e.g. pre or aside. */
   customTag?: string;
   text: TextContent | null;
-  /** 「クリックしたとき → 開く」だけのスクリプト。a タグで出力する */
+  /** Simple click-to-open action represented as an anchor element. */
   link: LinkSetting | null;
-  /** きっかけ → 動作 のスクリプト（link で表せるものは除く） */
+  /** Event-triggered actions that cannot be represented by link. */
   scripts?: Script[];
   image?: ImageContent;
   code?: { html: string };
@@ -475,24 +450,21 @@ export interface DocNode {
   media?: MediaContent;
   embed?: EmbedContent;
   list?: ListContent;
-  /** type === "instance" のとき参照するコンポーネントID */
+  /** Component ID referenced by an instance node. */
   componentId?: string;
   children: string[];
   styles: NodeStyles;
-  /** この要素に常に適用される生CSS宣言（プロパティ: 値; の並び） */
+  /** Raw CSS declarations applied permanently to this element. */
   customCss?: string;
   motions?: Motion[];
-  /** 非表示にするデバイス。含まれないデバイスでは表示される */
+  /** Responsive breakpoints at which the element is hidden. */
   hiddenOn?: Breakpoint[];
   locked?: boolean;
-  /**
-   * ID属性。アンカーに使えるほか、フォーム部品では送信時の項目名になり、
-   * テキストを持つ要素では内容が {ID} 変数として使える
-   */
+  /** HTML id attribute. It can be used as an anchor, a submitted form field name, or a {ID} variable for text-bearing elements. */
   attrId?: string;
 }
 
-/** URL直指定 or アセット参照のどちらかで画像を指す */
+/** Image reference as either a URL or an asset ID. */
 export interface ImageRef {
   url?: string;
   assetId?: string;
@@ -501,71 +473,68 @@ export interface ImageRef {
 export interface Page {
   id: string;
   name: string;
-  /** "" = トップページ。"blog/post-1" のような階層も可 */
+  /** An empty slug is the homepage. Nested paths such as blog/post-1 are supported. */
   slug: string;
-  /** リンク先に付けるクエリ（"?" を除いた "tab=news&page=1"）。ページでは {tab} 変数として使える */
+  /** Query string without ?. Its parameters become variables on the page, e.g. {tab}. */
   query?: string;
   title: string;
-  /**
-   * タイトルがまだ決まっていない（追加・複製した直後）しるし。
-   * 初めてページ名を確定したら、タイトルもその名前にして外す（先にタイトルを書き換えても外す）。lib/pageTitle.ts
-   */
+  /** Marks a newly added or copied page whose title is not yet finalized. Finalizing its name also sets the title unless the title was edited separately. */
   titlePending?: boolean;
   description: string;
-  /** このページの言語（BCP 47 の言語コード。未設定 = サイトの言語）。lib/site-lang.ts */
+  /** BCP 47 page language; inherits the site's language when absent. */
   lang?: string;
-  /** このページにだけ適用するbodyスタイル */
+  /** Styles applied to the body of this specific page. */
   bodyStyles?: NodeStyles;
-  /** htmlの背景色（オーバースクロール時に見える色）。未設定ならbodyの背景が広がる */
+  /** HTML overscroll background color; defaults to the body's background. */
   htmlBackground?: string;
   noindex?: boolean;
-  /** true なら書き出し・公開に含めない（下書き） */
+  /** Exclude this draft page from publish/export. */
   unpublished?: boolean;
-  /** 設定されていればHTMLページ（このHTMLをそのまま配信。要素編集は無効） */
+  /** Raw HTML page. When set, the visual element editor is unavailable for this page. */
   rawHtml?: string | null;
-  /** エディタのページ一覧で入れているフォルダ（URL・公開には関係しない） */
+  /** Folder in the editor's page list; unrelated to the published URL. */
   folderId?: string;
-  /** このページ専用コード（ページHTMLの先頭に挿入。JSON-LD・計測タグなど） */
+  /** Custom markup prepended to this page body, e.g. JSON-LD or analytics tags. */
   customTopHtml?: string;
-  /** このページ専用コード（ページHTMLの末尾に挿入） */
+  /** Custom markup appended to this page body. */
   customEndHtml?: string;
-  /** このページURLからの301リダイレクト先 */
+  /** Permanent HTTP 301 redirect target. */
   redirectTo?: string;
-  /** このページURLを表示したまま内容を中継する外部サイトのURL（リバースプロキシ） */
+  /** External reverse-proxy destination displayed under this page's original URL. */
   rewriteTo?: string;
-  /** OGP画像（SNSシェア時のプレビュー） */
+  /** Open Graph image preview for this page. */
   ogImage?: ImageRef | null;
-  /** スクリプト画面に置いた、要素につながっていないブロック（実行されない） */
+  /** Disconnected script blocks displayed in the script editor; they do not execute. */
   scripts?: Script[];
-  /** きっかけが「このページ」のスクリプト（ページを開いたとき。データの取得もここ） */
+  /** Scripts triggered by events on this page, including load and page-level data fetching. */
   pageScripts?: Script[];
   children: string[];
 }
 
-/** エディタのページ一覧を整理するフォルダ（URLの階層とは関係しない） */
+/** Folder used to organize pages in the editor; unrelated to URL structure. */
 export interface PageFolder {
   id: string;
   name: string;
 }
 
-/** 追加したGoogle Font。weights が "variable" なら可変フォント */
+/** Additional Google Font. Use variable for weights when this is a variable font. */
 export interface CustomFont {
   family: string;
   weights: string[] | "variable";
 }
 
-/** 再利用コンポーネント。マスターのノードツリーは nodes 内に持つ */
+/** Reusable component definition. Its master node tree resides in nodes. */
 export interface Component {
   id: string;
   name: string;
   rootId: string;
 }
 
-/** リスト要素の設定（配列の項目を繰り返し表示） */
+/** Template settings for a list that repeats content for array items. */
 export interface ListContent {
-  /** 並べる配列の名前（"記事" や "商品.レビュー" のように「.」で中をたどれる） */
+  /** Array variable name, optionally using nested paths such as products.reviews. */
   from?: string;
-  /** 表示件数（未設定 = 全件） */
+  /** Maximum number of items to display; omit for all items. */
   limit?: number;
 }
 
@@ -583,97 +552,87 @@ export interface ZipAssetMetadata {
 export interface Asset {
   id: string;
   name: string;
-  /** Workers KV上のパス（/api/assets/file 経由で配信） */
+  /** Workers KV storage key, served through /api/assets/file. */
   path?: string;
-  /** サーバーの保存先が無いときに、このブラウザ内へ保存した中身（dataURL） */
+  /** Embedded data URL used when server asset storage is not configured. */
   dataUrl?: string;
-  /** ファイルサイズ（bytes。使用量表示に使う） */
+  /** Asset size in bytes, used in the storage usage display. */
   bytes?: number;
-  /** MIME type（未設定なら画像として扱う） */
+  /** MIME type; an absent value is treated as an image in some views. */
   mimeType?: string;
   width: number;
   height: number;
-  /** SVGが <filter>（シャドウ等）を含むか。未判定なら undefined */
+  /** Whether an SVG contains a filter such as a shadow; undefined means not yet checked. */
   svgFilter?: boolean;
   zip?: ZipAssetMetadata;
 }
 
 export interface LoadingScreenSetting {
   enabled: boolean;
-  /** 通常ページと同じ要素ツリーを保持する編集用ページ */
+  /** Editable page used to render the loading screen. */
   pageId?: string;
-  /** 最低表示時間（ms） */
+  /** Minimum duration in milliseconds. */
   minDuration?: number;
-  /** フェードアウト時間（ms） */
+  /** Fade-out duration in milliseconds. */
   fadeDuration?: number;
-  /** 同じタブのセッション中は初回だけ表示 */
+  /** Show only once per tab session. */
   showOnce?: boolean;
 }
 
-/** JSONを取得するページを作り直す間隔の既定値（秒） */
+/** Default page-data regeneration interval, in seconds. */
 export const DEFAULT_DATA_REVALIDATE = 60;
 
-/** PWA（ホーム画面に追加してアプリのように使う）の設定 */
+/** Progressive Web App configuration. */
 export interface PwaSetting {
   enabled: boolean;
-  /** アプリ名（未設定はサイト名） */
+  /** App name; defaults to the site name. */
   name?: string;
-  /** ホーム画面のアイコン下に出る短い名前（未設定はアプリ名） */
+  /** Short name displayed below the home-screen icon; defaults to the app name. */
   shortName?: string;
-  /** アプリのアイコン（未設定はホーム画面アイコン → ファビコン。512×512 PNG推奨） */
+  /** App icon; defaults to the home-screen icon, then the favicon. A 512x512 PNG is recommended. */
   icon?: ImageRef | null;
-  /** 表示モード */
+  /** Display mode. */
   display?: "standalone" | "fullscreen" | "minimal-ui" | "browser";
-  /** ツールバー等の色 */
+  /** Theme color for browser chrome. */
   themeColor?: string;
-  /** 起動時の背景色 */
+  /** Background color shown during launch. */
   backgroundColor?: string;
 }
 
 export interface SiteDoc {
   siteName: string;
-  /**
-   * 公開サイトの言語（BCP 47 の言語コード。例: ja, en, zh-Hant）。<html lang> などに使う。
-   * 未設定 = ja。lib/site-lang.ts
-   */
+  /** BCP 47 language code for the published site (e.g. ja, en, zh-Hant). Defaults to ja; used for html lang and related metadata. */
   lang?: string;
-  /** サイト内で共通利用する登録色 */
+  /** Shared color palette for the site. */
   colorPalette?: string[];
-  /** 公開URL（例: https://example.com）。OGPの絶対URL化に使用 */
+  /** Published site URL, e.g. https://example.com. Used to construct absolute OGP URLs. */
   siteUrl?: string;
-  /**
-   * JSONを取得するページを作り直す間隔（秒）。その間は作り置きのページ（Cloudflare では取得済みのJSON）を使う。
-   * 未設定 = 60、0 = アクセスのたびに取得する
-   */
+  /** Page-data regeneration interval in seconds. A generated page may serve cached JSON between regenerations; default is 60, and 0 fetches on every request. */
   dataRevalidate?: number;
-  /**
-   * 公開サイトを動かすホスティング（データを取得するページの作り方が変わる）。
-   * 未設定 = 標準（Vercel・Netlify・Node.js など。ISRでページを作り置く）、
-   * cloudflare = Cloudflare Workers（ページは毎回描画し、取得したJSONをCloudflareのキャッシュに置く）
-   */
+  /** Hosting mode for published pages that fetch data. The default uses ISR on standard platforms; cloudflare uses per-request rendering with a Cloudflare JSON cache. */
   hosting?: "cloudflare";
   favicon?: ImageRef | null;
-  /** iPhone/iPadのホーム画面アイコン（apple-touch-icon。推奨 180×180 PNG） */
+  /** Apple home-screen icon, ideally a 180x180 PNG. */
   appleTouchIcon?: ImageRef | null;
-  /** デフォルトのOGP画像（ページ側で未設定のときに使う） */
+  /** Default Open Graph preview image for the site. */
   ogImage?: ImageRef | null;
   loadingScreen?: LoadingScreenSetting;
   pwa?: PwaSetting;
   pages: Record<string, Page>;
   pageOrder: string[];
-  /** ページ一覧のフォルダ（並び順）。ページは Page.folderId で入る */
+  /** Folders in editor display order. Page.folderId assigns membership. */
   pageFolders?: PageFolder[];
   nodes: Record<string, DocNode>;
   assets: Record<string, Asset>;
   components?: Record<string, Component>;
-  /** 追加したGoogle Fonts */
+  /** Additional Google Fonts. */
   customFonts?: CustomFont[];
-  /** カスタムコード: head内（meta / script等） */
+  /** Custom markup for the HTML head, e.g. meta or script tags. */
   customHeadHtml?: string;
-  /** カスタムコード: body末尾 */
+  /** Custom markup appended to the body. */
   customBodyEndHtml?: string;
-  /** ブレークポイント（大きい順。未設定は既定の lg / md / sm） */
+  /** Breakpoints sorted from larger to smaller widths; default includes lg, md, and sm. */
   breakpoints?: BreakpointDef[];
-  /** パソコン表示のキャンバス幅（未設定は 1280） */
+  /** Desktop canvas width in pixels; defaults to 1280. */
   baseWidth?: number;
 }
