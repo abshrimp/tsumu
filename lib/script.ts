@@ -376,6 +376,10 @@ export function compileScripts(
         }
         case "set-var": {
           const { id: _id, value: _value, ...rest } = st;
+          if (st.recipe) {
+            const v = raw?.(st.recipe.source);
+            return v !== undefined ? { ...rest, raw: v } : rest;
+          }
           const one = /^\{([^{}]+)\}$/.exec(st.value.trim());
           const v = one && raw ? raw(one[1].trim()) : undefined;
           return v !== undefined ? { ...rest, raw: v } : { ...rest, value: str(st.value, "value") };

@@ -4,6 +4,10 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "ブロックに反映": "Apply to block",
+  "加工を編集": "Edit value operations",
+  "通常の値に戻す": "Use plain value",
+  "{count}件の加工": "{count} operations",
   "値を組み立てる": "Build a value",
   "リストから1件取り出す": "Get a list item",
   "項目があるか調べる": "Check whether a field exists",

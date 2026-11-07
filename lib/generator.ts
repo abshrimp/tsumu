@@ -8,6 +8,7 @@ import { VARS_RUNTIME } from "./vars";
 import { idVarNodesOf, obfuscateVarNames, pagePlan } from "./data";
 import { hasRunnableScripts, listFilterFields, scriptTargetIds } from "./script";
 import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
+import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
@@ -402,6 +403,13 @@ export default function manifest(): MetadataRoute.Manifest {
       (p) => !p.unpublished && hasRunnableScripts({ scripts: p.pageScripts })
     );
   if (needsScripts) files["public/scripts.js"] = scriptsFile(doc);
+  // Generated SSR pages share the same pure recipe evaluator as editor and client scripts.
+  // Output plain JavaScript so the emitted function can be compiled without implicit-any errors.
+  if (Object.values(doc.pages).some((page) => !page.unpublished &&
+    pagePlan(doc, page.id).steps.some((step) => step.kind === "set-var" && step.recipe))) {
+    files["lib/value-recipe.js"] =
+      "export const evaluateValueRecipe = (" + evaluateValueRecipe.toString() + ");\n";
+  }
 
   const loading = doc.loadingScreen?.enabled ? doc.loadingScreen : null;
   if (loading) {

@@ -10,6 +10,7 @@ import { sharedCookieDomain } from "../../lib/script-runtime";
 import { setVarSource, uniqueVarName } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { type ScriptStep } from "../../lib/types";
+import type { ValueRecipe } from "../../lib/script-model/compose";
 import { tr } from "../../lib/i18n";
 import {
   AnyArraySelect,
@@ -508,23 +509,33 @@ function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page
   );
 }
 
-/** 「［値］を変数［］とする」（{名前} 1つだけならリスト・まとまりもそのまま入る） */
+/** 「［値］を変数［］とする」（従来の文字入力または組み立てた値） */
 function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }) {
   const { doc, pageId, updateStep, samples, renameVar, readOnly } = useContext(Ctx);
   const src = setVarSource(step);
   const value = src ? lookupVar(samples, src) : undefined;
+  const saveRecipe = (recipe: ValueRecipe) => {
+    const next = "{" + recipe.source + "}";
+    updateStep(step.id, (s) => ({
+      ...s, value: next, recipe: recipe.steps.length ? recipe : undefined,
+    }) as ScriptStep);
+    if (!step.into) renameVar(step.id, "", uniqueVarName(doc, pageId, nameFromPath(recipe.source), step.id));
+  };
   return (
     <>
       <Phrase
         text="{value}を変数{into}とする"
         parts={{
-          value: (
+          value: step.recipe ? (
+            <span className="se-in se-in-fake se-composer-inline-summary">
+              {"{" + step.recipe.source + "}"} · {tr("{count}件の加工", { count: step.recipe.steps.length })}
+            </span>
+          ) : (
             <ValueIn
               value={step.value}
               width={150}
               onCommit={(v) => {
-                updateStep(step.id, (s) => ({ ...s, value: v }) as ScriptStep);
-                // 名前が空なら、入れる位置の最後の項目名から付ける
+                updateStep(step.id, (s) => ({ ...s, value: v, recipe: undefined }) as ScriptStep);
                 const m = /^\{([^{}]+)\}$/.exec(v.trim());
                 if (m && !step.into) {
                   renameVar(step.id, "", uniqueVarName(doc, pageId, nameFromPath(m[1].trim()), step.id));
@@ -535,7 +546,13 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
           into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 合計）")} />,
         }}
       />
-      {!readOnly && <ValueComposerPreview currentValue={step.value} samples={samples} excludedName={step.into} />}
+      {!readOnly && <ValueComposerPreview currentValue={step.value} samples={samples}
+        excludedName={step.into} recipe={step.recipe} onApply={saveRecipe} />}
+      {step.recipe && !readOnly && (
+        <button type="button" className="se-mini se-mini-text" onClick={() =>
+          updateStep(step.id, (s) => ({ ...s, recipe: undefined }) as ScriptStep)
+        }>{tr("通常の値に戻す")}</button>
+      )}
       {step.into && value !== undefined && value !== null && (
         <span className="se-blk-note">
           {Array.isArray(value)

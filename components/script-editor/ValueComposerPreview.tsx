@@ -7,12 +7,12 @@
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2, X } from "lucide-react";
-import { evaluateExpression } from "../../lib/script-model/evaluate";
+import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
 import {
-  composeValueExpression,
   defaultTransform,
   type ValueTransform,
   type ValueTransformKind,
+  type ValueRecipe,
 } from "../../lib/script-model/compose";
 import { singleValueReference } from "../../lib/variable-choice";
 import { PathMenu } from "./fetch";
@@ -76,7 +76,7 @@ function sampleAtPath(samples: Record<string, unknown>, path: string): unknown {
   return current;
 }
 
-function describeResult(result: ReturnType<typeof evaluateExpression> | null): string {
+function describeResult(result: ReturnType<typeof evaluateValueRecipe> | null): string {
   if (!result) return tr("元の値を選択してください");
   if (result.kind === "value") return JSON.stringify(result.value);
   if (result.kind === "missing") return tr("値がありません（未取得）");
@@ -167,6 +167,7 @@ function FieldKeyPicker({ value, onChange, options }: {
         aria-controls={open ? listId : undefined}
         aria-activedescendant={open && filtered.length ? listId + "-" + selectedIndex : undefined}
         value={value}
+        maxLength={256}
         placeholder={tr("項目名")}
         onFocus={() => { setOpen(true); setShowAll(true); setActive(0); }}
         onChange={(event) => {
@@ -252,11 +253,13 @@ function FieldKeyPicker({ value, onChange, options }: {
 }
 
 function RecipeDialog({
-  currentValue, samples, excludedName, onClose,
+  currentValue, samples, excludedName, initialRecipe, onApply, onClose,
 }: {
   currentValue: string;
   samples: Record<string, unknown>;
   excludedName: string;
+  initialRecipe?: ValueRecipe;
+  onApply: (recipe: ValueRecipe) => void;
   onClose: () => void;
 }) {
   const availableSamples = useMemo(() => Object.fromEntries(
@@ -264,11 +267,13 @@ function RecipeDialog({
   ), [samples, excludedName]);
   const names = Object.keys(availableSamples);
   const [source, setSource] = useState(() => {
+    if (initialRecipe) return initialRecipe.source;
     const ref = singleValueReference(currentValue);
     return ref && sampleAtPath(availableSamples, ref) !== undefined ? ref : names[0] ?? "";
   });
-  const [rows, setRows] = useState<Row[]>([]);
-  const nextId = useRef(0);
+  const [rows, setRows] = useState<Row[]>(() =>
+    (initialRecipe?.steps ?? []).map((transform, id) => ({ id, transform })));
+  const nextId = useRef(initialRecipe?.steps.length ?? 0);
   const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -285,26 +290,16 @@ function RecipeDialog({
     return values;
   }, [availableSamples, source]);
 
-  const expression = useMemo(() => source
-    ? composeValueExpression(source, rows.map((row) => row.transform))
-    : null, [source, rows]);
-  const result = useMemo(() => expression
-    ? evaluateExpression(expression, variables)
-    : null, [expression, variables]);
-
-  const progress = useMemo(() => source
-    ? rows.map((_, index) => evaluateExpression(composeValueExpression(
-      source, rows.slice(0, index + 1).map((row) => row.transform),
-    ), variables))
-    : [], [source, rows, variables]);
+  const result = useMemo(() => source
+    ? evaluateValueRecipe(variables[source], rows.map((row) => row.transform))
+    : null, [source, rows, variables]);
 
   const suggestedFields = useMemo(() => {
     const suggestions = new Map<number, string[]>();
     if (!source) return suggestions;
     rows.forEach((row, index) => {
       if (row.transform.kind !== "field" && row.transform.kind !== "has") return;
-      const before = composeValueExpression(source, rows.slice(0, index).map((item) => item.transform));
-      const previous = evaluateExpression(before, variables);
+      const previous = evaluateValueRecipe(variables[source], rows.slice(0, index).map((item) => item.transform));
       if (previous.kind === "value" && previous.value &&
         typeof previous.value === "object" && !Array.isArray(previous.value)) {
         suggestions.set(row.id, Object.keys(previous.value));
@@ -312,10 +307,6 @@ function RecipeDialog({
     });
     return suggestions;
   }, [rows, source, variables]);
-
-  const sourceSample = sampleAtPath(availableSamples, source);
-  const sourcePreview = sourceSample === undefined ? tr("値がありません（未取得）") : short(JSON.stringify(sourceSample), 120);
-  const display = short(describeResult(result), 500);
 
   function add(kind: ValueTransformKind) {
     setRows((previous) => [...previous, { id: nextId.current++, transform: defaultTransform(kind) }]);
@@ -328,20 +319,24 @@ function RecipeDialog({
       const index = previous.findIndex((row) => row.id === id);
       const target = index + distance;
       if (index < 0 || target < 0 || target >= previous.length) return previous;
-      const reordered = [...previous];
-      [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
-      return reordered;
+      const next = [...previous];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
     });
   }
+  const apply = () => {
+    if (!source) return;
+    onApply({ source, steps: rows.map((row) => row.transform) });
+    onClose();
+  };
+  const invalid = !source || rows.length > 32 || rows.some((row) =>
+    (row.transform.kind === "field" || row.transform.kind === "has") && !row.transform.key.trim());
 
   return createPortal(
     <div
       className="se-composer-backdrop"
       onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.stopPropagation();
-        if (event.currentTarget === event.target) onClose();
-      }}
+      onClick={(event) => { event.stopPropagation(); if (event.currentTarget === event.target) onClose(); }}
       onKeyDown={(event) => {
         event.stopPropagation();
         if (event.key === "Escape") onClose();
@@ -357,122 +352,79 @@ function RecipeDialog({
     >
       <div ref={dialog} className="se-composer" role="dialog" aria-modal="true" aria-label={tr("値を組み立てる")}>
         <header className="se-composer-head">
-          <div>
-            <h3>{tr("値を組み立てる")}</h3>
-            <p className="se-composer-disclaimer">{tr("試作中：見本データで結果を確認するだけです。ここでの加工は保存・実行されません。")}</p>
-          </div>
-          <button type="button" className="icon-btn" aria-label={tr("閉じる")} onClick={onClose}><X size={17}/></button>
+          <h3>{tr("値を組み立てる")}</h3>
+          <button type="button" className="icon-btn" aria-label={tr("閉じる")} onClick={onClose}><X size={16}/></button>
         </header>
-
-        <div className="se-composer-content">
-          <div className="se-composer-edit">
-            <section className="se-composer-section" aria-label={tr("元の値")}>
-              <h4>{tr("1. 元の値")}</h4>
-              <p className="se-composer-hint">{tr("加工する変数やデータを選んでください。")}</p>
-              <div className="se-composer-source">
-                <PathMenu
-                  root={availableSamples}
-                  path={source}
-                  onChange={setSource}
-                  mode="any"
-                  placeholder={tr("変数を選択")}
-                  ariaLabel={tr("元の変数を選ぶ")}
-                  allowRoot={false}
-                  portalZIndex={550}
-                />
-              </div>
-              {!names.length
-                ? <span className="se-composer-no-samples">{tr("使える見本データがありません")}</span>
-                : <div className="se-composer-source-preview">{tr("元の値の見本")} <code>{sourcePreview}</code></div>}
-            </section>
-
-            <section className="se-composer-section" aria-label={tr("加工する順番")}>
-              <h4>{tr("2. 加工する順番")}</h4>
-              <p className="se-composer-hint">{tr("上から順番に実行します。各手順の結果を確認できます。")}</p>
-              <ol className="se-composer-steps">
-                {!rows.length && (
-                  <li className="se-composer-empty">{tr("加工はまだありません。元の値がそのまま結果になります。")}</li>
-                )}
-                {rows.map((row, index) => {
-                  const operation = row.transform;
-                  return (
-                    <li key={row.id} className="se-composer-step">
-                      <div className="se-composer-step-head">
-                        <span className="se-composer-number" aria-hidden="true">{index + 1}</span>
-                        <div className="se-composer-step-heading">
-                          <strong>{tr(LABELS[operation.kind])}</strong>
-                          <p>{tr(DESCRIPTIONS[operation.kind])}</p>
-                        </div>
-                        <div className="se-composer-step-actions">
-                          <button type="button" aria-label={tr("上へ")} title={tr("上へ")}
-                            disabled={index === 0} onClick={() => move(row.id, -1)}><ArrowUp size={15} aria-hidden="true" /></button>
-                          <button type="button" aria-label={tr("下へ")} title={tr("下へ")}
-                            disabled={index === rows.length - 1} onClick={() => move(row.id, 1)}><ArrowDown size={15} aria-hidden="true" /></button>
-                          <button type="button" aria-label={tr("削除")} title={tr("削除")}
-                            onClick={() => setRows((before) => before.filter((item) => item.id !== row.id))}><Trash2 size={15} aria-hidden="true" /></button>
-                        </div>
-                      </div>
-
-                      {(operation.kind === "field" || operation.kind === "has") && (
-                        <div className="se-composer-step-input">
-                          <FieldKeyPicker value={operation.key} options={suggestedFields.get(row.id) ?? []}
-                            onChange={(key) => update(row.id, { ...operation, key })} />
-                        </div>
-                      )}
-                      {operation.kind === "index" && (
-                        <div className="se-composer-step-input">
-                          <input aria-label={tr("取り出す位置")} type="number" min="0" step="1"
-                            value={operation.index < 0 ? "" : operation.index}
-                            onChange={(event) => update(row.id, {
-                              ...operation, index: event.target.value === "" ? -1 : Number(event.target.value),
-                            })} />
-                        </div>
-                      )}
-                      {(operation.kind === "fallback" || operation.kind === "fallback-nullish") && (
-                        <div className="se-composer-step-input">
-                          <input aria-label={tr("値がないときの文字列")} value={operation.text}
-                            placeholder={tr("代わりに使う文字列")}
-                            onChange={(event) => update(row.id, { ...operation, text: event.target.value })} />
-                        </div>
-                      )}
-                      <div className="se-composer-progress" data-result-kind={progress[index]?.kind ?? "missing"}>
-                        <span>{tr("ここまでの結果")}</span>
-                        <code>{short(describeResult(progress[index] ?? null))}</code>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-
-              <label className="se-composer-add">
-                <Plus size={15} aria-hidden="true" />
-                <span>{tr("加工を追加")}</span>
-                <select aria-label={tr("加工を追加")} value="" onChange={(event) => {
-                  const kind = event.target.value as ValueTransformKind;
-                  if (kind) add(kind);
-                }}>
-                  <option value="">{tr("加工を選択してください")}</option>
-                  {GROUPS.map((group) => (
-                    <optgroup key={group.label} label={tr(group.label)}>
-                      {group.kinds.map((kind) => <option key={kind} value={kind}>{tr(LABELS[kind])}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
-            </section>
+        <div className="se-composer-main">
+          <div className="se-composer-source">
+            <span>{tr("元の値")}</span>
+            <PathMenu
+              root={availableSamples}
+              path={source}
+              onChange={setSource}
+              mode="any"
+              placeholder={tr("変数を選択")}
+              ariaLabel={tr("元の変数を選ぶ")}
+              allowRoot={false}
+              portalZIndex={550}
+            />
           </div>
-
-          <aside className="se-composer-result">
-            <h4>{tr("3. 見本の結果")}</h4>
-            <p className="se-composer-hint">{tr("選んだ元の値に加工を順番に適用した結果です。")}</p>
-            <output aria-live="polite" data-result-kind={result?.kind ?? "missing"}>{display}</output>
-            <p className="se-composer-hint">{tr("計算やリストの絞り込みは、まだこの試作では選べません。")}</p>
-          </aside>
+          {!names.length && <span className="se-composer-no-samples">{tr("使える見本データがありません")}</span>}
+          <ol className="se-composer-steps" aria-label={tr("加工する順番")}>
+            {rows.map((row, index) => {
+              const operation = row.transform;
+              return (
+                <li key={row.id} className="se-composer-step">
+                  <span className="se-composer-number">{index + 1}</span>
+                  <span className="se-composer-step-label" title={tr(DESCRIPTIONS[operation.kind])}>{tr(LABELS[operation.kind])}</span>
+                  {(operation.kind === "field" || operation.kind === "has") && (
+                    <FieldKeyPicker value={operation.key} options={suggestedFields.get(row.id) ?? []}
+                      onChange={(key) => update(row.id, { ...operation, key })} />
+                  )}
+                  {operation.kind === "index" && (
+                    <input aria-label={tr("取り出す位置")} type="number" min="-1" step="1"
+                      value={operation.index}
+                      onChange={(event) => update(row.id, { ...operation, index: event.target.value === "" ? -1 : Number(event.target.value) })} />
+                  )}
+                  {(operation.kind === "fallback" || operation.kind === "fallback-nullish") && (
+                    <input aria-label={tr("値がないときの文字列")} value={operation.text} maxLength={10000}
+                      placeholder={tr("代わりに使う文字列")}
+                      onChange={(event) => update(row.id, { ...operation, text: event.target.value })} />
+                  )}
+                  <div className="se-composer-step-actions">
+                    <button type="button" aria-label={tr("上へ")} title={tr("上へ")} disabled={index === 0}
+                      onClick={() => move(row.id, -1)}><ArrowUp size={14} aria-hidden="true"/></button>
+                    <button type="button" aria-label={tr("下へ")} title={tr("下へ")} disabled={index === rows.length - 1}
+                      onClick={() => move(row.id, 1)}><ArrowDown size={14} aria-hidden="true"/></button>
+                    <button type="button" aria-label={tr("削除")} title={tr("削除")}
+                      onClick={() => setRows((before) => before.filter((item) => item.id !== row.id))}><Trash2 size={14} aria-hidden="true"/></button>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          <label className="se-composer-add">
+            <Plus size={14} aria-hidden="true"/>
+            <select aria-label={tr("加工を追加")} value="" disabled={rows.length >= 32} onChange={(event) => {
+              const kind = event.target.value as ValueTransformKind;
+              if (kind) add(kind);
+            }}>
+              <option value="">{tr("加工を追加")}</option>
+              {GROUPS.map((group) => (
+                <optgroup key={group.label} label={tr(group.label)}>
+                  {group.kinds.map((kind) => <option key={kind} value={kind} title={tr(DESCRIPTIONS[kind])}>{tr(LABELS[kind])}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <section className="se-composer-result">
+            <strong>{tr("見本の結果")}</strong>
+            <output aria-live="polite" data-result-kind={result?.kind ?? "missing"}>{short(describeResult(result), 500)}</output>
+          </section>
         </div>
-
         <footer className="se-composer-foot">
-          <span>{tr("元の値やスクリプトは変更されません。")}</span>
-          <button type="button" className="btn" onClick={onClose}>{tr("閉じる")}</button>
+          <button type="button" className="btn" onClick={onClose}>{tr("キャンセル")}</button>
+          <button type="button" className="btn btn-primary" disabled={invalid} onClick={apply}>{tr("ブロックに反映")}</button>
         </footer>
       </div>
     </div>,
@@ -480,10 +432,12 @@ function RecipeDialog({
   );
 }
 
-export function ValueComposerPreview({ currentValue, samples, excludedName }: {
+export function ValueComposerPreview({ currentValue, samples, excludedName, recipe, onApply }: {
   currentValue: string;
   samples: Record<string, unknown>;
   excludedName: string;
+  recipe?: ValueRecipe;
+  onApply: (recipe: ValueRecipe) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -494,11 +448,11 @@ export function ValueComposerPreview({ currentValue, samples, excludedName }: {
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => { event.stopPropagation(); setOpen(true); }}
       >
-        {tr("値を組み立てる")}
+        {recipe ? tr("加工を編集") : tr("値を組み立てる")}
       </button>
       {open && (
         <RecipeDialog currentValue={currentValue} samples={samples} excludedName={excludedName}
-          onClose={() => setOpen(false)} />
+          initialRecipe={recipe} onApply={onApply} onClose={() => setOpen(false)} />
       )}
     </>
   );

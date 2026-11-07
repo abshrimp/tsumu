@@ -1,6 +1,6 @@
 import type { Expr, Json } from "./types";
 
-/** A small, reversible UI recipe. Only the preview uses it; SiteDoc stays unchanged. */
+/** A compact, serializable recipe. Older set-var steps have no recipe. */
 export type ValueTransform =
   | { readonly kind: "field"; readonly key: string }
   | { readonly kind: "index"; readonly index: number }
@@ -11,6 +11,11 @@ export type ValueTransform =
   | { readonly kind: "parse" }
   | { readonly kind: "fallback"; readonly text: string }
   | { readonly kind: "fallback-nullish"; readonly text: string };
+
+export interface ValueRecipe {
+  readonly source: string;
+  readonly steps: readonly ValueTransform[];
+}
 
 export type ValueTransformKind = ValueTransform["kind"];
 

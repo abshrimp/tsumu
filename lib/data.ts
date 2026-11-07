@@ -18,6 +18,7 @@ import {
 } from "./vars";
 import { fieldStateNotes, fieldVarName, fieldVarNames, isRadioItem } from "./fields";
 import { tr, trc } from "./i18n";
+import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 
 /** "data.items" のようなパスでオブジェクトを掘る（配列の "-1" は最後の要素） */
 export function digPath(root: unknown, path: string | undefined): unknown {
@@ -373,6 +374,7 @@ export type ServerStep = DataStep | HybridStep | ForEachStep | SetVarStep;
 
 /** 「［{名前}］を変数［］とする」の {名前}（値が {名前} 1つだけでなければ null） */
 export function setVarSource(st: SetVarStep): string | null {
+  if (st.recipe) return null;
   const m = /^\{([^{}]+)\}$/.exec(st.value.trim());
   return m ? m[1].trim() : null;
 }
@@ -540,7 +542,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         clientVars.add(st.into);
       }
       // 「ページを開いたとき」の直下で {名前} だけを入れるものは、配信前に動くかを後で決める
-      if (st.kind === "set-var" && st.into && !(loadRoot.has(st) && setVarSource(st))) {
+      if (st.kind === "set-var" && st.into && !(loadRoot.has(st) && (st.recipe?.source || setVarSource(st)))) {
         clientVars.add(st.into);
       }
       if (isHybridStep(st) && !loadRoot.has(st) && "into" in st && st.into) clientVars.add(st.into);
@@ -602,7 +604,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         }
       } else if (st.kind === "set-var") {
         // {名前} だけで、その値が配信前にそろい、ほかで画面上から書き換えなければ配信前に動く
-        const src = setVarSource(st);
+        const src = st.recipe?.source || setVarSource(st);
         if (!st.into || !src) continue;
         if (isClient(src) || clientVars.has(st.into)) {
           clientVars.add(st.into);
@@ -936,11 +938,16 @@ export function previewDataVars(
         if (st.into) out[st.into] = joinArray(lookupVar(scope(), st.array), st.field, st.sep);
         break;
       case "set-var": {
-        const src = setVarSource(st);
+        const src = st.recipe?.source || setVarSource(st);
         if (!st.into || !src) break;
-        out[st.into] = lookupVar(scope(), src) ?? null;
-        const o = originOf(src);
-        if (o) origins[st.into] = o;
+        if (st.recipe) {
+          const evaluated = evaluateValueRecipe(lookupVar(scope(), src), st.recipe.steps);
+          if (evaluated.kind === "value") out[st.into] = evaluated.value;
+        } else out[st.into] = lookupVar(scope(), src) ?? null;
+        if (!st.recipe || st.recipe.steps.length === 0) {
+          const o = originOf(src);
+          if (o) origins[st.into] = o;
+        }
         break;
       }
       case "array-field":
@@ -975,11 +982,11 @@ export function previewDataVars(
   }
   // 「［{名前}］を変数［］とする」は画面上で動くが、見本ではそのまま入れておく
   //（リストの項目・変数の候補に中身を出すため。変数から変数へ入れ直した場合もたどる）
-  const copies: { into: string; src: string }[] = [];
+  const copies: { into: string; src: string; recipe?: SetVarStep["recipe"] }[] = [];
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
-      const src = st.kind === "set-var" && st.into && !(st.into in out) ? setVarSource(st) : null;
-      if (src) copies.push({ into: (st as SetVarStep).into, src });
+      const src = st.kind === "set-var" && st.into && !(st.into in out) ? st.recipe?.source || setVarSource(st) : null;
+      if (src) copies.push({ into: (st as SetVarStep).into, src, recipe: (st as SetVarStep).recipe });
     });
   }
   for (let added = true; added; ) {
@@ -988,7 +995,11 @@ export function previewDataVars(
       if (c.into in out) continue;
       const v = lookupVar(scope(), c.src);
       if (v === undefined) continue;
-      out[c.into] = v;
+      if (c.recipe) {
+        const result = evaluateValueRecipe(v, c.recipe.steps);
+        if (result.kind !== "value") continue;
+        out[c.into] = result.value;
+      } else out[c.into] = v;
       added = true;
     }
   }
@@ -1315,6 +1326,9 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       st.kind === "store-save"
     ) {
       st.value = mapVarTokens(st.value, fn);
+      if (st.kind === "set-var" && st.recipe) {
+        st.recipe = { ...st.recipe, source: fn(st.recipe.source) ?? st.recipe.source };
+      }
       if (st.kind === "filter-array") {
         st.or?.forEach((c) => (c.value = mapVarTokens(c.value, fn)));
       }

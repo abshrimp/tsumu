@@ -1,3 +1,5 @@
+import type { ValueRecipe } from "./script-model/compose";
+
 export type NodeType =
   | "box"
   | "image"
@@ -330,6 +332,8 @@ export type ScriptStep = { id: string } & (
       kind: "set-var";
       value: string;
       into: string;
+      /** Optional composed value; takes precedence over the legacy value string. */
+      recipe?: ValueRecipe;
     }
   | {
       /** 文字列の中の find をすべて to に置き換えて変数に入れる（{変数} を使える） */

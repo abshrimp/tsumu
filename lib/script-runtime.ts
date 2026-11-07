@@ -8,6 +8,7 @@ import { isDataStep, listFromOf, pagePlan } from "./data";
 import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
+import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 
 /* ---------- 実行ランタイム ---------- */
 
@@ -22,6 +23,9 @@ import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
  */
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
+  /*#setvar*/
+  var evalRecipe = (${evaluateValueRecipe.toString()});
+  /*/setvar*/
   /*#env*/
   env = env || {};
   function touch(el) {
@@ -804,7 +808,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (Array.isArray(value)) return value.map(fillValue);
           var out = Object.create(null);
           Object.keys(value).forEach(function (key) {
-            out[key] = (key === "rawRef" || key === "joinFallback" || key === "countFallback") ? value[key] : fillValue(value[key]);
+            out[key] = (key === "rawRef" || key === "recipe" || key === "raw" || key === "joinFallback" || key === "countFallback") ? value[key] : fillValue(value[key]);
           });
           return out;
         }
@@ -1229,6 +1233,19 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/store*/
           /*#setvar*/
           case "set-var": {
+            if (st.recipe) {
+              var recipeInput = sc && (has(sc, st.recipe.source) ? sc[st.recipe.source] : dig(sc, st.recipe.source));
+              if (recipeInput === undefined) recipeInput = getVar(st.recipe.source);
+              /*#clist*/
+              if (st.rawRef) recipeInput = scriptReference(st.rawRef, self, sc);
+              /*/clist*/
+              if (recipeInput === undefined && "raw" in st) recipeInput = st.raw;
+              if (recipeInput === undefined) recipeInput = lookup(st.recipe.source, self, sc);
+              var recipeResult = evalRecipe(recipeInput, st.recipe.steps);
+              if (recipeResult.kind === "value") setVar(st.into, recipeResult.value);
+              else if (recipeResult.kind === "error") console.warn("Invalid value recipe:", recipeResult.code);
+              break;
+            }
             /*#clist*/
             if (st.rawRef) {
               setVar(st.into, scriptReference(st.rawRef, self, sc));

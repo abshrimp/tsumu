@@ -205,6 +205,8 @@ export function generatePageFile(
     ? []
     : ['import type { Metadata } from "next";'];
   if (loads.length) imports.push('import { fetchPublic, readTextLimited } from "@/lib/safe-fetch";');
+  if (loads.some((st) => st.kind === "set-var" && st.recipe))
+    imports.push('import { evaluateValueRecipe as __evalValueRecipe } from "@/lib/value-recipe";');
   if (isSlugPg && primary)
     imports.push('import { notFound } from "next/navigation";');
   const reactImports = [
@@ -455,6 +457,12 @@ ${body}
         return `  if (${JSON.stringify(st.array)} in vars) vars[${JSON.stringify(st.array)}] = ${val};\n  else vars[${JSON.stringify(root)}] = setIn(vars[${JSON.stringify(root)}], ${JSON.stringify(rest)}, ${val});`;
       }
       case "set-var": {
+        if (st.recipe && st.into) {
+          return `  {
+    const outcome = __evalValueRecipe(lookupVar(vars, ${JSON.stringify(st.recipe.source)}), ${JSON.stringify(st.recipe.steps)});
+    if (outcome.kind === "value") vars[${JSON.stringify(st.into)}] = outcome.value;
+  }`;
+        }
         const from = setVarSource(st);
         return st.into && from
           ? `  vars[${JSON.stringify(st.into)}] = lookupVar(vars, ${JSON.stringify(from)}) ?? null;`
