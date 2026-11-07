@@ -8,10 +8,10 @@ test.beforeEach(async ({ page }) => {
   await page.setContent('<html><body><div id="app"></div></body></html>');
   await page.addStyleTag({ content: readFileSync("app/globals.css", "utf8") });
   await page.addScriptTag({ content: bundle });
-  await page.getByRole("button", { name: "リスト化", exact: true }).click();
+  await page.getByRole("button", { name: "リスト表示にする", exact: true }).click();
 });
 const source = (page: Page) => page.locator("aside .row").filter({
-  has: page.locator("label", { hasText: /^並べる配列$/ }),
+  has: page.locator("label", { hasText: /^表示するリスト$/ }),
 }).locator("button");
 const saved = (page: Page) => page.evaluate(() => {
   const { doc, past, selection } = (window as any).nestedListStore.getState();

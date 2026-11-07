@@ -3065,6 +3065,20 @@ const en: Dict = {
     "Radio buttons with the same Group allow only one choice. {group name} is the chosen button's value (its label), and {ID} is true or false depending on whether that button is chosen.",
   "「変数を探す」の「詳細を表示」で、無効かどうか（{ID.disabled}）・文字数（{ID.length}）・選んだ番号（{ID.index}）も選べます。スクリプトの「［入力欄］を［有効にする / 無効にする］」で切り替えられます。":
     "Under Show advanced in Find a variable you can also pick whether a field is disabled ({ID.disabled}), its length ({ID.length}) and the chosen number ({ID.index}). The script block “Set ［field］ to ［enabled / disabled］” switches it.",
+  // Script data terminology review (#132)
+  "選んでいるリスト表示": "Selected list display",
+  "データとリスト表示": "Data and list displays",
+  "データを繰り返して表示したい（リスト表示）": "How do I display repeated items from a list?",
+  "取得したデータの中のリストを、スクリプトの「［値］を変数［］とする」で変数に入れ、「リスト表示」要素の「表示するリスト」で選びます。リスト表示の1つ目のカードがお手本になります。": "Store the list from the fetched data in a variable with the script block \"Set variable ［］ to ［value］\", then choose it as the \"List to display\" in the List display element. The first card is the template.",
+  "「［値 / {データ.位置}］を変数［］とする」で、データの中のリストに名前を付ける（例: {お知らせ.items} を「記事」とする）": "Name the list inside the data with \"Set variable ［］ to ［value / {data.path}］\" (e.g. store {news.items} as \"articles\")",
+  "お手本にするカード（ボックス）を作り、右クリックの「リスト表示にする」でリスト表示にする": "Make a template card (box) and turn it into a list with \"Turn into list display\" in the right-click menu",
+  "リスト表示の「設定」の「表示するリスト」で「記事」を選ぶ": "Choose \"articles\" under \"List to display\" in the List display settings",
+  "お手本にするボックスを選び、「リスト表示にする」を押します。": "Select the template box and click \"Turn into list display\".",
+  "リストから1件ずつの詳細ページを作りたい（[slug]）": "How do I make a detail page for each item ([slug])?",
+  "そのページのスクリプトで、{slug} を使ってデータを取得する（例: https://api.example.com/news/{slug}）か、リストのデータから「リスト［］の要素のうち、項目［id］が［{slug}］のものを変数［］とする」で1件を探す": "In that page's script, fetch data using {slug} (e.g. https://api.example.com/news/{slug}), or find one item in a list with \"Find the item in list ［］ whose ［id］ is ［{slug}］ and store it in ［］\"",
+  "リスト表示のカードのリンク先を `/news/{id}` のようにする": "Set each card's link in the list display to something like `/news/{id}`",
+  "取得済みのリストを画面上で絞り込むときは、「クリックしたとき」「値が変わったとき」に「リスト［］を［項目］で絞り込む」をつなげます。": "To filter an already-fetched list on screen, attach \"Filter list ［］ by ［field］\" to \"When clicked\" or \"When the value changes\".",
+
 };
 
 export default en;

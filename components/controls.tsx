@@ -42,6 +42,7 @@ import {
 } from "../lib/vars";
 import { glyphs } from "./Glyph";
 import VarExplorer from "./VarExplorer";
+import { singleValueReference, type ValueContext } from "../lib/variable-choice";
 import { tr } from "../lib/i18n";
 
 /** ブレークポイントの絵柄（幅から選ぶ） */
@@ -809,11 +810,11 @@ export function anchoredMenuPos(
 export function varSuggestPos(
   r: { left: number; top: number; bottom: number },
   count: number,
-  width = 240
+  width = 320
 ): CSSProperties {
   // 一覧（CSS で最大 256px）と、見出し・「変数を探す」・操作の案内。
   // 見積もりは上下を決めるだけに使い、高さは中身に任せる（見積もりで一覧を縮めない）
-  return anchoredMenuPos(r, width, Math.min(count * 32, 256) + 96, false);
+  return anchoredMenuPos(r, Math.max(width, 320), Math.min(count * 32, 256) + 96, false);
 }
 
 /** 変数の候補メニュー（キャンバスのテキスト編集・VarInput 共用） */
@@ -823,7 +824,9 @@ export function VarSuggestMenu({
   onPick,
   onExplore,
   menuRef,
+  exploreShortcut,
 }: {
+  exploreShortcut?: boolean;
   suggest: VarSuggest;
   samples?: Record<string, string>;
   onPick: (name: string) => void;
@@ -878,10 +881,8 @@ export function VarSuggestMenu({
             key={name}
             type="button"
             className={`dd-item${i === index ? " is-sel-key" : ""}`}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              onPick(name);
-            }}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => onPick(name)}
           >
             <span className="var-chip">{mark(name)}</span>
             {samples?.[name] && <span className="var-comp-sample">{samples[name]}</span>}
@@ -892,10 +893,8 @@ export function VarSuggestMenu({
         <button
           type="button"
           className={`dd-item var-comp-explore${index === matches.length ? " is-sel-key" : ""}`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onExplore();
-          }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onExplore}
         >
           <Search size={13} />
           <span>{tr("変数を探す…")}</span>
@@ -910,9 +909,9 @@ export function VarSuggestMenu({
         <span>
           <kbd>{query.mode === "word" ? "Tab" : "Enter"}</kbd> {tr("挿入")}
         </span>
-        <span>
-          <kbd>{glyphs(VAR_LIST_KBD)}</kbd> {tr("一覧")}
-        </span>
+        {exploreShortcut && <span>
+          <kbd>{glyphs(VAR_LIST_KBD)}</kbd> {tr("変数を探す")}
+        </span>}
       </div>
     </div>,
     document.body
@@ -930,6 +929,9 @@ export function VarInput({
   nodeId,
   eager,
   extraNames,
+  localNames,
+  sourceStepId,
+  valueContext,
   className,
   style,
 }: {
@@ -947,6 +949,9 @@ export function VarInput({
   eager?: boolean;
   /** 「変数を探す」に足す、見本の無い変数（スクリプトで作る変数など） */
   extraNames?: string[];
+  localNames?: string[];
+  sourceStepId?: string;
+  valueContext?: ValueContext;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -979,7 +984,7 @@ export function VarInput({
     }
     const r = el.getBoundingClientRect();
     setSug({
-      pos: varSuggestPos(r, matches.length + (explorable ? 1 : 0), Math.max(r.width, 240)),
+      pos: varSuggestPos(r, matches.length + (explorable ? 1 : 0), r.width),
       query,
       matches,
       index: 0,
@@ -996,33 +1001,52 @@ export function VarInput({
     el.setSelectionRange(caret, caret);
   };
 
+  const replacementRange = (el: HTMLInputElement) => {
+    const pos = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? pos;
+    const query = sug?.query ?? findVarQuery(el.value.slice(0, pos), names, false);
+    return valueContext === "value" && singleValueReference(el.value)
+      ? { start: 0, end: el.value.length }
+      : pos !== end ? { start: pos, end }
+      : { start: query ? Math.min(query.start, pos) : pos, end: query ? varQueryEnd(el.value, query, pos) : pos };
+  };
   const insert = (name: string) => {
     const el = ref.current;
     if (!el || !sug) return;
-    const pos = el.selectionStart ?? el.value.length;
-    replace(Math.min(sug.query.start, pos), varQueryEnd(el.value, sug.query, pos), name);
+    const { start, end } = replacementRange(el);
+    replace(start, end, name);
     setSug(null);
   };
-
   const openExplore = () => {
     const el = ref.current;
-    if (!el || !sug) return;
-    const pos = el.selectionStart ?? el.value.length;
-    setExplore({ start: Math.min(sug.query.start, pos), end: varQueryEnd(el.value, sug.query, pos) });
+    if (!el) return;
+    setExplore(replacementRange(el));
     setSug(null);
   };
 
   const open = !!sug;
   useEffect(() => {
     if (!open) return;
-    const onScroll = (e: Event) => {
-      if (!menuRef.current?.contains(e.target as Node)) setSug(null);
+    const reposition = (e: Event) => {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      const input = ref.current;
+      if (!input || document.activeElement !== input) {
+        setSug(null);
+        return;
+      }
+      // Focusing an off-screen input scrolls the workspace. Keep the suggestion
+      // open, but follow the input instead of dismissing it on that scroll.
+      const rect = input.getBoundingClientRect();
+      setSug((current) => current && ({
+        ...current,
+        pos: varSuggestPos(rect, current.matches.length + (current.explore ? 1 : 0), rect.width),
+      }));
     };
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
     return () => {
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
     };
   }, [open]);
 
@@ -1035,8 +1059,8 @@ export function VarInput({
         defaultValue={value}
         placeholder={placeholder}
         onFocus={() => {
-          // 「{」なしで出すときは、フォーカスした時点で候補を見せる（空欄なら一覧）
-          if (eager && !explore) requestAnimationFrame(() => update());
+          // 入力・blur より後に候補を開き直さないよう、フォーカス時に同期して表示する。
+          if (eager && !explore) update(true);
         }}
         onInput={(e) => {
           if ((e.nativeEvent as InputEvent).isComposing) return;
@@ -1051,7 +1075,8 @@ export function VarInput({
           if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
           if (isVarListShortcut(e)) {
             e.preventDefault();
-            update(true);
+            if (eager && explorable && e.key === "/") openExplore();
+            else update(true);
             return;
           }
           if (sug) {
@@ -1079,6 +1104,7 @@ export function VarInput({
       />
       {sug && (
         <VarSuggestMenu
+          exploreShortcut={!!eager && explorable}
           suggest={sug}
           samples={samples}
           onPick={insert}
@@ -1090,6 +1116,9 @@ export function VarInput({
         <VarExplorer
           nodeId={nodeId}
           extraNames={extraNames}
+          localNames={localNames}
+          sourceStepId={sourceStepId}
+          context={valueContext}
           onPick={(name) => {
             replace(explore.start, explore.end, name);
             setExplore(null);

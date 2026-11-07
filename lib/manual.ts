@@ -53,7 +53,7 @@ export const CATEGORIES: Category[] = [
   { id: "image", label: tr("画像と動画"), desc: tr("画像の追加・切り抜き・埋め込み") },
   { id: "responsive", label: tr("スマホ対応"), desc: tr("画面幅ごとに見た目を変える") },
   { id: "action", label: tr("リンクと動き"), desc: tr("ページ移動・メニュー開閉") },
-  { id: "data", label: tr("データとリスト"), desc: tr("外部データ・一覧・詳細ページ") },
+  { id: "data", label: tr("データとリスト表示"), desc: tr("外部データ・一覧・詳細ページ") },
   { id: "reuse", label: tr("部品の使い回し"), desc: tr("コンポーネント") },
   { id: "publish", label: tr("公開と管理"), desc: tr("公開・バックアップ・アカウント") },
   { id: "design", label: tr("Webデザインの基本"), desc: tr("知っておくと迷わない決まりごと") },

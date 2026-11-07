@@ -1029,6 +1029,19 @@ textarea {
   gap: 12px;
 }
 
+/* 設定パネルの要素操作は、サイドバーの幅に合わせて行を増やす。 */
+.settings-node-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.settings-node-actions > .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 /* ラベルを左に置く行（設定パネル・ページ設定用） */
 .row {
   display: grid;
@@ -2729,11 +2742,20 @@ textarea {
 
 .var-comp-foot {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
   padding: 6px 10px;
   border-top: 1px solid var(--border);
   font-size: 10px;
   color: var(--text-3);
+}
+
+.var-comp-foot > span {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  white-space: nowrap;
 }
 
 .var-comp-foot kbd {
@@ -4170,6 +4192,8 @@ textarea {
   min-width: 260px;
   border: 1px solid var(--border-strong);
   border-radius: 10px;
+  /* Hover backgrounds must respect the rounded outer border, including the bottom row. */
+  overflow: clip;
   background: var(--panel);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.04);
 }
@@ -6140,6 +6164,12 @@ a.btn {
   margin-top: 2px;
   color: var(--accent);
   font-weight: 500;
+}
+
+.var-comp-explore > svg,
+.var-comp-explore > span:not(.var-comp-sample) {
+  flex: none;
+  white-space: nowrap;
 }
 
 .var-comp-explore .var-comp-sample {
@@ -12271,3 +12301,18 @@ a.btn {
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+/* データ取得のテストは設定編集と分け、送る先と値をまとめて確認する。 */
+.se-fetch-test { width: min(560px, calc(100vw - 32px)); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.se-fetch-destination { display: flex; gap: 10px; align-items: baseline; word-break: break-all; }
+.se-fetch-test-value { display: flex; align-items: center; gap: 12px; }
+.se-fetch-test-value code { min-width: 100px; overflow-wrap: anywhere; }
+.se-fetch-test-value .se-in { flex: 1; min-width: 0; }
+.se-fetch-test-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* スクリプトの値選択。既存のテンプレートを変えず、参照を直接選ぶ。 */
+.se-value-choice { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; flex-wrap: wrap; }
+.se-value-info { display: inline-flex; align-items: center; gap: 6px; }
+.se-value-sample { opacity: .65; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
+.se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }

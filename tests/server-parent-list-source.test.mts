@@ -21,7 +21,7 @@ test('ordinary SettingsPanel and ScriptEditor controls configure the mixed sourc
  const doc = serverSourceDoc(); doc.nodes.tags.list!.from = '';
  useEditor.getState().replaceDoc(doc); useEditor.getState().setActivePage('p');
  const settings = loadNestedUi('components/SettingsPanel.tsx', true).default({ nodeId: 'tags' });
- const row = treeNodes(settings).find(n => n.props?.className === 'row' && treeNodes(n).some(x => x.type === 'label' && x.props.children === '並べる配列'));
+ const row = treeNodes(settings).find(n => n.props?.className === 'row' && treeNodes(n).some(x => x.type === 'label' && x.props.children === '表示するリスト'));
  const dropdown = treeNodes(row).find(n => n.props?.options).props;
  assert.ok(dropdown.options.some((o: any) => o.value === 'tags')); dropdown.onChange('tags');
  assert.equal(useEditor.getState().doc.nodes.tags.list!.from, 'tags');
