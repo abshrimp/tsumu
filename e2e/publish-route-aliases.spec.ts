@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import JSZip from "jszip";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createInitialDoc, makeText } from "../lib/presets";
+import { loadGeneratedRoute } from "../tests/helpers/generated-route";
 
 test("同じ書き出し先のURLを検出し、URL修正後は両方のクエリページを書き出す", async ({ page }) => {
   const errors: string[] = [];
@@ -59,6 +61,23 @@ test("同じ書き出し先のURLを検出し、URL修正後は両方のクエ�
   const prefix = path.slice(0, -"page.tsx".length);
   expect(await zip.file(`${prefix}_q/p0.tsx`)!.async("string")).toContain("The original team page");
   expect(await zip.file(`${prefix}_q/p1.tsx`)!.async("string")).toContain("The other team page");
-  expect(await zip.file(path)!.async("string")).toContain('"tab":"other"');
+  // 条件の内部表現ではなく、ダウンロードしたページの本文とメタデータで振り分けを確かめる。
+  const files = Object.fromEntries(await Promise.all(
+    [path, `${prefix}_q/p0.tsx`, `${prefix}_q/p1.tsx`].map(async (name) => [name, await zip.file(name)!.async("string")]),
+  ));
+  const route = loadGeneratedRoute(files, path);
+  for (const [query, title, expected, unexpected] of [
+    [{}, "first", "The original team page", "The other team page"],
+    [{ tab: "other" }, "second", "The other team page", "The original team page"],
+    [{ tab: "missing" }, "first", "The original team page", "The other team page"],
+    [{ tab: ["other", "missing"] }, "second", "The other team page", "The original team page"],
+    [{ tab: ["missing", "other"] }, "first", "The original team page", "The other team page"],
+  ] as const) {
+    const props = { params: Promise.resolve({}), searchParams: Promise.resolve(query) };
+    const html = renderToStaticMarkup(await route.default(props));
+    expect(html).toContain(expected);
+    expect(html).not.toContain(unexpected);
+    expect((await route.generateMetadata(props)).title).toBe(title);
+  }
   expect(errors).toEqual([]);
 });

@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
-import { createRequire } from "node:module";
-import { dirname, posix } from "node:path";
 import { test } from "node:test";
-import { transformSync } from "esbuild";
 import { renderToStaticMarkup } from "react-dom/server";
 import { generateProject } from "../lib/generator";
 import { runChecks } from "../lib/generator/checks";
 import { createInitialDoc, makeText } from "../lib/presets";
+import { loadGeneratedRoute } from "./helpers/generated-route";
 
 function fixture() {
   const doc = createInitialDoc();
@@ -23,23 +21,6 @@ function fixture() {
 }
 
 const errors = (doc: ReturnType<typeof fixture>) => runChecks(doc).filter((c) => c.level === "error");
-
-function loadGenerated(files: Record<string, string>, path: string): any {
-  const require = createRequire(import.meta.url);
-  const loaded = new Map<string, any>();
-  const load = (path: string): any => {
-    if (loaded.has(path)) return loaded.get(path);
-    const module = { exports: {} };
-    const code = transformSync(files[path], { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
-    new Function("require", "module", "exports", code)((name: string) => {
-      if (name.startsWith(".")) return load(posix.normalize(`${dirname(path)}/${name}.tsx`));
-      return require(name);
-    }, module, module.exports);
-    loaded.set(path, module.exports);
-    return module.exports;
-  };
-  return load(path);
-}
 
 test("publish and export checks reject URLs that produce the same generated route", () => {
   for (const slug of ["about//team", "/about///team/", "about/./team", "about/../team"]) {
@@ -80,16 +61,19 @@ test("query variants sharing an output route both render through the generated d
   const before = structuredClone(doc);
   assert.deepEqual(errors(doc), []);
   const { files } = generateProject(doc);
-  const route = loadGenerated(files, "app/about/team/page.tsx");
-  for (const [query, expected, unexpected] of [
-    [{}, "The original team page", "The other team page"],
-    [{ tab: "other" }, "The other team page", "The original team page"],
+  const route = loadGeneratedRoute(files, "app/about/team/page.tsx");
+  for (const [query, title, expected, unexpected] of [
+    [{}, "first", "The original team page", "The other team page"],
+    [{ tab: "other" }, "second", "The other team page", "The original team page"],
+    [{ tab: "missing" }, "first", "The original team page", "The other team page"],
+    [{ tab: ["other", "missing"] }, "second", "The other team page", "The original team page"],
+    [{ tab: ["missing", "other"] }, "first", "The original team page", "The other team page"],
   ] as const) {
     const props = { params: Promise.resolve({}), searchParams: Promise.resolve(query) };
     const html = renderToStaticMarkup(await route.default(props));
     assert.ok(html.includes(expected));
     assert.ok(!html.includes(unexpected));
-    assert.equal((await route.generateMetadata(props)).title, query.tab ? "second" : "first");
+    assert.equal((await route.generateMetadata(props)).title, title);
   }
   assert.deepEqual(doc, before, "generation does not rewrite the saved document");
 });
@@ -108,7 +92,7 @@ test("the special not-found page is separate from normal /404 routes", async () 
     assert.ok(files["app/not-found.tsx"]);
     assert.ok(files["app/404/page.tsx"]);
     assert.equal(files["app/404/_q/p1.tsx"], undefined);
-    assert.match(renderToStaticMarkup(await loadGenerated(files, "app/404/page.tsx").default({
+    assert.match(renderToStaticMarkup(await loadGeneratedRoute(files, "app/404/page.tsx").default({
       params: Promise.resolve({}), searchParams: Promise.resolve({}),
     })), /The original team page/);
   }
