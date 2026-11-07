@@ -39,6 +39,7 @@ import { showAlert, showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { exportProjectZip } from "../lib/exportZip";
+import { exportLimitations, type ExportFormat } from "../lib/export-formats";
 import { BpIcon, Dropdown, NumField, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
 import { getLang, LANGS, setLang, tr, trNodes, type Lang } from "../lib/i18n";
@@ -46,20 +47,57 @@ import { getLang, LANGS, setLang, tr, trNodes, type Lang } from "../lib/i18n";
 function ExportModal({ onClose }: { onClose: () => void }) {
   const doc = useEditor((s) => s.doc);
   const [busy, setBusy] = useState(false);
+  const [format, setFormat] = useState<ExportFormat>("nextjs");
   const checks: CheckResult[] = runChecks(doc);
-  const hasError = checks.some((c) => c.level === "error");
+  const limitations = exportLimitations(doc, format);
+  const hasError = checks.some((c) => c.level === "error") || limitations.length > 0;
   useEscapeToClose(onClose, !busy);
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("Next.jsプロジェクトとして書き出し")}</h2>
+        <h2>{tr("コードをエクスポート")}</h2>
         <p className="modal-desc">
           {trNodes("プロジェクト一式をzipでダウンロードします。展開して {cmd} を実行すると、そのまま動きます。", {
             cmd: <span className="kbd">npm install && npm run dev</span>,
           })}
         </p>
 
+        <label htmlFor="export-format" style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+          {tr("出力形式")}
+        </label>
+        <select
+          id="export-format"
+          className="field-input"
+          style={{ width: "100%", padding: "9px 10px", marginBottom: 12 }}
+          value={format}
+          disabled={busy}
+          onChange={(event) => setFormat(event.target.value as ExportFormat)}
+        >
+          <option value="nextjs">Next.js</option>
+          <option value="react">React + Vite</option>
+          <option value="html">HTML / CSS / JavaScript</option>
+        </select>
+        {format === "html" && (
+          <p className="modal-desc">
+            {tr("HTML形式はZIPを展開してnpm run buildを実行すると、outフォルダに静的ファイルが生成されます。")}
+          </p>
+        )}
+        {format === "react" && (
+          <p className="modal-desc">
+            {tr("React形式はViteを使ったSPAです。サーバー処理には対応していません。")}
+          </p>
+        )}
+        {limitations.length > 0 && (
+          <ul className="check-list">
+            {limitations.map((message) => (
+              <li key={message} className="is-error">
+                <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
+                <span>{message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <CheckList checks={checks} onClose={onClose} />
 
         <div className="modal-actions">
@@ -73,7 +111,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
             onClick={async () => {
               setBusy(true);
               try {
-                const missing = await exportProjectZip(await docWithSvgFilters());
+                const missing = await exportProjectZip(await docWithSvgFilters(), format);
                 onClose();
                 if (missing.length) {
                   void showAlert(
