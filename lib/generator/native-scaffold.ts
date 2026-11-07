@@ -3,6 +3,7 @@ import type { GeneratedProject } from "../generator";
 import type { ExportLanguage } from "../export-formats";
 import { generateNativeFiles } from "./native-components";
 import { nativeDataModule } from "./native-data";
+import { withVueSsr } from "./vue-ssr";
 
 type Framework = "vue" | "nuxt" | "sveltekit";
 const json = JSON.stringify;
@@ -208,6 +209,8 @@ export function applyNativeFramework(
   }
   if (framework === "vue") {
     files["src/App.vue"] = vueApp(native.pages, "vue", language, doc.siteName);
+    files["src/server-request.js"] = serverRequestSource(native.pages);
+    withVueSsr(files, doc, language);
   } else if (framework === "nuxt") {
     files["app/app.vue"] = "<template><NuxtPage /></template>\n";
     files["app/generated/server-request.js"] = serverRequestSource(native.pages);
@@ -259,9 +262,7 @@ export function applyNativeFramework(
   files["README.md"] = [
     "# Native framework export", "",
     "Every editable node is emitted as a native Vue or Svelte element.",
-    framework === "nuxt" || framework === "sveltekit"
-      ? "Pages and public JSON data render on the server (SSR) and hydrate on the client."
-      : "Vue 3 + Vite renders client-side. Select Nuxt for Vue SSR.",
+    "Pages and public JSON data render on the server (SSR) and hydrate on the client.",
     "Raw user HTML and inline SVGs are the only elements rendered as HTML fragments.",
     "Browser scripts retain editor-authored actions and update native reactive state.",
     "", "Run npm install and npm run dev. Run npm run build for production.",
