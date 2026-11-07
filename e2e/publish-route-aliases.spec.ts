@@ -26,7 +26,7 @@ test("同じ書き出し先のURLを検出し、URL修正後は両方のクエ�
   const openExport = async () => {
     await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）", exact: true }).click();
     await page.getByRole("button", { name: "zipでエクスポート", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Next.jsプロジェクトとして書き出し" })).toBeVisible();
+    await expect(page.locator(".export-modal").getByRole("heading", { name: "コードをエクスポート" })).toBeVisible();
   };
   await openExport();
   await expect(page.locator(".modal .check-list .is-error")).toContainText("重複");
