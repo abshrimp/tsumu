@@ -42,6 +42,11 @@ test("generated Vue and Svelte components never compile authored plain text into
     assert.doesNotMatch(source, /Literal \{\{/);
     assert.match(source, /Image &#123;1 \+ 2&#125;/);
     if (framework === "sveltekit") {
+      const template = project.files["src/app.html"];
+      assert.ok(template.includes('lang="ja&amp;quot;') === false);
+      assert.ok(template.includes('lang="ja&quot; onload=&quot;'));
+      assert.ok(!template.includes('lang="ja" onload="'));
+      assert.ok(template.includes("&lt;/script&gt;"));
       const route = project.files["src/routes/+page.svelte"];
       assert.doesNotMatch(route, /Site \{1 \+ 2\} <\/script>/);
       assert.match(route, /<title>\{data\.title\} \| \{/);
