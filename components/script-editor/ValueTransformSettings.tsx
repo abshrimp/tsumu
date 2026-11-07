@@ -296,12 +296,11 @@ function ValueOperandEditor({ type, text, onChange, samples, purpose = "compare"
 }
 
 /** Condition syntax is shared with "if" and list display filters. */
-function RecipeConditionLine({ condition, fieldEnabled, options, samples, onChange,
+function RecipeConditionLine({ condition, fieldEnabled, options, onChange,
   join, onJoinChange, onRemove }: {
   condition: ValueCondition;
   fieldEnabled: boolean;
   options: string[];
-  samples: Record<string, unknown>;
   onChange: (patch: Partial<ValueCondition>) => void;
   join?: "and" | "or";
   onJoinChange?: (join: "and" | "or") => void;
@@ -324,8 +323,9 @@ function RecipeConditionLine({ condition, fieldEnabled, options, samples, onChan
           <option key={op.value} value={op.value}>{op.label}</option>)}
       </select>
       {condition.operation !== "empty" &&
-        <ValueOperandEditor type={condition.operandType} text={condition.operand} samples={samples}
-          onChange={(operand, operandType) => onChange({ operand, operandType })} />}
+        <TextIn vars value={condition.operand} width={150}
+          valueContext="value" placeholder={tr("値 / {変数}")}
+          onCommit={(operand) => onChange({ operand })} />}
       <NegationSelect not={condition.not} onChange={(not) => onChange({ not })} />
       {onRemove && <button type="button" className="se-mini"
         aria-label={tr("この条件を削除")} onClick={onRemove}><X size={12} /></button>}
@@ -413,7 +413,6 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
       field: fieldEnabled ? transform.field : "",
       operation: transform.operation,
       operand: transform.operand,
-      operandType: transform.operandType,
       not: transform.not,
     };
     const clauses = transform.conditions ?? [];
@@ -424,17 +423,16 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
       field: fieldEnabled ? transform.field : "",
       operation: "eq" as const,
       operand: "",
-      operandType: "text" as const,
       and,
     }] });
     return (
       <div className="se-composer-step-settings se-composer-conditions">
         <RecipeConditionLine condition={first} fieldEnabled={fieldEnabled}
-          options={allOptions} samples={samples}
+          options={allOptions}
           onChange={(patch) => onChange({ ...transform, ...patch })} />
         {clauses.map((condition, index) =>
           <RecipeConditionLine key={index} condition={condition}
-            fieldEnabled={fieldEnabled} options={allOptions} samples={samples}
+            fieldEnabled={fieldEnabled} options={allOptions}
             join={condition.and ? "and" : "or"}
             onJoinChange={(join) => setExtra(index, { and: join === "and" })}
             onChange={(patch) => setExtra(index, patch)}
