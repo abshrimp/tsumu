@@ -10615,9 +10615,14 @@ a.btn {
 }
 
 .home-notice.is-error {
+  align-items: center;
   background: #fef2f2;
   box-shadow: none;
   color: #991b1b;
+}
+
+.home-notice.is-error svg {
+  margin-top: 0;
 }
 
 .home-grid {
