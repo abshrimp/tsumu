@@ -28,6 +28,7 @@ import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
 import { uploadStaticAsset } from "../lib/assets";
+import { readLimitedBytes } from "../lib/limited-bytes";
 import {
   SOURCE_LIMIT, readRestorableArchive, readRestorableJson, restoreAssets,
   recoverPublicAssetBytes, importWarningsKey,
@@ -530,23 +531,18 @@ export default function Home() {
         const info = await response.json().catch(() => ({}));
         throw new Error(info.error ?? tr("URLのファイルを取得できませんでした"));
       }
-      const length = Number(response.headers.get("content-length") || "0");
-      if (length > SOURCE_LIMIT) throw new Error(tr("URLから取得できるファイルは5MBまでです"));
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength > SOURCE_LIMIT) throw new Error(tr("URLから取得できるファイルは5MBまでです"));
+      const bytes = await readLimitedBytes(response, SOURCE_LIMIT);
       const snapshot = kind === "zip"
         ? await readRestorableArchive(bytes)
         : await readRestorableJson(bytes);
       const available = await recoverPublicAssetBytes(snapshot.doc, snapshot.assets,
         async (assetUrl) => {
           const response = await fetch("/api/import-source?url=" + encodeURIComponent(assetUrl));
-          if (!response.ok || Number(response.headers.get("content-length") || 0) > SOURCE_LIMIT) {
+          if (!response.ok) {
             await response.body?.cancel().catch(() => {});
             throw new Error("Asset unavailable");
           }
-          const bytes = new Uint8Array(await response.arrayBuffer());
-          if (bytes.byteLength > SOURCE_LIMIT) throw new Error("Asset too large");
-          return bytes;
+          return readLimitedBytes(response, SOURCE_LIMIT);
         });
       const { doc, warnings } = await restoreAssets(
         snapshot.doc,
