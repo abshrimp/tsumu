@@ -10,7 +10,7 @@ import { hasVars } from "../vars";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { safeNavigationUrl } from "../url-policy";
-import { pageDataPlan } from "./browser-data";
+import { pageDataPlan, pageDataServerIds } from "./browser-data";
 
 export type NativeLanguage = "typescript" | "javascript";
 export type NativeView = "vue" | "sveltekit";
@@ -272,7 +272,7 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
     const ctx = makeCtx(mode === "vue");
     let tree = ids.map((nid) => node(ctx, nid, true)).join("\n");
     if (page) {
-      const script = compiled(ctx, { scripts: page.pageScripts }, pagePlan(normalized, page.id).serverIds);
+      const script = compiled(ctx, { scripts: page.pageScripts }, pageDataServerIds(normalized, page));
       tree = "<span hidden" + literal("data-page-body", page.id) + script + "></span>\n" + tree;
     }
     const ext = ctx.vue ? ".vue" : ".svelte";
