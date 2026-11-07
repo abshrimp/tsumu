@@ -53,6 +53,30 @@ test("comparison operands can refer to another variable", () => {
   assert.equal(result.above, true);
 });
 
+test("server preview can calculate using numeric strings from another variable and edit lists", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "rate", kind: "set-var", value: "1.5", into: "rate" },
+    { id: "calc", kind: "transform", source: "data.price", into: "total",
+      transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "rate" } },
+    { id: "append", kind: "transform", source: "data.tags", into: "tags",
+      transform: { kind: "append", operandType: "text", operand: "green" } },
+    { id: "remove", kind: "transform", source: "tags", into: "tags",
+      transform: { kind: "remove", operandType: "text", operand: "red" } },
+  );
+  const vars = previewDataVars(doc, "p");
+  assert.equal(vars.total, 18);
+  assert.deepEqual(vars.tags, ["blue", "green"]);
+  const plan = pagePlan(doc, "p");
+  assert.ok(plan.serverIds.has("calc"));
+  assert.ok(plan.serverIds.has("append"));
+  assert.ok(plan.serverIds.has("remove"));
+  const generated = generateProject(doc).files["app/page.tsx"];
+  assert.match(generated, /"append"/);
+  assert.match(generated, /"remove"/);
+  assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
+});
+
 test("a canvas transform chain serializes to the browser runtime without losing step order", () => {
   const doc = scriptDataPickerDoc();
   const node = { ...makeBox(), id: "action", attrId: "action", scripts: [{
