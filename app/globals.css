@@ -12392,3 +12392,26 @@ a.btn {
 .se-value-sample { opacity: .65; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
 .se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }
+
+/* Local editable-site import */
+.home-import-drop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 70px;
+  margin-bottom: 20px;
+  padding: 14px 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--panel);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+}
+.home-import-drop:hover, .home-import-drop.is-dragging, .home-import-drop:focus-visible {
+  border-color: var(--accent-border);
+  background: var(--state-hover);
+}
+.home-import-drop[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
