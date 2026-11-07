@@ -516,3 +516,40 @@ test("canvas comparison offers existing variables and keeps the chosen reference
     return steps.find((step: any) => step.id === "compare-native").transform;
   })).toMatchObject({ kind: "compare", operand: "{data.price}" });
 });
+
+
+test("canvas list filter keeps condition actions on a separate row and lets each connector change", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "filter-conditions", kind: "list-display", mode: "filter",
+        array: "data.tags", field: "", op: "eq", value: "red", dir: "asc",
+      });
+    });
+  });
+  const box = page.locator('[data-sel-key="step:filter-conditions"]');
+  const actions = box.locator(".se-composer-condition-actions");
+  await expect(actions).toBeVisible();
+  await expect(actions.getByRole("button", { name: "かつ" })).toBeVisible();
+  await actions.getByRole("button", { name: "かつ" }).click();
+  const connectors = box.getByRole("combobox", { name: "条件のつなぎ方" });
+  await expect(connectors).toHaveCount(1);
+  await expect(connectors.first()).toHaveValue("and");
+  await connectors.first().selectOption("or");
+  await actions.getByRole("button", { name: "または" }).click();
+  await expect(connectors).toHaveCount(2);
+  await expect(connectors.nth(1)).toHaveValue("or");
+  await connectors.nth(1).selectOption("and");
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "filter-conditions").or.map((c: any) => c.and);
+  })).toEqual([false, true]);
+  const buttonBottom = await actions.boundingBox();
+  const conditionBottom = await connectors.last().boundingBox();
+  expect(buttonBottom).not.toBeNull();
+  expect(conditionBottom).not.toBeNull();
+  expect(buttonBottom!.y).toBeGreaterThan(conditionBottom!.y);
+  await box.getByRole("button", { name: "この条件を削除" }).first().click();
+  await expect(connectors).toHaveCount(1);
+  await expect(connectors).toHaveValue("and");
+});
