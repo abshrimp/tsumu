@@ -611,6 +611,21 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/hovered*/
         return c.not ? !r : r;
       }
+      // Same grouping as list filtering: AND conditions bind within OR groups.
+      function testConditions(step, self, scope) {
+        var extras = Array.isArray(step.conditions) ? step.conditions : [];
+        if (extras.length > 32) return false;
+        var any = false;
+        var all = test(step.cond, self, scope);
+        extras.forEach(function (condition) {
+          if (!condition.and) {
+            any = any || all;
+            all = true;
+          }
+          all = all && test(condition, self, scope);
+        });
+        return any || all;
+      }
       /*/if*/
       /*#filter*/
       // 配列の絞り込み: 配列の名前 → [{ no, join, conds: [{ field, op, value, and }] }]。
@@ -1275,7 +1290,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*/wait*/
             /*#if*/
             if (st.kind === "if") {
-              var branch = test(st.cond, self, scopeOf(cx)) ? st.then : st.else;
+              var branch = testConditions(st, self, scopeOf(cx)) ? st.then : st.else;
               if (branch && branch.length) {
                 return runSteps(branch, self, cx, active).then(next);
               }
