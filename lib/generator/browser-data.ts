@@ -3,6 +3,45 @@ import { pagePlan } from "../data";
 import { evaluateValueRecipe } from "../script-model/recipe-runtime";
 import { runPurePageSteps } from "../page-load-steps";
 
+type FutureStep = { id?: string; kind: string; [name: string]: unknown };
+
+function hasJoinedIfConditions(step: FutureStep): boolean {
+  return step.kind === "if" && Array.isArray(step.conditions) && step.conditions.length > 0;
+}
+
+/** Only data-only blocks may run before rendering; mixed element conditions stay client-side. */
+function purePageStep(step: FutureStep, topLevel = false): boolean {
+  const children = (value: unknown): FutureStep[] | null =>
+    Array.isArray(value) ? value as FutureStep[] : null;
+  switch (step.kind) {
+    case "fetch": return topLevel;
+    case "set-var": return typeof step.into === "string" && !!step.into;
+    case "transform": return typeof step.source === "string" && !!step.source &&
+      typeof step.into === "string" && !!step.into;
+    case "if": {
+      const extra = step.conditions === undefined ? [] : children(step.conditions);
+      const body = children(step.then), alternative = step.else === undefined ? [] : children(step.else);
+      if (!extra || extra.length > 32 || !body || !alternative) return false;
+      const conditions = [step.cond, ...extra];
+      if (!conditions.every((condition) =>
+        condition && typeof condition === "object" && "subject" in condition &&
+        (condition as { subject: unknown }).subject === "var")) return false;
+      return body.every((child) => purePageStep(child)) &&
+        alternative.every((child) => purePageStep(child));
+    }
+    case "for-each": {
+      const body = children(step.then);
+      return !!step.array && !!body?.length && body.every((child) => purePageStep(child));
+    }
+    case "repeat": {
+      const body = children(step.then);
+      return !!body?.length && (typeof step.times === "string" || typeof step.times === "number") &&
+        body.every((child) => purePageStep(child));
+    }
+    default: return false;
+  }
+}
+
 /**
  * Prepare the page-load plan for the exported browser and SSR interpreters.
  * PR #136 removes countFilters and represents value work as "transform".
@@ -12,15 +51,14 @@ import { runPurePageSteps } from "../page-load-steps";
 export function pageDataPlan(doc: SiteDoc, page: Page) {
   const plan = pagePlan(doc, page.id);
   type PlanStep = (typeof plan.steps)[number];
-  type FutureStep = { id?: string; kind: string; [name: string]: unknown };
   const load = (page.pageScripts ?? [])
     .filter((script) => script.trigger === "load")
     .flatMap((script) => script.steps as unknown as FutureStep[]);
   const oldPlanner = "countFilters" in plan;
-  const hasNewKinds = load.some((step) => step.kind === "transform" || step.kind === "list-display");
-  const pureKinds = new Set(["fetch", "set-var", "transform", "if", "for-each", "repeat"]);
+  const hasNewKinds = load.some((step) =>
+    step.kind === "transform" || step.kind === "list-display" || hasJoinedIfConditions(step));
   const steps = oldPlanner && hasNewKinds
-    ? load.filter((step) => pureKinds.has(step.kind)) as unknown as PlanStep[]
+    ? load.filter((step) => purePageStep(step, true)) as unknown as PlanStep[]
     : plan.steps;
   // The new planner owns initial list-display operations and excludes the
   // client-side ones. Only the old planner needs temporary forward planning.
@@ -78,11 +116,23 @@ export function pageDataServerIds(doc: SiteDoc, page: Page): Set<string> {
   if ("countFilters" in plan) {
     const load = (page.pageScripts ?? [])
       .filter((script) => script.trigger === "load")
-      .flatMap((script) => script.steps as unknown as Array<{ id: string; kind: string }>);
-    if (load.some((step) => step.kind === "transform" || step.kind === "list-display")) {
+      .flatMap((script) => script.steps as unknown as FutureStep[]);
+    const hasNewKinds = load.some((step) =>
+      step.kind === "transform" || step.kind === "list-display" || hasJoinedIfConditions(step));
+    if (hasNewKinds) {
+      const dropIds = (step: FutureStep) => {
+        if (step.id) ids.delete(step.id);
+        for (const key of ["then", "else"] as const) {
+          const body = step[key];
+          if (Array.isArray(body)) for (const child of body) dropIds(child as FutureStep);
+        }
+      };
       for (const step of load) {
-        if (["set-var", "transform", "if", "for-each", "repeat", "list-display"].includes(step.kind)) {
-          ids.add(step.id);
+        if (step.kind === "list-display" || purePageStep(step, true)) {
+          if (step.id) ids.add(step.id);
+        } else if (step.kind === "if" || step.kind === "for-each" || step.kind === "repeat") {
+          // A mixed browser-only subtree cannot be omitted by the DOM compiler.
+          dropIds(step);
         }
       }
     }
