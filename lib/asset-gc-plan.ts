@@ -1,4 +1,4 @@
-import { decodeHTML } from "entities/decode";
+import { decodeHtmlText } from "./html-entities";
 import { decodeCssEscapes } from "./css-escape";
 
 /**
@@ -89,7 +89,7 @@ export function extractAssetReferences(raw: string): Set<string> {
         // 上の文字どおりの一致は残したうえで、HTML の属性・CSS の URL・クエリの値の中で
         // ブラウザがデコードする書き方も保護する。
         let decoded = text;
-        if (decoded.includes("&")) decoded = decodeHTML(decoded);
+        if (decoded.includes("&")) decoded = decodeHtmlText(decoded);
         if (decoded.includes("\\")) decoded = decodeCssEscapes(decoded);
         if (decoded.includes("%")) {
           try { decoded = decodeURIComponent(decoded); }

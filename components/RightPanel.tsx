@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useEditor } from "../lib/store";
 import { BODY_NODE_ID } from "../lib/types";
 import StylePanel, { BodyStylePanel } from "./StylePanel";
@@ -7,7 +8,6 @@ import SettingsPanel from "./SettingsPanel";
 import PagePanel from "./PagePanel";
 import { tr } from "../lib/i18n";
 import { useComments } from "../lib/comment-store";
-import { CommentsPanel } from "./Comments";
 
 export default function RightPanel() {
   const selection = useEditor((s) => s.selection);
@@ -21,6 +21,16 @@ export default function RightPanel() {
 
   const commenting = useComments((s) => s.active);
   const mode = useEditor((s) => s.mode);
+  const [CommentsPanelComp, setCommentsPanelComp] = useState<typeof import("./Comments").CommentsPanel | null>(null);
+
+  useEffect(() => {
+    if (!commenting || mode !== "design" || CommentsPanelComp) return;
+    let active = true;
+    void import("./Comments").then((mod) => {
+      if (active) setCommentsPanelComp(() => mod.CommentsPanel);
+    });
+    return () => { active = false; };
+  }, [commenting, mode, CommentsPanelComp]);
 
   return (
     // 画面幅別・ダークモード別のスタイルを、通常の編集と区別できるようオレンジにする。
@@ -42,7 +52,7 @@ export default function RightPanel() {
       }}
     >
       {commenting && mode === "design" ? (
-        <CommentsPanel />
+        CommentsPanelComp ? <CommentsPanelComp /> : null
       ) : selection === BODY_NODE_ID ? (
         <>
           <div className="tabs">

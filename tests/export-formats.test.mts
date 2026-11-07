@@ -22,7 +22,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { headHtmlToJsx } from "../lib/generator/head";
 import { transformSync as transformSync_3, transformSync as transformSync_4, transformSync as transformSync_5 } from "./helpers/bundle";
 import { deferRunnableScripts } from "../lib/generator/defer-scripts";
-import JSZip from "jszip";
+import { ZipArchive } from "../lib/zip";
 import { exportProjectZip } from "../lib/exportZip";
 import { parseSiteImport, restoreImportAssets, EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH } from "../lib/site-import";
 import { attachZipDependencies, zipCssUrl } from "../lib/zip-css";
@@ -901,10 +901,10 @@ describe("export-css-roundtrip", () => {
           return new Uint8Array(await (download as Blob).arrayBuffer());
         };
         const bytes = await exportZip(doc);
-        const zip = await JSZip.loadAsync(bytes);
+        const zip = await ZipArchive.open(bytes);
         const assetRoot = framework === "html" ? "assets/" : framework === "sveltekit" ? "static/assets/" : "public/assets/";
         const names = buildAssetNames(doc);
-        const generated = await zip.file("css-roundtrip/" + assetRoot + names.get(assets[0].id))!.async("text");
+        const generated = await zip.file("css-roundtrip/" + assetRoot + names.get(assets[0].id))!.text();
         assert.ok(generated.includes(names.get(assets[1].id)!));
         assert.ok(generated.includes(names.get(assets[2].id)! + "?v=2#font"));
         assert.ok(!generated.includes("../fonts/"), "website CSS still uses generated filenames");
@@ -917,10 +917,10 @@ describe("export-css-roundtrip", () => {
         }
         const restored = await restoreImportAssets(imported);
         assert.deepEqual(restored.warnings, []);
-        const next = await JSZip.loadAsync(await exportZip(restored.doc));
+        const next = await ZipArchive.open(await exportZip(restored.doc));
         for (const asset of assets) {
           const alias = `css-roundtrip/${assetRoot}_imports/roundtrip/${asset.zip!.path}`;
-          assert.deepEqual(await next.file(alias)!.async("uint8array"), new TextEncoder().encode(sources[asset.zip!.path]),
+          assert.deepEqual(await next.file(alias)!.bytes(), new TextEncoder().encode(sources[asset.zip!.path]),
             "script-relative assets must survive re-import: " + alias);
         }
         assert.deepEqual(doc, original, "export does not mutate the active document");
@@ -1253,11 +1253,11 @@ test("ZIP export preserves the editable SiteDoc and archive asset IDs for direct
     assert.deepEqual(missing, []);
     assert.ok(blob);
     const bytes = new Uint8Array(await (blob as Blob).arrayBuffer());
-    const zip = await JSZip.loadAsync(bytes);
-    const roundtrip = await zip.file("zip-roundtrip/" + EDITABLE_DOC_PATH)!.async("text");
+    const zip = await ZipArchive.open(bytes);
+    const roundtrip = await zip.file("zip-roundtrip/" + EDITABLE_DOC_PATH)!.text();
     assert.deepEqual(JSON.parse(roundtrip), doc);
     assert.equal(zip.file("zip-roundtrip/app/draft/page.tsx"), null);
-    const mapped = JSON.parse(await zip.file("zip-roundtrip/" + EDITABLE_ASSETS_PATH)!.async("text"));
+    const mapped = JSON.parse(await zip.file("zip-roundtrip/" + EDITABLE_ASSETS_PATH)!.text());
     assert.equal(mapped.version, 1);
     assert.equal(mapped.assets["original-asset"], "public/assets/mark.svg");
     assert.ok(zip.file("zip-roundtrip/public/assets/mark.svg"));
@@ -1307,9 +1307,9 @@ test("HTML, Vue and SvelteKit ZIP exports round-trip editable data and asset IDs
       assert.deepEqual(imported.doc, doc);
       assert.equal(imported.doc.assets["roundtrip-logo"].id, "roundtrip-logo");
       assert.equal(new TextDecoder().decode(imported.assets.get("roundtrip-logo")), svg);
-      const zip = await JSZip.loadAsync(archive);
+      const zip = await ZipArchive.open(archive);
       const mapPath = "format-roundtrip/" + EDITABLE_ASSETS_PATH;
-      const assetMap = JSON.parse(await zip.file(mapPath)!.async("text"));
+      const assetMap = JSON.parse(await zip.file(mapPath)!.text());
       const prefix = framework === "html" ? "assets/" :
         framework === "sveltekit" ? "static/assets/" : "public/assets/";
       assert.equal(assetMap.assets["roundtrip-logo"], prefix + "logo.svg");
@@ -1358,12 +1358,12 @@ test("page-scoped ZIP round-trip does not include other pages, nodes or private 
       scope: "page", pageId: home,
     });
     assert.ok(blob);
-    const archive = await JSZip.loadAsync(await (blob as Blob).arrayBuffer());
+    const archive = await ZipArchive.open(await (blob as Blob).arrayBuffer());
     const names = Object.keys(archive.files);
     assert.ok(!names.some((name) => name.endsWith("/assets/secret.svg")));
     const entry = archive.file("scope-audit/" + EDITABLE_DOC_PATH);
     assert.ok(entry);
-    const scoped = JSON.parse(await entry.async("text"));
+    const scoped = JSON.parse(await entry.text());
     assert.deepEqual(scoped.pageOrder, [home]);
     assert.equal(scoped.pages.private, undefined);
     assert.equal(scoped.nodes["private-node"], undefined);

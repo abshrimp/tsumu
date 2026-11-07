@@ -74,3 +74,147 @@ function mergeMetadata(previous: any, incoming: any): any {
   }
   return result;
 }
+
+export interface AnthropicContentBlock {
+  type: string;
+  text?: string;
+  thinking?: string;
+  signature?: string;
+  id?: string;
+  name?: string;
+  input?: unknown;
+  [key: string]: unknown;
+}
+
+export interface AnthropicStreamMessage {
+  content: AnthropicContentBlock[];
+  stop_reason: string | null;
+  invalidTools?: Set<string>;
+}
+
+const ANTHROPIC_ERROR_STATUS: Record<string, number> = {
+  invalid_request_error: 400,
+  authentication_error: 401,
+  permission_error: 403,
+  not_found_error: 404,
+  rate_limit_error: 429,
+  api_error: 500,
+  overloaded_error: 529,
+};
+
+/** Anthropic Messages の SSE ストリームを組み立てる（思考・署名の非公開ブロックもそのまま保持する） */
+export async function readAnthropicStream(
+  res: Response,
+  onText: (text: string) => void,
+  onTools: () => void,
+): Promise<AnthropicStreamMessage> {
+  if (!res.body) throw new Error("Missing model response stream");
+  const blocks = new Map<number, AnthropicContentBlock>();
+  const jsonInputs = new Map<number, string>();
+  const invalidTools = new Set<string>();
+  let stopReason: string | null = null;
+  let started = false;
+  let stopped = false;
+  let frame: string[] = [];
+
+  const consume = () => {
+    const raw = frame.join("\n");
+    frame = [];
+    if (!raw) return;
+    const data = JSON.parse(raw) as Record<string, any>;
+    if (data.type === "ping") return;
+    if (data.type === "error" || data.error) {
+      const err = data.error ?? {};
+      const mapped = typeof err.type === "string" ? ANTHROPIC_ERROR_STATUS[err.type] : undefined;
+      const numeric = Number(err.status ?? err.code);
+      const status = mapped ?? (Number.isInteger(numeric) && numeric >= 400 ? numeric : undefined);
+      throw new ModelStreamError(
+        status,
+        `Model stream reported an error: ${String(err.message ?? JSON.stringify(err)).slice(0, 500)}`,
+      );
+    }
+    if (data.type === "message_start") {
+      started = true;
+      stopReason = data.message?.stop_reason ?? null;
+      if (Array.isArray(data.message?.content)) {
+        data.message.content.forEach((b: AnthropicContentBlock, idx: number) => {
+          blocks.set(idx, structuredClone(b));
+        });
+      }
+      return;
+    }
+    if (data.type === "content_block_start") {
+      const index = Number(data.index);
+      if (!Number.isInteger(index) || index < 0 || index > 200) throw new Error("Invalid content block index");
+      const block = structuredClone((data.content_block ?? {}) as AnthropicContentBlock);
+      blocks.set(index, block);
+      if (block.type === "tool_use") {
+        onTools();
+        jsonInputs.set(index, "");
+      }
+      return;
+    }
+    if (data.type === "content_block_delta") {
+      const index = Number(data.index);
+      const block = blocks.get(index);
+      const delta = data.delta ?? {};
+      if (!block) return;
+      if (delta.type === "text_delta" && typeof delta.text === "string") {
+        block.text = (typeof block.text === "string" ? block.text : "") + delta.text;
+        onText(delta.text);
+      } else if (delta.type === "thinking_delta" && typeof delta.thinking === "string") {
+        block.thinking = (typeof block.thinking === "string" ? block.thinking : "") + delta.thinking;
+      } else if (delta.type === "signature_delta" && typeof delta.signature === "string") {
+        block.signature = (typeof block.signature === "string" ? block.signature : "") + delta.signature;
+      } else if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") {
+        jsonInputs.set(index, (jsonInputs.get(index) ?? "") + delta.partial_json);
+      }
+      return;
+    }
+    if (data.type === "content_block_stop") {
+      const index = Number(data.index);
+      const block = blocks.get(index);
+      if (block?.type === "tool_use" && jsonInputs.has(index)) {
+        const rawJson = jsonInputs.get(index)!;
+        if (rawJson.trim()) {
+          try {
+            const parsed: unknown = JSON.parse(rawJson);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              block.input = parsed;
+            } else {
+              block.input = {};
+              if (typeof block.id === "string") invalidTools.add(block.id);
+            }
+          } catch {
+            block.input = {};
+            if (typeof block.id === "string") invalidTools.add(block.id);
+          }
+        }
+      }
+      return;
+    }
+    if (data.type === "message_delta") {
+      if (data.delta && "stop_reason" in data.delta) stopReason = data.delta.stop_reason ?? null;
+      return;
+    }
+    if (data.type === "message_stop") {
+      stopped = true;
+    }
+  };
+
+  for await (const line of readLines(res.body)) {
+    if (line === "") consume();
+    else if (line.startsWith("data:")) frame.push(line.slice(5).replace(/^ /, ""));
+    if (stopped) {
+      if (frame.length) consume();
+      break;
+    }
+  }
+  if (frame.length) consume();
+  if (!started || !stopped) throw new ModelStreamError(undefined, "Model stream ended before completion");
+  return {
+    content: [...blocks.entries()].sort(([a], [b]) => a - b).map(([, block]) => block),
+    stop_reason: stopReason,
+    invalidTools,
+  };
+}

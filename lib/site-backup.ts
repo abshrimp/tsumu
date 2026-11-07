@@ -16,8 +16,8 @@ export async function createSiteBackup(doc: SiteDoc): Promise<Blob> {
   const manifest: ArchiveAssetMap = { version: 1, assets: {} };
   for (const [id, name] of names) manifest.assets[id] = "public/assets/" + name;
   const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
-  const { default: JSZip } = await import("jszip");
-  const zip = new JSZip();
+  const { ZipBuilder } = await import("./zip");
+  const zip = new ZipBuilder();
   zip.file(EDITABLE_DOC_PATH, documentBytes);
   zip.file(EDITABLE_ASSETS_PATH, manifestBytes);
 
@@ -61,7 +61,7 @@ export async function createSiteBackup(doc: SiteDoc): Promise<Blob> {
     throw error;
   }
 
-  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+  const blob = await zip.toBlob({ compression: "DEFLATE" });
   if (blob.size > IMPORT_LIMITS.zipBytes) throw new Error(tr("The backup is too large to restore."));
   return blob;
 }

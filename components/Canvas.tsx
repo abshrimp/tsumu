@@ -1,11 +1,11 @@
 "use client";
 
 import { isEnterKey, isEscapeKey } from "../lib/keys";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { ArrowUpLeft } from "lucide-react";
 import NodeContextMenu, { type CtxMenuState } from "./NodeContextMenu";
 import FrameStage from "./FrameStage";
-import { CommentLayer } from "./Comments";
+import { useComments } from "../lib/comment-store";
 import { useEditor, type ParentRef } from "../lib/store";
 import { useHtmlPreview } from "./canvas/useHtmlPreview";
 import { keyOfItem, sameKey, varNamesAt, varSamplesAt } from "../lib/data";
@@ -41,6 +41,31 @@ import {
 } from "./canvas/render";
 import { useCanvasDrag } from "./canvas/useCanvasDrag";
 import { useCanvasData } from "./canvas/useCanvasData";
+
+function CommentLayerSlot({
+  frameRef,
+  innerRef,
+}: {
+  frameRef: RefObject<HTMLDivElement | null>;
+  innerRef: RefObject<HTMLDivElement | null>;
+}) {
+  const commenting = useComments((s) => s.active);
+  const mode = useEditor((s) => s.mode);
+  const [CommentLayerComp, setCommentLayerComp] = useState<typeof import("./Comments").CommentLayer | null>(null);
+  useEffect(() => {
+    if (!commenting || mode !== "design" || CommentLayerComp) return;
+    let active = true;
+    void import("./Comments").then((mod) => {
+      if (active) setCommentLayerComp(() => mod.CommentLayer);
+    });
+    return () => {
+      active = false;
+    };
+  }, [commenting, mode, CommentLayerComp]);
+  return commenting && mode === "design" && CommentLayerComp ? (
+    <CommentLayerComp frameRef={frameRef} innerRef={innerRef} />
+  ) : null;
+}
 
 /* ---------- 選択オーバーレイ ---------- */
 
@@ -1189,7 +1214,7 @@ export default function Canvas() {
             )}
           </div>
         )}
-        <CommentLayer frameRef={frameRef} innerRef={innerRef} />
+        <CommentLayerSlot frameRef={frameRef} innerRef={innerRef} />
       </div>
       {ctxMenu && (
         <NodeContextMenu menu={ctxMenu} onClose={() => setCtxMenu(null)} />

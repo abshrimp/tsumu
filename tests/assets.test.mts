@@ -1,6 +1,6 @@
 import { describe, before, test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import JSZip from "jszip";
+import { ZipArchive } from "../lib/zip";
 import { exportProjectZip } from "../lib/exportZip";
 import { generateExportProject } from "../lib/export-formats";
 import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
@@ -171,8 +171,8 @@ test("4000 nested nodes, 160 scripts and binary assets survive JSON, ZIP, restor
     for (const asset of Object.values(restored.doc.assets)) assert.deepEqual(stored.get(asset.path!), expected.get(asset.id), asset.id);
     const second = await archive(restored.doc);
     assert.deepEqual((await parseSiteImport(second, "zip")).assets, expected);
-    const zip = await JSZip.loadAsync(second);
-    assert.deepEqual(await zip.file("byte-roundtrip/assets/_imports/original/nested/payload.bin")!.async("uint8array"), expected.get("bytes"));
+    const zip = await ZipArchive.open(second);
+    assert.deepEqual(await zip.file("byte-roundtrip/assets/_imports/original/nested/payload.bin")!.bytes(), expected.get("bytes"));
     assert.deepEqual(doc, before);
   } finally {
     URL.createObjectURL = createUrl;
@@ -1853,9 +1853,9 @@ for (const stalled of ["fetch", "body"] as const) test(`ZIP failure aborts a sta
     assert.deepEqual(await exportProjectZip(doc), []);
     assert.equal(requests.length, ASSET_FETCH_CONCURRENCY * 2);
     assert.equal(clicks, 1);
-    const zip = await JSZip.loadAsync(await blobs[0].arrayBuffer());
+    const zip = await ZipArchive.open(await blobs[0].arrayBuffer());
     for (let i = 0; i < ASSET_FETCH_CONCURRENCY * 2; i++) {
-      assert.deepEqual(await zip.file(`pool-regression/public/assets/asset-${i}.png`)!.async("uint8array"),
+      assert.deepEqual(await zip.file(`pool-regression/public/assets/asset-${i}.png`)!.bytes(),
         new Uint8Array([0, 1, 255]));
     }
     assert.deepEqual(doc, before);

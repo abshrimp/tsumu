@@ -6,7 +6,7 @@ import { CircleHelp, Plus, Search, X } from "lucide-react";
 import type { CustomFont } from "../../lib/types";
 import { parseAdobeKitInput } from "../../lib/adobe-fonts-embed";
 import { registerAdobeFont, removeAdobeWebProject } from "../../lib/adobe-fonts-registration";
-import { googleFontWeights, searchGoogleFonts, type GoogleFontFilter } from "../../lib/google-font-catalog";
+import type { GoogleFontFilter } from "../../lib/google-font-catalog";
 import { allFonts } from "../../lib/style";
 import { assetSrc, uploadStaticAsset } from "../../lib/assets";
 import { assetDisplayKind } from "../../lib/asset-display";
@@ -44,6 +44,7 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const [projectFonts, setProjectFonts] = useState<AdobeFamily[]>([]);
   const [chosenAdobe, setChosenAdobe] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<typeof import("../../lib/google-font-catalog") | null>(null);
   const pending = usePendingImport(JSON.stringify([insp.editTarget, insp.get("fontFamily").value]));
   const { busy } = pending;
   const searchRef = useRef<HTMLInputElement>(null);
@@ -51,9 +52,18 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const modalRef = useRef<HTMLDivElement>(null);
   const fontFileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!open || catalog) return;
+    let active = true;
+    void import("../../lib/google-font-catalog").then((mod) => {
+      if (active) setCatalog(mod);
+    });
+    return () => { active = false; };
+  }, [open, catalog]);
+
   const fonts = allFonts(customFonts, adobeFonts, uploadedFonts);
   const fontAssets = Object.values(assets).filter(asset => assetDisplayKind(asset) === "font" && /\.(woff2?|ttf|otf)$/i.test(asset.name));
-  const results = useMemo(() => searchGoogleFonts(query, filter), [query, filter]);
+  const results = useMemo(() => (catalog ? catalog.searchGoogleFonts(query, filter) : []), [catalog, query, filter]);
   const project = parseAdobeKitInput(projectInput);
   const kitId = project?.kitId;
   // Registered families remain selectable even if Adobe's public metadata endpoint is unavailable.
@@ -222,7 +232,9 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
       };
       // Do not probe an unsupported 100..900 range: Google returns 400 without
       // CORS headers for many static Japanese fonts (for example Shippori Mincho).
-      const knownWeights = googleFontWeights(name);
+      const fontCatalog = catalog ?? (await import("../../lib/google-font-catalog"));
+      if (!request.current()) return;
+      const knownWeights = fontCatalog.googleFontWeights(name);
       const body = await tryFetch(":wght@" + (knownWeights?.[0] ?? "400"));
       const found: CustomFont | null = body ? {
         family: name,

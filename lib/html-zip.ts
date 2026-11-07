@@ -1,6 +1,6 @@
 import { withImportUploads } from "./import-uploads";
 import { openImportZip } from "./zip-directory";
-import type JSZip from "jszip";
+import type { ZipArchive, ZipEntry } from "./zip";
 import { assetSrc, uploadStaticAsset } from "./assets";
 import { archiveBaseUrl, archiveResolver } from "./zip-references";
 import { rewriteSrcsetUrls } from "./srcset";
@@ -51,7 +51,7 @@ export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<s
 
 
 /** アーカイブ内の各リソースを、アップロードや CSS の変換の前に検証する。 */
-async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: import("jszip").JSZipObject[],
+async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: ZipEntry[],
     sourceBytes: Map<string, Uint8Array<ArrayBuffer>>) {
   const verify = createIntegrityVerifier();
   const indices = new Map(assetEntries.map((entry, index) => [entry.name, "zip-member:" + index]));
@@ -187,7 +187,7 @@ export function applyHtmlZipPage(doc: SiteDoc, pageId: string, imported: { asset
 
 /** 何かをアップロードする前に、アーカイブを事前に確認する。JavaScript の依存関係は解決しない。 */
 async function prepareHtmlZip(
-  zip: JSZip, progress: (message: string) => void, paths: string[], existing: Asset[] = [], siteId?: string,
+  zip: ZipArchive, progress: (message: string) => void, paths: string[], existing: Asset[] = [], siteId?: string,
 ) {
   const { htmlEntries, htmlEntry, assetEntries } = inspectHtmlZip(zip);
 
@@ -283,7 +283,7 @@ export async function readHtmlZip(
 }
 
 /** 編集可能なサイトへの取り込み: アセットは1回だけアップロードしながら、すべての HTML のページを取り込む。 */
-export async function readHtmlZipPages(zip: JSZip, progress: (message: string) => void, paths: string[], siteId?: string) {
+export async function readHtmlZipPages(zip: ZipArchive, progress: (message: string) => void, paths: string[], siteId?: string) {
   const { assets, htmlEntries, htmlEntry, urls, htmlText } = await prepareHtmlZip(zip, progress, paths, [], siteId);
   const entries = [htmlEntry, ...htmlEntries.filter((entry) => entry !== htmlEntry)];
   const pages = entries.map((entry) => ({

@@ -14,7 +14,7 @@ import { encodedCssAssetDoc, emptyAssetDestination, escapedPictureCss, escapedPi
 import { expandZipCss } from "../lib/html-css-import";
 import { requireEditableHtmlContent } from "../lib/html-file-import";
 import { type HtmlConversion, convertHtmlToSite } from "../lib/html-to-site";
-import JSZip from "jszip";
+import { ZipArchive, ZipBuilder, type ZipEntry } from "../lib/zip";
 import { EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH, parseSiteImport, restoreImportAssets } from "../lib/site-import";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { parse as parse_2, serializeOuter, type DefaultTreeAdapterTypes as Html } from "parse5";
@@ -402,11 +402,11 @@ describe("import-zip-canonical-paths", () => {
   function archiveWith(...paths: string[]) {
     const doc = createInitialDoc();
     doc.assets = {};
-    const zip = new JSZip()
+    const zip = new ZipBuilder()
       .file(EDITABLE_DOC_PATH, JSON.stringify(doc))
       .file(EDITABLE_ASSETS_PATH, JSON.stringify({ version: 1, assets: {} }));
     for (const path of paths) zip.file(path, "content");
-    return zip.generateAsync({ type: "uint8array" });
+    return zip.toBytes();
   }
 
   test("editable ZIPs reject case-insensitive path collisions before loading assets", async () => {
@@ -431,7 +431,7 @@ describe("site-import-large", () => {
   test("large editable projects with more than 500 assets round-trip through document and ZIP imports", async () => {
     const doc = createInitialDoc();
     const mapping: Record<string, string> = {};
-    const zip = new JSZip();
+    const zip = new ZipBuilder();
     const bytes = Uint8Array.of(137, 80, 78, 71, 13, 10, 26, 10);
     for (let i = 0; i < 501; i++) {
       const id = "asset-" + i;
@@ -452,7 +452,7 @@ describe("site-import-large", () => {
 
     zip.file(EDITABLE_DOC_PATH, raw);
     zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({ version: 1, assets: mapping }));
-    const archived = await parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip");
+    const archived = await parseSiteImport(await zip.toBytes(), "zip");
     assert.equal(Object.keys(archived.doc.assets).length, 501);
     assert.equal(archived.assets.size, 501);
     assert.deepEqual(archived.assets.get("asset-500"), bytes);
@@ -816,7 +816,7 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
     },
   });
   try {
-    const zip = new JSZip().file("index.html", `<!doctype html><html><head><title>Media suffixes</title></head><body>
+    const zip = new ZipBuilder().file("index.html", `<!doctype html><html><head><title>Media suffixes</title></head><body>
     <img id="plain" src="view.svg" alt="Plain">
     <video id="plain-clip" src="clip.mp4"></video>
     <img id="view" src="view.svg?version=2#detail" alt="Detail">
@@ -825,14 +825,15 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
     .file("view.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8"><view id="detail" viewBox="0 0 6 4"/><rect width="12" height="8"/></svg>')
     .file("clip.mp4", "video fixture").file("sound.mp3", "audio fixture");
 
-    const bytes = await zip.generateAsync({ type: "uint8array" });
+    const bytes = await zip.toBytes();
     const file = new File([bytes], "site.zip");
     const reads = t.mock.method(file, "arrayBuffer");
-    const opens = t.mock.method(JSZip, "loadAsync");
+    const opens = t.mock.method(ZipArchive, "open");
     const { warnings } = await createSiteFromFile(file, "server");
     assert.equal(reads.mock.callCount(), 1);
     assert.equal(opens.mock.callCount(), 1);
     opens.mock.restore();
+    const sourceArchive = await ZipArchive.open(bytes);
     const doc = importedDoc!;
     assert.ok(doc);
     const plain = Object.values(doc.nodes).find(node => node.attrId === "plain")!;
@@ -873,13 +874,13 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
       assert.deepEqual(await exportProjectZip(doc, framework), []);
       assert.ok(download);
       const archiveBytes = new Uint8Array(await (download as Blob).arrayBuffer());
-      const archive = await JSZip.loadAsync(archiveBytes);
+      const archive = await ZipArchive.open(archiveBytes);
       const files = Object.values(archive.files).filter(entry => !entry.dir && !entry.name.includes("/_tsumu/"));
-      const output = (await Promise.all(files.map(entry => entry.async("text")))).join("\n");
+      const output = (await Promise.all(files.map(entry => entry.text()))).join("\n");
       assert.ok(!output.includes("/api/assets/file"), framework);
       if (framework === "html") {
         const page = files.find(entry => entry.name.endsWith("/index.html"))!;
-        const html = parse(await page.async("text"));
+        const html = parse(await page.text());
         assert.equal(html.querySelectorAll("#clip").length, 1);
         assert.equal(html.querySelector("#clip").tagName, "VIDEO");
         assert.equal(html.querySelector("#clip").getAttribute("style"), undefined);
@@ -898,16 +899,18 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
       assert.deepEqual(doc, before, "export must not mutate the active document");
       assert.equal(imported.assets.size, 3);
       for (const asset of Object.values(doc.assets)) {
-        assert.deepEqual(imported.assets.get(asset.id), await zip.file(asset.zip!.path)!.async("uint8array"));
+        assert.deepEqual(imported.assets.get(asset.id), await sourceArchive.file(asset.zip!.path)!.bytes());
       }
     }
-    const responsive = new JSZip()
+    const responsiveBytes = await new ZipBuilder()
       .file("site/index.html", '<html><head><link rel="preload" as="image" href="small.svg" ' +
         'imagesrcset="small.svg 1x, large.svg#wide 2x" imagesizes="100vw"></head><body>' +
         '<picture><source srcset="small.svg 1x, large.svg#wide 2x"><img src="small.svg"></picture></body></html>')
       .file("site/small.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>')
-      .file("site/large.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"/>');
-    const result = await readHtmlZip(await responsive.generateAsync({ type: "uint8array" }));
+      .file("site/large.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"/>')
+      .toBytes();
+    const responsive = await ZipArchive.open(responsiveBytes);
+    const result = await readHtmlZip(responsiveBytes);
     const { doc: converted } = convertHtmlToSite(result.html, { assets: result.assets });
     const pageId = converted.pageOrder[0];
     const raw = structuredClone(converted);
@@ -917,7 +920,7 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
         style: "css", scope: "page", pageId });
       const markup = parse(project.files["index.html"]);
       const data = await Promise.all(["small", "large"].map(async (name) => "data:image/svg+xml;base64," +
-        await responsive.file("site/" + name + ".svg")!.async("base64")));
+        await responsive.file("site/" + name + ".svg")!.base64()));
       const candidates = data[0] + " 1x, " + data[1] + "#wide 2x";
       assert.equal(markup.querySelector('link[rel="preload"]').getAttribute("href"), data[0]);
       assert.equal(markup.querySelector('link[rel="preload"]').getAttribute("imagesrcset"), candidates);
@@ -946,13 +949,13 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
 });
 
 describe("html-zip-guard", () => {
-async function reopen(zip: JSZip): Promise<JSZip> {
-  const bytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
-  return JSZip.loadAsync(bytes);
+async function reopen(zip: ZipBuilder): Promise<ZipArchive> {
+  const bytes = await zip.toBytes({ compression: "DEFLATE" });
+  return ZipArchive.open(bytes);
 }
 
 test("HTML ZIP inspection accepts ordinary nested pages and static assets", async () => {
-  const zip = await reopen(new JSZip()
+  const zip = await reopen(new ZipBuilder()
     .file("site/docs/index.html", "<main>Docs</main>")
     .file("site/index.html", "<main>Home</main>")
     .file("site/about.html", "<main>About</main>")
@@ -967,14 +970,14 @@ test("HTML ZIP inspection accepts ordinary nested pages and static assets", asyn
 });
 
 test("HTML ZIP rejects traversal paths before any file is extracted", async () => {
-  const zip = await reopen(new JSZip()
+  const zip = await reopen(new ZipBuilder()
     .file("index.html", "<main>Safe</main>")
     .file("../outside.js", "bad"));
   assert.throws(() => inspectHtmlZip(zip), /unsafe path/);
 });
 
 test("HTML ZIP rejects case-folded path collisions", async () => {
-  const zip = await reopen(new JSZip()
+  const zip = await reopen(new ZipBuilder()
     .file("index.html", "<main>Safe</main>")
     .file("assets/logo.svg", "<svg/>")
     .file("assets/LOGO.svg", "<svg/>"));
@@ -982,55 +985,51 @@ test("HTML ZIP rejects case-folded path collisions", async () => {
 });
 
 test("HTML ZIP rejects advertised oversize assets before uploading", async () => {
-  const zip = await reopen(new JSZip()
+  const zip = await reopen(new ZipBuilder()
     .file("index.html", "<main>Safe</main>")
     .file("huge.bin", new Uint8Array(HTML_ZIP_LIMITS.assetBytes + 1)));
   assert.throws(() => inspectHtmlZip(zip), /asset in the ZIP is too large/);
 });
 
 test("HTML ZIP rejects aggregate expansion and implausible metadata", async () => {
-  const input = new JSZip().file("index.html", "<main>Safe</main>");
+  const input = new ZipBuilder().file("index.html", "<main>Safe</main>");
   for (let i = 0; i < 13; i++) input.file("asset-" + i + ".bin", "x");
   const zip = await reopen(input);
   for (let i = 0; i < 13; i++) {
-    const entry = zip.file("asset-" + i + ".bin") as JSZip.JSZipObject & {
-      _data: { uncompressedSize: number };
-    };
-    entry._data.uncompressedSize = HTML_ZIP_LIMITS.assetBytes;
+    const entry = zip.file("asset-" + i + ".bin") as ZipEntry;
+    entry.uncompressedSize = HTML_ZIP_LIMITS.assetBytes;
   }
   assert.throws(() => inspectHtmlZip(zip), /expands beyond the size limit/);
 
-  const entry = zip.file("asset-0.bin") as JSZip.JSZipObject & {
-    _data: { uncompressedSize?: number };
-  };
-  delete entry._data.uncompressedSize;
+  const entry = zip.file("asset-0.bin") as ZipEntry;
+  delete entry.uncompressedSize;
   assert.throws(() => inspectHtmlZip(zip), /invalid size/);
 });
 
 test("streamed decompression rejects real expansion beyond the advertised limit", async () => {
   const original = new Uint8Array(256 * 1024).fill(65);
-  const zip = await reopen(new JSZip().file("index.html", "ok").file("payload.bin", original));
+  const zip = await reopen(new ZipBuilder().file("index.html", "ok").file("payload.bin", original));
   const entry = zip.file("payload.bin")!;
   await assert.rejects(readZipEntryLimited(entry, 1024), /expands beyond the size limit/);
   assert.deepEqual(await readZipEntryLimited(entry, original.length), original);
 });
 
 test("HTML ZIP enforces both file and directory record limits", async () => {
-  const input = new JSZip().file("index.html", "safe");
+  const input = new ZipBuilder().file("index.html", "safe");
   for (let i = 0; i < HTML_ZIP_LIMITS.entries; i++) input.file("assets/" + i + ".txt", "x");
   const zip = await reopen(input);
   assert.throws(() => inspectHtmlZip(zip), /up to 200 files/);
-  const directories = new JSZip().file("index.html", "home");
+  const directories = new ZipBuilder().file("index.html", "home");
   for (let i = 0; i < HTML_ZIP_LIMITS.entries * 4; i++) directories.folder("folder-" + i);
   const opened = await reopen(directories);
   assert.throws(() => inspectHtmlZip(opened), /too many files/);
 });
 
 test("raw HTML ZIP import rejects oversized HTML without starting uploads", async () => {
-  const input = new JSZip()
+  const input = new ZipBuilder()
     .file("index.html", "x".repeat(HTML_ZIP_LIMITS.htmlBytes + 1))
     .file("asset.js", "export {}");
-  const bytes = await input.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  const bytes = await input.toBytes({ compression: "DEFLATE" });
   const originalFetch = globalThis.fetch;
   let uploads = 0;
   globalThis.fetch = async () => { uploads++; throw new Error("Unexpected upload"); };
@@ -1048,18 +1047,18 @@ test("invalid HTML encoding and an empty ZIP entry page fail before uploading as
     ["<p>home</p>", Uint8Array.of(0xff), /about.htm.*UTF-8/],
     [" \n", "<p>about</p>", /HTML file in the ZIP is empty/],
   ] as const) {
-    const zip = new JSZip().file("index.html", index).file("about.htm", about).file("style.css", "p{}");
-    await assert.rejects(readHtmlZip(await zip.generateAsync({ type: "uint8array" })), reason);
+    const zip = new ZipBuilder().file("index.html", index).file("about.htm", about).file("style.css", "p{}");
+    await assert.rejects(readHtmlZip(await zip.toBytes()), reason);
   }
   assert.equal(fetch.mock.callCount(), 0);
 });
 
 test("raw HTML ZIP import validates all stylesheets before uploading other assets", async () => {
-  const input = new JSZip()
+  const input = new ZipBuilder()
     .file("index.html", "<link rel=\"stylesheet\" href=\"bad.css\">")
     .file("first.js", "export {}")
     .file("bad.css", new Uint8Array([0xff, 0xfe, 0xfd]));
-  const bytes = await input.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  const bytes = await input.toBytes({ compression: "DEFLATE" });
   const originalFetch = globalThis.fetch;
   let uploads = 0;
   globalThis.fetch = async () => { uploads++; throw new Error("Unexpected upload"); };
@@ -1071,17 +1070,17 @@ test("raw HTML ZIP import validates all stylesheets before uploading other asset
   }
 });
 
-test("ZIPs with duplicate physical names cannot hide a record in JSZip's normalized file map", async () => {
-  const zip = new JSZip().file("index.html", "<main></main>").file("a.txt", "one").file("b.txt", "two");
-  const bytes = await zip.generateAsync({ type: "uint8array" });
+test("ZIPs with duplicate physical names cannot hide a record in the archive file map", async () => {
+  const zip = new ZipBuilder().file("index.html", "<main></main>").file("a.txt", "one").file("b.txt", "two");
+  const bytes = await zip.toBytes();
   // これで、ローカルヘッダーとセントラルディレクトリの両方で、2つの名前が同じバイト列になる。
   const duplicated = Buffer.from(Buffer.from(bytes).toString("latin1").replaceAll("b.txt", "a.txt"), "latin1");
   await assert.rejects(readHtmlZip(duplicated), /duplicate file paths/);
 });
 
 test("failure after an upload removes exactly the new archive asset", async () => {
-  const zip = new JSZip().file("index.html", "<html></html>").file("first.js", "x").file("second.js", "y");
-  const bytes = await zip.generateAsync({ type: "uint8array" });
+  const zip = new ZipBuilder().file("index.html", "<html></html>").file("first.js", "x").file("second.js", "y");
+  const bytes = await zip.toBytes();
   const before = globalThis.fetch;
   const deleted: string[] = [];
   let posts = 0;
@@ -1103,13 +1102,13 @@ test("failure after an upload removes exactly the new archive asset", async () =
 test("archive-local script and stylesheet integrity is checked before uploading a single asset", async () => {
   for (const tag of ['<link href=assets/a.css rel=stylesheet integrity="sha512-AAAA">',
     '<script type=module src=assets/a.js integrity="sha256-AAAA"></script>']) {
-    const zip = new JSZip().file("site/index.html", tag).file("site/assets/a.css", ".x{color:red}")
+    const zip = new ZipBuilder().file("site/index.html", tag).file("site/assets/a.css", ".x{color:red}")
       .file("site/assets/a.js", "globalThis.unverified = true");
     const fetch = globalThis.fetch;
     let uploads = 0;
     globalThis.fetch = async () => { uploads++; return Response.json({ path: "assets/new" }); };
     try {
-      await assert.rejects(readHtmlZip(await zip.generateAsync({ type: "uint8array" })), /integrity/i);
+      await assert.rejects(readHtmlZip(await zip.toBytes()), /integrity/i);
       assert.equal(uploads, 0);
     } finally { globalThis.fetch = fetch; }
   }
@@ -1117,9 +1116,9 @@ test("archive-local script and stylesheet integrity is checked before uploading 
 
 test("valid empty files and comments containing a ZIP signature can be imported", async () => {
   const { openImportZip } = await import("../lib/zip-directory");
-  const original = new JSZip().file("site/index.html", "<p>Home</p>").file("site/empty.css", "");
+  const original = new ZipBuilder().file("site/index.html", "<p>Home</p>").file("site/empty.css", "");
   original.comment = "ordinary PK\u0005\u0006" + "x".repeat(28);
-  const zip = await openImportZip(await original.generateAsync({ type: "uint8array" }), 200);
+  const zip = await openImportZip(await original.toBytes(), 200);
   const { assetEntries } = inspectHtmlZip(zip);
   assert.equal(assetEntries[0].name, "site/empty.css");
   assert.equal((await readZipEntryLimited(assetEntries[0], 16)).length, 0);
@@ -1127,8 +1126,8 @@ test("valid empty files and comments containing a ZIP signature can be imported"
 
 test("corrupt stored bytes do not silently replace an imported document or asset", async () => {
   const { openImportZip } = await import("../lib/zip-directory");
-  const original = new JSZip().file("a.js", "original-payload");
-  const bytes = Buffer.from(await original.generateAsync({ type: "uint8array", compression: "STORE" }));
+  const original = new ZipBuilder().file("a.js", "original-payload");
+  const bytes = Buffer.from(await original.toBytes({ compression: "STORE" }));
   const start = bytes.indexOf("original-payload");
   assert.ok(start >= 0);
   bytes[start] ^= 1;
@@ -1138,8 +1137,8 @@ test("corrupt stored bytes do not silently replace an imported document or asset
 
 test("a forged zero size cannot discard a nonempty deflated member", async () => {
   const { openImportZip } = await import("../lib/zip-directory");
-  const original = new JSZip().file("payload.txt", "not empty");
-  const bytes = Buffer.from(await original.generateAsync({ type: "uint8array", compression: "DEFLATE" }));
+  const original = new ZipBuilder().file("payload.txt", "not empty");
+  const bytes = Buffer.from(await original.toBytes({ compression: "DEFLATE" }));
   const central = bytes.indexOf(Buffer.from([80, 75, 1, 2]));
   bytes.writeUInt32LE(0, 14); bytes.writeUInt32LE(0, 22);
   bytes.writeUInt32LE(0, central + 16); bytes.writeUInt32LE(0, central + 24);
@@ -1148,7 +1147,7 @@ test("a forged zero size cannot discard a nonempty deflated member", async () =>
 
 test("ZIP local and central filenames must identify the same member", async () => {
   const { openImportZip } = await import("../lib/zip-directory");
-  const bytes = Buffer.from(await new JSZip().file("a.txt", "hello").generateAsync({ type: "uint8array" }));
+  const bytes = Buffer.from(await new ZipBuilder().file("a.txt", "hello").toBytes());
   bytes[30] = "b".charCodeAt(0);
   await assert.rejects(openImportZip(bytes, 200), /file directory is invalid/);
 });
@@ -1156,7 +1155,7 @@ test("ZIP local and central filenames must identify the same member", async () =
 test("true DEFLATE empty members survive validation", async () => {
   const { deflateRawSync } = await import("node:zlib");
   const { openImportZip, zipEntrySize } = await import("../lib/zip-directory");
-  const bytes = Buffer.from(await new JSZip().file("empty.txt", "").generateAsync({ type: "uint8array" }));
+  const bytes = Buffer.from(await new ZipBuilder().file("empty.txt", "").toBytes());
   const central = bytes.indexOf(Buffer.from([80, 75, 1, 2]));
   const compressed = deflateRawSync(Buffer.alloc(0));
   const encoded = Buffer.concat([bytes.subarray(0, central), compressed, bytes.subarray(central)]);
@@ -1170,8 +1169,8 @@ test("true DEFLATE empty members survive validation", async () => {
 });
 
 test("corruption in a later binary member rejects the HTML ZIP before an earlier member is uploaded", async () => {
-  const input = new JSZip().file("index.html", "<p>Test</p>").file("a.js", "first").file("z.bin", "later bytes");
-  const bytes = Buffer.from(await input.generateAsync({ type: "uint8array", compression: "STORE" }));
+  const input = new ZipBuilder().file("index.html", "<p>Test</p>").file("a.js", "first").file("z.bin", "later bytes");
+  const bytes = Buffer.from(await input.toBytes({ compression: "STORE" }));
   bytes[bytes.indexOf("later bytes")] ^= 1;
   const fetch = globalThis.fetch;
   let writes = 0;
@@ -1189,14 +1188,14 @@ for (const modules of [false, true]) {
     let uploads = 0;
     t.mock.method(globalThis, "fetch", async () =>
       Response.json({ path: "assets/upload-" + ++uploads }));
-    const archive = new JSZip()
+    const archive = new ZipBuilder()
       .file("index.html", modules ? '<script type="module" src="main.js"></script>' : '<link href="main.css" rel="stylesheet">')
       .file("main.css", '@import "theme.css";')
       .file("theme.css", '@font-face{src:url(font.woff2)}')
       .file("font.woff2", "first");
     if (modules) archive.file("main.js", 'export const font = new URL("./font.woff2", import.meta.url);');
     const read = async (existing: Asset[] = []) =>
-      readHtmlZip(await archive.generateAsync({ type: "uint8array" }), undefined, undefined, existing, true);
+      readHtmlZip(await archive.toBytes(), undefined, undefined, existing, true);
     const before = await read();
     const old = structuredClone(before);
     archive.file("font.woff2", "second");
@@ -1239,11 +1238,11 @@ for (const modules of [false, true]) {
 test("committing a ZIP media update reuses unshared members without erasing panel history", async t => {
   let uploads = 0;
   t.mock.method(globalThis, "fetch", async () => Response.json({ path: "assets/upload-" + ++uploads }));
-  const archive = new JSZip().file("index.html", '<script src="main.js"></script>')
+  const archive = new ZipBuilder().file("index.html", '<script src="main.js"></script>')
     .file("main.js", 'new URL("./font.woff2", import.meta.url)')
     .file("theme.css", '@font-face{src:url(font.woff2)}').file("font.woff2", "first");
   const read = async (previous: Asset[] = []) =>
-    readHtmlZip(await archive.generateAsync({ type: "uint8array" }), undefined, undefined, previous, true);
+    readHtmlZip(await archive.toBytes(), undefined, undefined, previous, true);
   const doc = createInitialDoc(), page = doc.pages[doc.pageOrder[0]];
   const first = await read();
   applyHtmlZipPage(doc, page.id, first);
@@ -1299,8 +1298,8 @@ test("reimport replaces a matching asset whose stored bytes could not be restore
     return Response.json({ path: "assets/upload-" + uploaded.length });
   });
   const script = 'export const label = "notes";';
-  const archive = await new JSZip().file("index.html", '<script type="module" src="main.js"></script>')
-    .file("main.js", script).generateAsync({ type: "uint8array" });
+  const archive = await new ZipBuilder().file("index.html", '<script type="module" src="main.js"></script>')
+    .file("main.js", script).toBytes();
   const read = (previous: Asset[] = []) => readHtmlZip(archive, undefined, undefined, previous, true);
   const doc = createInitialDoc(), pageId = doc.pageOrder[0];
   const first = await read();
@@ -2156,10 +2155,10 @@ test("ZIP extraction round-trips bounded random bytes and rejects undersized out
   const next = seeded(SEED ^ 0x707);
   for (let i = 0; i < 48; i++) {
     const payload = Uint8Array.from({ length: 1 + next() % 4096 }, () => next() & 255);
-    const zipped = await new JSZip()
+    const zipped = await new ZipBuilder()
       .file("index.html", "<main>valid</main>")
       .file("assets/random.bin", payload)
-      .generateAsync({ type: "uint8array", compression: i % 2 ? "DEFLATE" : "STORE" });
+      .toBytes({ compression: i % 2 ? "DEFLATE" : "STORE" });
     const parsed = await openImportZip_2(zipped, 200);
     const inspected = inspectHtmlZip(parsed);
     assert.equal(inspected.htmlEntry.name, "index.html");
@@ -2173,10 +2172,10 @@ test("ZIP extraction round-trips bounded random bytes and rejects undersized out
 test("central-directory and local-header corruptions fail before parsing untrusted documents", async () => {
   const doc = createInitialDoc();
   doc.assets = {};
-  const raw = await new JSZip()
+  const raw = await new ZipBuilder()
     .file("_tsumu/doc.json", JSON.stringify(doc))
     .file("_tsumu/assets.json", JSON.stringify({ version: 1, assets: {} }))
-    .generateAsync({ type: "uint8array", compression: "STORE" });
+    .toBytes({ compression: "STORE" });
   const normal = await parseSiteImport(raw, "zip");
   assert.deepEqual(normal.doc, JSON.parse(JSON.stringify(doc)));
   assert.doesNotThrow(() => validateImportedDoc(normal.doc));
@@ -2207,18 +2206,18 @@ test("archive path normalization is rejected across editable and raw HTML entry 
   doc.assets = {};
   const paths = ["../escape.js", "assets/../escape.js", "assets\\escape.js", "/absolute.js"];
   for (const [i, path] of paths.entries()) {
-    const html = await new JSZip()
+    const html = await new ZipBuilder()
       .file("index.html", "<main>ok</main>")
       .file(path, "unsafe")
-      .generateAsync({ type: "uint8array" });
+      .toBytes();
     const zip = await openImportZip_2(html, 200);
     assert.throws(() => inspectHtmlZip(zip), /unsafe path/,
       "seed=" + SEED + " HTML path=" + i);
-    const editable = await new JSZip()
+    const editable = await new ZipBuilder()
       .file("_tsumu/doc.json", JSON.stringify(doc))
       .file("_tsumu/assets.json", JSON.stringify({ version: 1, assets: {} }))
       .file(path, "unsafe")
-      .generateAsync({ type: "uint8array" });
+      .toBytes();
     await assert.rejects(parseSiteImport(editable, "zip"), /unsafe path/,
       "seed=" + SEED + " doc path=" + i);
   }
@@ -2226,11 +2225,11 @@ test("archive path normalization is rejected across editable and raw HTML entry 
     ["assets/logo.svg", "assets/LOGO.svg"],
     ["assets/caf\u00e9.svg", "assets/cafe\u0301.svg"],
   ]) {
-    const html = await new JSZip()
+    const html = await new ZipBuilder()
       .file("index.html", "<main>ok</main>")
       .file(names[0], "first")
       .file(names[1], "second")
-      .generateAsync({ type: "uint8array" });
+      .toBytes();
     const parsed = await openImportZip_2(html, 200);
     assert.throws(() => inspectHtmlZip(parsed), /duplicate file paths/);
   }
@@ -2451,9 +2450,9 @@ test("real ZIP import rejects unsupported CSS encodings and excessive CSS withou
   globalThis.fetch = async () => { uploads++; return Response.json({ path: "assets/test" }); };
   try {
     for (const css of [Buffer.from('@charset "shift_jis";a{}'), Buffer.from([0xff, 0xfe, 65, 0]), Buffer.alloc(2 * 1024 * 1024 + 1, 32)]) {
-      const zip = new JSZip().file("index.html", '<link href="style.css">').file("script.js", 'export {};').file("style.css", css);
+      const zip = new ZipBuilder().file("index.html", '<link href="style.css">').file("script.js", 'export {};').file("style.css", css);
       await assert.rejects(async () => {
-        const result = await readHtmlZip(await zip.generateAsync({ type: "uint8array" }));
+        const result = await readHtmlZip(await zip.toBytes());
         for (const a of result.assets) doc.assets[a.id] = a;
         doc.pages[doc.pageOrder[0]].rawHtml = result.html;
       }, /UTF-8|ZIP stylesheets/);
@@ -2730,8 +2729,8 @@ test("ZIP SVG image and sprite references follow uploaded assets through export"
     </svg></body></html>`;
     const sprite = '<svg xmlns="http://www.w3.org/2000/svg"><symbol id="check" viewBox="0 0 24 24"><path d="M2 12 9 19 22 3"/></symbol></svg>';
     const photo = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24"/></svg>';
-    const zip = new JSZip().file("site/index.html", html).file("site/icons/sprite.svg", sprite).file("site/images/photo.svg", photo);
-    const imported = await readHtmlZip(await zip.generateAsync({ type: "uint8array" }));
+    const zip = new ZipBuilder().file("site/index.html", html).file("site/icons/sprite.svg", sprite).file("site/images/photo.svg", photo);
+    const imported = await readHtmlZip(await zip.toBytes());
     const dom = parse(imported.html);
     const spriteAsset = imported.assets.find(a => a.zip?.path === "site/icons/sprite.svg")!;
     const photoAsset = imported.assets.find(a => a.zip?.path === "site/images/photo.svg")!;

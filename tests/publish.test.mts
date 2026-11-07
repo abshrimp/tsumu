@@ -39,7 +39,7 @@ import { fetchRequestOf } from "../lib/fetch-request";
 import { validSiteDoc } from "../lib/doc-tree";
 import { exportLimitations as exportLimitations_2 } from "../lib/export-formats";
 import { validateImportedDoc } from "../lib/site-import-format";
-import JSZip from "jszip";
+import { ZipBuilder } from "../lib/zip";
 import { hostingProjectName } from "../lib/publish-provider";
 import { isPublicStaticPath, listStaticDeployments, pagesAssetHash, readStaticZip } from "../lib/static-hosting";
 
@@ -3098,9 +3098,9 @@ test("never include editable data or environment files in public hosting payload
 });
 
 async function zipFor(files: Record<string, string>): Promise<ArrayBuffer> {
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   for (const [path, value] of Object.entries(files)) zip.file(path, value);
-  return zip.generateAsync({ type: "arraybuffer" });
+  return zip.toArrayBuffer();
 }
 
 test("valid static ZIP has only deployable files", async () => {

@@ -2875,13 +2875,13 @@ test("editor storage keys use the tsumu-* namespace with zero legacy unprefixed 
   }
 });
 
-test("jszip and ScriptEditor stay out of eager initial editor imports", () => {
+test("heavy editor modules stay out of eager initial editor imports", () => {
   for (const file of [...sourceFiles("app"), ...sourceFiles("components"), ...sourceFiles("lib")]) {
     const text = readFileSync(file, "utf8");
     assert.doesNotMatch(
       text,
-      /^\s*import\s+(?!type\b).*from\s+["']jszip["']/m,
-      `Static runtime jszip import found in ${file}`,
+      /^\s*import\s+(?!type\b).*from\s+["'](?:\.\.?\/)*(?:lib\/)?zip["']/m,
+      `Static runtime ZIP import found in ${file}`,
     );
   }
   for (const panel of ["components/PagePanel.tsx", "components/SettingsPanel.tsx"]) {
@@ -2889,6 +2889,20 @@ test("jszip and ScriptEditor stay out of eager initial editor imports", () => {
     assert.doesNotMatch(text, /from\s+["']\.\/ScriptEditor["']/);
     assert.match(text, /from\s+["']\.\/ScriptSummary["']/);
   }
+  assert.doesNotMatch(
+    readFileSync("components/PagePanel.tsx", "utf8"),
+    /^\s*import\s+(?!type\b).*from\s+["']\.\.\/lib\/html-(?:file-import|to-site)["']/m,
+  );
+  for (const file of ["components/RightPanel.tsx", "components/Canvas.tsx"]) {
+    assert.doesNotMatch(
+      readFileSync(file, "utf8"),
+      /^\s*import\s+(?!type\b).*from\s+["']\.\/Comments["']/m,
+    );
+  }
+  assert.doesNotMatch(
+    readFileSync("components/style-panel/FontPicker.tsx", "utf8"),
+    /^\s*import\s+(?!type\b).*from\s+["']\.\.\/\.\.\/lib\/google-font-catalog["']/m,
+  );
 });
 });
 
@@ -4558,16 +4572,16 @@ test("plain, small doc.json remains accepted and wins when smaller", async () =>
 });
 
 test("compact documents can be embedded in a ZIP without changing the SiteDoc", async () => {
-  const JSZip = (await import("jszip")).default;
+  const { ZipBuilder } = await import("../lib/zip");
   const doc = createInitialDoc();
   doc.customHeadHtml = "<meta name=\"test\" content=\"ok\">".repeat(1000);
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file("_tsumu/doc.json", await serializePortableDoc(doc, IMPORT_LIMITS.docBytes));
   zip.file("_tsumu/assets.json", JSON.stringify({
     version: 1,
     assets: Object.fromEntries(Object.keys(doc.assets).map((id) => [id, "public/assets/" + id + ".bin"])),
   }));
-  const imported = await parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip");
+  const imported = await parseSiteImport(await zip.toBytes(), "zip");
   assert.deepEqual(imported.doc, doc);
 });
 

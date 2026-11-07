@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { buildSync, transformSync } from "./bundle";
-import JSZip from "jszip";
+import { ZipBuilder } from "../../lib/zip";
 import { resolve } from "node:path";
 import type { Page } from "@playwright/test";
 import { generateProject } from "../../lib/generator";
@@ -223,12 +223,12 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
     };
   });
   await page.addScriptTag({ content: bundle ??= buildZipCssBundle() });
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   const integrity = "sha256-" + createHash("sha256").update(fixtureFiles["site/css/main.css"]).digest("base64");
   for (const [name, source] of Object.entries(fixtureFiles)) {
     zip.file(name, name === "site/index.html" ? String(source).replace("__ORIGINAL_CSS_INTEGRITY__", integrity) : source);
   }
-  const base64 = await zip.generateAsync({ type: "base64" });
+  const base64 = Buffer.from(await zip.toBytes()).toString("base64");
   const doc = await page.evaluate((input) => (window as any).zipCssHarness.importZip(input), base64) as SiteDoc;
   return {
     doc, archiveBase64: base64, uploaded, signatures, resources, exportedRequests, externalRequests, unexpected, errors, control,

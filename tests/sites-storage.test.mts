@@ -20,7 +20,7 @@ import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
 import * as sites from "../lib/sites";
 import { deleteSite as deleteSite_2, insertSite as insertSite_2, deleteSite as deleteSite_3, insertSite as insertSite_3, listSites as listSites_2, deleteSite as deleteSite_4, getSite as getSite_2, getSiteRoomKey as getSiteRoomKey_2, insertSite as insertSite_4, deleteSite as deleteSite_5, getSite as getSite_3, insertSite as insertSite_5, isSiteId as isSiteId_2, normalizeSiteInput as normalizeSiteInput_2, updateSite } from "../lib/sites";
 import { isSiteRole, permits } from "../lib/site-access";
-import JSZip from "jszip";
+import { ZipArchive, ZipBuilder } from "../lib/zip";
 import { createSiteBackup } from "../lib/site-backup";
 import { parseSiteImport, EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH } from "../lib/site-import";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
@@ -593,7 +593,7 @@ test("manual backup contains every asset byte, including unused images, fonts an
   try {
     const blob = await createSiteBackup(doc);
     const archiveBytes = new Uint8Array(await blob.arrayBuffer());
-    const archive = await JSZip.loadAsync(archiveBytes);
+    const archive = await ZipArchive.open(archiveBytes);
     assert.ok(archive.file(EDITABLE_DOC_PATH));
     assert.ok(archive.file(EDITABLE_ASSETS_PATH));
     const parsed = await parseSiteImport(archiveBytes, "zip");
@@ -604,7 +604,7 @@ test("manual backup contains every asset byte, including unused images, fonts an
     assert.deepEqual(parsed.assets.get("font"), font);
     assert.deepEqual(parsed.assets.get("unused"), inline);
     assert.equal(JSON.stringify(doc), expected, "backup must not modify the edited document");
-    const names = Object.values(JSON.parse(await archive.file(EDITABLE_ASSETS_PATH)!.async("text")).assets);
+    const names = Object.values(JSON.parse(await archive.file(EDITABLE_ASSETS_PATH)!.text()).assets);
     assert.equal(new Set(names).size, names.length, "all archive paths must be unique");
   } finally {
     globalThis.fetch = originalFetch;
@@ -934,8 +934,8 @@ test("local doc.json restores an editable SiteDoc and original IDs", async () =>
 
 test("nested export ZIP includes editable source and exact original asset mapping", async () => {
   const doc = fixture();
-  const zip = new JSZip();
-  const root = zip.folder("example-site")!;
+  const zip = new ZipBuilder();
+  const root = zip.folder("example-site");
   const assetName = buildAssetNames(doc).get("original-image")!;
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12"/>';
   root.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
@@ -944,7 +944,7 @@ test("nested export ZIP includes editable source and exact original asset mappin
   }));
   root.file("public/assets/" + assetName, svg);
   root.file("app/page.tsx", "export default function Page() {}");
-  const bytes = await zip.generateAsync({ type: "uint8array" });
+  const bytes = await zip.toBytes();
   const result = await parseSiteImport(bytes, "zip");
   assert.deepEqual(result.warnings, []);
   assert.equal(result.doc.assets["original-image"].path, "assets/old-reference");
@@ -952,38 +952,38 @@ test("nested export ZIP includes editable source and exact original asset mappin
 });
 
 test("home opens an editable ZIP once and rejects its missing asset manifest", async (t) => {
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
-  const file = new File([await zip.generateAsync({ type: "uint8array" })], "site.zip");
+  const file = new File([await zip.toBytes()], "site.zip");
   const reads = t.mock.method(file, "arrayBuffer");
-  const opens = t.mock.method(JSZip, "loadAsync");
+  const opens = t.mock.method(ZipArchive, "open");
   await assert.rejects(createSiteFromFile(file, "server"), /_tsumu\/assets\.json/);
   assert.equal(reads.mock.callCount(), 1);
   assert.equal(opens.mock.callCount(), 1);
 });
 
 test("missing asset bytes in a current ZIP produce warnings without guessing paths", async () => {
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
   zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
     version: 1, assets: { "original-image": "public/assets/logo.svg" },
   }));
   const result = await parseSiteImport(
-    await zip.generateAsync({ type: "uint8array" }), "zip");
+    await zip.toBytes(), "zip");
   assert.equal(result.assets.size, 0);
   assert.match(result.warnings.join("\n"), /logo.svg/);
 });
 
 test("unmapped archive paths cannot substitute for an explicitly mapped asset", async () => {
   const doc = fixture();
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
   zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
     version: 1, assets: { "original-image": "public/assets/current-logo.svg" },
   }));
   zip.file("unmapped/logo.svg", "<svg/>");
   zip.file("attachments/logo.svg", "<svg/>");
-  const result = await parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip");
+  const result = await parseSiteImport(await zip.toBytes(), "zip");
   assert.equal(result.assets.size, 0);
   assert.match(result.warnings.join("\n"), /logo.svg/);
 });
@@ -994,32 +994,32 @@ test("malformed or incomplete ZIP asset manifests are rejected", async () => {
     { version: 1, assets: {} },
     { version: 1, assets: { "original-image": "../escape.svg" } },
   ]) {
-    const zip = new JSZip();
+    const zip = new ZipBuilder();
     zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
     zip.file(EDITABLE_ASSETS_PATH, JSON.stringify(manifest));
     await assert.rejects(parseSiteImport(
-      await zip.generateAsync({ type: "uint8array" }), "zip"), /asset manifest/);
+      await zip.toBytes(), "zip"), /asset manifest/);
   }
 });
 
 test("embedded data URLs remain valid when ZIP asset bytes are missing", async () => {
   const doc = fixture();
   doc.assets["original-image"].dataUrl = "data:image/svg+xml;base64,PHN2Zy8+";
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
   zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
     version: 1, assets: { "original-image": "public/assets/logo.svg" },
   }));
   const result = await parseSiteImport(
-    await zip.generateAsync({ type: "uint8array" }), "zip");
+    await zip.toBytes(), "zip");
   assert.deepEqual(result.warnings, []);
   assert.equal(result.doc.assets["original-image"].dataUrl, doc.assets["original-image"].dataUrl);
 });
 
 test("non-editor HTML ZIP is not confused with SiteDoc archive", async () => {
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file("index.html", "<html><body>Not an editor project</body></html>");
-  await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
+  await assert.rejects(parseSiteImport(await zip.toBytes(),
     "zip"), /_tsumu\/doc\.json/);
 });
 
@@ -1037,12 +1037,12 @@ test("document validation rejects corrupt references and unsafe object keys", ()
 test("ZIP source limits reject oversized and enormous archives", async () => {
   await assert.rejects(parseSiteImport(new Uint8Array(IMPORT_LIMITS.zipBytes + 1),
     "zip"), /too large/);
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
   for (let i = 0; i < IMPORT_LIMITS.entries + 1; i++) {
     zip.file("extra/" + i + ".txt", "x");
   }
-  await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
+  await assert.rejects(parseSiteImport(await zip.toBytes(),
     "zip"), /too many files/);
 });
 
@@ -1056,10 +1056,10 @@ test("local file picker accepts ZIP, JSON and HTML and rejects other formats", (
 });
 
 test("archives with multiple editable documents are rejected before restoring assets", async () => {
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file("first/_tsumu/doc.json", JSON.stringify(fixture()));
   zip.file("second/_tsumu/doc.json", JSON.stringify(fixture()));
-  await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
+  await assert.rejects(parseSiteImport(await zip.toBytes(),
     "zip"), /multiple editor documents/);
 });
 
@@ -1074,13 +1074,13 @@ test("document imports reject network references disguised as embedded assets be
 test("editable ZIP manifests cannot expand the same archive member once per asset ID", async () => {
   const doc = fixture();
   doc.assets.second = { ...doc.assets["original-image"], id: "second" };
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
   zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
     version: 1, assets: { "original-image": "assets/logo.svg", second: "assets/logo.svg" },
   }));
   zip.file("assets/logo.svg", "unique file");
-  await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip"), /asset manifest/);
+  await assert.rejects(parseSiteImport(await zip.toBytes(), "zip"), /asset manifest/);
 });
 
 test("document imports reject dangling references, malformed nodes, and cycles in the flat node map", async () => {
@@ -1109,10 +1109,10 @@ test("imports reject page roots shared with another page or parent node", () => 
 
 test("editable ZIP imports accept a zero-byte asset alongside the document", async () => {
   const doc = fixture();
-  const zip = new JSZip().file(EDITABLE_DOC_PATH, JSON.stringify(doc))
+  const zip = new ZipBuilder().file(EDITABLE_DOC_PATH, JSON.stringify(doc))
     .file(EDITABLE_ASSETS_PATH, JSON.stringify({ version: 1, assets: { "original-image": "assets/empty.svg" } }))
     .file("assets/empty.svg", "");
-  const result = await parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip");
+  const result = await parseSiteImport(await zip.toBytes(), "zip");
   assert.equal(result.assets.get("original-image")?.length, 0);
 });
 

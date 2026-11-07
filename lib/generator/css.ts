@@ -1,4 +1,4 @@
-import { decodeHTMLAttribute } from "entities/decode";
+import { decodeHtmlAttribute } from "../html-entities";
 import type { PublishTarget } from "../generator";
 import { insertIntoHtmlHead } from "./head";
 import { zipCssUrl, zipStylesheet } from "../zip-css";
@@ -195,7 +195,7 @@ export function rewriteHtmlAssetUrls(doc: SiteDoc, value: string, assetNames: Ma
         const end = start + source.length;
         const suffix = text.slice(end);
         const separator = proxy ? htmlAssetQuerySeparator(suffix, entities) : 0;
-        const after = urlAttribute && suffix.includes("&") ? decodeHTMLAttribute(suffix) : suffix;
+        const after = urlAttribute && suffix.includes("&") ? decodeHtmlAttribute(suffix) : suffix;
         const complete = urlAttribute
           ? !text.slice(0, start).trim() && (!after.trimEnd() || /^[?#]/.test(after) || (separator > 0 && after.startsWith("&")))
           : (!start || !/[\p{L}\p{N}._~:/%+-]/u.test(text[start - 1]) || /&(?:quot|apos|#(?:\d+|x[\da-f]+));?$/i.test(text.slice(0, start))) &&

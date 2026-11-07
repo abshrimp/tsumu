@@ -1,6 +1,6 @@
 import { tr } from "./i18n";
-import type JSZip from "jszip";
 import { IMPORT_LIMITS } from "./site-import-format";
+import type { ZipArchive, ZipEntry } from "./zip";
 import { checkZipRecordCount, zipEntrySize } from "./zip-directory";
 import { ZIP_CSS_LIMITS } from "./zip-css";
 
@@ -14,24 +14,16 @@ export const HTML_ZIP_LIMITS = {
   cssBytes: ZIP_CSS_LIMITS.source,
 } as const;
 
-type ZipEntry = JSZip.JSZipObject & {
-  unsafeOriginalName?: string;
-  _data?: { uncompressedSize?: number };
-};
-
-/**
- * 展開やアップロードを始める前に、パスと申告された大きさを検証する。
- * JSZip はパスの遡りを正規化してしまうため、その証拠を unsafeOriginalName に残しておく。
- */
-export function inspectHtmlZip(zip: JSZip): {
-  htmlEntries: JSZip.JSZipObject[];
-  htmlEntry: JSZip.JSZipObject;
-  assetEntries: JSZip.JSZipObject[];
+/** 展開やアップロードを始める前に、パスと申告された大きさを検証する。 */
+export function inspectHtmlZip(zip: ZipArchive): {
+  htmlEntries: ZipEntry[];
+  htmlEntry: ZipEntry;
+  assetEntries: ZipEntry[];
 } {
   const records = Object.values(zip.files);
   // ホームの形式判定では編集用 ZIP の上限で開くため、ここで HTML 用の上限を適用する。
   checkZipRecordCount(records.length, HTML_ZIP_LIMITS.entries);
-  const files = records.filter((entry) => !entry.dir) as ZipEntry[];
+  const files = records.filter((entry) => !entry.dir);
   if (files.length > HTML_ZIP_LIMITS.entries) {
     throw new Error(tr("A zip can contain up to 200 files"));
   }
@@ -41,8 +33,7 @@ export function inspectHtmlZip(zip: JSZip): {
 
   for (const entry of files) {
     const name = entry.name;
-    if ((entry.unsafeOriginalName && entry.unsafeOriginalName !== name) ||
-        !name || name.includes("\\") || /[\u0000-\u001f\u007f]/.test(name) ||
+    if (!name || name.includes("\\") || /[\u0000-\u001f\u007f]/.test(name) ||
         name.split("/").some((part) => !part || part === "." || part === "..")) {
       throw new Error(tr("The ZIP contains an unsafe path."));
     }

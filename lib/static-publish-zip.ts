@@ -19,8 +19,8 @@ export async function buildStaticPublishZip(doc: SiteDoc, target: PublishTarget)
     scope: "project",
   }, target);
   // Keep the editor's initial JavaScript bundle free of ZIP processing code.
-  const { default: JSZip } = await import("jszip");
-  const zip = new JSZip();
+  const { ZipBuilder } = await import("./zip");
+  const zip = new ZipBuilder();
   for (const [path, content] of Object.entries(project.files)) zip.file(path, content);
   for (const [path, base64] of Object.entries(project.binaries)) zip.file(path, base64, { base64: true });
 
@@ -37,5 +37,5 @@ export async function buildStaticPublishZip(doc: SiteDoc, target: PublishTarget)
     downloads.abort(error);
     throw error;
   }
-  return zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
+  return zip.toBlob({ compression: "DEFLATE" });
 }

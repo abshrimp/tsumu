@@ -40,8 +40,11 @@ export function isPublicStaticPath(path: string): boolean {
 export async function readStaticZip(raw: ArrayBuffer): Promise<StaticFile[]> {
   if (!raw.byteLength || raw.byteLength > MAX_ZIP_BYTES) throw new Error("The site ZIP is too large (25 MiB maximum).");
   // ZIP parsing belongs to this upload handler, not the editor's eager bundle.
-  const { default: JSZip } = await import("jszip");
-  const zip = await JSZip.loadAsync(raw, { checkCRC32: false, createFolders: false });
+  const { ZipArchive } = await import("./zip");
+  const zip = await ZipArchive.open(raw, {
+    maxRecords: MAX_FILES * 4,
+    onTooManyRecords: () => new Error("The site has too many files."),
+  });
   const entries = Object.values(zip.files).filter((file) => !file.dir);
   if (!entries.length || entries.length > MAX_FILES) throw new Error("The site has too many files.");
   if (!entries.some((file) => file.name === "index.html")) throw new Error("The exported site has no index.html.");
@@ -59,19 +62,18 @@ export async function readStaticZip(raw: ArrayBuffer): Promise<StaticFile[]> {
   }
   let total = 0;
   const files: StaticFile[] = [];
+  const tooLarge = () => new Error("The site contains files that exceed the upload size limit.");
   for (const file of entries) {
-    const perm = typeof file.unixPermissions === "string"
-      ? parseInt(file.unixPermissions, 8) : file.unixPermissions ?? 0;
+    const perm = file.unixPermissions ?? 0;
     if ((perm & 0o170000) === 0o120000) throw new Error("Symbolic links cannot be published.");
-    // JSZip exposes the ZIP header size internally; reject large entries before inflating them.
-    const size = (file as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize;
+    const size = file.uncompressedSize;
     if (typeof size === "number" && (size > MAX_FILE_BYTES || total + size > MAX_TOTAL_BYTES)) {
-      throw new Error("The site contains files that exceed the upload size limit.");
+      throw tooLarge();
     }
-    const bytes = await file.async("uint8array");
+    const bytes = await file.bytes(Math.min(MAX_FILE_BYTES, MAX_TOTAL_BYTES - total), tooLarge);
     total += bytes.byteLength;
     if (bytes.byteLength > MAX_FILE_BYTES || total > MAX_TOTAL_BYTES) {
-      throw new Error("The site contains files that exceed the upload size limit.");
+      throw tooLarge();
     }
     files.push({ path: file.name, bytes });
   }

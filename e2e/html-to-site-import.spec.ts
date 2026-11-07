@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import JSZip from "jszip";
+import { ZipBuilder } from "../lib/zip";
 import { readFile } from "node:fs/promises";
 import { createInitialDoc } from "../lib/presets";
 import { generateProject } from "../lib/generator";
@@ -122,7 +122,7 @@ test("HTML conversion preserves inline separators in block containers without im
 
 test("HTML ZIP resolves body stylesheet links including media and fallback conditions", async ({ page }) => {
   await localMode(page);
-  const zip = new JSZip()
+  const zip = new ZipBuilder()
     .file("index.html", '<!doctype html><html><head><title>Body CSS</title></head><body>' +
       '<link rel="stylesheet" href="mobile.css" media="(max-width: 768px)">' +
       '<link rel="stylesheet" href="dark.css" media="(prefers-color-scheme: dark)">' +
@@ -133,7 +133,7 @@ test("HTML ZIP resolves body stylesheet links including media and fallback condi
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "body-css.zip", mimeType: "application/zip",
-    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
@@ -260,8 +260,8 @@ test("class styles are distributed to element controls and per-element custom CS
 
 test("HTML ZIP imports an image and linked CSS as editable assets and styles", async ({ page }) => {
   await localMode(page);
-  const zip = new JSZip();
-  const root = zip.folder("website")!;
+  const zip = new ZipBuilder();
+  const root = zip.folder("website");
   root.file("index.html", [
     '<!doctype html><html><head><link rel="stylesheet" href="style.css"></head>',
     '<body><div class="hero" id="hero"><img id="logo" src="images/logo.svg" alt="Logo"></div></body></html>',
@@ -272,7 +272,7 @@ test("HTML ZIP imports an image and linked CSS as editable assets and styles", a
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "website.zip", mimeType: "application/zip",
-    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
@@ -289,8 +289,8 @@ test("HTML ZIP imports an image and linked CSS as editable assets and styles", a
 
 test("linked CSS @imports and external JS module files are preserved and resolved", async ({ page }) => {
   await localMode(page);
-  const zip = new JSZip();
-  const base = zip.folder("site")!;
+  const zip = new ZipBuilder();
+  const base = zip.folder("site");
   base.file("index.html", [
     '<!doctype html><html><head><title>External files</title>',
     '<link rel="stylesheet" href="styles/main.css">',
@@ -309,7 +309,7 @@ test("linked CSS @imports and external JS module files are preserved and resolve
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "separate.zip", mimeType: "application/zip",
-    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
@@ -375,7 +375,7 @@ test("linked CSS @imports and external JS module files are preserved and resolve
 
 test("multi-page HTML ZIP imports every page and converts internal page links", async ({ page }) => {
   await localMode(page);
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file("docs.html", '<html><head><title>Docs file</title><base href="./docs/index.htm?view=full"></head><body>' +
     '<a id="base-page" href="index.htm">Docs index</a><a id="base-section" href="#chapter">Chapter</a>' +
     '<a id="empty-fragment" href="#">Top</a><a id="outside-zip" href="appendix.html">Appendix</a></body></html>');
@@ -397,7 +397,7 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "multi.zip", mimeType: "application/zip",
-    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
@@ -464,7 +464,7 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
 
 test("multi-page HTML ZIP resolves encoded page filenames exactly once without decoding suffixes", async ({ page }) => {
   await localMode(page);
-  const zip = new JSZip()
+  const zip = new ZipBuilder()
     .file("website/index.html", '<html><head><title>Encoded links</title></head><body>' +
       '<a id="space-link" href="company%20info.html?tab=a%2Fb#team%20one">Company</a>' +
       '<a id="unicode-link" href="%E6%97%A5%E6%9C%AC.html">Japanese</a>' +
@@ -478,7 +478,7 @@ test("multi-page HTML ZIP resolves encoded page filenames exactly once without d
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "encoded.zip", mimeType: "application/zip",
-    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
@@ -496,7 +496,7 @@ test("multi-page HTML ZIP resolves encoded page filenames exactly once without d
 
 test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable content", async ({ page }) => {
   await localMode(page);
-  const original = new JSZip()
+  const original = new ZipBuilder()
     .file("index.html", '<!doctype html><html><head><title>Import round trip</title>' +
       '<link rel="stylesheet" href="main.css"></head><body>' +
       '<section id="roundtrip-card" class="card"><h1>Roundtrip verified</h1></section>' +
@@ -507,7 +507,7 @@ test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "input.zip", mimeType: "application/zip",
-    buffer: await original.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await original.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   await expect(page.locator(".app")).toBeVisible();
@@ -521,7 +521,7 @@ test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable
   expect(originalCard?.styles?.base?.default?.gap).toBe("12px");
   const output = generateExportProject(saved, "html");
   expect(output.files["index.html"]).toContain("Roundtrip verified");
-  const exported = new JSZip();
+  const exported = new ZipBuilder();
   for (const [path, source] of Object.entries(output.files)) exported.file(path, source);
   for (const [path, base64] of Object.entries(output.binaries)) {
     exported.file(path, Buffer.from(base64, "base64"));
@@ -530,7 +530,7 @@ test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "published.zip", mimeType: "application/zip",
-    buffer: await exported.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await exported.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   await expect(page.locator(".app")).toBeVisible();
@@ -550,12 +550,12 @@ test("normal-page ZIP conversion uses only index.html and keeps the site's other
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
   await page.getByRole("button", { name: "カスタムコード", exact: true }).click();
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file("website/index.html", "<h1>Only this page</h1>");
   zip.file("website/secondary.html", "<h1>Must not add a page</h1>");
   await page.locator('input[accept=".zip,application/zip"]').setInputFiles({
     name: "pages.zip", mimeType: "application/zip",
-    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "置き換える", exact: true }).click();

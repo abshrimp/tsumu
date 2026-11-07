@@ -58,7 +58,12 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
     const cacheKey = `${path}\0${append}`;
     let code = transformCache.get(cacheKey);
     if (code === undefined) {
-      code = transformSync(readFileSync(resolve(path), "utf8") + append, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
+      code = transformSync(readFileSync(resolve(path), "utf8") + append, {
+        loader: "tsx",
+        jsx: "automatic",
+        format: "cjs",
+        supported: { "dynamic-import": false },
+      }).code;
       transformCache.set(cacheKey, code);
     }
     const module = { exports: {} as any };

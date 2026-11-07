@@ -1,8 +1,6 @@
 "use client";
 
-import { createElement, useMemo, useState } from "react";
-import { flushSync } from "react-dom";
-import { createRoot } from "react-dom/client";
+import { useMemo, useState } from "react";
 import { icons } from "lucide-react";
 import { tr } from "../lib/i18n";
 
@@ -19,20 +17,15 @@ const ICON_ENTRIES = Object.keys(icons).map((pascal) => ({
   kebab: toKebab(pascal),
 }));
 
-/** アイコンのコンポーネントを SVG の文字列に変換する（大きさは CSS で決める） */
-function iconToSvg(pascalName: string): string {
-  const C = icons[pascalName as keyof typeof icons];
-  if (!C) return "";
-  const div = document.createElement("div");
-  const root = createRoot(div);
-  flushSync(() => {
-    root.render(createElement(C, { size: 24 }));
-  });
-  const svg = div.innerHTML
-    .replace(/width="24"/, 'width="100%"')
-    .replace(/height="24"/, 'height="100%"');
-  root.unmount();
-  return svg;
+/** クリックしたボタン内の SVG を複製し、CSS で大きさを決められる文字列にする */
+function buttonIconSvg(button: HTMLButtonElement): string {
+  const source = button.querySelector("svg");
+  if (!source) return "";
+  const svg = source.cloneNode(true) as SVGSVGElement;
+  svg.setAttribute("width", "100%");
+  svg.setAttribute("height", "100%");
+  svg.setAttribute("stroke-width", "2");
+  return svg.outerHTML;
 }
 
 export default function IconPicker({
@@ -70,7 +63,7 @@ export default function IconPicker({
               type="button"
               className={`icon-picker-cell${value === kebab ? " is-sel" : ""}`}
               data-tip={kebab}
-              onClick={() => onSelect(kebab, iconToSvg(pascal))}
+              onClick={(e) => onSelect(kebab, buttonIconSvg(e.currentTarget))}
             >
               <C size={16} strokeWidth={1.75} />
             </button>

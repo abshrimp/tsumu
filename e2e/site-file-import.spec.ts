@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import JSZip from "jszip";
+import { ZipBuilder } from "../lib/zip";
 import { createInitialDoc, makeIcon, makeImage } from "../lib/presets";
 import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
 import { serializePortableDoc } from "../lib/portable-doc";
@@ -43,8 +43,8 @@ async function getLocalSite(page: import("@playwright/test").Page) {
 test("ZIP file picker imports an editable site with original asset IDs", async ({ page }) => {
   await localMode(page);
   const doc = fixture(true);
-  const zip = new JSZip();
-  const root = zip.folder("website")!;
+  const zip = new ZipBuilder();
+  const root = zip.folder("website");
   root.file("_tsumu/doc.json", JSON.stringify(doc));
   root.file("_tsumu/assets.json", JSON.stringify({
     version: 1, assets: { "original-logo": "public/assets/logo.svg" },
@@ -55,7 +55,7 @@ test("ZIP file picker imports an editable site with original asset IDs", async (
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "website.zip", mimeType: "application/zip",
-    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
@@ -73,8 +73,8 @@ test("ZIP file picker imports an editable site with original asset IDs", async (
 
 test("ZIP without doc.json alerts before converting HTML on homepage drop", async ({ page }) => {
   await localMode(page);
-  const zip = new JSZip().file("index.html", "<!doctype html><html><body><h1>Converted page</h1></body></html>");
-  const bytes = await zip.generateAsync({ type: "nodebuffer" });
+  const zip = new ZipBuilder().file("index.html", "<!doctype html><html><body><h1>Converted page</h1></body></html>");
+  const bytes = Buffer.from(await zip.toBytes());
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.evaluate((data) => {
@@ -221,12 +221,12 @@ for (const lost of [false, true]) test(`server import reserves a site and saves 
 
 test("importing archived CSS keeps style end tags as literal content in the published page", async ({ page }) => {
   await localMode(page);
-  const zip = new JSZip().file("index.html", '<link rel="stylesheet" href="theme.css"><p>CSS probe</p>')
+  const zip = new ZipBuilder().file("index.html", '<link rel="stylesheet" href="theme.css"><p>CSS probe</p>')
     .file("theme.css", '@supports (display: grid) {p::before{content:"</StYlE><script>globalThis.cssExecuted=1</script><style>";}} @media (max-width:600px){p::after{content:"narrow"}}');
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
-    name: "styles.zip", mimeType: "application/zip", buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    name: "styles.zip", mimeType: "application/zip", buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const { doc } = await getLocalSite(page);
@@ -248,12 +248,12 @@ test("importing archived CSS keeps style end tags as literal content in the publ
 
 test("an external HTML base retains external stylesheet integrity even with a local namesake", async ({ page }) => {
   await localMode(page);
-  const zip = new JSZip().file("index.html", '<base href="https://cdn.example.test/web/"><link rel=stylesheet href=theme.css integrity=sha256-AAAA><p>External</p>')
+  const zip = new ZipBuilder().file("index.html", '<base href="https://cdn.example.test/web/"><link rel=stylesheet href=theme.css integrity=sha256-AAAA><p>External</p>')
     .file("theme.css", "p{color:red}");
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
-    name: "external.zip", mimeType: "application/zip", buffer: await zip.generateAsync({ type: "nodebuffer" }),
+    name: "external.zip", mimeType: "application/zip", buffer: Buffer.from(await zip.toBytes()),
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const { doc } = await getLocalSite(page);

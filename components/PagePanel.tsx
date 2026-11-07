@@ -5,7 +5,6 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { CodeEditorButton, CustomCodeEditorModal } from "./CustomCodeEditor";
 import { applyHtmlZipPage, readHtmlZip } from "../lib/html-zip";
-import { convertHtmlFile } from "../lib/html-file-import";
 import { normalizeBreakpoints } from "../lib/style";
 import { useEditor } from "../lib/store";
 import { usePendingImport } from "../lib/use-pending-import";
@@ -148,6 +147,8 @@ export default function PagePanel() {
     const request = beginImport(file.name.toLowerCase().endsWith(".zip") ? "zip" : "html");
     setNormalImportMessage(null);
     try {
+      const { convertHtmlFile } = await import("../lib/html-file-import");
+      if (!request.current()) return;
       const state = useEditor.getState();
       const converted = await convertHtmlFile(file, {
         breakpoints: state.doc.breakpoints,

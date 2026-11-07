@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import JSZip from "jszip";
+import { ZipBuilder } from "../lib/zip";
 import { htmlImportBundle } from "../tests/helpers/html-import";
 import { build } from "../tests/helpers/bundle";
 import { resolve as resolve_2 } from "node:path";
@@ -54,10 +54,10 @@ for (const zip of [false, true]) for (const interruption of ["edit", "kind", "un
     });
     await page.evaluate(() => (window as any).htmlEditor.getState().updatePage("p", { title: "Undo this" }));
     if (zip) {
-      const archive = new JSZip();
+      const archive = new ZipBuilder();
       archive.file("index.html", '<html><head><link rel="stylesheet" href="style.css"></head><body>Imported</body></html>');
       archive.file("style.css", "p{color:red}");
-      await page.locator('input[accept=".zip,application/zip"]').setInputFiles({ name: "site.zip", mimeType: "application/zip", buffer: await archive.generateAsync({ type: "nodebuffer" }) });
+      await page.locator('input[accept=".zip,application/zip"]').setInputFiles({ name: "site.zip", mimeType: "application/zip", buffer: Buffer.from(await archive.toBytes()) });
       await expect.poll(() => uploading).toBe(true);
     } else {
       await page.locator('input[accept=".html,.htm,text/html"]').setInputFiles({ name: "index.html", mimeType: "text/html", buffer: Buffer.from("<p>Imported</p>") });
@@ -134,13 +134,13 @@ test.beforeAll(async () => {
   const result = await build({
     stdin: {
       contents: `
-      import JSZip from "jszip";
+      import { ZipBuilder } from "./lib/zip";
       import { readHtmlZip } from "./lib/html-zip";
       import { convertHtmlToSite } from "./lib/html-to-site";
       window.importFixture = async (source, archive) => {
         if (!archive) return convertHtmlToSite(source).doc;
-        const zip = new JSZip().file("site/index.html", source);
-        const imported = await readHtmlZip(await zip.generateAsync({ type: "uint8array" }));
+        const zip = new ZipBuilder().file("site/index.html", source);
+        const imported = await readHtmlZip(await zip.toBytes());
         return convertHtmlToSite(imported.html, { assets: imported.assets }).doc;
       };`,
       resolveDir: resolve_2("."), loader: "ts", sourcefile: "html-import-code-boundaries-fixture.ts",

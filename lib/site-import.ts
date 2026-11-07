@@ -2,7 +2,7 @@ import { tr } from "./i18n";
 import { rebindImportedAssetUrls } from "./imported-asset-urls";
 import { sanitizeImportedInlineIcons } from "./imported-svg";
 import { IMPORT_LIMITS, isEmbeddedAssetUrl, isImportObject, validateImportedDoc } from "./site-import-format";
-import type JSZip from "jszip";
+import type { ZipArchive, ZipEntry } from "./zip";
 import { openImportZip, zipEntrySize } from "./zip-directory";
 import type { SiteDoc } from "./types";
 import { uploadStaticAsset } from "./assets";
@@ -39,7 +39,7 @@ function pathOK(path: string): boolean {
     !/[\u0000-\u001f\u007f]/.test(path) &&
     path.split("/").every((part) => part && part !== "." && part !== "..");
 }
-export function isEditorDocument(entry: JSZip.JSZipObject): boolean {
+export function isEditorDocument(entry: ZipEntry): boolean {
   return !entry.dir && /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name);
 }
 
@@ -56,15 +56,9 @@ export async function parseSiteImport(
     assets: new Map(), warnings: [] };
 }
 
-export async function parseEditableZip(zip: JSZip): Promise<SiteImport> {
+export async function parseEditableZip(zip: ZipArchive): Promise<SiteImport> {
   const entries = Object.values(zip.files).filter((entry) => !entry.dir);
   if (entries.length > IMPORT_LIMITS.entries) throw new Error(tr("The ZIP contains too many files."));
-  for (const entry of entries) {
-    const original = (entry as JSZip.JSZipObject & { unsafeOriginalName?: string }).unsafeOriginalName;
-    if (original && original !== entry.name) {
-      throw new Error(tr("The ZIP contains an unsafe path."));
-    }
-  }
   const editableDocs = entries.filter(isEditorDocument);
   if (editableDocs.length > 1) {
     throw new Error(tr("The ZIP contains multiple editor documents."));

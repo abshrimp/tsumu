@@ -61,11 +61,11 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
     archiveAssets.assets[id] = path;
     if (stylesheet && !existingOriginal) originalStylesheets.set(path, asset);
   }
-  // JSZip がディレクトリを作る前に、編集用の項目のパスを確保しておく。
+  // ディレクトリを作る前に、編集用の項目のパスを確保しておく。
   assertGeneratedPaths(project, [EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, ...originalStylesheets.keys()]);
-  const { default: JSZip } = await import("jszip");
-  const zip = new JSZip();
-  const root = zip.folder(dirName)!;
+  const { ZipBuilder } = await import("./zip");
+  const zip = new ZipBuilder();
+  const root = zip.folder(dirName);
   root.file(EDITABLE_DOC_PATH, JSON.stringify(editableDoc));
   root.file(EDITABLE_ASSETS_PATH, JSON.stringify(archiveAssets));
   for (const [path, asset] of originalStylesheets) {
@@ -106,7 +106,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
     throw error;
   }
 
-  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 9 } });
+  const blob = await zip.toBlob({ compression: "DEFLATE" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

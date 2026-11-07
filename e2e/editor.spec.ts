@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import JSZip from "jszip";
+import { ZipArchive } from "../lib/zip";
 import { browserDoc } from "./helpers/browser-doc";
 
 const HEADING = "見出しをここに";
@@ -140,12 +140,12 @@ test("ZIP export produces a standard Next.js project", async ({ page }) => {
   const file = await (await download).createReadStream();
   const chunks: Buffer[] = [];
   for await (const c of file) chunks.push(c as Buffer);
-  const zip = await JSZip.loadAsync(Buffer.concat(chunks));
+  const zip = await ZipArchive.open(Buffer.concat(chunks));
   const names = Object.keys(zip.files);
   const root = names.find((n) => n.endsWith("package.json"))!.replace(/package\.json$/, "");
-  const pkg = JSON.parse(await zip.file(`${root}package.json`)!.async("string"));
+  const pkg = JSON.parse(await zip.file(`${root}package.json`)!.text());
   expect(Object.keys(pkg.dependencies)).toEqual(expect.arrayContaining(["next", "react", "react-dom"]));
-  expect(await zip.file(`${root}app/page.tsx`)!.async("string")).toContain(HEADING);
+  expect(await zip.file(`${root}app/page.tsx`)!.text()).toContain(HEADING);
 });
 
 test("Drag a canvas node to reorder it", { tag: "@core-editing" }, async ({ page }) => {

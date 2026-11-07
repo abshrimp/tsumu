@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import JSZip from "jszip";
+import { ZipArchive } from "../lib/zip";
 import { readFile } from "node:fs/promises";
 import { loadLocale } from "../lib/i18n";
 import { createInitialDoc, makeText } from "../lib/presets";
@@ -77,11 +77,11 @@ test("export dialog validates layout, scopes, and downloads React, HTML, and Vue
     initialModal.getByRole("button", { name: "zipをダウンロード" }).click(),
   ]);
   expect(htmlDownload.suggestedFilename()).toMatch(/html-javascript\.zip$/);
-  const htmlZip = await JSZip.loadAsync(await readFile((await htmlDownload.path())!));
+  const htmlZip = await ZipArchive.open(await readFile((await htmlDownload.path())!));
   const htmlNames = Object.keys(htmlZip.files);
   const index = htmlNames.find((p) => p.endsWith("/index.html"))!;
   expect(index).toBeTruthy();
-  const html = await htmlZip.file(index)!.async("text");
+  const html = await htmlZip.file(index)!.text();
   expect(html).toContain("<!doctype html>");
   expect(html).toContain("styles/site.css");
   expect(htmlNames.some((p) => p.endsWith("/styles/site.css"))).toBe(true);
@@ -107,7 +107,7 @@ test("export dialog validates layout, scopes, and downloads React, HTML, and Vue
     reactModal.getByRole("button", { name: "zipをダウンロード" }).click(),
   ]);
   expect(reactDownload.suggestedFilename()).toMatch(/react-javascript\.zip$/);
-  const reactPaths = Object.keys((await JSZip.loadAsync(await readFile((await reactDownload.path())!))).files);
+  const reactPaths = Object.keys((await ZipArchive.open(await readFile((await reactDownload.path())!))).files);
   expect(reactPaths.some((p) => p.endsWith("/src/App.jsx"))).toBe(true);
   expect(reactPaths.some((p) => p.endsWith("/src/App.tsx"))).toBe(false);
   expect(reactPaths.some((p) => p.endsWith("/jsconfig.json"))).toBe(true);
@@ -122,7 +122,7 @@ test("export dialog validates layout, scopes, and downloads React, HTML, and Vue
     page.waitForEvent("download"),
     vueModal.getByRole("button", { name: "zipをダウンロード" }).click(),
   ]);
-  const vueNames = Object.keys((await JSZip.loadAsync(await readFile((await vueDownload.path())!))).files);
+  const vueNames = Object.keys((await ZipArchive.open(await readFile((await vueDownload.path())!))).files);
   expect(vueNames.some((name) => name.endsWith("/src/App.vue"))).toBe(true);
   expect(vueNames.some((name) => name.endsWith("/vite.config.ts"))).toBe(true);
   expect(vueNames.some((name) => name.endsWith("/next.config.mjs"))).toBe(false);
@@ -246,13 +246,13 @@ test("同じ書き出し先のURLを検出し、URL修正後は両方のクエ�
   const stream = await (await download).createReadStream();
   const chunks: Buffer[] = [];
   for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
-  const zip = await JSZip.loadAsync(Buffer.concat(chunks));
+  const zip = await ZipArchive.open(Buffer.concat(chunks));
   const path = Object.keys(zip.files).find((name) => name.endsWith("app/about/team/page.tsx"))!;
   expect(path).toBeTruthy();
   const prefix = path.slice(0, -"page.tsx".length);
-  expect(await zip.file(`${prefix}_q/p0.tsx`)!.async("string")).toContain("The original team page");
-  expect(await zip.file(`${prefix}_q/p1.tsx`)!.async("string")).toContain("The other team page");
-  expect(await zip.file(path)!.async("string")).toContain('["tab","other"]');
+  expect(await zip.file(`${prefix}_q/p0.tsx`)!.text()).toContain("The original team page");
+  expect(await zip.file(`${prefix}_q/p1.tsx`)!.text()).toContain("The other team page");
+  expect(await zip.file(path)!.text()).toContain('["tab","other"]');
   expect(errors).toEqual([]);
 });
 
@@ -329,10 +329,10 @@ test("大文字だけ違う転送を公開・書き出し前に止め、別の�
   const stream = await (await download).createReadStream();
   const chunks: Buffer[] = [];
   for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
-  const zip = await JSZip.loadAsync(Buffer.concat(chunks));
+  const zip = await ZipArchive.open(Buffer.concat(chunks));
   const configPath = Object.keys(zip.files).find(name => name.endsWith("next.config.mjs"))!;
   expect(configPath).toBeTruthy();
-  const config = await zip.file(configPath)!.async("string");
+  const config = await zip.file(configPath)!.text();
   expect(config).toContain('"source": "/old-about"');
   expect(config).toContain('"destination": "/about?from=old#team"');
   expect(Object.keys(zip.files).some(name => name.endsWith("app/about/page.tsx"))).toBe(true);

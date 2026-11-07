@@ -1,5 +1,5 @@
 import { test, expect, type Frame, type Page } from "@playwright/test";
-import JSZip from "jszip";
+import { ZipArchive, ZipBuilder } from "../lib/zip";
 import { fixtureAsset, zipCssBrowser } from "../tests/helpers/zip-css-browser";
 import { build } from "../tests/helpers/bundle";
 import { resolve } from "node:path";
@@ -309,10 +309,14 @@ test("reimporting identical ZIP files keeps source and reuses stored asset ident
 
 test("reimporting one changed file uploads only that file", async ({ page }) => {
   const fixture = await zipCssBrowser(page, "remote");
-  const archive = await JSZip.loadAsync(Buffer.from(fixture.archiveBase64, "base64"));
-  archive.file("site/images/direct.svg",
+  const archive = await ZipArchive.open(Buffer.from(fixture.archiveBase64, "base64"));
+  const next = new ZipBuilder();
+  for (const entry of archive.entries) {
+    if (!entry.dir) next.file(entry.name, await entry.bytes());
+  }
+  next.file("site/images/direct.svg",
     '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><rect width="10" height="6" fill="red"/></svg>');
-  const updated = await fixture.reimport(await archive.generateAsync({ type: "base64" }));
+  const updated = await fixture.reimport(Buffer.from(await next.toBytes()).toString("base64"));
   expect(fixture.uploaded.size).toBe(fixture.doc.pages.p.htmlZip!.assetIds.length + 1);
   const before = new Map(fixture.doc.pages.p.htmlZip!.assetIds.map(id => [fixture.doc.assets[id].zip!.path, id]));
   const after = new Map(updated.pages.p.htmlZip!.assetIds.map(id => [updated.assets[id].zip!.path, id]));
@@ -343,13 +347,13 @@ test.beforeAll(async () => {
   const result = await build({
     stdin: {
       contents: `
-import JSZip from "jszip";
+import { ZipBuilder } from "./lib/zip";
 import { readHtmlZip } from "./lib/html-zip";
 window.importFixture = async () => {
-  const zip = new JSZip();
+  const zip = new ZipBuilder();
   zip.file("site/index.html", ${JSON.stringify(source)});
   zip.file("site/images/photo,wide.svg", ${JSON.stringify(archiveImage)});
-  const result = await readHtmlZip(await zip.generateAsync({ type: "uint8array" }));
+  const result = await readHtmlZip(await zip.toBytes());
   const frame = document.createElement("iframe");
   frame.id = "imported";
   frame.srcdoc = result.html;

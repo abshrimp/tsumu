@@ -1,5 +1,5 @@
 import { withImportUploads } from "./import-uploads";
-import type JSZip from "jszip";
+import type { ZipArchive } from "./zip";
 import type { Asset, BreakpointDef, LinkSetting, SiteDoc } from "./types";
 import { readHtmlZip, readHtmlZipPages } from "./html-zip";
 import { safeNavigationUrl } from "./url-policy";
@@ -7,7 +7,7 @@ import { genId } from "./presets";
 import { archiveBaseUrl, archiveFileUrl } from "./zip-references";
 import { importedFormAction } from "./imported-form";
 import { isHtmlIndex } from "./html-zip-guard";
-import { convertHtmlToSite, type HtmlConversion } from "./html-to-site";
+import type { HtmlConversion } from "./html-to-site";
 import { IMPORT_LIMITS } from "./site-import-format";
 import { tr } from "./i18n";
 
@@ -27,11 +27,14 @@ export function requireEditableHtmlContent(result: HtmlConversion): HtmlConversi
 
 /** ホームからの HTML ZIP 取り込みでは、開いたアーカイブの全ページを変換する。 */
 export async function convertHtmlZipSite(
-  zip: JSZip, progress: (message: string) => void, paths: string[], siteId?: string,
+  zip: ZipArchive, progress: (message: string) => void, paths: string[], siteId?: string,
 ): Promise<HtmlConversion> {
   progress(tr("Reading HTML and assets…"));
-  const archive = await readHtmlZipPages(zip, progress, paths, siteId);
-  return requireEditableHtmlContent(convertHtmlPages(archive.pages, archive.assets));
+  const [archive, { convertHtmlToSite }] = await Promise.all([
+    readHtmlZipPages(zip, progress, paths, siteId),
+    import("./html-to-site"),
+  ]);
+  return requireEditableHtmlContent(convertHtmlPages(archive.pages, archive.assets, convertHtmlToSite));
 }
 
 export async function convertHtmlFile(
@@ -43,7 +46,10 @@ export async function convertHtmlFile(
   if (file.name.toLowerCase().endsWith(".zip")) {
     options.progress?.(tr("Reading HTML and assets…"));
     return withImportUploads(async paths => {
-      const converted = await readHtmlZip(file, options.progress, paths, [], false, siteId);
+      const [converted, { convertHtmlToSite }] = await Promise.all([
+        readHtmlZip(file, options.progress, paths, [], false, siteId),
+        import("./html-to-site"),
+      ]);
       return requireEditableHtmlContent(convertHtmlToSite(converted.html, {
         breakpoints: options.breakpoints, assets: converted.assets, sourceName: converted.zip.path.split("/").pop(),
       }));
@@ -51,7 +57,11 @@ export async function convertHtmlFile(
   }
   if (!isHtmlFile(file.name)) throw new Error(tr("Choose an HTML file or ZIP containing HTML."));
   if (file.size > IMPORT_LIMITS.docBytes) throw new Error(tr("The import file is too large."));
-  const html = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
+  const [rawBuffer, { convertHtmlToSite }] = await Promise.all([
+    file.arrayBuffer(),
+    import("./html-to-site"),
+  ]);
+  const html = new TextDecoder("utf-8", { fatal: true }).decode(rawBuffer);
   options.progress?.(tr("Converting HTML into editable elements…"));
   return requireEditableHtmlContent(convertHtmlToSite(html, { breakpoints: options.breakpoints, sourceName: file.name }));
 }
@@ -63,6 +73,7 @@ export async function convertHtmlFile(
 function convertHtmlPages(
   pages: { name: string; html: string; baseHref?: string | null }[],
   assets: Asset[],
+  convertHtmlToSite: typeof import("./html-to-site").convertHtmlToSite,
 ): HtmlConversion {
   if (!pages.length) throw new Error(tr("No HTML file found in the zip"));
   const main = pages[0];

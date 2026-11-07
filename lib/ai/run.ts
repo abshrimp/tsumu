@@ -1,8 +1,13 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { readTextLimited, TooLargeError } from "../safe-fetch";
 import type { AiConfig } from "./config";
 import type { AiProgress } from "./progress";
-import { ModelStreamError, readCompletionStream } from "./completion-stream";
+import {
+  ModelStreamError,
+  readAnthropicStream,
+  readCompletionStream,
+  type AnthropicContentBlock,
+  type AnthropicStreamMessage,
+} from "./completion-stream";
 import { editToolSchema, PORTABLE_NOTE, SYSTEM, TOOL_DESCRIPTION, TOOL_NAME } from "./prompt";
 
 const MAX_TURNS = 8;
@@ -100,7 +105,7 @@ export async function runAi(
     if (controller.signal.aborted) throw new AiApiError("timeout");
     if (error instanceof AiApiError) throw error;
     if (error instanceof TooLargeError) throw new AiApiError("incomplete", undefined, "Model response exceeded the byte limit");
-    if (error instanceof Anthropic.APIError || error instanceof ModelStreamError) throw apiError(error.status, error.message);
+    if (error instanceof ModelStreamError) throw apiError(error.status, error.message);
     throw new AiApiError("other", undefined, error instanceof Error ? error.message : String(error));
   } finally {
     clearTimeout(timer);
@@ -122,40 +127,91 @@ function apiError(status: number | undefined, detail: string): AiApiError {
   return new AiApiError(status === 401 || status === 403 ? "auth" : status === 429 || status === 503 || status === 529 ? "rate" : "other", status, detail);
 }
 
+interface AnthropicMessageParam {
+  role: "user" | "assistant";
+  content: string | AnthropicContentBlock[];
+}
+
 function anthropicSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSignal, onText?: (text: string) => void, onTools?: () => void): () => Promise<Step> {
-  const client = new Anthropic({ apiKey: conf.apiKey, maxRetries: 0, fetchOptions: { redirect: "manual" } });
-  const messages: Anthropic.MessageParam[] = turns.map((t) => ({ role: t.role, content: t.text }));
+  const endpoint = `${(conf.baseUrl ?? "https://api.anthropic.com").replace(/\/v1$/, "")}/v1/messages`;
+  const messages: AnthropicMessageParam[] = turns.map((t) => ({ role: t.role, content: t.text }));
   return async () => {
-    const params: Anthropic.MessageCreateParamsNonStreaming = {
-      model: conf.model,
-      max_tokens: 16000,
-      system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
-      tools: [{ name: TOOL_NAME, description: TOOL_DESCRIPTION, input_schema: editToolSchema(false) as Anthropic.Tool["input_schema"] }],
-      messages,
-      output_config: { effort: conf.effort },
-    };
-    let res: Anthropic.Message;
-    if (onText) {
-      const stream = client.messages.stream(params, { signal });
-      stream.on("text", onText);
-      stream.on("streamEvent", (event) => {
-        if (event.type === "content_block_start" && event.content_block.type === "tool_use") onTools?.();
+    let response: Response;
+    let retries = 0;
+    for (;;) {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": conf.apiKey ?? "",
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: conf.model,
+          max_tokens: 16000,
+          system: [{ type: "text", text: SYSTEM, cache_control: { type: "ephemeral" } }],
+          tools: [{ name: TOOL_NAME, description: TOOL_DESCRIPTION, input_schema: editToolSchema(false) }],
+          messages,
+          output_config: { effort: conf.effort },
+          ...(onText ? { stream: true } : {}),
+        }),
+        signal,
+        redirect: "manual",
       });
-      res = await stream.finalMessage();
-    } else {
-      res = await client.messages.create(params, { signal });
+      if (response.ok) break;
+      const detail = await readTextLimited(response, MAX_MODEL_ERROR_BYTES).catch((error: unknown) => {
+        if (error instanceof TooLargeError) return "Model error response exceeded the byte limit";
+        throw error;
+      });
+      if (RETRYABLE.has(response.status) && retries < RETRY_DELAYS.length) {
+        await sleep(RETRY_DELAYS[retries++], signal);
+        continue;
+      }
+      throw apiError(response.status, detail.slice(0, 500));
     }
-    const calls = res.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+
+    const streamed = response.headers.get("content-type")?.includes("text/event-stream");
+    const res: AnthropicStreamMessage = streamed
+      ? await readAnthropicStream(response, onText ?? (() => {}), onTools ?? (() => {}))
+      : (JSON.parse(await readTextLimited(response, MAX_MODEL_BODY_BYTES)) as AnthropicStreamMessage);
+    if (!Array.isArray(res?.content)) {
+      throw new AiApiError("other", undefined, "Invalid model response");
+    }
+    const calls = res.content.filter(
+      (b): b is AnthropicContentBlock & { type: "tool_use"; id: string; name: string } =>
+        b.type === "tool_use" && typeof b.id === "string" && typeof b.name === "string",
+    );
+    if (res.content.some((b) => b.type === "tool_use" && (typeof b.id !== "string" || typeof b.name !== "string"))) {
+      throw new AiApiError("other", undefined, "Invalid tool call");
+    }
+    const textBlocks = res.content.filter(
+      (b): b is AnthropicContentBlock & { type: "text"; text: string } =>
+        b.type === "text" && typeof b.text === "string",
+    );
+    if (!streamed) {
+      for (const block of textBlocks) onText?.(block.text);
+    }
     return {
-      text: res.content.filter((b): b is Anthropic.TextBlock => b.type === "text").map((b) => b.text).join("\n").trim(),
-      calls: calls.map((c) => ({ id: c.id, name: c.name, input: c.input })),
+      text: textBlocks.map((b) => b.text).join("\n").trim(),
+      calls: calls.map((c) => ({
+        id: c.id,
+        name: c.name,
+        input: c.input,
+        invalid: res.invalidTools?.has(c.id) || !c.input || typeof c.input !== "object" || Array.isArray(c.input),
+      })),
       refused: res.stop_reason === "refusal",
       truncated: res.stop_reason === "max_tokens",
       respond(results) {
         messages.push({ role: "assistant", content: res.content });
-        messages.push({ role: "user", content: calls.map((c, i) => ({
-          type: "tool_result", tool_use_id: c.id, content: results[i].content, is_error: results[i].isError,
-        })) });
+        messages.push({
+          role: "user",
+          content: calls.map((c, i) => ({
+            type: "tool_result",
+            tool_use_id: c.id,
+            content: results[i].content,
+            is_error: results[i].isError,
+          })),
+        });
       },
     };
   };
