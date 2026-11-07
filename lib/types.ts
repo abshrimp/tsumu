@@ -187,15 +187,12 @@ export interface ScriptPos {
 
 export type ScriptOp =
   | "eq"
-  | "neq"
   | "contains"
-  | "not-contains"
   | "starts-with"
   | "ends-with"
   | "gt"
   | "lt"
   | "empty"
-  | "not-empty"
   /** 「,」区切りの値・配列のどれかと同じ */
   | "in";
 
@@ -209,7 +206,7 @@ export interface ScriptCond {
   /** subject="value" / "var" の比較方法 */
   op?: ScriptOp;
   value?: string;
-  /** checked / visible / hovered を否定する */
+  /** どの条件も「でない」を選べば判定を反転する */
   not?: boolean;
 }
 
@@ -219,6 +216,8 @@ export interface FilterCond {
   op: ScriptOp;
   /** {変数} は実行時の値に置き換える */
   value: string;
+  /** 「でない」を選んだときにこの条件だけ反転する */
+  not?: boolean;
   /** 直前の条件と「かつ」でつなぐ（無ければ「または」） */
   and?: boolean;
 }
@@ -240,6 +239,8 @@ export type ScriptStep = { id: string } & (
       field: string;
       op: ScriptOp;
       value: string;
+      /** 最初の絞り込み条件の反転 */
+      not?: boolean;
       /** Filter conditions and stable filter-slot identifier. */
       or?: FilterCond[];
       no?: number;
