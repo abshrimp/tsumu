@@ -24,7 +24,7 @@ import {
 import { startImageInsertion } from "../lib/image-drop";
 import { clipboardArtworkFile, hasClipboardArtwork } from "../lib/clipboard";
 import { activeContentNames, CLIP_MIME, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
-import { showConfirm } from "../lib/dialog";
+import { showAlert, showConfirm } from "../lib/dialog";
 import EditorLoading from "./EditorLoading";
 import Header from "./Header";
 import Footer from "./Footer";
@@ -131,6 +131,24 @@ export default function Editor({ onReady }: EditorProps = {}) {
   // モジュール内の仮の初期データを見せず、最初の読み込み結果が決まるまで準備画面を保つ。
   // 再接続や保存中には戻さない（入力欄やキャンバスをアンマウントしない）。
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  useEffect(() => {
+    if (!initialLoadComplete) return;
+    const key = storageKey("import-warnings-v1") + ":" + currentSiteId();
+    let warnings: unknown;
+    try {
+      const raw = window.sessionStorage.getItem(key);
+      if (!raw) return;
+      window.sessionStorage.removeItem(key);
+      warnings = JSON.parse(raw);
+    } catch { return; }
+    if (!Array.isArray(warnings) || !warnings.length) return;
+    const lines = warnings.filter((item): item is string => typeof item === "string");
+    if (!lines.length) return;
+    void showAlert(lines.slice(0, 20).join("\n") +
+      (lines.length > 20 ? "\n" + tr("ほかにも復元できなかったアセットがあります。") : ""), {
+      title: tr("一部のアセットを復元できませんでした"),
+    });
+  }, [initialLoadComplete]);
   // ページが準備画面を持つ場合は、描画前に完了を伝えて同じ画面を一度だけ閉じる。
   useLayoutEffect(() => {
     if (initialLoadComplete) onReady?.();
