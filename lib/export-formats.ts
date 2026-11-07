@@ -1,4 +1,5 @@
 import type { SiteDoc } from "./types";
+import { pagePlan } from "./data";
 import { generateProject, type GeneratedProject } from "./generator";
 import { buildReactProject } from "./generator/react-export";
 import { generateStandaloneHtml } from "./generator/html-export";
@@ -42,7 +43,7 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   }
   const node = options.nodeId ? doc.nodes[options.nodeId] : undefined;
   if (!node) throw new Error(tr("書き出すコンポーネントを選択してください。"));
-  let id = "__tsumu_export_component__";
+  let id = "__export_component__";
   while (doc.pages[id]) id += "_";
   const scopedPage = {
     ...page,
@@ -108,16 +109,27 @@ export function exportLimitations(
       "同じURLをクエリ文字列で切り替えるページは、静的ファイルだけでは振り分けられません。ページごとに異なるURLに変更してください。");
   }
   const project = existing ?? generateProject(doc);
-  add(Object.entries(project.files).some(([path, source]) => {
-    if (!/^app\/(?:.*\/)?(?:_q\/p\d+|page)\.tsx$/.test(path)) return false;
-    if (options.framework === "react") {
-      // Query dispatchers are replaced by React's client-side route table.
+  if (options.framework === "react") {
+    add(Object.entries(project.files).some(([path, source]) => {
+      if (!/^app\/(?:.*\/)?(?:_q\/p\d+|page)\.tsx$/.test(path)) return false;
+      // React query dispatchers are replaced with a browser routing table.
       if (source.includes("const variants: Variant[]")) return false;
-      // The browser URL can supply the query that Next.js otherwise awaits.
       return needsServerRuntime(source.replaceAll("await searchParams", ""));
-    }
-    return needsServerRuntime(source.replaceAll("await searchParams", ""));
-  }), "ページの表示前にサーバーでデータを取得・加工する設定があります。静的HTMLやブラウザのみのReactでは同じ結果を保証できません。Next.js形式を選択するか、取得処理をブラウザ実行に変更してください。");
+    }), "ページの表示前にサーバーでデータを取得・加工する設定があります。Reactのクライアント描画では現在この処理を移行できません。Next.jsまたはHTML形式を選択してください。");
+  }
+  if (options.framework === "html") {
+    const fetched = pages.flatMap((page) => pagePlan(doc, page.id).steps)
+      .filter((step) => step.kind === "fetch");
+    const secret = fetched.some((step) => {
+      const credentialHeader = (step.headers ?? []).some((h) =>
+        /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|api-key|x-auth-token|x-client-secret)$/i.test(h.name.trim())
+      );
+      const secretUrl = /[?&](?:api[_-]?key|secret|access[_-]?token|auth[_-]?token)=/i.test(step.url);
+      return credentialHeader || secretUrl;
+    });
+    add(secret,
+      "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。HTMLに直接書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");
+  }
 
   if (options.framework === "react") {
     add(!!doc.customBodyEndHtml?.match(/<script\b/i),
