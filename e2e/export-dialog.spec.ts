@@ -31,11 +31,15 @@ test("export options use Tsumu controls and descriptions reflect the framework",
 
   await modal.getByRole("button", { name: "フレームワーク" }).click();
   await page.getByRole("button", { name: "HTML / CSS / JavaScript" }).click();
-  await expect(modal.locator(".modal-desc")).toContainText("npm run build");
-  await modal.getByRole("button", { name: "JavaScript", exact: true }).click();
-  await expect(modal.locator(".seg > button.is-on")).toContainText(["JavaScript", "CSS", "プロジェクト全体"]);
+  await expect(modal.locator(".modal-desc")).toContainText("index.html");
+  await expect(modal.locator(".modal-desc")).not.toContainText("npm run build");
+  await expect(modal.locator(".modal-desc .kbd")).toHaveCount(0);
+  await expect(modal.getByRole("button", { name: "言語" })).toContainText("JavaScript");
+  await expect(modal.getByRole("button", { name: "スタイル" })).toContainText("CSS");
+  await expect(modal.getByRole("button", { name: "出力範囲" })).toContainText("プロジェクト全体");
 
-  await modal.getByRole("button", { name: "選択したコンポーネント" }).click();
+  await modal.getByRole("button", { name: "出力範囲" }).click();
+  await page.getByRole("button", { name: "選択したコンポーネント" }).click();
   await expect(modal.locator(".check-list li.is-error")).toContainText(["書き出すコンポーネントを選択してください。"]);
   await expect(modal.locator(".check-ok")).toHaveCount(0);
   await expect(modal.getByRole("button", { name: "zipをダウンロード" })).toBeDisabled();
@@ -45,7 +49,8 @@ test("compatibility errors never appear alongside the success check", async ({ p
   const modal = await openExport(page);
   await modal.getByRole("button", { name: "フレームワーク" }).click();
   await page.getByRole("button", { name: "React + Vite" }).click();
-  await modal.getByRole("button", { name: "現在のページ" }).click();
+  await modal.getByRole("button", { name: "出力範囲" }).click();
+  await page.getByRole("button", { name: "現在のページ" }).click();
   // A compatible page may show warnings; switching to a selection with no
   // selected node must always show the failure and never a positive check.
   await modal.getByRole("button", { name: "選択したコンポーネント" }).click();
@@ -58,7 +63,8 @@ test("JavaScript export downloads an actual JSX ZIP through the browser", async 
   const modal = await openExport(page);
   await modal.getByRole("button", { name: "フレームワーク" }).click();
   await page.getByRole("button", { name: "React + Vite" }).click();
-  await modal.getByRole("button", { name: "JavaScript", exact: true }).click();
+  await modal.getByRole("button", { name: "言語" }).click();
+  await page.getByRole("button", { name: "JavaScript", exact: true }).click();
   const downloadButton = modal.getByRole("button", { name: "zipをダウンロード" });
   await expect(downloadButton).toBeEnabled();
   const [download] = await Promise.all([
@@ -73,4 +79,32 @@ test("JavaScript export downloads an actual JSX ZIP through the browser", async 
   expect(paths.some((p) => p.endsWith("/src/App.jsx"))).toBe(true);
   expect(paths.some((p) => p.endsWith("/src/App.tsx"))).toBe(false);
   expect(paths.some((p) => p.endsWith("/jsconfig.json"))).toBe(true);
+});
+
+test("native HTML export downloads ready-to-open HTML, CSS and JavaScript without package tooling", async ({ page }) => {
+  const modal = await openExport(page);
+  await expect(modal.locator(".modal-desc .kbd")).toContainText("npm install && npm run dev");
+  await modal.getByRole("button", { name: "フレームワーク" }).click();
+  await page.getByRole("button", { name: "HTML / CSS / JavaScript" }).click();
+  await expect(modal.locator(".modal-desc")).toContainText("index.html");
+  await expect(modal.locator(".modal-desc .kbd")).toHaveCount(0);
+  const downloadButton = modal.getByRole("button", { name: "zipをダウンロード" });
+  await expect(downloadButton).toBeEnabled();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    downloadButton.click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/html-javascript\.zip$/);
+  const zipPath = await download.path();
+  expect(zipPath).not.toBeNull();
+  const zip = await JSZip.loadAsync(await readFile(zipPath!));
+  const names = Object.keys(zip.files);
+  const index = names.find((p) => p.endsWith("/index.html"));
+  expect(index).toBeTruthy();
+  const html = await zip.file(index!)!.async("text");
+  expect(html).toContain("<!doctype html>");
+  expect(html).toContain("styles/site.css");
+  expect(names.some((p) => p.endsWith("/styles/site.css"))).toBe(true);
+  expect(names.some((p) => p.endsWith("/package.json"))).toBe(false);
+  expect(names.some((p) => p.endsWith("/next.config.mjs"))).toBe(false);
 });
