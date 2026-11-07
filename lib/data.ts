@@ -27,9 +27,9 @@ export function digPath(root: unknown, path: string | undefined): unknown {
   for (const raw of path.split(".")) {
     if (cur == null || typeof cur !== "object") return undefined;
     const key = raw.trim();
-    cur = Array.isArray(cur) && key === "-1"
-      ? cur[cur.length - 1]
-      : (cur as Record<string, unknown>)[key];
+    const part = Array.isArray(cur) && key === "-1" ? cur.length - 1 : key;
+    if (!Object.prototype.hasOwnProperty.call(cur, part)) return undefined;
+    cur = (cur as Record<string | number, unknown>)[part];
   }
   return cur;
 }
