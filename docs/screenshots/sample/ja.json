@@ -1,0 +1,1392 @@
+{
+  "site": {
+    "name": "こもれび 暮らしの道具",
+    "repo": "example/komorebi-goods"
+  },
+  "comments": [
+    {
+      "node": null,
+      "x": 0.93,
+      "y": 0.1,
+      "body": "公開前に、商品名と価格の表記をもう一度確認してください。"
+    },
+    {
+      "node": "node_mw6254vgji8pa",
+      "x": 0.92,
+      "y": 0.15,
+      "body": "カードの説明文、スマホだと3行になるので少し短くしたいです。"
+    },
+    {
+      "node": "node_mw6254vgcprls",
+      "x": 0.95,
+      "y": 0.2,
+      "body": "ボタンの緑、もう少し濃くしてもいいかもしれません。",
+      "replies": [
+        "少し濃い緑に変えました。"
+      ]
+    },
+    {
+      "node": "node_mw6254vgakbkd",
+      "x": 0.97,
+      "y": 0.1,
+      "body": "見出しを、もう少しやわらかい言い回しにできますか？",
+      "replies": [
+        "「すこし心地よく」にしてみました。",
+        "いいですね！説明文の語尾も合わせたいです。"
+      ]
+    }
+  ],
+  "replyDraft": "説明文も「お届けします」で揃えました。",
+  "aiPrompt": "見出しの下の余白をもう少し広げて、カードにうっすら影を付けて。スマホではカードの文字を少し小さく。",
+  "help": {
+    "category": "スマホ対応",
+    "article": "スマホでの見え方を確認・調整したい"
+  },
+  "labels": {
+    "editScripts": "スクリプトを編集"
+  },
+  "doc": {
+    "siteName": "こもれび 暮らしの道具",
+    "lang": "ja",
+    "colorPalette": [],
+    "pages": {
+      "page_mw6254vgq7f25": {
+        "id": "page_mw6254vgq7f25",
+        "name": "ホーム",
+        "slug": "",
+        "title": "ホーム",
+        "description": "",
+        "children": [
+          "node_mw6254vg9ig9z",
+          "node_mw6254vgdf71j",
+          "node_mw6254vgnov8x",
+          "node_mw6254vgp7y5w"
+        ]
+      },
+      "page_mw6254vh1izunh": {
+        "id": "page_mw6254vh1izunh",
+        "name": "商品一覧",
+        "slug": "catalog",
+        "title": "商品一覧",
+        "description": "dummyjson.comのデータで動くサンプルページ",
+        "children": [
+          "node_mw6254vh1hka8n"
+        ],
+        "pageScripts": [
+          {
+            "id": "sc_mw6254vh1kbz2g",
+            "trigger": "load",
+            "pos": {
+              "x": 32,
+              "y": 32
+            },
+            "steps": [
+              {
+                "id": "st_mw6254vh1lnt3r",
+                "kind": "fetch",
+                "url": "https://dummyjson.com/products/search?q={q}",
+                "as": "データ",
+                "sample": {
+                  "products": [
+                    {
+                      "id": 1,
+                      "title": "Essence Mascara Lash Princess",
+                      "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing …",
+                      "price": 9.99,
+                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+                      "category": "beauty",
+                      "brand": "Essence",
+                      "rating": 2.56
+                    },
+                    {
+                      "id": 2,
+                      "title": "Eyeshadow Palette with Mirror",
+                      "description": "The Eyeshadow Palette with Mirror offers a versatile range of eyeshadow shades f…",
+                      "price": 19.99,
+                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/thumbnail.webp",
+                      "category": "beauty",
+                      "brand": "Glamour Beauty",
+                      "rating": 2.86
+                    },
+                    {
+                      "id": 3,
+                      "title": "Powder Canister",
+                      "description": "The Powder Canister is a finely milled setting powder designed to set makeup and…",
+                      "price": 14.99,
+                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/powder-canister/thumbnail.webp",
+                      "category": "beauty",
+                      "brand": "Velvet Touch",
+                      "rating": 4.64
+                    },
+                    {
+                      "id": 4,
+                      "title": "Red Lipstick",
+                      "description": "The Red Lipstick is a classic and bold choice for adding a pop of color to your …",
+                      "price": 12.99,
+                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/red-lipstick/thumbnail.webp",
+                      "category": "beauty",
+                      "brand": "Chic Cosmetics",
+                      "rating": 4.36
+                    }
+                  ]
+                },
+                "fetchedAt": 1794035040749
+              },
+              {
+                "id": "st_mw6254vh1jyj63",
+                "kind": "set-var",
+                "value": "{データ.products}",
+                "into": "商品一覧"
+              }
+            ]
+          }
+        ]
+      },
+      "page_mw6254vg13mpkg": {
+        "id": "page_mw6254vg13mpkg",
+        "name": "商品詳細",
+        "slug": "products/[slug]",
+        "title": "商品詳細",
+        "description": "",
+        "children": [
+          "node_mw6254vg12siee"
+        ],
+        "pageScripts": [
+          {
+            "id": "sc_mw6254vg1594jq",
+            "trigger": "load",
+            "pos": {
+              "x": 32,
+              "y": 32
+            },
+            "steps": [
+              {
+                "id": "st_mw6254vh16lqu5",
+                "kind": "fetch",
+                "url": "https://dummyjson.com/products/{slug}",
+                "as": "データ",
+                "sample": {
+                  "id": 1,
+                  "title": "Essence Mascara Lash Princess",
+                  "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing …",
+                  "price": 9.99,
+                  "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+                  "category": "beauty",
+                  "brand": "Essence",
+                  "rating": 2.56
+                },
+                "fetchedAt": 1794035040749
+              },
+              {
+                "id": "st_mw6254vg143thi",
+                "kind": "set-var",
+                "value": "{データ}",
+                "into": "商品"
+              }
+            ]
+          }
+        ]
+      },
+      "page_mw6254vgvug2c": {
+        "id": "page_mw6254vgvug2c",
+        "name": "404（見つからないとき）",
+        "slug": "404",
+        "title": "ページが見つかりません",
+        "description": "",
+        "children": [
+          "node_mw6254vguo3rk"
+        ]
+      }
+    },
+    "pageOrder": [
+      "page_mw6254vgq7f25",
+      "page_mw6254vh1izunh",
+      "page_mw6254vg13mpkg",
+      "page_mw6254vgvug2c"
+    ],
+    "nodes": {
+      "node_mw6254vg9ig9z": {
+        "id": "node_mw6254vg9ig9z",
+        "type": "box",
+        "name": "ナビバー",
+        "semantic": "header",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vg1mqba",
+          "node_mw6254vg5151u",
+          "node_mw6254vg6wtiz"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "row",
+              "padding": "16px 40px",
+              "gap": "24px",
+              "alignItems": "center",
+              "justifyContent": "space-between",
+              "backgroundColor": "#fffaf3",
+              "borderBottom": "1px solid #ecdcc4"
+            }
+          }
+        },
+        "attrId": "navbar"
+      },
+      "node_mw6254vg1mqba": {
+        "id": "node_mw6254vg1mqba",
+        "type": "box",
+        "name": "ロゴ",
+        "semantic": "auto",
+        "text": {
+          "content": "こもれび",
+          "heading": 6
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "18px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#3b2a1a",
+              "letterSpacing": "0.04em",
+              "fontFamily": "'Noto Serif JP', 'Noto Serif CJK JP', serif"
+            }
+          }
+        }
+      },
+      "node_mw6254vg5151u": {
+        "id": "node_mw6254vg5151u",
+        "type": "box",
+        "name": "ナビリンク",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vg2lr08",
+          "node_mw6254vg3kzsy",
+          "node_mw6254vg4dex7"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "row",
+              "padding": "0px",
+              "gap": "28px",
+              "alignItems": "center"
+            }
+          },
+          "sm": {
+            "default": {
+              "display": "none",
+              "position": "absolute",
+              "top": "100%",
+              "left": "0",
+              "right": "0",
+              "zIndex": "50",
+              "flexDirection": "column",
+              "alignItems": "stretch",
+              "gap": "0px",
+              "padding": "8px 0",
+              "backgroundColor": "#ffffff",
+              "borderBottom": "1px solid #e4e4e7"
+            }
+          }
+        },
+        "attrId": "nav-links"
+      },
+      "node_mw6254vg6wtiz": {
+        "id": "node_mw6254vg6wtiz",
+        "type": "icon",
+        "name": "メニュー開閉",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "icon": {
+          "name": "menu",
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100%\" height=\"100%\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"lucide lucide-menu\" aria-hidden=\"true\"><path d=\"M4 5h16\"></path><path d=\"M4 12h16\"></path><path d=\"M4 19h16\"></path></svg>"
+        },
+        "scripts": [
+          {
+            "id": "sc_mw6254vg7x1yc",
+            "trigger": "click",
+            "pos": {
+              "x": 32,
+              "y": 32
+            },
+            "steps": [
+              {
+                "id": "st_mw6254vg8ybb6",
+                "kind": "toggle",
+                "target": "nav-links"
+              }
+            ]
+          }
+        ],
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "none",
+              "width": "24px",
+              "height": "24px",
+              "color": "#3b2a1a",
+              "cursor": "pointer"
+            }
+          },
+          "sm": {
+            "default": {
+              "display": "inline-flex"
+            }
+          }
+        }
+      },
+      "node_mw6254vg2lr08": {
+        "id": "node_mw6254vg2lr08",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "商品一覧",
+          "heading": 0
+        },
+        "link": {
+          "kind": "url",
+          "url": "#",
+          "newTab": false
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "textDecoration": "none",
+              "color": "#3b2a1a"
+            }
+          },
+          "sm": {
+            "default": {
+              "padding": "12px 24px"
+            }
+          }
+        }
+      },
+      "node_mw6254vg3kzsy": {
+        "id": "node_mw6254vg3kzsy",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "お店について",
+          "heading": 0
+        },
+        "link": {
+          "kind": "url",
+          "url": "#",
+          "newTab": false
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "textDecoration": "none",
+              "color": "#3b2a1a"
+            }
+          },
+          "sm": {
+            "default": {
+              "padding": "12px 24px"
+            }
+          }
+        }
+      },
+      "node_mw6254vg4dex7": {
+        "id": "node_mw6254vg4dex7",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "アクセス",
+          "heading": 0
+        },
+        "link": {
+          "kind": "url",
+          "url": "#",
+          "newTab": false
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "textDecoration": "none",
+              "color": "#3b2a1a"
+            }
+          },
+          "sm": {
+            "default": {
+              "padding": "12px 24px"
+            }
+          }
+        }
+      },
+      "node_mw6254vgdf71j": {
+        "id": "node_mw6254vgdf71j",
+        "type": "box",
+        "name": "ヒーロー",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vgakbkd",
+          "node_mw6254vgbccke",
+          "node_mw6254vgcprls"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "110px 40px",
+              "gap": "24px",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "backgroundColor": "#fbf1e3",
+              "backgroundImage": "linear-gradient(180deg, #fbf1e3 0%, #f2e0c6 100%)"
+            }
+          }
+        }
+      },
+      "node_mw6254vgakbkd": {
+        "id": "node_mw6254vgakbkd",
+        "type": "box",
+        "name": "見出し",
+        "semantic": "auto",
+        "text": {
+          "content": "毎日の道具を、\nすこし心地よく。",
+          "heading": 1
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "44px",
+              "fontWeight": "600",
+              "lineHeight": "1.4",
+              "textAlign": "center",
+              "letterSpacing": "-0.02em",
+              "color": "#3b2a1a",
+              "fontFamily": "'Noto Serif JP', 'Noto Serif CJK JP', serif"
+            }
+          }
+        }
+      },
+      "node_mw6254vgbccke": {
+        "id": "node_mw6254vgbccke",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "長く使える家具、季節の香り、台所の食材。小さなお店が選んだ暮らしの道具をお届けします。",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "17px",
+              "lineHeight": "1.7",
+              "color": "#7a6553",
+              "textAlign": "center",
+              "maxWidth": "560px"
+            }
+          }
+        }
+      },
+      "node_mw6254vgcprls": {
+        "id": "node_mw6254vgcprls",
+        "type": "box",
+        "name": "ボタン",
+        "semantic": "button",
+        "text": {
+          "content": "商品を見る",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "inline-flex",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": "12px 28px",
+              "backgroundColor": "#8a5a2e",
+              "color": "#ffffff",
+              "fontSize": "14px",
+              "fontWeight": "600",
+              "borderRadius": "999px",
+              "border": "none",
+              "textDecoration": "none",
+              "transition": "all 200ms ease",
+              "cursor": "pointer"
+            },
+            "hover": {
+              "backgroundColor": "#3f3f46"
+            }
+          }
+        }
+      },
+      "node_mw6254vgnov8x": {
+        "id": "node_mw6254vgnov8x",
+        "type": "box",
+        "name": "カードグリッド",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vggdjfh",
+          "node_mw6254vgji8pa",
+          "node_mw6254vgm2z85"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "grid",
+              "flexDirection": "column",
+              "padding": "64px 40px",
+              "gap": "20px",
+              "gridTemplateColumns": "repeat(3, 1fr)",
+              "backgroundColor": "#fffaf3"
+            }
+          },
+          "md": {
+            "default": {
+              "gridTemplateColumns": "repeat(1, 1fr)"
+            }
+          }
+        }
+      },
+      "node_mw6254vggdjfh": {
+        "id": "node_mw6254vggdjfh",
+        "type": "box",
+        "name": "カード 1",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vgeqblt",
+          "node_mw6254vgfhcj4"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "28px",
+              "gap": "10px",
+              "backgroundColor": "#ffffff",
+              "borderRadius": "12px",
+              "border": "1px solid #ecdcc4"
+            }
+          }
+        }
+      },
+      "node_mw6254vgeqblt": {
+        "id": "node_mw6254vgeqblt",
+        "type": "box",
+        "name": "カード 1",
+        "semantic": "auto",
+        "text": {
+          "content": "長く使える家具",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "18px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#3b2a1a"
+            }
+          }
+        }
+      },
+      "node_mw6254vgfhcj4": {
+        "id": "node_mw6254vgfhcj4",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "直しながら使い続けられる、無垢材の椅子やテーブル。",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "color": "#7a6553"
+            }
+          }
+        }
+      },
+      "node_mw6254vgji8pa": {
+        "id": "node_mw6254vgji8pa",
+        "type": "box",
+        "name": "カード 2",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vghggl2",
+          "node_mw6254vgi4yyo"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "28px",
+              "gap": "10px",
+              "backgroundColor": "#ffffff",
+              "borderRadius": "12px",
+              "border": "1px solid #ecdcc4"
+            }
+          }
+        }
+      },
+      "node_mw6254vghggl2": {
+        "id": "node_mw6254vghggl2",
+        "type": "box",
+        "name": "カード 2",
+        "semantic": "auto",
+        "text": {
+          "content": "季節の香り",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "18px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#3b2a1a"
+            }
+          }
+        }
+      },
+      "node_mw6254vgi4yyo": {
+        "id": "node_mw6254vgi4yyo",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "置くだけで部屋の空気が変わる、天然由来のフレグランス。",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "color": "#7a6553"
+            }
+          }
+        }
+      },
+      "node_mw6254vgm2z85": {
+        "id": "node_mw6254vgm2z85",
+        "type": "box",
+        "name": "カード 3",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vgkgxkx",
+          "node_mw6254vglxbat"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "28px",
+              "gap": "10px",
+              "backgroundColor": "#ffffff",
+              "borderRadius": "12px",
+              "border": "1px solid #ecdcc4"
+            }
+          }
+        }
+      },
+      "node_mw6254vgkgxkx": {
+        "id": "node_mw6254vgkgxkx",
+        "type": "box",
+        "name": "カード 3",
+        "semantic": "auto",
+        "text": {
+          "content": "台所の食材",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "18px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#3b2a1a"
+            }
+          }
+        }
+      },
+      "node_mw6254vglxbat": {
+        "id": "node_mw6254vglxbat",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "毎日の料理が楽しくなる、作り手から届く調味料。",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "color": "#7a6553"
+            }
+          }
+        }
+      },
+      "node_mw6254vgp7y5w": {
+        "id": "node_mw6254vgp7y5w",
+        "type": "box",
+        "name": "フッター",
+        "semantic": "footer",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vgo48at"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "40px",
+              "gap": "0px",
+              "alignItems": "center",
+              "backgroundColor": "#fffaf3",
+              "borderTop": "1px solid #ecdcc4"
+            }
+          }
+        }
+      },
+      "node_mw6254vgo48at": {
+        "id": "node_mw6254vgo48at",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "© 2026 こもれび 暮らしの道具",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "13px",
+              "lineHeight": "1.7",
+              "color": "#71717a"
+            }
+          }
+        }
+      },
+      "node_mw6254vguo3rk": {
+        "id": "node_mw6254vguo3rk",
+        "type": "box",
+        "name": "404セクション",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vgrgy69",
+          "node_mw6254vgszif5",
+          "node_mw6254vgt774w"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "140px 40px",
+              "gap": "18px",
+              "alignItems": "center",
+              "justifyContent": "center"
+            }
+          }
+        }
+      },
+      "node_mw6254vgrgy69": {
+        "id": "node_mw6254vgrgy69",
+        "type": "box",
+        "name": "404見出し",
+        "semantic": "auto",
+        "text": {
+          "content": "404",
+          "heading": 1
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "64px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "letterSpacing": "0.04em",
+              "textAlign": "center"
+            }
+          }
+        }
+      },
+      "node_mw6254vgszif5": {
+        "id": "node_mw6254vgszif5",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "お探しのページは見つかりませんでした。",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "15px",
+              "lineHeight": "1.7",
+              "color": "#71717a",
+              "textAlign": "center"
+            }
+          }
+        }
+      },
+      "node_mw6254vgt774w": {
+        "id": "node_mw6254vgt774w",
+        "type": "box",
+        "name": "ボタン",
+        "semantic": "button",
+        "text": {
+          "content": "ホームへ戻る",
+          "heading": 0
+        },
+        "link": {
+          "kind": "page",
+          "pageId": "page_mw6254vgq7f25"
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "inline-flex",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": "12px 28px",
+              "backgroundColor": "#18181b",
+              "color": "#ffffff",
+              "fontSize": "14px",
+              "fontWeight": "600",
+              "borderRadius": "8px",
+              "border": "none",
+              "textDecoration": "none",
+              "transition": "all 200ms ease",
+              "cursor": "pointer"
+            },
+            "hover": {
+              "backgroundColor": "#3f3f46"
+            }
+          }
+        }
+      },
+      "node_mw6254vgwyxzd": {
+        "id": "node_mw6254vgwyxzd",
+        "type": "image",
+        "name": "商品画像",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "image": {
+          "src": "{商品.thumbnail}",
+          "alt": "商品画像",
+          "width": 400,
+          "height": 400
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "width": "320px",
+              "borderRadius": "16px",
+              "backgroundColor": "#fafafa"
+            }
+          }
+        }
+      },
+      "node_mw6254vgxdfdt": {
+        "id": "node_mw6254vgxdfdt",
+        "type": "box",
+        "name": "商品名",
+        "semantic": "auto",
+        "text": {
+          "content": "{商品.title}",
+          "heading": 1
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "34px",
+              "fontWeight": "700",
+              "lineHeight": "1.4"
+            }
+          }
+        }
+      },
+      "node_mw6254vgyoy88": {
+        "id": "node_mw6254vgyoy88",
+        "type": "box",
+        "name": "ブランド",
+        "semantic": "auto",
+        "text": {
+          "content": "{商品.brand}",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "13px",
+              "lineHeight": "1.7",
+              "color": "#a1a1aa"
+            }
+          }
+        }
+      },
+      "node_mw6254vgz5dvn": {
+        "id": "node_mw6254vgz5dvn",
+        "type": "box",
+        "name": "説明文",
+        "semantic": "auto",
+        "text": {
+          "content": "{商品.description}",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "15px",
+              "lineHeight": "1.7",
+              "color": "#52525b"
+            }
+          }
+        }
+      },
+      "node_mw6254vg10xziu": {
+        "id": "node_mw6254vg10xziu",
+        "type": "box",
+        "name": "価格",
+        "semantic": "auto",
+        "text": {
+          "content": "¥{商品.price}",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "26px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "color": "#0d99ff"
+            }
+          }
+        }
+      },
+      "node_mw6254vg111hp4": {
+        "id": "node_mw6254vg111hp4",
+        "type": "box",
+        "name": "商品情報",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vgyoy88",
+          "node_mw6254vgxdfdt",
+          "node_mw6254vg10xziu",
+          "node_mw6254vgz5dvn"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "0px",
+              "gap": "12px",
+              "alignItems": "flex-start",
+              "flex": "1"
+            }
+          }
+        }
+      },
+      "node_mw6254vg12siee": {
+        "id": "node_mw6254vg12siee",
+        "type": "box",
+        "name": "詳細レイアウト",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vgwyxzd",
+          "node_mw6254vg111hp4"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "row",
+              "padding": "64px 40px",
+              "gap": "40px",
+              "maxWidth": "900px",
+              "margin": "0 auto",
+              "width": "100%"
+            }
+          },
+          "md": {
+            "default": {
+              "flexDirection": "column"
+            }
+          }
+        }
+      },
+      "node_mw6254vh17qnnv": {
+        "id": "node_mw6254vh17qnnv",
+        "type": "box",
+        "name": "商品一覧",
+        "semantic": "auto",
+        "text": {
+          "content": "商品一覧",
+          "heading": 1
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "44px",
+              "fontWeight": "700",
+              "lineHeight": "1.4",
+              "textAlign": "center",
+              "color": "#3b2a1a"
+            }
+          }
+        }
+      },
+      "node_mw6254vh18hicf": {
+        "id": "node_mw6254vh18hicf",
+        "type": "box",
+        "name": "テキスト",
+        "semantic": "auto",
+        "text": {
+          "content": "家具・香り・食材など、暮らしの道具を集めました。商品データは dummyjson.com のサンプルです。",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "color": "#71717a",
+              "textAlign": "center"
+            }
+          }
+        }
+      },
+      "node_mw6254vh199n5x": {
+        "id": "node_mw6254vh199n5x",
+        "type": "field",
+        "name": "インプット",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "field": {
+          "kind": "input",
+          "placeholder": "商品を探す…"
+        },
+        "attrId": "q",
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "width": "100%",
+              "padding": "10px 14px",
+              "fontSize": "14px",
+              "borderWidth": "1px",
+              "borderStyle": "solid",
+              "borderColor": "#d4d4d8",
+              "borderRadius": "8px",
+              "backgroundColor": "#ffffff"
+            }
+          }
+        }
+      },
+      "node_mw6254vh1ar8ot": {
+        "id": "node_mw6254vh1ar8ot",
+        "type": "box",
+        "name": "ボタン",
+        "semantic": "button",
+        "text": {
+          "content": "検索",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "inline-flex",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": "10px 24px",
+              "backgroundColor": "#8a5a2e",
+              "color": "#ffffff",
+              "fontSize": "14px",
+              "fontWeight": "600",
+              "borderRadius": "8px",
+              "border": "none",
+              "textDecoration": "none",
+              "transition": "all 200ms ease",
+              "cursor": "pointer",
+              "flexShrink": "0",
+              "whiteSpace": "nowrap"
+            },
+            "hover": {
+              "backgroundColor": "#3f3f46"
+            }
+          }
+        }
+      },
+      "node_mw6254vh1bqltb": {
+        "id": "node_mw6254vh1bqltb",
+        "type": "box",
+        "name": "検索フォーム",
+        "semantic": "form",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vh199n5x",
+          "node_mw6254vh1ar8ot"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "row",
+              "padding": "0px",
+              "gap": "10px",
+              "justifyContent": "center",
+              "width": "100%"
+            }
+          }
+        }
+      },
+      "node_mw6254vh1c7r13": {
+        "id": "node_mw6254vh1c7r13",
+        "type": "image",
+        "name": "サムネイル",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "image": {
+          "src": "{thumbnail}",
+          "alt": "商品サムネイル",
+          "width": 400,
+          "height": 400
+        },
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "width": "100%",
+              "aspectRatio": "1 / 1",
+              "objectFit": "cover",
+              "borderRadius": "10px",
+              "backgroundColor": "#fafafa"
+            }
+          }
+        }
+      },
+      "node_mw6254vh1dq83e": {
+        "id": "node_mw6254vh1dq83e",
+        "type": "box",
+        "name": "商品名",
+        "semantic": "auto",
+        "text": {
+          "content": "{title}",
+          "heading": 2
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "15px",
+              "fontWeight": "700",
+              "lineHeight": "1.4"
+            }
+          }
+        }
+      },
+      "node_mw6254vh1efsip": {
+        "id": "node_mw6254vh1efsip",
+        "type": "box",
+        "name": "価格",
+        "semantic": "auto",
+        "text": {
+          "content": "¥{price}",
+          "heading": 0
+        },
+        "link": null,
+        "children": [],
+        "styles": {
+          "base": {
+            "default": {
+              "fontSize": "14px",
+              "lineHeight": "1.7",
+              "fontWeight": "600",
+              "color": "#0d99ff"
+            }
+          }
+        }
+      },
+      "node_mw6254vh1fcocq": {
+        "id": "node_mw6254vh1fcocq",
+        "type": "box",
+        "name": "商品カード",
+        "semantic": "auto",
+        "text": null,
+        "link": {
+          "kind": "url",
+          "url": "/products/{id}"
+        },
+        "children": [
+          "node_mw6254vh1c7r13",
+          "node_mw6254vh1dq83e",
+          "node_mw6254vh1efsip"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "0px",
+              "gap": "10px",
+              "cursor": "pointer"
+            }
+          }
+        }
+      },
+      "node_mw6254vh1gfexu": {
+        "id": "node_mw6254vh1gfexu",
+        "type": "list",
+        "name": "商品リスト",
+        "attrId": "product-list",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "list": {
+          "from": "商品一覧",
+          "limit": 12
+        },
+        "children": [
+          "node_mw6254vh1fcocq"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "grid",
+              "gridTemplateColumns": "repeat(4, 1fr)",
+              "gap": "24px",
+              "padding": "0px",
+              "width": "100%"
+            }
+          },
+          "md": {
+            "default": {
+              "gridTemplateColumns": "repeat(2, 1fr)"
+            }
+          }
+        }
+      },
+      "node_mw6254vh1hka8n": {
+        "id": "node_mw6254vh1hka8n",
+        "type": "box",
+        "name": "商品一覧セクション",
+        "semantic": "auto",
+        "text": null,
+        "link": null,
+        "children": [
+          "node_mw6254vh17qnnv",
+          "node_mw6254vh18hicf",
+          "node_mw6254vh1bqltb",
+          "node_mw6254vh1gfexu"
+        ],
+        "styles": {
+          "base": {
+            "default": {
+              "display": "flex",
+              "flexDirection": "column",
+              "padding": "64px 40px",
+              "gap": "28px",
+              "alignItems": "center",
+              "maxWidth": "1080px",
+              "margin": "0 auto",
+              "width": "100%"
+            }
+          }
+        }
+      }
+    },
+    "assets": {}
+  }
+}
