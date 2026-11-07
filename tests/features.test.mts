@@ -128,6 +128,28 @@ test("variables made inside an if block are suggested in text", () => {
   assert.ok(varNamesAt(docWith([box, text]), "p", "t").includes("hensuu"));
 });
 
+test("publish checks validate targets in every AND/OR if clause", () => {
+  const button: DocNode = {
+    ...makeBox(), id: "trigger", attrId: "trigger",
+    scripts: [{
+      id: "on-click", trigger: "click", pos: { x: 0, y: 0 }, steps: [{
+        id: "if-joined", kind: "if",
+        cond: { subject: "var", target: "", left: "{flag}", op: "eq", value: "ready" },
+        conditions: [
+          { subject: "visible", target: "missing-target", and: true },
+          { subject: "value", target: "trigger", op: "eq", value: "yes", and: false },
+        ],
+        then: [{ id: "yes", kind: "set-var", into: "result", value: "yes" }],
+      }],
+    }],
+  };
+  const issues = runChecks(docWith([button])).filter((issue) => issue.help === "act-script");
+  assert.ok(issues.some((issue) => issue.message.includes("missing-target")),
+    "missing targets in additional clauses must be detected");
+  assert.ok(!issues.some((issue) => issue.message.includes('「trigger」がこのページに見つかりません')),
+    "existing targets must not be reported as missing");
+});
+
 test("published fields interpolate variables and keep a live template for field values", () => {
   const name: DocNode = { ...makeBox(), id: "n", type: "field", attrId: "name", field: { kind: "input", placeholder: "Your name" } };
   const hello: DocNode = { ...makeBox(), id: "h", type: "field", attrId: "greet", field: { kind: "input", defaultValue: "Hi {name}", min: "1", required: true } };
