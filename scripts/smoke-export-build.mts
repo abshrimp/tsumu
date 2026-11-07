@@ -5,11 +5,12 @@ import type { SiteDoc } from "../lib/types";
 import { generateExportProject, type ExportFormat, type ExportOptions } from "../lib/export-formats";
 
 const framework = process.argv[2] as ExportFormat | undefined;
-if (!framework || !["vue", "nuxt", "sveltekit"].includes(framework)) {
-  throw new Error("Expected framework: vue, nuxt or sveltekit");
+if (!framework || !["nextjs", "react", "vue", "nuxt", "sveltekit"].includes(framework)) {
+  throw new Error("Expected framework: nextjs, react, vue, nuxt or sveltekit");
 }
 const style = framework === "vue" ? "css" : framework === "nuxt" ? "tailwind" : "css-modules";
-const language = framework === "nuxt" ? "javascript" : "typescript";
+const language = (process.argv[3] === "javascript" || process.argv[3] === "typescript")
+  ? process.argv[3] : framework === "nuxt" ? "javascript" : "typescript";
 const options: ExportOptions = { framework, language, style, scope: "project" };
 const doc: SiteDoc = {
   siteName: "Build smoke {1 + 2} test",
