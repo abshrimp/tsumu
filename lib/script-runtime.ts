@@ -405,8 +405,14 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       function writeVar(name, v) {
         if (!name) return;
+        function notify() {
+          if (typeof window !== "undefined" && typeof window.__siteVarsOnChange === "function") {
+            window.__siteVarsOnChange(name, v);
+          }
+        }
         if (name.indexOf(".") < 0 || has(vars, name)) {
           vars[name] = v;
+          notify();
           return;
         }
         var ks = name.split(".");
@@ -416,6 +422,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           var nx = cur[k];
           if (nx == null || typeof nx !== "object" || Array.isArray(nx)) {
             vars[name] = v;
+            notify();
             return;
           }
           var cp = {};
@@ -424,6 +431,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           cur = cp;
         }
         cur[ks[ks.length - 1].trim()] = v;
+        notify();
       }
       // リストのお手本（data-tpl）の中は {名前} が未解決の非表示の複製元なので対象にしない
       function inTpl(el) {
