@@ -5,7 +5,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Plus, X } from "lucide-react";
 import { PathMenu } from "./fetch";
-import { CONDITION_OPERATORS, NegationSelect, TextIn } from "./inputs";
+import { CONDITION_OPERATORS, NegationSelect, Phrase, TextIn } from "./inputs";
 import { tr } from "../../lib/i18n";
 import type {
   ValueTransform, ValueTransformKind, CompareOperation,
@@ -306,32 +306,46 @@ function RecipeConditionLine({ condition, fieldEnabled, options, onChange,
   onJoinChange?: (join: "and" | "or") => void;
   onRemove?: () => void;
 }) {
+  // Parts are arranged by the translated phrase, not a hardcoded ja/en branch.
+  // A future locale may freely reorder every control using these named slots.
   return (
     <div className="se-composer-condition-line">
-      {join && <select className="se-in se-fixed-select" aria-label={tr("条件のつなぎ方")}
-        value={join} onChange={(e) => onJoinChange?.(e.target.value as "and" | "or")}>
-        <option value="and">{tr("かつ")}</option>
-        <option value="or">{tr("または")}</option>
-      </select>}
-      {fieldEnabled && <>
-        <FieldKeyPicker value={condition.field} options={options}
-          ariaLabel={tr("リスト内の項目名")} placeholder={tr("項目（空なら要素自身）")}
-          onChange={(field) => onChange({ field })} />
-        <span>{tr("が")}</span>
-      </>}
-      {condition.operation !== "empty" &&
-        <TextIn vars value={condition.operand} width={150}
-          valueContext="value" placeholder={tr("値 / {変数}")}
-          onCommit={(operand) => onChange({ operand })} />}
-      <select className="se-in se-fixed-select" aria-label={tr("比較方法")}
-        value={condition.operation}
-        onChange={(e) => onChange({ operation: e.target.value as CompareOperation })}>
-        {CONDITION_OPERATORS.map((op) =>
-          <option key={op.value} value={op.value}>{op.label}</option>)}
-      </select>
-      <NegationSelect not={condition.not} onChange={(not) => onChange({ not })} />
-      {onRemove && <button type="button" className="se-mini"
-        aria-label={tr("この条件を削除")} onClick={onRemove}><X size={12} /></button>}
+      <Phrase
+        text={fieldEnabled
+          ? "{join}{field}が{value}{op}{negation}{remove}"
+          : "{join}{value}{op}{negation}{remove}"}
+        parts={{
+          join: join && (
+            <select className="se-in se-fixed-select" aria-label={tr("条件のつなぎ方")}
+              value={join} onChange={(e) => onJoinChange?.(e.target.value as "and" | "or")}>
+              <option value="and">{tr("かつ")}</option>
+              <option value="or">{tr("または")}</option>
+            </select>
+          ),
+          field: fieldEnabled && <FieldKeyPicker value={condition.field} options={options}
+            ariaLabel={tr("リスト内の項目名")} placeholder={tr("項目（空なら要素自身）")}
+            onChange={(field) => onChange({ field })} />,
+          value: condition.operation !== "empty" && (
+            <TextIn vars value={condition.operand} width={150}
+              valueContext="value" placeholder={tr("値 / {変数}")}
+              onCommit={(operand) => onChange({ operand })} />
+          ),
+          op: (
+            <select className="se-in se-fixed-select" aria-label={tr("比較方法")}
+              value={condition.operation}
+              onChange={(e) => onChange({ operation: e.target.value as CompareOperation })}>
+              {CONDITION_OPERATORS.map((op) =>
+                <option key={op.value} value={op.value}>{op.label}</option>)}
+            </select>
+          ),
+          negation: <NegationSelect not={condition.not}
+            operation={condition.operation} onChange={(not) => onChange({ not })} />,
+          remove: onRemove && (
+            <button type="button" className="se-mini" aria-label={tr("この条件を削除")}
+              onClick={onRemove}><X size={12} /></button>
+          ),
+        }}
+      />
     </div>
   );
 }
