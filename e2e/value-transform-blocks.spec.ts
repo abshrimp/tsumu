@@ -276,6 +276,20 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " JSON keys cannot pollute script variables", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, '{"polluted":"unsafe"}', [
+      { id: "parse-object", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "store-prototype", kind: "set-var", into: "__proto__", value: "{items}" },
+      { id: "safe-fallback", kind: "transform", source: "polluted", into: "items",
+        transform: { kind: "fallback", text: "safe" } },
+    ]);
+    await expect(answer).toHaveValue("safe");
+    expect(errors).toEqual([]);
+    expect(await page.evaluate(() => ({} as Record<string, unknown>).polluted)).toBeUndefined();
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
