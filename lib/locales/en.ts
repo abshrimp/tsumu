@@ -1425,6 +1425,8 @@ const en: Dict = {
     "Filter array {array} to items where {field} {cond}",
   "{field}が{cond}":
     "{field} {cond}",
+  "{join}{field}が{cond}":
+    "{join} {field} {cond}",
   "ものに絞り込む":
     " ",
   "かつ":
