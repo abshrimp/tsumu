@@ -1,7 +1,7 @@
 import type { SiteDoc } from "../types";
 import { pagePlan } from "../data";
 import { scriptsFile } from "../script-runtime";
-import { PAGE_DATA_RUNTIME } from "./browser-data";
+import { PAGE_DATA_RUNTIME, pageDataPlan } from "./browser-data";
 import { reactClientPageFragment } from "./html-export";
 import type { GeneratedProject } from "../generator";
 import { usedGoogleFonts } from "./css";
@@ -61,7 +61,9 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   // cannot reproduce those browser-side data dependencies.
   const needsClientRuntime = (page: (typeof pages)[number]) => {
     const plan = pagePlan(doc, page.id);
-    return plan.steps.length > 0 || plan.listOps.size > 0 || plan.clientVars.size > 0;
+    const exportedPlan = pageDataPlan(doc, page);
+    return exportedPlan.steps.length > 0 || Object.keys(exportedPlan.listOps).length > 0 ||
+      plan.clientVars.size > 0;
   };
   const needsClientData = pages.some(needsClientRuntime);
   if (needsClientData) {
