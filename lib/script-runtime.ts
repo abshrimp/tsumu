@@ -568,6 +568,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       function test(c, self, sc) {
         /*#var*/
         if (c.subject === "var") {
+          if (!c.left || !String(c.left).trim()) return false;
           var matched = cmp(resolve(c.left, self, sc), c.op, resolve(c.value, self, sc));
           return c.not ? !matched : matched;
         }
