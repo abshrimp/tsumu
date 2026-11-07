@@ -53,7 +53,8 @@ test("compatibility errors never appear alongside the success check", async ({ p
   await page.getByRole("button", { name: "現在のページ" }).click();
   // A compatible page may show warnings; switching to a selection with no
   // selected node must always show the failure and never a positive check.
-  await modal.getByRole("button", { name: "選択したコンポーネント" }).click();
+  await modal.getByRole("button", { name: "出力範囲" }).click();
+  await page.getByRole("button", { name: "選択したコンポーネント" }).click();
   await expect(modal.locator(".check-list li.is-error")).toHaveCount(1);
   await expect(modal.locator(".check-ok")).toHaveCount(0);
 });
