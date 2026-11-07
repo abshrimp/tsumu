@@ -1,42 +1,42 @@
 {
   "site": {
-    "name": "こもれび 暮らしの道具",
-    "repo": "example/komorebi-goods"
+    "name": "森のパン屋",
+    "repo": "example/bakery-mori"
   },
   "comments": [
     {
       "node": null,
       "x": 0.93,
       "y": 0.1,
-      "body": "公開前に、商品名と価格の表記をもう一度確認してください。"
+      "body": "公開前に、営業時間と定休日の表記を確認してください。"
     },
     {
       "node": "node_mw6254vgji8pa",
       "x": 0.92,
       "y": 0.15,
-      "body": "カードの説明文、スマホだと3行になるので少し短くしたいです。"
+      "body": "タルトの説明、スマホだと3行になるので少し短くしたいです。"
     },
     {
       "node": "node_mw6254vgcprls",
-      "x": 0.95,
-      "y": 0.2,
-      "body": "ボタンの緑、もう少し濃くしてもいいかもしれません。",
+      "x": 1.0,
+      "y": 0.75,
+      "body": "ボタンの茶色、もう少し濃くしてもいいかもしれません。",
       "replies": [
-        "少し濃い緑に変えました。"
+        "少し濃い茶色に変えました。"
       ]
     },
     {
       "node": "node_mw6254vgakbkd",
       "x": 0.97,
       "y": 0.1,
-      "body": "見出しを、もう少しやわらかい言い回しにできますか？",
+      "body": "見出しをもう少しあたたかい雰囲気にできますか？明朝体もいいかも。",
       "replies": [
-        "「すこし心地よく」にしてみました。",
-        "いいですね！説明文の語尾も合わせたいです。"
+        "いいですね、明朝体を試してみます。",
+        "だいぶ良くなりました！説明文の語尾も合わせたいです。"
       ]
     }
   ],
-  "replyDraft": "説明文も「お届けします」で揃えました。",
+  "replyDraft": "説明文も「お届けしています」で揃えました。",
   "aiPrompt": "見出しの下の余白をもう少し広げて、カードにうっすら影を付けて。スマホではカードの文字を少し小さく。",
   "help": {
     "category": "スマホ対応",
@@ -46,7 +46,7 @@
     "editScripts": "スクリプトを編集"
   },
   "doc": {
-    "siteName": "こもれび 暮らしの道具",
+    "siteName": "森のパン屋",
     "lang": "ja",
     "colorPalette": [],
     "pages": {
@@ -65,7 +65,7 @@
       },
       "page_mw6254vh1izunh": {
         "id": "page_mw6254vh1izunh",
-        "name": "商品一覧",
+        "name": "商品一覧（デモ）",
         "slug": "catalog",
         "title": "商品一覧",
         "description": "dummyjson.comのデータで動くサンプルページ",
@@ -144,7 +144,7 @@
       },
       "page_mw6254vg13mpkg": {
         "id": "page_mw6254vg13mpkg",
-        "name": "商品詳細",
+        "name": "商品詳細（デモ）",
         "slug": "products/[slug]",
         "title": "商品詳細",
         "description": "",
@@ -239,7 +239,7 @@
         "name": "ロゴ",
         "semantic": "auto",
         "text": {
-          "content": "こもれび",
+          "content": "森のパン屋",
           "heading": 6
         },
         "link": null,
@@ -350,7 +350,7 @@
         "name": "テキスト",
         "semantic": "auto",
         "text": {
-          "content": "商品一覧",
+          "content": "メニュー",
           "heading": 0
         },
         "link": {
@@ -381,7 +381,7 @@
         "name": "テキスト",
         "semantic": "auto",
         "text": {
-          "content": "お店について",
+          "content": "私たちのこと",
           "heading": 0
         },
         "link": {
@@ -470,7 +470,7 @@
         "name": "見出し",
         "semantic": "auto",
         "text": {
-          "content": "毎日の道具を、\nすこし心地よく。",
+          "content": "ゆっくり焼いたパンを、\n毎朝ひとつずつ。",
           "heading": 1
         },
         "link": null,
@@ -495,7 +495,7 @@
         "name": "テキスト",
         "semantic": "auto",
         "text": {
-          "content": "長く使える家具、季節の香り、台所の食材。小さなお店が選んだ暮らしの道具をお届けします。",
+          "content": "街の小さなパン屋です。天然酵母のパン、季節のタルト、おいしいコーヒーを、2014年から手づくりでお届けしています。",
           "heading": 0
         },
         "link": null,
@@ -518,7 +518,7 @@
         "name": "ボタン",
         "semantic": "button",
         "text": {
-          "content": "商品を見る",
+          "content": "今日のメニューを見る",
           "heading": 0
         },
         "link": null,
@@ -607,7 +607,7 @@
         "name": "カード 1",
         "semantic": "auto",
         "text": {
-          "content": "長く使える家具",
+          "content": "天然酵母のパン",
           "heading": 2
         },
         "link": null,
@@ -629,7 +629,7 @@
         "name": "テキスト",
         "semantic": "auto",
         "text": {
-          "content": "直しながら使い続けられる、無垢材の椅子やテーブル。",
+          "content": "自家製の酵母で36時間発酵。皮はパリッと、中はもっちり。",
           "heading": 0
         },
         "link": null,
@@ -675,7 +675,7 @@
         "name": "カード 2",
         "semantic": "auto",
         "text": {
-          "content": "季節の香り",
+          "content": "季節のタルト",
           "heading": 2
         },
         "link": null,
@@ -697,7 +697,7 @@
         "name": "テキスト",
         "semantic": "auto",
         "text": {
-          "content": "置くだけで部屋の空気が変わる、天然由来のフレグランス。",
+          "content": "近くの農園の果物を、バターたっぷりの生地で。毎月変わります。",
           "heading": 0
         },
         "link": null,
@@ -743,7 +743,7 @@
         "name": "カード 3",
         "semantic": "auto",
         "text": {
-          "content": "台所の食材",
+          "content": "朝のコーヒー",
           "heading": 2
         },
         "link": null,
@@ -765,7 +765,7 @@
         "name": "テキスト",
         "semantic": "auto",
         "text": {
-          "content": "毎日の料理が楽しくなる、作り手から届く調味料。",
+          "content": "街の焙煎所のシングルオリジン。朝7時からお淹れします。",
           "heading": 0
         },
         "link": null,
@@ -810,7 +810,7 @@
         "name": "テキスト",
         "semantic": "auto",
         "text": {
-          "content": "© 2026 こもれび 暮らしの道具",
+          "content": "© 2026 森のパン屋",
           "heading": 0
         },
         "link": null,
@@ -1100,10 +1100,10 @@
       "node_mw6254vh17qnnv": {
         "id": "node_mw6254vh17qnnv",
         "type": "box",
-        "name": "商品一覧",
+        "name": "商品カタログ",
         "semantic": "auto",
         "text": {
-          "content": "商品一覧",
+          "content": "商品カタログ",
           "heading": 1
         },
         "link": null,
@@ -1126,7 +1126,7 @@
         "name": "テキスト",
         "semantic": "auto",
         "text": {
-          "content": "家具・香り・食材など、暮らしの道具を集めました。商品データは dummyjson.com のサンプルです。",
+          "content": "dummyjson.com のデータで動く一覧・検索・詳細ページのサンプルです。",
           "heading": 0
         },
         "link": null,
@@ -1151,7 +1151,7 @@
         "link": null,
         "field": {
           "kind": "input",
-          "placeholder": "商品を探す…"
+          "placeholder": "商品を検索…"
         },
         "attrId": "q",
         "children": [],

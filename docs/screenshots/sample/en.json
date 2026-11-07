@@ -1,38 +1,38 @@
 {
   "site": {
-    "name": "Komorebi Goods",
-    "repo": "example/komorebi-goods"
+    "name": "Forest Bakery",
+    "repo": "example/forest-bakery"
   },
   "comments": [
     {
       "node": null,
       "x": 0.93,
       "y": 0.1,
-      "body": "Please double-check product names and prices before we publish."
+      "body": "Please check the opening hours and closing days before we publish."
     },
     {
       "node": "node_mw6257c7jdsk3",
       "x": 0.92,
       "y": 0.15,
-      "body": "The card text wraps to three lines on phones. Can we shorten it?"
+      "body": "The tart description wraps to three lines on phones. Can we shorten it?"
     },
     {
       "node": "node_mw6257c6c5x58",
-      "x": 0.95,
-      "y": 0.2,
-      "body": "The button green could be a little darker.",
+      "x": 1.0,
+      "y": 0.75,
+      "body": "The button brown could be a little darker.",
       "replies": [
-        "Made it a deeper green."
+        "Made it a deeper brown."
       ]
     },
     {
       "node": "node_mw6257c6awn50",
       "x": 0.97,
       "y": 0.1,
-      "body": "Could the headline sound a little softer?",
+      "body": "Could the headline feel a little warmer? A serif might work.",
       "replies": [
-        "Changed it to “made a little nicer.”",
-        "Love it! Let's match the tone in the intro text too."
+        "Good idea, I'll try a serif.",
+        "Much better! Let's match the tone in the intro text too."
       ]
     }
   ],
@@ -46,7 +46,7 @@
     "editScripts": "Edit scripts"
   },
   "doc": {
-    "siteName": "Komorebi Goods",
+    "siteName": "Forest Bakery",
     "lang": "en",
     "colorPalette": [],
     "pages": {
@@ -65,7 +65,7 @@
       },
       "page_mw6257c71ijbit": {
         "id": "page_mw6257c71ijbit",
-        "name": "Shop",
+        "name": "Products (demo)",
         "slug": "catalog",
         "title": "Products",
         "description": "A sample page powered by dummyjson.com data",
@@ -144,7 +144,7 @@
       },
       "page_mw6257c713ilju": {
         "id": "page_mw6257c713ilju",
-        "name": "Product",
+        "name": "Product detail (demo)",
         "slug": "products/[slug]",
         "title": "Product detail",
         "description": "",
@@ -239,7 +239,7 @@
         "name": "Logo",
         "semantic": "auto",
         "text": {
-          "content": "Komorebi",
+          "content": "Forest Bakery",
           "heading": 6
         },
         "link": null,
@@ -350,7 +350,7 @@
         "name": "Text",
         "semantic": "auto",
         "text": {
-          "content": "Shop",
+          "content": "Menu",
           "heading": 0
         },
         "link": {
@@ -470,7 +470,7 @@
         "name": "Headline",
         "semantic": "auto",
         "text": {
-          "content": "Everyday things,\nmade a little nicer.",
+          "content": "Slow-baked bread,\none loaf at a time.",
           "heading": 1
         },
         "link": null,
@@ -495,7 +495,7 @@
         "name": "Text",
         "semantic": "auto",
         "text": {
-          "content": "Furniture that lasts, seasonal scents and pantry staples, chosen by a small shop.",
+          "content": "A small neighborhood bakery. Sourdough bread, seasonal tarts and good coffee, made by hand since 2014.",
           "heading": 0
         },
         "link": null,
@@ -518,7 +518,7 @@
         "name": "Button",
         "semantic": "button",
         "text": {
-          "content": "Browse the shop",
+          "content": "See today's menu",
           "heading": 0
         },
         "link": null,
@@ -607,7 +607,7 @@
         "name": "Card 1",
         "semantic": "auto",
         "text": {
-          "content": "Furniture that lasts",
+          "content": "Sourdough bread",
           "heading": 2
         },
         "link": null,
@@ -629,7 +629,7 @@
         "name": "Text",
         "semantic": "auto",
         "text": {
-          "content": "Solid wood chairs and tables you can repair and keep.",
+          "content": "Our own starter, fermented for 36 hours. Crisp crust, soft crumb.",
           "heading": 0
         },
         "link": null,
@@ -675,7 +675,7 @@
         "name": "Card 2",
         "semantic": "auto",
         "text": {
-          "content": "Seasonal scents",
+          "content": "Seasonal tarts",
           "heading": 2
         },
         "link": null,
@@ -697,7 +697,7 @@
         "name": "Text",
         "semantic": "auto",
         "text": {
-          "content": "Natural fragrances that change how a room feels.",
+          "content": "Fruit from nearby farms on a buttery crust. New every month.",
           "heading": 0
         },
         "link": null,
@@ -743,7 +743,7 @@
         "name": "Card 3",
         "semantic": "auto",
         "text": {
-          "content": "Pantry staples",
+          "content": "Morning coffee",
           "heading": 2
         },
         "link": null,
@@ -765,7 +765,7 @@
         "name": "Text",
         "semantic": "auto",
         "text": {
-          "content": "Seasonings sent straight from the people who make them.",
+          "content": "Single origin from a local roaster, brewed from 7 a.m.",
           "heading": 0
         },
         "link": null,
@@ -810,7 +810,7 @@
         "name": "Text",
         "semantic": "auto",
         "text": {
-          "content": "© 2026 Komorebi Goods",
+          "content": "© 2026 Forest Bakery",
           "heading": 0
         },
         "link": null,
@@ -1100,10 +1100,10 @@
       "node_mw6257c717lkm2": {
         "id": "node_mw6257c717lkm2",
         "type": "box",
-        "name": "Shop",
+        "name": "Product catalog",
         "semantic": "auto",
         "text": {
-          "content": "Shop",
+          "content": "Product catalog",
           "heading": 1
         },
         "link": null,
@@ -1126,7 +1126,7 @@
         "name": "Text",
         "semantic": "auto",
         "text": {
-          "content": "Furniture, scents, food and more for everyday life. Product data is a sample from dummyjson.com.",
+          "content": "A sample list, search and detail page powered by data from dummyjson.com.",
           "heading": 0
         },
         "link": null,
