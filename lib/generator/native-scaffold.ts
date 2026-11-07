@@ -280,7 +280,7 @@ export function applyNativeFramework(
       "",
     ].join("\n");
     for (const [name, source] of Object.entries(files)) {
-      if (/\\.(?:svelte|js|ts)$/.test(name) && source.includes("$lib/")) {
+      if (/\.(?:svelte|js|ts)$/.test(name) && source.includes("$lib/")) {
         files[name] = source.replaceAll("$lib/", "#lib/");
       }
     }
@@ -317,6 +317,15 @@ export function applyNativeFramework(
       '</script>',
       '{@render children()}', "",
     ].join("\n");
+  }
+  if (framework === "sveltekit") {
+    // Rewrite the final generated Svelte files as well as the preliminary
+    // component tree. Kit 3 no longer provides the old $lib alias.
+    for (const [path, source] of Object.entries(files)) {
+      if (/\.(?:js|ts|svelte)$/.test(path) && source.includes("$lib/")) {
+        files[path] = source.replaceAll("$lib/", "#lib/");
+      }
+    }
   }
   files["README.md"] = [
     "# Native framework export", "",
