@@ -4,6 +4,9 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "条件のつなぎ方": "Join conditions with",
+  "{subject}が {v} 以上": "{subject} is at least {v}",
+  "{subject}が {v} 以下": "{subject} is at most {v}",
   "代わりに使う値 / {変数}": "Replacement value / {variable}",
   "である": "Is",
   "でない": "Is not",
@@ -16,15 +19,12 @@ const en: Dict = {
   "リスト表示を［絞り込む / 並べ替える / 解除する］": "Control list display ［filter / sort / clear］",
   "変数{source}を加工して変数{into}に入れる": "Transform variable {source} and save into {into}",
   "変数［］の値を［加工］して変数［］に入れる": "Apply an operation to a variable and store the result",
-  "以前のブロックを表示": "Show legacy blocks",
-  "以前のブロックを隠す": "Hide legacy blocks",
   "変数{source}に{operation}を行い、変数{into}に入れる": "Apply {operation} to variable {source} and assign to {into}",
   "加工する元の変数": "Source variable",
   "加工の種類": "Operation",
   "変数名": "Variable name",
   "見本を加工できません（{code}）": "Cannot process sample value ({code})",
   "リスト表示の操作": "List display operation",
-  "リスト［］の表示を操作する": "Control list display",
   "解除する絞り込み": "Filter to clear",
   "絞り込む": "Filter",
   "並べ替える": "Sort",
@@ -2649,12 +2649,8 @@ const en: Dict = {
     "(not selected)",
   "「{value}」":
     "\"{value}\"",
-  "{subject}が {v} と違う":
-    "{subject} does not equal {v}",
   "{subject}が {v} を含む":
     "{subject} contains {v}",
-  "{subject}が {v} を含まない":
-    "{subject} does not contain {v}",
   "{subject}が {v} で始まる":
     "{subject} starts with {v}",
   "{subject}が {v} で終わる":
@@ -2665,8 +2661,6 @@ const en: Dict = {
     "{subject} is less than {v}",
   "{subject}が空":
     "{subject} is empty",
-  "{subject}が空でない":
-    "{subject} is not empty",
   "{subject}が {v} と同じ":
     "{subject} equals {v}",
   "{t} の値":
