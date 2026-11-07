@@ -45,7 +45,8 @@ export async function exportProjectZip(doc: SiteDoc): Promise<string[]> {
     root.file(path, await res.arrayBuffer());
   });
 
-  const blob = await zip.generateAsync({ type: "blob" });
+  // ZIP-level DEFLATE keeps _tsumu/doc.json readable and avoids double compression.
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 9 } });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
