@@ -483,8 +483,9 @@ function pureLoadStep(st: ScriptStep): boolean {
   switch (st.kind) {
     case "set-var": return !!st.into;
     case "transform": return !!st.source && !!st.into;
-    case "if": return st.cond.subject === "var" && st.then.every(pureLoadStep) &&
-      (st.else ?? []).every(pureLoadStep);
+    case "if": return (st.conditions?.length ?? 0) <= 32 &&
+      [st.cond, ...(st.conditions ?? [])].every((condition) => condition.subject === "var") &&
+      st.then.every(pureLoadStep) && (st.else ?? []).every(pureLoadStep);
     case "for-each": return !!st.array && st.then.length > 0 && st.then.every(pureLoadStep);
     case "repeat": return (typeof st.times === "number" ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000 : !!repeatVarName(st.times)) && st.then.every(pureLoadStep);
     default: return false;
@@ -565,9 +566,11 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
     }
     if (st.kind === "for-each") return !!st.array && !isClient(st.array) &&
       st.then.length > 0 && st.then.every(isServerPure);
-    if (st.kind === "if") return st.cond.subject === "var" &&
-      !extractVars(st.cond.left ?? "").some(isClient) &&
-      !extractVars(st.cond.value ?? "").some(isClient) &&
+    if (st.kind === "if") return (st.conditions?.length ?? 0) <= 32 &&
+      [st.cond, ...(st.conditions ?? [])].every((condition) =>
+        condition.subject === "var" &&
+        !extractVars(condition.left ?? "").some(isClient) &&
+        !extractVars(condition.value ?? "").some(isClient)) &&
       st.then.every(isServerPure) && (st.else ?? []).every(isServerPure);
     if (st.kind === "repeat") {
       const name = repeatVarName(st.times);
@@ -1272,8 +1275,10 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
         st.or?.forEach((c) => (c.value = mapVarTokens(c.value, fn)));
       }
     } else if (st.kind === "if") {
-      if (st.cond.value !== undefined) st.cond.value = mapVarTokens(st.cond.value, fn);
-      if (st.cond.left !== undefined) st.cond.left = mapVarTokens(st.cond.left, fn);
+      for (const condition of [st.cond, ...(st.conditions ?? [])]) {
+        if (condition.value !== undefined) condition.value = mapVarTokens(condition.value, fn);
+        if (condition.left !== undefined) condition.left = mapVarTokens(condition.left, fn);
+      }
       mapStepTokens(st.then, fn);
       if (st.else) mapStepTokens(st.else, fn);
     } else if (st.kind === "wait" && typeof st.seconds === "string") {
