@@ -150,31 +150,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
   const setOr = (i: number, patch: Partial<FilterCond>) =>
     set({ or: or.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
   // 条件ごとに1行にする（折り返しに任せると、ブロックの幅が全条件を横に並べた長さになる）
-  const tail = (
-    <>
-      <Phrase text="ものに絞り込む" parts={{}} />
-      {!readOnly && (
-        <>
-          <button
-            type="button"
-            className="se-mini se-mini-text"
-            onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: true }] })}
-          >
-            <Plus size={12} />
-            {tr("かつ")}
-          </button>
-          <button
-            type="button"
-            className="se-mini se-mini-text"
-            onClick={() => set({ or: [...or, { field: "", op: "eq", value: "" }] })}
-          >
-            <Plus size={12} />
-            {tr("または")}
-          </button>
-        </>
-      )}
-    </>
-  );
+  const tail = <Phrase text="ものに絞り込む" parts={{}} />;
   return (
     <>
       <span className="se-line">
@@ -217,10 +193,20 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
       </span>
       {or.map((c, i) => (
         <span key={i} className="se-line">
-          <span className="se-indent">{c.and ? tr("かつ") : tr("または")}</span>
           <Phrase
-            text="{field}が{cond}"
+            text="{join}{field}が{cond}"
             parts={{
+              join: (
+                <select
+                  className="se-in se-fixed-select"
+                  aria-label={tr("条件のつなぎ方")}
+                  value={c.and ? "and" : "or"}
+                  onChange={(e) => setOr(i, { and: e.target.value === "and" })}
+                >
+                  <option value="and">{tr("かつ")}</option>
+                  <option value="or">{tr("または")}</option>
+                </select>
+              ),
               field: (
                 <ArrayFieldSelect array={step.array} value={c.field} onChange={(field) => setOr(i, { field })} />
               ),
@@ -249,6 +235,18 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
           {i === or.length - 1 && tail}
         </span>
       ))}
+      {!readOnly && (
+        <div className="se-composer-condition-actions">
+          <button type="button" className="se-mini se-mini-text"
+            onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: true }] })}>
+            <Plus size={12} />{tr("かつ")}
+          </button>
+          <button type="button" className="se-mini se-mini-text"
+            onClick={() => set({ or: [...or, { field: "", op: "eq", value: "", and: false }] })}>
+            <Plus size={12} />{tr("または")}
+          </button>
+        </div>
+      )}
     </>
   );
 }
