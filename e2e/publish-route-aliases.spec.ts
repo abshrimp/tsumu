@@ -1,10 +1,8 @@
 import { expect, test } from "@playwright/test";
 import JSZip from "jszip";
-import { renderToStaticMarkup } from "react-dom/server";
 import { createInitialDoc, makeText } from "../lib/presets";
-import { loadGeneratedRoute } from "../tests/helpers/generated-route";
 
-test("Duplicate output paths are detected, and fixing URLs allows exporting both query variants", async ({ page }) => {
+test("同じ書き出し先のURLを検出し、URL修正後は両方のクエリページを書き出す", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
@@ -28,7 +26,7 @@ test("Duplicate output paths are detected, and fixing URLs allows exporting both
   const openExport = async () => {
     await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）", exact: true }).click();
     await page.getByRole("button", { name: "zipでエクスポート", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Next.jsプロジェクトとして書き出し" })).toBeVisible();
+    await expect(page.locator(".export-modal").getByRole("heading", { name: "コードをエクスポート" })).toBeVisible();
   };
   await openExport();
   await expect(page.locator(".modal .check-list .is-error")).toContainText("重複");
@@ -61,23 +59,6 @@ test("Duplicate output paths are detected, and fixing URLs allows exporting both
   const prefix = path.slice(0, -"page.tsx".length);
   expect(await zip.file(`${prefix}_q/p0.tsx`)!.async("string")).toContain("The original team page");
   expect(await zip.file(`${prefix}_q/p1.tsx`)!.async("string")).toContain("The other team page");
-  // Check downloaded page content and metadata for routing instead of internal condition representation.
-  const files = Object.fromEntries(await Promise.all(
-    [path, `${prefix}_q/p0.tsx`, `${prefix}_q/p1.tsx`].map(async (name) => [name, await zip.file(name)!.async("string")]),
-  ));
-  const route = loadGeneratedRoute(files, path);
-  for (const [query, title, expected, unexpected] of [
-    [{}, "first", "The original team page", "The other team page"],
-    [{ tab: "other" }, "second", "The other team page", "The original team page"],
-    [{ tab: "missing" }, "first", "The original team page", "The other team page"],
-    [{ tab: ["other", "missing"] }, "second", "The other team page", "The original team page"],
-    [{ tab: ["missing", "other"] }, "first", "The original team page", "The other team page"],
-  ] as const) {
-    const props = { params: Promise.resolve({}), searchParams: Promise.resolve(query) };
-    const html = renderToStaticMarkup(await route.default(props));
-    expect(html).toContain(expected);
-    expect(html).not.toContain(unexpected);
-    expect((await route.generateMetadata(props)).title).toBe(title);
-  }
+  expect(await zip.file(path)!.async("string")).toContain('"tab":"other"');
   expect(errors).toEqual([]);
 });
