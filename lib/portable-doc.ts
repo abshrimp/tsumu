@@ -30,11 +30,11 @@ function base64(bytes: Uint8Array): string {
 }
 
 function fromBase64(value: string, maxBytes: number): Uint8Array {
-  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
-    throw new Error("Invalid compressed document payload.");
-  }
   if (value.length > Math.ceil(maxBytes / 3) * 4 + 4) {
     throw new Error("Compressed document exceeds the size limit.");
+  }
+  if (value.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(value)) {
+    throw new Error("Invalid compressed document payload.");
   }
   const raw = atob(value);
   if (raw.length > maxBytes) throw new Error("Compressed document exceeds the size limit.");
@@ -52,7 +52,7 @@ export async function serializePortableDoc(doc: SiteDoc, maxBytes: number): Prom
   if (input.byteLength > maxBytes) throw new Error("Document exceeds the size limit.");
   if (typeof CompressionStream === "undefined") return plain;
   const compressed = new Uint8Array(await new Response(
-    new Blob([input]).stream().pipeThrough(new CompressionStream("gzip")),
+    new Blob([input as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new CompressionStream("gzip")),
   ).arrayBuffer());
   const packed: PackedDoc = {
     format: PORTABLE_DOC_FORMAT,
@@ -79,7 +79,7 @@ export async function decodePortableDoc(value: unknown, maxBytes: number): Promi
     throw new Error("This browser cannot open compressed Tsumu documents.");
   }
   const compressed = fromBase64(value.payload, maxBytes);
-  const reader = new Blob([compressed]).stream()
+  const reader = new Blob([compressed as Uint8Array<ArrayBuffer>]).stream()
     .pipeThrough(new DecompressionStream("gzip")).getReader();
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let length = 0;
