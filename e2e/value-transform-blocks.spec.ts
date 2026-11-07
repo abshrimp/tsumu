@@ -242,6 +242,40 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " reads a holiday dictionary using a variable date key", async ({ page }) => {
+    const data = JSON.stringify({ "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" });
+    const { answer, errors } = await runChain(page, exported, data, [
+      { id: "date", kind: "set-var", into: "selectedDate", value: "2026-11-23" },
+      { id: "parse-holidays", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "read-holiday", kind: "transform", source: "items", into: "items", transform: { kind: "field", key: "{selectedDate}" } },
+    ]);
+    await expect(answer).toHaveValue("勤労感謝の日");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " converts a holiday dictionary into filterable list rows", async ({ page }) => {
+    const data = JSON.stringify({
+      "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日", "2027-01-01": "元日",
+    });
+    const { answer, errors } = await runChain(page, exported, data, [
+      { id: "parse-holidays", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "rows", kind: "transform", source: "items", into: "items",
+        transform: { kind: "object-entries", keyField: "日付", valueField: "祝日名" } },
+      { id: "filter-days", kind: "transform", source: "items", into: "items",
+        transform: { kind: "filter", field: "祝日名", operation: "contains", operand: "の日" } },
+      { id: "sort-days", kind: "transform", source: "items", into: "items",
+        transform: { kind: "sort", field: "日付", direction: "desc" } },
+      { id: "names", kind: "transform", source: "items", into: "items",
+        transform: { kind: "map-field", field: "祝日名" } },
+      { id: "join", kind: "transform", source: "items", into: "items",
+        transform: { kind: "join", separator: " / " } },
+    ]);
+    await expect(answer).toHaveValue("勤労感謝の日 / 文化の日");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
@@ -250,6 +284,40 @@ test.beforeEach(async ({ page }, testInfo) => {
   await page.addStyleTag({ content: readFileSync("app/globals.css", "utf8") });
   await page.addScriptTag({ content: bundle });
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
+});
+
+test("canvas supports object-to-list field names and dynamic dictionary key input", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push(
+        { id: "dictionary-rows", kind: "transform", source: "data", into: "rows",
+          transform: { kind: "field", key: "" } },
+        { id: "dictionary-key", kind: "transform", source: "data", into: "value",
+          transform: { kind: "field", key: "" } },
+      );
+    });
+  });
+  const rows = page.locator('[data-sel-key="step:dictionary-rows"]');
+  await rows.getByRole("combobox", { name: "加工の種類" }).selectOption("object-entries");
+  await expect(rows.getByPlaceholder("キーの項目名")).toHaveValue("キー");
+  await expect(rows.getByPlaceholder("値の項目名")).toHaveValue("値");
+  await rows.getByPlaceholder("キーの項目名").fill("日付");
+  await rows.getByPlaceholder("キーの項目名").blur();
+  await rows.getByPlaceholder("値の項目名").fill("祝日名");
+  await rows.getByPlaceholder("値の項目名").blur();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "dictionary-rows").transform;
+  })).toMatchObject({ kind: "object-entries", keyField: "日付", valueField: "祝日名" });
+  const lookup = page.locator('[data-sel-key="step:dictionary-key"]');
+  const key = lookup.getByRole("combobox", { name: "取り出す項目名" });
+  await expect(key).toHaveAttribute("placeholder", "項目名 / {変数}");
+  await key.fill("{selectedDate}");
+  await key.blur();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "dictionary-key").transform.key;
+  })).toBe("{selectedDate}");
 });
 
 test("canvas block settings update the document without a separate value-composer modal", async ({ page }) => {
