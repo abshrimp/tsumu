@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 for (const width of [240, 288]) {
-  test(`出力タグの項目と説明を折り返さず省略する（パネル幅 ${width}px）`, async ({ page }) => {
+  test(`Output tag options and descriptions stay on one truncated line at panel width ${width}px`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.addInitScript((width) => {
@@ -17,17 +17,17 @@ for (const width of [240, 288]) {
     const trigger = page.locator('[data-tutorial="settings-semantic"] .dd');
     const menu = page.locator(".dd-menu");
     const openMenu = async () => {
-      // Playwright が自動でスクロールした直後の scroll 通知で閉じないよう、先に位置を合わせる。
+      // Position the list first so Playwright's automatic scrolling does not close it via a scroll event.
       await trigger.scrollIntoViewIfNeeded();
       await trigger.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       await trigger.click();
       await expect(menu).toBeVisible();
-      // 拡大アニメーション中の座標ではなく、描画が落ち着いた後の余白を測る。
+      // Measure spacing after the opening animation settles, not from intermediate coordinates.
       await menu.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)));
     };
     await openMenu();
 
-    // 長い説明も一行のまま、全項目で上下の余白・全文・選択操作を保つ。
+    // Long descriptions stay on one line while every item retains spacing, full text, and selection behavior.
     const items = menu.locator(".dd-item");
     await expect(items).toHaveCount(12);
     const measurements = await items.evaluateAll((buttons) => buttons.map((button) => {
@@ -69,7 +69,7 @@ for (const width of [240, 288]) {
     await expect(trigger.locator(".dd-label")).toHaveCSS("white-space", "nowrap");
     await expect(trigger.locator(".dd-label")).toHaveCSS("text-overflow", "ellipsis");
 
-    // 再度開いたときの選択表示と、Escape・外側クリック・再選択を確認する。
+    // Reopening shows the selection, and Escape, outside clicks, and re-selection keep working.
     await openMenu();
     await expect(menu.locator(".is-sel")).toContainText(label);
     await page.keyboard.press("Escape");

@@ -7,7 +7,7 @@ const fixture = (): SiteDoc => ({ siteName: "Paste scope", assets: {}, pageOrder
   p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["a"] },
 }, nodes: { a: { ...makeText("Copied text"), id: "a" } } });
 
-test.describe("Editorのネイティブpaste受信範囲", () => {
+test.describe("Native paste event scope in the editor", () => {
   let bundle: string;
   test.beforeAll(async () => { bundle = await editorBootstrapBundle(true); });
   test.beforeEach(async ({ page }) => {
@@ -45,7 +45,7 @@ test.describe("Editorのネイティブpaste受信範囲", () => {
     }, { kind, selector });
   }
   for (const context of ["preview", "modal", "script"] as const) for (const kind of ["elements", "artwork"] as const) {
-    test(`${context}の背後へ${kind}を貼り付けない`, async ({ page }) => {
+    test(`Do not paste ${kind} behind the ${context} overlay`, async ({ page }) => {
       await page.evaluate(context => {
         if (context === "preview") (window as any).pasteEditor.getState().setMode("preview");
         else { const el = document.createElement("div"); el.className = context === "modal" ? "modal-backdrop" : "se-backdrop"; document.body.append(el); }
@@ -57,7 +57,7 @@ test.describe("Editorのネイティブpaste受信範囲", () => {
       await expect(page.locator(".paste-notice")).toHaveCount(0);
     });
   }
-  for (const target of ["input", "textarea", "select", "contenteditable"]) test(`${target}の貼り付けは横取りしない`, async ({ page }) => {
+  for (const target of ["input", "textarea", "select", "contenteditable"]) test(`Do not intercept paste inside ${target}`, async ({ page }) => {
     await page.evaluate(target => {
       const el = document.createElement(target === "contenteditable" ? "div" : target); el.id = "native-target";
       if (target === "contenteditable") el.contentEditable = "true";
@@ -67,7 +67,7 @@ test.describe("Editorのネイティブpaste受信範囲", () => {
     expect(await paste(page, "elements", "#native-target")).toBe(false);
     expect(await snapshot(page)).toEqual(before);
   });
-  test("閉じるアニメーション中のモーダルはデザイン貼り付けを妨げず、Undo/Redoできる", async ({ page }) => {
+  test("Closing modal animations do not block design paste or Undo/Redo", async ({ page }) => {
     await page.evaluate(() => { const el = document.createElement("div"); el.className = "modal-backdrop is-leaving"; document.body.append(el); });
     const before = await snapshot(page);
     expect(await paste(page, "elements")).toBe(true);
@@ -81,8 +81,8 @@ test.describe("Editorのネイティブpaste受信範囲", () => {
   });
 });
 
-// 実Next Editorのコピー操作とブラウザ生成pasteで、保存データまで確認する。
-for (const context of ["preview", "settings"] as const) test(`実エディタの${context}でCtrl+Vしても保存文書を変更しない`, async ({ page }) => {
+// Verify persisted data using the real Next.js editor copy operation and a browser-generated paste event.
+for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real editor ${context} does not change the saved document`, async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const created = await page.request.post("/api/sites", { data: { name: "Native paste scope" } });
   expect(created.ok()).toBeTruthy(); const { site } = await created.json();

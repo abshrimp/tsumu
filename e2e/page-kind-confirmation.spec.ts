@@ -8,14 +8,14 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/robots.txt");
   await page.setContent('<div id="app"></div>');
   await page.addScriptTag({ content: bundle });
-  // 通常ページでは閉じている欄を、利用者と同じ手順で開く。
+  // Open the normally collapsed field using the same steps as a user.
   await page.getByRole("button", { name: "カスタムコード", exact: true }).click();
   await expect(page.getByRole("button", { name: "HTML", exact: true })).toBeVisible();
 });
 
 for (const kind of ["html", "redirect"]) {
   for (const interruption of ["rawHtml", "redirectTo", "rewriteTo", "undo", "undo-redo", "restore", "delete", "page", "page-return", "unmount", "cancel", "unrelated"]) {
-    test(`${kind} の確認待ち中の変更: ${interruption}`, async ({ page }) => {
+    test(`Changing ${kind} while confirmation is pending handles ${interruption}`, async ({ page }) => {
       await page.evaluate(() => (window as any).pageKindEditor.getState().updatePage("p", { title: "Undo this" }));
       await page.getByRole("button", { name: kind === "html" ? "HTML" : "リダイレクト", exact: true }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
@@ -66,7 +66,7 @@ for (const kind of ["html", "redirect"]) {
 
 for (const from of ["normal", "html", "redirect", "rewrite"]) for (const to of ["normal", "html", "redirect"]) {
   if ((from === "rewrite" ? "redirect" : from) === to) continue;
-  test(`承認した ${from} → ${to} は実行する`, async ({ page }) => {
+  test(`Approved ${from} to ${to} transitions are applied`, async ({ page }) => {
     await page.evaluate(from => {
       const s = (window as any).pageKindEditor.getState();
       const doc = structuredClone(s.doc);

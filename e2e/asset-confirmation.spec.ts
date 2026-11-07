@@ -38,7 +38,7 @@ async function finish(page: Page, ok = true) {
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
-test("確認中に共同編集で使われた画像を残し、未使用のままのファイルだけを削除する", async ({ page }) => {
+test("An image newly used during confirmation is preserved while only still-unused files are deleted", async ({ page }) => {
   await begin(page);
   await page.evaluate((id) => {
     const s = (window as any).assetEditor.getState(); const d = structuredClone(s.doc);
@@ -57,7 +57,7 @@ test("確認中に共同編集で使われた画像を残し、未使用のま�
   expect(Object.keys((await doc(page)).assets)).toEqual([candidate.id]);
 });
 
-test("確認後の新規アセットや新しく未使用になったアセットは削除対象に加えない", async ({ page }) => {
+test("Assets created or newly unused after confirmation are excluded from the deletion", async ({ page }) => {
   await page.evaluate((id) => {
     (window as any).assetEditor.getState().updateDoc((d: any) => { d.nodes.image.image.assetId = id; });
   }, spare.id);
@@ -74,7 +74,7 @@ test("確認後の新規アセットや新しく未使用になったアセッ�
 });
 
 for (const single of [false, true]) {
-  test(`${single ? "個別" : "一括"}削除の確認中に差し替えたファイルを守る`, async ({ page }) => {
+  test(`${single ? "single" : "bulk"} deletion protects a replaced file while confirmation is open`, async ({ page }) => {
     await begin(page, single);
     await page.evaluate((id) => {
       const s = (window as any).assetEditor.getState(); const d = structuredClone(s.doc);
@@ -87,7 +87,7 @@ for (const single of [false, true]) {
   });
 
   for (const stop of ["cancel", "unmount", "replace", "undoRedo", "site"] as const) {
-    test(`${single ? "個別" : "一括"}削除の${stop}後に古い確認を適用しない`, async ({ page }) => {
+    test(`${single ? "single" : "bulk"} deletion ignores stale confirmation after ${stop}`, async ({ page }) => {
       await page.evaluate(() => (window as any).assetEditor.getState().updateNode("media", { name: "Undoable" }));
       await begin(page, single);
       await page.evaluate((stop) => {
@@ -106,7 +106,7 @@ for (const single of [false, true]) {
   }
 }
 
-test("未使用として個別確認した後に使われ始めた画像は参照ごと残す", async ({ page }) => {
+test("Confirming an unused image does not remove its references if it becomes used", async ({ page }) => {
   await begin(page, true);
   await page.evaluate((id) => {
     const s = (window as any).assetEditor.getState(); const d = structuredClone(s.doc);
@@ -117,7 +117,7 @@ test("未使用として個別確認した後に使われ始めた画像は参�
   expect(await doc(page)).toEqual(before); expect(deleted).toEqual([]);
 });
 
-test("使用中の個別削除は確認した画像だけを参照から外し、名前変更でも実行できる", async ({ page }) => {
+test("Single deletion removes only the confirmed image references even if its name changes", async ({ page }) => {
   await page.evaluate((id) => {
     (window as any).assetEditor.getState().updateDoc((d: any) => { d.nodes.image.image.assetId = id; });
   }, candidate.id);
@@ -134,7 +134,7 @@ test("使用中の個別削除は確認した画像だけを参照から外し�
 });
 
 for (const single of [false, true]) {
-  test(`${single ? "個別" : "一括"}削除の確認中に同じファイルの別IDが追加されても実体を消さない`, async ({ page }) => {
+  test(`${single ? "single" : "bulk"} deletion preserves a file with another asset ID added during confirmation`, async ({ page }) => {
     await begin(page, single);
     await page.evaluate((asset) => {
       const s = (window as any).assetEditor.getState(); const d = structuredClone(s.doc);
@@ -151,7 +151,7 @@ for (const single of [false, true]) {
   });
 }
 
-test("同じファイルの全IDを確認して削除した場合、実体へのDELETEは1回だけ送る", async ({ page }) => {
+test("Deleting all confirmed IDs of the same file sends only one DELETE request", async ({ page }) => {
   await page.evaluate(({ id, path }) => {
     (window as any).assetEditor.getState().updateDoc((d: any) => { d.assets[id].path = path; });
   }, { id: spare.id, path: candidate.path });
@@ -161,7 +161,7 @@ test("同じファイルの全IDを確認して削除した場合、実体への
 });
 
 for (const location of ["node.styles", "node.customCss", "page.bodyStyles"] as const) {
-  test(`${location} のCSSエスケープで使う画像を未使用の一括削除から守る`, async ({ page }) => {
+  test(`Bulk deletion preserves an image referenced by CSS escapes in ${location}`, async ({ page }) => {
     await page.evaluate(({ location, path }) => {
       (window as any).assetEditor.getState().updateDoc((d: any) => {
         const css = `url("\\2f api/assets/file?path=${encodeURIComponent(path)}")`;

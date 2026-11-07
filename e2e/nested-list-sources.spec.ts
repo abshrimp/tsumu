@@ -26,7 +26,7 @@ for (const [from, text] of [
   ["tags", "First productredblueSecond productgreen"],
   ["scores", "First product03Second product2"],
   ["flags", "First productfalsetrueSecond producttrue"],
-]) test(`${from} を外側の項目から選び、各項目の値を表示して保存・元に戻す・やり直す`, async ({ page }) => {
+]) test(`Selecting ${from} from outer items displays each value and supports save, Undo, and Redo`, async ({ page }) => {
   const errors: string[] = []; page.on("pageerror", e => errors.push(e.message));
   const before = await saved(page);
   await choose(page, from);
@@ -48,7 +48,7 @@ for (const [from, text] of [
   expect(errors).toEqual([]);
 });
 
-test("空の配列も選べて、見本の更新後に同じ設定で一覧が表示される", async ({ page }) => {
+test("Empty arrays can be selected and later display values after sample updates", async ({ page }) => {
   await choose(page, "empty");
   await expect(source(page)).toHaveText("empty");
   const before = await saved(page);

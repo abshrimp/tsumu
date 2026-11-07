@@ -3,7 +3,7 @@ import { buildSync } from "esbuild";
 import { resolve } from "node:path";
 import { PAGE_HTML_COMPONENT } from "../lib/generator/templates";
 
-// 書き出すコンポーネントそのものと React を束ね、実際のハイドレーションを確かめる。
+// Bundle the actual exported component with React to test real hydration.
 const bundle = buildSync({
   stdin: {
     contents: `
@@ -34,10 +34,10 @@ window.renderHtml = (name) => root.render(tree(name));
   define: { "process.env.NODE_ENV": '"development"' },
 }).outputFiles[0].text;
 
-test("ページ専用スクリプトはハイドレーションで重複せず、その後の HTML 変更では動く", async ({ page }) => {
+test("Page-level scripts do not run twice during hydration and run on subsequent HTML changes", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  // サーバーから届いた HTML と同じく、最初のスクリプトは HTML の読み込み中に動く。
+  // Like server-delivered HTML, the initial script runs while the page is loading.
   await page.setContent(`
     <script>window.recorded = []; window.hydrationErrors = [];</script>
     <div id="app"><div style="display:contents"><script>window.recorded.push("a")</script></div></div>
@@ -45,7 +45,7 @@ test("ページ専用スクリプトはハイドレーションで重複せず�
   expect(await page.evaluate(() => (window as any).recorded)).toEqual(["a"]);
   await page.addScriptTag({ content: bundle });
   await expect.poll(() => page.evaluate(() => (window as any).ready)).toBe("a");
-  // StrictMode が初回の effect を再実行しても、ブラウザが実行済みの HTML は動かさない。
+  // StrictMode may rerun the initial effect but must not rerun already-executed HTML scripts.
   expect(await page.evaluate(() => (window as any).recorded)).toEqual(["a"]);
 
   const expected = ["a"];

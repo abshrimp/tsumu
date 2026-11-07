@@ -18,7 +18,7 @@ test("comment pins can be hidden with the panel toggle or while holding Alt", as
   await expect(pins).toHaveCount(0);
   const show = page.getByRole("button", { name: "ピンを表示", exact: true });
   await expect(show).toHaveAttribute("aria-pressed", "true");
-  // 一覧とスレッドは隠さない
+  // Neither the list nor the thread is hidden.
   await expect(page.locator(".cm-item")).toHaveCount(1);
   await show.click();
   await expect(pins).toHaveCount(1);
