@@ -204,6 +204,8 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
               <OpEditor
                 op={step.op}
                 value={step.value}
+                not={step.not}
+                onNotChange={(not) => set({ not })}
                 placeholder={tr("値 / {変数}")}
                 onChange={(op, value) => set({ op, value })}
               />
@@ -225,6 +227,8 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
                 <OpEditor
                   op={c.op}
                   value={c.value}
+                  not={c.not}
+                  onNotChange={(not) => setOr(i, { not })}
                   placeholder={tr("値 / {変数}")}
                   onChange={(op, value) => setOr(i, { op, value })}
                 />
