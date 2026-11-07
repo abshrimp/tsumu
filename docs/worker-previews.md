@@ -1,6 +1,8 @@
-# Previewing pull requests of the editor / エディタのプルリクエストのプレビュー
+# Previewing pull requests of the editor
 
-Cloudflare Workers Builds can deploy every non-production branch of the editor as a **Worker Preview** with its own URL, and post that URL as a comment on the pull request. This repository is already set up this way. This page explains how to set it up on your own Workers Builds project, and what a Preview contains. A [summary in Japanese](#日本語の要点) follows.
+English · [日本語](worker-previews.ja.md)
+
+Cloudflare Workers Builds can deploy every non-production branch of the editor as a **Worker Preview** with its own URL, and post that URL as a comment on the pull request. This repository is already set up this way. This page explains how to set it up on your own Workers Builds project, and what a Preview contains.
 
 This page is about the editor only. A published site has no storage bindings or Durable Objects, so none of this applies to it; just turn on preview builds for non-production branches in its own hosting project.
 
@@ -41,14 +43,6 @@ Every branch that uses the same IDs shares that data. Once Previews have server 
 - it receives arguments other than `--name`, `--tag`, `--message` and `--json`.
 
 These checks only cover the config the script is given. They can't see settings made in the Cloudflare dashboard, so check the actual bindings there when in doubt.
-
-## 日本語の要点
-
-- プルリクエストのプレビューには Worker Previews を使用します。このリポジトリでは設定済みです。
-- 自分の Workers Builds プロジェクトで使用する場合は、Preview command に `node scripts/cloudflare-preview.mjs` を指定します。Build command と本番の Deploy command は変更しません。
-- プレビューは、ログイン不要の公開デモです。D1・KV を使用せず、データはプレビューのURLごとにブラウザ内に保存されます。本番の変数・シークレット・保存先は使用しません。
-- テスト用の保存先を使用する場合は、本番とは別のリソースを用意し、`previews` の空の配列を削除したうえで ID を指定します。その場合は匿名アクセスを無効にし、ログインを設定してください。
-- 公開サイトにはバインディングも Durable Object もないため、この手順は不要です。
 
 ## References (checked 2026-11-06)
 

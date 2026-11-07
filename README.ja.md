@@ -190,7 +190,7 @@ Cloudflare Workers Builds で自動デプロイを行う場合は、リポジト
 
 上記の Preview command を設定すると、Workers Builds はプルリクエストごとに **Worker Preview** をデプロイし、そのURLをプルリクエストに投稿します。プレビューはログイン不要の公開デモで、データはブラウザ内に保存され、本番の保存先やシークレットは使用しません。
 
-設定方法とテスト用の保存先の指定方法は、[エディタのプルリクエストのプレビュー](docs/worker-previews.md) を参照してください。
+設定方法とテスト用の保存先の指定方法は、[エディタのプルリクエストのプレビュー](docs/worker-previews.ja.md) を参照してください。
 
 ### Node.js
 
