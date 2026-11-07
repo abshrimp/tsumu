@@ -78,8 +78,12 @@ export function matchOp(v: string, op: ScriptOp | undefined, w: string): boolean
       return v.endsWith(w);
     case "gt":
       return parseFloat(v) > parseFloat(w);
+    case "gte":
+      return parseFloat(v) >= parseFloat(w);
     case "lt":
       return parseFloat(v) < parseFloat(w);
+    case "lte":
+      return parseFloat(v) <= parseFloat(w);
     case "empty":
       return v === "";
     case "in":
