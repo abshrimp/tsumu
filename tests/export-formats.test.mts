@@ -154,7 +154,7 @@ test("CSS Modules and Tailwind retain Tsumu's authored CSS", () => {
   const doc = fixture();
   const options = { framework: "react" as const, language: "typescript" as const, scope: "project" as const };
   const modules = generateExportProject(doc, { ...options, style: "css-modules" });
-  assert.match(modules.files["src/App.tsx"], /siteStyles\.tsumuRoot/);
+  assert.match(modules.files["src/App.tsx"], /siteStyles\.siteRoot/);
   assert.ok(modules.files["src/site.module.css"]);
   assert.ok(modules.files["src/site-global.css"]);
   const tailwind = generateExportProject(doc, { ...options, style: "tailwind" });
