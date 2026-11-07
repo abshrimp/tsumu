@@ -461,17 +461,15 @@ function transformReferences(transform: TransformStep["transform"]): string[] {
     case "map-field":
     case "sort": fields = refs(transform.field); break;
   }
-  if ("operandType" in transform && transform.operandType === "variable" &&
+  if (transform.kind === "compare" || transform.kind === "find" || transform.kind === "filter") {
+    fields.push(...refs(transform.operand));
+    for (const condition of transform.conditions ?? []) {
+      fields.push(...refs(condition.field), ...refs(condition.operand));
+    }
+  } else if ("operandType" in transform && transform.operandType === "variable" &&
       typeof transform.operand === "string") fields.push(transform.operand);
   else if ("operandType" in transform && transform.operandType === "text" &&
       typeof transform.operand === "string") fields.push(...refs(transform.operand));
-  if ("conditions" in transform) {
-    for (const condition of transform.conditions ?? []) {
-      fields.push(...refs(condition.field));
-      if (condition.operandType === "variable") fields.push(condition.operand);
-      else if (condition.operandType === "text") fields.push(...refs(condition.operand));
-    }
-  }
   return fields;
 }
 
@@ -806,8 +804,8 @@ export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimarySt
   const all = pageDataSteps(doc, pageId);
   for (const st of all) {
     if (st.kind === "transform" && st.into && st.source &&
-        st.transform.kind === "find" && (st.transform.operandType === "variable" || st.transform.operandType === "text") &&
-        (st.transform.operand === "slug" || st.transform.operand === "{slug}") && st.transform.field) return { step: st };
+        st.transform.kind === "find" && st.transform.operand === "{slug}" &&
+        st.transform.field) return { step: st };
   }
   const slugFetches = new Set(all.filter((st) =>
     st.kind === "fetch" && st.as && urlHasSlug(st.url)).map((st) => (st as FetchStep).as!));
@@ -1234,7 +1232,9 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       st.source = fn(st.source) ?? st.source;
       const t = st.transform;
       const next: Record<string, unknown> = { ...t };
-      if ("operandType" in t && typeof t.operand === "string") {
+      if (t.kind === "compare" || t.kind === "find" || t.kind === "filter") {
+        next.operand = mapVarTokens(t.operand, fn);
+      } else if ("operandType" in t && typeof t.operand === "string") {
         if (t.operandType === "variable") next.operand = fn(t.operand) ?? t.operand;
         if (t.operandType === "text") next.operand = mapVarTokens(t.operand, fn);
       }
@@ -1250,10 +1250,7 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
         next.conditions = t.conditions.map((condition) => ({
           ...condition,
           field: mapVarTokens(condition.field, fn),
-          operand: condition.operandType === "variable"
-            ? fn(condition.operand) ?? condition.operand
-            : condition.operandType === "text"
-              ? mapVarTokens(condition.operand, fn) : condition.operand,
+          operand: mapVarTokens(condition.operand, fn),
         }));
       }
       st.transform = next as typeof st.transform;
