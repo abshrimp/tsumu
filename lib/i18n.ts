@@ -26,6 +26,7 @@ import {
   type Lang,
 } from "./lang";
 import { LOCALES } from "./locales";
+import { storageKey } from "./storage-keys";
 
 export { LANG_COOKIE, type Lang } from "./lang";
 
@@ -33,7 +34,7 @@ export const LANGS: { value: Lang; label: string }[] = (Object.keys(LANGUAGES) a
   (value) => ({ value, label: LANGUAGES[value].label })
 );
 
-const STORAGE_KEY = "tsumu-lang";
+const STORAGE_KEY = storageKey("lang");
 
 export type Dict = Record<string, string>;
 

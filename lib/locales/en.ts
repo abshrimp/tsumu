@@ -112,8 +112,6 @@ const en: Dict = {
   "Looks (block category)": "Looks",
   "Flow (block category)": "Flow",
   "data (variable name)": "data",
-  "product (variable name)": "product",
-  "products (variable name)": "products",
   "equal to (comparison)": "equal to",
   "not equal to (comparison)": "not equal to",
   "contain (comparison)": "contain",

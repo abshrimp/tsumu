@@ -188,11 +188,6 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             language TEXT NOT NULL,
             style TEXT NOT NULL
           )`,
-          // Remove the previous server-stored Netlify OAuth credentials. The
-          // replacement stores connection data only in each visitor's browser.
-          `DROP TABLE IF EXISTS netlify_oauth_states`,
-          `DROP TABLE IF EXISTS site_netlify_projects`,
-          `DROP TABLE IF EXISTS netlify_connections`,
           // サイトの編集・公開の記録（人ごと・種類ごとに最後の時刻。lib/activity.ts）
           `CREATE TABLE IF NOT EXISTS site_activity (
             site_id TEXT NOT NULL,

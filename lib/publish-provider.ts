@@ -3,7 +3,8 @@ import type { PublishTarget } from "./generator";
 import { isSiteId } from "./sites";
 
 export type PublishProvider = "github" | "netlify" | "cloudflare";
-export type StaticPublishProvider = Exclude<PublishProvider, "github">;
+export type HostingProvider = Exclude<PublishProvider, "github">;
+export type StaticPublishProvider = "cloudflare";
 
 /** This setting belongs to the Tsumu server, never to a site's editable document. */
 export function publishProvider(): PublishProvider {
@@ -19,7 +20,7 @@ export function publishProvider(): PublishProvider {
  */
 export function hostingProjectName(
   siteId: string,
-  provider: StaticPublishProvider,
+  provider: HostingProvider,
   target: PublishTarget,
   prefix: string = envVar("PUBLISH_PROJECT_PREFIX") || "tsumu",
 ): string {
@@ -29,6 +30,14 @@ export function hostingProjectName(
   const project = prefix + "-" + siteId + (provider === "netlify" && target === "test" ? "-preview" : "");
   if (project.length > 63) throw new Error("The hosting project name is too long.");
   return project;
+}
+
+export function netlifyPublishConfig(): { configured: boolean; error: string | null } {
+  const configured = !!envVar("NETLIFY_OAUTH_CLIENT_ID") && !!envVar("NETLIFY_OAUTH_REDIRECT_URI");
+  return {
+    configured,
+    error: configured ? null : "Netlify OAuth is not configured on the server.",
+  };
 }
 
 export interface StaticPublishConfig {
@@ -42,24 +51,19 @@ export interface StaticPublishConfig {
 }
 
 export function staticPublishConfig(siteId: string): StaticPublishConfig {
-  const provider = publishProvider();
-  if (provider === "github") throw new Error("Static publishing is not selected.");
-  const project = hostingProjectName(siteId, provider, "production");
-  const previewProject = hostingProjectName(siteId, provider, "test");
-  const configured = provider === "netlify"
-    ? !!envVar("NETLIFY_OAUTH_CLIENT_ID") && !!envVar("NETLIFY_OAUTH_REDIRECT_URI")
-    : !!envVar("CLOUDFLARE_ACCOUNT_ID") && !!envVar("CLOUDFLARE_API_TOKEN");
+  if (publishProvider() !== "cloudflare") {
+    throw new Error("Cloudflare Pages publishing is not selected.");
+  }
+  const project = hostingProjectName(siteId, "cloudflare", "production");
+  const previewProject = hostingProjectName(siteId, "cloudflare", "test");
+  const configured = !!envVar("CLOUDFLARE_ACCOUNT_ID") && !!envVar("CLOUDFLARE_API_TOKEN");
   return {
-    provider,
+    provider: "cloudflare",
     project,
     previewProject,
     configured,
-    error: configured ? null : provider === "netlify"
-      ? "Netlify OAuth is not configured on the server."
-      : "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required on the server.",
-    productionUrl: provider === "netlify" ? "https://" + project + ".netlify.app"
-      : "https://" + project + ".pages.dev",
-    previewUrl: provider === "netlify" ? "https://" + previewProject + ".netlify.app"
-      : "https://tsumu-preview." + project + ".pages.dev",
+    error: configured ? null : "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required on the server.",
+    productionUrl: "https://" + project + ".pages.dev",
+    previewUrl: "https://tsumu-preview." + project + ".pages.dev",
   };
 }

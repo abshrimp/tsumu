@@ -2,8 +2,6 @@ import { NextResponse } from "next/server";
 import { requireAuth } from "../../../../../lib/server";
 import { inspectAdobeProject } from "../../../../../lib/adobe-fonts-project";
 
-export const runtime = "nodejs";
-
 /** Only a fixed Adobe CDN origin and a strictly checked kit ID are requested. */
 export async function GET(request: Request) {
   const denied = await requireAuth();

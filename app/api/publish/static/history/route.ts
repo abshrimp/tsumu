@@ -28,12 +28,12 @@ export async function GET(req: Request) {
   try {
     const config = staticPublishConfig(siteId);
     if (!config.configured) return NextResponse.json({ error: config.error }, { status: 503 });
-    if (config.provider !== "cloudflare" || params.get("provider") !== "cloudflare") {
+    if (params.get("provider") !== "cloudflare") {
       return NextResponse.json({ error: "The publishing provider changed." }, { status: 409 });
     }
     return NextResponse.json({
       provider: config.provider,
-      deployments: await listStaticDeployments(siteId, config.provider, target),
+      deployments: await listStaticDeployments(siteId, target),
     }, { headers: NO_STORE });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Couldn't read deployment history." },
@@ -70,13 +70,13 @@ export async function POST(req: Request) {
   try {
     const config = staticPublishConfig(siteId);
     if (!config.configured) return NextResponse.json({ error: config.error }, { status: 503 });
-    if (config.provider !== "cloudflare" || body.provider !== "cloudflare") {
+    if (body.provider !== "cloudflare") {
       return NextResponse.json({ error: "The publishing provider changed." }, { status: 409 });
     }
     if (typeof body.deploymentId !== "string") {
       return NextResponse.json({ error: "Invalid deployment ID." }, { status: 400 });
     }
-    await restoreStaticDeployment(siteId, config.provider, body.target, body.deploymentId);
+    await restoreStaticDeployment(siteId, body.target, body.deploymentId);
     await recordPublish(siteId, body.target, dest.roomKey);
     return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (error) {

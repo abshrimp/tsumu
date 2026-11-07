@@ -709,7 +709,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     breakpoint: "base",
     customWidth: null,
     styleState: "default",
-    pageTheme: readLocalStorage("tsumu-page-theme") === "dark" ? "dark" : "light",
+    pageTheme: readLocalStorage(storageKey("page-theme")) === "dark" ? "dark" : "light",
     mode: "design",
     leftTab: "layers",
     revealAssetId: null,
@@ -812,7 +812,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     setStyleState: (s) => set({ styleState: s }),
     setPageTheme: (theme) => {
       set({ pageTheme: theme });
-      try { window.localStorage.setItem("tsumu-page-theme", theme); } catch { /* Storage is optional. */ }
+      try { window.localStorage.setItem(storageKey("page-theme"), theme); } catch { /* Storage is optional. */ }
     },
     setMode: (m) => set({ mode: m, editingText: null, textSel: null }),
     setLeftTab: (t) => set({ leftTab: t }),

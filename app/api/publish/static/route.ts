@@ -34,10 +34,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Static publishing is not configured." }, { status: 503 });
   }
   if (!conf.configured) return NextResponse.json({ error: conf.error }, { status: 503 });
-  if (conf.provider !== "cloudflare") {
-    return NextResponse.json({ error: "Netlify uses the browser-owned publishing endpoint." },
-      { status: 409, headers: NO_STORE });
-  }
   if (params.get("provider") !== "cloudflare" ||
       params.get("project") !== (target === "test" ? conf.previewProject : conf.project)) {
     return NextResponse.json({ error: "The publishing destination changed. Reopen the publish dialog." }, { status: 409 });
@@ -45,7 +41,7 @@ export async function POST(req: Request) {
   try {
     const zip = await readZipRequest(req);
     const files = await readStaticZip(zip);
-    const result = await deployStaticSite(siteId, conf.provider, target as PublishTarget, files);
+    const result = await deployStaticSite(siteId, target as PublishTarget, files);
     await recordPublish(siteId, target, dest.roomKey);
     return NextResponse.json({
       provider: conf.provider,

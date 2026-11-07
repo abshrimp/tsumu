@@ -3,6 +3,7 @@
 import { isEnterKey, isEscapeKey } from "../lib/keys";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toggleCommentMode } from "../lib/comment-store";
+import { genId } from "../lib/presets";
 import { hydrateBrowserDoc, insertPointFor, persistDoc, useEditor } from "../lib/store";
 import type { SiteDoc } from "../lib/types";
 import { localSaveState, watchLocalSaveBlock, warnForDeletedLocalSave, type LocalSaveSnapshot } from "../lib/local-save";
@@ -217,11 +218,8 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   /** 保存の応答を反映し終えるまで、次の保存は始めない。 */
   const activeCloudSave = useRef<Promise<void> | null>(null);
   const cloudSaveQueued = useRef(false);
-  const collabClientId = useRef(
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
+  const collabClientId = useRef("");
+  if (!collabClientId.current) collabClientId.current = genId("collab");
   const collabSocket = useRef<WebSocket | null>(null);
   const collabRequests = useRef(
     new Map<
@@ -613,7 +611,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         return Promise.reject(new Error("WebSocket is not connected"));
       }
-      const requestId = crypto.randomUUID();
+      const requestId = genId("req");
       const message = { ...input, requestId } as CollabClientMessage;
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {

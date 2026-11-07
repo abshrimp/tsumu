@@ -105,8 +105,7 @@ describe("native-ssr-export", () => {
         assert.match(component, /\{\{ resolveText/);
         assert.doesNotMatch(component, /v-html/);
       }
-      const code = Object.entries(project.files).filter(([path]) =>
-        !/\.md$/i.test(path) && path !== "vendor/picomatch/package.json");
+      const code = Object.entries(project.files).filter(([path]) => !/\.md$/i.test(path));
       for (const [path, content] of code) assert.doesNotMatch(content, /tsumu/i, path);
     });
 

@@ -45,9 +45,7 @@ interface Deployment {
   canRestore: boolean;
 }
 
-function providerLabel(provider: StaticPublishProvider): string {
-  return provider === "netlify" ? "Netlify" : "Cloudflare Pages";
-}
+const PROVIDER_NAME = "Cloudflare Pages";
 
 export default function StaticPublishModal({
   conf,
@@ -78,7 +76,7 @@ export default function StaticPublishModal({
     }).map((message): CheckResult => ({ level: "error", message })),
   ], [doc]);
   const blocked = !conf.configured || checks.some((item) => item.level === "error");
-  const providerName = providerLabel(conf.provider);
+  const providerName = PROVIDER_NAME;
 
   const loadHistory = useCallback(async (nextTarget: PublishTarget) => {
     const requestId = ++historyRequestRef.current;

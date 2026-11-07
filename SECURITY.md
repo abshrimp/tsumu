@@ -58,8 +58,6 @@ For server-backed test editing, follow the [Preview storage setup](docs/worker-p
 
 Exported sites are independent applications. Review their custom code, dependencies and deployment configuration separately.
 
-Framework exports require Node 26.12.1 or later and npm 12.2.1 or later. They include a reviewed, patched copy of picomatch 4.0.7 in `vendor/picomatch` to address GHSA-fc5q-39xc-vjpf. Keep this directory with the project. Nested unbounded extglob repetitions are treated as literal text; the package README records the source and behavior changes.
-
-The source is maintained in `lib/generator/vendor/picomatch.json`. Generated-package regression tests cover the shipped parser. In addition to the normal dependency audits, `npm run audit:vendor` checks upstream advisories and fails for findings not addressed by the shipped patch. Updating the source requires reviewing those findings and passing all generated framework and style checks.
+Framework exports require Node 26.12.1 or later and npm 12.2.1 or later.
 
 Server-rendered output (Next.js, Vue, Nuxt and SvelteKit) fetches external data through the same SSRF protection the editor uses: only public addresses, with size limits.

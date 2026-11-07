@@ -63,9 +63,9 @@ test("listStaticDeployments returns an empty list when Cloudflare Pages project 
   try {
     let status = 404;
     globalThis.fetch = async () => new Response(JSON.stringify({ success: false }), { status });
-    assert.deepEqual(await listStaticDeployments("abc123", "cloudflare", "production"), []);
+    assert.deepEqual(await listStaticDeployments("abc123", "production"), []);
     status = 500;
-    await assert.rejects(listStaticDeployments("abc123", "cloudflare", "production"), /HTTP 500/);
+    await assert.rejects(listStaticDeployments("abc123", "production"), /HTTP 500/);
   } finally {
     globalThis.fetch = savedFetch;
     if (savedAccount === undefined) delete process.env.CLOUDFLARE_ACCOUNT_ID;

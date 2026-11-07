@@ -2,7 +2,7 @@ import { blake3 } from "@noble/hashes/blake3";
 import { envVar } from "./env";
 import type { PublishTarget } from "./generator";
 import { assertGeneratedPaths } from "./generator/output-paths";
-import { hostingProjectName, type StaticPublishProvider } from "./publish-provider";
+import { hostingProjectName } from "./publish-provider";
 
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const MAX_ZIP_BYTES = 25 * 1024 * 1024;
@@ -249,22 +249,18 @@ async function publishCloudflare(project: string, target: PublishTarget, files: 
 
 export async function deployStaticSite(
   siteId: string,
-  provider: StaticPublishProvider,
   target: PublishTarget,
   files: StaticFile[],
 ): Promise<StaticDeployment> {
-  const project = hostingProjectName(siteId, provider, target);
-  if (provider !== "cloudflare") throw new Error("Netlify requires a browser-owned deployment.");
+  const project = hostingProjectName(siteId, "cloudflare", target);
   return publishCloudflare(project, target, files);
 }
 
 export async function listStaticDeployments(
   siteId: string,
-  provider: StaticPublishProvider,
   target: PublishTarget,
 ): Promise<StaticDeploymentHistory[]> {
-  const project = hostingProjectName(siteId, provider, target);
-  if (provider !== "cloudflare") throw new Error("Netlify requires a browser-owned deployment.");
+  const project = hostingProjectName(siteId, "cloudflare", target);
   // History must not create an empty Pages project.
   const path = cloudflarePath(project) + "/deployments?per_page=25";
   const token = envVar("CLOUDFLARE_API_TOKEN");
@@ -294,17 +290,15 @@ export async function listStaticDeployments(
 
 export async function restoreStaticDeployment(
   siteId: string,
-  provider: StaticPublishProvider,
   target: PublishTarget,
   deploymentId: string,
 ): Promise<void> {
   if (!/^[a-zA-Z0-9_-]{8,80}$/.test(deploymentId)) throw new Error("Invalid deployment ID.");
-  const existing = await listStaticDeployments(siteId, provider, target);
+  const existing = await listStaticDeployments(siteId, target);
   if (!existing.some((x) => x.id === deploymentId && x.canRestore)) {
     throw new Error("This deployment cannot be restored.");
   }
-  const project = hostingProjectName(siteId, provider, target);
-  if (provider !== "cloudflare") throw new Error("Netlify requires a browser-owned deployment.");
+  const project = hostingProjectName(siteId, "cloudflare", target);
   await cloudflareRequest(cloudflarePath(project) +
     "/deployments/" + encodeURIComponent(deploymentId) + "/rollback",
     "Restore Pages deployment", { method: "POST" });

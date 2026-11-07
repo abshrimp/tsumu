@@ -7,7 +7,6 @@ const API = "https://api.netlify.com/api/v1";
 const ACCOUNT_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const ID_RE = /^[a-z0-9-]{8,100}$/i;
 
-export type NetlifyTarget = PublishTarget;
 export interface NetlifyTeam { id: string; slug: string; name: string }
 export interface NetlifySite { id: string; account_id: string; ssl_url?: string; url?: string; name?: string }
 export interface NetlifyDeployment {

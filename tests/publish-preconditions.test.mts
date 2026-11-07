@@ -118,7 +118,6 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/github": { advanceBranchRef, targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/db": { dbConfigured: () => false },
     "lib/publish-provider": { publishProvider: () => "github" },
-    "lib/netlify-deploy": { netlifyProjectStatus: async () => ({ connected: false }) },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },

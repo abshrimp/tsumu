@@ -19,5 +19,4 @@ def render(size: int, destination: Path) -> None:
         image.verify()
     print(f"Generated and verified {destination.relative_to(ROOT)}")
 
-render(512, ROOT / "public" / "tsumu-icon.png")
 render(180, ROOT / "app" / "apple-icon.png")

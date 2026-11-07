@@ -34,7 +34,6 @@
     "preview:deploy": "npm run build:worker && node scripts/cloudflare-preview.mjs",
     "deploy": "npm run build:worker && node scripts/cloudflare.mjs deploy",
     "typecheck": "tsc --noEmit",
-    "audit:vendor": "node scripts/audit-vendored-picomatch.mjs",
     "test": "node --import tsx --test tests/*.test.mts",
     "test:e2e": "playwright test",
     "i18n:check": "node --import tsx scripts/i18n-check.mts",

@@ -150,7 +150,6 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     },
     "lib/db": { dbConfigured: () => false },
     "lib/publish-provider": { publishProvider: () => "github" },
-    "lib/netlify-deploy": { netlifyProjectStatus: async () => ({ connected: false }) },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": preconditions, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },

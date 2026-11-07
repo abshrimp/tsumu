@@ -470,17 +470,31 @@ export default function PublishModal({
 
   const siteUrl = site ? targets?.[site].url : null;
 
-  if (targets?.provider === "netlify" || targets?.provider === "cloudflare") {
-    const Modal = targets.provider === "netlify" ? NetlifyPublishModal : StaticPublishModal;
-    return <Modal key={targets.provider} conf={{
-      site: targets.site, provider: targets.provider, configured: targets.configured,
-      test: {
-        project: targets.test.project ?? "", url: targets.test.url, error: targets.test.error,
-      },
-      production: {
-        project: targets.production.project ?? "", url: targets.production.url, error: targets.production.error,
-      },
-    }} onClose={onClose} />;
+  if (targets?.provider === "netlify") {
+    return (
+      <NetlifyPublishModal
+        conf={{ site: targets.site, configured: targets.configured, error: targets.production.error }}
+        onClose={onClose}
+      />
+    );
+  }
+  if (targets?.provider === "cloudflare") {
+    return (
+      <StaticPublishModal
+        conf={{
+          site: targets.site,
+          provider: targets.provider,
+          configured: targets.configured,
+          test: {
+            project: targets.test.project ?? "", url: targets.test.url, error: targets.test.error,
+          },
+          production: {
+            project: targets.production.project ?? "", url: targets.production.url, error: targets.production.error,
+          },
+        }}
+        onClose={onClose}
+      />
+    );
   }
 
   return (

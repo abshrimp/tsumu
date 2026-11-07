@@ -228,12 +228,12 @@ describe("browser-data-export", () => {
     assert.ok(exportLimitations(doc, "html").length > 0);
   });
 
-  test("generated code has no framework-editor brand markers (documentation and build-package identity excepted)", () => {
+  test("generated code has no framework-editor brand markers (documentation excepted)", () => {
     const doc = fixture([]);
     for (const format of ["nextjs", "react", "html"] as const) {
       const p = generateExportProject(doc, format);
       for (const [path, source] of Object.entries(p.files)) {
-        if (/\.(md|txt)$/i.test(path) || path === "vendor/picomatch/package.json") continue;
+        if (/\.(md|txt)$/i.test(path)) continue;
         assert.doesNotMatch(source, /tsumu/i, format + ": " + path);
       }
     }
@@ -241,7 +241,7 @@ describe("browser-data-export", () => {
       framework: "react", language: "typescript", style: "css-modules", scope: "project",
     });
     for (const [path, source] of Object.entries(css.files)) {
-      if (/\.(md|txt)$/i.test(path) || path === "vendor/picomatch/package.json") continue;
+      if (/\.(md|txt)$/i.test(path)) continue;
       assert.doesNotMatch(source, /tsumu/i, path);
     }
   });

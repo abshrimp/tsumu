@@ -11,7 +11,6 @@ import { userMessage } from "../lib/errors";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { showConfirm } from "../lib/dialog";
 import type { PublishTarget } from "../lib/generator";
-import type { StaticPublishModalConfig } from "./StaticPublishModal";
 import { Seg } from "./controls";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 import {
@@ -20,6 +19,12 @@ import {
   readNetlifyOAuthConfig, startNetlifyOAuth, requestNetlify,
   type BrowserNetlifyAccount, type BrowserNetlifySite,
 } from "../lib/browser-netlify";
+
+export interface NetlifyPublishModalConfig {
+  site: string;
+  configured: boolean;
+  error: string | null;
+}
 
 type Team = { id: string; slug: string; name: string };
 type RemoteAccount = { user: { id: string; email: string }; teams: Team[] };
@@ -30,7 +35,7 @@ type PublishResult = { id: string; state: string; deploymentUrl: string; siteUrl
 export default function NetlifyPublishModal({
   conf, onClose,
 }: {
-  conf: StaticPublishModalConfig;
+  conf: NetlifyPublishModalConfig;
   onClose: () => void;
 }) {
   const doc = useEditor((state) => state.doc);
@@ -70,7 +75,7 @@ export default function NetlifyPublishModal({
     void (async () => {
       if (!conf.configured) {
         if (alive) {
-          setError(conf.production.error || tr("Netlify OAuth is not configured."));
+          setError(conf.error || tr("Netlify OAuth is not configured."));
           setPhase("error");
         }
         return;
