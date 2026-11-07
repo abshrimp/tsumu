@@ -36,7 +36,7 @@ test("generated Vue and Svelte components never compile authored plain text into
       framework === "vue" ? "src/pages/Page0.vue" : "src/lib/pages/Page0.svelte";
     const source = project.files[path];
     assert.ok(source, path);
-    assert.match(source, /src="data:image\\/png;base64,AQID"/);
+    assert.ok(source.includes('src="data:image/png;base64,AQID"'));
     // Entity-encoded braces are ordinary HTML text, not compiled expressions.
     assert.match(source, /Literal &#123;&#123; 3 \+ 4 &#125;&#125; and &#123;1 \+ 2&#125;/);
     assert.doesNotMatch(source, /Literal \{\{/);
