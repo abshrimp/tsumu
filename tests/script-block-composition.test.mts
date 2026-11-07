@@ -89,6 +89,93 @@ test("a browser-only operand keeps its arithmetic block in the client runtime", 
   assert.ok(plan.clientVars.has("total"));
 });
 
+test("page-load for-each and if execute on fetched items before rendering, including nested transforms", () => {
+  const doc = scriptDataPickerDoc();
+  const load = doc.pages.p.pageScripts![0].steps;
+  const fetch = load[0];
+  if (fetch.kind !== "fetch") throw new Error("Expected fetch fixture");
+  fetch.sample = {
+    rows: [
+      { price: 10, enabled: "true" },
+      { price: 7, enabled: "false" },
+      { price: 5, enabled: "true" },
+    ],
+  };
+  load.push(
+    { id: "zero", kind: "set-var", value: "0", into: "total" },
+    { id: "init-number", kind: "transform", source: "total", into: "total",
+      transform: { kind: "parse" } },
+    { id: "empty", kind: "set-var", value: "[]", into: "prices" },
+    { id: "init-list", kind: "transform", source: "prices", into: "prices",
+      transform: { kind: "parse" } },
+    { id: "each-price", kind: "for-each", array: "data.rows", then: [
+      { id: "if-enabled", kind: "if",
+        cond: { subject: "var", target: "", left: "{enabled}", op: "eq", value: "true" },
+        then: [
+          { id: "double", kind: "transform", source: "price", into: "doubled",
+            transform: { kind: "math", operation: "multiply", operand: 2 } },
+          { id: "sum", kind: "transform", source: "total", into: "total",
+            transform: { kind: "math", operation: "add", operandType: "variable", operand: "doubled" } },
+          { id: "append", kind: "transform", source: "prices", into: "prices",
+            transform: { kind: "append", operandType: "variable", operand: "doubled" } },
+        ], else: [
+          { id: "excluded", kind: "set-var", value: "excluded", into: "status" },
+        ] },
+    ] },
+  );
+  const plan = pagePlan(doc, "p");
+  assert.ok(plan.serverIds.has("each-price"));
+  assert.ok(!plan.clientVars.has("doubled"));
+  const preview = previewDataVars(doc, "p");
+  assert.equal(preview.total, 30);
+  assert.deepEqual(preview.prices, [20, 10]);
+  assert.equal(preview.status, "excluded");
+  const project = generateProject(doc).files;
+  assert.ok(project["lib/page-load-steps.ts"]);
+  assert.ok(project["lib/value-recipe.ts"]);
+  assert.match(project["app/page.tsx"], /__runPurePageSteps/);
+  assert.match(project["app/page.tsx"], /"for-each"/);
+  assert.doesNotThrow(() => transformSync(project["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
+});
+
+test("page-load nested browser effects are not mistakenly executed or discarded by SSR", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "not-server", kind: "for-each", array: "data.tags", then: [
+      { id: "copy", kind: "copy", value: "{値}" },
+    ] },
+    { id: "unbounded", kind: "repeat", times: 0, then: [
+      { id: "assign", kind: "set-var", into: "never", value: "not server" },
+    ] },
+  );
+  const plan = pagePlan(doc, "p");
+  assert.ok(!plan.serverIds.has("not-server"));
+  assert.ok(!plan.serverIds.has("unbounded"));
+  assert.ok(!plan.serverIds.has("copy"));
+});
+
+test("page-load nested loops read the nearest item's fields and preserve the outer result", () => {
+  const doc = scriptDataPickerDoc();
+  const fetch = doc.pages.p.pageScripts![0].steps[0];
+  if (fetch.kind !== "fetch") throw new Error("Expected fetch fixture");
+  fetch.sample = {
+    rows: [{ key: "outer", nested: [{ key: "a" }, { key: "b" }] }],
+  };
+  const steps = doc.pages.p.pageScripts![0].steps;
+  steps.push(
+    { id: "empty", kind: "set-var", value: "[]", into: "collected" },
+    { id: "parse", kind: "transform", source: "collected", into: "collected", transform: { kind: "parse" } },
+    { id: "each-outer", kind: "for-each", array: "data.rows", then: [
+      { id: "each-inner", kind: "for-each", array: "nested", then: [
+        { id: "collect", kind: "transform", source: "collected", into: "collected",
+          transform: { kind: "append", operandType: "variable", operand: "key" } },
+      ] },
+    ] },
+  );
+  assert.ok(pagePlan(doc, "p").serverIds.has("each-outer"));
+  assert.deepEqual(previewDataVars(doc, "p").collected, ["a", "b"]);
+});
+
 test("a canvas transform chain serializes to the browser runtime without losing step order", () => {
   const doc = scriptDataPickerDoc();
   const node = { ...makeBox(), id: "action", attrId: "action", scripts: [{
