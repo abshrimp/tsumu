@@ -31,7 +31,7 @@ for (const local of [false, true]) test(`${local ? "local" : "server"} polling r
   await expect(detail(page).getByRole("button", { name: "解決済みにする", exact: true })).toBeDisabled();
   await expect(page.locator(".cm-item")).toHaveCount(0);
   await expect(detail(page).locator(".cm-msg-body")).toHaveText("Original discussion");
-  await detail(page).getByRole("button", { name: "閉じる", exact: true }).click(); await expect(detail(page)).toHaveCount(0);
+  await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click(); await expect(detail(page)).toHaveCount(0);
   if (local) expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe("[]");
   else expect((await (await page.request.get(`/api/comments?site=${site}`)).json()).threads).toEqual([]);
 });
@@ -99,7 +99,7 @@ test("a reply ID collision keeps the draft and live discussion available for a s
   await expect(reply).toHaveValue("Keep this unsent reply"); await expect(submit).toBeEnabled();
   await expect(deletedWarning(page)).toHaveCount(0);
   await expect(detail(page).getByRole("button", { name: "解決済みにする", exact: true })).toBeEnabled();
-  await expect(page.locator(".cm-item")).toHaveCount(1);
+  await expect(detail(page).locator(".cm-msg-body").first()).toHaveText("Original discussion");
   const before = await (await page.request.get(`/api/comments?site=${site}`)).json();
   expect(before.threads[0].messages.map((m: { body: string }) => m.body)).toEqual(["Original discussion", "Already saved reply"]);
   const saved = page.waitForResponse(response => response.url().includes("/api/comments?") && response.request().method() === "POST");
