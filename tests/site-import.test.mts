@@ -7,11 +7,9 @@ import {
   EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, IMPORT_LIMITS,
   parseSiteImport, validateImportedDoc,
 } from "../lib/site-import";
-import { requestedSiteImport } from "../lib/import-site-url";
-import { assertPublicUrl, BlockedUrlError } from "../lib/safe-fetch";
+import { importFileKind } from "../lib/import-site-file";
 
 const enc = new TextEncoder();
-const source = "https://downloads.example.test/site.zip";
 
 function fixture() {
   const doc = createInitialDoc();
@@ -25,10 +23,9 @@ function fixture() {
   return doc;
 }
 
-test("doc.json URL restores an editable SiteDoc and original IDs", async () => {
+test("local doc.json restores an editable SiteDoc and original IDs", async () => {
   const doc = fixture();
-  const result = await parseSiteImport(enc.encode(JSON.stringify(doc)), "doc",
-    "https://downloads.example.test/doc.json");
+  const result = await parseSiteImport(enc.encode(JSON.stringify(doc)), "doc");
   assert.deepEqual(result.doc, doc);
   assert.equal(result.doc.assets["original-image"].id, "original-image");
   assert.equal(result.assets.size, 0);
@@ -48,7 +45,7 @@ test("nested export ZIP includes editable source and exact original asset mappin
   root.file("public/assets/" + assetName, svg);
   root.file("app/page.tsx", "export default function Page() {}");
   const bytes = await zip.generateAsync({ type: "uint8array" });
-  const result = await parseSiteImport(bytes, "zip", source);
+  const result = await parseSiteImport(bytes, "zip");
   assert.deepEqual(result.warnings, []);
   assert.equal(result.doc.assets["original-image"].path, "assets/old-reference");
   assert.equal(new TextDecoder().decode(result.assets.get("original-image")), svg);
@@ -58,7 +55,7 @@ test("archives without assets remain importable and produce warnings", async () 
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
   const result = await parseSiteImport(
-    await zip.generateAsync({ type: "uint8array" }), "zip", source);
+    await zip.generateAsync({ type: "uint8array" }), "zip");
   assert.equal(result.assets.size, 0);
   assert.match(result.warnings.join("\n"), /logo.svg/);
 });
@@ -69,7 +66,7 @@ test("embedded data URLs remain valid when ZIP asset bytes are missing", async (
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
   const result = await parseSiteImport(
-    await zip.generateAsync({ type: "uint8array" }), "zip", source);
+    await zip.generateAsync({ type: "uint8array" }), "zip");
   assert.deepEqual(result.warnings, []);
   assert.equal(result.doc.assets["original-image"].dataUrl, doc.assets["original-image"].dataUrl);
 });
@@ -78,7 +75,7 @@ test("non-editor HTML ZIP is not confused with SiteDoc archive", async () => {
   const zip = new JSZip();
   zip.file("index.html", "<html><body>Not an editor project</body></html>");
   await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
-    "zip", source), /_tsumu\/doc\.json/);
+    "zip"), /_tsumu\/doc\.json/);
 });
 
 test("document validation rejects corrupt references and unsafe object keys", () => {
@@ -94,41 +91,21 @@ test("document validation rejects corrupt references and unsafe object keys", ()
 
 test("ZIP source limits reject oversized and enormous archives", async () => {
   await assert.rejects(parseSiteImport(new Uint8Array(IMPORT_LIMITS.zipBytes + 1),
-    "zip", source), /大きすぎ/);
+    "zip"), /大きすぎ/);
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
   for (let i = 0; i < IMPORT_LIMITS.entries + 1; i++) {
     zip.file("extra/" + i + ".txt", "x");
   }
   await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
-    "zip", source), /多すぎ/);
+    "zip"), /多すぎ/);
 });
 
-test("import URL accepts one HTTP(S) query and rejects ambiguous or private schemes", () => {
-  assert.deepEqual(requestedSiteImport(new URLSearchParams({
-    zip: "https://downloads.example.test/export.zip",
-  })), { mode: "zip", url: "https://downloads.example.test/export.zip" });
-  assert.equal(requestedSiteImport(new URLSearchParams()), null);
-  assert.throws(() => requestedSiteImport(new URLSearchParams({
-    doc: "https://test.example/doc.json", zip: "https://test.example/file.zip",
-  })), /同時/);
-  assert.throws(() => requestedSiteImport(new URLSearchParams({
-    doc: "file:///etc/passwd",
-  })), /HTTP/);
-});
-
-test("remote URL fetching rejects private, metadata and credentialed destinations", async () => {
-  for (const url of [
-    "http://127.0.0.1/admin",
-    "http://169.254.169.254/latest/meta-data/",
-    "http://10.0.0.1/internal",
-    "http://localhost:8080/private",
-    "file:///etc/passwd",
-    "https://user:pass@example.com/doc.json",
-  ]) {
-    await assert.rejects(assertPublicUrl(url),
-      (error: unknown) => error instanceof BlockedUrlError, url);
-  }
+test("local file picker accepts ZIP and JSON and rejects other formats", () => {
+  assert.equal(importFileKind({ name: "website.zip" }), "zip");
+  assert.equal(importFileKind({ name: "doc.json" }), "doc");
+  assert.equal(importFileKind({ name: "custom-name.json" }), "doc");
+  assert.throws(() => importFileKind({ name: "index.html" }), /ZIP/);
 });
 
 test("archives with multiple editable documents are rejected before restoring assets", async () => {
@@ -136,5 +113,5 @@ test("archives with multiple editable documents are rejected before restoring as
   zip.file("first/_tsumu/doc.json", JSON.stringify(fixture()));
   zip.file("second/_tsumu/doc.json", JSON.stringify(fixture()));
   await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
-    "zip", source), /複数の編集データ/);
+    "zip"), /複数の編集データ/);
 });

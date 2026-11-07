@@ -16,6 +16,8 @@ import {
 import { useEditor } from "../lib/store";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { assetSrc } from "../lib/assets";
+import { serializePortableDoc } from "../lib/portable-doc";
+import { parseSiteImport, IMPORT_LIMITS } from "../lib/site-import";
 import { siteLangOf } from "../lib/site-lang";
 import { genId, makeBox, makeText } from "../lib/presets";
 import {
@@ -555,8 +557,15 @@ export default function SitePanel() {
   const restoreDoc = useEditor((s) => s.restoreDoc);
   const docFileRef = useRef<HTMLInputElement>(null);
 
-  const exportDocJson = () => {
-    const blob = new Blob([JSON.stringify(doc, null, 2)], {
+  const exportDocJson = async () => {
+    let serialized: string;
+    try {
+      serialized = await serializePortableDoc(doc, IMPORT_LIMITS.docBytes);
+    } catch {
+      void showAlert(tr("バックアップファイルを作成できませんでした。"));
+      return;
+    }
+    const blob = new Blob([serialized], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -568,34 +577,20 @@ export default function SitePanel() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const importDocJson = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = async () => {
-      let parsed;
-      try {
-        parsed = JSON.parse(String(reader.result));
-      } catch {
-        void showAlert(tr("エディタで保存したバックアップファイルか確認してください。"), {
-          title: tr("このファイルは読み込めませんでした"),
-        });
-        return;
-      }
-      if (!parsed?.pages || !parsed?.nodes || !parsed?.pageOrder?.length) {
-        void showAlert(tr("ページや要素の情報が見つかりません。エディタで保存したバックアップファイルを選んでください。"), {
-          title: tr("編集データの形式ではありません"),
-        });
-        return;
-      }
-      if (
-        await showConfirm(tr("いまの編集内容は、このファイルの内容に置き換わります。「元に戻す」（⌘Z）で今の内容に戻せます。"), {
-          title: tr("バックアップを読み込みますか？"),
-          okLabel: tr("読み込む"),
-        })
-      ) {
-        restoreDoc(parsed);
-      }
-    };
-    reader.readAsText(file);
+  const importDocJson = async (file: File) => {
+    let parsed;
+    try {
+      parsed = (await parseSiteImport(new Uint8Array(await file.arrayBuffer()), "doc")).doc;
+    } catch {
+      void showAlert(tr("エディタで保存したバックアップファイルか確認してください。"), {
+        title: tr("このファイルは読み込めませんでした"),
+      });
+      return;
+    }
+    if (await showConfirm(
+      tr("いまの編集内容は、このファイルの内容に置き換わります。「元に戻す」（⌘Z）で今の内容に戻せます。"),
+      { title: tr("バックアップを読み込みますか？"), okLabel: tr("読み込む") },
+    )) restoreDoc(parsed);
   };
 
   return (
@@ -784,7 +779,7 @@ export default function SitePanel() {
         title={tr("バックアップ")}
         tutorialTarget="site-backup"
         help="pub-backup"
-        info={tr("サイト全体の編集データをバックアップファイルとして保存・復元します。GitHubへのPush時に保存される編集データも読み込めます。")}
+        info={tr("サイト全体の編集データをバックアップファイルとして保存・復元します。公開時にリポジトリへ保存される _tsumu/doc.json も読み込めます。")}
         defaultOpen={false}
       >
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -814,7 +809,7 @@ export default function SitePanel() {
             style={{ display: "none" }}
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) importDocJson(file);
+              if (file) void importDocJson(file);
               e.target.value = "";
             }}
           />
