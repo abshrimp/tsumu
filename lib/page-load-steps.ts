@@ -3,9 +3,10 @@ import type { ValueTransform } from "./script-model/compose";
 type ScriptStep =
   | { kind: "set-var"; into: string; value: string }
   | { kind: "transform"; into: string; source: string; transform: ValueTransform }
-  | { kind: "if"; cond: { subject: string; left?: string; value?: string; op?: string }; then: ScriptStep[]; else?: ScriptStep[] }
+  | { kind: "if"; cond: { subject: string; left?: string; value?: string; op?: string; not?: boolean }; then: ScriptStep[]; else?: ScriptStep[] }
   | { kind: "for-each"; array: string; then: ScriptStep[] }
   | { kind: "repeat"; times: string | number; then: ScriptStep[] };
+
 import type { RecipeEvaluation } from "./script-model/recipe-runtime";
 
 /**
@@ -41,7 +42,9 @@ export function runPurePageSteps(
       case "starts-with": return left.startsWith(right);
       case "ends-with": return left.endsWith(right);
       case "gt": return parseFloat(left) > parseFloat(right);
+      case "gte": return parseFloat(left) >= parseFloat(right);
       case "lt": return parseFloat(left) < parseFloat(right);
+      case "lte": return parseFloat(left) <= parseFloat(right);
       case "empty": return left === "";
       case "not-empty": return left !== "";
       case "in": return right.split(",").some((part) => part.trim() === left);
@@ -79,11 +82,12 @@ export function runPurePageSteps(
         }
         case "if": {
           if (step.cond.subject !== "var") break;
-          const chosen = compare(
+          const matches = compare(
             interpolate(step.cond.left ?? "", scope),
             interpolate(step.cond.value ?? "", scope),
             step.cond.op ?? "eq",
-          ) ? step.then : step.else;
+          );
+          const chosen = (step.cond.not ? !matches : matches) ? step.then : step.else;
           if (chosen?.length) execute(chosen, locals, depth + 1);
           break;
         }
@@ -107,7 +111,7 @@ export function runPurePageSteps(
         }
         case "repeat": {
           const matched = typeof step.times === "string"
-            ? /^\\{([^{}\\s]+)\\}$/.exec(step.times.trim()) : null;
+            ? /^\{([^{}\s]+)\}$/.exec(step.times.trim()) : null;
           const raw = typeof step.times === "string"
             ? matched ? lookup(scope, matched[1]) : undefined : step.times;
           if (raw === null || raw === undefined || typeof raw === "boolean" ||
