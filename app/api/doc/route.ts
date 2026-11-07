@@ -22,6 +22,8 @@ import { getSite } from "../../../lib/sites";
 import { isDocPatch } from "../../../lib/doc-patch";
 import type { SiteDoc } from "../../../lib/types";
 import { siteThumbnailImages } from "../../../lib/site-thumbnail";
+import { extractAssetReferences } from "../../../lib/asset-gc-plan";
+import { siteOwnsAssets } from "../../../lib/site-asset-access";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
@@ -149,6 +151,10 @@ async function save(req: Request, partial: boolean) {
     const db = await getDb();
     if (!(await getSite(db, siteId))) {
       return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
+    }
+    const referencedAssets = extractAssetReferences(partial ? JSON.stringify(patch) : raw);
+    if (referencedAssets.size > 0 && !await siteOwnsAssets(db, siteId, referencedAssets)) {
+      return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
     }
     const { result, roomKey } = partial && isDocPatch(patch)
       ? await patchSiteDocumentWithTarget(db, siteId, patch, base!)

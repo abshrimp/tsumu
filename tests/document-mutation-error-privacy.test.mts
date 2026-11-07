@@ -9,6 +9,7 @@ import { isDocPatch, type DocPatch } from "../lib/doc-patch";
 import { userMessage } from "../lib/errors";
 import { createInitialDoc } from "../lib/presets";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
+import { extractAssetReferences } from "../lib/asset-gc-plan";
 import { DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, isSiteId, normalizeSiteInput } from "../lib/sites";
 import { StructuredDocumentStore, type DocumentSqlStorage, type SiteSaveResult, type SiteSnapshot } from "../lib/structured-document-store";
 
@@ -58,7 +59,8 @@ function fixture(options: {
   const injected: Record<string, unknown> = {
     NextResponse, userMessage, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError,
     DocTooLargeError, InvalidDocPatchError, validateDocValue, isDocPatch,
-    IMPORT_LIMITS, validateImportedDoc,
+    IMPORT_LIMITS, validateImportedDoc, extractAssetReferences,
+    siteOwnsAssets: async () => true,
     DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, isSiteId, normalizeSiteInput,
     serverTr: async () => options.translate ?? ((value: string) => value),
     requireAuth: async () => { calls.push("auth"); return options.denied ?? null; }, requireSiteAccess: async () => null,

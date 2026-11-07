@@ -141,6 +141,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     "lib/i18n-server": { serverTr: async () => (s: string) => s },
     "lib/server": { requireAuth: async () => null, recordPublish: async () => { recorded++; } },
     "lib/site-access": { requireSiteAccess: async () => null },
+    "lib/site-asset-access": { siteHasAsset: async () => true },
     "lib/site-server": { siteIdOf: async () => "site", siteDestOf: async () => ({}) },
     "lib/github": {
       advanceBranchRef, branchPath: (s: string) => s, configError: () => null,

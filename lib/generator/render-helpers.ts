@@ -18,6 +18,7 @@ import { compileScripts, hasRunnableScripts, keepTokens, walkSteps } from "../sc
 import { SELF_TARGET } from "../types";
 import { type JsxContext } from "./render";
 import { codeLiteral } from "./code-literal";
+import { safeResourceUrl } from "../url-policy";
 
 export function pageHref(ctx: JsxContext, pageId: string): string {
   const page = ctx.doc.pages[pageId];
@@ -485,5 +486,7 @@ export function imageRefSrc(
   if (ref.assetId && assetNames.has(ref.assetId)) {
     return `/assets/${assetNames.get(ref.assetId)}`;
   }
-  return ref.url?.trim() || null;
+  if (!ref.url) return null;
+  const safe = safeResourceUrl(ref.url);
+  return safe && safe !== "#" ? safe : null;
 }

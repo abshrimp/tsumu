@@ -3,6 +3,7 @@ import { publishProvider, staticPublishConfig } from "../../../lib/publish-provi
 import { serverTr } from "../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../lib/server";
 import { requireSiteAccess } from "../../../lib/site-access";
+import { siteHasAsset } from "../../../lib/site-asset-access";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { DEFAULT_PUBLISHED_EXPORT_OPTIONS, parsePublishedExportOptions, readPublishedExportOptions, savePublishedExportOptions, type PublishedExportOptions } from "../../../lib/publish-preferences";
 import {
@@ -332,6 +333,9 @@ export async function POST(req: Request) {
   const loadStoredAsset = async (path: string, source: string): Promise<ArrayBuffer> => {
     if (!source.startsWith("assets/")) {
       throw new Error(tr("Asset source not allowed: {source}", { source }));
+    }
+    if (dbConfigured() && !await siteHasAsset(await getDb(), siteId, source)) {
+      throw new MissingAssetError(tr("Couldn't load asset: {path}", { path }));
     }
     const store = assetStore();
     if (!store) throw new Error(tr("Asset storage isn't configured. Contact your administrator."));

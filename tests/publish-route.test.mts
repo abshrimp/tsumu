@@ -17,7 +17,7 @@ const OTHER_BLOB_SHA = "4".repeat(40);
 
 // 外部とは通信せずに、公開の API が GitHub に渡すツリーを確かめる。
 function fixture(truncated?: boolean, manifestText?: string, documentBlob?: string,
-  storedAssets: Record<string, Uint8Array> = {}) {
+  storedAssets: Record<string, Uint8Array> = {}, dbMode = false, ownedAssets?: Set<string>) {
   class NextResponse extends Response {
     static json(data: unknown, init?: ResponseInit) {
       return new NextResponse(JSON.stringify(data), init);
@@ -35,6 +35,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
   const writes: string[] = [];
   const refUpdates: { sha: string; force: boolean }[] = [];
   const uploaded: { content: string; encoding: string }[] = [];
+  const kvReads: string[] = [];
   let recorded = false;
   let treeRejection: { body: object; headers?: Record<string, string>; when?: (items: helpers.TreeEntry[]) => boolean } | null = null;
   const gh = async (path: string, options: { body?: string } = {}) => {
@@ -95,8 +96,10 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     toBranchPath: (path: string) => path,
     advanceBranchRef,
     recordPublish: async () => { recorded = true; },
-    dbConfigured: () => false,
-    assetStore: () => ({ get: async (source: string) => storedAssets[source] ?? null }),
+    dbConfigured: () => dbMode,
+    getDb: async () => ({}),
+    siteHasAsset: async (_db: unknown, _siteId: string, source: string) => ownedAssets ? ownedAssets.has(source) : true,
+    assetStore: () => ({ get: async (source: string) => { kvReads.push(source); return storedAssets[source] ?? null; } }),
     userMessage: (error: Error) => error.message,
   };
   const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/publish/route.ts", import.meta.url), "utf8"))
@@ -107,7 +110,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: HEAD_SHA, exportOptions: { framework: "nextjs", language: "typescript", style: "css" }, ...body, site: "site", target: "production" }),
   }));
   return {
-    entries, trees, treeSnapshots, commitTrees, writes, refUpdates, uploaded, send,
+    entries, trees, treeSnapshots, commitTrees, writes, refUpdates, uploaded, kvReads, send,
     rejectTree(body: object, headers?: Record<string, string>) { treeRejection = { body, headers }; },
     rejectTreeWhen(body: object, when: (items: helpers.TreeEntry[]) => boolean) { treeRejection = { body, when }; },
     get recorded() { return recorded; },
@@ -605,5 +608,14 @@ test("commit rejects non-40-hex expectedHead and assetShas before any GitHub wri
     assert.deepEqual(f.writes, []);
     assert.equal(f.recorded, false);
   }
+});
+
+test("upload rejects stored asset sources that do not belong to the publishing site", async () => {
+  const secretBytes = Buffer.from("other-tenant-secret");
+  const f = fixture(false, undefined, undefined, { "assets/other-site.png": secretBytes }, true, new Set(["assets/own.png"]));
+  const denied = await f.send({ action: "upload", path: "public/assets/stolen.png", source: "assets/other-site.png" });
+  assert.equal(denied.status, 404);
+  assert.deepEqual(f.kvReads, []);
+  assert.deepEqual(f.writes, []);
 });
 

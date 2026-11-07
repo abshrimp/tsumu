@@ -51,6 +51,8 @@ function fixture(mode: "signed-in" | "anonymous" | "denied") {
     getSite: async () => ({ id: "site" }),
     validateDocValue: () => null,
     isDocPatch: (value: unknown) => Array.isArray(value),
+    extractAssetReferences: () => [],
+    siteOwnsAssets: async () => true,
     recordActivity: async (_db: unknown, _site: string, _kind: string, user: ActivityUser | null) => { authors.push(user); },
     notifyDocUpdated: () => {},
   };

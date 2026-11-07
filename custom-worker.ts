@@ -15,6 +15,8 @@ import { isSiteId, getSiteRoomKey, recordSiteSavedAt } from "./lib/sites";
 import { getAccountRole, isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
 import { collaborationIdentityAllowed } from "./lib/anonymous";
 import { isDocPatch } from "./lib/doc-patch";
+import { extractAssetReferences } from "./lib/asset-gc-plan";
+import { siteOwnsAssets } from "./lib/site-asset-access";
 
 interface WorkerEnv {
   COLLAB_ROOM: DurableObjectNamespace<CollaborationRoom>;
@@ -326,8 +328,13 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         return;
       }
       let result: SaveDocResult;
+      const loadCurrentBody = async () => (await remote.getSnapshot())?.body ?? null;
       if (input.type === "patch") {
         if (typeof input.base !== "string" || !isDocPatch(input.patch)) throw new Error("不正なリクエスト");
+        const referencedAssets = extractAssetReferences(JSON.stringify(input.patch));
+        if (referencedAssets.size > 0 && !await siteOwnsAssets(db, siteId, referencedAssets, loadCurrentBody)) {
+          throw new Error("不正なリクエスト");
+        }
         result = await remote.patchDocument(input.patch, input.base);
       } else {
         if (!input.doc || (input.base !== null && typeof input.base !== "string")) {
@@ -336,6 +343,10 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         const raw = JSON.stringify(input.doc);
         const validationError = validateDocBody(raw);
         if (validationError) throw new Error(validationError);
+        const referencedAssets = extractAssetReferences(raw);
+        if (referencedAssets.size > 0 && !await siteOwnsAssets(db, siteId, referencedAssets, loadCurrentBody)) {
+          throw new Error("不正なリクエスト");
+        }
         result = await remote.replaceDocument(raw, input.base);
       }
       let generationChanged = false;

@@ -14,7 +14,13 @@ import {
   lookupVar,
   pageHrefOf,
 } from "../../lib/vars";
-import { embedSrc, YOUTUBE_ALLOW } from "../../lib/embed";
+import {
+  EMBED_SANDBOX_TRUSTED,
+  EMBED_SANDBOX_URL,
+  embedSrc,
+  isSameOriginEmbed,
+  YOUTUBE_ALLOW,
+} from "../../lib/embed";
 import {
   type FieldValues,
   fieldInitialValue,
@@ -356,7 +362,11 @@ export function renderLeafNode(
 
   if (node.type === "embed" && node.embed) {
     const src = embedSrc(node.embed);
-    if (!src) {
+    if (
+      !src ||
+      (node.embed.kind === "url" &&
+        isSameOriginEmbed(src, typeof window !== "undefined" ? window.location.origin : null))
+    ) {
       const hint = {
         youtube: tr("Set the YouTube URL in the Settings panel"),
         map: tr("Set an address or map URL in the Settings panel"),
@@ -374,6 +384,7 @@ export function renderLeafNode(
       createElement("iframe", {
         src,
         loading: "lazy",
+        sandbox: node.embed.kind === "url" ? EMBED_SANDBOX_URL : EMBED_SANDBOX_TRUSTED,
         allow: node.embed.kind === "youtube" ? YOUTUBE_ALLOW : undefined,
         allowFullScreen: node.embed.kind !== "map",
         referrerPolicy: "strict-origin-when-cross-origin",

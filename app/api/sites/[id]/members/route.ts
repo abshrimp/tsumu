@@ -14,7 +14,7 @@ const noStore = { "Cache-Control": "private, no-store" };
 
 async function authorize(ctx: Ctx): Promise<{ siteId: string } | NextResponse> {
   const tr = await serverTr();
-  const denied = await requireAuth("user");
+  const denied = await requireAuth("editor-user");
   if (denied instanceof NextResponse) return denied;
   if (!authConfigured() || !dbConfigured()) {
     return NextResponse.json({ error: tr("Site permissions need server storage and sign-in") }, { status: 503 });

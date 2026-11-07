@@ -4,10 +4,22 @@ import { langOfRequest } from "./lib/lang";
 import { isCrossSiteWrite } from "./lib/csrf";
 import { anonymousAllowed, anonymousHostAllowed } from "./lib/anonymous";
 
+const PUBLIC_BRAND_PATHS = new Set([
+  "/robots.txt",
+  "/icon.svg",
+  "/apple-icon.png",
+  "/tsumu-mark.svg",
+  "/tsumu-logo.svg",
+  "/tsumu-logo-dark.svg",
+]);
+
 export async function proxy(req: NextRequest) {
   // 辞書を読み込むと大きくなるため、ここで表示する文だけを持つ（日本語以外は英語）
   const en = langOfRequest(req) !== "ja";
   const { pathname } = req.nextUrl;
+  if (PUBLIC_BRAND_PATHS.has(pathname)) {
+    return NextResponse.next();
+  }
   if (pathname.startsWith("/api/") && isCrossSiteWrite(req)) {
     return NextResponse.json({ error: en ? "Cross-site requests are not allowed" : "ほかのサイトからのリクエストは受け付けません" }, { status: 403 });
   }
@@ -67,6 +79,6 @@ function setupRequired(pathname: string, en: boolean): NextResponse {
 }
 
 export const config = {
-  // robots.txt は認証なしで配信する（クローラーに Disallow を返すため）
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|robots.txt).*)"],
+  // robots.txt とログイン画面で使うブランドアイコンは認証なしで配信する
+  matcher: ["/((?!api/auth|_next/static|_next/image|icon\\.svg|apple-icon\\.png|tsumu-(?:mark|logo|logo-dark)\\.svg|robots\\.txt).*)"],
 };

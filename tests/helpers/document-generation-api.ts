@@ -13,6 +13,8 @@ import { createInitialDoc } from "../../lib/presets";
 import { isDocPatch } from "../../lib/doc-patch";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../lib/api-json";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../lib/site-import-format";
+import { extractAssetReferences } from "../../lib/asset-gc-plan";
+import { siteOwnsAssets } from "../../lib/site-asset-access";
 import { userMessage } from "../../lib/errors";
 
 class NextResponse extends Response {
@@ -106,6 +108,7 @@ export async function setup(t: TestContext) {
       get: (key: string) => ({
         getSnapshot: async () => room(key).snapshot(),
         getMetadata: async () => room(key).meta(),
+        listAssetReferences: async () => room(key).assetReferences(),
         replaceDocument: async (raw: string, base: string | null) => {
           await hooks.beforeRoomWrite?.(key);
           const result = room(key).replace(raw, base);
@@ -131,7 +134,7 @@ export async function setup(t: TestContext) {
   const shared = {
     ...sites, ...docStorage, ...services, NextResponse, recordActivity, isDocPatch,
     JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
-    IMPORT_LIMITS, validateImportedDoc, userMessage,
+    IMPORT_LIMITS, validateImportedDoc, extractAssetReferences, siteOwnsAssets, userMessage,
     newSiteId: () => "destination",
     getDb: async () => db, dbConfigured: () => true, requireAuth: async () => null, sessionUser: async () => null,
     requireSiteAccess: async () => null, siteRole: async () => "owner",

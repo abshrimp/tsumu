@@ -35,16 +35,31 @@ export async function recordUploadedAsset(db: Db, path: string, bytes: number, n
   });
 }
 
-export async function readAssetLedger(db: Db): Promise<AssetLedgerSummary | null> {
+export async function readAssetLedger(
+  db: Db,
+  options?: { siteId?: string },
+): Promise<AssetLedgerSummary | null> {
   if (db.backend !== "d1") return null;
+  const siteId = options?.siteId;
   const [totals, state, unknown] = await db.batch([
     `SELECT COUNT(*) AS n, COALESCE(SUM(COALESCE(o.bytes,c.bytes)),0) AS bytes,
       COALESCE(SUM(COALESCE(o.bytes,c.bytes) IS NULL),0) AS unknown,
       COUNT(c.path) AS pending, COALESCE(SUM(CASE WHEN c.path IS NOT NULL THEN COALESCE(o.bytes,c.bytes) END),0) AS pending_bytes
       FROM asset_objects o LEFT JOIN asset_gc_candidates c ON c.path=o.path`,
     "SELECT complete_at FROM asset_ledger_state WHERE id=1",
-    { sql: `SELECT o.path FROM asset_objects o LEFT JOIN asset_gc_candidates c ON c.path=o.path
-      WHERE COALESCE(o.bytes,c.bytes) IS NULL ORDER BY o.path LIMIT ?`, args: [UNKNOWN_PATHS_LIMIT] },
+    siteId
+      ? {
+          sql: `SELECT o.path FROM asset_objects o
+            JOIN site_asset_uploads u ON u.path=o.path AND u.site_id=?
+            LEFT JOIN asset_gc_candidates c ON c.path=o.path
+            WHERE COALESCE(o.bytes,c.bytes) IS NULL ORDER BY o.path LIMIT ?`,
+          args: [siteId, UNKNOWN_PATHS_LIMIT],
+        }
+      : {
+          sql: `SELECT o.path FROM asset_objects o LEFT JOIN asset_gc_candidates c ON c.path=o.path
+            WHERE COALESCE(o.bytes,c.bytes) IS NULL ORDER BY o.path LIMIT ?`,
+          args: [UNKNOWN_PATHS_LIMIT],
+        },
   ]);
   const row = totals.rows[0] ?? {};
   return {

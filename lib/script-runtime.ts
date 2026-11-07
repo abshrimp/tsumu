@@ -1066,7 +1066,10 @@ export const SCRIPT_RUNTIME = `function (env) {
               : a.name === "href"
                 ? safeNavigationUrl(resolveUrl(v, null, item))
                 : a.name === "src"
-                  ? resolve(v, null, item) || "${EMPTY_GIF}"
+                  ? (function (raw) {
+                      var safe = raw ? safeResourceUrl(raw) : "";
+                      return !safe || safe === "#" ? "${EMPTY_GIF}" : safe;
+                    })(resolve(v, null, item))
                   : resolve(v, null, item)
           );
         });
@@ -1092,7 +1095,8 @@ export const SCRIPT_RUNTIME = `function (env) {
             }
             return has(part, "fallback") ? part.fallback : text(lookup(part.name, null, item));
           }).join("");
-          n.setAttribute("src", src || "${EMPTY_GIF}");
+          var safeSrc = src ? safeResourceUrl(src) : "";
+          n.setAttribute("src", !safeSrc || safeSrc === "#" ? "${EMPTY_GIF}" : safeSrc);
         }
         // カスタムコード・アイコン（data-raw）の中身は書いたまま（配信前に並べるリスト・エディタと同じ）
         if (n.hasAttribute("data-raw")) return;

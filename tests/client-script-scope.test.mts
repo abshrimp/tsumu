@@ -402,7 +402,7 @@ describe("client-image-scope", () => {
   });
 
   test('image tokens preserve fallback data braces, own null/empty/root/dotted keys, escapes and slug', async () => {
-    const doc = clientImageDoc(false, '/{name}/{profile.label}/[slug]/\\{name}/{fallback}.png');
+    const doc = clientImageDoc(false, '/img/{name}/{profile.label}/[slug]/\\{name}/{fallback}.png');
     const items = [
       { name: 'Data {label}', profile: { label: 'Global' }, slug: 'global', tags: [{ label: 'red' }] },
       { name: null, profile: null, slug: '', tags: [{ label: 'null' }] },
@@ -420,24 +420,33 @@ describe("client-image-scope", () => {
     assert.ok(!html.includes('UNUSED_SERVER_PRIVATE'));
     const runtime = listRuntimeDom(html, scriptsFile(doc)); await runtime.click('reload');
     assert.deepEqual(sources(runtime), [
-      '/Data {label}/Global/global/{name}/Server {name}.png',
-      '////{name}/Server {name}.png',
-      '///global/{name}/Server {name}.png',
-      '/Data {label}/Literal {name}/global/{name}/Server {name}.png',
-      '/Own {slug}/Own/own/{name}/Server {name}.png',
+      '/img/Data {label}/Global/global/{name}/Server {name}.png',
+      '/img////{name}/Server {name}.png',
+      '/img///global/{name}/Server {name}.png',
+      '/img/Data {label}/Literal {name}/global/{name}/Server {name}.png',
+      '/img/Own {slug}/Own/own/{name}/Server {name}.png',
     ]);
     const parts = runtime.root.querySelectorAll('[data-image-src-parts]').map(n => JSON.parse(n.getAttribute('data-image-src-parts')!));
     assert.ok(parts.flat().every((p: any) => typeof p === 'string' || (typeof p.name === 'string' && (!Object.hasOwn(p, 'fallback') || typeof p.fallback === 'string'))));
     runtime.dispose();
   });
 
-  test('no global collision remains correct and empty row image uses the existing transparent fallback', async () => {
+  test('no global collision remains correct and empty or unsafe row image uses the existing transparent fallback', async () => {
     const doc = clientImageDoc(false, '{name}');
     doc.pages.p.pageScripts![0].steps.pop();
-    const items = [{ name: '/first.png', tags: [{}] }, { name: '/second.png', tags: [{}] }, { name: null, tags: [{}] }, { name: '', tags: [{}] }];
+    const items = [
+      { name: '/first.png', tags: [{}] },
+      { name: '/second.png', tags: [{}] },
+      { name: null, tags: [{}] },
+      { name: '', tags: [{}] },
+      { name: 'javascript:alert(1)', tags: [{}] },
+      { name: '//evil.example/pixel.png', tags: [{}] },
+    ];
     (doc.pages.p.pageScripts![0].steps[0] as any).preview = { sample: items };
     const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
-    await runtime.click('reload'); assert.deepEqual(sources(runtime), ['/first.png', '/second.png', EMPTY_GIF, EMPTY_GIF]); runtime.dispose();
+    await runtime.click('reload');
+    assert.deepEqual(sources(runtime), ['/first.png', '/second.png', EMPTY_GIF, EMPTY_GIF, EMPTY_GIF, EMPTY_GIF]);
+    runtime.dispose();
   });
 
   test('static assets, crisp SVGs, raw content and server image preload keep their output', async () => {

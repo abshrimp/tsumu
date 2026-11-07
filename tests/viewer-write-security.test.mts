@@ -17,6 +17,7 @@ const editorOnly: Record<string, string[]> = {
   "app/api/doc/route.ts": ["PUT", "PATCH"],
   "app/api/sites/route.ts": ["POST"],
   "app/api/sites/[id]/route.ts": ["PATCH", "DELETE"],
+  "app/api/sites/[id]/members/route.ts": ["GET", "PUT", "DELETE"],
   "app/api/publish/route.ts": ["POST"],
   "app/api/publish/history/route.ts": ["POST"],
   "app/api/fetch-json/route.ts": ["POST"],
@@ -50,7 +51,18 @@ test("viewers are rejected before every document or site mutation reaches storag
         { params: Promise.resolve({ id: "s1" }) },
       );
       assert.equal(res.status, 403, path + " " + method);
-      assert.deepEqual(deniedModes, [path.includes("/doc/") || path.includes("/comments/") || path === "app/api/sites/route.ts" ? "editor-user" : "editor"], path + " " + method + " must authorize before accessing data");
+      assert.deepEqual(
+        deniedModes,
+        [
+          path.includes("/doc/") ||
+          path.includes("/comments/") ||
+          path.includes("/members/") ||
+          path === "app/api/sites/route.ts"
+            ? "editor-user"
+            : "editor",
+        ],
+        path + " " + method + " must authorize before accessing data",
+      );
     }
   }
 });

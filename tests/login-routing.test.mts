@@ -78,11 +78,16 @@ test("currently authorized users redirect from login only after the live server 
   assert.equal(await f.requireAuth(), null);
 });
 
-test("signed-out users still see login and protected pages/API requests remain blocked", async () => {
+test("signed-out users still see login and brand icons while protected pages/API requests remain blocked", async () => {
   const f = fixture({ cookie: false });
   assert.equal((await f.request("/")).headers.get("location"), "https://editor.example/login");
   assert.equal((await f.request("/api/sites")).status, 401);
   assert.equal((await f.request("/login")).status, 200);
+  for (const asset of ["/icon.svg", "/apple-icon.png", "/tsumu-mark.svg", "/robots.txt"]) {
+    const res = await f.request(asset);
+    assert.equal(res.headers.get("location"), null, asset);
+    assert.equal(res.headers.get("x-middleware-next"), "1", asset);
+  }
   assert.ok(await f.login());
   assert.equal((await f.requireAuth()).status, 401);
 });

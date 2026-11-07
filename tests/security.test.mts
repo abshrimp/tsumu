@@ -544,4 +544,74 @@ describe("canvas-html-sandbox", () => {
     assert.match(source, /FORBID_ATTR:\s*\["formaction",\s*"formtarget"\]/);
     assert.match(source, /isReservedDataAttribute\(attr\.name\)/);
   });
+
+  test("canvas embed iframes apply sandbox restrictions, reject same-origin editor framing, and sanitize ImageRef/thumbnail URLs", async () => {
+    const {
+      EMBED_SANDBOX_TRUSTED,
+      EMBED_SANDBOX_URL,
+      embedSrc,
+      isSameOriginEmbed,
+    } = await import("../lib/embed");
+    const { imageRefSrc } = await import("../lib/generator/render-helpers");
+    const { siteThumbnailImages } = await import("../lib/site-thumbnail");
+    const { createInitialDoc } = await import("../lib/presets");
+
+    for (const box of [EMBED_SANDBOX_TRUSTED, EMBED_SANDBOX_URL]) {
+      const perms = new Set(box.split(/\s+/));
+      assert.ok(!perms.has("allow-top-navigation"));
+      assert.ok(!perms.has("allow-top-navigation-by-user-activation"));
+      assert.ok(!perms.has("allow-modals"));
+      assert.ok(!perms.has("allow-downloads"));
+    }
+    assert.equal(embedSrc({ kind: "url", src: "https://user:pass@example.com/embed" }), null);
+    assert.equal(embedSrc({ kind: "url", src: "https://example.com/\nwidget" }), null);
+    assert.equal(isSameOriginEmbed("https://editor.example.com/sites/a", "https://editor.example.com"), true);
+    assert.equal(isSameOriginEmbed("https://widgets.example.org/embed", "https://editor.example.com"), false);
+
+    const renderSource = readFileSync(new URL("../components/canvas/render.tsx", import.meta.url), "utf8");
+    assert.match(renderSource, /sandbox:\s*node\.embed\.kind === "url" \? EMBED_SANDBOX_URL : EMBED_SANDBOX_TRUSTED/);
+    assert.match(renderSource, /isSameOriginEmbed\(/);
+
+    const emptyMap = new Map<string, string>();
+    for (const unsafe of ["javascript:alert(1)", "data:text/html;base64,PHNjcmlwdD4=", "//evil.example/a.png"]) {
+      assert.equal(imageRefSrc(emptyMap, { url: unsafe }), null, unsafe);
+      const doc = createInitialDoc();
+      doc.favicon = { url: unsafe };
+      doc.ogImage = { url: unsafe };
+      assert.deepEqual(siteThumbnailImages(doc, "site-1"), []);
+    }
+    assert.equal(imageRefSrc(emptyMap, { url: "https://cdn.example.com/icon.png" }), "https://cdn.example.com/icon.png");
+  });
+
+  test("siteOwnsAssets rejects cross-site asset claiming unless uploaded or already referenced", async () => {
+    const { siteOwnsAssets } = await import("../lib/site-asset-access");
+    const uploads = new Map<string, Set<string>>([["site-a", new Set(["assets/a-upload.png"])]]);
+    const db = {
+      backend: "sqlite" as const,
+      async execute(input: string | { sql: string; args: (string | number | null)[] }) {
+        const sql = typeof input === "string" ? input : input.sql;
+        const args = typeof input === "string" ? [] : input.args;
+        if (sql.includes("FROM site_asset_uploads")) {
+          const siteId = String(args[0]);
+          const siteSet = uploads.get(siteId) ?? new Set();
+          return {
+            rows: args.slice(1).filter((p) => siteSet.has(String(p))).map((p) => ({ path: String(p) })),
+            rowsAffected: 0,
+          };
+        }
+        return { rows: [], rowsAffected: 0 };
+      },
+      async batch(stmts: Array<string | { sql: string; args: (string | number | null)[] }>) {
+        return Promise.all(stmts.map((s) => this.execute(s)));
+      },
+    };
+
+    assert.equal(await siteOwnsAssets(db, "site-a", []), true);
+    assert.equal(await siteOwnsAssets(db, "site-a", ["assets/a-upload.png"]), true);
+    assert.equal(await siteOwnsAssets(db, "site-a", ["assets/b-secret.png"], async () => null), false);
+    assert.equal(
+      await siteOwnsAssets(db, "site-a", ["assets/copied.png"], async () => JSON.stringify({ assets: { x: { path: "assets/copied.png" } } })),
+      true,
+    );
+  });
 });

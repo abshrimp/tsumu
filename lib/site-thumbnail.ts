@@ -1,4 +1,5 @@
 import type { ImageRef, SiteDoc } from "./types";
+import { safeResourceUrl } from "./url-policy";
 
 export interface SiteThumbnailImage {
   kind: "ogp" | "favicon";
@@ -17,11 +18,12 @@ export function siteThumbnailImages(doc: SiteDoc, siteId: string): SiteThumbnail
   for (const { kind, ref } of candidates) {
     if (!ref) continue;
     const asset = ref.assetId ? doc.assets[ref.assetId] : undefined;
+    const rawUrl = ref.url ? safeResourceUrl(ref.url) : "";
     const src = asset?.path
       ? `/api/assets/file?path=${encodeURIComponent(asset.path)}&site=${encodeURIComponent(siteId)}`
       : asset?.dataUrl?.startsWith("data:image/")
         ? asset.dataUrl
-        : ref.url?.trim() ?? "";
+        : rawUrl !== "#" ? rawUrl : "";
     if (src && !images.some(image => image.src === src)) images.push({ kind, src });
   }
   return images;

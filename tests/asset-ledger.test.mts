@@ -11,6 +11,7 @@ function ledgerDb(backend: "d1" | "sqlite" = "d1") {
     CREATE TABLE asset_gc_candidates(path TEXT PRIMARY KEY,first_unreferenced_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL,bytes INTEGER);
     CREATE TABLE asset_objects(path TEXT PRIMARY KEY,bytes INTEGER,uploaded_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL);
     CREATE TABLE asset_ledger_state(id INTEGER PRIMARY KEY CHECK(id=1),created_at INTEGER NOT NULL,complete_at INTEGER);
+    CREATE TABLE site_asset_uploads(site_id TEXT NOT NULL,path TEXT NOT NULL,PRIMARY KEY(site_id,path));
     INSERT INTO asset_ledger_state(id,created_at) VALUES(1,0);
   `);
   const execute = async (input: string | { sql: string; args: (string | number | null)[] }) => {
@@ -23,16 +24,26 @@ function ledgerDb(backend: "d1" | "sqlite" = "d1") {
   return { sql, db };
 }
 
-test("the ledger counts every stored file, including removed ones waiting for GC", async () => {
+test("the ledger counts every stored file, including removed ones waiting for GC, while scoping unknownPaths per site", async () => {
   const { sql, db } = ledgerDb();
   try {
     await recordUploadedAsset(db, "assets/a.png", 100, 1);
     await recordUploadedAsset(db, "assets/b.png", 50, 2);
     sql.prepare("INSERT INTO asset_objects VALUES(?,?,?,?)").run("assets/old.png", null, 0, 0);
+    sql.prepare("INSERT INTO asset_objects VALUES(?,?,?,?)").run("assets/other-site.png", null, 0, 0);
+    sql.prepare("INSERT INTO site_asset_uploads VALUES(?,?)").run("site-a", "assets/old.png");
+    sql.prepare("INSERT INTO site_asset_uploads VALUES(?,?)").run("site-b", "assets/other-site.png");
     sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)").run("assets/b.png", 3, 3, 50);
     const ledger = await readAssetLedger(db);
     assert.deepEqual(ledger, {
-      complete: false, count: 3, bytes: 150, unknownCount: 1, unknownPaths: ["assets/old.png"],
+      complete: false, count: 4, bytes: 150, unknownCount: 2,
+      unknownPaths: ["assets/old.png", "assets/other-site.png"],
+      pendingCount: 1, pendingBytes: 50,
+    });
+    const scoped = await readAssetLedger(db, { siteId: "site-a" });
+    assert.deepEqual(scoped, {
+      complete: false, count: 4, bytes: 150, unknownCount: 2,
+      unknownPaths: ["assets/old.png"],
       pendingCount: 1, pendingBytes: 50,
     });
     sql.exec("UPDATE asset_ledger_state SET complete_at=10");

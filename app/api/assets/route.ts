@@ -143,10 +143,10 @@ export async function GET(req: Request) {
   if (deniedSite) return deniedSite;
   try {
     const db = await getDb();
-    const ledger = await readAssetLedger(db);
     // 台帳が揃っていれば全ファイルを数えられるため、サイトごとの Durable Object の呼び出しを省く。
     const email = (await sessionUser())?.email?.toLowerCase();
     const admin = !authConfigured() || (!!email && allowedEmails().includes(email));
+    const ledger = await readAssetLedger(db, admin ? undefined : { siteId });
     // Other sites' file paths are private, even if storage billing is global.
     const refs = !admin || ledger?.complete ? null : await otherSiteAssetReferences(db, siteId);
     // Until inventory completes, include GC candidates in the same path-keyed
@@ -154,8 +154,9 @@ export async function GET(req: Request) {
     // and double-counting assets shared with another site.
     const pending = ledger?.complete || db.backend !== "d1" ? null : await db.execute({
       sql: `SELECT c.path, COALESCE(c.bytes,o.bytes) AS bytes
-        FROM asset_gc_candidates c LEFT JOIN asset_objects o ON o.path=c.path`,
-      args: [],
+        FROM asset_gc_candidates c LEFT JOIN asset_objects o ON o.path=c.path
+        ${admin ? "" : "JOIN site_asset_uploads u ON u.path=c.path AND u.site_id=?"}`,
+      args: admin ? [] : [siteId],
     });
     return NextResponse.json({
       ...(ledger ? { ledger } : {}),

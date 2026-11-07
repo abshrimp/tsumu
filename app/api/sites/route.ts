@@ -6,6 +6,7 @@ import { requireSiteAccess } from "../../../lib/site-access";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../../lib/site-import-format";
+import { extractAssetReferences } from "../../../lib/asset-gc-plan";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 import {
   readSiteDocument, saveSiteDocument, eraseSiteDocument, cleanupAbandonedDocuments,
@@ -77,6 +78,7 @@ export async function POST(req: Request) {
         const doc = validateImportedDoc(initialDoc);
         if (doc.siteName !== input.name) throw new Error("リクエストが正しくありません");
         initialBody = JSON.stringify(doc);
+        if (extractAssetReferences(initialBody).size > 0) throw new Error("リクエストが正しくありません");
         if (new TextEncoder().encode(initialBody).byteLength > IMPORT_LIMITS.docBytes) {
           return NextResponse.json({ error: tr("The edit data exceeds the size limit.") }, { status: 413 });
         }

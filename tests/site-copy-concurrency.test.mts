@@ -9,6 +9,7 @@ import { nodeDatabase } from "../lib/node-storage";
 import { createInitialDoc } from "../lib/presets";
 import * as sites from "../lib/sites";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
+import { extractAssetReferences } from "../lib/asset-gc-plan";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
 import { userMessage } from "../lib/errors";
@@ -38,7 +39,7 @@ function api(db: Db, read = readCurrentDoc) {
     getSiteRoomKey: sites.getSiteRoomKey,
     cleanupAbandonedDocuments: async () => undefined,
     eraseSiteDocument: async () => undefined,
-    validateImportedDoc, IMPORT_LIMITS, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError };
+    validateImportedDoc, IMPORT_LIMITS, extractAssetReferences, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError };
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected));
   return (input: unknown = { name: "Copy", copyFrom: "source" }) => post(new Request("https://example.test/api/sites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })) as Promise<Response>;
 }
@@ -72,13 +73,17 @@ test("an unsuccessful destination save is not reported as a completed copy", asy
   assert.equal(await sites.getSite(db, "copy"), null);
 }));
 
-test("importing atomically creates revision one and rejects invalid or colliding imports without changing existing data", async () => database(async db => {
+test("importing atomically creates revision one and rejects invalid, asset-bearing, or colliding imports without changing existing data", async () => database(async db => {
   // 完全で現在の形の SiteDoc を使う。取り込みの境界では、不完全なページのメタデータを拒否しなければならない。
   const doc = createInitialDoc();
   doc.siteName = "Imported";
   const input = { name: doc.siteName, initialDoc: doc, importId: "0123456789" };
   const post = api(db);
   assert.equal((await post({ ...input, initialDoc: { ...doc, pageOrder: ["absent"] } })).status, 400);
+  assert.equal((await post({
+    ...input,
+    initialDoc: { ...doc, favicon: "assets/muhmi2o0abcdef-secret.png" },
+  })).status, 400);
   assert.equal(await sites.getSite(db, input.importId), null);
   assert.equal((await post(input)).status, 200);
   assert.equal((await readCurrentDoc(db, input.importId))?.rev, "1");

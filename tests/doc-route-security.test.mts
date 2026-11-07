@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { transformSync } from "esbuild";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
+import { extractAssetReferences } from "../lib/asset-gc-plan";
 
 class NextResponse extends Response {
   static json(value: unknown, init?: ResponseInit) {
@@ -16,7 +17,7 @@ class InvalidDocPatchError extends Error {}
 
 type Snapshot = { rev: string; savedAt: number; body: string };
 
-function fixture() {
+function fixture(ownedAssets: Set<string> = new Set()) {
   let snapshot: Snapshot | null = {
     rev: "4", savedAt: 123, body: '{"siteName":"private"}',
   };
@@ -39,6 +40,9 @@ function fixture() {
     getSiteRoomKey: async () => null,
     readSiteDocument: async () => snapshot,
     readSiteDocumentMeta: async () => snapshot && { rev: snapshot.rev, savedAt: snapshot.savedAt },
+    extractAssetReferences,
+    siteOwnsAssets: async (_db: unknown, _siteId: string, paths: Iterable<string>) =>
+      [...paths].every((path) => ownedAssets.has(path)),
     saveSiteDocumentWithTarget: async () => {
       writes++;
       return { result: conflict ? { kind: "conflict", current: snapshot } : { kind: "saved", rev: "5", savedAt: 124 }, roomKey: null };
@@ -99,8 +103,8 @@ test("document GET keeps full, metadata and missing responses private", async ()
   }
 });
 
-test("document saves reject oversized, invalid MIME and malformed payloads before writes", async () => {
-  const f = fixture();
+test("document saves reject oversized, invalid MIME, malformed, and cross-site asset payloads before writes", async () => {
+  const f = fixture(new Set(["assets/own.png"]));
   for (const method of ["PUT", "PATCH"] as const) {
     const huge = await f[method](request(method, "{}", {
       "Content-Length": String(64 * 1024 * 1024 + 1),
@@ -111,7 +115,20 @@ test("document saves reject oversized, invalid MIME and malformed payloads befor
     const broken = await f[method](request(method, "{bad"));
     assert.equal(broken.status, 400, method);
   }
+  assert.equal(
+    (await f.PUT(request("PUT", JSON.stringify({ assets: { a: { path: "assets/foreign.png" } } })))).status,
+    400,
+  );
+  assert.equal(
+    (await f.PATCH(request("PATCH", JSON.stringify([{ path: ["assets", "a"], value: { path: "assets/foreign.png" } }])))).status,
+    400,
+  );
   assert.equal(f.writes, 0);
+  assert.equal(
+    (await f.PUT(request("PUT", JSON.stringify({ assets: { a: { path: "assets/own.png" } } })))).status,
+    200,
+  );
+  assert.equal(f.writes, 1);
 });
 
 test("ordinary saves work and conflicting document bodies are never cacheable", async () => {
