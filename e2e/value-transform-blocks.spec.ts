@@ -81,6 +81,7 @@ test("canvas block settings update the document without a separate value-compose
   const box = page.locator('[data-sel-key="step:native"]');
   await expect(box.getByRole("combobox", { name: "加工の種類" })).toBeVisible();
   await expect(page.getByRole("button", { name: "値を組み立てる" })).toHaveCount(0);
+  await expect(box.getByRole("combobox", { name: "取り出す項目名" })).toHaveCSS("height", "24px");
   await box.getByRole("combobox", { name: "取り出す項目名" }).fill("tags");
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
@@ -133,7 +134,7 @@ test("canvas comparison offers existing variables and keeps the chosen reference
   });
   const box = page.locator('[data-sel-key="step:compare-native"]');
   const type = box.getByRole("combobox", { name: "比較する値の種類" });
-  await expect(type).toHaveCSS("height", "30px");
+  await expect(type).toHaveCSS("height", "24px");
   await type.selectOption("variable");
   await box.getByRole("button", { name: "比較する変数" }).click();
   const menu = page.locator(".se-pm").last();
