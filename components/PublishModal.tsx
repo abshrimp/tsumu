@@ -21,7 +21,7 @@ import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import type { SiteDoc } from "../lib/types";
 import { detectSvgFilters } from "../lib/assets";
 import type { PublishTarget } from "../lib/generator";
-import { DEFAULT_EXPORT_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
+import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { Dropdown, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
@@ -486,25 +486,27 @@ export default function PublishModal({
         {phase === "check" && !(targets && !targets.configured) && (
           <>
             <p className="modal-desc">
-              {format === "html"
-                ? tr("HTML・CSS・JavaScript・画像を、ビルド不要のファイルとしてGitHubへPushします。静的サイトとして公開する場合は、リポジトリのルートを配信するようホスティングを設定してください。")
-                : format === "react"
-                  ? tr("React + ViteのソースをGitHubへPushします。公開するにはホスティング側でViteをビルドし、distフォルダを配信する設定が必要です。")
-                  : tr("Next.jsプロジェクトをGitHubへPushします。ホスティング側のビルドが完了すると公開サイトに反映されます。")}
+              {format === "html" || format === "single-html"
+                ? format === "single-html"
+                  ? tr("1つのHTMLファイルにCSS・JavaScript・画像などを埋め込んでGitHubへPushします。静的ホスティングではリポジトリのルートを配信してください。")
+                  : tr("HTML・CSS・JavaScript・画像を、ビルド不要のファイルとしてGitHubへPushします。静的サイトとして公開する場合は、リポジトリのルートを配信するようホスティングを設定してください。")
+                : format === "react" || format === "vue"
+                  ? tr("{framework}のソースをGitHubへPushします。ホスティング側でビルドし、distフォルダを配信してください。", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
+                  : format === "sveltekit"
+                    ? tr("SvelteKitプロジェクトをGitHubへPushします。ビルド後の公開ディレクトリはbuildです。")
+                    : format === "nuxt"
+                      ? tr("NuxtプロジェクトをGitHubへPushします。ホスティング側でNuxt用のビルド設定が必要です。")
+                      : tr("Next.jsプロジェクトをGitHubへPushします。ホスティング側のビルドが完了すると公開サイトに反映されます。")}
             </p>
             <fieldset className="export-options pub-export-options">
               <div className="export-option">
                 <div className="export-option-label">{tr("フレームワーク")}</div>
                 <Dropdown
                   value={format}
-                  options={[
-                    { value: "nextjs", label: "Next.js" },
-                    { value: "react", label: "React + Vite" },
-                    { value: "html", label: "HTML / CSS / JavaScript" },
-                  ]}
+                  options={EXPORT_FRAMEWORK_OPTIONS}
                   onChange={(value) => {
                     setFormat(value as ExportFormat);
-                    if (value === "html") {
+                    if (value === "html" || value === "single-html") {
                       setLanguage("javascript");
                       setStyle("css");
                     }
@@ -518,7 +520,7 @@ export default function PublishModal({
                   <div className="export-option-label">{tr("言語")}</div>
                   <Dropdown
                     value={language}
-                    options={format === "html"
+                    options={format === "html" || format === "single-html"
                       ? [{ value: "javascript", label: "JavaScript" }]
                       : [
                           { value: "typescript", label: "TypeScript" },
@@ -533,7 +535,7 @@ export default function PublishModal({
                   <div className="export-option-label">{tr("スタイル")}</div>
                   <Dropdown
                     value={style}
-                    options={format === "html"
+                    options={format === "html" || format === "single-html"
                       ? [{ value: "css", label: "CSS" }]
                       : [
                           { value: "css", label: "CSS" },
@@ -548,7 +550,7 @@ export default function PublishModal({
               </div>
             </fieldset>
             <p className="hint export-note">
-              {format === "html"
+              {format === "html" || format === "single-html"
                 ? tr("HTML形式はJavaScriptとCSSで出力します。データ取得にはAPIのCORS許可が必要です。")
                 : tr("GitHubへのPushはソースの送信です。形式によってホスティングのビルド設定が異なり、コミットだけでは公開成功を保証できません。")}
               {tr(" 公開対象はプロジェクト全体です。")}
@@ -624,7 +626,7 @@ export default function PublishModal({
           <>
             <div className="check-ok">
               <Check size={14} />
-              {result.format === "html"
+              {result.format === "html" || result.format === "single-html"
                 ? tr("GitHubへPushしました。HTML一式はそのまま配信できる形式です。")
                 : tr("GitHubへPushしました。ホスティング側のビルド・公開設定をご確認ください。")}
             </div>
