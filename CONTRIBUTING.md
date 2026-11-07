@@ -1,5 +1,7 @@
 # Contributing to Tsumu
 
+English · [日本語](CONTRIBUTING.ja.md)
+
 Thanks for your interest in Tsumu! The project lives at [abshrimp/tsumu](https://github.com/abshrimp/tsumu). Bug reports, documentation improvements, translations and pull requests are all welcome, in English or Japanese.
 
 ## Getting started

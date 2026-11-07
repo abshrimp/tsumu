@@ -1,5 +1,7 @@
 # Architecture
 
+English · [日本語](ARCHITECTURE.ja.md)
+
 This is a map of the codebase for contributors. For setup and deployment, see the [README](README.md).
 
 ## The one idea

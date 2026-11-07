@@ -434,7 +434,7 @@ AIによる編集は、ページに反映する前に、必ず作業用の複製
 
 ## 開発
 
-設計の概要（`SiteDoc` のデータ構造、公開・同時編集・AIの仕組み）は [ARCHITECTURE.md](ARCHITECTURE.md)（英語）にまとめています。
+設計の概要（`SiteDoc` のデータ構造、公開・同時編集・AIの仕組み）は [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) にまとめています。
 
 ```
 app/
@@ -500,7 +500,7 @@ npm run build && npm run test:e2e   # 実際のブラウザによるE2Eテスト
 
 ## コントリビュート
 
-Issue およびプルリクエストを歓迎します（英語・日本語のいずれでも可）。手順と実行するチェックは [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性の非公開での報告は [SECURITY.md](SECURITY.md)、行動規範は [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) を参照してください（いずれも英語）。
+Issue およびプルリクエストを歓迎します（英語・日本語のいずれでも可）。手順と実行するチェックは [CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)、脆弱性の非公開での報告は [SECURITY.ja.md](SECURITY.ja.md)、行動規範は [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)（英語）を参照してください。
 
 ## ライセンス
 

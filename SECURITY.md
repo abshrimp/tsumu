@@ -1,5 +1,7 @@
 # Security
 
+English · [日本語](SECURITY.ja.md)
+
 ## Reporting a vulnerability
 
 Please report vulnerabilities through [GitHub's private vulnerability reporting for abshrimp/tsumu](https://github.com/abshrimp/tsumu/security/advisories/new) when it's available. Include:
