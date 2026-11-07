@@ -4366,21 +4366,40 @@ textarea {
 /* ブロック内の入力部品 */
 
 .se-in {
+  box-sizing: border-box;
   height: 24px;
   max-width: 220px;
   padding: 0 7px;
   border: 1px solid transparent;
   border-radius: var(--radius-s);
-  background: var(--field);
+  background-color: var(--field);
   color: var(--text);
+  font-family: inherit;
   font-size: 12px;
   font-weight: 500;
+  line-height: normal;
   outline: none;
   cursor: pointer;
 }
 
+/* Native selects and popover buttons must look like the same dropdown. */
+select.se-in,
+button.se-pm-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 0;
+  padding-right: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' fill='none' stroke='%236f6f78' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px 10px;
+  text-align: left;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .se-in:hover {
-  background: var(--field-hover);
+  background-color: var(--field-hover);
 }
 
 input.se-in {
@@ -4389,7 +4408,7 @@ input.se-in {
 
 .se-in:focus {
   border-color: var(--accent);
-  background: var(--panel);
+  background-color: var(--panel);
 }
 
 .se-in.is-empty {
@@ -4424,13 +4443,7 @@ input.se-in {
 
 .se-pm-btn.is-open {
   border-color: var(--accent);
-  background: var(--panel);
-}
-
-.se-pm-chev {
-  flex: none;
-  color: var(--text-3);
-  transform: rotate(90deg);
+  background-color: var(--panel);
 }
 
 .se-pm {
@@ -12408,9 +12421,9 @@ a.btn {
   padding: 0 7px;
   border: 1px solid transparent;
   border-radius: var(--radius-s);
-  background: var(--field);
+  background-color: var(--field);
   color: var(--text);
-  font: inherit;
+  font-family: inherit;
   font-size: 12px;
   font-weight: 500;
 }
@@ -12419,7 +12432,7 @@ a.btn {
 .se-composer-step-settings > input:not([type="checkbox"]):focus,
 .se-composer-step-settings .se-composer-operand > input:focus {
   border-color: var(--accent);
-  background: var(--panel);
+  background-color: var(--panel);
   outline: none;
 }
 .se-composer-operand {
