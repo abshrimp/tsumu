@@ -25,6 +25,7 @@ import {
 import { Ctx } from "./context";
 import { FetchBody, VarNameIn, isNested, nameFromPath } from "./fetch";
 import { FieldValueIn, NewTabCheck, Phrase, TextIn, ValueIn, regexError } from "./inputs";
+import { ValueComposerPreview } from "./ValueComposerPreview";
 import { TargetSelect } from "./targets";
 
 export function StepBody({ step }: { step: ScriptStep }) {
@@ -509,7 +510,7 @@ function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page
 
 /** 「［値］を変数［］とする」（{名前} 1つだけならリスト・まとまりもそのまま入る） */
 function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }) {
-  const { doc, pageId, updateStep, samples, renameVar } = useContext(Ctx);
+  const { doc, pageId, updateStep, samples, renameVar, readOnly } = useContext(Ctx);
   const src = setVarSource(step);
   const value = src ? lookupVar(samples, src) : undefined;
   return (
@@ -534,6 +535,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
           into: <VarNameIn stepId={step.id} value={step.into} placeholder={tr("名前（例: 合計）")} />,
         }}
       />
+      {!readOnly && <ValueComposerPreview currentValue={step.value} samples={samples} excludedName={step.into} />}
       {step.into && value !== undefined && value !== null && (
         <span className="se-blk-note">
           {Array.isArray(value)

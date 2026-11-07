@@ -512,12 +512,21 @@ export function PathMenu({
   path,
   onChange,
   mode,
+  placeholder,
+  ariaLabel,
+  allowRoot = true,
+  portalZIndex,
 }: {
   /** 選べる値の見本（undefined = 見本が無い） */
   root: unknown;
   path: string;
   onChange: (path: string) => void;
   mode: "any" | "list" | "item" | "field";
+  /** Optional source-picker customization; existing callers retain prior behavior. */
+  placeholder?: string;
+  ariaLabel?: string;
+  allowRoot?: boolean;
+  portalZIndex?: number;
 }) {
   const [open, setOpen] = useState(false);
   /** 開いている階層の位置 */
@@ -582,13 +591,13 @@ export function PathMenu({
   const empty = !path && mode !== "any";
   const label = path
     ? fieldLabel(path)
-    : mode === "list"
+    : placeholder ?? (mode === "list"
       ? tr("リストを選択")
       : mode === "item"
         ? tr("位置を選択")
         : mode === "field"
           ? tr("項目を選択")
-          : tr("全体");
+          : tr("全体"));
 
   const show = () => {
     const r = btnRef.current?.getBoundingClientRect();
@@ -610,6 +619,7 @@ export function PathMenu({
         ref={btnRef}
         type="button"
         className={`se-in se-pm-btn${empty ? " is-empty" : ""}${open ? " is-open" : ""}`}
+        aria-label={ariaLabel}
         onClick={() => (open ? setOpen(false) : show())}
       >
         <span>{label}</span>
@@ -620,9 +630,12 @@ export function PathMenu({
           <div
             ref={menuRef}
             className="dd-menu se-pm"
-            style={pos}
+            style={portalZIndex === undefined ? pos : { ...pos, zIndex: portalZIndex }}
             data-se-popover=""
             onPointerDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") { e.stopPropagation(); setOpen(false); }
+            }}
           >
             {at && (
               <div className="se-pm-head">
@@ -638,7 +651,7 @@ export function PathMenu({
               </div>
             )}
             {/* 今の階層そのものを選ぶ */}
-            {known && (at ? canPick(levelValue) : mode === "any") && (
+            {known && (at ? canPick(levelValue) : mode === "any" && allowRoot) && (
               <button
                 type="button"
                 className={`dd-item${path === at ? " is-sel" : ""}`}
