@@ -217,7 +217,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
       module: "ESNext", moduleResolution: "Bundler", jsx: "react-jsx",
       strict: true, noEmit: true, skipLibCheck: true,
       esModuleInterop: true, resolveJsonModule: true,
-      types: ["vite/client", "node"], baseUrl: ".", paths: { "@/*": ["src/*"] },
+      types: ["vite/client", "node"], paths: { "@/*": ["./src/*"] },
     },
     include: ["src", "vite.config.ts"],
   }, null, 2) + "\n";
