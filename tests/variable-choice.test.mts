@@ -76,7 +76,7 @@ test("real raw chip uses node samples and treats loop roots as runtime values", 
     doc, pageId: "p", samples: previewDataVars(doc, "p"),
   } as any }, React.createElement(ScriptNodeCtx.Provider, { value: "button" }, React.createElement(LoopCtx.Provider, { value: loops }, React.createElement(ValueIn, { value, onCommit() {} })))));
   const nodeChip = render("{price}");
-  assert.match(nodeChip, /はい／いいえ/);
+  assert.match(nodeChip, /true\/false/);
   assert.match(nodeChip, /false/);
   assert.doesNotMatch(nodeChip, /数値/);
   assert.doesNotMatch(render("Hello {price}"), /se-value-info/, "a mixed template is not labelled as a raw boolean");
@@ -87,20 +87,3 @@ test("real raw chip uses node samples and treats loop roots as runtime values", 
 });
 
 
-test("array-field raw chip shadows empty item roots outside a loop", async () => {
-  const React = await import("react");
-  const { renderToStaticMarkup } = await import("react-dom/server");
-  const { Ctx } = await import("../components/script-editor/context");
-  const { loadNestedUi } = await import("./helpers/client-nested-lists");
-  const { scriptDataPickerDoc } = await import("./helpers/script-data-picker");
-  const { previewDataVars, pageArrays } = await import("../lib/data");
-  const doc = scriptDataPickerDoc();
-  (doc.pages.p.pageScripts![0].steps[0] as any).sample.rows = [{ empty: {} }];
-  doc.pages.p.pageScripts![0].steps.push({ id: "global-empty", kind: "set-var", value: "{data.detail}", into: "empty" });
-  const { ArrayFieldBody } = loadNestedUi("components/script-editor/arrays.tsx");
-  const html = renderToStaticMarkup(React.createElement(Ctx.Provider, { value: {
-    doc, pageId: "p", samples: previewDataVars(doc, "p"), arrays: pageArrays(doc, "p"), tree: [],
-  } as any }, React.createElement(ArrayFieldBody, { step: { id: "field", kind: "array-field", array: "data.rows", field: "copied", value: "{empty}" } })));
-  assert.match(html, /実行時/);
-  assert.doesNotMatch(html, /vx-kind">まとまり/);
-});

@@ -1,25 +1,15 @@
 "use client";
 
-/**
- * Compact, editable value pipeline. Draft changes stay local until Apply;
- * the parent saves a recipe on the actual set-var step.
- */
-import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
+/** Pure value-operation controls for ordinary script blocks. */
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2, X } from "lucide-react";
-import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
-import {
-  defaultTransform,
-  type ValueTransform,
-  type ValueTransformKind,
-  type ValueRecipe,
-  type CompareOperation,
-  type NumericOperation,
-  type ValueOperandType,
-} from "../../lib/script-model/compose";
-import { singleValueReference } from "../../lib/variable-choice";
+import { ChevronDown } from "lucide-react";
 import { PathMenu } from "./fetch";
 import { tr } from "../../lib/i18n";
+import type {
+  ValueTransform, ValueTransformKind, CompareOperation,
+  NumericOperation, ValueOperandType,
+} from "../../lib/script-model/compose";
 
 export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
   field: "項目を取り出す",
@@ -87,53 +77,6 @@ const COMPARISONS: readonly { value: CompareOperation; label: string }[] = [
   { value: "ends-with", label: "で終わる" },
 ];
 
-interface Row {
-  readonly id: number;
-  readonly transform: ValueTransform;
-}
-
-function short(text: string, max = 120): string {
-  return text.length > max ? text.slice(0, max) + "…" : text;
-}
-
-/** Resolve the selected variable or nested sample, without inherited keys. */
-function sampleAtPath(samples: Record<string, unknown>, path: string): unknown {
-  if (!path) return undefined;
-  if (Object.prototype.hasOwnProperty.call(samples, path)) return samples[path];
-  let current: unknown = samples;
-  for (const key of path.split(".")) {
-    if (Array.isArray(current) && key === "-1") {
-      current = current[current.length - 1];
-      continue;
-    }
-    if (!current || typeof current !== "object" || !Object.prototype.hasOwnProperty.call(current, key)) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[key];
-  }
-  return current;
-}
-
-function describeResult(result: ReturnType<typeof evaluateValueRecipe> | null): string {
-  if (!result) return tr("元の値を選択してください");
-  if (result.kind === "value") return JSON.stringify(result.value);
-  if (result.kind === "missing") return tr("値がありません（未取得）");
-  if (result.code === "type-mismatch") return tr("値の種類が合わないため、この加工はできません");
-  if (result.code === "invalid-json") return tr("JSON文字列の形式が正しくありません");
-  if (result.code === "invalid-literal") return tr("比較する値を正しく入力してください");
-  if (result.code === "division-by-zero") return tr("0で割ることはできません");
-  if (result.code === "invalid-regex") return tr("正規表現が正しくありません");
-  if (result.code === "missing-value") return tr("一部の項目に指定した値がありません");
-  if (result.code === "invalid-path") return tr("この項目名は使用できません");
-  if (result.code === "limit-exceeded") return tr("データが大きすぎるため加工できません");
-  return tr("この処理は見本データに適用できません（{code}）", { code: result.code });
-}
-
-/**
- * Editable combobox. Its list is portaled outside the scrolling dialog, so
- * options are never clipped by the modal. We close only on a genuine outside
- * pointer/focus event, not on the input's blur before an option click.
- */
 function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
   value: string;
   onChange: (next: string) => void;
@@ -299,14 +242,15 @@ function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
 }
 
 
-function ValueOperandEditor({ type, text, onChange }: {
+function ValueOperandEditor({ type, text, onChange, samples }: {
   type: ValueOperandType;
   text: string;
   onChange: (text: string, type: ValueOperandType) => void;
+  samples: Record<string, unknown>;
 }) {
   return (
     <div className="se-composer-operand">
-      <select aria-label={tr("比較する値の種類")} value={type}
+      <select className="se-in" aria-label={tr("比較する値の種類")} value={type}
         onChange={(e) => {
           const next = e.target.value as ValueOperandType;
           onChange(next === "number" ? "0" : next === "boolean" ? "true" : "", next);
@@ -315,9 +259,14 @@ function ValueOperandEditor({ type, text, onChange }: {
         <option value="number">{tr("数値")}</option>
         <option value="boolean">{tr("真偽値")}</option>
         <option value="null">null</option>
+        <option value="variable">{tr("変数")}</option>
       </select>
-      {type === "boolean" ? (
-        <select aria-label={tr("比較する値")} value={text}
+      {type === "variable" ? (
+        <PathMenu root={samples} path={text} mode="any" allowRoot={false}
+          ariaLabel={tr("比較する変数")} placeholder={tr("変数を選択")}
+          onChange={(path) => onChange(path, type)} portalZIndex={560} />
+      ) : type === "boolean" ? (
+        <select className="se-in" aria-label={tr("比較する値")} value={text}
           onChange={(e) => onChange(e.target.value, type)}>
           <option value="true">true</option>
           <option value="false">false</option>
@@ -332,14 +281,15 @@ function ValueOperandEditor({ type, text, onChange }: {
   );
 }
 
-function RecipeStepSettings({ transform, options, onChange }: {
+function RecipeStepSettings({ transform, options, onChange, samples }: {
   transform: ValueTransform;
   options: string[];
   onChange: (next: ValueTransform) => void;
+  samples: Record<string, unknown>;
 }) {
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
-      <select aria-label={tr("計算方法")} value={transform.operation}
+      <select className="se-in" aria-label={tr("計算方法")} value={transform.operation}
         onChange={(e) => onChange({ ...transform, operation: e.target.value as NumericOperation })}>
         {MATH.map((method) => <option key={method.value} value={method.value}>{tr(method.label)}</option>)}
       </select>
@@ -382,12 +332,12 @@ function RecipeStepSettings({ transform, options, onChange }: {
             onChange={(field) => onChange({ ...transform, field })} />
         )}
         {transform.kind !== "map-set" && (
-          <select aria-label={tr("比較方法")} value={transform.operation}
+          <select className="se-in" aria-label={tr("比較方法")} value={transform.operation}
             onChange={(e) => onChange({ ...transform, operation: e.target.value as CompareOperation })}>
             {COMPARISONS.map((op) => <option key={op.value} value={op.value}>{tr(op.label)}</option>)}
           </select>
         )}
-        <ValueOperandEditor type={transform.operandType} text={transform.operand}
+        <ValueOperandEditor type={transform.operandType} text={transform.operand} samples={samples}
           onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
       </div>
     );
@@ -400,7 +350,7 @@ function RecipeStepSettings({ transform, options, onChange }: {
         placeholder={transform.kind === "sort" ? tr("項目（空なら要素自身）") : tr("取り出す項目名")}
         onChange={(field) => onChange({ ...transform, field })} />
       {transform.kind === "sort" && (
-        <select aria-label={tr("並び順")} value={transform.direction}
+        <select className="se-in" aria-label={tr("並び順")} value={transform.direction}
           onChange={(e) => onChange({ ...transform, direction: e.target.value as "asc" | "desc" })}>
           <option value="asc">{tr("昇順")}</option>
           <option value="desc">{tr("降順")}</option>
@@ -413,10 +363,11 @@ function RecipeStepSettings({ transform, options, onChange }: {
 
 
 /** Standalone controls for a block on the script canvas, not a modal recipe. */
-export function ValueTransformSettings({ transform, options, onChange }: {
+export function ValueTransformSettings({ transform, options, onChange, samples }: {
   transform: ValueTransform;
   options: string[];
   onChange: (next: ValueTransform) => void;
+  samples: Record<string, unknown>;
 }) {
   if (transform.kind === "field" || transform.kind === "has") return (
     <div className="se-composer-step-settings">
@@ -437,233 +388,6 @@ export function ValueTransformSettings({ transform, options, onChange }: {
         onChange={(e) => onChange({ ...transform, text: e.target.value })} />
     </div>
   );
-  return <RecipeStepSettings transform={transform} options={options} onChange={onChange} />;
+  return <RecipeStepSettings transform={transform} options={options} onChange={onChange} samples={samples} />;
 }
 
-function RecipeDialog({
-  currentValue, samples, excludedName, initialRecipe, onApply, onClose,
-}: {
-  currentValue: string;
-  samples: Record<string, unknown>;
-  excludedName: string;
-  initialRecipe?: ValueRecipe;
-  onApply: (recipe: ValueRecipe) => void;
-  onClose: () => void;
-}) {
-  const availableSamples = useMemo(() => Object.fromEntries(
-    Object.entries(samples).filter(([name]) => name && !name.startsWith("#") && name !== excludedName),
-  ), [samples, excludedName]);
-  const names = Object.keys(availableSamples);
-  const [source, setSource] = useState(() => {
-    if (initialRecipe) return initialRecipe.source;
-    const ref = singleValueReference(currentValue);
-    return ref && sampleAtPath(availableSamples, ref) !== undefined ? ref : names[0] ?? "";
-  });
-  const [rows, setRows] = useState<Row[]>(() =>
-    (initialRecipe?.steps ?? []).map((transform, id) => ({ id, transform })));
-  const nextId = useRef(initialRecipe?.steps.length ?? 0);
-  const dialog = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null;
-    const preferred = dialog.current?.querySelector<HTMLElement>('button[aria-label="元の変数を選ぶ"]');
-    (preferred ?? dialog.current?.querySelector<HTMLElement>("button:not(:disabled)"))?.focus();
-    return () => { if (previous?.isConnected) previous.focus(); };
-  }, []);
-
-  const variables = useMemo(() => {
-    const selected = sampleAtPath(availableSamples, source);
-    const values: Record<string, unknown> = Object.create(null);
-    if (source && selected !== undefined) values[source] = selected;
-    return values;
-  }, [availableSamples, source]);
-
-  const result = useMemo(() => source
-    ? evaluateValueRecipe(variables[source], rows.map((row) => row.transform))
-    : null, [source, rows, variables]);
-
-  const suggestedFields = useMemo(() => {
-    const suggestions = new Map<number, string[]>();
-    if (!source) return suggestions;
-    rows.forEach((row, index) => {
-      const kind = row.transform.kind;
-      const objectField = kind === "field" || kind === "has";
-      const listField = kind === "find" || kind === "filter" || kind === "map-field" ||
-        kind === "map-set" || kind === "sort";
-      if (!objectField && !listField) return;
-      const previous = evaluateValueRecipe(variables[source], rows.slice(0, index).map((item) => item.transform));
-      if (previous.kind !== "value") return;
-      const candidate = objectField ? previous.value
-        : Array.isArray(previous.value) ? previous.value.find((item) =>
-            item !== null && typeof item === "object" && !Array.isArray(item)) : undefined;
-      if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
-        suggestions.set(row.id, Object.keys(candidate));
-      }
-    });
-    return suggestions;
-  }, [rows, source, variables]);
-
-  function add(kind: ValueTransformKind) {
-    setRows((previous) => [...previous, { id: nextId.current++, transform: defaultTransform(kind) }]);
-  }
-  function update(id: number, transform: ValueTransform) {
-    setRows((previous) => previous.map((row) => row.id === id ? { ...row, transform } : row));
-  }
-  function move(id: number, distance: -1 | 1) {
-    setRows((previous) => {
-      const index = previous.findIndex((row) => row.id === id);
-      const target = index + distance;
-      if (index < 0 || target < 0 || target >= previous.length) return previous;
-      const next = [...previous];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-  }
-  const apply = () => {
-    if (!source) return;
-    onApply({ source, steps: rows.map((row) => row.transform) });
-    onClose();
-  };
-  const invalid = !source || rows.length > 32 || rows.some(({ transform }) => {
-    if (transform.kind === "field" || transform.kind === "has") return !transform.key.trim();
-    if (transform.kind === "map-field") return !transform.field.trim();
-    if (transform.kind === "math") return !Number.isFinite(transform.operand);
-    if (transform.kind === "compare" || transform.kind === "find" ||
-        transform.kind === "filter" || transform.kind === "map-set") {
-      if (transform.kind === "map-set" && (!transform.field.trim() ||
-          ["__proto__", "constructor", "prototype"].includes(transform.field))) return true;
-      if (transform.operandType === "number") return !transform.operand.trim() ||
-        !/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(transform.operand.trim()) ||
-        !Number.isFinite(Number(transform.operand));
-      if (transform.operandType === "boolean") return !["true", "false"].includes(transform.operand);
-    }
-    return false;
-  });
-
-  return createPortal(
-    <div
-      className="se-composer-backdrop"
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => { event.stopPropagation(); if (event.currentTarget === event.target) onClose(); }}
-      onKeyDown={(event) => {
-        event.stopPropagation();
-        if (event.key === "Escape") onClose();
-        if (event.key === "Tab") {
-          const controls = [...(dialog.current?.querySelectorAll<HTMLElement>(
-            "button:not(:disabled), input:not(:disabled), select:not(:disabled)",
-          ) ?? [])];
-          const first = controls[0], last = controls[controls.length - 1];
-          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-        }
-      }}
-    >
-      <div ref={dialog} className="se-composer" role="dialog" aria-modal="true" aria-label={tr("値を組み立てる")}>
-        <header className="se-composer-head">
-          <h3>{tr("値を組み立てる")}</h3>
-          <button type="button" className="icon-btn" aria-label={tr("閉じる")} onClick={onClose}><X size={16}/></button>
-        </header>
-        <div className="se-composer-main">
-          <div className="se-composer-source">
-            <span>{tr("元の値")}</span>
-            <PathMenu
-              root={availableSamples}
-              path={source}
-              onChange={setSource}
-              mode="any"
-              placeholder={tr("変数を選択")}
-              ariaLabel={tr("元の変数を選ぶ")}
-              allowRoot={false}
-              portalZIndex={550}
-            />
-          </div>
-          {!names.length && <span className="se-composer-no-samples">{tr("使える見本データがありません")}</span>}
-          <ol className="se-composer-steps" aria-label={tr("加工する順番")}>
-            {rows.map((row, index) => {
-              const operation = row.transform;
-              return (
-                <li key={row.id} className="se-composer-step">
-                  <span className="se-composer-number">{index + 1}</span>
-                  <span className="se-composer-step-label" title={tr(DESCRIPTIONS[operation.kind])}>{tr(VALUE_TRANSFORM_LABELS[operation.kind])}</span>
-                  {(operation.kind === "field" || operation.kind === "has") && (
-                    <FieldKeyPicker value={operation.key} options={suggestedFields.get(row.id) ?? []}
-                      onChange={(key) => update(row.id, { ...operation, key })} />
-                  )}
-                  {operation.kind === "index" && (
-                    <input aria-label={tr("取り出す位置")} type="number" min="-1" step="1"
-                      value={operation.index}
-                      onChange={(event) => update(row.id, { ...operation, index: event.target.value === "" ? -1 : Number(event.target.value) })} />
-                  )}
-                  {(operation.kind === "fallback" || operation.kind === "fallback-nullish") && (
-                    <input aria-label={tr("値がないときの文字列")} value={operation.text} maxLength={10000}
-                      placeholder={tr("代わりに使う文字列")}
-                      onChange={(event) => update(row.id, { ...operation, text: event.target.value })} />
-                  )}
-                  <div className="se-composer-step-actions">
-                    <button type="button" aria-label={tr("上へ")} title={tr("上へ")} disabled={index === 0}
-                      onClick={() => move(row.id, -1)}><ArrowUp size={14} aria-hidden="true"/></button>
-                    <button type="button" aria-label={tr("下へ")} title={tr("下へ")} disabled={index === rows.length - 1}
-                      onClick={() => move(row.id, 1)}><ArrowDown size={14} aria-hidden="true"/></button>
-                    <button type="button" aria-label={tr("削除")} title={tr("削除")}
-                      onClick={() => setRows((before) => before.filter((item) => item.id !== row.id))}><Trash2 size={14} aria-hidden="true"/></button>
-                  </div>
-                  <RecipeStepSettings transform={operation} options={suggestedFields.get(row.id) ?? []}
-                    onChange={(next) => update(row.id, next)} />
-                </li>
-              );
-            })}
-          </ol>
-          <label className="se-composer-add">
-            <Plus size={14} aria-hidden="true"/>
-            <select aria-label={tr("加工を追加")} value="" disabled={rows.length >= 32} onChange={(event) => {
-              const kind = event.target.value as ValueTransformKind;
-              if (kind) add(kind);
-            }}>
-              <option value="">{tr("加工を追加")}</option>
-              {VALUE_TRANSFORM_GROUPS.map((group) => (
-                <optgroup key={group.label} label={tr(group.label)}>
-                  {group.kinds.map((kind) => <option key={kind} value={kind} title={tr(DESCRIPTIONS[kind])}>{tr(VALUE_TRANSFORM_LABELS[kind])}</option>)}
-                </optgroup>
-              ))}
-            </select>
-          </label>
-          <section className="se-composer-result">
-            <strong>{tr("見本の結果")}</strong>
-            <output aria-live="polite" data-result-kind={result?.kind ?? "missing"}>{short(describeResult(result), 500)}</output>
-          </section>
-        </div>
-        <footer className="se-composer-foot">
-          <button type="button" className="btn" onClick={onClose}>{tr("キャンセル")}</button>
-          <button type="button" className="btn btn-primary" disabled={invalid} onClick={apply}>{tr("ブロックに反映")}</button>
-        </footer>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-export function ValueComposerPreview({ currentValue, samples, excludedName, recipe, onApply }: {
-  currentValue: string;
-  samples: Record<string, unknown>;
-  excludedName: string;
-  recipe?: ValueRecipe;
-  onApply: (recipe: ValueRecipe) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <button
-        type="button"
-        className="se-mini se-mini-text"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => { event.stopPropagation(); setOpen(true); }}
-      >
-        {recipe ? tr("加工を編集") : tr("値を組み立てる")}
-      </button>
-      {open && (
-        <RecipeDialog currentValue={currentValue} samples={samples} excludedName={excludedName}
-          initialRecipe={recipe} onApply={onApply} onClose={() => setOpen(false)} />
-      )}
-    </>
-  );
-}

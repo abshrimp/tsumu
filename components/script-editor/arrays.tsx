@@ -1,28 +1,23 @@
 "use client";
 
 /**
- * 一覧（リスト）を扱うブロック（探す・項目を取り出す・つなげる・並べ替える・絞り込む）
+ * リスト表示の操作と変数にあるリストの選択
  */
 
-import { useContext, useMemo } from "react";
+import { useContext } from "react";
 import { Plus, X } from "lucide-react";
-import { readableValue } from "../DataView";
 import {
-  cleanVarName,
-  dataVarNames,
   fieldLabel,
   flattenFields,
-  keyOfItem,
   toListItems,
-  uniqueVarName,
 } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { type FilterCond, type ScriptStep } from "../../lib/types";
 import { tr } from "../../lib/i18n";
-import { Ctx, LoopCtx } from "./context";
-import { PathMenu, RESERVED_VARS, VarNameIn, nameFromPath } from "./fetch";
-import { OpEditor, Phrase, TextIn, ValueIn } from "./inputs";
 import { filterNumbersOf } from "./step-tree";
+import { Ctx } from "./context";
+import { PathMenu } from "./fetch";
+import { OpEditor, Phrase } from "./inputs";
 
 /** リストを選ぶ */
 export function ArraySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -63,37 +58,6 @@ function arrayPathsIn(samples: Record<string, unknown>): string[] {
     if (!k.startsWith("#")) walk(v, k, 0);
   }
   return out;
-}
-
-/** ほかのブロックで作った変数から1つ選ぶ（書き換えるブロック用） */
-export function VarSelect({
-  stepId,
-  value,
-  onChange,
-}: {
-  stepId: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const { doc, pageId } = useContext(Ctx);
-  const names = [...dataVarNames(doc, pageId, stepId)].filter((n) => !RESERVED_VARS.has(n));
-  return (
-    <select
-      className={`se-in se-in-strong${value ? "" : " is-empty"}`}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="" disabled>
-        {names.length ? tr("変数を選択") : tr("変数がありません")}
-      </option>
-      {names.map((n) => (
-        <option key={n} value={n}>
-          {n}
-        </option>
-      ))}
-      {value && !names.includes(value) && <option value={value}>{value}{tr("（見つかりません）")}</option>}
-    </select>
-  );
 }
 
 export function AnyArraySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -138,192 +102,6 @@ export function itemFieldsOf(sample: unknown): string[] {
     .filter((f) => !/(^|\.)\d+(\.|$)/.test(f));
 }
 
-/** 「リスト［］の要素のうち、項目［］が［値］のものを変数［］とする」 */
-export function ArrayFindBody({ step }: { step: Extract<ScriptStep, { kind: "array-find" }> }) {
-  const { doc, pageId, updateStep, samples } = useContext(Ctx);
-  const set = (patch: Record<string, unknown>) =>
-    updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
-  const sample = step.array ? lookupVar(samples, step.array) : undefined;
-  const fields = itemFieldsOf(sample);
-  const found = step.into ? samples[step.into] : undefined;
-  return (
-    <>
-      <Phrase
-        text="リスト{array}の要素のうち、項目{field}が{value}のものを変数{into}とする"
-        parts={{
-          array: (
-            <AnyArraySelect
-              value={step.array}
-              onChange={(array) =>
-                set({
-                  array,
-                  ...(!step.into ? { into: uniqueVarName(doc, pageId, nameFromPath(array), step.id) } : {}),
-                })
-              }
-            />
-          ),
-          field: (
-            <select
-              className={`se-in${step.field ? "" : " is-empty"}`}
-              value={step.field}
-              onChange={(e) => set({ field: e.target.value })}
-            >
-              <option value="" disabled>
-                {tr("項目を選択")}
-              </option>
-              {fields.map((f) => (
-                <option key={f} value={f}>
-                  {fieldLabel(f)}
-                </option>
-              ))}
-              {step.field && !fields.includes(step.field) && (
-                <option value={step.field}>{fieldLabel(step.field)}</option>
-              )}
-            </select>
-          ),
-          value: (
-            <TextIn
-              value={step.value}
-              placeholder={tr("値 / {slug}")}
-              vars
-              width={80}
-              onCommit={(v) => set({ value: v })}
-            />
-          ),
-          into: <VarNameIn stepId={step.id} value={step.into} />,
-        }}
-      />
-      {step.into && found !== undefined && (
-        <span className="se-blk-note">
-          {found == null
-            ? tr("見本では一致する要素がありません")
-            : tr("要素では {{into}.項目名} のように使えます", { into: step.into })}
-        </span>
-      )}
-    </>
-  );
-}
-
-/** 「リスト［］の［…］を項目［］として格納する」 */
-export function ArrayFieldBody({ step }: { step: Extract<ScriptStep, { kind: "array-field" }> }) {
-  const { updateStep, samples } = useContext(Ctx);
-  const set = (patch: Record<string, unknown>) =>
-    updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
-  // 見本は格納した後の値なので、足した項目は候補から除く
-  const sample = step.array ? lookupVar(samples, step.array) : undefined;
-  const first = toListItems(sample)[0];
-  const { fields, itemSamples } = useMemo(() => {
-    const fields = itemFieldsOf(sample).filter((f) => f !== step.field);
-    const item = toListItems(sample)[0];
-    const itemSamples = Object.fromEntries(
-      fields.map((f) => [f, readableValue(item ? keyOfItem(item, f) : undefined)])
-    );
-    return { fields, itemSamples };
-  }, [sample, step.field]);
-  const result = first && step.field ? first[step.field] : undefined;
-  const inLoop = useContext(LoopCtx).some((l) => l.array && l.array === step.array);
-  return (
-    <>
-      <Phrase
-        text="リスト{array}の{value}を項目{field}として格納する"
-        parts={{
-          array: <AnyArraySelect value={step.array} onChange={(array) => set({ array })} />,
-          value: (
-            <ValueIn
-              value={step.value}
-              itemFields={[...new Set([...fields, ...Object.keys(first ?? {}).filter((name) => name !== step.field)])]}
-              itemSamples={itemSamples}
-              width={110}
-              onCommit={(v) => set({ value: v })}
-            />
-          ),
-          field: (
-            <TextIn
-              value={step.field}
-              placeholder={tr("項目名")}
-              width={90}
-              onCommit={(v) => set({ field: cleanVarName(v) })}
-            />
-          ),
-        }}
-      />
-      {inLoop && <span className="se-blk-note">{tr("くり返し中の要素だけに格納します")}</span>}
-      {step.field && result !== undefined && (
-        <span className="se-blk-note">
-          {tr("リスト表示の項目では {{field}} として使えます（見本: {sample}）", {
-            field: step.field,
-            sample: readableValue(result),
-          })}
-        </span>
-      )}
-    </>
-  );
-}
-
-/** 「リスト［］を［、］でつないで変数［］とする」 */
-export function JoinBody({ step }: { step: Extract<ScriptStep, { kind: "join" }> }) {
-  const { doc, pageId, updateStep, samples } = useContext(Ctx);
-  const set = (patch: Record<string, unknown>) =>
-    updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
-  const sample = step.array ? lookupVar(samples, step.array) : undefined;
-  const fields = itemFieldsOf(sample);
-  const objects = Array.isArray(sample) && sample.some((x) => x && typeof x === "object");
-  const result = step.into ? samples[step.into] : undefined;
-  const parts = {
-    array: (
-      <AnyArraySelect
-        value={step.array}
-        onChange={(array) =>
-          set({
-            array,
-            ...(!step.into
-              ? { into: uniqueVarName(doc, pageId, tr("{p1}の文字", { p1: nameFromPath(array) }), step.id) }
-              : {}),
-          })
-        }
-      />
-    ),
-    field: (
-      <select
-        className={`se-in${step.field ? "" : " is-empty"}`}
-        value={step.field ?? ""}
-        onChange={(e) => set({ field: e.target.value || undefined })}
-      >
-        <option value="">{tr("項目を選択")}</option>
-        {fields.map((f) => (
-          <option key={f} value={f}>
-            {fieldLabel(f)}
-          </option>
-        ))}
-        {step.field && !fields.includes(step.field) && (
-          <option value={step.field}>{fieldLabel(step.field)}</option>
-        )}
-      </select>
-    ),
-    sep: (
-      <TextIn
-        value={step.sep}
-        placeholder={tr("なし")}
-        width={40}
-        onCommit={(v) => set({ sep: v })}
-      />
-    ),
-    into: <VarNameIn stepId={step.id} value={step.into} />,
-  };
-  return (
-    <>
-      {objects || step.field ? (
-        <Phrase text="リスト{array}の{field}を{sep}でつないで変数{into}とする" parts={parts} />
-      ) : (
-        <Phrase text="リスト{array}を{sep}でつないで変数{into}とする" parts={parts} />
-      )}
-      {step.into && typeof result === "string" && result && (
-        <span className="se-blk-note">{tr("見本:")} {readableValue(result)}</span>
-      )}
-    </>
-  );
-}
-
 /**
  * リストの項目を選ぶ（見本の1件目から。「›」で入れ子の中の項目も選べる）。
  * 文字や数値のリストは、各要素の値が {値} の項目になる
@@ -342,7 +120,7 @@ function ArrayFieldSelect({
   return <PathMenu root={first} path={value} mode="field" onChange={onChange} />;
 }
 
-export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "sort-array" }> }) {
+export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "list-display" }> }) {
   const { updateStep } = useContext(Ctx);
   const set = (patch: Record<string, unknown>) =>
     updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
@@ -363,37 +141,7 @@ export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "sor
   );
 }
 
-/** 解除する絞り込み（すべて / 番号） */
-export function UnfilterSelect({ step }: { step: Extract<ScriptStep, { kind: "unfilter-array" }> }) {
-  const { updateStep, scripts } = useContext(Ctx);
-  const nos = filterNumbersOf(scripts, step.array);
-  const value = step.no === undefined ? "all" : String(step.no);
-  return (
-    <select
-      className="se-in"
-      value={value}
-      onChange={(e) =>
-        updateStep(
-          step.id,
-          (s) =>
-            ({ ...s, no: e.target.value === "all" ? undefined : Number(e.target.value) }) as ScriptStep
-        )
-      }
-    >
-      <option value="all">{tr("すべての絞り込み")}</option>
-      {nos.map((n) => (
-        <option key={n} value={n}>
-          {tr("絞り込み{n}", { n })}
-        </option>
-      ))}
-      {step.no !== undefined && !nos.includes(step.no) && (
-        <option value={step.no}>{tr("絞り込み{n}（見つかりません）", { n: step.no })}</option>
-      )}
-    </select>
-  );
-}
-
-export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "filter-array" }> }) {
+export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "list-display" }> }) {
   const { updateStep, readOnly, scripts } = useContext(Ctx);
   const others = filterNumbersOf(scripts, step.array).filter((n) => n !== step.no);
   const set = (patch: Record<string, unknown>) =>

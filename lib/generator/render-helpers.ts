@@ -13,7 +13,7 @@ import type {
 } from "../types";
 import { needsJsonType, sendsBody } from "../fetch-request";
 import { hardNavPatterns, hasVars, KEEP_ESCAPES, matchesHardNav, pageHrefOf } from "../vars";
-import { condGroups, joinItemSource, listFromOf, type ListOp } from "../data";
+import { condGroups, listFromOf, type ListOp } from "../data";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, keepTokens, walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
@@ -222,27 +222,6 @@ export function scriptsAttr(
       ctx.usesLookup = true;
       exprs.push(`lookupVar(${ctx.varsExpr ?? "vars"}, ${JSON.stringify(name)}) ?? null`);
       return `__script_var_${exprs.length - 1}__`;
-    },
-    (st) => {
-      const live = ctx.liveNames.has(st.array.split(".")[0]);
-      const itemArray = joinItemSource(st);
-      const scopes = ctx.joinItemScopes ?? [];
-      if (live && !scopes.length) return undefined;
-      scopes.forEach((scope) => { scope.used = true; });
-      ctx.usesLookup = true;
-      // 各サーバー行は自分の項目だけを持つ。近い所有者を選び、行境界も実行側へ渡す。
-      const value = st.kind === "join" && st.field
-        ? `x && typeof x === "object" ? lookupVar({ item: x }, ${JSON.stringify(`item.${st.field}`)}) : x`
-        : "x";
-      const scalar = `(x: unknown) => x == null || typeof x === "object" ? "" : String(x)`;
-      const joined = (source: string) => st.kind === "count" ? `((v: unknown) => Array.isArray(v) ? v.length : 0)(${source})` : `((v: unknown) => Array.isArray(v) ? v.map((x: unknown) => ${value}).map(${scalar}).filter(Boolean).join(${JSON.stringify(st.sep)}) : (${scalar})(v))(${source})`;
-      let fallback = live ? "undefined" : `{ value: ${joined(`lookupVar({ ...${ctx.varsExpr ?? "vars"} }, ${JSON.stringify(st.array)})`)} }`;
-      for (const scope of scopes) {
-        const owns = `(Object.prototype.hasOwnProperty.call(${scope.expr}, ${JSON.stringify(itemArray)}) || Object.prototype.hasOwnProperty.call(${scope.expr}, ${JSON.stringify(itemArray.split(".")[0])}))`;
-        fallback = `${owns} ? { value: ${joined(`lookupVar(${scope.expr}, ${JSON.stringify(itemArray)})`)}, owned: true, rowOffset: ${(ctx.joinRowDepth ?? 0) - scope.depth} } : ${fallback}`;
-      }
-      exprs.push(fallback);
-      return `__script_var_${exprs.length - 1}__`;
     }
   );
   if (!compiled.length) return "";
@@ -356,32 +335,6 @@ export function fetchInitExpr(st: Extract<ScriptStep, { kind: "fetch" }>): strin
     body ? `body: ${body}` : "",
   ].filter(Boolean);
   return `{ ${parts.join(", ")} }`;
-}
-
-/**
- * 要素ごとのくり返しの中身（「項目として格納」と変数の「もし」）を生成コードにする。
- * item = くり返し中の要素（格納するたびに新しいまとまりにする）
- */
-export function forEachBody(steps: ScriptStep[], array: string, indent: string): string {
-  const scope = "{ ...vars, ...item }";
-  const text = (t: string) => (hasVars(t) ? `interpolate(${JSON.stringify(t)}, ${scope})` : JSON.stringify(t));
-  return steps
-    .map((st) => {
-      if (st.kind === "array-field" && st.array === array && st.field) {
-        const one = /^\{([^{}\s"'<>`]+)\}$/.exec(st.value.trim());
-        const v = one ? `lookupVar(${scope}, ${JSON.stringify(one[1])}) ?? null` : text(st.value);
-        return `${indent}item = { ...item, ${JSON.stringify(st.field)}: ${v} };`;
-      }
-      if (st.kind === "if" && st.cond.subject === "var") {
-        const cond = filterExpr(text(st.cond.left ?? ""), st.cond.op ?? "eq", text(st.cond.value ?? ""));
-        const then = forEachBody(st.then, array, indent + "  ");
-        const els = st.else?.length ? forEachBody(st.else, array, indent + "  ") : "";
-        return `${indent}if (${cond}) {\n${then}\n${indent}}${els ? ` else {\n${els}\n${indent}}` : ""}`;
-      }
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n");
 }
 
 /** リストで並べる項目の式（変数から一覧を取り出し、絞り込み・並べ替え・件数を適用） */

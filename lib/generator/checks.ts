@@ -269,20 +269,6 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     const dataSteps = pageDataSteps(doc, page.id);
     for (const st of dataSteps) {
       if (!isDataStep(st)) {
-        if (st.kind === "array-find" && st.into && !st.field) {
-          results.push({
-            help: "data-detail",
-            level: "error",
-            message: tr("「{name}」のスクリプトで、リストの要素を探す項目が選ばれていません", { name: page.name }),
-          });
-        }
-        if (st.kind === "array-field" && st.array && !st.field) {
-          results.push({
-            help: "data-list",
-            level: "error",
-            message: tr("「{name}」のスクリプトで、リストの要素に格納する項目名が空です", { name: page.name }),
-          });
-        }
         if ("into" in st && st.into) loadVars.add(st.into);
         continue;
       }

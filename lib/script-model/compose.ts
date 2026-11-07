@@ -1,10 +1,8 @@
-import type { Expr, Json } from "./types";
-
 /** Recipes are pure transformations. Older set-var steps keep their value string. */
 export type NumericOperation = "add" | "subtract" | "multiply" | "divide" | "remainder";
 export type CompareOperation = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "contains" | "starts-with" | "ends-with";
 export type SortDirection = "asc" | "desc";
-export type ValueOperandType = "text" | "number" | "boolean" | "null";
+export type ValueOperandType = "text" | "number" | "boolean" | "null" | "variable";
 export type ValueTransform =
   | { readonly kind: "field" | "has"; readonly key: string }
   | { readonly kind: "index"; readonly index: number }
@@ -18,11 +16,6 @@ export type ValueTransform =
   | { readonly kind: "map-field"; readonly field: string }
   | { readonly kind: "map-set"; readonly field: string; readonly operand: string; readonly operandType: ValueOperandType }
   | { readonly kind: "sort"; readonly field: string; readonly direction: SortDirection };
-export interface ValueRecipe {
-  readonly source: string;
-  readonly steps: readonly ValueTransform[];
-}
-
 export type ValueTransformKind = ValueTransform["kind"];
 
 export const VALUE_TRANSFORM_KINDS: readonly ValueTransformKind[] = [
@@ -51,50 +44,3 @@ export function defaultTransform(kind: ValueTransformKind): ValueTransform {
   }
 }
 
-/**
- * Wrap a source with each operation in order.
- * An object key such as "meta.name" is a *single* segment, never a dotted path.
- * Inputs are not mutated. No conversion to a legacy ScriptStep is implied.
- */
-export function composeValueExpression(source: string, transforms: readonly ValueTransform[]): Expr {
-  let expression: Expr = {
-    kind: "ref",
-    root: { kind: "variable", symbolId: source },
-    path: [],
-  };
-
-  for (const transform of transforms) {
-    switch (transform.kind) {
-      case "field":
-        expression = { kind: "op", op: "object.get", source: expression, path: [transform.key] };
-        break;
-      case "has":
-        expression = { kind: "op", op: "object.has", source: expression, path: [transform.key] };
-        break;
-      case "index":
-        expression = { kind: "op", op: "object.get", source: expression, path: [transform.index] };
-        break;
-      case "length":
-        expression = { kind: "op", op: "array.length", source: expression };
-        break;
-      case "format":
-        expression = { kind: "op", op: "formatScalar", source: expression };
-        break;
-      case "stringify":
-        expression = { kind: "op", op: "stringifyJson", source: expression };
-        break;
-      case "parse":
-        expression = { kind: "op", op: "parseJson", source: expression };
-        break;
-      case "fallback":
-      case "fallback-nullish": {
-        const fallback: Expr = { kind: "literal", value: transform.text as Json };
-        expression = { kind: "op", op: transform.kind === "fallback" ? "defaultIfMissing" : "defaultIfNullish", source: expression, fallback };
-        break;
-      }
-      default:
-        throw new Error("This transformation uses the unified value-recipe evaluator instead of the experimental expression AST");
-    }
-  }
-  return expression;
-}

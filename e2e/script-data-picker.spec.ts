@@ -98,21 +98,12 @@ test("text picker expands object rows and keyboard chooses a scalar leaf without
   expect((await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "copy").value).toBe("{data.name}");
 });
 
-test("numeric picker excludes incompatible values but retains dynamic variables, cancelling changes nothing", async ({ page }) => {
-  const before = await snapshot(page); await openPicker(page, "calc");
-  const search = picker(page).getByPlaceholder("変数名・値で検索");
-  await search.fill("data.name"); await expect(picker(page).locator(".vx-row")).toHaveCount(0);
-  await search.fill("data.price"); await expect(row(page, "{data.price}")).toBeVisible();
-  await search.fill("later"); await expect(row(page, "{later}")).toBeVisible();
-  await search.press("Escape"); expect(await snapshot(page)).toEqual(before);
-});
-
-test("legacy mixed templates and generated code survive exploring, cancelling and save/load unchanged", async ({ page }) => {
+test("mixed templates and generated code survive exploring, cancelling and save/load unchanged", async ({ page }) => {
   const before = await snapshot(page);
   const original = await page.evaluate(() => (window as any).dataPickerProject());
   await openPicker(page);
   await picker(page).getByPlaceholder("変数名・値で検索").press("Escape");
-  await expect(block(page, "value").locator("input").first()).toHaveValue("Legacy {data.name}");
+  await expect(block(page, "value").locator("input").first()).toHaveValue("Value {data.name}");
   await block(page, "value").locator("input").first().blur();
   expect(await snapshot(page)).toEqual(before);
   await page.evaluate(() => { const store = (window as any).dataPickerStore; store.getState().replaceDoc(JSON.parse(JSON.stringify(store.getState().doc))); });
@@ -149,23 +140,6 @@ test("a newly defined output cannot suggest itself, but a prior producer remains
   await openPicker(page); await picker(page).getByPlaceholder("変数名・値で検索").fill("chosen");
   await expect(row(page, "{chosen}")).toContainText("Product"); await pick(page, "chosen");
   expect(await selected(page)).toBe("{chosen}");
-});
-
-test("array-field input keeps loop-local roots and ignores shortcut and Enter during IME composition", async ({ page }) => {
-  await page.evaluate(() => (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
-    doc.pages.p.pageScripts[0].steps = [doc.pages.p.pageScripts[0].steps[0], { id: "each", kind: "for-each", array: "data.rows", then: [
-      { id: "field", kind: "array-field", array: "data.rows", field: "label", value: "Legacy" },
-    ] }];
-  }));
-  const input = block(page, "field").locator("input").first();
-  await input.focus(); await input.dispatchEvent("compositionstart");
-  await input.evaluate((el: HTMLInputElement) => { el.value = "入力中"; });
-  await input.dispatchEvent("input", { isComposing: true, data: "入力中" });
-  for (const key of ["Enter", "/"]) await input.dispatchEvent("keydown", { key, ctrlKey: true, keyCode: 229, isComposing: true });
-  await expect(picker(page)).toHaveCount(0); await expect(input).toHaveValue("入力中");
-  await input.dispatchEvent("compositionend", { data: "入力中" }); await input.blur();
-  await openPicker(page, "field"); await pick(page, "title", "field");
-  expect((await snapshot(page)).pages.p.pageScripts[0].steps[1].then[0].value).toBe("{title}");
 });
 
 test("raw picker retains a loop object with the same name as its output and shadows the page value", async ({ page }) => {
@@ -212,7 +186,7 @@ for (const width of [1440, 375, 320]) {
     await expect(picker(page)).toBeVisible();
     await picker(page).getByPlaceholder("変数名・値で検索").press("Escape");
     await expect(picker(page)).toHaveCount(0);
-    await expect(input).toHaveValue("Legacy {data.name}");
+    await expect(input).toHaveValue("Value {data.name}");
   });
 }
 

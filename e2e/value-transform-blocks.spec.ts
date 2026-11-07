@@ -97,26 +97,26 @@ test("canvas list-display block switches filter, sort and clear without changing
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push({
-        id: "display", kind: "filter-array", array: "data.tags",
-        field: "", op: "eq", value: "",
+        id: "display", kind: "list-display", mode: "filter", array: "data.tags",
+        field: "", op: "eq", value: "", dir: "asc",
       });
     });
   });
   const box = page.locator('[data-sel-key="step:display"]');
   const mode = box.getByRole("combobox", { name: "リスト表示の操作" });
-  await mode.selectOption("sort-array");
+  await mode.selectOption("sort");
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "display").kind;
-  })).toBe("sort-array");
-  await mode.selectOption("unfilter-array");
+    return steps.find((step: any) => step.id === "display").mode;
+  })).toBe("sort");
+  await mode.selectOption("clear");
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "display").kind;
-  })).toBe("unfilter-array");
+    return steps.find((step: any) => step.id === "display").mode;
+  })).toBe("clear");
   await page.getByRole("button", { name: "取り消す", exact: true }).click();
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "display").kind;
+    return steps.find((step: any) => step.id === "display").mode;
   })).toBe("sort-array");
 });

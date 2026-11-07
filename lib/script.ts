@@ -9,7 +9,7 @@ import {
   type ScriptTrigger,
   type SiteDoc,
 } from "./types";
-import { filterConds, isDataStep, joinItemSource, listFromOf, pagePlan } from "./data";
+import { filterConds, isDataStep, listFromOf, pagePlan } from "./data";
 import { tr } from "./i18n";
 import { extractVars, splitRegexVars } from "./vars";
 import { fieldVarNames } from "./fields";
@@ -321,9 +321,7 @@ export function compileScripts(
    * （配列を文字にしない）。画面上で値が決まる変数なら undefined
    * item が true のときは配列の各項目が優先されるため、参照を残す。
    */
-  raw?: (name: string, item?: boolean) => unknown,
-  /** join・count に必要な値だけを渡す。元の配列はブラウザへ渡さない。 */
-  joined?: (step: Extract<ScriptStep, { kind: "join" | "count" }>) => unknown
+  raw?: (name: string, item?: boolean) => unknown
 ): RuntimeScript[] {
   const conv = (steps: ScriptStep[]): RuntimeStep[] =>
     steps.filter((st) => !isDataStep(st) && !skip?.has(st.id)).map((st) => {
@@ -343,43 +341,22 @@ export function compileScripts(
           };
         case "set-value":
           return { kind: st.kind, target: st.target, value: str(st.value, "value") };
-        case "filter-array":
+        case "list-display":
           return {
-            kind: st.kind,
-            array: st.array,
+            kind: st.kind, mode: st.mode, array: st.array,
             ...(st.no !== undefined ? { no: st.no } : {}),
-            ...(st.join === "or" ? { join: "or" } : {}),
-            conds: filterConds(st).map((c) => ({ ...c, value: str(c.value, "value") })),
+            ...(st.mode === "filter" ? {
+              ...(st.join === "or" ? { join: "or" } : {}),
+              conds: filterConds(st).map((v) => ({ ...v, value: str(v.value, "value") })),
+            } : {}),
+            ...(st.mode === "sort" ? { field: st.field, dir: st.dir } : {}),
           };
         case "store-save": {
           const { id: _id, ...rest } = st;
           return { ...rest, value: str(st.value, "value") };
         }
-        case "split": {
-          const { id: _id, ...rest } = st;
-          return { ...rest, source: str(st.source, "value") };
-        }
-        case "count":
-        case "join": {
-          const { id: _id, ...rest } = st;
-          const fallback = joined?.(st);
-          const itemArray = joinItemSource(st);
-          return { ...rest, ...(itemArray !== st.array ? { itemArray } : {}),
-            ...(fallback === undefined ? {} : { [st.kind === "count" ? "countFallback" : "joinFallback"]: fallback }) };
-        }
-        case "array-field": {
-          const { id: _id, value: _value, ...rest } = st;
-          // 対象配列の項目は実行時まで分からないので、通常の変数とは別に扱う。
-          const one = /^\{([^{}]+)\}$/.exec(st.value.trim());
-          const v = one && raw ? raw(one[1].trim(), true) : undefined;
-          return v !== undefined ? { ...rest, raw: v } : { ...rest, value: str(st.value, "value", true) };
-        }
         case "set-var": {
           const { id: _id, value: _value, ...rest } = st;
-          if (st.recipe) {
-            const v = raw?.(st.recipe.source);
-            return v !== undefined ? { ...rest, raw: v } : rest;
-          }
           const one = /^\{([^{}]+)\}$/.exec(st.value.trim());
           const v = one && raw ? raw(one[1].trim()) : undefined;
           return v !== undefined ? { ...rest, raw: v } : { ...rest, value: str(st.value, "value") };
@@ -391,28 +368,6 @@ export function compileScripts(
           const v = st.source ? raw?.(st.source) : undefined;
           return v !== undefined ? { ...rest, raw: v } : rest;
         }
-        case "calc": {
-          const { id: _id, ...rest } = st;
-          return { ...rest, expr: str(st.expr, "value") };
-        }
-        case "replace": {
-          const { id: _id, find: _find, ...rest } = st;
-          return {
-            ...rest,
-            source: str(st.source, "value"),
-            // 正規表現は、変数の部分だけ値に置き換えて（ランタイムで記号を無効にして）つなぐ
-            ...(st.regex
-              ? {
-                  find: splitRegexVars(st.find).map((p) =>
-                    p.var !== undefined ? { v: str(p.text, "value") } : p.text
-                  ),
-                }
-              : { find: str(st.find, "value") }),
-            to: str(st.to, "value"),
-          };
-        }
-        case "array-find":
-        case "list-edit":
         case "copy": {
           const { id: _id, ...rest } = st;
           return { ...rest, value: str(st.value, "value") };
@@ -453,16 +408,10 @@ export function listFilterFields(doc: SiteDoc): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   for (const s of allScripts(doc)) {
     walkSteps(s.steps, (st) => {
-      if (st.kind === "count" && st.array) {
-        if (!out.has(st.array)) out.set(st.array, new Set<string>());
-        return;
-      }
-      if ((st.kind !== "filter-array" && st.kind !== "sort-array") || !st.array || !st.field) {
-        return;
-      }
+      if (st.kind !== "list-display" || st.mode === "clear" || !st.array || !st.field) return;
       const set = out.get(st.array) ?? new Set<string>();
       set.add(st.field);
-      if (st.kind === "filter-array") filterConds(st).forEach((c) => set.add(c.field));
+      if (st.mode === "filter") filterConds(st).forEach((cond) => set.add(cond.field));
       out.set(st.array, set);
     });
   }

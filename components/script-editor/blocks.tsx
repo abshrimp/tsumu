@@ -208,7 +208,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
   }
   return (
     <div
-      className={`se-blk${sel}${step.kind === "filter-array" && step.or?.length ? " has-lines" : ""}`}
+      className={`se-blk${sel}${step.kind === "list-display" && step.mode === "filter" && step.or?.length ? " has-lines" : ""}`}
       data-sel-key={key}
       {...handlers}
     >

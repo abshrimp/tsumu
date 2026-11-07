@@ -10,7 +10,7 @@ export type RecipeEvaluation =
  * Do not capture imports or local helpers: the exported site embeds this function.
  * Undefined is missing; null is a real value. No input object is mutated.
  */
-export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransform[]): RecipeEvaluation {
+export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransform[], variables: Record<string, unknown> = {}): RecipeEvaluation {
   const failure = (code: string): RecipeEvaluation => ({ kind: "error", code });
   const missing: RecipeEvaluation = { kind: "missing" };
   if (!Array.isArray(steps) || steps.length > 32) return failure("invalid-recipe");
@@ -44,6 +44,12 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       return Number.isFinite(number) ? { ok: true, value: number } : { ok: false };
     }
     return { ok: false };
+  };
+  const argument = (step: { operand: string; operandType: string }):
+    { ok: true; value: unknown } | { ok: false } => {
+    if (step.operandType !== "variable") return literal(step.operand, step.operandType);
+    const value = valueAt(variables, step.operand);
+    return value === undefined ? { ok: false } : { ok: true, value };
   };
   const compare = (left: unknown, right: unknown, operator: string): boolean | undefined => {
     if (!scalar(left) || !scalar(right)) return undefined;
@@ -154,7 +160,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         }
         case "compare": {
           if (absent) break;
-          const rhs = literal(step.operand, step.operandType);
+          const rhs = argument(step);
           if (!rhs.ok) return failure("invalid-literal");
           const answer = compare(current, rhs.value, step.operation);
           if (answer === undefined) return failure("type-mismatch");
@@ -207,7 +213,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (absent) break;
           if (!Array.isArray(current) || typeof step.field !== "string" ||
               step.field.length > 256 || current.length > 10000) return failure("type-mismatch");
-          const rhs = literal(step.operand, step.operandType);
+          const rhs = argument(step);
           if (!rhs.ok) return failure("invalid-literal");
           const kept: unknown[] = [];
           let match: unknown = undefined;
@@ -246,7 +252,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             return failure("type-mismatch");
           if (step.field === "__proto__" || step.field === "constructor" || step.field === "prototype")
             return failure("invalid-path");
-          const rhs = literal(step.operand, step.operandType);
+          const rhs = argument(step);
           if (!rhs.ok) return failure("invalid-literal");
           const mapped: unknown[] = [];
           for (const item of current) {

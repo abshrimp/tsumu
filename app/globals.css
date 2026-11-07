@@ -12379,90 +12379,72 @@ a.btn {
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
 .se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }
 
-/* Compact, editable value composition modal. */
-.se-composer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 450;
-  display: grid;
-  place-items: center;
-  padding: 14px;
-  background: rgba(24, 24, 27, .38);
-}
-.se-composer {
+/* Inline value operations in ordinary script blocks. */
+.se-transform-settings {
+  flex-basis: 100%;
   display: flex;
-  flex-direction: column;
-  width: min(650px, 100%);
-  max-height: calc(100dvh - 28px);
-  min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
-  box-shadow: var(--shadow-pop);
-  overflow: hidden;
-}
-.se-composer-head {
-  display: flex;
+  min-width: 0;
+  margin-left: 26px;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
 }
-.se-composer-head h3 { margin: 0; font-size: 15px; }
-.se-composer-main {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
-}
-.se-composer-source {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.se-composer-source > span { flex: 0 0 65px; font-weight: 600; font-size: 12px; }
-.se-composer-source > .se-pm-btn {
+.se-transform-settings > .se-composer-step-settings {
   flex: 1;
-  min-width: 0;
-  min-height: 34px;
-  padding: 6px 10px;
-  text-align: left;
+  max-width: 650px;
 }
-.se-composer-source > .se-pm-btn > span { flex: 1; }
-.se-composer-no-samples { margin-left: 77px; color: var(--text-3); font-size: 11px; }
-.se-composer-steps {
+.se-composer-step-settings {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.se-composer-step {
-  display: grid;
-  grid-template-columns: 20px minmax(115px, 1fr) minmax(110px, 1.2fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 7px 9px;
+  flex-wrap: wrap;
+  gap: 6px;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-s);
 }
-.se-composer-number { color: var(--text-3); font-size: 11px; text-align: center; }
-.se-composer-step-label {
+.se-composer-step-settings > .se-in,
+.se-composer-step-settings > input:not([type="checkbox"]),
+.se-composer-step-settings .se-composer-operand > .se-in,
+.se-composer-step-settings .se-composer-operand > input {
+  flex: 1 1 90px;
   min-width: 0;
+  max-width: 225px;
+  min-height: 30px;
   font-size: 12px;
-  font-weight: 500;
-  line-height: 1.45;
 }
-.se-composer-step > input,
-.se-composer-step .se-composer-field input {
+.se-composer-step-settings > input:not([type="checkbox"]),
+.se-composer-step-settings .se-composer-operand > input {
+  padding: 4px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--panel);
+  color: var(--text);
+}
+.se-composer-operand {
+  display: flex;
+  flex: 2 1 180px;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
+}
+.se-composer-operand > .se-in {
+  flex: 0 1 90px;
+}
+.se-composer-operand > .se-pm-btn {
+  flex: 1 1 120px;
+}
+.se-composer-operand > input {
+  flex: 1 1 90px;
+}
+.se-composer-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1 1 145px;
+  min-width: 0;
+  max-width: 225px;
+}
+.se-composer-field > input {
   width: 100%;
-  height: 32px;
-  padding: 5px 8px;
+  min-width: 0;
+  min-height: 30px;
+  padding: 4px 30px 4px 8px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-s);
   background: var(--panel);
@@ -12470,21 +12452,14 @@ a.btn {
   font: inherit;
   font-size: 12px;
 }
-.se-composer-field {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-.se-composer-step .se-composer-field input { padding-right: 30px; }
 .se-composer-field-toggle {
   position: absolute;
   top: 50%;
-  right: 5px;
+  right: 4px;
   display: grid;
   place-items: center;
-  width: 23px;
-  height: 23px;
+  height: 24px;
+  width: 24px;
   transform: translateY(-50%);
   border-radius: var(--radius-s);
   color: var(--text-2);
@@ -12506,203 +12481,23 @@ a.btn {
   min-height: 30px;
   padding: 6px 9px;
   border-radius: 5px;
-  text-align: left;
   font-size: 12px;
+  text-align: left;
   overflow-wrap: anywhere;
 }
 .se-composer-field-menu > button:hover,
 .se-composer-field-menu > button.is-active { background: var(--field); }
 .se-composer-field-menu > button[aria-selected="true"] { font-weight: 600; }
 .se-composer-field-empty { margin: 0; padding: 10px 8px; color: var(--text-2); font-size: 12px; }
-.se-composer-step-actions {
-  grid-column: 4;
-  display: flex;
-  align-items: center;
-  justify-self: end;
-  gap: 2px;
-}
-.se-composer-step-actions button {
-  display: grid;
-  place-items: center;
-  width: 25px;
-  height: 25px;
-  border-radius: var(--radius-s);
-  color: var(--text-2);
-}
-.se-composer-step-actions button:hover:not(:disabled) { background: var(--field); }
-.se-composer-step-actions button:disabled { opacity: .3; cursor: default; }
-.se-composer-add {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-s);
-  color: var(--text-2);
-}
-.se-composer-add select {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-/* Focus the entire add-action row, not only the native select inside its dashed edge. */
-.se-composer-add:focus-within {
-  border-style: solid;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
-}
-.se-composer-add select:focus-visible {
-  outline: none;
-}
-.se-composer-result {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-s);
-  background: var(--field);
-  font-size: 12px;
-}
-.se-composer-result strong { flex: none; font-weight: 600; }
-.se-composer-result output {
-  flex: 1;
-  min-width: 0;
-  max-height: 110px;
-  overflow: auto;
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.se-composer-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 16px;
-  border-top: 1px solid var(--border);
-}
-.se-composer-foot .btn:disabled { opacity: .5; cursor: not-allowed; }
-.se-composer-inline-summary { max-width: 240px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 540px) {
-  .se-composer-backdrop { padding: 8px; }
-  .se-composer { max-height: calc(100dvh - 16px); }
-  .se-composer-main { padding: 12px; }
-  .se-composer-step { grid-template-columns: 20px minmax(0, 1fr) auto; }
-  .se-composer-step > input, .se-composer-step > .se-composer-field {
-    grid-column: 2 / 4;
-    grid-row: 2;
-  }
-  .se-composer-step-actions { grid-column: 3; grid-row: 1; }
-  .se-composer-source > span { flex-basis: 55px; }
-  .se-composer-no-samples { margin-left: 67px; }
-  .se-composer-result { flex-direction: column; gap: 6px; }
-}
-
-
-/* Compact parameters for composable-value operations. Keep the actions pinned
-   to the first row; extended settings occupy only the space they need. */
-.se-composer-step-settings {
-  grid-column: 2 / 4;
-  grid-row: 2;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-}
-.se-composer-step-settings > select,
-.se-composer-step-settings > input,
-.se-composer-step-settings .se-composer-operand > select,
-.se-composer-step-settings .se-composer-operand > input {
-  flex: 1 1 85px;
-  min-width: 0;
-  max-width: 220px;
-  height: 32px;
-  padding: 5px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-s);
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-}
-.se-composer-step-settings > .se-composer-field {
-  flex: 1 1 130px;
-  min-width: 100px;
-  max-width: 220px;
-}
-.se-composer-operand {
-  display: flex;
-  flex: 2 1 175px;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.se-composer-step-settings .se-composer-operand > select {
-  flex: 0 1 95px;
-}
-.se-composer-step-settings .se-composer-operand > input {
-  flex: 1 1 90px;
-}
 .se-composer-regex {
   display: inline-flex;
-  align-items: center;
   flex: none;
-  gap: 5px;
-  color: var(--text-2);
-  font-size: 11px;
-  white-space: nowrap;
-}
-.se-composer-regex input {
-  accent-color: var(--accent);
-}
-@media (max-width: 540px) {
-  .se-composer-step-settings { grid-column: 2 / 4; grid-row: 2; }
-}
-
-
-/* New block-first value composition: each canvas block applies one operation. */
-.se-transform-settings {
-  flex-basis: 100%;
-  min-width: 0;
-  margin-left: 26px;
-  display: flex;
-  align-items: center;
-}
-.se-transform-settings > .se-composer-step-settings {
-  grid-column: auto;
-  grid-row: auto;
-  flex: 1;
-  max-width: 610px;
-}
-.se-transform-settings .se-composer-field-menu { z-index: 560; }
-.se-display-mode {
-  flex: none;
-  max-width: 155px;
-}
-.se-pal-legacy-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   gap: 6px;
-  width: 100%;
-  padding: 9px 6px;
-  margin-top: 14px;
-  border-top: 1px solid var(--border);
+  align-items: center;
   color: var(--text-2);
   font-size: 11px;
-  font-weight: 500;
 }
-.se-pal-legacy-toggle:hover {
-  background: var(--field);
-  color: var(--text);
-}
-.se-pal-legacy-toggle svg { transition: transform 130ms ease; }
-.se-pal-legacy-toggle svg.is-open { transform: rotate(180deg); }
+.se-composer-regex input { accent-color: var(--accent); }
 @media (max-width: 540px) {
   .se-transform-settings { margin-left: 0; }
 }

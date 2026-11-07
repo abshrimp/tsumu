@@ -9,12 +9,10 @@ import type {
 import {
   extractVars,
   interpolate,
-  isRegexQuantifier,
   isSlugPage,
   lookupVar,
   pageQueryVars,
   urlHasSlug,
-  varText,
 } from "./vars";
 import { fieldStateNotes, fieldVarName, fieldVarNames, isRadioItem } from "./fields";
 import { tr, trc } from "./i18n";
@@ -106,7 +104,7 @@ export function compareValues(a: unknown, b: unknown): number {
 
 /** 「配列を絞り込む」の条件（最初の条件 + 「かつ」「または」の条件。項目未選択は除く） */
 export function filterConds(
-  st: Extract<ScriptStep, { kind: "filter-array" }>
+  st: Extract<ScriptStep, { kind: "list-display" }>
 ): FilterCond[] {
   return [{ field: st.field, op: st.op, value: st.value }, ...(st.or ?? [])].filter(
     (c) => c.field
@@ -363,19 +361,14 @@ export function varSamplesAt(
 /** ページを配信する前（サーバー側）にだけ動くブロック（データの取得） */
 export type DataStep = Extract<ScriptStep, { kind: "fetch" }>;
 /** 入力がサーバー側でそろえばページを配信する前に、そうでなければ画面上で動くブロック */
-export type HybridStep = Extract<
-  ScriptStep,
-  { kind: "split" | "array-find" | "array-field" | "join" | "count" }
->;
 export type ForEachStep = Extract<ScriptStep, { kind: "for-each" }>;
 export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
 export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
 /** ページを配信する前に実行するブロック */
-export type ServerStep = DataStep | HybridStep | ForEachStep | SetVarStep | TransformStep;
+export type ServerStep = DataStep | SetVarStep | TransformStep;
 
 /** 「［{名前}］を変数［］とする」の {名前}（値が {名前} 1つだけでなければ null） */
 export function setVarSource(st: SetVarStep): string | null {
-  if (st.recipe) return null;
   const m = /^\{([^{}]+)\}$/.exec(st.value.trim());
   return m ? m[1].trim() : null;
 }
@@ -384,79 +377,6 @@ export type FetchStep = Extract<ScriptStep, { kind: "fetch" }>;
 /** データのブロックか（ページを配信する前に動き、画面上のスクリプトには含めない） */
 export function isDataStep(st: ScriptStep): st is DataStep {
   return st.kind === "fetch";
-}
-
-const HYBRID_KINDS = new Set<string>([
-  "split",
-  "array-find",
-  "array-field",
-  "join",
-  "count",
-]);
-
-export function isHybridStep(st: ScriptStep): st is HybridStep {
-  return HYBRID_KINDS.has(st.kind);
-}
-
-/**
- * 要素ごとのくり返しを配信前に動かせるか。
- * 中のブロックが、同じ配列への「項目として格納」と変数を比べる「もし」だけで、
- * 画面上で値が決まる変数を使わないこと
- */
-function forEachOnServer(st: ForEachStep, isClient: (name: string) => boolean): boolean {
-  const usesClient = (s: string | undefined) => !!s && extractVars(s).some(isClient);
-  const ok = (steps: ScriptStep[]): boolean =>
-    steps.every((x) =>
-      x.kind === "array-field"
-        ? x.array === st.array && !usesClient(x.value)
-        : x.kind === "if"
-          ? x.cond.subject === "var" &&
-            !usesClient(x.cond.left) &&
-            !usesClient(x.cond.value) &&
-            ok(x.then) &&
-            ok(x.else ?? [])
-          : false
-    );
-  return ok(st.then);
-}
-
-/**
- * 配列の要素ごとに、中の「項目として格納」「もし」を動かした新しい配列（配列でなければそのまま）。
- * 中では要素の項目と変数を {名前} で使える
- */
-export function forEachItems(
-  value: unknown,
-  st: ForEachStep,
-  vars: Record<string, unknown>
-): unknown {
-  if (!Array.isArray(value)) return value;
-  const run = (steps: ScriptStep[], item: Record<string, unknown>): Record<string, unknown> => {
-    for (const x of steps) {
-      const scope = { ...vars, ...item };
-      if (x.kind === "array-field" && x.array === st.array && x.field) {
-        const single = /^\{([^{}\s"'<>`]+)\}$/.exec(x.value.trim());
-        item = {
-          ...item,
-          [x.field]: single ? (lookupVar(scope, single[1]) ?? null) : interpolate(x.value, scope),
-        };
-      } else if (x.kind === "if" && x.cond.subject === "var") {
-        const hit = matchOp(
-          interpolate(x.cond.left ?? "", scope),
-          x.cond.op,
-          interpolate(x.cond.value ?? "", scope)
-        );
-        const branch = hit ? x.then : x.else;
-        if (branch) item = run(branch, item);
-      }
-    }
-    return item;
-  };
-  return value.map((x) => {
-    if (x == null || Array.isArray(x)) return x;
-    const item = typeof x === "object" ? (x as Record<string, unknown>) : { [ITEM_VALUE]: x };
-    const out = run(st.then, item);
-    return out === item ? x : out;
-  });
 }
 
 /** 変数名に使えない文字を落とす（{ } . 空白 引用符など） */
@@ -514,10 +434,7 @@ export interface PagePlan {
    */
   listOps: Map<string, ListOp[]>;
   /**
-   * 配信する前に動く「配列の件数」のID → その時点で配列にかかっている絞り込み
-   * （件数は絞り込み後の数にする）
    */
-  countFilters: Map<string, Extract<ListOp, { kind: "filter" }>[]>;
 }
 
 /**
@@ -539,17 +456,16 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   );
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
-      if ((st.kind === "store-load" || st.kind === "list-edit" || st.kind === "calc" || st.kind === "replace") && st.into) {
+      if (st.kind === "store-load" && st.into) {
         clientVars.add(st.into);
       }
       // 「ページを開いたとき」の直下で {名前} だけを入れるものは、配信前に動くかを後で決める
-      if (st.kind === "set-var" && st.into && !(loadRoot.has(st) && (st.recipe?.source || setVarSource(st)))) {
+      if (st.kind === "set-var" && st.into && !(loadRoot.has(st) && setVarSource(st))) {
         clientVars.add(st.into);
       }
       if (st.kind === "transform" && st.into && !(loadRoot.has(st) && st.source)) {
         clientVars.add(st.into);
       }
-      if (isHybridStep(st) && !loadRoot.has(st) && "into" in st && st.into) clientVars.add(st.into);
     });
   }
   const isClient = (name: string) => clientVars.has(rootName(name)) || fieldIds.has(rootName(name));
@@ -559,7 +475,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
       if (
-        (st.kind === "filter-array" || st.kind === "unfilter-array" || st.kind === "sort-array") &&
+        st.kind === "list-display" &&
         !loadRoot.has(st)
       ) {
         dynamicArrays.add(st.array);
@@ -569,7 +485,6 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   const steps: ServerStep[] = [];
   const serverIds = new Set<string>();
   const listOps = new Map<string, ListOp[]>();
-  const countFilters = new Map<string, Extract<ListOp, { kind: "filter" }>[]>();
   // 同じ番号の絞り込みはもう一度動かすと置き換わる
   const addOp = (array: string, op: ListOp) => {
     const cur = listOps.get(array) ?? [];
@@ -584,32 +499,10 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
     for (const st of s.steps) {
       if (isDataStep(st)) {
         steps.push(st);
-      } else if (isHybridStep(st)) {
-        const client =
-          st.kind === "split"
-            ? extractVars(st.source).some(isClient)
-            : !st.array ||
-              isClient(st.array) ||
-              ((st.kind === "array-find" || st.kind === "array-field") &&
-                extractVars(st.value).some(isClient)) ||
-              // 画面上で絞り込む配列の件数は、絞り込みが動いた後に画面上で数える
-              (st.kind === "count" && dynamicArrays.has(st.array));
-        if (client) {
-          if ("into" in st && st.into) clientVars.add(st.into);
-        } else {
-          steps.push(st);
-          serverIds.add(st.id);
-          if (st.kind === "count") {
-            const fs = (listOps.get(st.array) ?? []).filter(
-              (o): o is Extract<ListOp, { kind: "filter" }> => o.kind === "filter"
-            );
-            if (fs.length) countFilters.set(st.id, fs);
-          }
-        }
       } else if (st.kind === "set-var" || st.kind === "transform") {
         // A load-time, pure value chain can run before rendering.
         // A chain that reads or overwrites a browser-owned value remains on the client.
-        const src = st.kind === "transform" ? st.source : st.recipe?.source || setVarSource(st);
+        const src = st.kind === "transform" ? st.source : setVarSource(st);
         if (!st.into || !src) continue;
         if (isClient(src) || clientVars.has(st.into)) {
           clientVars.add(st.into);
@@ -617,32 +510,26 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
           steps.push(st);
           serverIds.add(st.id);
         }
-      } else if (st.kind === "for-each") {
-        // 中が「項目として格納」と変数の「もし」だけで、値が配信前にそろえば配信前に動く
-        if (st.array && !isClient(st.array) && forEachOnServer(st, isClient)) {
-          steps.push(st);
-          serverIds.add(st.id);
-        }
       } else if (
-        (st.kind === "filter-array" || st.kind === "sort-array") &&
+        st.kind === "list-display" && st.mode !== "clear" &&
         st.array &&
         st.field &&
         !isClient(st.array) &&
         !dynamicArrays.has(st.array) &&
         !(
-          st.kind === "filter-array" &&
+          st.mode === "filter" &&
           filterConds(st).some((c) => extractVars(c.value).some(isClient))
         )
       ) {
         addOp(
           st.array,
-          st.kind === "filter-array"
+          st.mode === "filter"
             ? { kind: "filter", conds: filterConds(st), no: st.no, join: st.join }
             : { kind: "sort", field: st.field, dir: st.dir }
         );
         serverIds.add(st.id);
       } else if (
-        st.kind === "unfilter-array" &&
+        st.kind === "list-display" && st.mode === "clear" &&
         st.array &&
         !isClient(st.array) &&
         !dynamicArrays.has(st.array)
@@ -657,7 +544,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       }
     }
   }
-  return { steps, serverIds, clientVars, listOps, countFilters };
+  return { steps, serverIds, clientVars, listOps };
 }
 
 /**
@@ -736,14 +623,6 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
   const { clientVars } = pagePlan(doc, pageId);
   const out: PageArray[] = [];
   const seen = new Set<string>();
-  for (const steps of scriptsInPage(doc, pageId)) {
-    walkAll(steps, (st) => {
-      if (st.kind === "split" && st.into && !seen.has(st.into)) {
-        seen.add(st.into);
-        out.push({ name: st.into, client: clientVars.has(st.into) });
-      }
-    });
-  }
   // 「［{配列}］を変数［］とする」で配列をそのまま入れた変数も配列として扱う
   const copies: { name: string; src: string }[] = [];
   for (const steps of scriptsInPage(doc, pageId)) {
@@ -828,45 +707,34 @@ export function makeSample(json: unknown): { sample: unknown; totals?: Record<st
   return { sample, ...(Object.keys(totals).length ? { totals } : {}) };
 }
 
-/**
- * [slug]ページの中心になるデータ（無ければ404・タイトルに使う）。
- * 「配列の要素のうち、項目が {slug} のもの」→ {slug} を含むURLから取得したデータを入れた変数、
- * の順で最初のもの
- */
-export type PrimaryStep = Extract<HybridStep, { kind: "array-find" }> | SetVarStep;
-
+/** A dynamic page selects its primary record through a "find" transform or a slug-aware fetch. */
+export type PrimaryStep = TransformStep | SetVarStep;
 export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimaryStep } | null {
   const page = doc.pages[pageId];
   if (!page || !isSlugPage(page.slug)) return null;
   const all = pageDataSteps(doc, pageId);
   for (const st of all) {
-    if (st.kind === "array-find" && st.into && st.array && st.field && st.value.includes("{slug}")) {
-      return { step: st };
-    }
+    if (st.kind === "transform" && st.into && st.source &&
+        st.transform.kind === "find" && st.transform.operandType === "variable" &&
+        st.transform.operand === "slug" && st.transform.field) return { step: st };
   }
-  const slugFetches = new Set(
-    all.filter((st) => st.kind === "fetch" && st.as && urlHasSlug(st.url)).map((st) => (st as FetchStep).as!)
-  );
+  const slugFetches = new Set(all.filter((st) =>
+    st.kind === "fetch" && st.as && urlHasSlug(st.url)).map((st) => (st as FetchStep).as!));
   for (const st of all) {
-    const src = st.kind === "set-var" && st.into ? setVarSource(st) : null;
+    const src = st.kind === "set-var" ? setVarSource(st) : null;
     if (src && slugFetches.has(rootName(src))) return { step: st as SetVarStep };
   }
   return null;
 }
 
-/**
- * [slug]ページの中心のデータが「〜のうち、項目が {slug} のもの」を探すとき、
- * 探す元の一覧と、見分ける項目（プレビューバーで項目を選ぶのに使う）
- */
+/** Preview selection of the records used by a dynamic page. */
 export function primaryCandidates(
-  doc: SiteDoc,
-  pageId: string,
-  live?: Record<string, unknown>
+  doc: SiteDoc, pageId: string, live?: Record<string, unknown>,
 ): { field: string; items: Record<string, unknown>[] } | null {
   const step = primaryDataStep(doc, pageId)?.step;
-  if (step?.kind === "array-find") {
+  if (step?.kind === "transform" && step.transform.kind === "find") {
     const vars = previewDataVars(doc, pageId, { live, index: 0 });
-    return { field: step.field, items: toItems(lookupVar(vars, step.array)) };
+    return { field: step.transform.field, items: toItems(lookupVar(vars, step.source)) };
   }
   return null;
 }
@@ -914,144 +782,54 @@ export function previewDataVars(
   const out: Record<string, unknown> = {};
   const primary = primaryDataStep(doc, pageId)?.step;
   const scope = () => ({ ...opts.vars, slug: opts.slug, ...out });
-  // 見本は配列を先頭だけに切り詰めているため、変数がどの取得データのどこから来たかを覚えておき、
-  // 件数は元の件数（sampleTotals）で答える
-  type Origin = { totals?: Record<string, number>; path: string };
-  const origins: Record<string, Origin> = {};
-  const join = (a: string, b: string) => (a && b ? `${a}.${b}` : a || b);
-  const originOf = (name: string): Origin | null => {
-    const [root, ...rest] = name.split(".");
-    const o = origins[root];
-    return o ? { totals: o.totals, path: join(o.path, rest.join(".")) } : null;
-  };
   const plan = pagePlan(doc, pageId);
   for (const st of plan.steps) {
     switch (st.kind) {
       case "fetch":
         if (st.as) {
           out[st.as] = opts.live?.[st.id] ?? st.sample ?? null;
-          origins[st.as] = {
-            totals: opts.live?.[st.id] !== undefined ? opts.liveTotals?.[st.id] : st.sampleTotals,
-            path: "",
-          };
         }
-        break;
-      case "split":
-        if (st.into) out[st.into] = splitText(interpolate(st.source, scope()), st.sep);
-        break;
-      case "array-find": {
-        if (!st.into) break;
-        const items = toItems(lookupVar(scope(), st.array));
-        if (st === primary) {
-          out[st.into] =
-            (opts.index ?? 0) < 0
-              ? null
-              : (items[Math.max(0, Math.min(opts.index ?? 0, items.length - 1))] ?? null);
-        } else {
-          const key = interpolate(st.value, scope());
-          out[st.into] =
-            (st.field && items.find((it) => sameKey(keyOfItem(it, st.field), key))) || null;
-        }
-        break;
-      }
-      case "join":
-        if (st.into) out[st.into] = joinArray(lookupVar(scope(), st.array), st.field, st.sep);
         break;
       case "set-var": {
-        const src = st.recipe?.source || setVarSource(st);
-        if (!st.into || !src) break;
-        if (st.recipe) {
-          const evaluated = evaluateValueRecipe(lookupVar(scope(), src), st.recipe.steps);
-          if (evaluated.kind === "value") out[st.into] = evaluated.value;
-        } else out[st.into] = lookupVar(scope(), src) ?? null;
-        if (!st.recipe || st.recipe.steps.length === 0) {
-          const o = originOf(src);
-          if (o) origins[st.into] = o;
-        }
+        const src = setVarSource(st);
+        if (st.into && src) out[st.into] = lookupVar(scope(), src) ?? null;
         break;
       }
       case "transform": {
         if (!st.into || !st.source) break;
-        const result = evaluateValueRecipe(lookupVar(scope(), st.source), [st.transform]);
-        if (result.kind === "value") out[st.into] = result.value;
-        break;
-      }
-      case "array-field":
-        if (st.array && st.field) {
-          const vars = scope();
-          setVarPath(out, st.array, withItemField(lookupVar(vars, st.array), st.field, st.value, vars));
-        }
-        break;
-      case "for-each": {
-        const vars = scope();
-        setVarPath(out, st.array, forEachItems(lookupVar(vars, st.array), st, vars));
-        break;
-      }
-      case "count": {
-        const v = lookupVar(scope(), st.array);
-        const fs = plan.countFilters.get(st.id);
-        if (fs && Array.isArray(v)) {
-          // 絞り込み後の件数（見本は切り詰めているので、見本のうちで当てはまる数）
-          const resolved = fs.map((f) => ({
-            ...f,
-            conds: f.conds.map((c) => ({ ...c, value: interpolate(c.value, scope()) })),
-          }));
-          if (st.into) out[st.into] = filterItems(toListItems(v), resolved).length;
+        if (st === primary && opts.index !== undefined && st.transform.kind === "find") {
+          const list = lookupVar(scope(), st.source);
+          const items = Array.isArray(list) ? list : [];
+          out[st.into] = opts.index < 0 ? null : (items[Math.max(0, Math.min(opts.index, items.length - 1))] ?? null);
           break;
         }
-        const o = originOf(st.array);
-        const total = o?.totals?.[o.path];
-        if (st.into) out[st.into] = Array.isArray(v) ? (total ?? v.length) : 0;
+        const vars = scope();
+        const result = evaluateValueRecipe(lookupVar(vars, st.source), [st.transform], vars);
+        if (result.kind === "value") out[st.into] = result.value;
         break;
       }
     }
   }
   // 「［{名前}］を変数［］とする」は画面上で動くが、見本ではそのまま入れておく
   //（リストの項目・変数の候補に中身を出すため。変数から変数へ入れ直した場合もたどる）
-  const copies: { into: string; src: string; recipe?: SetVarStep["recipe"] }[] = [];
+  const copies: { into: string; src: string }[] = [];
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
-      const src = st.kind === "set-var" && st.into && !(st.into in out) ? st.recipe?.source || setVarSource(st) : null;
-      if (src) copies.push({ into: (st as SetVarStep).into, src, recipe: (st as SetVarStep).recipe });
+      const src = st.kind === "set-var" && st.into && !(st.into in out) ? setVarSource(st) : null;
+      if (src) copies.push({ into: (st as SetVarStep).into, src });
     });
   }
   for (let added = true; added; ) {
     added = false;
-    for (const c of copies) {
-      if (c.into in out) continue;
-      const v = lookupVar(scope(), c.src);
-      if (v === undefined) continue;
-      if (c.recipe) {
-        const result = evaluateValueRecipe(v, c.recipe.steps);
-        if (result.kind !== "value") continue;
-        out[c.into] = result.value;
-      } else out[c.into] = v;
+    for (const copy of copies) {
+      if (copy.into in out) continue;
+      const value = lookupVar(scope(), copy.src);
+      if (value === undefined) continue;
+      out[copy.into] = value;
       added = true;
     }
   }
   return out;
-}
-
-/**
- * 配列の各要素に、template の値を項目 field として入れた新しい配列（配列でなければそのまま）。
- * template では要素の項目と変数を {名前} で使える（{名前} だけなら値をそのまま入れる）
- */
-export function withItemField(
-  value: unknown,
-  field: string,
-  template: string,
-  vars: Record<string, unknown>
-): unknown {
-  if (!Array.isArray(value)) return value;
-  const single = /^\{([^{}\s"'<>`]+)\}$/.exec(template.trim());
-  return value.map((x) => {
-    if (x == null || Array.isArray(x)) return x;
-    const item =
-      typeof x === "object" ? (x as Record<string, unknown>) : { [ITEM_VALUE]: x };
-    const scope = { ...vars, ...item };
-    const v = single ? (lookupVar(scope, single[1]) ?? null) : interpolate(template, scope);
-    return { ...item, [field]: v };
-  });
 }
 
 /** 変数に値を入れる（"記事.tags" のような入れ子は、元の値を変えずに途中を複製して入れる） */
@@ -1073,18 +851,6 @@ export function setVarPath(vars: Record<string, unknown>, name: string, value: u
   };
   const [root, ...rest] = name.split(".");
   vars[root] = put(vars[root], rest);
-}
-
-/** 配列の要素（まとまりなら field の値）を区切り文字でつなぐ */
-export function joinArray(value: unknown, field: string | undefined, sep: string): string {
-  if (!Array.isArray(value)) return varText(value);
-  return value
-    .map((x) => {
-      const v = field && x && typeof x === "object" ? digPath(x, field) : x;
-      return v == null || typeof v === "object" ? "" : String(v);
-    })
-    .filter((x) => x !== "")
-    .join(sep);
 }
 
 /** {名前} で書ける変数だけにする（「#」で始まる内部の変数を除く） */
@@ -1332,32 +1098,21 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       st.headers = st.headers?.map((h) => ({ ...h, value: mapVarTokens(h.value, fn) }));
       if (st.body) st.body = mapVarTokens(st.body, fn);
     }
-    else if (st.kind === "split") st.source = mapVarTokens(st.source, fn);
-    // A transform's source is a variable path, not a template.
-    else if (st.kind === "transform") st.source = fn(st.source) ?? st.source;
-    else if (st.kind === "calc") st.expr = mapVarTokens(st.expr, fn);
-    else if (st.kind === "replace") {
-      st.source = mapVarTokens(st.source, fn);
-      st.find = st.regex
-        ? mapVarTokens(st.find, (name) => (isRegexQuantifier(name) ? null : fn(name)))
-        : mapVarTokens(st.find, fn);
-      st.to = mapVarTokens(st.to, fn);
+    else if (st.kind === "transform") {
+      st.source = fn(st.source) ?? st.source;
+      if ("operandType" in st.transform && st.transform.operandType === "variable") {
+        st.transform = { ...st.transform, operand: fn(st.transform.operand) ?? st.transform.operand };
+      }
     }
     else if (
-      st.kind === "array-find" ||
-      st.kind === "array-field" ||
       st.kind === "copy" ||
-      st.kind === "list-edit" ||
       st.kind === "set-var" ||
       st.kind === "set-value" ||
-      st.kind === "filter-array" ||
+      st.kind === "list-display" ||
       st.kind === "store-save"
     ) {
       st.value = mapVarTokens(st.value, fn);
-      if (st.kind === "set-var" && st.recipe) {
-        st.recipe = { ...st.recipe, source: fn(st.recipe.source) ?? st.recipe.source };
-      }
-      if (st.kind === "filter-array") {
+      if (st.kind === "list-display") {
         st.or?.forEach((c) => (c.value = mapVarTokens(c.value, fn)));
       }
     } else if (st.kind === "if") {
@@ -1421,12 +1176,6 @@ export function renameVarInPage(doc: SiteDoc, pageId: string, from: string, to: 
   }
 }
 
-// 書き出し専用のjoin・count項目参照。保存する文書には名前・メタデータを足さない。
-const joinItemSources = new WeakMap<ScriptStep, string>();
-export function joinItemSource(step: Extract<ScriptStep, { kind: "join" | "count" }>): string {
-  return joinItemSources.get(step) ?? step.array;
-}
-
 /**
  * 公開用に、スクリプトで作る変数（取得したデータ・配列・件数など）の名前を
  * 意味のない短い名前に付け替えた複製を返す（配信するHTML・スクリプトに名前を出さない）。
@@ -1472,14 +1221,11 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
         if (st.as) defined.add(st.as);
         addItemKeys(st.sample, false, 0);
       }
-      if (
-        (st.kind === "array-field" || st.kind === "array-find" || st.kind === "join" || st.kind === "sort-array") &&
-        st.field
-      ) {
-        keep.add(rootName(st.field));
-      }
-      if (st.kind === "filter-array") {
-        for (const c of filterConds(st)) keep.add(rootName(c.field));
+      if (st.kind === "list-display") {
+        if (st.field) keep.add(rootName(st.field));
+        if (st.mode === "filter") {
+          for (const condition of filterConds(st)) keep.add(rootName(condition.field));
+        }
       }
       if (st.kind === "open-url") addQueryKeys(st.url);
       if ("into" in st && st.into) defined.add(st.into);
@@ -1506,11 +1252,6 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
     }
     return null;
   };
-  for (const steps of stepLists) {
-    walkAll(steps, (st) => {
-      if ((st.kind === "join" || st.kind === "count") && fn(st.array) != null) joinItemSources.set(st, st.array);
-    });
-  }
   for (const n of Object.values(out.nodes)) {
     mapNodeTokens(n, fn);
     if (n.list?.from) n.list.from = fn(n.list.from) ?? n.list.from;

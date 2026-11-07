@@ -1,4 +1,4 @@
-import type { ValueRecipe, ValueTransform } from "./script-model/compose";
+import type { ValueTransform } from "./script-model/compose";
 
 export type NodeType =
   | "box"
@@ -232,32 +232,17 @@ export type ScriptStep = { id: string } & (
   /** 入力欄・ボタンを操作できる / できない状態にする（disabled） */
   | { kind: "set-enabled"; target: string; op: "enable" | "disable" | "toggle" }
   | {
-      /** 配列を使うリストの項目を field の値で絞り込む（同じ項目への絞り込みは置き換え） */
-      kind: "filter-array";
-      /** 配列の名前 */
+      /** Change only the displayed list (filter, sort, clear), not its source data. */
+      kind: "list-display";
+      mode: "filter" | "sort" | "clear";
       array: string;
       field: string;
       op: ScriptOp;
-      /** {変数} は実行時の値に置き換える */
       value: string;
-      /** 「かつ」「または」で足す条件（「かつ」でつないだ組のどれか1つを満たせば残す） */
+      /** Filter conditions and stable filter-slot identifier. */
       or?: FilterCond[];
-      /** 絞り込みの番号（同じ配列の中で自動で振る。同じ番号の絞り込みをもう一度動かすと置き換わる） */
       no?: number;
-      /** 同じ配列にかかっているほかの絞り込みとのつなぎ方（既定 = かつ） */
       join?: "and" | "or";
-    }
-  | {
-      kind: "unfilter-array";
-      array: string;
-      /** 解除する絞り込みの番号（未設定 = すべて解除） */
-      no?: number;
-    }
-  | {
-      /** 配列を使うリストの項目を field の値で並べ替える（同じ配列への並べ替えは置き換え） */
-      kind: "sort-array";
-      array: string;
-      field: string;
       dir: "asc" | "desc";
     }
   | {
@@ -278,53 +263,6 @@ export type ScriptStep = { id: string } & (
       shared?: boolean;
     }
   | {
-      /** 文字列を区切り文字で分解して配列にする */
-      kind: "split";
-      /** 分解する文字列（{変数} を使える） */
-      source: string;
-      /** 区切り文字（空 = 「,」） */
-      sep: string;
-      into: string;
-    }
-  | {
-      /** 配列の要素のうち、項目 field が value の最初の1件を変数に入れる（無ければ空） */
-      kind: "array-find";
-      array: string;
-      /** "slug" / "category.name" のような項目の位置 */
-      field: string;
-      /** {slug} などの {変数} を使える */
-      value: string;
-      into: string;
-    }
-  | {
-      /** 配列の要素を区切り文字でつないだ文字列を変数に入れる */
-      kind: "join";
-      array: string;
-      /** 要素がまとまり（オブジェクト）のとき、つなぐ項目の位置（空 = 要素そのもの） */
-      field?: string;
-      /** 区切り文字（空ならそのままつなぐ） */
-      sep: string;
-      into: string;
-    }
-  | {
-      /**
-       * 配列の各要素に、value の値を項目 field として入れる
-       * （文字や数値の要素は {値} を持つまとまりにする）
-       */
-      kind: "array-field";
-      array: string;
-      /** 固定の値・{要素の項目}・{変数}（{項目} だけなら値をそのまま入れる） */
-      value: string;
-      /** 入れる項目名 */
-      field: string;
-    }
-  | {
-      /** 配列の要素の数を変数に入れる（配列でなければ 0） */
-      kind: "count";
-      array: string;
-      into: string;
-    }
-  | {
       /**
        * 値を変数に入れる（{変数} と文字を混ぜて書ける）。
        * {名前} 1つだけなら値をそのまま入れる（配列・まとまりも。{データ.items.0} のような位置も使える）
@@ -332,8 +270,6 @@ export type ScriptStep = { id: string } & (
       kind: "set-var";
       value: string;
       into: string;
-      /** Optional composed value; takes precedence over the legacy value string. */
-      recipe?: ValueRecipe;
     }
   | {
       /** A single composable pure operation on a variable. Multiple blocks run in order. */
@@ -343,42 +279,6 @@ export type ScriptStep = { id: string } & (
       /** Output variable. May be the same as source for a sequential pipeline. */
       into: string;
       transform: ValueTransform;
-    }
-  | {
-      /** 文字列の中の find をすべて to に置き換えて変数に入れる（{変数} を使える） */
-      kind: "replace";
-      source: string;
-      /** 置き換える文字（空なら置き換えない） */
-      find: string;
-      /** 置き換え後の文字（空 = 取り除く）。正規表現なら $1・$& も使える */
-      to: string;
-      into: string;
-      /**
-       * find を正規表現として扱う。{変数} の値は文字そのものとして埋め込み、
-       * {2}・{2,}・{2,4} と \{ … } は正規表現の書き方として残す
-       */
-      regex?: boolean;
-    }
-  | {
-      /** 式（+ - * / % とかっこ。{変数} を使える）を計算して変数に入れる */
-      kind: "calc";
-      expr: string;
-      into: string;
-    }
-  | {
-      /**
-       * 区切りの文字の変数（例: "12.34.56"）に value を足す・取り除く・切り替える
-       * （同じ値は2つ入れず、空の区切りは残さない）
-       */
-      kind: "list-edit";
-      /** 書き換える変数の名前 */
-      into: string;
-      /** toggle = 入っていれば取り除き、無ければ足す */
-      op: "add" | "remove" | "toggle";
-      /** {変数} を使える */
-      value: string;
-      /** 区切り文字（空 = 「,」） */
-      sep: string;
     }
   | {
       /** 文字をクリップボードにコピーする（{変数} を使える） */

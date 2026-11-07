@@ -24,8 +24,6 @@ import { DEFAULT_DATA_REVALIDATE } from "../types";
 import {
   dynamicOrigin,
   fetchInitExpr,
-  filterPredicate,
-  forEachBody,
   imageRefSrc,
   jsxString,
   scriptsAttr,
@@ -205,7 +203,7 @@ export function generatePageFile(
     ? []
     : ['import type { Metadata } from "next";'];
   if (loads.length) imports.push('import { fetchPublic, readTextLimited } from "@/lib/safe-fetch";');
-  if (loads.some((st) => st.kind === "transform" || (st.kind === "set-var" && st.recipe)))
+  if (loads.some((st) => st.kind === "transform"))
     imports.push('import { evaluateValueRecipe as __evalValueRecipe } from "@/lib/value-recipe";');
   if (isSlugPg && primary)
     imports.push('import { notFound } from "next/navigation";');
@@ -222,7 +220,7 @@ export function generatePageFile(
   if (ctx.usesPageHtml) imports.push('import PageHtml from "@/components/PageHtml";');
   if (needsVars)
     imports.push(
-      `import { safeNavigationUrl, interpolate, interpolateUrl${loads.some((st) => st.kind === "fetch" && !!fetchInitExpr(st)?.includes("interpolateJson(")) ? ", interpolateJson" : ""}${listNodes.length || ctx.usesLookup || loads.some((st) => st.kind === "array-find" || st.kind === "array-field" || st.kind === "for-each" || st.kind === "join" || st.kind === "count" || st.kind === "set-var" || st.kind === "transform") ? ", lookupVar" : ""}${loads.some((st) => st.kind === "join") ? ", varText" : ""} } from "@/lib/vars";`
+      `import { safeNavigationUrl, interpolate, interpolateUrl${loads.some((st) => st.kind === "fetch" && !!fetchInitExpr(st)?.includes("interpolateJson(")) ? ", interpolateJson" : ""}${listNodes.length || ctx.usesLookup || loads.some((st) => st.kind === "set-var" || st.kind === "transform") ? ", lookupVar" : ""} } from "@/lib/vars";`
     );
   for (const compId of ctx.usedComponents) {
     const name = ctx.componentNames.get(compId)!;
@@ -323,69 +321,7 @@ ${
 });`
     }
 
-${loads.some((st) => st.kind === "array-find" || st.kind === "join") ? `/** "products.0" のような位置を掘る（配列の "-1" は最後の要素） */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function dig(v: any, path: string[]): unknown {
-  for (const k of path) v = Array.isArray(v) && k === "-1" ? v[v.length - 1] : v?.[k];
-  return v ?? null;
-}
-
-` : ""}${loads.some((st) => st.kind === "array-find") ? `/** 一覧から field が key の1件を探す（URLの値はエンコードされていることがある） */
-function findIn(list: unknown, field: string, key: string): unknown {
-  if (!Array.isArray(list)) return null;
-  const path = field.split(".");
-  return (
-    list.find((item) => {
-      const v = String(dig(item, path) ?? "");
-      return v === key || encodeURIComponent(v) === key;
-    }) ?? null
-  );
-}
-
-` : ""}${loads.some((st) => st.kind === "join") ? `/** 配列の要素（まとまりなら path の値）を区切り文字でつなぐ */
-function joinArray(v: unknown, path: string[], sep: string): string {
-  if (!Array.isArray(v)) return varText(v);
-  return v
-    .map((x) => (path.length && x && typeof x === "object" ? dig(x, path) : x))
-    .map((x) => (x == null || typeof x === "object" ? "" : String(x)))
-    .filter((x) => x !== "")
-    .join(sep);
-}
-
-` : ""}${loads.some((st) => st.kind === "array-field") ? `/** 配列の各要素に項目 field を足す（{名前} だけなら値をそのまま、ほかは文字にして入れる） */
-function withItemField(v: unknown, field: string, tpl: string, vars: Vars): unknown {
-  if (!Array.isArray(v)) return v;
-  const one = /^\\{([^{}\\s"'<>\`]+)\\}$/.exec(tpl.trim());
-  return v.map((x) => {
-    if (x == null || Array.isArray(x)) return x;
-    const item = typeof x === "object" ? (x as Vars) : { ${JSON.stringify(ITEM_VALUE)}: x };
-    const scope = { ...vars, ...item };
-    return { ...item, [field]: one ? (lookupVar(scope, one[1]) ?? null) : interpolate(tpl, scope) };
-  });
-}
-
-` : ""}${loads.some((st) => (st.kind === "array-field" || st.kind === "for-each") && st.array.includes(".")) ? `/** "記事.tags" のような入れ子の位置に、途中を複製して値を入れる */
-function setIn(cur: unknown, keys: string[], value: unknown): unknown {
-  if (!keys.length) return value;
-  const [k, ...rest] = keys;
-  if (Array.isArray(cur)) {
-    const copy = cur.slice();
-    copy[Number(k)] = setIn(cur[Number(k)], rest, value);
-    return copy;
-  }
-  const obj = cur && typeof cur === "object" ? (cur as Vars) : {};
-  return { ...obj, [k]: setIn(obj[k], rest, value) };
-}
-
-` : ""}${loads.some((st) => st.kind === "split") ? `/** 文字列を区切り文字で分解する（前後の空白を除き、空の要素は捨てる） */
-function splitText(text: string, sep: string): string[] {
-  return text
-    .split(sep)
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
-
-` : ""}/** 認証情報や本文のある取得は、編集時に決めたオリジンに限る。 */
+/** 認証情報や本文のある取得は、編集時に決めたオリジンに限る。 */
 function safeRequestOrigin(url: string, init?: string, origin?: string): boolean {
   try { return !!url && (!init || (!!origin && new URL(url).origin === origin)); }
   catch { return false; }
@@ -395,13 +331,6 @@ function safeRequestOrigin(url: string, init?: string, origin?: string): boolean
 async function loadData(vars: Vars) {
 ${loads
   .map((st) => {
-    const path = (p: string) =>
-      JSON.stringify(
-        p
-          .split(".")
-          .map((k) => k.trim())
-          .filter(Boolean)
-      );
     switch (st.kind) {
       case "fetch": {
         if (!st.as) return "";
@@ -418,66 +347,18 @@ ${loads
         }
         return `  vars[${JSON.stringify(st.as)}] = await fetchJson(${url}${init ? `, JSON.stringify(${init}), ${JSON.stringify(origin) ?? "undefined"}` : ""});`;
       }
-      case "split":
-        return st.into
-          ? `  vars[${JSON.stringify(st.into)}] = splitText(interpolate(${JSON.stringify(st.source)}, vars), ${JSON.stringify(st.sep || ",")});`
-          : "";
-      case "array-find":
-        return st.into && st.array && st.field
-          ? `  vars[${JSON.stringify(st.into)}] = findIn(lookupVar(vars, ${JSON.stringify(st.array)}), ${JSON.stringify(st.field)}, interpolate(${JSON.stringify(st.value)}, vars));`
-          : "";
-      case "count": {
-        if (!st.into || !st.array) return "";
-        // それまでに絞り込んでいれば、絞り込み後の件数
-        const pred = filterPredicate(plan.countFilters.get(st.id) ?? [], "vars");
-        const items = pred
-          ? `v.map((x) => (x != null && typeof x === "object" ? x : { ${JSON.stringify(ITEM_VALUE)}: x })).filter((item) => ${pred}).length`
-          : "v.length";
-        return `  vars[${JSON.stringify(st.into)}] = ((v) => (Array.isArray(v) ? ${items} : 0))(lookupVar(vars, ${JSON.stringify(st.array)}));`;
-      }
-      case "array-field": {
-        if (!st.array || !st.field) return "";
-        const val = `withItemField(lookupVar(vars, ${JSON.stringify(st.array)}), ${JSON.stringify(st.field)}, ${JSON.stringify(st.value)}, vars)`;
-        if (!st.array.includes(".")) return `  vars[${JSON.stringify(st.array)}] = ${val};`;
-        const [root, ...rest] = st.array.split(".");
-        return `  if (${JSON.stringify(st.array)} in vars) vars[${JSON.stringify(st.array)}] = ${val};\n  else vars[${JSON.stringify(root)}] = setIn(vars[${JSON.stringify(root)}], ${JSON.stringify(rest)}, ${val});`;
-      }
-      case "for-each": {
-        const body = st.array ? forEachBody(st.then, st.array, "    ") : "";
-        if (!body) return "";
-        const val = `((v) => (Array.isArray(v) ? v.map((x) => {
-    if (x == null || Array.isArray(x)) return x;
-    const start: Vars = typeof x === "object" ? (x as Vars) : { ${JSON.stringify(ITEM_VALUE)}: x };
-    let item = start;
-${body}
-    return item === start ? x : item;
-  }) : v))(lookupVar(vars, ${JSON.stringify(st.array)}))`;
-        if (!st.array.includes(".")) return `  vars[${JSON.stringify(st.array)}] = ${val};`;
-        const [root, ...rest] = st.array.split(".");
-        return `  if (${JSON.stringify(st.array)} in vars) vars[${JSON.stringify(st.array)}] = ${val};\n  else vars[${JSON.stringify(root)}] = setIn(vars[${JSON.stringify(root)}], ${JSON.stringify(rest)}, ${val});`;
-      }
       case "transform":
         if (!st.into || !st.source) return "";
         return `  {
-    const result = __evalValueRecipe(lookupVar(vars, ${JSON.stringify(st.source)}), [${JSON.stringify(st.transform)}]);
+    const result = __evalValueRecipe(lookupVar(vars, ${JSON.stringify(st.source)}), [${JSON.stringify(st.transform)}], vars);
     if (result.kind === "value") vars[${JSON.stringify(st.into)}] = result.value;
   }`;
       case "set-var": {
-        if (st.recipe && st.into) {
-          return `  {
-    const outcome = __evalValueRecipe(lookupVar(vars, ${JSON.stringify(st.recipe.source)}), ${JSON.stringify(st.recipe.steps)});
-    if (outcome.kind === "value") vars[${JSON.stringify(st.into)}] = outcome.value;
-  }`;
-        }
         const from = setVarSource(st);
         return st.into && from
           ? `  vars[${JSON.stringify(st.into)}] = lookupVar(vars, ${JSON.stringify(from)}) ?? null;`
           : "";
       }
-      case "join":
-        return st.into && st.array
-          ? `  vars[${JSON.stringify(st.into)}] = joinArray(lookupVar(vars, ${JSON.stringify(st.array)}), ${path(st.field ?? "")}, ${JSON.stringify(st.sep)});`
-          : "";
     }
   })
   .filter(Boolean)
@@ -704,14 +585,9 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
         if (st.as) known.add(st.as);
         addItemKeys(st.sample, false, 0);
       }
-      if (
-        (st.kind === "array-field" || st.kind === "array-find" || st.kind === "join" || st.kind === "sort-array") &&
-        st.field
-      ) {
-        itemKeys.add(st.field.split(".")[0]);
-      }
-      if (st.kind === "filter-array") {
-        for (const c of filterConds(st)) itemKeys.add(c.field.split(".")[0]);
+      if (st.kind === "list-display") {
+        if (st.field) itemKeys.add(st.field.split(".")[0]);
+        if (st.mode === "filter") for (const cond of filterConds(st)) itemKeys.add(cond.field.split(".")[0]);
       }
       if ("into" in st && st.into) known.add(st.into);
       if (st.kind === "if") {
@@ -760,16 +636,6 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     }
     if ("value" in st && unknown(st.value, false)) return true;
     if (st.kind === "transform" && unknown(`{${st.source}}`, false)) return true;
-    if (st.kind === "split" && unknown(st.source, false)) return true;
-    if (st.kind === "for-each") {
-      // 中では要素の項目も使える
-      let found = false;
-      walkSteps(st.then, (x) => {
-        if (x.kind === "array-field" && unknown(x.value, true)) found = true;
-        if (x.kind === "if" && (unknown(x.cond.left, true) || unknown(x.cond.value, true))) found = true;
-      });
-      if (found) return true;
-    }
   }
   for (const ops of plan.listOps.values()) {
     for (const op of ops) {
