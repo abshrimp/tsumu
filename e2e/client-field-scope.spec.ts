@@ -2,7 +2,8 @@ import { expect, test, type Page } from '@playwright/test';
 import { componentListBundle, publishedComponentList } from '../tests/helpers/component-list-export';
 import { clientFieldDoc, fieldItems } from '../tests/helpers/client-field-scope';
 import { scriptsFile } from '../lib/script-runtime';
-import { makeText } from '../lib/presets';
+import { createInitialDoc, makeField, makeText } from '../lib/presets';
+import { fieldDefaults } from '../lib/fields';
 const snapshot = (page: Page) => page.evaluate(() => {
   const { doc, past, future } = (window as any).componentListStore.getState(); return { doc, past, future };
 });
@@ -68,4 +69,28 @@ test('native generated fields preserve typed values and normalize row-specific r
   await expect(fields(page, 'memo').nth(0)).toHaveValue('First: Later {name}');
   await expect(fields(page, 'memo').nth(1)).toHaveValue('Typed');
   await expect(fields(page, 'memo').nth(1)).toHaveAttribute('placeholder', 'Second: Later {name}');
+});
+
+
+test('radio preview defaults match the browser last checked selection', async ({ page }) => {
+  const doc = createInitialDoc();
+  const fields = [
+    { id: 'first', label: 'First', checked: true },
+    { id: 'second', label: 'Second', checked: true },
+    { id: 'third', label: 'Unchecked', checked: false },
+  ].map(({ id, label, checked }) => ({
+    ...makeField('radio'), id, attrId: id,
+    field: { kind: 'radio' as const, group: 'choice', label, checked },
+  }));
+  doc.nodes = Object.fromEntries(fields.map(node => [node.id, node]));
+  doc.pages[doc.pageOrder[0]].children = fields.map(node => node.id);
+  const expected = fieldDefaults(fields).choice;
+  expect(expected).toBe('Second');
+  await page.setContent(await publishedComponentList(doc));
+  const radios = page.locator('input[type="radio"][name="choice"]');
+  await expect(radios).toHaveCount(3);
+  await expect(radios.nth(0)).not.toBeChecked();
+  await expect(radios.nth(1)).toBeChecked();
+  await expect(radios.nth(2)).not.toBeChecked();
+  await expect(page.locator('input[name="choice"]:checked')).toHaveValue(expected);
 });

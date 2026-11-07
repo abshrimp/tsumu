@@ -95,8 +95,14 @@ export function fieldDefaults(fields: DocNode[], vars?: Record<string, unknown>)
     const name = fieldVarName(n);
     if (n.type !== "field" || !n.field || !name) continue;
     const v = fieldInitialValue(n.field, vars);
-    // ラジオ・同じ名前の部品は、値のあるものを優先する
-    if (!(name in out) || (!out[name] && v)) out[name] = v;
+    if (n.field.kind === "radio") {
+      // HTML radio groups select the last checked item in document order.
+      // A later unchecked item must not clear that initial selection.
+      if (!Object.hasOwn(out, name) || n.field.checked) out[name] = v;
+    } else if (!(name in out) || (!out[name] && v)) {
+      // 同じ名前のほかの部品は、値のあるものを優先する。
+      out[name] = v;
+    }
   }
   return out;
 }
