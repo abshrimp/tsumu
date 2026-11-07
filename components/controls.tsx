@@ -806,6 +806,28 @@ export function anchoredMenuPos(
   };
 }
 
+/** Does the active input/caret remain visible inside its scroll containers? */
+export function varSuggestionAnchorVisible(
+  anchor: HTMLElement,
+  rect = anchor.getBoundingClientRect(),
+): boolean {
+  if (!anchor.isConnected) return false;
+  // A collapsed caret range can be zero pixels wide.
+  let left = 0, top = 0, right = window.innerWidth, bottom = window.innerHeight;
+  for (let el = anchor.parentElement; el; el = el.parentElement) {
+    const style = window.getComputedStyle(el);
+    if (!/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflowY}`)) continue;
+    const clip = el.getBoundingClientRect();
+    left = Math.max(left, clip.left);
+    top = Math.max(top, clip.top);
+    right = Math.min(right, clip.right);
+    bottom = Math.min(bottom, clip.bottom);
+  }
+  return right > left && bottom > top &&
+    rect.right >= left && rect.left < right &&
+    rect.bottom > top && rect.top < bottom;
+}
+
 /** 候補メニューの位置（基準の矩形の下、入らなければ上） */
 export function varSuggestPos(
   r: { left: number; top: number; bottom: number },
@@ -838,10 +860,15 @@ export function VarSuggestMenu({
   const { query, matches, index } = suggest;
 
   useEffect(() => {
-    const el =
-      (listRef.current?.children[index] as HTMLElement | undefined) ??
-      listRef.current?.parentElement?.querySelector<HTMLElement>(".var-comp-explore");
-    el?.scrollIntoView({ block: "nearest" });
+    const list = listRef.current;
+    const selected = list?.children[index] as HTMLElement | undefined;
+    if (!list || !selected) return;
+    // Only scroll the suggestion list. scrollIntoView() may scroll the editor
+    // and move the active input off screen while the menu is open.
+    const top = selected.offsetTop - list.offsetTop;
+    const bottom = top + selected.offsetHeight;
+    if (top < list.scrollTop) list.scrollTop = top;
+    else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
   }, [index]);
 
   const mark = (name: string) => {
@@ -1027,26 +1054,37 @@ export function VarInput({
   const open = !!sug;
   useEffect(() => {
     if (!open) return;
+    const dismissOutside = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
+      // A non-focusable canvas/label may not blur the input. Dismiss immediately.
+      setSug(null);
+    };
     const reposition = (e: Event) => {
       if (menuRef.current?.contains(e.target as Node)) return;
       const input = ref.current;
-      if (!input || document.activeElement !== input) {
+      if (!input || document.activeElement !== input || !varSuggestionAnchorVisible(input)) {
         setSug(null);
         return;
       }
-      // Focusing an off-screen input scrolls the workspace. Keep the suggestion
-      // open, but follow the input instead of dismissing it on that scroll.
+      // Autofocus can scroll a formerly off-screen input. Keep its suggestion
+      // attached while the input is visible; close only when scrolled away.
       const rect = input.getBoundingClientRect();
       setSug((current) => current && ({
         ...current,
         pos: varSuggestPos(rect, current.matches.length + (current.explore ? 1 : 0), rect.width),
       }));
     };
+    const loseWindowFocus = () => setSug(null);
+    window.addEventListener("pointerdown", dismissOutside, true);
     window.addEventListener("scroll", reposition, true);
     window.addEventListener("resize", reposition);
+    window.addEventListener("blur", loseWindowFocus);
     return () => {
+      window.removeEventListener("pointerdown", dismissOutside, true);
       window.removeEventListener("scroll", reposition, true);
       window.removeEventListener("resize", reposition);
+      window.removeEventListener("blur", loseWindowFocus);
     };
   }, [open]);
 

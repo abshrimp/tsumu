@@ -29,6 +29,21 @@ async function pick(page: Page, name: string, id = "value") {
   await block(page, id).locator("input").first().blur();
 }
 
+test("スクリプトの値候補と変数名候補は外側のクリックで閉じる", async ({ page }) => {
+  const input = block(page, "value").locator("input").first();
+  await input.focus();
+  await expect(page.locator(".var-comp")).toBeVisible();
+  await page.locator(".se-header").click({ position: { x: 70, y: 12 } });
+  await expect(page.locator(".var-comp")).toHaveCount(0);
+
+  const name = block(page, "value").getByPlaceholder("名前（例: 合計）");
+  await name.focus();
+  await name.fill("");
+  await expect(page.locator(".var-comp")).toBeVisible();
+  await page.locator(".se-header").click({ position: { x: 70, y: 12 } });
+  await expect(page.locator(".var-comp")).toHaveCount(0);
+});
+
 test("one value input keeps raw objects, save/load and Undo without mode or redundant search buttons", async ({ page }) => {
   const b = block(page, "value"); const before = await snapshot(page);
   await expect(b.getByRole("combobox", { name: "値の入力方法" })).toHaveCount(0);
