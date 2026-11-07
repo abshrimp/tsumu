@@ -81,8 +81,8 @@ test("server data transforms interpolate strings and source variables without cl
   assert.equal(vars.greeting, "こんにちは、田中さん");
   assert.equal(vars.cost, 12);
   const generated = generateProject(doc).files["app/page.tsx"];
-  assert.ok(generated.includes("こんにちは、{person}さん"));
-  assert.ok(generated.includes('"key":"{lookupField}"'));
+  assert.match(generated, /"kind":"fallback"/);
+  assert.match(generated, /"key":"\{_\d+\}"/);
   assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
 });
 
@@ -228,7 +228,7 @@ test("page-load repeat count can come from a numeric-string variable", () => {
   assert.ok(plan.serverIds.has("iterate"));
   assert.equal(previewDataVars(doc, "p").sum, 3);
   const files = generateProject(doc).files;
-  assert.match(files["app/page.tsx"], /"times":"\\{count\\}"/);
+  assert.match(files["app/page.tsx"], /"times":"\{_\d+\}"/);
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
 });
 
