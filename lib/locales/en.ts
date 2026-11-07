@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "バックアップファイルを作成できませんでした。": "Could not create the backup file.",
   "編集データを読み込み中…": "Reading edit data…",
   "インポート": "Import",
   "ZIPまたはdoc.jsonをドロップしてサイトをインポート": "Drop a ZIP or doc.json here to import a site",
