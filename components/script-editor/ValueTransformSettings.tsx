@@ -3,13 +3,13 @@
 /** Pure value-operation controls for ordinary script blocks. */
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import { PathMenu } from "./fetch";
-import { TextIn } from "./inputs";
+import { CONDITION_OPERATORS, NegationSelect, TextIn } from "./inputs";
 import { tr } from "../../lib/i18n";
 import type {
   ValueTransform, ValueTransformKind, CompareOperation,
-  NumericOperation, ValueOperandType,
+  NumericOperation, ValueOperandType, ValueCondition,
 } from "../../lib/script-model/compose";
 
 export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
@@ -75,13 +75,6 @@ const MATH: readonly { value: NumericOperation; label: string }[] = [
   { value: "add", label: "足す" }, { value: "subtract", label: "引く" },
   { value: "multiply", label: "掛ける" }, { value: "divide", label: "割る" },
   { value: "remainder", label: "余り" },
-];
-const COMPARISONS: readonly { value: CompareOperation; label: string }[] = [
-  { value: "eq", label: "等しい" }, { value: "neq", label: "等しくない" },
-  { value: "gt", label: "より大きい" }, { value: "gte", label: "以上" },
-  { value: "lt", label: "より小さい" }, { value: "lte", label: "以下" },
-  { value: "contains", label: "含む" }, { value: "starts-with", label: "から始まる" },
-  { value: "ends-with", label: "で終わる" },
 ];
 
 /** Field names and variable-token suggestions use the same editable input. */
@@ -302,6 +295,44 @@ function ValueOperandEditor({ type, text, onChange, samples, purpose = "compare"
   );
 }
 
+/** Condition syntax is shared with "if" and list display filters. */
+function RecipeConditionLine({ condition, fieldEnabled, options, samples, onChange,
+  join, onJoinChange, onRemove }: {
+  condition: ValueCondition;
+  fieldEnabled: boolean;
+  options: string[];
+  samples: Record<string, unknown>;
+  onChange: (patch: Partial<ValueCondition>) => void;
+  join?: "and" | "or";
+  onJoinChange?: (join: "and" | "or") => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <div className="se-composer-condition-line">
+      {join && <select className="se-in se-fixed-select" aria-label={tr("条件のつなぎ方")}
+        value={join} onChange={(e) => onJoinChange?.(e.target.value as "and" | "or")}>
+        <option value="and">{tr("かつ")}</option>
+        <option value="or">{tr("または")}</option>
+      </select>}
+      {fieldEnabled && <FieldKeyPicker value={condition.field} options={options}
+        ariaLabel={tr("リスト内の項目名")} placeholder={tr("項目（空なら要素自身）")}
+        onChange={(field) => onChange({ field })} />}
+      <select className="se-in se-fixed-select" aria-label={tr("比較方法")}
+        value={condition.operation}
+        onChange={(e) => onChange({ operation: e.target.value as CompareOperation })}>
+        {CONDITION_OPERATORS.map((op) =>
+          <option key={op.value} value={op.value}>{op.label}</option>)}
+      </select>
+      {condition.operation !== "empty" &&
+        <ValueOperandEditor type={condition.operandType} text={condition.operand} samples={samples}
+          onChange={(operand, operandType) => onChange({ operand, operandType })} />}
+      <NegationSelect not={condition.not} onChange={(not) => onChange({ not })} />
+      {onRemove && <button type="button" className="se-mini"
+        aria-label={tr("この条件を削除")} onClick={onRemove}><X size={12} /></button>}
+    </div>
+  );
+}
+
 function RecipeStepSettings({ transform, options, onChange, samples }: {
   transform: ValueTransform;
   options: string[];
@@ -366,22 +397,57 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
     </div>
   );
 
-  if (transform.kind === "compare" || transform.kind === "find" || transform.kind === "filter" || transform.kind === "map-set") {
+  if (transform.kind === "map-set") {
+    return <div className="se-composer-step-settings">
+      <FieldKeyPicker value={transform.field} options={allOptions}
+        ariaLabel={tr("リスト内の項目名")} placeholder={tr("追加する項目")}
+        onChange={(field) => onChange({ ...transform, field })} />
+      <ValueOperandEditor type={transform.operandType} text={transform.operand} samples={samples}
+        onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
+    </div>;
+  }
+
+  if (transform.kind === "compare" || transform.kind === "find" || transform.kind === "filter") {
+    const fieldEnabled = transform.kind !== "compare";
+    const first: ValueCondition = {
+      field: fieldEnabled ? transform.field : "",
+      operation: transform.operation,
+      operand: transform.operand,
+      operandType: transform.operandType,
+      not: transform.not,
+    };
+    const clauses = transform.conditions ?? [];
+    const setExtra = (index: number, patch: Partial<ValueCondition>) =>
+      onChange({ ...transform, conditions: clauses.map((condition, i) =>
+        i === index ? { ...condition, ...patch } : condition) });
+    const add = (and: boolean) => onChange({ ...transform, conditions: [...clauses, {
+      field: fieldEnabled ? transform.field : "",
+      operation: "eq" as const,
+      operand: "",
+      operandType: "text" as const,
+      and,
+    }] });
     return (
-      <div className="se-composer-step-settings">
-        {(transform.kind === "find" || transform.kind === "filter" || transform.kind === "map-set") && (
-          <FieldKeyPicker value={transform.field} options={allOptions}
-            ariaLabel={tr("リスト内の項目名")} placeholder={transform.kind === "map-set" ? tr("追加する項目") : tr("項目（空なら要素自身）")}
-            onChange={(field) => onChange({ ...transform, field })} />
-        )}
-        {transform.kind !== "map-set" && (
-          <select className="se-in se-fixed-select" aria-label={tr("比較方法")} value={transform.operation}
-            onChange={(e) => onChange({ ...transform, operation: e.target.value as CompareOperation })}>
-            {COMPARISONS.map((op) => <option key={op.value} value={op.value}>{tr(op.label)}</option>)}
-          </select>
-        )}
-        <ValueOperandEditor type={transform.operandType} text={transform.operand} samples={samples}
-          onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
+      <div className="se-composer-step-settings se-composer-conditions">
+        <RecipeConditionLine condition={first} fieldEnabled={fieldEnabled}
+          options={allOptions} samples={samples}
+          onChange={(patch) => onChange({ ...transform, ...patch })} />
+        {clauses.map((condition, index) =>
+          <RecipeConditionLine key={index} condition={condition}
+            fieldEnabled={fieldEnabled} options={allOptions} samples={samples}
+            join={condition.and ? "and" : "or"}
+            onJoinChange={(join) => setExtra(index, { and: join === "and" })}
+            onChange={(patch) => setExtra(index, patch)}
+            onRemove={() => onChange({ ...transform,
+              conditions: clauses.filter((_, i) => i !== index) })} />)}
+        <div className="se-composer-condition-actions">
+          <button type="button" className="se-mini se-mini-text" onClick={() => add(true)}>
+            <Plus size={12} />{tr("かつ")}
+          </button>
+          <button type="button" className="se-mini se-mini-text" onClick={() => add(false)}>
+            <Plus size={12} />{tr("または")}
+          </button>
+        </div>
       </div>
     );
   }
