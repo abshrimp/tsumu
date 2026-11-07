@@ -248,6 +248,12 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   /*/go*/
   /*#value|var|filter*/
+  function conditionText(value) {
+    if (value == null) return "";
+    if (Array.isArray(value)) return value.map(conditionText).join(",");
+    if (typeof value === "object") return "[object Object]";
+    return String(value);
+  }
   function cmp(v, op, w) {
     switch (op) {
       case "neq": return v !== w;
@@ -256,7 +262,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       case "starts-with": return v.lastIndexOf(w, 0) === 0;
       case "ends-with": return v.length >= w.length && v.indexOf(w, v.length - w.length) >= 0;
       case "gt": return parseFloat(v) > parseFloat(w);
+      case "gte": return parseFloat(v) >= parseFloat(w);
       case "lt": return parseFloat(v) < parseFloat(w);
+      case "lte": return parseFloat(v) <= parseFloat(w);
       case "empty": return v === "";
       case "not-empty": return v !== "";
       case "in":
@@ -723,7 +731,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             grp = true;
           }
           var fv = fieldOf(item, c.field);
-          var matched = cmp(fv == null ? "" : String(fv), c.op, c.value);
+          var matched = cmp(conditionText(fv), c.op, c.value);
           grp = grp && (c.not ? !matched : matched);
         });
         return ok || grp;
@@ -749,7 +757,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       function order(x, y) {
         return typeof x === "number" && typeof y === "number"
           ? x - y
-          : String(x == null ? "" : x).localeCompare(String(y == null ? "" : y), "ja", {
+          : conditionText(x).localeCompare(conditionText(y), "ja", {
               numeric: true,
             });
       }
