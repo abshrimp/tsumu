@@ -83,3 +83,48 @@ test("single HTML preserves srcset data URLs and filenames containing commas", a
   assert.doesNotMatch(html, /assets\/photo,one\.png/);
   assert.deepEqual(Object.keys(project.files), ["index.html"]);
 });
+
+test("generated SSR request policy blocks reserved hosts, sensitive headers and Host-origin bypass", async () => {
+  const site = doc();
+  site.pages.home.pageScripts = [{
+    id: "load", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "fetch", kind: "fetch", as: "data",
+      url: "http://100.100.100.200/latest" }],
+  }];
+  const project = generateExportProject(site, "sveltekit");
+  const serverModule = project.files["src/lib/server-request.js"];
+  assert.ok(serverModule);
+  const { requestPublic } = await import("data:text/javascript;base64," +
+    Buffer.from(serverModule).toString("base64")) as {
+    requestPublic: (uri: string, init: RequestInit, base: string,
+      localFetch: (uri: string, init: RequestInit) => Promise<Response>) => Promise<Response>;
+  };
+  let remoteCalls = 0;
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    remoteCalls++;
+    return new Response("{}", { status: 200 });
+  };
+  try {
+    const localRequests: string[] = [];
+    const local = async (uri: string) => {
+      localRequests.push(uri);
+      return new Response("{}", { status: 200 });
+    };
+    await assert.rejects(
+      requestPublic("http://100.100.100.200/latest", {}, "https://site.example", local),
+      /not allowed/);
+    await assert.rejects(
+      requestPublic("/private", { headers: { Authorization: "Bearer private" } },
+        "https://site.example", local),
+      /Sensitive headers/);
+    await assert.rejects(
+      requestPublic("https://site.example/private", {}, "https://site.example", local),
+      /Absolute same-origin/);
+    await requestPublic("/api/data?limit=1", {}, "https://site.example", local);
+    assert.deepEqual(localRequests, ["/api/data?limit=1"]);
+    assert.equal(remoteCalls, 0);
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});
