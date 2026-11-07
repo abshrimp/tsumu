@@ -12381,103 +12381,185 @@ a.btn {
   z-index: 450;
   display: grid;
   place-items: center;
-  padding: 16px;
-  background: rgba(24, 24, 27, 0.38);
+  padding: 18px;
+  background: rgba(24, 24, 27, .42);
 }
 
 .se-composer {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: min(640px, 100%);
-  max-height: min(720px, calc(100vh - 32px));
-  overflow: auto;
-  padding: 18px;
-  border-radius: 16px;
+  width: min(880px, 100%);
+  max-height: min(800px, calc(100dvh - 36px));
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
   background: var(--panel);
   box-shadow: var(--shadow-pop);
   color: var(--text);
 }
 
-.se-composer-head, .se-composer-foot, .se-composer-add, .se-composer-source,
-.se-composer-step, .se-composer-step-actions {
+.se-composer-head {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex: none;
+  gap: 16px;
+  padding: 17px 20px 15px;
+  border-bottom: 1px solid var(--border);
 }
-
 .se-composer-head h3 {
   margin: 0;
-  flex: 1;
-  font-size: 16px;
+  font-size: 17px;
+  line-height: 1.4;
 }
-
 .se-composer-disclaimer {
-  margin: 0;
+  margin: 5px 0 0;
   color: var(--text-2);
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.se-composer-head .icon-btn { flex: none; }
+
+.se-composer-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 246px;
+  align-items: start;
+  gap: 20px;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 20px 22px;
+}
+.se-composer-edit { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.se-composer-section { min-width: 0; }
+.se-composer-section h4, .se-composer-result h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+.se-composer-hint {
+  margin: 5px 0 10px;
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.55;
 }
 
-.se-composer-source > span { font-weight: 600; flex: none; }
-.se-composer-source select,
-.se-composer-add select,
-.se-composer-step input {
-  min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-s);
-  background: var(--panel);
-  font: inherit;
-}
+.se-composer-source { display: flex; align-items: center; min-width: 0; }
 .se-composer-source > .se-pm-btn {
   flex: 1;
   min-width: 0;
-  min-height: 34px;
-  padding: 6px 10px;
+  min-height: 36px;
+  padding: 7px 10px;
   text-align: left;
 }
 .se-composer-source > .se-pm-btn > span { flex: 1; }
-.se-composer-no-samples { color: var(--text-3); font-size: 11px; }
+.se-composer-source-preview {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  margin-top: 8px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+.se-composer-source-preview code {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.se-composer-no-samples { display: block; margin-top: 6px; color: var(--text-3); font-size: 11px; }
 
 .se-composer-steps {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 0;
+  gap: 9px;
+  margin: 0 0 10px;
   padding: 0;
   list-style: none;
 }
-
-.se-composer-step {
-  flex-wrap: wrap;
-  padding: 9px 10px;
-  border: 1px solid var(--border);
+.se-composer-empty {
+  padding: 18px 14px;
+  border: 1px dashed var(--border-strong);
   border-radius: var(--radius-s);
+  color: var(--text-2);
+  font-size: 12px;
+  text-align: center;
 }
-.se-composer-step-label { flex: 1 1 165px; font-weight: 500; }
-.se-composer-step input { flex: 1 1 120px; max-width: 200px; }
-.se-composer-field {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1 1 140px;
+.se-composer-step {
   min-width: 0;
-  max-width: 220px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
 }
-.se-composer-step .se-composer-field input {
-  flex: 1 1 auto;
+.se-composer-step-head {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 9px;
+}
+.se-composer-number {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.se-composer-step-heading { min-width: 0; }
+.se-composer-step-heading strong { font-size: 12px; font-weight: 600; }
+.se-composer-step-heading p {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.se-composer-step-actions {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+.se-composer-step-actions button {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: var(--radius-s);
+  color: var(--text-2);
+}
+.se-composer-step-actions button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--field);
+}
+.se-composer-step-actions button:disabled { opacity: .3; cursor: default; }
+.se-composer-step-input { display: flex; margin: 11px 0 0 31px; }
+.se-composer-step-input > input, .se-composer-step-input .se-composer-field input {
   min-width: 0;
   width: 100%;
-  max-width: none;
-  padding-right: 27px;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
 }
+.se-composer-step-input > input { max-width: 320px; }
+.se-composer-field { position: relative; display: flex; flex: 1; align-items: center; min-width: 0; max-width: 320px; }
+.se-composer-step-input .se-composer-field input { padding-right: 33px; }
 .se-composer-field-toggle {
   position: absolute;
   right: 5px;
   top: 50%;
   display: grid;
   place-items: center;
-  width: 23px;
+  width: 25px;
   height: 25px;
   border-radius: var(--radius-s);
   color: var(--text-2);
@@ -12485,76 +12567,126 @@ a.btn {
 }
 .se-composer-field-toggle:hover { background: var(--field); }
 .se-composer-field-menu {
-  position: absolute;
-  top: calc(100% + 3px);
-  left: 0;
-  right: 0;
-  z-index: 3;
   display: flex;
   flex-direction: column;
-  max-height: 180px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-s);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
   background: var(--panel);
   box-shadow: var(--shadow-pop);
 }
 .se-composer-field-menu > button {
   flex: none;
-  min-height: 27px;
-  padding: 5px 8px;
-  border-radius: 4px;
+  min-height: 30px;
+  padding: 6px 9px;
+  border-radius: 5px;
+  font-size: 12px;
   text-align: left;
   overflow-wrap: anywhere;
 }
 .se-composer-field-menu > button:hover,
 .se-composer-field-menu > button.is-active { background: var(--field); }
-
-.se-composer-step-actions { margin-left: auto; }
-.se-composer-step-actions button {
-  padding: 5px 7px;
-  border-radius: var(--radius-s);
-  color: var(--accent);
+.se-composer-field-menu > button[aria-selected="true"] { font-weight: 600; }
+.se-composer-field-empty {
+  margin: 0;
+  padding: 12px 8px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
 }
-.se-composer-step-actions button:hover:not(:disabled) { background: var(--field); }
-.se-composer-step-actions button:disabled { color: var(--text-3); opacity: .45; cursor: default; }
+
+.se-composer-progress {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin: 10px 0 0 31px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+.se-composer-progress > span { flex: none; }
+.se-composer-progress code {
+  flex: 1;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.se-composer-progress[data-result-kind="error"] code { color: var(--text-2); }
 
 .se-composer-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   padding: 8px 10px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-s);
 }
-.se-composer-add select { flex: 1; }
+.se-composer-add > span { flex: none; font-size: 12px; font-weight: 500; }
+.se-composer-add select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
 .se-composer-result {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
 .se-composer-result output {
   display: block;
-  max-height: 150px;
-  min-height: 42px;
+  min-height: 72px;
+  max-height: 240px;
   overflow: auto;
   padding: 10px;
   border-radius: var(--radius-s);
   background: var(--field);
-  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.se-composer-result .se-composer-hint:last-child { margin: 10px 0 0; }
+
 .se-composer-foot {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding-top: 8px;
+  flex: none;
+  gap: 12px;
+  padding: 10px 20px;
   border-top: 1px solid var(--border);
   color: var(--text-2);
+  font-size: 11px;
 }
-.se-composer-foot > span { max-width: 440px; }
 .se-composer-foot button { flex: none; }
 
+@media (max-width: 740px) {
+  .se-composer-content { grid-template-columns: minmax(0, 1fr); }
+  .se-composer-result { position: static; }
+}
 @media (max-width: 500px) {
-  .se-composer-step-actions { margin-left: 0; }
-  .se-composer-foot { flex-wrap: wrap; }
-  .se-composer-foot button { margin-left: auto; }
+  .se-composer-backdrop { padding: 8px; }
+  .se-composer { max-height: calc(100dvh - 16px); border-radius: 10px; }
+  .se-composer-head { padding: 12px 14px; }
+  .se-composer-content { gap: 16px; padding: 14px; }
+  .se-composer-foot { padding: 10px 14px; }
+  .se-composer-step { padding: 10px; }
+  .se-composer-step-head { grid-template-columns: 22px minmax(0, 1fr); }
+  .se-composer-step-actions { grid-column: 2; }
+  .se-composer-step-input, .se-composer-progress { margin-left: 0; }
+  .se-composer-foot > span { max-width: 55%; }
 }

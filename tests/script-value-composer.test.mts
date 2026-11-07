@@ -18,7 +18,8 @@ test("value operations nest from left to right without extra variable blocks", (
   });
   assert.deepEqual(operations, original, "building an expression never mutates the recipe");
   assert.deepEqual(defaultTransform("field"), { kind: "field", key: "" });
-  assert.equal(VALUE_TRANSFORM_KINDS.length, 7);
+  assert.equal(VALUE_TRANSFORM_KINDS.length, 9);
+  assert.equal(new Set(VALUE_TRANSFORM_KINDS).size, 9);
 });
 
 test("dotted literal object keys and numeric list indices are distinct", () => {
@@ -66,4 +67,25 @@ test("each operation is type-checked instead of silently coercing values", () =>
   assert.deepEqual(evaluateExpression(json, { data: { json: '{"tags":[1,2]}' } }), {
     kind: "value", value: "2",
   });
+});
+
+test("checking a field distinguishes a present null from a missing key", () => {
+  assert.deepEqual(defaultTransform("has"), { kind: "has", key: "" });
+  const exists = composeValueExpression("data", [{ kind: "has", key: "optional" }]);
+  assert.deepEqual(evaluateExpression(exists, { data: { optional: null } }), { kind: "value", value: true });
+  assert.deepEqual(evaluateExpression(exists, { data: {} }), { kind: "value", value: false });
+  assert.equal(validateExpression(exists).ok, true);
+});
+
+test("nullish fallback covers null and missing, but preserves false and zero", () => {
+  const expression = composeValueExpression("data", [
+    { kind: "field", key: "optional" },
+    { kind: "fallback-nullish", text: "代替" },
+  ]);
+  assert.deepEqual(defaultTransform("fallback-nullish"), { kind: "fallback-nullish", text: "" });
+  assert.deepEqual(evaluateExpression(expression, { data: {} }), { kind: "value", value: "代替" });
+  assert.deepEqual(evaluateExpression(expression, { data: { optional: null } }), { kind: "value", value: "代替" });
+  assert.deepEqual(evaluateExpression(expression, { data: { optional: false } }), { kind: "value", value: false });
+  assert.deepEqual(evaluateExpression(expression, { data: { optional: 0 } }), { kind: "value", value: 0 });
+  assert.equal(validateExpression(expression).ok, true);
 });

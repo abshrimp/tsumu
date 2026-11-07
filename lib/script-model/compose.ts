@@ -5,22 +5,26 @@ export type ValueTransform =
   | { readonly kind: "field"; readonly key: string }
   | { readonly kind: "index"; readonly index: number }
   | { readonly kind: "length" }
+  | { readonly kind: "has"; readonly key: string }
   | { readonly kind: "format" }
   | { readonly kind: "stringify" }
   | { readonly kind: "parse" }
-  | { readonly kind: "fallback"; readonly text: string };
+  | { readonly kind: "fallback"; readonly text: string }
+  | { readonly kind: "fallback-nullish"; readonly text: string };
 
 export type ValueTransformKind = ValueTransform["kind"];
 
 export const VALUE_TRANSFORM_KINDS: readonly ValueTransformKind[] = [
-  "field", "index", "length", "format", "stringify", "parse", "fallback",
+  "field", "index", "length", "has", "format", "stringify", "parse", "fallback", "fallback-nullish",
 ];
 
 export function defaultTransform(kind: ValueTransformKind): ValueTransform {
   switch (kind) {
-    case "field": return { kind, key: "" };
+    case "field":
+    case "has": return { kind, key: "" };
     case "index": return { kind, index: 0 };
-    case "fallback": return { kind, text: "" };
+    case "fallback":
+    case "fallback-nullish": return { kind, text: "" };
     default: return { kind };
   }
 }
@@ -42,6 +46,9 @@ export function composeValueExpression(source: string, transforms: readonly Valu
       case "field":
         expression = { kind: "op", op: "object.get", source: expression, path: [transform.key] };
         break;
+      case "has":
+        expression = { kind: "op", op: "object.has", source: expression, path: [transform.key] };
+        break;
       case "index":
         expression = { kind: "op", op: "object.get", source: expression, path: [transform.index] };
         break;
@@ -57,9 +64,10 @@ export function composeValueExpression(source: string, transforms: readonly Valu
       case "parse":
         expression = { kind: "op", op: "parseJson", source: expression };
         break;
-      case "fallback": {
+      case "fallback":
+      case "fallback-nullish": {
         const fallback: Expr = { kind: "literal", value: transform.text as Json };
-        expression = { kind: "op", op: "defaultIfMissing", source: expression, fallback };
+        expression = { kind: "op", op: transform.kind === "fallback" ? "defaultIfMissing" : "defaultIfNullish", source: expression, fallback };
         break;
       }
     }

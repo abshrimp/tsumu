@@ -16,6 +16,7 @@ const documentSnapshot = (page: Page) => page.evaluate(() =>
 const projectSnapshot = (page: Page) => page.evaluate(() =>
   JSON.stringify((window as any).dataPickerProject()));
 const modal = (page: Page) => page.getByRole("dialog", { name: "値を組み立てる" });
+const fieldList = (page: Page) => page.getByRole("listbox", { name: "項目の候補" });
 async function chooseSource(page: Page, name: string) {
   await modal(page).getByRole("button", { name: "元の変数を選ぶ" }).click();
   const menu = page.locator(".se-pm");
@@ -42,8 +43,8 @@ test("値の入力欄から加工を積み重ね、見本を計算する。ス�
   await add(page, "field");
   const keyInput = modal(page).getByRole("combobox", { name: "取り出す項目名" });
   await keyInput.focus();
-  await expect(modal(page).getByRole("listbox", { name: "項目の候補" }).getByRole("option", { name: "tags" })).toBeVisible();
-  await modal(page).getByRole("option", { name: "tags" }).click();
+  await expect(fieldList(page).getByRole("option", { name: "tags" })).toBeVisible();
+  await fieldList(page).getByRole("option", { name: "tags" }).click();
   await expect(keyInput).toHaveValue("tags");
   await expect(modal(page).locator("output")).toHaveText('["red","blue"]');
 
@@ -116,12 +117,102 @@ test("元の値は入れ子の変数を選択でき、項目候補は直前の�
   await add(page, "field");
   const first = modal(page).getByRole("combobox", { name: "取り出す項目名" });
   await first.focus();
-  await modal(page).getByRole("option", { name: "detail" }).click();
+  await fieldList(page).getByRole("option", { name: "detail" }).click();
   await add(page, "field");
   const second = modal(page).getByRole("combobox", { name: "取り出す項目名" }).last();
   await second.focus();
-  await expect(modal(page).getByRole("option", { name: "title" })).toBeVisible();
-  await modal(page).getByRole("option", { name: "title" }).click();
+  await expect(fieldList(page).getByRole("option", { name: "title" })).toBeVisible();
+  await fieldList(page).getByRole("option", { name: "title" }).click();
   await expect(modal(page).locator("output")).toHaveText('"Nested"');
   expect(await documentSnapshot(page)).toBe(before);
+});
+
+test("項目候補が空または検索に一致しない場合、理由を表示し手入力を許す", async ({ page }) => {
+  const before = await documentSnapshot(page);
+  await page.locator('[data-sel-key="step:value"]').getByRole("button", { name: "値を組み立てる" }).click();
+  await chooseSource(page, "data");
+
+  await add(page, "field");
+  const first = modal(page).getByRole("combobox", { name: "取り出す項目名" });
+  await first.fill("not-in-sample");
+  await expect(fieldList(page)).toContainText("一致する候補がありません");
+  await expect(first).toHaveValue("not-in-sample");
+
+  await first.fill("");
+  await fieldList(page).getByRole("option", { name: "tags" }).click();
+  await expect(first).toHaveValue("tags");
+  await expect(modal(page).locator("output")).toHaveText('["red","blue"]');
+
+  await add(page, "field");
+  const second = modal(page).getByRole("combobox", { name: "取り出す項目名" }).last();
+  await second.focus();
+  await expect(fieldList(page)).toContainText("候補がありません");
+  await second.fill("custom");
+  await expect(fieldList(page)).toContainText("候補がありません");
+  await expect(second).toHaveValue("custom");
+  await second.press("Escape");
+  await expect(fieldList(page)).toHaveCount(0);
+  await expect(modal(page)).toBeVisible();
+  expect(await documentSnapshot(page)).toBe(before);
+});
+
+test("候補の再選択とキーボード確定を確実に反映する", async ({ page }) => {
+  await page.locator('[data-sel-key="step:value"]').getByRole("button", { name: "値を組み立てる" }).click();
+  await chooseSource(page, "data");
+  await add(page, "field");
+  const input = modal(page).getByRole("combobox", { name: "取り出す項目名" });
+  const toggle = modal(page).getByRole("button", { name: "項目の候補を表示" });
+
+  for (const key of ["detail", "tags", "empty", "detail", "tags"]) {
+    await toggle.click();
+    await fieldList(page).getByRole("option", { name: key, exact: true }).click();
+    await expect(input).toHaveValue(key);
+    await expect(fieldList(page)).toHaveCount(0);
+  }
+  await input.fill("det");
+  await expect(fieldList(page).getByRole("option", { name: "detail" })).toBeVisible();
+  await input.press("Enter");
+  await expect(input).toHaveValue("detail");
+  await expect(fieldList(page)).toHaveCount(0);
+});
+
+test("加工の目的別グループと途中結果を確認できる", async ({ page }) => {
+  const before = await documentSnapshot(page);
+  await page.locator('[data-sel-key="step:value"]').getByRole("button", { name: "値を組み立てる" }).click();
+  await chooseSource(page, "data");
+
+  const groups = modal(page).getByRole("combobox", { name: "加工を追加" }).locator("optgroup");
+  await expect(groups).toHaveCount(4);
+  await expect(groups.first()).toHaveAttribute("label", "値を取り出す");
+  await add(page, "has");
+  await modal(page).getByRole("combobox", { name: "取り出す項目名" }).fill("empty");
+  await expect(modal(page).locator(".se-composer-progress code")).toHaveText("true");
+  await expect(modal(page).locator("output")).toHaveText("true");
+  await modal(page).getByRole("button", { name: "削除" }).click();
+
+  await add(page, "field");
+  await modal(page).getByRole("combobox", { name: "取り出す項目名" }).fill("empty");
+  await add(page, "fallback-nullish");
+  await modal(page).getByRole("textbox", { name: "値がないときの文字列" }).fill("未設定");
+  await expect(modal(page).locator("output")).toHaveText('"未設定"');
+  await expect(modal(page).locator(".se-composer-progress code")).toHaveText(["null", '"未設定"']);
+  expect(await documentSnapshot(page)).toBe(before);
+});
+
+test("狭い画面でも加工の入力欄と候補を表示できる", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 740 });
+  await page.locator('[data-sel-key="step:value"]').getByRole("button", { name: "値を組み立てる" }).click();
+  await chooseSource(page, "data");
+  await add(page, "field");
+  const input = modal(page).getByRole("combobox", { name: "取り出す項目名" });
+  await input.focus();
+  const menu = fieldList(page);
+  await expect(menu).toBeVisible();
+  const bounds = await menu.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+  await menu.getByRole("option", { name: "detail" }).click();
+  await expect(input).toHaveValue("detail");
+  await expect(modal(page).locator("output")).toHaveText('{"title":"Nested"}');
 });
