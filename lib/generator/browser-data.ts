@@ -42,7 +42,8 @@ export function pageDataPlan(doc: SiteDoc, page: Page) {
         ] as Array<{ field: string; op: string; value: string; not?: boolean; and?: boolean }>;
         const filter = { kind: "filter" as const, conds: conds.filter((c) => c.field),
           no: typeof st.no === "number" ? st.no : undefined,
-          join: st.join === "or" ? "or" as const : "and" as const };
+          join: st.join === "or" ? "or" as const : "and" as const }
+          as unknown as Extract<(typeof current)[number], { kind: "filter" }>;
         const index = filter.no === undefined ? -1 : current.findIndex((op) =>
           op.kind === "filter" && op.no === filter.no);
         listOps.set(st.array, index >= 0
