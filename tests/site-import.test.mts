@@ -85,7 +85,9 @@ test("document validation rejects corrupt references and unsafe object keys", ()
   const bad = { ...doc, pageOrder: ["missing-page"] };
   assert.throws(() => validateImportedDoc(bad), /ページの参照/);
   const corrupt = JSON.parse(JSON.stringify(doc));
-  corrupt.assets["__proto__"] = { id: "__proto__", name: "bad" };
+  Object.defineProperty(corrupt.assets, "__proto__", {
+    value: { id: "__proto__", name: "bad" }, enumerable: true, configurable: true,
+  });
   assert.throws(() => validateImportedDoc(corrupt), /プロパティ/);
 });
 
