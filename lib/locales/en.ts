@@ -3485,6 +3485,7 @@ const en: Dict = {
   "返信先のスレッドは削除されています": "The discussion you are replying to has been deleted.",
   "このスレッドは削除されています。入力中の文章は閉じるまで残るので、必要ならコピーしてください。": "This discussion has been deleted. Your draft remains until you close it, so copy it if you need it.",
   // Data terminology: the JSON collection and the repeated visual element are distinct.
+  "データとリスト表示": "Data and list views",
   "行をクリックすると、リストや入れ子の中身まで確認できます。": "Click a row to inspect lists and nested values.",
   "リスト・{length}件": "List · {length} items",
   "項目付きデータ・{length}項目": "Object with fields · {length} fields",
