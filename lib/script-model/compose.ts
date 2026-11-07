@@ -55,6 +55,7 @@ export type ValueTransform =
   | { readonly kind: "split" | "join"; readonly separator: string }
   | { readonly kind: "replace"; readonly find: string; readonly replacement: string; readonly regex: boolean }
   | { readonly kind: "find" | "filter"; readonly field: string; readonly operation: CompareOperation; readonly operand: string; readonly not?: boolean; readonly conditions?: readonly ValueCondition[] }
+  | { readonly kind: "object-entries"; readonly keyField: string; readonly valueField: string }
   | { readonly kind: "map-field"; readonly field: string }
   | { readonly kind: "map-set"; readonly field: string; readonly operand: string; readonly operandType: ValueOperandType }
   | { readonly kind: "sort"; readonly field: string; readonly direction: SortDirection }
@@ -64,7 +65,7 @@ export type ValueTransformKind = ValueTransform["kind"];
 
 export const VALUE_TRANSFORM_KINDS: readonly ValueTransformKind[] = [
   "field", "index", "length", "has", "format", "stringify", "parse", "fallback", "fallback-nullish",
-  "math", "compare", "not", "split", "join", "replace", "find", "filter", "map-field", "map-set", "sort",
+  "math", "compare", "not", "split", "join", "replace", "find", "filter", "object-entries", "map-field", "map-set", "sort",
   "append", "remove", "remove-at",
 ];
 
@@ -83,6 +84,7 @@ export function defaultTransform(kind: ValueTransformKind): ValueTransform {
     case "replace": return { kind, find: "", replacement: "", regex: false };
     case "find":
     case "filter": return { kind, field: "", operation: "eq", operand: "" };
+    case "object-entries": return { kind, keyField: "キー", valueField: "値" };
     case "map-field": return { kind, field: "" };
     case "map-set": return { kind, field: "", operand: "", operandType: "text" };
     case "append":
