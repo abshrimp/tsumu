@@ -109,3 +109,37 @@ test("native HTML export downloads ready-to-open HTML, CSS and JavaScript withou
   expect(names.some((p) => p.endsWith("/package.json"))).toBe(false);
   expect(names.some((p) => p.endsWith("/next.config.mjs"))).toBe(false);
 });
+
+test("single HTML format downloads an actual HTML file with inline CSS and scripts", async ({ page }) => {
+  const modal = await openExport(page);
+  await modal.getByRole("button", { name: "フレームワーク" }).click();
+  await page.getByRole("button", { name: "Single HTML" }).click();
+  await expect(modal.locator(".modal-desc")).toContainText("HTMLファイル");
+  await expect(modal.getByRole("button", { name: "言語" })).toContainText("JavaScript");
+  await expect(modal.getByRole("button", { name: "スタイル" })).toContainText("CSS");
+  const downloadButton = modal.getByRole("button", { name: "HTMLをダウンロード" });
+  await expect(downloadButton).toBeEnabled();
+  const [download] = await Promise.all([page.waitForEvent("download"), downloadButton.click()]);
+  expect(download.suggestedFilename()).toMatch(/\.html$/);
+  const html = await readFile((await download.path())!, "utf8");
+  expect(html).toContain("<!doctype html>");
+  expect(html).toContain("<style>");
+  expect(html).toContain("data-page-plan");
+  expect(html).not.toMatch(/<script[^>]*\bsrc=/);
+  expect(html).not.toMatch(/<link[^>]*rel="stylesheet"/);
+  expect(html).not.toMatch(/tsumu/i);
+});
+
+test("Vue project format downloads the actual Vue SFC and Vite config", async ({ page }) => {
+  const modal = await openExport(page);
+  await modal.getByRole("button", { name: "フレームワーク" }).click();
+  await page.getByRole("button", { name: "Vue 3 + Vite" }).click();
+  const downloadButton = modal.getByRole("button", { name: "zipをダウンロード" });
+  await expect(downloadButton).toBeEnabled();
+  const [download] = await Promise.all([page.waitForEvent("download"), downloadButton.click()]);
+  const zip = await JSZip.loadAsync(await readFile((await download.path())!));
+  const names = Object.keys(zip.files);
+  expect(names.some((name) => name.endsWith("/src/App.vue"))).toBe(true);
+  expect(names.some((name) => name.endsWith("/vite.config.ts"))).toBe(true);
+  expect(names.some((name) => name.endsWith("/next.config.mjs"))).toBe(false);
+});
