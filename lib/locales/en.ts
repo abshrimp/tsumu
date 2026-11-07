@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "単一のHTML": "Single HTML",
   "単一HTMLは1つの固定パスだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。": "Single HTML can export only one fixed path. If the project has multiple pages, choose Current page or export an HTML ZIP.",
   "画像・フォント・CSS・JavaScriptを埋め込んだ1つのHTMLファイルをダウンロードします。複数の異なるページURLは1つにまとめられません。": "Download one HTML file with embedded images, fonts, CSS and JavaScript. Distinct page URLs cannot be combined into one file.",
   "{framework}プロジェクトとして保存します。展開後に {cmd} で起動できます。": "Export as a {framework} project. After extracting the files, run {cmd} to start.",
