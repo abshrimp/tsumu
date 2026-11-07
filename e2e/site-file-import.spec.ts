@@ -136,7 +136,7 @@ test("compressed standalone doc.json imports as a visually editable site", async
   await page.getByLabel("ZIPまたはdoc.jsonファイルを選択").setInputFiles({
     name: "doc.json", mimeType: "application/json", buffer: Buffer.from(packed),
   });
-  await expect(page).toHaveURL(/\\/sites\\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
   const imported = await getLocalSite(page);
   expect(imported.doc.siteName).toBe(doc.siteName);
