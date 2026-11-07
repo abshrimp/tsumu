@@ -41,6 +41,8 @@ export function exportLimitations(
   ), "サーバーでデータや変数を処理するページはこの形式では出力できません。");
 
   if (format === "react") {
+    add(!!project.files["components/SmartLink.tsx"],
+      "React出力では変数を含むリンク先に対応していません。");
     add(!!project.files["components/SearchForm.tsx"],
       "React出力では検索フォームに対応していません。");
     add(!!doc.pwa?.enabled,
