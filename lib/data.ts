@@ -461,7 +461,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         clientVars.add(st.into);
       }
       // 「ページを開いたとき」の直下で {名前} だけを入れるものは、配信前に動くかを後で決める
-      if (st.kind === "set-var" && st.into && !(loadRoot.has(st) && setVarSource(st))) {
+      if (st.kind === "set-var" && st.into && !(loadRoot.has(st) && (setVarSource(st) || !extractVars(st.value).length))) {
         clientVars.add(st.into);
       }
       if (st.kind === "transform" && st.into && !(loadRoot.has(st) && st.source)) {
@@ -501,11 +501,10 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       if (isDataStep(st)) {
         steps.push(st);
       } else if (st.kind === "set-var" || st.kind === "transform") {
-        // A load-time, pure value chain can run before rendering.
-        // A chain that reads or overwrites a browser-owned value remains on the client.
+        // A load-time, pure value chain or constant assignment can run on the server.
         const src = st.kind === "transform" ? st.source : setVarSource(st);
-        if (!st.into || !src) continue;
-        if (isClient(src) || clientVars.has(st.into)) {
+        if (!st.into || (!src && !(st.kind === "set-var" && !extractVars(st.value).length))) continue;
+        if ((src && isClient(src)) || clientVars.has(st.into)) {
           clientVars.add(st.into);
         } else {
           steps.push(st);
@@ -781,6 +780,13 @@ export function previewDataVars(
   opts: PreviewOpts = {}
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+  const origins: Record<string, { totals?: Record<string, number>; path: string }> = {};
+  const originFor = (name: string) => {
+    if (origins[name]) return origins[name];
+    const [head, ...tail] = name.split(".");
+    const root = origins[head];
+    return root ? { totals: root.totals, path: [root.path, ...tail].filter(Boolean).join(".") } : null;
+  };
   const primary = primaryDataStep(doc, pageId)?.step;
   const scope = () => ({ ...opts.vars, slug: opts.slug, ...out });
   const plan = pagePlan(doc, pageId);
@@ -789,11 +795,24 @@ export function previewDataVars(
       case "fetch":
         if (st.as) {
           out[st.as] = opts.live?.[st.id] ?? st.sample ?? null;
+          origins[st.as] = {
+            totals: opts.live?.[st.id] !== undefined ? opts.liveTotals?.[st.id] : st.sampleTotals,
+            path: "",
+          };
         }
         break;
       case "set-var": {
+        if (!st.into) break;
         const src = setVarSource(st);
-        if (st.into && src) out[st.into] = lookupVar(scope(), src) ?? null;
+        if (src) {
+          out[st.into] = lookupVar(scope(), src) ?? null;
+          const origin = originFor(src);
+          if (origin) origins[st.into] = origin;
+        } else if (!extractVars(st.value).length) {
+          // Constant load-time values are pure; escaped braces remain literal.
+          out[st.into] = interpolate(st.value, scope());
+          delete origins[st.into];
+        }
         break;
       }
       case "transform": {
@@ -806,7 +825,19 @@ export function previewDataVars(
         }
         const vars = scope();
         const result = evaluateValueRecipe(lookupVar(vars, st.source), [st.transform], vars);
-        if (result.kind === "value") out[st.into] = result.value;
+        if (result.kind === "value") {
+          const origin = originFor(st.source);
+          if (st.transform.kind === "length" && origin?.totals &&
+              Object.hasOwn(origin.totals, origin.path)) {
+            out[st.into] = origin.totals[origin.path];
+          } else {
+            out[st.into] = result.value;
+          }
+          if (st.transform.kind === "field" && origin) {
+            origins[st.into] = { totals: origin.totals,
+              path: [origin.path, st.transform.key].filter(Boolean).join(".") };
+          } else delete origins[st.into];
+        }
         break;
       }
     }

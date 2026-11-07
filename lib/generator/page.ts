@@ -354,10 +354,12 @@ ${loads
     if (result.kind === "value") vars[${JSON.stringify(st.into)}] = result.value;
   }`;
       case "set-var": {
+        if (!st.into) return "";
         const from = setVarSource(st);
-        return st.into && from
-          ? `  vars[${JSON.stringify(st.into)}] = lookupVar(vars, ${JSON.stringify(from)}) ?? null;`
-          : "";
+        if (from) return `  vars[${JSON.stringify(st.into)}] = lookupVar(vars, ${JSON.stringify(from)}) ?? null;`;
+        if (!extractVars(st.value).length)
+          return `  vars[${JSON.stringify(st.into)}] = interpolate(${JSON.stringify(st.value)}, vars);`;
+        return "";
       }
     }
   })

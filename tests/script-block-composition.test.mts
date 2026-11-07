@@ -83,3 +83,35 @@ test("newly dropped processing blocks inherit the preceding output without mutat
   ]);
   assert.equal((incoming[0] as Extract<ScriptStep, { kind: "transform" }>).source, "");
 });
+
+test("constant load steps are evaluated on the server without leaking unused values to browser scripts", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push({
+    id: "private", kind: "set-var", value: "UNUSED_PRIVATE_SENTINEL", into: "private",
+  });
+  const plan = pagePlan(doc, "p");
+  assert.ok(plan.serverIds.has("private"));
+  assert.equal(previewDataVars(doc, "p").private, "UNUSED_PRIVATE_SENTINEL");
+  const files = generateProject(doc).files;
+  assert.ok(files["app/page.tsx"].includes("UNUSED_PRIVATE_SENTINEL"));
+  assert.doesNotMatch(files["public/scripts.js"] ?? "", /UNUSED_PRIVATE_SENTINEL/);
+});
+
+test("fetched sample totals are preserved through aliases in composition without truncating actual data", () => {
+  const doc = scriptDataPickerDoc();
+  const fetch = doc.pages.p.pageScripts![0].steps[0];
+  if (fetch.kind !== "fetch") throw new Error("Expected fetch fixture");
+  fetch.sampleTotals = { tags: 52 };
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "alias", kind: "set-var", value: "{data.tags}", into: "selectedTags" },
+    { id: "len", kind: "transform", source: "selectedTags", into: "total", transform: { kind: "length" } },
+  );
+  assert.equal(previewDataVars(doc, "p").total, 52);
+  assert.equal(previewDataVars(doc, "p", {
+    live: { fetch: { tags: ["x", "y", "z"] } },
+  }).total, 3);
+  assert.equal(previewDataVars(doc, "p", {
+    live: { fetch: { tags: ["x", "y"] } },
+    liveTotals: { fetch: { tags: 42 } },
+  }).total, 42);
+});
