@@ -14,6 +14,7 @@ import { createLocalBrowserSite } from "../browser-site-create";
 import { serverStatusSnapshot } from "../status";
 import { tr } from "../i18n";
 import { resolveMcpEndpoint } from "./config";
+import { rememberMcpPairingCodeIssued } from "./pairing-history";
 
 const ENDPOINT = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL);
 const MAX_REPLY_BYTES = 1024 * 1024;
@@ -230,6 +231,7 @@ export async function connectExternalEdit(canEdit: boolean): Promise<void> {
     const session = await response.json() as BridgeSession;
     if (!session.wsUrl || !session.connectToken || !session.pairingCode) throw new Error(tr("Invalid MCP session"));
     const ws = new WebSocket(session.wsUrl, ["tsumu-editor", session.connectToken]);
+    rememberMcpPairingCodeIssued(window.location.hostname, (cookie) => { document.cookie = cookie; });
     active = { ws, session, siteId, canEdit };
     ws.onopen = () => {
       if (active?.ws === ws) useExternalEdit.setState({
