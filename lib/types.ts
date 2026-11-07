@@ -191,7 +191,9 @@ export type ScriptOp =
   | "starts-with"
   | "ends-with"
   | "gt"
+  | "gte"
   | "lt"
+  | "lte"
   | "empty"
   /** 「,」区切りの値・配列のどれかと同じ */
   | "in";
