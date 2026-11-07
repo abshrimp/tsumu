@@ -455,7 +455,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
         <SlidersHorizontal size={12} />
         {customized ? tr("リクエストの設定（{method}）", { method: step.method ?? "GET" }) : tr("リクエストの設定")}
       </button>
-      <span className="se-fetch-destination"><b>{step.method ?? "GET"}</b><span>{values.missing ? step.url : interpolateUrl(step.url, values.vars)}</span></span>
+
       {!hasResult && <FetchValues state={values} busy={busy} />}
       {step.method && step.method !== "GET" && <span className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</span>}
       {open && (
@@ -788,7 +788,7 @@ export function VarNameIn({
         matches.length > 0 &&
         createPortal(
           <div className="dd-menu var-comp" style={pos} data-se-popover="" onMouseDown={(e) => e.preventDefault()}>
-            <div className="var-comp-head">{tr("ほかのブロックで作る変数")}</div>
+            <div className="var-comp-head">{tr("既存の変数を上書き")}</div>
             <div className="var-comp-list">
               {matches.map((name, i) => (
                 <button
