@@ -8,7 +8,7 @@ import { useContext, useMemo, type ReactNode } from "react";
 import { Plus, Repeat, IterationCw, Split, X } from "lucide-react";
 import { readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
-import { isDataStep, keyOfItem, pagePlan, toListItems, type FetchStep } from "../../lib/data";
+import { isDataStep, keyOfItem, toListItems, type FetchStep } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/types";
 import { tr } from "../../lib/i18n";
@@ -45,12 +45,11 @@ function ForEachView({
     );
     return [{ array: step.array, fields, roots: Object.keys(item ?? {}), samples }, ...outer];
   }, [sample, step.array, outer]);
-  // 配信前に値が決まるリスト（見本がある）は、配信前に動く形でないと何もしない
-  const { doc, pageId } = ctx;
-  const stuck = useMemo(
-    () => sample !== undefined && !pagePlan(doc, pageId).serverIds.has(step.id),
-    [doc, pageId, sample, step.id]
-  );
+  // The pre-rendering plan does not run for-each. Warn only for a page-load script,
+  // not for click/change handlers that can iterate client-side lists.
+  const pageLoad = ctx.scripts.some((s) => s.id === loc.scriptId &&
+    s.nodeId === PAGE_TARGET && s.trigger === "load");
+  const stuck = sample !== undefined && pageLoad;
   return (
     <div className={`se-c${sel}`} {...handlers}>
       <div className="se-blk se-c-head" data-sel-key={key}>
@@ -69,7 +68,7 @@ function ForEachView({
         {step.array && <span className="se-blk-note">{tr("中では要素の項目を {項目} で使えます")}</span>}
         {stuck && !ctx.readOnly && (
           <span className="se-badge is-warn">
-            {tr("取得したデータのリストは、ページを開いたときのスクリプトの直下で、中を「項目として格納」と変数の「もし」だけにすると動きます")}
+            {tr("この繰り返しはページの配信前には実行されません。読み込み時に取得したリストを加工するには「値を加工する」を使用してください。")}
           </span>
         )}
       </div>
