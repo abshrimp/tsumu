@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-/** 実際の候補メニューを、出現時の拡大アニメーションが終わってから測る。 */
+/** Measure the actual suggestion menu after its entrance scaling animation has finished. */
 export async function expectVariableMenuLayout(page: Page, width: number, actions: 2 | 3) {
   const menu = page.locator(".var-comp");
   await expect(menu).toBeVisible();
