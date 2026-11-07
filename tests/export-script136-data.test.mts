@@ -108,3 +108,26 @@ test("exported HTML carries the #136 page plan and executable data runtime", () 
   assert.ok(project.files["data-loader.js"].includes("runPurePageSteps"));
   assert.ok(project.files["data-loader.js"].includes("evaluateValueRecipe"));
 });
+
+test("generated browser event runtime retains #136 transform and list-display actions", () => {
+  const { doc, page } = fixture();
+  doc.pages = { [page.id]: page };
+  doc.pageOrder = [page.id];
+  const node = doc.nodes[page.children[0]];
+  node.scripts = [{
+    id: "click-value", trigger: "click", pos: { x: 0, y: 0 },
+    steps: [
+      { id: "increment", kind: "transform", source: "total", into: "total",
+        transform: { kind: "math", operation: "add", operand: 1 } },
+      { id: "filter", kind: "list-display", mode: "filter", array: "items",
+        field: "id", op: "eq", value: "second" },
+    ],
+  }] as unknown as typeof node.scripts;
+  const project = generateExportProject(doc, "html");
+  const html = project.files["index.html"];
+  assert.match(html, /data-scripts=/);
+  assert.ok(html.includes("increment"));
+  assert.ok(html.includes("list-display"));
+  assert.ok(project.files["scripts.js"].includes("Invalid value transform"));
+  assert.ok(project.files["scripts.js"].includes("list-display"));
+});
