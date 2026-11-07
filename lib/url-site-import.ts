@@ -195,7 +195,9 @@ export async function restoreAssets(
     }
     try {
       const name = names.get(id) ?? previous.name;
-      const file = new File([Uint8Array.from(data)], name, {
+      const copy = new Uint8Array(data.byteLength);
+      copy.set(data);
+      const file = new File([copy], name, {
         type: previous.mimeType || mimeOf(name),
       });
       const uploaded = await upload(file);
