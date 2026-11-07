@@ -104,7 +104,9 @@ export async function readRestorableArchive(bytes: Uint8Array): Promise<{
   doc: SiteDoc; assets: Map<string, Uint8Array>; folder: string;
 }> {
   if (bytes.byteLength > SOURCE_LIMIT) throw new Error("ZIPは5MBまでです");
-  const zip = await JSZip.loadAsync(bytes, { checkCRC32: true });
+  // Validate entry size metadata before inflating anything (CRC checking
+  // during load would decompress all entries before these limits apply).
+  const zip = await JSZip.loadAsync(bytes);
   countUncompressed(zip);
   const candidates = Object.values(zip.files).filter((entry) =>
     !entry.dir && /(?:^|\/)(?:_tsumu|_site-data)\/doc\.json$/i.test(entry.name));
