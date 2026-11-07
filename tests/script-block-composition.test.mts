@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { filterItems, matchOp, pageArrays, pagePlan, previewDataVars } from "../lib/data";
+import { filterItems, matchOp, pageArrays, pagePlan, previewDataVars, renameVarInPage } from "../lib/data";
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
@@ -119,6 +119,24 @@ test("holiday dictionary transforms are previewable and serializable in generate
   assert.match(files["app/page.tsx"], /"object-entries"/);
   assert.match(files["lib/value-recipe.ts"], /"object-entries"/);
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
+});
+
+test("renaming variables keeps object-entry column templates synchronized", () => {
+  const doc = scriptDataPickerDoc();
+  const steps = doc.pages.p.pageScripts![0].steps;
+  steps.push({ id: "column-rename", kind: "transform", source: "data", into: "rows",
+    transform: { kind: "object-entries",
+      keyField: "{labels.keyName}", valueField: "{labels.valueName}" } });
+  renameVarInPage(doc, "p", "labels", "displayLabels");
+  const renamed = steps.find((step) => step.id === "column-rename");
+  assert.ok(renamed?.kind === "transform" && renamed.transform.kind === "object-entries");
+  if (renamed?.kind !== "transform" || renamed.transform.kind !== "object-entries")
+    throw new Error("Expected object entries transform");
+  assert.equal(renamed.transform.keyField, "{displayLabels.keyName}");
+  assert.equal(renamed.transform.valueField, "{displayLabels.valueName}");
+  assert.deepEqual(evaluateValueRecipe({ "2026-11-23": "勤労感謝の日" }, [renamed.transform], {
+    displayLabels: { keyName: "日付", valueName: "祝日名" },
+  }), { kind: "value", value: [{ "日付": "2026-11-23", "祝日名": "勤労感謝の日" }] });
 });
 
 test("browser-only object-entry column names keep the transform out of SSR", () => {
