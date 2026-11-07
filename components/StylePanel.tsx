@@ -194,7 +194,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
         <div style={{ flex: 1 }}>
           <Dropdown
             value={styleState}
-            options={STATE_ORDER.map((s) => ({
+            options={[...STATE_ORDER.map((s) => ({
               value: s,
               label: STATE_INFO[s].label,
               icon: {
