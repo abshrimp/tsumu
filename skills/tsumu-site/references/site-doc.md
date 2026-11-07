@@ -2,6 +2,47 @@
 
 This file documents the JSON that Tsumu's editor actually loads. It is not an HTML snapshot, a Next.js export, or an arbitrary page-design JSON. The authoritative types are `lib/types.ts`, with construction examples in `lib/presets.ts`. The provided [minimal-site.json](minimal-site.json) is a self-contained, visually editable working example.
 
+## Compact `doc.json`
+
+The **editor model remains an ordinary `SiteDoc`**. The file distributed to users can optionally use a versioned, losslessly compressed JSON wrapper. This avoids changing any editable nodes, IDs, scripts or styles for transport-size reasons.
+
+The importer accepts both an ordinary `SiteDoc` and the following wrapper:
+
+```json
+{
+  "format": "tsumu-doc",
+  "version": 1,
+  "encoding": "gzip+base64",
+  "payload": "<Base64 of gzip-compressed UTF-8 minified SiteDoc JSON>"
+}
+```
+
+The wrapper's `version` identifies the transport format. `payload` decompresses to the same JSON `SiteDoc` structure described below. Unknown versions or codecs are rejected rather than guessed.
+
+Use this Python recipe when generating a standalone `doc.json`:
+
+```python
+import base64
+import gzip
+import json
+
+# doc is a complete SiteDoc dictionary.
+plain = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+packed = json.dumps({
+    "format": "tsumu-doc",
+    "version": 1,
+    "encoding": "gzip+base64",
+    "payload": base64.b64encode(gzip.compress(plain, compresslevel=9, mtime=0)).decode("ascii"),
+}, separators=(",", ":")).encode("utf-8")
+
+with open("doc.json", "wb") as output:
+    output.write(packed if len(packed) < len(plain) else plain)
+```
+
+This approach picks the smaller representation. Do not shorten property names, discard values, generate numeric node keys, or remove apparently redundant fields without a reversible and versioned mapping: the current editor expects the full `SiteDoc` on import. ZIP exports should instead store **plain minified** `_tsumu/doc.json` and apply ZIP-level DEFLATE, avoiding redundant compression.
+
+A compressed `doc.json` is not directly human-editable until decompressed. For manual authoring or debugging, use plain `SiteDoc` JSON; both forms can be imported by this PR.
+
 ## Minimum document
 
 A complete minimal site needs these fields:
@@ -147,7 +188,7 @@ Put it in `page.pageScripts`. A click script is attached to `node.scripts` inste
 
 ## Assets and packaging
 
-Without any assets, set `"assets": {}` and provide a single `doc.json`.
+Without any assets, set `"assets": {}` and provide a single `doc.json` (ordinary or compact).
 
 For binary assets, provide a ZIP:
 
@@ -198,7 +239,7 @@ Follow `validateImportedDoc()` in `lib/site-import.ts` plus a stricter self-chec
 - Tree children must not create cycles or accidentally assign the same ordinary node to multiple parents.
 - Avoid unsupported node types, script step kinds, invalid breakpoint keys, invalid HTML/CSS values, and unsafe references.
 - ZIP paths must be relative and safe, without `..`, leading slashes, repeated ambiguous entries or multiple editable documents.
-- Current local import implementation: ZIP file ≤100 MiB; standalone JSON ≤12 MiB; expanded ZIP total ≤300 MiB; ≤500 ZIP entries, ≤250 asset entries/records, each asset ≤25 MiB; browser-only fallback for each stored asset is more restrictive (2 MiB).
+- Current local import implementation: ZIP file ≤100 MiB; standalone JSON ≤12 MiB compressed **and** after decompression; expanded ZIP total ≤300 MiB; ≤500 ZIP entries, ≤250 asset entries/records, each asset ≤25 MiB; browser-only fallback for each stored asset is more restrictive (2 MiB).
 - Tsumu's importer checks some structural properties but does not guarantee every script, design or asset renders correctly. Run a real import and preview if possible. Never treat a shallow shape check as full validation.
 
 These rules match the PR implementing local imports; recheck `lib/types.ts` and `lib/site-import.ts` if those files change.
