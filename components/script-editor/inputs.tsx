@@ -10,7 +10,6 @@ import { VarInput } from "../controls";
 import { dataVarNames, fieldLabel, flattenFields, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
 import { lookupVar, splitRegexVars } from "../../lib/vars";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
-import { readableValue } from "../DataView";
 import { fieldVarName, isRadioItem } from "../../lib/fields";
 import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
 import { tr, trNodes } from "../../lib/i18n";
@@ -167,8 +166,7 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
       itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("値 / {変数}")} />
     {source && <span className="se-value-info">
       <span className="vx-kind">{kind}</span>
-      {(typeof sample === "number" || typeof sample === "boolean") && <span className="se-value-sample">{readableValue(sample)}</span>}
-    </span>}
+          </span>}
   </span>;
 }
 
