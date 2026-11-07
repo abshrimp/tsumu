@@ -22,12 +22,8 @@ function targetText(t: string): string {
 function opText(subject: string, op: ScriptOp | undefined, value: string): string {
   const v = tr("「{value}」", { value });
   switch (op) {
-    case "neq":
-      return tr("{subject}が {v} と違う", { subject, v });
     case "contains":
       return tr("{subject}が {v} を含む", { subject, v });
-    case "not-contains":
-      return tr("{subject}が {v} を含まない", { subject, v });
     case "starts-with":
       return tr("{subject}が {v} で始まる", { subject, v });
     case "ends-with":
@@ -38,8 +34,6 @@ function opText(subject: string, op: ScriptOp | undefined, value: string): strin
       return tr("{subject}が {v} より小さい", { subject, v });
     case "empty":
       return tr("{subject}が空", { subject });
-    case "not-empty":
-      return tr("{subject}が空でない", { subject });
     default:
       return tr("{subject}が {v} と同じ", { subject, v });
   }
@@ -47,11 +41,12 @@ function opText(subject: string, op: ScriptOp | undefined, value: string): strin
 
 export function condText(c: ScriptCond): string {
   const t = targetText(c.target);
+  const negate = (phrase: string) => c.not ? tr("{phrase}ではない", { phrase }) : phrase;
   switch (c.subject) {
     case "var":
-      return opText(tr("「{value}」", { value: c.left ?? "" }), c.op, c.value ?? "");
+      return negate(opText(tr("「{value}」", { value: c.left ?? "" }), c.op, c.value ?? ""));
     case "value":
-      return opText(tr("{t} の値", { t }), c.op, c.value ?? "");
+      return negate(opText(tr("{t} の値", { t }), c.op, c.value ?? ""));
     case "checked":
       return c.not ? tr("{t} がチェックされていない", { t }) : tr("{t} がチェックされている", { t });
     case "visible":
@@ -94,9 +89,11 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
       if (st.mode === "sort") return st.dir === "desc"
         ? tr("リスト{array}を {field} の大きい順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") })
         : tr("リスト{array}を {field} の小さい順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") });
-      const conds = [{ field: st.field, op: st.op, value: st.value }, ...(st.or ?? [])]
-        .map((c, i) =>
-          `${i ? ("and" in c && c.and ? tr(" かつ ") : tr(" または ")) : ""}${opText(c.field || tr("（項目未選択）"), c.op, c.value)}`)
+      const conds = [{ field: st.field, op: st.op, value: st.value, not: st.not }, ...(st.or ?? [])]
+        .map((c, i) => {
+          const detail = opText(c.field || tr("（項目未選択）"), c.op, c.value);
+          return `${i ? ("and" in c && c.and ? tr(" かつ ") : tr(" または ")) : ""}${c.not ? tr("{phrase}ではない", { phrase: detail }) : detail}`;
+        })
         .join("");
       const head = `${st.no !== undefined ? tr("絞り込み{no}: ", { no: st.no }) : ""}${st.join === "or" ? tr("（ほかの絞り込みと「または」）") : ""}`;
       return tr("{head}リスト{p2}を {conds} ものに絞り込む", { head, p2: arrayText(st.array), conds });
