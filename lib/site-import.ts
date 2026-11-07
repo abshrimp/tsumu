@@ -234,7 +234,7 @@ export async function restoreImportAssets(
       warnings.push("アセットを取得できませんでした: " + asset.name);
     }
     // Do not point at an unrelated asset key in the destination installation.
-    if (asset.path && !/^https?:\/\//i.test(asset.path)) delete asset.path;
+    if (asset.path) delete asset.path;
   }
   return { doc, warnings: [...new Set(warnings)], createdPaths };
 }
