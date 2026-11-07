@@ -118,6 +118,8 @@ const en: Dict = {
   "比較方法": "Comparison operator",
   "並び順": "Sort order",
   "昇順": "Ascending",
+  "追加・削除する値 / {変数}": "Value to add or remove / {variable}",
+  "設定する値 / {変数}": "Value / {variable}",
   "降順": "Descending",
   "ブロックに反映": "Apply to block",
   "加工を編集": "Edit value operations",
@@ -1151,7 +1153,7 @@ const en: Dict = {
     "Filter array ［］ by ［field］",
   "配列［］の絞り込みを解除する":
     "Clear filters on array ［］",
-  "配列［］を［項目］の［小さい順］に並べ替える":
+  "配列［］を［項目］の［昇順］に並べ替える":
     "Sort array ［］ by ［field］ ［ascending］",
   "ストレージの［キー］に［値］を保存する":
     "Save ［value］ to storage key ［key］",
@@ -1411,10 +1413,6 @@ const en: Dict = {
     "Sample:",
   "配列{array}を{field}の{dir}に並べ替える":
     "Sort array {array} by {field} {dir}",
-  "小さい順":
-    "ascending",
-  "大きい順":
-    "descending",
   "すべての絞り込み":
     "all filters",
   "絞り込み{n}":
@@ -2732,9 +2730,9 @@ const en: Dict = {
     "Clear filter {no} on array {p1}",
   "配列{p1}のすべての絞り込みを解除する":
     "Clear all filters on array {p1}",
-  "配列{array}を {field} の大きい順に並べ替える":
+  "配列{array}を {field} の降順に並べ替える":
     "Sort array {array} by {field}, descending",
-  "配列{array}を {field} の小さい順に並べ替える":
+  "配列{array}を {field} の昇順に並べ替える":
     "Sort array {array} by {field}, ascending",
   "共有ストレージの「{key}」に「{value}」を保存する":
     "Save \"{value}\" to shared storage key \"{key}\"",
@@ -3711,15 +3709,15 @@ const en: Dict = {
   "リスト［］の要素ごとにくり返す": "For each item in list ［］",
   "リスト［］を［項目］で絞り込む": "Filter list ［］ by ［field］",
   "リスト［］の絞り込みを解除する": "Clear filters on list ［］",
-  "リスト［］を［項目］の［小さい順］に並べ替える": "Sort list ［］ by ［field］ ［ascending］",
+  "リスト［］を［項目］の［昇順］に並べ替える": "Sort list ［］ by ［field］ ［ascending］",
   "「{name}」のスクリプトで、リストの要素を探す項目が選ばれていません": "A script on \"{name}\" doesn't choose the field to search the list by",
   "「{name}」のスクリプトで、リストの要素に格納する項目名が空です": "A script on \"{name}\" stores into a list items with an empty field name",
   "「{name}」のリスト表示「{name2}」に表示するリストが選ばれていません（出力されません）": "List display \"{name2}\" in \"{name}\" has no list selected (it won't be output)",
   "{head}リスト{p2}を {conds} ものに絞り込む": "{head}Filter list {p2} to items where {conds}",
   "リスト{p1}の絞り込み{no}を解除する": "Clear filter {no} on list {p1}",
   "リスト{p1}のすべての絞り込みを解除する": "Clear all filters on list {p1}",
-  "リスト{array}を {field} の大きい順に並べ替える": "Sort list {array} by {field}, descending",
-  "リスト{array}を {field} の小さい順に並べ替える": "Sort list {array} by {field}, ascending",
+  "リスト{array}を {field} の降順に並べ替える": "Sort list {array} by {field}, descending",
+  "リスト{array}を {field} の昇順に並べ替える": "Sort list {array} by {field}, ascending",
   "「{source}」を「{p2}」で分解してリスト{p3}とする": "Split \"{source}\" by \"{p2}\" into a list {p3}",
   "リスト{p1}の要素のうち、{p2} が「{value}」のものを変数 {{p4}} とする": "Find the item in list {p1} whose {p2} is \"{value}\" and store it in {{p4}}",
   "リスト{p1}の「{value}」を項目 {p3} として格納する": "Store \"{value}\" as field {p3} in each item of list {p1}",
