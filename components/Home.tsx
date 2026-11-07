@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { signOut } from "next-auth/react";
 import { isEscapeKey } from "../lib/keys";
+import { useEscapeToClose } from "../lib/use-escape-to-close";
 import {
   ChevronRight,
   Copy,
@@ -375,13 +376,7 @@ function SiteDialog({
   const set = (k: keyof FormValue) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (isEscapeKey(e) && !busy) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [busy, onClose]);
+  useEscapeToClose(onClose, !busy);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -509,14 +504,7 @@ function SiteDialog({
 /* ---------- 全体の設定（表示言語・ログインできるアカウント） ---------- */
 
 function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // 確認ダイアログを開いている間は、そちらを先に閉じる
-      if (isEscapeKey(e) && !document.querySelector(".modal.dialog")) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeToClose(onClose);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

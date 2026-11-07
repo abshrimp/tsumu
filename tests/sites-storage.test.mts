@@ -25,7 +25,7 @@ import { createSiteBackup } from "../lib/site-backup";
 import { parseSiteImport, EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH } from "../lib/site-import";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { extractAssetReferences } from "../lib/asset-gc-plan";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../lib/api-json";
 import { userMessage } from "../lib/errors";
 import { argOf, isRoomLookup, original as original_2, replacement, setup as setup_2, sqlOf } from "./helpers/document-generation-api";
 import { buildAssetNames } from "../lib/generator/names";
@@ -678,7 +678,7 @@ function api(db: Db, read = readCurrentDoc) {
     getSiteRoomKey: sites.getSiteRoomKey,
     cleanupAbandonedDocuments: async () => undefined,
     eraseSiteDocument: async () => undefined,
-    validateImportedDoc, IMPORT_LIMITS, extractAssetReferences, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError };
+    validateImportedDoc, IMPORT_LIMITS, extractAssetReferences, readJsonLimited, readJsonObjectLimited, jsonErrorStatus, JsonBodyTooLargeError, JsonContentTypeError };
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected));
   return (input: unknown = { name: "Copy", copyFrom: "source" }) => post(new Request("https://example.test/api/sites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) })) as Promise<Response>;
 }
@@ -1262,7 +1262,7 @@ function api(db: Db) {
   }
   const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/sites/[id]/route.ts", import.meta.url), "utf8"))
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
-  const injected = { NextResponse, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
+  const injected = { NextResponse, JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
     requireAuth: async () => null, requireSiteAccess: async () => null, siteRole: async () => "owner", sessionUser: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
     deleteSite: deleteSite_5, getSite: getSite_3, isSiteId: isSiteId_2, normalizeSiteInput: normalizeSiteInput_2, updateSite };
   const patch = new Function(...Object.keys(injected), `${source}\nreturn PATCH;`)(...Object.values(injected));

@@ -9,7 +9,7 @@ import { transformSync } from "./helpers/bundle";
 import { isValidEmail } from "../lib/email";
 import { anonymousAllowed as anonymousAllowed_2, anonymousHostAllowed as anonymousHostAllowed_2, isLoopbackHost } from "../lib/anonymous";
 import { createRequire, stripTypeScriptTypes } from "node:module";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../lib/api-json";
 import { parseActivityUser, type ActivityUser } from "../lib/activity";
 import { parseAiRequest, readAiRequest } from "../lib/ai/request";
 import { AI_STREAM_TYPE, readAiResponse, type AiProgress } from "../lib/ai/progress";
@@ -306,7 +306,7 @@ describe("allowed-users-errors", () => {
     let changed = false;
     const emails = new Set<string>();
     const injected = {
-      NextResponse, isValidEmail, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, envVar: () => undefined, dbUnavailable: () => { throw new Error("Unexpected unavailable"); },
+      NextResponse, isValidEmail, JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited, envVar: () => undefined, dbUnavailable: () => { throw new Error("Unexpected unavailable"); },
       serverTr: async () => (value: string) => value,
       allowedEmails: () => ["owner@example.com"], auth: async () => ({ user: { email: "owner@example.com" } }), authConfigured: () => true,
       dbConfigured: () => true, userMessage: (_error: unknown, fallback: string) => fallback,
@@ -377,7 +377,7 @@ describe("allowed-users-shapes", () => {
       "../../../lib/email": { isValidEmail },
       "../../../lib/db": { dbConfigured: () => true },
       "../../../lib/env": { envVar: () => undefined },
-      "../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
+      "../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited },
       "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
       "../../../lib/allowlist": {
         allowedEmails: () => ["owner@example.com"],
@@ -474,7 +474,7 @@ function fixture(mode: "signed-in" | "anonymous" | "denied") {
   let saves = 0;
   const authors: (ActivityUser | null)[] = [];
   const shared: Record<string, unknown> = {
-    NextResponse, parseActivityUser, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError,
+    NextResponse, parseActivityUser, readJsonLimited, readJsonObjectLimited, jsonErrorStatus, JsonBodyTooLargeError, JsonContentTypeError,
     envVar: () => undefined,
     serverTr: async () => (value: string) => value,
     authConfigured: () => mode !== "anonymous",
@@ -830,7 +830,7 @@ describe("api-json-limits", () => {
         }
         return tokens;
       } },
-      "../../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
+      "../../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited },
     });
     return { POST: handler.POST as (req: Request) => Promise<Response>, signed };
   }

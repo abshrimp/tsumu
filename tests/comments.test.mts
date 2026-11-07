@@ -15,7 +15,7 @@ import { nodeDatabase } from "../lib/node-storage";
 import { insertSite, deleteSite, isSiteId } from "../lib/sites";
 import { type ActivityUser } from "../lib/activity";
 import { userMessage } from "../lib/errors";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited } from "../lib/api-json";
 import { commentTargetResolver, isDeletedCommentTarget } from "../lib/comment-targets";
 import { useEditor } from "../lib/store";
 import { commentTargetDoc } from "./helpers/comment-targets";
@@ -722,7 +722,7 @@ function api(db: Db, user: ActivityUser | null = author) {
   const injected = {
     listCommentPage: comments.listCommentPage, parseCommentCursor: comments.parseCommentCursor,
     parseCommentAction: comments.parseCommentAction, runCommentAction: comments.runCommentAction,
-    NextResponse, userMessage, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
+    NextResponse, userMessage, JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited,
     serverTr: async () => (text: string) => text,
     requireAuth: async (mode?: "user") => mode === "user" ? user : null, requireSiteAccess: async () => null,
     dbConfigured: () => true, getDb: async () => db,
@@ -1079,7 +1079,7 @@ function api(db: Db) {
   };
   const siteIdOf = load("../lib/site-server.ts", "siteIdOf", { NextResponse, serverTr, isSiteId });
   const post = load("../app/api/comments/route.ts", "POST", {
-    NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
+    NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited,
     listCommentPage: listCommentPage_3, parseCommentCursor: parseCommentCursor_3, parseCommentAction: parseCommentAction_3, runCommentAction: runCommentAction_3,
     requireAuth: async (mode?: "editor-user") => mode === "editor-user" ? author : null, requireSiteAccess: async () => null,
     dbConfigured: () => true, getDb: async () => db,

@@ -33,9 +33,9 @@ import {
 } from "../../../lib/publish-files";
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../lib/publish-preconditions";
-import { hasPublishCredentials } from "../../../lib/publish-security";
+import { validatePublishDocument } from "../../../lib/publish-security";
 import { gitBlobRequestBody } from "../../../lib/github-blob";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../lib/api-json";
 
 export const maxDuration = 60;
 
@@ -44,7 +44,6 @@ const TREE_CHUNK_ITEMS = 200;
 const TREE_CHUNK_BYTES = 512 * 1024;
 /** 422の検証失敗を小分けで確認する上限。無制限のGitHub書き込み再試行を禁止する。 */
 const MAX_TREE_SUBDIVISIONS = 8;
-const MAX_DOC_BYTES = 12 * 1024 * 1024;
 // 25 MiB のアセットは base64 で約 34 MiB になる。JSON のストリーム全体の大きさを制限する。
 const MAX_PUBLISH_REQUEST_BYTES = 48 * 1024 * 1024;
 
@@ -256,12 +255,9 @@ export async function POST(req: Request) {
 
   let body: PublishBody;
   try {
-    const value = await readJsonLimited(req, MAX_PUBLISH_REQUEST_BYTES);
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError();
-    body = value as PublishBody;
+    body = await readJsonObjectLimited(req, MAX_PUBLISH_REQUEST_BYTES) as unknown as PublishBody;
   } catch (error) {
-    const status = error instanceof JsonBodyTooLargeError ? 413
-      : error instanceof JsonContentTypeError ? 415 : 400;
+    const status = jsonErrorStatus(error);
     return NextResponse.json({ error: status === 413 ? tr("Request too large") : tr("Invalid request (request body)") }, { status });
   }
 
@@ -288,25 +284,8 @@ export async function POST(req: Request) {
   // 最初の書き込みの前に編集データを検証し、インラインのコミットにも SHA で指すコミットにも
   // 同じ検査を使う。
   const validateDocument = (content: string | Uint8Array) => {
-    const size = typeof content === "string" ? Buffer.byteLength(content, "utf8") : content.byteLength;
-    if (size > MAX_DOC_BYTES) {
-      return NextResponse.json({ error: tr("doc.json exceeds the size limit.") }, { status: 400 });
-    }
-    let document: unknown;
-    try {
-      const text = typeof content === "string" ? content :
-        new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content);
-      document = JSON.parse(text);
-    } catch {
-      // パーサーのエラーには文書の一部が含まれることがあるため、ログにも応答にも出さない。
-      return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
-    }
-    if (hasPublishCredentials(document as Parameters<typeof hasPublishCredentials>[0])) {
-      return NextResponse.json({
-        error: tr("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."),
-      }, { status: 400 });
-    }
-    return null;
+    const error = validatePublishDocument(content, tr);
+    return error ? NextResponse.json({ error }, { status: 400 }) : null;
   };
 
   // 空のリポジトリでは Git Data API が使えないため、Contents API で最初のコミットを作る

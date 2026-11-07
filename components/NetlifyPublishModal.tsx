@@ -1,18 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ExternalLink, Globe, History, LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ExternalLink, Globe, History, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useEditor, docFingerprint } from "../lib/store";
-import { exportLimitations } from "../lib/export-formats";
-import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { buildStaticPublishZip } from "../lib/static-publish-zip";
 import { tr } from "../lib/i18n";
 import { userMessage } from "../lib/errors";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { showConfirm } from "../lib/dialog";
 import type { PublishTarget } from "../lib/generator";
-import { Seg } from "./controls";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
+import {
+  confirmStaticRestore,
+  StaticDeploymentHistoryView,
+  StaticPublishDoneView,
+  useStaticPublishChecks,
+  yieldBeforeStaticBuild,
+  type StaticDeploymentItem,
+  type StaticPublishSubmitted,
+} from "./StaticPublishShared";
 import {
   readNetlifyAccount, saveNetlifyAccount, disconnectNetlifyAccount,
   readNetlifySite, saveNetlifySite, saveNetlifyProject, disconnectNetlifySite,
@@ -28,9 +34,7 @@ export interface NetlifyPublishModalConfig {
 
 type Team = { id: string; slug: string; name: string };
 type RemoteAccount = { user: { id: string; email: string }; teams: Team[] };
-type Deployment = { id: string; date: string; url: string; state: string; canRestore: boolean };
 type Phase = "loading" | "team" | "check" | "busy" | "done" | "error" | "history";
-type PublishResult = { id: string; state: string; deploymentUrl: string; siteUrl: string };
 
 export default function NetlifyPublishModal({
   conf, onClose,
@@ -48,8 +52,8 @@ export default function NetlifyPublishModal({
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState("");
   const [target, setTarget] = useState<PublishTarget>("production");
-  const [result, setResult] = useState<PublishResult | null>(null);
-  const [history, setHistory] = useState<Deployment[] | null>(null);
+  const [result, setResult] = useState<StaticPublishSubmitted | null>(null);
+  const [history, setHistory] = useState<StaticDeploymentItem[] | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const historyRequestRef = useRef(0);
 
@@ -57,12 +61,7 @@ export default function NetlifyPublishModal({
   useEffect(() => {
     if (phase !== "history") historyRequestRef.current++;
   }, [phase]);
-  const checks = useMemo<CheckResult[]>(() => [
-    ...runChecks(doc),
-    ...exportLimitations(doc, {
-      framework: "html", language: "javascript", style: "css", scope: "project",
-    }).map((message): CheckResult => ({ level: "error", message })),
-  ], [doc]);
+  const checks = useStaticPublishChecks(doc);
   const blocked = !conf.configured || checks.some((item) => item.level === "error");
 
   const beginLogin = async () => {
@@ -153,9 +152,7 @@ export default function NetlifyPublishModal({
     setTarget(nextTarget);
     setPhase("busy");
     setProgress(tr("Generating static site files…"));
-    if (typeof window.requestAnimationFrame === "function") {
-      await new Promise<void>(resolve => window.requestAnimationFrame(() => window.setTimeout(resolve, 0)));
-    }
+    await yieldBeforeStaticBuild();
     try {
       const snapshot = await docWithSvgFilters(doc);
       const zip = await buildStaticPublishZip(snapshot, nextTarget);
@@ -190,7 +187,7 @@ export default function NetlifyPublishModal({
         throw new Error(data?.error || tr("Couldn't publish"));
       }
       if (nextTarget === "production") markPublished(docFingerprint(snapshot));
-      setResult(data as PublishResult);
+      setResult(data as StaticPublishSubmitted);
       setPhase("done");
     } catch (cause) {
       setError(userMessage(cause, tr("Couldn't publish")));
@@ -208,7 +205,7 @@ export default function NetlifyPublishModal({
     const project = readNetlifySite(conf.site)?.[nextTarget];
     if (!project) { setHistory([]); return; }
     try {
-      const data = await requestNetlify<{ deployments: Deployment[] }>({
+      const data = await requestNetlify<{ deployments: StaticDeploymentItem[] }>({
         action: "history", token: account.token,
         projectId: project.id, teamId: binding.teamId,
       });
@@ -220,12 +217,9 @@ export default function NetlifyPublishModal({
     }
   };
 
-  const restore = async (deployment: Deployment) => {
+  const restore = async (deployment: StaticDeploymentItem) => {
     if (!account || !binding || !deployment.canRestore || restoring) return;
-    if (!await showConfirm(
-      tr("Restore this deployment to the selected site? The live content will change."),
-      { title: tr("Restore deployment"), okLabel: tr("Restore this version"), danger: true },
-    )) return;
+    if (!await confirmStaticRestore()) return;
     const project = readNetlifySite(conf.site)?.[target];
     if (!project) return;
     setRestoring(deployment.id);
@@ -346,15 +340,7 @@ export default function NetlifyPublishModal({
           <LoaderCircle className="spin" size={16}/>{progress}
         </div>}
         {phase === "done" && result && (
-          <>
-            <div className="check-ok"><Check size={14}/>{tr("Deployment submitted to {provider}.", { provider: "Netlify" })}</div>
-            <p className="hint">{tr("Deployment status: {state}", { state: result.state })}</p>
-            <div className="modal-actions">
-              <a className="btn" href={result.deploymentUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={13}/>{tr("View deployment")}</a>
-              <a className="btn" href={result.siteUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={13}/>{tr("Open site")}</a>
-              <button className="btn btn-primary" onClick={onClose}>{tr("Close")}</button>
-            </div>
-          </>
+          <StaticPublishDoneView providerName="Netlify" result={result} onClose={onClose} />
         )}
         {phase === "error" && (
           <>
@@ -367,45 +353,17 @@ export default function NetlifyPublishModal({
           </>
         )}
         {phase === "history" && (
-          <>
-            <p className="modal-desc">{tr("Netlify keeps deployment history. Editing data remains in your browser.")}</p>
-            <Seg
-              value={target}
-              options={[
-                { value: "production", label: tr("Live site") },
-                { value: "test", label: tr("Test site") },
-              ]}
-              onChange={(next) => void openHistory(next as PublishTarget)}
-            />
-            {history === null && !error && <div className="pub-loading"><LoaderCircle className="spin" size={14}/>{tr("Loading…")}</div>}
-            {error && <p className="pub-card-error" role="alert">{error}</p>}
-            {history?.length === 0 && <p className="hint">{tr("Not published yet.")}</p>}
-            {history && history.length > 0 && (
-              <ol className="hist-list">
-                {history.map(entry => (
-                  <li key={entry.id}>
-                    <div className="hist-main">
-                      <a className="hist-msg" href={entry.url} target="_blank" rel="noopener noreferrer">
-                        {entry.date ? new Date(entry.date).toLocaleString() : entry.id}
-                      </a>
-                      <span className="hist-date">{entry.state}</span>
-                    </div>
-                    {entry.canRestore && (
-                      <div className="hist-acts">
-                        <button className="btn btn-sm" disabled={!!restoring} onClick={() => void restore(entry)}>
-                          <RotateCcw size={13}/>{restoring === entry.id ? tr("Restoring…") : tr("Restore this version")}
-                        </button>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            )}
-            <div className="modal-actions">
-              <button className="btn" disabled={!!restoring} onClick={() => setPhase("check")}>{tr("Back")}</button>
-              <button className="btn" disabled={!!restoring} onClick={onClose}>{tr("Close")}</button>
-            </div>
-          </>
+          <StaticDeploymentHistoryView
+            description={tr("Netlify keeps deployment history. Editing data remains in your browser.")}
+            target={target}
+            onTargetChange={(next) => void openHistory(next)}
+            history={history}
+            error={error}
+            restoring={restoring}
+            onRestore={(entry) => void restore(entry)}
+            onBack={() => setPhase("check")}
+            onClose={onClose}
+          />
         )}
       </div>
     </div>

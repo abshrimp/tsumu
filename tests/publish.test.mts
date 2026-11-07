@@ -23,8 +23,8 @@ import { useEditor as useEditor_2 } from "../lib/store";
 import * as contract from "../lib/publish-preconditions";
 import * as preconditions from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
-import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
+import { hasPublishCredentials, readRestoreJson, validatePublishDocument } from "../lib/publish-security";
+import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../lib/api-json";
 import { tmpdir } from "node:os";
 import { join as join_2 } from "node:path";
 import { getDbFromBinding, type Db } from "../lib/db";
@@ -1223,8 +1223,8 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/db": { dbConfigured: () => false },
     "lib/publish-provider": { publishProvider: () => "github" },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files_2, "lib/publish-preconditions": contract, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
-    "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
+    "lib/publish-files": files_2, "lib/publish-preconditions": contract, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials, validatePublishDocument },
+    "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited },
     "lib/github-blob": { gitBlobRequestBody },
   };
   function load(path: string) {
@@ -1914,8 +1914,8 @@ function fixture(target: "production" | "test", manual: files_3.TreeEntry, histo
     "lib/db": { dbConfigured: () => false },
     "lib/publish-provider": { publishProvider: () => "github" },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files_3, "lib/publish-preconditions": preconditions, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
-    "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
+    "lib/publish-files": files_3, "lib/publish-preconditions": preconditions, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials, validatePublishDocument },
+    "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited },
     "lib/github-blob": { gitBlobRequestBody },
   };
   const load = (path: string) => {
@@ -2302,7 +2302,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     return NextResponse.json({});
   };
   const injected = {
-    JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, gitBlobRequestBody,
+    JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited, gitBlobRequestBody,
     matchesPublishTarget: preconditions.matchesPublishTarget,
     publishConflictMessage: preconditions.publishConflictMessage,
     GENERATED_MANIFEST_PATH: helpers.GENERATED_MANIFEST_PATH,
@@ -2313,6 +2313,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     parseGeneratedManifest: helpers.parseGeneratedManifest,
     DOC_PATH: helpers.DOC_PATH,
     hasPublishCredentials,
+    validatePublishDocument,
     parsePublishedExportOptions,
     planPublish: helpers.planPublish,
     keptTreeEntries: helpers.keptTreeEntries,

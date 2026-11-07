@@ -7,6 +7,11 @@ export function zipEntrySize(entry: ZipEntry): number | null {
   return typeof size === "number" && Number.isSafeInteger(size) && size >= 0 ? size : null;
 }
 
+export function isSafeArchivePath(path: string): boolean {
+  return !!path && !path.includes("\\") && !/[\u0000-\u001f\u007f]/.test(path) &&
+    path.split("/").every((part) => !!part && part !== "." && part !== "..");
+}
+
 /** ファイルと明示的なディレクトリを合わせた物理レコードの上限。 */
 export function checkZipRecordCount(records: number, maxFiles: number): void {
   if (records > maxFiles * 4) throw new Error(tr("The ZIP contains too many files."));

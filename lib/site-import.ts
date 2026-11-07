@@ -3,7 +3,8 @@ import { rebindImportedAssetUrls } from "./imported-asset-urls";
 import { sanitizeImportedInlineIcons } from "./imported-svg";
 import { IMPORT_LIMITS, isEmbeddedAssetUrl, isImportObject, validateImportedDoc } from "./site-import-format";
 import type { ZipArchive, ZipEntry } from "./zip";
-import { openImportZip, zipEntrySize } from "./zip-directory";
+import { isSafeArchivePath, openImportZip, zipEntrySize } from "./zip-directory";
+import { zipMime } from "./zip-mime";
 import type { SiteDoc } from "./types";
 import { uploadStaticAsset } from "./assets";
 import { decodePortableDoc } from "./portable-doc";
@@ -34,11 +35,6 @@ function jsonText(bytes: Uint8Array): unknown {
   catch { throw new Error(tr("Could not parse doc.json as JSON.")); }
 }
 
-function pathOK(path: string): boolean {
-  return !!path && !path.includes("\\") && !path.startsWith("/") &&
-    !/[\u0000-\u001f\u007f]/.test(path) &&
-    path.split("/").every((part) => part && part !== "." && part !== "..");
-}
 export function isEditorDocument(entry: ZipEntry): boolean {
   return !entry.dir && /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name);
 }
@@ -66,7 +62,7 @@ export async function parseEditableZip(zip: ZipArchive): Promise<SiteImport> {
   let size = 0;
   const canonicalPaths = new Set<string>();
   for (const entry of entries) {
-    if (!pathOK(entry.name)) throw new Error(tr("The ZIP contains an unsafe path."));
+    if (!isSafeArchivePath(entry.name)) throw new Error(tr("The ZIP contains an unsafe path."));
     // 大文字と小文字を区別しない環境や、Unicode を正規化する環境でも、ZIP の中の項目が
     // 一意に決まらなければならない。
     const canonical = entry.name.normalize("NFC").toLowerCase();
@@ -100,14 +96,14 @@ export async function parseEditableZip(zip: ZipArchive): Promise<SiteImport> {
   if (new Set(Object.values(mapped)).size !== Object.keys(mapped).length ||
       Object.keys(mapped).length !== Object.keys(doc.assets).length ||
       Object.keys(mapped).some((id) => !Object.hasOwn(doc.assets, id) ||
-        typeof mapped[id] !== "string" || !pathOK(mapped[id]))) {
+        typeof mapped[id] !== "string" || !isSafeArchivePath(mapped[id]))) {
     throw new Error(tr("The ZIP asset manifest is invalid."));
   }
   const assets = new Map<string, Uint8Array>();
   const warnings: string[] = [];
   for (const [id, original] of Object.entries(doc.assets)) {
     const location = mapped[id];
-    if (typeof location !== "string" || !pathOK(location)) {
+    if (typeof location !== "string" || !isSafeArchivePath(location)) {
       throw new Error(tr("The ZIP asset manifest is invalid."));
     }
     const entry = zip.file(root + location);
@@ -158,7 +154,7 @@ export async function restoreImportAssets(
       } catch { /* Warn below if a usable source is unavailable. */ }
     }
     if (bytes && bytes.byteLength <= IMPORT_LIMITS.assetBytes) {
-      const mime = asset.mimeType || guessMime(asset.name);
+      const mime = asset.mimeType || zipMime(asset.name);
       try {
         const result = await uploadStaticAsset(new File([bytes as Uint8Array<ArrayBuffer>], asset.name, { type: mime }), siteId);
         if (result.path) createdPaths.push(result.path);
@@ -193,16 +189,6 @@ export async function restoreImportAssets(
   return { doc, warnings: [...new Set(warnings)], createdPaths };
 }
 
-function guessMime(name: string) {
-  const extension = name.split(".").at(-1)?.toLowerCase();
-  const types: Record<string, string> = {
-    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
-    webp: "image/webp", svg: "image/svg+xml", gif: "image/gif",
-    avif: "image/avif", mp4: "video/mp4", mp3: "audio/mpeg",
-    css: "text/css", js: "text/javascript", woff2: "font/woff2",
-  };
-  return types[extension || ""] || "application/octet-stream";
-}
 async function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

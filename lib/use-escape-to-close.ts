@@ -6,7 +6,7 @@ export function useEscapeToClose(onClose: () => void, enabled = true) {
   useEffect(() => {
     if (!enabled) return;
     const onKey = (e: KeyboardEvent) => {
-      if (isEscapeKey(e)) onClose();
+      if (isEscapeKey(e) && (typeof document === "undefined" || !document.querySelector(".modal.dialog"))) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

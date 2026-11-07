@@ -3,6 +3,7 @@ import { envVar } from "./env";
 import type { PublishTarget } from "./generator";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { hostingProjectName } from "./publish-provider";
+import { staticHostingMime } from "./zip-mime";
 
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
 const MAX_ZIP_BYTES = 25 * 1024 * 1024;
@@ -111,22 +112,6 @@ export async function readZipRequest(request: Request): Promise<ArrayBuffer> {
   return result.buffer;
 }
 
-function mimeType(path: string): string {
-  const ext = path.split(".").at(-1)?.toLowerCase();
-  const types: Record<string, string> = {
-    html: "text/html; charset=utf-8", htm: "text/html; charset=utf-8",
-    css: "text/css; charset=utf-8", js: "application/javascript; charset=utf-8",
-    mjs: "application/javascript; charset=utf-8", json: "application/json",
-    txt: "text/plain; charset=utf-8", xml: "application/xml", svg: "image/svg+xml",
-    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
-    webp: "image/webp", avif: "image/avif", ico: "image/x-icon",
-    woff: "font/woff", woff2: "font/woff2", ttf: "font/ttf", otf: "font/otf",
-    mp4: "video/mp4", webm: "video/webm", mp3: "audio/mpeg", wav: "audio/wav",
-    pdf: "application/pdf", wasm: "application/wasm", webmanifest: "application/manifest+json",
-  };
-  return types[ext ?? ""] ?? "application/octet-stream";
-}
-
 function asBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
 }
@@ -197,7 +182,7 @@ async function publishCloudflare(project: string, target: PublishTarget, files: 
     if (file.path === "_headers" || file.path === "_redirects" || file.path === "_routes.json") continue;
     const hash = pagesAssetHash(file.bytes, file.path);
     manifest["/" + file.path] = hash;
-    if (!byHash.has(hash)) byHash.set(hash, { bytes: file.bytes, contentType: mimeType(file.path) });
+    if (!byHash.has(hash)) byHash.set(hash, { bytes: file.bytes, contentType: staticHostingMime(file.path) });
   }
   const hashes = [...byHash.keys()];
   const missing = await cloudflareRequest<string[]>("/pages/assets/check-missing",

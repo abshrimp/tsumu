@@ -24,7 +24,7 @@ import { DatabaseSync } from "node:sqlite";
 import { transformSync } from "./helpers/bundle";
 import { userMessage as userMessage_2, userMessage as userMessage_3 } from "../lib/errors";
 import { StructuredDocumentStore, type DocumentSqlStorage, type SiteSaveResult, type SiteSnapshot } from "../lib/structured-document-store";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../lib/api-json";
 import { extractAssetReferences } from "../lib/asset-gc-plan";
 import { edit as edit_2, isRoomLookup, load as load_2, original as original_2, replacement, setup as setup_2, sqlOf } from "./helpers/document-generation-api";
 import { sameDocContent, shareUnchangedDoc } from "../lib/doc-share";
@@ -1231,6 +1231,8 @@ function fixture(ownedAssets: Set<string> = new Set()) {
     InvalidDocPatchError,
     userMessage: () => "error",
     readJsonLimited,
+    readJsonObjectLimited,
+    jsonErrorStatus,
     JsonBodyTooLargeError,
     JsonContentTypeError,
   };
@@ -1868,7 +1870,7 @@ function fixture(options: {
   };
   const roomKey = "synthetic-private-room-key";
   const injected: Record<string, unknown> = {
-    NextResponse, userMessage: userMessage_3, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError,
+    NextResponse, userMessage: userMessage_3, readJsonLimited, readJsonObjectLimited, jsonErrorStatus, JsonBodyTooLargeError, JsonContentTypeError,
     DocTooLargeError: DocTooLargeError_3, InvalidDocPatchError: InvalidDocPatchError_3, validateDocValue: validateDocValue_4, isDocPatch: isDocPatch_3,
     IMPORT_LIMITS, validateImportedDoc, extractAssetReferences,
     siteOwnsAssets: async () => true,

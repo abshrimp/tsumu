@@ -48,3 +48,18 @@ export async function readJsonLimited(
     reader.releaseLock();
   }
 }
+
+export function jsonErrorStatus(error: unknown): 400 | 413 | 415 {
+  return error instanceof JsonBodyTooLargeError ? 413
+    : error instanceof JsonContentTypeError ? 415 : 400;
+}
+
+export async function readJsonObjectLimited(
+  req: Request, maxBytes: number,
+): Promise<Record<string, unknown>> {
+  const value = await readJsonLimited(req, maxBytes);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("Expected JSON object");
+  }
+  return value as Record<string, unknown>;
+}

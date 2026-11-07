@@ -75,6 +75,31 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
   return false;
 }
 
+export const MAX_PUBLISH_DOC_BYTES = 12 * 1024 * 1024;
+
+export function validatePublishDocument(
+  content: string | Uint8Array,
+  tr: (key: string) => string,
+): string | null {
+  const size = typeof content === "string"
+    ? new TextEncoder().encode(content).byteLength
+    : content.byteLength;
+  if (size > MAX_PUBLISH_DOC_BYTES) return tr("doc.json exceeds the size limit.");
+  let document: unknown;
+  try {
+    const text = typeof content === "string"
+      ? content
+      : new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content);
+    document = JSON.parse(text);
+  } catch {
+    // パーサーのエラーには文書の一部が含まれることがあるため、ログにも応答にも出さない。
+    return tr("Not an editor data file");
+  }
+  return hasPublishCredentials(document as SiteDoc)
+    ? tr("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead.")
+    : null;
+}
+
 /**
  * 履歴からの復元は、アプリの外でも編集できるリポジトリから取得する。JSON として解析したり、
  * SiteDoc として使ったりする前に、応答の大きさを制限する。

@@ -15,7 +15,7 @@ import {
 } from "../../../lib/allowlist";
 import { dbConfigured } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -76,17 +76,17 @@ export async function POST(req: Request) {
   let email: string;
   let role: AccountRole;
   try {
-    const input = await readJsonLimited(req, 16 * 1024);
+    const input = await readJsonObjectLimited(req, 16 * 1024);
     // 配列やオブジェクトを String(...) でメールアドレスに変換しない。
-    if (!input || typeof input !== "object" || Array.isArray(input) || !("email" in input) || typeof input.email !== "string") {
+    if (typeof input.email !== "string") {
       throw new TypeError("Invalid email type");
     }
-    if (!("role" in input) || !isAccountRole(input.role)) throw new TypeError("Invalid account role");
+    if (!isAccountRole(input.role)) throw new TypeError("Invalid account role");
     email = input.email.trim().toLowerCase();
     role = input.role;
   } catch (error) {
     return NextResponse.json({ error: tr("Invalid request (request body)") }, {
-      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+      status: jsonErrorStatus(error),
     });
   }
   if (!isValidEmail(email)) {
@@ -171,15 +171,13 @@ export async function PATCH(req: Request) {
   let email: string;
   let role: AccountRole;
   try {
-    const value = await readJsonLimited(req, 16 * 1024);
-    if (!value || typeof value !== "object" || Array.isArray(value) ||
-        !("email" in value) || typeof value.email !== "string" ||
-        !("role" in value) || !isAccountRole(value.role)) throw new TypeError("Invalid role update");
+    const value = await readJsonObjectLimited(req, 16 * 1024);
+    if (typeof value.email !== "string" || !isAccountRole(value.role)) throw new TypeError("Invalid role update");
     email = value.email.trim().toLowerCase();
     role = value.role;
   } catch (error) {
     return NextResponse.json({ error: tr("Invalid request (request body)") }, {
-      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+      status: jsonErrorStatus(error),
     });
   }
   if (!isValidEmail(email)) return NextResponse.json({ error: tr("Invalid email address") }, { status: 400 });

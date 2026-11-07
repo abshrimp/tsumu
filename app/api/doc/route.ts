@@ -24,7 +24,7 @@ import type { SiteDoc } from "../../../lib/types";
 import { siteThumbnailImages } from "../../../lib/site-thumbnail";
 import { extractAssetReferences } from "../../../lib/asset-gc-plan";
 import { siteOwnsAssets } from "../../../lib/site-asset-access";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
+import { jsonErrorStatus, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -110,8 +110,7 @@ async function save(req: Request, partial: boolean) {
   try {
     input = await readJsonLimited(req, MAX_DOC_REQUEST_BYTES);
   } catch (error) {
-    const status = error instanceof JsonBodyTooLargeError ? 413
-      : error instanceof JsonContentTypeError ? 415 : 400;
+    const status = jsonErrorStatus(error);
     return NextResponse.json({
       error: tr(status === 413
         ? "The document is too large for the storage"

@@ -7,7 +7,7 @@ import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../../lib/site-import-format";
 import { extractAssetReferences } from "../../../lib/asset-gc-plan";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../lib/api-json";
 import {
   readSiteDocument, saveSiteDocument, eraseSiteDocument, cleanupAbandonedDocuments,
 } from "../../../lib/site-document-service";
@@ -55,13 +55,10 @@ export async function POST(req: Request) {
 
   let input: SiteInput & { copyFrom?: unknown; importId?: unknown; initialDoc?: unknown };
   try {
-    input = await readJsonLimited(req, IMPORT_LIMITS.docBytes + 1024) as typeof input;
+    input = await readJsonObjectLimited(req, IMPORT_LIMITS.docBytes + 1024) as typeof input;
   } catch (error) {
-    const status = error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400;
+    const status = jsonErrorStatus(error);
     return NextResponse.json({ error: status === 413 ? tr("The import file is too large.") : tr("Invalid request (request body)") }, { status });
-  }
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }
   const { copyFrom, importId, initialDoc } = input;
   const importing = importId !== undefined || initialDoc !== undefined;

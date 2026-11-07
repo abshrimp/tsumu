@@ -1,61 +1,44 @@
 import { NextResponse } from "next/server";
-import { dbConfigured } from "../../../../lib/db";
 import { recordPublish, requireAuth } from "../../../../lib/server";
-import { requireSiteAccess } from "../../../../lib/site-access";
-import { siteDestOf, siteIdOf } from "../../../../lib/site-server";
-import { staticPublishConfig } from "../../../../lib/publish-provider";
 import { deployStaticSite, readStaticZip, readZipRequest } from "../../../../lib/static-hosting";
-import type { PublishTarget } from "../../../../lib/generator";
+import { resolveStaticPublishWriteContext, STATIC_NO_STORE } from "../../../../lib/static-hosting-route";
 
 export const maxDuration = 60;
-const NO_STORE = { "Cache-Control": "private, no-store" };
 
 export async function POST(req: Request) {
   const denied = await requireAuth("editor");
   if (denied) return denied;
   const params = new URL(req.url).searchParams;
-  const target = params.get("target");
-  if (target !== "test" && target !== "production") {
-    return NextResponse.json({ error: "Invalid publish target." }, { status: 400 });
-  }
-  const siteId = await siteIdOf(params.get("site"));
-  if (siteId instanceof NextResponse) return siteId;
-  if (!dbConfigured()) {
-    return NextResponse.json({ error: "Static hosting requires server-backed sites." }, { status: 503 });
-  }
-  const deniedSite = await requireSiteAccess(siteId, "edit");
-  if (deniedSite) return deniedSite;
-  const dest = await siteDestOf(siteId);
-  if (dest instanceof NextResponse) return dest;
-  let conf: ReturnType<typeof staticPublishConfig>;
-  try {
-    conf = staticPublishConfig(siteId);
-  } catch {
-    return NextResponse.json({ error: "Static publishing is not configured." }, { status: 503 });
-  }
-  if (!conf.configured) return NextResponse.json({ error: conf.error }, { status: 503 });
-  if (params.get("provider") !== "cloudflare" ||
-      params.get("project") !== (target === "test" ? conf.previewProject : conf.project)) {
+  const ctx = await resolveStaticPublishWriteContext({
+    site: params.get("site"),
+    target: params.get("target"),
+    provider: params.get("provider"),
+    providerMismatchError: "The publishing destination changed. Reopen the publish dialog.",
+  });
+  if (ctx instanceof NextResponse) return ctx;
+  const { siteId, target, conf, dest } = ctx;
+  const project = target === "test" ? conf.previewProject : conf.project;
+  if (params.get("project") !== project) {
     return NextResponse.json({ error: "The publishing destination changed. Reopen the publish dialog." }, { status: 409 });
   }
   try {
     const zip = await readZipRequest(req);
     const files = await readStaticZip(zip);
-    const result = await deployStaticSite(siteId, target as PublishTarget, files);
+    const result = await deployStaticSite(siteId, target, files);
     await recordPublish(siteId, target, dest.roomKey);
     return NextResponse.json({
       provider: conf.provider,
-      project: target === "test" ? conf.previewProject : conf.project,
+      project,
       id: result.id,
       state: result.state,
       deploymentUrl: result.url,
       siteUrl: (target === "test" ? dest.previewUrl : dest.siteUrl) ||
         (target === "test" ? conf.previewUrl : conf.productionUrl),
-    }, { headers: NO_STORE });
+    }, { headers: STATIC_NO_STORE });
   } catch (error) {
     // Never forward provider response bodies or authentication headers to the browser.
     return NextResponse.json({
       error: error instanceof Error ? error.message : "The deployment failed.",
-    }, { status: 400, headers: NO_STORE });
+    }, { status: 400, headers: STATIC_NO_STORE });
   }
 }

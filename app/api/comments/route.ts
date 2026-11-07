@@ -7,7 +7,7 @@ import { requireSiteAccess } from "../../../lib/site-access";
 import { siteIdOf } from "../../../lib/site-server";
 import { listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction } from "../../../lib/comments";
 import { userMessage } from "../../../lib/errors";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
+import { jsonErrorStatus, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     value = await readJsonLimited(req, 64 * 1024);
   } catch (error) {
     return NextResponse.json({ error: tr("Invalid request (request body)") }, {
-      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+      status: jsonErrorStatus(error),
     });
   }
   const action = parseCommentAction(value);

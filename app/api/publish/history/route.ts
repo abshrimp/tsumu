@@ -29,8 +29,8 @@ import {
 } from "../../../../lib/publish-files";
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
-import { hasPublishCredentials } from "../../../../lib/publish-security";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../lib/api-json";
+import { validatePublishDocument } from "../../../../lib/publish-security";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../../lib/api-json";
 
 export const maxDuration = 30;
 const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
@@ -163,12 +163,9 @@ export async function POST(req: Request) {
   }
   let body: { target?: unknown; sha?: unknown; site?: string; dest?: unknown; expected?: unknown; expectedHead?: unknown };
   try {
-    const value = await readJsonLimited(req, MAX_ROLLBACK_REQUEST_BYTES);
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError();
-    body = value as typeof body;
+    body = await readJsonObjectLimited(req, MAX_ROLLBACK_REQUEST_BYTES);
   } catch (error) {
-    const status = error instanceof JsonBodyTooLargeError ? 413
-      : error instanceof JsonContentTypeError ? 415 : 400;
+    const status = jsonErrorStatus(error);
     return NextResponse.json({ error: status === 413 ? tr("Request too large") : tr("Invalid request (request body)") }, { status });
   }
   if (!isSha(body.sha)) {
@@ -231,18 +228,9 @@ export async function POST(req: Request) {
       if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
         return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
       }
-      const bytes = Buffer.from(blob.content, "base64");
-      if (bytes.byteLength > 12 * 1024 * 1024) {
-        return NextResponse.json({ error: tr("doc.json exceeds the size limit.") }, { status: 400 });
-      }
-      let doc: unknown;
-      try { doc = JSON.parse(bytes.toString("utf8")); } catch {
-        return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
-      }
-      if (hasPublishCredentials(doc as Parameters<typeof hasPublishCredentials>[0])) {
-        return NextResponse.json({
-          error: tr("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."),
-        }, { status: 400 });
+      const docError = validatePublishDocument(Buffer.from(blob.content, "base64"), tr);
+      if (docError) {
+        return NextResponse.json({ error: docError }, { status: 400 });
       }
     }
     const leaf = (entries: TreeEntry[]) => entries.filter(

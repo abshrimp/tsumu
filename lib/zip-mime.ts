@@ -12,6 +12,21 @@ const ZIP_MIME: Record<string, string> = {
   json: "application/json", pdf: "application/pdf",
 };
 
+const STATIC_HOSTING_MIME: Record<string, string> = {
+  ...MEDIA_TYPES,
+  html: "text/html; charset=utf-8",
+  htm: "text/html; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  js: "application/javascript; charset=utf-8",
+  mjs: "application/javascript; charset=utf-8",
+  json: "application/json",
+  txt: "text/plain; charset=utf-8",
+  xml: "application/xml",
+  pdf: "application/pdf",
+  wasm: "application/wasm",
+  webmanifest: "application/manifest+json",
+};
+
 function lookup(path: string, types: Record<string, string>) {
   const extension = /\.([^.\/]+)$/.exec(path)?.[1].toLowerCase() ?? "";
   return Object.hasOwn(types, extension) ? types[extension] : undefined;
@@ -23,4 +38,8 @@ export function zipMediaMime(path: string) {
 
 export function zipMime(path: string): string {
   return lookup(path, ZIP_MIME) ?? "application/octet-stream";
+}
+
+export function staticHostingMime(path: string): string {
+  return lookup(path, STATIC_HOSTING_MIME) ?? "application/octet-stream";
 }

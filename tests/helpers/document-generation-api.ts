@@ -11,7 +11,7 @@ import { recordActivity } from "../../lib/activity";
 import { StructuredDocumentStore, type DocumentSqlStorage } from "../../lib/structured-document-store";
 import { createInitialDoc } from "../../lib/presets";
 import { isDocPatch } from "../../lib/doc-patch";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../../lib/api-json";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../lib/site-import-format";
 import { extractAssetReferences } from "../../lib/asset-gc-plan";
 import { siteOwnsAssets } from "../../lib/site-asset-access";
@@ -133,7 +133,7 @@ export async function setup(t: TestContext) {
   const notifications: Array<{ id: string; message: unknown; roomKey: unknown }> = [];
   const shared = {
     ...sites, ...docStorage, ...services, NextResponse, recordActivity, isDocPatch,
-    JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
+    JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited,
     IMPORT_LIMITS, validateImportedDoc, extractAssetReferences, siteOwnsAssets, userMessage,
     newSiteId: () => "destination",
     getDb: async () => db, dbConfigured: () => true, requireAuth: async () => null, sessionUser: async () => null,

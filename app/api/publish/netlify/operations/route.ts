@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAuth } from "../../../../../lib/server";
-import { readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError } from "../../../../../lib/api-json";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../../../lib/api-json";
 import {
   netlifyAccount, createNetlifyProject, netlifyHistory, restoreNetlifyDeployment,
   netlifyOAuthConfig, validNetlifyId,
@@ -22,13 +22,10 @@ export async function POST(req: Request) {
 
   let input: Record<string, unknown>;
   try {
-    const value = await readJsonLimited(req, 12 * 1024);
-    if (!value || Array.isArray(value) || typeof value !== "object") throw new Error("Invalid payload");
-    input = value as Record<string, unknown>;
+    input = await readJsonObjectLimited(req, 12 * 1024);
   } catch (error) {
     return NextResponse.json({ error: "Invalid Netlify request." }, {
-      status: error instanceof JsonBodyTooLargeError ? 413 :
-        error instanceof JsonContentTypeError ? 415 : 400, headers: NO_STORE,
+      status: jsonErrorStatus(error), headers: NO_STORE,
     });
   }
   const { token, action, teamId, projectId, deploymentId, target, site, teamSlug } = input;

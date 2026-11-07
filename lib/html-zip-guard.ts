@@ -1,7 +1,7 @@
 import { tr } from "./i18n";
 import { IMPORT_LIMITS } from "./site-import-format";
 import type { ZipArchive, ZipEntry } from "./zip";
-import { checkZipRecordCount, zipEntrySize } from "./zip-directory";
+import { checkZipRecordCount, isSafeArchivePath, zipEntrySize } from "./zip-directory";
 import { ZIP_CSS_LIMITS } from "./zip-css";
 
 export const isHtmlIndex = (path: string) => /(^|\/)index\.html?$/i.test(path);
@@ -33,8 +33,7 @@ export function inspectHtmlZip(zip: ZipArchive): {
 
   for (const entry of files) {
     const name = entry.name;
-    if (!name || name.includes("\\") || /[\u0000-\u001f\u007f]/.test(name) ||
-        name.split("/").some((part) => !part || part === "." || part === "..")) {
+    if (!isSafeArchivePath(name)) {
       throw new Error(tr("The ZIP contains an unsafe path."));
     }
     // 大文字と小文字を区別しない、または Unicode を正規化するホストで、別々のアセットを上書きしないようにする。

@@ -6,7 +6,7 @@ import { requireSiteAccess, siteRole } from "../../../../lib/site-access";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { userMessage } from "../../../../lib/errors";
 import { cleanupAbandonedDocuments, eraseSiteDocument } from "../../../../lib/site-document-service";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../lib/api-json";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../../lib/api-json";
 import {
   deleteSite,
   getSite,
@@ -62,16 +62,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (r instanceof NextResponse) return r;
     const deniedSite = await requireSiteAccess(r.site.id, "edit");
     if (deniedSite) return deniedSite;
-    let input: SiteInput | null;
+    let input: SiteInput;
     try {
-      input = await readJsonLimited(req, 64 * 1024) as SiteInput | null;
+      input = await readJsonObjectLimited(req, 64 * 1024) as SiteInput;
     } catch (error) {
       return NextResponse.json({ error: r.tr("Invalid request (request body)") }, {
-        status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+        status: jsonErrorStatus(error),
       });
-    }
-    if (!input || typeof input !== "object" || Array.isArray(input)) {
-      return NextResponse.json({ error: r.tr("Invalid request (request body)") }, { status: 400 });
     }
     let current = r.site;
     for (let attempt = 0; attempt < 4; attempt++) {

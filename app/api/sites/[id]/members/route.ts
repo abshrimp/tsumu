@@ -7,7 +7,7 @@ import { isValidEmail } from "../../../../../lib/email";
 import { serverTr } from "../../../../../lib/i18n-server";
 import { isSiteId } from "../../../../../lib/sites";
 import { isSiteRole, listSiteMembers, requireSiteAccess } from "../../../../../lib/site-access";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../../lib/api-json";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../../../lib/api-json";
 
 type Ctx = { params: Promise<{ id: string }> };
 const noStore = { "Cache-Control": "private, no-store" };
@@ -39,18 +39,15 @@ export async function PUT(req: Request, ctx: Ctx) {
   const tr = await serverTr();
   const access = await authorize(ctx);
   if (access instanceof NextResponse) return access;
-  let input: unknown;
+  let input: { email?: unknown; role?: unknown };
   try {
-    input = await readJsonLimited(req, 4096);
+    input = await readJsonObjectLimited(req, 4096);
   } catch (error) {
     return NextResponse.json({ error: tr("Invalid request (request body)") }, {
-      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+      status: jsonErrorStatus(error),
     });
   }
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
-  }
-  const { email: rawEmail, role } = input as { email?: unknown; role?: unknown };
+  const { email: rawEmail, role } = input;
   if (typeof rawEmail !== "string" || !isSiteRole(role)) {
     return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }

@@ -13,7 +13,7 @@ import { siteIdOf } from "../../../../lib/site-server";
 import { assetUploadedAt } from "../../../../lib/asset-gc-plan";
 import { serverTr, type Tr } from "../../../../lib/i18n-server";
 import { userMessage } from "../../../../lib/errors";
-import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../lib/api-json";
+import { jsonErrorStatus, readJsonLimited } from "../../../../lib/api-json";
 
 // 本文は、サイトの ID とアセットのパス1件だけ。
 const MAX_REQUEST_BYTES = 4 * 1024;
@@ -27,7 +27,7 @@ async function readTrashRequest(req: Request, tr: Tr): Promise<TrashRequest | Ne
     body = await readJsonLimited(req, MAX_REQUEST_BYTES);
   } catch (error) {
     return NextResponse.json({ error: tr("Invalid request (request body)") }, {
-      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+      status: jsonErrorStatus(error),
     });
   }
   const { site, path } = (body !== null && typeof body === "object" ? body : {}) as { site?: unknown; path?: unknown };

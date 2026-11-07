@@ -1,19 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ExternalLink, Globe, History, LoaderCircle, RotateCcw, TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ExternalLink, Globe, History, LoaderCircle, TriangleAlert } from "lucide-react";
 import { docFingerprint, useEditor } from "../lib/store";
-import { exportLimitations } from "../lib/export-formats";
-import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { buildStaticPublishZip } from "../lib/static-publish-zip";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { tr } from "../lib/i18n";
 import { userMessage } from "../lib/errors";
-import { showConfirm } from "../lib/dialog";
 import type { PublishTarget } from "../lib/generator";
 import type { StaticPublishProvider } from "../lib/publish-provider";
-import { Seg } from "./controls";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
+import {
+  confirmStaticRestore,
+  StaticDeploymentHistoryView,
+  StaticPublishDoneView,
+  useStaticPublishChecks,
+  yieldBeforeStaticBuild,
+  type StaticDeploymentItem,
+  type StaticPublishSubmitted,
+} from "./StaticPublishShared";
 
 interface Target {
   project: string;
@@ -29,20 +34,8 @@ export interface StaticPublishModalConfig {
   production: Target;
 }
 
-interface PublishResult {
-  id: string;
-  state: string;
-  deploymentUrl: string;
-  siteUrl: string;
+interface PublishResult extends StaticPublishSubmitted {
   provider: StaticPublishProvider;
-}
-
-interface Deployment {
-  id: string;
-  date: string;
-  url: string;
-  state: string;
-  canRestore: boolean;
 }
 
 const PROVIDER_NAME = "Cloudflare Pages";
@@ -63,18 +56,13 @@ export default function StaticPublishModal({
   const [error, setError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyTarget, setHistoryTarget] = useState<PublishTarget>("production");
-  const [history, setHistory] = useState<Deployment[] | null>(null);
+  const [history, setHistory] = useState<StaticDeploymentItem[] | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const historyRequestRef = useRef(0);
 
   useEscapeToClose(onClose, phase !== "busy" && !restoring);
-  const checks = useMemo<CheckResult[]>(() => [
-    ...runChecks(doc),
-    ...exportLimitations(doc, {
-      framework: "html", language: "javascript", style: "css", scope: "project",
-    }).map((message): CheckResult => ({ level: "error", message })),
-  ], [doc]);
+  const checks = useStaticPublishChecks(doc);
   const blocked = !conf.configured || checks.some((item) => item.level === "error");
   const providerName = PROVIDER_NAME;
 
@@ -93,7 +81,7 @@ export default function StaticPublishModal({
       if (historyRequestRef.current !== requestId) return;
       if (!response.ok) throw new Error(data?.error ?? tr("Couldn't load publish history"));
       if (data.provider !== conf.provider) throw new Error(tr("The publishing provider changed. Reopen this dialog."));
-      setHistory(data.deployments as Deployment[]);
+      setHistory(data.deployments as StaticDeploymentItem[]);
     } catch (cause) {
       if (historyRequestRef.current !== requestId) return;
       setHistoryError(userMessage(cause, tr("Couldn't load publish history")));
@@ -114,9 +102,7 @@ export default function StaticPublishModal({
     setPhase("busy");
     setError(null);
     setProgress(tr("Generating static site files…"));
-    if (typeof window.requestAnimationFrame === "function") {
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.setTimeout(resolve, 0)));
-    }
+    await yieldBeforeStaticBuild();
     try {
       // Use one snapshot even when someone edits the document during an upload.
       const snapshot = await docWithSvgFilters(doc);
@@ -145,13 +131,9 @@ export default function StaticPublishModal({
     }
   };
 
-  const restore = async (item: Deployment) => {
+  const restore = async (item: StaticDeploymentItem) => {
     if (!item.canRestore || restoring) return;
-    const accepted = await showConfirm(
-      tr("Restore this deployment to the selected site? The live content will change."),
-      { title: tr("Restore deployment"), okLabel: tr("Restore this version"), danger: true }
-    );
-    if (!accepted) return;
+    if (!await confirmStaticRestore()) return;
     setRestoring(item.id);
     try {
       const response = await fetch("/api/publish/static/history", {
@@ -177,51 +159,17 @@ export default function StaticPublishModal({
       <div className="modal pub-modal" onClick={(event) => event.stopPropagation()}>
         <h2>{historyOpen ? tr("Deployment history") : tr("Publish site")}</h2>
         {historyOpen ? (
-          <>
-            <p className="modal-desc">
-              {tr("Deployment history is stored by {provider}. Static hosting does not publish the editor document.", { provider: providerName })}
-            </p>
-            <Seg
-              value={historyTarget}
-              options={[
-                { value: "production", label: tr("Live site") },
-                { value: "test", label: tr("Test site") },
-              ]}
-              onChange={(next) => setHistoryTarget(next as PublishTarget)}
-            />
-            {history === null && !historyError && (
-              <div className="pub-loading"><LoaderCircle className="spin" size={14} />{tr("Loading…")}</div>
-            )}
-            {historyError && <p className="pub-card-error" role="alert">{historyError}</p>}
-            {history?.length === 0 && <p className="hint">{tr("Not published yet.")}</p>}
-            {history && history.length > 0 && (
-              <ol className="hist-list">
-                {history.map((item) => (
-                  <li key={item.id}>
-                    <div className="hist-main">
-                      <a className="hist-msg" href={item.url} target="_blank" rel="noopener noreferrer">
-                        {item.date ? new Date(item.date).toLocaleString() : item.id}
-                      </a>
-                      <span className="hist-date">{item.state}</span>
-                    </div>
-                    {item.canRestore && (
-                      <div className="hist-acts">
-                        <button className="btn btn-sm" onClick={() => void restore(item)}
-                          disabled={!!restoring}>
-                          <RotateCcw size={13} />
-                          {restoring === item.id ? tr("Restoring…") : tr("Restore this version")}
-                        </button>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            )}
-            <div className="modal-actions">
-              <button className="btn" onClick={() => setHistoryOpen(false)} disabled={!!restoring}>{tr("Back")}</button>
-              <button className="btn" onClick={onClose} disabled={!!restoring}>{tr("Close")}</button>
-            </div>
-          </>
+          <StaticDeploymentHistoryView
+            description={tr("Deployment history is stored by {provider}. Static hosting does not publish the editor document.", { provider: providerName })}
+            target={historyTarget}
+            onTargetChange={setHistoryTarget}
+            history={history}
+            error={historyError}
+            restoring={restoring}
+            onRestore={(item) => void restore(item)}
+            onBack={() => setHistoryOpen(false)}
+            onClose={onClose}
+          />
         ) : (
           <>
             {phase === "check" && (
@@ -233,11 +181,9 @@ export default function StaticPublishModal({
                   {tr("The hosting provider is chosen by the server administrator. Configure custom domains in the hosting service.")}
                 </p>
                 {!conf.configured && (
-                  <>
-                    <p className="pub-card-error" role="alert">
-                      {conf.production.error ?? tr("Static publishing isn't configured on the server.")}
-                    </p>
-                  </>
+                  <p className="pub-card-error" role="alert">
+                    {conf.production.error ?? tr("Static publishing isn't configured on the server.")}
+                  </p>
                 )}
                 <CheckList checks={checks} onClose={onClose} />
                 <div className="pub-cards">
@@ -281,19 +227,7 @@ export default function StaticPublishModal({
               </div>
             )}
             {phase === "done" && result && (
-              <>
-                <div className="check-ok"><Check size={14} />{tr("Deployment submitted to {provider}.", { provider: providerName })}</div>
-                <p className="hint">{tr("Deployment status: {state}", { state: result.state })}</p>
-                <div className="modal-actions">
-                  <a className="btn" href={result.deploymentUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink size={13} />{tr("View deployment")}
-                  </a>
-                  <a className="btn" href={result.siteUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink size={13} />{tr("Open site")}
-                  </a>
-                  <button className="btn btn-primary" onClick={onClose}>{tr("Close")}</button>
-                </div>
-              </>
+              <StaticPublishDoneView providerName={providerName} result={result} onClose={onClose} />
             )}
             {phase === "error" && (
               <>
