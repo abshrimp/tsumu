@@ -120,7 +120,7 @@ test("comparison operands can refer to another variable", () => {
     id: "threshold", kind: "set-var", value: "{data.price}", into: "threshold",
   }, {
     id: "cmp", kind: "transform", source: "data.price", into: "above",
-    transform: { kind: "compare", operation: "gte", operandType: "variable", operand: "threshold" },
+    transform: { kind: "compare", operation: "gte", operand: "{threshold}" },
   });
   const result = previewDataVars(doc, "p");
   assert.equal(result.threshold, 12);
