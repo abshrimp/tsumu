@@ -41,7 +41,7 @@ async function runBrowserData(
   }, { timeout: 1000 });
   assert.ok(window.__pageDataReady);
   const values = await window.__pageDataReady;
-  return { values: JSON.parse(JSON.stringify(values)), warnings };
+  return { values: JSON.parse(JSON.stringify(values)), warnings, steps: JSON.parse(raw).steps as ScriptStep[] };
 }
 
 test("native HTML fetches JSON and computes derived fields, counts and joined strings", async () => {
@@ -58,7 +58,7 @@ test("native HTML fetches JSON and computes derived fields, counts and joined st
   assert.match(project.files["index.html"], /data-client-list/);
   assert.doesNotMatch(project.files["index.html"], /editor-only/);
   const calls: string[] = [];
-  const { values, warnings } = await runBrowserData(project, "?group=news&id=2", async (url) => {
+  const { values, warnings, steps } = await runBrowserData(project, "?group=news&id=2", async (url) => {
     calls.push(url);
     return {
       ok: true, headers: { get: () => null },
@@ -66,10 +66,17 @@ test("native HTML fetches JSON and computes derived fields, counts and joined st
     };
   });
   assert.deepEqual(calls, ["https://data.example.test/items?group=news"]);
-  assert.equal(values.total, 2);
-  assert.equal(values.names, "Name: A / Name: B");
-  assert.equal(values.selected.id, 2);
-  assert.equal(values.rows[1].display, "Name: B");
+  const target = (id: string): string => {
+    const step = steps.find((item) => item.id === id);
+    if (!step) throw new Error("Missing step " + id);
+    return ("into" in step ? step.into : "as" in step ? step.as : undefined) || "";
+  };
+  assert.equal(values[target("count")], 2);
+  assert.equal(values[target("join")], "Name: A / Name: B");
+  assert.equal(values[target("find")].id, 2);
+  const rows = steps.find((item) => item.id === "request");
+  assert.ok(rows && rows.kind === "fetch");
+  assert.equal(values[rows.as!][1].display, "Name: B");
   assert.deepEqual(warnings, []);
 });
 
@@ -81,7 +88,7 @@ test("native HTML sends an interpolated JSON POST when the public API permits it
   }]);
   const project = generateExportProject(doc, "html");
   let request: any;
-  const { values } = await runBrowserData(project, "?query=hello%20world&limit=3&lang=ja", async (url, options) => {
+  const { values, steps } = await runBrowserData(project, "?query=hello%20world&limit=3&lang=ja", async (url, options) => {
     request = { url, options };
     return { ok: true, headers: { get: () => "13" }, text: async () => '{"answer":true}' };
   });
@@ -90,17 +97,21 @@ test("native HTML sends an interpolated JSON POST when the public API permits it
   assert.equal(request.options.headers["X-Locale"], "ja");
   assert.equal(request.options.headers["Content-Type"], "application/json");
   assert.deepEqual(JSON.parse(request.options.body), { text: "hello world", limit: 3 });
-  assert.equal(values.data.answer, true);
+  const fetchStep = steps.find((step) => step.kind === "fetch");
+  assert.ok(fetchStep && fetchStep.kind === "fetch");
+  assert.equal(values[fetchStep.as!].answer, true);
 });
 
 test("native HTML fails safely when CORS or the network blocks a request", async () => {
   const project = generateExportProject(fixture([{
     id: "fetch", kind: "fetch", url: "https://data.example.test/private", as: "privateData",
   }]), "html");
-  const { values, warnings } = await runBrowserData(project, "", async () => {
+  const { values, warnings, steps } = await runBrowserData(project, "", async () => {
     throw new TypeError("CORS blocked");
   });
-  assert.equal(values.privateData, null);
+  const fetchStep = steps.find((step) => step.kind === "fetch");
+  assert.ok(fetchStep && fetchStep.kind === "fetch");
+  assert.equal(values[fetchStep.as!], null);
   assert.equal(warnings.length, 1);
 });
 
