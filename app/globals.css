@@ -12448,7 +12448,10 @@ select.se-in.se-fixed-select,
   flex: none;
   width: max-content;
   min-width: max-content;
-  max-width: min(225px, 100%);
+  max-width: none;
+  /* Applied after the composer shorthand: longest option + arrow + gap. */
+  padding-left: 7px;
+  padding-right: 30px;
 }
 
 .se-composer-operand:has(> .se-fixed-select) {
