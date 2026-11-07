@@ -1,12 +1,12 @@
 import JSZip from "jszip";
 import type { SiteDoc } from "./types";
-import { generateProject } from "./generator";
+import { generateExportProject, type ExportFormat } from "./export-formats";
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
 import { tr } from "./i18n";
 
 /** zip を作ってダウンロードさせる。保存先に見つからず同梱できなかったアセットのパスを返す */
-export async function exportProjectZip(doc: SiteDoc): Promise<string[]> {
-  const { files, binaries, remoteAssets } = generateProject(doc);
+export async function exportProjectZip(doc: SiteDoc, format: ExportFormat = "nextjs"): Promise<string[]> {
+  const { files, binaries, remoteAssets } = generateExportProject(doc, format);
   const zip = new JSZip();
   const dirName =
     doc.siteName
@@ -40,7 +40,7 @@ export async function exportProjectZip(doc: SiteDoc): Promise<string[]> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${dirName}.zip`;
+  a.download = `${dirName}-${format}.zip`;
   a.click();
   // すぐに破棄すると、Safari などでダウンロードが始まらないことがある
   setTimeout(() => URL.revokeObjectURL(url), 1000);
