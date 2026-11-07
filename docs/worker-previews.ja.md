@@ -2,51 +2,51 @@
 
 [English](worker-previews.md) · 日本語
 
-Cloudflare Workers Builds では、エディタの本番以外のブランチを、それぞれ専用のURLを持つ **Worker Preview** としてデプロイし、そのURLをプルリクエストにコメントとして投稿できます。このリポジトリでは設定済みです。このページでは、自身の Workers Builds プロジェクトでの設定方法と、プレビューの構成について説明します。
+Cloudflare Workers Builds を使うと、エディタの本番以外のブランチを、それぞれ専用の URL を持つ **Worker Preview** としてデプロイできます。URL はプルリクエストにコメントで投稿されます。このリポジトリではすでに設定してあり、このページでは、自分の Workers Builds プロジェクトで同じことをする方法と、プレビューがどういう状態で動くのかを説明します。
 
-このページの内容はエディタのみを対象としています。公開サイトは保存先のバインディングも Durable Object も持たないため、この手順は不要です。公開サイトのホスティングプロジェクト側で、本番以外のブランチのビルドを有効にしてください。
+ここで扱うのはエディタだけです。公開サイトには保存先のバインディングも Durable Object もないので、この手順は必要ありません。公開サイトのホスティング側で、本番以外のブランチのビルドを有効にしてください。
 
 ## 設定
 
-1. **Preview command を設定します。** `node scripts/cloudflare-preview.mjs` を指定してください。Build command（`node scripts/cloudflare.mjs build`）と本番の Deploy command（`node scripts/cloudflare.mjs deploy`）は変更しません。既定の `npx wrangler preview` は使用しないでください。プレビューを本番の保存先やシークレットから分離しているのは、このスクリプトです。
-2. **動作を確認します。** ブランチを push し、ボットがプルリクエストに投稿したURLを開きます。使い捨てのサイトを作成し、ページを再読み込みしてください。ビルドの成功だけでは、プレビューが正常に動作している根拠にはなりません。
+1. **Preview command に `node scripts/cloudflare-preview.mjs` を指定します。** Build command（`node scripts/cloudflare.mjs build`）と本番の Deploy command（`node scripts/cloudflare.mjs deploy`）はそのままにします。既定の `npx wrangler preview` は使わないでください。プレビューを本番の保存先やシークレットから切り離しているのは、このスクリプトです。
+2. **実際に開いて確かめます。** ブランチを push し、ボットがプルリクエストに投稿した URL を開いてください。使い捨てのサイトを作り、ページを読み込み直しても残っていれば問題ありません。ビルドが成功しただけでは、プレビューが動いている証拠にはなりません。
 
-ローカル環境からプレビューを作成・更新する場合は、`npm run preview:deploy -- --name <名前>` を実行します。`npm run preview` は、エディタをローカルで起動するだけのコマンドです。
+手元からプレビューを作成・更新するときは、`npm run preview:deploy -- --name <名前>` を実行します。`npm run preview` のほうは、エディタを手元で起動するだけのコマンドです。
 
-## プレビューの構成
+## プレビューの状態
 
-`wrangler.jsonc` の `previews` ブロックにより、すべてのプレビューは**ログイン不要の公開デモ**として動作します。
+`wrangler.jsonc` の `previews` ブロックにより、プレビューはどれも**ログインなしで使える公開デモ**として動きます。
 
-- **ログインなし**: `ALLOW_ANONYMOUS=true` はプレビューにのみ適用され、本番のログイン設定は変わりません。URLを知っていれば誰でも編集できます。
-- **サーバーの保存先なし**: D1・KV を明示的に空にしているため、サイトと画像はプレビューのURLごとにブラウザ内に保存されます。別の端末からの編集、サーバーへのアップロード、同時編集は利用できません。使い捨てのデータを使用してください。
-- **本番から何も引き継がない**: プレビューごとに専用の Durable Object の保存領域が割り当てられます。本番の変数とシークレットはコピーされず、プレビューの作成時にダッシュボードの Preview Base の設定も継承しません。ただし、既存のプレビューにすでに設定されているシークレットは、そのまま残ります。
+- **ログインは不要です。** `ALLOW_ANONYMOUS=true` が効くのはプレビューだけで、本番のログインの設定は変わりません。URL を知っていれば誰でも編集できます。
+- **サーバーには保存しません。** D1 と KV を空にしてあるので、サイトや画像はプレビューの URL ごとにブラウザ内に保存されます。別の端末での編集、サーバーへのアップロード、同時編集は使えません。データは使い捨てのものにしてください。
+- **本番からは何も引き継ぎません。** Durable Object の保存領域はプレビューごとに別々です。本番の変数やシークレットはコピーせず、プレビューを作るときにダッシュボードの Preview Base の設定も引き継ぎません。ただし、すでにあるプレビューに設定済みのシークレットは、そのまま残ります。
 
-## テスト用の保存先の使用（任意）
+## テスト用の保存先を使う（任意）
 
-プレビューで共有のサーバー保存先を使用する手順は次のとおりです。
+プレビューで共有のサーバー保存先を使いたい場合は、次の手順で設定します。
 
-1. **本番とは別の** D1 データベースと KV 名前空間を作成します。
-2. 設定ファイルから、空の `previews.d1_databases` と `previews.kv_namespaces` の配列を削除します。これらが残っている限り空の配列が優先され、プレビューはブラウザ内の保存のままになります。
-3. ID をビルド変数 `PREVIEW_D1_DATABASE_ID` と `PREVIEW_KV_NAMESPACE_ID` で渡すか、非公開の設定ファイル（`wrangler.local.jsonc` または `WRANGLER_CONFIG` で指定したファイル）の `previews` にバインディングを記述します。データベースのテーブルは初回アクセス時に自動で作成されます。
+1. 本番とは**別に**、D1 データベースと KV の名前空間を作ります。
+2. 設定ファイルから、空の `previews.d1_databases` と `previews.kv_namespaces` を削除します。空の配列が残っているあいだはそちらが優先され、プレビューはブラウザ内の保存のままです。
+3. 作成した ID を、ビルド変数 `PREVIEW_D1_DATABASE_ID` と `PREVIEW_KV_NAMESPACE_ID` で渡します。あるいは、手元だけの設定ファイル（`wrangler.local.jsonc` か、`WRANGLER_CONFIG` で指定したファイル）の `previews` にバインディングを書きます。データベースのテーブルは、最初のアクセス時に自動で作られます。
 
-同じ ID を使用するブランチ同士は、データを共有します。プレビューにサーバーの保存先を持たせた場合は、匿名アクセスのままにしないでください。`previews.vars` から `ALLOW_ANONYMOUS` を削除し、プレビュー自体に設定したシークレット、プレビュー専用の OAuth コールバックURL、対象を絞った許可リストによってログインを設定してください。
+同じ ID を使うブランチ同士は、データを共有します。また、サーバーに保存できるようにしたプレビューを、ログインなしのまま公開しておくのは避けてください。`previews.vars` から `ALLOW_ANONYMOUS` を外し、プレビュー自体にシークレットを設定したうえで、プレビュー専用の OAuth コールバック URL と、対象を絞った許可リストでログインを設定してください。
 
-## スクリプトが拒否する設定
+## スクリプトが止める設定
 
-`scripts/cloudflare-preview.mjs` は、元の設定ファイルと同じ場所に `wrangler.preview.generated.jsonc` を生成し（このリポジトリでは Git の管理対象外）、それを使用して `wrangler preview` を実行します。次のいずれかに該当する場合は、デプロイせずにエラーで停止します。
+`scripts/cloudflare-preview.mjs` は、元の設定ファイルと同じ場所に `wrangler.preview.generated.jsonc` を作り（このリポジトリでは Git の管理外）、それを使って `wrangler preview` を実行します。次のような場合は、デプロイせずにエラーで止まります。
 
-- プレビューの D1 または KV の ID が未設定、プレースホルダのまま、または本番の ID と同一である。
-- `COLLAB_ROOM` がプレビュー自身の `CollaborationRoom` に結び付いていない、別の Worker を参照している、またはマイグレーションでクラスを移管している。
-- `previews` に、分離の方法が定義されていない設定が含まれている。
-- OpenNext の設定で、既定のダミー以外のキャッシュ、キュー、スキュー保護を使用している。
-- Worker 名が、Workers Builds のデプロイ対象と一致しない。
-- `--name`・`--tag`・`--message`・`--json` 以外の引数が渡された。
+- プレビュー用の D1 や KV の ID がない、プレースホルダのまま、または本番と同じ ID になっている
+- `COLLAB_ROOM` がプレビュー自身の `CollaborationRoom` を指していない、別の Worker を指している、またはマイグレーションでクラスを移している
+- `previews` に、本番から切り離す方法が決まっていない設定が入っている
+- OpenNext の設定で、既定のダミー以外のキャッシュ、キュー、スキュー保護を使っている
+- Worker 名が、Workers Builds のデプロイ先と食い違っている
+- `--name`・`--tag`・`--message`・`--json` 以外の引数が渡された
 
-これらのチェックの対象は、スクリプトに渡された設定ファイルのみです。Cloudflare のダッシュボードで行った設定は確認できないため、判断に迷う場合はダッシュボードで実際のバインディングを確認してください。
+ただし、スクリプトが調べられるのは渡された設定ファイルだけで、Cloudflare のダッシュボードでの設定までは見えません。気になる点があれば、ダッシュボードで実際のバインディングを確認してください。
 
 ## 参考資料（2026-11-06 確認）
 
-- [Worker Previews の設定](https://developers.cloudflare.com/workers/previews/get-started/)
+- [Worker Previews の始め方](https://developers.cloudflare.com/workers/previews/get-started/)
 - [本番以外のブランチのビルド](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)
 - [プレビューの設定とシークレット](https://developers.cloudflare.com/workers/previews/configuration/)
 - [リソースと分離](https://developers.cloudflare.com/workers/previews/resources/)
