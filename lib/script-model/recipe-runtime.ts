@@ -51,6 +51,14 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     const value = valueAt(variables, step.operand);
     return value === undefined ? { ok: false } : { ok: true, value };
   };
+  // Numeric operations accept finite numbers and decimal strings (such as form inputs).
+  // Comparison remains type-aware; numeric conversion is explicit to the math operation.
+  const numberLike = (input: unknown): number | undefined => {
+    if (typeof input === "number") return Number.isFinite(input) ? input : undefined;
+    if (typeof input !== "string" || !/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(input.trim())) return undefined;
+    const number = Number(input.trim());
+    return Number.isFinite(number) ? number : undefined;
+  };
   const compare = (left: unknown, right: unknown, operator: string): boolean | undefined => {
     if (!scalar(left) || !scalar(right)) return undefined;
     switch (operator) {
@@ -140,9 +148,15 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           break;
         case "math": {
           if (absent) break;
-          if (typeof current !== "number" || !Number.isFinite(current) ||
-              typeof step.operand !== "number" || !Number.isFinite(step.operand)) return failure("type-mismatch");
-          const rhs = step.operand;
+          if (step.operandType !== undefined && step.operandType !== "number" && step.operandType !== "variable")
+            return failure("invalid-recipe");
+          const left = numberLike(current);
+          const right = step.operandType === "variable"
+            ? valueAt(variables, typeof step.operand === "string" ? step.operand : "")
+            : step.operand;
+          const rhs = numberLike(right);
+          if (left === undefined || rhs === undefined) return failure("type-mismatch");
+          current = left;
           switch (step.operation) {
             case "add": current += rhs; break;
             case "subtract": current -= rhs; break;
@@ -262,6 +276,29 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             mapped.push(copy);
           }
           current = mapped;
+          break;
+        }
+        case "append":
+        case "remove": {
+          if (absent) break;
+          if (!Array.isArray(current) || current.length > 10000) return failure("type-mismatch");
+          const rhs = argument(step);
+          if (!rhs.ok) return failure("invalid-literal");
+          if (step.kind === "append") {
+            if (current.length >= 10000) return failure("limit-exceeded");
+            current = [...current, rhs.value];
+          } else {
+            // Remove all elements equal to the chosen value; input array is not mutated.
+            current = current.filter((item: unknown) => item !== rhs.value);
+          }
+          break;
+        }
+        case "remove-at": {
+          if (absent) break;
+          if (!Array.isArray(current) || current.length > 10000 || !Number.isInteger(step.index) ||
+              step.index < -1 || step.index > 1000000) return failure("type-mismatch");
+          const index = step.index === -1 ? current.length - 1 : step.index;
+          current = current.filter((_: unknown, at: number) => at !== index);
           break;
         }
         case "sort": {
