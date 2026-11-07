@@ -8,7 +8,7 @@ import { lookupVar, interpolate } from "../lib/vars";
 import { generateProject } from "../lib/generator";
 import { filterPredicate } from "../lib/generator/render-helpers";
 import { makeBox } from "../lib/presets";
-import { compileScripts } from "../lib/script";
+import { cloneSteps, compileScripts, scriptTargetIds } from "../lib/script";
 import { scriptsFile } from "../lib/script-runtime";
 import { scriptDataPickerDoc } from "./helpers/script-data-picker";
 import { findPaletteItems, PALETTE } from "../components/script-editor/palette";
@@ -148,6 +148,39 @@ test("if blocks group AND before OR and work in server-side page-load execution"
   const files = generateProject(doc).files;
   assert.match(files["app/page.tsx"], /"conditions"/);
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
+});
+
+test("cloning and renaming scripts preserve every joined if condition", () => {
+  const doc = scriptDataPickerDoc();
+  const original: ScriptStep = {
+    id: "nested-if", kind: "if",
+    cond: { subject: "var", target: "", left: "{old.score}", op: "gte", value: "10" },
+    conditions: [
+      { subject: "var", target: "", left: "{old.name}", op: "eq", value: "yes", and: true },
+      { subject: "value", target: "field-id", op: "eq", value: "{old.expected}", and: false },
+    ],
+    then: [], else: [],
+  };
+  doc.pages.p.pageScripts![0].steps.push(original);
+  const cloned = cloneSteps([original], () => "new-id")[0];
+  assert.ok(cloned.kind === "if");
+  if (cloned.kind !== "if" || original.kind !== "if") throw new Error("Expected if step");
+  assert.notStrictEqual(cloned.conditions, original.conditions);
+  assert.deepEqual(cloned.conditions, original.conditions);
+  assert.deepEqual(scriptTargetIds({ attrId: "", scripts: [{
+    id: "s", trigger: "click", pos: { x: 0, y: 0 }, steps: [original],
+  }] }), ["field-id"]);
+  renameVarInPage(doc, "p", "old", "current");
+  assert.equal(original.cond.left, "{current.score}");
+  assert.equal(original.conditions?.[0].left, "{current.name}");
+  assert.equal(original.conditions?.[1].value, "{current.expected}");
+  const script = compileScripts({ scripts: [{
+    id: "s", trigger: "click", pos: { x: 0, y: 0 }, steps: [original],
+  }] }, () => "/")[0];
+  const serialized = script.steps[0];
+  assert.ok(Array.isArray(serialized.conditions));
+  assert.equal((serialized.conditions as Array<{ and: boolean }>)[0].and, true);
+  assert.equal((serialized.conditions as Array<{ and: boolean }>)[1].and, false);
 });
 
 test("incomplete if clauses are neutral until their comparison source is set", () => {
