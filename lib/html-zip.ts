@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { assetSrc, uploadStaticAsset } from "./assets";
 import { resolveZipReference } from "./zip-references";
+import { rewriteSrcsetUrls } from "./srcset";
 import { CSS_ASSET_ATTRIBUTES, rewriteCssAssetUrls } from "./css-assets";
 import { attachZipDependencies, zipCssUrl, zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
 import { genId } from "./presets";
@@ -37,10 +38,7 @@ export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<s
     }
   }
   for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[srcset]"))) {
-    el.setAttribute("srcset", (el.getAttribute("srcset") ?? "").split(",").map((part) => {
-      const [url, descriptor] = part.trim().split(/\s+/, 2);
-      return `${resolve(url)}${descriptor ? ` ${descriptor}` : ""}`;
-    }).join(", "));
+    el.setAttribute("srcset", rewriteSrcsetUrls(el.getAttribute("srcset") ?? "", resolve));
   }
   for (const attr of CSS_ASSET_ATTRIBUTES) {
     for (const el of Array.from(doc.querySelectorAll(`[${attr}]`))) {
