@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 import {
   CircleHelp,
@@ -39,79 +39,123 @@ import { showAlert, showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { exportProjectZip } from "../lib/exportZip";
-import { exportLimitations, type ExportFormat } from "../lib/export-formats";
+import { exportLimitations, DEFAULT_EXPORT_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/export-formats";
 import { BpIcon, Dropdown, NumField, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
-import { getLang, LANGS, setLang, tr, trNodes, type Lang } from "../lib/i18n";
+import { getLang, LANGS, setLang, tr, type Lang } from "../lib/i18n";
 
 function ExportModal({ onClose }: { onClose: () => void }) {
   const doc = useEditor((s) => s.doc);
+  const activePageId = useEditor((s) => s.activePageId);
+  const selectedNodeId = useEditor((s) => s.selection);
   const [busy, setBusy] = useState(false);
-  const [format, setFormat] = useState<ExportFormat>("nextjs");
-  const checks: CheckResult[] = runChecks(doc);
-  const limitations = exportLimitations(doc, format);
-  const hasError = checks.some((c) => c.level === "error") || limitations.length > 0;
+  const [format, setFormat] = useState<ExportFormat>(DEFAULT_EXPORT_OPTIONS.framework);
+  const [language, setLanguage] = useState<ExportLanguage>(DEFAULT_EXPORT_OPTIONS.language);
+  const [style, setStyle] = useState<ExportStyle>(DEFAULT_EXPORT_OPTIONS.style);
+  const [scope, setScope] = useState<ExportScope>(DEFAULT_EXPORT_OPTIONS.scope);
+  const options: ExportOptions = {
+    framework: format, language, style, scope,
+    pageId: activePageId,
+    nodeId: selectedNodeId ?? undefined,
+  };
+  const checks = useMemo<CheckResult[]>(() => {
+    const compatibility = exportLimitations(doc, options);
+    return [
+      ...runChecks(doc),
+      ...compatibility.map((message): CheckResult => ({ level: "error", message })),
+    ];
+  }, [doc, activePageId, selectedNodeId, format, language, style, scope]);
+  const hasError = checks.some((check) => check.level === "error");
   useEscapeToClose(onClose, !busy);
+
+  const description = format === "html"
+    ? tr("選んだ範囲を静的HTMLとして書き出すためのプロジェクトをZIPで保存します。展開後にnpm installとnpm run buildを実行すると、outフォルダにHTML・CSS・JavaScriptが生成されます。")
+    : format === "react"
+      ? tr("選んだ範囲をReact + ViteのプロジェクトとしてZIPで保存します。展開後にnpm installとnpm run devで起動できます。")
+      : tr("選んだ範囲をNext.jsプロジェクトとしてZIPで保存します。展開後にnpm installとnpm run devで起動できます。");
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal export-modal" onClick={(event) => event.stopPropagation()}>
         <h2>{tr("コードをエクスポート")}</h2>
-        <p className="modal-desc">
-          {trNodes("プロジェクト一式をzipでダウンロードします。展開して {cmd} を実行すると、そのまま動きます。", {
-            cmd: <span className="kbd">npm install && npm run dev</span>,
-          })}
-        </p>
+        <p className="modal-desc">{description}</p>
 
-        <label htmlFor="export-format" style={{ display: "block", fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-          {tr("出力形式")}
-        </label>
-        <select
-          id="export-format"
-          className="field-input"
-          style={{ width: "100%", padding: "9px 10px", marginBottom: 12 }}
-          value={format}
-          disabled={busy}
-          onChange={(event) => setFormat(event.target.value as ExportFormat)}
-        >
-          <option value="nextjs">Next.js</option>
-          <option value="react">React + Vite</option>
-          <option value="html">HTML / CSS / JavaScript</option>
-        </select>
-        {format === "html" && (
-          <p className="modal-desc">
-            {tr("HTML形式はZIPを展開してnpm run buildを実行すると、outフォルダに静的ファイルが生成されます。")}
+        <fieldset className="export-options" disabled={busy}>
+          <div className="export-option">
+            <div className="export-option-label">{tr("フレームワーク")}</div>
+            <Dropdown
+              value={format}
+              options={[
+                { value: "nextjs", label: "Next.js" },
+                { value: "react", label: "React + Vite" },
+                { value: "html", label: "HTML / CSS / JavaScript" },
+              ]}
+              onChange={(value) => setFormat(value as ExportFormat)}
+              style={{ width: "100%" }}
+              title={tr("フレームワーク")}
+            />
+          </div>
+          <div className="export-option-grid">
+            <div className="export-option">
+              <div className="export-option-label">{tr("言語")}</div>
+              <Seg
+                value={language}
+                options={[
+                  { value: "typescript", label: "TypeScript" },
+                  { value: "javascript", label: "JavaScript" },
+                ]}
+                onChange={(value) => setLanguage(value as ExportLanguage)}
+              />
+            </div>
+            <div className="export-option">
+              <div className="export-option-label">{tr("スタイル")}</div>
+              <Seg
+                value={style}
+                options={[
+                  { value: "css", label: "CSS" },
+                  { value: "css-modules", label: "CSS Modules" },
+                  { value: "tailwind", label: "Tailwind CSS" },
+                ]}
+                onChange={(value) => setStyle(value as ExportStyle)}
+              />
+            </div>
+          </div>
+          <div className="export-option">
+            <div className="export-option-label">{tr("出力範囲")}</div>
+            <Seg
+              value={scope}
+              options={[
+                { value: "component", label: tr("選択したコンポーネント") },
+                { value: "page", label: tr("現在のページ") },
+                { value: "project", label: tr("プロジェクト全体") },
+              ]}
+              onChange={(value) => setScope(value as ExportScope)}
+            />
+          </div>
+        </fieldset>
+        {style === "tailwind" && (
+          <p className="hint export-note">
+            {tr("Tailwind CSSのユーティリティを利用できます。デザインを維持するため、Tsumuが生成したCSSも含まれます。")}
           </p>
         )}
-        {format === "react" && (
-          <p className="modal-desc">
-            {tr("React形式はViteを使ったSPAです。サーバー処理には対応していません。")}
+        {scope === "component" && (
+          <p className="hint export-note">
+            {tr("選択中の要素を単独のページとして書き出します。選択した要素の子要素も含まれます。")}
           </p>
-        )}
-        {limitations.length > 0 && (
-          <ul className="check-list">
-            {limitations.map((message) => (
-              <li key={message} className="is-error">
-                <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
-                <span>{message}</span>
-              </li>
-            ))}
-          </ul>
         )}
         <CheckList checks={checks} onClose={onClose} />
 
         <div className="modal-actions">
-          <button className="btn" onClick={onClose}>
+          <button className="btn" disabled={busy} onClick={onClose}>
             {tr("キャンセル")}
           </button>
           <button
             className="btn btn-primary"
             disabled={hasError || busy}
-            style={hasError ? { opacity: 0.5, pointerEvents: "none" } : undefined}
             onClick={async () => {
               setBusy(true);
               try {
-                const missing = await exportProjectZip(await docWithSvgFilters(), format);
+                const missing = await exportProjectZip(await docWithSvgFilters(), options);
                 onClose();
                 if (missing.length) {
                   void showAlert(
@@ -119,8 +163,8 @@ function ExportModal({ onClose }: { onClose: () => void }) {
                     { title: tr("一部の画像を含めずにダウンロードしました") }
                   );
                 }
-              } catch (e) {
-                void showAlert(userMessage(e, tr("zipを生成できませんでした")), { title: tr("zipを生成できませんでした") });
+              } catch (error) {
+                void showAlert(userMessage(error, tr("zipを生成できませんでした")), { title: tr("zipを生成できませんでした") });
               } finally {
                 setBusy(false);
               }
