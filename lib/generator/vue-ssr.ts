@@ -42,7 +42,7 @@ export function withVueSsr(
     'import { selectPage } from "./site-routes.js";',
     'import { loadPageData } from "./site-data.js";',
     'import { requestPublic } from "./server-request.js";',
-    'export async function render(urlString) {',
+    'export async function render(urlString' + (ts ? ': string' : '') + ') {',
     '  const url = new URL(urlString);',
     '  const selected = selectPage(url.pathname, url.searchParams);',
     '  if (!selected) return { status: 404, html: "<h1>Not Found</h1>", id: "", vars: {},',
