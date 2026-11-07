@@ -559,6 +559,7 @@ export default function PublishModal({
                 : tr("GitHubへのPushはソースの送信です。形式によってホスティングのビルド設定が異なり、コミットだけでは公開成功を保証できません。")}
               {tr(" 公開対象はプロジェクト全体です。")}
             </p>
+            <p className="hint export-note">{tr("GitHubへPushすると、編集データには非公開ページや設定も含まれ、公開リポジトリでは第三者が閲覧できます。公開前に内容を確認してください。")}</p>
             <CheckList checks={checks} onClose={onClose} />
             {conf === null ? (
               <div className="pub-loading">
