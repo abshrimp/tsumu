@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "GitHubへPushすると、編集データには非公開ページや設定も含まれ、公開リポジトリでは第三者が閲覧できます。公開前に内容を確認してください。": "Pushing to GitHub also includes editable data, unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.",
   "認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。": "Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead.",
   "ZIPにはサイト全体の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。": "The ZIP contains the site’s complete editable source (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.",
   "単一のHTML": "Single HTML",
