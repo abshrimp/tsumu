@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
 import { pagePlan, previewDataVars } from "../lib/data";
+import { runPurePageSteps } from "../lib/page-load-steps";
+import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
+import { lookupVar, interpolate } from "../lib/vars";
 import { generateProject } from "../lib/generator";
 import { makeBox } from "../lib/presets";
 import { compileScripts } from "../lib/script";
@@ -136,6 +139,35 @@ test("page-load for-each and if execute on fetched items before rendering, inclu
   assert.match(project["app/page.tsx"], /__runPurePageSteps/);
   assert.match(project["app/page.tsx"], /"for-each"/);
   assert.doesNotThrow(() => transformSync(project["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
+});
+
+test("generated page-load evaluator matches editor behavior without TypeScript dependencies", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "outer", kind: "for-each", array: "data.tags", then: [
+      { id: "set-var", kind: "set-var", value: "{値}", into: "last" },
+    ] },
+  );
+  const project = generateProject(doc).files;
+  const source = project["lib/page-load-steps.ts"];
+  const generated = new Function(
+    source.replace("export const runPurePageSteps", "const runPurePageSteps") +
+    "\nreturn runPurePageSteps;",
+  )() as typeof runPurePageSteps;
+  const initial = { data: { tags: ["a", "b", "c"] } };
+  const actual = structuredClone(initial) as Record<string, unknown>;
+  assert.equal(generated(doc.pages.p.pageScripts![0].steps.slice(-1), actual,
+    lookupVar, interpolate, evaluateValueRecipe), true);
+  assert.equal(actual.last, "c");
+});
+
+test("oversized page-load loops abort without leaving partial variable changes", () => {
+  const vars: Record<string, unknown> = { rows: Array(100001).fill(1), output: "unchanged" };
+  const loop: ScriptStep = { id: "large", kind: "for-each", array: "rows", then: [
+    { id: "write", kind: "set-var", value: "{値}", into: "output" },
+  ] };
+  assert.equal(runPurePageSteps([loop], vars, lookupVar, interpolate, evaluateValueRecipe), false);
+  assert.equal(vars.output, "unchanged");
 });
 
 test("page-load nested browser effects are not mistakenly executed or discarded by SSR", () => {
