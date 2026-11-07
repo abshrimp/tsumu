@@ -505,7 +505,8 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         const src = st.kind === "transform" ? st.source : setVarSource(st);
         if (!st.into || (!src && !(st.kind === "set-var" && !extractVars(st.value).length))) continue;
         const operand = st.kind === "transform" && "operandType" in st.transform &&
-          st.transform.operandType === "variable" ? st.transform.operand : null;
+          st.transform.operandType === "variable" && typeof st.transform.operand === "string"
+          ? st.transform.operand : null;
         if ((src && isClient(src)) || (operand && isClient(operand)) || clientVars.has(st.into)) {
           clientVars.add(st.into);
         } else {
