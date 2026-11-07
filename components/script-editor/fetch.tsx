@@ -336,7 +336,7 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
             <div key={i} className="se-fetch-header">
               <TextIn
                 value={h.name}
-                placeholder={tr("名前（例: Authorization）")}
+                placeholder={tr("名前")}
                 width={130}
                 onCommit={(v) => setHeader(i, { name: v.trim() })}
               />
@@ -429,7 +429,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
               }}
             />
           ),
-          as: <VarNameIn stepId={step.id} value={step.as ?? ""} placeholder={tr("名前（例: 商品データ）")} />,
+          as: <VarNameIn stepId={step.id} value={step.as ?? ""} placeholder={tr("名前")} />,
         }}
       />
       <button type="button" className="se-mini se-mini-text"
@@ -564,10 +564,10 @@ export function PathMenu({
         value={path}
         placeholder={
           mode === "list"
-            ? tr("リストの位置（例: products）")
+            ? tr("リストの位置")
             : mode === "field"
-              ? tr("項目（例: name）")
-              : tr("位置（例: data.title）")
+              ? tr("項目名")
+              : tr("位置")
         }
         width={120}
         onCommit={(v) => onChange(v.trim())}
@@ -713,7 +713,7 @@ export const RESERVED_VARS = new Set(["slug", ITEM_VALUE]);
 export function VarNameIn({
   stepId,
   value,
-  placeholder = tr("名前（例: 商品）"),
+  placeholder = tr("名前"),
 }: {
   stepId: string;
   value: string;
