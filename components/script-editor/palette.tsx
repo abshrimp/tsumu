@@ -223,7 +223,7 @@ export const PALETTE: PaletteItem[] = [
     key: "list-display",
     cat: "array",
     icon: Funnel,
-    label: tr("リスト［］の表示を操作する"),
+    label: tr("リスト［］を絞り込む"),
     make: () => one({ id: st(), kind: "list-display", mode: "filter", array: "", field: "", op: "eq", value: "", dir: "asc" }),
   },
   {
