@@ -30,12 +30,19 @@ type Context = {
   level: number;
 };
 
-const q = JSON.stringify;
+// Escape SFC delimiters even inside JavaScript string literals. In Vue,
+ // interpolation is delimited by {{...}} and raw </script> can end an SFC.
+const q = (value: unknown) => JSON.stringify(value)
+  .replace(/</g, "\\u003c").replace(/>/g, "\\u003e")
+  .replace(/\\{/g, "\\u007b").replace(/\\}/g, "\\u007d");
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+// Vue parses {{...}} in text and Svelte parses {...} in text/attributes.
+// Encode braces as HTML entities so authored plain text is never executable.
+const staticText = (s: string) => esc(s).replace(/\\{/g, "&#123;").replace(/\\}/g, "&#125;");
 
 function literal(key: string, value: string | number | undefined | null): string {
-  return value == null ? "" : " " + key + '="' + esc(String(value)) + '"';
+  return value == null ? "" : " " + key + '="' + staticText(String(value)) + '"';
 }
 function truth(key: string, value: boolean | undefined): string {
   return value ? " " + key : "";
@@ -149,13 +156,13 @@ function node(ctx: Context, id: string, top = false): string {
       if (f.kind === "submit") {
         const label = f.label || "送信";
         const body = hasVars(label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", label) + " }}"
-          : "{" + expr(ctx, "resolveText", label) + "}") : esc(label);
+          : "{" + expr(ctx, "resolveText", label) + "}") : staticText(label);
         return "<button" + attrs + fields + ' type="submit">' + body + "</button>";
       }
       if (f.kind === "textarea") {
         const val = f.defaultValue || "";
         const contents = hasVars(val) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", val) + " }}"
-          : "{" + expr(ctx, "resolveText", val) + "}") : esc(val);
+          : "{" + expr(ctx, "resolveText", val) + "}") : staticText(val);
         return "<textarea" + attrs + fields + fieldEvent("input") + valueAttr(ctx, "placeholder", f.placeholder) +
           literal("rows", f.rows) + literal("maxlength", f.maxLength) + ">" + contents + "</textarea>";
       }
@@ -163,7 +170,7 @@ function node(ctx: Context, id: string, top = false): string {
         const def = f.defaultValue && f.options?.includes(f.defaultValue) ? f.defaultValue : f.options?.[0];
         const options = (f.options || []).map((opt) => {
           const contents = hasVars(opt) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", opt) + " }}"
-            : "{" + expr(ctx, "resolveText", opt) + "}") : esc(opt);
+            : "{" + expr(ctx, "resolveText", opt) + "}") : staticText(opt);
           return "<option" + truth("selected", opt === def) + ">" + contents + "</option>";
         }).join("\n");
         return "<select" + attrs + fields + fieldEvent("change") + ">" + options + "</select>";
@@ -171,7 +178,7 @@ function node(ctx: Context, id: string, top = false): string {
       if (f.kind === "checkbox" || f.kind === "radio") {
         const label = f.label || "";
         const body = hasVars(label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", label) + " }}"
-          : "{" + expr(ctx, "resolveText", label) + "}") : esc(label);
+          : "{" + expr(ctx, "resolveText", label) + "}") : staticText(label);
         return "<label" + attrs + "><input" + literal("type", f.kind) + fields + fieldEvent("change") +
           truth("checked", f.checked) + literal("value", f.kind === "checkbox" ? "true" : label) +
           (ctx.vue ? ">" : " />") + "<span>" + body + "</span></label>";
@@ -220,7 +227,7 @@ function node(ctx: Context, id: string, top = false): string {
     const contents = hasVars(value)
       ? ctx.vue ? "{{ " + expr(ctx, "resolveText", value) + " }}" :
         "{" + expr(ctx, "resolveText", value) + "}"
-      : esc(value);
+      : staticText(value);
     let extra = tag === "form" ? ' method="get"' : "";
     if (tag === "button") extra += literal("type", wasForm ? "submit" : "button");
     if (n.link) {
