@@ -465,6 +465,13 @@ function transformReferences(transform: TransformStep["transform"]): string[] {
       typeof transform.operand === "string") fields.push(transform.operand);
   else if ("operandType" in transform && transform.operandType === "text" &&
       typeof transform.operand === "string") fields.push(...refs(transform.operand));
+  if ("conditions" in transform) {
+    for (const condition of transform.conditions ?? []) {
+      fields.push(...refs(condition.field));
+      if (condition.operandType === "variable") fields.push(condition.operand);
+      else if (condition.operandType === "text") fields.push(...refs(condition.operand));
+    }
+  }
   return fields;
 }
 
@@ -1239,6 +1246,16 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
         next.replacement = mapVarTokens(t.replacement, fn);
       }
       if ("field" in t) next.field = mapVarTokens(t.field, fn);
+      if ("conditions" in t && t.conditions) {
+        next.conditions = t.conditions.map((condition) => ({
+          ...condition,
+          field: mapVarTokens(condition.field, fn),
+          operand: condition.operandType === "variable"
+            ? fn(condition.operand) ?? condition.operand
+            : condition.operandType === "text"
+              ? mapVarTokens(condition.operand, fn) : condition.operand,
+        }));
+      }
       st.transform = next as typeof st.transform;
     }
     else if (
