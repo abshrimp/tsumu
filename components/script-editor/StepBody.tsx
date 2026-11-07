@@ -629,12 +629,12 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
           source: <PathMenu root={sourceValues} path={step.source}
             ariaLabel={tr("加工する元の変数")} placeholder={tr("変数を選択")}
             mode="any" allowRoot={false} portalZIndex={550}
-            onChange={(source) => updateStep(step.id, (s) => ({
-              ...s, source,
-              // Reuse the source variable by default, so vertical blocks
-              // form a pipeline without needing intermediate variable names.
-              into: !s.into || (s.kind === "transform" && s.into === s.source) ? source : s.into,
-            }) as ScriptStep)} />,
+            onChange={(source) => updateStep(step.id, (s) => {
+              if (s.kind !== "transform") return s;
+              // Reuse the source variable by default; blocks can share one name.
+              return { ...s, source,
+                into: !s.into || s.into === s.source ? source : s.into };
+            })} />,
           operation: <select className="se-in" aria-label={tr("加工の種類")}
             value={step.transform.kind}
             onChange={(e) => set({ transform: defaultTransform(e.target.value as ValueTransformKind) })}>
