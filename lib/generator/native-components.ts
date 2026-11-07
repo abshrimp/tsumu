@@ -61,10 +61,16 @@ function valueAttr(ctx: Context, name: string, value: string | undefined): strin
   if (hasVars(value)) return dynamicAttr(ctx, name, expr(ctx, "resolveText", value));
   return literal(name, value);
 }
-function srcAttr(ctx: Context, name: string, value: string): string {
+function safeResourceUrl(value: string): string {
+  const url = value.trim();
+  if (/^data:(?:image|video|audio)\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+$/i.test(url)) return url;
+  if (/^blob:/i.test(url)) return url;
+  return safeNavigationUrl(url);
+}
+function srcAttr(ctx: Context, name: string, value: string, mediaResource = false): string {
   return hasVars(value)
-    ? dynamicAttr(ctx, name, expr(ctx, "resolveUrl", value))
-    : literal(name, safeNavigationUrl(value));
+    ? dynamicAttr(ctx, name, expr(ctx, mediaResource ? "resolveResourceUrl" : "resolveUrl", value))
+    : literal(name, mediaResource ? safeResourceUrl(value) : safeNavigationUrl(value));
 }
 
 function pageHref(ctx: Context, id: string): string {
@@ -121,7 +127,7 @@ function node(ctx: Context, id: string, top = false): string {
       const im = n.image;
       const source = im.assetId && ctx.assets.get(im.assetId) ?
         "/assets/" + ctx.assets.get(im.assetId) : im.src;
-      return "<img" + attrs + srcAttr(ctx, "src", source) + valueAttr(ctx, "alt", im.alt) +
+      return "<img" + attrs + srcAttr(ctx, "src", source, true) + valueAttr(ctx, "alt", im.alt) +
         literal("width", im.width || 800) + literal("height", im.height || 500) +
         (ctx.vue ? ">" : " />");
     }
@@ -285,7 +291,7 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
     const ext = ctx.vue ? ".vue" : ".svelte";
     const dependencyImports = [...ctx.imports].filter((name) => name !== id).map((name) =>
       'import ' + name + ' from "../components/' + name + ext + '";');
-    const helper = 'import { resolveText, resolveUrl, scopeOf, listItems, setField } from "../site-data.js";';
+    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItems, setField } from "../site-data.js";';
     const constants = ctx.code;
     if (ctx.vue) return [
       '<script setup' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
