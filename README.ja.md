@@ -166,8 +166,14 @@ push のたびに Cloudflare Workers Builds で自動デプロイする場合は
 
 - Build command: `node scripts/cloudflare.mjs build`
 - Deploy command: `node scripts/cloudflare.mjs deploy`
-- Non-production branch deploy command: `node scripts/cloudflare.mjs upload`
+- Preview command（Worker Previews 設定後）: `node scripts/cloudflare-preview.mjs`
 - ビルド変数（Settings → Build → Variables and secrets。任意）: `D1_DATABASE_ID`・`KV_NAMESPACE_ID`
+
+エディタは Durable Object を実装するため、従来の `opennextjs-cloudflare upload` / `wrangler versions upload` の Version URL では表示できません。既存の Workers Builds には一度限りの **元に戻せない** Worker Previews への切替が必要です。[プレビューの分離と設定手順](docs/worker-previews.md)を確認してください。`npm run preview` は引き続きローカル用、`npm run preview:deploy` はクラウド上の Preview 作成用です。
+
+このリポジトリのクラウド上の確認用プレビューは、**URLを知る人がログインなしで開けるデモ**です。コミットされた `previews` 設定ではD1/KVを明示的に空にし、`ALLOW_ANONYMOUS=true` だけを設定しています。helperはPreview固有のDOを追加し、本番シークレットをコピーしません。サイト文書と画像はそのプレビューURLのブラウザ内に保存されるため、使い捨てのテストデータを使ってください。ビルド変数を置くだけでは実行時の匿名モードにはなりません。`WRANGLER_CONFIG` / `wrangler.local.jsonc` を別途使う場合も、この分離を明示してください。
+
+コードの変更だけではDashboardの切替は実行されません。切替前に本番デプロイ・既存Previewを確認し、Preview Baseへ本番バインディングやシークレットを設定しないでください。本番のDeploy commandは変更せず、切替後のPreview commandにhelperを指定します。確認用のブランチにもhelperと設定が必要です。古いPRにはこの変更を取り込んでから、実際のCloudflareビルド結果 / GitHub PR連携が出すURLを開き、テストサイトの作成・再読み込みを確認してください。ビルド成功や推測したVersion URLだけでは表示成功と判断できません。[詳細チェックリスト](docs/worker-previews.md#workers-builds-cutover-checklist)。
 
 ビルド時にスクリプトが `wrangler.jsonc` からデプロイ用の設定（`wrangler.generated.jsonc`）を生成し、ビルド変数のIDを埋め込みます。IDのないバインディングは除外されるため、IDをコミットする必要はありません。
 
@@ -247,7 +253,7 @@ docker start tsumu
 |---|---|---|
 | **Vercel** | リポジトリをインポート | 本番以外のブランチに自動でプレビューURLが付く |
 | **Netlify** | リポジトリをインポート | Branch deploys を有効にする |
-| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | Non-production branch deploy command を `npx opennextjs-cloudflare upload` に設定（プレビューURLを有効化） |
+| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | 生成されたプロジェクト側で[Worker Previews](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)を設定します。Preview commandは、そのプロジェクト専用に分離したバインディングで `wrangler preview` を実行する必要があります。エディタのhelperは別リポジトリを設定しません。 |
 | **Node.js** | `npm install && npm run build && npm start` | テスト公開のブランチを別途ビルド |
 
 ### データの更新間隔と Cloudflare
