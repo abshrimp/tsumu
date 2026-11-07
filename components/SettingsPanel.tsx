@@ -320,7 +320,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                       ? tr("リスト · ページを開いてから値が決まる")
                       : Array.isArray(v)
                         ? tr("リスト · 見本{length}件", { length: v.length })
-                        : tr("リスト表示"),
+                        : tr("リスト"),
                   };
                 }),
                 ...nested.map((c) => ({
