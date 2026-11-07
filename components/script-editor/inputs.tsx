@@ -26,12 +26,14 @@ export function TextIn({
   itemFields,
   itemSamples,
   valueContext = "text",
+  numberStep = 0.1,
 }: {
   value: string;
   onCommit: (v: string) => void;
   placeholder?: string;
   width?: number;
   type?: "text" | "number";
+  numberStep?: number;
   /** {変数} の候補を出す（「{」を入れなくても出る。「変数を探す」も使える） */
   vars?: boolean;
   /** 候補の先頭に出す、配列の要素の項目名（とその見本） */
@@ -60,7 +62,7 @@ export function TextIn({
       defaultValue={value}
       placeholder={placeholder}
       style={{ width }}
-      step={type === "number" ? 0.1 : undefined}
+      step={type === "number" ? numberStep : undefined}
       min={type === "number" ? 0 : undefined}
       onBlur={(e) => {
         if (e.target.value !== value) onCommit(e.target.value);
@@ -69,6 +71,47 @@ export function TextIn({
         if (isEnterKey(e)) (e.target as HTMLInputElement).blur();
       }}
     />
+  );
+}
+
+/** Fixed-increment numeric value or an editable variable reference. */
+export function NumericVariableIn({
+  value, onCommit, integer = false, min = 0, max, width = 60,
+}: {
+  value: number | string;
+  onCommit: (value: number | string) => void;
+  integer?: boolean;
+  min?: number;
+  max?: number;
+  width?: number;
+}) {
+  const variable = typeof value === "string";
+  return (
+    <span className="se-quantity">
+      <select className="se-in se-fixed-select" aria-label={tr("値の指定方法")}
+        value={variable ? "variable" : "number"}
+        onChange={(e) => onCommit(e.target.value === "variable" ? "" : Math.max(min, 1))}>
+        <option value="number">{tr("数値")}</option>
+        <option value="variable">{tr("変数")}</option>
+      </select>
+      {variable ? (
+        <TextIn vars value={value} width={Math.max(100, width + 40)}
+          valueContext="value" placeholder={tr("{変数}")}
+          onCommit={(v) => {
+            const name = v.trim();
+            onCommit(name && !name.includes("{") && !name.includes("}") ? `{${name}}` : name);
+          }} />
+      ) : (
+        <TextIn value={String(value)} type="number" width={width}
+          numberStep={integer ? 1 : 0.1}
+          onCommit={(v) => {
+            const n = Number(v);
+            if (!v.trim() || !Number.isFinite(n)) return;
+            const rounded = integer ? Math.round(n) : n;
+            onCommit(Math.max(min, max === undefined ? rounded : Math.min(max, rounded)));
+          }} />
+      )}
+    </span>
   );
 }
 
