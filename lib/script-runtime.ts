@@ -616,6 +616,11 @@ export const SCRIPT_RUNTIME = `function (env) {
       function testConditions(step, self, scope) {
         var extras = Array.isArray(step.conditions) ? step.conditions : [];
         if (extras.length > 32) return false;
+        // Ignore newly added clauses until a variable source has been specified.
+        extras = extras.filter(function (condition) {
+          return condition && (condition.subject !== "var" ||
+            (typeof condition.left === "string" && !!condition.left.trim()));
+        });
         var any = false;
         var all = test(step.cond, self, scope);
         extras.forEach(function (condition) {
