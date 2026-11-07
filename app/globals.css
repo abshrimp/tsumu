@@ -2729,11 +2729,20 @@ textarea {
 
 .var-comp-foot {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
   padding: 6px 10px;
   border-top: 1px solid var(--border);
   font-size: 10px;
   color: var(--text-3);
+}
+
+.var-comp-foot > span {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  white-space: nowrap;
 }
 
 .var-comp-foot kbd {
@@ -6140,6 +6149,12 @@ a.btn {
   margin-top: 2px;
   color: var(--accent);
   font-weight: 500;
+}
+
+.var-comp-explore > svg,
+.var-comp-explore > span:not(.var-comp-sample) {
+  flex: none;
+  white-space: nowrap;
 }
 
 .var-comp-explore .var-comp-sample {

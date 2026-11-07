@@ -99,3 +99,38 @@ test("検索中のデータ更新で候補が減っても、空の検索・キ�
   expect(after.doc.nodes.target).toEqual(before.doc.nodes.target);
   expect(errors).toEqual([]);
 });
+
+for (const width of [1440, 375, 320]) {
+  test(`変数候補の操作案内は折り返さず、幅 ${width}px の画面内に収まる`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await source(page).focus();
+    await source(page).press("Control+/");
+    const menu = page.locator(".var-comp");
+    await expect(menu).toBeVisible();
+    const box = await menu.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(8);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width - 8);
+    const hints = menu.locator(".var-comp-foot > span");
+    const bounds = await hints.evaluateAll(elements => elements.map(el => {
+      const rect = el.getBoundingClientRect();
+      return { top: rect.top, height: rect.height, width: rect.width, scrollWidth: el.scrollWidth };
+    }));
+    expect(bounds).toHaveLength(3);
+    // キーと説明を同じ行に保ち、通常のスマートフォン幅でも案内全体を一行にする。
+    for (const rect of bounds) {
+      expect(rect.height).toBeLessThan(22);
+      expect(rect.scrollWidth).toBeLessThanOrEqual(Math.ceil(rect.width));
+      expect(rect.top).toBe(bounds[0].top);
+    }
+    const explore = menu.locator(".var-comp-explore > span:not(.var-comp-sample)");
+    expect((await explore.boundingBox())!.height).toBeLessThan(22);
+    await expect(explore).toHaveText("変数を探す…");
+    await source(page).press("Escape");
+    await expect(menu).toHaveCount(0);
+    await source(page).press("Control+/");
+    await page.locator(".var-comp-explore").click();
+    await expect(page.getByRole("dialog", { name: "変数を探す" })).toBeVisible();
+    await page.getByPlaceholder("変数名・値で検索").press("Escape");
+    await expect(page.getByRole("dialog", { name: "変数を探す" })).toHaveCount(0);
+  });
+}

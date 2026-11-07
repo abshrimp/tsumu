@@ -810,11 +810,11 @@ export function anchoredMenuPos(
 export function varSuggestPos(
   r: { left: number; top: number; bottom: number },
   count: number,
-  width = 240
+  width = 320
 ): CSSProperties {
   // 一覧（CSS で最大 256px）と、見出し・「変数を探す」・操作の案内。
   // 見積もりは上下を決めるだけに使い、高さは中身に任せる（見積もりで一覧を縮めない）
-  return anchoredMenuPos(r, width, Math.min(count * 32, 256) + 96, false);
+  return anchoredMenuPos(r, Math.max(width, 320), Math.min(count * 32, 256) + 96, false);
 }
 
 /** 変数の候補メニュー（キャンバスのテキスト編集・VarInput 共用） */
@@ -984,7 +984,7 @@ export function VarInput({
     }
     const r = el.getBoundingClientRect();
     setSug({
-      pos: varSuggestPos(r, matches.length + (explorable ? 1 : 0), Math.max(r.width, 240)),
+      pos: varSuggestPos(r, matches.length + (explorable ? 1 : 0), r.width),
       query,
       matches,
       index: 0,
