@@ -145,10 +145,10 @@ export function exportLimitations(
       const url = new URL(step.url);
       embeddedCredentials = !!(url.username || url.password);
     } catch {
-      embeddedCredentials = /^https?:\\/\\/[^/\\s@]+@/i.test(step.url);
+      embeddedCredentials = /^https?:\/\/[^/\s@]+@/i.test(step.url);
     }
     // A literal credential inside an exported JSON POST body is browser-visible.
-    const secretBody = /"(?:(?:api|access|auth)[-_]?(?:key|token)|password|passwd|secret|client[-_]?secret)"\\s*:\\s*"(?!\\{)[^"]+"/i.test(step.body ?? "");
+    const secretBody = /"(?:(?:api|access|auth)[-_]?(?:key|token)|password|passwd|secret|client[-_]?secret)"\s*:\s*"(?!\{)[^"]+"/i.test(step.body ?? "");
     return credentialHeader || secretUrl || embeddedCredentials || secretBody;
   });
   add(secret,
