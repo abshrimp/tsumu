@@ -18,7 +18,7 @@ export type ValueOperandType = "text" | "number" | "boolean" | "null" | "variabl
  * Numeric, boolean and null literals are inferred rather than selected.
  * JSON-quoted strings disambiguate strings like "123", "true" and "null".
  */
-const NUMERIC_LITERAL = /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/;
+const NUMERIC_LITERAL = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 const inferredLiteral = (text: string) =>
   text === "null" || text === "true" || text === "false" ||
   (NUMERIC_LITERAL.test(text) && Number.isFinite(Number(text)));
