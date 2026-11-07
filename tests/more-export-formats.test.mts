@@ -105,19 +105,26 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     assert.equal(result.files["next.config.mjs"], undefined);
     assert.equal(result.files["app/page.tsx"], undefined);
     const root = framework === "sveltekit" ? "static" : "public";
-    assert.match(result.files[root + "/data-loader.js"], /fetch\(url, init\)/);
+    assert.equal(result.files[root + "/data-loader.js"], undefined);
+    assert.match(result.files[framework === "nuxt" ? "app/generated/site-data.js" :
+      framework === "vue" ? "src/site-data.js" : "src/lib/site-data.js"], /loadPageData/);
     assert.match(result.files[root + "/scripts.js"], /__pageDataReady/);
     if (framework === "vue") {
-      assert.match(result.files["src/App.vue"], /v-html/);
+      assert.match(result.files["src/pages/Page0.vue"], /<h1/);
+      assert.doesNotMatch(result.files["src/App.vue"], /v-html/);
       assert.match(result.files["vite.config.ts"], /plugin-vue/);
       assert.match(result.files["package.json"], /"vue"/);
     } else if (framework === "nuxt") {
-      assert.match(result.files["app/app.vue"], /v-html/);
-      assert.match(result.files["nuxt.config.ts"], /ssr: false/);
+      assert.match(result.files["app/generated/pages/Page0.vue"], /<h1/);
+      assert.doesNotMatch(result.files["app/app.vue"], /v-html/);
+      assert.match(result.files["nuxt.config.ts"], /ssr: true/);
+      assert.match(result.files["app/pages/index.vue"], /useAsyncData/);
       assert.match(result.files["package.json"], /"nuxt"/);
     } else {
-      assert.match(result.files["src/routes/+page.svelte"], /@html html/);
-      assert.match(result.files["svelte.config.js"], /adapter-static/);
+      assert.match(result.files["src/lib/pages/Page0.svelte"], /<h1/);
+      assert.doesNotMatch(result.files["src/routes/+page.svelte"], /@html html/);
+      assert.match(result.files["svelte.config.js"], /adapter-node/);
+      assert.match(result.files["src/routes/+page.server.js"], /loadPageData/);
       assert.match(result.files["package.json"], /"@sveltejs\/kit"/);
     }
     for (const [path, content] of Object.entries(result.files)) {
@@ -129,7 +136,8 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
   test(framework + " supports JS mode and CSS Modules and Tailwind styles", () => {
     const options = { framework, language: "javascript" as const, scope: "project" as const };
     const js = generateExportProject(fixture(), { ...options, style: "css" });
-    const root = framework === "nuxt" ? "app/" : "src/";
+    const root = framework === "nuxt" ? "app/generated/" :
+      framework === "sveltekit" ? "src/lib/" : "src/";
     assert.ok(js.files[root + "site-routes.js"]);
     assert.equal(js.files[root + "site-routes.ts"], undefined);
     const modules = generateExportProject(fixture(), { ...options, style: "css-modules" });
@@ -145,7 +153,8 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     doc.pageOrder.push("variant");
     assert.deepEqual(exportLimitations(doc, framework), []);
     const result = generateExportProject(doc, framework);
-    const path = framework === "nuxt" ? "app/site-routes.ts" : "src/site-routes.ts";
+    const path = framework === "nuxt" ? "app/generated/site-routes.js" :
+      framework === "sveltekit" ? "src/lib/site-routes.js" : "src/site-routes.js";
     assert.match(result.files[path], /"tab":"2"/);
     assert.match(result.files[path], /URLSearchParams/);
     doc.pages.home.slug = "[slug]";
