@@ -132,6 +132,7 @@ function node(ctx: Context, id: string, top = false): string {
     }
     if (n.type === "embed" && n.embed) {
       const url = embedSrc(n.embed);
+      if (!url) return "";
       return "<div" + attrs + "><iframe" + srcAttr(ctx, "src", url) +
         ' loading="lazy" referrerpolicy="strict-origin-when-cross-origin"' +
         (n.embed.kind === "youtube" ? literal("allow", YOUTUBE_ALLOW) + " allowfullscreen" : "") +
