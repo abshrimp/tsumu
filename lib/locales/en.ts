@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "リストの位置": "List path",
   "条件のつなぎ方": "Join conditions with",
   "{subject}が {v} 以上": "{subject} is at least {v}",
   "{subject}が {v} 以下": "{subject} is at most {v}",
@@ -164,7 +165,6 @@ const en: Dict = {
   "上へ": "Move up",
   "下へ": "Move down",
   "操作を探す": "Find an action",
-  "例：数える、保存、表示": "e.g. count, save, show",
   "検索をクリア": "Clear search",
   "一致する操作がありません": "No matching actions",
   "アセットをダウンロードできませんでした": "Could not download the asset.",
@@ -3679,7 +3679,6 @@ const en: Dict = {
   "リスト{array}の要素ごとにくり返す": "For each item in list {array}",
   "保存された見本を表示しています。": "Showing the saved sample.",
   "見本にはリストの先頭20件のみ保存されています。全件を見るには右上の「取得し直す」で再取得してください。": "Only the first 20 items of each list are saved in the sample. To view all items, use Fetch again in the top-right corner.",
-  "リストの位置（例: products）": "List path (e.g. products)",
   "リストが見つかりません": "No list found",
   "既存の変数を上書き": "Overwrite an existing variable",
   "項目付きデータ": "Data object",
