@@ -63,6 +63,14 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   return { ...doc, pages: { [id]: scopedPage }, pageOrder: [id] };
 }
 
+/**
+ * A component marked async solely for Next.js ISR/variable handling can be
+ * rendered synchronously if it never awaits request data.
+ */
+export function needsServerRuntime(source: string): boolean {
+  return /\bawait\b/.test(source) || /\bfetchPublic\b/.test(source);
+}
+
 function publishedPages(doc: SiteDoc) {
   return doc.pageOrder.map((id) => doc.pages[id]).filter((page) => page && !page.unpublished);
 }
@@ -100,7 +108,7 @@ export function exportLimitations(
   const project = existing ?? generateProject(doc);
   add(Object.entries(project.files).some(([path, source]) =>
     /^app\/(?:.*\/)?(?:_q\/p\d+|page)\.tsx$/.test(path) &&
-    /export default async function Page\b/.test(source)
+    needsServerRuntime(source)
   ), "サーバーでのデータ取得・変数処理");
 
   if (options.framework === "react") {
@@ -132,6 +140,11 @@ export function generateExportProject(
 /** A Next.js build that generates deployable HTML/CSS/JS in out/, not a server app. */
 function buildStaticHtmlProject(next: GeneratedProject): GeneratedProject {
   const files = { ...next.files };
+  for (const [path, source] of Object.entries(files)) {
+    if (/^app\/(?:.*\/)?(?:_q\/p\d+|page)\.tsx$/.test(path) && !needsServerRuntime(source)) {
+      files[path] = source.replace(/^export const (?:revalidate|dynamic) = [^\n]*;\n/mg, "");
+    }
+  }
   files["next.config.mjs"] = files["next.config.mjs"].replace(
     "const nextConfig = {",
     'const nextConfig = {\n  output: "export",\n  trailingSlash: true,'
