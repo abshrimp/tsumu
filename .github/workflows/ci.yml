@@ -50,3 +50,28 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  generated-formats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [vue, nuxt, sveltekit]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@12.2.1
+      - run: npm ci
+      - run: node --import tsx scripts/smoke-export-build.mts ${{ matrix.framework }}
+      - name: Install generated project dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: .generated-export-smoke
+      - name: Build generated framework project
+        run: npm run build
+        working-directory: .generated-export-smoke
+      - name: Verify production SSR response
+        run: node --import tsx scripts/check-generated-ssr.mts ${{ matrix.framework }}

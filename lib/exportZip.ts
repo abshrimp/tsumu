@@ -1,18 +1,37 @@
 import JSZip from "jszip";
 import type { SiteDoc } from "./types";
-import { generateProject } from "./generator";
+import { prepareExportProject, type ExportFormat, type ExportOptions } from "./export-formats";
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
 import { tr } from "./i18n";
 
 /** zip を作ってダウンロードさせる。保存先に見つからず同梱できなかったアセットのパスを返す */
-export async function exportProjectZip(doc: SiteDoc): Promise<string[]> {
-  const { files, binaries, remoteAssets } = generateProject(doc);
-  const zip = new JSZip();
+export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | ExportOptions = "nextjs"): Promise<string[]> {
+  const options: ExportOptions = typeof request === "string"
+    ? { framework: request, language: "typescript", style: "css", scope: "project" }
+    : request;
+  const project = await prepareExportProject(doc, options);
+  const { files, binaries, remoteAssets } = project;
   const dirName =
     doc.siteName
       .toLowerCase()
       .replace(/[^a-z0-9-]+/g, "-")
       .replace(/^-+|-+$/g, "") || "my-site";
+  if (options.framework === "single-html") {
+    const html = files["index.html"];
+    if (!html || Object.keys(files).length !== 1 || Object.keys(binaries).length ||
+        Object.keys(remoteAssets).length) {
+      throw new Error("Single HTML generation did not produce exactly one HTML file.");
+    }
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = dirName + ".html";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return [];
+  }
+
+  const zip = new JSZip();
   const root = zip.folder(dirName)!;
 
   for (const [path, content] of Object.entries(files)) {
@@ -40,7 +59,7 @@ export async function exportProjectZip(doc: SiteDoc): Promise<string[]> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${dirName}.zip`;
+  a.download = `${dirName}-${options.framework}-${options.language}.zip`;
   a.click();
   // すぐに破棄すると、Safari などでダウンロードが始まらないことがある
   setTimeout(() => URL.revokeObjectURL(url), 1000);
