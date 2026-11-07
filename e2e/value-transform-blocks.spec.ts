@@ -75,6 +75,32 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " runtime repeats using a variable count", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "", [
+      { id: "count", kind: "set-var", into: "count", value: "3" },
+      { id: "sum", kind: "set-var", into: "sum", value: "0" },
+      { id: "parse-sum", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
+      { id: "repeat", kind: "repeat", times: "{count}", then: [
+        { id: "increase", kind: "transform", source: "sum", into: "sum",
+          transform: { kind: "math", operation: "add", operand: 1 } },
+      ] },
+      { id: "result", kind: "set-var", into: "items", value: "{sum}" },
+    ]);
+    await expect(answer).toHaveValue("3");
+    expect(errors).toEqual([]);
+  });
+  test((exported ? "exported" : "preview") + " runtime waits for variable seconds", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "before", [
+      { id: "delay", kind: "set-var", into: "delay", value: "0.01" },
+      { id: "wait", kind: "wait", seconds: "{delay}" },
+      { id: "result", kind: "set-var", into: "items", value: "after" },
+    ]);
+    await expect(answer).toHaveValue("after");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
@@ -205,6 +231,41 @@ test("canvas list-display block switches filter, sort and clear without changing
   })).toBe("sort");
 });
 
+
+test("canvas repeat number arrows increment by one and wait/repeat can use variables", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push(
+        { id: "repeat-count", kind: "repeat", times: 3, then: [] },
+        { id: "wait-seconds", kind: "wait", seconds: 0.2 },
+      );
+    });
+  });
+  const repeat = page.locator('[data-sel-key="step:repeat-count"]');
+  const number = repeat.getByRole("spinbutton");
+  await expect(number).toHaveAttribute("step", "1");
+  await number.fill("3");
+  await number.press("ArrowUp");
+  await number.blur();
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
+      .find((step: any) => step.id === "repeat-count").times)).toBe(4);
+
+  await repeat.getByRole("combobox", { name: "値の指定方法" }).selectOption("variable");
+  await repeat.getByPlaceholder("{変数}").fill("data.price");
+  await repeat.getByPlaceholder("{変数}").blur();
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
+      .find((step: any) => step.id === "repeat-count").times)).toBe("{data.price}");
+
+  const wait = page.locator('[data-sel-key="step:wait-seconds"]');
+  await wait.getByRole("combobox", { name: "値の指定方法" }).selectOption("variable");
+  await wait.getByPlaceholder("{変数}").fill("data.price");
+  await wait.getByPlaceholder("{変数}").blur();
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
+      .find((step: any) => step.id === "wait-seconds").seconds)).toBe("{data.price}");
+});
 
 test("canvas math supports selecting an existing variable as the arithmetic operand", async ({ page }) => {
   const box = page.locator('[data-sel-key="step:numeric"]');
