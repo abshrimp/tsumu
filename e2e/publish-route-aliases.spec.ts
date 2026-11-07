@@ -59,6 +59,6 @@ test("同じ書き出し先のURLを検出し、URL修正後は両方のクエ�
   const prefix = path.slice(0, -"page.tsx".length);
   expect(await zip.file(`${prefix}_q/p0.tsx`)!.async("string")).toContain("The original team page");
   expect(await zip.file(`${prefix}_q/p1.tsx`)!.async("string")).toContain("The other team page");
-  expect(await zip.file(path)!.async("string")).toContain('"tab":"other"');
+  expect(await zip.file(path)!.async("string")).toContain('["tab","other"]');
   expect(errors).toEqual([]);
 });
