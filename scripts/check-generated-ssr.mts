@@ -30,7 +30,10 @@ try {
   if (!/<h1[^>]*>\s*Smoke test\s*<\/h1>/i.test(html)) {
     throw new Error("SSR did not render the heading in the HTTP response:\n" + html.slice(0, 3000));
   }
-  console.log(framework + " SSR HTTP response rendered the native heading");
+  if (!html.includes("Alpha") || !html.includes("Beta") || !html.includes("Reusable")) {
+    throw new Error("SSR omitted a list row or reusable component: " + html.slice(0, 3500));
+  }
+  console.log(framework + " SSR response rendered native heading, data rows and component");
 } finally {
   child.kill("SIGTERM");
   if (child.exitCode === null) {
