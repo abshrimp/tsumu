@@ -96,7 +96,8 @@ test("native HTML sends an interpolated JSON POST when the public API permits it
   assert.equal(request.options.method, "POST");
   assert.equal(request.options.headers["X-Locale"], "ja");
   assert.equal(request.options.headers["Content-Type"], "application/json");
-  assert.deepEqual(JSON.parse(request.options.body), { text: "hello world", limit: 3 });
+  // Query parameters are strings; interpolation preserves their value type.
+  assert.deepEqual(JSON.parse(request.options.body), { text: "hello world", limit: "3" });
   const fetchStep = steps.find((step) => step.kind === "fetch");
   assert.ok(fetchStep && fetchStep.kind === "fetch");
   assert.equal(values[fetchStep.as!].answer, true);
