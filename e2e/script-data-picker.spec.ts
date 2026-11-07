@@ -159,7 +159,8 @@ test("raw picker retains a loop object with the same name as its output and shad
       { id: "each", kind: "for-each", array: "data.rows", then: [{ id: "local-value", kind: "set-var", value: "{details}", into: "details" }] },
     ];
   }));
-  await expect(block(page, "local-value").locator(".se-value-info")).toContainText("実行時");
+  await expect(block(page, "local-value").locator(".se-value-info")).toHaveCount(0);
+  await expect(block(page, "local-value").locator(".vx-kind")).toHaveCount(0);
   await openPicker(page, "local-value");
   await picker(page).getByPlaceholder("変数名・値で検索").fill("details");
   await expect(row(page, "{details}")).toBeVisible(); await expect(row(page, "{details}")).not.toContainText("Nested");
