@@ -38,14 +38,37 @@ test("React output includes Vite entrypoints, routes, CSS and assets", () => {
   assert.equal(result.files["next.config.mjs"], undefined);
 });
 
-test("HTML export configures Next static build without Cloudflare runtime", () => {
+test("HTML export downloads ready-to-open pages, styles and assets without a build", () => {
   const result = generateExportProject(fixture(), "html");
-  assert.match(result.files["next.config.mjs"], /output: "export"/);
-  assert.match(result.files["next.config.mjs"], /trailingSlash: true/);
-  assert.match(result.files["README.md"], /out\//);
-  assert.equal(result.files["wrangler.jsonc"], undefined);
-  assert.equal(result.files["open-next.config.ts"], undefined);
-  assert.equal(result.files["package.json"].includes("@opennextjs/cloudflare"), false);
+  assert.match(result.files["index.html"], /<!doctype html>/);
+  assert.match(result.files["index.html"], /Hello/);
+  assert.match(result.files["index.html"], /styles\/globals\.css/);
+  assert.match(result.files["index.html"], /styles\/site\.css/);
+  assert.ok(result.files["styles/site.css"]);
+  assert.ok(result.files["styles/globals.css"]);
+  assert.equal(result.files["package.json"], undefined);
+  assert.equal(result.files["next.config.mjs"], undefined);
+  assert.equal(result.files["vite.config.ts"], undefined);
+  assert.match(result.files["README.txt"], /No npm install/);
+});
+
+test("HTML export produces independent nested pages and relative links", () => {
+  const doc = fixture();
+  doc.pages.about = { ...doc.pages.home, id: "about", name: "About", slug: "about", title: "About", children: [] };
+  doc.pageOrder.push("about");
+  doc.nodes.hero.link = { kind: "page", pageId: "about" };
+  const result = generateExportProject(doc, "html");
+  assert.match(result.files["index.html"], /href="\.\/about\/"/);
+  assert.match(result.files["about/index.html"], /href="\.\.\/styles\/site\.css"/);
+  assert.equal(result.files["src/App.tsx"], undefined);
+});
+
+test("HTML export keeps raw HTML routes without transpiling their content", () => {
+  const doc = fixture();
+  doc.pages.home.rawHtml = '<!doctype html><html><head><title>Raw</title></head><body><main id="raw-html">Raw body</main></body></html>';
+  const result = generateExportProject(doc, "html");
+  assert.match(result.files["index.html"], /id="raw-html"/);
+  assert.doesNotMatch(result.files["index.html"], /react-dom|__next/);
 });
 
 test("unsupported dynamic routes and reverse proxies fail explicitly", () => {
@@ -65,8 +88,9 @@ test("client-only variables do not force a server-only export error", () => {
   const react = generateExportProject(doc, "react");
   assert.match(react.files["src/pages/Page0.tsx"], /export default function Page/);
   assert.match(react.files["src/pages/Page0.tsx"], /new URLSearchParams\(window\.location\.search\)/);
-  // A pre-built HTML page cannot know a visitor's request query.
-  assert.ok(exportLimitations(doc, "html").length > 0);
+  // A standalone page can update client text from the visitor's query.
+  const html = generateExportProject(doc, "html").files["index.html"];
+  assert.match(html, /data-live="Hello \{username\}"/);
 });
 
 test("actual server-only data access remains blocked in React", () => {
