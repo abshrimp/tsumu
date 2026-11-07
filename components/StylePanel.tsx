@@ -7,6 +7,7 @@ import { showConfirm } from "../lib/dialog";
 import { usePendingImport } from "../lib/use-pending-import";
 import type { DocNode, StyleState } from "../lib/types";
 import { BP_INFO, getProp, clearedValue, STATE_INFO, STATE_ORDER } from "../lib/style";
+import { customStatesForNode } from "../lib/custom-states";
 import { Dropdown, InspectorCtx, type Inspector } from "./controls";
 import { tr } from "../lib/i18n";
 import { BackgroundSec, BorderSec } from "./style-panel/BackgroundSec";
@@ -202,7 +203,11 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
                 active: <MousePointerClick size={13} />,
                 focus: <Focus size={13} />,
               }[s],
-            }))}
+            })),
+            ...customStatesForNode(doc, nodeId).map((state) => ({
+              value: state,
+              label: state.slice("custom:".length),
+            }))]}
             onChange={(v) => setStyleState(v as StyleState)}
           />
         </div>
