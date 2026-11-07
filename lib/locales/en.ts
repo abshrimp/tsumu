@@ -4,6 +4,13 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "圧縮された編集データが大きすぎます。": "The compressed edit data exceeds the size limit.",
+  "圧縮された編集データが不正です。": "The compressed edit data is invalid.",
+  "編集データが容量上限を超えています。": "The edit data exceeds the size limit.",
+  "対応していない編集データの形式です。": "This edit data format is not supported.",
+  "このブラウザでは圧縮された編集データを開けません。": "This browser cannot open compressed edit data.",
+  "展開後の編集データが容量上限を超えています。": "The decompressed edit data exceeds the size limit.",
+  "圧縮された編集データをJSONとして読み込めませんでした。": "Could not parse the compressed edit data as JSON.",
   "バックアップファイルを作成できませんでした。": "Could not create the backup file.",
   "編集データを読み込み中…": "Reading edit data…",
   "インポート": "Import",
