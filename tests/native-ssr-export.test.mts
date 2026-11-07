@@ -109,7 +109,7 @@ test("Nuxt and SvelteKit enable SSR with server-side route data loading", () => 
   assert.match(svelte.files["src/routes/+page.server.js"], /requestPublic/);
   assert.match(svelte.files["src/routes/+page.svelte"], /<Page0/);
   assert.match(svelte.files["src/routes/[...path]/+page.svelte"], /<Page0/);
-  assert.doesNotMatch(svelte.files["src/routes/+layout.js"], /ssr = false/);
+  assert.match(svelte.files["src/routes/+layout.ts"] ?? svelte.files["src/routes/+layout.js"], /ssr = true/);
 });
 
 test("Vue with Vite also builds an SSR entry with hydration and native components", () => {
