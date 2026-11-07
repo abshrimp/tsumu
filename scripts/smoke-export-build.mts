@@ -17,7 +17,7 @@ const doc: SiteDoc = {
   pageOrder: ["home"],
   pages: {
     home: { id: "home", name: "Home", slug: "", title: "Home", description: "",
-      children: ["heading", "literal-text", "picture", "search", "items", "component-instance"],
+      children: ["heading", "literal-text", "picture", "search", "items", "action-button", "status-text", "component-instance"],
       pageScripts: [{
         id: "load", trigger: "load", pos: { x: 0, y: 0 },
         steps: [
@@ -39,6 +39,13 @@ const doc: SiteDoc = {
       field: { kind: "input", inputType: "text", defaultValue: "", placeholder: "Search {1 + 2}" } },
     items: { ...makeBox(), id: "items", type: "list", list: { from: "names" }, children: ["row"] },
     row: { ...makeBox(), id: "row", text: { content: "{値}", heading: 0 } },
+    "action-button": { ...makeBox(), id: "action-button", attrId: "action-button",
+      semantic: "button", text: { content: "Tap", heading: 0 },
+      scripts: [{ id: "tap", trigger: "click", pos: { x: 0, y: 0 },
+        steps: [{ id: "set-status", kind: "set-var", into: "status", value: "done" }] }],
+    },
+    "status-text": { ...makeBox(), id: "status-text",
+      text: { content: "Status: {status}", heading: 0 } },
     "component-instance": { ...makeBox(), id: "component-instance",
       type: "instance", componentId: "card" },
     card: { ...makeBox(), id: "card", text: { content: "Reusable", heading: 0 } },
