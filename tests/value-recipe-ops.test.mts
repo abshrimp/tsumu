@@ -1,7 +1,40 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
-import { defaultTransform, VALUE_TRANSFORM_KINDS, type ValueTransform } from "../lib/script-model/compose";
+import { defaultTransform, VALUE_TRANSFORM_KINDS, parseValueOperandInput, formatValueOperandInput, type ValueTransform } from "../lib/script-model/compose";
+
+
+test("list operation value fields infer typed literals while keeping variables and mixed text", () => {
+  const examples = [
+    ["hello", "text", "hello"],
+    ["123", "number", "123"],
+    ["-1.25", "number", "-1.25"],
+    ["1e3", "number", "1e3"],
+    ["true", "boolean", "true"],
+    ["false", "boolean", "false"],
+    ["null", "null", ""],
+    ["00123", "text", "00123"],
+    ["{count}", "text", "{count}"],
+    ["hello {name}", "text", "hello {name}"],
+    ['"123"', "text", "123"],
+    ['"true"', "text", "true"],
+    ['"null"', "text", "null"],
+  ] as const;
+  for (const [input, operandType, operand] of examples) {
+    const parsed = parseValueOperandInput(input);
+    assert.deepEqual(parsed, { operand, operandType });
+    assert.deepEqual(parseValueOperandInput(formatValueOperandInput(parsed.operand, parsed.operandType)), parsed);
+  }
+  const numeric = parseValueOperandInput("12");
+  const bool = parseValueOperandInput("true");
+  const string = parseValueOperandInput('"true"');
+  const variable = parseValueOperandInput("{value}");
+  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...numeric }]), val([12]));
+  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...bool }]), val([true]));
+  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...string }]), val(["true"]));
+  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...variable }], { value: 5 }), val([5]));
+  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", operandType: "text", operand: "Hi {name}" }], { name: "A" }), val(["Hi A"]));
+});
 
 const run = (input: unknown, steps: readonly ValueTransform[]) => evaluateValueRecipe(input, steps);
 const val = (value: unknown) => ({ kind: "value", value });
