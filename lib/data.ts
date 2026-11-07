@@ -18,6 +18,7 @@ import {
 import { fieldStateNotes, fieldVarName, fieldVarNames, isRadioItem } from "./fields";
 import { tr, trc } from "./i18n";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
+import { runPurePageSteps } from "./page-load-steps";
 
 /** "data.items" のようなパスでオブジェクトを掘る（配列の "-1" は最後の要素） */
 export function digPath(root: unknown, path: string | undefined): unknown {
@@ -361,12 +362,13 @@ export function varSamplesAt(
 
 /** ページを配信する前（サーバー側）にだけ動くブロック（データの取得） */
 export type DataStep = Extract<ScriptStep, { kind: "fetch" }>;
-/** リストの各要素を処理するブロック（配信前の pagePlan では実行しない）。 */
+/** リストの各要素を処理するブロック（純粋な処理なら配信前にも実行する）。 */
 export type ForEachStep = Extract<ScriptStep, { kind: "for-each" }>;
 export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
 export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
 /** ページを配信する前に実行するブロック */
-export type ServerStep = DataStep | SetVarStep | TransformStep;
+export type PureGroupStep = Extract<ScriptStep, { kind: "for-each" | "if" | "repeat" }>;
+export type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep;
 
 /** 「［{名前}］を変数［］とする」の {名前}（値が {名前} 1つだけでなければ null） */
 export function setVarSource(st: SetVarStep): string | null {
@@ -439,6 +441,22 @@ export interface PagePlan {
 }
 
 /**
+ * Page-load control structures are eligible for SSR only when every nested
+ * step is data-only. Browser actions are never swallowed by server evaluation.
+ */
+function pureLoadStep(st: ScriptStep): boolean {
+  switch (st.kind) {
+    case "set-var": return !!st.into;
+    case "transform": return !!st.source && !!st.into;
+    case "if": return st.cond.subject === "var" && st.then.every(pureLoadStep) &&
+      (st.else ?? []).every(pureLoadStep);
+    case "for-each": return !!st.array && st.then.length > 0 && st.then.every(pureLoadStep);
+    case "repeat": return Number.isInteger(st.times) && st.times > 0 && st.times <= 1000 && st.then.every(pureLoadStep);
+    default: return false;
+  }
+}
+
+/**
  * ページのデータのブロックを、配信する前に動くものと画面上で動くものに分ける。
  * 「このページ｜ページを開いたとき」の直下にあるデータのブロックだけが配信前に動き、
  * 分解・配列の〜は、使う値がストレージや入力欄によらなければ配信前に動く
@@ -446,9 +464,17 @@ export interface PagePlan {
 export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   const page = doc.pages[pageId];
   const loadRoot = new Set<ScriptStep>();
+  const nestedLoad = new Set<ScriptStep>();
   for (const s of page?.pageScripts ?? []) {
-    if (s.trigger === "load") s.steps.forEach((st) => loadRoot.add(st));
+    if (s.trigger !== "load") continue;
+    s.steps.forEach((st) => {
+      loadRoot.add(st);
+      if ((st.kind === "for-each" || st.kind === "if" || st.kind === "repeat") && pureLoadStep(st)) {
+        walkAll([st], (child) => nestedLoad.add(child));
+      }
+    });
   }
+  const mayRunOnServer = (st: ScriptStep) => loadRoot.has(st) || nestedLoad.has(st);
   const clientVars = new Set<string>();
   const fieldIds = new Set(
     idVarNodesOf(doc, pageId)
@@ -461,10 +487,10 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         clientVars.add(st.into);
       }
       // 「ページを開いたとき」の直下で {名前} だけを入れるものは、配信前に動くかを後で決める
-      if (st.kind === "set-var" && st.into && !(loadRoot.has(st) && (setVarSource(st) || !extractVars(st.value).length))) {
+      if (st.kind === "set-var" && st.into && !(nestedLoad.has(st) || (loadRoot.has(st) && (setVarSource(st) || !extractVars(st.value).length)))) {
         clientVars.add(st.into);
       }
-      if (st.kind === "transform" && st.into && !(loadRoot.has(st) && st.source)) {
+      if (st.kind === "transform" && st.into && !(mayRunOnServer(st) && st.source)) {
         clientVars.add(st.into);
       }
     });
@@ -495,6 +521,24 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         : -1;
     listOps.set(array, i >= 0 ? cur.map((o, j) => (j === i ? op : o)) : [...cur, op]);
   };
+  const isServerPure = (st: ScriptStep): boolean => {
+    if (st.kind === "set-var") return !!st.into &&
+      !clientVars.has(st.into) && !extractVars(st.value).some(isClient);
+    if (st.kind === "transform") {
+      if (!st.into || !st.source || clientVars.has(st.into) || isClient(st.source)) return false;
+      return !("operandType" in st.transform && st.transform.operandType === "variable" &&
+        typeof st.transform.operand === "string" && isClient(st.transform.operand));
+    }
+    if (st.kind === "for-each") return !!st.array && !isClient(st.array) &&
+      st.then.length > 0 && st.then.every(isServerPure);
+    if (st.kind === "if") return st.cond.subject === "var" &&
+      !extractVars(st.cond.left ?? "").some(isClient) &&
+      !extractVars(st.cond.value ?? "").some(isClient) &&
+      st.then.every(isServerPure) && (st.else ?? []).every(isServerPure);
+    if (st.kind === "repeat") return Number.isInteger(st.times) &&
+      st.times > 0 && st.times <= 1000 && st.then.every(isServerPure);
+    return false;
+  };
   for (const s of page?.pageScripts ?? []) {
     if (s.trigger !== "load") continue;
     for (const st of s.steps) {
@@ -513,6 +557,12 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
           steps.push(st);
           serverIds.add(st.id);
         }
+      } else if (
+        (st.kind === "for-each" || st.kind === "if" || st.kind === "repeat") &&
+        isServerPure(st)
+      ) {
+        steps.push(st);
+        serverIds.add(st.id);
       } else if (
         st.kind === "list-display" && st.mode !== "clear" &&
         st.array &&
@@ -841,6 +891,15 @@ export function previewDataVars(
               path: [origin.path, st.transform.key].filter(Boolean).join(".") };
           } else delete origins[st.into];
         }
+        break;
+      }
+      case "for-each":
+      case "if":
+      case "repeat": {
+        // Run the same interpreter as exported pages; nested source fields
+        // override outer values, while assignments persist in the page vars.
+        runPurePageSteps([st], out, lookupVar, interpolate, evaluateValueRecipe,
+          { ...opts.vars, slug: opts.slug });
         break;
       }
     }
