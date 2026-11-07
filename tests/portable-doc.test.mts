@@ -5,6 +5,13 @@ import { decodePortableDoc, PORTABLE_DOC_FORMAT, serializePortableDoc } from "..
 import { IMPORT_LIMITS, parseSiteImport } from "../lib/site-import";
 
 const encoder = new TextEncoder();
+const minimalDoc = () => ({
+  siteName: "Minimal",
+  pages: { page: { id: "page", name: "Home", slug: "", title: "Home", description: "", children: [] } },
+  pageOrder: ["page"],
+  nodes: {},
+  assets: {},
+});
 
 test("compact doc.json is smaller and round-trips without modifying the original SiteDoc", async () => {
   const doc = createInitialDoc();
@@ -19,12 +26,12 @@ test("compact doc.json is smaller and round-trips without modifying the original
 });
 
 test("plain, small doc.json remains accepted and wins when smaller", async () => {
-  const doc = createInitialDoc();
+  const doc = minimalDoc();
   const plain = JSON.stringify(doc);
   const saved = await serializePortableDoc(doc, IMPORT_LIMITS.docBytes);
   const restored = await parseSiteImport(encoder.encode(saved), "doc");
   assert.deepEqual(restored.doc, doc);
-  assert.ok(saved.length <= plain.length);
+  assert.equal(saved, plain);
 });
 
 test("compact documents can be embedded in a ZIP without changing the SiteDoc", async () => {
@@ -52,8 +59,7 @@ test("reject unsupported compressed document versions and encodings", async () =
 });
 
 test("enforce the decompressed byte cap to block compressed expansion attacks", async () => {
-  const doc = createInitialDoc();
-  doc.customHeadHtml = "x".repeat(200000);
+  const doc = { ...minimalDoc(), customHeadHtml: "x".repeat(200000) };
   const encoded = JSON.parse(await serializePortableDoc(doc, IMPORT_LIMITS.docBytes));
   assert.equal(encoded.format, PORTABLE_DOC_FORMAT);
   await assert.rejects(decodePortableDoc(encoded, 4096), /size limit/);
