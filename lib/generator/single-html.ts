@@ -70,12 +70,11 @@ export async function toSingleHtmlProject(
   if (htmlPaths.length !== 1 || !source.files["index.html"]) {
     throw new Error("Single HTML requires one fixed page. Export the current page or a selected component.");
   }
-  let total = 0;
   const check = (size: number) => {
-    total += size;
-    if (total > LIMIT) throw new Error("The embedded HTML exceeds 48 MB. Reduce embedded assets or use the HTML ZIP format.");
+    if (size > LIMIT) throw new Error("The embedded HTML exceeds 48 MB. Reduce embedded assets or use the HTML ZIP format.");
   };
   const urlCache = new Map<string, Promise<string>>();
+  const responseMime = new Map<string, string>();
   const textCache = new Map<string, Promise<string>>();
   const readBytes = async (path: string): Promise<Uint8Array> => {
     if (Object.prototype.hasOwnProperty.call(source.binaries, path)) {
@@ -96,6 +95,8 @@ export async function toSingleHtmlProject(
     const len = Number(response.headers.get("content-length") || "0");
     if (len > LIMIT) throw new Error("Resource exceeds single HTML size limit: " + path);
     const bytes = new Uint8Array(await response.arrayBuffer());
+    const type = response.headers.get("content-type")?.split(";")[0].trim();
+    if (type) responseMime.set(path, type);
     check(bytes.length);
     return bytes;
   };
@@ -116,7 +117,7 @@ export async function toSingleHtmlProject(
         return "data:" + mime(path) + ";base64," + source.binaries[path];
       }
       const bytes = await readBytes(path);
-      return "data:" + mime(path) + ";base64," + b64(bytes);
+      return "data:" + (responseMime.get(path) ?? mime(path)) + ";base64," + b64(bytes);
     })();
     urlCache.set(path, promise);
     return promise;
@@ -224,7 +225,7 @@ export async function toSingleHtmlProject(
     });
 
   // Replace styles in inline style="background:url(...)" attributes.
-  html = await replaceAsync(html, /\bstyle\s*=\s*(["'])([^"']*url\([^"']+\)[^"']*)\1/gi,
+  html = await replaceAsync(html, /\bstyle\s*=\s*(["'])([\s\S]*?)\1/gi,
     async (whole, quote, css) => "style=" + quote +
       (await processCss(css, "index.html")).replaceAll(quote, quote === '"' ? "&quot;" : "&#39;") + quote);
 
