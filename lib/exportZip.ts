@@ -10,7 +10,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
     ? { framework: request, language: "typescript", style: "css", scope: "project" }
     : request;
   let project = generateExportProject(doc, options);
-  if (options.language === "javascript") {
+  if (options.language === "javascript" && options.framework !== "html") {
     const { toJavaScriptProject } = await import("./generator/javascript-export");
     project = await toJavaScriptProject(project, options.framework);
   }
