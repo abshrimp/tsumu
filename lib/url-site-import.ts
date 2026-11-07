@@ -2,6 +2,10 @@ import JSZip from "jszip";
 import { buildAssetNames } from "./generator/names";
 import type { Asset, SiteDoc } from "./types";
 
+export function importWarningsKey(siteId: string): string {
+  return "tsumu-import-warnings:" + siteId;
+}
+
 export const SOURCE_LIMIT = 5 * 1024 * 1024;
 export const DOCUMENT_LIMIT = 3 * 1024 * 1024;
 export const ZIP_ENTRY_LIMIT = 350;
