@@ -473,6 +473,15 @@ test("canvas value comparisons use the same predicates and joined clauses as lis
     });
   });
   const box = page.locator('[data-sel-key="step:compound"]');
+  const orderIsNatural = async () => box.locator(".se-composer-condition-line").first().evaluate((line) => {
+    const value = line.querySelector('input');
+    const operator = line.querySelector('select[aria-label="比較方法"]');
+    const polarity = line.querySelector('select[aria-label="条件の判定"]');
+    return !!value && !!operator && !!polarity &&
+      !!(value.compareDocumentPosition(operator) & Node.DOCUMENT_POSITION_FOLLOWING) &&
+      !!(operator.compareDocumentPosition(polarity) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  await expect.poll(orderIsNatural).toBe(true);
   await box.getByRole("combobox", { name: "比較方法" }).first().selectOption("gte");
   await box.getByRole("combobox", { name: "条件の判定" }).first().selectOption("not");
   await box.getByRole("button", { name: /かつ/ }).last().click();
