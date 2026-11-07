@@ -252,7 +252,9 @@ export function parseKeyframes(css: string): Keyframe[] | null {
   return list;
 }
 
-const fmt = (n: number) => String(Math.round(n * 1000) / 1000);
+// Preserve parsed precision on Apply; rounding belongs to explicit editor gestures,
+// not serialization (nearby offsets can represent an intentional instant jump).
+const fmt = (n: number) => String(n);
 
 function selector(offset: number): string {
   if (offset === 0) return "from";
