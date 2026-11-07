@@ -4,6 +4,17 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリの設定が以前の形式のままだとサイトが表示されなくなる場合があります。設定を確認したうえで続行しますか？": "Pushing in this format changes the repository structure. If your hosting provider still uses the previous build or publish-directory settings, the site may stop working. Have you checked the hosting settings?",
+  "公開先の設定を確認してください": "Check the hosting settings",
+  "この形式でPushする": "Push this format",
+  "HTML・CSS・JavaScript・画像を、ビルド不要のファイルとしてGitHubへPushします。静的サイトとして公開する場合は、リポジトリのルートを配信するようホスティングを設定してください。": "Push ready-to-deploy HTML, CSS, JavaScript, and images to GitHub, without a build step. To host a static site, configure your provider to serve the repository root.",
+  "React + ViteのソースをGitHubへPushします。公開するにはホスティング側でViteをビルドし、distフォルダを配信する設定が必要です。": "Push a React + Vite project to GitHub. To publish it, configure your host to build with Vite and serve the dist folder.",
+  "Next.jsプロジェクトをGitHubへPushします。ホスティング側のビルドが完了すると公開サイトに反映されます。": "Push a Next.js project to GitHub. Changes appear on the live site once your hosting provider finishes its build.",
+  "HTML形式はJavaScriptとCSSで出力します。データ取得にはAPIのCORS許可が必要です。": "HTML output uses JavaScript and CSS. Fetching external data requires the API to allow CORS.",
+  "GitHubへのPushはソースの送信です。形式によってホスティングのビルド設定が異なり、コミットだけでは公開成功を保証できません。": "GitHub Push sends source files. Hosting build settings depend on the format; a commit alone does not guarantee a successful deployment.",
+  " 公開対象はプロジェクト全体です。": " The entire project will be published.",
+  "GitHubへPushしました。HTML一式はそのまま配信できる形式です。": "Pushed to GitHub. The HTML files can be served directly.",
+  "GitHubへPushしました。ホスティング側のビルド・公開設定をご確認ください。": "Pushed to GitHub. Verify your hosting provider's build and publish settings.",
   "ページの表示前にサーバーでデータを取得・加工する設定があります。Reactのクライアント描画では現在この処理を移行できません。Next.jsまたはHTML形式を選択してください。": "This page fetches or transforms data on the server before rendering. The current React SPA exporter cannot reproduce that workflow yet. Use Next.js or HTML instead.",
   "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。HTMLに直接書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。": "This data request includes an authorization header or secret API key. Exporting it into HTML would expose the credentials. Use a public API or a trusted server proxy.",
   "外部データの取得・加工はブラウザのJavaScriptで実行します。APIのCORS許可が必要です。file://での利用には制約があるため、データ取得を使う場合は静的ホスティングで確認してください。": "External data fetching and processing run in the browser. The API must allow CORS. file:// has restrictions; test data-dependent pages on static hosting.",
