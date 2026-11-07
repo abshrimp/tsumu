@@ -53,6 +53,63 @@ test("split, join and replace compose without implicit coercion", () => {
   assert.deepEqual(run("a", [{ kind: "replace", find: "(", replacement: "", regex: true }]), { kind: "error", code: "invalid-regex" });
 });
 
+test("text fields combine text and variables without switching input modes", () => {
+  const variables = { name: "田中", city: "京都", suffix: "さん", marker: "・", count: 7,
+    dynamicField: "name", filterField: "city", entry: { id: 3 } };
+  const evaluate = (input: unknown, steps: readonly ValueTransform[]) =>
+    evaluateValueRecipe(input, steps, variables);
+
+  assert.deepEqual(evaluate(undefined, [{ kind: "fallback", text: "こんにちは、{name}{suffix}" }]),
+    val("こんにちは、田中さん"));
+  assert.deepEqual(evaluate(undefined, [{ kind: "fallback", text: "{count}" }]), val(7));
+  assert.deepEqual(evaluate(undefined, [{ kind: "fallback", text: "{entry}" }]), val({ id: 3 }));
+  assert.deepEqual(evaluate(null, [{ kind: "fallback-nullish", text: "{entry}" }]), val({ id: 3 }));
+  assert.deepEqual(evaluate(null, [{ kind: "fallback", text: "replaced" }]), val(null));
+  assert.deepEqual(evaluate(undefined, [{ kind: "fallback", text: "Unknown: {unknown}" }]), val("Unknown: "));
+  assert.deepEqual(evaluate(undefined, [{ kind: "fallback", text: "{unknown}" }]),
+    { kind: "error", code: "missing-value" });
+  assert.deepEqual(evaluate(undefined, [{ kind: "fallback", text: "\\{name}" }]), val("{name}"));
+
+  assert.deepEqual(evaluate({ name: "work" }, [{ kind: "field", key: "{dynamicField}" }]), val("work"));
+  assert.deepEqual(evaluate({ name: "work" }, [{ kind: "has", key: "{dynamicField}" }]), val(true));
+  assert.deepEqual(evaluate("a・b", [{ kind: "split", separator: "{marker}" }]), val(["a", "b"]));
+  assert.deepEqual(evaluate(["a", "b"], [{ kind: "join", separator: " {city} / " }]),
+    val("a 京都 / b"));
+  assert.deepEqual(evaluate("Hello, world", [{
+    kind: "replace", find: "world", replacement: "{city}の{name}{suffix}", regex: false,
+  }]), val("Hello, 京都の田中さん"));
+  assert.deepEqual(evaluate("aaaa", [{
+    kind: "replace", find: "a{2}", replacement: "x", regex: true,
+  }]), val("xx"), "regex quantifiers must not be parsed as variable references");
+  assert.deepEqual(evaluate("Hello, world", [{
+    kind: "replace", find: "world", replacement: "{entry}", regex: false,
+  }]), { kind: "error", code: "type-mismatch" });
+
+  const records = [{ name: "a", city: "京都" }, { name: "b", city: "東京" }];
+  assert.deepEqual(evaluate(records, [{
+    kind: "filter", field: "{filterField}", operation: "eq", operandType: "text", operand: "{city}",
+  }]), val([records[0]]));
+  assert.deepEqual(evaluate(records, [{ kind: "map-field", field: "{dynamicField}" }]), val(["a", "b"]));
+  assert.deepEqual(evaluate(records, [{
+    kind: "map-set", field: "{dynamicField}", operandType: "text", operand: "Hi {name}",
+  }]), val([{ name: "Hi 田中", city: "京都" }, { name: "Hi 田中", city: "東京" }]));
+  assert.deepEqual(evaluate(records, [{
+    kind: "sort", field: "{dynamicField}", direction: "desc",
+  }]), val([records[1], records[0]]));
+  assert.deepEqual(evaluate([], [{
+    kind: "append", operandType: "text", operand: "{entry}",
+  }]), val([{ id: 3 }]), "a single token retains its native object value");
+  assert.deepEqual(evaluate("田中さん", [{
+    kind: "compare", operation: "eq", operandType: "text", operand: "{name}{suffix}",
+  }]), val(true));
+  assert.deepEqual(evaluate([{ name: "a" }], [{
+    kind: "map-set", field: "{danger}", operandType: "text", operand: "unsafe",
+  }]), { kind: "error", code: "type-mismatch" }, "undefined field names fail safely");
+  assert.deepEqual(evaluateValueRecipe([{ name: "a" }], [{
+    kind: "map-set", field: "{danger}", operandType: "text", operand: "unsafe",
+  }], { danger: "__proto__" }), { kind: "error", code: "invalid-path" });
+});
+
 test("list find/filter/sort/map are immutable and distinguish missing from null", () => {
   const original = [
     { id: 3, name: "Gamma", meta: { active: false } },
