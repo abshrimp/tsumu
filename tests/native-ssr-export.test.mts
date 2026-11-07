@@ -112,9 +112,14 @@ test("Nuxt and SvelteKit enable SSR with server-side route data loading", () => 
   assert.doesNotMatch(svelte.files["src/routes/+layout.js"], /ssr = false/);
 });
 
-test("Vue plain Vite stays client-rendered, while the Vue-based Nuxt format offers SSR", () => {
+test("Vue with Vite also builds an SSR entry with hydration and native components", () => {
   const vue = generateExportProject(site(), "vue");
   assert.match(vue.files["src/App.vue"], /onMounted/);
   assert.ok(vue.files["src/pages/Page0.vue"]);
   assert.match(vue.files["src/App.vue"], /<Page0/);
+  assert.match(vue.files["src/entry-server.ts"], /renderToString/);
+  assert.match(vue.files["src/entry-client.ts"], /createSSRApp/);
+  assert.match(vue.files["server.mjs"], /app-html/);
+  assert.match(vue.files["package.json"], /vite build --ssr/);
+  assert.doesNotMatch(vue.files["src/pages/Page0.vue"], /v-html/);
 });
