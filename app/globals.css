@@ -12435,6 +12435,21 @@ a.btn {
   background-color: var(--panel);
   outline: none;
 }
+/* Only selects with a fixed set of choices should use their widest option as width. */
+select.se-in.se-fixed-select,
+.se-composer-step-settings > select.se-in.se-fixed-select,
+.se-composer-step-settings .se-composer-operand > select.se-in.se-fixed-select {
+  box-sizing: border-box;
+  flex: none;
+  width: max-content;
+  min-width: max-content;
+  max-width: min(225px, 100%);
+}
+
+.se-composer-operand:has(> .se-fixed-select) {
+  flex: 0 1 auto;
+}
+
 .se-composer-operand {
   display: flex;
   flex: 2 1 180px;
