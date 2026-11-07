@@ -141,6 +141,41 @@ export async function readRestorableJson(bytes: Uint8Array): Promise<{
   return { doc: parseRestoredDoc(textDecoder.decode(bytes)), assets: new Map(), folder: "" };
 }
 
+/**
+ * A SiteDoc may still contain direct public image/media URLs when its ZIP is
+ * incomplete. Try those URLs through the same guarded relay before reporting
+ * the asset as missing; never send credentials from the importing browser.
+ */
+export async function recoverPublicAssetBytes(
+  doc: SiteDoc,
+  supplied: Map<string, Uint8Array>,
+  download: (url: string) => Promise<Uint8Array>,
+): Promise<Map<string, Uint8Array>> {
+  const files = new Map(supplied);
+  let attempts = 0;
+  for (const [id, asset] of Object.entries(doc.assets)) {
+    if (files.has(id) || asset.dataUrl || attempts >= 20) continue;
+    const refs = Object.values(doc.nodes)
+      .flatMap((node) => [node.image, node.media])
+      .filter((ref) => ref?.assetId === id)
+      .map((ref) => ref!.src);
+    const candidate = [asset.path, ...refs]
+      .find((url) => typeof url === "string" && /^https?:\/\//i.test(url));
+    if (!candidate) continue;
+    let url: URL;
+    try {
+      url = new URL(candidate);
+      if (url.username || url.password) continue;
+    } catch { continue; }
+    attempts++;
+    try {
+      const bytes = await download(url.href);
+      if (bytes.byteLength && bytes.byteLength <= SOURCE_LIMIT) files.set(id, bytes);
+    } catch { /* The existing source may still be accessible; otherwise warn. */ }
+  }
+  return files;
+}
+
 export type RestoreSnapshot = Awaited<ReturnType<typeof readRestorableArchive>>;
 export type UploadRestored = (file: File) => Promise<Asset>;
 export type CheckExisting = (asset: Asset) => Promise<boolean>;
