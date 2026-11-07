@@ -92,6 +92,34 @@ test("three ordinary blocks compose a value in preview and server generated outp
   assert.doesNotThrow(() => transformSync(server, { loader: "tsx", jsx: "automatic" }));
 });
 
+test("holiday dictionary transforms are previewable and serializable in generated server output", () => {
+  const doc = scriptDataPickerDoc();
+  const steps = doc.pages.p.pageScripts![0].steps;
+  steps.push(
+    { id: "holidays-fetch", kind: "fetch", as: "祝日",
+      url: "https://holidays-jp.github.io/api/v1/date.json",
+      sample: { "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" } },
+    { id: "today", kind: "set-var", into: "今日の日付", value: "2026-11-23" },
+    { id: "todays-holiday", kind: "transform", source: "祝日", into: "今日の祝日",
+      transform: { kind: "field", key: "{今日の日付}" } },
+    { id: "holiday-rows", kind: "transform", source: "祝日", into: "祝日一覧",
+      transform: { kind: "object-entries", keyField: "日付", valueField: "祝日名" } },
+  );
+  const preview = previewDataVars(doc, "p");
+  assert.equal(preview["今日の祝日"], "勤労感謝の日");
+  assert.deepEqual(preview["祝日一覧"], [
+    { "日付": "2026-11-03", "祝日名": "文化の日" },
+    { "日付": "2026-11-23", "祝日名": "勤労感謝の日" },
+  ]);
+  const plan = pagePlan(doc, "p");
+  assert.ok(plan.serverIds.has("todays-holiday"));
+  assert.ok(plan.serverIds.has("holiday-rows"));
+  const files = generateProject(doc).files;
+  assert.match(files["app/page.tsx"], /"object-entries"/);
+  assert.match(files["lib/value-recipe.ts"], /"object-entries"/);
+  assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
+});
+
 test("server data transforms interpolate strings and source variables without client-only adapters", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
