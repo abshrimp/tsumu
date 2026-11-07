@@ -106,10 +106,16 @@ export function exportLimitations(
       "クエリ別ページ");
   }
   const project = existing ?? generateProject(doc);
-  add(Object.entries(project.files).some(([path, source]) =>
-    /^app\/(?:.*\/)?(?:_q\/p\d+|page)\.tsx$/.test(path) &&
-    needsServerRuntime(source)
-  ), "サーバーでのデータ取得・変数処理");
+  add(Object.entries(project.files).some(([path, source]) => {
+    if (!/^app\/(?:.*\/)?(?:_q\/p\d+|page)\.tsx$/.test(path)) return false;
+    if (options.framework === "react") {
+      // Query dispatchers are replaced by React's client-side route table.
+      if (source.includes("const variants: Variant[]")) return false;
+      // The browser URL can supply the query that Next.js otherwise awaits.
+      return needsServerRuntime(source.replaceAll("await searchParams", ""));
+    }
+    return needsServerRuntime(source);
+  }), "サーバーでのデータ取得・変数処理");
 
   if (options.framework === "react") {
     add(!!doc.customBodyEndHtml?.match(/<script\b/i),
