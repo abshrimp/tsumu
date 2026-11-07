@@ -35,7 +35,7 @@ test("one value input keeps raw objects, save/load and Undo without mode or redu
   await expect(b.getByRole("button", { name: "データを選ぶ", exact: true })).toHaveCount(0);
   await openPicker(page); await pick(page, "data");
   expect(await selected(page)).toBe("{data}");
-  await expect(b.locator(".se-value-info")).toContainText("まとまり");
+  await expect(b.locator(".se-value-info")).toContainText("項目付きデータ");
   const changed = await snapshot(page);
   await page.getByRole("button", { name: "取り消す", exact: true }).click(); expect(await snapshot(page)).toEqual(before);
   await page.getByRole("button", { name: "やり直す", exact: true }).click(); expect(await snapshot(page)).toEqual(changed);
@@ -163,7 +163,7 @@ test("inline dropdown selection replaces an existing raw object reference with a
   await page.locator(".var-comp-list button").filter({ has: page.locator(".var-chip").filter({ hasText: /^data.tags$/ }) }).click();
   await expect(input).toHaveValue("{data.tags}"); await input.blur();
   expect(await selected(page)).toBe("{data.tags}");
-  await expect(block(page, "value").locator(".se-value-info")).toContainText("一覧");
+  await expect(block(page, "value").locator(".se-value-info")).toContainText("リスト");
 });
 
 for (const width of [1440, 375, 320]) {
