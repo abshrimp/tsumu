@@ -126,8 +126,13 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
       return tr("{seconds}秒待つ", { seconds: st.seconds });
     case "fetch":
       return tr("{p1} のデータを取得して「{p2}」とする", { p1: st.url || tr("URL未入力"), p2: st.as || "?" });
-    case "if":
-      return tr("もし {p1} なら…", { p1: condText(st.cond) });
+    case "if": {
+      const clauses = [st.cond, ...(st.conditions ?? [])];
+      const condition = clauses.map((clause, index) =>
+        (index === 0 ? "" : "and" in clause && clause.and ? tr(" かつ ") : tr(" または ")) +
+        condText(clause)).join("");
+      return tr("もし {p1} なら…", { p1: condition });
+    }
   }
 }
 
