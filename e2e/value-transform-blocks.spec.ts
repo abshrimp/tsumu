@@ -179,6 +179,32 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " interpolates mixed text in fallback blocks", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "unused", [
+      { id: "name", kind: "set-var", into: "name", value: "田中" },
+      { id: "fallback", kind: "transform", source: "missing", into: "items",
+        transform: { kind: "fallback", text: "こんにちは、{name}さん" } },
+    ]);
+    await expect(answer).toHaveValue("こんにちは、田中さん");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " resolves inline variables in list operations", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, '["red","blue","green"]', [
+      { id: "color", kind: "set-var", into: "color", value: "red" },
+      { id: "separator", kind: "set-var", into: "separator", value: " / " },
+      { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
+      { id: "remove", kind: "transform", source: "items", into: "items",
+        transform: { kind: "remove", operand: "{color}", operandType: "text" } },
+      { id: "join", kind: "transform", source: "items", into: "items",
+        transform: { kind: "join", separator: "{separator}" } },
+    ]);
+    await expect(answer).toHaveValue("blue / green");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
@@ -372,6 +398,26 @@ test("canvas math supports selecting an existing variable as the arithmetic oper
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "numeric").transform;
   })).toMatchObject({ kind: "math", operandType: "variable", operand: "data" });
+});
+
+test("canvas fallback uses one text field for text mixed with variables", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "fallback-inline", kind: "transform", source: "data.name", into: "chosen",
+        transform: { kind: "fallback", text: "" },
+      });
+    });
+  });
+  const box = page.locator('[data-sel-key="step:fallback-inline"]');
+  const value = box.getByPlaceholder("代わりに使う値 / {変数}");
+  await expect(value).toBeVisible();
+  await value.fill("こんにちは、{data.name}さん");
+  await value.blur();
+  await expect.poll(() => page.evaluate(() => {
+    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
+    return steps.find((step: any) => step.id === "fallback-inline").transform.text;
+  })).toBe("こんにちは、{data.name}さん");
 });
 
 test("canvas comparison offers existing variables and keeps the chosen reference", async ({ page }) => {
