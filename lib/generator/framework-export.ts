@@ -6,8 +6,6 @@ import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME } from "./browser-data";
 import { reactClientPageFragment } from "./html-export";
 import { usedGoogleFonts } from "./css";
-import { buildAssetNames } from "./names";
-import { imageRefSrc } from "./render-helpers";
 
 /**
  * Vue, Nuxt and SvelteKit run the existing browser-only data and event
@@ -103,10 +101,6 @@ function commonFiles(doc: SiteDoc, next: GeneratedProject, framework: Additional
   const scriptPaths = ["inview.js", "data-loader.js", "scripts.js", "pwa.js"]
     .filter((file) => !!files[assetPrefix + file]).map((name) => "/" + name);
   files[assetPrefix + "browser-start.js"] = startup(scriptPaths);
-  const assets = buildAssetNames(doc);
-  const favicon = imageRefSrc(assets, doc.favicon);
-  if (favicon) files[assetPrefix + "favicon.svg"] = ""; // replaced below by an existing referenced favicon
-  delete files[assetPrefix + "favicon.svg"];
   const baseCss = fonts(doc) + "\n" + next.files["app/globals.css"];
   const siteCss = next.files["styles/site.css"];
   files["README.md"] = [
@@ -143,17 +137,17 @@ export function buildAdditionalFramework(
     files["src/site.css"] = common.siteCss;
     files["src/App.vue"] = [
       '<script setup' + (ts ? ' lang="ts"' : "") + '>',
-      'import { onMounted, ref } from "vue";',
+      'import { onMounted, nextTick, ref } from "vue";',
       'import { currentPage, pageTitle } from "./site-routes";',
       'import { startPage } from "./browser-start";',
-      'const current = ref(null);',
+      ts ? 'const current = ref<ReturnType<typeof currentPage>>(null);' : 'const current = ref(null);',
       'onMounted(async () => {',
       '  current.value = currentPage();',
       '  document.title = pageTitle(current.value);',
       '  document.documentElement.lang = current.value?.lang || ' + json(doc.lang || "ja") + ";",
       '  const meta = document.querySelector(\'meta[name="description"]\');',
       '  if (meta) meta.setAttribute("content", current.value?.description || "");',
-      '  await new Promise((resolve) => requestAnimationFrame(resolve));',
+      '  await nextTick();',
       '  await startPage();',
       '});',
       '</script>',
