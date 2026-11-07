@@ -184,7 +184,39 @@ A simple page-load script:
 }
 ```
 
-Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; valid kinds include `show`, `hide`, `toggle`, `open-page`, `open-url`, `scroll-to`, `set-value`, `set-var`, `calc`, `replace`, `if`, `wait`, `repeat`, `fetch`, `filter-array`, `sort-array`, and others. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** Page-load data fetch steps have additional placement restrictions.
+Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps form a tagged union. The current composable model uses one block for each action: `set-var`, `transform`, `list-display`, `if`, `for-each`, `repeat`, `fetch` and other UI/navigation actions. Do not generate removed legacy actions such as standalone `split`, `join`, `count`, `array-find`, `array-field`, `filter-array`, `sort-array`, `unfilter-array`, `calc`, `replace` or `list-edit`.
+
+A value-processing step is a `transform`, with one transformation per block. Chain blocks by referring to the preceding output variable:
+
+```json
+{
+  "id": "count_items",
+  "kind": "transform",
+  "source": "items",
+  "into": "itemCount",
+  "transform": { "kind": "length" }
+}
+```
+
+A `list-display` step changes filtering or sorting for an array used by a list element. For example:
+
+```json
+{
+  "id": "only_active",
+  "kind": "list-display",
+  "mode": "filter",
+  "array": "items",
+  "field": "status",
+  "op": "eq",
+  "value": "active"
+}
+```
+
+An `if` step has `cond` and optional `conditions`; each additional condition has `and: true` (AND) or `and: false` (OR). AND binds before OR. Negation uses the individual condition's `not` property. Only data-only variable conditions may run in a pre-render page-load plan; element conditions remain in browser scripts.
+
+For a JSON object with dynamic keys (e.g. date keys), use the `object-entries` value transformation to convert it to an array with explicit `keyField` and `valueField` names, then use the array in a list.
+
+The authoritative data shapes are `ScriptStep` and `ValueTransform` in the current `lib/types.ts` and `lib/script-model/compose.ts`. The external `doc.json` may use either plain `SiteDoc` or the versioned compressed envelope described above, but that transport wrapper is **not** a script block or editor node.
 
 ## Assets and packaging
 
