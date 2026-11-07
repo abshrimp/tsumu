@@ -388,6 +388,7 @@ export function applyNativeFramework(
     "Browser scripts retain editor-authored actions and update native reactive state.",
     "", "Run npm install and npm run dev. Run npm run build for production.",
     "Public APIs must allow server requests and may require CORS for client navigation.",
+    "External SSR API requests use pinned public IPv4 DNS answers and require Node.js 22+; non-Node/edge runtimes will fail closed.",
     "",
   ].join("\n");
   return { ...project, files };
