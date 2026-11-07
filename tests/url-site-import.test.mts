@@ -5,7 +5,7 @@ import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 import {
   parseRestoredDoc, readRestorableArchive, readRestorableJson,
-  restoreAssets, SOURCE_LIMIT, ZIP_ENTRY_LIMIT,
+  restoreAssets, recoverPublicAssetBytes, SOURCE_LIMIT, ZIP_ENTRY_LIMIT,
 } from "../lib/url-site-import";
 
 const doc = (): SiteDoc => ({
@@ -97,4 +97,23 @@ test("supports the newer neutral metadata directory in addition to legacy archiv
   zip.file("_site-data/doc.json", JSON.stringify(doc()));
   const parsed = await readRestorableArchive(await zip.generateAsync({ type: "uint8array" }));
   assert.equal(parsed.doc.siteName, "Restored document");
+});
+
+test("remote image URLs are recovered when ZIP or JSON lacks an asset", async () => {
+  const d = doc();
+  d.nodes.picture.image!.src = "https://cdn.example.test/images/cover.png";
+  const fetched: string[] = [];
+  const files = await recoverPublicAssetBytes(d, new Map(), async (url) => {
+    fetched.push(url);
+    return Uint8Array.of(1, 2, 3);
+  });
+  assert.deepEqual(fetched, ["https://cdn.example.test/images/cover.png"]);
+  assert.deepEqual([...files.get("cover")!], [1, 2, 3]);
+  const saved = await restoreAssets(d, files, async () => ({
+    id: "another-id", name: "cover.png", mimeType: "image/png",
+    bytes: 3, width: 1, height: 1, path: "assets/recovered.png",
+  }));
+  assert.deepEqual(saved.warnings, []);
+  assert.equal(saved.doc.assets.cover.id, "cover");
+  assert.equal(saved.doc.assets.cover.path, "assets/recovered.png");
 });
