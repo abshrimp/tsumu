@@ -15,7 +15,7 @@ import { tr } from "../../lib/i18n";
 import { AnyArraySelect, itemFieldsOf } from "./arrays";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, ScriptStepCtx, type FetchPreviewScope } from "./context";
 import { FetchResult } from "./fetch";
-import { CondEditor, Phrase, TextIn } from "./inputs";
+import { CondEditor, NumericVariableIn, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";
@@ -95,8 +95,8 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
           ctx.openMenu(e, { type: "step", loc }, key),
       };
   if (step.kind === "repeat") {
-    const forever = step.times <= 0;
-    const setTimes = (times: number) =>
+    const forever = typeof step.times === "number" && step.times <= 0;
+    const setTimes = (times: number | string) =>
       ctx.updateStep(step.id, (s) => ({ ...s, times }) as ScriptStep);
     return (
       <div className={`se-c${sel}`} {...handlers}>
@@ -106,12 +106,8 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
             text="{times}{mode}"
             parts={{
               times: !forever && (
-                <TextIn
-                  type="number"
-                  value={String(step.times)}
-                  width={52}
-                  onCommit={(v) => setTimes(Math.max(1, Math.min(1000, Math.round(Number(v) || 1))))}
-                />
+                <NumericVariableIn value={step.times} onCommit={setTimes}
+                  integer min={1} max={1000} width={52} />
               ),
               mode: (
                 <select
