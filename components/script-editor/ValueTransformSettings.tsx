@@ -21,6 +21,7 @@ export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
   format: "文字列に変換する",
   stringify: "JSON文字列に変換する",
   parse: "JSON文字列を読み取る",
+  "object-entries": "オブジェクトをリストに変換する",
   fallback: "値がないとき別の値を使う",
   "fallback-nullish": "値がないかnullなら別の値を使う",
   math: "数値を計算する",
@@ -40,13 +41,14 @@ export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
 };
 
 const DESCRIPTIONS: Record<ValueTransformKind, string> = {
-  field: "項目付きデータから指定した項目の値を取り出します。",
+  field: "項目付きデータから指定したキーの値を取り出します。キーには{変数}も使えます。",
   index: "リストの先頭を0として、指定した位置の値を取り出します。",
   has: "指定した項目が存在するかをtrueまたはfalseで返します。",
   length: "リストにある要素の数を返します。",
   format: "文字・数値・真偽値を文字列にします。リストは変換できません。",
   stringify: "リストや項目付きデータも含め、JSON形式の文字列にします。",
   parse: "JSON形式の文字列を読み取り、データとして使える値にします。",
+  "object-entries": "オブジェクトのキーと値を、列名を指定できるリストに変換します。元のデータは変更しません。",
   fallback: "値が存在しない場合だけ別の値を使います。nullには適用しません。",
   "fallback-nullish": "値が存在しない場合とnullの場合に、別の値を使います。",
   math: "数値に指定した数を足す・引く・掛ける・割るなどを行います。0で割るとエラーになります。",
@@ -68,7 +70,7 @@ const DESCRIPTIONS: Record<ValueTransformKind, string> = {
 export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
   { label: "値を取り出す", kinds: ["field", "index", "find", "map-field"] },
   { label: "値を調べる", kinds: ["has", "length", "compare", "not"] },
-  { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "split", "join", "replace"] },
+  { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "object-entries", "split", "join", "replace"] },
   { label: "リストを加工する", kinds: ["filter", "map-set", "sort", "append", "remove", "remove-at"] },
   { label: "値を補う", kinds: ["fallback", "fallback-nullish"] },
 ];
@@ -340,6 +342,19 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
   samples: Record<string, unknown>;
 }) {
   const allOptions = fieldSuggestions(options, samples);
+  if (transform.kind === "object-entries") return (
+    <div className="se-composer-step-settings">
+      <Phrase text="キーの項目名{key}値の項目名{value}" parts={{
+        key: <TextIn vars value={transform.keyField} width={125}
+          placeholder={tr("キーの項目名")}
+          onCommit={(keyField) => onChange({ ...transform, keyField })} />,
+        value: <TextIn vars value={transform.valueField} width={125}
+          placeholder={tr("値の項目名")}
+          onCommit={(valueField) => onChange({ ...transform, valueField })} />,
+      }} />
+    </div>
+  );
+
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
       <select className="se-in se-fixed-select" aria-label={tr("計算方法")} value={transform.operation}
@@ -480,6 +495,7 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
   if (transform.kind === "field" || transform.kind === "has") return (
     <div className="se-composer-step-settings">
       <FieldKeyPicker value={transform.key} options={allOptions}
+        placeholder={tr("項目名 / {変数}")}
         onChange={(key) => onChange({ ...transform, key })} />
     </div>
   );
