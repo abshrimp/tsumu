@@ -88,5 +88,8 @@ jobs:
       - name: Audit generated production dependencies
         run: npm audit --omit=dev --audit-level=high
         working-directory: .generated-export-smoke
+      - name: Audit generated dependencies including tooling
+        run: npm audit --audit-level=high
+        working-directory: .generated-export-smoke
       - name: Verify production SSR response
         run: node --import tsx scripts/check-generated-ssr.mts ${{ matrix.framework }}
