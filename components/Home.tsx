@@ -30,7 +30,7 @@ import { createInitialDoc } from "../lib/presets";
 import { uploadStaticAsset } from "../lib/assets";
 import {
   SOURCE_LIMIT, readRestorableArchive, readRestorableJson, restoreAssets,
-  importWarningsKey,
+  recoverPublicAssetBytes, importWarningsKey,
 } from "../lib/url-site-import";
 import {
   DOC_STORAGE_KEY,
@@ -537,9 +537,20 @@ export default function Home() {
       const snapshot = kind === "zip"
         ? await readRestorableArchive(bytes)
         : await readRestorableJson(bytes);
+      const available = await recoverPublicAssetBytes(snapshot.doc, snapshot.assets,
+        async (assetUrl) => {
+          const response = await fetch("/api/import-source?url=" + encodeURIComponent(assetUrl));
+          if (!response.ok || Number(response.headers.get("content-length") || 0) > SOURCE_LIMIT) {
+            await response.body?.cancel().catch(() => {});
+            throw new Error("Asset unavailable");
+          }
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          if (bytes.byteLength > SOURCE_LIMIT) throw new Error("Asset too large");
+          return bytes;
+        });
       const { doc, warnings } = await restoreAssets(
         snapshot.doc,
-        snapshot.assets,
+        available,
         uploadStaticAsset,
         async (asset) => {
           if (!asset.path || !/^assets\/[\w.-]+(?:\/[\w.-]+)*$/.test(asset.path)) return false;
