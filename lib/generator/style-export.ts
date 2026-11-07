@@ -112,7 +112,7 @@ function addCssModules(files: Record<string, string>, framework: ExportFormat) {
         .replace('    </>\n', '    </div>\n');
   } else if (framework === "vue" || framework === "nuxt") {
     if (framework === "vue") {
-      for (const name of ["src/main.ts", "src/main.js"]) {
+      for (const name of ["src/entry-client.ts", "src/entry-client.js", "src/main.ts", "src/main.js"]) {
         if (files[name]) files[name] = files[name].replace('"./site.css"', '"./site-global.css"');
       }
       files["src/App.vue"] = files["src/App.vue"]
