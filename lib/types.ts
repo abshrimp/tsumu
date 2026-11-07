@@ -144,7 +144,7 @@ export interface BreakpointDef {
   /** この幅以下に効く（max-width） */
   maxWidth: number;
 }
-export type StyleState = "default" | "hover" | "active" | "focus";
+export type StyleState = "default" | "hover" | "active" | "focus" | `custom:${string}`;
 
 /** camelCase CSS プロパティ → 値 */
 export type StyleMap = Record<string, string>;
@@ -225,6 +225,7 @@ export interface FilterCond {
 
 export type ScriptStep = { id: string } & (
   | { kind: "show" | "hide" | "toggle"; target: string }
+  | { kind: "set-state"; target: string; state: string }
   | { kind: "open-page"; pageId: string; newTab?: boolean }
   | { kind: "open-url"; url: string; newTab?: boolean }
   | { kind: "scroll-to"; target: string }
