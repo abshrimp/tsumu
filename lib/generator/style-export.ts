@@ -87,13 +87,13 @@ export function splitCssModule(source: string): { global: string; module: string
     const globalSelectors: string[] = [], moduleSelectors: string[] = [];
     for (const selector of splitSelectors(prelude)) {
       if (/^\.[\w-]|^\[data-instance-hidden/.test(selector)) {
-        moduleSelectors.push(".tsumuRoot :global(" + selector + ")");
+        moduleSelectors.push(".siteRoot :global(" + selector + ")");
       } else globalSelectors.push(selector);
     }
     if (globalSelectors.length) global.push(globalSelectors.join(",\n") + " {" + body + "}");
     if (moduleSelectors.length) module.push(moduleSelectors.join(",\n") + " {" + body + "}");
   }
-  return { global: global.join("\n\n") + "\n", module: ".tsumuRoot { display: contents; }\n\n" + module.join("\n\n") + "\n" };
+  return { global: global.join("\n\n") + "\n", module: ".siteRoot { display: contents; }\n\n" + module.join("\n\n") + "\n" };
 }
 
 function addCssModules(files: Record<string, string>, framework: ExportFormat) {
@@ -106,14 +106,14 @@ function addCssModules(files: Record<string, string>, framework: ExportFormat) {
     files["src/site.module.css"] = result.module;
     files["src/main.tsx"] = files["src/main.tsx"].replace('"./site.css"', '"./site-global.css"');
     files["src/App.tsx"] = 'import siteStyles from "./site.module.css";\n' +
-      files["src/App.tsx"].replace('    <>\n', '    <div className={siteStyles.tsumuRoot}>\n')
+      files["src/App.tsx"].replace('    <>\n', '    <div className={siteStyles.siteRoot}>\n')
         .replace('    </>\n', '    </div>\n');
   } else {
     files["styles/site-global.css"] = result.global;
     files["styles/site.module.css"] = result.module;
     files["app/layout.tsx"] = files["app/layout.tsx"]
       .replace('import "../styles/site.css";', 'import "../styles/site-global.css";\nimport siteStyles from "../styles/site.module.css";')
-      .replace(/(<body(?:\s[^>]*)?>)/, '$1\n        <div className={siteStyles.tsumuRoot}>')
+      .replace(/(<body(?:\s[^>]*)?>)/, '$1\n        <div className={siteStyles.siteRoot}>')
       .replace("</body>", "</div>\n      </body>");
   }
 }
@@ -152,6 +152,6 @@ export function applyExportStyle(
   else addTailwind(files, framework);
   files["README.md"] += style === "css-modules"
     ? "\nCSS Modules: generated node styles are scoped to the site root; body rules and animation keyframes remain global.\n"
-    : "\nTailwind CSS 4 utilities are enabled. Tsumu's generated CSS is retained to preserve authored visual styles.\n";
+    : "\nTailwind CSS 4 utilities are enabled. The original generated CSS is retained to preserve authored visual styles.\n";
   return { ...project, files };
 }
