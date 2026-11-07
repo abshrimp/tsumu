@@ -212,7 +212,7 @@ export function nodeAssetSrc(asset: Asset): string {
 /** 画像・動画の要素の表示用URL（アセットを使っていれば、アセットから引く） */
 export function mediaSrc(doc: SiteDoc, ref: { src: string; assetId?: string }): string {
   const asset = ref.assetId ? doc.assets[ref.assetId] : undefined;
-  return asset ? assetSrc(asset) : ref.src;
+  return asset ? (assetSrc(asset) || ref.src) : ref.src;
 }
 
 /** 要素の src に、埋め込みアセットの dataURL が複製されているもの（以前の形式） */

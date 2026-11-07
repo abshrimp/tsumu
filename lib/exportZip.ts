@@ -1,6 +1,8 @@
 import JSZip from "jszip";
 import type { SiteDoc } from "./types";
 import { generateProject } from "./generator";
+import { buildAssetNames } from "./generator/names";
+import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from "./site-import";
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
 import { tr } from "./i18n";
 
@@ -14,6 +16,13 @@ export async function exportProjectZip(doc: SiteDoc): Promise<string[]> {
       .replace(/[^a-z0-9-]+/g, "-")
       .replace(/^-+|-+$/g, "") || "my-site";
   const root = zip.folder(dirName)!;
+  // Editable source and original asset IDs are stored separately from generated
+  // website code. Importing this archive never needs to parse rendered HTML.
+  root.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
+  const names = buildAssetNames(doc);
+  const assetMap: ArchiveAssetMap = { version: 1, assets: {} };
+  for (const [id, name] of names) assetMap.assets[id] = "public/assets/" + name;
+  root.file(EDITABLE_ASSETS_PATH, JSON.stringify(assetMap));
 
   for (const [path, content] of Object.entries(files)) {
     root.file(path, content);

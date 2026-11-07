@@ -27,6 +27,7 @@ import AllowedAccounts from "./AllowedAccounts";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
+import { createSiteFromUrl, requestedSiteImport, type ImportRequest } from "../lib/import-site-url";
 import {
   DOC_STORAGE_KEY,
   SITE_SCOPED_KEYS,
@@ -461,6 +462,11 @@ export default function Home() {
   /** 開いているダイアログ（"new" = 新しいサイト / サイト = その設定 / copy = そのサイトの複製） */
   const [dialog, setDialog] = useState<"new" | SiteRecord | { copy: SiteRecord } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const importRequest = useRef<ImportRequest | null>(null);
+  const importActive = useRef(false);
+  const [importStatus, setImportStatus] = useState<
+    { kind: "loading"; message: string } | { kind: "error"; message: string } | null
+  >(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -490,6 +496,41 @@ export default function Home() {
   }, [load]);
 
   useEffect(() => installNoDblClickSelect(), []);
+
+  const runUrlImport = useCallback(async () => {
+    if (!store || !importRequest.current || importActive.current) return;
+    importActive.current = true;
+    setImportStatus({ kind: "loading", message: tr("編集データを取得しています…") });
+    try {
+      const { id } = await createSiteFromUrl(importRequest.current, store,
+        (message) => setImportStatus({ kind: "loading", message: tr(message) }));
+      window.location.replace(sitePath(id));
+    } catch (error) {
+      setImportStatus({ kind: "error", message: error instanceof Error ?
+        tr(error.message) : tr("サイトを復元できませんでした。") });
+    } finally {
+      importActive.current = false;
+    }
+  }, [store]);
+
+  useEffect(() => {
+    if (!store || importRequest.current || importActive.current) return;
+    const search = new URLSearchParams(window.location.search);
+    if (!search.has("zip") && !search.has("doc")) return;
+    // Consume the one-shot URL before sending any request. Reloading while
+    // an import is in progress must not create a second site.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("zip");
+    url.searchParams.delete("doc");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    try {
+      importRequest.current = requestedSiteImport(search);
+      void runUrlImport();
+    } catch (error) {
+      setImportStatus({ kind: "error", message: error instanceof Error ?
+        tr(error.message) : tr("インポートするURLが正しくありません。") });
+    }
+  }, [store, runUrlImport]);
 
   // エディタの「サイトの設定を開く」から来たときは、そのサイトの設定を開く
   useEffect(() => {
@@ -667,6 +708,21 @@ export default function Home() {
             </button>
           </div>
         </div>
+
+        {importStatus && (
+          <div className={`home-notice${importStatus.kind === "error" ? " is-error" : ""}`}
+            role={importStatus.kind === "error" ? "alert" : "status"}>
+            {importStatus.kind === "error"
+              ? <TriangleAlert size={14} />
+              : <LoaderCircle size={14} className="spin" />}
+            <p>{importStatus.message}</p>
+            {importStatus.kind === "error" && importRequest.current && (
+              <button type="button" className="btn btn-sm" onClick={() => void runUrlImport()}>
+                {tr("再試行")}
+              </button>
+            )}
+          </div>
+        )}
 
         {store === "local" && (
           <div className="home-notice">
