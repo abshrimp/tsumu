@@ -315,13 +315,13 @@ function RecipeConditionLine({ condition, fieldEnabled, options, onChange,
           ? "{join}{field}が{value}{op}{negation}{remove}"
           : "{join}{value}{op}{negation}{remove}"}
         parts={{
-          join: join && (
+          join: join ? (
             <select className="se-in se-fixed-select" aria-label={tr("条件のつなぎ方")}
               value={join} onChange={(e) => onJoinChange?.(e.target.value as "and" | "or")}>
               <option value="and">{tr("かつ")}</option>
               <option value="or">{tr("または")}</option>
             </select>
-          ),
+          ) : false,
           field: fieldEnabled && <FieldKeyPicker value={condition.field} options={options}
             ariaLabel={tr("リスト内の項目名")} placeholder={tr("項目（空なら要素自身）")}
             onChange={(field) => onChange({ field })} />,
@@ -340,10 +340,10 @@ function RecipeConditionLine({ condition, fieldEnabled, options, onChange,
           ),
           negation: <NegationSelect not={condition.not}
             operation={condition.operation} onChange={(not) => onChange({ not })} />,
-          remove: onRemove && (
+          remove: onRemove ? (
             <button type="button" className="se-mini" aria-label={tr("この条件を削除")}
               onClick={onRemove}><X size={12} /></button>
-          ),
+          ) : false,
         }}
       />
     </div>
