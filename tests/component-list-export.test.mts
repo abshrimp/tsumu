@@ -137,7 +137,13 @@ test("client-list templates retain placeholders and raw content through conversi
   const before = await publishedComponentList(doc), after = await publishedComponentList(convert(doc));
   assert.deepEqual(details(after), details(before));
   assert.match(after, /data-client-list/); assert.match(after, /data-tpl/);
-  assert.match(after, /data-raw/); assert.match(after, /Detail \{name\}:\{label\}/);
+  assert.match(after, /data-raw/);
+  assert.match(after, /<b>\{label\}<\/b>/, "custom code must remain literal");
+  const templateDetail = parse(after).querySelector('[data-tpl] [id="detail"]');
+  assert.ok(templateDetail, "the client-list template retains its detail node");
+  const parts = JSON.parse(templateDetail.getAttribute("data-text-parts") ?? "[]");
+  assert.deepEqual(parts, ["Detail ", { name: "name" }, ":", { name: "label" }, ""],
+    "text placeholders are encoded as structured parts, not interpolated template text");
   const templateScripts = (html: string) => parse(html).querySelectorAll("[data-tpl] [data-scripts]")
     .map((el: any) => JSON.parse(el.getAttribute("data-scripts")));
   assert.deepEqual(templateScripts(after), templateScripts(before));
