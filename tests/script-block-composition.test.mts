@@ -37,7 +37,7 @@ test("list filters invert individual conditions without duplicating negative ope
   ] };
   assert.deepEqual(filterItems(items, [filter]), [items[1]]);
   const expr = filterPredicate([filter], "vars");
-  assert.match(expr ?? "", /!\\(/);
+  assert.match(expr ?? "", /!\(/);
   assert.match(expr ?? "", /includes/);
   assert.match(expr ?? "", /&&/);
   assert.deepEqual(filterItems(items, [{ kind: "filter",
@@ -81,8 +81,8 @@ test("server data transforms interpolate strings and source variables without cl
   assert.equal(vars.greeting, "こんにちは、田中さん");
   assert.equal(vars.cost, 12);
   const generated = generateProject(doc).files["app/page.tsx"];
-  assert.match(generated, /こんにちは、\\\\{person\\\\}さん/);
-  assert.match(generated, /"key":"\\\\{lookupField\\\\}"/);
+  assert.ok(generated.includes("こんにちは、{person}さん"));
+  assert.ok(generated.includes('"key":"{lookupField}"'));
   assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
 });
 
