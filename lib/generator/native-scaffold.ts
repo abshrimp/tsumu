@@ -162,7 +162,7 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
     '});',
     '</script>',
     '<svelte:head>',
-    '  <title>{data.title} | ' + siteName.replace(/[<>&]/g, "") + '</title>',
+    '  <title>{data.title} | {' + json(siteName).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\{/g, "\\u007b").replace(/\}/g, "\\u007d") + '}</title>',
     '  <meta name="description" content={data.description} />',
     '</svelte:head>',
     ...pages.map((page, i) => (i ? "{:else if " : "{#if ") + "data.id === " + json(page.id) + "}",
