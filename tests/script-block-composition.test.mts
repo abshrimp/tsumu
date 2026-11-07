@@ -33,7 +33,7 @@ test("three ordinary blocks compose a value in preview and server generated outp
   for (const block of chain) assert.ok(plan.serverIds.has(block.id));
   assert.equal(previewDataVars(doc, "p").chosen, 7);
   const files = generateProject(doc).files;
-  assert.ok(files["lib/value-recipe.js"]);
+  assert.ok(files["lib/value-recipe.ts"]);
   const server = files["app/page.tsx"];
   assert.match(server, /__evalValueRecipe/);
   assert.match(server, /"math"/);

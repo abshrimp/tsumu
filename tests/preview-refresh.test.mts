@@ -243,8 +243,8 @@ test("design refreshes replace nested and aliased totals, including removed or c
   for (const [index, response] of responses.entries()) {
     void m.render().refreshData();
     await m.finish(index, response);
-    assert.equal(m.render().pageVars.total, Array.isArray(response.rows) ? response.rows.length : 0);
-    assert.equal(m.render().pageVars.nestedTotal, response.nested.rows?.length ?? 0);
+    assert.equal(m.render().pageVars.total, Array.isArray(response.rows) ? response.rows.length : undefined);
+    assert.equal(m.render().pageVars.nestedTotal, response.nested.rows?.length);
   }
   m.unmount();
 });

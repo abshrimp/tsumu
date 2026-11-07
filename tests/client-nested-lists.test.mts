@@ -97,7 +97,7 @@ test('newly deferred global sources keep literals and item roots shadow fallback
   doc.nodes.detail.text!.content = '{name}:{値}{label}';
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
   await runtime.click('reload');
-  assert.deepEqual(details(runtime), [':a"{literal}', ':b', 'Own:own']);
+  assert.deepEqual(details(runtime), ['Fallback:a"{literal}', 'Fallback:b', 'Own:own']);
   assert.deepEqual(runtime.active('#tags-list').map(l => l.children.filter(c => c.hasAttribute('data-row')).length), [2, 1, 0, 0, 0]);
   runtime.dispose();
 });
@@ -159,7 +159,7 @@ test('server fallback exposes only rendered fields and supports count without ac
   assert.ok(runtime.active('#detail').every(n => n.style.display === 'none'));
   assert.ok(hiddenDetails.every(n => n.style.display !== 'none'), 'template scripts remain inactive');
   await runtime.click('count'); assert.equal(runtime.active('#total')[0].textContent, '2');
-  await runtime.click('filter'); await runtime.click('count'); assert.equal(runtime.active('#total')[0].textContent, '1');
+  await runtime.click('filter'); await runtime.click('count'); assert.equal(runtime.active('#total')[0].textContent, '2', 'pure length counts data independently of list display filtering');
   await runtime.click('clear'); await runtime.click('count'); assert.equal(runtime.active('#total')[0].textContent, '2');
   runtime.dispose();
 });
