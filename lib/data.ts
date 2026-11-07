@@ -504,7 +504,9 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         // A load-time, pure value chain or constant assignment can run on the server.
         const src = st.kind === "transform" ? st.source : setVarSource(st);
         if (!st.into || (!src && !(st.kind === "set-var" && !extractVars(st.value).length))) continue;
-        if ((src && isClient(src)) || clientVars.has(st.into)) {
+        const operand = st.kind === "transform" && "operandType" in st.transform &&
+          st.transform.operandType === "variable" ? st.transform.operand : null;
+        if ((src && isClient(src)) || (operand && isClient(operand)) || clientVars.has(st.into)) {
           clientVars.add(st.into);
         } else {
           steps.push(st);
