@@ -78,3 +78,62 @@ test("React JSX adaptation removes only framework-specific JSX wrappers", () => 
   assert.doesNotMatch(result, /next\/|export const metadata/);
   assert.throws(() => reactSource('import { notFound } from "next/navigation";'));
 });
+
+
+test("React export preserves query-variant routing", () => {
+  const doc = fixture();
+  doc.pages.tab = { ...doc.pages.home, id: "tab", name: "Tab", title: "Tab", query: "tab=2" };
+  doc.pageOrder.push("tab");
+  const result = generateExportProject(doc, "react");
+  assert.match(result.files["src/App.tsx"], /"tab":"2"/);
+  assert.match(result.files["src/App.tsx"], /matches\.sort/);
+  assert.ok(result.files["src/pages/Page1.tsx"]);
+});
+
+test("React export includes native forms and PWA manifest", () => {
+  const doc = fixture();
+  const form = { ...makeBox(), id: "search", semantic: "form" as const, children: ["hero"] };
+  doc.nodes.search = form;
+  doc.pages.home.children = ["search"];
+  doc.pwa = { enabled: true };
+  const result = generateExportProject(doc, "react");
+  assert.match(result.files["src/components/SearchForm.tsx"], /window\.location\.assign/);
+  assert.ok(result.files["public/manifest.webmanifest"]);
+  assert.match(result.files["index.html"], /manifest\.webmanifest/);
+});
+
+test("export scope isolates one page or the selected node", () => {
+  const doc = fixture();
+  doc.pages.other = { id: "other", name: "Other", title: "Other", slug: "other", description: "", children: [] };
+  doc.pageOrder.push("other");
+  const opts = { framework: "react" as const, language: "typescript" as const, style: "css" as const, pageId: "home" };
+  const page = generateExportProject(doc, { ...opts, scope: "page" });
+  assert.doesNotMatch(page.files["src/App.tsx"], /"\/other"/);
+  const component = generateExportProject(doc, { ...opts, scope: "component", nodeId: "hero" });
+  assert.match(component.files["src/pages/Page0.tsx"], /Hello/);
+  assert.ok(exportLimitations(doc, { ...opts, scope: "component" }).length > 0);
+});
+
+test("CSS Modules and Tailwind retain Tsumu's authored CSS", () => {
+  const doc = fixture();
+  const options = { framework: "react" as const, language: "typescript" as const, scope: "project" as const };
+  const modules = generateExportProject(doc, { ...options, style: "css-modules" });
+  assert.match(modules.files["src/App.tsx"], /siteStyles\.tsumuRoot/);
+  assert.ok(modules.files["src/site.module.css"]);
+  assert.ok(modules.files["src/site-global.css"]);
+  const tailwind = generateExportProject(doc, { ...options, style: "tailwind" });
+  assert.match(tailwind.files["src/globals.css"], /tailwindcss\/utilities\.css/);
+  assert.match(tailwind.files["package.json"], /@tailwindcss\/vite/);
+  assert.ok(tailwind.files["src/site.css"]);
+});
+
+test("JavaScript option produces actual JS and JSX files", async () => {
+  const { toJavaScriptProject } = await import("../lib/generator/javascript-export");
+  const output = await toJavaScriptProject(generateExportProject(fixture(), "react"), "react");
+  assert.ok(output.files["src/App.jsx"]);
+  assert.ok(output.files["vite.config.js"]);
+  assert.equal(output.files["src/App.tsx"], undefined);
+  assert.ok(output.files["jsconfig.json"]);
+  assert.doesNotMatch(output.files["src/App.jsx"], /type Route =/);
+  assert.match(output.files["package.json"], /"build": "vite build"/);
+});
