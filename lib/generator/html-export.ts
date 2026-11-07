@@ -82,7 +82,14 @@ function resource(ctx: Context, assetId?: string): string {
 
 function href(ctx: Context, value: string): string {
   const safe = safeNavigationUrl(value);
-  return /^\/(?!\/)/.test(safe) ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
+  if (!/^\/(?!\/)/.test(safe)) return safe;
+  const match = /^([^?#]*)(.*)$/.exec(safe);
+  const slug = (match?.[1] ?? safe).replace(/^\/+|\/+$/g, "");
+  const page = Object.values(ctx.doc.pages).find((p) =>
+    !p.unpublished && p.slug.replace(/^\/+|\/+$/g, "") === slug
+  );
+  if (page) return pageHref(ctx, page.id) + (match?.[2] ?? "");
+  return ctx.prefix + safe.replace(/^\/+/, "");
 }
 
 function pageHref(ctx: Context, id: string): string {
@@ -91,7 +98,7 @@ function pageHref(ctx: Context, id: string): string {
   if (ctx.single && p.id === ctx.page.id) return ctx.prefix + "index.html";
   if (p.slug.replace(/^\/+|\/+$/g, "") === "404") return ctx.prefix + "404.html";
   const slug = p.slug.replace(/^\/+|\/+$/g, "");
-  return ctx.prefix + (slug ? slug + "/" : "");
+  return ctx.prefix + (slug ? slug + "/index.html" : "index.html");
 }
 
 function compiledAttr(ctx: Context, node: Pick<DocNode, "scripts">, skip?: Set<string>): string {
