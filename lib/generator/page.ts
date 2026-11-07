@@ -159,6 +159,8 @@ export function generatePageFile(
     ])
   );
   const loads = nf ? [] : plan.steps.filter((st) => st.kind !== "fetch" || st.url.trim());
+  const hasPurePageControls = loads.some((st) =>
+    st.kind === "for-each" || st.kind === "if" || st.kind === "repeat");
   /** [slug]ページのメタデータ・404判定に使うデータ */
   const primary = nf ? null : (primaryDataStep(doc, pageId)?.step ?? null);
 
@@ -203,8 +205,10 @@ export function generatePageFile(
     ? []
     : ['import type { Metadata } from "next";'];
   if (loads.length) imports.push('import { fetchPublic, readTextLimited } from "@/lib/safe-fetch";');
-  if (loads.some((st) => st.kind === "transform"))
+  if (loads.some((st) => st.kind === "transform") || hasPurePageControls)
     imports.push('import { evaluateValueRecipe as __evalValueRecipe } from "@/lib/value-recipe";');
+  if (hasPurePageControls)
+    imports.push('import { runPurePageSteps as __runPurePageSteps } from "@/lib/page-load-steps";');
   if (isSlugPg && primary)
     imports.push('import { notFound } from "next/navigation";');
   const reactImports = [
@@ -220,7 +224,7 @@ export function generatePageFile(
   if (ctx.usesPageHtml) imports.push('import PageHtml from "@/components/PageHtml";');
   if (needsVars)
     imports.push(
-      `import { safeNavigationUrl, interpolate, interpolateUrl${loads.some((st) => st.kind === "fetch" && !!fetchInitExpr(st)?.includes("interpolateJson(")) ? ", interpolateJson" : ""}${listNodes.length || ctx.usesLookup || loads.some((st) => st.kind === "set-var" || st.kind === "transform") ? ", lookupVar" : ""} } from "@/lib/vars";`
+      `import { safeNavigationUrl, interpolate, interpolateUrl${loads.some((st) => st.kind === "fetch" && !!fetchInitExpr(st)?.includes("interpolateJson(")) ? ", interpolateJson" : ""}${listNodes.length || ctx.usesLookup || hasPurePageControls || loads.some((st) => st.kind === "set-var" || st.kind === "transform") ? ", lookupVar" : ""} } from "@/lib/vars";`
     );
   for (const compId of ctx.usedComponents) {
     const name = ctx.componentNames.get(compId)!;
@@ -347,6 +351,10 @@ ${loads
         }
         return `  vars[${JSON.stringify(st.as)}] = await fetchJson(${url}${init ? `, JSON.stringify(${init}), ${JSON.stringify(origin) ?? "undefined"}` : ""});`;
       }
+      case "for-each":
+      case "if":
+      case "repeat":
+        return `  __runPurePageSteps(${JSON.stringify([st])}, vars, lookupVar, interpolate, __evalValueRecipe);`;
       case "transform":
         if (!st.into || !st.source) return "";
         return `  {
