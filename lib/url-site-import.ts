@@ -109,12 +109,12 @@ export async function readRestorableArchive(bytes: Uint8Array): Promise<{
   const zip = await JSZip.loadAsync(bytes);
   countUncompressed(zip);
   const candidates = Object.values(zip.files).filter((entry) =>
-    !entry.dir && /(?:^|\/)(?:_tsumu|_site-data)\/doc\.json$/i.test(entry.name));
+    !entry.dir && /(?:^|\/)_tsumu\/doc\.json$/i.test(entry.name));
   if (candidates.length !== 1) {
     throw new Error("ZIP内に_tsumu/doc.jsonが1つ必要です");
   }
   const docPath = candidates[0].name;
-  const folder = docPath.replace(/(?:_tsumu|_site-data)\/doc\.json$/i, "");
+  const folder = docPath.replace(/_tsumu\/doc\.json$/i, "");
   const raw = await candidates[0].async("string");
   const doc = parseRestoredDoc(raw);
   const assets = new Map<string, Uint8Array>();
