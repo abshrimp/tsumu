@@ -213,7 +213,7 @@ test("object dictionaries support dynamic date keys and configurable entry-list 
     { kind: "sort", field: "日付", direction: "desc" },
     { kind: "map-field", field: "祝日名" },
     { kind: "join", separator: "・" },
-  ]), val("文化の日"));
+  ]), val("勤労感謝の日・文化の日"));
   assert.deepEqual(holidays, original, "Object conversion must not mutate the original JSON");
 });
 
