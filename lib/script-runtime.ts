@@ -711,6 +711,26 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/hovered*/
         return c.not ? !r : r;
       }
+      function testIf(step, self, sc) {
+        var conditions = [step.cond].concat(step.conditions || []);
+        if (conditions.length > 33) return false;
+        var any = false, all = true;
+        for (var i = 0; i < conditions.length; i++) {
+          var condition = conditions[i];
+          if (i > 0 && !condition.and) {
+            any = any || all;
+            all = true;
+          }
+          // "not" is already applied by test() for boolean subjects, but
+          // value and variable comparisons return before that final branch.
+          var matched = test(condition, self, sc);
+          if (condition.not && (condition.subject === "var" || condition.subject === "value")) {
+            matched = !matched;
+          }
+          all = all && matched;
+        }
+        return any || all;
+      }
       /*/if*/
       /*#filter*/
       // 配列の絞り込み: 配列の名前 → [{ no, join, conds: [{ field, op, value, and }] }]。
@@ -1679,7 +1699,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*/wait*/
             /*#if*/
             if (st.kind === "if") {
-              var branch = test(st.cond, self, scopeOf(cx)) ? st.then : st.else;
+              var branch = testIf(st, self, scopeOf(cx)) ? st.then : st.else;
               if (branch && branch.length) {
                 return runSteps(branch, self, cx, active).then(next);
               }
@@ -2114,7 +2134,10 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
       if (futureKind === "transform") out.add("setvar");
       else if (futureKind === "list-display") out.add("filter");
       else out.add(STEP_FEATURE[st.kind]);
-      if (st.kind === "if") out.add(st.cond.subject);
+      if (st.kind === "if") {
+        out.add(st.cond.subject);
+        st.conditions?.forEach((condition) => out.add(condition.subject));
+      }
     });
   }
   // 画面上で値が決まる配列を並べるリスト
