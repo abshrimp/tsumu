@@ -10,8 +10,7 @@
  *
  *   node scripts/cloudflare.mjs build
  *   node scripts/cloudflare.mjs deploy
- *   node scripts/cloudflare.mjs upload    （従来のversion upload。DOを含むエディタのURL表示には使えない）
- *   node scripts/cloudflare.mjs preview
+ *   node scripts/cloudflare.mjs preview   （ローカルで起動。クラウドのプレビューは scripts/cloudflare-preview.mjs）
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";

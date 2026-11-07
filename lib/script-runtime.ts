@@ -804,7 +804,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (Array.isArray(value)) return value.map(fillValue);
           var out = Object.create(null);
           Object.keys(value).forEach(function (key) {
-            out[key] = key === "rawRef" ? value[key] : fillValue(value[key]);
+            out[key] = (key === "rawRef" || key === "joinFallback" || key === "countFallback") ? value[key] : fillValue(value[key]);
           });
           return out;
         }
@@ -1375,16 +1375,70 @@ export const SCRIPT_RUNTIME = `function (env) {
             break;
           }
           case "count": {
-            var ca = getVar(st.array);
-            var cn = Array.isArray(ca) ? ca.length : 0;
+            var name = st.array, itemName = st.itemArray || name, itemHead = itemName.split(".")[0];
+            var source = vars, useFallback = false;
+            // ループ項目が最優先。その後は行を近い順に読み、所有するサーバー行で止まる。
+            if (sc && (has(sc, itemName) || has(sc, itemHead))) {
+              source = sc;
+              name = itemName;
+            } else {
+              var row = self && self.closest && self.closest("[data-row]"), offset = 0;
+              while (row) {
+                if (st.countFallback && st.countFallback.owned && st.countFallback.rowOffset === offset) {
+                  useFallback = true;
+                  break;
+                }
+                /*#clist*/
+                var rowScope = rowScopes.get(row);
+                if (rowScope && (has(rowScope, itemName) || has(rowScope, itemHead))) {
+                  source = rowScope;
+                  name = itemName;
+                  break;
+                }
+                /*/clist*/
+                row = row.parentElement && row.parentElement.closest("[data-row]");
+                offset++;
+              }
+            }
+            var owns = has(source, name) || has(source, name.split(".")[0]);
+            var src = has(source, name) ? source[name] : dig(source, name);
+            // Canvas の項目は React が描画し、実行側の data-row を持たない。
+            if (st.countFallback && (useFallback || !owns ||
+                (source === vars && st.countFallback.owned && !has(st.countFallback, "rowOffset")))) {
+              src = undefined;
+              useFallback = true;
+            }
+            var ca = src;
+            var cn = useFallback ? st.countFallback.value : Array.isArray(ca) ? ca.length : 0;
+            // 明示された配列・空の値よりリストを優先しない。
+            var countList = source === vars && !owns && !(st.countFallback && st.countFallback.owned);
+            var cl0 = null;
             if (!Array.isArray(ca)) {
               try {
-                var cl0 = Array.prototype.find.call(root.querySelectorAll('[data-array="' + CSS.escape(st.array) + '"]'), function (l) { return !inTpl(l); });
-                if (cl0) {
-                  cn = Array.prototype.filter.call(cl0.children, function (w) {
-                    return w.hasAttribute("data-item");
-                  }).length;
+                var candidates = Array.prototype.filter.call(root.querySelectorAll('[data-array="' + CSS.escape(st.array) + '"]'), function (l) { return !inTpl(l); });
+                if (countList) cl0 = candidates[0];
+                if (useFallback && st.countFallback.owned && st.countFallback.value > 0) {
+                  var owner = row, rowSelector = "[data-row]";
+                  if (!has(st.countFallback, "rowOffset")) {
+                    // Canvas は項目の data-item を持つが data-row は持たない。
+                    rowSelector = "[data-item]";
+                    owner = self && self.closest && self.closest(rowSelector);
+                    while (owner) {
+                      var ownerItem = JSON.parse(owner.getAttribute("data-item") || "{}") || {};
+                      if (has(ownerItem, itemName) || has(ownerItem, itemHead)) break;
+                      owner = owner.parentElement && owner.parentElement.closest(rowSelector);
+                    }
+                  }
+                  // 所有しない中間行も同じ配列を継承する。操作位置から所有者まで、
+                  // 近い行のリストを優先し、兄弟行や所有者より外側へは出ない。
+                  var countRow = self && self.closest && self.closest(rowSelector);
+                  while (owner && countRow) {
+                    cl0 = candidates.find(function (list) { return list.closest(rowSelector) === countRow; });
+                    if (cl0 || countRow === owner) break;
+                    countRow = countRow.parentElement && countRow.parentElement.closest(rowSelector);
+                  }
                 }
+                if (cl0) cn = Array.prototype.filter.call(cl0.children, function (w) { return w.hasAttribute("data-item"); }).length;
               } catch (e) {}
             }
             /*#filter*/
@@ -1395,8 +1449,7 @@ export const SCRIPT_RUNTIME = `function (env) {
                 return passes(cf, x);
               }).length;
             } else {
-              // 配信前に決まった配列は画面上に値が無いので、並べているリストの項目から数える
-              var cl = listsOf(st.array)[0];
+              var cl = cl0;
               if (cl) {
                 cn = Array.prototype.filter.call(cl.children, function (w) {
                   return w.hasAttribute("data-item") && passes(cf, itemOf(w));
@@ -1408,7 +1461,39 @@ export const SCRIPT_RUNTIME = `function (env) {
             break;
           }
           case "join": {
-            var src = getVar(st.array);
+            var name = st.array, itemName = st.itemArray || name, itemHead = itemName.split(".")[0];
+            var source = vars, useFallback = false;
+            // ループ項目が最優先。その後は行を近い順に読み、所有するサーバー行で止まる。
+            if (sc && (has(sc, itemName) || has(sc, itemHead))) {
+              source = sc;
+              name = itemName;
+            } else {
+              var row = self && self.closest && self.closest("[data-row]"), offset = 0;
+              while (row) {
+                if (st.joinFallback && st.joinFallback.owned && st.joinFallback.rowOffset === offset) {
+                  useFallback = true;
+                  break;
+                }
+                /*#clist*/
+                var rowScope = rowScopes.get(row);
+                if (rowScope && (has(rowScope, itemName) || has(rowScope, itemHead))) {
+                  source = rowScope;
+                  name = itemName;
+                  break;
+                }
+                /*/clist*/
+                row = row.parentElement && row.parentElement.closest("[data-row]");
+                offset++;
+              }
+            }
+            var owns = has(source, name) || has(source, name.split(".")[0]);
+            var src = has(source, name) ? source[name] : dig(source, name);
+            // Canvas の項目は React が描画し、実行側の data-row を持たない。
+            if (st.joinFallback && (useFallback || !owns ||
+                (source === vars && st.joinFallback.owned && !has(st.joinFallback, "rowOffset")))) {
+              setVar(st.into, st.joinFallback.value);
+              break;
+            }
             setVar(
               st.into,
               Array.isArray(src)
