@@ -115,21 +115,34 @@ function addCssModules(files: Record<string, string>, framework: ExportFormat) {
       for (const name of ["src/main.ts", "src/main.js"]) {
         if (files[name]) files[name] = files[name].replace('"./site.css"', '"./site-global.css"');
       }
+      files["src/App.vue"] = files["src/App.vue"]
+        .replace('<script setup', '<script setup')
+        .replace(/(<script setup(?: lang="ts")?>)/,
+          '$1\nimport siteStyles from "./site.module.css";')
+        .replace("<template>", '<template>\n  <div :class="siteStyles.siteRoot" style="display:contents">')
+        .replace("</template>", "  </div>\n</template>");
     } else {
-      files["nuxt.config.ts"] &&= files["nuxt.config.ts"].replace("~/assets/site.css", "~/assets/site-global.css");
-      files["nuxt.config.js"] &&= files["nuxt.config.js"].replace("~/assets/site.css", "~/assets/site-global.css");
+      for (const config of ["nuxt.config.ts", "nuxt.config.js"]) {
+        if (files[config]) files[config] = files[config]
+          .replace("~/assets/site.css", "~/assets/site-global.css");
+      }
+      files["app/app.vue"] = [
+        '<script setup>',
+        'import siteStyles from "./assets/site.module.css";',
+        '</script>',
+        '<template>',
+        '  <div :class="siteStyles.siteRoot" style="display:contents">',
+        '    <NuxtPage />',
+        '  </div>',
+        '</template>', '',
+      ].join("\n");
     }
-    const component = framework === "vue" ? "src/App.vue" : "app/app.vue";
-    const cssImport = framework === "vue" ? "./site.module.css" : "./assets/site.module.css";
-    files[component] = files[component]
-      .replace('<script setup', ' <script setup')
-      .replace(/(<script setup(?: lang="ts")?>)/, '$1\nimport siteStyles from "' + cssImport + '";')
-      .replace('style="display:contents" v-html=', ':class="siteStyles.siteRoot" style="display:contents" v-html=')
-      .replace(/^ <script setup/m, '<script setup');
   } else if (framework === "sveltekit") {
-    files["src/routes/+page.svelte"] = files["src/routes/+page.svelte"]
-      .replace('import "../site.css";', 'import "../site-global.css";\nimport siteStyles from "../site.module.css";')
-      .replace('{@html html}', '<div class={siteStyles.siteRoot} style="display:contents">{@html html}</div>');
+    files["src/routes/+layout.svelte"] = files["src/routes/+layout.svelte"]
+      .replace('import "../site.css";',
+        'import "../site-global.css";\nimport siteStyles from "../site.module.css";')
+      .replace('{@render children()}',
+        '<div class={siteStyles.siteRoot} style="display:contents">{@render children()}</div>');
   } else {
     files["app/layout.tsx"] = files["app/layout.tsx"]
       .replace('import "../styles/site.css";', 'import "../styles/site-global.css";\nimport siteStyles from "../styles/site.module.css";')
