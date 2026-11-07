@@ -73,6 +73,10 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
       return tr("ページ「{p1}」を開く", { p1: doc.pages[st.pageId]?.name ?? tr("未選択") });
     case "open-url":
       return tr("{p1} を開く", { p1: st.url || tr("URL未入力") });
+    case "set-state":
+      return tr("{target}を{state}にする", {
+        target: targetText(st.target), state: st.state || tr("既定"),
+      });
     case "scroll-to":
       return tr("{p1} までスクロールする", { p1: targetText(st.target) });
     case "set-value":
