@@ -64,8 +64,9 @@ test("client-only variables do not force a server-only export error", () => {
   doc.nodes.hero.text!.content = "Hello {username}";
   const react = generateExportProject(doc, "react");
   assert.match(react.files["src/pages/Page0.tsx"], /export default function Page/);
-  const html = generateExportProject(doc, "html");
-  assert.doesNotMatch(html.files["app/page.tsx"], /^export const revalidate =/m);
+  assert.match(react.files["src/pages/Page0.tsx"], /new URLSearchParams\(window\.location\.search\)/);
+  // A pre-built HTML page cannot know a visitor's request query.
+  assert.ok(exportLimitations(doc, "html").length > 0);
 });
 
 test("actual server-only data access remains blocked in React", () => {
