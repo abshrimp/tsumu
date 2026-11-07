@@ -7,6 +7,7 @@ import { ChevronDown, Plus, X } from "lucide-react";
 import { PathMenu } from "./fetch";
 import { CONDITION_OPERATORS, NegationSelect, Phrase, TextIn } from "./inputs";
 import { tr } from "../../lib/i18n";
+import { formatValueOperandInput, parseValueOperandInput } from "../../lib/script-model/compose";
 import type {
   ValueTransform, ValueTransformKind, CompareOperation,
   NumericOperation, ValueOperandType, ValueCondition,
@@ -258,39 +259,21 @@ function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
 }
 
 
-function ValueOperandEditor({ type, text, onChange, samples, purpose = "compare" }: {
+function ValueOperandEditor({ type, text, onChange, purpose = "compare" }: {
   type: ValueOperandType;
   text: string;
   onChange: (text: string, type: ValueOperandType) => void;
-  samples: Record<string, unknown>;
   purpose?: "compare" | "list";
 }) {
   const isList = purpose === "list";
   return (
     <div className="se-composer-operand">
-      <select className="se-in se-fixed-select" aria-label={isList ? tr("操作する値の種類") : tr("比較する値の種類")} value={type}
-        onChange={(e) => {
-          const next = e.target.value as ValueOperandType;
-          onChange(next === "number" ? "0" : next === "boolean" ? "true" : "", next);
-        }}>
-        <option value="text">{tr("文字列")}</option>
-        <option value="number">{tr("数値")}</option>
-        <option value="boolean">{tr("真偽値")}</option>
-        <option value="null">null</option>
-      </select>
-      {type === "boolean" ? (
-        <select className="se-in se-fixed-select" aria-label={isList ? tr("操作する値") : tr("比較する値")} value={text}
-          onChange={(e) => onChange(e.target.value, type)}>
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
-      ) : type !== "null" && (
-        <TextIn vars value={type === "variable" ? "{" + text + "}" : text}
-          valueContext="value" width={144}
-          type={type === "number" ? "number" : "text"}
-          placeholder={type === "number" ? "0" : (isList ? tr("追加・削除する文字列") : tr("比較する文字列"))}
-          onCommit={(next) => onChange(next, type === "variable" ? "text" : type)} />
-      )}
+      <TextIn vars value={formatValueOperandInput(text, type)} valueContext="value" width={144}
+        placeholder={isList ? tr("追加・削除する値 / {変数}") : tr("設定する値 / {変数}")}
+        onCommit={(input) => {
+          const next = parseValueOperandInput(input);
+          onChange(next.operand, next.operandType);
+        }} />
     </div>
   );
 }
@@ -388,7 +371,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
 
   if (transform.kind === "append" || transform.kind === "remove") return (
     <div className="se-composer-step-settings">
-      <ValueOperandEditor type={transform.operandType} text={transform.operand} samples={samples} purpose="list"
+      <ValueOperandEditor type={transform.operandType} text={transform.operand} purpose="list"
         onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
     </div>
   );
@@ -419,7 +402,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
       <FieldKeyPicker value={transform.field} options={allOptions}
         ariaLabel={tr("リスト内の項目名")} placeholder={tr("追加する項目")}
         onChange={(field) => onChange({ ...transform, field })} />
-      <ValueOperandEditor type={transform.operandType} text={transform.operand} samples={samples}
+      <ValueOperandEditor type={transform.operandType} text={transform.operand}
         onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
     </div>;
   }
