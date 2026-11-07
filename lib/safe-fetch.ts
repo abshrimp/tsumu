@@ -83,7 +83,7 @@ function builtin<T>(name: string): T {
  * 事前の検査だけだと、検査後の再解決で内部IPに切り替える DNS rebinding が通ってしまう。
  * Workers はプラットフォームの公開ネットワーク用 fetch を使う。
  */
-async function fetchOnce(url: URL, init: RequestInit, maxBytes = 5 * 1024 * 1024): Promise<Response> {
+async function fetchOnce(url: URL, init: RequestInit): Promise<Response> {
   if (isWorker() || url.hostname.startsWith("[") || parseIPv4(url.hostname)) return fetch(url, init);
   const http = builtin<typeof import("node:http")>(url.protocol === "https:" ? "node:https" : "node:http");
   const dns = builtin<typeof import("node:dns/promises")>("node:dns/promises");
@@ -130,7 +130,7 @@ async function fetchOnce(url: URL, init: RequestInit, maxBytes = 5 * 1024 * 1024
           let size = 0;
           for await (const chunk of stream) {
             size += chunk.length;
-            if (size > maxBytes) throw new TooLargeError("too large");
+            if (size > 5 * 1024 * 1024) throw new TooLargeError("too large");
             chunks.push(chunk);
           }
           responseHeaders.delete("content-encoding");
@@ -167,8 +167,7 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
 export async function fetchPublic(
   raw: string,
   init: RequestInit,
-  maxRedirects = 5,
-  maxResponseBytes = 5 * 1024 * 1024
+  maxRedirects = 5
 ): Promise<Response> {
   let url = await assertPublicUrl(raw);
   let method = (init.method ?? "GET").toUpperCase();
@@ -178,7 +177,7 @@ export async function fetchPublic(
   for (const name of ["host", "connection", "content-length", "transfer-encoding", "upgrade", "proxy-authorization", "proxy-connection"]) headers.delete(name);
   const signal = init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
   for (let i = 0; ; i++) {
-    const res = await fetchOnce(url, { ...init, signal, headers, method, body, redirect: "manual" }, maxResponseBytes);
+    const res = await fetchOnce(url, { ...init, signal, headers, method, body, redirect: "manual" });
     const location = res.headers.get("location");
     if (![301, 302, 303, 307, 308].includes(res.status) || !location) return res;
     await res.body?.cancel().catch(() => {});
