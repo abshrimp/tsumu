@@ -44,6 +44,27 @@ test("list filters invert individual conditions without duplicating negative ope
     conds: [{ field: "active", op: "empty", value: "", not: true }] }]), items);
 });
 
+test("transform conditions agree with display-list filters for missing, null and array fields", () => {
+  const items = [
+    { name: "A", tags: ["x", "y"] }, { name: "" },
+    { id: 3 }, { name: null }, { name: "B" },
+  ];
+  const criteria = [
+    { field: "name", op: "empty" as const, value: "" },
+    { field: "name", op: "eq" as const, value: "A", not: true },
+    { field: "tags", op: "eq" as const, value: "x,y" },
+    { field: "name", op: "eq" as const, value: "", not: true },
+  ];
+  for (const condition of criteria) {
+    const expected = filterItems(items, [{ kind: "filter", conds: [condition] }]);
+    const actual = evaluateValueRecipe(items, [{
+      kind: "filter", field: condition.field, operation: condition.op,
+      operand: condition.value, not: condition.not,
+    }]);
+    assert.deepEqual(actual, { kind: "value", value: expected }, JSON.stringify(condition));
+  }
+});
+
 test(">= and <= are consistent in list filters and server-side page-load if", () => {
   assert.equal(matchOp("10", "gte", "10"), true);
   assert.equal(matchOp("10", "lte", "10"), true);
