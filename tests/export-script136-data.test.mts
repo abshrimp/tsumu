@@ -126,7 +126,7 @@ test("generated browser event runtime retains #136 transform and list-display ac
   const project = generateExportProject(doc, "html");
   const html = project.files["index.html"];
   assert.match(html, /data-scripts=/);
-  assert.ok(html.includes("increment"));
+  assert.ok(html.includes("transform"));
   assert.ok(html.includes("list-display"));
   assert.ok(project.files["scripts.js"].includes("Invalid value transform"));
   assert.ok(project.files["scripts.js"].includes("list-display"));
