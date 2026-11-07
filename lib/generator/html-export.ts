@@ -15,7 +15,7 @@ import { fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
-import { EMPTY_GIF } from "./templates";
+import { EMPTY_GIF, pwaIconType } from "./templates";
 import { safeNavigationUrl } from "../url-policy";
 
 const escapeHtml = (value: string): string => value.replace(/[&<>"']/g, (ch) => ({
@@ -164,7 +164,8 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "image" && n.image) {
       const im = n.image;
       const src = im.assetId ? resource(ctx, im.assetId) : href(ctx, im.src);
-      const imageAttrs = attr("src", src || EMPTY_GIF) + attr("alt", im.alt);
+      const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
+        (hasVars(src) ? attr("data-static-src", src) : "") + attr("alt", im.alt);
       const crisp = crispSvgSize(ctx.doc, n);
       if (crisp) return "<span" + commonAttrs.replace(attr("class", cls), attr("class", "crisp-svg " + cls)) + ">" +
         '<svg aria-hidden="true" width="' + crisp.width + '" height="' + crisp.height +
@@ -226,7 +227,8 @@ function render(ctx: Context, id: string, top: boolean): string {
       tag = "a";
       const destination = n.link.kind === "page" && n.link.pageId
         ? pageHref(ctx, n.link.pageId) : href(ctx, n.link.url || "#");
-      extra += attr("href", destination);
+      extra += attr("href", destination) +
+        (hasVars(destination) ? attr("data-static-href", destination) : "");
       if (n.link.newTab) extra += ' target="_blank" rel="noopener noreferrer"';
     }
     const wasForm = ctx.form;
@@ -274,7 +276,6 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     if (!path.startsWith("public/")) continue;
     const output = path.slice(7);
     // Service workers are not usable from file://. The rest is directly readable.
-    if (output === "sw.js" || output === "pwa.js") continue;
     files[output] = output.endsWith(".css")
       ? rewriteRootUrls(source, output.startsWith("assets/") ? "./" : "../") : source;
   }
@@ -284,8 +285,70 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
   for (const [path, source] of Object.entries(next.remoteAssets)) {
     if (path.startsWith("public/")) remoteAssets[path.slice(7)] = source;
   }
+  if (normalized.pwa?.enabled) {
+    const pwa = normalized.pwa;
+    const candidate = [pwa.icon, normalized.appleTouchIcon, normalized.favicon]
+      .find((x) => x && (x.assetId ? assets.has(x.assetId) : !!x.url));
+    const iconSrc = candidate?.assetId ? "/assets/" + assets.get(candidate.assetId) : candidate?.url || "";
+    const iconAsset = candidate?.assetId ? normalized.assets[candidate.assetId] : undefined;
+    files["manifest.webmanifest"] = JSON.stringify({
+      name: pwa.name?.trim() || normalized.siteName,
+      short_name: pwa.shortName?.trim() || normalized.siteName,
+      start_url: "/", scope: "/",
+      display: pwa.display ?? "standalone",
+      lang: normalized.lang || "ja",
+      ...(pwa.themeColor?.trim() ? { theme_color: pwa.themeColor.trim() } : {}),
+      ...(pwa.backgroundColor?.trim() ? { background_color: pwa.backgroundColor.trim() } : {}),
+      icons: iconSrc ? [{
+        src: iconSrc,
+        sizes: iconAsset?.width && iconAsset?.height ?
+          iconAsset.width + "x" + iconAsset.height : "any",
+        ...(pwaIconType(iconAsset?.mimeType, iconSrc) ?
+          { type: pwaIconType(iconAsset?.mimeType, iconSrc) } : {}),
+        purpose: "any",
+      }] : [],
+    }, null, 2) + "\n";
+  }
   files["styles/site.css"] = rewriteRootUrls(next.files["styles/site.css"], "../");
   files["styles/globals.css"] = next.files["app/globals.css"] + "\n" + fontsCss(normalized);
+  files["static-values.js"] = [
+    '(function(){',
+    'function value(name){',
+    ' const el=document.getElementById(name);',
+    ' if(el){const f=el.matches("input,select,textarea")?el:el.querySelector("input,select,textarea");',
+    ' if(f)return f.type==="checkbox"?String(f.checked):f.value;',
+    ' return el.textContent||"";}',
+    ' return new URLSearchParams(location.search).get(name)||"";',
+    '}',
+    'function resolve(tpl,encode){return tpl.replace(/\\\\{([^{}]+)\\\\}/g,function(m,name){',
+    ' const v=value(name);return encode?encodeURIComponent(v):v;',
+    '});}',
+    'function update(){',
+    ' document.querySelectorAll("[data-live]").forEach(function(el){',
+    '  if(el.closest("[data-tpl]"))return;',
+    '  const v=resolve(el.getAttribute("data-live")||"",false);',
+    '  if(el.firstChild&&el.firstChild.nodeType===3)el.firstChild.nodeValue=v;',
+    '  else el.insertBefore(document.createTextNode(v),el.firstChild);',
+    ' });',
+    ' for(const name of ["placeholder","value"]){',
+    ' document.querySelectorAll("[data-live-"+name+"]").forEach(function(el){',
+    '  if(el.closest("[data-tpl]")||(name==="value"&&el.dataset.edited!==undefined))return;',
+    '  const v=resolve(el.getAttribute("data-live-"+name)||"",false);',
+    '  if(name==="value"&&"value" in el)el.value=v;',
+    '  else el.setAttribute(name,v);',
+    ' });}',
+    ' document.querySelectorAll("[data-static-href],[data-static-src]").forEach(function(el){',
+    '  if(el.closest("[data-tpl]"))return;',
+    '  for(const kind of ["href","src"]){',
+    '   const tpl=el.getAttribute("data-static-"+kind);',
+    '   if(tpl!==null)el.setAttribute(kind,resolve(tpl,kind==="href"));',
+    '  }',
+    ' });',
+    '}',
+    'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",update);else update();',
+    'document.addEventListener("input",update);',
+    '})();',
+  ].join("\n") + "\n";
   files["README.txt"] = [
     "Tsumu standalone HTML export", "",
     "Open index.html directly or copy all files to static hosting.",
@@ -327,11 +390,12 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       page.description ? '<meta name="description" content="' + escapeHtml(page.description) + '">' : "",
       page.noindex ? '<meta name="robots" content="noindex,nofollow">' : "",
       icon ? '<link rel="icon"' + attr("href", icon) + ">" : "",
+      normalized.pwa?.enabled ? '<link rel="manifest" href="' + prefix + 'manifest.webmanifest">' : "",
       '<link rel="stylesheet" href="' + prefix + 'styles/globals.css">',
       '<link rel="stylesheet" href="' + prefix + 'styles/site.css">',
       normalized.customHeadHtml || "",
     ].filter(Boolean).join("\n");
-    const scripts = ["inview.js", "scripts.js"].filter((name) => name in files)
+    const scripts = ["inview.js", "scripts.js", "static-values.js", "pwa.js"].filter((name) => name in files)
       .map((name) => '<script defer src="' + prefix + name + '"></script>').join("\n");
     files[path] = [
       "<!doctype html>",
