@@ -1,12 +1,20 @@
 import JSZip from "jszip";
 import type { SiteDoc } from "./types";
-import { generateExportProject, type ExportFormat } from "./export-formats";
+import { generateExportProject, type ExportFormat, type ExportOptions } from "./export-formats";
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
 import { tr } from "./i18n";
 
 /** zip を作ってダウンロードさせる。保存先に見つからず同梱できなかったアセットのパスを返す */
-export async function exportProjectZip(doc: SiteDoc, format: ExportFormat = "nextjs"): Promise<string[]> {
-  const { files, binaries, remoteAssets } = generateExportProject(doc, format);
+export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | ExportOptions = "nextjs"): Promise<string[]> {
+  const options: ExportOptions = typeof request === "string"
+    ? { framework: request, language: "typescript", style: "css", scope: "project" }
+    : request;
+  let project = generateExportProject(doc, options);
+  if (options.language === "javascript") {
+    const { toJavaScriptProject } = await import("./generator/javascript-export");
+    project = await toJavaScriptProject(project, options.framework);
+  }
+  const { files, binaries, remoteAssets } = project;
   const zip = new JSZip();
   const dirName =
     doc.siteName
@@ -40,7 +48,7 @@ export async function exportProjectZip(doc: SiteDoc, format: ExportFormat = "nex
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${dirName}-${format}.zip`;
+  a.download = `${dirName}-${options.framework}-${options.language}.zip`;
   a.click();
   // すぐに破棄すると、Safari などでダウンロードが始まらないことがある
   setTimeout(() => URL.revokeObjectURL(url), 1000);
