@@ -84,6 +84,22 @@ const COMPARISONS: readonly { value: CompareOperation; label: string }[] = [
   { value: "ends-with", label: "で終わる" },
 ];
 
+/** Field names and variable-token suggestions use the same editable input. */
+function fieldSuggestions(options: string[], samples: Record<string, unknown>): string[] {
+  const out = new Set(options);
+  const visit = (value: unknown, name: string, depth: number) => {
+    if (out.size >= 120 || !name || name.startsWith("#")) return;
+    out.add("{" + name + "}");
+    if (depth >= 3 || !value || typeof value !== "object" || Array.isArray(value)) return;
+    for (const [child, item] of Object.entries(value)) {
+      if (out.size >= 120) break;
+      visit(item, name + "." + child, depth + 1);
+    }
+  };
+  for (const [name, value] of Object.entries(samples)) visit(value, name, 0);
+  return [...out];
+}
+
 function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
   value: string;
   onChange: (next: string) => void;
@@ -292,6 +308,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
   onChange: (next: ValueTransform) => void;
   samples: Record<string, unknown>;
 }) {
+  const allOptions = fieldSuggestions(options, samples);
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
       <select className="se-in se-fixed-select" aria-label={tr("計算方法")} value={transform.operation}
@@ -353,7 +370,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
     return (
       <div className="se-composer-step-settings">
         {(transform.kind === "find" || transform.kind === "filter" || transform.kind === "map-set") && (
-          <FieldKeyPicker value={transform.field} options={options}
+          <FieldKeyPicker value={transform.field} options={allOptions}
             ariaLabel={tr("リスト内の項目名")} placeholder={transform.kind === "map-set" ? tr("追加する項目") : tr("項目（空なら要素自身）")}
             onChange={(field) => onChange({ ...transform, field })} />
         )}
@@ -371,7 +388,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
 
   if (transform.kind === "map-field" || transform.kind === "sort") return (
     <div className="se-composer-step-settings">
-      <FieldKeyPicker value={transform.field} options={options}
+      <FieldKeyPicker value={transform.field} options={allOptions}
         ariaLabel={tr("リスト内の項目名")}
         placeholder={transform.kind === "sort" ? tr("項目（空なら要素自身）") : tr("取り出す項目名")}
         onChange={(field) => onChange({ ...transform, field })} />
@@ -395,9 +412,10 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
   onChange: (next: ValueTransform) => void;
   samples: Record<string, unknown>;
 }) {
+  const allOptions = fieldSuggestions(options, samples);
   if (transform.kind === "field" || transform.kind === "has") return (
     <div className="se-composer-step-settings">
-      <FieldKeyPicker value={transform.key} options={options}
+      <FieldKeyPicker value={transform.key} options={allOptions}
         onChange={(key) => onChange({ ...transform, key })} />
     </div>
   );
