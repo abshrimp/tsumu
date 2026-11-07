@@ -12454,6 +12454,16 @@ select.se-in.se-fixed-select,
   padding-right: 30px;
 }
 
+/* Multiple conditions keep the same row/connector layout as if and list filters. */
+.se-composer-conditions { align-items: stretch; flex-direction: column; gap: 7px; }
+.se-composer-condition-line {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  min-width: 0; width: 100%;
+}
+.se-composer-condition-line > .se-in { flex: none; }
+.se-composer-condition-line > .se-composer-operand { flex: 1 1 180px; }
+.se-composer-condition-line > .se-composer-field { flex: 1 1 125px; }
+.se-composer-condition-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .se-composer-operand:has(> .se-fixed-select) {
   flex: 0 1 auto;
 }
