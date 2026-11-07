@@ -68,6 +68,30 @@ test("Enterで入れた末尾の改行を編集終了・無変更の再編集・
   await roundTrip(page, siteId, content);
 });
 
+test("キャンバスの文章編集で、変数候補は候補内操作では残り外側操作で閉じる", async ({ page }) => {
+  await openSite(page);
+  await textNode(page).dblclick();
+  await expect(editing(page)).toBeFocused();
+  await editing(page).press("Control+/");
+  const menu = page.locator(".var-comp");
+  await expect(menu).toBeVisible();
+
+  await menu.locator(".var-comp-list").evaluate((list) => {
+    list.scrollTop += 10;
+    list.dispatchEvent(new Event("scroll"));
+  });
+  await expect(menu).toBeVisible();
+  await page.locator(".canvas-area").click({ position: { x: 8, y: 8 } });
+  await expect(menu).toHaveCount(0);
+
+  await expect(editing(page)).toBeVisible();
+  await editing(page).focus();
+  await editing(page).press("Control+/");
+  await expect(menu).toBeVisible();
+  await editing(page).press("Escape");
+  await expect(menu).toHaveCount(0);
+});
+
 test("変数チップと末尾改行を含む貼り付けを編集内Undo・Redoと保存で壊さない", async ({ page }) => {
   const siteId = await openSite(page);
   await textNode(page).dblclick();

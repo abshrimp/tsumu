@@ -101,6 +101,50 @@ test("検索中のデータ更新で候補が減っても、空の検索・キ�
   expect(errors).toEqual([]);
 });
 
+test("設定欄の変数候補は外側操作で閉じ、候補内のスクロールでは閉じない", async ({ page }) => {
+  const menu = page.locator(".var-comp");
+  await source(page).focus();
+  await source(page).press("Control+/");
+  await expect(menu).toBeVisible();
+
+  await menu.locator(".var-comp-list").evaluate((list) => {
+    list.scrollTop += 30;
+    list.dispatchEvent(new Event("scroll"));
+  });
+  await expect(menu).toBeVisible();
+  await page.locator("#outside").click();
+  await expect(menu).toHaveCount(0);
+
+  // The user's edit is not modified by dismissing completion.
+  await expect(source(page)).toHaveValue("");
+  await source(page).focus();
+  await source(page).press("Control+/");
+  await expect(menu).toBeVisible();
+  await source(page).press("Escape");
+  await expect(menu).toHaveCount(0);
+});
+
+test("設定欄がスクロール領域から消えたら、フォーカスが残っても候補を閉じる", async ({ page }) => {
+  await page.evaluate(() => {
+    const app = document.getElementById("app")!;
+    app.style.height = "150px";
+    app.style.overflowY = "auto";
+    const spacer = document.createElement("div");
+    spacer.style.height = "1800px";
+    app.appendChild(spacer);
+  });
+  await source(page).scrollIntoViewIfNeeded();
+  await source(page).focus();
+  await source(page).press("Control+/");
+  await expect(page.locator(".var-comp")).toBeVisible();
+
+  await page.evaluate(() => {
+    const app = document.getElementById("app")!;
+    app.scrollTop = app.scrollHeight;
+  });
+  await expect(page.locator(".var-comp")).toHaveCount(0);
+});
+
 for (const width of [1440, 375, 320]) {
   test(`設定欄の変数候補の2つの操作案内は折り返さず、幅 ${width}px の画面内に収まる`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
