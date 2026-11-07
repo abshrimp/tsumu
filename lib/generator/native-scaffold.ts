@@ -9,8 +9,7 @@ type Framework = "vue" | "nuxt" | "sveltekit";
 // Data inserted into SFC <script> and template expressions must not contain
 // literal tag delimiters or the template interpolation sentinels.
 const json = (value: unknown) => JSON.stringify(value)
-  .replace(/</g, "\\u003c").replace(/>/g, "\\u003e")
-  .replace(/\{/g, "\\u007b").replace(/\}/g, "\\u007d");
+  .replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
 
 function routesFile(pages: ReturnType<typeof generateNativeFiles>["pages"]): string {
   const plain = pages.map(({ id, name, title, description, slug, query, language, plan }) =>
