@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "Tsumuの編集データとして読み込めません": "The file is not a valid editable Tsumu document.",
   "URLの指定が正しくありません": "Invalid import URL.",
   "URLのファイルを取得できませんでした": "Could not retrieve the file from the URL.",
   "URLから取得できるファイルは5MBまでです": "URL imports are limited to 5 MB.",
