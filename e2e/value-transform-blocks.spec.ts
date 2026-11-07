@@ -362,6 +362,28 @@ for (const exported of [false, true]) {
   });
 }
 
+for (const exported of [false, true]) {
+  test((exported ? "exported" : "preview") + " reads form fields in arithmetic operands", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "4", [
+      { id: "rate-field", kind: "set-value", target: "answer", value: "3" },
+      { id: "math", kind: "transform", source: "items", into: "items",
+        transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "answer" } },
+    ]);
+    await expect(answer).toHaveValue("12");
+    expect(errors).toEqual([]);
+  });
+
+  test((exported ? "exported" : "preview") + " interpolates form values in transform parameters", async ({ page }) => {
+    const { answer, errors } = await runChain(page, exported, "", [
+      { id: "input-value", kind: "set-value", target: "answer", value: "東京" },
+      { id: "fallback", kind: "transform", source: "absent", into: "items",
+        transform: { kind: "fallback", text: "行き先: {answer}" } },
+    ]);
+    await expect(answer).toHaveValue("行き先: 東京");
+    expect(errors).toEqual([]);
+  });
+}
+
 let bundle: string;
 test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
 test.beforeEach(async ({ page }, testInfo) => {
