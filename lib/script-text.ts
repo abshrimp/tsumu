@@ -118,7 +118,7 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
         source: st.source || tr("（未選択）"), into: st.into || "?",
       });
     case "repeat":
-      return st.times > 0 ? tr("{times}回くり返す…", { times: st.times }) : tr("ずっとくり返す…");
+      return st.times === 0 ? tr("ずっとくり返す…") : tr("{times}回くり返す…", { times: st.times });
     case "for-each":
       return tr("リスト{p1}の要素ごとにくり返す…", { p1: arrayText(st.array) });
     case "wait":
