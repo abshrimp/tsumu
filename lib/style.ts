@@ -632,6 +632,14 @@ function toLen(v: string): string | null {
   return /^-?\d*\.?\d+(px|%|em|rem|vw|vh)$/i.test(t) ? t : null;
 }
 
+/** CSS scale accepts numbers and percentages (100% = 1), never lengths. */
+function toScale(v: string): number | null {
+  const m = /^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(%)?$/i.exec(v.trim());
+  if (!m) return null;
+  const n = Number(m[1]) / (m[2] ? 100 : 1);
+  return Number.isFinite(n) ? n : null;
+}
+
 const isZeroLen = (v: string) => parseFloat(v) === 0;
 
 export function parseTransform(value: string | undefined): TransformParts {
@@ -667,9 +675,9 @@ export function parseTransform(value: string | undefined): TransformParts {
         break;
       }
       case "scale": {
-        const x = parseFloat(args[0] ?? "");
-        const y = args[1] !== undefined ? parseFloat(args[1]) : x;
-        if (Number.isFinite(x) && Number.isFinite(y)) {
+        const x = toScale(args[0] ?? "");
+        const y = args[1] !== undefined ? toScale(args[1]) : x;
+        if (args.length <= 2 && x !== null && y !== null) {
           out.scaleX = x;
           out.scaleY = y;
         } else ok = false;
@@ -677,8 +685,8 @@ export function parseTransform(value: string | undefined): TransformParts {
       }
       case "scaleX":
       case "scaleY": {
-        const v = parseFloat(args[0] ?? "");
-        if (Number.isFinite(v)) out[fn] = v;
+        const v = toScale(args[0] ?? "");
+        if (args.length === 1 && v !== null) out[fn] = v;
         else ok = false;
         break;
       }
