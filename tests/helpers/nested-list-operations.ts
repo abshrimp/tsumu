@@ -17,10 +17,10 @@ export function nestedOperationsDoc(component = false, selected = true) {
   doc.nodes.tags.attrId = "tags-list";
   const array = selected ? "tags" : "";
   const steps: ScriptStep[] = [
-    { id: "descending-step", kind: "sort-array", array, field: "label", dir: "desc" },
-    { id: "ascending-step", kind: "sort-array", array, field: "label", dir: "asc" },
-    { id: "filter-step", kind: "filter-array", array, field: "label", op: "contains", value: "r", no: 1 },
-    { id: "empty-step", kind: "filter-array", array, field: "label", op: "eq", value: "missing", no: 2 },
+    { id: "descending-step", kind: "list-display", mode: "sort", op: "eq", value: "", array, field: "label", dir: "desc" },
+    { id: "ascending-step", kind: "list-display", mode: "sort", op: "eq", value: "", array, field: "label", dir: "asc" },
+    { id: "filter-step", kind: "list-display", mode: "filter", dir: "asc", array, field: "label", op: "contains", value: "r", no: 1 },
+    { id: "empty-step", kind: "list-display", mode: "filter", dir: "asc", array, field: "label", op: "eq", value: "missing", no: 2 },
     { id: "clear-step", kind: "list-display", mode: "clear", array, field: "", op: "eq", value: "", dir: "asc" },
   ];
   for (const [i, action] of listActions.entries()) doc.nodes[action] = {
