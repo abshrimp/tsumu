@@ -143,7 +143,7 @@ export function applyScriptsAttr(
       if (!owned && clientVars.has(st.array.split(".")[0])) return undefined;
       const source = lookupVar(owned ? itemVars! : vars, st.array);
       const text = (value: unknown) => value == null || typeof value === "object" ? "" : String(value);
-      const value = Array.isArray(source)
+      const value = st.kind === "count" ? (Array.isArray(source) ? source.length : 0) : Array.isArray(source)
         ? source.map((x) => st.field && x && typeof x === "object" ? lookupVar({ item: x }, `item.${st.field}`) : x)
           .map(text).filter(Boolean).join(st.sep)
         : text(source);

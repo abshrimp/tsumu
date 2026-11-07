@@ -231,11 +231,11 @@ export function scriptsAttr(
       scopes.forEach((scope) => { scope.used = true; });
       ctx.usesLookup = true;
       // 各サーバー行は自分の項目だけを持つ。近い所有者を選び、行境界も実行側へ渡す。
-      const value = st.field
+      const value = st.kind === "join" && st.field
         ? `x && typeof x === "object" ? lookupVar({ item: x }, ${JSON.stringify(`item.${st.field}`)}) : x`
         : "x";
       const scalar = `(x: unknown) => x == null || typeof x === "object" ? "" : String(x)`;
-      const joined = (source: string) => `((v: unknown) => Array.isArray(v) ? v.map((x: unknown) => ${value}).map(${scalar}).filter(Boolean).join(${JSON.stringify(st.sep)}) : (${scalar})(v))(${source})`;
+      const joined = (source: string) => st.kind === "count" ? `((v: unknown) => Array.isArray(v) ? v.length : 0)(${source})` : `((v: unknown) => Array.isArray(v) ? v.map((x: unknown) => ${value}).map(${scalar}).filter(Boolean).join(${JSON.stringify(st.sep)}) : (${scalar})(v))(${source})`;
       let fallback = live ? "undefined" : `{ value: ${joined(`lookupVar({ ...${ctx.varsExpr ?? "vars"} }, ${JSON.stringify(st.array)})`)} }`;
       for (const scope of scopes) {
         const owns = `(Object.prototype.hasOwnProperty.call(${scope.expr}, ${JSON.stringify(itemArray)}) || Object.prototype.hasOwnProperty.call(${scope.expr}, ${JSON.stringify(itemArray.split(".")[0])}))`;
