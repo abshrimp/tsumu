@@ -503,11 +503,11 @@ export default function Home() {
     setImportStatus({ kind: "loading", message: tr("編集データを取得しています…") });
     try {
       const { id } = await createSiteFromUrl(importRequest.current, store,
-        (message) => setImportStatus({ kind: "loading", message }));
+        (message) => setImportStatus({ kind: "loading", message: tr(message) }));
       window.location.replace(sitePath(id));
     } catch (error) {
       setImportStatus({ kind: "error", message: error instanceof Error ?
-        error.message : tr("サイトを復元できませんでした。") });
+        tr(error.message) : tr("サイトを復元できませんでした。") });
     } finally {
       importActive.current = false;
     }
@@ -528,7 +528,7 @@ export default function Home() {
       void runUrlImport();
     } catch (error) {
       setImportStatus({ kind: "error", message: error instanceof Error ?
-        error.message : tr("インポートするURLが正しくありません。") });
+        tr(error.message) : tr("インポートするURLが正しくありません。") });
     }
   }, [store, runUrlImport]);
 
