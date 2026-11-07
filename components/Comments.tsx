@@ -238,6 +238,7 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
   const owner = thread.messages[0] ? isAuthor(thread.messages[0].author, user) : true;
   return (
     <>
+      <div className="cm-detail-head">
       <div className="cm-pop-head">
         <BackButton onClick={onClose} />
         <span className="cm-pop-title" title={place}>{place}</span>
@@ -275,7 +276,6 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
           </button>
         )}
       </div>
-      {notices}
       {thread.resolvedAt && thread.resolvedBy && (
         <p className="cm-resolved">
           {tr("{name}が解決済みにしました（{time}）", {
@@ -284,6 +284,8 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
           })}
         </p>
       )}
+      </div>
+      {notices}
       <div className="cm-msgs">
         {thread.messages.map((m) => (
           <Message key={m.id} m={m} thread={thread} unavailable={unavailable} />
@@ -567,12 +569,14 @@ export function CommentsPanel() {
         <section className="cm-detail" aria-label={tr("コメントの詳細")}>
           {draft ? (
             <>
-              <div className="cm-pop-head">
-                <BackButton onClick={() => setDraft(null)} />
-                <span className="cm-pop-title">{tr("新しいコメント")}</span>
-                <span className="cm-pop-sub">{BP_INFO[draft.bp]?.label}</span>
+              <div className="cm-detail-head">
+                <div className="cm-pop-head">
+                  <BackButton onClick={() => setDraft(null)} />
+                  <span className="cm-pop-title">{tr("新しいコメント")}</span>
+                  <span className="cm-pop-sub">{BP_INFO[draft.bp]?.label}</span>
+                </div>
+                <p className="cm-detail-context">{placeOf(draft, true)}</p>
               </div>
-              <p className="cm-detail-context">{placeOf(draft, true)}</p>
               <TargetNotice target={targetOf(draft)} draft />
               <Composer
                 placeholder={tr("コメントを書く")}

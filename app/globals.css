@@ -11998,12 +11998,22 @@ a.btn {
   flex: 0 1 auto;
 }
 
-.cm-detail .cm-pop-head {
-  margin-left: -6px;
+/* 戻る・場所・操作の行は見出しとして、下のメッセージと線で分ける */
+.cm-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 -16px;
+  padding: 2px 10px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cm-detail-head .cm-resolved,
+.cm-detail-head .cm-detail-context {
+  margin: 0 0 0 30px;
 }
 
 .cm-detail-context {
-  margin: -6px 0 0;
   overflow: hidden;
   color: var(--text-3);
   font-size: 11px;
