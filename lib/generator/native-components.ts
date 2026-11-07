@@ -142,6 +142,10 @@ function node(ctx: Context, id: string, top = false): string {
       const f = n.field;
       const name = fieldVarName(n);
       const fields = literal("name", name) + truth("disabled", f.disabled) + truth("required", f.required);
+      const fieldEvent = (event: "input" | "change"): string => !name ? "" :
+        ctx.vue
+          ? " @" + event + '="setField(scope, ' + esc(q(name)) + ', $event)"'
+          : " on" + event + "={(event) => setField(scope, " + q(name) + ", event)}";
       if (f.kind === "submit") {
         const label = f.label || "送信";
         const body = hasVars(label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", label) + " }}"
@@ -152,7 +156,7 @@ function node(ctx: Context, id: string, top = false): string {
         const val = f.defaultValue || "";
         const contents = hasVars(val) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", val) + " }}"
           : "{" + expr(ctx, "resolveText", val) + "}") : esc(val);
-        return "<textarea" + attrs + fields + valueAttr(ctx, "placeholder", f.placeholder) +
+        return "<textarea" + attrs + fields + fieldEvent("input") + valueAttr(ctx, "placeholder", f.placeholder) +
           literal("rows", f.rows) + literal("maxlength", f.maxLength) + ">" + contents + "</textarea>";
       }
       if (f.kind === "select") {
@@ -162,13 +166,13 @@ function node(ctx: Context, id: string, top = false): string {
             : "{" + expr(ctx, "resolveText", opt) + "}") : esc(opt);
           return "<option" + truth("selected", opt === def) + ">" + contents + "</option>";
         }).join("\n");
-        return "<select" + attrs + fields + ">" + options + "</select>";
+        return "<select" + attrs + fields + fieldEvent("change") + ">" + options + "</select>";
       }
       if (f.kind === "checkbox" || f.kind === "radio") {
         const label = f.label || "";
         const body = hasVars(label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", label) + " }}"
           : "{" + expr(ctx, "resolveText", label) + "}") : esc(label);
-        return "<label" + attrs + "><input" + literal("type", f.kind) + fields +
+        return "<label" + attrs + "><input" + literal("type", f.kind) + fields + fieldEvent("change") +
           truth("checked", f.checked) + literal("value", f.kind === "checkbox" ? "true" : label) +
           (ctx.vue ? ">" : " />") + "<span>" + body + "</span></label>";
       }
@@ -176,7 +180,7 @@ function node(ctx: Context, id: string, top = false): string {
         return "<input" + attrs + fields + ' type="file"' + literal("accept", f.accept) +
           truth("multiple", f.multiple) + (ctx.vue ? ">" : " />");
       }
-      return "<input" + attrs + fields + literal("type", f.inputType || "text") +
+      return "<input" + attrs + fields + fieldEvent("input") + literal("type", f.inputType || "text") +
         valueAttr(ctx, "placeholder", f.placeholder) + valueAttr(ctx, "value", f.defaultValue) +
         valueAttr(ctx, "min", f.min) + valueAttr(ctx, "max", f.max) + valueAttr(ctx, "step", f.step) +
         literal("maxlength", f.maxLength) + (ctx.vue ? ">" : " />");
@@ -274,7 +278,7 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
     const ext = ctx.vue ? ".vue" : ".svelte";
     const dependencyImports = [...ctx.imports].filter((name) => name !== id).map((name) =>
       'import ' + name + ' from "../components/' + name + ext + '";');
-    const helper = 'import { resolveText, resolveUrl, scopeOf, listItems } from "../site-data.js";';
+    const helper = 'import { resolveText, resolveUrl, scopeOf, listItems, setField } from "../site-data.js";';
     const constants = ctx.code;
     if (ctx.vue) return [
       '<script setup' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
