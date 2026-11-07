@@ -188,6 +188,7 @@ export function buildAdditionalFramework(
     });
     if (ts) files["tsconfig.json"] = jsonIndent({
       compilerOptions: { target: "ES2022", module: "ESNext", moduleResolution: "Bundler",
+        allowJs: true, checkJs: false,
         strict: true, esModuleInterop: true, skipLibCheck: true, resolveJsonModule: true,
         allowImportingTsExtensions: true, noEmit: true, lib: ["ES2022", "DOM"] },
       include: ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"],
