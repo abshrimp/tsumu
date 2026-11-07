@@ -108,7 +108,8 @@ test("React uses the same browser data loader for API calls and transformations"
   assert.ok(project.files["public/data-loader.js"].includes("fetch(url, init)"));
   assert.ok(project.files["public/scripts.js"].includes("__pageDataReady"));
   assert.match(project.files["src/pages/Page0.tsx"], /data-page-plan/);
-  assert.match(project.files["src/pages/Page0.tsx"], /Found \{total\} records/);
+  assert.match(project.files["src/pages/Page0.tsx"], /data-live/);
+  assert.match(project.files["src/pages/Page0.tsx"], /Found .* records/);
   assert.match(project.files["src/App.tsx"], /data-loader\.js/);
   assert.doesNotMatch(project.files["src/pages/Page0.tsx"], /fetchPublic|next\/navigation/);
 });
