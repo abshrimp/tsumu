@@ -4,6 +4,9 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。": "The request contains authorization credentials or secret API keys. Browser-side code would expose them to visitors. Use a public API or securely proxy the request through a server.",
+  "同じパスに取り込んだHTMLページとクエリ別ページが混在しています。通常ページに変更するか、別の固定URLに分けてください。": "An imported HTML document shares its path with query-variant pages. Use standard pages or distinct fixed URLs.",
+  "動的パス（[slug]など）は、静的ホスティングで任意のURLへ直接アクセスできる設定が必要です。固定パスに変更するか、Next.js形式を選択してください。": "Dynamic paths such as [slug] require hosting configuration for direct URL access. Use a fixed path or select Next.js.",
   "サイト全体の編集データをバックアップファイルとして保存・復元します。GitHubへのPush時に保存される編集データも読み込めます。": "Back up and restore the entire site's editable data. You can also import the edit data saved when pushing to GitHub.",
   "選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリの設定が以前の形式のままだとサイトが表示されなくなる場合があります。設定を確認したうえで続行しますか？": "Pushing in this format changes the repository structure. If your hosting provider still uses the previous build or publish-directory settings, the site may stop working. Have you checked the hosting settings?",
   "公開先の設定を確認してください": "Check the hosting settings",
