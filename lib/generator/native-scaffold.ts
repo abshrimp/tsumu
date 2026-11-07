@@ -256,13 +256,39 @@ export function applyNativeFramework(
     const pkg = JSON.parse(files["package.json"]) as {
       dependencies: Record<string, string>; devDependencies: Record<string, string>;
     };
-    pkg.devDependencies["@sveltejs/adapter-node"] = "^5.5.4";
+    // SvelteKit 3 fixes the known advisories affecting the older v2 scaffold.
+    // Its configuration lives in the Vite plugin rather than svelte.config.js.
+    pkg.dependencies["@sveltejs/kit"] = "^3.1.1";
+    pkg.dependencies.svelte = "^5.57.1";
+    pkg.devDependencies["@sveltejs/adapter-node"] = "^6.0.0";
+    pkg.devDependencies["@sveltejs/vite-plugin-svelte"] = "^7.3.1";
+    pkg.devDependencies.vite = "^8.0.12";
+    pkg.devDependencies.typescript = "^6.0.0";
     delete pkg.devDependencies["@sveltejs/adapter-static"];
+    (pkg as typeof pkg & { imports: Record<string, string> }).imports = {
+      "#lib": "./src/lib/index.js",
+      "#lib/*": "./src/lib/*",
+    };
     files["package.json"] = JSON.stringify(pkg, null, 2) + "\n";
-    files["svelte.config.js"] = files["svelte.config.js"]
-      .replace('from "@sveltejs/adapter-static"', 'from "@sveltejs/adapter-node"')
-      .replace('adapter({ fallback: "200.html" })', "adapter()")
-      .replace('prerender: { entries: [] }', 'prerender: { entries: [] }');
+    delete files["svelte.config.js"];
+    const vite = Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js";
+    files[vite] = [
+      'import adapter from "@sveltejs/adapter-node";',
+      'import { sveltekit } from "@sveltejs/kit/vite";',
+      'import { defineConfig } from "vite";',
+      'export default defineConfig({ plugins: [sveltekit({ adapter: adapter() })] });',
+      "",
+    ].join("\n");
+    for (const [name, source] of Object.entries(files)) {
+      if (/\\.(?:svelte|js|ts)$/.test(name) && source.includes("$lib/")) {
+        files[name] = source.replaceAll("$lib/", "#lib/");
+      }
+    }
+    if (files["tsconfig.json"]) {
+      const config = JSON.parse(files["tsconfig.json"]) as Record<string, unknown>;
+      config.extends = "$app/tsconfig";
+      files["tsconfig.json"] = JSON.stringify(config, null, 2) + "\n";
+    }
     const script = [
       'import { error } from "@sveltejs/kit";',
       'import { selectPage } from "$lib/site-routes.js";',
