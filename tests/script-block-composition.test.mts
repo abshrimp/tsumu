@@ -109,6 +109,69 @@ test(">= and <= are consistent in list filters and server-side page-load if", ()
   assert.equal(vars.result, "yes");
 });
 
+test("if blocks group AND before OR and work in server-side page-load execution", () => {
+  const cases = [
+    { first: "yes", second: "no", third: "yes", expected: "accepted" },
+    { first: "yes", second: "no", third: "no", expected: "rejected" },
+    { first: "no", second: "no", third: "yes", expected: "accepted" },
+    { first: "yes", second: "yes", third: "no", expected: "accepted" },
+  ];
+  for (const input of cases) {
+    const vars: Record<string, unknown> = { ...input };
+    const steps: ScriptStep[] = [{
+      kind: "if", id: "compound-if",
+      cond: { subject: "var", target: "", left: "{first}", op: "eq", value: "yes" },
+      conditions: [
+        { subject: "var", target: "", left: "{second}", op: "eq", value: "yes", and: true },
+        { subject: "var", target: "", left: "{third}", op: "eq", value: "no", not: true, and: false },
+      ],
+      then: [{ kind: "set-var", id: "then", into: "result", value: "accepted" }],
+      else: [{ kind: "set-var", id: "else", into: "result", value: "rejected" }],
+    }];
+    assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+    assert.equal(vars.result, input.expected);
+  }
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push({
+    id: "server-if", kind: "if",
+    cond: { subject: "var", target: "", left: "{data.price}", op: "gte", value: "10" },
+    conditions: [
+      { subject: "var", target: "", left: "{data.name}", op: "eq", value: "Product", and: true },
+      { subject: "var", target: "", left: "{data.price}", op: "eq", value: "5", and: false },
+    ],
+    then: [{ id: "true-result", kind: "set-var", into: "check", value: "yes" }],
+    else: [{ id: "false-result", kind: "set-var", into: "check", value: "no" }],
+  });
+  const plan = pagePlan(doc, "p");
+  assert.ok(plan.serverIds.has("server-if"));
+  assert.equal(previewDataVars(doc, "p").check, "yes");
+  const files = generateProject(doc).files;
+  assert.match(files["app/page.tsx"], /"conditions"/);
+  assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
+});
+
+test("if blocks with browser-only additional clauses do not run during SSR", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "client-status", kind: "store-load", key: "status", into: "status" },
+    { id: "client-if", kind: "if",
+      cond: { subject: "var", target: "", left: "{data.price}", op: "gte", value: "10" },
+      conditions: [
+        { subject: "var", target: "", left: "{status}", op: "eq", value: "ready", and: true },
+      ],
+      then: [{ id: "client-out", kind: "set-var", into: "result", value: "yes" }],
+    },
+    { id: "element-if", kind: "if",
+      cond: { subject: "var", target: "", left: "{data.price}", op: "gte", value: "10" },
+      conditions: [{ subject: "visible", target: "box", and: true }],
+      then: [{ id: "element-out", kind: "set-var", into: "elementResult", value: "yes" }],
+    },
+  );
+  const plan = pagePlan(doc, "p");
+  assert.ok(!plan.serverIds.has("client-if"));
+  assert.ok(!plan.serverIds.has("element-if"));
+});
+
 test("three ordinary blocks compose a value in preview and server generated output", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
