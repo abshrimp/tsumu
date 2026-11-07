@@ -41,8 +41,8 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build
-      - name: Test ZIP and doc.json URL restoration
-        run: npx playwright test e2e/site-url-import.spec.ts
+      - name: Test local ZIP and doc.json restoration
+        run: npx playwright test e2e/site-file-import.spec.ts
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v7.0.2
         if: failure()
