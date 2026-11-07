@@ -12391,6 +12391,10 @@ a.btn {
 .vx-row[aria-disabled="true"] { opacity: .45; cursor: default; }
 .se-fetch-payload pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; max-height: 200px; overflow-y: auto; }
 
+.se-quantity { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
+.se-quantity > .se-fixed-select { flex: none; width: max-content; min-width: max-content; }
+.se-quantity > .se-in { flex: none; }
+
 /* Inline value operations in ordinary script blocks. */
 .se-transform-settings {
   flex-basis: 100%;
