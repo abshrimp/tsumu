@@ -334,7 +334,10 @@ function findIn(list: unknown, field: string, key: string): unknown {
   const path = field.split(".");
   return (
     list.find((item) => {
-      const v = String(dig(item, path) ?? "");
+      // 見本と同じく、ドットを含む実際の項目名をパスより優先する。
+      const value = item != null && typeof item === "object" && Object.prototype.hasOwnProperty.call(item, field)
+        ? item[field] : dig(item, path);
+      const v = String(value ?? "");
       return v === key || encodeURIComponent(v) === key;
     }) ?? null
   );
