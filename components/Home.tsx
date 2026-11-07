@@ -528,14 +528,15 @@ export default function Home() {
       if (!hasFiles(event)) return;
       event.preventDefault();
       depth++;
-      setDraggingFile(true);
+      if (store && !importActive.current) setDraggingFile(true);
     };
     const onOver = (event: DragEvent) => {
       if (!hasFiles(event)) return;
       event.preventDefault();
-      if (event.dataTransfer) event.dataTransfer.dropEffect = store && !importActive.current ? "copy" : "none";
+      const canImport = !!store && !importActive.current;
+      if (event.dataTransfer) event.dataTransfer.dropEffect = canImport ? "copy" : "none";
       if (depth === 0) depth = 1;
-      setDraggingFile(true);
+      if (canImport) setDraggingFile(true);
     };
     const onLeave = (event: DragEvent) => {
       if (!hasFiles(event)) return;
@@ -552,13 +553,13 @@ export default function Home() {
     window.addEventListener("dragenter", onEnter);
     window.addEventListener("dragover", onOver);
     window.addEventListener("dragleave", onLeave);
-    window.addEventListener("drop", onDrop);
+    window.addEventListener("drop", onDrop, true);
     window.addEventListener("blur", clear);
     return () => {
       window.removeEventListener("dragenter", onEnter);
       window.removeEventListener("dragover", onOver);
       window.removeEventListener("dragleave", onLeave);
-      window.removeEventListener("drop", onDrop);
+      window.removeEventListener("drop", onDrop, true);
       window.removeEventListener("blur", clear);
     };
   }, [store, runFileImport]);
