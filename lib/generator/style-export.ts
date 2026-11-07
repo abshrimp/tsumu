@@ -97,20 +97,40 @@ export function splitCssModule(source: string): { global: string; module: string
 }
 
 function addCssModules(files: Record<string, string>, framework: ExportFormat) {
-  const react = framework === "react";
-  const cssPath = react ? "src/site.css" : "styles/site.css";
-  const result = splitCssModule(files[cssPath] ?? "");
-  delete files[cssPath];
-  if (react) {
-    files["src/site-global.css"] = result.global;
-    files["src/site.module.css"] = result.module;
+  const path = framework === "vue" || framework === "sveltekit" || framework === "react"
+    ? "src/site.css" : framework === "nuxt" ? "app/assets/site.css" : "styles/site.css";
+  const result = splitCssModule(files[path] ?? "");
+  delete files[path];
+  const dir = path.slice(0, path.lastIndexOf("/") + 1);
+  files[dir + "site-global.css"] = result.global;
+  files[dir + "site.module.css"] = result.module;
+
+  if (framework === "react") {
     files["src/main.tsx"] = files["src/main.tsx"].replace('"./site.css"', '"./site-global.css"');
     files["src/App.tsx"] = 'import siteStyles from "./site.module.css";\n' +
       files["src/App.tsx"].replace('    <>\n', '    <div className={siteStyles.siteRoot}>\n')
         .replace('    </>\n', '    </div>\n');
+  } else if (framework === "vue" || framework === "nuxt") {
+    if (framework === "vue") {
+      for (const name of ["src/main.ts", "src/main.js"]) {
+        if (files[name]) files[name] = files[name].replace('"./site.css"', '"./site-global.css"');
+      }
+    } else {
+      files["nuxt.config.ts"] &&= files["nuxt.config.ts"].replace("~/assets/site.css", "~/assets/site-global.css");
+      files["nuxt.config.js"] &&= files["nuxt.config.js"].replace("~/assets/site.css", "~/assets/site-global.css");
+    }
+    const component = framework === "vue" ? "src/App.vue" : "app/app.vue";
+    const cssImport = framework === "vue" ? "./site.module.css" : "./assets/site.module.css";
+    files[component] = files[component]
+      .replace('<script setup', ' <script setup')
+      .replace(/(<script setup(?: lang="ts")?>)/, '$1\nimport siteStyles from "' + cssImport + '";')
+      .replace('style="display:contents" v-html=', ':class="siteStyles.siteRoot" style="display:contents" v-html=')
+      .replace(/^ <script setup/m, '<script setup');
+  } else if (framework === "sveltekit") {
+    files["src/routes/+page.svelte"] = files["src/routes/+page.svelte"]
+      .replace('import "../site.css";', 'import "../site-global.css";\nimport siteStyles from "../site.module.css";')
+      .replace('{@html html}', '<div class={siteStyles.siteRoot} style="display:contents">{@html html}</div>');
   } else {
-    files["styles/site-global.css"] = result.global;
-    files["styles/site.module.css"] = result.module;
     files["app/layout.tsx"] = files["app/layout.tsx"]
       .replace('import "../styles/site.css";', 'import "../styles/site-global.css";\nimport siteStyles from "../styles/site.module.css";')
       .replace(/(<body(?:\s[^>]*)?>)/, '$1\n        <div className={siteStyles.siteRoot}>')
@@ -119,20 +139,32 @@ function addCssModules(files: Record<string, string>, framework: ExportFormat) {
 }
 
 function addTailwind(files: Record<string, string>, framework: ExportFormat) {
-  const react = framework === "react";
-  const css = react ? "src/globals.css" : "app/globals.css";
-  // Do not import Preflight: it changes the user's existing layout, headings and forms.
+  const css = framework === "react" || framework === "vue" || framework === "sveltekit"
+    ? "src/globals.css" : framework === "nuxt" ? "app/assets/globals.css" : "app/globals.css";
+  // Do not import Preflight: it changes authored headings, layouts and form defaults.
   files[css] = '@import "tailwindcss/theme.css";\n@import "tailwindcss/utilities.css";\n\n' + files[css];
-  const pkg = JSON.parse(files["package.json"]) as {
-    devDependencies: Record<string, string>;
-  };
+  const pkg = JSON.parse(files["package.json"]) as { devDependencies: Record<string, string> };
   pkg.devDependencies.tailwindcss = "^4.1.0";
-  if (react) {
+  if (framework === "react" || framework === "vue" || framework === "sveltekit") {
     pkg.devDependencies["@tailwindcss/vite"] = "^4.1.0";
-    files["vite.config.ts"] = files["vite.config.ts"].replace(
-      'import { defineConfig } from "vite";',
-      'import { defineConfig } from "vite";\nimport tailwindcss from "@tailwindcss/vite";'
-    ).replace("export default defineConfig({", "export default defineConfig({\n  plugins: [tailwindcss()],");
+    const config = framework === "sveltekit"
+      ? Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js"
+      : Object.hasOwn(files, "vite.config.ts") ? "vite.config.ts" : "vite.config.js";
+    files[config] = 'import tailwindcss from "@tailwindcss/vite";\n' + files[config];
+    const plugin = framework === "react" ? "plugins: [tailwindcss()," : "plugins: [";
+    if (framework === "react") files[config] = files[config]
+      .replace("plugins: [tailwindcss(),", "plugins: [tailwindcss(),");
+    else if (framework === "vue") files[config] = files[config]
+      .replace("plugins: [vue()]", "plugins: [vue(), tailwindcss()]");
+    else files[config] = files[config]
+      .replace("plugins: [sveltekit()]", "plugins: [sveltekit(), tailwindcss()]");
+    if (framework === "react") files[config] = files[config]
+      .replace('export default defineConfig({', 'export default defineConfig({\n  plugins: [tailwindcss()],');
+  } else if (framework === "nuxt") {
+    pkg.devDependencies["@tailwindcss/vite"] = "^4.1.0";
+    const config = Object.hasOwn(files, "nuxt.config.ts") ? "nuxt.config.ts" : "nuxt.config.js";
+    files[config] = 'import tailwindcss from "@tailwindcss/vite";\n' + files[config]
+      .replace("defineNuxtConfig({", "defineNuxtConfig({\n  vite: { plugins: [tailwindcss()] },");
   } else {
     pkg.devDependencies["@tailwindcss/postcss"] = "^4.1.0";
     files["postcss.config.mjs"] = [
