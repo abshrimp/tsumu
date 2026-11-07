@@ -150,6 +150,35 @@ test("if blocks group AND before OR and work in server-side page-load execution"
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
 });
 
+test("incomplete if clauses are neutral until their comparison source is set", () => {
+  for (const { status, and, expected } of [
+    { status: "ready", and: true, expected: "yes" },
+    { status: "ready", and: false, expected: "yes" },
+    { status: "waiting", and: true, expected: "no" },
+    { status: "waiting", and: false, expected: "no" },
+  ]) {
+    const vars: Record<string, unknown> = { status };
+    const steps: ScriptStep[] = [{
+      id: "test-if", kind: "if",
+      cond: { subject: "var", target: "", left: "{status}", op: "eq", value: "ready" },
+      conditions: [{ subject: "var", target: "", left: "", op: "eq", value: "", and }],
+      then: [{ id: "yes", kind: "set-var", into: "result", value: "yes" }],
+      else: [{ id: "no", kind: "set-var", into: "result", value: "no" }],
+    }];
+    assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+    assert.equal(vars.result, expected);
+  }
+  const vars: Record<string, unknown> = {};
+  const steps: ScriptStep[] = [{
+    id: "blank-if", kind: "if",
+    cond: { subject: "var", target: "", left: "", op: "eq", value: "", not: true },
+    then: [{ id: "bad", kind: "set-var", into: "result", value: "yes" }],
+    else: [{ id: "safe", kind: "set-var", into: "result", value: "no" }],
+  }];
+  assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+  assert.equal(vars.result, "no");
+});
+
 test("if blocks with browser-only additional clauses do not run during SSR", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
