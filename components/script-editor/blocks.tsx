@@ -8,7 +8,7 @@ import { useContext, useMemo, type ReactNode } from "react";
 import { Plus, Repeat, IterationCw, Split, X } from "lucide-react";
 import { readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
-import { isDataStep, keyOfItem, toListItems, type FetchStep } from "../../lib/data";
+import { isDataStep, keyOfItem, pagePlan, toListItems, type FetchStep } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/types";
 import { tr } from "../../lib/i18n";
@@ -49,7 +49,7 @@ function ForEachView({
   // not for click/change handlers that can iterate client-side lists.
   const pageLoad = ctx.scripts.some((s) => s.id === loc.scriptId &&
     s.nodeId === PAGE_TARGET && s.trigger === "load");
-  const stuck = sample !== undefined && pageLoad;
+  const stuck = pageLoad && !pagePlan(ctx.doc, ctx.pageId).serverIds.has(step.id);
   return (
     <div className={`se-c${sel}`} {...handlers}>
       <div className="se-blk se-c-head" data-sel-key={key}>
@@ -68,7 +68,7 @@ function ForEachView({
         {step.array && <span className="se-blk-note">{tr("中では要素の項目を {項目} で使えます")}</span>}
         {stuck && !ctx.readOnly && (
           <span className="se-badge is-warn">
-            {tr("ページを開いたときの処理では、このリストを「要素ごとにくり返す」で加工できません。代わりに「値を加工する」を使ってください。")}
+            {tr("この繰り返しには、ページの配信前に実行できない操作または変数参照があります。中のブロックを確認してください。")}
           </span>
         )}
       </div>
