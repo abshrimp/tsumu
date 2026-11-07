@@ -110,6 +110,58 @@ test("canvas block settings update the document without a separate value-compose
   })).toBe("length");
 });
 
+test("canvas native select and picker button share the same dropdown appearance", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.push({
+        id: "dropdown-style", kind: "transform", source: "data", into: "chosen",
+        transform: { kind: "field", key: "name" },
+      });
+    });
+  });
+  const box = page.locator('[data-sel-key="step:dropdown-style"]');
+  const picker = box.getByRole("button", { name: "加工する元の変数" });
+  const select = box.getByRole("combobox", { name: "加工の種類" });
+  await expect(picker).toBeVisible();
+  await expect(select).toBeVisible();
+
+  const styles = await Promise.all([picker, select].map((control) =>
+    control.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        height: style.height,
+        paddingLeft: style.paddingLeft,
+        paddingRight: style.paddingRight,
+        borderRadius: style.borderRadius,
+        borderWidth: style.borderTopWidth,
+        backgroundColor: style.backgroundColor,
+        backgroundImage: style.backgroundImage,
+        backgroundPosition: style.backgroundPosition,
+        backgroundSize: style.backgroundSize,
+        fontFamily: style.fontFamily,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        appearance: style.appearance,
+      };
+    })));
+  expect(styles[0]).toEqual(styles[1]);
+  expect(styles[0].height).toBe("24px");
+  expect(styles[0].appearance).toBe("none");
+  expect(styles[0].backgroundImage).toContain("svg");
+
+  await picker.focus();
+  const focusedPicker = await picker.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { borderColor: style.borderTopColor, backgroundColor: style.backgroundColor };
+  });
+  await select.focus();
+  const focusedSelect = await select.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { borderColor: style.borderTopColor, backgroundColor: style.backgroundColor };
+  });
+  expect(focusedPicker).toEqual(focusedSelect);
+});
+
 test("canvas list-display block switches filter, sort and clear without changing the step ID", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
