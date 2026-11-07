@@ -1,58 +1,32 @@
 ---
 name: tsumu-site
-description: Create an editable Tsumu site as a downloadable doc.json or ZIP archive, without publishing files or creating an import URL.
+description: Generate an editable Tsumu website as a downloadable doc.json or ZIP file with its assets.
 ---
 
 # Create a site for Tsumu
 
-Use this skill when the user asks you to generate a site they can open and visually edit in Tsumu.
+Use this skill when a user asks for a site they can open and visually edit in Tsumu. Produce a real downloadable `doc.json` or ZIP file for importing on the Tsumu homepage.
 
-## Deliverable
+## Read first
 
-Create a real downloadable file, not a code snippet or a remote URL.
+1. Read [the SiteDoc data format](references/site-doc.md) for required and optional fields, ID references, styling, scripts, components, and assets.
+2. Read [a valid editable site example](references/minimal-site.json) and use its structure as the starting point for a new site.
+3. If the current Tsumu repository is accessible, cross-check `lib/types.ts`, `lib/presets.ts`, and `lib/site-import.ts` for changed or advanced functionality. The current code is authoritative.
 
-- **No binary assets**: deliver `doc.json` containing one valid Tsumu `SiteDoc`. If visual assets are embedded as SVG elements or authored CSS, no ZIP is needed. Self-contained `dataUrl` assets are also allowed when practical.
-- **With images, fonts, video or other assets**: deliver a ZIP with `_tsumu/doc.json` and `_tsumu/assets.json`, plus all referenced asset files. ZIP may contain a single root folder, but the metadata must be at its root.
-- Do not upload the result to external storage. Do not produce `?zip=` or `?doc=` links. The user downloads the file and drops it on the Tsumu homepage or uses **Import**.
+## Select the output
 
-## Source of truth
+- **No packaged binary assets:** generate `doc.json` containing one valid `SiteDoc`; use `assets: {}` when no assets exist. Inline CSS and native Tsumu elements do not require ZIP packaging.
+- **With packaged assets:** generate a ZIP with `_tsumu/doc.json`, `_tsumu/assets.json`, and the required files (normally in `public/assets/`). The map associates original asset IDs with paths inside the ZIP.
+- For modest self-contained assets, a `dataUrl` in `doc.json` is also supported when the resulting document is within import limits.
 
-- The editor's data format is `SiteDoc` in `lib/types.ts`.
-- Use `lib/presets.ts` / `createInitialDoc()` to derive valid defaults when writing generation code. Include valid `pages`, `pageOrder`, `nodes` and `assets`. Every ID reference must resolve.
-- Site markup or a generated framework project is **not** a replacement for a `SiteDoc`: make the pages and nodes editable.
-- Use only currently supported node types, styles, links, scripts, and component shapes. Avoid guessing properties. Read the current repository definitions before generating.
+Do not substitute raw HTML, a generated Next.js project, or an image-only mockup for the editable `SiteDoc`.
 
-## ZIP example
+## Create and verify
 
-```text
-my-site.zip
-├── _tsumu/
-│   ├── doc.json
-│   └── assets.json
-└── public/
-    └── assets/
-        └── logo.svg
-```
+1. Generate stable, unique page, node, script, component and asset IDs; ensure every reference resolves. Use proper `pages`, `pageOrder`, `nodes`, and `assets`.
+2. Build layout with editable nodes and `styles.base.default`; use real `DocNode` types and properly shaped scripts. Read the reference for correct field names and nested structures.
+3. If packaging assets, keep their original IDs and write an `_tsumu/assets.json` map of archive paths. Do not use remote Tsumu storage keys as local asset paths.
+4. Validate the file and archive using the checks and size limits in [the format reference](references/site-doc.md). If possible, load it in Tsumu and verify that the editor can select and edit its elements.
+5. Deliver the downloadable file. The user can drop it onto the Tsumu homepage or select **Import**.
 
-`_tsumu/assets.json` must map the original asset IDs to exact archive paths:
-
-```json
-{
-  "version": 1,
-  "assets": {
-    "logo-id": "public/assets/logo.svg"
-  }
-}
-```
-
-The `doc.json` must contain the matching `doc.assets["logo-id"]` entry and every node referring to the image must use the same asset ID. Preserve all IDs.
-
-## Validate before delivery
-
-1. Parse the JSON as UTF-8 and check the `SiteDoc` structure, especially `pages`, `pageOrder`, `nodes`, and `assets`.
-2. Check all page, element, component, script target and asset references. Do not put references to assets that are not included, unless they are truly embedded in `dataUrl`.
-3. For ZIPs, ensure no absolute paths, `..` entries, duplicate paths, or duplicate `_tsumu/doc.json` files. Use `_tsumu/doc.json`, not `docs.json` or legacy metadata paths.
-4. Keep within Tsumu's import limits (see `lib/site-import.ts`) and test a local import when practical.
-5. Return the downloadable file and instruct the user to drop it onto the Tsumu homepage.
-
-If the user asks for a site requiring assets you cannot generate or package, state that limitation rather than silently omitting assets.
+Do not silently omit images or other required assets. If an essential asset cannot be created, explain the limitation.
