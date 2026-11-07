@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import { createInitialDoc } from "../lib/presets";
-import { pageDataPlan, PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
+import { pageDataPlan, pageDataServerIds, PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
 import { nativeDataModule } from "../lib/generator/native-data";
 import { generateExportProject } from "../lib/export-formats";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
@@ -199,4 +199,65 @@ test("export preserves #136 variable references after obfuscating a transformati
     throw new Error("No network call expected");
   });
   assert.equal(vars[steps[2].into], 2);
+});
+
+
+test("#136 multiple if clauses retain AND-before-OR grouping in browser and SSR", async () => {
+  const { doc, page } = fixture();
+  page.pageScripts = [{ id: "joined", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{
+      id: "joined-if", kind: "if",
+      cond: { subject: "var", target: "", left: "{flag}", op: "eq", value: "1" },
+      conditions: [
+        { subject: "var", target: "", left: "{mode}", op: "eq", value: "enabled", and: false },
+        { subject: "var", target: "", left: "{mode}", op: "eq", value: "disabled", and: true },
+      ],
+      then: [{ id: "true", kind: "set-var", into: "result", value: "yes" }],
+      else: [{ id: "false", kind: "set-var", into: "result", value: "no" }],
+    }],
+  }] as unknown as typeof page.pageScripts;
+  const plan = pageDataPlan(doc, page);
+  assert.equal(plan.steps.length, 1);
+  assert.deepEqual((plan.steps[0] as { conditions?: unknown[] }).conditions?.length, 2);
+  const sandbox: Record<string, any> = {
+    window: {}, location: { search: "?flag=1&mode=other" }, URLSearchParams,
+    document: { querySelector: () => ({ textContent: JSON.stringify(plan) }) }, console,
+  };
+  runInNewContext(PAGE_DATA_RUNTIME, sandbox, { timeout: 5000 });
+  const browser = await sandbox.window.__pageDataReady;
+  assert.equal(browser.result, "yes");
+  const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
+  const { loadPageData } = await import(uri);
+  const server = await loadPageData(plan, "?flag=1&mode=other");
+  assert.equal(server.result, "yes");
+
+  // Conditions involving an actual element cannot run during SSR. Preserve them
+  // for the generated client script rather than silently skipping the if block.
+  const conditional = (page.pageScripts![0].steps[0] as unknown as {
+    conditions: Array<{ subject: string; target: string }>;
+    id: string;
+  });
+  conditional.conditions[0].subject = "checked";
+  conditional.conditions[0].target = "checkbox";
+  const clientPlan = pageDataPlan(doc, page);
+  assert.equal(clientPlan.steps.some((st) => st.kind === "if"), false);
+  assert.equal(pageDataServerIds(doc, page).has(conditional.id), false);
+});
+
+test("#136 if condition arrays are serialized into emitted event scripts", () => {
+  const { doc, page } = fixture();
+  doc.pages = { [page.id]: page };
+  doc.pageOrder = [page.id];
+  const node = doc.nodes[page.children[0]];
+  node.scripts = [{ id: "click", trigger: "click", pos: { x: 0, y: 0 },
+    steps: [{ id: "if", kind: "if",
+      cond: { subject: "var", target: "", left: "1", op: "eq", value: "1" },
+      conditions: [{ subject: "var", target: "", left: "1", op: "eq", value: "2", and: false }],
+      then: [{ id: "then", kind: "set-var", into: "result", value: "yes" }],
+      else: [{ id: "else", kind: "set-var", into: "result", value: "no" }],
+    }],
+  }] as unknown as typeof node.scripts;
+  const result = generateExportProject(doc, "html");
+  assert.match(result.files["index.html"], /&quot;conditions&quot;/);
+  assert.match(result.files["scripts.js"], /testIf/);
 });
