@@ -58,7 +58,7 @@ test("HTML export produces independent nested pages and relative links", () => {
   doc.pageOrder.push("about");
   doc.nodes.hero.link = { kind: "page", pageId: "about" };
   const result = generateExportProject(doc, "html");
-  assert.match(result.files["index.html"], /href="\.\/about\/"/);
+  assert.match(result.files["index.html"], /href="\.\/about\/index\.html"/);
   assert.match(result.files["about/index.html"], /href="\.\.\/styles\/site\.css"/);
   assert.equal(result.files["src/App.tsx"], undefined);
 });
