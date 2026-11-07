@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "サイト全体の編集データをバックアップファイルとして保存・復元します。GitHubへのPush時に保存される編集データも読み込めます。": "Back up and restore the entire site's editable data. You can also import the edit data saved when pushing to GitHub.",
   "選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリの設定が以前の形式のままだとサイトが表示されなくなる場合があります。設定を確認したうえで続行しますか？": "Pushing in this format changes the repository structure. If your hosting provider still uses the previous build or publish-directory settings, the site may stop working. Have you checked the hosting settings?",
   "公開先の設定を確認してください": "Check the hosting settings",
   "この形式でPushする": "Push this format",
