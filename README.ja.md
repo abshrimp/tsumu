@@ -181,35 +181,16 @@ Cloudflare Workers Builds で自動デプロイを行う場合は、リポジト
 
 - Build command: `node scripts/cloudflare.mjs build`
 - Deploy command: `node scripts/cloudflare.mjs deploy`
-- Preview command（Worker Previews の設定後。下記参照）: `node scripts/cloudflare-preview.mjs`
+- Preview command: `node scripts/cloudflare-preview.mjs`（下記参照）
 - ビルド変数（任意。Settings → Build → Variables and secrets）: `D1_DATABASE_ID`・`KV_NAMESPACE_ID`
 
 ビルド時に、スクリプトが `wrangler.jsonc` からデプロイ用の設定ファイル `wrangler.generated.jsonc` を生成します。ビルド変数のIDを埋め込み、IDのないバインディングは除外するため、IDをコミットする必要はありません。
 
 #### プルリクエストのプレビュー（Worker Previews）
 
-エディタは Durable Object を実装しています。Cloudflare の従来の **Version URL**（`opennextjs-cloudflare upload` や `wrangler versions upload` が生成するURL）では、このような Worker を表示できません。プルリクエストをプレビューするには、代わりに **Worker Previews** を使用します。
+上記の Preview command を設定すると、Workers Builds はプルリクエストごとに **Worker Preview** をデプロイし、そのURLをプルリクエストに投稿します。プレビューはログイン不要の公開デモで、データはブラウザ内に保存され、本番の保存先やシークレットは使用しません。以前に作成した Workers Builds プロジェクトでは、事前に Worker Previews への切り替え（一度限りで、元に戻せません）が必要です。エディタは Durable Object を持つため、従来の Version URL では表示できません。
 
-- 既存の Workers Builds プロジェクトでは、**一度限りの、元に戻せない切り替え**が必要です。Version URL を有効にするだけの対応は行わないでください。
-- `npm run preview` は引き続きローカル専用です。`npm run preview:deploy` はクラウド上に Preview を作成します。
-- 設定方法、本番と分離した保存先、認証、動作の確認方法は [エディタのプレビュー](docs/worker-previews.md) を参照してください。
-
-このリポジトリでクラウド上に作成する確認用プレビューは、**URLを知っていればログインなしでアクセスできる公開デモ**です。
-
-- コミット済みの `previews` 設定では、D1・KV を明示的に空にし、`ALLOW_ANONYMOUS=true` のみを設定しています。補助スクリプト（helper）は、そのプレビュー専用の Durable Object を追加します。
-- 本番のシークレットはコピーしません。
-- サイトの文書と画像は、プレビューのURLごとにブラウザ内に保存されます。使い捨てのテストデータを使用してください。
-- ビルド変数を設定するだけでは、実行時の匿名モードは有効になりません。
-- 独自の `WRANGLER_CONFIG` や `wrangler.local.jsonc` を使用する場合も、同様の分離を明示的に維持してください。
-
-リポジトリの変更をマージしても、Cloudflare のダッシュボードでの切り替えは行われません。切り替えは手動で行う必要があります。手順は次のとおりです。
-
-1. **切り替えの前に**、本番のデプロイと既存のプレビューを確認します。本番のバインディングやシークレットを含まない Preview Base を用意し、実行されるコマンドをすべて確認してください。
-2. **本番の Deploy command は変更しません。** 切り替え後、Preview command に helper を指定します。
-3. **helper を含むブランチで検証します。** 古いプルリクエストのブランチには、この設定変更を取り込む必要があります。
-4. **実際のURLで確認します。** Cloudflare のビルド結果または GitHub のプルリクエスト連携が出力するURLを開き、使い捨てのサイトを作成して再読み込みします。ビルドの成功や推測した Version URL だけでは、プレビューが正常に動作している根拠にはなりません。
-
-詳細は [切り替えのチェックリスト](docs/worker-previews.md#workers-builds-cutover-checklist) を参照してください。
+設定方法とテスト用の保存先の指定方法は、[エディタのプルリクエストのプレビュー](docs/worker-previews.md) を参照してください。
 
 ### Node.js
 
@@ -296,7 +277,7 @@ docker start tsumu
 |---|---|---|
 | **Vercel** | リポジトリをインポートします。追加の設定は不要です。 | 本番以外のブランチに、自動でプレビューURLが付与されます。 |
 | **Netlify** | リポジトリをインポートします。 | Branch deploys を有効にします。 |
-| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | 生成されたプロジェクト側で、別途 [Worker Previews](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/) を設定します。Preview command では、そのプロジェクト専用に分離したバインディングで `wrangler preview` を実行する必要があります。エディタの helper は、他のリポジトリの設定は行いません。 |
+| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | [本番以外のブランチのビルド](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)を有効にします。公開サイトは保存先も Durable Object も持たないため、エディタのプレビュー用の設定は不要です。 |
 | **Node.js** | `npm install && npm run build && npm start` | テスト公開のブランチは個別にビルドします。 |
 
 ### データの更新間隔と Cloudflare

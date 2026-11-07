@@ -181,35 +181,16 @@ To deploy automatically with Cloudflare Workers Builds, connect the repository a
 
 - Build command: `node scripts/cloudflare.mjs build`
 - Deploy command: `node scripts/cloudflare.mjs deploy`
-- Preview command (once Worker Previews is set up — see below): `node scripts/cloudflare-preview.mjs`
+- Preview command: `node scripts/cloudflare-preview.mjs` (see below)
 - Build variables (optional; under Settings → Build → Variables and secrets): `D1_DATABASE_ID` and `KV_NAMESPACE_ID`
 
 At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wrangler.generated.jsonc`. It fills in the IDs from the build variables and drops bindings that have none, so you never need to commit your IDs.
 
 #### Previewing pull requests (Worker Previews)
 
-The editor exports a Durable Object. Cloudflare's older **Version URLs** — what `opennextjs-cloudflare upload` and `wrangler versions upload` produce — can't serve a Worker like that. To preview pull requests you need **Worker Previews** instead.
+With the Preview command above, Workers Builds deploys each pull request as a **Worker Preview** and posts its URL on the pull request. A Preview is a public demo that needs no sign-in and keeps its data in the browser; it never uses production storage or secrets. Older Workers Builds projects first need a one-time, irreversible switch to Worker Previews; the older Version URLs can't serve the editor, because it has a Durable Object.
 
-- **Switching is a one-time, irreversible change** for an existing Workers Builds project. Don't simply enable a Version URL instead.
-- `npm run preview` still runs locally only. `npm run preview:deploy` creates a hosted Preview.
-- [Hosted previews of the editor](docs/worker-previews.md) covers setup, separate storage, authentication and how to verify that a Preview works.
-
-Hosted review builds of this repository are **public, anonymous demos**:
-
-- The checked-in `previews` configuration explicitly binds no D1 or KV and sets only `ALLOW_ANONYMOUS=true`. The helper script adds a Durable Object that belongs to that Preview alone.
-- No production secrets are copied.
-- Site documents and images are stored in the browser, per Preview URL, so use throwaway test data.
-- Setting a build variable alone does not turn on anonymous mode at runtime.
-- If you use a private `WRANGLER_CONFIG` or `wrangler.local.jsonc`, it must keep the same isolation explicitly.
-
-Merging the repository change doesn't flip the switch in the Cloudflare dashboard; you do that yourself. In short:
-
-1. **Before switching**, check the current production deployment and any existing Previews. Prepare a Preview Base that has no production bindings or secrets, and read through the complete commands.
-2. **Leave the production deploy command unchanged.** After switching, set the helper as the Preview command.
-3. **Test with a branch that contains the helper.** Older pull request branches need these setup changes merged in too.
-4. **Check the real URL.** Take it from the Cloudflare build output or the GitHub pull request integration, open it, create a throwaway local site and reload the page. A green build or a guessed Version URL is not proof that the Preview works.
-
-See the [full checklist](docs/worker-previews.md#workers-builds-cutover-checklist).
+See [Previewing pull requests of the editor](docs/worker-previews.md) for setup and for giving Previews test storage.
 
 ### Node.js
 
@@ -296,7 +277,7 @@ After the first publish, connect the site's repository to a hosting service.
 |---|---|---|
 | **Vercel** | Import the repository. No configuration needed. | Every non-production branch gets a preview URL. |
 | **Netlify** | Import the repository. | Turn on branch deploys. |
-| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | Set up [Worker Previews](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/) separately for the generated project. Its Preview command must run `wrangler preview` with that project's own isolated bindings. The editor's helper script doesn't configure other repositories. |
+| **Cloudflare Workers Builds** | Build: `npx opennextjs-cloudflare build`<br>Deploy: `npx opennextjs-cloudflare deploy` | Turn on [builds for non-production branches](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/). The published site has no storage or Durable Objects, so the editor's preview setup doesn't apply. |
 | **Node.js** | `npm install && npm run build && npm start` | Build the test branch separately. |
 
 ### Data refresh interval and Cloudflare
