@@ -130,7 +130,7 @@ export function buildCanvasCss(
       const customStates = [...new Set(Object.values(node.styles)
         .flatMap((states) => Object.keys(states))
         .filter((state) => customStateSelector(state) !== null))];
-      for (const st of [...["hover", "active", "focus"], ...customStates]) {
+      for (const st of [...["hover", "active", "focus"], ...customStates] as StyleState[]) {
         const merged: Record<string, string> = {};
         for (const b of bpChain(bp)) Object.assign(merged, node.styles[b]?.[st]);
         const suffix = customStateSelector(st) ?? `:${st}`;
