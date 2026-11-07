@@ -1,5 +1,6 @@
 import type { GeneratedProject } from "../generator";
 import { fetchWithRetry } from "../assets";
+import { rewriteSrcsetUrls } from "../srcset";
 
 /**
  * Turn the direct HTML export into one file. All referenced images, fonts,
@@ -202,13 +203,15 @@ export async function toSingleHtmlProject(
       async (whole, key, quote, ref) => key + "=" + quote + await embed(ref, "index.html") + quote);
     updated = await replaceAsync(updated, /\bsrcset\s*=\s*(["'])([^"']+)\1/gi,
       async (whole, quote, srcset) => {
-        const candidates = srcset.split(",").map((x) => x.trim()).filter(Boolean);
-        const result: string[] = [];
-        for (const item of candidates) {
-          const m = /^(\S+)(.*)$/.exec(item);
-          if (m) result.push(await embed(m[1], "index.html") + m[2]);
+        // data URLs and filenames can contain commas; parse srcset URL tokens.
+        const urls: string[] = [];
+        rewriteSrcsetUrls(srcset, (url) => { urls.push(url); return url; });
+        const embedded = new Map<string, string>();
+        for (const url of urls) {
+          if (!embedded.has(url)) embedded.set(url, await embed(url, "index.html"));
         }
-        return "srcset=" + quote + result.join(", ") + quote;
+        return "srcset=" + quote +
+          rewriteSrcsetUrls(srcset, (url) => embedded.get(url) ?? url) + quote;
       });
     return updated;
   });
