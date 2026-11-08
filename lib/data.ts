@@ -334,8 +334,7 @@ export function varSamplesAt(
   nodeId: string
 ): Record<string, string> {
   const describe = (v: unknown): string => {
-    if (Array.isArray(v)) return tr("{length}件のリスト", { length: v.length });
-    if (v && typeof v === "object") return tr("項目付きデータ");
+    if (v && typeof v === "object") return tr("リスト");
     const t = varText(v).replace(/\s+/g, " ");
     return t.length > 28 ? `${t.slice(0, 28)}…` : t;
   };
