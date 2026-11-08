@@ -1122,7 +1122,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       } else if (mod && key === "x") {
         if (s.selection && s.doc.nodes[s.selection] && !s.doc.nodes[s.selection].locked) {
           e.preventDefault();
-          s.copyNode(s.selection);
+          s.copyNode(s.selection, { unlockedOnly: true });
           s.deleteNodes(s.selectedIds.length > 1 ? s.selectedIds : [s.selection]);
         }
       } else if (mod && key === "v") {
