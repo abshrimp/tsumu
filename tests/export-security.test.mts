@@ -9,6 +9,7 @@ import { toSingleHtmlProject } from "../lib/generator/single-html";
 import { nativeDataModule } from "../lib/generator/native-data";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { parseValueOperandInput } from "../lib/script-model/compose";
+import { matchesValueCondition } from "../lib/value-semantics";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
@@ -64,22 +65,20 @@ test("generated Vue and Svelte components never compile authored plain text into
   }
 });
 
-test("new #136 composite conditions and template operands use the current recipe semantics", () => {
+
+test("list predicates and variable condition operators use the same typed semantics", () => {
   const ready = [{ status: "ready", price: 8 }, { status: "ready", price: 1 },
     { status: "draft", price: 9 }];
-  const result = evaluateValueRecipe(ready, [{
-    kind: "filter", field: "status", operation: "eq", operand: "ready",
-    conditions: [{ field: "price", operation: "gte", operand: "5",
-      and: true }],
-  }], {});
-  assert.equal(result.kind, "value");
-  if (result.kind === "value") assert.deepEqual(result.value, [ready[0]]);
-  const interpolated = evaluateValueRecipe("alphabet", [{
-    kind: "compare", operation: "contains", operand: "{needle}",
-  }], { needle: "pha" });
-  assert.deepEqual(interpolated, { kind: "value", value: true });
+  const result = filterItems(ready, [{ kind: "filter", conds: [
+    { field: "status", op: "eq", value: "ready" },
+    { field: "price", op: "gte", value: "5", and: true },
+  ] }]);
+  assert.deepEqual(result, [ready[0]]);
+  assert.equal(matchesValueCondition("alphabet", "contains", "pha"), true);
+  assert.equal(matchesValueCondition({ x: 1 }, "has-key", "x"), true);
+  assert.equal(matchesValueCondition([1, 2], "contains", 2), true);
+  assert.equal(matchesValueCondition([1, 2], "contains", "2"), false);
 });
-
 test("native framework links reject active URL schemes without breaking images", async () => {
   const source = nativeDataModule();
   const uri = "data:text/javascript;base64," + Buffer.from(source).toString("base64");
@@ -216,16 +215,16 @@ test("export validation checks targets in every joined if condition", () => {
 });
 
 
-test("latest #136 quoted variable-looking operand remains an ordinary literal", () => {
+
+test("JSON-quoted variable-looking strings stay literal in list operations", () => {
   const input = parseValueOperandInput('"{name}"');
   assert.equal(input.operandType, "text");
   assert.equal(input.operand, "\\{name}");
-  const computed = evaluateValueRecipe("{name}", [
-    { kind: "compare", operation: "eq", operand: input.operand },
-  ], { name: "not-the-same" });
-  assert.deepEqual(computed, { kind: "value", value: true });
+  const computed = evaluateValueRecipe([], [{
+    kind: "append", operand: input.operand, operandType: input.operandType,
+  }], { name: "not-the-same" });
+  assert.deepEqual(computed, { kind: "value", value: ["{name}"] });
 });
-
 test("latest #136 filters, sorts and generated expressions avoid unsafe object coercion", () => {
   const objectWithShadowedToString = JSON.parse('{"toString":"not a function"}');
   const items = [
