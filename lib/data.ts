@@ -808,36 +808,61 @@ export function makeSample(json: unknown): { sample: unknown; totals?: Record<st
   return { sample, ...(Object.keys(totals).length ? { totals } : {}) };
 }
 
-/** A dynamic page selects its primary record through a "find" transform or a slug-aware fetch. */
-export type PrimaryStep = TransformStep | SetVarStep;
-export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimaryStep } | null {
-  const page = doc.pages[pageId];
-  if (!page || !isSlugPage(page.slug)) return null;
-  const all = pageDataSteps(doc, pageId);
-  for (const st of all) {
-    if (st.kind === "transform" && st.into && st.source &&
-        st.transform.kind === "find" && st.transform.operand === "{slug}" &&
-        st.transform.field) return { step: st };
-  }
-  const slugFetches = new Set(all.filter((st) =>
-    st.kind === "fetch" && st.as && urlHasSlug(st.url)).map((st) => (st as FetchStep).as!));
-  for (const st of all) {
-    const src = st.kind === "set-var" ? setVarSource(st) : null;
-    if (src && slugFetches.has(rootName(src))) return { step: st as SetVarStep };
+/**
+ * A slug-aware record can be selected using an ordinary list loop:
+ * for each entry -> if {ループ.値.field} equals {slug} -> set selected = {ループ.値}, break.
+ * No special search transformation is required.
+ */
+function slugSelectorOf(doc: SiteDoc, pageId: string): {
+  loop: ForEachStep; field: string; selected: SetVarStep;
+} | null {
+  for (const step of pageDataSteps(doc, pageId)) {
+    if (step.kind !== "for-each" || !step.array) continue;
+    for (const child of step.then) {
+      if (child.kind !== "if") continue;
+      const clauses = [child.cond, ...(child.conditions ?? [])];
+      if (clauses.length !== 1) continue;
+      const clause = clauses[0];
+      if (clause.subject !== "var" || clause.op !== "eq" || clause.not) continue;
+      const left = clause.left?.trim() ?? "";
+      const right = clause.value?.trim() ?? "";
+      const prefix = "{ループ.値.";
+      const field = left.startsWith(prefix) && left.endsWith("}") && right === "{slug}"
+        ? left.slice(prefix.length, -1) : "";
+      if (!field) continue;
+      const selected = child.then.find((item): item is SetVarStep =>
+        item.kind === "set-var" && item.value.trim() === "{ループ.値}" && !!item.into);
+      if (selected && child.then.some((item) => item.kind === "break-loop"))
+        return { loop: step, field, selected };
+    }
   }
   return null;
 }
 
-/** Preview selection of the records used by a dynamic page. */
+export type PrimaryStep = SetVarStep;
+export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimaryStep } | null {
+  const page = doc.pages[pageId];
+  if (!page || !isSlugPage(page.slug)) return null;
+  const chosen = slugSelectorOf(doc, pageId);
+  if (chosen) return { step: chosen.selected };
+  const all = pageDataSteps(doc, pageId);
+  const slugFetches = new Set(all.filter((step) =>
+    step.kind === "fetch" && step.as && urlHasSlug(step.url)).map((step) => (step as FetchStep).as!));
+  for (const step of all) {
+    const source = step.kind === "set-var" ? setVarSource(step) : null;
+    if (source && slugFetches.has(rootName(source))) return { step: step as SetVarStep };
+  }
+  return null;
+}
+
+/** Preview candidates used by slug-aware loops. */
 export function primaryCandidates(
   doc: SiteDoc, pageId: string, live?: Record<string, unknown>,
 ): { field: string; items: Record<string, unknown>[] } | null {
-  const step = primaryDataStep(doc, pageId)?.step;
-  if (step?.kind === "transform" && step.transform.kind === "find") {
-    const vars = previewDataVars(doc, pageId, { live, index: 0 });
-    return { field: step.transform.field, items: toItems(lookupVar(vars, step.source)) };
-  }
-  return null;
+  const selection = slugSelectorOf(doc, pageId);
+  if (!selection) return null;
+  const vars = previewDataVars(doc, pageId, { live, index: 0 });
+  return { field: selection.field, items: toItems(lookupVar(vars, selection.loop.array)) };
 }
 
 /** 一覧の1件の、見分ける項目の値（"category.slug" のような位置も使える） */
@@ -891,7 +916,7 @@ export function previewDataVars(
     const root = own(origins, head) ? origins[head] : undefined;
     return root ? { totals: root.totals, path: [root.path, ...tail].filter(Boolean).join(".") } : null;
   };
-  const primary = primaryDataStep(doc, pageId)?.step;
+  const primarySelector = slugSelectorOf(doc, pageId);
   const scope = () => ({ ...opts.vars, slug: opts.slug, ...out });
   const plan = pagePlan(doc, pageId);
   for (const st of plan.steps) {
@@ -926,12 +951,6 @@ export function previewDataVars(
       }
       case "transform": {
         if (!st.into || !st.source) break;
-        if (st === primary && opts.index !== undefined && st.transform.kind === "find") {
-          const list = lookupVar(scope(), st.source);
-          const items = Array.isArray(list) ? list : [];
-          save(st.into, opts.index < 0 ? null : (items[Math.max(0, Math.min(opts.index, items.length - 1))] ?? null));
-          break;
-        }
         const vars = scope();
         const result = evaluateValueRecipe(lookupVar(vars, st.source), [st.transform], vars);
         if (result.kind === "value") {
@@ -958,8 +977,12 @@ export function previewDataVars(
       case "repeat": {
         // Run the same interpreter as exported pages; nested source fields
         // override outer values, while assignments persist in the page vars.
+        const selectedSlug = st.kind === "for-each" && primarySelector?.loop.id === st.id &&
+          opts.index !== undefined && opts.slug === undefined
+          ? keyOfItem(toItems(lookupVar(scope(), st.array))[opts.index] ?? {}, primarySelector.field)
+          : opts.slug;
         runPurePageSteps([st], out, lookupVar, interpolate, evaluateValueRecipe,
-          { ...opts.vars, slug: opts.slug });
+          { ...opts.vars, slug: selectedSlug });
         break;
       }
     }
