@@ -331,3 +331,16 @@ for (const selectAnother of [false, true]) test(`a site-missing create keeps the
   assert.equal(useComments.getState().store, "server"); assert.equal(useComments.getState().saving, false);
   assert.equal(useComments.getState().error, "サイトが見つかりません");
 });
+
+
+test("a deleted message edit response preserves the visible discussion and reports failure", async () => {
+  reset();
+  const visible = threads("existing");
+  useComments.setState({ threads: visible, focusedThread: visible[0], openId: "existing" });
+  mock.method(globalThis, "fetch", async () => Response.json({ error: "The comment you are editing has been deleted.", code: "comment_message_missing" }, { status: 404 }));
+  assert.equal(await useComments.getState().run({ action: "edit", messageId: "existing-0", body: "Keep this edit" }), false);
+  assert.equal(useComments.getState().threads, visible);
+  assert.equal(useComments.getState().focusedThread, visible[0]);
+  assert.equal(useComments.getState().openId, "existing");
+  assert.ok(useComments.getState().error);
+});

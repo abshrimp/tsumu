@@ -221,6 +221,10 @@ export const useComments = create<CommentsState>((set, get) => ({
           set(localSnapshot(existing, get()));
           throw new Error(tr("返信先のスレッドは削除されています"));
         }
+        if (a.action === "edit" && !existing.some(t => t.messages.some(m => m.id === a.messageId))) {
+          // 古い表示は入力のコピー用に残し、削除された本文への編集を成功としない。
+          throw new Error(tr("編集するコメントは削除されています"));
+        }
         if (hasCommentIdConflict(existing, a, null)) {
           throw new Error(tr("コメントのIDが重複しています。もう一度送信してください"));
         }

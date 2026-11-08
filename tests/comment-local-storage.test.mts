@@ -160,3 +160,17 @@ for (const store of ["local", null] as const) test(`${store ?? "503 fallback"}: 
   assert.deepEqual(useComments.getState().threads, saved);
   assert.equal(useComments.getState().threadUnavailable, false); assert.equal(useComments.getState().error, null);
 });
+
+for (const store of ["local", null] as const) {
+  test(`${store ?? "503 fallback"}: editing a deleted message fails without discarding its stale visible draft`, async () => {
+    const storage = setup(store, null, "[]");
+    const previous = useComments.getState();
+    assert.equal(await useComments.getState().run({ action: "edit", messageId: "existing-0", body: "Unsaved edit" }), false);
+    assert.equal(storage.writes(), 0);
+    assert.equal(storage.memory.get(key), "[]");
+    assert.equal(useComments.getState().threads, previous.threads);
+    assert.equal(useComments.getState().focusedThread, previous.focusedThread);
+    assert.equal(useComments.getState().openId, previous.openId);
+    assert.ok(useComments.getState().error);
+  });
+}
