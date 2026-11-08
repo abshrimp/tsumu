@@ -83,7 +83,7 @@ export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?
   return next;
 }
 
-/** 葉のパスだけでなく、空のまとまり・リストを含むローカルな名前全体を保つ。 */
+/** 子項目がないリストも含め、参照可能な名前を保持する。 */
 export function fetchPreviewScope(nodeId: string, loops: readonly { fields: string[]; roots?: string[] }[]): FetchPreviewScope {
   return { nodeId, localNames: localVariableNames(loops.flatMap((loop) => [...(loop.roots ?? []), ...loop.fields])) };
 }
