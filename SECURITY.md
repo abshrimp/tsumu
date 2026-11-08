@@ -42,7 +42,7 @@ For server-backed test editing, follow the [Preview storage setup](docs/worker-p
 ### Code inside site content
 
 - **Custom HTML and SVG are active content** on the published site.
-- **The editor protects your session.** The canvas sanitizes custom code and icons before showing them, and previews raw HTML pages in a sandboxed frame. A document's scripts therefore don't run with the signed-in editor's permissions.
+- **The editor protects your session.** The canvas sanitizes custom code and icons before showing them, previews raw HTML pages in a sandboxed frame, renders `embed` iframes in a sandboxed frame while rejecting same-origin editor URLs and credentialed URLs, and restricts media and thumbnail URLs to safe schemes. A document's scripts therefore don't run with the signed-in editor's permissions.
 - **Review before you publish.** Check imported documents and restored versions before publishing them, because their code will run on the published site.
 - **Repository write access matters.** Anyone who can write to a site's repository can change `_tsumu/doc.json`, which the editor reads when you restore a published version. Give write access only to people you'd trust as editors.
 

@@ -235,7 +235,7 @@ For a standalone JSON, fully embedded data-URL assets can be represented via `da
 
 ## Validation rules and limits
 
-Follow `validateImportedDoc()` in `lib/site-import.ts` plus a stricter self-check:
+Follow `validateImportedDoc()` in `lib/site-import-format.ts` plus a stricter self-check:
 
 - Ensure the JSON is UTF-8 and parseable, `siteName` is not blank, and all required objects/arrays are present.
 - Ensure every `pageOrder` ID matches a `pages` key; every page, node, component and asset ID matches its containing map key; every referenced node, component, page and asset exists.

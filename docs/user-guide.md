@@ -24,7 +24,7 @@ Hosting (your choice)
 
 There are three moving parts:
 
-- **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded assets (images, video, audio, custom fonts, and imported HTML ZIP files). Uploads are shared by all sites. Where all of this is stored depends on where the editor runs.
+- **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded assets (images, video, audio, custom fonts, and imported HTML ZIP files). Uploaded assets are authorized per site, while pages or elements copied between sites share the underlying stored file. Where all of this is stored depends on where the editor runs.
 - **The published site** is either an ordinary app committed to the site's GitHub repository or a generated static HTML site uploaded to Netlify/Cloudflare Pages. It does **not** have to run where the editor runs.
 - **Test publishing** commits to a second branch of the same repository (`preview` by default). Vercel, Netlify and Cloudflare Workers Builds can build non-production branches as previews, so one hosting project covers both the live and the test site (on Netlify and Workers Builds, turn this on first; see [Hosting the published site](#hosting-the-published-site)). The test build is kept out of search engines with robots.txt, `noindex`, the `X-Robots-Tag` header and crawler blocking.
 
@@ -255,7 +255,7 @@ For a public instance such as `tsumu.ebii.net`:
 3. The visitor clicks **Publish**. The first time, Netlify signs them in. The callback verifies the one-use state and returns to the same site's Publish dialog. If their Netlify account has one team, it is used automatically; otherwise they choose the team. Production and test use distinct Netlify projects.
 4. The browser stores the Netlify OAuth access token and the per-site project IDs in localStorage. For deployment, Tsumu's server acts as a temporary API proxy; it validates the ZIP and the project's Netlify team, and **does not persist credentials or editable documents**. All Netlify usage is charged to the visitor's chosen team.
 
-**Security and recovery:** localStorage tokens are accessible to scripts running on the same origin, so avoid untrusted browser extensions and scripts, and disconnect from Netlify when no longer needed. An editor opened from a different browser cannot read local sites or publishing credentials. Clearing browser data removes the editable sites and Netlify bindings (but does not delete the websites hosted by Netlify). Export a full backup ZIP regularly and re-import to recover editing data. To retain a stable publishing project on another browser, keep its Netlify project ID safely; re-linking existing projects is not automatic. The old Netlify OAuth connections stored in D1 are not transferred; obsolete credential tables are dropped during database initialization.
+**Security and recovery:** localStorage tokens are accessible to scripts running on the same origin, so avoid untrusted browser extensions and scripts, and disconnect from Netlify when no longer needed. An editor opened from a different browser cannot read local sites or publishing credentials. Clearing browser data removes the editable sites and Netlify bindings (but does not delete the websites hosted by Netlify). Export a full backup ZIP regularly and re-import to recover editing data. To retain a stable publishing project on another browser, keep its Netlify project ID safely; re-linking existing projects is not automatic.
 
 ## Output formats
 
@@ -475,7 +475,7 @@ Where to put them:
 |---|---|---|
 | Workers CPU time | 10 ms per request | Publishing a site with many assets can exceed it. Workers Paid ($5/month, 30 s CPU) removes the problem. |
 | SQLite-backed Durable Object row | 8 MB per value | Page, node, component and asset JSON entries are stored independently; Tsumu limits each stored entry to 7 MB. |
-| KV | 1 GB total, 25 MB per file, 1,000 writes per day | All sites share this storage. The Assets tab shows the total for all sites. |
+| KV | 1 GB total, 25 MB per file, 1,000 writes per day | All sites share the underlying KV namespace, while each site's Assets tab shows usage and Trash scoped to that site. |
 | KV consistency | Eventual | A new upload can take a few seconds to appear everywhere. |
 | GitHub API | 5,000 requests per hour | One publish uses anywhere from a dozen or fewer requests. |
 
@@ -516,7 +516,7 @@ Where to put them:
 - **The first publish is careful too.** It keeps existing files and asks before overwriting any file at the same path.
 - **`_tsumu/` is reserved** for Tsumu's metadata. If the list of generated files there is malformed, publishing stops.
 - Page-specific custom code is inserted at the start and end of the page body, not in `<head>`.
-- On the canvas, custom code and icons are shown sanitized, and iframes in custom code run in a sandbox on a different origin from the editor. Their scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
+- On the canvas, custom code and icons are shown sanitized, `embed` iframes are sandboxed and reject same-origin editor URLs and credentialed URLs, and iframes in custom code run in a sandbox on a different origin from the editor. Their scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
 - `next/image` is exported with `unoptimized` so it works on every host.
 - HTML pages (pages written as raw HTML) don't get the shared layout, metadata or custom code. Only the Next.js and HTML formats can output them.
 - After you split text into spans, each span is edited separately.
@@ -535,7 +535,7 @@ app/
   api/doc/            Per-site editing data and daily backups
   api/comments/       Comment threads on the canvas
   api/activity/       Who edited recently and who published last
-  api/publish/        Commit generated files to GitHub, history and rollback
+  api/publish/        Publish to GitHub, Cloudflare Pages (static/) or Netlify (netlify/), plus history and rollback
   api/assets/         Uploads, file serving and storage usage
   api/ai/             Ask AI
   api/collab/         Collaboration: sign-in check for the WebSocket, and Server-Sent Events
@@ -551,7 +551,7 @@ lib/
   site.ts             Current site, tsumu-* browser storage keys, and the browser-only site list without D1
   generator.ts        SiteDoc → Next.js project (parts in generator/)
   export-formats.ts   Output formats: options, limitations and the shared zip / publish pipeline
-  exportZip.ts        The exported zip, with the editing data for re-import
+  exportZip.ts        The exported zip, with the editing data for re-import (built on zero-dependency zip.ts)
   site-import.ts      Restore a Tsumu zip or doc.json (import-site-file.ts creates the site)
   site-backup.ts      Self-contained site backup zip bundling editing data and assets
   html-to-site.ts     Convert HTML into editable elements (html-file-import.ts, html-zip.ts)

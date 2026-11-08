@@ -8,7 +8,7 @@ particular engine.
 The nine shared `@core-editing` cases cover site creation, reload and IndexedDB
 persistence, deletion and undo, inspector/script panels, canvas reorder, building
 a script from a trigger and an action, multiline text, variable suggestions, and pasted text with
-undo/redo. The two `@form-values` cases in `search-form-values.spec.ts`
+undo/redo. The two `@form-values` cases in `forms-and-inputs.spec.ts`
 (Next.js and React exports) check that search forms keep empty and repeated
 fields.
 
@@ -47,7 +47,7 @@ exactly one shard; the durations file only influences load balancing.
   Playwright still validate the built server, even if they do not open a tab.
 - For behavior covered at both layers, keep a small set of browser scenarios
   demonstrating the integration and place the full combinatorial matrix in
-  Node tests. For example, `page-kind-confirmation` retains representative
+  Node tests. For example, `pages-and-navigation.spec.ts` retains representative
   dialog, navigation, and collaboration cases in `e2e/`, while `tests/`
   verifies every mode and cancellation path. Likewise, input defaults, script
   assignments, image drop gesture endings, and committed field states sample
@@ -55,8 +55,9 @@ exactly one shard; the durations file only influences load balancing.
   Canvas move coverage keeps real mouse, touch cancellation, and keyboard
   interruption in Playwright. The Node suite covers pending and active drags
   across the full cancellation and editor-state matrix.
-- For input and select defaults and script assignments, the four specs compile
-  their browser fixtures once per worker. Each case passes its own document to
+- For input and select defaults and script assignments, `forms-and-inputs.spec.ts`
+  and `script-editor.spec.ts` compile their browser fixtures once per worker.
+  Each case passes its own document to
   a fresh editor page. Keep case data separate from the compiled fixture when
   adding field variants so the browser still exercises its native controls.
 - The script and Settings variable pickers check all three viewport widths
