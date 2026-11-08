@@ -261,3 +261,16 @@ test("component roots and asset definitions stay valid across snapshots and revi
     }
   });
 });
+
+test("structural edits work when an optional component map is null", async () => {
+  await database(async db => {
+    const empty = { ...doc(), components: null };
+    assert.equal(validateDocBody(JSON.stringify(empty)), null);
+    await saveCurrentDoc(db, "s1", JSON.stringify(empty), null);
+    const result = await saveDocPatch(db, "s1", [
+      { path: ["nodes", "extra"], value: { ...empty.nodes["node-1"], id: "extra" } },
+      { path: ["pages", "home"], value: { ...empty.pages.home, children: ["node-1", "extra"] } },
+    ], "1");
+    assert.equal(result.kind, "saved");
+  });
+});

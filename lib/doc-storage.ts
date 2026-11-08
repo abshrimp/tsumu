@@ -206,7 +206,8 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
     WITH RECURSIVE
       nodes AS MATERIALIZED (SELECT n.key AS id, n.type, n.value FROM patched, json_each(patched.body, '$.nodes') n),
       pages AS MATERIALIZED (SELECT p.type, p.value FROM patched, json_each(patched.body, '$.pages') p),
-      components AS (SELECT c.key AS id, c.type, c.value FROM patched, json_each(patched.body, '$.components') c),
+      components AS (SELECT c.key AS id, c.type, c.value FROM patched, json_each(patched.body, '$.components') c
+        WHERE json_type(patched.body, '$.components') = 'object'),
       edges AS MATERIALIZED (SELECT n.id AS parent, c.value AS child, c.type
         FROM nodes n, json_each(CASE WHEN n.type = 'object' THEN n.value END, '$.children') c),
       walk(id, depth) AS (
