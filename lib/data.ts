@@ -477,17 +477,20 @@ function repeatVarName(value: number | string): string | null {
   return /^\{([^{}\s]+)\}$/.exec(value.trim())?.[1] ?? null;
 }
 
-function pureLoadStep(st: ScriptStep): boolean {
+function pureLoadStep(st: ScriptStep, inLoop = false): boolean {
   switch (st.kind) {
     case "set-var": return !!st.into;
     case "set-list-item": return !!st.list;
-    case "break-loop": return true;
+    case "break-loop": return inLoop;
     case "transform": return !!st.source && !!st.into;
     case "if": return (st.conditions?.length ?? 0) <= 32 &&
       [st.cond, ...(st.conditions ?? [])].every((condition) => condition.subject === "var") &&
-      st.then.every(pureLoadStep) && (st.else ?? []).every(pureLoadStep);
-    case "for-each": return !!st.array && st.then.length > 0 && st.then.every(pureLoadStep);
-    case "repeat": return (typeof st.times === "number" ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000 : !!repeatVarName(st.times)) && st.then.every(pureLoadStep);
+      st.then.every((child) => pureLoadStep(child, inLoop)) &&
+      (st.else ?? []).every((child) => pureLoadStep(child, inLoop));
+    case "for-each": return !!st.array && st.then.length > 0 &&
+      st.then.every((child) => pureLoadStep(child, true));
+    case "repeat": return (typeof st.times === "number" ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000 : !!repeatVarName(st.times)) &&
+      st.then.every((child) => pureLoadStep(child, true));
     default: return false;
   }
 }
