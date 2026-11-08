@@ -1,4 +1,5 @@
 import type { GeneratedProject } from "../generator";
+import { readAssetBytes } from "../assets";
 import { iterateCssAssetReferences, escapeCssAssetUrl } from "../css-assets";
 
 export const EXPORT_BASE = new URL("https://export.invalid/index.html");
@@ -123,28 +124,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
         throw new Error("Could not embed the resource (" + response.status + "): " + key);
       }
       if (!local && response.url) base = new URL(response.url);
-      if (Number(response.headers.get("content-length")) > SINGLE_HTML_LIMIT - inputBytes) {
-        await response.body?.cancel().catch(() => {});
-        throw new Error("Resource exceeds single HTML size limit: " + key);
-      }
-      const reader = response.body?.getReader();
-      const chunks: Uint8Array[] = [];
-      let size = 0;
-      try {
-        while (reader) {
-          const part = await reader.read();
-          if (part.done) break;
-          size += part.value.length;
-          if (size > SINGLE_HTML_LIMIT - inputBytes) {
-            await reader.cancel().catch(() => {});
-            throw new Error("Resource exceeds single HTML size limit: " + key);
-          }
-          chunks.push(part.value);
-        }
-      } finally { reader?.releaseLock(); }
-      bytes = new Uint8Array(size);
-      let offset = 0;
-      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+      bytes = await readAssetBytes(response, SINGLE_HTML_LIMIT - inputBytes, "Resource exceeds single HTML size limit: " + key);
       const type = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
       if (type && /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/.test(type)) mime = type;
       else if (mime === "text/css" || mime === "text/javascript") mime = "application/octet-stream";

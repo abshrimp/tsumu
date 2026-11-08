@@ -6,6 +6,8 @@ import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
 import { toSingleHtmlProject } from "./generator/single-html";
 import { applyExportStyle } from "./generator/style-export";
+import { assetSrc } from "./assets";
+import { zipAssetClosure, zipCssUrl, zipStylesheet } from "./zip-css";
 import { tr } from "./i18n";
 
 export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
@@ -43,6 +45,18 @@ function optionsOf(options: ExportFormat | ExportOptions): ExportOptions {
   return typeof options === "string"
     ? { ...DEFAULT_EXPORT_OPTIONS, framework: options }
     : options;
+}
+
+// JSON-serialized HTML/CSS can quote or escape a URL; a longer filename or
+// base64 payload must never pull a different, shorter private asset into a ZIP.
+function containsAssetReference(source: string, ref: string): boolean {
+  if (!ref) return false;
+  for (let i = source.indexOf(ref); i >= 0; i = source.indexOf(ref, i + ref.length)) {
+    const before = source[i - 1] ?? "", after = source[i + ref.length] ?? "";
+    if ((!before || !/[a-z0-9_.%+-]/i.test(before)) &&
+        (!after || /[\s"'\\)<>&#?,]/.test(after))) return true;
+  }
+  return false;
 }
 
 /**
@@ -96,23 +110,16 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
   // Custom CSS and raw HTML may refer to a stored asset by its relative path.
   const renderedSource = JSON.stringify(scoped);
   for (const [id, asset] of Object.entries(doc.assets)) {
-    if ((asset.path && renderedSource.includes(asset.path)) ||
-        (asset.name && renderedSource.includes("assets/" + asset.name))) {
+    const src = assetSrc(asset);
+    if (containsAssetReference(renderedSource, src) ||
+        (zipStylesheet(asset) && containsAssetReference(renderedSource, zipCssUrl(id))) ||
+        (asset.path && containsAssetReference(renderedSource, asset.path)) ||
+        (asset.name && containsAssetReference(renderedSource, "assets/" + asset.name))) {
       assetIds.add(id);
     }
   }
   const assets: SiteDoc["assets"] = Object.create(null);
-  const pending = [...assetIds];
-  while (pending.length) {
-    const id = pending.pop()!;
-    if (assets[id] || !doc.assets[id]) continue;
-    assets[id] = doc.assets[id];
-    const stylesheet = doc.assets[id].zip?.stylesheet;
-    for (const ref of stylesheet?.references ?? []) {
-      if (Object.prototype.hasOwnProperty.call(doc.assets, ref.assetId) && !assets[ref.assetId])
-        pending.push(ref.assetId);
-    }
-  }
+  for (const id of zipAssetClosure(doc.assets, assetIds)) assets[id] = doc.assets[id];
   return { ...scoped, assets };
 }
 
@@ -262,6 +269,16 @@ export function generateExportProject(
     : applyExportStyle(generated, options.framework, options.style);
 }
 
+/** Preserve only the ZIP dependencies reachable from the selected page or component. */
+export async function prepareExportScopeDoc(doc: SiteDoc, options: ExportOptions): Promise<SiteDoc> {
+  const scoped = exportScopeDoc(doc, options);
+  if (scoped !== doc && Object.keys(scoped.assets).length) {
+    const { retainImportedDependencies } = await import("./generator/imported-dependencies");
+    await retainImportedDependencies(scoped, doc.assets);
+  }
+  return scoped;
+}
+
 /**
  * Common ZIP / GitHub Push pipeline: identical output files for both actions.
  * The preview branch retains non-indexing protections even without Next.js.
@@ -272,7 +289,8 @@ export async function prepareExportProject(
   target: PublishTarget = "production",
 ): Promise<GeneratedProject> {
   const options = optionsOf(request);
-  let project = generateExportProject(doc, options, target);
+  const scoped = await prepareExportScopeDoc(doc, options);
+  let project = generateExportProject(scoped, { ...options, scope: "project" }, target);
   if (["nextjs", "react"].includes(options.framework) && options.language === "javascript") {
     const { toJavaScriptProject } = await import("./generator/javascript-export");
     project = await toJavaScriptProject(project, options.framework);

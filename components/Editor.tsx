@@ -143,8 +143,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
     const lines = warnings.filter((item): item is string => typeof item === "string");
     if (!lines.length) return;
     void showAlert(lines.slice(0, 20).join("\n") +
-      (lines.length > 20 ? "\n" + tr("ほかにも復元できなかったアセットがあります。") : ""), {
-      title: tr("一部のアセットを復元できませんでした"),
+      (lines.length > 20 ? "\n" + tr("ほかにもインポート時の注意事項があります。") : ""), {
+      title: tr("インポート時の注意事項"),
     });
   }, [initialLoadComplete]);
   // ページが準備画面を持つ場合は、描画前に完了を伝えて同じ画面を一度だけ閉じる。
@@ -1122,7 +1122,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       } else if (mod && key === "x") {
         if (s.selection && s.doc.nodes[s.selection] && !s.doc.nodes[s.selection].locked) {
           e.preventDefault();
-          s.copyNode(s.selection);
+          s.copyNode(s.selection, { unlockedOnly: true });
           s.deleteNodes(s.selectedIds.length > 1 ? s.selectedIds : [s.selection]);
         }
       } else if (mod && key === "v") {

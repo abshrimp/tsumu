@@ -10,9 +10,9 @@ import type { Asset } from "../types";
 export function importedAssetPath(asset: Asset): string | null {
   const zip = asset.zip;
   if (!zip || zip.version !== 1) return null;
-  if (!/^[A-Za-z0-9_-]{1,100}$/.test(zip.group)) return null;
+  if (typeof zip.group !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(zip.group)) return null;
   const path = zip.path;
-  if (!path || path.length > 600 || path.includes("\\") || path.includes("\0") ||
+  if (typeof path !== "string" || !path || path.length > 600 || path.includes("\\") || path.includes("\0") ||
       path.startsWith("/") || /[?#%]/.test(path) ||
       !path.split("/").every((part) =>
         !!part && part !== "." && part !== ".." &&

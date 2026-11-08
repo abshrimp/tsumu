@@ -7,6 +7,8 @@ import type { GeneratedProject } from "../generator";
 import { obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
+import { assetSrc } from "../assets";
+import { importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { usedGoogleFonts } from "./css";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
@@ -51,15 +53,35 @@ function rewriteCssRootUrls(source: string, prefix: string): string {
   );
 }
 
+function importedScriptSources(doc: SiteDoc): Map<string, string> {
+  const sources = new Map<string, string>();
+  for (const asset of Object.values(doc.assets)) {
+    if (!isZipJavascript(asset)) continue;
+    const url = importedAssetUrl(asset), src = assetSrc(asset);
+    if (url && src) sources.set(src, sources.has(src) && sources.get(src) !== url ? "" : url);
+  }
+  return sources;
+}
+
 /**
  * Rewrite actual HTML attributes and inline CSS, never script text, comments,
  * text nodes, or values of unrelated attributes that happen to contain markup.
  */
-function rewriteRootUrls(source: string, prefix: string): string {
+function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<string, string>): string {
   const rewriteTag = (tag: string) => tag.replace(
     /(\s)([^\s=/>]+)(\s*=\s*)(["'])([\s\S]*?)\4/g,
     (whole, space: string, name: string, eq: string, quote: string, value: string) => {
       const attribute = name.toLowerCase();
+      if (attribute === "src" && /^<script(?=[\t\n\f\r />])/i.test(tag)) {
+        const suffix = value.startsWith("/api/assets/file?path=") ? value.search(/[&#]/) : value.indexOf("#");
+        const source = suffix < 0 ? value : value.slice(0, suffix);
+        const mapped = scriptSources.get(source);
+        if (mapped === "") throw new Error("Ambiguous ZIP script location. Give the imported entry scripts distinct URLs.");
+        if (mapped) {
+          const tail = suffix < 0 ? "" : value.slice(suffix).replace(/^&(?:amp;)?/, "?");
+          return space + name + eq + quote + prefix + mapped.slice(1) + tail + quote;
+        }
+      }
       const next = attribute === "style"
         ? rewriteCssRootUrls(value, prefix)
         : (attribute === "src" || attribute === "href" || attribute === "poster") &&
@@ -102,6 +124,7 @@ type Context = {
   single: boolean;
   classes: Map<string, string>;
   assets: Map<string, string>;
+  scriptSources: Map<string, string>;
   toggles: Set<string>;
   seen: Set<string>;
   form: boolean;
@@ -257,7 +280,7 @@ function render(ctx: Context, id: string, top: boolean): string {
     }
     if (n.type === "code" && n.code) {
       return "<div" + commonAttrs + ' data-raw="">' +
-        rewriteRootUrls(n.code.html, ctx.prefix) + "</div>";
+        rewriteRootUrls(n.code.html, ctx.prefix, ctx.scriptSources) + "</div>";
     }
     if (n.type === "icon" && n.icon) {
       return "<span" + commonAttrs + ' data-raw="" aria-hidden="true">' + n.icon.svg + "</span>";
@@ -343,9 +366,9 @@ function pageFragment(ctx: Context, page: Page): string {
   return [
     "<span hidden" + attr("data-page-body", page.id) + pageScripts + "></span>",
     '<script type="application/json" data-page-plan>' + dataPlan + "</script>",
-    page.customTopHtml ? rewriteRootUrls(page.customTopHtml, ctx.prefix) : "",
+    page.customTopHtml ? rewriteRootUrls(page.customTopHtml, ctx.prefix, ctx.scriptSources) : "",
     body,
-    page.customEndHtml ? rewriteRootUrls(page.customEndHtml, ctx.prefix) : "",
+    page.customEndHtml ? rewriteRootUrls(page.customEndHtml, ctx.prefix, ctx.scriptSources) : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -362,6 +385,7 @@ export function reactClientPageFragment(doc: SiteDoc, page: Page): string {
     spa: true,
     classes: buildClassNames(normalized),
     assets: buildAssetNames(normalized),
+    scriptSources: importedScriptSources(normalized),
     toggles: new Set([
       ...Object.values(normalized.nodes).flatMap((n) => scriptTargetIds(n, ["show", "toggle"])),
       ...Object.values(normalized.pages).flatMap((p) =>
@@ -400,6 +424,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
   raiseOverCrispSvg(normalized);
   const classes = buildClassNames(normalized);
   const assets = buildAssetNames(normalized);
+  const scriptSources = importedScriptSources(normalized);
   const files: Record<string, string> = {};
   const binaries: Record<string, string> = {};
   const remoteAssets: Record<string, string> = {};
@@ -476,11 +501,11 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     outputPaths.add(path);
     const prefix = pagePrefix(path);
     if (page.rawHtml?.trim()) {
-      files[path] = rewriteRootUrls(importedHtml(next, page), prefix);
+      files[path] = rewriteRootUrls(importedHtml(next, page), prefix, scriptSources);
       continue;
     }
     const ctx: Context = {
-      doc: normalized, page, prefix, single, classes, assets, toggles,
+      doc: normalized, page, prefix, single, classes, assets, scriptSources, toggles,
       seen: new Set(), form: false, template: false,
     };
     const body = group.length === 1
@@ -524,10 +549,10 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     files[path] = [
       "<!doctype html>",
       '<html lang="' + escapeHtml(page.lang || normalized.lang || "ja") + '">',
-      "<head>", rewriteRootUrls(head, prefix), "</head>",
+      "<head>", rewriteRootUrls(head, prefix, scriptSources), "</head>",
       "<body>",
       body,
-      normalized.customBodyEndHtml ? rewriteRootUrls(normalized.customBodyEndHtml, prefix) : "",
+      normalized.customBodyEndHtml ? rewriteRootUrls(normalized.customBodyEndHtml, prefix, scriptSources) : "",
       scripts, "</body>", "</html>", "",
     ].join("\n");
   }

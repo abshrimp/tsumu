@@ -177,6 +177,34 @@ export async function mapLimit<T>(
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
+/** Consume only bounded bytes, including responses with no length or a misleading one. */
+export async function readAssetBytes(response: Response, limit: number, message = "Resource exceeds export size limit."): Promise<Uint8Array<ArrayBuffer>> {
+  const tooLarge = () => new Error(message);
+  if (Number(response.headers.get("content-length")) > limit) {
+    await response.body?.cancel().catch(() => {});
+    throw tooLarge();
+  }
+  const reader = response.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (reader) {
+      const part = await reader.read();
+      if (part.done) break;
+      size += part.value.length;
+      if (size > limit) {
+        await reader.cancel().catch(() => {});
+        throw tooLarge();
+      }
+      chunks.push(part.value);
+    }
+  } finally { reader?.releaseLock(); }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+  return bytes;
+}
+
 /**
  * 一時的な失敗（接続エラー・429・5xx）は少し待って取り直す。
  * 404 などはそのまま返す（呼び出し側で扱う）

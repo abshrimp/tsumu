@@ -413,8 +413,8 @@ export interface EditorStore {
   setInsertMode: (m: InsertMode) => void;
 
   clipboard: ClipPayload | null;
-  /** 要素をコピーする（複数選択中で nodeId を含むなら選択中の全要素） */
-  copyNode: (nodeId: string) => void;
+  /** 要素をコピーする（複数選択中で nodeId を含むなら選択中の全要素）。切り取りでは unlockedOnly で削除対象に合わせる。 */
+  copyNode: (nodeId: string, opts?: { unlockedOnly?: boolean }) => void;
   /**
    * クリップボードの内容を、挿入先の設定（中へ / 後ろへ）に従って選択位置に貼り付け（未選択ならページ末尾）。
    * external を渡すと、ほかのサイト（タブ）でコピーした要素を、使っているアセット・コンポーネントごと貼り付ける
@@ -906,12 +906,13 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     clipboard: null,
 
-    copyNode: (nodeId) => {
+    copyNode: (nodeId, opts) => {
       const doc = get().doc;
       if (!doc.nodes[nodeId]) return;
       const targets = targetIdsFor(get().selectedIds, nodeId).filter(
-        (id) => id !== BODY_NODE_ID && doc.nodes[id]
+        (id) => id !== BODY_NODE_ID && doc.nodes[id] && (!opts?.unlockedOnly || !doc.nodes[id].locked)
       );
+      if (!targets.length) return;
       // 祖先も選ばれている要素は、祖先のコピーに含まれる
       const inside = new Set<string>();
       for (const id of targets) {
@@ -1508,8 +1509,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       const doc = get().doc;
       // ドラッグ中の削除・同時編集で移動先が無くなったら、元の構造を保つ。
       if (parent.kind === "page" ? !doc.pages[parent.id] : !doc.nodes[parent.id]) return;
-      // マスターのルート（親を持たない）は移動できない。重複選択も1回だけ扱う。
-      const movable = [...new Set(nodeIds)].filter((id) => doc.nodes[id] && findParentOf(doc, id));
+      // ロック中・マスターのルート（親を持たない）は移動できない。重複選択も1回だけ扱う。
+      const movable = [...new Set(nodeIds)].filter((id) => doc.nodes[id] && !doc.nodes[id].locked && findParentOf(doc, id));
       // 選択した要素の子孫は親ごと動くので個別には動かさない
       const ids = movable.filter(
         (id) =>
