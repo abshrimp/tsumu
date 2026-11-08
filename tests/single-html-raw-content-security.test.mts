@@ -221,3 +221,13 @@ test("module specifier rewriting does not publish signed resource URLs", async (
     remoteAssets: {}, binaries: {} }, async () => new Response("export default 1", { headers: { "Content-Type": "text/javascript" } }));
   assert.doesNotMatch(project.files["index.html"], /private-marker|cdn\.example/);
 });
+
+test("CSS and srcset token budgets stop scanning before an oversized resource list is expanded", async () => {
+  for (const [markup, error] of [
+    ['<style>' + "url(#x) ".repeat(100001) + '</style>', /Too many CSS resource references/],
+    ['<style>' + "x(".repeat(513) + "0" + ")".repeat(513) + '</style>', /CSS function nesting/],
+    ['<img srcset="' + "absent.png 1x, ".repeat(100001) + '">', /Too many single HTML srcset candidates/],
+  ] as const) {
+    await assert.rejects(toSingleHtmlProject({ files: { "index.html": markup }, binaries: {}, remoteAssets: {} }), error);
+  }
+});

@@ -75,7 +75,7 @@ export async function toSingleHtmlProject(
 
   const resources = singleHtmlResources(source, request, hasImportMap);
   const result = new HtmlOutput();
-  let cursor = 0;
+  let cursor = 0, srcsetCandidates = 0;
   for (const node of elements.sort((a, b) => a.sourceCodeLocation!.startOffset - b.sourceCodeLocation!.startOffset)) {
     const loc = node.sourceCodeLocation!, start = loc.startTag!;
     if (start.startOffset < cursor) continue;
@@ -128,7 +128,11 @@ export async function toSingleHtmlProject(
       }
       if ((name === "img" || name === "source") && get("srcset")) {
         const urls = new Map<string, string>();
-        rewriteSrcsetUrls(get("srcset"), ref => { urls.set(ref, ref); return ref; });
+        rewriteSrcsetUrls(get("srcset"), ref => {
+          if (++srcsetCandidates > 100000) throw new Error("Too many single HTML srcset candidates.");
+          urls.set(ref, ref);
+          return ref;
+        });
         for (const ref of urls.keys()) urls.set(ref, await resources.embed(ref, base));
         set("srcset", rewriteSrcsetUrls(get("srcset"), ref => urls.get(ref)!, SINGLE_HTML_LIMIT));
       }

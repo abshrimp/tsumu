@@ -1,5 +1,5 @@
 import type { GeneratedProject } from "../generator";
-import { cssAssetReferences, escapeCssAssetUrl } from "../css-assets";
+import { iterateCssAssetReferences, escapeCssAssetUrl } from "../css-assets";
 
 export const EXPORT_BASE = new URL("https://export.invalid/index.html");
 export const SINGLE_HTML_LIMIT = 48 * 1024 * 1024;
@@ -237,7 +237,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
   async function css(text: string, base: URL, parents = new Set<string>()): Promise<string> {
     const result = new HtmlOutput();
     let from = 0;
-    for (const ref of cssAssetReferences(text)) {
+    for (const ref of iterateCssAssetReferences(text, 512)) {
       if (++cssReferences > 100000) throw new Error("Too many CSS resource references.");
       if (!ref.url || /^(?:data:|#)/i.test(ref.url)) continue;
       let value: string;

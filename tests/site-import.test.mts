@@ -188,3 +188,17 @@ test("document imports reject dangling references, malformed nodes, and cycles i
     await assert.rejects(parseSiteImport(enc.encode(JSON.stringify(value)), "doc"), /要素/);
   }
 });
+
+test("imports reject page roots shared with another page or parent node", () => {
+  const doc = fixture();
+  const page = doc.pages[doc.pageOrder[0]];
+  const child = page.children[0];
+  assert.ok(child);
+  const sharedPage = structuredClone(doc);
+  sharedPage.pages.other = { ...structuredClone(page), id: "other", slug: "other" };
+  sharedPage.pageOrder.push("other");
+  assert.throws(() => validateImportedDoc(sharedPage), /親子関係/);
+  const nested = structuredClone(doc);
+  nested.nodes.extra = { ...structuredClone(doc.nodes[child]), id: "extra", children: [child] };
+  assert.throws(() => validateImportedDoc(nested), /親子関係/);
+});
