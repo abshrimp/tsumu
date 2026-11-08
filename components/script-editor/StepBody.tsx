@@ -410,7 +410,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
     ? sample.find((item) => item !== null && typeof item === "object" && !Array.isArray(item))
     : undefined;
   const candidate = step.transform.kind === "field" || step.transform.kind === "has" ? sample : first;
-  const options = candidate && typeof candidate === "object" && !Array.isArray(candidate)
+  const options = candidate && typeof candidate === "object"
     ? Object.keys(candidate) : [];
   const preview = evaluateValueRecipe(sample, [step.transform], sourceValues);
 
