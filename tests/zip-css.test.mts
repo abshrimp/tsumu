@@ -140,7 +140,7 @@ test("identical CSS bytes with different archive bases are separate identities, 
   assert.ok(cssFrom(rendered.get("b")!).includes("assets%2Fright"));
 });
 
-test("legacy CSS assets stay byte-for-byte unchanged and large legacy closures are not subject to preview limits", () => {
+test("standalone CSS assets retain their bytes and large imported dependency graphs are not subject to preview limits", () => {
   const doc = createInitialDoc();
   const local = sheet("local", "local.css", 'a{color:red}');
   delete local.zip;
@@ -236,7 +236,7 @@ test("export resolves complete internal CSS tokens, not asset-ID prefixes", asyn
 });
 
 
-test("invalid nested stylesheet metadata is not silently treated as a legacy remote file", () => {
+test("invalid nested stylesheet metadata is not silently treated as a unmapped remote file", () => {
   const a = sheet("a", "a.css", '@import "b.css";');
   const b = sheet("b", "b.css", ".x{color:red}");
   attachZipDependencies([a, b]);
