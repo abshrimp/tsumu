@@ -281,6 +281,26 @@ export const SCRIPT_RUNTIME = `function (env) {
       "; SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : "");
     return cookieGet(encodeURIComponent(k)) === v;
   }
+  // Persist JSON value kinds explicitly; storage drivers themselves accept strings.
+  function encodeStored(value) {
+    return "tsumu-store-v1:" + JSON.stringify({
+      value: value === undefined ? null : value,
+      missing: value === undefined
+    });
+  }
+  function decodeStored(raw) {
+    if (raw == null) return undefined;
+    if (typeof raw !== "string" || !raw.startsWith("tsumu-store-v1:")) return raw;
+    try {
+      var data = JSON.parse(raw.slice("tsumu-store-v1:".length));
+      if (!data || typeof data !== "object" ||
+          !has(data, "missing") || !has(data, "value") ||
+          typeof data.missing !== "boolean") return raw;
+      return data.missing ? undefined : data.value;
+    } catch (e) {
+      return raw;
+    }
+  }
   function storeGet(key, shared) {
     var k = prefix + key;
     if (shared) {
@@ -290,10 +310,11 @@ export const SCRIPT_RUNTIME = `function (env) {
     var v = lsGet(k);
     if (v == null) v = ckGet(k);
     if (v == null && has(mem, k)) v = mem[k];
-    return v == null ? "" : v;
+    return decodeStored(v);
   }
   function storeSet(key, v, shared) {
     var k = prefix + key;
+    try { v = encodeStored(v); } catch (e) { return; }
     try {
       if (shared && scSet(k, v)) {
         // 共有クッキーに書けたら、このサイトだけの保存は残さない（古い値が混ざらないように）
@@ -1273,10 +1294,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/filter*/
           /*#store*/
           case "store-save":
-            if (st.key) storeSet(st.key, resolve(st.value, self, sc), !!st.shared);
+            if (st.key) storeSet(st.key, readInput(st.value, self, sc), !!st.shared);
             break;
           case "store-load":
-            setVar(st.into, st.key ? storeGet(st.key, !!st.shared) : "");
+            setVar(st.into, st.key ? storeGet(st.key, !!st.shared) : undefined);
             break;
           /*/store*/
           /*#setvar*/
