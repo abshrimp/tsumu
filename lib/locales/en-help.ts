@@ -2201,7 +2201,7 @@ const en: Dict = {
     "item page",
   "URLを `news/[slug]` にしたページを作る":
     "Create a page with the URL `news/[slug]`",
-  "そのページのスクリプトで {slug} を含むURLからデータを取得するか、リストを繰り返して「もし {ループ.値.id} が {slug} と同じなら」で一致した値を変数に保存し、「ループを終了する」で繰り返しを抜けます。": "In the page script, fetch data from a URL containing {slug}, or iterate the list, compare {loop.value.id} with {slug}, store the matching value in a variable, and use \"Break loop\" to stop iterating.",
+  "そのページのスクリプトで {slug} を含むURLからデータを取得するか、リストを繰り返して「もし {ループ.値.id} が {slug} と同じなら」で一致した値を変数に保存し、「ループを終了する」で繰り返しを抜けます。": "In the page script, fetch data from a URL containing {slug}, or iterate the list, compare {ループ.値.id} with {slug}, store the matching value in a variable, and use \"Break loop\" to stop iterating.",
   "一覧のカードのリンク先を `/news/{id}` のようにする":
     "Link the list's cards to something like `/news/{id}`",
   "キャンバスの上の「表示中のデータ」で、エディタで見る1件を選べます。一致するデータがないURLは404になります。":
@@ -3076,7 +3076,7 @@ const en: Dict = {
   "リストから1件ずつの詳細ページを作りたい（[slug]）": "How do I make a detail page for each item ([slug])?",
   "そのページのスクリプトで、{slug} を使ってデータを取得する（例: https://api.example.com/news/{slug}）か、リストのデータから「リスト［］の要素のうち、項目［id］が［{slug}］のものを変数［］とする」で1件を探す": "In that page's script, fetch data using {slug} (e.g. https://api.example.com/news/{slug}), or find one item in a list with \"Find the item in list ［］ whose ［id］ is ［{slug}］ and store it in ［］\"",
   "リスト表示のカードのリンク先を `/news/{id}` のようにする": "Set each card's link in the list display to something like `/news/{id}`",
-  "取得済みのリストを画面上で絞り込むときは、「クリックしたとき」「値が変わったとき」に「リスト［］を［項目］で絞り込む」をつなげます。": "To filter an already-fetched list on screen, attach \"Filter list ［］ by ［field］\" to \"When clicked\" or \"When the value changes\".",
+  "取得済みのリストを画面上で絞り込むときは、「クリックしたとき」「値が変わったとき」に「リスト［］を絞り込む」をつなぎ、条件を指定します。": "To filter an already-fetched list, attach \"Filter list ［］\" to \"When clicked\" or \"When the value changes\", and configure its conditions.",
 
 };
 
