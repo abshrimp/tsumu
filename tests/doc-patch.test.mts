@@ -179,3 +179,47 @@ test("documents without any page are rejected, because the editor cannot open th
   assert.equal(isDocPatch([{ path: ["pageOrder"], value: [] }]), false);
   assert.equal(createDocPatch(doc(), empty), null, "falls back to a full save, which is rejected");
 });
+
+
+test("full snapshots reject missing page references and malformed document containers", () => {
+  const original = doc();
+  const invalid = [
+    { ...original, pageOrder: ["missing"] },
+    { ...original, pages: null },
+    { ...original, nodes: [] },
+    { ...original, assets: "assets" },
+    { ...original, siteName: null },
+    { ...original, pages: { home: { id: "home", children: "not-an-array" } } },
+  ];
+  for (const bad of invalid) {
+    assert.equal(validateDocBody(JSON.stringify(bad)), "不正なリクエスト",
+      JSON.stringify(bad));
+  }
+  assert.equal(validateDocBody(JSON.stringify(original)), null);
+});
+
+test("database-side patching does not persist invalid page order or missing page records", async () => {
+  await database(async (db) => {
+    const original = doc();
+    await saveCurrentDoc(db, "s1", JSON.stringify(original), null);
+    const badPatches = [
+      [{ path: ["pages", "home"], remove: true }],
+      [{ path: ["pageOrder"], value: ["missing"] }],
+      [{ path: ["pages", "home"], value: { id: "home", children: "broken" } }],
+    ] as const;
+    for (const patch of badPatches) {
+      await assert.rejects(
+        saveDocPatch(db, "s1", patch as any, "1"),
+        /不正な|invalid/i,
+      );
+      const current = await readCurrentDoc(db, "s1");
+      assert.equal(current?.rev, "1");
+      assert.deepEqual(JSON.parse(current!.body), original);
+    }
+    const fixed = { ...original.pages.home, name: "Renamed" };
+    const ok = await saveDocPatch(db, "s1",
+      [{ path: ["pages", "home"], value: fixed }], "1");
+    assert.equal(ok.kind, "saved");
+    assert.deepEqual(JSON.parse((await readCurrentDoc(db, "s1"))!.body).pages.home, fixed);
+  });
+});

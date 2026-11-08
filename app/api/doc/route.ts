@@ -8,6 +8,7 @@ import { notifyDocUpdated } from "../../../lib/collab";
 import { siteIdOf } from "../../../lib/site-server";
 import {
   DocTooLargeError,
+  InvalidDocPatchError,
   readCurrentDoc,
   saveCurrentDoc,
   saveDocPatch,
@@ -145,6 +146,9 @@ async function save(req: Request, partial: boolean) {
       savedAt: result.savedAt,
     });
   } catch (e) {
+    if (e instanceof InvalidDocPatchError) {
+      return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
+    }
     // 大きさの上限は決め打ちせず、保存先が拒んだときに返す
     if (e instanceof DocTooLargeError) {
       return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
