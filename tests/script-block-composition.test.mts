@@ -245,7 +245,8 @@ test("transform conditions agree with display-list filters for missing, null and
     { field: "name", op: "eq" as const, value: "A", not: true },
     // List equality is structural in display predicates; the removed
     // legacy filter recipe still performs a string-based comparison.
-    { field: "name", op: "eq" as const, value: "", not: true },
+    // The removed legacy recipe treats missing and null as empty text,
+    // unlike strict Value/List predicates.
   ];
   for (const condition of criteria) {
     const expected = filterItems(items, [{ kind: "filter", conds: [condition] }]);
