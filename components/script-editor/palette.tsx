@@ -22,6 +22,7 @@ import {
   PenLine,
   Repeat,
   IterationCw,
+  ListPlus,
   Save,
   ScanEye,
   Split,
@@ -72,6 +73,8 @@ export const CAT_OF: Record<ScriptStep["kind"], Cat> = {
   copy: "input",
 
   "set-var": "var",
+  "set-list-item": "array",
+  "break-loop": "control",
   transform: "var",
   "list-display": "array",
 
@@ -111,6 +114,8 @@ export const STEP_ICON: Record<ScriptStep["kind"], LucideIcon> = {
   copy: ClipboardCopy,
 
   "set-var": Variable,
+  "set-list-item": ListPlus,
+  "break-loop": LogOut,
   transform: Workflow,
   "list-display": Funnel,
 
@@ -248,6 +253,13 @@ export const PALETTE: PaletteItem[] = [
     make: () => one({ id: st(), kind: "set-var", value: "", into: "" }),
   },
   {
+    key: "set-list-item",
+    cat: "array",
+    icon: ListPlus,
+    label: tr("リスト［］のキー［］に［値］を入れる"),
+    make: () => one({ id: st(), kind: "set-list-item", list: "", key: "", value: "" }),
+  },
+  {
     key: "transform",
     cat: "var",
     icon: Workflow,
@@ -282,6 +294,13 @@ export const PALETTE: PaletteItem[] = [
         cond: { subject: "value", target: "", op: "eq", value: "" },
         then: [],
       }),
+  },
+  {
+    key: "break-loop",
+    cat: "control",
+    icon: LogOut,
+    label: tr("ループを終了する"),
+    make: () => one({ id: st(), kind: "break-loop" }),
   },
   {
     key: "repeat",
