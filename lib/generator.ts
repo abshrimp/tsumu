@@ -1,3 +1,4 @@
+import rootPackage from "../package.json";
 import { exportZipStylesheet, zipStylesheet } from "./zip-css";
 import type { SiteDoc } from "./types";
 import { applyBreakpoints } from "./style";
@@ -802,8 +803,8 @@ a {
       },
       // Next.js / OpenNext が固定している間接依存も修正版にする。
       overrides: {
-        next: { postcss: "^8.5.31" },
-        "@node-minify/core": { glob: "^13.0.6" },
+        next: { postcss: rootPackage.overrides.next.postcss },
+        glob: rootPackage.overrides.glob,
       },
     },
     null,
