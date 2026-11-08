@@ -114,7 +114,7 @@ test("React uses the same browser data loader for API calls and transformations"
   assert.doesNotMatch(project.files["src/pages/Page0.tsx"], /fetchPublic|next\/navigation/);
 });
 
-test("React preserves #136 list-display operations even without a fetch", () => {
+test("React preserves list-display operations even without a fetch", () => {
   const doc = fixture();
   doc.pages.home.pageScripts = [{
     id: "filter-on-load", trigger: "load", pos: { x: 0, y: 0 },
