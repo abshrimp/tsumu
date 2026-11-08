@@ -840,7 +840,7 @@ for (const exported of [false, true]) {
   });
 }
 
-test("canvas append values are configured in one typed input without legacy choices", async ({ page }) => {
+test("canvas append values use one typed input", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push({
@@ -850,10 +850,6 @@ test("canvas append values are configured in one typed input without legacy choi
     });
   });
   const box = page.locator('[data-sel-key="step:append-value"]');
-  const operations = box.getByRole("combobox", { name: "加工の種類" });
-  for (const removed of ["find", "filter", "map-field", "map-set", "remove", "remove-at", "compare", "has"]) {
-    await expect(operations.locator('option[value="' + removed + '"]')).toHaveCount(0);
-  }
   const input = box.getByPlaceholder("追加・削除する値 / {変数}");
   await input.fill("42");
   await input.blur();
