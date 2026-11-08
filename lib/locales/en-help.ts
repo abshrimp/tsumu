@@ -2201,8 +2201,7 @@ const en: Dict = {
     "item page",
   "URLを `news/[slug]` にしたページを作る":
     "Create a page with the URL `news/[slug]`",
-  "そのページのスクリプトで、{slug} を使ってデータを取得する（例: https://api.example.com/news/{slug}）か、一覧のデータから「配列［］の要素のうち、項目［id］が［{slug}］のものを変数［］とする」で1件を探す":
-    "In that page's script, fetch data using {slug} (e.g. https://api.example.com/news/{slug}), or find one item in a list with \"Find the item in array ［］ whose ［id］ is ［{slug}］ and store it in ［］\"",
+  "そのページのスクリプトで {slug} を含むURLからデータを取得するか、リストを繰り返して「もし {ループ.値.id} が {slug} と同じなら」で一致した値を変数に保存し、「ループを終了する」で繰り返しを抜けます。": "In the page script, fetch data from a URL containing {slug}, or iterate the list, compare {loop.value.id} with {slug}, store the matching value in a variable, and use \"Break loop\" to stop iterating.",
   "一覧のカードのリンク先を `/news/{id}` のようにする":
     "Link the list's cards to something like `/news/{id}`",
   "キャンバスの上の「表示中のデータ」で、エディタで見る1件を選べます。一致するデータがないURLは404になります。":
