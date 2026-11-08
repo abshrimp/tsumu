@@ -275,6 +275,31 @@ test("provider config trims values, uses Gemini defaults, and validates custom U
   }
 });
 
+test("AI style edits ignore prototype keys without affecting normal updates and removals", () => {
+  const doc = fixture();
+  doc.nodes.a.styles = { base: { default: { color: "#000", padding: "12px", display: "block" } } };
+  // JSON 由来の __proto__ は自身の列挙可能なプロパティとして扱われる。
+  const malicious = JSON.parse('{"__proto__":{"injected":true},"constructor":{"prototype":{"injected":true}},"prototype":{"injected":true},"color":"#112233","padding":null}');
+  const result = applyAiOps(doc, [
+    { op: "set_style", id: "a", styles: malicious },
+    { op: "set_style", id: "a", breakpoint: "sm", state: "hover", styles:
+      "font-size: 18px; color: blue; __proto__: injected; constructor: injected; prototype: injected" },
+    { op: "set_style", id: "body", styles: { backgroundColor: "#fafafa" } },
+  ], target);
+
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.applied.length, 3);
+  assert.deepEqual(doc.nodes.a.styles.base.default, { color: "#112233", display: "block" });
+  assert.deepEqual(doc.nodes.a.styles.sm.hover, { fontSize: "18px", color: "blue" });
+  assert.deepEqual(doc.pages.p.bodyStyles?.base?.default, { backgroundColor: "#fafafa" });
+  for (const map of [doc.nodes.a.styles.base.default!, doc.nodes.a.styles.sm.hover!]) {
+    for (const key of ["__proto__", "constructor", "prototype"]) {
+      assert.equal(Object.hasOwn(map, key), false);
+    }
+  }
+  assert.equal(({} as Record<string, unknown>).injected, undefined);
+});
+
 test("malformed model fields cannot clear text, hide content, or insert invalid images", () => {
   const doc = fixture();
   const result = applyAiOps(doc, [

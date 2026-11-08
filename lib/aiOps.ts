@@ -422,8 +422,11 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
           }
           const map = ((styles[bp] ??= {})[state] ??= {});
           for (const [k, v] of Object.entries(props)) {
-            if (v === null) delete map[k];
-            else map[k] = v;
+            // 外部入力のキーで Object.prototype のセッターを呼ばず、自身のプロパティを更新する。
+            if (v === null) Reflect.deleteProperty(map, k);
+            else Object.defineProperty(map, k, {
+              value: v, enumerable: true, configurable: true, writable: true,
+            });
           }
           applied.push({ ...op, id: resolve(op.id)!, breakpoint: bp, state });
           break;
