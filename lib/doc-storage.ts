@@ -1,4 +1,4 @@
-import { hasValidChildren, MAX_NODE_DEPTH, validNodeForest } from "./doc-tree";
+import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validNodeForest } from "./doc-tree";
 import type { Db, ResultSet } from "./db";
 import { isDocPatch, type DocPatch } from "./doc-patch";
 
@@ -33,12 +33,11 @@ export type SaveDocResult =
 
 /** 本文の形を確かめる（大きさは保存するときに、保存先の上限で確かめる） */
 export function validateDocBody(raw: string): string | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return "JSONが壊れています";
-  }
+  try { return validateDocValue(JSON.parse(raw)); }
+  catch { return "JSONが壊れています"; }
+}
+
+export function validateDocValue(parsed: unknown): string | null {
   const record = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value);
   if (!record(parsed) || typeof parsed.siteName !== "string" ||
@@ -46,15 +45,12 @@ export function validateDocBody(raw: string): string | null {
       !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) {
     return "不正なリクエスト";
   }
-  if (!validNodeForest(parsed.pages, parsed.nodes)) return "不正なリクエスト";
+  if (!Object.entries(parsed.assets).every(([id, a]) => validAssetEntry(id, a)) ||
+      !validNodeForest(parsed.pages, parsed.nodes, parsed.components)) return "不正なリクエスト";
   const order = parsed.pageOrder;
   const pages = parsed.pages as Record<string, unknown>;
-  if (new Set(order).size !== order.length || !order.every((id) => {
-    if (typeof id !== "string" || !Object.hasOwn(pages, id)) return false;
-    const page = pages[id];
-    return record(page) && Array.isArray(page.children) &&
-      page.children.every((child: unknown) => typeof child === "string");
-  })) {
+  if (new Set(order).size !== order.length ||
+      !order.every(id => typeof id === "string" && Object.hasOwn(pages, id))) {
     return "不正なリクエスト";
   }
   return null;
@@ -152,16 +148,18 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   // Ordinary element/style patches retain the existing SQL-only fast path.
   for (const op of patch) {
     const collection = op.path[0];
-    if (!(collection === "pages" || collection === "nodes") || !("value" in op)) continue;
+    if (!["pages", "nodes", "assets", "components"].includes(collection) || !("value" in op)) continue;
     const entries = op.path.length === 2 ? [[op.path[1], op.value] as const] :
       Object.entries(op.value as Record<string, unknown>);
     for (const [id, item] of entries) {
-      if (!hasValidChildren(item) || (collection === "nodes" && (!("id" in item) || item.id !== id))) {
-        throw new InvalidDocPatchError();
-      }
+      const valid = collection === "assets" ? validAssetEntry(id, item) :
+        collection === "components" ? validComponentEntry(id, item) :
+        hasValidChildren(item) && "id" in item && item.id === id &&
+        (collection !== "pages" || ("slug" in item && typeof item.slug === "string"));
+      if (!valid) throw new InvalidDocPatchError();
     }
   }
-  const treeOps = patch.filter(op => op.path[0] === "nodes" || op.path[0] === "pages");
+  const treeOps = patch.filter(op => op.path[0] === "nodes" || op.path[0] === "pages" || op.path[0] === "components");
   const needsPageGuard = patch.some((op) =>
     op.path[0] === "pages" || op.path[0] === "pageOrder");
   const args: (string | number | null)[] = [];
@@ -199,7 +197,7 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   )` : "";
   // Only a changed child list, addition or removal needs the full forest check.
   // Both the fast path and the walk below inspect the same revision as the write.
-  const individual = treeOps.length > 0 && treeOps.every(op => op.path.length === 2 && "value" in op);
+  const individual = treeOps.length > 0 && treeOps.every(op => op.path[0] !== "components" && op.path.length === 2 && "value" in op);
   const sameChildren = individual ? `NOT EXISTS (
     SELECT 1 FROM json_each(?) AS p, patched
     WHERE json_extract(docs.body, p.value) IS NOT json_extract(patched.body, p.value)
@@ -208,6 +206,7 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
     WITH RECURSIVE
       nodes AS MATERIALIZED (SELECT n.key AS id, n.type, n.value FROM patched, json_each(patched.body, '$.nodes') n),
       pages AS MATERIALIZED (SELECT p.type, p.value FROM patched, json_each(patched.body, '$.pages') p),
+      components AS (SELECT c.key AS id, c.type, c.value FROM patched, json_each(patched.body, '$.components') c),
       edges AS MATERIALIZED (SELECT n.id AS parent, c.value AS child, c.type
         FROM nodes n, json_each(CASE WHEN n.type = 'object' THEN n.value END, '$.children') c),
       walk(id, depth) AS (
@@ -225,6 +224,9 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
         json_type(value, '$.children') IS NOT 'array' END) THEN 0
       WHEN EXISTS (SELECT 1 FROM pages p, json_each(p.value, '$.children') c
         LEFT JOIN nodes n ON n.id = c.value WHERE c.type != 'text' OR n.id IS NULL) THEN 0
+      WHEN EXISTS (SELECT 1 FROM components c WHERE CASE WHEN c.type != 'object' THEN 1 ELSE
+        json_extract(c.value, '$.id') IS NOT c.id OR json_type(c.value, '$.name') IS NOT 'text' OR
+        NOT EXISTS (SELECT 1 FROM nodes n WHERE n.id = json_extract(c.value, '$.rootId')) END) THEN 0
       ELSE (SELECT COUNT(*) FROM walk) = (SELECT COUNT(*) FROM nodes)
     END
   ))` : "";

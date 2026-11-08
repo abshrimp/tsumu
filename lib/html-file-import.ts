@@ -1,3 +1,4 @@
+import { withImportUploads } from "./import-uploads";
 import { openImportZip } from "./zip-directory";
 import type { Asset, BreakpointDef, SiteDoc } from "./types";
 import { readHtmlZip, readHtmlZipPages } from "./html-zip";
@@ -22,20 +23,23 @@ export async function isEditableSiteZip(data: Uint8Array): Promise<boolean> {
 export async function convertHtmlFile(
   file: File,
   options: { breakpoints?: BreakpointDef[]; progress?: (message: string) => void; allPages?: boolean } = {},
+  uploaded?: string[],
 ): Promise<HtmlConversion> {
   if (!file.size) throw new Error("ファイルが空です。");
   if (file.name.toLowerCase().endsWith(".zip")) {
     if (file.size > IMPORT_LIMITS.zipBytes) throw new Error("インポートするファイルが大きすぎます。");
     // readHtmlZip/readHtmlZipPages share strict path and expansion checks before uploads.
     options.progress?.("HTMLとアセットを読み込み中…");
-    if (!options.allPages) {
-      const converted = await readHtmlZip(file, options.progress);
-      return convertHtmlToSite(converted.html, {
-        breakpoints: options.breakpoints, assets: converted.assets,
-      });
-    }
-    const archive = await readHtmlZipPages(file, options.progress);
-    return convertHtmlPages(archive.pages, archive.assets, options.breakpoints);
+    return withImportUploads(async paths => {
+      if (!options.allPages) {
+        const converted = await readHtmlZip(file, options.progress, paths);
+        return convertHtmlToSite(converted.html, {
+          breakpoints: options.breakpoints, assets: converted.assets,
+        });
+      }
+      const archive = await readHtmlZipPages(file, options.progress, paths);
+      return convertHtmlPages(archive.pages, archive.assets, options.breakpoints);
+    }, uploaded);
   }
   if (!isHtmlFile(file.name)) throw new Error("HTMLまたはHTMLのZIPファイルを選択してください。");
   if (file.size > IMPORT_LIMITS.docBytes) throw new Error("インポートするファイルが大きすぎます。");

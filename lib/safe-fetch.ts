@@ -24,13 +24,14 @@ function parseIPv4(host: string): number[] | null {
   return parts.every((p) => p <= 255) ? parts : null;
 }
 
-function isPrivateIPv4([a, b]: number[]): boolean {
+function isPrivateIPv4([a, b, c]: number[]): boolean {
   return (
     a === 0 || a === 10 || a === 127 || a >= 224 ||
     (a === 100 && b >= 64 && b <= 127) || // キャリアグレードNAT
     (a === 169 && b === 254) || // リンクローカル・クラウドのメタデータ
     (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && (b === 168 || b === 0)) ||
+    (a === 192 && (b === 168 || b === 0 || (b === 88 && c === 99))) ||
+    (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113) ||
     (a === 198 && (b === 18 || b === 19))
   );
 }
@@ -40,18 +41,12 @@ function isPrivateIPv6(addr: string): boolean {
   let a: string;
   try { a = new URL(`http://[${addr}]/`).hostname.slice(1, -1); }
   catch { return true; }
-  // :: で始まる（未指定・ループバック・IPv4 埋め込み）、ユニークローカル、リンク/サイトローカル、マルチキャスト、NAT64、6to4、ドキュメント用
-  if (
-    !/^[23]/.test(a) || a.startsWith("2001:") ||
-    /^(fc|fd|fe[89abcf]|ff|64:ff9b:|2002:|2001:db8:|100::)/.test(a)
-  ) {
-    return true;
-  }
-  // 0 を省かずに書いた未指定・ループバック（0:0:0:0:0:0:0:0 / 0:0:0:0:0:0:0:1）および IPv4 対応アドレス
-  return (
-    /^0{1,4}(:0{1,4}){6}:0{0,3}[01]$/.test(a) ||
-    /^0{1,4}(:0{1,4}){4}:(ffff|0{1,4}):/.test(a)
-  );
+  const [first, second] = a.split(":").map(part => parseInt(part || "0", 16));
+  // Global unicast is 2000::/3. Use hextet values so compressed, low-valued
+  // addresses such as 2::1 cannot match the textual start of a public prefix.
+  return first < 0x2000 || first > 0x3fff ||
+    (first === 0x2001 && (second < 0x200 || second === 0xdb8)) ||
+    first === 0x2002 || first === 0x3ffe || (first === 0x3fff && second < 0x1000);
 }
 
 /** 名前解決した先が内部の宛先でないか（Node.js で動くときだけ確かめられる） */

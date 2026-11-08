@@ -244,3 +244,20 @@ test("snapshots and atomic patches reject broken node trees without advancing th
     }
   });
 });
+
+test("component roots and asset definitions stay valid across snapshots and revisions", async () => {
+  await database(async db => {
+    const original = { ...doc(), components: { card: { id: "card", name: "Card", rootId: "node-1" } } };
+    await saveCurrentDoc(db, "s1", JSON.stringify(original), null);
+    for (const patch of [
+      [{ path: ["assets", "bad"], value: null }],
+      [{ path: ["components", "card"], value: { id: "card", name: "Card", rootId: "missing" } }],
+      [{ path: ["pages", "home"], value: { ...original.pages.home, children: [] } },
+       { path: ["nodes", "node-1"], remove: true }],
+    ] as const) {
+      assert.equal(validateDocBody(JSON.stringify(applyDocPatch(original, patch as any))), "不正なリクエスト");
+      await assert.rejects(saveDocPatch(db, "s1", patch as any, "1"), /不正な/);
+      assert.equal((await readCurrentDoc(db, "s1"))?.rev, "1");
+    }
+  });
+});

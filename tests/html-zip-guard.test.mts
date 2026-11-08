@@ -119,3 +119,24 @@ test("ZIPs with duplicate physical names cannot hide a record in JSZip's normali
   const duplicated = Buffer.from(Buffer.from(bytes).toString("latin1").replaceAll("b.txt", "a.txt"), "latin1");
   await assert.rejects(readHtmlZip(duplicated), /重複/);
 });
+
+test("failure after an upload removes exactly the new archive asset", async () => {
+  const zip = new JSZip().file("index.html", "<html></html>").file("first.js", "x").file("second.js", "y");
+  const bytes = await zip.generateAsync({ type: "uint8array" });
+  const before = globalThis.fetch;
+  const deleted: string[] = [];
+  let posts = 0;
+  try {
+    globalThis.fetch = async (url, init) => {
+      if (init?.method === "DELETE") {
+        deleted.push(new URL(String(url), "https://editor.test").searchParams.get("path")!);
+        return new Response();
+      }
+      return ++posts === 1 ? Response.json({ path: "assets/first", name: "first.js" }) :
+        Response.json({ error: "upload failed" }, { status: 500 });
+    };
+    await assert.rejects(readHtmlZip(bytes), /upload failed/);
+    assert.equal(posts, 2);
+    assert.deepEqual(deleted, ["assets/first"]);
+  } finally { globalThis.fetch = before; }
+});

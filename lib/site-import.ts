@@ -1,4 +1,4 @@
-import { validNodeForest } from "./doc-tree";
+import { validAssetEntry, validNodeForest } from "./doc-tree";
 import type JSZip from "jszip";
 import { openImportZip } from "./zip-directory";
 import type { Asset, SiteDoc } from "./types";
@@ -72,7 +72,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
     }
   }
   check(value);
-  if (!validNodeForest(doc.pages, doc.nodes)) throw new Error("要素の親子関係が不正です。");
+  if (!validNodeForest(doc.pages, doc.nodes, doc.components)) throw new Error("要素の親子関係が不正です。");
   if (new Set(doc.pageOrder).size !== doc.pageOrder.length) throw new Error("ページの参照が壊れています。");
   for (const id of doc.pageOrder) {
     if (typeof id !== "string" || !assertOrdinaryObject(doc.pages[id])) {
@@ -84,8 +84,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
     }
   }
   for (const [id, item] of Object.entries(doc.assets)) {
-    if (!assertOrdinaryObject(item) || typeof item.id !== "string" || item.id !== id ||
-        typeof item.name !== "string" || (item.dataUrl != null && !isEmbeddedAssetUrl(item.dataUrl))) {
+    if (!assertOrdinaryObject(item) || !validAssetEntry(id, item) || (item.dataUrl != null && !isEmbeddedAssetUrl(item.dataUrl))) {
       throw new Error("アセットIDと参照情報が正しくありません。");
     }
   }
@@ -196,10 +195,10 @@ export async function parseSiteImport(
 export async function restoreImportAssets(
   imported: SiteImport,
   progress: (message: string) => void = () => {},
+  createdPaths: string[] = [],
 ): Promise<{ doc: SiteDoc; warnings: string[]; createdPaths: string[] }> {
   const doc = structuredClone(imported.doc);
   const warnings = [...imported.warnings];
-  const createdPaths: string[] = [];
   let number = 0;
   for (const [id, asset] of Object.entries(doc.assets)) {
     number++;
@@ -215,6 +214,7 @@ export async function restoreImportAssets(
       const mime = asset.mimeType || guessMime(asset.name);
       try {
         const result = await uploadStaticAsset(new File([bytes as Uint8Array<ArrayBuffer>], asset.name, { type: mime }));
+        if (result.path) createdPaths.push(result.path);
         doc.assets[id] = {
           ...asset, ...result, id, name: asset.name,
           width: asset.width > 0 ? asset.width : result.width,
@@ -222,7 +222,6 @@ export async function restoreImportAssets(
           svgFilter: asset.svgFilter ?? result.svgFilter,
           ...(result.path ? { dataUrl: undefined } : { path: undefined }),
         };
-        if (result.path) createdPaths.push(result.path);
         continue;
       } catch (e) {
         warnings.push("アセットを保存できませんでした: " + asset.name + " (" + String(e instanceof Error ? e.message : e) + ")");

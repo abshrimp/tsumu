@@ -1,3 +1,4 @@
+import { withImportUploads } from "./import-uploads";
 import { DOC_STORAGE_KEY, emptyDest, loadLocalSites, saveLocalSites, siteKey } from "./site";
 import { newSiteId, type SiteRecord } from "./sites";
 import { IMPORT_LIMITS, parseSiteImport, restoreImportAssets, validateImportedDoc } from "./site-import";
@@ -73,52 +74,39 @@ export async function createSiteFromFile(
   mode: SaveMode,
   progress: (message: string) => void = () => {},
 ): Promise<{ id: string; warnings: string[] }> {
-  const kind = importFileKind(file);
-  const limit = kind === "zip" ? IMPORT_LIMITS.zipBytes : IMPORT_LIMITS.docBytes;
-  if (!file.size) throw new Error("ファイルが空です。");
-  if (file.size > limit) throw new Error("インポートするファイルが大きすぎます。");
-  progress("編集データを読み込み中…");
-  let doc: SiteDoc;
-  let warnings: string[];
-  let createdPaths: string[];
-  const source = kind === "html" ? null : new Uint8Array(await file.arrayBuffer());
-  const html = kind === "html" || (kind === "zip" && source && !(await isEditableSiteZip(source)));
-  if (html) {
-    const converted = await convertHtmlFile(file, { progress, allPages: true });
-    doc = validateImportedDoc(converted.doc);
-    warnings = converted.warnings;
-    createdPaths = Object.values(doc.assets).flatMap((asset) => asset.path ? [asset.path] : []);
-  } else {
-    progress("編集データを確認しています…");
-    const parsed = await parseSiteImport(source!, kind as "zip" | "doc");
-    progress("画像などのアセットを復元しています…");
-    const restored = await restoreImportAssets(parsed, progress);
-    doc = restored.doc;
-    warnings = restored.warnings;
-    createdPaths = restored.createdPaths;
-  }
-  progress("新規サイトを保存しています…");
-  const raw = JSON.stringify(doc);
-  let id: string;
-  try {
-    id = mode === "server"
+  return withImportUploads(async paths => {
+    const kind = importFileKind(file);
+    const limit = kind === "zip" ? IMPORT_LIMITS.zipBytes : IMPORT_LIMITS.docBytes;
+    if (!file.size) throw new Error("ファイルが空です。");
+    if (file.size > limit) throw new Error("インポートするファイルが大きすぎます。");
+    progress("編集データを読み込み中…");
+    let doc: SiteDoc;
+    let warnings: string[];
+    const source = kind === "html" ? null : new Uint8Array(await file.arrayBuffer());
+    const html = kind === "html" || (kind === "zip" && source && !(await isEditableSiteZip(source)));
+    if (html) {
+      const converted = await convertHtmlFile(file, { progress, allPages: true }, paths);
+      doc = validateImportedDoc(converted.doc);
+      warnings = converted.warnings;
+    } else {
+      progress("編集データを確認しています…");
+      const parsed = await parseSiteImport(source!, kind as "zip" | "doc");
+      progress("画像などのアセットを復元しています…");
+      const restored = await restoreImportAssets(parsed, progress, paths);
+      doc = restored.doc;
+      warnings = restored.warnings;
+    }
+    progress("新規サイトを保存しています…");
+    const raw = JSON.stringify(doc);
+    const id = mode === "server"
       ? await serverWrite(raw, doc.siteName)
       : localWrite(raw, doc.siteName);
-  } catch (error) {
-    // The site has not been committed; remove any asset uploads created by this
-    // failed attempt. The storage service verifies cross-site references.
-    const cleanupId = newSiteId();
-    await Promise.allSettled(createdPaths.map((path) =>
-      fetch("/api/assets?site=" + encodeURIComponent(cleanupId) +
-        "&path=" + encodeURIComponent(path), { method: "DELETE" })
-    ));
-    throw error;
-  }
-  try {
-    window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));
-  } catch {
-    // The completed import is still usable without a session warning.
-    if (warnings.length) console.warn("Import warnings:", warnings);
-  }
-  return { id, warnings };
+    try {
+      window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));
+    } catch {
+      // The completed import is still usable without a session warning.
+      if (warnings.length) console.warn("Import warnings:", warnings);
+    }
+    return { id, warnings };
+  });
 }

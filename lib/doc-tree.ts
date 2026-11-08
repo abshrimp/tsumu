@@ -9,7 +9,22 @@ export function hasValidChildren(value: unknown): value is { children: string[] 
     new Set(children).size === children.length;
 }
 
-export function validNodeForest(pages: Record<string, unknown>, nodes: Record<string, unknown>): boolean {
+function entryWithId(id: string, value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value) && "id" in value && value.id === id;
+}
+
+export function validAssetEntry(id: string, value: unknown): boolean {
+  return entryWithId(id, value) && typeof value.name === "string" &&
+    (value.dataUrl == null || typeof value.dataUrl === "string") &&
+    (value.path == null || typeof value.path === "string") &&
+    (value.mimeType == null || typeof value.mimeType === "string");
+}
+
+export function validComponentEntry(id: string, value: unknown): value is { rootId: string } {
+  return entryWithId(id, value) && typeof value.name === "string" && typeof value.rootId === "string";
+}
+
+export function validNodeForest(pages: Record<string, unknown>, nodes: Record<string, unknown>, components?: unknown): boolean {
   const parents = new Set<string>();
   const edges = new Map<string, string[]>();
   for (const [id, node] of Object.entries(nodes)) {
@@ -20,8 +35,10 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
       parents.add(child);
     }
   }
-  for (const page of Object.values(pages)) {
-    if (!hasValidChildren(page) || !page.children.every(id => edges.has(id))) return false;
+  if (components != null && (typeof components !== "object" || Array.isArray(components) ||
+      !Object.entries(components).every(([id, comp]) => validComponentEntry(id, comp) && edges.has(comp.rootId)))) return false;
+  for (const [id, page] of Object.entries(pages)) {
+    if (!entryWithId(id, page) || typeof page.slug !== "string" || !hasValidChildren(page) || !page.children.every(id => edges.has(id))) return false;
   }
   let layer = [...edges.keys()].filter(id => !parents.has(id));
   let visited = 0;
