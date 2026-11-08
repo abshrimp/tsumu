@@ -37,7 +37,7 @@ export function formatValueOperandInput(operand: string, operandType: ValueOpera
 
 export type ValueTransform =
   | { readonly kind: "field"; readonly key: string }
-  | { readonly kind: "length" | "format" | "stringify" | "parse" }
+  | { readonly kind: "length" | "stringify" | "parse" }
   | { readonly kind: "fallback"; readonly text: string; readonly when?: "missing" | "nullish" }
   | { readonly kind: "math"; readonly operation: NumericOperation; readonly operand: number | string; readonly operandType?: "number" | "variable" }
   | { readonly kind: "split" | "join"; readonly separator: string }
@@ -47,8 +47,8 @@ export type ValueTransform =
 export type ValueTransformKind = ValueTransform["kind"];
 
 export const VALUE_TRANSFORM_KINDS: readonly ValueTransformKind[] = [
-  "field", "length", "math", "format", "stringify", "parse",
-  "split", "join", "replace", "sort", "append", "fallback",
+  "field", "fallback", "math", "split", "replace", "join",
+  "length", "sort", "append", "stringify", "parse",
 ];
 
 export function defaultTransform(kind: ValueTransformKind): ValueTransform {

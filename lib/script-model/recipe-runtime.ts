@@ -49,6 +49,10 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
   const scalar = (value: unknown): value is string | number | boolean | null =>
     value === null || typeof value === "string" || typeof value === "boolean" ||
       (typeof value === "number" && Number.isFinite(value));
+  // Text transformations accept scalar inputs but never mutate the source value.
+  const textScalar = (value: unknown): string | undefined =>
+    typeof value === "string" || typeof value === "boolean" ||
+      (typeof value === "number" && Number.isFinite(value)) ? String(value) : undefined;
   // A single text field accepts ordinary text, {variable.path}, or a mixture.
   // Whole references preserve the source value (including numbers, lists, null).
   // Escaped \{ starts a literal brace. No eval or dynamic code is involved.
@@ -267,12 +271,6 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (!current || typeof current !== "object") return failure("type-mismatch");
           current = Object.keys(current).length;
           break;
-        case "format":
-          if (absent) break;
-          if (typeof current !== "string" && typeof current !== "number" &&
-              typeof current !== "boolean") return failure("type-mismatch");
-          current = String(current);
-          break;
         case "stringify":
           if (absent) break;
           current = JSON.stringify(current);
@@ -321,9 +319,10 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         case "split": {
           if (absent) break;
           const delimiter = textParam(step.separator, 256);
-          if (typeof current !== "string" || !delimiter.ok) return failure("type-mismatch");
-          if (current.length > 100000) return failure("limit-exceeded");
-          current = current.split(delimiter.value || ",").map((part: string) => part.trim()).filter(Boolean);
+          const source = textScalar(current);
+          if (source === undefined || !delimiter.ok) return failure("type-mismatch");
+          if (source.length > 100000) return failure("limit-exceeded");
+          current = source.split(delimiter.value || ",").map((part: string) => part.trim()).filter(Boolean);
           break;
         }
         case "join": {
@@ -350,27 +349,28 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (absent) break;
           const needle = textParam(step.find, 256, step.regex);
           const replacement = textParam(step.replacement, 10000);
-          if (typeof current !== "string" || !needle.ok || !replacement.ok ||
+          const source = textScalar(current);
+          if (source === undefined || !needle.ok || !replacement.ok ||
               typeof step.regex !== "boolean") return failure("type-mismatch");
-          if (current.length > 10000) return failure("limit-exceeded");
-          if (!needle.value) break;
+          if (source.length > 10000) return failure("limit-exceeded");
+          if (!needle.value) { current = source; break; }
           if (step.regex) {
-            if (current.length > 2048 || !safeRegex(needle.value)) return failure("invalid-regex");
+            if (source.length > 2048 || !safeRegex(needle.value)) return failure("invalid-regex");
             let pattern: RegExp;
             try { pattern = new RegExp(needle.value, "g"); } catch { return failure("invalid-regex"); }
             // Bound potentially expanded capture and surrounding-context substitutions.
-            let projected = current.length;
+            let projected = source.length;
             const captures = replacement.value.match(/\$(?:&|[1-9]\d?)/g)?.length ?? 0;
             const contexts = replacement.value.match(/\$(?:'|`)/g)?.length ?? 0;
-            for (const match of current.matchAll(pattern)) {
-              projected += replacement.value.length + captures * match[0].length + contexts * current.length;
+            for (const match of source.matchAll(pattern)) {
+              projected += replacement.value.length + captures * match[0].length + contexts * source.length;
               if (projected > MAX_RECIPE_TEXT) return failure("limit-exceeded");
             }
-            current = current.replace(pattern, replacement.value);
+            current = source.replace(pattern, replacement.value);
           } else {
-            const chunks = current.split(needle.value);
+            const chunks = source.split(needle.value);
             const count = chunks.length - 1;
-            const length = current.length + count * (replacement.value.length - needle.value.length);
+            const length = source.length + count * (replacement.value.length - needle.value.length);
             if (length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
             current = chunks.join(replacement.value);
           }

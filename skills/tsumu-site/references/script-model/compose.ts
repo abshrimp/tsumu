@@ -7,7 +7,7 @@ export type ValueOperandType = "text" | "number" | "boolean" | "null" | "variabl
 
 export type ValueTransform =
   | { readonly kind: "field"; readonly key: string }
-  | { readonly kind: "length" | "format" | "stringify" | "parse" }
+  | { readonly kind: "length" | "stringify" | "parse" }
   | { readonly kind: "fallback"; readonly text: string; readonly when?: "missing" | "nullish" }
   | { readonly kind: "math"; readonly operation: NumericOperation; readonly operand: number | string; readonly operandType?: "number" | "variable" }
   | { readonly kind: "split" | "join"; readonly separator: string }
