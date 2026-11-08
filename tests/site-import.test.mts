@@ -70,15 +70,15 @@ test("missing asset bytes in a current ZIP produce warnings without guessing pat
   assert.match(result.warnings.join("\n"), /logo.svg/);
 });
 
-test("legacy fallback paths cannot substitute for a missing mapped asset", async () => {
+test("unmapped archive paths cannot substitute for an explicitly mapped asset", async () => {
   const doc = fixture();
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(doc));
   zip.file(EDITABLE_ASSETS_PATH, JSON.stringify({
     version: 1, assets: { "original-image": "public/assets/current-logo.svg" },
   }));
-  zip.file("public/assets/logo.svg", "<svg/>");
-  zip.file("assets/logo.svg", "<svg/>");
+  zip.file("unmapped/logo.svg", "<svg/>");
+  zip.file("attachments/logo.svg", "<svg/>");
   const result = await parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip");
   assert.equal(result.assets.size, 0);
   assert.match(result.warnings.join("\n"), /logo.svg/);
