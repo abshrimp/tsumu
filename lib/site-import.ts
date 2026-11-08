@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import type { Asset, SiteDoc } from "./types";
 import { uploadStaticAsset } from "./assets";
 import { decodePortableDoc } from "./portable-doc";
+import { readZipEntryLimited, ZipEntryTooLargeError } from "./zip-stream";
 
 export const EDITABLE_DOC_PATH = "_tsumu/doc.json";
 export const EDITABLE_ASSETS_PATH = "_tsumu/assets.json";
@@ -132,17 +133,16 @@ export async function parseSiteImport(
   for (const entry of entries) {
     if (!pathOK(entry.name)) throw new Error("ZIPに安全でないファイルパスがあります。");
     const n = uncompressedSize(entry);
-    if (n !== null) {
-      if (n > IMPORT_LIMITS.expandedBytes || (size += n) > IMPORT_LIMITS.expandedBytes) {
-        throw new Error("ZIP展開後のデータが大きすぎます。");
-      }
+    if (n === null) throw new Error("ZIP内のファイルサイズが正しくありません。");
+    if (n > IMPORT_LIMITS.expandedBytes || (size += n) > IMPORT_LIMITS.expandedBytes) {
+      throw new Error("ZIP展開後のデータが大きすぎます。");
     }
   }
   const documentEntry = findEditDoc(entries);
   if (!documentEntry) {
     throw new Error("ZIPに_tsumu/doc.jsonがありません。HTML ZIPの取り込みとは別の機能です。");
   }
-  const docBytes = await documentEntry.async("uint8array");
+  const docBytes = await readZipEntryLimited(documentEntry, IMPORT_LIMITS.docBytes);
   if (docBytes.length > IMPORT_LIMITS.docBytes) throw new Error("doc.jsonが大きすぎます。");
   const doc = validateImportedDoc(await decodePortableDoc(jsonText(docBytes), IMPORT_LIMITS.docBytes));
   const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
@@ -151,7 +151,7 @@ export async function parseSiteImport(
   // asset locations from historical public/assets or assets directory layouts.
   const mapEntry = zip.file(parent + "assets.json");
   if (!mapEntry) throw new Error("ZIPに_tsumu/assets.jsonがありません。");
-  const metadata = jsonText(await mapEntry.async("uint8array"));
+  const metadata = jsonText(await readZipEntryLimited(mapEntry, IMPORT_LIMITS.docBytes));
   if (!assertOrdinaryObject(metadata) || metadata.version !== 1 ||
       !assertOrdinaryObject(metadata.assets)) {
     throw new Error("ZIPのアセット対応表が不正です。");
@@ -179,12 +179,13 @@ export async function parseSiteImport(
       warnings.push("サイズが大きいためアセットを取り込めません: " + original.name);
       continue;
     }
-    const contents = await entry.async("uint8array");
-    if (contents.byteLength > IMPORT_LIMITS.assetBytes) {
+    try {
+      const contents = await readZipEntryLimited(entry, IMPORT_LIMITS.assetBytes);
+      assets.set(id, contents);
+    } catch (error) {
+      if (!(error instanceof ZipEntryTooLargeError)) throw error;
       warnings.push("サイズが大きいためアセットを取り込めません: " + original.name);
-      continue;
     }
-    assets.set(id, contents);
   }
   return { doc, assets, warnings };
 }

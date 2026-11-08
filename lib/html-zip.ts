@@ -3,7 +3,8 @@ import { assetSrc, uploadStaticAsset } from "./assets";
 import { resolveZipReference } from "./zip-references";
 import { rewriteSrcsetUrls } from "./srcset";
 import { CSS_ASSET_ATTRIBUTES, rewriteCssAssetUrls } from "./css-assets";
-import { attachZipDependencies, zipCssUrl, zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
+import { attachZipDependencies, zipCssUrl, zipStylesheet } from "./zip-css";
+import { HTML_ZIP_LIMITS, inspectHtmlZip, readZipEntryLimited } from "./html-zip-guard";
 import { genId } from "./presets";
 import { tr } from "./i18n";
 import type { Asset } from "./types";
@@ -52,61 +53,73 @@ export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<s
 }
 
 
-/** Prepare a complete import before committing anything to the document/history. JS dependencies are not resolved. */
+/** Preflight the archive before uploading anything; JavaScript dependencies are not resolved. */
 async function prepareHtmlZip(file: File | Uint8Array, progress: (message: string) => void = () => {}) {
+  const compressedBytes = file instanceof Uint8Array ? file.byteLength : file.size;
+  if (compressedBytes > HTML_ZIP_LIMITS.zipBytes) {
+    throw new Error("インポートするファイルが大きすぎます。");
+  }
   const zip = await JSZip.loadAsync(file);
-  const entries = Object.values(zip.files).filter(
-    (entry) => !entry.dir && !entry.name.startsWith("__MACOSX/") && !entry.name.endsWith(".DS_Store")
-  );
-  if (entries.length > 200) throw new Error(tr("ZIPに入れられるファイルは200個までです"));
-  const htmlEntries = entries.filter((entry) => /\.html?$/i.test(entry.name));
-  if (!htmlEntries.length) throw new Error(tr("ZIP内にHTMLファイルが見つかりません"));
-  const htmlEntry = htmlEntries.find((entry) => /(^|\/)index\.html?$/i.test(entry.name)) ?? htmlEntries[0];
+  const { htmlEntries, htmlEntry, assetEntries } = inspectHtmlZip(zip);
+
+  // Verify HTML and CSS bytes before starting an upload. A malformed stylesheet
+  // must not leave behind assets uploaded earlier in the same import.
+  const htmlText = new Map<string, string>();
+  for (const entry of htmlEntries) {
+    const bytes = await readZipEntryLimited(entry, HTML_ZIP_LIMITS.htmlBytes);
+    htmlText.set(entry.name, new TextDecoder("utf-8").decode(bytes));
+  }
+  const stylesheets = new Map<string, { bytes: Uint8Array<ArrayBuffer>; source: string }>();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  for (const entry of assetEntries) {
+    if (!/\.css$/i.test(entry.name)) continue;
+    const bytes = await readZipEntryLimited(entry, HTML_ZIP_LIMITS.cssBytes);
+    let source: string;
+    try { source = decoder.decode(bytes); }
+    catch { throw new Error(tr("ZIP内のCSSはUTF-8に対応しています。文字コードをUTF-8に変換して再読み込みしてください。")); }
+    const charset = /^@charset\s+["']([^"']+)["'];/i.exec(source)?.[1];
+    if (charset && !/^utf-8$/i.test(charset)) {
+      throw new Error(tr("ZIP内のCSSはUTF-8に対応しています。文字コードをUTF-8に変換して再読み込みしてください。"));
+    }
+    stylesheets.set(entry.name, { bytes, source });
+  }
+
   const assets: Asset[] = [];
   const urls = new Map<string, string>();
   const group = genId("zip");
-  const assetEntries = entries.filter((entry) => !/\.html?$/i.test(entry.name));
-  let sourceBytes = 0;
   for (let index = 0; index < assetEntries.length; index++) {
     const entry = assetEntries[index];
     progress(tr("アセットをアップロード中… {p1} / {length}", { p1: index + 1, length: assetEntries.length }));
     const path = cleanZipPath(entry.name);
-    const bytes = await entry.async("uint8array");
+    const sheet = stylesheets.get(entry.name);
+    const bytes = sheet?.bytes ?? await readZipEntryLimited(entry, HTML_ZIP_LIMITS.assetBytes);
     const mime = zipMime(path);
-    let source: string | undefined;
-    if (mime === "text/css") {
-      sourceBytes += bytes.byteLength;
-      if (sourceBytes > ZIP_CSS_LIMITS.source) throw new Error(tr("ZIP内のCSSは合計2MBまでです"));
-      try { source = new TextDecoder("utf-8", { fatal: true }).decode(bytes); }
-      catch { throw new Error(tr("ZIP内のCSSはUTF-8に対応しています。文字コードをUTF-8に変換して再読み込みしてください。")); }
-      const charset = /^@charset\s+["']([^"']+)["'];/i.exec(source)?.[1];
-      if (charset && !/^utf-8$/i.test(charset)) throw new Error(tr("ZIP内のCSSはUTF-8に対応しています。文字コードをUTF-8に変換して再読み込みしてください。"));
-    }
-    // Upload the original bytes, including any UTF-8 BOM. The metadata is only a rendering recipe.
-    const upload = new File([bytes as Uint8Array<ArrayBuffer>], path.replace(/\//g, "-"), { type: mime });
+    // Preserve original bytes, including UTF-8 BOM; CSS references are metadata.
+    const upload = new File([bytes], path.replace(/\//g, "-"), { type: mime });
     const asset = await uploadStaticAsset(upload);
-    asset.zip = { version: 1, group, path, ...(source !== undefined ? { stylesheet: { source, references: [] } } : {}) };
+    asset.zip = { version: 1, group, path,
+      ...(sheet ? { stylesheet: { source: sheet.source, references: [] } } : {}) };
     assets.push(asset);
     urls.set(path, zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
   }
   attachZipDependencies(assets);
-  return { assets, htmlEntries, htmlEntry, urls };
+  return { assets, htmlEntries, htmlEntry, urls, htmlText };
 }
 
 /** Existing raw-HTML page import: keep its single index.html behavior unchanged. */
 export async function readHtmlZip(file: File | Uint8Array, progress: (message: string) => void = () => {}) {
-  const { assets, htmlEntry, urls } = await prepareHtmlZip(file, progress);
-  const html = rewriteZipReferences(await htmlEntry.async("text"), cleanZipPath(htmlEntry.name), urls);
+  const { assets, htmlEntry, urls, htmlText } = await prepareHtmlZip(file, progress);
+  const html = rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", cleanZipPath(htmlEntry.name), urls);
   return { assets, html, name: htmlEntry.name };
 }
 
 /** Editable site import: import every HTML page while uploading assets only once. */
 export async function readHtmlZipPages(file: File | Uint8Array, progress: (message: string) => void = () => {}) {
-  const { assets, htmlEntries, htmlEntry, urls } = await prepareHtmlZip(file, progress);
+  const { assets, htmlEntries, htmlEntry, urls, htmlText } = await prepareHtmlZip(file, progress);
   const entries = [htmlEntry, ...htmlEntries.filter((entry) => entry !== htmlEntry)];
-  const pages = await Promise.all(entries.map(async (entry) => ({
+  const pages = entries.map((entry) => ({
     name: cleanZipPath(entry.name),
-    html: rewriteZipReferences(await entry.async("text"), cleanZipPath(entry.name), urls),
-  })));
+    html: rewriteZipReferences(htmlText.get(entry.name) ?? "", cleanZipPath(entry.name), urls),
+  }));
   return { assets, pages };
 }
