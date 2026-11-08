@@ -2169,8 +2169,6 @@ const en: Dict = {
     "Drag \"Fetch data from ［URL］ as ［name］\" into the large area on the right, and enter the URL and name.",
   "データを一覧で並べたい（リスト）":
     "How do I show data as a list?",
-  "取得したデータの中の一覧を、スクリプトの「［値］を変数［］とする」で変数に入れ、「リスト」要素の「並べる配列」で選びます。リストの1つ目のカードがお手本になります。":
-    "Store the list inside the fetched data in a variable with the script block \"Set variable ［］ to ［value］\", then choose it in the List element's \"Array to list\". The first card in the list is the template.",
   "繰り返し":
     "repeat",
   "お知らせ一覧":
@@ -2179,16 +2177,10 @@ const en: Dict = {
     "Fetch data in the page's script ([[data-fetch|fetching data]])",
   "「［値 / {データ.位置}］を変数［］とする」で、データの中の一覧に名前を付ける（例: {お知らせ.items} を「記事」とする）":
     "Name the list inside the data with \"Set variable ［］ to ［value / {data.path}］\" (e.g. store {news.items} as \"articles\")",
-  "お手本にするカード（ボックス）を作り、右クリックの「リスト化」でリストにする":
-    "Make a template card (box) and turn it into a list with \"Turn into list\" in the right-click menu",
-  "リストの「設定」の「並べる配列」で「記事」を選ぶ":
-    "Choose \"articles\" in \"Array to list\" under the list's Settings",
   "カードの中の文字に {title} のように項目名を書く":
     "Write field names like {title} in the card's text",
   "「表示件数」で数を制限できます。並べ替えや絞り込みは、スクリプトの並べ替え・絞り込みのブロックで行います。":
     "Limit the count with \"Items to show\". Sort and filter with the script's sort and filter blocks.",
-  "お手本にするボックスを選び、「リスト化」を押します。":
-    "Select the template box and click \"Turn into list\".",
   "一覧から1件ずつの詳細ページを作りたい（[slug]）":
     "How do I make a detail page for each item ([slug])?",
   "URLに [slug] を含むページ（例: news/[slug]）を1つ作ると、データの1件ごとにページができます。ページの中では {slug} でURLのその部分を使えます。":
@@ -2216,8 +2208,6 @@ const en: Dict = {
     "sort",
   "入力欄のID属性が「q」なら、データ取得のURLに `?q={q}` と書けます。送信すると、ページを開き直さずに結果だけが更新されます。":
     "If the field's ID is \"q\", write `?q={q}` in the data URL. Submitting updates just the results without reloading the page.",
-  "取得済みの一覧を画面上で絞り込むときは、「クリックしたとき」「値が変わったとき」に「配列［］を［項目］で絞り込む」をつなげます。":
-    "To filter an already-fetched list on screen, attach \"Filter array ［］ by ［field］\" to \"When clicked\" or \"When the value changes\".",
   "新しく作ったサイトの「商品一覧（デモ）」ページに、検索・一覧・詳細ページの見本があります。":
     "New sites include a \"Products (demo)\" page with examples of search, lists and detail pages.",
   "お気に入りなど、訪問者ごとの情報をブラウザに保存したい":
