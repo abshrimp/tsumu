@@ -353,14 +353,14 @@ const SEARCH_TERMS: Record<string, string> = {
 
 const normalizeSearch = (text: string) => text.normalize("NFKC").toLocaleLowerCase();
 
-/** The palette exposes every supported action; no hidden historical actions. */
+/** Search the action palette by its current labels and keywords. */
 export function findPaletteItems(query: string): PaletteItem[] {
   const words = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
   if (!words.length) return PALETTE;
   return PALETTE.filter((item) => {
     const text = normalizeSearch([
       item.key, item.label, CAT_INFO[item.cat].label, SEARCH_TERMS[item.key] ?? "",
-      item.cat === "array" ? "配列 一覧" : "",
+      item.cat === "array" ? "リスト" : "",
     ].join(" "));
     return words.every((word) => text.includes(word));
   });
