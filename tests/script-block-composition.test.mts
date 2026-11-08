@@ -236,7 +236,7 @@ test("list filters invert individual conditions without duplicating negative ope
     conds: [{ field: "active", op: "empty", value: "", not: true }] }]), items);
 });
 
-test("transform conditions agree with display-list filters for missing, null and array fields", () => {
+test("if blocks and display filters agree for missing, null and list-valued fields", () => {
   const items = [
     { name: "A", tags: ["x", "y"] }, { name: "" },
     { id: 3 }, { name: null }, { name: "B" },
@@ -244,21 +244,25 @@ test("transform conditions agree with display-list filters for missing, null and
   const criteria = [
     { field: "name", op: "empty" as const, value: "" },
     { field: "name", op: "eq" as const, value: "A", not: true },
-    // List equality is structural in display predicates; the removed
-    // legacy filter recipe still performs a string-based comparison.
-    // The removed legacy recipe treats missing and null as empty text,
-    // unlike strict Value/List predicates.
+    { field: "tags", op: "contains" as const, value: "x" },
   ];
   for (const condition of criteria) {
     const expected = filterItems(items, [{ kind: "filter", conds: [condition] }]);
-    const actual = evaluateValueRecipe(items, [{
-      kind: "filter", field: condition.field, operation: condition.op,
-      operand: condition.value, not: condition.not,
-    }]);
-    assert.deepEqual(actual, { kind: "value", value: expected }, JSON.stringify(condition));
+    const vars: Record<string, unknown> = { items, result: [] };
+    const steps: ScriptStep[] = [
+      { id: "each", kind: "for-each", array: "items", then: [
+        { id: "condition", kind: "if", cond: {
+          subject: "var", target: "", left: "{ループ.値." + condition.field + "}",
+          op: condition.op, value: condition.value, not: condition.not,
+        }, then: [
+          { id: "add", kind: "set-list-item", list: "result", key: "", value: "{ループ.値}" },
+        ] },
+      ] },
+    ];
+    assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+    assert.deepEqual(vars.result, expected, JSON.stringify(condition));
   }
 });
-
 test(">= and <= are consistent in list filters and server-side page-load if", () => {
   assert.equal(matchOp("10", "gte", "10"), true);
   assert.equal(matchOp("10", "lte", "10"), true);
