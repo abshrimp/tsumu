@@ -1412,14 +1412,25 @@ export function parseColor(v: string | undefined): { hex: string; alpha: number 
     const [r, g, b] = short[1].split("");
     return { hex: `#${r}${r}${g}${g}${b}${b}`, alpha: short[2] ? parseInt(short[2].repeat(2), 16) / 255 : 1 };
   }
+  // Let the browser resolve named colors, HSL and modern RGB syntax. These
+  // are valid saved CSS too; opacity edits must not replace them with black.
+  // Hex values above remain lossless (including their authored alpha).
+  if (typeof document !== "undefined") {
+    const context = document.createElement("canvas").getContext("2d");
+    if (context) {
+      context.fillStyle = v.trim();
+      const normalized = context.fillStyle;
+      if (normalized !== v.trim()) return parseColor(normalized);
+    }
+  }
   const rgba = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\)$/.exec(
     v.trim()
   );
   if (rgba) {
-    const to2 = (n: number) => n.toString(16).padStart(2, "0");
+    const to2 = (n: number) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, "0");
     return {
       hex: `#${to2(+rgba[1])}${to2(+rgba[2])}${to2(+rgba[3])}`,
-      alpha: rgba[4] !== undefined ? parseFloat(rgba[4]) : 1,
+      alpha: rgba[4] !== undefined ? Math.max(0, Math.min(1, parseFloat(rgba[4]))) : 1,
     };
   }
   return { hex: "#000000", alpha: 1 };

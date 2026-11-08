@@ -65,13 +65,20 @@ export async function POST(req: Request) {
     if (copyFrom && !(await getSite(db, copyFrom))) {
       return NextResponse.json({ error: tr("複製するサイトが見つかりません") }, { status: 404 });
     }
+    // Capture the source before creating the destination. A missing document is
+    // valid only for an existing, never-opened site, not one deleted mid-copy.
+    const src = copyFrom ? await readCurrentDoc(db, copyFrom) : null;
+    if (copyFrom && !src && !(await getSite(db, copyFrom))) {
+      return NextResponse.json({ error: tr("複製するサイトが見つかりません") }, { status: 404 });
+    }
     const id = newSiteId();
     await insertSite(db, id, parsed.value);
     if (copyFrom) {
       try {
-        // まだ一度も開いていないサイトには編集データが無い（新しいサイトと同じく、開いたときに作る）
-        const src = await readCurrentDoc(db, copyFrom);
-        if (src) await saveCurrentDoc(db, id, src.body, null);
+        if (src) {
+          const saved = await saveCurrentDoc(db, id, src.body, null);
+          if (saved.kind !== "saved") throw new Error("作成できませんでした");
+        }
       } catch (e) {
         await deleteSite(db, id).catch(() => {});
         throw e;
