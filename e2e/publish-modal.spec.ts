@@ -134,6 +134,12 @@ test("Netlify publishes generated ZIP to the selected team and reuses the projec
   await historyModal.getByRole("button", { name: "デプロイ履歴", exact: true }).click();
   const history = historyModal.locator(".pub-deployment-history");
   await expect(history.locator(".hist-list li")).toHaveCount(1);
+  const targetButtons = history.locator(".seg > button");
+  await expect(targetButtons).toHaveText(["テストサイト", "本番サイト"]);
+  await targetButtons.first().click();
+  await expect(targetButtons.first()).toHaveClass(/is-on/);
+  await targetButtons.last().click();
+  await expect(targetButtons.last()).toHaveClass(/is-on/);
   const tabs = await history.locator(".seg").boundingBox();
   const list = await history.locator(".hist-list").boundingBox();
   const footer = await history.locator(".modal-actions").boundingBox();

@@ -111,8 +111,8 @@ export function StaticDeploymentHistoryView({
       <Seg
         value={target}
         options={[
-          { value: "production", label: tr("Live site") },
           { value: "test", label: tr("Test site") },
+          { value: "production", label: tr("Live site") },
         ]}
         onChange={(next) => onTargetChange(next as PublishTarget)}
       />
