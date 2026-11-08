@@ -182,15 +182,31 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
     }
     if (removes.length) body = `json_remove(${body}, ${removes.join(", ")})`;
   }
+  const pageGuard = needsPageGuard ? `AND EXISTS (
+    SELECT 1 FROM patched
+    WHERE json_type(body, '$.pages') = 'object'
+      AND json_type(body, '$.pageOrder') = 'array'
+      AND json_array_length(body, '$.pageOrder') > 0
+      AND (SELECT COUNT(*) FROM json_each(body, '$.pageOrder')) =
+          (SELECT COUNT(DISTINCT value) FROM json_each(body, '$.pageOrder'))
+      AND NOT EXISTS (
+        SELECT 1 FROM json_each(body, '$.pageOrder') AS item
+        WHERE item.type != 'text' OR NOT EXISTS (
+          SELECT 1 FROM json_each(body, '$.pages') AS page
+          WHERE page.key = item.value AND page.type = 'object'
+        )
+      )
+  )` : "";
   const now = Date.now();
   await backupPreviousDay(db, siteId, now);
   const rs = await write(db, {
-    sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? RETURNING rev`,
+    sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? ${pageGuard} RETURNING rev`,
     args: [...args, siteId, Number(base), now, siteId, Number(base)],
   });
   if (rs.rows.length) {
     return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
   }
   const current = await readCurrentDoc(db, siteId);
+  if (needsPageGuard && current?.rev === base) throw new InvalidDocPatchError();
   return current ? { kind: "conflict", current } : { kind: "missing" };
 }
