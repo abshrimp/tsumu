@@ -3,24 +3,18 @@
 import { useEffect, useState } from "react";
 import { RotateCcw, Trash2, X } from "lucide-react";
 import { tr } from "../lib/i18n";
-import { isEscapeKey } from "../lib/keys";
 import { siteApi, currentSiteId } from "../lib/site";
 import type { Asset } from "../lib/types";
 import { genId } from "../lib/presets";
 import { useServerStatus } from "../lib/status";
 import { showConfirm } from "../lib/dialog";
 import { loadAllTrash } from "../lib/asset-trash-client";
-import { assetSrc } from "../lib/assets";
+import { assetSrc, detectSvgFilters } from "../lib/assets";
+import { useEscapeToClose } from "../lib/use-escape-to-close";
+import { zipMime } from "../lib/zip-mime";
 
 type DeletedAsset = { path: string; deletedAt: number; bytes: number | null };
 type TrashResponse = { enabled: boolean; hasMore: boolean; items: DeletedAsset[]; error?: string };
-const MIMES: Record<string, string> = {
-  png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp",
-  avif: "image/avif", svg: "image/svg+xml", gif: "image/gif",
-  mp4: "video/mp4", webm: "video/webm", mp3: "audio/mpeg", wav: "audio/wav",
-  css: "text/css", js: "text/javascript", json: "application/json",
-  pdf: "application/pdf", woff2: "font/woff2",
-};
 
 function filename(path: string) {
   const last = path.split("/").pop() ?? "asset";
@@ -30,10 +24,10 @@ function filename(path: string) {
 
 async function assetFromTrash(item: DeletedAsset): Promise<Asset> {
   const name = filename(item.path);
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
+  const mime = zipMime(name);
   const asset: Asset = {
     id: genId("asset"), name, path: item.path, bytes: item.bytes ?? undefined,
-    mimeType: MIMES[ext], width: 0, height: 0,
+    mimeType: mime === "application/octet-stream" ? undefined : mime, width: 0, height: 0,
   };
   if (asset.mimeType?.startsWith("image/")) {
     await new Promise<void>((resolve) => {
@@ -46,6 +40,10 @@ async function assetFromTrash(item: DeletedAsset): Promise<Asset> {
       image.onerror = () => resolve();
       image.src = assetSrc(asset);
     });
+    if (asset.mimeType === "image/svg+xml") {
+      const analyzed = await detectSvgFilters({ [asset.id]: asset });
+      if (analyzed[asset.id]) Object.assign(asset, analyzed[asset.id]);
+    }
   }
   return asset;
 }
@@ -69,6 +67,7 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
   const [restoring, setRestoring] = useState<string | null>(null);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   const busy = !!restoring || !!bulkProgress || loadingAll;
+  useEscapeToClose(onClose, !busy);
 
   const fetchPage = async (offset: number): Promise<TrashResponse> => {
     const response = await fetch(siteApi("/api/assets/trash", { offset }), { cache: "no-store" });
@@ -244,7 +243,7 @@ export default function AssetTrash({ onClose, onRestore, onDelete }: {
   return (
     <div className="modal-backdrop" onMouseDown={(event) => {
       if (!busy && event.target === event.currentTarget) onClose();
-    }} onKeyDown={(event) => { if (isEscapeKey(event) && !busy) onClose(); }}>
+    }}>
       <div className="modal asset-trash-modal" role="dialog" aria-modal="true" aria-label={tr("Trash")}
         onMouseDown={(event) => event.stopPropagation()}>
         <div className="asset-trash-header">

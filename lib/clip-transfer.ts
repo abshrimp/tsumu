@@ -8,7 +8,7 @@
  */
 
 import type { Asset, AdobeFont, BreakpointDef, Component, CustomFont, DocNode, Page, SiteDoc, UploadedFont } from "./types";
-import { assetSrc } from "./assets";
+import { assetDocUrl, assetSrc } from "./assets";
 import { createCssAssetFinder } from "./css-asset-dependencies";
 import { zipAssetClosure, zipStylesheet } from "./zip-css";
 import { zipMime } from "./zip-mime";
@@ -89,8 +89,9 @@ export function buildClipPayload(doc: SiteDoc, clip: { nodes: DocNode[]; rootIds
   const fileIds = new Set(uploadedFonts.map(font => font.assetId));
   const assets: Record<string, Asset> = {};
   for (const a of Object.values(doc.assets)) {
+    const docUrl = assetDocUrl(a);
     const src = assetSrc(a);
-    if (fileIds.has(a.id) || cssIds.has(a.id) || text.includes(a.id) || (src && text.includes(src))) assets[a.id] = structuredClone(a);
+    if (fileIds.has(a.id) || cssIds.has(a.id) || text.includes(a.id) || (docUrl && text.includes(docUrl)) || (src && text.includes(src))) assets[a.id] = structuredClone(a);
   }
   for (const id of zipAssetClosure(doc.assets, Object.keys(assets))) assets[id] = structuredClone(doc.assets[id]);
   // JS の相対参照はアセットの内容の中にあり、ここでは読み取れない。

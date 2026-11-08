@@ -427,7 +427,7 @@ export function MainSizeField({
  */
 export function useHiddenState(props: string[]): string {
   const insp = useInspector();
-  const smaller = useEditor((s) => s.breakpoint !== "base");
+  const smaller = useEditor((s) => s.breakpoint !== "base" || s.pageTheme !== "light");
   const infos = props.map((p) => [p, insp.get(p)] as const);
   if (infos.some(([, info]) => info.changed)) return " is-set";
   if (smaller && infos.some(([p, info]) => !isInitialValue(p, info.value))) return " has-value";

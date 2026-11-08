@@ -22,7 +22,7 @@ import {
   TextCursorInput,
   Trash2,
 } from "lucide-react";
-import { assetSrc } from "../lib/assets";
+import { assetDocUrl, assetSrc } from "../lib/assets";
 import { componentOf, findParentOf, useEditor } from "../lib/store";
 import type { DocNode, SiteDoc } from "../lib/types";
 import { hideToggleLabel, isHiddenAt } from "../lib/style";
@@ -40,7 +40,7 @@ function assetIdOf(doc: SiteDoc, node: DocNode): string | null {
   if (!ref) return null;
   if (ref.assetId && doc.assets[ref.assetId]) return ref.assetId;
   if (!ref.src) return null;
-  return Object.values(doc.assets).find((a) => assetSrc(a) === ref.src)?.id ?? null;
+  return Object.values(doc.assets).find((a) => assetDocUrl(a) === ref.src || assetSrc(a) === ref.src)?.id ?? null;
 }
 
 export interface CtxMenuState {

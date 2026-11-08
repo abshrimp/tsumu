@@ -1,6 +1,6 @@
 import { tokenizer, tokTypes } from "acorn";
 import { defaultTreeAdapter, parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
-import { assetSrc } from "../assets";
+import { assetDocUrl, assetSrc } from "../assets";
 import { CSS_ASSET_ATTRIBUTES, iterateCssAssetReferences } from "../css-assets";
 import { rewriteSrcsetUrls } from "../srcset";
 import type { Asset, SiteDoc } from "../types";
@@ -134,7 +134,7 @@ export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set
     }
   }
   for (const [id, asset] of Object.entries(assets)) {
-    if (urls.has(assetSrc(asset)) || urls.has("/assets/" + asset.name) ||
+    if (urls.has(assetDocUrl(asset)) || urls.has(assetSrc(asset)) || urls.has("/assets/" + asset.name) ||
         (asset.path && urls.has("/" + asset.path)) || urls.has(zipCssUrl(id)) ||
         (asset.zip && urls.has(importedAssetPath(asset)?.slice("public".length) ?? ""))) ids.add(id);
   }

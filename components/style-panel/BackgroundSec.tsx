@@ -6,7 +6,7 @@
 
 import { RotateCw } from "lucide-react";
 import { useEditor } from "../../lib/store";
-import { assetSrc } from "../../lib/assets";
+import { assetDocUrl, assetSrc } from "../../lib/assets";
 import { cssAssetReferences, escapeCssAssetUrl } from "../../lib/css-assets";
 import ImagePicker from "../ImagePicker";
 import { parseNumeric, isInitialValue, initialValueOf, sameValue, type PropInfo } from "../../lib/style";
@@ -195,7 +195,7 @@ export function BackgroundSec() {
                 const src = imageUrl;
                 if (!src) return null;
                 const matched = Object.values(assets).find(
-                  (a) => assetSrc(a) === src
+                  (a) => assetDocUrl(a) === src || assetSrc(a) === src
                 );
                 return matched ? { assetId: matched.id } : { url: src };
               })()}
@@ -206,7 +206,7 @@ export function BackgroundSec() {
                 }
                 // アップロードした直後のアセットは、描画した時点の doc にはまだ無いため、最新の状態から探す
                 const asset = v.assetId ? useEditor.getState().doc.assets[v.assetId] : undefined;
-                const src = asset ? assetSrc(asset) : v.url;
+                const src = asset ? assetDocUrl(asset) : v.url;
                 if (src) insp.set({ backgroundImage: `url("${escapeCssAssetUrl(src, '"')}")` });
               }}
             />
@@ -273,7 +273,7 @@ export function StyleCheck({
 }) {
   const insp = useInspector();
   const info = insp.get(prop);
-  const inherits = useEditor((s) => s.breakpoint !== "base" || s.styleState !== "default");
+  const inherits = useEditor((s) => s.breakpoint !== "base" || s.styleState !== "default" || s.pageTheme !== "light");
   const checked = info.value === on;
   // 消したときに効く値（baseOff のあるプロパティは、未設定だと CSS の初期値でオンになる）
   const afterRemove = inherits ? (info.baseline ?? (baseOff !== null ? on : undefined)) : undefined;

@@ -69,7 +69,7 @@ export default function CopyToSiteModal({ pageIds, onClose }: { pageIds: string[
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
-      <div className="modal copy-site" onClick={(e) => e.stopPropagation()}>
+      <div className="modal copy-site" role="dialog" aria-modal="true" aria-label={tr("Copy to another site")} onClick={(e) => e.stopPropagation()}>
         <h2>{tr("Copy to another site")}</h2>
         <p className="modal-desc">
           {names.length === 1

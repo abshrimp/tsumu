@@ -55,7 +55,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
-      <div className="modal export-modal" onClick={(event) => event.stopPropagation()}>
+      <div className="modal export-modal" role="dialog" aria-modal="true" aria-label={tr("Export code")} onClick={(event) => event.stopPropagation()}>
         <h2>{tr("Export code")}</h2>
         <p className="modal-desc">{description}</p>
 

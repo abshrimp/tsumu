@@ -1,4 +1,5 @@
 import type { CollabServerMessage } from "./collab";
+import { flushSiteAssetTransfers, hasPendingSiteAssetTransfers } from "./assets";
 import { createDocPatch, type DocPatch } from "./doc-patch";
 import { mergeDocs } from "./merge";
 import { siteApi } from "./site";
@@ -39,6 +40,7 @@ export async function sendCloudDoc(
   if (patch?.length === 0) {
     return { ok: true, status: 200, data: { rev: base, savedAt: t.savedAt() } };
   }
+  if (hasPendingSiteAssetTransfers()) await flushSiteAssetTransfers();
   // どちらの保存先でも、書き込みが確定すると楽観ロックの版が1つ進む。
   const expectedRev = String(Number(base) + 1);
   if (t.collabSocket.current?.readyState === WebSocket.OPEN) {

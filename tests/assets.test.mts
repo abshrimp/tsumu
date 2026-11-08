@@ -7,11 +7,11 @@ import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
 import { IMPORT_LIMITS } from "../lib/site-import-format";
 import { serializePortableDoc } from "../lib/portable-doc";
 import { validSiteDoc as validSiteDoc_2, validSiteDoc as validSiteDoc_3 } from "../lib/doc-tree";
-import { makeBox, createInitialDoc, makeText } from "../lib/presets";
+import { makeBox, makeImage, createInitialDoc, makeText } from "../lib/presets";
 import { type SiteDoc, type Asset } from "../lib/types";
 import { useEditor } from "../lib/store";
 import { closeDialog, useDialogs } from "../lib/dialog";
-import { assetSrc, downloadAsset, replaceEmbeddedAsset, mapLimit, ASSET_FETCH_CONCURRENCY, fetchWithRetry } from "../lib/assets";
+import { assetDocUrl, assetSrc, downloadAsset, mediaSrc, nodeAssetSrc, replaceEmbeddedAsset, withSiteAssetUrl, mapLimit, ASSET_FETCH_CONCURRENCY, fetchWithRetry } from "../lib/assets";
 import { createBrowserDoc } from "../lib/browser-doc-storage";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 import { assetConfirmationCallbacks, assetConfirmationDoc, candidate as candidate_2, spare, candidate as candidate_3 } from "./helpers/asset-confirmation";
@@ -787,6 +787,7 @@ function fixture(roomRefs: (key: string) => Promise<string[]>, keys: string[]) {
       path TEXT PRIMARY KEY,bytes INTEGER,uploaded_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL
     );
     CREATE TABLE asset_ledger_state(id INTEGER PRIMARY KEY CHECK(id=1),created_at INTEGER NOT NULL,complete_at INTEGER);
+    CREATE TABLE site_asset_uploads(site_id TEXT NOT NULL,path TEXT NOT NULL,PRIMARY KEY(site_id,path));
     INSERT INTO asset_ledger_state(id,created_at) VALUES(1,0);
     INSERT INTO sites(id) VALUES('site1');
     INSERT INTO site_document_rooms(site_id,room_key) VALUES('site1','room1');
@@ -916,12 +917,14 @@ test("seven days after becoming unreferenced, active GC deletes a mature KV key"
   try {
     f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
       .run(path, now - 8 * day, now - day, 17);
+    f.sql.prepare("INSERT INTO site_asset_uploads VALUES(?,?)").run("site1", path);
     const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
     assert.equal(report.deleted, 1);
     assert.equal(report.deletedBytesKnown, 17);
     assert.deepEqual(report.deletedPaths, [path]);
     assert.equal(report.candidates, 0);
     assert.equal(f.stored.has(path), false);
+    assert.equal(f.sql.prepare("SELECT count(*) AS n FROM site_asset_uploads WHERE path=?").get(path)?.n, 0);
     assert.equal(f.sql.prepare("SELECT deleted FROM asset_gc_runs").get()?.deleted, 1);
     assert.equal(f.sql.prepare("SELECT dry_run FROM asset_gc_runs").get()?.dry_run, 0);
   } finally { f.sql.close(); }
@@ -1247,7 +1250,10 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
     "../../../lib/i18n-server": { serverTr: async () => (message: string) => message },
     "../../../lib/server": { requireAuth: async () => null, sessionUser: async () => null },
     "../../../lib/site-access": { requireSiteAccess: async () => null },
-    "../../../lib/site-asset-access": { siteHasAsset: async () => true },
+    "../../../lib/site-asset-access": {
+      siteHasAsset: async () => true,
+      siteOwnsAssets: async (_db: unknown, _site: string, paths: string[]) => !paths.includes("assets/unowned.png"),
+    },
     "../../../lib/sites": { isSiteId: () => true },
     "../../../auth": { authConfigured: () => false },
     "../../../lib/allowlist": { allowedEmails: () => [] },
@@ -1257,6 +1263,7 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
     "../../../lib/asset-upload": { readAssetForm: async () => null },
     "../../../lib/site-server": { siteIdOf: async (id: string) => id },
     "../../../lib/site-document-service": { documentAssetReferences: async () => [] },
+    "../../../lib/api-json": apiJson,
     "../../../lib/asset-ledger": {
       readAssetLedger: async () => null,
       recordUploadedAsset: async () => {},
@@ -1269,7 +1276,12 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
       },
     },
   };
-  const mod = { exports: {} as { DELETE: (req: Request) => Promise<Response> } };
+  const mod = {
+    exports: {} as {
+      DELETE: (req: Request) => Promise<Response>;
+      PATCH: (req: Request) => Promise<Response>;
+    },
+  };
   new Function("require", "module", "exports", code)(
     (id: string) => {
       if (!Object.hasOwn(stubs, id)) throw new Error("Unmocked import: " + id);
@@ -1281,6 +1293,11 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
     + (browserReferenced ? "&browserReferenced=1" : "");
   return {
     call: () => mod.exports.DELETE(new Request(endpoint, { method: "DELETE" })),
+    patch: (body: unknown) => mod.exports.PATCH(new Request("https://example.com/api/assets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })),
     registered: () => registered,
     deleted: () => deleted,
     otherSiteReads: () => otherSiteReads,
@@ -1374,6 +1391,81 @@ test("Node/Docker retain files referenced only by another site's HTML or CSS, wi
     if (previous === undefined) delete process.env.TSUMU_DATA_DIR;
     else process.env.TSUMU_DATA_DIR = previous;
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("PATCH /api/assets transfers ownership, clears Trash candidates on D1, and rejects unowned assets", async () => {
+  const sql = new DatabaseSync(":memory:");
+  sql.exec(`
+    CREATE TABLE sites(id TEXT PRIMARY KEY);
+    CREATE TABLE site_asset_uploads(site_id TEXT NOT NULL,path TEXT NOT NULL,PRIMARY KEY(site_id,path));
+    CREATE TABLE asset_gc_candidates(path TEXT PRIMARY KEY,first_unreferenced_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL,bytes INTEGER);
+    CREATE TABLE asset_objects(path TEXT PRIMARY KEY,bytes INTEGER,uploaded_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL);
+    INSERT INTO sites VALUES('source0001'),('dest000001');
+    INSERT INTO site_asset_uploads VALUES('source0001','assets/muhmi2o0abcdef-photo.png');
+    INSERT INTO asset_gc_candidates VALUES('assets/muhmi2o0abcdef-photo.png',1,1,64);
+    INSERT INTO asset_objects VALUES('assets/muhmi2o0abcdef-photo.png',64,1,1);
+  `);
+  const execute = async (input: string | { sql: string; args: (string | number | null)[] }) => {
+    const stmt = sql.prepare(typeof input === "string" ? input : input.sql);
+    const args = typeof input === "string" ? [] : input.args;
+    if (stmt.columns().length) return { rows: stmt.all(...args) as Record<string, unknown>[], rowsAffected: 0 };
+    return { rows: [], rowsAffected: Number(stmt.run(...args).changes) };
+  };
+  const db: Db = { backend: "d1", execute, batch: async (stmts) => Promise.all(stmts.map(execute)) };
+  try {
+    const f = assetDeleteRoute({ sqliteDb: db });
+    const rejected = await f.patch({ fromSite: "source0001", toSite: "dest000001", paths: ["assets/unowned.png"] });
+    assert.equal(rejected.status, 404);
+    const ok = await f.patch({
+      fromSite: "source0001",
+      toSite: "dest000001",
+      paths: ["assets/muhmi2o0abcdef-photo.png"],
+    });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(
+      sql.prepare("SELECT site_id FROM site_asset_uploads WHERE path=? ORDER BY site_id").all("assets/muhmi2o0abcdef-photo.png").map((r) => r.site_id),
+      ["dest000001", "source0001"],
+    );
+    assert.equal(sql.prepare("SELECT count(*) AS n FROM asset_gc_candidates").get()?.n, 0);
+  } finally {
+    sql.close();
+  }
+});
+
+test("persisted and exported asset URLs stay site-independent while runtime browser URLs include ?site=", () => {
+  const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+  const asset: Asset = { id: "hero", name: "hero.png", dataUrl, width: 8, height: 8 };
+  const oldWin = (globalThis as { window?: unknown }).window;
+  (globalThis as { window?: unknown }).window = { location: { pathname: "/sites/site123456" } };
+  try {
+    const doc = createInitialDoc();
+    doc.assets.hero = asset;
+    const img = makeImage();
+    img.image = { src: "", alt: "Hero", width: 8, height: 8, assetId: "hero" };
+    img.styles = { base: { default: { backgroundImage: `url("${dataUrl}")` } } };
+    doc.nodes[img.id] = img;
+    doc.pages[doc.pageOrder[0]].children.push(img.id);
+    replaceEmbeddedAsset(doc, "hero", "assets/muhmi2o0abcdef-hero.png");
+
+    const docUrl = assetDocUrl(doc.assets.hero);
+    assert.equal(docUrl, "/api/assets/file?path=assets%2Fmuhmi2o0abcdef-hero.png");
+    assert.equal(assetSrc(doc.assets.hero), docUrl + "&site=site123456");
+    assert.equal(withSiteAssetUrl(docUrl), docUrl + "&site=site123456");
+    assert.equal(nodeAssetSrc(doc.assets.hero), docUrl);
+    assert.equal(img.image.src, docUrl);
+    assert.equal(mediaSrc(doc, img.image), docUrl + "&site=site123456");
+    assert.equal(img.styles.base?.default?.backgroundImage, `url("${docUrl}")`);
+
+    const exported = generateExportProject(doc, "html");
+    const html = exported.files["index.html"] ?? "";
+    const css = exported.files["styles/site.css"] ?? "";
+    assert.ok(!html.includes("/api/assets/file"), html);
+    assert.ok(!css.includes("/api/assets/file"), css);
+    assert.ok(html.includes("assets/hero.png"), html);
+    assert.ok(css.includes("assets/hero.png"), css);
+  } finally {
+    (globalThis as { window?: unknown }).window = oldWin;
   }
 });
 });
@@ -2219,7 +2311,8 @@ function fixture(options: {
       throw new Error("Unexpected SQL: " + sql);
     },
     batch: async (statements) => {
-      assert.equal(statements.length, 2);
+      assert.equal(statements.length, 3);
+      assert.ok(statements.some((s) => typeof s === "object" && s.sql === "DELETE FROM site_asset_uploads WHERE path=?"));
       stored = false;
       deleted = true;
       return statements.map(() => ({ rows: [], rowsAffected: 1 }));

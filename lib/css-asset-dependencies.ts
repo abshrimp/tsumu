@@ -1,4 +1,4 @@
-import { assetSrc } from "./assets";
+import { assetDocUrl, assetSrc } from "./assets";
 import { iterateCssAssetReferences } from "./css-assets";
 import type { Asset, NodeStyles } from "./types";
 
@@ -13,11 +13,12 @@ export function createCssAssetFinder(assets: Record<string, Asset>) {
       ids.push(asset.id);
       byPath.set(asset.path, ids);
     }
-    const src = asset.path ? assetSrc(asset) : asset.dataUrl;
-    if (!src) continue;
-    const ids = bySrc.get(src) ?? [];
-    ids.push(asset.id);
-    bySrc.set(src, ids);
+    for (const src of new Set([asset.path ? assetDocUrl(asset) : asset.dataUrl, asset.path ? assetSrc(asset) : undefined])) {
+      if (!src) continue;
+      const ids = bySrc.get(src) ?? [];
+      ids.push(asset.id);
+      bySrc.set(src, ids);
+    }
   }
   return (styles?: NodeStyles, customCss?: string): Set<string> => {
     const hits = new Set<string>();

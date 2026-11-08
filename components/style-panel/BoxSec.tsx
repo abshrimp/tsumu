@@ -192,7 +192,7 @@ function PairSides({
 
   const LABELS = [tr("Top"), tr("Right"), tr("Bottom"), tr("Left")];
   /** まとめた欄には表れない、辺ごとに異なる値がある */
-  const smaller = useEditor((s) => s.breakpoint !== "base");
+  const smaller = useEditor((s) => s.breakpoint !== "base" || s.pageTheme !== "light");
   const mixed = !same(side(1), side(3)) || !same(side(0), side(2));
   const sidesState = !mixed ? "" : anySet ? " is-set" : smaller ? " has-value" : "";
 

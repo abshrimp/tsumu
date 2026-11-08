@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LoaderCircle, UserPlus, X } from "lucide-react";
 import { tr } from "../lib/i18n";
 import type { SiteRole } from "../lib/site-access";
+import { useEscapeToClose } from "../lib/use-escape-to-close";
 
 type Member = { email: string; role: SiteRole };
 type Membership = { members: Member[]; fixed: string[] };
@@ -19,6 +20,7 @@ export default function SiteMembers({ siteId, siteName, onClose }: {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const endpoint = `/api/sites/${encodeURIComponent(siteId)}/members`;
+  useEscapeToClose(onClose, pending === null);
 
   const request = useCallback(async (url: string, init?: RequestInit): Promise<Membership> => {
     const response = await fetch(url, { ...init, headers: init?.body ? { "Content-Type": "application/json" } : undefined });

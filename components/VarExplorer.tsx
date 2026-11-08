@@ -232,7 +232,7 @@ export default function VarExplorer({
         if (isEscapeKey(e)) onClose();
       }}
     >
-      <div className="modal vx" role="dialog" aria-label={tr("Browse variables")} data-se-popover="">
+      <div className="modal vx" role="dialog" aria-modal="true" aria-label={tr("Browse variables")} data-se-popover="">
         <div className="vx-head">
           <h2>{tr("Browse variables")}</h2>
           <button type="button" className="icon-btn" aria-label={tr("Close")} onClick={onClose}>

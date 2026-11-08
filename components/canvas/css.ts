@@ -2,7 +2,9 @@
  * キャンバスに当てる CSS（要素のスタイル・画面幅・状態）と、HTMLページのプレビュー用の本文のスタイル
  */
 
-import { escapeStyleContent } from "../../lib/css-assets";
+import { escapeStyleContent, rewriteCssAssetUrls } from "../../lib/css-assets";
+import { withSiteAssetUrl } from "../../lib/assets";
+import { currentSiteId } from "../../lib/site";
 import { safeCssDeclaration, safeCustomCssDeclarations } from "../../lib/css-declaration";
 import { keyframesCss, motionCss } from "../../lib/motion";
 import type { Breakpoint, DocNode, NodeStyles, PageTheme, SiteDoc, StyleState } from "../../lib/types";
@@ -19,12 +21,18 @@ import {
 
 /* ---------- キャンバス用CSS生成 ---------- */
 
+function withCanvasSiteAssetUrls(declaration: string, site: string): string {
+  if (!site || !declaration.includes("/api/assets/file?")) return declaration;
+  return rewriteCssAssetUrls(declaration, (url) => withSiteAssetUrl(url, site));
+}
+
 /** 宣言の検証を共通にして、キャンバスと書き出したサイトの CSS を食い違わせない。 */
 function cssBody(map: Record<string, string>): string {
+  const site = currentSiteId();
   return Object.entries(map)
     .flatMap(([key, value]) => {
       const declaration = safeCssDeclaration(key, value);
-      return declaration ? [declaration] : [];
+      return declaration ? [withCanvasSiteAssetUrls(declaration, site)] : [];
     })
     .join(" ");
 }
@@ -89,7 +97,8 @@ function buildNodeCss(
   }
 
   // 直接書いた CSS の宣言（構文とエスケープ境界を検証した宣言だけを使う）
-  const safeCustom = safeCustomCssDeclarations(node.customCss);
+  const site = currentSiteId();
+  const safeCustom = safeCustomCssDeclarations(node.customCss).map((d) => withCanvasSiteAssetUrls(d, site));
   const extra = safeCustom.length ? ` ${safeCustom.join(" ")}` : "";
 
   const map = resolveStyles(node, bp, state, pageTheme);

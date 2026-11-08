@@ -694,13 +694,16 @@ test("a source with no document can still be copied", async () => database(async
   assert.equal((await sites.getSite(db, "copy"))?.name, "Copy");
   assert.equal(await readCurrentDoc(db, "copy"), null);
 }));
-test("a captured source document remains usable if the source is deleted afterwards", async () => database(async db => {
+test("a captured source document remains usable if the source is deleted afterwards and copies asset ownership", async () => database(async db => {
   const sourceDoc = createInitialDoc();
   sourceDoc.siteName = "Saved";
+  sourceDoc.assets.hero = { id: "hero", name: "hero.png", path: "assets/muhmi2o0abcdef-hero.png", width: 4, height: 4 };
   await saveCurrentDoc(db, "source", JSON.stringify(sourceDoc), null);
   const response = await api(db, async (db, id) => { const snapshot = await readCurrentDoc(db, id); await sites.deleteSite(db, id); return snapshot; })();
   assert.equal(response.status, 200);
   assert.deepEqual(JSON.parse((await readCurrentDoc(db, "copy"))!.body), sourceDoc);
+  const uploads = await db.execute({ sql: "SELECT path FROM site_asset_uploads WHERE site_id=?", args: ["copy"] });
+  assert.deepEqual(uploads.rows.map((r) => r.path), ["assets/muhmi2o0abcdef-hero.png"]);
 }));
 test("an unsuccessful destination save is not reported as a completed copy", async () => database(async db => {
   const sourceDoc = createInitialDoc();

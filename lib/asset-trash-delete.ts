@@ -62,6 +62,7 @@ export async function permanentlyDeleteTrashedAsset({
       { sql: "DELETE FROM asset_gc_candidates WHERE path=? AND first_unreferenced_at=?",
         args: [path, firstUnreferencedAt] },
       { sql: "DELETE FROM asset_objects WHERE path=?", args: [path] },
+      { sql: "DELETE FROM site_asset_uploads WHERE path=?", args: [path] },
     ]);
     return "deleted";
   } finally {

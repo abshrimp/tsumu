@@ -1,7 +1,7 @@
 import type { Asset, SiteDoc } from "./types";
 import { prepareExportScopeDoc, prepareExportProject } from "./export-formats";
 import { resolveExportOptions, type ExportFormat, type ExportOptions } from "./generator/export-options";
-import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
+import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit, withSiteAssetUrl } from "./assets";
 import { isEmbeddedAssetUrl } from "./site-import-format";
 import { tr } from "./i18n";
 import { buildAssetNames } from "./generator/names";
@@ -89,7 +89,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   const downloads = new AbortController();
   try {
     await mapLimit(Object.entries(remoteAssets), ASSET_FETCH_CONCURRENCY, async ([path, source]) => {
-      const url = `/api/assets/file?path=${encodeURIComponent(source)}`;
+      const url = withSiteAssetUrl(`/api/assets/file?path=${encodeURIComponent(source)}`);
       const res = await fetchWithRetry(url, 3, { signal: downloads.signal });
       // 保存先に無いアセット（削除済みなど）は、公開と同じく飛ばして続ける
       if (res.status === 404) {

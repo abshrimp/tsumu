@@ -31,6 +31,7 @@ import { Dropdown } from "../controls";
 import { showConfirm } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
 import { useDragAutoScroll } from "./drag";
+import { siteKey } from "../../lib/site";
 import { storageKey } from "../../lib/storage-keys";
 import { pagePanelItems } from "../../lib/page-panel-order";
 
@@ -42,7 +43,7 @@ const FOLDERS_CLOSED_KEY = storageKey("page-folders-closed-v1");
 
 function loadClosedFolders(): Set<string> {
   try {
-    const raw = JSON.parse(window.localStorage.getItem(FOLDERS_CLOSED_KEY) ?? "[]");
+    const raw = JSON.parse(window.localStorage.getItem(siteKey(FOLDERS_CLOSED_KEY)) ?? "[]");
     return new Set(Array.isArray(raw) ? raw : []);
   } catch {
     return new Set();
@@ -127,7 +128,7 @@ export function PagesTab() {
       if (open ?? next.has(id)) next.delete(id);
       else next.add(id);
       try {
-        window.localStorage.setItem(FOLDERS_CLOSED_KEY, JSON.stringify([...next]));
+        window.localStorage.setItem(siteKey(FOLDERS_CLOSED_KEY), JSON.stringify([...next]));
       } catch {
         // 保存できなくても、開閉はできる
       }

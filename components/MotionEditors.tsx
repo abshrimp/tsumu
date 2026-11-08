@@ -285,7 +285,7 @@ function ModalFrame({
   // 右パネルの中から開くため、パネルの重なりやはみ出しの影響を受けないよう、body に描画する
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`modal me-modal ${className}`} role="dialog" aria-label={title}>
+      <div className={`modal me-modal ${className}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="me-head">
           <h2>{title}</h2>
           <button

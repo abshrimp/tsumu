@@ -1,7 +1,7 @@
 import { zipMediaMime } from "../zip-mime";
 import { createIntegrityVerifier } from "../resource-integrity";
 import type { GeneratedProject } from "../generator";
-import { readAssetBytes } from "../assets";
+import { readAssetBytes, withSiteAssetUrl } from "../assets";
 import { iterateCssAssetReferences, escapeCssAssetUrl } from "../css-assets";
 
 export const EXPORT_BASE = new URL("https://export.invalid/index.html");
@@ -129,7 +129,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       if (local && (!Object.hasOwn(source.remoteAssets, path) || !source.remoteAssets[path].startsWith("assets/"))) {
         throw new Error("Referenced asset was not found: " + key);
       }
-      const address = local ? "/api/assets/file?path=" + encodeURIComponent(source.remoteAssets[path]) : key;
+      const address = local ? withSiteAssetUrl("/api/assets/file?path=" + encodeURIComponent(source.remoteAssets[path])) : key;
       let response: Response;
       try {
         response = await request(address, local

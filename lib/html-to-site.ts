@@ -3,7 +3,7 @@ import { genId } from "./presets";
 import { RANGED_INPUTS, TEXT_INPUTS } from "./fields";
 import { escapeStyleContent } from "./css-assets";
 import { MAX_NODE_DEPTH } from "./doc-tree";
-import { assetSrc } from "./assets";
+import { assetDocUrl, assetSrc } from "./assets";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 import { zipStylesheet } from "./zip-css";
 import { tr } from "./i18n";
@@ -173,8 +173,9 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   const assets = options.assets || [];
   const bySrc = new Map<string, Asset>();
   for (const asset of assets) {
-    const src = assetSrc(asset);
-    if (src) bySrc.set(src, asset);
+    for (const src of [assetDocUrl(asset), assetSrc(asset)]) {
+      if (src) bySrc.set(src, asset);
+    }
   }
   const getAsset = (src: string) => {
     const exact = bySrc.get(src);

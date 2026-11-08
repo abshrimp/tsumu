@@ -35,6 +35,7 @@ import { currentSiteId, siteApi } from "../../lib/site";
 import { otherBrowserDocs } from "../../lib/browser-doc-storage";
 import {
   ASSET_DRAG_TYPE,
+  assetDocUrl,
   assetKind,
   assetSrc,
   deleteRemoteAssetFiles,
@@ -639,7 +640,7 @@ export function AssetsTab() {
     // 未使用だと確認した後に使われ始めた場合、その参照を外すことまでは承認されていない。
     if (!used && assetUsage(useEditor.getState().doc).has(asset.id)) return;
     updateDoc((d) => {
-      const src = assetSrc(asset);
+      const urls = [...new Set([assetDocUrl(asset), assetSrc(asset)].filter(Boolean))];
       for (const node of Object.values(d.nodes)) {
         if (node.image?.assetId === asset.id) {
           node.image.assetId = undefined;
@@ -658,12 +659,14 @@ export function AssetsTab() {
             source.src = "";
           }
         }
-        if (src) {
-          for (const bp of Object.values(node.styles)) {
-            for (const styles of Object.values(bp)) {
-              if (!styles) continue;
-              for (const [prop, value] of Object.entries(styles)) {
-                if (cssUsesAssetUrl(value, src)) delete styles[prop];
+        if (urls.length) {
+          for (const variants of [node.styles, node.darkStyles]) {
+            for (const bp of Object.values(variants ?? {})) {
+              for (const styles of Object.values(bp ?? {})) {
+                if (!styles) continue;
+                for (const [prop, value] of Object.entries(styles)) {
+                  if (urls.some((u) => cssUsesAssetUrl(value, u))) delete styles[prop];
+                }
               }
             }
           }
@@ -694,7 +697,9 @@ export function AssetsTab() {
           setDragOver(true);
         }
       }}
-      onDragLeave={() => setDragOver(false)}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false);
+      }}
       onDrop={(e) => {
         if (e.dataTransfer.files.length) {
           e.preventDefault();

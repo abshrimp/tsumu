@@ -8,7 +8,7 @@ import type { GeneratedProject, PublishTarget } from "../generator";
 import { listFromOf, obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
-import { assetSrc } from "../assets";
+import { assetDocUrl } from "../assets";
 import { assetMediaUrl } from "../media-url";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { googleFontsCss, rewriteHtmlAssetUrls, rawHtmlWithBodyStyles } from "./css";
@@ -83,7 +83,7 @@ function exportedAssetSources(doc: SiteDoc, names: Map<string, string>) {
   const files = new Map<string, string>();
   const scripts = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
-    const src = assetSrc(asset);
+    const src = assetDocUrl(asset);
     const name = names.get(asset.id);
     if (!src || !name) continue;
     files.set(src, "/assets/" + name);
@@ -102,12 +102,22 @@ function rewriteRootUrls(
   mode: "fragment" | "document" = "fragment",
 ): string {
   const resource = (value: string, script = false) => {
-    const suffix = value.startsWith("/api/assets/file?path=") ? value.search(/[&#]/) : value.indexOf("#");
+    const isAssetProxy = value.startsWith("/api/assets/file?path=");
+    const suffix = isAssetProxy ? value.search(/[&#]/) : value.indexOf("#");
     const key = suffix < 0 ? value : value.slice(0, suffix);
     const mapped = (script ? sources.scripts.get(key) : undefined) ?? sources.files.get(key);
     if (mapped === "") throw new Error("Ambiguous ZIP script location. Give the imported entry scripts distinct URLs.");
     if (mapped) {
-      const tail = suffix < 0 ? "" : value.slice(suffix).replace(/^&/, "?");
+      let tail = suffix < 0 ? "" : value.slice(suffix);
+      if (isAssetProxy && tail.startsWith("&")) {
+        const hashIndex = tail.indexOf("#");
+        const queryPart = hashIndex < 0 ? tail.slice(1) : tail.slice(1, hashIndex);
+        const hashPart = hashIndex < 0 ? "" : tail.slice(hashIndex);
+        const params = new URLSearchParams(queryPart);
+        params.delete("site");
+        const rest = params.toString();
+        tail = (rest ? `?${rest}` : "") + hashPart;
+      }
       return prefix + mapped.slice(1) + tail;
     }
     return value.startsWith("/") && !value.startsWith("//") ? prefix + value.slice(1) : value;

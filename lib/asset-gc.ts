@@ -382,6 +382,7 @@ export async function runAssetGc({
             { sql: "DELETE FROM asset_gc_candidates WHERE path=? AND first_unreferenced_at=?",
               args: [item.path, item.firstUnreferencedAt] },
             { sql: "DELETE FROM asset_objects WHERE path=?", args: [item.path] },
+            { sql: "DELETE FROM site_asset_uploads WHERE path=?", args: [item.path] },
           ]);
         }
       }

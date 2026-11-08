@@ -4,7 +4,7 @@ import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { requireSiteAccess } from "../../../lib/site-access";
 import { isSiteId } from "../../../lib/sites";
-import { siteHasAsset } from "../../../lib/site-asset-access";
+import { siteHasAsset, siteOwnsAssets } from "../../../lib/site-asset-access";
 import { authConfigured } from "../../../auth";
 import { allowedEmails } from "../../../lib/allowlist";
 import { sessionUser } from "../../../lib/server";
@@ -16,6 +16,7 @@ import { siteIdOf } from "../../../lib/site-server";
 import { documentAssetReferences } from "../../../lib/site-document-service";
 import { recordAssetGcCandidates } from "../../../lib/asset-gc";
 import { readAssetLedger, recordUploadedAsset } from "../../../lib/asset-ledger";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../lib/api-json";
 
 /**
  * 他のサイトのアセット一覧を、各サイトの SQLite 版 Durable Object から直接読む。
@@ -125,6 +126,66 @@ export async function POST(req: Request) {
   }
 }
 
+/** サイト間でコピー・貼り付けしたアセットの利用権限を、コピー先のサイトへ引き継ぐ。 */
+export async function PATCH(req: Request) {
+  const tr = await serverTr();
+  const denied = await requireAuth("editor");
+  if (denied) return denied;
+
+  let body: Record<string, unknown>;
+  try {
+    body = await readJsonObjectLimited(req, 64 * 1024);
+  } catch (error) {
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: jsonErrorStatus(error) });
+  }
+  const { fromSite, toSite, paths } = body;
+  if (!isSiteId(fromSite) || !isSiteId(toSite) || !Array.isArray(paths) || !paths.length || paths.length > 500) {
+    return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
+  }
+  const uniquePaths: string[] = [];
+  const seen = new Set<string>();
+  for (const path of paths) {
+    if (typeof path !== "string" || !path.startsWith("assets/") || path.length > 512) {
+      return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
+    }
+    if (!seen.has(path)) {
+      seen.add(path);
+      uniquePaths.push(path);
+    }
+  }
+  if (fromSite === toSite) return NextResponse.json({ ok: true });
+  const deniedFrom = await requireSiteAccess(fromSite, "view");
+  if (deniedFrom) return deniedFrom;
+  const deniedTo = await requireSiteAccess(toSite, "edit");
+  if (deniedTo) return deniedTo;
+  if (!dbConfigured()) return NextResponse.json({ ok: true });
+
+  try {
+    const db = await getDb();
+    const dest = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [toSite] });
+    if (!dest.rows.length) return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
+    if (!(await siteOwnsAssets(db, fromSite, uniquePaths))) {
+      return NextResponse.json({ error: tr("Not found") }, { status: 404 });
+    }
+    for (let offset = 0; offset < uniquePaths.length; offset += 45) {
+      const chunk = uniquePaths.slice(offset, offset + 45);
+      await db.execute({
+        sql: `INSERT OR IGNORE INTO site_asset_uploads(site_id,path) VALUES ${chunk.map(() => "(?,?)").join(",")}`,
+        args: chunk.flatMap((path) => [toSite, path]),
+      });
+    }
+    if (db.backend === "d1") {
+      await db.execute({
+        sql: "DELETE FROM asset_gc_candidates WHERE path IN (SELECT value FROM json_each(?))",
+        args: [JSON.stringify(uniquePaths)],
+      });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: tr(userMessage(e, "Couldn't save")) }, { status: 502 });
+  }
+}
+
 /**
  * 全サイトのアセットの使用量（ストレージは全サイト共通）。
  * Cloudflare では、KV に置いたファイルの台帳（D1）を ledger として返す。
@@ -219,6 +280,9 @@ export async function DELETE(req: Request) {
       if (refs.rows.length) return NextResponse.json({ ok: true, kept: true });
     }
     await store.delete(path);
+    if (db) {
+      await db.execute({ sql: "DELETE FROM site_asset_uploads WHERE path=?", args: [path] });
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

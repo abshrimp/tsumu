@@ -1,5 +1,5 @@
 import { createCssAssetFinder } from "./css-asset-dependencies";
-import { assetSrc } from "./assets";
+import { assetDocUrl, assetSrc } from "./assets";
 import { zipAssetClosure } from "./zip-css";
 import { importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
 import type { SiteDoc } from "./types";
@@ -44,9 +44,10 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
   const text = JSON.stringify(rest);
   for (const a of assets) {
     if (usage.has(a.id)) continue;
+    const docUrl = assetDocUrl(a);
     const src = assetSrc(a);
     const alias = importedAssetUrl(a);
-    if (text.includes(a.id) || (src && text.includes(src)) || (alias && (text.includes(alias) || text.includes(decodeURIComponent(alias))))) usage.set(a.id, 1);
+    if (text.includes(a.id) || (docUrl && text.includes(docUrl)) || (src && text.includes(src)) || (alias && (text.includes(alias) || text.includes(decodeURIComponent(alias))))) usage.set(a.id, 1);
   }
   for (const id of zipAssetClosure(doc.assets, usage.keys())) if (!usage.has(id)) usage.set(id, 1);
   // ZIP の JavaScript のモジュールは、相対パスで隣のファイルを参照できる

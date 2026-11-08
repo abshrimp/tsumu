@@ -313,7 +313,13 @@ export default function NetlifyPublishModal({
 
   return (
     <div className="modal-backdrop" onClick={phase === "busy" || !!restoring ? undefined : onClose}>
-      <div className="modal pub-modal netlify-pub-modal" onClick={event => event.stopPropagation()}>
+      <div
+        className="modal pub-modal netlify-pub-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={phase === "history" ? tr("Deployment history") : tr("Publish site")}
+        onClick={event => event.stopPropagation()}
+      >
         <h2>{phase === "history" ? tr("Deployment history") : tr("Publish site")}</h2>
         {phase === "loading" && (
           <div className="pub-loading" role="status"><LoaderCircle className="spin" size={16} />{tr("Checking Netlify connection…")}</div>

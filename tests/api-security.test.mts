@@ -2350,7 +2350,7 @@ class NextResponse extends Response {
 
 const editorOnly: Record<string, string[]> = {
   "app/api/ai/route.ts": ["POST"],
-  "app/api/assets/route.ts": ["POST", "DELETE"],
+  "app/api/assets/route.ts": ["POST", "PATCH", "DELETE"],
   "app/api/assets/trash/route.ts": ["POST", "DELETE"],
   "app/api/comments/route.ts": ["POST"],
   "app/api/doc/route.ts": ["PUT", "PATCH"],

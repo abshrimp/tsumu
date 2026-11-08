@@ -46,6 +46,8 @@ import { storageKey } from "./storage-keys";
 import { cloneScripts, remapPageLinks, stripDeletedPageScripts, withPageScripts, type PageScript } from "./script";
 import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 import { sameDocContent, shareUnchangedDoc } from "./doc-share";
+import { extractAssetReferences } from "./asset-gc-plan";
+import { transferSiteAssets } from "./assets";
 import { placePageFolder, retainPageFolderSlots, type FolderPlacement } from "./page-panel-order";
 
 const PUBLISHED_KEY = siteKey(storageKey("published-v1"));
@@ -1301,6 +1303,14 @@ export const useEditor = create<EditorStore>((set, get) => {
         const list = childrenOf(d, parent);
         list.splice(index === undefined ? list.length : index, 0, ...newRootIds);
       });
+      const toSite = currentSiteId();
+      if (clip.site && toSite && clip.site !== toSite) {
+        const paths = [
+          ...Object.values(clip.assets).flatMap((a) => (a.path ? [a.path] : [])),
+          ...extractAssetReferences(JSON.stringify([clones, deps.componentNodes])),
+        ];
+        void transferSiteAssets(clip.site, toSite, paths);
+      }
       set({
         selection: newRootIds[newRootIds.length - 1] ?? null,
         selectedIds: newRootIds,

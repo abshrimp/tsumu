@@ -1,7 +1,7 @@
 import { withImportUploads } from "./import-uploads";
 import { openImportZip } from "./zip-directory";
 import type { ZipArchive, ZipEntry } from "./zip";
-import { assetSrc, uploadStaticAsset } from "./assets";
+import { assetDocUrl, uploadStaticAsset } from "./assets";
 import { archiveBaseUrl, archiveResolver } from "./zip-references";
 import { rewriteSrcsetUrls } from "./srcset";
 import { CSS_ASSET_ATTRIBUTES, rewriteCssAssetUrls } from "./css-assets";
@@ -245,7 +245,7 @@ async function prepareHtmlZip(
     const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
     const sha256 = Array.from(hash, byte => byte.toString(16).padStart(2, "0")).join("");
     // 復元時に実体が見つからなかったアセットにも、元のパスとハッシュは残る。
-    const previous = existing.find(asset => asset.zip?.path === path && asset.zip.sha256 === sha256 && assetSrc(asset));
+    const previous = existing.find(asset => asset.zip?.path === path && asset.zip.sha256 === sha256 && assetDocUrl(asset));
     const asset = previous
       ? { ...previous }
       : await uploadStaticAsset(new File([bytes], path.replace(/\//g, "-"), { type: mime }), siteId);
@@ -256,7 +256,7 @@ async function prepareHtmlZip(
   }
   bindZipDependencies(assets, existing);
   for (const asset of assets) {
-    urls.set(asset.zip!.path, zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
+    urls.set(asset.zip!.path, zipStylesheet(asset) ? zipCssUrl(asset.id) : assetDocUrl(asset));
   }
   return { assets, htmlEntries, htmlEntry, urls, htmlText, pristineHtmlText };
 }

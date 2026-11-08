@@ -25,6 +25,7 @@ import {
   type DragState,
   type DropPos,
 } from "./drag";
+import { siteKey } from "../../lib/site";
 import { storageKey } from "../../lib/storage-keys";
 import { layerWindow, LAYER_ROW_HEIGHT, visibleLayerRows } from "../../lib/layers-visible";
 
@@ -565,26 +566,28 @@ const collapsedCache = new Map<string, Set<string>>();
 let revealedSelection: string | null = null;
 
 function loadCollapsed(key: string): Set<string> {
-  const hit = collapsedCache.get(key);
+  const cacheKey = siteKey(key);
+  const hit = collapsedCache.get(cacheKey);
   if (hit) return hit;
   let set = new Set<string>();
   try {
-    const all = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "{}") as Record<string, string[]>;
+    const all = JSON.parse(window.localStorage.getItem(siteKey(COLLAPSED_KEY)) ?? "{}") as Record<string, string[]>;
     if (Array.isArray(all[key])) set = new Set(all[key]);
   } catch {
     // 読めなければ、すべて開いた状態にする
   }
-  collapsedCache.set(key, set);
+  collapsedCache.set(cacheKey, set);
   return set;
 }
 
 function saveCollapsed(key: string, set: Set<string>) {
-  collapsedCache.set(key, set);
+  collapsedCache.set(siteKey(key), set);
   try {
-    const all = JSON.parse(window.localStorage.getItem(COLLAPSED_KEY) ?? "{}") as Record<string, string[]>;
+    const storage = siteKey(COLLAPSED_KEY);
+    const all = JSON.parse(window.localStorage.getItem(storage) ?? "{}") as Record<string, string[]>;
     if (set.size) all[key] = [...set];
     else delete all[key];
-    window.localStorage.setItem(COLLAPSED_KEY, JSON.stringify(all));
+    window.localStorage.setItem(storage, JSON.stringify(all));
   } catch {
     // 保存できなくても、折りたたみ自体は動く
   }

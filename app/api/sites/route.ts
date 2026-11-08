@@ -117,6 +117,16 @@ export async function POST(req: Request) {
     // 文書の初期化に失敗したら、作成したばかりのサイトの記録を削除する。
     const roomKey = await insertSite(db, id, parsed.value, user?.email ?? null);
     createdSite = { id, db, roomKey };
+    if (copyFrom && src?.body) {
+      const copiedPaths = [...extractAssetReferences(src.body)];
+      for (let offset = 0; offset < copiedPaths.length; offset += 45) {
+        const chunk = copiedPaths.slice(offset, offset + 45);
+        await db.execute({
+          sql: `INSERT OR IGNORE INTO site_asset_uploads(site_id,path) VALUES ${chunk.map(() => "(?,?)").join(",")}`,
+          args: chunk.flatMap((path) => [id, path]),
+        });
+      }
+    }
     const content = initialBody ?? src?.body;
     if (content !== undefined) {
       const saved = await saveSiteDocument(db, id, content, null, roomKey ?? undefined);

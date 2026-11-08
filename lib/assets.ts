@@ -288,12 +288,27 @@ export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit)
   }
 }
 
+/** 編集データ（doc.json）に保存する、サイト非依存のアセット URL */
+export function assetDocUrl(asset: Asset | undefined): string {
+  if (!asset) return "";
+  if (asset.path) return `/api/assets/file?path=${encodeURIComponent(asset.path)}`;
+  return isEmbeddedAssetUrl(asset.dataUrl) ? asset.dataUrl : "";
+}
+
+/** ブラウザ内で表示・取得するときに、現在のサイト ID をプロキシ URL へ補う */
+export function withSiteAssetUrl(url: string, site: string = currentSiteId()): string {
+  if (!site || !url.startsWith("/api/assets/file?")) return url;
+  const hashIndex = url.indexOf("#");
+  const head = hashIndex < 0 ? url : url.slice(0, hashIndex);
+  const tail = hashIndex < 0 ? "" : url.slice(hashIndex);
+  const params = new URLSearchParams(head.slice("/api/assets/file?".length));
+  if (params.has("site") || !params.get("path")) return url;
+  return `${head}&site=${encodeURIComponent(site)}${tail}`;
+}
+
 /** アセットの表示用の URL */
 export function assetSrc(asset: Asset): string {
-  if (asset.path) {
-    const site = currentSiteId();
-    return `/api/assets/file?path=${encodeURIComponent(asset.path)}${site ? `&site=${encodeURIComponent(site)}` : ""}`;
-  }
+  if (asset.path) return withSiteAssetUrl(assetDocUrl(asset));
   return isEmbeddedAssetUrl(asset.dataUrl) ? asset.dataUrl : "";
 }
 
@@ -302,13 +317,65 @@ export function assetSrc(asset: Asset): string {
  * 表示するときに assetId から探す（複製すると、使う要素の数だけ編集データが大きくなる）
  */
 export function nodeAssetSrc(asset: Asset): string {
-  return asset.path ? assetSrc(asset) : "";
+  return asset.path ? assetDocUrl(asset) : "";
 }
 
 /** 画像・動画の要素の表示用の URL（アセットを使っていれば、アセットから探す） */
 export function mediaSrc(doc: SiteDoc, ref: { src: string; assetId?: string; assetSuffix?: string }): string {
   const asset = ref.assetId ? doc.assets[ref.assetId] : undefined;
-  return asset ? assetMediaUrl(assetSrc(asset) || ref.src, ref.assetSuffix) : ref.src;
+  const resolved = asset ? (assetSrc(asset) || withSiteAssetUrl(ref.src)) : withSiteAssetUrl(ref.src);
+  return asset ? assetMediaUrl(resolved, ref.assetSuffix) : resolved;
+}
+
+const pendingSiteAssetTransfers = new Map<string, Set<Promise<void>>>();
+
+/** サイト間でコピー・貼り付けしたアセットの利用権限をサーバーに記録する */
+export async function transferSiteAssets(
+  fromSite: string,
+  toSite: string,
+  paths: Iterable<string>,
+  options?: { strict?: boolean },
+): Promise<void> {
+  const unique = [...new Set([...paths].filter((p) => typeof p === "string" && p.startsWith("assets/")))];
+  if (!fromSite || !toSite || fromSite === toSite || !unique.length) return;
+  if (!options?.strict && typeof window === "undefined") return;
+  const run = (async () => {
+    for (let offset = 0; offset < unique.length; offset += 500) {
+      const res = await fetch("/api/assets", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromSite, toSite, paths: unique.slice(offset, offset + 500) }),
+      });
+      if (!res.ok && options?.strict) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? tr("Couldn't copy"));
+      }
+    }
+  })();
+  let active = pendingSiteAssetTransfers.get(toSite);
+  if (!active) {
+    active = new Set();
+    pendingSiteAssetTransfers.set(toSite, active);
+  }
+  const tracked = run.catch(() => {}).finally(() => {
+    active?.delete(tracked);
+    if (active && !active.size) pendingSiteAssetTransfers.delete(toSite);
+  });
+  active.add(tracked);
+  if (options?.strict) await run;
+  else await tracked;
+}
+
+/** 進行中のサイト間アセット権限引き継ぎがあるか（同期判定） */
+export function hasPendingSiteAssetTransfers(site: string = currentSiteId()): boolean {
+  return !!site && (pendingSiteAssetTransfers.get(site)?.size ?? 0) > 0;
+}
+
+/** 自動保存の前に、進行中のサイト間アセット権限引き継ぎの完了を待つ */
+export async function flushSiteAssetTransfers(site: string = currentSiteId()): Promise<void> {
+  if (!site) return;
+  const active = pendingSiteAssetTransfers.get(site);
+  if (active?.size) await Promise.allSettled([...active]);
 }
 
 /**
@@ -321,7 +388,7 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
   const data = asset.dataUrl;
   asset.path = path;
   delete asset.dataUrl;
-  const src = assetSrc(asset);
+  const src = assetDocUrl(asset);
   const sources = new Map(data ? [[data, src]] : []);
   for (const node of Object.values(doc.nodes)) {
     if (node.image?.assetId === assetId) node.image.src = src;
@@ -543,14 +610,13 @@ export async function deleteRemoteAssetFiles(paths: string[]): Promise<void> {
  * URL の部分一致で、別のファイルや、手で書いた複数の背景まで削除しない。
  */
 export function removePageAssetBackgrounds(doc: SiteDoc, asset: Asset): void {
-  const src = assetSrc(asset);
-  if (!src) return;
-  const backgroundImage = `url("${src}")`;
+  const candidates = new Set([assetDocUrl(asset), assetSrc(asset)].filter(Boolean).map((u) => `url("${u}")`));
+  if (!candidates.size) return;
   for (const page of Object.values(doc.pages)) {
     for (const variants of [page.bodyStyles, page.bodyDarkStyles]) {
       for (const bp of Object.values(variants ?? {})) {
         for (const styles of Object.values(bp ?? {})) {
-          if (styles?.backgroundImage === backgroundImage) delete styles.backgroundImage;
+          if (styles?.backgroundImage && candidates.has(styles.backgroundImage)) delete styles.backgroundImage;
         }
       }
     }

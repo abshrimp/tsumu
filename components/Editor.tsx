@@ -1289,7 +1289,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
           return;
         }
         // ドロップダウンなどのポップアップが開いている間は、選択を残す
-        if (!document.querySelector(".dd-menu, .color-pop, .modal")) {
+        if (!document.querySelector('.dd-menu, .color-pop, .modal, [role="dialog"]')) {
           if (!s.selection && s.editingComponentId) {
             s.setEditingComponent(null);
           } else {

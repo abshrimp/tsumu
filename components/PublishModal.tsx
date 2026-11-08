@@ -499,7 +499,13 @@ export default function PublishModal({
 
   return (
     <div className="modal-backdrop" onClick={phase === "busy" ? undefined : onClose}>
-      <div className="modal pub-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal pub-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2>{site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}</h2>
 
         {phase === "check" && targets && !targets.configured && (
@@ -1030,7 +1036,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
   useEscapeToClose(onClose);
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal hist-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal hist-modal" role="dialog" aria-modal="true" aria-label={tr("History")} onClick={(e) => e.stopPropagation()}>
         <h2>{tr("History")}</h2>
         <p className="modal-desc">
           {tr("Return the published site to an earlier version, or bring your edits back to an earlier state.")}

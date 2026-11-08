@@ -1276,7 +1276,11 @@ export function Dropdown({
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (isEscapeKey(e)) setOpen(false);
+      if (isEscapeKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+      }
     };
     const onScroll = (e: Event) => {
       if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
@@ -1617,7 +1621,11 @@ export function FillControl({
       if (ref.current && !ref.current.contains(e.target as Node)) close();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (isEscapeKey(e)) close();
+      if (isEscapeKey(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
     };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);

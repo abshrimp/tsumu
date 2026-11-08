@@ -84,6 +84,7 @@ export function TypographySec({ node }: { node: DocNode }) {
   const doc = useEditor((s) => s.doc);
   const breakpoint = useEditor((s) => s.breakpoint);
   const styleState = useEditor((s) => s.styleState);
+  const pageTheme = useEditor((s) => s.pageTheme);
   const updateTargets = useEditor((s) => s.updateTargets);
   // オフの状態を選ぶのはリセットではない。ホバーやフォーカスでは、通常時のスタイルを
   // 再び受け継ぐのではなく、明示的に上書きする必要がある場合がある。
@@ -101,14 +102,16 @@ export function TypographySec({ node }: { node: DocNode }) {
     node.id,
     breakpoint,
     styleState,
-    "fontFamily"
+    "fontFamily",
+    pageTheme
   ) ?? "system-ui";
   const inheritedFontWeight = inheritedPropValue(
     doc,
     node.id,
     breakpoint,
     styleState,
-    "fontWeight"
+    "fontWeight",
+    pageTheme
   ) ?? "400";
 
   return (

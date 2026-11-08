@@ -589,7 +589,7 @@ test("Replacing an offscreen image uses the latest preview and insertion source"
   await expect(card(page, 4999).locator("img")).toHaveAttribute("src", "/api/assets/file?path=assets%2Freplaced.png&site=synthetic");
   await card(page, 4999).locator(".asset-thumb").click();
   expect(await page.evaluate(() => Object.values((window as any).assetEditor.getState().doc.nodes).map((n: any) => n.image?.src)))
-    .toContain("/api/assets/file?path=assets%2Freplaced.png&site=synthetic");
+    .toContain("/api/assets/file?path=assets%2Freplaced.png");
 });
 
 test("Deleting the last row does not leave an empty viewport, and newly dropped images remain discoverable", async ({ page }) => {

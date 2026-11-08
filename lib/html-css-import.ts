@@ -1,5 +1,5 @@
 import type { Asset } from "./types";
-import { assetSrc } from "./assets";
+import { assetDocUrl, assetSrc } from "./assets";
 import { rewriteCssAssetUrls } from "./css-assets";
 import { appendAssetSuffix } from "./zip-references";
 import { zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
@@ -102,9 +102,12 @@ export function expandZipCss(
   owner?: Asset,
 ): ResolvedZipCss {
   const byId = new Map(assets.map((asset) => [asset.id, asset]));
-  const bySrc = new Map<string, Asset>(assets
-    .map((asset) => [assetSrc(asset), asset] as const)
-    .filter(([src]) => !!src));
+  const bySrc = new Map<string, Asset>();
+  for (const asset of assets) {
+    for (const src of [assetDocUrl(asset), assetSrc(asset)]) {
+      if (src) bySrc.set(src, asset);
+    }
+  }
   const unresolved: string[] = [];
   let size = 0;
 
@@ -137,7 +140,7 @@ export function expandZipCss(
         if (!ref) return undefined;
         const dep = byId.get(ref.assetId);
         if (!dep || zipStylesheet(dep)) return undefined;
-        const src = assetSrc(dep);
+        const src = assetDocUrl(dep);
         return src ? appendAssetSuffix(src, ref.suffix) : undefined;
       }, ZIP_CSS_LIMITS.output - result.length);
     };

@@ -17,6 +17,8 @@ import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
 import { tr } from "./i18n";
 import { isSiteLang, siteLangOf } from "./site-lang";
 import { normalizeQuery } from "./vars";
+import { extractAssetReferences } from "./asset-gc-plan";
+import { transferSiteAssets } from "./assets";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 
 interface PagePayload {
@@ -250,12 +252,21 @@ export async function copyPagesToSite(
   const q = (extra: Record<string, string> = {}) => new URLSearchParams({ site: target.id, ...extra }).toString();
   const loadDestination = async () => destinationSnapshot(await fetch(`/api/doc?${q()}`));
   let snapshot = await loadDestination();
+  let transferred = false;
   // 他の人が同時に保存したときは、新しい版に書き足し直す。
   for (let attempt = 0; attempt < 4; attempt++) {
     const doc = snapshot?.doc ?? createInitialDoc();
     if (!snapshot) doc.siteName = target.name;
     const start = doc.pageOrder.length;
     applyPagePayload(doc, payload);
+    if (!transferred && payload.deps.site && payload.deps.site !== target.id) {
+      const paths = [
+        ...Object.values(payload.deps.assets).flatMap((a) => (a.path ? [a.path] : [])),
+        ...extractAssetReferences(JSON.stringify([payload.pages, payload.nodes, payload.deps.componentNodes])),
+      ];
+      await transferSiteAssets(payload.deps.site, target.id, paths, { strict: true });
+      transferred = true;
+    }
     let res: Response | undefined;
     try {
       res = await fetch(`/api/doc?${q(snapshot ? { base: snapshot.rev } : {})}`, {

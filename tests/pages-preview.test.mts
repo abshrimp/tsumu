@@ -1268,6 +1268,55 @@ test("an unreadable destination or conflict cannot initiate a copy into a blank 
     });
   }
 });
+
+test("cross-site server copy transfers asset ownership once before writing the destination document", async () => {
+  const fromDoc = createInitialDoc();
+  fromDoc.assets.hero = { id: "hero", name: "hero.png", path: "assets/muhmi2o0abcdef-hero.png", width: 8, height: 8 };
+  const img = makeBox("Hero");
+  img.tag = "img";
+  img.assetId = "hero";
+  fromDoc.nodes[img.id] = img;
+  fromDoc.pages[fromDoc.pageOrder[0]].children.push(img.id);
+  const oldWin = (globalThis as { window?: unknown }).window;
+  (globalThis as { window?: unknown }).window = { location: { pathname: "/sites/source0001" } };
+  const crossPayload = buildPagePayload(fromDoc, fromDoc.pageOrder);
+  (globalThis as { window?: unknown }).window = oldWin;
+  const calls: { method: string; url: string; body?: unknown }[] = [];
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input), "https://example.test");
+    const method = init?.method ?? "GET";
+    calls.push({ method, url: url.pathname + url.search, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+    if (url.pathname === "/api/doc" && method === "GET") {
+      return Response.json({ exists: true, rev: "1", doc: createInitialDoc() });
+    }
+    if (url.pathname === "/api/assets" && method === "PATCH") {
+      return Response.json({ ok: true });
+    }
+    if (url.pathname === "/api/doc" && method === "PUT") {
+      return calls.filter((c) => c.method === "PUT").length === 1
+        ? Response.json({ conflict: true, rev: "2", doc: createInitialDoc() }, { status: 409 })
+        : Response.json({ ok: true });
+    }
+    throw new Error("Unexpected fetch: " + method + " " + url.pathname);
+  };
+  try {
+    await copyPagesToSite({ id: "dest000001", name: "Dest" }, crossPayload, "server");
+    assert.deepEqual(calls.map((c) => `${c.method} ${c.url}`), [
+      "GET /api/doc?site=dest000001",
+      "PATCH /api/assets",
+      "PUT /api/doc?site=dest000001&base=1",
+      "PUT /api/doc?site=dest000001&base=2",
+    ]);
+    assert.deepEqual(calls[1].body, {
+      fromSite: "source0001",
+      toSite: "dest000001",
+      paths: ["assets/muhmi2o0abcdef-hero.png"],
+    });
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});
 });
 
 describe("preview-query-navigation", () => {

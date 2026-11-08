@@ -156,7 +156,13 @@ export default function StaticPublishModal({
 
   return (
     <div className="modal-backdrop" onClick={phase === "busy" || restoring ? undefined : onClose}>
-      <div className="modal pub-modal" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="modal pub-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label={historyOpen ? tr("Deployment history") : tr("Publish site")}
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2>{historyOpen ? tr("Deployment history") : tr("Publish site")}</h2>
         {historyOpen ? (
           <StaticDeploymentHistoryView

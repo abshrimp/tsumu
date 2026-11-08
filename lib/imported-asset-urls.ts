@@ -1,5 +1,5 @@
 import { parse, defaultTreeAdapter, type DefaultTreeAdapterTypes as Html } from "parse5";
-import { assetSrc, nodeAssetSrc } from "./assets";
+import { assetDocUrl, assetSrc, nodeAssetSrc } from "./assets";
 import { CSS_ASSET_ATTRIBUTES, rewriteCssAssetUrls } from "./css-assets";
 import { IMPORT_LIMITS } from "./site-import-format";
 import { rewriteSrcsetUrls } from "./srcset";
@@ -10,8 +10,8 @@ export function rebindImportedAssetUrls(original: SiteDoc, doc: SiteDoc) {
   const sources = new Map<string, string>();
   let growth = 0, elements = 0;
   for (const [id, old] of Object.entries(original.assets)) {
-    const fresh = assetSrc(doc.assets[id]);
-    for (const source of [assetSrc(old), old.dataUrl]) {
+    const fresh = assetDocUrl(doc.assets[id]);
+    for (const source of [assetDocUrl(old), assetSrc(old), old.dataUrl]) {
       if (source && (!sources.has(source) || (!sources.get(source) && fresh))) sources.set(source, fresh);
     }
   }
@@ -27,7 +27,7 @@ export function rebindImportedAssetUrls(original: SiteDoc, doc: SiteDoc) {
       const path = params.get("path");
       if (!path) return value;
       key = "/api/assets/file?path=" + encodeURIComponent(path);
-      for (const name of ["path", "exp", "sig"]) params.delete(name);
+      for (const name of ["path", "site", "exp", "sig"]) params.delete(name);
       query = params.toString();
     }
     const target = sources.get(key);
@@ -99,7 +99,8 @@ export function rebindImportedAssetUrls(original: SiteDoc, doc: SiteDoc) {
       if (!media) continue;
       if (!media.src) continue;
       const id = media.assetId;
-      media.src = id && Object.hasOwn(original.assets, id) && media.src === assetSrc(original.assets[id])
+      media.src = id && Object.hasOwn(original.assets, id) &&
+        (media.src === assetDocUrl(original.assets[id]) || media.src === assetSrc(original.assets[id]))
         ? nodeAssetSrc(doc.assets[id]) : resolve(media.src);
     }
     if (node.link?.url) node.link.url = resolve(node.link.url);

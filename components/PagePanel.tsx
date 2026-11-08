@@ -191,6 +191,7 @@ export default function PagePanel() {
         Object.assign(draft.assets, converted.doc.assets);
         target.children = [...importedPage.children];
         target.bodyStyles = importedPage.bodyStyles;
+        target.bodyDarkStyles = importedPage.bodyDarkStyles;
         target.customTopHtml = importedPage.customTopHtml;
         target.customEndHtml = importedPage.customEndHtml;
         target.pageScripts = undefined;

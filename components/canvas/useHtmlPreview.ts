@@ -5,8 +5,7 @@ import type { Asset, HtmlZipPage } from "../../lib/types";
 import { htmlZipSource } from "../../lib/html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "../../lib/html-zip-script-assets";
 import { zipCssUrl, zipStylesheet } from "../../lib/zip-css";
-import { assetSrc } from "../../lib/assets";
-import { withSignedAssetUrls, zipPreviewRoots } from "../../lib/assets";
+import { assetDocUrl, withSignedAssetUrls, zipPreviewRoots } from "../../lib/assets";
 import { zipAssetClosure } from "../../lib/zip-css";
 import { tr } from "../../lib/i18n";
 
@@ -15,8 +14,8 @@ export const HTML_PREVIEW_REFRESH_MS = 50 * 60 * 1000;
 export function useHtmlPreview(src: string, assets: Record<string, Asset>, zip?: HtmlZipPage) {
   const prepared = useMemo(() => {
     const html = htmlZipSource(src, zip, assets,
-      asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
-    return rewriteHtmlZipScriptUrls(html, zip, assets, assetSrc);
+      asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetDocUrl(asset));
+    return rewriteHtmlZipScriptUrls(html, zip, assets, assetDocUrl);
   }, [src, zip, assets]);
   const key = useMemo(() => JSON.stringify([...zipAssetClosure(assets, zipPreviewRoots(prepared))].map((id) => assets[id])), [prepared, assets]);
   const [revision, setRevision] = useState(0);

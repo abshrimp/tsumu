@@ -29,6 +29,7 @@ import { BP_INFO, toggleShowDisplay } from "../lib/style";
 import { pageLangOf, siteLangOf } from "../lib/site-lang";
 import VarExplorer from "./VarExplorer";
 import { tr } from "../lib/i18n";
+import { siteKey } from "../lib/site";
 import { buildCanvasCss, previewHtmlWithBodyStyles, type CanvasCssCache } from "./canvas/css";
 import { MemoNodeView } from "./canvas/NodeView";
 import {
@@ -378,9 +379,10 @@ export default function Canvas() {
     const area = areaRef.current;
     if (!area || editingCompId) return;
     const key = activePageId;
+    const storageKeyName = siteKey(SCROLL_KEY);
     const read = (): Record<string, [number, number]> => {
       try {
-        return JSON.parse(window.localStorage.getItem(SCROLL_KEY) ?? "{}");
+        return JSON.parse(window.localStorage.getItem(storageKeyName) ?? "{}");
       } catch {
         return {};
       }
@@ -402,7 +404,7 @@ export default function Canvas() {
         try {
           const all = read();
           all[key] = [Math.round(area.scrollTop), Math.round(area.scrollLeft)];
-          window.localStorage.setItem(SCROLL_KEY, JSON.stringify(all));
+          window.localStorage.setItem(storageKeyName, JSON.stringify(all));
         } catch {
           // 保存できなくても、編集は続けられる
         }
@@ -1008,9 +1010,9 @@ export default function Canvas() {
                   disabled={refreshing}
                   onClick={() => void refreshData()}
                   style={{
-                    background: "rgba(255,255,255,0.95)",
+                    background: "var(--panel)",
                     color: "var(--text)",
-                    borderColor: "transparent",
+                    borderColor: "var(--border-strong)",
                   }}
                 >
                   {refreshing ? tr("Loading…") : tr("Reload (canvas)")}
