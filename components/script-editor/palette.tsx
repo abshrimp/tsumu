@@ -253,6 +253,13 @@ export const PALETTE: PaletteItem[] = [
     make: () => one({ id: st(), kind: "set-var", value: "", into: "" }),
   },
   {
+    key: "make-list",
+    cat: "array",
+    icon: ListPlus,
+    label: tr("空のリストを変数［］とする"),
+    make: () => one({ id: st(), kind: "set-var", value: "[]", into: "" }),
+  },
+  {
     key: "set-list-item",
     cat: "array",
     icon: ListPlus,
