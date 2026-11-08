@@ -246,7 +246,7 @@ export function scriptVarNames(doc: SiteDoc, pageId: string): string[] {
   return [...dataVarNames(doc, pageId)].filter((n) => n !== ITEM_VALUE && n !== "slug");
 }
 
-/** 「変数を探す」で見せる、変数のまとまり */
+/** 「変数を探す」に表示する変数の分類 */
 export interface VarGroup {
   key: "item" | "data" | "url" | "element" | "script" | "state";
   /** 「変数を探す」で「詳細」を開いたときだけ出す */
