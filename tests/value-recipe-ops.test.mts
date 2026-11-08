@@ -422,3 +422,54 @@ test("list additions and removals compose without changing their inputs", () => 
   assert.deepEqual(original, [1, 2, 2, 3]);
 });
 
+
+
+test("string replacements refuse expansion beyond 100KB without allocating huge output", () => {
+  const result = evaluateValueRecipe("a".repeat(10000), [{
+    kind: "replace", find: "a", replacement: "x".repeat(10000), regex: false,
+  }]);
+  assert.deepEqual(result, { kind: "error", code: "limit-exceeded" });
+  assert.deepEqual(evaluateValueRecipe("abracadabra", [{
+    kind: "replace", find: "a", replacement: "XY", regex: false,
+  }]), val("XYbrXYcXYdXYbrXY"));
+});
+
+test("dynamic regex replacements reject catastrophic patterns and ambiguous quantifiers", () => {
+  // A naive replace with (a+)+$ on this input causes exponential backtracking.
+  const input = "a".repeat(28) + "!";
+  for (const pattern of ["(a+)+$", "(a|aa)+$", "a+a+$", ".*.*$", "([ab]+)([abc]+)$"]) {
+    const result = evaluateValueRecipe(input, [{
+      kind: "replace", find: pattern, replacement: "x", regex: true,
+    }]);
+    assert.deepEqual(result, { kind: "error", code: "invalid-regex" }, pattern);
+  }
+  assert.deepEqual(evaluateValueRecipe("abc123", [{
+    kind: "replace", find: "([a-z]+)(\\d+)", replacement: "$2:$1", regex: true,
+  }]), val("123:abc"));
+});
+
+test("regex text and replacement expansions have bounded execution and output", () => {
+  const repeat = (text: string, find: string, replacement: string) =>
+    evaluateValueRecipe(text, [{
+      kind: "replace", find, replacement, regex: true,
+    }]);
+  assert.deepEqual(repeat("a".repeat(1000), "a", "x".repeat(1000)),
+    { kind: "error", code: "limit-exceeded" });
+  assert.deepEqual(repeat("a".repeat(1000), "a", "$'"),
+    { kind: "error", code: "limit-exceeded" });
+  assert.deepEqual(repeat("a".repeat(3000), "a", "x"),
+    { kind: "error", code: "invalid-regex" });
+  assert.deepEqual(repeat("abc123", "[a-z]+", "x"), val("x123"));
+  assert.deepEqual(repeat("abc", "(a)", "$1$1"), val("aabc"));
+});
+
+test("serialized recipe runtime also rejects pathological regex and expansion", () => {
+  const embedded = new Function("const __name = (fn) => fn; return (" +
+    evaluateValueRecipe.toString() + ")")() as typeof evaluateValueRecipe;
+  assert.deepEqual(embedded("a".repeat(28) + "!", [{
+    kind: "replace", find: "(a+)+$", replacement: "x", regex: true,
+  }]), { kind: "error", code: "invalid-regex" });
+  assert.deepEqual(embedded("a".repeat(2000), [{
+    kind: "replace", find: "a", replacement: "x".repeat(1000), regex: false,
+  }]), { kind: "error", code: "limit-exceeded" });
+});
