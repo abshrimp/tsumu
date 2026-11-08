@@ -103,7 +103,7 @@ test("JSON lookup resolves own keys without traversing inherited prototypes", ()
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
 });
 
-test("every supported palette action is visible without hidden compatibility groups", () => {
+test("every supported palette action is visible in the editor", () => {
   assert.equal(PALETTE.length, 26);
   assert.equal(findPaletteItems("").length, 26);
   assert.equal(PALETTE.filter(item => item.cat !== "event").length, 20);
