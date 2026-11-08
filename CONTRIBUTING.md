@@ -23,7 +23,7 @@ Local development needs no API keys. Keep your environment variables in `.env.lo
 - **Keep each pull request focused** on one problem, and explain the behavior that results.
 - **Add a regression test** when you change behavior. Unit tests go in `tests/`, browser tests in `e2e/`.
 - **Write UI strings and code comments in Japanese.** Wrap UI text in `tr()` and add its English translation in `lib/locales/`.
-- **Treat the current Tsumu format as the source of truth.** Don't add compatibility code for unpublished predecessor formats.
+- **Keep Tsumu's data model and runtime behavior consistent.** Align the types, editor, generated code, and tests.
 - **Preserve user-authored files when publishing a site.** `_tsumu/` is reserved for Tsumu's document and publish manifests.
 
 Before opening a pull request, run:
