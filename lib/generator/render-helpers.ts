@@ -307,8 +307,12 @@ export function filterPredicate(ops: ListOp[], base: string): string | null {
     const text = hasVars(c.value)
       ? `interpolate(${codeLiteral(c.value)}, ${base})`
       : codeLiteral(c.value);
-    const w = `(${parseValueLiteral.toString()})(${text})`;
-    const positive = `(${matchesValueCondition.toString()})(${fieldExpr("item", c.field)}, ${codeLiteral(c.op)}, ${w})`;
+    // esbuild can inject __name(fn, label) into serialized helpers. Replace
+    // that annotation with Object.assign(fn, label) so inline JS and TSX are
+    // both executable without relying on a missing module-scoped __name.
+    const inline = (fn: Function) => fn.toString().replace(/\\b__name\\s*\\(/g, "Object.assign(");
+    const w = `(${inline(parseValueLiteral)})(${text})`;
+    const positive = `(${inline(matchesValueCondition)})(${fieldExpr("item", c.field)}, ${codeLiteral(c.op)}, ${w})`;
     return c.not ? `!(${positive})` : positive;
   };
   // 括弧は、優先順位が変わるところにだけ付ける
