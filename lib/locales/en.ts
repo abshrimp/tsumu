@@ -47,7 +47,7 @@ const en: Dict = {
   "ZIPには書き出した範囲の編集データ（_tsumu/doc.json）が含まれます。公開サーバーには編集データを配置せず、生成したWebサイトのファイルだけを公開してください。": "The ZIP contains the editable source for the exported scope (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.",
   "HTMLを生成できませんでした": "Could not generate the HTML file",
   "HTMLをダウンロード": "Download HTML",
-  "選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリの設定が以前の形式のままだとサイトが表示されなくなる場合があります。設定を確認したうえで続行しますか？": "Pushing in this format changes the repository structure. If your hosting provider still uses the previous build or publish-directory settings, the site may stop working. Have you checked the hosting settings?",
+  "選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリが選択した形式に対応しているか確認してください。続行しますか？": "Pushing this format to GitHub changes the published file structure. Check that the hosting build and output-directory settings match the selected format. Continue?",
   "公開先の設定を確認してください": "Check the hosting settings",
   "この形式でPushする": "Push this format",
   "認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。": "Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead.",
