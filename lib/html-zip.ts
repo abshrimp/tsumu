@@ -1,4 +1,4 @@
-import JSZip from "jszip";
+import { openImportZip } from "./zip-directory";
 import { assetSrc, uploadStaticAsset } from "./assets";
 import { resolveZipReference } from "./zip-references";
 import { rewriteSrcsetUrls } from "./srcset";
@@ -59,7 +59,8 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
   if (compressedBytes > HTML_ZIP_LIMITS.zipBytes) {
     throw new Error("インポートするファイルが大きすぎます。");
   }
-  const zip = await JSZip.loadAsync(file);
+  const bytes = file instanceof Uint8Array ? file : new Uint8Array(await file.arrayBuffer());
+  const zip = await openImportZip(bytes, HTML_ZIP_LIMITS.entries);
   const { htmlEntries, htmlEntry, assetEntries } = inspectHtmlZip(zip);
 
   // Verify HTML and CSS bytes before starting an upload. A malformed stylesheet

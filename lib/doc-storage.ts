@@ -1,3 +1,4 @@
+import { hasValidChildren, MAX_NODE_DEPTH, validNodeForest } from "./doc-tree";
 import type { Db, ResultSet } from "./db";
 import { isDocPatch, type DocPatch } from "./doc-patch";
 
@@ -45,6 +46,7 @@ export function validateDocBody(raw: string): string | null {
       !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) {
     return "不正なリクエスト";
   }
+  if (!validNodeForest(parsed.pages, parsed.nodes)) return "不正なリクエスト";
   const order = parsed.pageOrder;
   const pages = parsed.pages as Record<string, unknown>;
   if (new Set(order).size !== order.length || !order.every((id) => {
@@ -148,20 +150,18 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   }
   // Validate changed page definitions without reading the entire stored document.
   // Ordinary element/style patches retain the existing SQL-only fast path.
-  const pageValid = (value: unknown): boolean => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-    const children = (value as { children?: unknown }).children;
-    return Array.isArray(children) && children.every((id) => typeof id === "string");
-  };
   for (const op of patch) {
-    if (op.path[0] !== "pages" || !("value" in op)) continue;
-    if (op.path.length === 2) {
-      if (!pageValid(op.value)) throw new InvalidDocPatchError();
-    } else if (!op.value || typeof op.value !== "object" || Array.isArray(op.value) ||
-               !Object.values(op.value).every(pageValid)) {
-      throw new InvalidDocPatchError();
+    const collection = op.path[0];
+    if (!(collection === "pages" || collection === "nodes") || !("value" in op)) continue;
+    const entries = op.path.length === 2 ? [[op.path[1], op.value] as const] :
+      Object.entries(op.value as Record<string, unknown>);
+    for (const [id, item] of entries) {
+      if (!hasValidChildren(item) || (collection === "nodes" && (!("id" in item) || item.id !== id))) {
+        throw new InvalidDocPatchError();
+      }
     }
   }
+  const treeOps = patch.filter(op => op.path[0] === "nodes" || op.path[0] === "pages");
   const needsPageGuard = patch.some((op) =>
     op.path[0] === "pages" || op.path[0] === "pageOrder");
   const args: (string | number | null)[] = [];
@@ -197,16 +197,48 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
         )
       )
   )` : "";
+  // Only a changed child list, addition or removal needs the full forest check.
+  // Both the fast path and the walk below inspect the same revision as the write.
+  const individual = treeOps.length > 0 && treeOps.every(op => op.path.length === 2 && "value" in op);
+  const sameChildren = individual ? `NOT EXISTS (
+    SELECT 1 FROM json_each(?) AS p, patched
+    WHERE json_extract(docs.body, p.value) IS NOT json_extract(patched.body, p.value)
+  ) OR` : "";
+  const treeGuard = treeOps.length ? `AND (${sameChildren} (
+    WITH RECURSIVE
+      nodes AS MATERIALIZED (SELECT n.key AS id, n.type, n.value FROM patched, json_each(patched.body, '$.nodes') n),
+      pages AS MATERIALIZED (SELECT p.type, p.value FROM patched, json_each(patched.body, '$.pages') p),
+      edges AS MATERIALIZED (SELECT n.id AS parent, c.value AS child, c.type
+        FROM nodes n, json_each(CASE WHEN n.type = 'object' THEN n.value END, '$.children') c),
+      walk(id, depth) AS (
+        SELECT id, 1 FROM nodes WHERE id NOT IN (SELECT child FROM edges WHERE type = 'text')
+        UNION ALL SELECT e.child, w.depth + 1 FROM walk w JOIN edges e ON e.parent = w.id
+        WHERE w.depth < ${MAX_NODE_DEPTH}
+      )
+    SELECT CASE
+      WHEN EXISTS (SELECT 1 FROM nodes WHERE CASE WHEN type != 'object' THEN 1 ELSE
+        json_extract(value, '$.id') IS NOT id OR json_type(value, '$.children') IS NOT 'array' END) THEN 0
+      WHEN EXISTS (SELECT 1 FROM edges LEFT JOIN nodes ON nodes.id = edges.child
+        WHERE edges.type != 'text' OR nodes.id IS NULL) THEN 0
+      WHEN EXISTS (SELECT 1 FROM edges GROUP BY child HAVING COUNT(*) > 1) THEN 0
+      WHEN EXISTS (SELECT 1 FROM pages WHERE CASE WHEN type != 'object' THEN 1 ELSE
+        json_type(value, '$.children') IS NOT 'array' END) THEN 0
+      WHEN EXISTS (SELECT 1 FROM pages p, json_each(p.value, '$.children') c
+        LEFT JOIN nodes n ON n.id = c.value WHERE c.type != 'text' OR n.id IS NULL) THEN 0
+      ELSE (SELECT COUNT(*) FROM walk) = (SELECT COUNT(*) FROM nodes)
+    END
+  ))` : "";
   const now = Date.now();
   await backupPreviousDay(db, siteId, now);
   const rs = await write(db, {
-    sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? ${pageGuard} RETURNING rev`,
-    args: [...args, siteId, Number(base), now, siteId, Number(base)],
+    sql: `WITH patched AS MATERIALIZED (SELECT ${body} AS body FROM docs WHERE id = ? AND rev = ?) UPDATE docs SET body = (SELECT body FROM patched), rev = rev + 1, saved_at = ? WHERE id = ? AND rev = ? ${pageGuard} ${treeGuard} RETURNING rev`,
+    args: [...args, siteId, Number(base), now, siteId, Number(base),
+      ...(individual ? [JSON.stringify(treeOps.map(op => "$." + op.path.join(".") + ".children"))] : [])],
   });
   if (rs.rows.length) {
     return { kind: "saved", rev: String(rs.rows[0].rev), savedAt: now };
   }
   const current = await readCurrentDoc(db, siteId);
-  if (needsPageGuard && current?.rev === base) throw new InvalidDocPatchError();
+  if ((needsPageGuard || treeOps.length) && current?.rev === base) throw new InvalidDocPatchError();
   return current ? { kind: "conflict", current } : { kind: "missing" };
 }

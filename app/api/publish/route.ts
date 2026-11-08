@@ -116,6 +116,7 @@ export async function POST(req: Request) {
   let body: PublishBody;
   try {
     body = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new TypeError();
   } catch {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }

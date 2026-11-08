@@ -1344,8 +1344,9 @@ export const SCRIPT_RUNTIME = `function (env) {
               nextArray[targetIndex] = newValue;
               setVar(st.list, nextArray);
             } else {
-              if (!providedKey || Object.keys(sourceList).length >= 10000) break;
+              if (!providedKey) break;
               var nextKey = String(rawKey);
+              if (!Object.prototype.hasOwnProperty.call(sourceList, nextKey) && Object.keys(sourceList).length >= 10000) break;
               if (nextKey === "__proto__" || nextKey === "prototype" || nextKey === "constructor") break;
               var nextObject = Object.assign(Object.create(null), sourceList);
               nextObject[nextKey] = newValue;

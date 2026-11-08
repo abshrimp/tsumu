@@ -23,13 +23,15 @@ export function readZipEntryLimited(entry: JSZip.JSZipObject, maxBytes: number):
     const stream = (entry as JSZip.JSZipObject & {
       internalStream(type: "uint8array"): ZipByteStream;
     }).internalStream("uint8array");
+    const declared = (entry as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize;
+    const limit = typeof declared === "number" ? Math.min(declared, maxBytes) : maxBytes;
     const chunks: Uint8Array[] = [];
     let length = 0;
     let settled = false;
     stream.on("data", (chunk) => {
       if (settled) return;
       length += chunk.byteLength;
-      if (length > maxBytes) {
+      if (length > limit) {
         settled = true;
         stream.pause();
         reject(new ZipEntryTooLargeError());

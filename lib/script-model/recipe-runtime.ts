@@ -144,6 +144,19 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       if (char === "\\") {
         if (i + 1 >= pattern.length || /[1-9]/.test(pattern[i + 1]) ||
             pattern[i + 1] === "k") return false;
+        // Consume multi-character escapes as one atom. Its trailing digit or
+        // letter is not the character that the regex engine will repeat.
+        const escape = pattern[i + 1];
+        if (escape === "x" || escape === "u" || escape === "c") {
+          const token = /^(?:x[0-9a-f]{2}|u[0-9a-f]{4}|c[a-z])/i.exec(pattern.slice(i + 1));
+          if (!token) return false;
+          const code = escape === "c" ? token[0].toUpperCase().charCodeAt(1) % 32 :
+            parseInt(token[0].slice(1), 16);
+          last = { category: category(String.fromCharCode(code)) };
+          i += token[0].length;
+          continue;
+        }
+        if (escape === "0" && /[0-9]/.test(pattern[i + 2] ?? "")) return false;
         last = { category: category("\\" + pattern[++i]) };
         continue;
       }

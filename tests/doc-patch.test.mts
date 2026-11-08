@@ -223,3 +223,24 @@ test("database-side patching does not persist invalid page order or missing page
     assert.deepEqual(JSON.parse((await readCurrentDoc(db, "s1"))!.body).pages.home, fixed);
   });
 });
+
+test("snapshots and atomic patches reject broken node trees without advancing the revision", async () => {
+  await database(async (db) => {
+    const original = doc();
+    await saveCurrentDoc(db, "s1", JSON.stringify(original), null);
+    for (const changed of [
+      { ...original, nodes: {} },
+      { ...original, nodes: { "node-1": null } },
+      { ...original, nodes: { "node-1": { ...original.nodes["node-1"], children: ["node-1"] } } },
+      { ...original, nodes: { ...original.nodes,
+        a: { ...original.nodes["node-1"], id: "a", children: ["b"] },
+        b: { ...original.nodes["node-1"], id: "b", children: ["a"] } } },
+    ]) {
+      assert.equal(validateDocBody(JSON.stringify(changed)), "不正なリクエスト");
+      const patch = createDocPatch(original, changed as SiteDoc)!;
+      await assert.rejects(saveDocPatch(db, "s1", patch, "1"), /不正な/);
+      assert.equal((await readCurrentDoc(db, "s1"))?.body, JSON.stringify(original));
+      assert.equal((await readCurrentDoc(db, "s1"))?.rev, "1");
+    }
+  });
+});

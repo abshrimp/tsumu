@@ -136,8 +136,9 @@ export function runPurePageSteps(
             copy[index] = nextValue;
             write(step.list, copy);
           } else {
-            if (!provided || Object.keys(list).length >= 10000) break;
+            if (!provided) break;
             const key = String(keyValue);
+            if (!Object.hasOwn(list, key) && Object.keys(list).length >= 10000) break;
             if (key === "__proto__" || key === "prototype" || key === "constructor") break;
             const copy = Object.assign(Object.create(null), list) as Record<string, unknown>;
             copy[key] = nextValue;
@@ -156,7 +157,7 @@ export function runPurePageSteps(
           const extras = step.conditions ?? [];
           if (extras.length > 32) {
             // Match browser behavior: malformed/oversized conditions are false.
-            if (step.else?.length) execute(step.else, locals, depth + 1);
+            if (step.else?.length && execute(step.else, locals, depth + 1, loopDepth)) return true;
             break;
           }
           const groups: Array<typeof extras[number][]> = [[step.cond as typeof extras[number]]];
@@ -206,6 +207,7 @@ export function runPurePageSteps(
           if (raw === null || raw === undefined || typeof raw === "boolean" ||
               (typeof raw === "string" && !raw.trim())) break;
           const count = Number(raw);
+          if (!step.then.length) break;
           if (!Number.isInteger(count) || count < 1 || count > 1000) break;
           for (let i = 0; i < count && !exhausted; i++) {
             const current = Object.assign(Object.create(null), locals, {

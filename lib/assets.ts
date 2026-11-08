@@ -147,7 +147,9 @@ export async function detectSvgFilters(
   // 一度に取りに行くとサーバーが 503 を返すため、同時に取得する数を絞る
   await mapLimit(pending, ASSET_FETCH_CONCURRENCY, async (asset) => {
     try {
-      const res = await fetchWithRetry(assetSrc(asset));
+      const src = assetSrc(asset);
+      if (!src) return;
+      const res = await fetchWithRetry(src);
       if (!res.ok) return;
       const svg = await res.text();
       const size = !asset.width || !asset.height ? svgViewBoxSize(svg) : null;
@@ -195,10 +197,14 @@ export async function fetchWithRetry(url: string, tries = 3): Promise<Response> 
   }
 }
 
+export function isEmbeddedAssetUrl(value: unknown): value is string {
+  return typeof value === "string" && /^data:[^,]*,/i.test(value);
+}
+
 /** アセットの表示用URL */
 export function assetSrc(asset: Asset): string {
   if (asset.path) return `/api/assets/file?path=${encodeURIComponent(asset.path)}`;
-  return asset.dataUrl ?? "";
+  return isEmbeddedAssetUrl(asset.dataUrl) ? asset.dataUrl : "";
 }
 
 /**
@@ -255,7 +261,7 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
 
 /** 埋め込みアセットをサーバーへアップロードする（サーバーに保存できなければ null） */
 export async function uploadEmbeddedAsset(asset: Asset): Promise<string | null> {
-  if (!asset.dataUrl) return asset.path ?? null;
+  if (!isEmbeddedAssetUrl(asset.dataUrl)) return asset.path ?? null;
   const blob = await (await fetch(asset.dataUrl)).blob();
   const fresh = await uploadStaticAsset(new File([blob], asset.name, { type: blob.type || asset.mimeType || "" }));
   return fresh.path ?? null;

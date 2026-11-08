@@ -1,4 +1,4 @@
-import JSZip from "jszip";
+import { openImportZip } from "./zip-directory";
 import type { Asset, BreakpointDef, SiteDoc } from "./types";
 import { readHtmlZip, readHtmlZipPages } from "./html-zip";
 import { convertHtmlToSite, type HtmlConversion } from "./html-to-site";
@@ -14,7 +14,7 @@ export function isHtmlFile(name: string): boolean {
  * Tsumu ZIP is restored losslessly; a regular website ZIP is converted to nodes.
  */
 export async function isEditableSiteZip(data: Uint8Array): Promise<boolean> {
-  const zip = await JSZip.loadAsync(data);
+  const zip = await openImportZip(data, IMPORT_LIMITS.entries);
   const names = Object.values(zip.files).filter((item) => !item.dir).map((item) => item.name);
   return names.some((name) => /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(name));
 }

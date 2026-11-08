@@ -1,6 +1,8 @@
-import JSZip from "jszip";
+import { validNodeForest } from "./doc-tree";
+import type JSZip from "jszip";
+import { openImportZip } from "./zip-directory";
 import type { Asset, SiteDoc } from "./types";
-import { uploadStaticAsset } from "./assets";
+import { isEmbeddedAssetUrl, uploadStaticAsset } from "./assets";
 import { decodePortableDoc } from "./portable-doc";
 import { readZipEntryLimited, ZipEntryTooLargeError } from "./zip-stream";
 
@@ -70,6 +72,8 @@ export function validateImportedDoc(value: unknown): SiteDoc {
     }
   }
   check(value);
+  if (!validNodeForest(doc.pages, doc.nodes)) throw new Error("要素の親子関係が不正です。");
+  if (new Set(doc.pageOrder).size !== doc.pageOrder.length) throw new Error("ページの参照が壊れています。");
   for (const id of doc.pageOrder) {
     if (typeof id !== "string" || !assertOrdinaryObject(doc.pages[id])) {
       throw new Error("ページの参照が壊れています。");
@@ -81,7 +85,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
   }
   for (const [id, item] of Object.entries(doc.assets)) {
     if (!assertOrdinaryObject(item) || typeof item.id !== "string" || item.id !== id ||
-        typeof item.name !== "string") {
+        typeof item.name !== "string" || (item.dataUrl != null && !isEmbeddedAssetUrl(item.dataUrl))) {
       throw new Error("アセットIDと参照情報が正しくありません。");
     }
   }
@@ -113,9 +117,7 @@ export async function parseSiteImport(
     return { doc: validateImportedDoc(await decodePortableDoc(jsonText(bytes), IMPORT_LIMITS.docBytes)),
       assets: new Map(), warnings: [] };
   }
-  let zip: JSZip;
-  try { zip = await JSZip.loadAsync(bytes); }
-  catch { throw new Error("ZIPファイルを展開できませんでした。"); }
+  const zip = await openImportZip(bytes, IMPORT_LIMITS.entries);
   const entries = Object.values(zip.files).filter((entry) => !entry.dir);
   if (entries.length > IMPORT_LIMITS.entries) throw new Error("ZIP内のファイルが多すぎます。");
   for (const entry of entries) {
@@ -156,7 +158,8 @@ export async function parseSiteImport(
     throw new Error("ZIPのアセット対応表が不正です。");
   }
   const mapped = metadata.assets;
-  if (Object.keys(mapped).length !== Object.keys(doc.assets).length ||
+  if (new Set(Object.values(mapped)).size !== Object.keys(mapped).length ||
+      Object.keys(mapped).length !== Object.keys(doc.assets).length ||
       Object.keys(mapped).some((id) => !Object.hasOwn(doc.assets, id) ||
         typeof mapped[id] !== "string" || !pathOK(mapped[id]))) {
     throw new Error("ZIPのアセット対応表が不正です。");
@@ -202,7 +205,7 @@ export async function restoreImportAssets(
     number++;
     progress("アセットを復元中… " + number + " / " + Object.keys(doc.assets).length);
     let bytes = imported.assets.get(id);
-    if (!bytes && asset.dataUrl) {
+    if (!bytes && isEmbeddedAssetUrl(asset.dataUrl)) {
       try {
         const blob = await (await fetch(asset.dataUrl)).blob();
         if (blob.size <= IMPORT_LIMITS.assetBytes) bytes = new Uint8Array(await blob.arrayBuffer());

@@ -178,3 +178,14 @@ test("native exported list rendering accepts dictionary keys and preserves neste
   ]);
   assert.deepEqual(listItems({ rows: ["a", "b"] }, "rows", 1), [{ "値": "a" }]);
 });
+
+test("at the size limit dictionaries still allow updates to existing keys", () => {
+  const list = Object.fromEntries(Array.from({ length: 10000 }, (_, i) => [String(i), i]));
+  const vars = { list };
+  const set = (key: string) => run([{ id: "write", kind: "set-list-item", list: "list", key, value: "true" }], vars);
+  assert.equal(set("0"), true);
+  assert.equal(vars.list["0"], true);
+  assert.equal(set("extra"), true);
+  assert.equal(Object.hasOwn(vars.list, "extra"), false);
+  assert.equal(list["0"], 0);
+});
