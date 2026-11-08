@@ -438,11 +438,12 @@ test("if blocks with browser-only additional clauses do not run during SSR", () 
   assert.ok(!plan.serverIds.has("element-if"));
 });
 
-test("a missing transform result clears stale values before connected fallback blocks", () => {
+
+test("missing field results clear stale values before the fallback recipe", () => {
   const steps: ScriptStep[] = [
     { id: "previous", kind: "set-var", into: "selected", value: "stale" },
-    { id: "find", kind: "transform", source: "records", into: "selected",
-      transform: { kind: "find", field: "name", operation: "eq", operand: "missing" } },
+    { id: "missing", kind: "transform", source: "records.0", into: "selected",
+      transform: { kind: "field", key: "doesNotExist" } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
       transform: { kind: "fallback", text: "no match" } },
   ];
@@ -453,8 +454,8 @@ test("a missing transform result clears stale values before connected fallback b
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
     { id: "saved", kind: "set-var", into: "selected", value: "stale" },
-    { id: "find-missing", kind: "transform", source: "data.rows", into: "selected",
-      transform: { kind: "find", field: "title", operation: "eq", operand: "absent" } },
+    { id: "read-missing", kind: "transform", source: "data.rows.0", into: "selected",
+      transform: { kind: "field", key: "absent" } },
     { id: "fallback-missing", kind: "transform", source: "selected", into: "selected",
       transform: { kind: "fallback", text: "no match" } },
   );
@@ -464,19 +465,18 @@ test("a missing transform result clears stale values before connected fallback b
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
 });
 
-test("failed value transforms preserve earlier values instead of treating errors as missing", () => {
+test("failed numeric transforms preserve earlier values instead of using fallback", () => {
   const steps: ScriptStep[] = [
     { id: "previous", kind: "set-var", into: "selected", value: "original" },
-    { id: "bad", kind: "transform", source: "not-a-list", into: "selected",
-      transform: { kind: "find", field: "name", operation: "eq", operand: "anything" } },
+    { id: "bad", kind: "transform", source: "not-a-number", into: "selected",
+      transform: { kind: "math", operation: "add", operand: 1 } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
       transform: { kind: "fallback", text: "replacement" } },
   ];
-  const vars: Record<string, unknown> = { "not-a-list": "invalid" };
+  const vars: Record<string, unknown> = { "not-a-number": "invalid" };
   assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
   assert.equal(vars.selected, "original");
 });
-
 test("dynamic JSON field names retain accurate totals for truncated API samples", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
@@ -517,7 +517,8 @@ test("three ordinary blocks compose a value in preview and server generated outp
   assert.doesNotThrow(() => transformSync(server, { loader: "tsx", jsx: "automatic" }));
 });
 
-test("holiday dictionary transforms are previewable and serializable in generated server output", () => {
+
+test("holiday dictionary rows are built using keyed writes and a list loop", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
   steps.push(
@@ -527,55 +528,56 @@ test("holiday dictionary transforms are previewable and serializable in generate
     { id: "today", kind: "set-var", into: "今日の日付", value: "2026-11-23" },
     { id: "todays-holiday", kind: "transform", source: "祝日", into: "今日の祝日",
       transform: { kind: "field", key: "{今日の日付}" } },
-    { id: "holiday-rows", kind: "transform", source: "祝日", into: "祝日一覧",
-      transform: { kind: "object-entries", keyField: "日付", valueField: "祝日名" } },
+    { id: "make-rows", kind: "set-var", into: "祝日一覧", value: "[]" },
+    { id: "each-holiday", kind: "for-each", array: "祝日", then: [
+      { id: "make-row", kind: "set-var", into: "祝日行", value: "{}" },
+      { id: "key", kind: "set-list-item", list: "祝日行", key: "日付", value: "{ループ.キー}" },
+      { id: "value", kind: "set-list-item", list: "祝日行", key: "祝日名", value: "{ループ.値}" },
+      { id: "append-row", kind: "set-list-item", list: "祝日一覧", key: "", value: "{祝日行}" },
+    ] },
   );
   const preview = previewDataVars(doc, "p");
   assert.equal(preview["今日の祝日"], "勤労感謝の日");
-  assert.deepEqual(preview["祝日一覧"], [
+  assert.deepEqual(JSON.parse(JSON.stringify(preview["祝日一覧"])), [
     { "日付": "2026-11-03", "祝日名": "文化の日" },
     { "日付": "2026-11-23", "祝日名": "勤労感謝の日" },
   ]);
   assert.ok(pageArrays(doc, "p").some(({ name }) => name === "祝日一覧"));
   const plan = pagePlan(doc, "p");
   assert.ok(plan.serverIds.has("todays-holiday"));
-  assert.ok(plan.serverIds.has("holiday-rows"));
+  assert.ok(plan.serverIds.has("each-holiday"));
   const files = generateProject(doc).files;
-  assert.match(files["app/page.tsx"], /"object-entries"/);
-  assert.match(files["lib/value-recipe.ts"], /"object-entries"/);
+  assert.ok(files["app/page.tsx"].includes("for-each"));
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
 });
 
-test("renaming variables keeps object-entry column templates synchronized", () => {
+test("renaming variables updates dynamic keys and values in list writes", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
-  steps.push({ id: "column-rename", kind: "transform", source: "data", into: "rows",
-    transform: { kind: "object-entries",
-      keyField: "{labels.keyName}", valueField: "{labels.valueName}" } });
+  steps.push(
+    { id: "init-rows", kind: "set-var", into: "rows", value: "{}" },
+    { id: "rename-key", kind: "set-list-item", list: "rows",
+      key: "{labels.keyName}", value: "{labels.valueName}" },
+  );
   renameVarInPage(doc, "p", "labels", "displayLabels");
-  const renamed = steps.find((step) => step.id === "column-rename");
-  assert.ok(renamed?.kind === "transform" && renamed.transform.kind === "object-entries");
-  if (renamed?.kind !== "transform" || renamed.transform.kind !== "object-entries")
-    throw new Error("Expected object entries transform");
-  assert.equal(renamed.transform.keyField, "{displayLabels.keyName}");
-  assert.equal(renamed.transform.valueField, "{displayLabels.valueName}");
-  assert.deepEqual(evaluateValueRecipe({ "2026-11-23": "勤労感謝の日" }, [renamed.transform], {
-    displayLabels: { keyName: "日付", valueName: "祝日名" },
-  }), { kind: "value", value: [{ "日付": "2026-11-23", "祝日名": "勤労感謝の日" }] });
+  const renamed = steps.find((step) => step.id === "rename-key");
+  assert.equal(renamed?.kind, "set-list-item");
+  if (!renamed || renamed.kind !== "set-list-item") throw new Error("Expected keyed write");
+  assert.equal(renamed.key, "{displayLabels.keyName}");
+  assert.equal(renamed.value, "{displayLabels.valueName}");
 });
 
-test("browser-only object-entry column names keep the transform out of SSR", () => {
+test("browser-only list key variables keep their write outside SSR", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
     { id: "dynamic-column", kind: "store-load", key: "chosen-field", into: "keyName" },
-    { id: "client-entries", kind: "transform", source: "data", into: "rows",
-      transform: { kind: "object-entries", keyField: "{keyName}", valueField: "値" } },
+    { id: "init-rows", kind: "set-var", into: "rows", value: "{}" },
+    { id: "client-write", kind: "set-list-item", list: "rows", key: "{keyName}", value: "42" },
   );
   const plan = pagePlan(doc, "p");
-  assert.ok(!plan.serverIds.has("client-entries"));
+  assert.ok(!plan.serverIds.has("client-write"));
   assert.ok(plan.clientVars.has("rows"));
 });
-
 test("server data transforms interpolate strings and source variables without client-only adapters", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
@@ -598,20 +600,23 @@ test("server data transforms interpolate strings and source variables without cl
   assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
 });
 
-test("comparison operands can refer to another variable", () => {
+
+test("if block operands can refer to another variable", () => {
   const doc = scriptDataPickerDoc();
-  doc.pages.p.pageScripts![0].steps.push({
-    id: "threshold", kind: "set-var", value: "{data.price}", into: "threshold",
-  }, {
-    id: "cmp", kind: "transform", source: "data.price", into: "above",
-    transform: { kind: "compare", operation: "gte", operand: "{threshold}" },
-  });
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "threshold", kind: "set-var", value: "{data.price}", into: "threshold" },
+    { id: "cmp", kind: "if",
+      cond: { subject: "var", target: "", left: "{data.price}", op: "gte", value: "{threshold}" },
+      then: [{ id: "yes", kind: "set-var", into: "above", value: "true" }],
+      else: [{ id: "no", kind: "set-var", into: "above", value: "false" }],
+    },
+  );
   const result = previewDataVars(doc, "p");
   assert.equal(result.threshold, 12);
   assert.equal(result.above, true);
 });
 
-test("server preview can calculate using numeric strings from another variable and edit lists", () => {
+test("server preview calculates with numeric strings and filters lists through loops", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
     { id: "rate", kind: "set-var", value: "1.5", into: "rate" },
@@ -619,22 +624,25 @@ test("server preview can calculate using numeric strings from another variable a
       transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "rate" } },
     { id: "append", kind: "transform", source: "data.tags", into: "tags",
       transform: { kind: "append", operandType: "text", operand: "green" } },
-    { id: "remove", kind: "transform", source: "tags", into: "tags",
-      transform: { kind: "remove", operandType: "text", operand: "red" } },
+    { id: "empty-tags", kind: "set-var", value: "[]", into: "filteredTags" },
+    { id: "filter-tags", kind: "for-each", array: "tags", then: [
+      { id: "keep", kind: "if", cond: {
+        subject: "var", target: "", left: "{ループ.値}", op: "eq", value: "red", not: true,
+      }, then: [{ id: "add-tag", kind: "set-list-item", list: "filteredTags", key: "", value: "{ループ.値}" }] },
+    ] },
   );
   const vars = previewDataVars(doc, "p");
   assert.equal(vars.total, 18);
-  assert.deepEqual(vars.tags, ["blue", "green"]);
+  assert.deepEqual(vars.filteredTags, ["blue", "green"]);
   const plan = pagePlan(doc, "p");
   assert.ok(plan.serverIds.has("calc"));
   assert.ok(plan.serverIds.has("append"));
-  assert.ok(plan.serverIds.has("remove"));
+  assert.ok(plan.serverIds.has("filter-tags"));
   const generated = generateProject(doc).files["app/page.tsx"];
   assert.match(generated, /"append"/);
-  assert.match(generated, /"remove"/);
+  assert.match(generated, /"for-each"/);
   assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
 });
-
 test("a browser-only operand keeps its arithmetic block in the client runtime", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
