@@ -12,9 +12,16 @@ import { userMessage } from "../../../lib/errors";
 
 export const maxDuration = 30;
 
-// Bound untrusted input and avoid ambiguous regex backtracking.
-const EMAIL_RE = /^[^\s@]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})+$/;
-const validEmail = (email: string): boolean => email.length <= 254 && EMAIL_RE.test(email);
+// Bound untrusted input and validate fixed-size components (no repeated regex groups).
+const validEmail = (email: string): boolean => {
+  if (email.length < 3 || email.length > 254) return false;
+  const at = email.indexOf("@");
+  if (at < 1 || at > 64 || at !== email.lastIndexOf("@")) return false;
+  const local = email.slice(0, at);
+  const domain = email.slice(at + 1);
+  if (/\s/.test(local) || domain.length > 253 || !domain.includes(".")) return false;
+  return domain.split(".").every((label) => label.length > 0 && label.length <= 63 && /^[a-z0-9-]+$/i.test(label));
+};
 
 /** 認証済みの自分のメールアドレスを返す。使えない場合はレスポンスを返す */
 async function requireMe(): Promise<string | NextResponse> {

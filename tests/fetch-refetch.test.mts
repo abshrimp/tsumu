@@ -648,7 +648,7 @@ test("modal runtime edits and result provenance persist across closing, reopenin
   mounted.action().props.onClick();
   const reopened = mounted.result();
   assert.equal(state(reopened()).values.missing, "B");
-  assert.ok(JSON.stringify(oldResult).includes("https://example.test/A"), "old result provenance does not follow the unsent draft");
+  assert.ok(/"https:\/\/example\.test\/A"/.test(JSON.stringify(oldResult)), "old result provenance does not follow the unsent draft");
   assert.equal(reopened().props.children[1].props.children[1].props.children, "https://example.test/B");
   assert.equal(reopened().props.children.at(-1).props.children[0], false, "the same destination is not repeated");
   assert.deepEqual(mounted.step()!.sample, { result: "B" });
@@ -718,7 +718,7 @@ test("refresh resolves the latest upstream sample while preserving the old resul
   useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[1] as FetchStep).sample = [{ name: "LATEST" }]; });
   mounted.action().props.onClick(); const result = mounted.result();
   assert.equal(result().props.children[1].props.children[1].props.children, "https://example.test/LATEST");
-  assert.ok(JSON.stringify(result().props.children.at(-1).props.children[0]).includes("https://example.test/Other"));
+  assert.ok(/"https:\/\/example\.test\/Other"/.test(JSON.stringify(result().props.children.at(-1).props.children[0])));
   result().props.children[0].props.children[1].props.onClick();
   assert.equal(mounted.requests[1].input.url, "https://example.test/LATEST"); await mounted.finish(1, { answer: "latest" });
 });

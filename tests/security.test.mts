@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { assertPublicUrl, BlockedUrlError, fetchPublic, isPrivateHost, readTextLimited, TooLargeError } from "../lib/safe-fetch";
 import { activeContentNames, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
 import { normalizeSiteInput } from "../lib/sites";
+import { githubClient } from "../lib/github";
 import { makeBox } from "../lib/presets";
 
 test("server-side fetches refuse private, loopback and metadata hosts in every spelling", async () => {
@@ -144,6 +145,31 @@ test("repository and branch names cannot walk to other GitHub API paths", () => 
     assert.equal(normalizeSiteInput({ branch }, base).ok, false, branch);
   }
   assert.equal(normalizeSiteInput({ repo: "my.org/my.site", branch: "release/v1.2" }, base).ok, true);
+});
+
+test("GitHub publish client never attaches credentials to a malicious API path", async () => {
+  const previousFetch = globalThis.fetch;
+  const sent: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    sent.push(String(input));
+    assert.equal(new Headers(init?.headers).get("Authorization"), "Bearer secret");
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  try {
+    const tr = ((value: string) => value) as any;
+    for (const repository of ["../other", "owner/..", "owner/repo?x=1"]) {
+      const client = githubClient({ repo: repository, branch: "main", token: "secret", url: undefined }, tr);
+      assert.throws(() => client.gh("/contents"), /Invalid GitHub API destination/);
+    }
+    const client = githubClient({ repo: "owner/repo", branch: "main", token: "secret", url: undefined }, tr);
+    for (const suffix of ["/../../user", "//evil.test/", "/contents?path=%2e%2e", "/contents\\..\evil", "/x#fragment"]) {
+      assert.throws(() => client.gh(suffix), /Invalid GitHub API destination/);
+    }
+    await client.gh("/git/ref/heads/release/v1");
+    assert.deepEqual(sent, ["https://api.github.com/repos/owner/repo/git/ref/heads/release/v1"]);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
 
 test("signed asset URLs are tied to the path and expire", async () => {

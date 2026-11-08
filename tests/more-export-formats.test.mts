@@ -47,7 +47,7 @@ test("single HTML mode contains one index.html without build tooling", async () 
   assert.deepEqual(result.remoteAssets, {});
   assert.match(result.files["index.html"], /Example heading/);
   assert.match(result.files["index.html"], /<style>/);
-  assert.match(result.files["index.html"], /<script>/);
+  assert.match(result.files["index.html"], /<script>/i);
   assert.doesNotMatch(result.files["index.html"], /<script[^>]*\bsrc=/);
   assert.doesNotMatch(result.files["index.html"], /<link[^>]*rel="stylesheet"/);
   assert.doesNotMatch(result.files["index.html"], /tsumu/i);

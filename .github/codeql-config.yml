@@ -1,0 +1,10 @@
+# Apply this file to CodeQL default setup with the repository property:
+# github-codeql-config-file: ./.github/codeql-config.yml
+#
+# Keep CodeQL's default security queries enabled. The additional official
+# suppression query recognizes a source-level, rule-specific annotation for
+# an intentional public-network fetch in lib/safe-fetch.ts; no vulnerability
+# category is globally excluded.
+packs:
+  javascript:
+    - codeql/javascript-queries:AlertSuppression.ql

@@ -9,6 +9,7 @@ import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
+import { codeLiteral } from "./generator/code-literal";
 
 /* ---------- 実行ランタイム ---------- */
 
@@ -1847,7 +1848,7 @@ export function scriptsFile(doc: SiteDoc, clientData = false): string {
     ...(domain ? { sharedDomain: domain } : {}),
     ...(hardNav.length ? { hardNav } : {}),
   };
-  const env = Object.keys(envObj).length ? JSON.stringify(envObj) : "";
+  const env = Object.keys(envObj).length ? codeLiteral(envObj) : "";
   const start = clientData
     ? `Promise.resolve(window.__pageDataReady).then(function (vars) { (${runtime})(${env}).install(document, vars); });`
     : `(${runtime})(${env}).install(document);`;

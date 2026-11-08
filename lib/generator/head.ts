@@ -3,6 +3,7 @@
  */
 
 import { jsxHtmlString } from "./render-helpers";
+import { codeLiteral } from "./code-literal";
 
 /** HTML の属性名 → React の属性名（head に書かれるもの） */
 const HEAD_ATTR_NAMES: Record<string, string> = {
@@ -73,7 +74,7 @@ export function headHtmlToJsx(html: string, indent: string): string {
       } else {
         // React の型に無い属性（language・scheme など）は、そのまま書くと型チェックで公開のビルドが止まる。
         // 展開で渡せば型の検査を受けず、HTML の属性としてそのまま出る
-        out.push(` {...{ ${JSON.stringify(name)}: ${value === undefined ? '""' : JSON.stringify(decodeEntities(value))} }}`);
+        out.push(` {...{ ${codeLiteral(name)}: ${value === undefined ? '""' : codeLiteral(decodeEntities(value))} }}`);
       }
     }
     return out.join("");
@@ -89,7 +90,7 @@ export function headHtmlToJsx(html: string, indent: string): string {
       const body = m[3];
       out.push(
         body.trim()
-          ? `${indent}<${tag}${attrsJsx(m[2])}\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(body)} }}\n${indent}/>`
+          ? `${indent}<${tag}${attrsJsx(m[2])}\n${indent}  dangerouslySetInnerHTML={{ __html: ${codeLiteral(body)} }}\n${indent}/>`
           : `${indent}<${tag}${attrsJsx(m[2])} />`
       );
     } else {

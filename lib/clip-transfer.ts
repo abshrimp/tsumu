@@ -148,10 +148,31 @@ export function parseClipPayload(raw: string | null | undefined): ClipPayload | 
   }
 }
 
+/** Extract plain text without leaving nested tag-shaped fragments behind. */
+function clipboardText(html: string): string {
+  let result = "";
+  for (let index = 0; index < html.length;) {
+    if (html[index] !== "<") { result += html[index++]; continue; }
+    let end = index + 1;
+    let quote = "";
+    for (; end < html.length; end++) {
+      const ch = html[end];
+      if (quote) { if (ch === quote) quote = ""; }
+      else if (ch === "'" || ch === '"') quote = ch;
+      else if (ch === ">") break;
+    }
+    if (end === html.length) { result += html[index++]; continue; }
+    const tag = html.slice(index, end + 1);
+    if (/^<br(?:\s[^<>]*)?\s*\/?>$/i.test(tag)) result += "\n";
+    index = end + 1;
+  }
+  return result;
+}
+
 /** 要素の文字（ほかのアプリに貼り付けたときに出す） */
 function plainText(nodes: DocNode[]): string {
   return nodes
-    .map((n) => (n.text?.content ?? "").replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").trim())
+    .map((n) => clipboardText(n.text?.content ?? "").trim())
     .filter(Boolean)
     .join("\n");
 }

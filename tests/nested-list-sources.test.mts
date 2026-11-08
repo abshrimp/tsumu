@@ -1,3 +1,4 @@
+import { stripMarkup } from "./helpers/strip-markup";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
@@ -45,7 +46,7 @@ function fixture() {
       pageVars: previewDataVars(state().doc, "p"), preview: true, fieldValues: {},
       clientVars: plan.clientVars, listOps: plan.listOps, setFieldValue() {}, refresh() {}, navigate() {},
     } }, React.createElement(NodeView, { id: "products", isTop: true })));
-    return html.replace(/<[^>]+>/g, "");
+    return stripMarkup(html);
   };
   return { id, dropdown, preview };
 }
@@ -117,7 +118,7 @@ async function publishedText() {
     }, mod, mod.exports);
     cache.set(file, mod.exports); return mod.exports;
   };
-  return renderToStaticMarkup(await load("app/page.tsx").default()).replace(/<[^>]+>/g, "");
+  return stripMarkup(renderToStaticMarkup(await load("app/page.tsx").default()));
 }
 
 for (const [from, expected] of [

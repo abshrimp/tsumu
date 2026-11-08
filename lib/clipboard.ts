@@ -1,24 +1,37 @@
 import { tr } from "./i18n";
+import DOMPurify from "dompurify";
 /** Figma / Illustratorなどから渡されたSVGを安全な画像として扱える形にする。 */
 export function sanitizeClipboardSvg(source: string): string {
+  // Reject XML entity declarations before parsing and bound oversized paste payloads.
+  if (source.length > 2 * 1024 * 1024 || /<!\s*(?:doctype|entity)\b/i.test(source)) {
+    throw new Error(tr("SVGデータが壊れています"));
+  }
   const start = source.search(/<svg\b/i);
   const end = source.toLowerCase().lastIndexOf("</svg>");
   if (start < 0 || end < start) throw new Error(tr("SVGデータを読み取れませんでした"));
 
   const raw = source.slice(start, end + 6);
-  const parsed = new DOMParser().parseFromString(raw, "image/svg+xml");
-  if (parsed.querySelector("parsererror")) {
-    throw new Error(tr("SVGデータが壊れています"));
-  }
-  const svg = parsed.documentElement;
-  if (svg.tagName.toLowerCase() !== "svg") throw new Error(tr("SVGではありません"));
+  // DOMPurify sanitizes unsafe SVG markup before we apply the editor's stricter
+  // attribute and CSS policy. Avoid parsing untrusted XML with DOMParser.
+  const cleaned = DOMPurify.sanitize(raw, {
+    RETURN_DOM: true,
+    USE_PROFILES: { svg: true, svgFilters: true },
+    FORBID_TAGS: [
+      "script", "foreignObject", "iframe", "object", "embed", "applet",
+      "meta", "link", "base", "set", "animate", "animateMotion", "animateTransform",
+      "handler", "listener",
+    ],
+  });
+  const root = cleaned instanceof Element ? cleaned : null;
+  const svg = root?.localName === "svg" ? root : root?.querySelector("svg");
+  if (!svg) throw new Error(tr("SVGではありません"));
 
   const blockedTags = new Set([
     "script", "foreignobject", "iframe", "object", "embed", "applet",
     "meta", "link", "base", "set", "animate", "animatemotion", "animatetransform",
     "handler", "listener",
   ]);
-  for (const element of Array.from(parsed.querySelectorAll("*"))) {
+  for (const element of [svg, ...Array.from(svg.querySelectorAll("*"))]) {
     if (blockedTags.has(element.localName.toLowerCase())) {
       element.remove();
     }
@@ -34,7 +47,7 @@ export function sanitizeClipboardSvg(source: string): string {
       });
 
   const safeDataImage = /^data:image\/(?:png|jpe?g|gif|webp|avif|bmp)[;,]/i;
-  for (const element of Array.from(parsed.querySelectorAll("*"))) {
+  for (const element of [svg, ...Array.from(svg.querySelectorAll("*"))]) {
     for (const attr of Array.from(element.attributes)) {
       const name = attr.name.toLowerCase();
       const value = attr.value.trim();
@@ -52,7 +65,7 @@ export function sanitizeClipboardSvg(source: string): string {
       }
     }
   }
-  parsed.querySelectorAll("style").forEach((style) => {
+  svg.querySelectorAll("style").forEach((style) => {
     style.textContent = safeCss(style.textContent ?? "");
   });
 
@@ -79,10 +92,17 @@ export function hasClipboardArtwork(data: DataTransfer): boolean {
   return /<img\b[^>]*src=["']data:image\//i.test(html) || /^data:image\//i.test(plain.trim());
 }
 
-async function dataUrlFile(dataUrl: string): Promise<File> {
-  const blob = await fetch(dataUrl).then((response) => response.blob());
-  const ext = blob.type.split("/")[1]?.replace("jpeg", "jpg") || "png";
-  return new File([blob], `pasted-artwork.${ext}`, { type: blob.type });
+function dataUrlFile(dataUrl: string): File {
+  // Clipboard images are local bytes, not network URLs. Decode only bounded
+  // base64 image data rather than passing arbitrary clipboard input to fetch().
+  const match = /^data:image\/(png|jpe?g|gif|webp|avif|bmp);base64,([A-Za-z0-9+/]*={0,2})$/i.exec(dataUrl);
+  if (!match || match[2].length > 24 * 1024 * 1024) {
+    throw new Error(tr("SVGデータを読み取れませんでした"));
+  }
+  const bytes = Uint8Array.from(atob(match[2]), (char) => char.charCodeAt(0));
+  const mime = match[1].toLowerCase() === "jpg" ? "jpeg" : match[1].toLowerCase();
+  const ext = mime === "jpeg" ? "jpg" : mime;
+  return new File([bytes], `pasted-artwork.${ext}`, { type: `image/${mime}` });
 }
 
 /** クリップボードから、アップロード可能な安全な画像ファイルを1件取り出す。 */

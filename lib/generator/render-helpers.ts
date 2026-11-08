@@ -18,6 +18,7 @@ import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, keepTokens, walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
 import { type JsxContext } from "./render";
+import { codeLiteral } from "./code-literal";
 
 export function pageHref(ctx: JsxContext, pageId: string): string {
   const page = ctx.doc.pages[pageId];
@@ -160,12 +161,12 @@ export function raiseOverCrispSvg(doc: SiteDoc): void {
 /** 項目がまだないお手本では、参照名と必要な代替値だけを渡す。 */
 function scriptReference(ctx: JsxContext, token: string, raw: boolean): string {
   const base = ctx.varsExpr ?? "vars";
-  const name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
+  const name = codeLiteral(token), head = codeLiteral(token.split(".")[0]);
   if (ctx.liveNames.has(token.split(".")[0])) return `{ name: ${name} }`;
   ctx.usesLookup = true;
   const value = raw
     ? `lookupVar({ ...${base} }, ${name}) ?? null`
-    : `interpolate(${JSON.stringify(`{${token}}`)}, { ...${base} })`;
+    : `interpolate(${codeLiteral(`{${token}}`)}, { ...${base} })`;
   return `{ name: ${name}, ...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: ${value} } : {}) }`;
 }
 
@@ -173,11 +174,11 @@ function scriptExpression(ctx: JsxContext, value: string): string {
   const parts: string[] = [];
   let end = 0;
   for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g)) {
-    parts.push(JSON.stringify(value.slice(end, m.index)));
-    parts.push(m[0] === "\\{" ? JSON.stringify("{") : scriptReference(ctx, m[1] ?? "slug", false));
+    parts.push(codeLiteral(value.slice(end, m.index)));
+    parts.push(m[0] === "\\{" ? codeLiteral("{") : scriptReference(ctx, m[1] ?? "slug", false));
     end = m.index + m[0].length;
   }
-  parts.push(JSON.stringify(value.slice(end)));
+  parts.push(codeLiteral(value.slice(end)));
   return `{ scriptParts: [${parts.join(", ")}] }`;
 }
 
@@ -206,8 +207,8 @@ export function scriptsAttr(
       // 画面上の変数は {名前} のまま、文字としての「{」は「\{」のまま渡し、ランタイムが置き換える
       const keep = { ...keepTokens(str, ctx.liveNames), [KEEP_ESCAPES]: true };
       const base = ctx.varsExpr ?? "vars";
-      const vars = `{ ...${base}, ...${JSON.stringify(keep)} }`;
-      exprs.push(`${fn}(${JSON.stringify(str)}, ${vars})`);
+      const vars = `{ ...${base}, ...${codeLiteral(keep)} }`;
+      exprs.push(`${fn}(${codeLiteral(str)}, ${vars})`);
       return `__script_var_${exprs.length - 1}__`;
     },
     false,
@@ -220,7 +221,7 @@ export function scriptsAttr(
       }
       if (ctx.liveNames.has(name.split(".")[0])) return undefined;
       ctx.usesLookup = true;
-      exprs.push(`lookupVar(${ctx.varsExpr ?? "vars"}, ${JSON.stringify(name)}) ?? null`);
+      exprs.push(`lookupVar(${ctx.varsExpr ?? "vars"}, ${codeLiteral(name)}) ?? null`);
       return `__script_var_${exprs.length - 1}__`;
     }
   );
@@ -244,8 +245,8 @@ export function scriptsAttr(
     }
   };
   for (const script of compiled) useScalarLengthFallback(script.steps as Array<Record<string, unknown>>);
-  const json = JSON.stringify(compiled);
-  if (!exprs.length) return ` data-scripts={${JSON.stringify(json)}}`;
+  const json = codeLiteral(compiled);
+  if (!exprs.length) return ` data-scripts={${codeLiteral(json)}}`;
   ctx.usesInterpolate = true;
   const code = json
     .replace(/"raw":"__script_raw_ref_(\d+)__"/g, (_, i) => `"rawRef":${exprs[Number(i)]}`)
@@ -294,7 +295,7 @@ function filterExpr(v: string, op: ScriptOp, w: string): string {
 
 /** 項目の値を読む式（"address.city" のような入れ子の位置は lookupVar で読む） */
 export function fieldExpr(item: string, field: string): string {
-  const key = JSON.stringify(field);
+  const key = codeLiteral(field);
   return field.includes(".")
     ? `lookupVar(${item}, ${key})`
     : `(Object.prototype.hasOwnProperty.call(${item}, ${key}) ? ${item}[${key}] : undefined)`;
@@ -330,8 +331,8 @@ export function filterPredicate(ops: ListOp[], base: string): string | null {
   if (!filters.length) return null;
   const expr = (c: FilterCond) => {
     const w = hasVars(c.value)
-      ? `interpolate(${JSON.stringify(c.value)}, ${base})`
-      : JSON.stringify(c.value);
+      ? `interpolate(${codeLiteral(c.value)}, ${base})`
+      : codeLiteral(c.value);
     const positive = filterExpr(safeFieldTextExpr(fieldExpr("item", c.field)), c.op, w);
     return c.not ? `!(${positive})` : positive;
   };
@@ -360,19 +361,19 @@ export function dynamicOrigin(url: string): boolean {
 /** 取得ブロックのリクエストの設定を、生成コードの式にする（すべて既定なら null） */
 export function fetchInitExpr(st: Extract<ScriptStep, { kind: "fetch" }>): string | null {
   const method = st.method && st.method !== "GET" ? st.method : undefined;
-  const str = (v: string) => (hasVars(v) ? `interpolate(${JSON.stringify(v)}, vars)` : JSON.stringify(v));
+  const str = (v: string) => (hasVars(v) ? `interpolate(${codeLiteral(v)}, vars)` : codeLiteral(v));
   const headers = (st.headers ?? [])
     .filter((h) => h.name.trim())
-    .map((h) => `${JSON.stringify(h.name.trim())}: ${str(h.value)}`);
+    .map((h) => `${codeLiteral(h.name.trim())}: ${str(h.value)}`);
   if (needsJsonType(st)) headers.push(`"Content-Type": "application/json"`);
   const body = sendsBody(method) && st.body?.trim()
     ? hasVars(st.body)
-      ? `interpolateJson(${JSON.stringify(st.body)}, vars)`
-      : JSON.stringify(st.body)
+      ? `interpolateJson(${codeLiteral(st.body)}, vars)`
+      : codeLiteral(st.body)
     : null;
   if (!method && !headers.length) return null;
   const parts = [
-    method ? `method: ${JSON.stringify(method)}` : "",
+    method ? `method: ${codeLiteral(method)}` : "",
     headers.length ? `headers: { ${headers.join(", ")} }` : "",
     body ? `body: ${body}` : "",
   ].filter(Boolean);
@@ -386,7 +387,7 @@ export function listItemsExpr(
   from: string,
   ops: ListOp[]
 ): string {
-  let code = `toItems(lookupVar(${base}, ${JSON.stringify(from)}))`;
+  let code = `toItems(lookupVar(${base}, ${codeLiteral(from)}))`;
   const pred = filterPredicate(ops, base);
   if (pred) code += `.filter((item) => ${pred})`;
   for (const o of ops) {
@@ -461,7 +462,7 @@ export function smartLinkComponent(doc: SiteDoc): string {
 import type { ComponentPropsWithoutRef } from "react";
 
 /** Next.js のページではないURL（リダイレクト・外部サイトの中継・HTMLページ） */
-const HARD_NAV: RegExp[] = [${patterns.map((p) => `new RegExp(${JSON.stringify(p)})`).join(", ")}];
+const HARD_NAV: RegExp[] = [${patterns.map((p) => `new RegExp(${codeLiteral(p)})`).join(", ")}];
 
 /**
  * サイト内のページ（/〜）は Link でページ遷移を速くし、外部URLや Next.js のページではないURLは

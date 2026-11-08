@@ -67,6 +67,36 @@ test("SVG paste preserves sanitized artwork, dimensions and styling in one Undo/
   await page.evaluate(() => (window as any).pasteEditor.getState().redo()); expect((await snapshot(page)).doc).toEqual(after.doc);
 });
 
+test("SVG paste rejects DTD declarations and entity expansion", async ({ page }) => {
+  await page.evaluate(() => {
+    const malicious = '<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&x;</text></svg>';
+    const data = new DataTransfer();
+    data.items.add(new File([malicious], "entities.svg", { type: "image/svg+xml" }));
+    document.body.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true, cancelable: true, clipboardData: data,
+    }));
+  });
+  await expect(page.getByText("SVGデータが壊れています", { exact: true })).toBeVisible();
+  await uploads(page, 0);
+});
+
+test("SVG paste strips root events, script nodes and remote style references", async ({ page }) => {
+  await page.evaluate(() => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12" onload="alert(1)"><script>alert(1)</script><rect style="fill:url(https://evil.test/x.svg)" width="20" height="10"/></svg>';
+    const data = new DataTransfer();
+    data.items.add(new File([svg], "unsafe.svg", { type: "image/svg+xml" }));
+    document.body.dispatchEvent(new ClipboardEvent("paste", {
+      bubbles: true, cancelable: true, clipboardData: data,
+    }));
+  });
+  await uploads(page, 1);
+  const cleaned = await page.evaluate(() => (window as any).uploads[0].file.text());
+  expect(cleaned).not.toMatch(/onload|<script|alert\(|https:\/\/evil\.test/i);
+  expect(cleaned).toMatch(/<rect\b/i);
+  await finish(page);
+  await settled(page);
+});
+
 for (const delay of ["decode", "upload"]) for (const change of ["page", "selection", "component", "undo", "delete", "unmount"]) {
   test(`${change} during ${delay} preserves the original intent and newer history`, async ({ page }) => {
     await page.evaluate(() => (window as any).pasteEditor.getState().updateNode("b", { name: "Manual edit" }));
