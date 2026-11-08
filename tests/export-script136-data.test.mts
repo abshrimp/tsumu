@@ -21,8 +21,14 @@ function fixture() {
       transform: { kind: "length" } },
     { id: "math", kind: "transform", source: "size", into: "total",
       transform: { kind: "math", operation: "add", operand: "offset", operandType: "variable" } },
-    { id: "lookup", kind: "transform", source: "items", into: "selected",
-      transform: { kind: "find", field: "id", operation: "eq", operand: "second", operandType: "text" } },
+    { id: "empty-selected", kind: "set-var", value: "null", into: "selected" },
+    { id: "lookup", kind: "for-each", array: "items", then: [
+      { id: "match-id", kind: "if", cond: { subject: "var", target: "",
+        left: "{ループ.値.id}", op: "eq", value: "second" }, then: [
+        { id: "selected", kind: "set-var", into: "selected", value: "{ループ.値}" },
+        { id: "stop", kind: "break-loop" },
+      ] },
+    ] },
     { id: "each", kind: "for-each", array: "items", then: [
       { id: "per-item", kind: "transform", source: "price", into: "lastPrice",
         transform: { kind: "math", operation: "multiply", operand: 2 } },
@@ -63,8 +69,8 @@ test("the #136 document exports its pure transform, nested loop, conditions and 
   const { doc, page } = fixture();
   const plan = pageDataPlan(doc, page);
   assert.deepEqual(plan.steps.map((step) => step.kind), [
-    "fetch", "transform", "transform", "transform", "transform",
-    "for-each", "if", "repeat",
+    "fetch", "transform", "transform", "transform", "set-var",
+    "for-each", "for-each", "if", "repeat",
   ]);
   assert.ok(!JSON.stringify(plan).includes("editor"));
   const sandbox: Record<string, any> = {
@@ -107,7 +113,7 @@ test("exported HTML carries the #136 page plan and executable data runtime", () 
   const planSource = html.split("data-page-plan>")[1]?.split("</script>")[0];
   assert.ok(planSource, "The generated HTML must embed a serializable page plan");
   const exported = JSON.parse(planSource);
-  assert.equal(exported.steps.filter((s: { kind: string }) => s.kind === "transform").length, 4);
+  assert.equal(exported.steps.filter((s: { kind: string }) => s.kind === "transform").length, 3);
   assert.ok(project.files["data-loader.js"].includes("runPurePageSteps"));
   assert.ok(project.files["data-loader.js"].includes("evaluateValueRecipe"));
 });
@@ -135,22 +141,19 @@ test("generated browser event runtime retains #136 transform and list-display ac
   assert.ok(project.files["scripts.js"].includes("list-display"));
 });
 
-test("new #136 object-entries produces named entry rows in generated browser and SSR engines", async () => {
-  const value = evaluateValueRecipe({ a: 1, b: 2 }, [{
-    kind: "object-entries", keyField: "property", valueField: "content",
-  }], {});
-  assert.equal(value.kind, "value");
-  if (value.kind === "value") {
-    assert.deepEqual(JSON.parse(JSON.stringify(value.value)), [
-      { property: "a", content: 1 }, { property: "b", content: 2 },
-    ]);
-  }
+
+test("dictionary entries are expanded into rows using ordinary loops in generated SSR", async () => {
   const { doc, page } = fixture();
   page.pageScripts = [{ id: "entries-page", trigger: "load", pos: { x: 0, y: 0 },
     steps: [
       { id: "remote", kind: "fetch", as: "record", url: "https://data.example.test/record" },
-      { id: "entries", kind: "transform", source: "record", into: "pairs",
-        transform: { kind: "object-entries", keyField: "property", valueField: "content" } },
+      { id: "empty", kind: "set-var", into: "pairs", value: "[]" },
+      { id: "entries", kind: "for-each", array: "record", then: [
+        { id: "init", kind: "set-var", into: "entry", value: "{}" },
+        { id: "property", kind: "set-list-item", list: "entry", key: "property", value: "{ループ.キー}" },
+        { id: "content", kind: "set-list-item", list: "entry", key: "content", value: "{ループ.値}" },
+        { id: "append", kind: "set-list-item", list: "pairs", key: "", value: "{entry}" },
+      ] },
     ],
   }] as unknown as typeof page.pageScripts;
   doc.pages = { [page.id]: page };
@@ -167,14 +170,10 @@ test("new #136 object-entries produces named entry rows in generated browser and
     JSON.stringify({ first: 1, second: 2 }), { status: 200,
       headers: { "Content-Type": "application/json" } },
   ));
-  const output = plan.steps.find((step: { kind: string }) => step.kind === "transform");
-  assert.ok(output);
-  assert.ok(Array.isArray(vars[output.into]));
-  assert.deepEqual(JSON.parse(JSON.stringify(vars[output.into])), [
+  assert.deepEqual(JSON.parse(JSON.stringify(vars.pairs)), [
     { property: "first", content: 1 }, { property: "second", content: 2 },
   ]);
 });
-
 test("export preserves #136 variable references after obfuscating a transformation chain", async () => {
   const { doc, page } = fixture();
   page.pageScripts = [{ id: "chain", trigger: "load", pos: { x: 0, y: 0 },
@@ -265,13 +264,14 @@ test("#136 if condition arrays are serialized into emitted event scripts", () =>
 });
 
 
-test("#136 missing value clears stale data before a following fallback", () => {
+
+test("missing field values clear stale data before a following fallback", () => {
   const vars: Record<string, unknown> = {
     records: [{ name: "first" }], selected: "stale",
   };
   const steps = [
-    { kind: "transform", source: "records", into: "selected",
-      transform: { kind: "find", field: "name", operation: "eq", operand: "unknown" } },
+    { kind: "transform", source: "records.0", into: "selected",
+      transform: { kind: "field", key: "unknown" } },
     { kind: "transform", source: "selected", into: "selected",
       transform: { kind: "fallback", text: "not found" } },
   ];
@@ -279,7 +279,6 @@ test("#136 missing value clears stale data before a following fallback", () => {
     (scope, name) => lookupVar(scope, name), interpolate, evaluateValueRecipe), true);
   assert.equal(vars.selected, "not found");
 });
-
 test("#136 blank additional if clauses are ignored when evaluating exported page data", () => {
   const vars: Record<string, unknown> = { enabled: "yes" };
   const steps = [{
@@ -371,28 +370,19 @@ test("latest #136 empty OR filtering preserves group boundaries in browser and S
 });
 
 
-test("#136 unconfigured transformation conditions remain neutral and retain OR boundaries", () => {
-  const unfinished = { field: "", operation: "eq" as const, operand: "", configured: false };
-  const yes = { field: "", operation: "eq" as const, operand: "yes", and: true };
-  assert.deepEqual(evaluateValueRecipe("yes", [{
-    kind: "compare", operation: "eq", operand: "yes",
-    conditions: [{ ...unfinished, and: true }],
-  }], {}), { kind: "value", value: true });
-  assert.deepEqual(evaluateValueRecipe("no", [{
-    kind: "compare", operation: "eq", operand: "yes",
-    conditions: [{ ...unfinished, and: false }, yes],
-  }], {}), { kind: "value", value: false });
-  assert.deepEqual(evaluateValueRecipe("yes", [{
-    kind: "compare", operation: "eq", operand: "no",
-    conditions: [{ ...unfinished, and: false }, yes],
-  }], {}), { kind: "value", value: true });
-  const rows = [{ state: "yes", role: "user" },
-    { state: "no", role: "admin" }, { state: "no", role: "user" }];
-  assert.deepEqual(evaluateValueRecipe(rows, [{
-    kind: "filter", field: "state", operation: "eq", operand: "yes",
-    conditions: [
-      { ...unfinished, and: false },
-      { field: "role", operation: "eq", operand: "admin", and: true },
-    ],
-  }], {}), { kind: "value", value: rows.slice(0, 2) });
+test("unfinished if conditions remain neutral and preserve OR groups", () => {
+  const unfinished = { subject: "var", target: "", left: "", op: "eq", value: "", and: false };
+  const yes = { subject: "var", target: "", left: "{status}", op: "eq", value: "yes", and: true };
+  for (const [status, accepted] of [["yes", true], ["no", false]] as const) {
+    const vars: Record<string, unknown> = { status };
+    const steps = [{
+      kind: "if",
+      cond: { subject: "var", target: "", left: "{status}", op: "eq", value: "no", not: true },
+      conditions: [unfinished, yes],
+      then: [{ kind: "set-var", into: "accepted", value: "true" }],
+      else: [{ kind: "set-var", into: "accepted", value: "false" }],
+    }];
+    assert.equal(runPurePageSteps(steps as any, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+    assert.equal(vars.accepted, accepted);
+  }
 });
