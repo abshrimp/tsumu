@@ -579,6 +579,10 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       // Inputs can contain a literal value, a list, one raw reference, or mixed text.
       function readInput(raw, self, scope) {
+        // Generated client scripts wrap mixed text in scriptParts objects.
+        // Resolve them as expressions, not as literal list payloads.
+        if (raw && typeof raw === "object" && Array.isArray(raw.scriptParts))
+          return resolve(raw, self, scope);
         if (typeof raw !== "string") return raw;
         var source = raw.trim();
         var reference = /^\\{([^{}\\s"'<>]+)\\}$/.exec(source);
