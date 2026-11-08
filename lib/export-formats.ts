@@ -6,8 +6,8 @@ import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
 import { toSingleHtmlProject } from "./generator/single-html";
 import { applyExportStyle } from "./generator/style-export";
-import { assetSrc } from "./assets";
-import { zipAssetClosure, zipCssUrl, zipStylesheet } from "./zip-css";
+import { zipAssetClosure } from "./zip-css";
+import { scopedAssetIds } from "./generator/scoped-assets";
 import { tr } from "./i18n";
 
 export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
@@ -47,18 +47,6 @@ function optionsOf(options: ExportFormat | ExportOptions): ExportOptions {
     : options;
 }
 
-// JSON-serialized HTML/CSS can quote or escape a URL; a longer filename or
-// base64 payload must never pull a different, shorter private asset into a ZIP.
-function containsAssetReference(source: string, ref: string): boolean {
-  if (!ref) return false;
-  for (let i = source.indexOf(ref); i >= 0; i = source.indexOf(ref, i + ref.length)) {
-    const before = source[i - 1] ?? "", after = source[i + ref.length] ?? "";
-    if ((!before || !/[a-z0-9_.%+-]/i.test(before)) &&
-        (!after || /[\s"'\\)<>&#?,]/.test(after))) return true;
-  }
-  return false;
-}
-
 /**
  * Partial exports must not contain other pages' editable nodes or unrelated
  * assets. Reusing the complete SiteDoc in an exported ZIP exposes unpublished
@@ -87,37 +75,13 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
   for (const page of Object.values(doc.pages)) {
     for (const id of page.children ?? []) collectNode(id);
   }
-  const assetIds = new Set<string>();
-  const walkAssetRefs = (value: unknown, depth = 0) => {
-    if (depth > 50 || !value || typeof value !== "object") return;
-    if (Array.isArray(value)) {
-      for (const child of value) walkAssetRefs(child, depth + 1);
-      return;
-    }
-    for (const [key, child] of Object.entries(value)) {
-      if (key === "assetId" && typeof child === "string" &&
-          Object.prototype.hasOwnProperty.call(doc.assets, child)) assetIds.add(child);
-      else if (key !== "assets") walkAssetRefs(child, depth + 1);
-    }
-  };
   const scoped: SiteDoc = {
     ...doc, nodes, components,
     assets: {},
     pageFolders: doc.pageFolders?.filter((folder) =>
       Object.values(doc.pages).some((page) => page.folderId === folder.id)),
   };
-  walkAssetRefs(scoped);
-  // Custom CSS and raw HTML may refer to a stored asset by its relative path.
-  const renderedSource = JSON.stringify(scoped);
-  for (const [id, asset] of Object.entries(doc.assets)) {
-    const src = assetSrc(asset);
-    if (containsAssetReference(renderedSource, src) ||
-        (zipStylesheet(asset) && containsAssetReference(renderedSource, zipCssUrl(id))) ||
-        (asset.path && containsAssetReference(renderedSource, asset.path)) ||
-        (asset.name && containsAssetReference(renderedSource, "assets/" + asset.name))) {
-      assetIds.add(id);
-    }
-  }
+  const assetIds = scopedAssetIds(scoped, doc.assets);
   const assets: SiteDoc["assets"] = Object.create(null);
   for (const id of zipAssetClosure(doc.assets, assetIds)) assets[id] = doc.assets[id];
   return { ...scoped, assets };
