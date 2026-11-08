@@ -38,7 +38,7 @@ function pickDeep<T>(base: T | undefined, local: T | undefined, remote: T | unde
   if ((base !== undefined && !isPlain(base)) || !isPlain(local) || !isPlain(remote)) return local;
   // 同時に初めて追加した設定・スタイルの別々の項目も残す。
   // null やスカラーからの置き換えは、通常の競合としてローカルを優先する。
-  const before = base === undefined ? {} : base;
+  const before: Record<string, unknown> = isPlain(base) ? base : {};
   const out: Record<string, unknown> = {};
   for (const key of new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(before)])) {
     const v = pickDeep(before[key], local[key], remote[key]);
