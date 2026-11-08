@@ -578,7 +578,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/clist*/
       }
       // Inputs can contain a literal value, a list, one raw reference, or mixed text.
-      function inputValue(raw, self, scope) {
+      function readInput(raw, self, scope) {
         if (typeof raw !== "string") return raw;
         var source = raw.trim();
         var reference = /^\\{([^{}\\s"'<>]+)\\}$/.exec(source);
@@ -596,7 +596,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#var*/
         if (c.subject === "var") {
           if (!c.left || !String(c.left).trim()) return false;
-          var matched = matchValueCondition(inputValue(c.left, self, sc), c.op || "eq", inputValue(c.value, self, sc));
+          var matched = matchValueCondition(readInput(c.left, self, sc), c.op || "eq", readInput(c.value, self, sc));
           return c.not ? !matched : matched;
         }
         /*/var*/
@@ -1245,7 +1245,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               var entry = {
                 key: key, no: st.no, join: st.join,
                 conds: st.conds.map(function (c) {
-                  return { field: c.field, op: c.op, value: inputValue(c.value, self, sc), not: c.not, and: c.and };
+                  return { field: c.field, op: c.op, value: readInput(c.value, self, sc), not: c.not, and: c.and };
                 }),
               };
               var at = -1;
@@ -1308,9 +1308,9 @@ export const SCRIPT_RUNTIME = `function (env) {
             var sourceList = getVar(st.list);
             if (!sourceList || typeof sourceList !== "object") break;
             var providedKey = typeof st.key === "string" && st.key.trim() !== "";
-            var rawKey = providedKey ? inputValue(st.key, self, sc) : undefined;
+            var rawKey = providedKey ? readInput(st.key, self, sc) : undefined;
             if (providedKey && (rawKey === null || typeof rawKey !== "string" && typeof rawKey !== "number")) break;
-            var newValue = inputValue(st.value, self, sc);
+            var newValue = readInput(st.value, self, sc);
             if (Array.isArray(sourceList)) {
               var nextArray = sourceList.slice();
               var targetIndex = providedKey ? Number(rawKey) : nextArray.length;
@@ -1342,7 +1342,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             }
             // {名前} だけなら値をそのまま入れる（配列はリストで並べられる配列のまま）
             var sv = /^\\{([^{}\\s"'<>]+)\\}$/.exec(String(st.value || "").trim());
-            setVar(st.into, sv ? lookup(sv[1].trim(), self, sc) : inputValue(st.value, self, sc));
+            setVar(st.into, sv ? lookup(sv[1].trim(), self, sc) : readInput(st.value, self, sc));
             break;
           }
           /*/setvar*/
