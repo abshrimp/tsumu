@@ -59,7 +59,7 @@ One editor can manage as many sites as you like. Each site has its own editing d
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/en/responsive.png" alt="Editing the phone layout"><br><sub><b>Responsive editing</b></sub></td>
-    <td width="50%"><b>Scripts without code</b><p>Compose Value/List operations with conditions and loops.</p></td>
+    <td width="50%"><img src="docs/screenshots/en/scripts.png" alt="Script editor with click and page-open blocks"><br><sub><b>Scripts without code</b>: "when → do" blocks</sub></td>
   </tr>
 </table>
 
