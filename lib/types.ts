@@ -195,6 +195,7 @@ export type ScriptOp =
   | "lt"
   | "lte"
   | "empty"
+  | "has-key"
   /** 「,」区切りの値・配列のどれかと同じ */
   | "in";
 
@@ -272,6 +273,8 @@ export type ScriptStep = { id: string } & (
       /** 全サブドメインで共有するクッキーを先に読む */
       shared?: boolean;
     }
+  | { kind: "set-list-item"; list: string; key: string; value: string }
+  | { kind: "break-loop" }
   | {
       /**
        * 値を変数に入れる（{変数} と文字を混ぜて書ける）。
