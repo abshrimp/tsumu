@@ -14,10 +14,10 @@ test("MCP connection has its own editor menu dialog, not a Settings section", as
   await expect(page.locator('[data-tutorial="menu"] > button')).toBeVisible();
   await page.locator('[data-tutorial="menu"] > button').click();
   const menuItems = page.locator(".dd-menu .dd-item");
-  await expect(menuItems.filter({ hasText: "MCP接続" })).toBeVisible();
-  await menuItems.filter({ hasText: "MCP接続" }).click();
+  await expect(menuItems.filter({ hasText: "AIと接続（MCP）" })).toBeVisible();
+  await menuItems.filter({ hasText: "AIと接続（MCP）" }).click();
 
-  await expect(page.locator(".modal-backdrop .modal > h2")).toHaveText("MCP接続");
+  await expect(page.locator(".modal-backdrop .modal > h2")).toHaveText("AIと接続（MCP）");
   await expect(page.locator(".modal-backdrop .settings-sec h3")).toHaveText("AIと接続");
   await expect(page.getByRole("button", { name: "接続を開始" })).toBeVisible();
   await page.locator(".modal-backdrop .modal-actions button").click();

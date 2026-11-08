@@ -75,7 +75,7 @@ const ja: Dict = {
   "Page created but browser saving failed. Check Tsumu before retrying.": "ページは作成されましたが、ブラウザへの保存に失敗しました。再試行する前にTsumuで確認してください。",
   "Importing site": "サイトを取り込み中",
   // Optional external AI editing (MCP)
-  "MCP connection": "MCP接続",
+  "MCP connection": "AIと接続（MCP）",
   "Connect an AI app": "AIと接続",
   "Connect ChatGPT, Claude or Cursor to this site without a Tsumu account. Keep this editor tab open while using AI.": "Tsumuにログインせずに、このサイトをChatGPT・Claude・Cursorなどから操作できます。AIを使用している間は、この編集タブを開いておいてください。",
   "Allow editing (not publishing or deleting assets)": "編集を許可する（公開・アセット削除は含みません）",
