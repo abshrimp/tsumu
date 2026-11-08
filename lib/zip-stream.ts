@@ -7,10 +7,22 @@ export class ZipEntryTooLargeError extends Error {
   }
 }
 
+// JSZip exposes internalStream at runtime, but the installed type declaration
+// does not include this streaming API. Keep its surface explicitly typed here.
+interface ZipByteStream {
+  on(event: "data", callback: (chunk: Uint8Array) => void): ZipByteStream;
+  on(event: "error", callback: (error: Error) => void): ZipByteStream;
+  on(event: "end", callback: () => void): ZipByteStream;
+  pause(): ZipByteStream;
+  resume(): ZipByteStream;
+}
+
 /** Stop decompression as soon as its *actual* output exceeds the limit. */
 export function readZipEntryLimited(entry: JSZip.JSZipObject, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
   return new Promise((resolve, reject) => {
-    const stream = entry.internalStream("uint8array");
+    const stream = (entry as JSZip.JSZipObject & {
+      internalStream(type: "uint8array"): ZipByteStream;
+    }).internalStream("uint8array");
     const chunks: Uint8Array[] = [];
     let length = 0;
     let settled = false;
