@@ -38,13 +38,13 @@ export function planPublish(
   const plan: PublishPlan = { edited: [], clashing: [], kept: {} };
   const outputs = new Set(output);
   for (const [path, sha] of Object.entries(blobs)) {
-    // Only valid paths in the publication namespace can be carried forward.
-    if (path === GENERATED_MANIFEST_PATH || !isSafeCommitPath(path)) continue;
+    // Tsumu's publication metadata is managed by the editor, not a user-authored file.
+    if (!isSafeCommitPath(path) || path.startsWith(MANAGED_DIR)) continue;
     if (generated && Object.hasOwn(generated, path)) {
       if (generated[path] !== sha) plan.edited.push(path);
     } else if (outputs.has(path)) {
       plan.clashing.push(path);
-    } else if (!path.startsWith(MANAGED_DIR)) {
+    } else {
       plan.kept[path] = sha;
     }
   }
