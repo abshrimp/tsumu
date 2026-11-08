@@ -712,7 +712,7 @@ function findsList(value: unknown, depth = 0): boolean {
 }
 
 /** 上書きできない変数名（ページのURLの slug、リストの各要素の 値） */
-export const RESERVED_VARS = new Set(["slug", ITEM_VALUE]);
+export const RESERVED_VARS = new Set(["slug", ITEM_VALUE, "ループ"]);
 
 /** 変数名の入力（同じ名前ならその変数を上書きする。名前を変えると、使っている箇所も書き換える） */
 export function VarNameIn({
