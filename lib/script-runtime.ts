@@ -1319,7 +1319,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             // An explicitly missing local variable must not fall back to stale server data
             // or a similarly named element. This keeps connected fallback blocks reliable.
             if (inputValue === undefined && !shadowed &&
-                st.transform.kind !== "fallback" && st.transform.kind !== "fallback-nullish")
+                st.transform.kind !== "fallback")
               inputValue = lookup(st.source, self, sc);
             var transformed = evalRecipe(inputValue, [st.transform], transformScope(st.transform, self, sc));
             if (transformed.kind === "value") setVar(st.into, transformed.value);
