@@ -177,8 +177,10 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
     encodeURIComponent(font.value).replace(/%20/g, "+") +
     ':wght@' + (font.google?.weights?.length ? font.google.weights.join(";") : "400") +
     '&display=swap");');
+  const cssQuoted = (value: string) => '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
+    "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
   const fontVariables = fonts.filter((font) => /^--[\w-]+$/.test(font.google!.cssVar))
-    .map((font) => "  " + font.google!.cssVar + ': "' + font.value.replace(/"/g, '\\"') + '", sans-serif;');
+    .map((font) => "  " + font.google!.cssVar + ": " + cssQuoted(font.value) + ", sans-serif;");
   files["src/globals.css"] = fontImports.join("\n") + "\n" +
     (fontVariables.length ? ":root {\n" + fontVariables.join("\n") + "\n}\n" : "") +
     next.files["app/globals.css"];

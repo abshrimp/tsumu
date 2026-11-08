@@ -12,7 +12,9 @@ import { userMessage } from "../../../lib/errors";
 
 export const maxDuration = 30;
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Bound untrusted input and avoid ambiguous regex backtracking.
+const EMAIL_RE = /^[^\s@]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63})+$/;
+const validEmail = (email: string): boolean => email.length <= 254 && EMAIL_RE.test(email);
 
 /** 認証済みの自分のメールアドレスを返す。使えない場合はレスポンスを返す */
 async function requireMe(): Promise<string | NextResponse> {
@@ -72,7 +74,7 @@ export async function POST(req: Request) {
   } catch {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
-  if (!EMAIL_RE.test(email)) {
+  if (!validEmail(email)) {
     return NextResponse.json(
       { error: tr("メールアドレスの形式が正しくありません") },
       { status: 400 }
@@ -107,7 +109,7 @@ export async function DELETE(req: Request) {
   const email = (new URL(req.url).searchParams.get("email") ?? "")
     .trim()
     .toLowerCase();
-  if (!email) {
+  if (!validEmail(email)) {
     return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
   }
   if (email === me) {

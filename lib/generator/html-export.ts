@@ -374,6 +374,12 @@ export function reactClientPageFragment(doc: SiteDoc, page: Page): string {
   return pageFragment(ctx, ctx.page);
 }
 
+/** Quote a font name as a single CSS string token. */
+function cssQuoted(value: string): string {
+  return '"' + value.replace(/[\x00-\x1f\x7f"\\]/g, (char) =>
+    "\\" + char.codePointAt(0)!.toString(16) + " ") + '"';
+}
+
 function fontsCss(doc: SiteDoc): string {
   const fonts = usedGoogleFonts(doc);
   const imports = fonts.map((f) => {
@@ -382,8 +388,8 @@ function fontsCss(doc: SiteDoc): string {
       encodeURIComponent(f.value).replace(/%20/g, "+") + ':wght@' +
       (g.weights?.length ? g.weights.join(";") : "400") + '&display=swap");';
   });
-  const variables = fonts.map((f) =>
-    "  " + f.google!.cssVar + ': "' + f.value.replace(/"/g, '\\"') + '", sans-serif;');
+  const variables = fonts.filter((f) => /^--[\w-]+$/.test(f.google!.cssVar)).map((f) =>
+    "  " + f.google!.cssVar + ": " + cssQuoted(f.value) + ", sans-serif;");
   return imports.join("\n") + (variables.length ? "\n:root {\n" + variables.join("\n") + "\n}" : "");
 }
 
