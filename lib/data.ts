@@ -862,12 +862,10 @@ export function sameKey(value: unknown, key: string): boolean {
 
 /** オブジェクトの配列だけを一覧の項目として取り出す */
 export function toItems(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter(
-        (x): x is Record<string, unknown> =>
-          x != null && typeof x === "object" && !Array.isArray(x)
-      )
-    : [];
+  if (!value || typeof value !== "object") return [];
+  return Object.values(value).map((item) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? item as Record<string, unknown> : { [ITEM_VALUE]: item });
 }
 
 export interface PreviewOpts {
