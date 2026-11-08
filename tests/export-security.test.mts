@@ -239,12 +239,12 @@ test("latest #136 filters, sorts and generated expressions avoid unsafe object c
       { field: "value", op: "eq", value: "[object Object]" },
     ] },
   ]);
-  assert.deepEqual(selected, [items[0]]);
+  assert.deepEqual(selected, [], "a list value must not equal a display string");
   assert.deepEqual(filterItems(items, [
     { kind: "filter", conds: [
       { field: "value", op: "eq", value: "x,,y" },
     ] },
-  ]), [items[2]]);
+  ]), [], "list equality is structural rather than comma-joined");
   const filters = filterConds({
     kind: "list-display", id: "filter-conditions", mode: "filter", array: "items",
     field: "value", op: "eq", value: "none", dir: "asc" as const,
