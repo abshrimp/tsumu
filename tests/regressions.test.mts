@@ -150,7 +150,10 @@ test("generated components avoid framework names and the exported project typech
     id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
       { id: "fetch", kind: "fetch", url: "https://example.com/?q={q}", as: "items" },
       { id: "dyn", kind: "fetch", url: "{api}/items", as: "more" },
-      { id: "map", kind: "transform", source: "items", into: "titles", transform: { kind: "map-field", field: "title" } },
+      { id: "titles-init", kind: "set-var", value: "[]", into: "titles" },
+      { id: "map", kind: "for-each", array: "items", then: [
+        { id: "write-title", kind: "set-list-item", list: "titles", key: "", value: "{ループ.値.title}" },
+      ] },
       { id: "join", kind: "transform", source: "titles", into: "titles", transform: { kind: "join", separator: "," } },
       { id: "split", kind: "transform", source: "titles", into: "parts", transform: { kind: "split", separator: "," } },
     ],
