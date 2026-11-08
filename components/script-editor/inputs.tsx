@@ -9,6 +9,7 @@ import { Fragment, useContext, useMemo, useState, type ReactNode } from "react";
 import { VarInput } from "../controls";
 import { dataVarNames, fieldLabel, flattenFields, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
 import { lookupVar, splitRegexVars } from "../../lib/vars";
+import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
 import { fieldVarName, isRadioItem } from "../../lib/fields";
 import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
@@ -302,19 +303,16 @@ export function FieldValueIn({
   );
 }
 
-/** 正規表現として読めなければ true（{変数} は値が決まるまで分からないため空として確かめる） */
+/** Reject malformed or unsafe regex syntax using the same checks as exported runtime. */
 export function regexError(pattern: string): boolean {
-  try {
-    new RegExp(
-      splitRegexVars(pattern)
-        .map((p) => (p.var !== undefined ? "" : p.text))
-        .join(""),
-      "g"
-    );
-    return false;
-  } catch {
-    return true;
-  }
+  // Dynamic variables are unknown until execution, so validate literal parts here.
+  const literal = splitRegexVars(pattern)
+    .map((part) => part.var !== undefined ? "" : part.text)
+    .join("");
+  const result = evaluateValueRecipe("", [{
+    kind: "replace", find: literal, replacement: "", regex: true,
+  }]);
+  return result.kind === "error";
 }
 
 export function NewTabCheck({
