@@ -212,6 +212,8 @@ test("linked CSS @imports and external JS module files are preserved and resolve
   expect(generated.binaries[importedAssetPath(chunk)!]).toBeTruthy();
   expect(generated.binaries[importedAssetPath(main)!]).toBeTruthy();
 
+  // The URL changes before the editor loads the imported site and shows its notices.
+  await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
   const notice = page.locator(".dialog-backdrop");
   await expect(notice).toContainText("インポート時の注意事項");
   await notice.getByRole("button", { name: "OK", exact: true }).click();
