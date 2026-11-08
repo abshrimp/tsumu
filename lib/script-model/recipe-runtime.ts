@@ -361,20 +361,24 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         case "sort": {
           if (absent) break;
           const field = textParam(step.field, 256);
-          if (!Array.isArray(current) || !field.ok || current.length > 10000 ||
+          if (!current || typeof current !== "object" || !field.ok ||
               (step.direction !== "asc" && step.direction !== "desc"))
             return failure("type-mismatch");
-          const pairs: { item: unknown; key: string | number; order: number }[] = [];
+          const array = Array.isArray(current);
+          const entries = Object.entries(current);
+          if (entries.length > 10000 || (array && current.length > 10000))
+            return failure("limit-exceeded");
+          const pairs: { item: unknown; sourceKey: string; key: string | number; order: number }[] = [];
           let keyType: string | undefined;
-          for (let i = 0; i < current.length; i++) {
-            const item = current[i];
+          for (let i = 0; i < entries.length; i++) {
+            const [sourceKey, item] = entries[i];
             const key = valueAt(item, field.value);
             if (key === undefined) return failure("missing-value");
             if (typeof key !== "number" && typeof key !== "string") return failure("type-mismatch");
             if (typeof key === "number" && !Number.isFinite(key)) return failure("type-mismatch");
             if (keyType !== undefined && keyType !== typeof key) return failure("type-mismatch");
             keyType = typeof key;
-            pairs.push({ item, key, order: i });
+            pairs.push({ item, sourceKey, key, order: i });
           }
           pairs.sort((a, b) => {
             // The list-display block uses natural Japanese collation for text
@@ -385,7 +389,10 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             if (step.direction === "desc") order *= -1;
             return order || a.order - b.order;
           });
-          current = pairs.map((p) => p.item);
+          // A dictionary cannot preserve arbitrary sort order in numeric-like keys.
+          // Return explicit key/value rows; an array retains its original element shape.
+          current = array ? pairs.map((p) => p.item) :
+            pairs.map((p) => ({ "キー": p.sourceKey, "値": p.item }));
           break;
         }
         default: return failure("invalid-recipe");
