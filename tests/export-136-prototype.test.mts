@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
-import { digPath } from "../lib/data";
+import { digPath, filterItems } from "../lib/data";
 import { lookupVar } from "../lib/vars";
-import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
+import { matchesValueCondition } from "../lib/value-semantics";
 import { PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
 import { nativeDataModule } from "../lib/generator/native-data";
 
@@ -21,7 +21,7 @@ test("#136 JSON lookups ignore inherited properties but keep own special keys", 
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
 });
 
-test("#136 filter comparisons agree for arrays, missing fields and null", () => {
+test("typed list comparisons distinguish arrays, missing fields, and null", () => {
   const values = [
     { tags: ["x", "y"], name: "A" },
     { tags: ["x", null, "y"], name: null },
@@ -29,17 +29,14 @@ test("#136 filter comparisons agree for arrays, missing fields and null", () => 
     { tags: [], value: { toString: "not callable" } },
     {},
   ];
-  const filter = (field: string, operation: "eq" | "empty", operand: string, not = false) =>
-    evaluateValueRecipe(values, [{ kind: "filter", field, operation, operand, not }]);
-  const list = (result: ReturnType<typeof filter>) =>
-    result.kind === "value" ? result.value : result;
-  assert.deepEqual(list(filter("tags", "eq", "x,y")), [values[0]]);
-  assert.deepEqual(list(filter("name", "empty", "")), values.slice(1));
-  assert.deepEqual(list(filter("name", "empty", "", true)), [values[0]]);
-  const object = evaluateValueRecipe(values[3].value, [{
-    kind: "compare", operation: "eq", operand: "[object Object]",
-  }]);
-  assert.deepEqual(object, { kind: "value", value: true });
+  const filter = (field: string, op: "eq" | "empty", value: string, not = false) =>
+    filterItems(values, [{ kind: "filter", conds: [{ field, op, value, not }] }]);
+  assert.deepEqual(filter("tags", "eq", '["x","y"]'), [values[0]]);
+  assert.deepEqual(filter("tags", "eq", "x,y"), [], "display-text equality is not structural equality");
+  assert.deepEqual(filter("name", "empty", ""), values.slice(1));
+  assert.deepEqual(filter("name", "empty", "", true), [values[0]]);
+  assert.equal(matchesValueCondition(values[3].value, "eq", "[object Object]"), false);
+  assert.equal(matchesValueCondition(values[3].value, "eq", { toString: "not callable" }), true);
 });
 
 test("generated browser and SSR engines avoid inherited-key reads and nested __proto__ writes", async () => {
@@ -89,7 +86,7 @@ test("#136 gte/lte list-display filters yield identical browser and SSR results"
   const plan = {
     steps: [{ id: "fetch", kind: "fetch", as: "items", url: "/api/rows.json" }],
     listOps: { items: [
-      { kind: "filter", conds: [{ field: "tag", op: "eq", value: "x,y" }] },
+      { kind: "filter", conds: [{ field: "tag", op: "eq", value: '["x","y"]' }] },
       { kind: "filter", conds: [
         { field: "score", op: "gte", value: "10" },
         { field: "score", op: "lte", value: "20", and: true },
