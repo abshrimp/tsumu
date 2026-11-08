@@ -568,30 +568,18 @@ test.beforeEach(async ({ page }, testInfo) => {
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
 });
 
-test("canvas supports object-to-list field names and dynamic dictionary key input", async ({ page }) => {
+test("canvas uses direct dictionary keys without a conversion type", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push(
-        { id: "dictionary-rows", kind: "transform", source: "data", into: "rows",
-          transform: { kind: "field", key: "" } },
         { id: "dictionary-key", kind: "transform", source: "data", into: "value",
           transform: { kind: "field", key: "" } },
       );
     });
   });
-  const rows = page.locator('[data-sel-key="step:dictionary-rows"]');
-  await rows.getByRole("combobox", { name: "加工の種類" }).selectOption("object-entries");
-  await expect(rows.getByPlaceholder("キーの項目名")).toHaveValue("キー");
-  await expect(rows.getByPlaceholder("値の項目名")).toHaveValue("値");
-  await rows.getByPlaceholder("キーの項目名").fill("日付");
-  await rows.getByPlaceholder("キーの項目名").blur();
-  await rows.getByPlaceholder("値の項目名").fill("祝日名");
-  await rows.getByPlaceholder("値の項目名").blur();
-  await expect.poll(() => page.evaluate(() => {
-    const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
-    return steps.find((step: any) => step.id === "dictionary-rows").transform;
-  })).toMatchObject({ kind: "object-entries", keyField: "日付", valueField: "祝日名" });
   const lookup = page.locator('[data-sel-key="step:dictionary-key"]');
+  await expect(lookup.getByRole("combobox", { name: "加工の種類" })
+    .locator('option[value="object-entries"]')).toHaveCount(0);
   const key = lookup.getByRole("combobox", { name: "取り出す項目名" });
   await expect(key).toHaveAttribute("placeholder", "項目名 / {変数}");
   await key.fill("{selectedDate}");
@@ -752,7 +740,7 @@ test("canvas list-display block switches filter, sort and clear without changing
 });
 
 
-test("canvas repeat number arrows increment by one and wait/repeat can use variables", async ({ page }) => {
+test("canvas wait/repeat accept numbers and variables in one field", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push(
@@ -762,44 +750,39 @@ test("canvas repeat number arrows increment by one and wait/repeat can use varia
     });
   });
   const repeat = page.locator('[data-sel-key="step:repeat-count"]');
-  const number = repeat.getByRole("spinbutton");
-  await expect(number).toHaveAttribute("step", "1");
-  await number.fill("3");
-  await number.press("ArrowUp");
-  await number.blur();
+  const repeatValue = repeat.getByPlaceholder("数値 / {変数}");
+  await expect(repeat.getByRole("combobox", { name: "値の指定方法" })).toHaveCount(0);
+  await repeatValue.fill("4");
+  await repeatValue.blur();
   await expect.poll(() => page.evaluate(() =>
     (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
       .find((step: any) => step.id === "repeat-count").times)).toBe(4);
 
-  await repeat.getByRole("combobox", { name: "値の指定方法" }).selectOption("variable");
-  await repeat.getByPlaceholder("{変数}").fill("data.price");
-  await repeat.getByPlaceholder("{変数}").blur();
+  await repeatValue.fill("{data.price}");
+  await repeatValue.blur();
   await expect.poll(() => page.evaluate(() =>
     (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
       .find((step: any) => step.id === "repeat-count").times)).toBe("{data.price}");
 
   const wait = page.locator('[data-sel-key="step:wait-seconds"]');
-  await wait.getByRole("combobox", { name: "値の指定方法" }).selectOption("variable");
-  await wait.getByPlaceholder("{変数}").fill("data.price");
-  await wait.getByPlaceholder("{変数}").blur();
+  await wait.getByPlaceholder("数値 / {変数}").fill("{data.price}");
+  await wait.getByPlaceholder("数値 / {変数}").blur();
   await expect.poll(() => page.evaluate(() =>
     (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
       .find((step: any) => step.id === "wait-seconds").seconds)).toBe("{data.price}");
 });
 
-test("canvas math supports selecting an existing variable as the arithmetic operand", async ({ page }) => {
+test("canvas math accepts a variable without an operand type picker", async ({ page }) => {
   const box = page.locator('[data-sel-key="step:numeric"]');
-  await box.getByRole("combobox", { name: "計算する値の種類" }).selectOption("variable");
-  await box.getByRole("button", { name: "計算する変数" }).click();
-  const menu = page.locator(".se-pm").last();
-  await expect(menu).toBeVisible();
-  await menu.locator(".se-pm-row").filter({ hasText: "data" }).first().locator(".dd-item").click();
+  await expect(box.getByRole("combobox", { name: "計算する値の種類" })).toHaveCount(0);
+  const operand = box.getByPlaceholder("計算する値 / {変数}");
+  await operand.fill("{data.price}");
+  await operand.blur();
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "numeric").transform;
-  })).toMatchObject({ kind: "math", operandType: "variable", operand: "data" });
+  })).toMatchObject({ kind: "math", operandType: "variable", operand: "data.price" });
 });
-
 
 test("canvas list value transforms use one input without literal type dropdowns", async ({ page }) => {
   await page.evaluate(() => {
