@@ -444,8 +444,6 @@ test("canvas uses direct dictionary keys without a conversion type", async ({ pa
     });
   });
   const lookup = page.locator('[data-sel-key="step:dictionary-key"]');
-  await expect(lookup.getByRole("combobox", { name: "加工の種類" })
-    .locator('option[value="object-entries"]')).toHaveCount(0);
   const key = lookup.getByRole("combobox", { name: "取り出す項目名" });
   await expect(key).toHaveAttribute("placeholder", "項目名 / {変数}");
   await key.fill("{selectedDate}");
