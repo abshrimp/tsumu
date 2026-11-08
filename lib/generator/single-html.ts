@@ -57,7 +57,7 @@ export async function toSingleHtmlProject(
           foundBase = true;
           try {
             const url = new URL(href.value, EXPORT_BASE);
-            if (url.protocol !== "data:" && url.protocol !== "javascript:") base = url;
+            if (url.protocol === "https:" || url.protocol === "http:") base = url;
           } catch { /* Invalid base uses the document URL. */ }
         }
       }

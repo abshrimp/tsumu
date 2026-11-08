@@ -180,3 +180,13 @@ test("repeated candidates in one srcset fail before an oversized attribute is as
   await assert.rejects(toSingleHtmlProject({ files, binaries: { "pic.png": "A".repeat(1024 * 1024) }, remoteAssets: {} }),
     /srcset exceeds/);
 });
+
+test("non-HTTP base schemes cannot redirect resource resolution", async () => {
+  for (const href of ["vbscript:ignored", "javascript:ignored", "data:text/plain,ignored", "file:///tmp/"]) {
+    const { files } = await toSingleHtmlProject({
+      files: { "index.html": '<base href="' + href + '"><img src=pic.png>' },
+      binaries: { "pic.png": "AQ==" }, remoteAssets: {},
+    });
+    assert.match(files["index.html"], /src="data:image\/png;base64,AQ=="/);
+  }
+});
