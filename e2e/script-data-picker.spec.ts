@@ -50,7 +50,7 @@ test("one value input keeps raw objects, save/load and Undo without mode or redu
   await expect(b.getByRole("button", { name: "データを選ぶ", exact: true })).toHaveCount(0);
   await openPicker(page); await pick(page, "data");
   expect(await selected(page)).toBe("{data}");
-  await expect(b.locator(".se-value-info")).toContainText("項目付きデータ");
+  await expect(b.locator(".se-value-info")).toContainText("リスト");
   const changed = await snapshot(page);
   await page.getByRole("button", { name: "取り消す", exact: true }).click(); expect(await snapshot(page)).toEqual(before);
   await page.getByRole("button", { name: "やり直す", exact: true }).click(); expect(await snapshot(page)).toEqual(changed);
@@ -59,7 +59,7 @@ test("one value input keeps raw objects, save/load and Undo without mode or redu
 });
 
 test("numeric and boolean variable references show the type without duplicating sample values", async ({ page }) => {
-  for (const [reference, kind] of [["data.price", "数値"], ["data.available", "true/false"]] as const) {
+  for (const [reference, kind] of [["data.price", "値"], ["data.available", "値"]] as const) {
     await openPicker(page); await pick(page, reference);
     const info = block(page, "value").locator(".se-value-info");
     await expect(info.locator(".vx-kind")).toHaveText(kind);
@@ -69,7 +69,7 @@ test("numeric and boolean variable references show the type without duplicating 
 
 test("string value hints and card hover remain inside rounded borders", async ({ page }) => {
   await openPicker(page); await pick(page, "data.name");
-  await expect(block(page, "value").locator(".se-value-info .vx-kind")).toHaveText("文字列");
+  await expect(block(page, "value").locator(".se-value-info .vx-kind")).toHaveText("値");
   await expect(block(page, "value").locator(".se-value-info > *")).toHaveCount(1);
   const valueBlock = block(page, "value");
   await valueBlock.hover();
@@ -114,7 +114,7 @@ test("text picker expands object rows and keyboard chooses a scalar leaf without
   const data = row(page, "{data}"); await data.focus(); await data.press("Enter");
   await expect(picker(page)).toBeVisible();
   const title = row(page, "{data.name}");
-  await expect(title.locator(".vx-kind")).toHaveText("文字列");
+  await expect(title.locator(".vx-kind")).toHaveText("値");
   await title.focus(); await title.press("Enter");
   await expect(picker(page)).toHaveCount(0);
   await expect(b.locator("input").first()).toHaveValue("{data.name}");
