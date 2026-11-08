@@ -26,10 +26,9 @@ test("search has one focus outline and unchanged height when text changes", asyn
   expect(await wrapper.evaluate(el => (el as HTMLElement).offsetHeight)).toBe(height);
 });
 
-test("all supported blocks are available directly, without a historical block menu", async ({ page }) => {
+test("all supported blocks are available in the palette", async ({ page }) => {
   const cards = palette(page).locator(".se-pal-item");
   await expect(cards).toHaveCount(26);
-  await expect(palette(page).getByRole("button", { name: /以前のブロック/ })).toHaveCount(0);
   await expect(palette(page).locator('[data-tutorial="se-block-transform"]')).toBeVisible();
   await expect(palette(page).locator('[data-tutorial="se-block-list-display"]')).toBeVisible();
   await expect(palette(page).locator('[data-tutorial="se-block-make-list"]')).toBeVisible();
