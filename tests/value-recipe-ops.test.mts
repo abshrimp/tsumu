@@ -264,3 +264,10 @@ test("equivalent escaped literals cannot bypass the overlap check on repeated re
     kind: "replace", find, replacement: "x", regex: true,
   }]), { kind: "error", code: "invalid-regex" });
 });
+
+test("join enforces the output budget before inspecting the rest of the list", () => {
+  const parts = ["x".repeat(100_001), "unread"];
+  Object.defineProperty(parts, 1, { get() { throw new Error("should already have stopped"); } });
+  assert.deepEqual(evaluateValueRecipe(parts, [{ kind: "join", separator: "," }]),
+    { kind: "error", code: "limit-exceeded" });
+});

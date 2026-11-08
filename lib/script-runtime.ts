@@ -9,7 +9,7 @@ import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
-import { matchesValueCondition } from "./value-semantics";
+import { matchesValueCondition, setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { codeLiteral } from "./generator/code-literal";
 
 /* ---------- 実行ランタイム ---------- */
@@ -25,6 +25,8 @@ import { codeLiteral } from "./generator/code-literal";
  */
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
+  var writeVarPath = (${setVarPath.toString()});
+  var withinValueLimit = (${withinScriptValueLimit.toString()});
   var matchValueCondition = (${matchesValueCondition.toString()});
   // esbuild may annotate nested functions embedded via toString().
   var __name = function (fn) { return fn; };
@@ -388,35 +390,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         return has(vars, name) ? vars[name] : dig(vars, name);
       }
       function writeVar(name, v) {
-        if (!name) return;
-        // Notify native framework wrappers when browser events update variables.
-        function notify() {
-          if (typeof window !== "undefined" && typeof window.__siteVarsOnChange === "function") {
-            window.__siteVarsOnChange(name, v);
-          }
+        var rootName = writeVarPath(vars, name, v, withinValueLimit);
+        if (rootName === undefined) return false;
+        if (typeof window !== "undefined" && typeof window.__siteVarsOnChange === "function") {
+          window.__siteVarsOnChange(rootName, vars[rootName]);
         }
-        if (name.indexOf(".") < 0 || has(vars, name)) {
-          vars[name] = v;
-          notify();
-          return;
-        }
-        var ks = name.split(".");
-        var cur = vars;
-        for (var i = 0; i < ks.length - 1; i++) {
-          var k = ks[i].trim();
-          var nx = has(cur, k) ? cur[k] : undefined;
-          if (nx == null || typeof nx !== "object" || Array.isArray(nx)) {
-            vars[name] = v;
-            notify();
-            return;
-          }
-          var cp = Object.create(null);
-          for (var ok in nx) if (has(nx, ok)) cp[ok] = nx[ok];
-          cur[k] = cp;
-          cur = cp;
-        }
-        cur[ks[ks.length - 1].trim()] = v;
-        notify();
+        return true;
       }
       // リストのお手本（data-tpl）の中は {名前} が未解決の非表示の複製元なので対象にしない
       function inTpl(el) {
@@ -584,8 +563,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/live*/
       function setVar(name, v) {
-        if (!name) return;
-        writeVar(name, v);
+        if (!name || !writeVar(name, v)) return;
         /*#env*/
         if (env.setVar) env.setVar(name, v);
         /*/env*/

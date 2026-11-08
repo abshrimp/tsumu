@@ -60,14 +60,23 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       const value = valueAt(variables, single[1]);
       return value === undefined ? { ok: false } : { ok: true, value };
     }
-    const output = template.replace(/\\\{|\{([^{}\s"'<>]+)\}/g, (token, path: string | undefined) => {
-      if (token.charAt(0) === "\\") return "{";
-      if (regexPattern && /^\d+(,\d*)?$/.test(path ?? "")) return token;
-      const v = valueAt(variables, path ?? "");
-      const asText = (value: unknown): string =>
-        value == null || typeof value === "object" ? "" : String(value);
-      return Array.isArray(v) ? v.map(asText).filter(Boolean).join(", ") : asText(v);
-    });
+    let output = "", end = 0;
+    for (const match of template.matchAll(/\\\{|\{([^{}\s"'<>]+)\}/g)) {
+      output += template.slice(end, match.index);
+      end = match.index + match[0].length;
+      if (!match[1]) { output += "{"; continue; }
+      if (regexPattern && /^\d+(,\d*)?$/.test(match[1])) { output += match[0]; continue; }
+      const value = valueAt(variables, match[1]);
+      let separator = "";
+      for (const item of Array.isArray(value) ? value : [value]) {
+        if (item == null || typeof item === "object" || item === "") continue;
+        const part = String(item);
+        if (output.length + separator.length + part.length > max) return { ok: false };
+        output += separator + part;
+        separator = ", ";
+      }
+    }
+    output += template.slice(end);
     return output.length <= max ? { ok: true, value: output } : { ok: false };
   };
   const textParam = (template: string, max: number, regexPattern = false):
@@ -321,13 +330,18 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (absent) break;
           const delimiter = textParam(step.separator, 256);
           if (!current || typeof current !== "object" || !delimiter.ok) return failure("type-mismatch");
-          const values = Object.values(current);
-          if (values.length > 10000) return failure("limit-exceeded");
+          const keys = Object.keys(current);
+          if (keys.length > 10000) return failure("limit-exceeded");
           const pieces: string[] = [];
-          for (const part of values) {
+          let length = 0;
+          for (const key of keys) {
+            const part = (current as Record<string, unknown>)[key];
             if (part === null || part === "") continue;
             if (!scalar(part)) return failure("type-mismatch");
-            pieces.push(String(part));
+            const text = String(part);
+            length += text.length + (pieces.length ? delimiter.value.length : 0);
+            if (length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
+            pieces.push(text);
           }
           current = pieces.join(delimiter.value);
           break;

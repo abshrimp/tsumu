@@ -9,7 +9,7 @@ import { idVarNodesOf, obfuscateVarNames, pagePlan } from "./data";
 import { hasRunnableScripts, listFilterFields, scriptTargetIds } from "./script";
 import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
-import { runPurePageSteps } from "./page-load-steps";
+import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
 import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
@@ -421,7 +421,7 @@ export default function manifest(): MetadataRoute.Manifest {
     files["lib/page-load-steps.ts"] =
       "// @ts-nocheck\n" +
       "const __name = (fn) => fn;\n" +
-      "export const runPurePageSteps = (" + runPurePageSteps.toString() + ");\n";
+      "export const runPurePageSteps = " + PAGE_STEP_RUNNER_SOURCE + ";\n";
   }
 
   const loading = doc.loadingScreen?.enabled ? doc.loadingScreen : null;
