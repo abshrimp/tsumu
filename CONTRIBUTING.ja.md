@@ -38,6 +38,15 @@ npm run test:e2e
 
 Cloudflare 連携の部分に手を入れた場合は、`npm run build:worker` もあわせて実行してください。これらのチェックがデプロイを行うことはありません。
 
+出力形式（`lib/export-formats.ts`・`lib/generator/`）に手を入れた場合は、影響するフレームワークのサンプルを生成してビルドしてください（CI では、すべてのフレームワークを TypeScript と JavaScript の両方で確認しています）。
+
+```sh
+node --import tsx scripts/smoke-export-build.mts <nextjs|react|vue|nuxt|sveltekit> [typescript|javascript]
+(cd .generated-export-smoke && npm install && npm run build)
+```
+
+`lib/safe-fetch.ts` を変更した場合は、`node --import tsx scripts/sync-fetch-runtime.mts` で、書き出すサイトに埋め込む写し（`lib/generator/safe-fetch-source.ts`）を作り直してください。
+
 ## 問題の報告
 
 再現できる不具合や機能の提案は、[Issues](https://github.com/abshrimp/tsumu/issues) で受け付けています。報告の際は、次の内容を書いていただけると調査がはかどります。

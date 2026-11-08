@@ -11,16 +11,17 @@ Everything the editor knows about a site is a single JSON value: `SiteDoc` (`lib
 - The editor UI reads and changes it.
 - The collaboration layer syncs it.
 - The AI proposes edits to it.
-- The generator turns it into a Next.js project.
+- The generator turns it into a Next.js project, and the other output formats are derived from that.
+- Imports turn a Tsumu zip, a `doc.json` or plain HTML back into it.
 
 Once you understand `SiteDoc`, you can find your way around everything else.
 
 ```
            ┌────────── edit (zustand store, undo) ────────────┐
            │                                                  │
- Canvas / panels ──▶ SiteDoc ──▶ generator ──▶ files ──▶ GitHub (main / preview)
+ Canvas / panels ──▶ SiteDoc ──▶ generator ──▶ files ──▶ GitHub (main / preview) or zip
            ▲            │  ▲                                  │
-           │            │  └─ AI ops (validated on a copy)    └─▶ any Next.js host
+           │            │  └─ AI ops (validated on a copy)    └─▶ any host
            │            ▼
            └── D1 + Durable Object (save, three-way merge, live updates)
 ```
@@ -37,7 +38,7 @@ Once you understand `SiteDoc`, you can find your way around everything else.
 
 A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also have content (`text`, `image`, `field`, `media`, `list`, …), `styles`, `scripts` and `motions`.
 
-- **Styles** are stored as `styles[breakpoint][state][cssProperty]`. The state is `default`, `hover`, `active` or `focus`, and every value is a plain CSS string.
+- **Styles** are stored as `styles[breakpoint][state][cssProperty]`. The state is `default`, `hover`, `active`, `focus` or a named state `custom:<name>`, and every value is a plain CSS string. A named state applies while the element's `data-site-state` attribute holds that name; the `set-state` script step sets it (`lib/custom-states.ts`).
 - **Scripts** are data, not code: a trigger followed by steps (`Script`, `ScriptStep`). `lib/script.ts` defines the model. `lib/script-runtime.ts` is the runtime, shared by the canvas preview and exported sites; the generator keeps only the runtime features a site actually uses.
 - **Lists** repeat a template child once for each item in an array. The array comes from a fetch step or from static data. A list can also generate a detail page per item (such as `/news/[slug]`).
 
@@ -51,8 +52,10 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 | Editor state, undo/redo | `lib/store.ts` (zustand). Every change goes through the store, so that undo and sync both see it. |
 | Canvas and panels | `components/Canvas.tsx` and `canvas/` (CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`)<br>`LeftPanel.tsx` and `left-panel/` (one file per tab)<br>`StylePanel.tsx` and `style-panel/` (one file per section)<br>`ScriptEditor.tsx` and `script-editor/` (palette, blocks, step bodies, inputs, `useScriptDrag`, `useScriptEditorKeys`)<br>`SitePanel.tsx` |
 | Style model → CSS | `lib/style.ts`, `lib/breakpoints.ts`, `lib/motion.ts`, `lib/keyframes.ts` |
-| Generator | `lib/generator.ts`. `generateProject(doc, target)` returns `{ files, binaries, remoteAssets }`. Its parts live in `lib/generator/`: `names.ts`, `css.ts`, `render.ts` (with `render-helpers.ts`), `page.ts`, `head.ts`, `templates.ts`. |
-| Publish | `components/PublishModal.tsx` (client) → `app/api/publish/route.ts` (GitHub Git Data API). See [Publishing](#publishing). |
+| Generator | `lib/generator.ts`. `generateProject(doc, target)` returns the Next.js project as `{ files, binaries, remoteAssets }`. Its parts live in `lib/generator/`: `names.ts`, `css.ts`, `render.ts` (with `render-helpers.ts`), `page.ts`, `head.ts`, `templates.ts`. |
+| Output formats | `lib/export-formats.ts` and the rest of `lib/generator/`. See [Output formats](#output-formats). |
+| Publish and zip export | `components/PublishModal.tsx` (client) → `app/api/publish/route.ts` (GitHub Git Data API). See [Publishing](#publishing).<br>`ExportModal` in `components/Header.tsx` → `lib/exportZip.ts` |
+| Import | `lib/import-site-file.ts` (new site from a file), `lib/site-import.ts` (Tsumu zip and `doc.json`), `lib/portable-doc.ts` (compact `doc.json`), `lib/html-to-site.ts` with `html-file-import.ts` and `html-zip.ts` (HTML). See [Imports](#imports). |
 | Pre-publish checks | `runChecks` in `lib/generator/checks.ts`: broken links, alt text, heading order, small text, overflow |
 | Persistence | `lib/doc-storage.ts`: D1, one row per site, optimistic `rev`<br>`lib/local-storage.ts`: fallback when there's no D1<br>`lib/kv.ts`: assets<br>`lib/node-storage.ts`: SQLite and files when running outside Cloudflare |
 | Collaboration | `custom-worker.ts`: one Durable Object per site, over WebSocket<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
@@ -93,7 +96,7 @@ This section covers sites whose records are kept in the browser.
 
 A publish takes four steps:
 
-1. The client generates the project and adds `_tsumu/doc.json`, a copy of the doc used for restoring edits and rolling back.
+1. The client generates the project in the selected format (`prepareExportProject`) and adds `_tsumu/doc.json`, a copy of the doc used for restoring edits and rolling back.
 2. It asks the server for the branch's current tree (`action: "tree"`). Assets whose blob SHA is already there aren't uploaded again; `_tsumu/assets.json` maps storage keys to SHAs.
 3. Large files and assets are uploaded one request each (`action: "upload"`). This keeps each request under the Workers free-plan subrequest limit.
 4. The client commits (`action: "commit"`). The server builds the tree in chunks and moves the branch.
@@ -111,7 +114,37 @@ On a first publish, every existing file is treated as hand-added: unrelated file
 
 Rollback (`app/api/publish/history/route.ts`) commits an older tree again on top of the branch, so history is never rewritten.
 
-## HTML ZIP imports
+## Output formats
+
+`prepareExportProject(doc, options, target)` in `lib/export-formats.ts` is the single pipeline behind both publishing and the zip export, so the two always produce the same files.
+
+1. **Scope.** `exportScopeDoc` narrows the doc to the current page or the selected element when asked. The narrowed doc keeps only the nodes, components and assets that scope uses, so a partial export never carries other pages' content.
+2. **Limitations.** `exportLimitations` lists the features the chosen format can't express (dynamic paths, redirects, raw HTML pages, credentials in fetches, and so on). The dialogs show them as errors and won't continue.
+3. **Next.js first.** `generateProject` always runs. The other formats are built from its output and the doc:
+
+| Format | Files |
+|---|---|
+| React + Vite | `react-export.ts`, `react-form.ts` |
+| Vue 3 + Vite, Nuxt, SvelteKit | `framework-export.ts` (project files), `native-scaffold.ts` and `native-components.ts` (every node as a native Vue or Svelte element, rendered on the server and hydrated), `native-data.ts`, `vue-ssr.ts` |
+| HTML / CSS / JavaScript | `html-export.ts`, `browser-data.ts` (data loading in the browser), `query-route.ts` (query variants in one static file) |
+| Single HTML | `single-html.ts`, which inlines the HTML export's CSS, scripts and assets |
+
+4. **Language and style.** `javascript-export.ts` converts the TypeScript output of Next.js and React; Vue, Nuxt and SvelteKit are written in the chosen language directly. `style-export.ts` produces CSS Modules or Tailwind CSS.
+5. **Test target.** For a test publish, formats other than Next.js get a `noindex` meta tag and, except Single HTML, `robots.txt` and an `_headers` file.
+
+Generated server code that fetches external data embeds the editor's own SSRF protection. `lib/generator/safe-fetch-source.ts` is a copy of `lib/safe-fetch.ts`; don't edit it by hand, regenerate it with `node --import tsx scripts/sync-fetch-runtime.mts` (a test fails when the two drift). Media and link URLs in every format go through `lib/url-policy.ts`.
+
+## Imports
+
+`createSiteFromFile` in `lib/import-site-file.ts` prepares everything before it creates the site, then saves the doc to the server or to the browser. If saving fails, it removes the assets the attempt uploaded.
+
+- **Tsumu zip or `doc.json`** (`lib/site-import.ts`). A zip must contain exactly one `_tsumu/doc.json`; `_tsumu/assets.json` maps original asset IDs to files in the archive. A `doc.json` may be plain JSON or the compact gzip+Base64 envelope from `lib/portable-doc.ts`. The doc is validated, and its assets are uploaded again with their original IDs. Paths aren't guessed: an asset that the manifest doesn't list, and that has no data URL, becomes a warning. Archive names that escape the root are rejected.
+- **HTML file or website zip** (`lib/html-to-site.ts`). Every page is converted into editable nodes. Classes and a short list of safe attributes are kept (`lib/imported-html-attrs.ts`); event handlers, URL-bearing attributes and Tsumu's internal `data-*` markers never are.
+- **Limits** (`IMPORT_LIMITS`): 100 MB per zip, 12 MB per `doc.json` or HTML file, 500 entries and 300 MB after expansion.
+
+A page's settings in the editor can also load HTML into one page, either converted into nodes or kept as a raw HTML page; the latter is described next.
+
+### HTML ZIP imports
 
 `lib/html-zip.ts` imports a site packaged as a ZIP (up to 200 files). The original files are stored unchanged. For each CSS file, `lib/zip-css.ts` additionally records the archive paths of the files it depends on: relative `url()` resources, `image-set()` images and `@import`s, resolved against the stylesheet's own directory (`lib/zip-references.ts`). Only new imports carry this metadata; older imports aren't migrated, so re-import an old ZIP to get it.
 
@@ -139,6 +172,7 @@ If the user edited the same page while the AI was working, the AI's change is dr
 - **Tests.** New behavior needs a test.
   - Unit tests live in `tests/`. They use Node's built-in test runner through `tsx` and import modules from `lib/` directly.
   - UI flows live in `e2e/` (Playwright). They start the built editor on Node.js with a throwaway `TSUMU_DATA_DIR` and `ALLOW_ANONYMOUS=true`.
+  - Output formats are also built for real in CI: `scripts/smoke-export-build.mts` generates a sample project into `.generated-export-smoke/`, and `check-generated-ssr.mts` and `check-generated-browser.mts` run the result.
 
 ```bash
 npm run typecheck

@@ -23,7 +23,7 @@
   <img src="docs/screenshots/en/editor.png" alt="The Tsumu editor: layers on the left, the page on the canvas, and the style inspector on the right">
 </p>
 
-Tsumu is a visual editor for building websites. You lay out and style pages on a canvas, and Tsumu publishes them to your GitHub repository as a **plain Next.js project**.
+Tsumu is a visual editor for building websites. You lay out and style pages on a canvas, and Tsumu publishes them to your GitHub repository as a **plain project** in the format you choose: Next.js (the default), React, Vue, Nuxt, SvelteKit or build-free HTML (see [Output formats](#output-formats)).
 
 The published site doesn't depend on Tsumu at runtime, so you're never locked in. Host it on Vercel, Netlify, Cloudflare Workers or any Node.js server. You can also add your own code to the site's repository — API routes, components, config — and Tsumu keeps those files the next time you publish.
 
@@ -31,9 +31,10 @@ One editor can manage as many sites as you like. Each site has its own editing d
 
 ## Features
 
-- **Code you own.** The published site is readable Next.js that depends only on `next`, `react` and `react-dom`.
-- **Visual editing.** Flexbox and grid layouts, styles per screen width, hover and active states, motion, components and lists.
-- **Scripts without code.** Build interactions from "when → do" blocks: clicks, menus, scrolling, form input, filtering, sorting and storage.
+- **Code you own.** By default the published site is readable Next.js that depends only on `next`, `react` and `react-dom`. You can also publish or export React + Vite, Vue 3 + Vite, Nuxt, SvelteKit, plain HTML/CSS/JavaScript or a single HTML file, in TypeScript or JavaScript, with plain CSS, CSS Modules or Tailwind CSS.
+- **Visual editing.** Flexbox and grid layouts, styles per screen width, hover, active and focus states plus states you name yourself, motion, components and lists.
+- **Scripts without code.** Build interactions from "when → do" blocks: clicks, menus, scrolling, form input, switching an element's named state, filtering, sorting and storage.
+- **Import.** Restore a Tsumu ZIP or `doc.json` as a new site, or turn an existing HTML file or website ZIP into editable elements.
 - **External data.** Fetch JSON from any API, show it in a list, and generate a detail page for each item (such as `/news/[slug]`).
 - **Real-time collaboration.** Several people can edit at once. Changes merge property by property, you can leave comments on the canvas, and you can see who edited and published.
 - **Publishing through GitHub.** One click commits the generated project. Test publishes go to a separate preview branch that search engines ignore.
@@ -83,7 +84,7 @@ Hosting (your choice)
 There are three moving parts:
 
 - **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded images, video and audio. Uploads are shared by all sites. Where all of this is stored depends on where the editor runs.
-- **The published site** is an ordinary Next.js app, committed to that site's own repository. It does **not** have to run where the editor runs.
+- **The published site** is an ordinary Next.js app (or one of the other [output formats](#output-formats)), committed to that site's own repository. It does **not** have to run where the editor runs.
 - **Test publishing** commits to a second branch of the same repository (`preview` by default). Vercel, Cloudflare Workers Builds and Netlify automatically build non-production branches as previews, so one hosting project covers both the live and the test site. The test build is kept out of search engines with robots.txt, `noindex`, the `X-Robots-Tag` header and crawler blocking.
 
 ## What you need
@@ -94,7 +95,7 @@ Every setting below is **optional**. The editor opens and lets you edit even whe
 |---|---|---|
 | Server storage (D1 and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and images are saved in the browser. Only that browser can see them, and each image is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each image can be up to 25 MB. |
 | Google sign-in (`AUTH_*`) | The editor doesn't open; it shows how to set sign-in up instead. With `ALLOW_ANONYMOUS=true`, or under `npm run dev`, it opens without sign-in — and then **anyone with the URL can edit and publish**. | Only the Google accounts you allow can use the editor. |
-| `GITHUB_TOKEN` | **Publish** explains what to set up. Exporting a zip still works. | Publishes to the repository set in each site's settings. |
+| `GITHUB_TOKEN` | **Publish** explains what to set up. Exporting code as a zip still works. | Publishes to the repository set in each site's settings. |
 | `AI_*` | No **Ask AI** button. | **Ask AI** is available. |
 
 > [!IMPORTANT]
@@ -269,9 +270,61 @@ On the home screen, open a site's **… → Settings** to set the fields below. 
 
 Create the site's repository before the first publish. It can be empty or initialized with a README.
 
+## Output formats
+
+**Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. Next.js is selected each time the dialog opens.
+
+| Framework | What you get | Running it |
+|---|---|---|
+| **Next.js** (default) | Every feature: dynamic paths such as `/news/[slug]`, redirects and reverse proxies, server-side data with ISR, HTML pages | Any Next.js host (see [below](#hosting-the-published-site)) |
+| **React + Vite** | A single-page app. Data is fetched in the browser. | `npm run build`, then serve `dist/` |
+| **Vue 3 + Vite** | Rendered on the server by a small Node.js server, then hydrated | `npm run build && npm start` |
+| **Nuxt** | A server-rendered Nuxt app | `npm run build`, then `node .output/server/index.mjs` |
+| **SvelteKit** | Server-rendered with `@sveltejs/adapter-node` | `npm run build`, then `node build` |
+| **HTML / CSS / JavaScript** | Static files. No npm, no build. | Serve the repository root, or open `index.html` from the zip |
+| **Single HTML** | One page as one HTML file, with CSS, JavaScript, images and fonts embedded | Open or serve the file |
+
+- **Language:** TypeScript or JavaScript. **Style:** CSS, CSS Modules or Tailwind CSS. Tailwind output keeps Tsumu's generated CSS too, so the design doesn't change. The two HTML formats always use JavaScript and CSS.
+- With the HTML formats, external APIs must allow CORS. Opening the files over `file://` has restrictions, so check them on `localhost` or a real host.
+
+Formats other than Next.js can't express everything. The dialog lists what the site uses that the chosen format can't output, and won't export or publish until you change it:
+
+- dynamic paths (`[slug]`) and redirect or reverse-proxy pages;
+- HTML pages (pages written as raw HTML), except in the two HTML formats;
+- data fetches that carry credentials (an `Authorization` header, an API key in the URL or body, and so on), because visitors could read them;
+- a custom `<script>` at the end of the body, in React, Vue, Nuxt and SvelteKit;
+- CSS Modules or Tailwind CSS with the HTML formats;
+- more than one page with Single HTML.
+
+**Publishing** always covers the whole project. Publishing a format other than Next.js to the live site asks for confirmation first, because the repository layout changes and the host's build and output settings must match. Test publishes in every format are kept out of search engines.
+
+**Exporting a zip** can also cover just the **current page** or the **selected component** (the selected element and its children, as a page of their own). Single HTML always exports one page. The zip includes `_tsumu/doc.json` and `_tsumu/assets.json` — the editing data for what you exported — so you can [import](#importing) it again. Don't upload `_tsumu/` to your web server.
+
+> [!NOTE]
+> Publishing also commits the site's full editing data to `_tsumu/doc.json`, including unpublished pages and settings. In a public repository, anyone can read it.
+
+## Importing
+
+On the home screen, click **Import** or drop a file onto the page to create a new site:
+
+| File | Result |
+|---|---|
+| A zip exported from Tsumu (it contains `_tsumu/doc.json`) | The site is restored, with its images and other assets. |
+| A `doc.json` | The site is restored. Assets embedded as data URLs are uploaded. |
+| An HTML file, or a zip of a website | Every HTML page is converted into editable elements. The zip's other files are uploaded as assets and the HTML's paths are rewritten. |
+
+Any warnings, such as assets that couldn't be restored, appear once the new site opens.
+
+In the editor, a page's settings can also load an HTML file or a zip into that page. A normal page converts it into editable elements (after asking before it replaces the page's current elements). An HTML page keeps the HTML as is, using `index.html` from the zip.
+
+Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A zip of a website can hold up to 200 files and 2 MB of CSS, which must be UTF-8.
+
+> [!TIP]
+> `skills/tsumu-site/` is an agent skill that describes the `doc.json` format, so an AI agent can generate a site you then import and keep editing.
+
 ## Hosting the published site
 
-After the first publish, connect the site's repository to a hosting service.
+After the first publish, connect the site's repository to a hosting service. The table below is for the Next.js format; for the other formats, set the host's build and output settings as shown in [Output formats](#output-formats).
 
 | Host | Setup | Test publishes |
 |---|---|---|
@@ -282,7 +335,7 @@ After the first publish, connect the site's repository to a hosting service.
 
 ### Data refresh interval and Cloudflare
 
-Pages that fetch external JSON are rebuilt at the **Data refresh interval** you set in the editor's **Site** tab. How that happens depends on the host:
+In the Next.js format, pages that fetch external JSON are rebuilt at the **Data refresh interval** you set in the editor's **Site** tab. How that happens depends on the host:
 
 - **Standard hosting** (Vercel, Netlify, Node.js) uses Next.js ISR: pages are built ahead of time and regenerated in the background.
 - **Cloudflare Workers** needs an extra incremental cache (R2) and a queue for ISR. Without them, prebuilt pages are never regenerated. To avoid this, go to the editor's **Site** tab and choose **Hosting → Cloudflare Workers**. The editor then exports those pages so they render on every request, and caches the fetched JSON at Cloudflare's edge for the refresh interval instead.
@@ -291,7 +344,7 @@ On any host, an interval of `0` fetches the data on every request.
 
 ### Rollback
 
-**Publish → Publish history & rollback** (or **⋯ → History**) lists the commits on each branch. For any version you can:
+**Publish → Publish history & rollback** (or **⋯ → History & rollback**) lists the commits on each branch. For any version you can:
 
 - **Restore site** — commits the selected version's files again on top of the branch. History is kept, so the rollback itself can be undone.
 - **Restore edits** — loads the editor content that was saved with that publish (`_tsumu/doc.json`). This counts as a normal edit, so ⌘Z reverts it.
@@ -403,8 +456,10 @@ Where to put them:
 **Comments**
 
 - Comments are stored separately from the editing data. They aren't published, they aren't part of undo, and only their authors can edit or delete them.
-- Deleting an element or page keeps its comments. You can still open the full discussion, reply or resolve it from the comment list, and the **Deleted targets only** filter shows just those. If you undo the deletion, the comments reconnect to the restored element, which keeps the same ID. Deleting or hiding the target doesn't discard a reply or new comment you're in the middle of writing.
-- The comment list loads up to 1,000 threads at a time, newest first, with controls to move to older or newer batches. Filters and canvas pins apply to the loaded batch. The discussion you have open stays open while you change batches, and the count in the header covers all unresolved threads. All replies within a discussion still load together.
+- Opening a discussion replaces the list, so both use the panel's full height. A reply or new comment you haven't sent is kept for each discussion until you send or cancel it, even if you go back to the list or change batches.
+- Deleting an element or page keeps its comments. Comments on a deleted element stay in the normal list with a highlighted label; when comments are attached to deleted pages, a notice offers to switch to **All pages**. You can still open, reply to and resolve them. If you undo the deletion, the comments reconnect to the restored element, which keeps the same ID. Deleting or hiding the target doesn't discard a reply or new comment you're in the middle of writing.
+- The panel header has a button that hides the comment pins on the canvas so you can see the design beneath them. Holding ⌥ (Alt) hides them too.
+- The comment list loads up to 1,000 threads at a time, newest first, with controls to move to older or newer batches. Filters and canvas pins apply to the loaded batch. All replies within a discussion load together.
 - If someone deletes a discussion while you're replying to it, your unsent text stays available to copy until you close it. The discussion isn't restored, and you can't submit further replies to it.
 
 **Merging edits**
@@ -425,10 +480,10 @@ Where to put them:
 - **Edits on GitHub are detected.** If someone edited a generated file on GitHub, the editor asks before overwriting it. If you want to keep changing generated files by hand, do it on another branch.
 - **The first publish is careful too.** It keeps existing files and asks before overwriting any file at the same path.
 - **`_tsumu/` is reserved** for Tsumu's metadata. If the list of generated files there is malformed, publishing stops.
-- Page-specific custom code is inserted at the top of the page body, not in `<head>`.
-- On the canvas, custom code and icons are shown sanitized. Their scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
+- Page-specific custom code is inserted at the start and end of the page body, not in `<head>`.
+- On the canvas, custom code and icons are shown sanitized, and iframes in custom code run in a sandbox without the editor's origin. Their scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
 - `next/image` is exported with `unoptimized` so it works on every host.
-- HTML pages (pages written as raw HTML) don't get the shared layout, metadata or custom code.
+- HTML pages (pages written as raw HTML) don't get the shared layout, metadata or custom code. Only the Next.js and HTML formats can output them.
 - After you split text into spans, each span is edited separately.
 - Sign-in supports Google accounts only.
 
@@ -445,16 +500,25 @@ app/
   api/doc/            Per-site editing data and daily backups
   api/comments/       Comment threads on the canvas
   api/activity/       Who edited recently and who published last
-  api/publish/        Generate → commit to GitHub, history and rollback
+  api/publish/        Commit generated files to GitHub, history and rollback
   api/assets/         Uploads, file serving and storage usage
   api/ai/             Ask AI
+  api/collab/         Collaboration: sign-in check for the WebSocket, and Server-Sent Events
+  api/fetch-json/     Fetch a data source for the editor through the server
+  api/allowed-users/  Accounts that can sign in
+  api/status/         Whether sign-in and storage are configured, and who is signed in
 components/           UI (Home, Editor, Canvas, panels, ScriptEditor, HelpCenter, …)
   canvas/ left-panel/ style-panel/ script-editor/   Parts of the large components
 lib/
+  types.ts            The SiteDoc data model
   sites.ts            Site types, input validation and D1 storage
   site.ts             Current site, browser storage keys, and the browser-only site list without D1
   generator.ts        SiteDoc → Next.js project (parts in generator/)
-  script-runtime.ts   Script runtime shared by the canvas and exported sites
+  export-formats.ts   Output formats: options, limitations and the shared zip / publish pipeline
+  exportZip.ts        The exported zip, with the editing data for re-import
+  site-import.ts      Restore a Tsumu zip or doc.json (import-site-file.ts creates the site)
+  html-to-site.ts     Convert HTML into editable elements (html-file-import.ts, html-zip.ts)
+  script.ts           Script model; script-runtime.ts is the runtime shared by the canvas and exported sites
   node-storage.ts     SQLite and file storage outside Cloudflare (TSUMU_DATA_DIR)
   store.ts            Editor state (zustand) and undo history
   clip-transfer.ts    Copy and paste between sites
@@ -473,6 +537,13 @@ npm run typecheck      # tsc --noEmit
 npm test               # regression tests for collaboration, undo, scripts, publishing and more
 npm run i18n:check     # missing English translations (other languages: npm run i18n:check -- <code>)
 npm run build && npm run test:e2e   # end-to-end tests in a real browser (Playwright; first run: npx playwright install chromium)
+```
+
+To check that an output format still builds, generate a sample project and build it (CI does this for every framework, in TypeScript and JavaScript):
+
+```bash
+node --import tsx scripts/smoke-export-build.mts vue typescript   # nextjs, react, vue, nuxt or sveltekit
+cd .generated-export-smoke && npm install && npm run build
 ```
 
 ### Translations

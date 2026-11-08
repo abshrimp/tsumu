@@ -24,6 +24,7 @@ Then check by hand:
 
 - Follow the setup instructions in the [English](../README.md) and [Japanese](../README.ja.md) READMEs.
 - Without any credentials, create a new site, edit it and reopen it.
+- Export it as a zip in a format other than Next.js, then import that zip on the home screen and confirm the site comes back intact.
 - Confirm that a production instance refuses access until either sign-in or anonymous access has been explicitly configured.
 
 ### What goes into a source release
@@ -50,6 +51,6 @@ The initial public format uses:
 
 - `tsumu-` keys for browser storage,
 - `application/x-tsumu+json` for clipboard data, and
-- `_tsumu/` for publish metadata.
+- `_tsumu/` for publish metadata and for the editing data in exported zips.
 
 It doesn't import or migrate formats from predecessor applications. Normal Tsumu document backups, restoring, undo and rolling back to a published version all remain supported.

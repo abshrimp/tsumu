@@ -147,7 +147,7 @@ Optional node fields include `customTag` (only for `semantic: "custom"`), `attrI
 }
 ```
 
-Use **camelCase** CSS property names and **string** values (e.g. `"fontSize": "16px"`, not `"font-size": "16px"`). Available state keys are `default`, `hover`, `active`, and `focus`. `base` applies to all widths; built-in responsive breakpoint IDs include `lg`, `md`, and `sm`. Custom breakpoints may be specified with `SiteDoc.breakpoints: [{ id, label, maxWidth }]`.
+Use **camelCase** CSS property names and **string** values (e.g. `"fontSize": "16px"`, not `"font-size": "16px"`). Available state keys are `default`, `hover`, `active`, `focus`, and named states written as `custom:<name>` (up to 40 letters, digits, `_`, `-` or spaces; a `set-state` script step switches an element into one). `base` applies to all widths; built-in responsive breakpoint IDs include `lg`, `md`, and `sm`. Custom breakpoints may be specified with `SiteDoc.breakpoints: [{ id, label, maxWidth }]`.
 
 ## Links and components
 
@@ -184,7 +184,7 @@ A simple page-load script:
 }
 ```
 
-Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; valid kinds include `show`, `hide`, `toggle`, `open-page`, `open-url`, `scroll-to`, `set-value`, `set-var`, `transform`, `calc`, `replace`, `if`, `wait`, `repeat`, `for-each`, `fetch`, and others. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** Page-load data fetch steps have additional placement restrictions.
+Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; the valid kinds are `show`, `hide`, `toggle`, `set-state`, `open-page`, `open-url`, `scroll-to`, `set-value`, `set-enabled`, `list-display`, `store-save`, `store-load`, `set-var`, `transform`, `copy`, `wait`, `repeat`, `for-each`, `fetch`, and `if`. Value operations such as arithmetic, replacing text, filtering and sorting are `transform` recipes ([`script-model/compose.ts`](script-model/compose.ts)), not step kinds. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** Page-load data fetch steps have additional placement restrictions.
 
 ## Assets and packaging
 
