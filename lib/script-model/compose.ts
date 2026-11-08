@@ -55,7 +55,7 @@ export type ValueTransform =
   | { readonly kind: "field" | "has"; readonly key: string }
   | { readonly kind: "index"; readonly index: number }
   | { readonly kind: "length" | "format" | "stringify" | "parse" | "not" }
-  | { readonly kind: "fallback" | "fallback-nullish"; readonly text: string }
+  | { readonly kind: "fallback" | "fallback-nullish"; readonly text: string; readonly when?: "missing" | "nullish" }
   | { readonly kind: "math"; readonly operation: NumericOperation; readonly operand: number | string; readonly operandType?: "number" | "variable" }
   | { readonly kind: "compare"; readonly operation: CompareOperation; readonly operand: string; readonly not?: boolean; readonly conditions?: readonly ValueCondition[] }
   | { readonly kind: "split" | "join"; readonly separator: string }
@@ -82,7 +82,7 @@ export function defaultTransform(kind: ValueTransformKind): ValueTransform {
     case "index":
     case "remove-at": return { kind, index: 0 };
     case "fallback":
-    case "fallback-nullish": return { kind, text: "" };
+    case "fallback-nullish": return { kind, text: "", ...(kind === "fallback" ? { when: "missing" as const } : {}) };
     case "math": return { kind, operation: "add", operand: 1, operandType: "number" };
     case "compare": return { kind, operation: "eq", operand: "" };
     case "split": return { kind, separator: "," };
