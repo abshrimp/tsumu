@@ -86,6 +86,8 @@ export interface JsxContext {
   serverItemScope?: { expr: string; used: boolean };
   /** interpolate のランタイムを使ったか */
   usesInterpolate: boolean;
+  /** 変数の画像 URL に safeImageSrc を使ったか */
+  usesSafeImage?: boolean;
   /** スクリプトの値に lookupVar を使ったか */
   usesLookup?: boolean;
   /** ブラウザで並べるリストのお手本を出力したか */
@@ -340,11 +342,13 @@ ${indent}</div>`;
     const src = node.image.assetId
       ? assetMediaUrl(assetPath(ctx, node.image.assetId), node.image.assetSuffix)
       : node.image.src;
-    let srcAttr = `src=${jsxString(src ? safeResourceUrl(src) : "")}`;
+    const safeStatic = src ? safeResourceUrl(src) : "";
+    let srcAttr = `src=${jsxString(!safeStatic || safeStatic === "#" ? EMPTY_GIF : safeStatic)}`;
     if (hasVars(src)) {
       ctx.usesInterpolate = true;
+      ctx.usesSafeImage = true;
       const base = ctx.varsExpr ?? "vars";
-      srcAttr = `src={interpolate(${JSON.stringify(src)}, ${base}) || "${EMPTY_GIF}"}`;
+      srcAttr = `src={safeImageSrc(interpolate(${JSON.stringify(src)}, ${base}))}`;
       if (ctx.inTemplate) {
         // 項目が届いてから一度だけ解決する。代替値に含まれる波括弧は、文字として残す。
         srcAttr += ` data-image-src-parts={JSON.stringify(${textParts(src, base)})}`;

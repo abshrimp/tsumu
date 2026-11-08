@@ -38,11 +38,12 @@ export function isSafeRewriteTarget(value: string): boolean {
   return !isPrivateHost(parsed.hostname);
 }
 
-/** 対応しているインラインの画像・音声・動画のリソースは残し、実行できる URL のスキームは拒否する。 */
+/** 対応しているインラインの画像・音声・動画のリソースは残し、実行できる URL のスキームや権限の偽装は拒否する。 */
 export function safeResourceUrl(value: string): string {
   const url = value.trim();
   if (/^data:(?:image|video|audio)\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+(?:#[^\u0000-\u001f\u007f]*)?$/i.test(url)) return url;
   if (/^blob:/i.test(url)) return url;
+  if (/^https?:/i.test(url) && !/^https?:\/\/[^/?#@\\]+(?:[/?#]|$)/i.test(url)) return "#";
   return safeNavigationUrl(url);
 }
 
@@ -50,7 +51,7 @@ export function safeResourceUrl(value: string): string {
 export function safeMediaUrl(value: string): string {
   const url = value.trim();
   if (!url || /[\u0000-\u001f\u007f]/.test(url)) return "#";
-  if (/^https?:\/\/[^/?#@\\]+(?:\/|$)/i.test(url)) return url;
+  if (/^https?:\/\/[^/?#@\\]+(?:[/?#]|$)/i.test(url)) return url;
   return safeResourceUrl(url);
 }
 
@@ -70,5 +71,6 @@ export const RESOURCE_URL_RUNTIME = String.raw`function safeResourceUrl(value) {
   var url = value.trim();
   if (/^data:(?:image|video|audio)\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+(?:#[^\u0000-\u001f\u007f]*)?$/i.test(url)) return url;
   if (/^blob:/i.test(url)) return url;
+  if (/^https?:/i.test(url) && !/^https?:\/\/[^/?#@\\]+(?:[/?#]|$)/i.test(url)) return "#";
   return safeNavigationUrl(url);
 }`;

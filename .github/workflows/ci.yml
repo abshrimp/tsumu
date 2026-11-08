@@ -58,7 +58,8 @@ jobs:
           zlib_version="$(docker exec tsumu-ci dpkg-query -W -f='${Version}' zlib1g)"
           dpkg --compare-versions "$zlib_version" ge "1:1.3.dfsg+really1.3.1-1+deb13u1"
           for attempt in $(seq 1 120); do
-            if curl --fail --silent --output /dev/null http://127.0.0.1:3188/robots.txt; then
+            if curl --fail --silent --output /dev/null http://127.0.0.1:3188/robots.txt &&
+               curl --fail --silent --output /dev/null http://127.0.0.1:3188/tsumu-mark.svg; then
               exit 0
             fi
             sleep 0.5

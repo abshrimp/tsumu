@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PublishPublicError } from "../../../../lib/publish-security";
 import { recordPublish, requireAuth } from "../../../../lib/server";
 import { deployStaticSite, readStaticZip, readZipRequest } from "../../../../lib/static-hosting";
 import { resolveStaticPublishWriteContext, STATIC_NO_STORE } from "../../../../lib/static-hosting-route";
@@ -36,9 +37,9 @@ export async function POST(req: Request) {
         (target === "test" ? conf.previewUrl : conf.productionUrl),
     }, { headers: STATIC_NO_STORE });
   } catch (error) {
-    // Never forward provider response bodies or authentication headers to the browser.
+    // Never forward provider response bodies, internal runtime exceptions or auth headers to the browser.
     return NextResponse.json({
-      error: error instanceof Error ? error.message : "The deployment failed.",
+      error: error instanceof PublishPublicError ? error.message : "The deployment failed.",
     }, { status: 400, headers: STATIC_NO_STORE });
   }
 }

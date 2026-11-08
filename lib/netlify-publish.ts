@@ -1,5 +1,6 @@
 import { envVar } from "./env";
 import { hostingProjectName, publishProvider } from "./publish-provider";
+import { PublishPublicError } from "./publish-security";
 import type { PublishTarget } from "./generator";
 import { isSiteId } from "./sites";
 
@@ -20,7 +21,7 @@ export interface NetlifyHistoryEntry extends NetlifyDeployment {
 }
 
 export function netlifyOAuthConfig(): { clientId: string; redirectUri: string } {
-  if (publishProvider() !== "netlify") throw new Error("Netlify publishing is disabled.");
+  if (publishProvider() !== "netlify") throw new PublishPublicError("Netlify publishing is disabled.");
   const clientId = envVar("NETLIFY_OAUTH_CLIENT_ID") || "";
   const redirectUri = envVar("NETLIFY_OAUTH_REDIRECT_URI") || "";
   const uri = URL.canParse(redirectUri) ? new URL(redirectUri) : null;
@@ -29,7 +30,7 @@ export function netlifyOAuthConfig(): { clientId: string; redirectUri: string } 
       uri.protocol !== "https:" && !(uri.protocol === "http:" &&
         ["localhost", "127.0.0.1"].includes(uri.hostname)) ||
       uri.username || uri.password) {
-    throw new Error("Configure NETLIFY_OAUTH_CLIENT_ID and NETLIFY_OAUTH_REDIRECT_URI.");
+    throw new PublishPublicError("Configure NETLIFY_OAUTH_CLIENT_ID and NETLIFY_OAUTH_REDIRECT_URI.");
   }
   return { clientId, redirectUri: uri.toString() };
 }
@@ -40,14 +41,14 @@ export function validNetlifyId(value: unknown): value is string {
 
 function safeToken(value: string): string {
   if (value.length < 12 || value.length > 4096 || /[^\x21-\x7e]/.test(value)) {
-    throw new Error("Invalid Netlify access token.");
+    throw new PublishPublicError("Invalid Netlify access token.");
   }
   return value;
 }
 
 export async function netlifyApi<T>(token: string, path: string, init: RequestInit = {}): Promise<T> {
   if (!path.startsWith("/") || path.startsWith("//") || /[\r\n]/.test(path)) {
-    throw new Error("Invalid Netlify API path.");
+    throw new PublishPublicError("Invalid Netlify API path.");
   }
   const response = await fetch(API + path, {
     // Workers does not implement redirect: "error". "manual" prevents
@@ -56,10 +57,10 @@ export async function netlifyApi<T>(token: string, path: string, init: RequestIn
     headers: { Authorization: "Bearer " + safeToken(token), ...init.headers },
   });
   if (response.status >= 300 && response.status < 400) {
-    throw new Error("Netlify unexpectedly redirected an API request.");
+    throw new PublishPublicError("Netlify unexpectedly redirected an API request.");
   }
   if (!response.ok) {
-    throw new Error(response.status === 401 || response.status === 403
+    throw new PublishPublicError(response.status === 401 || response.status === 403
       ? "Netlify authorization expired or does not permit this operation. Connect again."
       : "Netlify request failed (HTTP " + response.status + ").");
   }
@@ -77,7 +78,7 @@ export async function netlifyAccount(token: string): Promise<{
   if (typeof user.id !== "string" || !validNetlifyId(user.id) ||
       typeof user.email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email) ||
       !Array.isArray(accounts)) {
-    throw new Error("Netlify did not return a valid account.");
+    throw new PublishPublicError("Netlify did not return a valid account.");
   }
   const teams = accounts.filter(account =>
     validNetlifyId(account.id) &&
@@ -91,7 +92,7 @@ export async function netlifyAccount(token: string): Promise<{
 
 function checkedSite(site: NetlifySite, expectedId: string, teamId: string): NetlifySite {
   if (!validNetlifyId(site.id) || site.id !== expectedId || site.account_id !== teamId) {
-    throw new Error("Netlify project does not belong to the selected team.");
+    throw new PublishPublicError("Netlify project does not belong to the selected team.");
   }
   return site;
 }
@@ -100,7 +101,7 @@ function checkedSite(site: NetlifySite, expectedId: string, teamId: string): Net
 export async function verifyNetlifySite(
   token: string, siteId: string, teamId: string
 ): Promise<NetlifySite> {
-  if (!validNetlifyId(siteId) || !validNetlifyId(teamId)) throw new Error("Invalid Netlify project.");
+  if (!validNetlifyId(siteId) || !validNetlifyId(teamId)) throw new PublishPublicError("Invalid Netlify project.");
   const remote = await netlifyApi<NetlifySite>(token, "/sites/" + encodeURIComponent(siteId));
   return checkedSite(remote, siteId, teamId);
 }
@@ -108,7 +109,7 @@ export async function verifyNetlifySite(
 function siteUrl(site: NetlifySite): string {
   const candidate = site.ssl_url || site.url || (site.name ? "https://" + site.name + ".netlify.app" : "");
   if (!URL.canParse(candidate) || new URL(candidate).protocol !== "https:") {
-    throw new Error("Netlify did not return a valid project URL.");
+    throw new PublishPublicError("Netlify did not return a valid project URL.");
   }
   return candidate;
 }
@@ -118,10 +119,10 @@ export async function createNetlifyProject(
   token: string, localSiteId: string, target: PublishTarget, teamSlug: string
 ): Promise<{ id: string; url: string; teamId: string }> {
   if (!isSiteId(localSiteId) || !["test", "production"].includes(target) ||
-      !ACCOUNT_RE.test(teamSlug)) throw new Error("Invalid Netlify destination.");
+      !ACCOUNT_RE.test(teamSlug)) throw new PublishPublicError("Invalid Netlify destination.");
   const { teams } = await netlifyAccount(token);
   const team = teams.find(entry => entry.slug === teamSlug);
-  if (!team) throw new Error("You do not have permission to create a site in this Netlify team.");
+  if (!team) throw new PublishPublicError("You do not have permission to create a site in this Netlify team.");
   const prefix = hostingProjectName(localSiteId, "netlify", target);
   const suffix = "-" + crypto.randomUUID().replaceAll("-", "").slice(0, 10);
   const name = prefix.slice(0, 63 - suffix.length) + suffix;
@@ -130,7 +131,7 @@ export async function createNetlifyProject(
     body: JSON.stringify({ name }),
   });
   if (!validNetlifyId(site.id) || site.account_id !== team.id) {
-    throw new Error("Netlify returned a project outside the selected team.");
+    throw new PublishPublicError("Netlify returned a project outside the selected team.");
   }
   return { id: site.id, url: siteUrl(site), teamId: team.id };
 }
@@ -144,7 +145,7 @@ export async function deployNetlifyZip(
   }>(token, "/sites/" + encodeURIComponent(site.id) + "/deploys", {
     method: "POST", headers: { "Content-Type": "application/zip" }, body: zip,
   });
-  if (!validNetlifyId(deployment.id)) throw new Error("Netlify did not return a deployment ID.");
+  if (!validNetlifyId(deployment.id)) throw new PublishPublicError("Netlify did not return a deployment ID.");
   return {
     id: deployment.id, state: deployment.state || "processing",
     url: deployment.deploy_ssl_url || deployment.ssl_url || siteUrl(site),
@@ -162,7 +163,7 @@ export async function netlifyHistory(
   const deployments = await netlifyApi<Array<{
     id?: string; state?: string; created_at?: string; deploy_ssl_url?: string; ssl_url?: string;
   }>>(token, "/sites/" + encodeURIComponent(site.id) + "/deploys?per_page=25");
-  if (!Array.isArray(deployments)) throw new Error("Invalid Netlify deployment history.");
+  if (!Array.isArray(deployments)) throw new PublishPublicError("Invalid Netlify deployment history.");
   return deployments.filter(entry => validNetlifyId(entry.id)).map(entry => ({
     id: entry.id!, state: entry.state || "unknown", date: entry.created_at || "",
     url: entry.deploy_ssl_url || entry.ssl_url || siteUrl(site),
@@ -173,10 +174,10 @@ export async function netlifyHistory(
 export async function restoreNetlifyDeployment(
   token: string, siteId: string, teamId: string, deploymentId: string
 ): Promise<void> {
-  if (!validNetlifyId(deploymentId)) throw new Error("Invalid deployment ID.");
+  if (!validNetlifyId(deploymentId)) throw new PublishPublicError("Invalid deployment ID.");
   const history = await netlifyHistory(token, siteId, teamId);
   if (!history.some(deploy => deploy.id === deploymentId && deploy.canRestore)) {
-    throw new Error("The deployment is not available for restoration.");
+    throw new PublishPublicError("The deployment is not available for restoration.");
   }
   await netlifyApi<unknown>(token,
     "/sites/" + encodeURIComponent(siteId) + "/deploys/" + encodeURIComponent(deploymentId) + "/restore",

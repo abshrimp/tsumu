@@ -81,12 +81,12 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
   }
   if (action === "get_element") {
     const id = args.elementId;
-    if (typeof id !== "string" || !s.doc.nodes[id]) throw new Error(tr("Element not found"));
+    if (typeof id !== "string" || !Object.hasOwn(s.doc.nodes, id) || !s.doc.nodes[id]) throw new Error(tr("Element not found"));
     return { id, element: s.doc.nodes[id] };
   }
   if (action === "get_page") {
     const pageId = args.pageId;
-    if (typeof pageId !== "string" || !s.doc.pages[pageId]) throw new Error(tr("Page not found"));
+    if (typeof pageId !== "string" || !Object.hasOwn(s.doc.pages, pageId) || !s.doc.pages[pageId]) throw new Error(tr("Page not found"));
     const context = buildAiContext(s.doc, { pageId });
     return { siteId, pageId, revision: await revision(context.doc), document: context.doc };
   }
@@ -142,7 +142,7 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
       };
     } else {
       const pageId = args.pageId;
-      if (typeof pageId !== "string" || !s.doc.pages[pageId]) throw new Error(tr("Page not found"));
+      if (typeof pageId !== "string" || !Object.hasOwn(s.doc.pages, pageId) || !s.doc.pages[pageId]) throw new Error(tr("Page not found"));
       const context = buildAiContext(s.doc, { pageId });
       const currentRevision = await revision(context.doc);
       if (args.expectedRevision !== currentRevision) {

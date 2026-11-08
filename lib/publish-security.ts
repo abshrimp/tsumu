@@ -1,5 +1,8 @@
 import type { SiteDoc } from "./types";
 
+/** Intentional domain/validation error whose message is safe to show to the browser. */
+export class PublishPublicError extends Error {}
+
 const credentialKey = "api[-_]?key|secret|(?:access|auth|refresh|id)[-_]?token|client[-_]?secret|password|passwd|token";
 const sensitiveKey = new RegExp(`^(?:${credentialKey})$`, "i");
 const bodyKey = new RegExp(`"(?:${credentialKey})"\\s*:\\s*"([^"]+)"`, "ig");

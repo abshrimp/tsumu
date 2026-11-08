@@ -3181,24 +3181,67 @@ test("Cloudflare asset hashes are content- and extension-dependent", () => {
   assert.notEqual(hash, pagesAssetHash(new TextEncoder().encode("other"), "index.html"));
 });
 
-test("listStaticDeployments returns an empty list when Cloudflare Pages project does not exist yet", async () => {
+test("listStaticDeployments uses Workers-safe manual redirects and publish routes hide internal exceptions", async () => {
   const savedAccount = process.env.CLOUDFLARE_ACCOUNT_ID;
   const savedToken = process.env.CLOUDFLARE_API_TOKEN;
+  const savedProvider = process.env.PUBLISH_PROVIDER;
+  const savedClient = process.env.NETLIFY_OAUTH_CLIENT_ID;
+  const savedRedirect = process.env.NETLIFY_OAUTH_REDIRECT_URI;
   const savedFetch = globalThis.fetch;
   process.env.CLOUDFLARE_ACCOUNT_ID = "0123456789abcdef0123456789abcdef";
   process.env.CLOUDFLARE_API_TOKEN = "cf-test-token";
   try {
     let status = 404;
-    globalThis.fetch = async () => new Response(JSON.stringify({ success: false }), { status });
+    globalThis.fetch = async (_input, init) => {
+      assert.equal(init?.redirect, "manual");
+      return new Response(JSON.stringify({ success: false }), { status });
+    };
     assert.deepEqual(await listStaticDeployments("abc123", "production"), []);
+    status = 302;
+    await assert.rejects(listStaticDeployments("abc123", "production"), /redirected/);
     status = 500;
     await assert.rejects(listStaticDeployments("abc123", "production"), /HTTP 500/);
+
+    process.env.PUBLISH_PROVIDER = "netlify";
+    process.env.NETLIFY_OAUTH_CLIENT_ID = "registered-netlify-client-123456";
+    process.env.NETLIFY_OAUTH_REDIRECT_URI = "https://tsumu.ebii.net/netlify/callback";
+    class StubNextResponse extends Response {
+      static json(value: unknown, init?: ResponseInit) { return new StubNextResponse(JSON.stringify(value), init); }
+    }
+    const { POST } = load_2("../../app/api/publish/netlify/operations/route.ts", {
+      "next/server": { NextResponse: StubNextResponse },
+      "../../../../../lib/server": { requireAuth: async () => null },
+    }) as { POST: (req: Request) => Promise<Response> };
+    globalThis.fetch = async () => new Response("{}", { status: 500 });
+    const domainRes = await POST(new Request("http://localhost/api/publish/netlify/operations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "browser-token-1234567890", action: "account" }),
+    }));
+    assert.equal(((await domainRes.json()) as { error: string }).error, "Netlify request failed (HTTP 500).");
+
+    globalThis.fetch = async () => { throw new TypeError("socket hang up to 10.0.0.9:443"); };
+    const res = await POST(new Request("http://localhost/api/publish/netlify/operations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "browser-token-1234567890", action: "account" }),
+    }));
+    assert.equal(res.status, 502);
+    const body = await res.json() as { error: string };
+    assert.equal(body.error, "Netlify operation failed.");
+    assert.doesNotMatch(body.error, /10\.0\.0\.9|socket/);
   } finally {
     globalThis.fetch = savedFetch;
     if (savedAccount === undefined) delete process.env.CLOUDFLARE_ACCOUNT_ID;
     else process.env.CLOUDFLARE_ACCOUNT_ID = savedAccount;
     if (savedToken === undefined) delete process.env.CLOUDFLARE_API_TOKEN;
     else process.env.CLOUDFLARE_API_TOKEN = savedToken;
+    if (savedProvider === undefined) delete process.env.PUBLISH_PROVIDER;
+    else process.env.PUBLISH_PROVIDER = savedProvider;
+    if (savedClient === undefined) delete process.env.NETLIFY_OAUTH_CLIENT_ID;
+    else process.env.NETLIFY_OAUTH_CLIENT_ID = savedClient;
+    if (savedRedirect === undefined) delete process.env.NETLIFY_OAUTH_REDIRECT_URI;
+    else process.env.NETLIFY_OAUTH_REDIRECT_URI = savedRedirect;
   }
 });
 });

@@ -68,6 +68,7 @@ test("Docker runtime is non-root and local credentials are excluded from the bui
   assert.equal(imageRefs[0][2], imageRefs[1][2]);
   assert.match(dockerfile, /^COPY --from=build --chown=node:node \/app\/\.next\/standalone \.\/$/m);
   assert.match(dockerfile, /^COPY --from=build --chown=node:node \/app\/\.next\/static \.\/\.next\/static$/m);
+  assert.match(dockerfile, /^COPY --from=build --chown=node:node \/app\/public \.\/public$/m);
   assert.match(dockerfile, /apt-get install -y --no-install-recommends --only-upgrade zlib1g/);
   assert.match(dockerfile, /^USER node$/m);
   assert.match(dockerfile, /^VOLUME \/data$/m);
@@ -102,7 +103,9 @@ test("Next.js editor routes apply the baseline response security headers", async
   const frames = headers.find((entry: { source: string }) => entry.source.startsWith("/((?!api/"));
   assert.ok(frames, "Expected clickjacking protection for the editor UI");
   assert.ok(frames.headers.some((item: { key: string; value: string }) =>
-    item.key === "Content-Security-Policy" && item.value.includes("frame-ancestors 'self'")));
+    item.key === "X-Frame-Options" && item.value === "DENY"));
+  assert.ok(frames.headers.some((item: { key: string; value: string }) =>
+    item.key === "Content-Security-Policy" && item.value.includes("frame-ancestors 'none'")));
 });
 
 test("the lockfile stays registry-only and install script permissions match resolved versions", () => {

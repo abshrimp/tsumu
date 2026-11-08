@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonErrorStatus, readJsonObjectLimited } from "../../../../../lib/api-json";
+import { PublishPublicError } from "../../../../../lib/publish-security";
 import { recordPublish, requireAuth } from "../../../../../lib/server";
 import { listStaticDeployments, restoreStaticDeployment } from "../../../../../lib/static-hosting";
 import {
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
       deployments: await listStaticDeployments(ctx.siteId, ctx.target),
     }, { headers: STATIC_NO_STORE });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Couldn't read deployment history." },
+    return NextResponse.json({ error: error instanceof PublishPublicError ? error.message : "Couldn't read deployment history." },
       { status: 502, headers: STATIC_NO_STORE });
   }
 }
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
     await recordPublish(ctx.siteId, ctx.target, ctx.dest.roomKey);
     return NextResponse.json({ ok: true }, { headers: STATIC_NO_STORE });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Couldn't restore the deployment." },
+    return NextResponse.json({ error: error instanceof PublishPublicError ? error.message : "Couldn't restore the deployment." },
       { status: 502, headers: STATIC_NO_STORE });
   }
 }

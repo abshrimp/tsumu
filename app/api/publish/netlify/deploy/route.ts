@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PublishPublicError } from "../../../../../lib/publish-security";
 import { requireAuth } from "../../../../../lib/server";
 import { netlifyOAuthConfig, deployNetlifyZip, validNetlifyId } from "../../../../../lib/netlify-publish";
 import { readStaticZip, readZipRequest } from "../../../../../lib/static-hosting";
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
       projectName: deployment.projectName,
     }, { headers: NO_STORE });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Netlify deployment failed." },
+    return NextResponse.json({ error: error instanceof PublishPublicError ? error.message : "Netlify deployment failed." },
       { status: 502, headers: NO_STORE });
   }
 }

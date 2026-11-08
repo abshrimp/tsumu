@@ -49,6 +49,7 @@ export function nativeDataModule(): string {
     "  const url = String(resolveText(value, vars, ...items) || '').trim();",
     "  if (/^data:(?:image|video|audio)\\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[a-z0-9-]+)*;base64,[a-z0-9+/=]+(?:#[^\\u0000-\\u001f\\u007f]*)?$/i.test(url)) return url;",
     "  if (/^blob:/i.test(url)) return url;",
+    "  if (/^https?:/i.test(url) && !/^https?:\\/\\/[^/?#@\\\\]+(?:[/?#]|$)/i.test(url)) return '#';",
     "  return safeLink(url);",
     "}",
     "export function selectedOption(options, initial, vars, ...items) {",

@@ -1728,6 +1728,9 @@ test("import and clipboard validation block unsafe inline SVG across browser and
     '<svg xmlns="http://www.w3.org/2000/svg"><a href="https://attacker.example"><rect width="5" height="5"/></a></svg>',
     String.raw`<svg xmlns="http://www.w3.org/2000/svg"><rect width="5" height="5" fill="u\72l(https://attacker.example/p)"/></svg>`,
     '<svg xmlns="http://www.w3.org/2000/svg"><rect width="5" height="5" fill="url(/*c*/https://attacker.example/p)"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><desc>unclosed',
+    '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    '<!--<svg>--><svg xmlns="http://www.w3.org/2000/svg"><circle cx="1" cy="1" r="1"/></svg>',
   ]) {
     icon.icon!.svg = payload;
     assert.throws(() => validateImportedDoc(doc), /invalid element settings/i);
@@ -1736,6 +1739,10 @@ test("import and clipboard validation block unsafe inline SVG across browser and
       nodes: [icon], assets: {}, components: {}, componentNodes: [],
     })), null);
   }
+  assert.equal(
+    sanitizeImportedSvg('<svg xmlns="http://www.w3.org/2000/svg"><desc>unclosed'),
+    '<svg xmlns="http://www.w3.org/2000/svg"><desc>unclosed</desc></svg>',
+  );
 });
 
 test("restoring a backup sanitizes inline SVG without changing other editable properties", () => {

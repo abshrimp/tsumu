@@ -3,6 +3,7 @@ import { envVar } from "./env";
 import type { PublishTarget } from "./generator";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { hostingProjectName } from "./publish-provider";
+import { PublishPublicError } from "./publish-security";
 import { staticHostingMime } from "./zip-mime";
 
 const CLOUDFLARE_API = "https://api.cloudflare.com/client/v4";
@@ -39,34 +40,44 @@ export function isPublicStaticPath(path: string): boolean {
 
 /** Reject zip bombs, unsafe paths, symlinks and editable data before contacting a provider. */
 export async function readStaticZip(raw: ArrayBuffer): Promise<StaticFile[]> {
-  if (!raw.byteLength || raw.byteLength > MAX_ZIP_BYTES) throw new Error("The site ZIP is too large (25 MiB maximum).");
+  if (!raw.byteLength || raw.byteLength > MAX_ZIP_BYTES) throw new PublishPublicError("The site ZIP is too large (25 MiB maximum).");
   // ZIP parsing belongs to this upload handler, not the editor's eager bundle.
   const { ZipArchive } = await import("./zip");
-  const zip = await ZipArchive.open(raw, {
-    maxRecords: MAX_FILES * 4,
-    onTooManyRecords: () => new Error("The site has too many files."),
-  });
+  let zip: Awaited<ReturnType<typeof ZipArchive.open>>;
+  try {
+    zip = await ZipArchive.open(raw, {
+      maxRecords: MAX_FILES * 4,
+      onTooManyRecords: () => new PublishPublicError("The site has too many files."),
+    });
+  } catch (error) {
+    if (error instanceof PublishPublicError) throw error;
+    throw new PublishPublicError("The site ZIP could not be read.");
+  }
   const entries = Object.values(zip.files).filter((file) => !file.dir);
-  if (!entries.length || entries.length > MAX_FILES) throw new Error("The site has too many files.");
-  if (!entries.some((file) => file.name === "index.html")) throw new Error("The exported site has no index.html.");
+  if (!entries.length || entries.length > MAX_FILES) throw new PublishPublicError("The site has too many files.");
+  if (!entries.some((file) => file.name === "index.html")) throw new PublishPublicError("The exported site has no index.html.");
   const paths = entries.map((file) => file.name);
   if (paths.some((path) => path === "_worker.js" || path.startsWith("functions/"))) {
-    throw new Error("Pages Functions and custom Workers cannot be deployed as static HTML.");
+    throw new PublishPublicError("Pages Functions and custom Workers cannot be deployed as static HTML.");
   }
-  assertGeneratedPaths({
-    files: Object.fromEntries(paths.map((path) => [path, ""])),
-    binaries: {},
-    remoteAssets: {},
-  });
+  try {
+    assertGeneratedPaths({
+      files: Object.fromEntries(paths.map((path) => [path, ""])),
+      binaries: {},
+      remoteAssets: {},
+    });
+  } catch (error) {
+    throw new PublishPublicError(error instanceof Error ? error.message : "Unsafe generated file path.");
+  }
   if (paths.some((path) => !isPublicStaticPath(path))) {
-    throw new Error("Editable project data and secret files must not be published.");
+    throw new PublishPublicError("Editable project data and secret files must not be published.");
   }
   let total = 0;
   const files: StaticFile[] = [];
-  const tooLarge = () => new Error("The site contains files that exceed the upload size limit.");
+  const tooLarge = () => new PublishPublicError("The site contains files that exceed the upload size limit.");
   for (const file of entries) {
     const perm = file.unixPermissions ?? 0;
-    if ((perm & 0o170000) === 0o120000) throw new Error("Symbolic links cannot be published.");
+    if ((perm & 0o170000) === 0o120000) throw new PublishPublicError("Symbolic links cannot be published.");
     const size = file.uncompressedSize;
     if (typeof size === "number" && (size > MAX_FILE_BYTES || total + size > MAX_TOTAL_BYTES)) {
       throw tooLarge();
@@ -83,11 +94,11 @@ export async function readStaticZip(raw: ArrayBuffer): Promise<StaticFile[]> {
 
 export async function readZipRequest(request: Request): Promise<ArrayBuffer> {
   if (request.headers.get("content-type")?.split(";")[0] !== "application/zip") {
-    throw new Error("A static-site ZIP is required.");
+    throw new PublishPublicError("A static-site ZIP is required.");
   }
   const header = request.headers.get("content-length");
-  if (header && Number(header) > MAX_ZIP_BYTES) throw new Error("The site ZIP is too large.");
-  if (!request.body) throw new Error("A static-site ZIP is required.");
+  if (header && Number(header) > MAX_ZIP_BYTES) throw new PublishPublicError("The site ZIP is too large.");
+  if (!request.body) throw new PublishPublicError("A static-site ZIP is required.");
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -97,7 +108,7 @@ export async function readZipRequest(request: Request): Promise<ArrayBuffer> {
       if (done) break;
       if (!value) continue;
       total += value.byteLength;
-      if (total > MAX_ZIP_BYTES) throw new Error("The site ZIP is too large.");
+      if (total > MAX_ZIP_BYTES) throw new PublishPublicError("The site ZIP is too large.");
       chunks.push(value);
     }
   } catch (error) {
@@ -125,42 +136,48 @@ export function pagesAssetHash(bytes: Uint8Array, path: string): string {
 
 type CloudflareEnvelope<T> = { success: boolean; result: T };
 
+async function cloudflareFetch(path: string, init: RequestInit = {}, jwt?: string): Promise<Response> {
+  const token = jwt ?? envVar("CLOUDFLARE_API_TOKEN");
+  if (!token) throw new PublishPublicError("CLOUDFLARE_API_TOKEN is not configured.");
+  const response = await fetch(CLOUDFLARE_API + path, {
+    // Workers does not implement redirect: "error"; "manual" prevents forwarding
+    // the Cloudflare bearer token to an unexpected redirect target.
+    ...init,
+    redirect: "manual",
+    headers: { Authorization: "Bearer " + token, ...init.headers },
+  });
+  if (response.status >= 300 && response.status < 400) {
+    throw new PublishPublicError("Cloudflare unexpectedly redirected an API request.");
+  }
+  return response;
+}
+
 async function cloudflareRequest<T>(
   path: string,
   step: string,
   init: RequestInit = {},
   jwt?: string,
 ): Promise<T> {
-  const token = jwt ?? envVar("CLOUDFLARE_API_TOKEN");
-  if (!token) throw new Error("CLOUDFLARE_API_TOKEN is not configured.");
-  const response = await fetch(CLOUDFLARE_API + path, {
-    ...init,
-    redirect: "error",
-    headers: { Authorization: "Bearer " + token, ...init.headers },
-  });
-  if (!response.ok) throw new Error(step + " failed (HTTP " + response.status + ").");
+  const response = await cloudflareFetch(path, init, jwt);
+  if (!response.ok) throw new PublishPublicError(step + " failed (HTTP " + response.status + ").");
   const data = await response.json() as CloudflareEnvelope<T>;
-  if (!data.success) throw new Error(step + " was rejected by Cloudflare.");
+  if (!data.success) throw new PublishPublicError(step + " was rejected by Cloudflare.");
   return data.result;
 }
 
 function cloudflarePath(project: string): string {
   const account = envVar("CLOUDFLARE_ACCOUNT_ID");
   if (!account || !/^[a-f0-9]{32}$/i.test(account)) {
-    throw new Error("CLOUDFLARE_ACCOUNT_ID must be a valid account ID.");
+    throw new PublishPublicError("CLOUDFLARE_ACCOUNT_ID must be a valid account ID.");
   }
   return "/accounts/" + account + "/pages/projects/" + encodeURIComponent(project);
 }
 
 async function cloudflareProject(project: string): Promise<void> {
   const path = cloudflarePath(project);
-  const token = envVar("CLOUDFLARE_API_TOKEN");
-  if (!token) throw new Error("CLOUDFLARE_API_TOKEN is not configured.");
-  const response = await fetch(CLOUDFLARE_API + path, {
-    headers: { Authorization: "Bearer " + token }, redirect: "error",
-  });
+  const response = await cloudflareFetch(path);
   if (response.ok) return;
-  if (response.status !== 404) throw new Error("Cloudflare Pages project lookup failed (HTTP " + response.status + ").");
+  if (response.status !== 404) throw new PublishPublicError("Cloudflare Pages project lookup failed (HTTP " + response.status + ").");
   // Direct Upload projects do not have a connected Git repository.
   const createPath = path.slice(0, path.lastIndexOf("/"));
   await cloudflareRequest(createPath, "Create Cloudflare Pages project", {
@@ -174,7 +191,7 @@ async function publishCloudflare(project: string, target: PublishTarget, files: 
   await cloudflareProject(project);
   const path = cloudflarePath(project);
   const upload = await cloudflareRequest<{ jwt?: string }>(path + "/upload-token", "Get Pages upload token");
-  if (!upload.jwt) throw new Error("Cloudflare did not return an upload token.");
+  if (!upload.jwt) throw new PublishPublicError("Cloudflare did not return an upload token.");
 
   const manifest: Record<string, string> = {};
   const byHash = new Map<string, { bytes: Uint8Array; contentType: string }>();
@@ -205,7 +222,7 @@ async function publishCloudflare(project: string, target: PublishTarget, files: 
   };
   for (const hash of missing) {
     const file = byHash.get(hash);
-    if (!file) throw new Error("Cloudflare requested an unknown file hash.");
+    if (!file) throw new PublishPublicError("Cloudflare requested an unknown file hash.");
     const encoded = asBase64(file.bytes);
     if (batch.length >= 50 || batchBytes + encoded.length > 4 * 1024 * 1024) await flush();
     batch.push({ key: hash, value: encoded, base64: true, metadata: { contentType: file.contentType } });
@@ -226,7 +243,7 @@ async function publishCloudflare(project: string, target: PublishTarget, files: 
   }
   const deployment = await cloudflareRequest<{ id?: string; url?: string; latest_stage?: { status?: string } }>(
     path + "/deployments", "Create Pages deployment", { method: "POST", body: form });
-  if (!deployment.id) throw new Error("Cloudflare did not return a deployment ID.");
+  if (!deployment.id) throw new PublishPublicError("Cloudflare did not return a deployment ID.");
   return {
     id: deployment.id,
     url: deployment.url ?? "https://" + project + ".pages.dev",
@@ -250,20 +267,15 @@ export async function listStaticDeployments(
   const project = hostingProjectName(siteId, "cloudflare", target);
   // History must not create an empty Pages project.
   const path = cloudflarePath(project) + "/deployments?per_page=25";
-  const token = envVar("CLOUDFLARE_API_TOKEN");
-  if (!token) throw new Error("CLOUDFLARE_API_TOKEN is not configured.");
-  const response = await fetch(CLOUDFLARE_API + path, {
-    headers: { Authorization: "Bearer " + token },
-    redirect: "error",
-  });
+  const response = await cloudflareFetch(path);
   if (response.status === 404) return [];
-  if (!response.ok) throw new Error("Read Pages deployments failed (HTTP " + response.status + ").");
+  if (!response.ok) throw new PublishPublicError("Read Pages deployments failed (HTTP " + response.status + ").");
   const data = await response.json() as CloudflareEnvelope<Array<{
     id?: string; url?: string; created_on?: string; environment?: string;
     latest_stage?: { status?: string };
     deployment_trigger?: { metadata?: { branch?: string } };
   }>>;
-  if (!data.success) throw new Error("Read Pages deployments was rejected by Cloudflare.");
+  if (!data.success) throw new PublishPublicError("Read Pages deployments was rejected by Cloudflare.");
   return data.result.filter((x) => x.id && (target === "production"
     ? x.environment === "production"
     : x.environment === "preview" && x.deployment_trigger?.metadata?.branch === "tsumu-preview"))
@@ -280,10 +292,10 @@ export async function restoreStaticDeployment(
   target: PublishTarget,
   deploymentId: string,
 ): Promise<void> {
-  if (!/^[a-zA-Z0-9_-]{8,80}$/.test(deploymentId)) throw new Error("Invalid deployment ID.");
+  if (!/^[a-zA-Z0-9_-]{8,80}$/.test(deploymentId)) throw new PublishPublicError("Invalid deployment ID.");
   const existing = await listStaticDeployments(siteId, target);
   if (!existing.some((x) => x.id === deploymentId && x.canRestore)) {
-    throw new Error("This deployment cannot be restored.");
+    throw new PublishPublicError("This deployment cannot be restored.");
   }
   const project = hostingProjectName(siteId, "cloudflare", target);
   await cloudflareRequest(cloudflarePath(project) +

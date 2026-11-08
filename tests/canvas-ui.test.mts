@@ -2830,8 +2830,12 @@ test("media asset suffixes preserve bytes without replacing the resource URL", (
   assert.equal(safeResourceUrl("data:video/mp4;base64,AQID#t=3,7"), "data:video/mp4;base64,AQID#t=3,7");
   assert.equal(safeResourceUrl("data:text/html;base64,AQID#t=3,7"), "#");
   assert.equal(safeResourceUrl("data:video/mp4;base64,AQID#t=3\n7"), "#");
+  assert.equal(safeResourceUrl("https://good.test@evil.test/x.png"), "#");
+  assert.equal(safeResourceUrl("https://example.com?v=1"), "https://example.com?v=1");
   assert.equal(safeMediaUrl("https://example.com/{name}/\\{name}/%7Bname%7D"), "https://example.com/{name}/\\{name}/%7Bname%7D");
-  for (const bad of ["javascript:alert(1)", "file:///etc/passwd", "https:\\evil.test/x", "https://good.test\\@evil.test/x", "https://good.test/\nx", "/\\evil.test/x", "data:text/html;base64,AQID"]) {
+  assert.equal(safeMediaUrl("https://example.com?v=1"), "https://example.com?v=1");
+  assert.equal(safeMediaUrl("https://example.com#t=3"), "https://example.com#t=3");
+  for (const bad of ["javascript:alert(1)", "file:///etc/passwd", "https:\\evil.test/x", "https://good.test@evil.test/x", "https://good.test\\@evil.test/x", "https://good.test/\nx", "/\\evil.test/x", "data:text/html;base64,AQID"]) {
     assert.equal(safeMediaUrl(bad), "#");
   }
 });

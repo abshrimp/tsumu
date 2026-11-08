@@ -226,6 +226,7 @@ export function GET() {
     ctx.usesFragment = false;
     ctx.usesSearchForm = false;
     ctx.usesInterpolate = false;
+    ctx.usesSafeImage = false;
     ctx.usesLookup = false;
     ctx.usesTemplate = false;
     ctx.inTemplate = false;
@@ -252,7 +253,7 @@ export function GET() {
       imports.push('import SearchForm from "./SearchForm";');
     }
     if (ctx.usesInterpolate) {
-      imports.push(`import { safeNavigationUrl, interpolate, interpolateUrl${ctx.usesLookup ? ", lookupVar" : ""} } from "@/lib/vars";`);
+      imports.push(`import { safeNavigationUrl${ctx.usesSafeImage ? ", safeImageSrc" : ""}, interpolate, interpolateUrl${ctx.usesLookup ? ", lookupVar" : ""} } from "@/lib/vars";`);
       files["lib/vars.ts"] = VARS_RUNTIME;
     }
     for (const usedId of ctx.usedComponents) {
@@ -396,6 +397,7 @@ export default function manifest(): MetadataRoute.Manifest {
       usesFragment: false,
       usesSearchForm: false,
       usesInterpolate: false,
+      usesSafeImage: false,
       usesLookup: false,
       usesTemplate: false,
       inTemplate: false,
@@ -432,7 +434,7 @@ export default function manifest(): MetadataRoute.Manifest {
     }
     if (loadingCtx.usesInterpolate) {
       loadingImports.push(
-        `import { safeNavigationUrl, interpolate, interpolateUrl${loadingCtx.usesLookup ? ", lookupVar" : ""} } from "@/lib/vars";`
+        `import { safeNavigationUrl${loadingCtx.usesSafeImage ? ", safeImageSrc" : ""}, interpolate, interpolateUrl${loadingCtx.usesLookup ? ", lookupVar" : ""} } from "@/lib/vars";`
       );
       files["lib/vars.ts"] = VARS_RUNTIME;
     }

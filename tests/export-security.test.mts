@@ -3225,10 +3225,26 @@ test("whole URL handling matches editor, including inline image URLs for fetch i
     assert.equal(native.resolveUrl("{value}", vars), safeNavigationUrl(interpolateUrl("{value}", vars)), value);
   }
 });
-test("resource URL helpers retain inline media and block executable protocols", () => {
-  for (const value of ["data:image/png;base64,AAAA", "data:image/svg+xml;base64,AAAA", "data:audio/wav;base64,AAAA", "data:video/mp4;base64,AAAA", "blob:https://example.com/id", "javascript:alert(1)", "data:text/html;base64,AAAA", "//evil.test", "/\\evil.test", "https://example.com/image?a=1&b=2"]) {
+test("resource URL helpers retain inline media and block executable protocols and credentialed hosts", () => {
+  for (const value of ["data:image/png;base64,AAAA", "data:image/svg+xml;base64,AAAA", "data:audio/wav;base64,AAAA", "data:video/mp4;base64,AAAA", "blob:https://example.com/id", "javascript:alert(1)", "data:text/html;base64,AAAA", "//evil.test", "/\\evil.test", "https://good.test@evil.test/pic.png", "https://example.com?a=1", "https://example.com/image?a=1&b=2"]) {
     assert.equal(native.resolveResourceUrl("{value}", { value }), safeResourceUrl(interpolate("{value}", { value })), value);
   }
+  const site = createInitialDoc();
+  site.nodes.dynImg = {
+    ...makeBox(), id: "dynImg", type: "image",
+    image: { src: "{photo}", alt: "Dynamic", width: 40, height: 40 },
+  };
+  site.nodes.badImg = {
+    ...makeBox(), id: "badImg", type: "image",
+    image: { src: "javascript:alert(1)", alt: "StaticBlocked", width: 40, height: 40 },
+  };
+  site.pages[site.pageOrder[0]].children.push("dynImg", "badImg");
+  const nextFiles = generateExportProject(site, "nextjs").files;
+  assert.match(nextFiles["app/page.tsx"], /import \{[^}]*\bsafeImageSrc\b[^}]*\} from "@\/lib\/vars";/);
+  assert.match(nextFiles["app/page.tsx"], /src=\{safeImageSrc\(interpolate\("\{photo\}", vars\)\)\}/);
+  assert.doesNotMatch(nextFiles["app/page.tsx"], /javascript:alert|src="#"/);
+  const reactFiles = generateExportProject(site, "react").files;
+  assert.match(reactFiles["src/pages/Page0.tsx"], /safeImageSrc\(interpolate\("\{photo\}", vars\)\)/);
 });
 test("nested native scopes shadow outer values without mutating them", () => {
   const outer = { value: "outer", nested: { value: "outer" } };

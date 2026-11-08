@@ -38,8 +38,35 @@ const staticAttrs = new Set([
   "seed", "stitchtiles",
 ]);
 
-function sanitizeSvgWithoutDom(input: string): { original: string; cleaned: string } {
-  const fragment = parseFragment(input);
+function hasClosedTags(node: Html.Node, input: string): boolean {
+  if (!("tagName" in node)) return true;
+  const loc = node.sourceCodeLocation;
+  if (!loc) return false;
+  const selfClosing = !!loc.startTag && /\/>\s*$/.test(input.slice(loc.startTag.startOffset, loc.startTag.endOffset));
+  if (!loc.endTag && !selfClosing) return false;
+  return !("childNodes" in node) || node.childNodes.every((child) => hasClosedTags(child, input));
+}
+
+function sanitizeSvgWithoutDom(input: string): { original: string; cleaned: string; wellFormed: boolean } {
+  let hasParseError = false;
+  const fragment = parseFragment(input, {
+    sourceCodeLocationInfo: true,
+    onParseError: () => { hasParseError = true; },
+  });
+  const trimStart = input.length - input.trimStart().length;
+  const trimEnd = input.trimEnd().length;
+  const roots = fragment.childNodes.filter((node) => !(node.nodeName === "#text" && !("value" in node && node.value.trim())));
+  const root = roots.length === 1 ? roots[0] : undefined;
+  const rootLoc = root && "tagName" in root ? root.sourceCodeLocation : undefined;
+  const wellFormed = !hasParseError &&
+    trimEnd > trimStart &&
+    !!root &&
+    "tagName" in root &&
+    root.tagName.toLowerCase() === "svg" &&
+    !!rootLoc?.endTag &&
+    rootLoc.startOffset === trimStart &&
+    rootLoc.endOffset === trimEnd &&
+    hasClosedTags(root, input);
   const original = serialize(fragment);
   let seenRoot = false;
   const safeNode = (node: Html.Node, parentIsSvg: boolean): boolean => {
@@ -67,15 +94,15 @@ function sanitizeSvgWithoutDom(input: string): { original: string; cleaned: stri
     return true;
   };
   fragment.childNodes = fragment.childNodes.filter((node) => safeNode(node, false));
-  return { original, cleaned: serialize(fragment) };
+  return { original, cleaned: serialize(fragment), wellFormed };
 }
 
 /** 受け取ったアイコンのマークアップを、環境によらない単一の許可リストで検証する。 */
 export function isSafeImportedSvg(svg: string): boolean {
   if (typeof svg !== "string") return false;
   if (verifiedSafeSvgs.has(svg)) return true;
-  const { original, cleaned } = sanitizeSvgWithoutDom(svg);
-  const safe = original === cleaned;
+  const { original, cleaned, wellFormed } = sanitizeSvgWithoutDom(svg);
+  const safe = wellFormed && original === cleaned;
   if (safe) rememberSafeSvg(svg);
   return safe;
 }
@@ -86,8 +113,8 @@ export function isSafeImportedSvg(svg: string): boolean {
  */
 export function sanitizeImportedSvg(svg: string): string {
   if (verifiedSafeSvgs.has(svg)) return svg;
-  const { original, cleaned } = sanitizeSvgWithoutDom(svg);
-  const out = original === cleaned ? svg : cleaned;
+  const { original, cleaned, wellFormed } = sanitizeSvgWithoutDom(svg);
+  const out = wellFormed && original === cleaned ? svg : cleaned;
   rememberSafeSvg(out);
   return out;
 }

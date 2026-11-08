@@ -149,6 +149,7 @@ export function generatePageFile(
   ctx.usesFragment = false;
   ctx.usesSearchForm = false;
   ctx.usesInterpolate = false;
+  ctx.usesSafeImage = false;
   ctx.usesLookup = false;
   ctx.usesTemplate = false;
   ctx.usesPageHtml = false;
@@ -286,7 +287,7 @@ export function generatePageFile(
   if (ctx.usesPageHtml) imports.push('import PageHtml from "@/components/PageHtml";');
   if (needsVars)
     imports.push(
-      `import { safeNavigationUrl, interpolate, interpolateUrl${loads.some((st) => st.kind === "fetch" && !!fetchInitExpr(st)?.includes("interpolateJson(")) ? ", interpolateJson" : ""}${listNodes.length || ctx.usesLookup || hasPurePageControls || loads.some((st) => st.kind === "set-var" || st.kind === "transform") ? ", lookupVar" : ""} } from "@/lib/vars";`
+      `import { safeNavigationUrl${ctx.usesSafeImage ? ", safeImageSrc" : ""}, interpolate, interpolateUrl${loads.some((st) => st.kind === "fetch" && !!fetchInitExpr(st)?.includes("interpolateJson(")) ? ", interpolateJson" : ""}${listNodes.length || ctx.usesLookup || hasPurePageControls || loads.some((st) => st.kind === "set-var" || st.kind === "transform") ? ", lookupVar" : ""} } from "@/lib/vars";`
     );
   for (const compId of ctx.usedComponents) {
     const name = ctx.componentNames.get(compId)!;

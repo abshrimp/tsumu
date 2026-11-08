@@ -4,7 +4,7 @@
  * 生成したサイトにも、同じ働きのランタイム（lib/vars.ts）が出力される。
  */
 
-import { NAVIGATION_RUNTIME } from "./url-policy";
+import { NAVIGATION_RUNTIME, RESOURCE_URL_RUNTIME } from "./url-policy";
 import { tr } from "./i18n";
 import { formatValueText } from "./value-text";
 import { systemTimeValues, systemVariable } from "./system-time";
@@ -363,6 +363,15 @@ export function validateSlugUsage(slug: string): string | null {
 
 /** 生成したサイトに出力するランタイム */
 export const VARS_RUNTIME = `export ${NAVIGATION_RUNTIME.replace("(value)", "(value: string): string")}
+
+export ${RESOURCE_URL_RUNTIME.replace("(value)", "(value: string): string")}
+
+const EMPTY_IMAGE_SRC = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+export function safeImageSrc(value: string): string {
+  const safe = value ? safeResourceUrl(value) : "";
+  return !safe || safe === "#" ? EMPTY_IMAGE_SRC : safe;
+}
 
 const TOKEN_RE = /\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}|\\[slug\\]/g;
 /** 文字としての「{」の書き方 */

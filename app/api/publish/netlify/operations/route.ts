@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PublishPublicError } from "../../../../../lib/publish-security";
 import { requireAuth } from "../../../../../lib/server";
 import { jsonErrorStatus, readJsonObjectLimited } from "../../../../../lib/api-json";
 import {
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid Netlify operation." }, { status: 400, headers: NO_STORE });
   } catch (error) {
     return NextResponse.json({
-      error: error instanceof Error ? error.message : "Netlify operation failed.",
+      error: error instanceof PublishPublicError ? error.message : "Netlify operation failed.",
     }, { status: 502, headers: NO_STORE });
   }
 }

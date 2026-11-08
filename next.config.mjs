@@ -21,11 +21,11 @@ const nextConfig = {
         ],
       },
       {
-        // 他のサイトの iframe に入れて「公開」などを押させること（クリックジャッキング）を防ぐ
+        // 他のサイトの iframe や埋め込みからの遷移でエディタを重ねて押させること（クリックジャッキング）を防ぐ
         source: "/((?!api/).*)",
         headers: [
-          { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
         ],
       },
     ];
