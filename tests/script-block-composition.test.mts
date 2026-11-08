@@ -78,7 +78,7 @@ test("literal JSON in set-var is not misclassified as a full variable reference"
   assert.equal(compiled[0].steps[0].value, json);
   const vars: Record<string, unknown> = {};
   assert.equal(runPurePageSteps([set], vars, lookupVar, interpolate, evaluateValueRecipe), true);
-  assert.equal(vars.holidayJSON, json);
+  assert.deepEqual(vars.holidayJSON, { "2026-11-23": "勤労感謝の日" });
   const reference: ScriptStep = { id: "ref", kind: "set-var",
     into: "holidayName", value: "{date}" };
   assert.equal(setVarSource(reference), "date");
@@ -104,12 +104,14 @@ test("JSON lookup resolves own keys without traversing inherited prototypes", ()
 });
 
 test("every supported palette action is visible without hidden compatibility groups", () => {
-  assert.equal(PALETTE.length, 23);
-  assert.equal(findPaletteItems("").length, 23);
-  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 17);
+  assert.equal(PALETTE.length, 25);
+  assert.equal(findPaletteItems("").length, 25);
+  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 19);
   assert.ok(PALETTE.some(item => item.key === "transform"));
   assert.ok(PALETTE.some(item => item.key === "list-display"));
   assert.ok(PALETTE.some(item => item.key === "set-state"));
+  assert.ok(PALETTE.some(item => item.key === "break-loop"));
+  assert.ok(PALETTE.some(item => item.key === "set-list-item"));
   assert.ok(findPaletteItems("値を加工").some(item => item.key === "transform"));
 });
 
@@ -119,13 +121,13 @@ test("untrusted JSON objects cannot crash preview or emitted filter/sort compari
   const filter = { kind: "filter" as const, conds: [
     { field: "meta", op: "eq" as const, value: "[object Object]" },
   ] };
-  assert.deepEqual(filterItems(rows, [filter]), rows.slice(0, 1));
+  assert.deepEqual(filterItems(rows, [filter]), [], "object values are never equal to display strings");
   assert.doesNotThrow(() => compareValues(unsafe, "safe"));
   assert.equal(compareValues(unsafe, unsafe), 0);
   const predicate = filterPredicate([filter], "vars");
   assert.ok(predicate);
   const evaluate = new Function("item", "vars", "lookupVar", "interpolate", `return (${predicate});`);
-  assert.equal(evaluate(rows[0], {}, lookupVar, interpolate), true);
+  assert.equal(evaluate(rows[0], {}, lookupVar, interpolate), false);
   assert.equal(evaluate(rows[1], {}, lookupVar, interpolate), false);
   const sort = listItemsExpr({ from: "rows" }, "vars", "rows",
     [{ kind: "sort", field: "meta", dir: "asc" }]);
@@ -136,7 +138,7 @@ test("untrusted JSON objects cannot crash preview or emitted filter/sort compari
   const nested = [{ meta: [[1, 2], [3, 4]] }];
   assert.deepEqual(filterItems(nested, [{ kind: "filter", conds: [
     { field: "meta", op: "eq", value: "1,2,3,4" },
-  ] }]), nested);
+  ] }]), [], "nested lists require structural rather than string equality");
 });
 
 test("generated list filters and sorting expressions pass strict TypeScript checking", () => {
