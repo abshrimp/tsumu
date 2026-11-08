@@ -38,12 +38,13 @@ function ForEachView({
   const key = `step:${step.id}`;
   const sample = step.array ? lookupVar(ctx.samples, step.array) : undefined;
   const loops = useMemo(() => {
-    const fields = itemFieldsOf(sample);
+    const fields = [...itemFieldsOf(sample), "ループ.値", "ループ.キー", "ループ.順番",
+      ...(outer.length ? ["ループ.外側.値", "ループ.外側.キー", "ループ.外側.順番"] : [])];
     const item = toListItems(sample)[0];
     const samples = Object.fromEntries(
       fields.map((f) => [f, readableValue(item ? keyOfItem(item, f) : undefined)])
     );
-    return [{ array: step.array, fields, roots: Object.keys(item ?? {}), samples }, ...outer];
+    return [{ array: step.array, fields, roots: [...Object.keys(item ?? {}), "ループ"], samples }, ...outer];
   }, [sample, step.array, outer]);
   // The pre-rendering plan does not run for-each. Warn only for a page-load script,
   // not for click/change handlers that can iterate client-side lists.
@@ -65,7 +66,7 @@ function ForEachView({
             ),
           }}
         />
-        {step.array && <span className="se-blk-note">{tr("中では要素の項目を {項目} で使えます")}</span>}
+        {step.array && <span className="se-blk-note">{tr("中では {ループ.値}・{ループ.キー}・{ループ.順番} を使えます")}</span>}
         {stuck && !ctx.readOnly && (
           <span className="se-badge is-warn">
             {tr("この繰り返しには、ページの配信前に実行できない操作または変数参照があります。中のブロックを確認してください。")}
@@ -83,6 +84,7 @@ function ForEachView({
 
 function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
   const ctx = useContext(Ctx);
+  const outer = useContext(LoopCtx);
   const cat = CAT_OF[step.kind];
   const key = `step:${step.id}`;
   const sel = ctx.selected.has(key) ? " is-selected" : "";
@@ -126,7 +128,9 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
           )}
         </div>
         <div className="se-c-body">
-          <StepList scriptId={loc.scriptId} list={`${step.id}:then`} steps={step.then} />
+          <LoopCtx.Provider value={[{ array: "", fields: ["ループ.値", "ループ.キー", "ループ.順番"], roots: ["ループ"], samples: {} }, ...outer]}>
+            <StepList scriptId={loc.scriptId} list={`${step.id}:then`} steps={step.then} />
+          </LoopCtx.Provider>
         </div>
       </div>
     );
