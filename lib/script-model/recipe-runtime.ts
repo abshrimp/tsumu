@@ -285,7 +285,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         case "fallback":
         case "fallback-nullish": {
           if (typeof step.text !== "string" || step.text.length > 10000) return failure("invalid-recipe");
-          if (absent || (step.kind === "fallback-nullish" && current === null)) {
+          if (absent || ((step.kind === "fallback-nullish" || step.when === "nullish") && current === null)) {
             const replacement = interpolateText(step.text, 10000);
             if (!replacement.ok) return failure("missing-value");
             current = replacement.value;
@@ -300,7 +300,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             break;
           }
           const key = textParam(step.key, 256);
-          if (!key.ok || !current || typeof current !== "object" || Array.isArray(current))
+          if (!key.ok || !current || typeof current !== "object")
             return failure("type-mismatch");
           const direct = owns(current, key.value);
           const present = direct || (!!key.value && hasAt(current, key.value));
@@ -325,8 +325,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         }
         case "length":
           if (absent) break;
-          if (!Array.isArray(current)) return failure("type-mismatch");
-          current = current.length;
+          if (!current || typeof current !== "object") return failure("type-mismatch");
+          current = Object.keys(current).length;
           break;
         case "format":
           if (absent) break;
@@ -395,10 +395,11 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         case "join": {
           if (absent) break;
           const delimiter = textParam(step.separator, 256);
-          if (!Array.isArray(current) || !delimiter.ok) return failure("type-mismatch");
-          if (current.length > 10000) return failure("limit-exceeded");
+          if (!current || typeof current !== "object" || !delimiter.ok) return failure("type-mismatch");
+          const values = Object.values(current);
+          if (values.length > 10000) return failure("limit-exceeded");
           const pieces: string[] = [];
-          for (const part of current) {
+          for (const part of values) {
             if (part === null || part === "") continue;
             if (!scalar(part)) return failure("type-mismatch");
             pieces.push(String(part));
