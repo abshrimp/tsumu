@@ -366,7 +366,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             return failure("type-mismatch");
           const array = Array.isArray(current);
           const entries = Object.entries(current);
-          if (entries.length > 10000 || (array && current.length > 10000))
+          if (entries.length > 10000 || (Array.isArray(current) && current.length > 10000))
             return failure("limit-exceeded");
           const pairs: { item: unknown; sourceKey: string; key: string | number; order: number }[] = [];
           let keyType: string | undefined;
