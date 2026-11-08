@@ -57,3 +57,15 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
   }
   return false;
 }
+
+/** Infer only unambiguous JSON literals. Other text remains text. */
+export function parseValueLiteral(text: string): unknown {
+  const source = text.trim();
+  if (source === "true" || source === "false" || source === "null" ||
+      source.startsWith("[") || source.startsWith("{") ||
+      /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(source) ||
+      (source.length >= 2 && source.startsWith('"') && source.endsWith('"'))) {
+    try { return JSON.parse(source); } catch { /* Ordinary text. */ }
+  }
+  return text;
+}
