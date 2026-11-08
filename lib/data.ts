@@ -18,6 +18,7 @@ import {
 import { fieldStateNotes, fieldVarName, fieldVarNames, isRadioItem } from "./fields";
 import { tr, trc } from "./i18n";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
+import { matchesValueCondition, parseValueLiteral } from "./value-semantics";
 import { runPurePageSteps } from "./page-load-steps";
 
 /** "data.items" のようなパスでオブジェクトを掘る（配列の "-1" は最後の要素） */
@@ -39,11 +40,12 @@ export const ITEM_VALUE = "値";
 
 /** リストで並べる項目にする（オブジェクトはそのまま、文字や数値は {値} に入れる） */
 export function toListItems(value: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(value)) return [];
+  if (!value || typeof value !== "object") return [];
   const out: Record<string, unknown>[] = [];
-  for (const x of value) {
-    if (x == null || Array.isArray(x)) continue;
-    out.push(typeof x === "object" ? (x as Record<string, unknown>) : { [ITEM_VALUE]: x });
+  for (const [, item] of Object.entries(value)) {
+    out.push(item && typeof item === "object" && !Array.isArray(item)
+      ? item as Record<string, unknown>
+      : { [ITEM_VALUE]: item });
   }
   return out;
 }
@@ -68,29 +70,8 @@ export function detectFields(items: Record<string, unknown>[]): string[] {
 /**
  * 絞り込みの比較（スクリプトの「配列を絞り込む」。ブラウザの cmp・書き出しの filterExpr と同じ規則）
  */
-export function matchOp(v: string, op: ScriptOp | undefined, w: string): boolean {
-  switch (op) {
-    case "contains":
-      return v.includes(w);
-    case "starts-with":
-      return v.startsWith(w);
-    case "ends-with":
-      return v.endsWith(w);
-    case "gt":
-      return parseFloat(v) > parseFloat(w);
-    case "gte":
-      return parseFloat(v) >= parseFloat(w);
-    case "lt":
-      return parseFloat(v) < parseFloat(w);
-    case "lte":
-      return parseFloat(v) <= parseFloat(w);
-    case "empty":
-      return v === "";
-    case "in":
-      return w.split(",").some((x) => x.trim() === v);
-    default:
-      return v === w;
-  }
+export function matchOp(v: unknown, op: ScriptOp | undefined, w: unknown): boolean {
+  return matchesValueCondition(v, op ?? "eq", w);
 }
 
 /** Coerce fetched JSON without invoking custom or shadowed toString methods. */
@@ -159,8 +140,8 @@ export function filterItems(
   const pass = (o: Extract<ListOp, { kind: "filter" }>, item: Record<string, unknown>) =>
     condGroups(o.conds).some((g) =>
       g.every((c) =>
-        c.not ? !matchOp(safeCompareText(keyOfItem(item, c.field)), c.op, c.value) :
-          matchOp(safeCompareText(keyOfItem(item, c.field)), c.op, c.value)
+        c.not ? !matchOp(keyOfItem(item, c.field), c.op, parseValueLiteral(c.value)) :
+          matchOp(keyOfItem(item, c.field), c.op, parseValueLiteral(c.value))
       )
     );
   return items.filter((item) =>
@@ -385,7 +366,7 @@ export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
 export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
 /** ページを配信する前に実行するブロック */
 export type PureGroupStep = Extract<ScriptStep, { kind: "for-each" | "if" | "repeat" }>;
-export type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep;
+export type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep | Extract<ScriptStep, { kind: "set-list-item" }>;
 
 /** 「［{名前}］を変数［］とする」の {名前}（値が {名前} 1つだけでなければ null） */
 export function setVarSource(st: SetVarStep): string | null {
@@ -500,6 +481,8 @@ function repeatVarName(value: number | string): string | null {
 function pureLoadStep(st: ScriptStep): boolean {
   switch (st.kind) {
     case "set-var": return !!st.into;
+    case "set-list-item": return !!st.list;
+    case "break-loop": return true;
     case "transform": return !!st.source && !!st.into;
     case "if": return (st.conditions?.length ?? 0) <= 32 &&
       [st.cond, ...(st.conditions ?? [])].every((condition) => condition.subject === "var") &&
@@ -774,6 +757,23 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
       out.push({ name: st.into, client: clientVars.has(st.into) });
     });
   }
+  // Lists may have either numeric or named keys.
+  const visitedLists = new Set<unknown>();
+  const visit = (value: unknown, name: string, depth: number) => {
+    if (!value || typeof value !== "object" || visitedLists.has(value) || depth > 4) return;
+    visitedLists.add(value);
+    if (!seen.has(name)) {
+      seen.add(name);
+      out.push({ name, client: clientVars.has(name.split(".")[0]) });
+    }
+    if (depth < 4) for (const [key, child] of Object.entries(value).slice(0, 50)) {
+      if (!key.includes(".") && child && typeof child === "object")
+        visit(child, name + "." + key, depth + 1);
+    }
+  };
+  const sampleVars = previewDataVars(doc, pageId);
+  for (const [name, value] of Object.entries(sampleVars))
+    if (!name.startsWith("#")) visit(value, name, 0);
   return out;
 }
 
@@ -929,6 +929,11 @@ export function previewDataVars(
           save(st.into, interpolate(st.value, scope()));
           delete origins[st.into];
         }
+        break;
+      }
+      case "set-list-item": {
+        runPurePageSteps([st], out, lookupVar, interpolate, evaluateValueRecipe,
+          { ...opts.vars, slug: opts.slug });
         break;
       }
       case "transform": {
