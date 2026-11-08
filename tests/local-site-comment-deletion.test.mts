@@ -172,7 +172,7 @@ for (const operation of ["load", "write"] as const) test(`a marker read failure 
   } finally { f.home.dispose(); }
 });
 
-for (const stage of ["read", "write", "write-cleanup-failure"] as const) test(`deletion overlapping the comment ${stage} rejects success and hides the obsolete snapshot`, async () => {
+for (const stage of ["read", "write", "write-cleanup-failure"] as const) test(`deletion overlapping the comment ${stage} rejects success and hides the deleted record`, async () => {
   const f = await setup();
   try {
     useComments.getState().setDraft(draft);
