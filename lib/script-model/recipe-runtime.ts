@@ -234,7 +234,12 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       }
       if (char === ")") {
         if (scopes.length <= 1) return false;
-        last = { category: null, group: scopes.pop() };
+        const completed = scopes.pop()!;
+        // Repetition or alternation can be nested in otherwise unquantified
+        // groups; retain those flags when validating an outer group quantifier.
+        scopes[scopes.length - 1].repeats ||= completed.repeats;
+        scopes[scopes.length - 1].alternation ||= completed.alternation;
+        last = { category: null, group: completed };
         continue;
       }
       if (char === "|") {
