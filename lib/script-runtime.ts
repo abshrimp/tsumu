@@ -26,9 +26,9 @@ import { codeLiteral } from "./generator/code-literal";
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
   var matchValueCondition = (${matchesValueCondition.toString()});
-  /*#setvar*/
-  // esbuild may annotate named inner functions with __name when serializing .toString().
+  // esbuild may annotate nested functions embedded via toString().
   var __name = function (fn) { return fn; };
+  /*#setvar*/
   var evalRecipe = (${evaluateValueRecipe.toString()});
   /*/setvar*/
   /*#env*/
