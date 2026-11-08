@@ -66,20 +66,6 @@ export const SCRIPT_RUNTIME = `function (env) {
     }
     return v;
   }
-  // Inputs can contain a literal value, a list, one raw reference, or mixed text.
-  function inputValue(raw, self, scope) {
-    if (typeof raw !== "string") return raw;
-    var source = raw.trim();
-    var reference = /^\\{([^{}\\s"'<>]+)\\}$/.exec(source);
-    if (reference) return lookup(reference[1], self, scope);
-    if (source === "true" || source === "false" || source === "null" ||
-        source.charAt(0) === "[" || source.charAt(0) === "{" ||
-        /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/.test(source) ||
-        (source.length >= 2 && source.charAt(0) === '"' && source.charAt(source.length - 1) === '"')) {
-      try { return JSON.parse(source); } catch (e) {}
-    }
-    return resolve(raw, self, scope);
-  }
   // 表示用の文字にする（配列は「, 」でつなぐ）
   function text(v) {
     if (v == null) return "";
@@ -590,6 +576,20 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (a === name || a.indexOf(name + ".") === 0 || a === rk || a.indexOf(rk + ".") === 0) renderList(list);
         });
         /*/clist*/
+      }
+      // Inputs can contain a literal value, a list, one raw reference, or mixed text.
+      function inputValue(raw, self, scope) {
+        if (typeof raw !== "string") return raw;
+        var source = raw.trim();
+        var reference = /^\\{([^{}\\s"'<>]+)\\}$/.exec(source);
+        if (reference) return lookup(reference[1], self, scope);
+        if (source === "true" || source === "false" || source === "null" ||
+            source.charAt(0) === "[" || source.charAt(0) === "{" ||
+            /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/.test(source) ||
+            (source.length >= 2 && source.charAt(0) === '"' && source.charAt(source.length - 1) === '"')) {
+          try { return JSON.parse(source); } catch (e) {}
+        }
+        return resolve(raw, self, scope);
       }
       /*#if*/
       function test(c, self, sc) {
