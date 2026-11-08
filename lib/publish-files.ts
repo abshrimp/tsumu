@@ -45,7 +45,7 @@ export function planPublish(
     } else if (outputs.has(path)) {
       plan.clashing.push(path);
     } else {
-      plan.kept[path] = sha;
+      Object.defineProperty(plan.kept, path, { value: sha, enumerable: true, configurable: true, writable: true });
     }
   }
   plan.edited.sort();

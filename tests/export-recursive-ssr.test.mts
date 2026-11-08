@@ -43,3 +43,68 @@ test("generated Vue/Nuxt/SvelteKit SSR cannot recursively fetch its own page rou
     assert.equal(localRequests, 1, framework);
   }
 });
+
+test("generated SSR never passes a normalized network-path reference to a local fetch", async () => {
+  const doc: SiteDoc = {
+    siteName: "Relative fetch", pageOrder: ["home"], assets: {}, nodes: {},
+    pages: { home: { id: "home", name: "Home", slug: "", title: "", description: "", children: [] } },
+  };
+  for (const [format, path] of [
+    ["vue", "src/server-request.js"], ["nuxt", "app/generated/server-request.js"],
+    ["sveltekit", "src/lib/server-request.js"],
+  ] as const) {
+    const code = generateExportProject(doc, format).files[path];
+    const { requestPublic } = await import("data:text/javascript;base64," + Buffer.from(code).toString("base64"));
+    const destinations: string[] = [];
+    const base = "https://published.example";
+    const local = async (url: string) => {
+      destinations.push(new URL(url, base).href);
+      return new Response("{}");
+    };
+    for (const uri of ["/a/..//127.0.0.1/private", "/a/%2e%2e//127.0.0.1/private"]) {
+      await assert.rejects(requestPublic(uri, {}, base, local));
+    }
+    assert.deepEqual(destinations, [], format);
+    await requestPublic("/api/items", {}, base, local);
+    assert.deepEqual(destinations, [base + "/api/items"], format);
+  }
+});
+
+test("generated Vue HTTP server rejects invalid request targets before rendering", async () => {
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { pathToFileURL } = await import("node:url");
+  const { request } = await import("node:http");
+  const dir = await mkdtemp(join(tmpdir(), "vue-request-target-"));
+  const doc: SiteDoc = {
+    siteName: "Request target", pageOrder: ["home"], assets: {}, nodes: {},
+    pages: { home: { id: "home", name: "Home", slug: "", title: "", description: "", children: [] } },
+  };
+  const project = generateExportProject(doc, "vue");
+  const source = project.files["server.mjs"];
+  try {
+    await mkdir(join(dir, "dist/client"), { recursive: true });
+    await mkdir(join(dir, "dist/server"), { recursive: true });
+    await writeFile(join(dir, "package.json"), '{"type":"module"}');
+    await writeFile(join(dir, "dist/client/index.html"), "<!--app-html-->");
+    await writeFile(join(dir, "dist/server/entry-server.js"),
+      'export function render(url) { return { id:"home", vars:{}, html:url, title:"OK", description:"", status:200 }; }');
+    // Keep the generated handler intact and let the test select an ephemeral port.
+    await writeFile(join(dir, "server.mjs"), source.replace('process.env.NODE_ENV === "production"', "true")
+      .replace(/^server\.listen\(.*$/m, "export { server };"));
+    const { server } = await import(pathToFileURL(join(dir, "server.mjs")).href);
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const get = (path: string) => new Promise<number>((resolve, reject) => {
+        const req = request({ host: "127.0.0.1", port: server.address().port, path }, res => {
+          res.resume(); resolve(res.statusCode!);
+        });
+        req.on("error", reject); req.end();
+      });
+      assert.equal(await get("/\\127.0.0.2/"), 400);
+      assert.equal(await get("//["), 400);
+      assert.equal(await get("/"), 200);
+    } finally { await new Promise<void>(resolve => server.close(resolve)); }
+  } finally { await rm(dir, { force: true, recursive: true }); }
+});

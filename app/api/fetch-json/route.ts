@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
   // メソッド・ヘッダー・本文（データの取得ブロックの「リクエストの設定」）
-  const verb = (method ?? "GET").toUpperCase();
+  const verb = typeof method === "string" ? method.toUpperCase() : method == null ? "GET" : "";
   if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(verb)) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }

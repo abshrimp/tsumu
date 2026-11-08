@@ -12,7 +12,7 @@ import {
   readCurrentDoc,
   saveCurrentDoc,
   saveDocPatch,
-  validateDocBody,
+  validateDocValue,
 } from "../../../lib/doc-storage";
 import { userMessage } from "../../../lib/errors";
 import { isDocPatch } from "../../../lib/doc-patch";
@@ -91,15 +91,14 @@ async function save(req: Request, partial: boolean) {
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
 
-  // 再シリアライズは避けるが、壊れたJSONで保存データ全体が読めなくなるのを防ぐ
-  const raw = (await req.text()).trim();
-  let patch: unknown;
-  if (partial) {
-    try { patch = JSON.parse(raw); } catch { /* validation below */ }
+  let input;
+  try { input = await req.json(); } catch {
+    return NextResponse.json({ error: tr(partial ? "不正なリクエスト" : "JSONが壊れています") }, { status: 400 });
   }
+  const patch = partial ? input : undefined;
   const validationError = partial
     ? isDocPatch(patch) ? null : "不正なリクエスト"
-    : validateDocBody(raw);
+    : validateDocValue(input);
   if (validationError) {
     return NextResponse.json({ error: tr(validationError) }, { status: 400 });
   }
@@ -109,6 +108,14 @@ async function save(req: Request, partial: boolean) {
   const base = params.get("base");
   if (partial && (!base || !/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
     return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
+  }
+  // SQLite reads the first repeated JSON key; JSON.parse reads the last.
+  // Store the same object that was validated and will be broadcast to editors.
+  let raw = "";
+  if (!partial) {
+    try { raw = JSON.stringify(input); } catch {
+      return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
+    }
   }
   const rawSenderId = req.headers.get("X-Collab-Client-Id") ?? "";
   const senderId = /^[a-zA-Z0-9_-]{1,100}$/.test(rawSenderId)
@@ -139,7 +146,7 @@ async function save(req: Request, partial: boolean) {
     };
     notifyDocUpdated(siteId, partial && isDocPatch(patch)
       ? { ...metadata, type: "doc-patched", base: base!, patch }
-      : { ...metadata, type: "doc-updated", doc: JSON.parse(raw) });
+      : { ...metadata, type: "doc-updated", doc: input });
     return NextResponse.json({
       ok: true,
       rev: result.rev,

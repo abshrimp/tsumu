@@ -36,3 +36,17 @@ test("credential scanner also visits scripts attached to elements", () => {
   }];
   assert.equal(hasPublishCredentials(doc), true);
 });
+
+test("credential detection visits deep scripts and decoded query, form and JSON keys", () => {
+  const url = "https://example.test/data";
+  assert.equal(hasPublishCredentials(siteWithFetch(url + "?%61pi_key=literal")), true);
+  assert.equal(hasPublishCredentials(siteWithFetch(url, [], "mode=test&client%5Fsecret=literal")), true);
+  assert.equal(hasPublishCredentials(siteWithFetch(url, [], '{"nested":{"pass\\u0077ord":"literal"}}')), true);
+  assert.equal(hasPublishCredentials(siteWithFetch(url + "?%61pi_key=%7Bkey%7D")), false);
+  const doc = siteWithFetch(url + "?token=literal");
+  const steps = doc.pages[doc.pageOrder[0]].pageScripts![0].steps;
+  let nested = steps.splice(0);
+  for (let i = 0; i < 60; i++) nested = [{ id: String(i), kind: "repeat", times: 1, then: nested }];
+  steps.push(...nested);
+  assert.equal(hasPublishCredentials(doc), true);
+});

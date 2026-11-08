@@ -6,7 +6,8 @@ import type { Asset, NodeStyles } from "./types";
 export function createCssAssetFinder(assets: Record<string, Asset>) {
   const bySrc = new Map<string, string[]>();
   for (const asset of Object.values(assets)) {
-    const src = assetSrc(asset);
+    // Match stored CSS aliases as strings only; they are never fetched here.
+    const src = asset.path ? assetSrc(asset) : asset.dataUrl;
     if (!src) continue;
     const ids = bySrc.get(src) ?? [];
     ids.push(asset.id);

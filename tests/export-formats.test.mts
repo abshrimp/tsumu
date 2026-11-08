@@ -270,3 +270,12 @@ test("nested HTML exports rewrite real resource URLs without changing scripts, c
   assert.match(html, /<!-- <img src="\/comment\.svg"> -->/);
   assert.match(html, /<textarea>href="\/textarea\.txt"<\/textarea>/);
 });
+
+test("generated Next.js projects include the editor's security overrides for shared build tooling", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const root = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const generated = JSON.parse(generateExportProject(fixture(), "nextjs").files["package.json"]);
+  assert.ok(root.overrides.glob);
+  assert.equal(generated.overrides.glob, root.overrides.glob);
+  assert.equal(generated.overrides.next.postcss, root.overrides.next.postcss);
+});
