@@ -7,7 +7,6 @@ import type {
   FilterCond,
   ImageRef,
   ListContent,
-  ScriptOp,
   ScriptStep,
   SiteDoc,
 } from "../types";
@@ -19,6 +18,7 @@ import { compileScripts, hasRunnableScripts, keepTokens, walkSteps } from "../sc
 import { SELF_TARGET } from "../types";
 import { type JsxContext } from "./render";
 import { codeLiteral } from "./code-literal";
+import { matchesValueCondition, parseValueLiteral } from "../value-semantics";
 
 export function pageHref(ctx: JsxContext, pageId: string): string {
   const page = ctx.doc.pages[pageId];
@@ -267,32 +267,6 @@ export function showsSelf(node: DocNode): boolean {
   return found;
 }
 
-/** 絞り込みの比較（ブラウザの cmp・エディタの matchOp と同じ規則）を生成コードにする */
-function filterExpr(v: string, op: ScriptOp, w: string): string {
-  switch (op) {
-    case "contains":
-      return `${v}.includes(${w})`;
-    case "starts-with":
-      return `${v}.startsWith(${w})`;
-    case "ends-with":
-      return `${v}.endsWith(${w})`;
-    case "gt":
-      return `parseFloat(${v}) > parseFloat(${w})`;
-    case "gte":
-      return `parseFloat(${v}) >= parseFloat(${w})`;
-    case "lt":
-      return `parseFloat(${v}) < parseFloat(${w})`;
-    case "lte":
-      return `parseFloat(${v}) <= parseFloat(${w})`;
-    case "empty":
-      return `${v} === ""`;
-    case "in":
-      return `${w}.split(",").some((x) => x.trim() === ${v})`;
-    default:
-      return `${v} === ${w}`;
-  }
-}
-
 /** 項目の値を読む式（"address.city" のような入れ子の位置は lookupVar で読む） */
 export function fieldExpr(item: string, field: string): string {
   const key = codeLiteral(field);
@@ -330,10 +304,11 @@ export function filterPredicate(ops: ListOp[], base: string): string | null {
   const filters = ops.filter((o): o is Extract<ListOp, { kind: "filter" }> => o.kind === "filter");
   if (!filters.length) return null;
   const expr = (c: FilterCond) => {
-    const w = hasVars(c.value)
+    const text = hasVars(c.value)
       ? `interpolate(${codeLiteral(c.value)}, ${base})`
       : codeLiteral(c.value);
-    const positive = filterExpr(safeFieldTextExpr(fieldExpr("item", c.field)), c.op, w);
+    const w = `(${parseValueLiteral.toString()})(${text})`;
+    const positive = `(${matchesValueCondition.toString()})(${fieldExpr("item", c.field)}, ${codeLiteral(c.op)}, ${w})`;
     return c.not ? `!(${positive})` : positive;
   };
   // 括弧は、優先順位が変わるところにだけ付ける
