@@ -38,7 +38,10 @@ export function cssAssetReferences(css: string): Reference[] {
 
 export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Generator<Reference> {
   let atRuleTarget: "import" | "namespace" | undefined;
-  const stack: { name: string; candidate: boolean }[] = [];
+  // One byte per parenthesis. Deep or unbalanced CSS cannot allocate an object per token.
+  const other = 0, imageSet = 1, imageCandidate = 2;
+  let stack = new Uint8Array(16);
+  let depth = 0;
   const skipTrivia = (from: number): number => {
     let i = from;
     while (i < css.length) {
@@ -60,15 +63,20 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
     }
     return -1;
   };
-  function open(name: string, candidate: boolean) {
-    if (stack.length >= maxDepth) throw new Error("CSS function nesting exceeds the single HTML limit.");
-    stack.push({ name, candidate });
+  function open(state: number) {
+    if (depth >= maxDepth) throw new Error("CSS function nesting exceeds the single HTML limit.");
+    if (depth === stack.length) {
+      const larger = new Uint8Array(depth * 2);
+      larger.set(stack);
+      stack = larger;
+    }
+    stack[depth++] = state;
   }
   for (let i = 0; i < css.length;) {
     const next = skipTrivia(i);
     if (next !== i) { i = next; continue; }
     const c = css[i];
-    const parent = stack.at(-1);
+    const parent = stack[depth - 1];
     if (c === "@") {
       const start = ++i;
       while (i < css.length && (nameChar(css[i]) || css[i] === "\\")) {
@@ -81,11 +89,11 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
     if (c === '"' || c === "'") {
       const end = stringEnd(i);
       if (end < 0) break;
-      if (atRuleTarget === "import" || (parent?.candidate && /^(?:-webkit-)?image-set$/.test(parent.name))) {
+      if (atRuleTarget === "import" || parent === imageCandidate) {
         yield { start: i + 1, end, url: decode(css.slice(i + 1, end)), quote: c, isImport: atRuleTarget === "import" };
       }
       atRuleTarget = undefined;
-      if (parent) parent.candidate = false;
+      if (parent === imageCandidate) stack[depth - 1] = imageSet;
       i = end + 1;
     } else if (nameChar(c) || c === "\\") {
       const start = i;
@@ -93,7 +101,7 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
         i = css[i] === "\\" ? escapeEnd(css, i) : i + 1;
       }
       const name = decode(css.slice(start, i)).toLowerCase();
-      if (parent) parent.candidate = false;
+      if (parent === imageCandidate) stack[depth - 1] = imageSet;
       if (css[i] !== "(") {
         // @namespace may have an identifier prefix before its URI.
         if (atRuleTarget !== "namespace") atRuleTarget = undefined;
@@ -101,7 +109,7 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
       }
       if (name !== "url") {
         atRuleTarget = undefined;
-        open(name, true); i++; continue;
+        open(name === "image-set" || name === "-webkit-image-set" ? imageCandidate : other); i++; continue;
       }
       let from = skipTrivia(i + 1);
       let end = from;
@@ -132,10 +140,10 @@ export function* iterateCssAssetReferences(css: string, maxDepth = Infinity): Ge
       atRuleTarget = undefined;
     } else {
       atRuleTarget = undefined;
-      if (c === "(") open("", false);
-      else if (c === ")") stack.pop();
-      else if (c === "," && parent) parent.candidate = true;
-      else if (parent) parent.candidate = false;
+      if (c === "(") open(other);
+      else if (c === ")") depth = Math.max(0, depth - 1);
+      else if (c === "," && parent === imageSet) stack[depth - 1] = imageCandidate;
+      else if (c !== "," && parent === imageCandidate) stack[depth - 1] = imageSet;
       i++;
     }
   }
@@ -186,7 +194,10 @@ export function replaceCssAssetUrls(
 export function cssUsesAssetUrl(css: string, source: string): boolean {
   if (!source) return false;
   const sources = new Map([[source, source]]);
-  return cssAssetReferences(css).some((ref) => replacement(ref.url, sources) !== undefined);
+  for (const ref of iterateCssAssetReferences(css)) {
+    if (replacement(ref.url, sources) !== undefined) return true;
+  }
+  return false;
 }
 
 /** Rewrite only actual CSS resource tokens; imported rules retain their syntax and conditions. */
