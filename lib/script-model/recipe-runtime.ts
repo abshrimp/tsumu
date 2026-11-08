@@ -169,6 +169,108 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     return { ok: true, value: any || (activeGroup && all) };
   };
 
+  // JavaScript RegExp may backtrack exponentially on external data.
+  // The generated browser and server code embed this evaluator verbatim.
+  const safeRegex = (pattern: string): boolean => {
+    if (pattern.length > 256) return false;
+    type Scope = { repeats: boolean; alternation: boolean };
+    type Atom = { category: string | null; group?: Scope };
+    const scopes: Scope[] = [{ repeats: false, alternation: false }];
+    const repeated: (string | null)[] = [];
+    const category = (value: string): string | null => {
+      if (value === "\\d" || value === "[0-9]") return "digit";
+      if (value === "\\w") return "word";
+      if (value === "\\s") return "space";
+      if (value === "[a-z]") return "lower";
+      if (value === "[A-Z]") return "upper";
+      if (value.length === 1) return "literal:" + value;
+      return null;
+    };
+    const accepts = (kind: string, char: string): boolean => {
+      if (kind === "word") return /^[a-zA-Z0-9_]$/.test(char);
+      if (kind === "digit") return /^[0-9]$/.test(char);
+      if (kind === "lower") return /^[a-z]$/.test(char);
+      if (kind === "upper") return /^[A-Z]$/.test(char);
+      if (kind === "space") return /^\s$/.test(char);
+      return true;
+    };
+    const overlaps = (a: string | null, b: string | null): boolean => {
+      if (!a || !b) return true;
+      if (a.startsWith("literal:"))
+        return b.startsWith("literal:") ? a === b : accepts(b, a.slice(8));
+      if (b.startsWith("literal:")) return accepts(a, b.slice(8));
+      if (a === "word") return b !== "space";
+      if (b === "word") return a !== "space";
+      return a === b;
+    };
+    let last: Atom | null = null;
+    for (let i = 0; i < pattern.length; i++) {
+      const char = pattern[i];
+      if (char === "\\") {
+        if (i + 1 >= pattern.length || /[1-9]/.test(pattern[i + 1]) ||
+            pattern[i + 1] === "k") return false;
+        last = { category: category("\\" + pattern[++i]) };
+        continue;
+      }
+      if (char === "[") {
+        let end = i + 1;
+        for (; end < pattern.length; end++) {
+          if (pattern[end] === "\\") { end++; continue; }
+          if (pattern[end] === "]") break;
+        }
+        if (end >= pattern.length) return false;
+        last = { category: category(pattern.slice(i, end + 1)) };
+        i = end;
+        continue;
+      }
+      if (char === "(") {
+        if (pattern[i + 1] === "?") {
+          if (pattern[i + 2] !== ":") return false;
+          i += 2;
+        }
+        scopes.push({ repeats: false, alternation: false });
+        last = null;
+        continue;
+      }
+      if (char === ")") {
+        if (scopes.length <= 1) return false;
+        last = { category: null, group: scopes.pop() };
+        continue;
+      }
+      if (char === "|") {
+        scopes[scopes.length - 1].alternation = true;
+        last = null;
+        continue;
+      }
+      let quantifier = char === "*" || char === "+" || char === "?";
+      let fixed = false;
+      if (char === "{") {
+        const count = /^\{(\d+)(?:,(\d*))?\}/.exec(pattern.slice(i));
+        if (count) {
+          const min = Number(count[1]);
+          const max = count[2] === "" ? Infinity : count[2] === undefined ? min : Number(count[2]);
+          if (min > 1000 || (max > 1000 && max !== Infinity) || max < min) return false;
+          quantifier = true;
+          fixed = min === max;
+          i += count[0].length - 1;
+        }
+      }
+      if (quantifier) {
+        if (!last || (last.group && (last.group.repeats || last.group.alternation))) return false;
+        if (!fixed) {
+          if (repeated.some((other) => overlaps(last!.category, other))) return false;
+          repeated.push(last.category);
+          scopes[scopes.length - 1].repeats = true;
+        }
+        last = null;
+      } else {
+        last = { category: char === "." || char === "^" || char === "$" ? null : category(char) };
+      }
+    }
+    return scopes.length === 1;
+  };
+  const MAX_RECIPE_TEXT = 100000;
+
   let current: unknown = input;
   let absent = current === undefined;
   try {
@@ -308,10 +410,26 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (current.length > 10000) return failure("limit-exceeded");
           if (!needle.value) break;
           if (step.regex) {
+            if (current.length > 2048 || !safeRegex(needle.value)) return failure("invalid-regex");
             let pattern: RegExp;
             try { pattern = new RegExp(needle.value, "g"); } catch { return failure("invalid-regex"); }
+            // Bound potentially expanded capture and surrounding-context substitutions.
+            let projected = current.length;
+            const captures = replacement.value.match(/\$(?:&|[1-9]\d?)/g)?.length ?? 0;
+            const contexts = replacement.value.match(/\$(?:'|`)/g)?.length ?? 0;
+            for (const match of current.matchAll(pattern)) {
+              projected += replacement.value.length + captures * match[0].length + contexts * current.length;
+              if (projected > MAX_RECIPE_TEXT) return failure("limit-exceeded");
+            }
             current = current.replace(pattern, replacement.value);
-          } else current = current.split(needle.value).join(replacement.value);
+          } else {
+            const chunks = current.split(needle.value);
+            const count = chunks.length - 1;
+            const length = current.length + count * (replacement.value.length - needle.value.length);
+            if (length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
+            current = chunks.join(replacement.value);
+          }
+          if (current.length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
           break;
         }
         case "find":
