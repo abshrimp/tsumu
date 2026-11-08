@@ -1263,6 +1263,11 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
   for (const st of steps) {
     // 配列・取得したデータの名前での参照
     if ("array" in st && st.array) st.array = fn(st.array) ?? st.array;
+    if (st.kind === "set-list-item") {
+      st.list = fn(st.list) ?? st.list;
+      st.key = mapVarTokens(st.key, fn);
+      st.value = mapVarTokens(st.value, fn);
+    }
     if (st.kind === "open-url" || st.kind === "fetch") st.url = mapVarTokens(st.url, fn);
     if (st.kind === "fetch") {
       st.headers = st.headers?.map((h) => ({ ...h, value: mapVarTokens(h.value, fn) }));
@@ -1391,7 +1396,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
     for (const s of n.scripts ?? []) stepLists.push(s.steps);
   }
 
-  const keep = new Set<string>(["slug", "値"]);
+  const keep = new Set<string>(["slug", "値", "ループ"]);
   for (const n of Object.values(out.nodes)) {
     if (n.attrId) keep.add(n.attrId);
     if (n.type === "field" && fieldVarName(n)) keep.add(fieldVarName(n));
