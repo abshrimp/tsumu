@@ -178,3 +178,26 @@ test("single HTML preserves deferred script order and keeps data attributes iner
   expect(await page.locator("html").getAttribute("data-unexpected")).toBeNull();
   expect(resources).toEqual([]);
 });
+
+test("single HTML runs a nested module graph offline with native module identity", async ({ page }) => {
+  const { toSingleHtmlProject } = await import("../lib/generator/single-html");
+  const source = {
+    "index.html": '<!doctype html><body><p></p><script type=module src="./js/entry.mjs"></script>',
+    "js/entry.mjs": 'import { first } from "./sub/reexport.js"; import { id } from "./a.js";' +
+      'const other = await import("./b.js");' +
+      'document.querySelector("p").textContent = [first === id, id !== other.id, "</script>"].join(" ");',
+    "js/sub/reexport.js": 'export { id as first } from "../a.js";',
+    "js/a.js": "export const id = {};",
+    "js/b.js": "export const id = {};",
+  };
+  const { files } = await toSingleHtmlProject({ files: source, remoteAssets: {}, binaries: {} });
+  const requests: string[] = [];
+  await page.route("**/*", route => {
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: files["index.html"] });
+    requests.push(route.request().url());
+    return route.abort();
+  });
+  await page.goto("http://single.example.test/");
+  await expect(page.locator("p")).toHaveText("true true </script>");
+  expect(requests).toEqual([]);
+});

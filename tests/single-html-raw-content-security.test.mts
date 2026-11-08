@@ -190,3 +190,34 @@ test("non-HTTP base schemes cannot redirect resource resolution", async () => {
     assert.match(files["index.html"], /src="data:image\/png;base64,AQ=="/);
   }
 });
+
+test("module graphs reject unsafe dependencies, invalid integrity and non-portable imports", async () => {
+  const files = { "index.html": '<script type=module src="entry.mjs"></script>', "entry.mjs": 'import "./entry.mjs"' };
+  const project = { files, binaries: {}, remoteAssets: {} };
+  await assert.rejects(toSingleHtmlProject(project), /circular/i);
+  for (const code of ['import("./" + name)', 'import.meta.resolve("./x")', 'import a from "./a.json" with {type:"json"}']) {
+    files["entry.mjs"] = code;
+    await assert.rejects(toSingleHtmlProject(project), /HTML ZIP/);
+  }
+  files["entry.mjs"] = 'import "./bad.txt"';
+  await assert.rejects(toSingleHtmlProject({ ...project, files: { ...files, "bad.txt": "attack()" } }), /media type/i);
+  files["index.html"] = '<script type=module src="entry.mjs" integrity="sha256-AAAA"></script>';
+  await assert.rejects(toSingleHtmlProject(project), /integrity/i);
+  files["index.html"] = '<script type=importmap>{"imports":{"./bad.txt":"./safe.mjs"}}</script><script type=module src="entry.mjs"></script>';
+  await assert.rejects(toSingleHtmlProject(project), /import map/);
+});
+
+test("a remote filename cannot promote a response with a missing or malformed active media type", async () => {
+  for (const tag of ['<script src="https://cdn.example/a.js"></script>', '<link rel=stylesheet href="https://cdn.example/a.css">']) {
+    for (const headers of [new Headers(), new Headers({ "Content-Type": 'invalid"type' })]) {
+      await assert.rejects(toSingleHtmlProject({ files: { "index.html": tag }, remoteAssets: {}, binaries: {} },
+        async () => new Response(new Uint8Array([97]), { headers })), /media type/);
+    }
+  }
+});
+
+test("module specifier rewriting does not publish signed resource URLs", async () => {
+  const project = await toSingleHtmlProject({ files: { "index.html": '<script type=module src="https://cdn.example/e.js?token=private-marker"></script>' },
+    remoteAssets: {}, binaries: {} }, async () => new Response("export default 1", { headers: { "Content-Type": "text/javascript" } }));
+  assert.doesNotMatch(project.files["index.html"], /private-marker|cdn\.example/);
+});

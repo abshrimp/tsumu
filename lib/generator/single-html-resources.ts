@@ -72,11 +72,12 @@ async function verifyIntegrity(bytes: Uint8Array<ArrayBuffer>, metadata: string)
 export type ResourceRequest = (url: string, init: RequestInit) => Promise<Response>;
 type Resource = { bytes: Uint8Array<ArrayBuffer>; mime: string; base: URL };
 
-export function singleHtmlResources(source: GeneratedProject, request: ResourceRequest) {
+export function singleHtmlResources(source: GeneratedProject, request: ResourceRequest, hasImportMap: boolean) {
   const resources = new Map<string, Resource>();
   const embedded = new Map<string, string>();
   const sheets = new Map<string, string>();
-  let inputBytes = 0, cacheBytes = 0, cssReferences = 0;
+  const modules = new Map<string, string>();
+  let inputBytes = 0, cacheBytes = 0, cssReferences = 0, moduleReferences = 0;
   const keyOf = (url: URL) => {
     if (url.origin === EXPORT_BASE.origin) return url.origin + url.pathname;
     if (!["http:", "https:", "blob:"].includes(url.protocol) || url.username || url.password || isEditorApi(url)) {
@@ -146,6 +147,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
       const type = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
       if (type && /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/.test(type)) mime = type;
+      else if (mime === "text/css" || mime === "text/javascript") mime = "application/octet-stream";
     }
     inputBytes += bytes.length;
     const result = { bytes, mime, base };
@@ -161,17 +163,62 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     return value;
   }
 
+  function checkScriptType(item: Resource) {
+    if (!/^(?:(?:text|application)\/(?:x-)?(?:java|ecma)script|text\/(?:jscript|livescript))$/i.test(item.mime)) {
+      throw new Error("Cannot embed script with media type " + item.mime);
+    }
+  }
+
   async function embed(ref: string, base: URL, integrity = "", script = false): Promise<string> {
     if (/^(?:data:|#|mailto:|tel:)/i.test(ref)) return ref;
     const url = new URL(ref, base);
     const item = await load(url);
     await verifyIntegrity(item.bytes, integrity);
-    if (script && !/^(?:(?:text|application)\/(?:x-)?(?:java|ecma)script|text\/(?:jscript|livescript))$/i.test(item.mime)) {
-      throw new Error("Cannot embed script with media type " + item.mime);
-    }
+    if (script) checkScriptType(item);
     const key = keyOf(url);
     const value = embedded.get(key) ?? remember(embedded, key, dataUrl(item.bytes, item.mime));
     return value + url.hash;
+  }
+
+  async function embedModule(url: URL, integrity = "", parents = new Set<string>()): Promise<string> {
+    const item = await load(url);
+    await verifyIntegrity(item.bytes, integrity);
+    checkScriptType(item);
+    const cached = modules.get(url.href);
+    if (cached) return cached;
+    if (parents.has(url.href) || parents.size >= 32 || modules.size >= 2048) {
+      throw new Error("Cannot embed a circular or oversized module graph. Use the HTML ZIP format.");
+    }
+    if (item.bytes.length > 4 * 1024 * 1024) throw new Error("Module exceeds 4 MB. Use the HTML ZIP format.");
+    const sourceText = decoder.decode(item.bytes);
+    const { parse } = await import("es-module-lexer/minimal/js");
+    const [imports] = parse(sourceText);
+    moduleReferences += imports.length;
+    if (moduleReferences > 100000) throw new Error("Too many module references. Use the HTML ZIP format.");
+    if (hasImportMap && imports.length) {
+      throw new Error("This module graph uses an authored import map. Use the HTML ZIP format.");
+    }
+    const output = new HtmlOutput();
+    let cursor = 0;
+    for (const ref of imports) {
+      if (ref.d === -2 || ref.n === undefined || ref.a !== -1 || ref.t === 4 || ref.t === 5) {
+        throw new Error("This module uses runtime resolution or import attributes. Use the HTML ZIP format.");
+      }
+      if (/^data:/i.test(ref.n)) continue;
+      if (!/^(?:\.{1,2}\/|\/|[a-z][a-z0-9+.-]*:)/i.test(ref.n)) {
+        throw new Error("Cannot resolve a bare module specifier. Use the HTML ZIP format.");
+      }
+      const child = await embedModule(new URL(ref.n, item.base), "", new Set([...parents, url.href]));
+      // Static offsets exclude quotes. Dynamic offsets include the entire string literal.
+      const quoted = JSON.stringify(child).replaceAll("'", "\\u0027");
+      output.append(sourceText.slice(cursor, ref.s));
+      output.append(ref.d === -1 ? quoted.slice(1, -1) : quoted);
+      cursor = ref.e;
+    }
+    output.append(sourceText.slice(cursor));
+    // Distinguish equal source bytes without publishing the original URL or its signed query.
+    const result = dataUrl(encoder.encode(output.join()), item.mime) + "#" + modules.size;
+    return remember(modules, url.href, result);
   }
 
   async function stylesheet(url: URL, parents: Set<string>, integrity = ""): Promise<string> {
@@ -210,5 +257,5 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     return result.join();
   }
 
-  return { css, stylesheet, embed, cssUrl: (text: string) => dataUrl(encoder.encode(text), "text/css") };
+  return { css, stylesheet, embed, embedModule, cssUrl: (text: string) => dataUrl(encoder.encode(text), "text/css") };
 }

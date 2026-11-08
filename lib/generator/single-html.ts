@@ -47,6 +47,7 @@ export async function toSingleHtmlProject(
   const pending: { node: Html.Node; inert: boolean }[] = [{ node: doc, inert: false }];
   let base = EXPORT_BASE;
   let foundBase = false;
+  let hasImportMap = false;
   while (pending.length) {
     const { node, inert } = pending.pop()!;
     if ("tagName" in node) {
@@ -61,6 +62,10 @@ export async function toSingleHtmlProject(
           } catch { /* Invalid base uses the document URL. */ }
         }
       }
+      if (!inert && node.namespaceURI === HTML && node.tagName === "script" &&
+          node.attrs.some(attr => attr.name === "type" && attr.value.trim().toLowerCase() === "importmap")) {
+        hasImportMap = true;
+      }
       if ("content" in node) pending.push({ node: (node as Html.Template).content, inert: true });
     }
     if ("childNodes" in node) {
@@ -68,7 +73,7 @@ export async function toSingleHtmlProject(
     }
   }
 
-  const resources = singleHtmlResources(source, request);
+  const resources = singleHtmlResources(source, request, hasImportMap);
   const result = new HtmlOutput();
   let cursor = 0;
   for (const node of elements.sort((a, b) => a.sourceCodeLocation!.startOffset - b.sourceCodeLocation!.startOffset)) {
@@ -107,6 +112,9 @@ export async function toSingleHtmlProject(
       const url = new URL(get("src"), base);
       if (url.origin === EXPORT_BASE.origin && url.pathname === "/pwa.js" && Object.hasOwn(source.files, "pwa.js")) {
         replacement = ""; end = loc.endOffset;
+      } else if (get("type").trim().toLowerCase() === "module" && url.protocol !== "data:") {
+        set("src", await resources.embedModule(url, get("integrity")));
+        attrs.delete("integrity"); // The original bytes were verified before rewriting module specifiers.
       } else if (!get("type") || /^(?:module|(?:text|application)\/(?:x-)?(?:java|ecma)script)$/i.test(get("type").trim())) {
         // A data URL retains external-script parsing, defer/async, and any native
         // integrity enforcement without introducing a network dependency.
