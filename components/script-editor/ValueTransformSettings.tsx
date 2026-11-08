@@ -14,11 +14,11 @@ import type {
 } from "../../lib/script-model/compose";
 
 export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
-  field: "項目を取り出す",
+  field: "リストから項目を取り出す",
   index: "リストから1件取り出す",
   has: "項目があるか調べる",
-  length: "リストの件数を数える",
-  format: "文字列に変換する",
+  length: "リストの項目数を数える",
+  format: "表示用の文字にする",
   stringify: "JSON文字列に変換する",
   parse: "JSON文字列を読み取る",
   "object-entries": "オブジェクトをリストに変換する",
@@ -41,10 +41,10 @@ export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
 };
 
 const DESCRIPTIONS: Record<ValueTransformKind, string> = {
-  field: "項目付きデータから指定したキーの値を取り出します。キーには{変数}も使えます。",
+  field: "リストから指定したキーの値を取り出します。配列・辞書のどちらでも使えます。キーには{変数}も使えます。",
   index: "リストの先頭を0として、指定した位置の値を取り出します。",
   has: "指定した項目が存在するかをtrueまたはfalseで返します。",
-  length: "リストにある要素の数を返します。",
+  length: "配列・辞書どちらの場合もリストの項目数を返します。",
   format: "文字・数値・真偽値を文字列にします。リストは変換できません。",
   stringify: "リストや項目付きデータも含め、JSON形式の文字列にします。",
   parse: "JSON形式の文字列を読み取り、データとして使える値にします。",
@@ -55,7 +55,7 @@ const DESCRIPTIONS: Record<ValueTransformKind, string> = {
   compare: "値と指定した値を型を保って比較し、trueまたはfalseを返します。",
   not: "trueをfalseに、falseをtrueに反転します。",
   split: "文字列を指定した区切り文字で分割し、空欄を除いたリストにします。",
-  join: "リストの値を指定した区切り文字で連結します。",
+  join: "リストの各項目の値を列挙順に、指定した区切り文字で連結します。",
   replace: "文字列の一致する部分をすべて置き換えます。正規表現も指定できます。",
   find: "リストから、条件に一致する最初の1件を取得します。見つからなければ値がありません。",
   filter: "リストから、条件に一致した項目だけを残した新しいリストを作ります。",
@@ -68,11 +68,11 @@ const DESCRIPTIONS: Record<ValueTransformKind, string> = {
 };
 
 export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
-  { label: "値を取り出す", kinds: ["field", "index", "find", "map-field"] },
-  { label: "値を調べる", kinds: ["has", "length", "compare", "not"] },
-  { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "object-entries", "split", "join", "replace"] },
-  { label: "リストを加工する", kinds: ["filter", "map-set", "sort", "append", "remove", "remove-at"] },
-  { label: "値を補う", kinds: ["fallback", "fallback-nullish"] },
+  { label: "値を取り出す", kinds: ["field"] },
+  { label: "値を調べる", kinds: ["length"] },
+  { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "split", "join", "replace"] },
+  { label: "リストを加工する", kinds: ["sort", "append"] },
+  { label: "値を補う", kinds: ["fallback"] },
 ];
 const MATH: readonly { value: NumericOperation; label: string }[] = [
   { value: "add", label: "足す" }, { value: "subtract", label: "引く" },
@@ -546,6 +546,14 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
   );
   if (transform.kind === "fallback" || transform.kind === "fallback-nullish") return (
     <div className="se-composer-step-settings">
+      <select className="se-in se-fixed-select"
+        aria-label={tr("値を補う条件")}
+        value={transform.kind === "fallback-nullish" ? "nullish" : transform.when ?? "missing"}
+        onChange={(event) => onChange({ kind: "fallback", text: transform.text,
+          when: event.target.value === "nullish" ? "nullish" : "missing" })}>
+        <option value="missing">{tr("値が存在しない場合")}</option>
+        <option value="nullish">{tr("値が存在しないかnullの場合")}</option>
+      </select>
       <TextIn vars value={transform.text} width={174} placeholder={tr("代わりに使う値 / {変数}")}
         onCommit={(text) => onChange({ ...transform, text })} />
     </div>
