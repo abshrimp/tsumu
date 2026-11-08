@@ -133,3 +133,39 @@ test("a complete tree still publishes with editor priority", async () => {
   assert.equal(f.recorded, true);
   assert.deepEqual(f.refUpdates, [{ sha: "new-commit", force: false }]);
 });
+
+test("commits cannot omit protected files or replace their Git mode through a blob SHA", async () => {
+  for (const useSha of [false, true]) {
+    const f = fixture();
+    const protectedEntry = f.entries.find(entry => entry.path.startsWith(".github/"))!;
+    protectedEntry.mode = "100755";
+    const response = await f.send({
+      action: "commit", files: { "app/page.tsx": "page" },
+      ...(useSha ? { assetShas: { [protectedEntry.path]: protectedEntry.sha } } : {}),
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(f.trees[0].tree.filter(e => e.path === protectedEntry.path), [protectedEntry]);
+  }
+});
+
+test("snapshot and publication retain manual filenames that match object prototype keys", async () => {
+  const f = fixture();
+  f.entries.push({ path: "__proto__", sha: "manual", mode: "100644", type: "blob" });
+  const snapshot = await (await f.send({ action: "tree" })).json();
+  assert.equal(Object.hasOwn(snapshot.blobs, "__proto__"), true);
+  const plan = helpers.planPublish(snapshot.blobs, snapshot.generated, ["app/page.tsx"]);
+  assert.equal(Object.hasOwn(plan.kept, "__proto__"), true);
+  const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, keptPaths: Object.keys(plan.kept) });
+  assert.equal(response.status, 200);
+  assert.ok(f.trees[0].tree.some(e => e.path === "__proto__" && e.sha === "manual"));
+});
+
+test("an existing path that cannot be represented safely prevents tree replacement", async () => {
+  const f = fixture();
+  f.entries.push({ path: "notes\\meeting.txt", sha: "manual", mode: "100644", type: "blob" });
+  for (const action of ["tree", "commit"]) {
+    const response = await f.send({ action, files: { "app/page.tsx": "page" } });
+    assert.notEqual(response.status, 200);
+  }
+  assert.deepEqual(f.writes, []);
+});
