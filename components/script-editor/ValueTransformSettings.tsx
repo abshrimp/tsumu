@@ -3,76 +3,35 @@
 /** Pure value-operation controls for ordinary script blocks. */
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Plus, X } from "lucide-react";
-import { PathMenu } from "./fetch";
-import { CONDITION_OPERATORS, NegationSelect, Phrase, TextIn } from "./inputs";
+import { ChevronDown } from "lucide-react";
+import { Phrase, TextIn } from "./inputs";
 import { tr } from "../../lib/i18n";
 import { formatValueOperandInput, parseValueOperandInput } from "../../lib/script-model/compose";
 import type {
-  ValueTransform, ValueTransformKind, CompareOperation,
-  NumericOperation, ValueOperandType, ValueCondition,
+  ValueTransform, ValueTransformKind, NumericOperation, ValueOperandType,
 } from "../../lib/script-model/compose";
 
 export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
-  field: "項目を取り出す",
-  index: "リストから1件取り出す",
-  has: "項目があるか調べる",
-  length: "リストの件数を数える",
-  format: "文字列に変換する",
+  field: "リストから項目を取り出す",
+  length: "リストの項目数を数える",
+  math: "数値を計算する",
+  format: "表示用の文字にする",
   stringify: "JSON文字列に変換する",
   parse: "JSON文字列を読み取る",
-  "object-entries": "オブジェクトをリストに変換する",
-  fallback: "値がないとき別の値を使う",
-  "fallback-nullish": "値がないかnullなら別の値を使う",
-  math: "数値を計算する",
-  compare: "値を比較する",
-  not: "真偽値を反転する",
   split: "文字列を分割する",
   join: "リストを文字列につなぐ",
   replace: "文字列を置き換える",
-  find: "条件に合う1件を探す",
-  filter: "条件に合うリストを作る",
-  "map-field": "各項目から値を取り出す",
-  "map-set": "各項目に値を入れる",
   sort: "リストを並べ替える",
   append: "リストに要素を追加する",
-  remove: "リストから一致する要素を削除する",
-  "remove-at": "リストの指定位置を削除する",
-};
-
-const DESCRIPTIONS: Record<ValueTransformKind, string> = {
-  field: "項目付きデータから指定したキーの値を取り出します。キーには{変数}も使えます。",
-  index: "リストの先頭を0として、指定した位置の値を取り出します。",
-  has: "指定した項目が存在するかをtrueまたはfalseで返します。",
-  length: "リストにある要素の数を返します。",
-  format: "文字・数値・真偽値を文字列にします。リストは変換できません。",
-  stringify: "リストや項目付きデータも含め、JSON形式の文字列にします。",
-  parse: "JSON形式の文字列を読み取り、データとして使える値にします。",
-  "object-entries": "オブジェクトのキーと値を、列名を指定できるリストに変換します。元のデータは変更しません。",
-  fallback: "値が存在しない場合だけ別の値を使います。nullには適用しません。",
-  "fallback-nullish": "値が存在しない場合とnullの場合に、別の値を使います。",
-  math: "数値に指定した数を足す・引く・掛ける・割るなどを行います。0で割るとエラーになります。",
-  compare: "値と指定した値を型を保って比較し、trueまたはfalseを返します。",
-  not: "trueをfalseに、falseをtrueに反転します。",
-  split: "文字列を指定した区切り文字で分割し、空欄を除いたリストにします。",
-  join: "リストの値を指定した区切り文字で連結します。",
-  replace: "文字列の一致する部分をすべて置き換えます。正規表現も指定できます。",
-  find: "リストから、条件に一致する最初の1件を取得します。見つからなければ値がありません。",
-  filter: "リストから、条件に一致した項目だけを残した新しいリストを作ります。",
-  "map-field": "リスト内の各データから同じ項目を取り出し、新しいリストにします。",
-  "map-set": "各データに項目を追加・上書きし、新しいリストにします。元のデータは変更しません。",
-  sort: "項目の値を基準にリストを並べ替えます。元の順番は変更しません。",
-  append: "リストの末尾に値を1件追加した新しいリストを作ります。",
-  remove: "指定した値と等しい要素をすべて取り除いた新しいリストを作ります。",
-  "remove-at": "先頭を0とする指定位置の要素だけを削除した新しいリストを作ります。-1は末尾です。",
+  fallback: "値がないとき別の値を使う",
 };
 
 export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
-  { label: "値を取り出す", kinds: ["field", "index", "find", "map-field"] },
-  { label: "値を調べる", kinds: ["has", "length", "compare", "not"] },
-  { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "object-entries", "split", "join", "replace"] },
-  { label: "リストを加工する", kinds: ["filter", "map-set", "sort", "append", "remove", "remove-at"] },
-  { label: "値を補う", kinds: ["fallback", "fallback-nullish"] },
+  { label: "値を取り出す", kinds: ["field"] },
+  { label: "値を調べる", kinds: ["length"] },
+  { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "split", "join", "replace"] },
+  { label: "リストを加工する", kinds: ["sort", "append"] },
+  { label: "値を補う", kinds: ["fallback"] },
 ];
 const MATH: readonly { value: NumericOperation; label: string }[] = [
   { value: "add", label: "足す" }, { value: "subtract", label: "引く" },
@@ -308,61 +267,6 @@ function ValueOperandEditor({ type, text, onChange, purpose = "compare" }: {
   );
 }
 
-/** Condition syntax is shared with "if" and list display filters. */
-function RecipeConditionLine({ condition, fieldEnabled, options, onChange,
-  join, onJoinChange, onRemove }: {
-  condition: ValueCondition;
-  fieldEnabled: boolean;
-  options: string[];
-  onChange: (patch: Partial<ValueCondition>) => void;
-  join?: "and" | "or";
-  onJoinChange?: (join: "and" | "or") => void;
-  onRemove?: () => void;
-}) {
-  // Parts are arranged by the translated phrase, not a hardcoded ja/en branch.
-  // A future locale may freely reorder every control using these named slots.
-  return (
-    <div className="se-composer-condition-line">
-      <Phrase
-        text={fieldEnabled
-          ? "{join}{field}が{value}{op}{negation}{remove}"
-          : "{join}{value}{op}{negation}{remove}"}
-        parts={{
-          join: join ? (
-            <FixedOptionSelect aria-label={tr("条件のつなぎ方")}
-              value={join} onChange={(e) => onJoinChange?.(e.target.value as "and" | "or")}>
-              <option value="and">{tr("かつ")}</option>
-              <option value="or">{tr("または")}</option>
-            </FixedOptionSelect>
-          ) : false,
-          field: fieldEnabled && <FieldKeyPicker value={condition.field} options={options}
-            ariaLabel={tr("リスト内の項目名")} placeholder={tr("項目（空なら要素自身）")}
-            onChange={(field) => onChange({ field })} />,
-          value: condition.operation !== "empty" && (
-            <TextIn vars value={condition.operand} width={150}
-              valueContext="value" placeholder={tr("値 / {変数}")}
-              onCommit={(operand) => onChange({ operand })} />
-          ),
-          op: (
-            <FixedOptionSelect aria-label={tr("比較方法")}
-              value={condition.operation}
-              onChange={(e) => onChange({ operation: e.target.value as CompareOperation })}>
-              {CONDITION_OPERATORS.map((op) =>
-                <option key={op.value} value={op.value}>{op.label}</option>)}
-            </FixedOptionSelect>
-          ),
-          negation: <NegationSelect not={condition.not}
-            operation={condition.operation} onChange={(not) => onChange({ not })} />,
-          remove: onRemove ? (
-            <button type="button" className="se-mini" aria-label={tr("この条件を削除")}
-              onClick={onRemove}><X size={12} /></button>
-          ) : false,
-        }}
-      />
-    </div>
-  );
-}
-
 function RecipeStepSettings({ transform, options, onChange, samples }: {
   transform: ValueTransform;
   options: string[];
@@ -370,19 +274,6 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
   samples: Record<string, unknown>;
 }) {
   const allOptions = fieldSuggestions(options, samples);
-  if (transform.kind === "object-entries") return (
-    <div className="se-composer-step-settings">
-      <Phrase text="キーの項目名{key}値の項目名{value}" parts={{
-        key: <TextIn vars value={transform.keyField} width={125}
-          placeholder={tr("キーの項目名")}
-          onCommit={(keyField) => onChange({ ...transform, keyField })} />,
-        value: <TextIn vars value={transform.valueField} width={125}
-          placeholder={tr("値の項目名")}
-          onCommit={(valueField) => onChange({ ...transform, valueField })} />,
-      }} />
-    </div>
-  );
-
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
       <FixedOptionSelect aria-label={tr("計算方法")} value={transform.operation}
@@ -390,29 +281,21 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
         {MATH.map((method) => <option key={method.value} value={method.value}>{tr(method.label)}</option>)}
       </FixedOptionSelect>
       <div className="se-composer-operand">
-        <FixedOptionSelect aria-label={tr("計算する値の種類")}
-          value={transform.operandType === "variable" ? "variable" : "number"}
-          onChange={(e) => onChange(e.target.value === "variable"
-            ? { ...transform, operandType: "variable", operand: "" }
-            : { ...transform, operandType: "number", operand: 1 })}>
-          <option value="number">{tr("数値")}</option>
-          <option value="variable">{tr("変数")}</option>
-        </FixedOptionSelect>
-        {transform.operandType === "variable" ? (
-          <PathMenu root={samples} path={String(transform.operand)} mode="any" allowRoot={false}
-            ariaLabel={tr("計算する変数")} placeholder={tr("変数を選択")}
-            onChange={(path) => onChange({ ...transform, operand: path })}
-            portalZIndex={560} />
-        ) : (
-          <input aria-label={tr("計算する数")} type="number" step="any"
-            value={typeof transform.operand === "number" && Number.isFinite(transform.operand) ? transform.operand : ""}
-            onChange={(e) => onChange({ ...transform, operand: e.target.value === "" ? NaN : Number(e.target.value) })} />
-        )}
+        <TextIn vars value={transform.operandType === "variable"
+          ? "{" + String(transform.operand) + "}" : String(transform.operand)}
+          valueContext="value" width={154} placeholder={tr("計算する値 / {変数}")}
+          onCommit={(input) => {
+            const text = input.trim();
+            const variable = /^\{([^{}\s"'<>]+)\}$/.exec(text);
+            if (variable) onChange({ ...transform, operandType: "variable", operand: variable[1] });
+            else onChange({ ...transform, operandType: "number",
+              operand: text !== "" && Number.isFinite(Number(text)) ? Number(text) : text });
+          }} />
       </div>
     </div>
   );
 
-  if (transform.kind === "append" || transform.kind === "remove") return (
+  if (transform.kind === "append") return (
     <div className="se-composer-step-settings">
       <ValueOperandEditor type={transform.operandType} text={transform.operand} purpose="list"
         onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
@@ -440,82 +323,17 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
     </div>
   );
 
-  if (transform.kind === "map-set") {
-    return <div className="se-composer-step-settings">
-      <FieldKeyPicker value={transform.field} options={allOptions}
-        ariaLabel={tr("リスト内の項目名")} placeholder={tr("追加する項目")}
-        onChange={(field) => onChange({ ...transform, field })} />
-      <ValueOperandEditor type={transform.operandType} text={transform.operand}
-        onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
-    </div>;
-  }
-
-  if (transform.kind === "compare" || transform.kind === "find" || transform.kind === "filter") {
-    const fieldEnabled = transform.kind !== "compare";
-    const first: ValueCondition = {
-      field: fieldEnabled ? transform.field : "",
-      operation: transform.operation,
-      operand: transform.operand,
-      not: transform.not,
-    };
-    const clauses = transform.conditions ?? [];
-    const setExtra = (index: number, patch: Partial<ValueCondition>, activate = false) =>
-      onChange({ ...transform, conditions: clauses.map((condition, i) => {
-        if (i !== index) return condition;
-        const updated = { ...condition, ...patch };
-        // Enabled is the default. Remove the temporary marker once edited
-        // rather than persisting a redundant true flag in doc.json.
-        if (activate) delete updated.configured;
-        return updated;
-      }) });
-    const add = (and: boolean) => {
-      if (clauses.length >= 32) return;
-      onChange({ ...transform, conditions: [...clauses, {
-        field: fieldEnabled ? transform.field : "",
-        operation: "eq" as const,
-        operand: "",
-        and,
-        configured: false,
-      }] });
-    };
-    return (
-      <div className="se-composer-step-settings se-composer-conditions">
-        <RecipeConditionLine condition={first} fieldEnabled={fieldEnabled}
-          options={allOptions}
-          onChange={(patch) => onChange({ ...transform, ...patch })} />
-        {clauses.map((condition, index) =>
-          <RecipeConditionLine key={index} condition={condition}
-            fieldEnabled={fieldEnabled} options={allOptions}
-            join={condition.and ? "and" : "or"}
-            onJoinChange={(join) => setExtra(index, { and: join === "and" })}
-            onChange={(patch) => setExtra(index, patch, true)}
-            onRemove={() => onChange({ ...transform,
-              conditions: clauses.filter((_, i) => i !== index) })} />)}
-        <div className="se-composer-condition-actions">
-          <button type="button" className="se-mini se-mini-text" disabled={clauses.length >= 32} onClick={() => add(true)}>
-            <Plus size={12} />{tr("かつ")}
-          </button>
-          <button type="button" className="se-mini se-mini-text" disabled={clauses.length >= 32} onClick={() => add(false)}>
-            <Plus size={12} />{tr("または")}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (transform.kind === "map-field" || transform.kind === "sort") return (
+  if (transform.kind === "sort") return (
     <div className="se-composer-step-settings">
       <FieldKeyPicker value={transform.field} options={allOptions}
         ariaLabel={tr("リスト内の項目名")}
-        placeholder={transform.kind === "sort" ? tr("項目（空なら要素自身）") : tr("取り出す項目名")}
+        placeholder={tr("項目（空なら要素自身）")}
         onChange={(field) => onChange({ ...transform, field })} />
-      {transform.kind === "sort" && (
         <FixedOptionSelect aria-label={tr("並び順")} value={transform.direction}
           onChange={(e) => onChange({ ...transform, direction: e.target.value as "asc" | "desc" })}>
           <option value="asc">{tr("昇順")}</option>
           <option value="desc">{tr("降順")}</option>
         </FixedOptionSelect>
-      )}
     </div>
   );
   return null;
@@ -530,22 +348,23 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
   samples: Record<string, unknown>;
 }) {
   const allOptions = fieldSuggestions(options, samples);
-  if (transform.kind === "field" || transform.kind === "has") return (
+  if (transform.kind === "field") return (
     <div className="se-composer-step-settings">
       <FieldKeyPicker value={transform.key} options={allOptions}
         placeholder={tr("項目名 / {変数}")}
         onChange={(key) => onChange({ ...transform, key })} />
     </div>
   );
-  if (transform.kind === "index" || transform.kind === "remove-at") return (
+  if (transform.kind === "fallback") return (
     <div className="se-composer-step-settings">
-      <input aria-label={tr(transform.kind === "remove-at" ? "削除する位置" : "取り出す位置")} type="number" min="-1" step="1"
-        value={transform.index}
-        onChange={(e) => onChange({ ...transform, index: e.target.value === "" ? -1 : Number(e.target.value) })} />
-    </div>
-  );
-  if (transform.kind === "fallback" || transform.kind === "fallback-nullish") return (
-    <div className="se-composer-step-settings">
+      <select className="se-in se-fixed-select"
+        aria-label={tr("値を補う条件")}
+        value={transform.when ?? "missing"}
+        onChange={(event) => onChange({ kind: "fallback", text: transform.text,
+          when: event.target.value === "nullish" ? "nullish" : "missing" })}>
+        <option value="missing">{tr("値が存在しない場合")}</option>
+        <option value="nullish">{tr("値が存在しないかnullの場合")}</option>
+      </select>
       <TextIn vars value={transform.text} width={174} placeholder={tr("代わりに使う値 / {変数}")}
         onCommit={(text) => onChange({ ...transform, text })} />
     </div>

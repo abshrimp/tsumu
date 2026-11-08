@@ -2169,8 +2169,6 @@ const en: Dict = {
     "Drag \"Fetch data from ［URL］ as ［name］\" into the large area on the right, and enter the URL and name.",
   "データを一覧で並べたい（リスト）":
     "How do I show data as a list?",
-  "取得したデータの中の一覧を、スクリプトの「［値］を変数［］とする」で変数に入れ、「リスト」要素の「並べる配列」で選びます。リストの1つ目のカードがお手本になります。":
-    "Store the list inside the fetched data in a variable with the script block \"Set variable ［］ to ［value］\", then choose it in the List element's \"Array to list\". The first card in the list is the template.",
   "繰り返し":
     "repeat",
   "お知らせ一覧":
@@ -2179,16 +2177,10 @@ const en: Dict = {
     "Fetch data in the page's script ([[data-fetch|fetching data]])",
   "「［値 / {データ.位置}］を変数［］とする」で、データの中の一覧に名前を付ける（例: {お知らせ.items} を「記事」とする）":
     "Name the list inside the data with \"Set variable ［］ to ［value / {data.path}］\" (e.g. store {news.items} as \"articles\")",
-  "お手本にするカード（ボックス）を作り、右クリックの「リスト化」でリストにする":
-    "Make a template card (box) and turn it into a list with \"Turn into list\" in the right-click menu",
-  "リストの「設定」の「並べる配列」で「記事」を選ぶ":
-    "Choose \"articles\" in \"Array to list\" under the list's Settings",
   "カードの中の文字に {title} のように項目名を書く":
     "Write field names like {title} in the card's text",
   "「表示件数」で数を制限できます。並べ替えや絞り込みは、スクリプトの並べ替え・絞り込みのブロックで行います。":
     "Limit the count with \"Items to show\". Sort and filter with the script's sort and filter blocks.",
-  "お手本にするボックスを選び、「リスト化」を押します。":
-    "Select the template box and click \"Turn into list\".",
   "一覧から1件ずつの詳細ページを作りたい（[slug]）":
     "How do I make a detail page for each item ([slug])?",
   "URLに [slug] を含むページ（例: news/[slug]）を1つ作ると、データの1件ごとにページができます。ページの中では {slug} でURLのその部分を使えます。":
@@ -2201,8 +2193,7 @@ const en: Dict = {
     "item page",
   "URLを `news/[slug]` にしたページを作る":
     "Create a page with the URL `news/[slug]`",
-  "そのページのスクリプトで、{slug} を使ってデータを取得する（例: https://api.example.com/news/{slug}）か、一覧のデータから「配列［］の要素のうち、項目［id］が［{slug}］のものを変数［］とする」で1件を探す":
-    "In that page's script, fetch data using {slug} (e.g. https://api.example.com/news/{slug}), or find one item in a list with \"Find the item in array ［］ whose ［id］ is ［{slug}］ and store it in ［］\"",
+  "そのページのスクリプトで {slug} を含むURLからデータを取得するか、リストを繰り返して「もし {ループ.値.id} が {slug} と同じなら」で一致した値を変数に保存し、「ループを終了する」で繰り返しを抜けます。": "In the page script, fetch data from a URL containing {slug}, or iterate the list, compare {ループ.値.id} with {slug}, store the matching value in a variable, and use \"Break loop\" to stop iterating.",
   "一覧のカードのリンク先を `/news/{id}` のようにする":
     "Link the list's cards to something like `/news/{id}`",
   "キャンバスの上の「表示中のデータ」で、エディタで見る1件を選べます。一致するデータがないURLは404になります。":
@@ -2217,8 +2208,6 @@ const en: Dict = {
     "sort",
   "入力欄のID属性が「q」なら、データ取得のURLに `?q={q}` と書けます。送信すると、ページを開き直さずに結果だけが更新されます。":
     "If the field's ID is \"q\", write `?q={q}` in the data URL. Submitting updates just the results without reloading the page.",
-  "取得済みの一覧を画面上で絞り込むときは、「クリックしたとき」「値が変わったとき」に「配列［］を［項目］で絞り込む」をつなげます。":
-    "To filter an already-fetched list on screen, attach \"Filter array ［］ by ［field］\" to \"When clicked\" or \"When the value changes\".",
   "新しく作ったサイトの「商品一覧（デモ）」ページに、検索・一覧・詳細ページの見本があります。":
     "New sites include a \"Products (demo)\" page with examples of search, lists and detail pages.",
   "お気に入りなど、訪問者ごとの情報をブラウザに保存したい":
@@ -3065,7 +3054,7 @@ const en: Dict = {
     "Radio buttons with the same Group allow only one choice. {group name} is the chosen button's value (its label), and {ID} is true or false depending on whether that button is chosen.",
   "「変数を探す」の「詳細を表示」で、無効かどうか（{ID.disabled}）・文字数（{ID.length}）・選んだ番号（{ID.index}）も選べます。スクリプトの「［入力欄］を［有効にする / 無効にする］」で切り替えられます。":
     "Under Show advanced in Find a variable you can also pick whether a field is disabled ({ID.disabled}), its length ({ID.length}) and the chosen number ({ID.index}). The script block “Set ［field］ to ［enabled / disabled］” switches it.",
-  // Script data terminology review (#132)
+  // Data and list display terminology
   "選んでいるリスト表示": "Selected list display",
   "データとリスト表示": "Data and list displays",
   "データを繰り返して表示したい（リスト表示）": "How do I display repeated items from a list?",
@@ -3077,7 +3066,7 @@ const en: Dict = {
   "リストから1件ずつの詳細ページを作りたい（[slug]）": "How do I make a detail page for each item ([slug])?",
   "そのページのスクリプトで、{slug} を使ってデータを取得する（例: https://api.example.com/news/{slug}）か、リストのデータから「リスト［］の要素のうち、項目［id］が［{slug}］のものを変数［］とする」で1件を探す": "In that page's script, fetch data using {slug} (e.g. https://api.example.com/news/{slug}), or find one item in a list with \"Find the item in list ［］ whose ［id］ is ［{slug}］ and store it in ［］\"",
   "リスト表示のカードのリンク先を `/news/{id}` のようにする": "Set each card's link in the list display to something like `/news/{id}`",
-  "取得済みのリストを画面上で絞り込むときは、「クリックしたとき」「値が変わったとき」に「リスト［］を［項目］で絞り込む」をつなげます。": "To filter an already-fetched list on screen, attach \"Filter list ［］ by ［field］\" to \"When clicked\" or \"When the value changes\".",
+  "取得済みのリストを画面上で絞り込むときは、「クリックしたとき」「値が変わったとき」に「リスト［］を絞り込む」をつなぎ、条件を指定します。": "To filter an already-fetched list, attach \"Filter list ［］\" to \"When clicked\" or \"When the value changes\", and configure its conditions.",
 
 };
 

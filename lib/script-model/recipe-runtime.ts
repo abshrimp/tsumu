@@ -104,71 +104,6 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     const number = Number(input.trim());
     return Number.isFinite(number) ? number : undefined;
   };
-  // Condition predicates use the same text comparison rules as if/list filters.
-  // Arithmetic remains numeric; equality compares the displayed value as text.
-  const conditionText = (value: unknown): string => {
-    if (value == null) return "";
-    // Match the String(value ?? "") semantics used by both display-list filters and if.
-    // Avoid calling untrusted object toString methods from fetched JSON.
-    if (Array.isArray(value)) return value.map(conditionText).join(",");
-    if (typeof value === "object") return "[object Object]";
-    return String(value);
-  };
-  const compare = (left: unknown, right: string, operator: string): boolean => {
-    const value = conditionText(left);
-    switch (operator) {
-      case "contains": return value.includes(right);
-      case "starts-with": return value.startsWith(right);
-      case "ends-with": return value.endsWith(right);
-      case "gt": return parseFloat(value) > parseFloat(right);
-      case "gte": return parseFloat(value) >= parseFloat(right);
-      case "lt": return parseFloat(value) < parseFloat(right);
-      case "lte": return parseFloat(value) <= parseFloat(right);
-      case "empty": return value === "";
-      case "in": return right.split(",").some((part) => part.trim() === value);
-      default: return value === right;
-    }
-  };
-
-  // Same grouping rule as visual list filters: AND binds inside OR groups.
-  const matchesConditions = (
-    value: unknown,
-    first: { readonly operation: string; readonly operand: string; readonly not?: boolean; readonly field?: string },
-    additional: readonly { readonly operation: string; readonly operand: string; readonly not?: boolean; readonly and?: boolean; readonly configured?: boolean; readonly field: string }[],
-    itemMode: boolean,
-  ): { ok: true; value: boolean } | { ok: false; code: string } => {
-    if (additional.length > 32) return { ok: false, code: "limit-exceeded" };
-    let any = false;
-    let all = true;
-    let activeGroup = false;
-    const clauses = [first, ...additional];
-    for (let index = 0; index < clauses.length; index++) {
-      const clause = clauses[index];
-      if (index > 0 && !("and" in clause && clause.and)) {
-        if (activeGroup) any = any || all;
-        all = true;
-        activeGroup = false;
-      }
-      // Incomplete UI rows are neutral. Preserve their OR boundaries so
-      // A OR [unfinished] AND C continues to mean A OR C.
-      if (index > 0 && "configured" in clause && clause.configured === false) continue;
-      activeGroup = true;
-      const rhs = clause.operation === "empty"
-        ? { ok: true as const, value: "" } : interpolateText(clause.operand, 4096);
-      if (!rhs.ok) return { ok: false, code: "invalid-literal" };
-      let lhs = value;
-      if (itemMode) {
-        const field = textParam(clause.field ?? "", 256);
-        if (!field.ok) return { ok: false, code: "type-mismatch" };
-        lhs = valueAt(value, field.value);
-      }
-      // Missing and null fields compare as empty text, just like list-display and if.
-      const result = compare(lhs, conditionText(rhs.value), clause.operation);
-      all = all && (clause.not ? !result : result);
-    }
-    return { ok: true, value: any || (activeGroup && all) };
-  };
-
   // JavaScript RegExp may backtrack exponentially on external data.
   // The generated browser and server code embed this evaluator verbatim.
   const safeRegex = (pattern: string): boolean => {
@@ -282,10 +217,9 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
     for (const step of steps) {
       if (!step || typeof step !== "object" || !("kind" in step)) return failure("invalid-recipe");
       switch (step.kind) {
-        case "fallback":
-        case "fallback-nullish": {
+        case "fallback": {
           if (typeof step.text !== "string" || step.text.length > 10000) return failure("invalid-recipe");
-          if (absent || (step.kind === "fallback-nullish" && current === null)) {
+          if (absent || (step.when === "nullish" && current === null)) {
             const replacement = interpolateText(step.text, 10000);
             if (!replacement.ok) return failure("missing-value");
             current = replacement.value;
@@ -293,40 +227,23 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           }
           break;
         }
-        case "field":
-        case "has": {
-          if (absent) {
-            if (step.kind === "has") { current = false; absent = false; }
-            break;
-          }
+        case "field": {
+          if (absent) break;
           const key = textParam(step.key, 256);
-          if (!key.ok || !current || typeof current !== "object" || Array.isArray(current))
+          if (!key.ok || !current || typeof current !== "object")
             return failure("type-mismatch");
           const direct = owns(current, key.value);
           const present = direct || (!!key.value && hasAt(current, key.value));
-          if (step.kind === "has") {
-            current = present; absent = false;
-          } else {
-            current = present
-              ? direct ? (current as Record<string, unknown>)[key.value] : valueAt(current, key.value)
-              : undefined;
-            absent = current === undefined;
-          }
-          break;
-        }
-        case "index": {
-          if (absent) break;
-          if (!Array.isArray(current) || !Number.isInteger(step.index) ||
-              step.index < -1 || step.index > 1000000) return failure("type-mismatch");
-          const index = step.index === -1 ? current.length - 1 : step.index;
-          absent = !owns(current, index);
-          current = absent ? undefined : current[index];
+          current = present
+            ? direct ? (current as Record<string, unknown>)[key.value] : valueAt(current, key.value)
+            : undefined;
+          absent = current === undefined;
           break;
         }
         case "length":
           if (absent) break;
-          if (!Array.isArray(current)) return failure("type-mismatch");
-          current = current.length;
+          if (!current || typeof current !== "object") return failure("type-mismatch");
+          current = Object.keys(current).length;
           break;
         case "format":
           if (absent) break;
@@ -341,7 +258,14 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           break;
         case "parse":
           if (absent) break;
-          if (typeof current !== "string") return failure("type-mismatch");
+          // Already-parsed JSON values pass through without changing their type.
+          // This also lets typed variable assignments feed existing parse chains.
+          if (typeof current !== "string") {
+            if (current === null || typeof current === "boolean" ||
+                typeof current === "number" && Number.isFinite(current) ||
+                typeof current === "object") break;
+            return failure("type-mismatch");
+          }
           if (current.length > 100000) return failure("limit-exceeded");
           try { current = JSON.parse(current); } catch { return failure("invalid-json"); }
           break;
@@ -372,18 +296,6 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           current = arithmetic;
           break;
         }
-        case "compare": {
-          if (absent) break;
-          const result = matchesConditions(current, step, step.conditions ?? [], false);
-          if (!result.ok) return failure(result.code);
-          current = result.value;
-          break;
-        }
-        case "not":
-          if (absent) break;
-          if (typeof current !== "boolean") return failure("type-mismatch");
-          current = !current;
-          break;
         case "split": {
           if (absent) break;
           const delimiter = textParam(step.separator, 256);
@@ -395,10 +307,11 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
         case "join": {
           if (absent) break;
           const delimiter = textParam(step.separator, 256);
-          if (!Array.isArray(current) || !delimiter.ok) return failure("type-mismatch");
-          if (current.length > 10000) return failure("limit-exceeded");
+          if (!current || typeof current !== "object" || !delimiter.ok) return failure("type-mismatch");
+          const values = Object.values(current);
+          if (values.length > 10000) return failure("limit-exceeded");
           const pieces: string[] = [];
-          for (const part of current) {
+          for (const part of values) {
             if (part === null || part === "") continue;
             if (!scalar(part)) return failure("type-mismatch");
             pieces.push(String(part));
@@ -437,115 +350,35 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           if (typeof current !== "string" || current.length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
           break;
         }
-        case "find":
-        case "filter": {
+        case "append": {
           if (absent) break;
-          if (!Array.isArray(current) || current.length > 10000) return failure("type-mismatch");
-          const kept: unknown[] = [];
-          let match: unknown = undefined;
-          for (const item of current) {
-            const result = matchesConditions(item, step, step.conditions ?? [], true);
-            if (!result.ok) return failure(result.code);
-            if (result.value) {
-              if (step.kind === "find") { match = item; break; }
-              kept.push(item);
-            }
-          }
-          if (step.kind === "find") { current = match; absent = match === undefined; }
-          else current = kept;
-          break;
-        }
-        case "object-entries": {
-          if (absent) break;
-          if (!current || typeof current !== "object" || Array.isArray(current))
-            return failure("type-mismatch");
-          const keyName = textParam(step.keyField, 128);
-          const valueName = textParam(step.valueField, 128);
-          if (!keyName.ok || !valueName.ok || !keyName.value.trim() || !valueName.value.trim() ||
-              keyName.value === valueName.value ||
-              [keyName.value, valueName.value].some((name) =>
-                name === "__proto__" || name === "constructor" || name === "prototype"))
-            return failure("invalid-path");
-          const source = current as Record<string, unknown>;
-          const entries = Object.entries(source);
-          if (entries.length > 10000) return failure("limit-exceeded");
-          current = entries.map(([key, value]) =>
-            Object.fromEntries([[keyName.value, key], [valueName.value, value]]));
-          break;
-        }
-        case "map-field": {
-          if (absent) break;
-          const field = textParam(step.field, 256);
-          if (!Array.isArray(current) || !field.ok || !field.value || current.length > 10000)
-            return failure("type-mismatch");
-          const mapped: unknown[] = [];
-          for (const item of current) {
-            const entry = valueAt(item, field.value);
-            if (entry === undefined) return failure("missing-value");
-            mapped.push(entry);
-          }
-          current = mapped;
-          break;
-        }
-        case "map-set": {
-          if (absent) break;
-          const field = textParam(step.field, 256);
-          if (!Array.isArray(current) || !field.ok || !field.value || current.length > 10000)
-            return failure("type-mismatch");
-          if (field.value === "__proto__" || field.value === "constructor" || field.value === "prototype")
-            return failure("invalid-path");
+          if (!Array.isArray(current) || current.length >= 10000) return failure("type-mismatch");
           const rhs = argument(step);
           if (!rhs.ok) return failure("invalid-literal");
-          const mapped: unknown[] = [];
-          for (const item of current) {
-            if (!item || typeof item !== "object" || Array.isArray(item)) return failure("type-mismatch");
-            const copy = Object.assign(Object.create(null), item);
-            copy[field.value] = rhs.value;
-            mapped.push(copy);
-          }
-          current = mapped;
-          break;
-        }
-        case "append":
-        case "remove": {
-          if (absent) break;
-          if (!Array.isArray(current) || current.length > 10000) return failure("type-mismatch");
-          const rhs = argument(step);
-          if (!rhs.ok) return failure("invalid-literal");
-          if (step.kind === "append") {
-            if (current.length >= 10000) return failure("limit-exceeded");
-            current = [...current, rhs.value];
-          } else {
-            // Remove all elements equal to the chosen value; input array is not mutated.
-            current = current.filter((item: unknown) => item !== rhs.value);
-          }
-          break;
-        }
-        case "remove-at": {
-          if (absent) break;
-          if (!Array.isArray(current) || current.length > 10000 || !Number.isInteger(step.index) ||
-              step.index < -1 || step.index > 1000000) return failure("type-mismatch");
-          const index = step.index === -1 ? current.length - 1 : step.index;
-          current = current.filter((_: unknown, at: number) => at !== index);
+          current = [...current, rhs.value];
           break;
         }
         case "sort": {
           if (absent) break;
           const field = textParam(step.field, 256);
-          if (!Array.isArray(current) || !field.ok || current.length > 10000 ||
+          if (!current || typeof current !== "object" || !field.ok ||
               (step.direction !== "asc" && step.direction !== "desc"))
             return failure("type-mismatch");
-          const pairs: { item: unknown; key: string | number; order: number }[] = [];
+          const array = Array.isArray(current);
+          const entries = Object.entries(current);
+          if (entries.length > 10000 || (Array.isArray(current) && current.length > 10000))
+            return failure("limit-exceeded");
+          const pairs: { item: unknown; sourceKey: string; key: string | number; order: number }[] = [];
           let keyType: string | undefined;
-          for (let i = 0; i < current.length; i++) {
-            const item = current[i];
+          for (let i = 0; i < entries.length; i++) {
+            const [sourceKey, item] = entries[i];
             const key = valueAt(item, field.value);
             if (key === undefined) return failure("missing-value");
             if (typeof key !== "number" && typeof key !== "string") return failure("type-mismatch");
             if (typeof key === "number" && !Number.isFinite(key)) return failure("type-mismatch");
             if (keyType !== undefined && keyType !== typeof key) return failure("type-mismatch");
             keyType = typeof key;
-            pairs.push({ item, key, order: i });
+            pairs.push({ item, sourceKey, key, order: i });
           }
           pairs.sort((a, b) => {
             // The list-display block uses natural Japanese collation for text
@@ -556,7 +389,10 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             if (step.direction === "desc") order *= -1;
             return order || a.order - b.order;
           });
-          current = pairs.map((p) => p.item);
+          // A dictionary cannot preserve arbitrary sort order in numeric-like keys.
+          // Return explicit key/value rows; an array retains its original element shape.
+          current = array ? pairs.map((p) => p.item) :
+            pairs.map((p) => ({ "キー": p.sourceKey, "値": p.item }));
           break;
         }
         default: return failure("invalid-recipe");

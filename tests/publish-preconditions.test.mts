@@ -95,7 +95,7 @@ test("every request rejects changed authoritative identity before reading or wri
   }
 });
 
-test("legacy clients without destination or head preconditions fail closed", async () => {
+test("requests without destination or head preconditions fail closed", async () => {
   const f = fixture();
   assert.equal((await f.post({ action: "tree", expected: undefined })).status, 400);
   assert.equal((await f.post({ action: "commit", files: { "page.txt": "p" }, expectedHead: undefined })).status, 400);

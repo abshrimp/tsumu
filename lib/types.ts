@@ -195,7 +195,8 @@ export type ScriptOp =
   | "lt"
   | "lte"
   | "empty"
-  /** 「,」区切りの値・配列のどれかと同じ */
+  | "has-key"
+  /** 指定した複数の値やリスト内の値のどれかと同じ */
   | "in";
 
 export interface ScriptCond {
@@ -218,7 +219,7 @@ export interface JoinedScriptCond extends ScriptCond {
   and: boolean;
 }
 
-/** 配列の絞り込みの条件 */
+/** リスト表示の絞り込み条件 */
 export interface FilterCond {
   field: string;
   op: ScriptOp;
@@ -256,7 +257,7 @@ export type ScriptStep = { id: string } & (
       dir: "asc" | "desc";
     }
   | {
-      /** ブラウザに文字列を保存する（localStorage → このホストのクッキー → メモリの順に試す） */
+      /** ブラウザに値やリストを保存する（localStorage → このホストのクッキー → メモリの順に試す） */
       kind: "store-save";
       key: string;
       /** {変数} を使える */
@@ -265,17 +266,19 @@ export type ScriptStep = { id: string } & (
       shared?: boolean;
     }
   | {
-      /** ブラウザに保存した文字列を変数に入れる（無ければ空） */
+      /** ブラウザに保存したデータを変数に入れる */
       kind: "store-load";
       key: string;
       into: string;
       /** 全サブドメインで共有するクッキーを先に読む */
       shared?: boolean;
     }
+  | { kind: "set-list-item"; list: string; key: string; value: string }
+  | { kind: "break-loop" }
   | {
       /**
        * 値を変数に入れる（{変数} と文字を混ぜて書ける）。
-       * {名前} 1つだけなら値をそのまま入れる（配列・まとまりも。{データ.items.0} のような位置も使える）
+       * {名前} 1つだけなら内部型を保持して代入する。{データ.items.0} などの位置も参照できる
        */
       kind: "set-var";
       value: string;
@@ -304,8 +307,8 @@ export type ScriptStep = { id: string } & (
     }
   | {
       /**
-       * 配列の要素ごとに中のブロックをくり返す。中では要素の項目を {項目} で使え、
-       * 同じ配列への「項目として格納」はくり返し中の要素だけに入れる
+       * リストの項目ごとに中のブロックを実行する。
+       * {ループ.値}、{ループ.キー}、{ループ.順番} を参照できる
        */
       kind: "for-each";
       array: string;
@@ -314,7 +317,7 @@ export type ScriptStep = { id: string } & (
   /*
    * データの取得。「このページ｜ページを開いたとき」の直下でだけ動き、
    * 公開サイトではページを配信する前（サーバー側）に上から順に実行する。
-   * 中身は {名前.項目} で「値を変数とする」「配列の要素のうち〜」などから使う
+   * 取得結果は {名前.項目} などの変数参照やリスト操作で利用する
    */
   | {
       /** URLからJSONを取得して、as の名前を付ける（{変数} を使える） */

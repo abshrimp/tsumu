@@ -57,7 +57,8 @@ test("nested source candidates include renderable primitive arrays and empty arr
   const before = structuredClone(input);
   assert.deepEqual(findItemsCandidates(input), [
     { path: "strings", count: 2 }, { path: "numbers", count: 2 }, { path: "flags", count: 2 },
-    { path: "records", count: 1 }, { path: "empty", count: 0 }, { path: "mixed", count: 4 }, { path: "object.tags", count: 1 },
+    { path: "records", count: 1 }, { path: "empty", count: 0 }, { path: "mixed", count: 4 },
+    { path: "nulls", count: 1 }, { path: "arrays", count: 1 }, { path: "object.tags", count: 1 },
   ]);
   assert.deepEqual(input, before);
   assert.deepEqual(findItemsCandidates({ a: { b: { c: { tags: ["deep"] } } } }), [], "the existing depth bound remains");

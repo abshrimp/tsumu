@@ -78,7 +78,7 @@ test("literal JSON in set-var is not misclassified as a full variable reference"
   assert.equal(compiled[0].steps[0].value, json);
   const vars: Record<string, unknown> = {};
   assert.equal(runPurePageSteps([set], vars, lookupVar, interpolate, evaluateValueRecipe), true);
-  assert.equal(vars.holidayJSON, json);
+  assert.deepEqual(vars.holidayJSON, { "2026-11-23": "勤労感謝の日" });
   const reference: ScriptStep = { id: "ref", kind: "set-var",
     into: "holidayName", value: "{date}" };
   assert.equal(setVarSource(reference), "date");
@@ -103,13 +103,16 @@ test("JSON lookup resolves own keys without traversing inherited prototypes", ()
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
 });
 
-test("every supported palette action is visible without hidden compatibility groups", () => {
-  assert.equal(PALETTE.length, 23);
-  assert.equal(findPaletteItems("").length, 23);
-  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 17);
+test("every supported palette action is visible in the editor", () => {
+  assert.equal(PALETTE.length, 26);
+  assert.equal(findPaletteItems("").length, 26);
+  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 20);
   assert.ok(PALETTE.some(item => item.key === "transform"));
   assert.ok(PALETTE.some(item => item.key === "list-display"));
   assert.ok(PALETTE.some(item => item.key === "set-state"));
+  assert.ok(PALETTE.some(item => item.key === "break-loop"));
+  assert.ok(PALETTE.some(item => item.key === "set-list-item"));
+  assert.ok(PALETTE.some(item => item.key === "make-list"));
   assert.ok(findPaletteItems("値を加工").some(item => item.key === "transform"));
 });
 
@@ -119,13 +122,13 @@ test("untrusted JSON objects cannot crash preview or emitted filter/sort compari
   const filter = { kind: "filter" as const, conds: [
     { field: "meta", op: "eq" as const, value: "[object Object]" },
   ] };
-  assert.deepEqual(filterItems(rows, [filter]), rows.slice(0, 1));
+  assert.deepEqual(filterItems(rows, [filter]), [], "object values are never equal to display strings");
   assert.doesNotThrow(() => compareValues(unsafe, "safe"));
   assert.equal(compareValues(unsafe, unsafe), 0);
   const predicate = filterPredicate([filter], "vars");
   assert.ok(predicate);
   const evaluate = new Function("item", "vars", "lookupVar", "interpolate", `return (${predicate});`);
-  assert.equal(evaluate(rows[0], {}, lookupVar, interpolate), true);
+  assert.equal(evaluate(rows[0], {}, lookupVar, interpolate), false);
   assert.equal(evaluate(rows[1], {}, lookupVar, interpolate), false);
   const sort = listItemsExpr({ from: "rows" }, "vars", "rows",
     [{ kind: "sort", field: "meta", dir: "asc" }]);
@@ -136,7 +139,7 @@ test("untrusted JSON objects cannot crash preview or emitted filter/sort compari
   const nested = [{ meta: [[1, 2], [3, 4]] }];
   assert.deepEqual(filterItems(nested, [{ kind: "filter", conds: [
     { field: "meta", op: "eq", value: "1,2,3,4" },
-  ] }]), nested);
+  ] }]), [], "nested lists require structural rather than string equality");
 });
 
 test("generated list filters and sorting expressions pass strict TypeScript checking", () => {
@@ -233,7 +236,7 @@ test("list filters invert individual conditions without duplicating negative ope
     conds: [{ field: "active", op: "empty", value: "", not: true }] }]), items);
 });
 
-test("transform conditions agree with display-list filters for missing, null and array fields", () => {
+test("if blocks and display filters agree for missing, null and list-valued fields", () => {
   const items = [
     { name: "A", tags: ["x", "y"] }, { name: "" },
     { id: 3 }, { name: null }, { name: "B" },
@@ -241,19 +244,25 @@ test("transform conditions agree with display-list filters for missing, null and
   const criteria = [
     { field: "name", op: "empty" as const, value: "" },
     { field: "name", op: "eq" as const, value: "A", not: true },
-    { field: "tags", op: "eq" as const, value: "x,y" },
-    { field: "name", op: "eq" as const, value: "", not: true },
+    { field: "tags", op: "contains" as const, value: "x" },
   ];
   for (const condition of criteria) {
     const expected = filterItems(items, [{ kind: "filter", conds: [condition] }]);
-    const actual = evaluateValueRecipe(items, [{
-      kind: "filter", field: condition.field, operation: condition.op,
-      operand: condition.value, not: condition.not,
-    }]);
-    assert.deepEqual(actual, { kind: "value", value: expected }, JSON.stringify(condition));
+    const vars: Record<string, unknown> = { items, result: [] };
+    const steps: ScriptStep[] = [
+      { id: "each", kind: "for-each", array: "items", then: [
+        { id: "condition", kind: "if", cond: {
+          subject: "var", target: "", left: "{ループ.値." + condition.field + "}",
+          op: condition.op, value: condition.value, not: condition.not,
+        }, then: [
+          { id: "add", kind: "set-list-item", list: "result", key: "", value: "{ループ.値}" },
+        ] },
+      ] },
+    ];
+    assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+    assert.deepEqual(vars.result, expected, JSON.stringify(condition));
   }
 });
-
 test(">= and <= are consistent in list filters and server-side page-load if", () => {
   assert.equal(matchOp("10", "gte", "10"), true);
   assert.equal(matchOp("10", "lte", "10"), true);
@@ -429,11 +438,12 @@ test("if blocks with browser-only additional clauses do not run during SSR", () 
   assert.ok(!plan.serverIds.has("element-if"));
 });
 
-test("a missing transform result clears stale values before connected fallback blocks", () => {
+
+test("missing field results clear stale values before the fallback recipe", () => {
   const steps: ScriptStep[] = [
     { id: "previous", kind: "set-var", into: "selected", value: "stale" },
-    { id: "find", kind: "transform", source: "records", into: "selected",
-      transform: { kind: "find", field: "name", operation: "eq", operand: "missing" } },
+    { id: "missing", kind: "transform", source: "records.0", into: "selected",
+      transform: { kind: "field", key: "doesNotExist" } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
       transform: { kind: "fallback", text: "no match" } },
   ];
@@ -444,8 +454,8 @@ test("a missing transform result clears stale values before connected fallback b
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
     { id: "saved", kind: "set-var", into: "selected", value: "stale" },
-    { id: "find-missing", kind: "transform", source: "data.rows", into: "selected",
-      transform: { kind: "find", field: "title", operation: "eq", operand: "absent" } },
+    { id: "read-missing", kind: "transform", source: "data.rows.0", into: "selected",
+      transform: { kind: "field", key: "absent" } },
     { id: "fallback-missing", kind: "transform", source: "selected", into: "selected",
       transform: { kind: "fallback", text: "no match" } },
   );
@@ -455,19 +465,18 @@ test("a missing transform result clears stale values before connected fallback b
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
 });
 
-test("failed value transforms preserve earlier values instead of treating errors as missing", () => {
+test("failed numeric transforms preserve earlier values instead of using fallback", () => {
   const steps: ScriptStep[] = [
     { id: "previous", kind: "set-var", into: "selected", value: "original" },
-    { id: "bad", kind: "transform", source: "not-a-list", into: "selected",
-      transform: { kind: "find", field: "name", operation: "eq", operand: "anything" } },
+    { id: "bad", kind: "transform", source: "not-a-number", into: "selected",
+      transform: { kind: "math", operation: "add", operand: 1 } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
       transform: { kind: "fallback", text: "replacement" } },
   ];
-  const vars: Record<string, unknown> = { "not-a-list": "invalid" };
+  const vars: Record<string, unknown> = { "not-a-number": "invalid" };
   assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
   assert.equal(vars.selected, "original");
 });
-
 test("dynamic JSON field names retain accurate totals for truncated API samples", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
@@ -508,7 +517,8 @@ test("three ordinary blocks compose a value in preview and server generated outp
   assert.doesNotThrow(() => transformSync(server, { loader: "tsx", jsx: "automatic" }));
 });
 
-test("holiday dictionary transforms are previewable and serializable in generated server output", () => {
+
+test("holiday dictionary rows are built using keyed writes and a list loop", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
   steps.push(
@@ -518,55 +528,56 @@ test("holiday dictionary transforms are previewable and serializable in generate
     { id: "today", kind: "set-var", into: "今日の日付", value: "2026-11-23" },
     { id: "todays-holiday", kind: "transform", source: "祝日", into: "今日の祝日",
       transform: { kind: "field", key: "{今日の日付}" } },
-    { id: "holiday-rows", kind: "transform", source: "祝日", into: "祝日一覧",
-      transform: { kind: "object-entries", keyField: "日付", valueField: "祝日名" } },
+    { id: "make-rows", kind: "set-var", into: "祝日一覧", value: "[]" },
+    { id: "each-holiday", kind: "for-each", array: "祝日", then: [
+      { id: "make-row", kind: "set-var", into: "祝日行", value: "{}" },
+      { id: "key", kind: "set-list-item", list: "祝日行", key: "日付", value: "{ループ.キー}" },
+      { id: "value", kind: "set-list-item", list: "祝日行", key: "祝日名", value: "{ループ.値}" },
+      { id: "append-row", kind: "set-list-item", list: "祝日一覧", key: "", value: "{祝日行}" },
+    ] },
   );
   const preview = previewDataVars(doc, "p");
   assert.equal(preview["今日の祝日"], "勤労感謝の日");
-  assert.deepEqual(preview["祝日一覧"], [
+  assert.deepEqual(JSON.parse(JSON.stringify(preview["祝日一覧"])), [
     { "日付": "2026-11-03", "祝日名": "文化の日" },
     { "日付": "2026-11-23", "祝日名": "勤労感謝の日" },
   ]);
   assert.ok(pageArrays(doc, "p").some(({ name }) => name === "祝日一覧"));
   const plan = pagePlan(doc, "p");
   assert.ok(plan.serverIds.has("todays-holiday"));
-  assert.ok(plan.serverIds.has("holiday-rows"));
+  assert.ok(plan.serverIds.has("each-holiday"));
   const files = generateProject(doc).files;
-  assert.match(files["app/page.tsx"], /"object-entries"/);
-  assert.match(files["lib/value-recipe.ts"], /"object-entries"/);
+  assert.ok(files["app/page.tsx"].includes("for-each"));
   assert.doesNotThrow(() => transformSync(files["app/page.tsx"], { loader: "tsx", jsx: "automatic" }));
 });
 
-test("renaming variables keeps object-entry column templates synchronized", () => {
+test("renaming variables updates dynamic keys and values in list writes", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
-  steps.push({ id: "column-rename", kind: "transform", source: "data", into: "rows",
-    transform: { kind: "object-entries",
-      keyField: "{labels.keyName}", valueField: "{labels.valueName}" } });
+  steps.push(
+    { id: "init-rows", kind: "set-var", into: "rows", value: "{}" },
+    { id: "rename-key", kind: "set-list-item", list: "rows",
+      key: "{labels.keyName}", value: "{labels.valueName}" },
+  );
   renameVarInPage(doc, "p", "labels", "displayLabels");
-  const renamed = steps.find((step) => step.id === "column-rename");
-  assert.ok(renamed?.kind === "transform" && renamed.transform.kind === "object-entries");
-  if (renamed?.kind !== "transform" || renamed.transform.kind !== "object-entries")
-    throw new Error("Expected object entries transform");
-  assert.equal(renamed.transform.keyField, "{displayLabels.keyName}");
-  assert.equal(renamed.transform.valueField, "{displayLabels.valueName}");
-  assert.deepEqual(evaluateValueRecipe({ "2026-11-23": "勤労感謝の日" }, [renamed.transform], {
-    displayLabels: { keyName: "日付", valueName: "祝日名" },
-  }), { kind: "value", value: [{ "日付": "2026-11-23", "祝日名": "勤労感謝の日" }] });
+  const renamed = steps.find((step) => step.id === "rename-key");
+  assert.equal(renamed?.kind, "set-list-item");
+  if (!renamed || renamed.kind !== "set-list-item") throw new Error("Expected keyed write");
+  assert.equal(renamed.key, "{displayLabels.keyName}");
+  assert.equal(renamed.value, "{displayLabels.valueName}");
 });
 
-test("browser-only object-entry column names keep the transform out of SSR", () => {
+test("browser-only list key variables keep their write outside SSR", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
     { id: "dynamic-column", kind: "store-load", key: "chosen-field", into: "keyName" },
-    { id: "client-entries", kind: "transform", source: "data", into: "rows",
-      transform: { kind: "object-entries", keyField: "{keyName}", valueField: "値" } },
+    { id: "init-rows", kind: "set-var", into: "rows", value: "{}" },
+    { id: "client-write", kind: "set-list-item", list: "rows", key: "{keyName}", value: "42" },
   );
   const plan = pagePlan(doc, "p");
-  assert.ok(!plan.serverIds.has("client-entries"));
+  assert.ok(!plan.serverIds.has("client-write"));
   assert.ok(plan.clientVars.has("rows"));
 });
-
 test("server data transforms interpolate strings and source variables without client-only adapters", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
@@ -589,20 +600,23 @@ test("server data transforms interpolate strings and source variables without cl
   assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
 });
 
-test("comparison operands can refer to another variable", () => {
+
+test("if block operands can refer to another variable", () => {
   const doc = scriptDataPickerDoc();
-  doc.pages.p.pageScripts![0].steps.push({
-    id: "threshold", kind: "set-var", value: "{data.price}", into: "threshold",
-  }, {
-    id: "cmp", kind: "transform", source: "data.price", into: "above",
-    transform: { kind: "compare", operation: "gte", operand: "{threshold}" },
-  });
+  doc.pages.p.pageScripts![0].steps.push(
+    { id: "threshold", kind: "set-var", value: "{data.price}", into: "threshold" },
+    { id: "cmp", kind: "if",
+      cond: { subject: "var", target: "", left: "{data.price}", op: "gte", value: "{threshold}" },
+      then: [{ id: "yes", kind: "set-var", into: "above", value: "true" }],
+      else: [{ id: "no", kind: "set-var", into: "above", value: "false" }],
+    },
+  );
   const result = previewDataVars(doc, "p");
   assert.equal(result.threshold, 12);
   assert.equal(result.above, true);
 });
 
-test("server preview can calculate using numeric strings from another variable and edit lists", () => {
+test("server preview calculates with numeric strings and filters lists through loops", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
     { id: "rate", kind: "set-var", value: "1.5", into: "rate" },
@@ -610,22 +624,25 @@ test("server preview can calculate using numeric strings from another variable a
       transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "rate" } },
     { id: "append", kind: "transform", source: "data.tags", into: "tags",
       transform: { kind: "append", operandType: "text", operand: "green" } },
-    { id: "remove", kind: "transform", source: "tags", into: "tags",
-      transform: { kind: "remove", operandType: "text", operand: "red" } },
+    { id: "empty-tags", kind: "set-var", value: "[]", into: "filteredTags" },
+    { id: "filter-tags", kind: "for-each", array: "tags", then: [
+      { id: "keep", kind: "if", cond: {
+        subject: "var", target: "", left: "{ループ.値}", op: "eq", value: "red", not: true,
+      }, then: [{ id: "add-tag", kind: "set-list-item", list: "filteredTags", key: "", value: "{ループ.値}" }] },
+    ] },
   );
   const vars = previewDataVars(doc, "p");
   assert.equal(vars.total, 18);
-  assert.deepEqual(vars.tags, ["blue", "green"]);
+  assert.deepEqual(vars.filteredTags, ["blue", "green"]);
   const plan = pagePlan(doc, "p");
   assert.ok(plan.serverIds.has("calc"));
   assert.ok(plan.serverIds.has("append"));
-  assert.ok(plan.serverIds.has("remove"));
+  assert.ok(plan.serverIds.has("filter-tags"));
   const generated = generateProject(doc).files["app/page.tsx"];
   assert.match(generated, /"append"/);
-  assert.match(generated, /"remove"/);
+  assert.match(generated, /"for-each"/);
   assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
 });
-
 test("a browser-only operand keeps its arithmetic block in the client runtime", () => {
   const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.push(
@@ -659,7 +676,7 @@ test("page-load for-each and if execute on fetched items before rendering, inclu
       transform: { kind: "parse" } },
     { id: "each-price", kind: "for-each", array: "data.rows", then: [
       { id: "if-enabled", kind: "if",
-        cond: { subject: "var", target: "", left: "{enabled}", op: "eq", value: "true" },
+        cond: { subject: "var", target: "", left: "{enabled}", op: "eq", value: '\"true\"' },
         then: [
           { id: "double", kind: "transform", source: "price", into: "doubled",
             transform: { kind: "math", operation: "multiply", operand: 2 } },

@@ -6,7 +6,7 @@ import { PAGE_DATA_RUNTIME } from "./browser-data";
  * The generated module contains no window, document, or HTML DOM dependency.
  */
 export function nativeDataModule(): string {
-  const start = PAGE_DATA_RUNTIME.indexOf("  // #136 shared pure page-data helpers");
+  const start = PAGE_DATA_RUNTIME.indexOf("  // Shared pure page-data helpers");
   const end = PAGE_DATA_RUNTIME.indexOf("  window.__pageDataReady = ");
   if (start < 0 || end < 0 || end <= start) {
     throw new Error("The page data evaluator no longer exposes the expected functions");
@@ -61,9 +61,9 @@ export function nativeDataModule(): string {
     "}",
     "export function listItems(vars, name, limit, ...items) {",
     "  const value = read(scopeOf(vars, ...items), name);",
-    "  if (!Array.isArray(value)) return [];",
-    "  const rows = value.filter((v) => v != null && !Array.isArray(v))",
-    "    .map((v) => v && typeof v === 'object' ? v : { '値': v });",
+    "  if (!value || typeof value !== 'object') return [];",
+    "  const rows = Object.values(value).map((v) =>",
+    "    v && typeof v === 'object' && !Array.isArray(v) ? v : { '値': v });",
     "  return Number(limit) > 0 ? rows.slice(0, limit) : rows;",
     "}",
     "",

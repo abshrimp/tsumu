@@ -35,7 +35,7 @@ test('script values read live browser variables and fields at execution and enco
     { id: 'calc', kind: 'transform', source: 'computed', into: 'computed', transform: { kind: 'math', operation: 'add', operand: 2 } },
   );
   doc.nodes.change = { ...makeText('Change'), id: 'change', attrId: 'change', semantic: 'button', scripts: [{
-    id: 'change-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: 'change-step', kind: 'set-var', value: '7', into: 'counter' }],
+    id: 'change-script', trigger: 'click', pos: { x: 0, y: 0 }, steps: [{ id: 'change-step', kind: 'set-var', value: '"7"', into: 'counter' }],
   }] };
   doc.nodes.entry = { ...makeText(''), id: 'entry', attrId: 'entry', type: 'field', field: { kind: 'input', inputType: 'text' } };
   doc.nodes.computed = { ...makeText('{computed}'), id: 'computed', attrId: 'computed' };

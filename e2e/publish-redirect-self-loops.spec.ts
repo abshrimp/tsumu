@@ -25,7 +25,7 @@ test("大文字だけ違う転送を公開・書き出し前に止め、別の�
   const doc = createInitialDoc();
   doc.siteName = "Redirect check";
   doc.pages.about = { id: "about", name: "About us", slug: "about", title: "About us", description: "", children: [] };
-  doc.pages.old = { id: "old", name: "Old URL", slug: "legacy-about", title: "", description: "", children: [], redirectTo: "/about?from=old#team" };
+  doc.pages.old = { id: "old", name: "Old URL", slug: "redirect-source", title: "", description: "", children: [], redirectTo: "/about?from=old#team" };
   doc.pageOrder.push("about", "old");
   expect((await page.request.put(`/api/doc?site=${site.id}`, { data: doc })).ok()).toBeTruthy();
   await page.goto(`/sites/${site.id}`);
@@ -34,7 +34,7 @@ test("大文字だけ違う転送を公開・書き出し前に止め、別の�
   await page.locator(".dd-menu .dd-item").filter({ hasText: /^Old URL/ }).click();
   await page.locator('[data-tutorial="left-tab-site"]').click();
   const slug = page.locator('[data-tutorial="tutorial-page-slug"]');
-  await expect(slug).toHaveValue("legacy-about");
+  await expect(slug).toHaveValue("redirect-source");
   await slug.fill("About");
   await slug.press("Enter");
   await expect(slug).toHaveValue("About");

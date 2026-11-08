@@ -7,7 +7,6 @@ import type {
   FilterCond,
   ImageRef,
   ListContent,
-  ScriptOp,
   ScriptStep,
   SiteDoc,
 } from "../types";
@@ -267,32 +266,6 @@ export function showsSelf(node: DocNode): boolean {
   return found;
 }
 
-/** 絞り込みの比較（ブラウザの cmp・エディタの matchOp と同じ規則）を生成コードにする */
-function filterExpr(v: string, op: ScriptOp, w: string): string {
-  switch (op) {
-    case "contains":
-      return `${v}.includes(${w})`;
-    case "starts-with":
-      return `${v}.startsWith(${w})`;
-    case "ends-with":
-      return `${v}.endsWith(${w})`;
-    case "gt":
-      return `parseFloat(${v}) > parseFloat(${w})`;
-    case "gte":
-      return `parseFloat(${v}) >= parseFloat(${w})`;
-    case "lt":
-      return `parseFloat(${v}) < parseFloat(${w})`;
-    case "lte":
-      return `parseFloat(${v}) <= parseFloat(${w})`;
-    case "empty":
-      return `${v} === ""`;
-    case "in":
-      return `${w}.split(",").some((x) => x.trim() === ${v})`;
-    default:
-      return `${v} === ${w}`;
-  }
-}
-
 /** 項目の値を読む式（"address.city" のような入れ子の位置は lookupVar で読む） */
 export function fieldExpr(item: string, field: string): string {
   const key = codeLiteral(field);
@@ -330,10 +303,13 @@ export function filterPredicate(ops: ListOp[], base: string): string | null {
   const filters = ops.filter((o): o is Extract<ListOp, { kind: "filter" }> => o.kind === "filter");
   if (!filters.length) return null;
   const expr = (c: FilterCond) => {
-    const w = hasVars(c.value)
+    const text = hasVars(c.value)
       ? `interpolate(${codeLiteral(c.value)}, ${base})`
       : codeLiteral(c.value);
-    const positive = filterExpr(safeFieldTextExpr(fieldExpr("item", c.field)), c.op, w);
+    // No function parameters or external helpers: valid in strict TS and plain JS.
+    const positive = "(() => { const left = " + fieldExpr("item", c.field) +
+      "; const raw = " + text + "; let op = " + codeLiteral(c.op) + ";" +
+      "\nconst trimmed = raw.trim();\nconst right = (() => {\n  if (trimmed === \"true\" || trimmed === \"false\" || trimmed === \"null\" ||\n      trimmed.startsWith(\"[\") || trimmed.startsWith(\"{\") ||\n      /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/.test(trimmed) ||\n      (trimmed.length >= 2 && trimmed.startsWith('\"') && trimmed.endsWith('\"'))) {\n    try { return JSON.parse(trimmed); } catch {}\n  }\n  return raw;\n})();\nlet candidate = left, target = right;\nconst same = () => {\n  const stack = [[candidate, target]];\n  let steps = 0;\n  while (stack.length) {\n    if (++steps > 10000) return false;\n    const pair = stack.pop();\n    if (!pair) continue;\n    const a = pair[0], b = pair[1];\n    if (a === b) continue;\n    if (a === null || b === null || typeof a !== \"object\" || typeof b !== \"object\") return false;\n    const keysA = Object.keys(a), keysB = Object.keys(b);\n    if (keysA.length !== keysB.length || keysA.length > 10000) return false;\n    for (const key of keysA) {\n      if (!Object.prototype.hasOwnProperty.call(b, key)) return false;\n      stack.push([Reflect.get(a, key), Reflect.get(b, key)]);\n    }\n  }\n  return true;\n};\nif (op === \"eq\") return same();\nif (op === \"has-key\") return left !== null && typeof left === \"object\" &&\n  right !== null && right !== undefined && typeof right !== \"object\" &&\n  Object.prototype.hasOwnProperty.call(left, String(right));\nif (op === \"empty\") return left === null || left === undefined || left === \"\" ||\n  (left !== null && typeof left === \"object\" && Object.keys(left).length === 0);\nif (op === \"contains\") {\n  if (left !== null && typeof left === \"object\") {\n    for (const entry of Object.values(left)) {\n      candidate = entry;\n      if (same()) return true;\n    }\n    return false;\n  }\n  return left !== undefined && left !== null && typeof right !== \"object\" &&\n    String(left).includes(String(right));\n}\nif (op === \"starts-with\" || op === \"ends-with\") {\n  if (left === null || left === undefined || typeof left === \"object\" || typeof right === \"object\") return false;\n  return op === \"starts-with\" ? String(left).startsWith(String(right)) : String(left).endsWith(String(right));\n}\nif (op === \"in\") {\n  if (right !== null && typeof right === \"object\") {\n    for (const entry of Object.values(right)) {\n      target = entry;\n      if (same()) return true;\n    }\n    return false;\n  }\n  if (typeof right !== \"string\") return false;\n  return right.split(\",\").some((part) => {\n    const value = part.trim();\n    return left === value || typeof left === \"number\" &&\n      /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/.test(value) &&\n      Number(value) === left;\n  });\n}\nif (op === \"gt\" || op === \"gte\" || op === \"lt\" || op === \"lte\") {\n  const nLeft = typeof left === \"number\" ? String(left) : typeof left === \"string\" ? left.trim() : \"\";\n  const nRight = typeof right === \"number\" ? String(right) : typeof right === \"string\" ? right.trim() : \"\";\n  const numeric = /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/;\n  if (!numeric.test(nLeft) || !numeric.test(nRight)) return false;\n  const first = Number(nLeft), second = Number(nRight);\n  if (!Number.isFinite(first) || !Number.isFinite(second)) return false;\n  return op === \"gt\" ? first > second : op === \"gte\" ? first >= second :\n    op === \"lt\" ? first < second : first <= second;\n}\nreturn false;\n" + "})()";
     return c.not ? `!(${positive})` : positive;
   };
   // 括弧は、優先順位が変わるところにだけ付ける

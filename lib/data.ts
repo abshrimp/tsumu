@@ -18,6 +18,7 @@ import {
 import { fieldStateNotes, fieldVarName, fieldVarNames, isRadioItem } from "./fields";
 import { tr, trc } from "./i18n";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
+import { matchesValueCondition, parseValueLiteral } from "./value-semantics";
 import { runPurePageSteps } from "./page-load-steps";
 
 /** "data.items" のようなパスでオブジェクトを掘る（配列の "-1" は最後の要素） */
@@ -39,11 +40,12 @@ export const ITEM_VALUE = "値";
 
 /** リストで並べる項目にする（オブジェクトはそのまま、文字や数値は {値} に入れる） */
 export function toListItems(value: unknown): Record<string, unknown>[] {
-  if (!Array.isArray(value)) return [];
+  if (!value || typeof value !== "object") return [];
   const out: Record<string, unknown>[] = [];
-  for (const x of value) {
-    if (x == null || Array.isArray(x)) continue;
-    out.push(typeof x === "object" ? (x as Record<string, unknown>) : { [ITEM_VALUE]: x });
+  for (const [, item] of Object.entries(value)) {
+    out.push(item && typeof item === "object" && !Array.isArray(item)
+      ? item as Record<string, unknown>
+      : { [ITEM_VALUE]: item });
   }
   return out;
 }
@@ -68,29 +70,8 @@ export function detectFields(items: Record<string, unknown>[]): string[] {
 /**
  * 絞り込みの比較（スクリプトの「配列を絞り込む」。ブラウザの cmp・書き出しの filterExpr と同じ規則）
  */
-export function matchOp(v: string, op: ScriptOp | undefined, w: string): boolean {
-  switch (op) {
-    case "contains":
-      return v.includes(w);
-    case "starts-with":
-      return v.startsWith(w);
-    case "ends-with":
-      return v.endsWith(w);
-    case "gt":
-      return parseFloat(v) > parseFloat(w);
-    case "gte":
-      return parseFloat(v) >= parseFloat(w);
-    case "lt":
-      return parseFloat(v) < parseFloat(w);
-    case "lte":
-      return parseFloat(v) <= parseFloat(w);
-    case "empty":
-      return v === "";
-    case "in":
-      return w.split(",").some((x) => x.trim() === v);
-    default:
-      return v === w;
-  }
+export function matchOp(v: unknown, op: ScriptOp | undefined, w: unknown): boolean {
+  return matchesValueCondition(v, op ?? "eq", w);
 }
 
 /** Coerce fetched JSON without invoking custom or shadowed toString methods. */
@@ -159,8 +140,8 @@ export function filterItems(
   const pass = (o: Extract<ListOp, { kind: "filter" }>, item: Record<string, unknown>) =>
     condGroups(o.conds).some((g) =>
       g.every((c) =>
-        c.not ? !matchOp(safeCompareText(keyOfItem(item, c.field)), c.op, c.value) :
-          matchOp(safeCompareText(keyOfItem(item, c.field)), c.op, c.value)
+        c.not ? !matchOp(keyOfItem(item, c.field), c.op, parseValueLiteral(c.value)) :
+          matchOp(keyOfItem(item, c.field), c.op, parseValueLiteral(c.value))
       )
     );
   return items.filter((item) =>
@@ -265,7 +246,7 @@ export function scriptVarNames(doc: SiteDoc, pageId: string): string[] {
   return [...dataVarNames(doc, pageId)].filter((n) => n !== ITEM_VALUE && n !== "slug");
 }
 
-/** 「変数を探す」で見せる、変数のまとまり */
+/** 「変数を探す」に表示する変数の分類 */
 export interface VarGroup {
   key: "item" | "data" | "url" | "element" | "script" | "state";
   /** 「変数を探す」で「詳細」を開いたときだけ出す */
@@ -353,8 +334,7 @@ export function varSamplesAt(
   nodeId: string
 ): Record<string, string> {
   const describe = (v: unknown): string => {
-    if (Array.isArray(v)) return tr("{length}件のリスト", { length: v.length });
-    if (v && typeof v === "object") return tr("項目付きデータ");
+    if (v && typeof v === "object") return tr("リスト");
     const t = varText(v).replace(/\s+/g, " ");
     return t.length > 28 ? `${t.slice(0, 28)}…` : t;
   };
@@ -385,7 +365,7 @@ export type SetVarStep = Extract<ScriptStep, { kind: "set-var" }>;
 export type TransformStep = Extract<ScriptStep, { kind: "transform" }>;
 /** ページを配信する前に実行するブロック */
 export type PureGroupStep = Extract<ScriptStep, { kind: "for-each" | "if" | "repeat" }>;
-export type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep;
+export type ServerStep = DataStep | SetVarStep | TransformStep | PureGroupStep | Extract<ScriptStep, { kind: "set-list-item" }>;
 
 /** 「［{名前}］を変数［］とする」の {名前}（値が {名前} 1つだけでなければ null） */
 export function setVarSource(st: SetVarStep): string | null {
@@ -466,26 +446,14 @@ function transformReferences(transform: TransformStep["transform"]): string[] {
   const refs = (text: string) => extractVars(text);
   let fields: string[] = [];
   switch (transform.kind) {
-    case "field":
-    case "has": fields = refs(transform.key); break;
-    case "object-entries": fields = [...refs(transform.keyField), ...refs(transform.valueField)]; break;
-    case "fallback":
-    case "fallback-nullish": fields = refs(transform.text); break;
+    case "field": fields = refs(transform.key); break;
+    case "fallback": fields = refs(transform.text); break;
     case "split":
     case "join": fields = refs(transform.separator); break;
     case "replace": fields = [...refs(transform.find), ...refs(transform.replacement)]; break;
-    case "find":
-    case "filter":
-    case "map-set":
-    case "map-field":
     case "sort": fields = refs(transform.field); break;
   }
-  if (transform.kind === "compare" || transform.kind === "find" || transform.kind === "filter") {
-    fields.push(...refs(transform.operand));
-    for (const condition of transform.conditions ?? []) {
-      fields.push(...refs(condition.field), ...refs(condition.operand));
-    }
-  } else if ("operandType" in transform && transform.operandType === "variable" &&
+  if ("operandType" in transform && transform.operandType === "variable" &&
       typeof transform.operand === "string") fields.push(transform.operand);
   else if ("operandType" in transform && transform.operandType === "text" &&
       typeof transform.operand === "string") fields.push(...refs(transform.operand));
@@ -497,15 +465,20 @@ function repeatVarName(value: number | string): string | null {
   return /^\{([^{}\s]+)\}$/.exec(value.trim())?.[1] ?? null;
 }
 
-function pureLoadStep(st: ScriptStep): boolean {
+function pureLoadStep(st: ScriptStep, inLoop = false): boolean {
   switch (st.kind) {
     case "set-var": return !!st.into;
+    case "set-list-item": return !!st.list;
+    case "break-loop": return inLoop;
     case "transform": return !!st.source && !!st.into;
     case "if": return (st.conditions?.length ?? 0) <= 32 &&
       [st.cond, ...(st.conditions ?? [])].every((condition) => condition.subject === "var") &&
-      st.then.every(pureLoadStep) && (st.else ?? []).every(pureLoadStep);
-    case "for-each": return !!st.array && st.then.length > 0 && st.then.every(pureLoadStep);
-    case "repeat": return (typeof st.times === "number" ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000 : !!repeatVarName(st.times)) && st.then.every(pureLoadStep);
+      st.then.every((child) => pureLoadStep(child, inLoop)) &&
+      (st.else ?? []).every((child) => pureLoadStep(child, inLoop));
+    case "for-each": return !!st.array && st.then.length > 0 &&
+      st.then.every((child) => pureLoadStep(child, true));
+    case "repeat": return (typeof st.times === "number" ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000 : !!repeatVarName(st.times)) &&
+      st.then.every((child) => pureLoadStep(child, true));
     default: return false;
   }
 }
@@ -575,26 +548,30 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         : -1;
     listOps.set(array, i >= 0 ? cur.map((o, j) => (j === i ? op : o)) : [...cur, op]);
   };
-  const isServerPure = (st: ScriptStep): boolean => {
+  const isServerPure = (st: ScriptStep, inLoop = false): boolean => {
     if (st.kind === "set-var") return !!st.into &&
       !clientVars.has(st.into) && !extractVars(st.value).some(isClient);
+    if (st.kind === "set-list-item") return !!st.list && !isClient(st.list) &&
+      !extractVars(st.key).some(isClient) && !extractVars(st.value).some(isClient);
+    if (st.kind === "break-loop") return inLoop;
     if (st.kind === "transform") {
       if (!st.into || !st.source || clientVars.has(st.into) || isClient(st.source)) return false;
       return !transformReferences(st.transform).some(isClient);
     }
     if (st.kind === "for-each") return !!st.array && !isClient(st.array) &&
-      st.then.length > 0 && st.then.every(isServerPure);
+      st.then.length > 0 && st.then.every((child) => isServerPure(child, true));
     if (st.kind === "if") return (st.conditions?.length ?? 0) <= 32 &&
       [st.cond, ...(st.conditions ?? [])].every((condition) =>
         condition.subject === "var" &&
         !extractVars(condition.left ?? "").some(isClient) &&
         !extractVars(condition.value ?? "").some(isClient)) &&
-      st.then.every(isServerPure) && (st.else ?? []).every(isServerPure);
+      st.then.every((child) => isServerPure(child, inLoop)) &&
+      (st.else ?? []).every((child) => isServerPure(child, inLoop));
     if (st.kind === "repeat") {
       const name = repeatVarName(st.times);
       return (typeof st.times === "number"
         ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000
-        : !!name && !isClient(name)) && st.then.every(isServerPure);
+        : !!name && !isClient(name)) && st.then.every((child) => isServerPure(child, true));
     }
     return false;
   };
@@ -615,6 +592,11 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
           steps.push(st);
           serverIds.add(st.id);
         }
+      } else if (st.kind === "set-list-item" && isServerPure(st)) {
+        steps.push(st);
+        serverIds.add(st.id);
+      } else if (st.kind === "set-list-item") {
+        clientVars.add(rootName(st.list));
       } else if (
         (st.kind === "for-each" || st.kind === "if" || st.kind === "repeat") &&
         isServerPure(st)
@@ -765,7 +747,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
       if (st.kind !== "transform" || !st.into || seen.has(st.into)) return;
-      const listProducing = ["split", "filter", "object-entries", "map-field", "map-set", "sort", "append", "remove", "remove-at"].includes(st.transform.kind);
+      const listProducing = ["split", "sort", "append"].includes(st.transform.kind);
       if (!listProducing) {
         transformedSamples ??= previewDataVars(doc, pageId);
         if (!Array.isArray(lookupVar(transformedSamples, st.into))) return;
@@ -774,6 +756,23 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
       out.push({ name: st.into, client: clientVars.has(st.into) });
     });
   }
+  // Lists may have either numeric or named keys.
+  const visitedLists = new Set<unknown>();
+  const visit = (value: unknown, name: string, depth: number) => {
+    if (!value || typeof value !== "object" || visitedLists.has(value) || depth > 4) return;
+    visitedLists.add(value);
+    if (!seen.has(name)) {
+      seen.add(name);
+      out.push({ name, client: clientVars.has(name.split(".")[0]) });
+    }
+    if (depth < 4) for (const [key, child] of Object.entries(value).slice(0, 50)) {
+      if (!key.includes(".") && child && typeof child === "object")
+        visit(child, name + "." + key, depth + 1);
+    }
+  };
+  const sampleVars = previewDataVars(doc, pageId);
+  for (const [name, value] of Object.entries(sampleVars))
+    if (!name.startsWith("#")) visit(value, name, 0);
   return out;
 }
 
@@ -818,36 +817,61 @@ export function makeSample(json: unknown): { sample: unknown; totals?: Record<st
   return { sample, ...(Object.keys(totals).length ? { totals } : {}) };
 }
 
-/** A dynamic page selects its primary record through a "find" transform or a slug-aware fetch. */
-export type PrimaryStep = TransformStep | SetVarStep;
-export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimaryStep } | null {
-  const page = doc.pages[pageId];
-  if (!page || !isSlugPage(page.slug)) return null;
-  const all = pageDataSteps(doc, pageId);
-  for (const st of all) {
-    if (st.kind === "transform" && st.into && st.source &&
-        st.transform.kind === "find" && st.transform.operand === "{slug}" &&
-        st.transform.field) return { step: st };
-  }
-  const slugFetches = new Set(all.filter((st) =>
-    st.kind === "fetch" && st.as && urlHasSlug(st.url)).map((st) => (st as FetchStep).as!));
-  for (const st of all) {
-    const src = st.kind === "set-var" ? setVarSource(st) : null;
-    if (src && slugFetches.has(rootName(src))) return { step: st as SetVarStep };
+/**
+ * A slug-aware record can be selected using an ordinary list loop:
+ * for each entry -> if {ループ.値.field} equals {slug} -> set selected = {ループ.値}, break.
+ * No special search transformation is required.
+ */
+function slugSelectorOf(doc: SiteDoc, pageId: string): {
+  loop: ForEachStep; field: string; selected: SetVarStep;
+} | null {
+  for (const step of pageDataSteps(doc, pageId)) {
+    if (step.kind !== "for-each" || !step.array) continue;
+    for (const child of step.then) {
+      if (child.kind !== "if") continue;
+      const clauses = [child.cond, ...(child.conditions ?? [])];
+      if (clauses.length !== 1) continue;
+      const clause = clauses[0];
+      if (clause.subject !== "var" || clause.op !== "eq" || clause.not) continue;
+      const left = clause.left?.trim() ?? "";
+      const right = clause.value?.trim() ?? "";
+      const prefix = "{ループ.値.";
+      const field = left.startsWith(prefix) && left.endsWith("}") && right === "{slug}"
+        ? left.slice(prefix.length, -1) : "";
+      if (!field) continue;
+      const selected = child.then.find((item): item is SetVarStep =>
+        item.kind === "set-var" && item.value.trim() === "{ループ.値}" && !!item.into);
+      if (selected && child.then.some((item) => item.kind === "break-loop"))
+        return { loop: step, field, selected };
+    }
   }
   return null;
 }
 
-/** Preview selection of the records used by a dynamic page. */
+export type PrimaryStep = SetVarStep;
+export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimaryStep } | null {
+  const page = doc.pages[pageId];
+  if (!page || !isSlugPage(page.slug)) return null;
+  const chosen = slugSelectorOf(doc, pageId);
+  if (chosen) return { step: chosen.selected };
+  const all = pageDataSteps(doc, pageId);
+  const slugFetches = new Set(all.filter((step) =>
+    step.kind === "fetch" && step.as && urlHasSlug(step.url)).map((step) => (step as FetchStep).as!));
+  for (const step of all) {
+    const source = step.kind === "set-var" ? setVarSource(step) : null;
+    if (source && slugFetches.has(rootName(source))) return { step: step as SetVarStep };
+  }
+  return null;
+}
+
+/** Preview candidates used by slug-aware loops. */
 export function primaryCandidates(
   doc: SiteDoc, pageId: string, live?: Record<string, unknown>,
 ): { field: string; items: Record<string, unknown>[] } | null {
-  const step = primaryDataStep(doc, pageId)?.step;
-  if (step?.kind === "transform" && step.transform.kind === "find") {
-    const vars = previewDataVars(doc, pageId, { live, index: 0 });
-    return { field: step.transform.field, items: toItems(lookupVar(vars, step.source)) };
-  }
-  return null;
+  const selection = slugSelectorOf(doc, pageId);
+  if (!selection) return null;
+  const vars = previewDataVars(doc, pageId, { live, index: 0 });
+  return { field: selection.field, items: toItems(lookupVar(vars, selection.loop.array)) };
 }
 
 /** 一覧の1件の、見分ける項目の値（"category.slug" のような位置も使える） */
@@ -863,12 +887,10 @@ export function sameKey(value: unknown, key: string): boolean {
 
 /** オブジェクトの配列だけを一覧の項目として取り出す */
 export function toItems(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value)
-    ? value.filter(
-        (x): x is Record<string, unknown> =>
-          x != null && typeof x === "object" && !Array.isArray(x)
-      )
-    : [];
+  if (!value || typeof value !== "object") return [];
+  return Object.values(value).map((item) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? item as Record<string, unknown> : { [ITEM_VALUE]: item });
 }
 
 export interface PreviewOpts {
@@ -903,7 +925,7 @@ export function previewDataVars(
     const root = own(origins, head) ? origins[head] : undefined;
     return root ? { totals: root.totals, path: [root.path, ...tail].filter(Boolean).join(".") } : null;
   };
-  const primary = primaryDataStep(doc, pageId)?.step;
+  const primarySelector = slugSelectorOf(doc, pageId);
   const scope = () => ({ ...opts.vars, slug: opts.slug, ...out });
   const plan = pagePlan(doc, pageId);
   for (const st of plan.steps) {
@@ -921,24 +943,23 @@ export function previewDataVars(
         if (!st.into) break;
         const src = setVarSource(st);
         if (src) {
-          save(st.into, lookupVar(scope(), src) ?? null);
+          save(st.into, lookupVar(scope(), src));
           const origin = originFor(src);
           if (origin) setOrigin(st.into, origin);
         } else if (!extractVars(st.value).length) {
-          // Constant load-time values are pure; escaped braces remain literal.
-          save(st.into, interpolate(st.value, scope()));
+          // Infer only unambiguous JSON literals; preserve ordinary text.
+          save(st.into, parseValueLiteral(interpolate(st.value, scope())));
           delete origins[st.into];
         }
         break;
       }
+      case "set-list-item": {
+        runPurePageSteps([st], out, lookupVar, interpolate, evaluateValueRecipe,
+          { ...opts.vars, slug: opts.slug });
+        break;
+      }
       case "transform": {
         if (!st.into || !st.source) break;
-        if (st === primary && opts.index !== undefined && st.transform.kind === "find") {
-          const list = lookupVar(scope(), st.source);
-          const items = Array.isArray(list) ? list : [];
-          save(st.into, opts.index < 0 ? null : (items[Math.max(0, Math.min(opts.index, items.length - 1))] ?? null));
-          break;
-        }
         const vars = scope();
         const result = evaluateValueRecipe(lookupVar(vars, st.source), [st.transform], vars);
         if (result.kind === "value") {
@@ -965,8 +986,12 @@ export function previewDataVars(
       case "repeat": {
         // Run the same interpreter as exported pages; nested source fields
         // override outer values, while assignments persist in the page vars.
+        const selectedSlug = st.kind === "for-each" && primarySelector?.loop.id === st.id &&
+          opts.index !== undefined && opts.slug === undefined
+          ? keyOfItem(toItems(lookupVar(scope(), st.array))[opts.index] ?? {}, primarySelector.field)
+          : opts.slug;
         runPurePageSteps([st], out, lookupVar, interpolate, evaluateValueRecipe,
-          { ...opts.vars, slug: opts.slug });
+          { ...opts.vars, slug: selectedSlug });
         break;
       }
     }
@@ -1261,6 +1286,11 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
   for (const st of steps) {
     // 配列・取得したデータの名前での参照
     if ("array" in st && st.array) st.array = fn(st.array) ?? st.array;
+    if (st.kind === "set-list-item") {
+      st.list = fn(st.list) ?? st.list;
+      st.key = mapVarTokens(st.key, fn);
+      st.value = mapVarTokens(st.value, fn);
+    }
     if (st.kind === "open-url" || st.kind === "fetch") st.url = mapVarTokens(st.url, fn);
     if (st.kind === "fetch") {
       st.headers = st.headers?.map((h) => ({ ...h, value: mapVarTokens(h.value, fn) }));
@@ -1270,31 +1300,18 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       st.source = fn(st.source) ?? st.source;
       const t = st.transform;
       const next: Record<string, unknown> = { ...t };
-      if (t.kind === "compare" || t.kind === "find" || t.kind === "filter") {
-        next.operand = mapVarTokens(t.operand, fn);
-      } else if ("operandType" in t && typeof t.operand === "string") {
+      if ("operandType" in t && typeof t.operand === "string") {
         if (t.operandType === "variable") next.operand = fn(t.operand) ?? t.operand;
         if (t.operandType === "text") next.operand = mapVarTokens(t.operand, fn);
       }
-      if (t.kind === "field" || t.kind === "has") next.key = mapVarTokens(t.key, fn);
-      if (t.kind === "object-entries") {
-        next.keyField = mapVarTokens(t.keyField, fn);
-        next.valueField = mapVarTokens(t.valueField, fn);
-      }
-      if (t.kind === "fallback" || t.kind === "fallback-nullish") next.text = mapVarTokens(t.text, fn);
+      if (t.kind === "field") next.key = mapVarTokens(t.key, fn);
+      if (t.kind === "fallback") next.text = mapVarTokens(t.text, fn);
       if (t.kind === "split" || t.kind === "join") next.separator = mapVarTokens(t.separator, fn);
       if (t.kind === "replace") {
         next.find = mapVarTokens(t.find, fn);
         next.replacement = mapVarTokens(t.replacement, fn);
       }
-      if ("field" in t) next.field = mapVarTokens(t.field, fn);
-      if ("conditions" in t && t.conditions) {
-        next.conditions = t.conditions.map((condition) => ({
-          ...condition,
-          field: mapVarTokens(condition.field, fn),
-          operand: mapVarTokens(condition.operand, fn),
-        }));
-      }
+      if (t.kind === "sort") next.field = mapVarTokens(t.field, fn);
       st.transform = next as typeof st.transform;
     }
     else if (
@@ -1389,7 +1406,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
     for (const s of n.scripts ?? []) stepLists.push(s.steps);
   }
 
-  const keep = new Set<string>(["slug", "値"]);
+  const keep = new Set<string>(["slug", "値", "ループ"]);
   for (const n of Object.values(out.nodes)) {
     if (n.attrId) keep.add(n.attrId);
     if (n.type === "field" && fieldVarName(n)) keep.add(fieldVarName(n));
