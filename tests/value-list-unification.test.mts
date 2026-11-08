@@ -7,6 +7,7 @@ import { lookupVar, interpolate } from "../lib/vars";
 import { obfuscateVarNames } from "../lib/data";
 import { createInitialDoc } from "../lib/presets";
 import type { ScriptStep } from "../lib/types";
+import { nativeDataModule } from "../lib/generator/native-data";
 
 const run = (steps: ScriptStep[], vars: Record<string, unknown>) =>
   runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe);
@@ -164,4 +165,16 @@ test("export obfuscation preserves list targets and loop variable references", (
   assert.equal(write.list, result.into);
   assert.equal(write.value, "{ループ.値}");
   assert.notEqual(result.into, "result");
+});
+
+test("native exported list rendering accepts dictionary keys and preserves nested values", async () => {
+  const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
+  const { listItems } = await import(uri);
+  const result = listItems({
+    rows: { apple: { title: "Apple" }, banana: 2, empty: null, nested: [1, 2] },
+  }, "rows", 0);
+  assert.deepEqual(result, [
+    { title: "Apple" }, { "値": 2 }, { "値": null }, { "値": [1, 2] },
+  ]);
+  assert.deepEqual(listItems({ rows: ["a", "b"] }, "rows", 1), [{ "値": "a" }]);
 });
