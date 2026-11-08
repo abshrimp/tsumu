@@ -62,7 +62,7 @@ test("dictionary loops expose key/value/index and support keyed output writes", 
   assert.deepEqual(vars.prices, { apple: 100, banana: 200 });
 });
 
-test("nested and null list values are no longer skipped by for-each", () => {
+test("list loops process nested and null values", () => {
   const vars: Record<string, unknown> = { source: [null, [1, 2], { ok: true }] };
   const steps: ScriptStep[] = [
     { id: "init", kind: "set-var", into: "result", value: "[]" },
