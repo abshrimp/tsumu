@@ -1208,6 +1208,9 @@ export const useEditor = create<EditorStore>((set, get) => {
     undo: () => {
       commitActiveTextEdit();
       pendingBase = null;
+      // 履歴を移動した後のpointermoveを、古い操作の履歴なし更新にしない。
+      // 所有者も破棄し、遅れて届くpointerupが新しい操作を終えないようにする。
+      get().endGesture();
       const { doc } = get();
       const past = [...get().past];
       // 現在と同じ内容の履歴は、押しても何も起きないため読み飛ばす
@@ -1249,6 +1252,9 @@ export const useEditor = create<EditorStore>((set, get) => {
     redo: () => {
       commitActiveTextEdit();
       pendingBase = null;
+      // 履歴を移動した後のpointermoveを、古い操作の履歴なし更新にしない。
+      // 所有者も破棄し、遅れて届くpointerupが新しい操作を終えないようにする。
+      get().endGesture();
       const { doc } = get();
       const future = [...get().future];
       let next: SiteDoc | undefined;

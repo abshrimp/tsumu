@@ -327,7 +327,8 @@ for (const reason of ["unmount", "undo", "delete"] as const) {
     if (reason === "undo") state().undo();
     if (reason === "delete") state().deletePage("p");
     await task.done;
-    assert.equal(state().gestureActive, true, "the drop does not end somebody else's gesture");
+    assert.equal(state().gestureActive, reason !== "undo",
+      "only Undo ends the gesture; cancelling the drop itself must not end another control's gesture");
     assert.equal(Object.keys(state().doc.assets).length, 1);
     assert.equal(Object.values(state().doc.nodes).filter((node) => node.type === "image").length, 0);
     if (reason === "undo") assert.equal(state().future.length, 1);
