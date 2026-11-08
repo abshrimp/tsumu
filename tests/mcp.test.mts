@@ -216,3 +216,31 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
   assert.equal(siteReply.result.requiresReconnect, true);
 });
 });
+
+describe("mcp-plugin-catalog", () => {
+test("plugin links come from the relay and only published https listings are kept", async () => {
+  const { parsePluginCatalog } = await import("../lib/external-edit/plugins");
+  const catalog = parsePluginCatalog({
+    guideUrl: "https://mcp.tsumu.ebii.net/",
+    plugins: [
+      { id: "claude", name: "Claude", icon: "https://mcp.tsumu.ebii.net/plugin-icons/claude.svg", url: "https://claude.ai/directory/tsumu" },
+      { id: "cursor", name: "Cursor", icon: "https://mcp.tsumu.ebii.net/plugin-icons/cursor.svg", url: null },
+      { id: "evil", name: "Evil", icon: "https://mcp.tsumu.ebii.net/x.svg", url: "javascript:alert(1)" },
+      { id: "plain", name: "Plain", icon: "https://mcp.tsumu.ebii.net/x.svg", url: "http://plain.example" },
+      { id: "noicon", name: "No icon", icon: "data:image/svg+xml,<svg/>", url: "https://example.com" },
+      { id: "BAD ID", name: "Bad", icon: "https://mcp.tsumu.ebii.net/x.svg", url: "https://example.com" },
+    ],
+  }, "https://fallback.example/");
+  assert.deepEqual(catalog.plugins, [
+    { id: "claude", name: "Claude", icon: "https://mcp.tsumu.ebii.net/plugin-icons/claude.svg", url: "https://claude.ai/directory/tsumu" },
+  ]);
+  assert.equal(catalog.guideUrl, "https://mcp.tsumu.ebii.net/");
+});
+
+test("an unavailable catalog still links to the connection guide", async () => {
+  const { parsePluginCatalog } = await import("../lib/external-edit/plugins");
+  assert.deepEqual(parsePluginCatalog(null, "https://mcp.example.org/"), { guideUrl: "https://mcp.example.org/", plugins: [] });
+  assert.equal(parsePluginCatalog({ guideUrl: "http://localhost:8787/" }).guideUrl, "http://localhost:8787/");
+  assert.equal(parsePluginCatalog({ guideUrl: "javascript:alert(1)" }, "https://mcp.example.org/").guideUrl, "https://mcp.example.org/");
+});
+});

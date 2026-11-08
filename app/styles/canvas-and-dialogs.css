@@ -507,6 +507,86 @@
   margin: 8px 0 0;
 }
 
+/* AI client plugins in the MCP connection dialog */
+.mcp-plugins {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.mcp-plugins h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.mcp-plugin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px;
+}
+
+.mcp-plugin {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+
+.mcp-plugin:hover {
+  background: var(--state-hover);
+  border-color: var(--accent-border);
+}
+
+.mcp-plugin-icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-s);
+  /* Keep monochrome brand marks visible in the dark editor theme. */
+  background: #fff;
+}
+
+.mcp-plugin-icon img {
+  display: block;
+}
+
+.mcp-plugin-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+.mcp-plugin-action {
+  flex: none;
+  color: var(--text-3);
+}
+
+.mcp-plugin:hover .mcp-plugin-action {
+  color: var(--accent);
+}
+
+.mcp-guide-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--accent);
+  font-size: 12px;
+}
+
 .modal .modal-desc {
   color: var(--text-2);
   margin: 0 0 14px;

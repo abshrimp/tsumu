@@ -23,7 +23,6 @@ type Phase = "disconnected" | "connecting" | "connected";
 interface ExternalEditState {
   phase: Phase;
   code: string | null;
-  mcpUrl: string;
   error: string | null;
   expiresAt: number | null;
   canEdit: boolean;
@@ -33,7 +32,6 @@ interface BridgeSession {
   pairingCode: string;
   connectToken: string;
   wsUrl: string;
-  mcpUrl: string;
   expiresAt: number;
 }
 interface BridgeRequest {
@@ -44,7 +42,7 @@ interface BridgeRequest {
 }
 
 export const useExternalEdit = create<ExternalEditState>(() => ({
-  phase: "disconnected", code: null, mcpUrl: ENDPOINT + "/mcp",
+  phase: "disconnected", code: null,
   error: null, expiresAt: null, canEdit: true,
 }));
 
@@ -250,7 +248,7 @@ export async function connectExternalEdit(canEdit: boolean): Promise<void> {
     active = { ws, session, siteId, canEdit };
     ws.onopen = () => {
       if (active?.ws === ws) useExternalEdit.setState({
-        phase: "connected", code: session.pairingCode, mcpUrl: session.mcpUrl,
+        phase: "connected", code: session.pairingCode,
         expiresAt: session.expiresAt, error: null, canEdit,
       });
     };
