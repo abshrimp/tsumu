@@ -390,24 +390,16 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
         {MATH.map((method) => <option key={method.value} value={method.value}>{tr(method.label)}</option>)}
       </FixedOptionSelect>
       <div className="se-composer-operand">
-        <FixedOptionSelect aria-label={tr("計算する値の種類")}
-          value={transform.operandType === "variable" ? "variable" : "number"}
-          onChange={(e) => onChange(e.target.value === "variable"
-            ? { ...transform, operandType: "variable", operand: "" }
-            : { ...transform, operandType: "number", operand: 1 })}>
-          <option value="number">{tr("数値")}</option>
-          <option value="variable">{tr("変数")}</option>
-        </FixedOptionSelect>
-        {transform.operandType === "variable" ? (
-          <PathMenu root={samples} path={String(transform.operand)} mode="any" allowRoot={false}
-            ariaLabel={tr("計算する変数")} placeholder={tr("変数を選択")}
-            onChange={(path) => onChange({ ...transform, operand: path })}
-            portalZIndex={560} />
-        ) : (
-          <input aria-label={tr("計算する数")} type="number" step="any"
-            value={typeof transform.operand === "number" && Number.isFinite(transform.operand) ? transform.operand : ""}
-            onChange={(e) => onChange({ ...transform, operand: e.target.value === "" ? NaN : Number(e.target.value) })} />
-        )}
+        <TextIn vars value={transform.operandType === "variable"
+          ? "{" + String(transform.operand) + "}" : String(transform.operand)}
+          valueContext="value" width={154} placeholder={tr("計算する値 / {変数}")}
+          onCommit={(input) => {
+            const text = input.trim();
+            const variable = /^\{([^{}\s"'<>]+)\}$/.exec(text);
+            if (variable) onChange({ ...transform, operandType: "variable", operand: variable[1] });
+            else onChange({ ...transform, operandType: "number",
+              operand: text !== "" && Number.isFinite(Number(text)) ? Number(text) : text });
+          }} />
       </div>
     </div>
   );
