@@ -44,8 +44,6 @@ function fixture() {
     { id: "list", kind: "list-display", mode: "filter", array: "items",
       field: "id", op: "eq", value: "first", not: true, dir: "asc" },
   ];
-  // The current #159 types will be replaced by #136's script model. Test the
-  // actual saved JSON shape without reintroducing deleted block kinds.
   page.pageScripts = [{ id: "load-new", trigger: "load", pos: { x: 0, y: 0 },
     steps }] as unknown as typeof page.pageScripts;
   return { doc, page };
@@ -65,7 +63,7 @@ const expected = (result: Record<string, unknown>) => {
   assert.deepEqual(JSON.parse(JSON.stringify(result.items)), [response.items[1]]);
 };
 
-test("the #136 document exports its pure transform, nested loop, conditions and list display", async () => {
+test("the document exports its pure transform, nested loop, conditions and list display", async () => {
   const { doc, page } = fixture();
   const plan = pageDataPlan(doc, page);
   assert.deepEqual(plan.steps.map((step) => step.kind), [
@@ -87,7 +85,7 @@ test("the #136 document exports its pure transform, nested loop, conditions and 
   expected(await sandbox.window.__pageDataReady);
 });
 
-test("the same #136 transform semantics run in native SSR without browser globals", async () => {
+test("the same transform semantics run in native SSR without browser globals", async () => {
   const { doc, page } = fixture();
   const plan = pageDataPlan(doc, page);
   const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
@@ -100,7 +98,7 @@ test("the same #136 transform semantics run in native SSR without browser global
   expected(vars);
 });
 
-test("exported HTML carries the #136 page plan and executable data runtime", () => {
+test("exported HTML carries the page plan and executable data runtime", () => {
   const { doc, page } = fixture();
   // This test exercises the actual exported files, not only the interpreter.
   // Other starter pages include a dynamic [slug] path that HTML intentionally rejects.
@@ -118,7 +116,7 @@ test("exported HTML carries the #136 page plan and executable data runtime", () 
   assert.ok(project.files["data-loader.js"].includes("evaluateValueRecipe"));
 });
 
-test("generated browser event runtime retains #136 transform and list-display actions", () => {
+test("generated browser event runtime retains transform and list-display actions", () => {
   const { doc, page } = fixture();
   doc.pages = { [page.id]: page };
   doc.pageOrder = [page.id];
@@ -177,7 +175,7 @@ test("dictionary entries are expanded into rows using ordinary loops in generate
     { property: "first", content: 1 }, { property: "second", content: 2 },
   ]);
 });
-test("export preserves #136 variable references after obfuscating a transformation chain", async () => {
+test("export preserves variable references after obfuscating a transformation chain", async () => {
   const { doc, page } = fixture();
   page.pageScripts = [{ id: "chain", trigger: "load", pos: { x: 0, y: 0 },
     steps: [
@@ -206,7 +204,7 @@ test("export preserves #136 variable references after obfuscating a transformati
 });
 
 
-test("#136 multiple if clauses retain AND-before-OR grouping in browser and SSR", async () => {
+test("multiple if clauses retain AND-before-OR grouping in browser and SSR", async () => {
   const { doc, page } = fixture();
   page.pageScripts = [{ id: "joined", trigger: "load", pos: { x: 0, y: 0 },
     steps: [{
@@ -248,7 +246,7 @@ test("#136 multiple if clauses retain AND-before-OR grouping in browser and SSR"
   assert.equal(pageDataServerIds(doc, page).has(conditional.id), false);
 });
 
-test("#136 if condition arrays are serialized into emitted event scripts", () => {
+test("if condition arrays are serialized into emitted event scripts", () => {
   const { doc, page } = fixture();
   doc.pages = { [page.id]: page };
   doc.pageOrder = [page.id];
@@ -282,7 +280,7 @@ test("missing field values clear stale data before a following fallback", () => 
     (scope, name) => lookupVar(scope, name), interpolate, evaluateValueRecipe), true);
   assert.equal(vars.selected, "not found");
 });
-test("#136 blank additional if clauses are ignored when evaluating exported page data", () => {
+test("blank additional if clauses are ignored when evaluating exported page data", () => {
   const vars: Record<string, unknown> = { enabled: "yes" };
   const steps = [{
     kind: "if",
@@ -297,7 +295,7 @@ test("#136 blank additional if clauses are ignored when evaluating exported page
 });
 
 
-test("#136 value-transform sort uses natural Japanese numeric collation", () => {
+test("value-transform sort uses natural Japanese numeric collation", () => {
   const items = [{ title: "10" }, { title: "2" }, { title: "1" }];
   const result = evaluateValueRecipe(items,
     [{ kind: "sort", field: "title", direction: "asc" }], {});
@@ -309,7 +307,7 @@ test("#136 value-transform sort uses natural Japanese numeric collation", () => 
 });
 
 
-test("#136 incomplete OR clause retains the OR group before a later AND clause", () => {
+test("incomplete OR clause retains the OR group before a later AND clause", () => {
   for (const input of [
     { a: "no", c: "yes", expected: "accepted" },
     { a: "yes", c: "no", expected: "accepted" },
@@ -332,7 +330,7 @@ test("#136 incomplete OR clause retains the OR group before a later AND clause",
 });
 
 
-test("latest #136 empty OR filtering preserves group boundaries in browser and SSR", async () => {
+test("empty OR filtering preserves group boundaries in browser and SSR", async () => {
   const doc = createInitialDoc();
   const page = doc.pages[doc.pageOrder[0]];
   page.pageScripts = [{ id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
