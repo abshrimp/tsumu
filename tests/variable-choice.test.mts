@@ -15,7 +15,7 @@ test("numeric choices retain unknowns and numeric text without accepting objects
   for (const v of [undefined, null, 0, -2.5, "001", "1,234", " -2 "]) assert.equal(canPickVariable(v, "number"), true);
   for (const v of [false, true, "", "red", {}, [], [1, 2], Infinity, NaN]) assert.equal(canPickVariable(v, "number"), false);
 });
-test("reference view follows saved runtime semantics without rewriting legacy text", () => {
+test("reference view preserves the exact meaning of entered variable expressions", () => {
   for (const value of ["{data}", " { data.name } ", "Hello {data}", "\\{data}", "001", "false", "", "{a}{b}"]) {
     assert.equal(singleValueReference(value), setVarSource({ id: "s", kind: "set-var", value, into: "out" }));
   }
@@ -25,7 +25,7 @@ test("real script editor picker fixture compiles for native CI", async () => {
   assert.ok(bundle.includes("dataPickerStore"));
 });
 
-test("legacy JSON roundtrip preserves typed samples, expressions and generated project", async () => {
+test("JSON roundtrip preserves typed samples, expressions and generated project", async () => {
   const { scriptDataPickerDoc } = await import("./helpers/script-data-picker");
   const { generateProject } = await import("../lib/generator");
   const doc = scriptDataPickerDoc();
