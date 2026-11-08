@@ -170,7 +170,10 @@ test("dictionary entries are expanded into rows using ordinary loops in generate
     JSON.stringify({ first: 1, second: 2 }), { status: 200,
       headers: { "Content-Type": "application/json" } },
   ));
-  assert.deepEqual(JSON.parse(JSON.stringify(vars.pairs)), [
+  const output = plan.steps.find((step: { kind: string; value?: string }) =>
+    step.kind === "set-var" && step.value === "[]");
+  assert.ok(output && "into" in output, "Generated plan must include the output list");
+  assert.deepEqual(JSON.parse(JSON.stringify(vars[output.into])), [
     { property: "first", content: 1 }, { property: "second", content: 2 },
   ]);
 });
