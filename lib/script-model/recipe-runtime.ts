@@ -434,7 +434,7 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             if (length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
             current = chunks.join(replacement.value);
           }
-          if (current.length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
+          if (typeof current !== "string" || current.length > MAX_RECIPE_TEXT) return failure("limit-exceeded");
           break;
         }
         case "find":
