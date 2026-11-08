@@ -483,8 +483,8 @@ for (const exported of [false, true]) {
       ...makeBox(), id: "filterButton", attrId: "filterButton",
       scripts: [{ id: "filterScript", trigger: "click" as const, pos: { x: 0, y: 0 }, steps: [{
         id: "filterObjectField", kind: "list-display" as const, mode: "filter" as const,
-        array: "results", field: "meta", op: "eq" as const,
-        value: "[object Object]", dir: "asc" as const,
+        array: "results", field: "meta", op: "has-key" as const,
+        value: "toString", dir: "asc" as const,
       }] }],
     };
     const doc: SiteDoc = {
@@ -667,14 +667,15 @@ test("canvas native select and picker button share the same dropdown appearance"
   expect(focusedPicker).toEqual(focusedSelect);
 });
 
-test("canvas fixed-option dropdowns shrink to their widest choice", async ({ page }) => {
+test("canvas arithmetic-method dropdown fits its widest choice without a type selector", async ({ page }) => {
   // Font metric changes during initial loading must not be mistaken for a selection-induced resize.
   await page.evaluate(async () => { await document.fonts.ready; });
   const box = page.locator('[data-sel-key="step:numeric"]');
   const method = box.getByRole("combobox", { name: "計算方法" });
-  const kind = box.getByRole("combobox", { name: "計算する値の種類" });
+  await expect(box.getByRole("combobox", { name: "計算する値の種類" })).toHaveCount(0);
+  await expect(box.getByPlaceholder("計算する値 / {変数}")).toBeVisible();
   await expect(method).toHaveCSS("width", /\d+px/);
-  const dimensions = await Promise.all([method, kind].map(el => el.evaluate((node) => {
+  const dimensions = await Promise.all([method].map(el => el.evaluate((node) => {
     const styles = getComputedStyle(node);
     return { width: node.getBoundingClientRect().width, intrinsic: styles.width, flex: styles.flexGrow };
   })));
@@ -682,7 +683,7 @@ test("canvas fixed-option dropdowns shrink to their widest choice", async ({ pag
     expect(dimension.width).toBeLessThan(120);
     expect(dimension.flex).toBe("0");
   }
-  for (const control of [method, kind]) {
+  for (const control of [method]) {
     const measurements = await control.evaluate((node) => {
       const select = node as HTMLSelectElement;
       const style = getComputedStyle(select);
