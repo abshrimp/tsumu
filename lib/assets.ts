@@ -181,11 +181,12 @@ export async function mapLimit<T>(
  * 一時的な失敗（接続エラー・429・5xx）は少し待って取り直す。
  * 404 などはそのまま返す（呼び出し側で扱う）
  */
-export async function fetchWithRetry(url: string, tries = 3): Promise<Response> {
+export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit): Promise<Response> {
   for (let i = 1; ; i++) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, init);
       if ((res.status === 429 || res.status >= 500) && i < tries) {
+        await res.body?.cancel().catch(() => {});
         await new Promise((r) => setTimeout(r, 500 * i));
         continue;
       }

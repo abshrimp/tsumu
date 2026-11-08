@@ -47,8 +47,8 @@ test("single HTML mode contains one index.html without build tooling", async () 
   assert.deepEqual(result.remoteAssets, {});
   assert.match(result.files["index.html"], /Example heading/);
   assert.match(result.files["index.html"], /<style>/);
-  assert.match(result.files["index.html"], /<script>/i);
-  assert.doesNotMatch(result.files["index.html"], /<script[^>]*\bsrc=/);
+  assert.match(result.files["index.html"], /<script[^>]*src="data:text\/javascript;base64,/i);
+  assert.doesNotMatch(result.files["index.html"], /<script[^>]*\bsrc=["'](?!data:)/);
   assert.doesNotMatch(result.files["index.html"], /<link[^>]*rel="stylesheet"/);
   assert.doesNotMatch(result.files["index.html"], /tsumu/i);
 });
@@ -70,7 +70,9 @@ test("single HTML inlines local media, CSS backgrounds and script source", async
   assert.deepEqual(Object.keys(file.files), ["index.html"]);
   assert.ok((html.match(/data:image\/png;base64,/g) || []).length >= 2);
   assert.match(html, /<style>/);
-  assert.match(html, /window\.scriptIsInline = true/);
+  const script = html.match(/<script[^>]*src="data:text\/javascript;base64,([^"]+)"/);
+  assert.ok(script);
+  assert.equal(atob(script[1]), "window.scriptIsInline = true;");
   assert.doesNotMatch(html, /src="\.\/assets\/logo.png"|href="\.\/styles\/site.css"|src="\.\/main.js"/);
 });
 

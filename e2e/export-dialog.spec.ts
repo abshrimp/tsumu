@@ -135,7 +135,7 @@ test("single HTML format downloads an actual HTML file with inline CSS and scrip
   expect(html).toContain("<!doctype html>");
   expect(html).toContain("<style>");
   expect(html).toContain("data-page-plan");
-  expect(html).not.toMatch(/<script[^>]*\bsrc=/);
+  expect(html).not.toMatch(/<script[^>]*\bsrc=["'](?!data:)/);
   expect(html).not.toMatch(/<link[^>]*rel="stylesheet"/);
   // Internal data markers may contain the product name. External scripts and CSS must not remain.
 });
@@ -154,4 +154,27 @@ test("Vue project format downloads the actual Vue SFC and Vite config", async ({
   expect(names.some((name) => name.endsWith("/src/App.vue"))).toBe(true);
   expect(names.some((name) => name.endsWith("/vite.config.ts"))).toBe(true);
   expect(names.some((name) => name.endsWith("/next.config.mjs"))).toBe(false);
+});
+
+test("single HTML preserves deferred script order and keeps data attributes inert", async ({ page }) => {
+  const { toSingleHtmlProject } = await import("../lib/generator/single-html");
+  const { files } = await toSingleHtmlProject({
+    files: {
+      "index.html": '<!doctype html><head><script defer src="late.js"></script></head>' +
+        '<body><div id=target></div><script data-src=unexpected.js></script></body>',
+      "late.js": 'document.getElementById("target").textContent = document.readyState',
+      "unexpected.js": 'document.documentElement.dataset.unexpected = "yes"',
+    },
+    binaries: {}, remoteAssets: {},
+  });
+  const resources: string[] = [];
+  await page.route("**/*", route => {
+    if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: files["index.html"] });
+    resources.push(route.request().url());
+    return route.abort();
+  });
+  await page.goto("http://single.example.test/");
+  await expect(page.locator("#target")).toHaveText("interactive");
+  expect(await page.locator("html").getAttribute("data-unexpected")).toBeNull();
+  expect(resources).toEqual([]);
 });

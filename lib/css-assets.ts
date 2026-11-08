@@ -4,7 +4,7 @@ import { tr } from "./i18n";
 export const CSS_ASSET_ATTRIBUTES = ["style", "fill", "stroke", "filter", "clip-path", "mask", "marker", "marker-start", "marker-mid", "marker-end", "cursor"];
 
 /** CSSのURLだけを扱い、コメントや通常の文字列、別URLの一部分は変更しない。 */
-type Reference = { start: number; end: number; url: string; quote: string };
+type Reference = { start: number; end: number; url: string; quote: string; isImport: boolean };
 const space = (c: string) => /[\t\n\f\r ]/.test(c);
 const nameChar = (c: string) => /[\w\u0080-\uFFFF-]/.test(c);
 
@@ -75,7 +75,7 @@ export function cssAssetReferences(css: string): Reference[] {
       const end = stringEnd(i);
       if (end < 0) break;
       if (atRuleTarget === "import" || (parent?.candidate && /^(?:-webkit-)?image-set$/.test(parent.name))) {
-        out.push({ start: i + 1, end, url: decode(css.slice(i + 1, end)), quote: c });
+        out.push({ start: i + 1, end, url: decode(css.slice(i + 1, end)), quote: c, isImport: atRuleTarget === "import" });
       }
       atRuleTarget = undefined;
       if (parent) parent.candidate = false;
@@ -115,7 +115,7 @@ export function cssAssetReferences(css: string): Reference[] {
         close = skipTrivia(end);
       }
       if (css[close] === ")") {
-        if (atRuleTarget !== "namespace") out.push({ start: from, end, url: decode(css.slice(from, end)), quote });
+        if (atRuleTarget !== "namespace") out.push({ start: from, end, url: decode(css.slice(from, end)), quote, isImport: atRuleTarget === "import" });
         i = close + 1;
       } else {
         // 不正なurl()の内部を別の参照として解釈しない。
@@ -155,7 +155,7 @@ function replacement(
   return target === undefined ? undefined : target + url.slice(hash);
 }
 
-function encode(url: string, quote: string): string {
+export function escapeCssAssetUrl(url: string, quote: string): string {
   return url.replace(/[\\"'()\s\u0000-\u001f\u007f]/g, (c) => {
     if (c === "\\" || c === quote || (!quote && /["'()]/.test(c))) return `\\${c}`;
     if (/[\s\u0000-\u001f\u007f]/.test(c)) return `\\${c.charCodeAt(0).toString(16)} `;
@@ -171,7 +171,7 @@ export function replaceCssAssetUrls(
   for (const ref of cssAssetReferences(css)) {
     const target = replacement(ref.url, sources, options.proxyQueries);
     if (target === undefined || target === ref.url) continue;
-    result += css.slice(from, ref.start) + encode(target, ref.quote);
+    result += css.slice(from, ref.start) + escapeCssAssetUrl(target, ref.quote);
     from = ref.end;
   }
   return result + css.slice(from);
@@ -203,7 +203,7 @@ export function rewriteCssAssetUrls(
       throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
     }
     append(css.slice(from, ref.start));
-    append(encode(target, ref.quote));
+    append(escapeCssAssetUrl(target, ref.quote));
     from = ref.end;
   }
   append(css.slice(from));
