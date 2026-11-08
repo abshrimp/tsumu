@@ -75,7 +75,7 @@ export function TextIn({
   );
 }
 
-/** Fixed-increment numeric value or an editable variable reference. */
+/** Number and {variable} share one input. No type-selection control is needed. */
 export function NumericVariableIn({
   value, onCommit, integer = false, min = 0, max, width = 60,
 }: {
@@ -86,34 +86,17 @@ export function NumericVariableIn({
   max?: number;
   width?: number;
 }) {
-  const variable = typeof value === "string";
-  return (
-    <span className="se-quantity">
-      <select className="se-in se-fixed-select" aria-label={tr("値の指定方法")}
-        value={variable ? "variable" : "number"}
-        onChange={(e) => onCommit(e.target.value === "variable" ? "" : Math.max(min, 1))}>
-        <option value="number">{tr("数値")}</option>
-        <option value="variable">{tr("変数")}</option>
-      </select>
-      {variable ? (
-        <TextIn vars value={value} width={Math.max(100, width + 40)}
-          valueContext="value" placeholder={tr("{変数}")}
-          onCommit={(v) => {
-            const name = v.trim();
-            onCommit(name && !name.includes("{") && !name.includes("}") ? `{${name}}` : name);
-          }} />
-      ) : (
-        <TextIn value={String(value)} type="number" width={width}
-          numberStep={integer ? 1 : 0.1}
-          onCommit={(v) => {
-            const n = Number(v);
-            if (!v.trim() || !Number.isFinite(n)) return;
-            const rounded = integer ? Math.round(n) : n;
-            onCommit(Math.max(min, max === undefined ? rounded : Math.min(max, rounded)));
-          }} />
-      )}
-    </span>
-  );
+  return <TextIn vars value={String(value)} width={Math.max(width, 100)}
+    placeholder={tr("数値 / {変数}")} valueContext="value"
+    onCommit={(input) => {
+      const text = input.trim();
+      if (/^\{[^{}\s"'<>]+\}$/.test(text)) { onCommit(text); return; }
+      if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(text)) return;
+      const number = Number(text);
+      if (!Number.isFinite(number) || integer && !Number.isInteger(number) ||
+          number < min || max !== undefined && number > max) return;
+      onCommit(number);
+    }} />;
 }
 
 function VarTextIn({
