@@ -7,7 +7,7 @@ import { matchesValueCondition } from "../lib/value-semantics";
 import { PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
 import { nativeDataModule } from "../lib/generator/native-data";
 
-test("#136 JSON lookups ignore inherited properties but keep own special keys", () => {
+test("JSON lookups ignore inherited properties but keep own special keys", () => {
   const data = JSON.parse('{"__proto__":{"ok":true},"constructor":{"name":"own"},"rows":[11,12]}');
   assert.equal(lookupVar(data, "__proto__.ok"), true);
   assert.equal(digPath(data, "__proto__.ok"), true);
@@ -75,7 +75,7 @@ test("generated browser and SSR engines avoid inherited-key reads and nested __p
 });
 
 
-test("#136 gte/lte list-display filters yield identical browser and SSR results", async () => {
+test("gte/lte list-display filters yield identical browser and SSR results", async () => {
   const rows = [
     { tag: ["x", "y"], score: 9 },
     { tag: ["x", "y"], score: 10 },
