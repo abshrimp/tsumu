@@ -232,3 +232,41 @@ test("JavaScript option produces actual JS and JSX files", async () => {
   assert.doesNotMatch(output.files["src/App.jsx"], /type Route =/);
   assert.match(output.files["package.json"], /"build": "vite build"/);
 });
+
+test("nested HTML exports rewrite real resource URLs without changing scripts, comments, or attribute text", () => {
+  const doc = fixture();
+  doc.pages.details = {
+    ...doc.pages.home, id: "details", slug: "guide/details",
+    children: [], customTopHtml: [
+      "<script>window.template = 'src=\"/literal\" url(/literal)';</script>",
+      '<script src="/scripts/app.js"></script>',
+      '<!-- <img src="/comment.svg"> -->',
+      '<textarea>href="/textarea.txt"</textarea>',
+      '<style>.background { background-image: url(/assets/paint.svg); }</style>',
+      '<style>@import "/assets/theme.css"; /* url(/comment) */ .literal { content: "url(/literal)"; }</style>',
+      "<div data-example='src=\"/untouched\"' style='background:url(/assets/paint.svg)'>",
+      '<img src="/assets/photo.png">',
+      "</div>",
+    ].join("\n"),
+  };
+  doc.pageOrder.push("details");
+  doc.customHeadHtml =
+    '<script>window.headLiteral = \'href="/head-literal"\';</script>' +
+    '<link rel="preload" href="/assets/font.woff2">';
+
+  const html = generateExportProject(doc, "html").files["guide/details/index.html"];
+  assert.ok(html);
+  assert.match(html, /window\.template = 'src="\/literal" url\(\/literal\)'/);
+  assert.match(html, /window\.headLiteral = 'href="\/head-literal"'/);
+  assert.match(html, /<script src="\.\.\/\.\.\/scripts\/app\.js"><\/script>/);
+  assert.match(html, /<link rel="preload" href="\.\.\/\.\.\/assets\/font\.woff2">/);
+  assert.match(html, /<img src="\.\.\/\.\.\/assets\/photo\.png">/);
+  assert.match(html, /background-image: url\(\.\.\/\.\.\/assets\/paint\.svg\)/);
+  assert.match(html, /@import "\.\.\/\.\.\/assets\/theme\.css"/);
+  assert.match(html, /\/\* url\(\/comment\) \*\//);
+  assert.match(html, /content: "url\(\/literal\)"/);
+  assert.match(html, /style='background:url\(\.\.\/\.\.\/assets\/paint\.svg\)'/);
+  assert.match(html, /data-example='src="\/untouched"'/);
+  assert.match(html, /<!-- <img src="\/comment\.svg"> -->/);
+  assert.match(html, /<textarea>href="\/textarea\.txt"<\/textarea>/);
+});

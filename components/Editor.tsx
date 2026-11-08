@@ -16,8 +16,6 @@ import { errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput } fro
 import { mergeDocs } from "../lib/merge";
 import { css2FamilyToken } from "../lib/style";
 import {
-  dropEmbeddedCopies,
-  hasEmbeddedCopies,
   replaceEmbeddedAsset,
   uploadEmbeddedAsset,
 } from "../lib/assets";
@@ -759,9 +757,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
       if (running) return;
       running = true;
       try {
-        if (hasEmbeddedCopies(useEditor.getState().doc)) {
-          useEditor.getState().updateDoc(dropEmbeddedCopies, { history: false });
-        }
         const embedded = Object.values(useEditor.getState().doc.assets).filter((a) => a.dataUrl && !a.path);
         if (!embedded.length) return;
         assetStorage ??= await fetch("/api/status")

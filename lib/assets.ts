@@ -215,22 +215,6 @@ export function mediaSrc(doc: SiteDoc, ref: { src: string; assetId?: string }): 
   return asset ? (assetSrc(asset) || ref.src) : ref.src;
 }
 
-/** 要素の src に、埋め込みアセットの dataURL が複製されているもの（以前の形式） */
-function embeddedCopies(doc: SiteDoc) {
-  return Object.values(doc.nodes)
-    .flatMap((node) => [node.image, node.media])
-    .filter((ref) => !!ref?.assetId && !!ref.src && ref.src === doc.assets[ref.assetId]?.dataUrl);
-}
-
-export function hasEmbeddedCopies(doc: SiteDoc): boolean {
-  return embeddedCopies(doc).length > 0;
-}
-
-/** 要素の src に複製された埋め込みアセットを外す（doc を書き換える。表示は assetId から引く） */
-export function dropEmbeddedCopies(doc: SiteDoc): void {
-  for (const ref of embeddedCopies(doc)) ref!.src = "";
-}
-
 /**
  * 埋め込みアセットを、サーバーに保存したファイルへ置き換える（doc を書き換える）。
  * 要素の src と、背景画像などスタイルの値に入っている dataURL も差し替える
@@ -308,7 +292,7 @@ export async function withSignedAssetUrls(
   const paths = new Set<string>();
   for (const m of html.matchAll(ASSET_URL_RE)) {
     if (!sameOrigin(m[1])) continue;
-    try { paths.add(decodeURIComponent(m[2])); } catch { /* Keep malformed legacy URLs unchanged. */ }
+    try { paths.add(decodeURIComponent(m[2])); } catch { /* Ignore malformed percent encoding. */ }
   }
   for (const id of reachable) if (assets[id].path) paths.add(assets[id].path!);
   const signed: Record<string, string> = {};
