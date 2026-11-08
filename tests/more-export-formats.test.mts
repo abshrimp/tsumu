@@ -284,3 +284,15 @@ test("partial exports read registered modules without following redirects or fet
     assert.deepEqual(result.remoteAssets, {});
   } finally { globalThis.fetch = original; }
 });
+
+test("native HTML leaves raw text alone and recognizes a real module after a script-like custom element", () => {
+  const doc = fixture();
+  const entry = "data:text/javascript;base64,ZXhwb3J0IHt9";
+  doc.assets.js = { id: "js", name: "entry.js", width: 0, height: 0, mimeType: "text/javascript", dataUrl: entry,
+    zip: { version: 1, group: "g", path: "js/entry.js" } };
+  const literal = '<xmp><img src="/literal.png"></xmp>';
+  doc.pages.home.customEndHtml = literal + '<script-card></script-card><script type="module" src="' + entry + '"></script>';
+  const html = generateExportProject(doc, "html").files["index.html"];
+  assert.ok(html.includes(literal));
+  assert.ok(html.includes('<script-card></script-card><script type="module" src="./assets/_imports/g/js/entry.js"></script>'));
+});

@@ -92,7 +92,7 @@ function rewriteRootUrls(source: string, prefix: string, scriptSources: Map<stri
     },
   );
   return source.replace(
-    /<!--[\s\S]*?-->|(<(script|style|textarea|title)\b(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>)|<[a-z][\w:-]*(?:"[^"]*"|'[^']*'|[^'">])*>/gi,
+    /<!--[\s\S]*?(?:-->|$)|(<(script|style|textarea|title|xmp|iframe|noembed|noframes)(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>|$)|<[a-z][\w:-]*(?:"[^"]*"|'[^']*'|[^'">])*>/gi,
     (whole, open: string | undefined, kind: string | undefined, body: string | undefined, close: string | undefined) => {
       if (whole.startsWith("<!--")) return whole;
       if (!open) return rewriteTag(whole);
