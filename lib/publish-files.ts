@@ -38,8 +38,8 @@ export function planPublish(
   const plan: PublishPlan = { edited: [], clashing: [], kept: {} };
   const outputs = new Set(output);
   for (const [path, sha] of Object.entries(blobs)) {
-    // Never carry pre-current publish metadata into new commits.
-    if (path === GENERATED_MANIFEST_PATH || path.startsWith("_site-data/")) continue;
+    // Only valid paths in the publication namespace can be carried forward.
+    if (path === GENERATED_MANIFEST_PATH || !isSafeCommitPath(path)) continue;
     if (generated && Object.hasOwn(generated, path)) {
       if (generated[path] !== sha) plan.edited.push(path);
     } else if (outputs.has(path)) {
@@ -56,9 +56,9 @@ export function planPublish(
 /** コミットしてよいパスか（先頭の「/」・「.」「..」・空の区切り・バックスラッシュを含まない） */
 export function isSafeCommitPath(path: string): boolean {
   if (!path || path.includes("\\") || path.includes("\0")) return false;
-  // Reserved metadata locations from the retired publisher must not be
-  // committed through either generated files or user-supplied keptPaths.
-  if (path.toLowerCase() === "_site-data" || path.toLowerCase().startsWith("_site-data/")) return false;
+  // Only the editor-managed namespace may use a top-level underscore prefix.
+  const root = path.split("/")[0];
+  if (root.startsWith("_") && root !== MANAGED_DIR.slice(0, -1)) return false;
   return path.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
 }
 
