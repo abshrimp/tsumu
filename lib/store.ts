@@ -38,6 +38,7 @@ import {
   type ClipPayload,
 } from "./clip-transfer";
 import { storageKey } from "./storage-keys";
+import { MAX_NODE_DEPTH, maxSubtreeDepth } from "./doc-tree";
 
 // ブラウザ保存はサイトごとに分ける（開いているサイトは URL で決まり、開いている間は変わらない）
 const STORAGE_KEY = siteKey(DOC_STORAGE_KEY);
@@ -752,6 +753,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       ) return null;
       if (start <= 0 && end >= content.length) return null; // 全選択は分割不要
       if (start >= end) return null;
+      if (ancestorsOf(doc, nodeId).length + 2 > MAX_NODE_DEPTH) return null;
 
       const { breakpoint, styleState } = get();
       const makeSpan = (part: string): DocNode => ({
@@ -994,6 +996,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (!node || node.type !== "box" || !parent || componentOf(doc, nodeId)) {
         return;
       }
+      if (ancestorsOf(doc, nodeId).length + maxSubtreeDepth(doc.nodes, [nodeId]) + 1 > MAX_NODE_DEPTH) return;
       const listId = genId("node");
       get().updateDoc((d) => {
         const siblings =
@@ -1033,6 +1036,8 @@ export const useEditor = create<EditorStore>((set, get) => {
         : null;
       const parent = findParentOf(doc, nodeId);
       if (!inst || !comp || !parent || !doc.nodes[comp.rootId]) return;
+      const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
+      if (parentDepth + maxSubtreeDepth(doc.nodes, [comp.rootId]) > MAX_NODE_DEPTH) return;
       // マスターを複製して通常ノード化
       const idMap = new Map<string, string>();
       const clones: DocNode[] = [];
@@ -1159,13 +1164,26 @@ export const useEditor = create<EditorStore>((set, get) => {
         editingComp ? { kind: "node", id: editingComp.rootId } : { kind: "page", id: activePageId },
         get().insertMode
       );
+      // コピー単体が保存可能でも、置き先の深さを足すと保存上限を超える場合がある。
+      const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
+      if (parentDepth + maxSubtreeDepth(Object.fromEntries(clones.map(n => [n.id, n])), newRootIds) > MAX_NODE_DEPTH) {
+        void showAlert(tr("ここには貼り付けられません"));
+        return;
+      }
+      // 追加予定の依存を隔離したmapへ解決する。既存マスターの再利用まで含めて検査し、
+      // 拒否された貼り付けではアセット・履歴を含む文書全体を変更しない。
+      const prepared = {
+        ...doc, nodes: { ...doc.nodes }, assets: { ...doc.assets },
+        ...(doc.components ? { components: { ...doc.components } } : {}),
+      };
+      const deps = mergeClipDeps(prepared, clip);
       // コンポーネントの中へ、そのコンポーネント自身（を含むインスタンス）は入れない（無限に入れ子になる）
       const host = parent.kind === "node" ? componentOf(doc, parent.id) : null;
       if (host) {
         const pasted = clones.flatMap((n) =>
           n.type === "instance" && n.componentId ? [n.componentId] : []
         );
-        if (componentsReachable(doc, pasted).has(host)) {
+        if (componentsReachable(prepared, pasted).has(host)) {
           void showAlert(
             tr("コンポーネント「{p1}」の中に、そのコンポーネント自身は入れられません（無限に入れ子になるため）。", { p1: doc.components?.[host]?.name ?? "" }),
             { title: tr("ここには貼り付けられません") }
@@ -1175,8 +1193,11 @@ export const useEditor = create<EditorStore>((set, get) => {
       }
       get().updateDoc((d) => {
         // 同じタブでも、コピー後の取り消し・削除で失われた依存を戻す。残っているマスターは優先する。
-        const remap = mergeClipDeps(d, clip).assetIds;
-        for (const n of clones) d.nodes[n.id] = remapAssetIds(n, remap);
+        d.assets = prepared.assets;
+        if (prepared.components) d.components = prepared.components;
+        if (prepared.customFonts) d.customFonts = prepared.customFonts;
+        for (const n of deps.componentNodes) d.nodes[n.id] = n;
+        for (const n of clones) d.nodes[n.id] = remapAssetIds(n, deps.assetIds);
         const list = childrenOf(d, parent);
         list.splice(index === undefined ? list.length : index, 0, ...newRootIds);
       });
@@ -1386,6 +1407,10 @@ export const useEditor = create<EditorStore>((set, get) => {
     },
 
     insertNodes: (nodes, rootId, parent, index) => {
+      const doc = get().doc;
+      if (parent.kind === "page" ? !doc.pages[parent.id] : !doc.nodes[parent.id]) return;
+      const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
+      if (parentDepth + maxSubtreeDepth(Object.fromEntries(nodes.map(node => [node.id, node])), [rootId]) > MAX_NODE_DEPTH) return;
       get().updateDoc((doc) => {
         refreshEditorClones(doc, nodes);
         for (const n of nodes) doc.nodes[n.id] = n;
@@ -1524,6 +1549,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       ) {
         return;
       }
+      const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
+      if (parentDepth + maxSubtreeDepth(doc.nodes, ids) > MAX_NODE_DEPTH) return;
       ids.sort((a, b) =>
         comparePosition(treePosition(doc, a), treePosition(doc, b))
       );
