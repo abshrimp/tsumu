@@ -6,8 +6,9 @@ import { showAlert } from "./dialog";
 import { userMessage } from "./errors";
 import { tr } from "./i18n";
 import { makeImage } from "./presets";
-import { collectDescendants, useEditor, type ParentRef } from "./store";
+import { ancestorsOf, collectDescendants, useEditor, type ParentRef } from "./store";
 import { canContainElements } from "./tags";
+import { MAX_NODE_DEPTH } from "./doc-tree";
 import type { Asset, SiteDoc, DocNode } from "./types";
 
 export interface ImageDropPoint { parent: ParentRef; index?: number }
@@ -34,6 +35,9 @@ export function startImageInsertion(
     if (point.parent.kind === "page") return !componentId && !!doc.pages[point.parent.id];
     const parent = doc.nodes[point.parent.id];
     if (!parent || !canContainElements(parent)) return false;
+    // Uploads may complete after the target is moved deeper. Keep the uploaded
+    // asset, but never insert a leaf beyond the persisted document depth limit.
+    if (ancestorsOf(doc, parent.id).length + 2 > MAX_NODE_DEPTH) return false;
     const roots = componentId
       ? (doc.components?.[componentId]?.rootId === rootId && rootId ? [rootId] : [])
       : doc.pages[activePageId]?.children ?? [];
