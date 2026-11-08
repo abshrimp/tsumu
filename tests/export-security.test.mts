@@ -225,7 +225,7 @@ test("JSON-quoted variable-looking strings stay literal in list operations", () 
   }], { name: "not-the-same" });
   assert.deepEqual(computed, { kind: "value", value: ["{name}"] });
 });
-test("latest #136 filters, sorts and generated expressions avoid unsafe object coercion", () => {
+test("filters, sorts and generated expressions avoid unsafe object coercion", () => {
   const objectWithShadowedToString = JSON.parse('{"toString":"not a function"}');
   const items = [
     { value: objectWithShadowedToString },
