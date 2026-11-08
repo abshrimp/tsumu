@@ -31,9 +31,10 @@ test.beforeEach(async ({ page }) => {
     };
   }, makeBox());
 });
-async function paste(page: Page, delayed = false) {
-  await page.evaluate((delayed) => {
-    const file = new File(['<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12"><script>bad()</script><rect width="24" height="12" onclick="bad()"/></svg>'], "art.svg", { type: "image/svg+xml" });
+const artwork = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12"><script>bad()</script><rect width="24" height="12" onclick="bad()"/></svg>';
+async function paste(page: Page, delayed = false, svg = artwork) {
+  await page.evaluate(({ delayed, svg }) => {
+    const file = new File([svg], "art.svg", { type: "image/svg+xml" });
     if (delayed) {
       const text = File.prototype.text;
       File.prototype.text = function () {
@@ -42,8 +43,12 @@ async function paste(page: Page, delayed = false) {
       };
     }
     const data = new DataTransfer(); data.items.add(file);
-    document.body.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data }));
-  }, delayed);
+    // Firefox creates an empty store for a constructed ClipboardEvent. Supply the
+    // fixture's real File through the property read by the production paste listener.
+    const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: data });
+    document.body.dispatchEvent(event);
+  }, { delayed, svg });
 }
 async function uploads(page: Page, count: number) { await expect.poll(() => page.evaluate(() => (window as any).uploads.length)).toBe(count); }
 async function finish(page: Page, index = 0, ok = true) { await page.evaluate(({ index, ok }) => (window as any).uploads[index].finish(ok), { index, ok }); }
@@ -68,27 +73,15 @@ test("SVG paste preserves sanitized artwork, dimensions and styling in one Undo/
 });
 
 test("SVG paste rejects DTD declarations and entity expansion", async ({ page }) => {
-  await page.evaluate(() => {
-    const malicious = '<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&x;</text></svg>';
-    const data = new DataTransfer();
-    data.items.add(new File([malicious], "entities.svg", { type: "image/svg+xml" }));
-    document.body.dispatchEvent(new ClipboardEvent("paste", {
-      bubbles: true, cancelable: true, clipboardData: data,
-    }));
-  });
+  const malicious = '<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&x;</text></svg>';
+  await paste(page, false, malicious);
   await expect(page.getByText("SVGデータが壊れています", { exact: true })).toBeVisible();
   await uploads(page, 0);
 });
 
 test("SVG paste strips root events, script nodes and remote style references", async ({ page }) => {
-  await page.evaluate(() => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12" onload="alert(1)"><script>alert(1)</script><rect style="fill:url(https://evil.test/x.svg)" width="20" height="10"/></svg>';
-    const data = new DataTransfer();
-    data.items.add(new File([svg], "unsafe.svg", { type: "image/svg+xml" }));
-    document.body.dispatchEvent(new ClipboardEvent("paste", {
-      bubbles: true, cancelable: true, clipboardData: data,
-    }));
-  });
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12" onload="alert(1)"><script>alert(1)</script><rect style="fill:url(https://evil.test/x.svg)" width="20" height="10"/></svg>';
+  await paste(page, false, svg);
   await uploads(page, 1);
   const cleaned = await page.evaluate(() => (window as any).uploads[0].file.text());
   expect(cleaned).not.toMatch(/onload|<script|alert\(|https:\/\/evil\.test/i);

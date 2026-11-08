@@ -47,8 +47,8 @@ test("single HTML mode contains one index.html without build tooling", async () 
   assert.deepEqual(result.remoteAssets, {});
   assert.match(result.files["index.html"], /Example heading/);
   assert.match(result.files["index.html"], /<style>/);
-  assert.match(result.files["index.html"], /<script>/i);
-  assert.doesNotMatch(result.files["index.html"], /<script[^>]*\bsrc=/);
+  assert.match(result.files["index.html"], /<script[^>]*src="data:text\/javascript;base64,/i);
+  assert.doesNotMatch(result.files["index.html"], /<script[^>]*\bsrc=["'](?!data:)/);
   assert.doesNotMatch(result.files["index.html"], /<link[^>]*rel="stylesheet"/);
   assert.doesNotMatch(result.files["index.html"], /tsumu/i);
 });
@@ -70,7 +70,9 @@ test("single HTML inlines local media, CSS backgrounds and script source", async
   assert.deepEqual(Object.keys(file.files), ["index.html"]);
   assert.ok((html.match(/data:image\/png;base64,/g) || []).length >= 2);
   assert.match(html, /<style>/);
-  assert.match(html, /window\.scriptIsInline = true/);
+  const script = html.match(/<script[^>]*src="data:text\/javascript;base64,([^"]+)"/);
+  assert.ok(script);
+  assert.equal(atob(script[1]), "window.scriptIsInline = true;");
   assert.doesNotMatch(html, /src="\.\/assets\/logo.png"|href="\.\/styles\/site.css"|src="\.\/main.js"/);
 });
 
@@ -231,3 +233,66 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     assert.ok(exportLimitations(doc, framework).some((m) => m.includes("[slug]")));
   });
 }
+
+test("partial HTML exports retain only referenced ZIP modules and their transitive dependencies", async () => {
+  const doc = fixture();
+  for (const [id, path, content] of [
+    ["entry", "js/entry.mjs", 'export { value } from "./sub/reexport.js"'],
+    ["reexport", "js/sub/reexport.js", 'export { value } from "../value.js"'],
+    ["value", "js/value.js", "export const value = 42"],
+    ["private", "js/private.js", "export const unpublishedSecret = 1"],
+  ]) {
+    doc.assets[id] = { id, name: id + ".js", width: 0, height: 0, mimeType: "text/javascript",
+      dataUrl: "data:text/javascript;base64," + Buffer.from(content).toString("base64"),
+      zip: { version: 1, group: "archive", path } };
+  }
+  doc.pages.home.customEndHtml = '<script type="module" src="' + doc.assets.entry.dataUrl + '"></script>';
+  const options = { framework: "html", scope: "page", pageId: "home", style: "css", language: "javascript" } as const;
+  const html = await prepareExportProject(doc, options);
+  const path = "assets/_imports/archive/js/";
+  assert.ok(html.files["index.html"].includes('src="./' + path + 'entry.mjs"'));
+  assert.deepEqual(Object.keys(html.binaries).filter(name => name.startsWith(path)).sort(),
+    [path + "entry.mjs", path + "sub/reexport.js", path + "value.js"]);
+  assert.ok(!Object.keys(html.binaries).some(name => name.includes("private")));
+  assert.equal(Object.keys(doc.assets).length, 4);
+  const single = await prepareExportProject(doc, { ...options, framework: "single-html" });
+  assert.ok(single.files["index.html"].includes('<script type="module" src="data:text/javascript;base64,'));
+});
+
+test("partial exports read registered modules without following redirects or fetching unrelated stored assets", async () => {
+  const doc = fixture();
+  for (const id of ["entry", "used", "private", "ent"]) doc.assets[id] = { id, name: id + ".js", width: 0, height: 0,
+    mimeType: "text/javascript", path: "assets/" + id, zip: { version: 1, group: "archive", path: id + ".js" } };
+  doc.pages.home.customEndHtml = '<script type="module" src="/api/assets/file?path=assets%2Fentry"></script>';
+  const original = globalThis.fetch;
+  const seen: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    assert.equal(init?.credentials, "same-origin");
+    assert.equal(init?.redirect, "error");
+    const path = new URL(String(input), "https://editor.test").searchParams.get("path")!;
+    seen.push(path);
+    assert.ok(path === "assets/entry" || path === "assets/used");
+    return new Response(path === "assets/entry" ? 'import "./used.js"' : "export const value = 1",
+      { headers: { "Content-Type": "text/javascript" } });
+  };
+  try {
+    const result = await prepareExportProject(doc, {
+      framework: "single-html", scope: "page", pageId: "home", style: "css", language: "javascript",
+    });
+    assert.ok(result.files["index.html"].includes('<script type="module" src="data:text/javascript;base64,'));
+    assert.deepEqual([...new Set(seen)].sort(), ["assets/entry", "assets/used"]);
+    assert.deepEqual(result.remoteAssets, {});
+  } finally { globalThis.fetch = original; }
+});
+
+test("native HTML leaves raw text alone and recognizes a real module after a script-like custom element", () => {
+  const doc = fixture();
+  const entry = "data:text/javascript;base64,ZXhwb3J0IHt9";
+  doc.assets.js = { id: "js", name: "entry.js", width: 0, height: 0, mimeType: "text/javascript", dataUrl: entry,
+    zip: { version: 1, group: "g", path: "js/entry.js" } };
+  const literal = '<xmp><img src="/literal.png"></xmp>';
+  doc.pages.home.customEndHtml = literal + '<script-card></script-card><script type="module" src="' + entry + '"></script>';
+  const html = generateExportProject(doc, "html").files["index.html"];
+  assert.ok(html.includes(literal));
+  assert.ok(html.includes('<script-card></script-card><script type="module" src="./assets/_imports/g/js/entry.js"></script>'));
+});

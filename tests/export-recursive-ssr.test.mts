@@ -87,9 +87,13 @@ test("generated Vue HTTP server rejects invalid request targets before rendering
     await mkdir(join(dir, "dist/client"), { recursive: true });
     await mkdir(join(dir, "dist/server"), { recursive: true });
     await writeFile(join(dir, "package.json"), '{"type":"module"}');
-    await writeFile(join(dir, "dist/client/index.html"), "<!--app-html-->");
+    await writeFile(join(dir, "dist/client/index.html"), "<title><!--page-title--></title><!--app-html--><!--app-data-->");
+    const result = {
+      id: "home", title: "$& <title>", html: "<p>$&</p><!--app-data-->",
+      vars: { value: "$' and $` and $$ <test>" }, description: "", status: 200,
+    };
     await writeFile(join(dir, "dist/server/entry-server.js"),
-      'export function render(url) { return { id:"home", vars:{}, html:url, title:"OK", description:"", status:200 }; }');
+      "export function render() { return " + JSON.stringify(result) + "; }");
     // Keep the generated handler intact and let the test select an ephemeral port.
     await writeFile(join(dir, "server.mjs"), source.replace('process.env.NODE_ENV === "production"', "true")
       .replace(/^server\.listen\(.*$/m, "export { server };"));
@@ -105,6 +109,11 @@ test("generated Vue HTTP server rejects invalid request targets before rendering
       assert.equal(await get("/\\127.0.0.2/"), 400);
       assert.equal(await get("//["), 400);
       assert.equal(await get("/"), 200);
+      const html = await (await fetch("http://127.0.0.1:" + server.address().port + "/")).text();
+      assert.ok(html.includes("<title>$&amp; &lt;title&gt;</title>" + result.html));
+      const payload = /<script id="site-payload" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
+      assert.ok(payload);
+      assert.deepEqual(JSON.parse(payload[1]), { id: result.id, vars: result.vars });
     } finally { await new Promise<void>(resolve => server.close(resolve)); }
   } finally { await rm(dir, { force: true, recursive: true }); }
 });

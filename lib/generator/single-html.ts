@@ -1,295 +1,155 @@
+import type { DefaultTreeAdapterTypes as Html } from "parse5";
 import type { GeneratedProject } from "../generator";
 import { fetchWithRetry } from "../assets";
+import { CSS_ASSET_ATTRIBUTES } from "../css-assets";
 import { rewriteSrcsetUrls } from "../srcset";
+import { EXPORT_BASE, SINGLE_HTML_LIMIT, HtmlOutput, singleHtmlResources, textBytes, type ResourceRequest } from "./single-html-resources";
 
-/**
- * Turn the direct HTML export into one file. All referenced images, fonts,
- * stylesheets, local browser scripts and other resolvable assets become inline
- * data URLs / style / script tags. External API requests and remote iframes
- * remain runtime services, not downloadable assets.
- */
-const SITE_ORIGIN = "https://export.invalid/";
-const LIMIT = 48 * 1024 * 1024;
+const HTML = "http://www.w3.org/1999/xhtml";
 
-const mimeTypes: Record<string, string> = {
-  avif: "image/avif", bmp: "image/bmp", gif: "image/gif", ico: "image/x-icon",
-  jpeg: "image/jpeg", jpg: "image/jpeg", png: "image/png",
-  svg: "image/svg+xml", webp: "image/webp", apng: "image/apng",
-  mp4: "video/mp4", webm: "video/webm", mp3: "audio/mpeg",
-  m4a: "audio/mp4", wav: "audio/wav", ogg: "audio/ogg",
-  woff: "font/woff", woff2: "font/woff2", ttf: "font/ttf", otf: "font/otf",
-  json: "application/json", webmanifest: "application/manifest+json",
-  css: "text/css", js: "text/javascript", txt: "text/plain",
-};
-
-function mime(path: string): string {
-  const ext = (path.split("?")[0].split(".").pop() || "").toLowerCase();
-  return mimeTypes[ext] || "application/octet-stream";
+function attributes(element: Html.Element) {
+  return new Map(element.attrs.map(a => [a.prefix ? a.prefix + ":" + a.name : a.name, a.value]));
 }
 
-function b64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i += 8192) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+function startTag(name: string, attrs: Map<string, string>, selfClosing = false) {
+  let tag = "<" + name;
+  for (const [key, value] of attrs) {
+    const escaped = value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+    tag += " " + key + '="' + escaped + '"';
   }
-  return btoa(binary);
-}
-
-function utf8DataUrl(text: string, name: string): string {
-  return "data:" + mime(name) + ";base64," + b64(new TextEncoder().encode(text));
-}
-
-function resolved(path: string, base: string): string {
-  if (/^(?:data:|blob:|#|mailto:|tel:)/i.test(path)) return path;
-  const url = new URL(path, new URL(base, SITE_ORIGIN));
-  if (url.origin === new URL(SITE_ORIGIN).origin) {
-    return decodeURIComponent(url.pathname).replace(/^\/+/, "");
-  }
-  if (!/^https?:$/i.test(url.protocol)) {
-    throw new Error("Cannot embed a resource with this URL scheme: " + path);
-  }
-  return url.href;
-}
-
-function isAlreadyInline(ref: string): boolean {
-  return /^(?:data:|blob:|#|mailto:|tel:)/i.test(ref);
-}
-
-function escInlineJs(text: string): string {
-  return text.replace(/<\/script/gi, "<\\/script");
-}
-function escInlineCss(text: string): string {
-  return text.replace(/<\/style/gi, "<\\/style");
+  return tag + (selfClosing ? "/>" : ">");
 }
 
 export async function toSingleHtmlProject(
   source: GeneratedProject,
-  request: (url: string) => Promise<Response> = fetchWithRetry,
+  request: ResourceRequest = (url, init) => fetchWithRetry(url, 3, init),
 ): Promise<GeneratedProject> {
-  const htmlPaths = Object.keys(source.files).filter((path) => /\.html?$/i.test(path));
-  // Only a single fixed path can be packed without changing browser navigation.
-  if (htmlPaths.length !== 1 || !source.files["index.html"]) {
+  const html = source.files["index.html"];
+  if (!html || Object.keys(source.files).filter(path => /\.html?$/i.test(path)).length !== 1) {
     throw new Error("Single HTML requires one fixed page. Export the current page or a selected component.");
   }
-  const check = (size: number) => {
-    if (size > LIMIT) throw new Error("The embedded HTML exceeds 48 MB. Reduce embedded assets or use the HTML ZIP format.");
-  };
-  const urlCache = new Map<string, Promise<string>>();
-  const responseMime = new Map<string, string>();
-  const textCache = new Map<string, Promise<string>>();
-  const readBytes = async (path: string): Promise<Uint8Array> => {
-    if (Object.prototype.hasOwnProperty.call(source.binaries, path)) {
-      const binary = atob(source.binaries[path]);
-      return Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
-    }
-    let url: string | undefined;
-    if (Object.prototype.hasOwnProperty.call(source.remoteAssets, path)) {
-      url = "/api/assets/file?path=" + encodeURIComponent(source.remoteAssets[path]);
-    } else if (/^https?:\/\//.test(path)) {
-      url = path;
-    }
-    if (!url) throw new Error("Referenced asset was not found: " + path);
-    let response: Response;
-    try { response = await request(url); }
-    catch { throw new Error("Could not embed the remote resource (check CORS or import it as a local asset): " + path); }
-    if (!response.ok) throw new Error("Could not embed the resource (" + response.status + "): " + path);
-    const lengthHeader = response.headers.get("content-length");
-    if (lengthHeader !== null && Number(lengthHeader) > LIMIT) {
-      await response.body?.cancel().catch(() => {});
-      throw new Error("Resource exceeds single HTML size limit: " + path);
-    }
-    // A remote server may omit Content-Length or report a smaller value.
-    // Bound actual bytes while reading instead of buffering an unlimited response.
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    if (response.body) {
-      const reader = response.body.getReader();
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          size += value.byteLength;
-          if (size > LIMIT) {
-            await reader.cancel().catch(() => {});
-            throw new Error("Resource exceeds single HTML size limit: " + path);
-          }
-          chunks.push(value);
-        }
-      } finally {
-        reader.releaseLock();
-      }
-    }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    // An external server controls this header. Only use a valid MIME type:
-    // quotes or whitespace here could escape generated HTML/CSS attributes.
-    const type = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
-    if (type && /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/.test(type)) {
-      responseMime.set(path, type);
-    }
-    return bytes;
-  };
-  const embed = async (ref: string, base: string): Promise<string> => {
-    if (isAlreadyInline(ref)) return ref;
-    const path = resolved(ref, base);
-    if (isAlreadyInline(path)) return path;
-    const old = urlCache.get(path);
-    if (old) return old;
-    const promise = (async () => {
-      if (Object.prototype.hasOwnProperty.call(source.files, path)) {
-        const contents = source.files[path];
-        check(new TextEncoder().encode(contents).length);
-        return utf8DataUrl(contents, path);
-      }
-      if (Object.prototype.hasOwnProperty.call(source.binaries, path)) {
-        check(Math.ceil(source.binaries[path].length * 3 / 4));
-        return "data:" + mime(path) + ";base64," + source.binaries[path];
-      }
-      const bytes = await readBytes(path);
-      return "data:" + (responseMime.get(path) ?? mime(path)) + ";base64," + b64(bytes);
-    })();
-    urlCache.set(path, promise);
-    return promise;
-  };
-
-  async function replaceAsync(text: string, regex: RegExp,
-    fn: (whole: string, ...captures: string[]) => Promise<string>): Promise<string> {
-    const matches = [...text.matchAll(regex)];
-    let result = "", cursor = 0;
-    for (const m of matches) {
-      result += text.slice(cursor, m.index);
-      result += await fn(m[0], ...m.slice(1));
-      cursor = (m.index || 0) + m[0].length;
-    }
-    return result + text.slice(cursor);
-  }
-
-  // Rewriting HTML with a plain regex must not treat JavaScript strings, CSS,
-  // comments or text-only elements as actual HTML start tags. Preserve those
-  // regions byte for byte while transforming markup around them.
-  async function replaceOutsideRawHtml(
-    text: string,
-    regex: RegExp,
-    fn: (whole: string, ...captures: string[]) => Promise<string>,
-    allowRawTag?: "style" | "script",
-  ): Promise<string> {
-    const raw = /<!--[\s\S]*?-->|<(script|style|textarea|title)\b((?:"[^"]*"|'[^']*'|[^'">])*)>[\s\S]*?<\/\1\s*>/gi;
-    const withoutStyles = /<!--[\s\S]*?-->|<(script|textarea|title)\b((?:"[^"]*"|'[^']*'|[^'">])*)>[\s\S]*?<\/\1\s*>/gi;
-    const withoutScripts = /<!--[\s\S]*?-->|<(style|textarea|title)\b((?:"[^"]*"|'[^']*'|[^'">])*)>[\s\S]*?<\/\1\s*>/gi;
-    const excluded = allowRawTag === "style" ? withoutStyles : allowRawTag === "script" ? withoutScripts : raw;
-    let result = "", cursor = 0;
-    for (const match of text.matchAll(excluded)) {
-      const at = match.index ?? 0;
-      result += await replaceAsync(text.slice(cursor, at), regex, fn);
-      result += match[0];
-      cursor = at + match[0].length;
-    }
-    return result + await replaceAsync(text.slice(cursor), regex, fn);
-  }
-
-  const processCss = async (content: string, base: string, parents = new Set<string>()): Promise<string> => {
-    let result = await replaceAsync(content,
-      /@import\s+(?:url\(\s*)?(["']?)([^"')\s]+)\1\s*\)?\s*;/gi,
-      async (whole, _quote, url) => {
-        if (isAlreadyInline(url)) return whole;
-        const path = resolved(url, base);
-        if (parents.has(path)) throw new Error("Recursive CSS imports cannot be embedded: " + path);
-        const child = await loadText(path);
-        return processCss(child, path, new Set([...parents, path]));
-      });
-    if (/@import\s/i.test(result)) {
-      throw new Error("Conditional CSS imports cannot be embedded into one HTML file.");
-    }
-    result = await replaceAsync(result, /url\(\s*(["']?)([^"')]+)\1\s*\)/gi,
-      async (whole, _q, asset) => {
-        const ref = asset.trim();
-        if (isAlreadyInline(ref)) return whole;
-        return 'url("' + await embed(ref, base) + '")';
-      });
-    return result;
-  };
-
-  async function loadText(path: string): Promise<string> {
-    const old = textCache.get(path);
-    if (old) return old;
-    const promise = (async () => {
-      if (Object.prototype.hasOwnProperty.call(source.files, path)) return source.files[path];
-      if (!/^https?:\/\//i.test(path) &&
-          !Object.prototype.hasOwnProperty.call(source.remoteAssets, path)) {
-        throw new Error("Referenced stylesheet or script was not found: " + path);
-      }
-      const bytes = await readBytes(path);
-      return new TextDecoder().decode(bytes);
-    })();
-    textCache.set(path, promise);
-    return promise;
-  }
-
-  let html = source.files["index.html"];
-  // In-place stylesheets, including CSS url() images and font data.
-  html = await replaceOutsideRawHtml(html, /<link\b[^>]*>/gi, async (tag) => {
-    const rel = /\brel\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1]?.toLowerCase() || "";
-    const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1];
-    if (rel.includes("manifest")) return ""; // service worker not supported in one file
-    if (!href) return tag;
-    if (rel.includes("stylesheet")) {
-      const file = resolved(href, "index.html");
-      const css = await processCss(await loadText(file), file);
-      return "<style>\n" + escInlineCss(css) + "\n</style>";
-    }
-    if (rel.includes("icon")) {
-      const data = await embed(href, "index.html");
-      return tag.replace(href, data);
-    }
-    return tag;
+  if (textBytes(html) > SINGLE_HTML_LIMIT) throw new Error("The embedded HTML exceeds 48 MB.");
+  const { parse, defaultTreeAdapter } = await import("parse5");
+  let elementsCreated = 0;
+  const doc = parse(html, {
+    sourceCodeLocationInfo: true,
+    treeAdapter: {
+      ...defaultTreeAdapter,
+      createElement(...args) {
+        if (++elementsCreated > 100000) throw new Error("Too many elements for single HTML export.");
+        return defaultTreeAdapter.createElement(...args);
+      },
+    },
   });
-
-  // Inline styles authored directly in HTML also need their background assets.
-  html = await replaceOutsideRawHtml(html, /<style\b[^>]*>([\s\S]*?)<\/style>/gi,
-    async (whole, css) => whole.replace(css, escInlineCss(await processCss(css, "index.html"))), "style");
-
-  // Embed source media and poster attributes. Keep ordinary navigation hrefs.
-  html = await replaceOutsideRawHtml(html, /<(?:img|source|video|audio|input)\b[^>]*>/gi, async (tag) => {
-    let updated = await replaceAsync(tag, /\b(src|poster)\s*=\s*(["'])([^"']+)\2/gi,
-      async (whole, key, quote, ref) => key + "=" + quote + await embed(ref, "index.html") + quote);
-    updated = await replaceAsync(updated, /\bsrcset\s*=\s*(["'])([^"']+)\1/gi,
-      async (whole, quote, srcset) => {
-        // data URLs and filenames can contain commas; parse srcset URL tokens.
-        const urls: string[] = [];
-        rewriteSrcsetUrls(srcset, (url) => { urls.push(url); return url; });
-        const embedded = new Map<string, string>();
-        for (const url of urls) {
-          if (!embedded.has(url)) embedded.set(url, await embed(url, "index.html"));
+  // Source offsets let us copy unmodified comments, script bodies, quoted text,
+  // and other authored markup verbatim, even when HTML parsing reparents nodes.
+  const elements: Html.Element[] = [];
+  const pending: { node: Html.Node; inert: boolean }[] = [{ node: doc, inert: false }];
+  let base = EXPORT_BASE;
+  let foundBase = false;
+  let hasImportMap = false;
+  while (pending.length) {
+    const { node, inert } = pending.pop()!;
+    if ("tagName" in node) {
+      if (node.sourceCodeLocation?.startTag) elements.push(node);
+      if (!inert && !foundBase && node.namespaceURI === HTML && node.tagName === "base") {
+        const href = node.attrs.find(a => a.name === "href");
+        if (href) {
+          foundBase = true;
+          try {
+            const url = new URL(href.value, EXPORT_BASE);
+            if (url.protocol === "https:" || url.protocol === "http:") base = url;
+          } catch { /* Invalid base uses the document URL. */ }
         }
-        return "srcset=" + quote +
-          rewriteSrcsetUrls(srcset, (url) => embedded.get(url) ?? url) + quote;
-      });
-    return updated;
-  });
+      }
+      if (!inert && node.namespaceURI === HTML && node.tagName === "script" &&
+          node.attrs.some(attr => attr.name === "type" && attr.value.trim().toLowerCase() === "importmap")) {
+        hasImportMap = true;
+      }
+      if ("content" in node) pending.push({ node: (node as Html.Template).content, inert: true });
+    }
+    if ("childNodes" in node) {
+      for (let i = node.childNodes.length - 1; i >= 0; i--) pending.push({ node: node.childNodes[i], inert });
+    }
+  }
 
-  // Browser runtime JS loads after the body is parsed, so inlining is safe.
-  html = await replaceOutsideRawHtml(html, /<script\b([^>]*)\bsrc\s*=\s*(["'])([^"']+)\2([^>]*)><\/script>/gi,
-    async (whole, attrsBefore, _quote, ref, attrsAfter) => {
-      if (/pwa\.js(?:[?#]|$)/i.test(ref)) return "";
-      const file = resolved(ref, "index.html");
-      const attrs = (attrsBefore + " " + attrsAfter)
-        .replace(/\bdefer\b/g, "").replace(/\basync\b/g, "").trim();
-      return "<script" + (attrs ? " " + attrs : "") +
-        ">\n" + escInlineJs(await loadText(file)) + "\n</script>";
-    }, "script");
-
-  // Process only actual start-tag attributes, not script strings or CSS
-  // containing text that happens to look like style="...".
-  html = await replaceOutsideRawHtml(html,
-    /<[a-z][\w:-]*(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi,
-    async (tag) => replaceAsync(tag, /(\s)style\s*=\s*(["'])([\s\S]*?)\2/gi,
-      async (_whole, space, quote, css) => space + "style=" + quote +
-        (await processCss(css, "index.html")).replaceAll(quote, quote === '"' ? "&quot;" : "&#39;") + quote));
-
-  check(new TextEncoder().encode(html).length);
-  return { files: { "index.html": html }, binaries: {}, remoteAssets: {} };
+  const resources = singleHtmlResources(source, request, hasImportMap);
+  const result = new HtmlOutput();
+  let cursor = 0, srcsetCandidates = 0;
+  for (const node of elements.sort((a, b) => a.sourceCodeLocation!.startOffset - b.sourceCodeLocation!.startOffset)) {
+    const loc = node.sourceCodeLocation!, start = loc.startTag!;
+    if (start.startOffset < cursor) continue;
+    const original = html.slice(start.startOffset, start.endOffset);
+    const name = node.tagName;
+    const htmlTag = node.namespaceURI === HTML;
+    const attrs = attributes(node);
+    const get = (key: string) => attrs.get(key) ?? "";
+    let modified = false;
+    const set = (key: string, value: string) => {
+      if (value !== get(key)) { attrs.set(key, value); modified = true; }
+    };
+    let replacement: string | undefined;
+    let end = start.endOffset;
+    for (const key of CSS_ASSET_ATTRIBUTES) {
+      if (attrs.has(key)) set(key, await resources.css(get(key), base));
+    }
+    if (htmlTag && name === "link") {
+      const rel = get("rel").toLowerCase().split(/\s+/);
+      const href = get("href");
+      if (rel.includes("manifest")) replacement = "";
+      else if (href && rel.includes("stylesheet") && !/^data:/i.test(href) &&
+               (!get("type") || get("type").toLowerCase() === "text/css")) {
+        const css = await resources.stylesheet(new URL(href, base), new Set(), get("integrity"));
+        if (rel.includes("alternate") || attrs.has("disabled") || attrs.has("title")) {
+          set("href", resources.cssUrl(css));
+          attrs.delete("integrity"); // The original bytes were verified before rewriting CSS.
+        } else {
+          for (const key of ["rel", "href", "integrity", "crossorigin", "referrerpolicy"]) attrs.delete(key);
+          replacement = startTag("style", attrs) + "\n" + css.replace(/<\/style/gi, "<\\/style") + "\n</style>";
+        }
+      } else if (href && rel.includes("icon")) set("href", await resources.embed(href, base));
+    } else if (htmlTag && name === "script" && get("src")) {
+      const url = new URL(get("src"), base);
+      if (url.origin === EXPORT_BASE.origin && url.pathname === "/pwa.js" && Object.hasOwn(source.files, "pwa.js")) {
+        replacement = ""; end = loc.endOffset;
+      } else if (get("type").trim().toLowerCase() === "module" && url.protocol !== "data:") {
+        set("src", await resources.embedModule(url, get("integrity")));
+        attrs.delete("integrity"); // The original bytes were verified before rewriting module specifiers.
+      } else if (!get("type") || /^(?:module|(?:text|application)\/(?:x-)?(?:java|ecma)script)$/i.test(get("type").trim())) {
+        // A data URL retains external-script parsing, defer/async, and any native
+        // integrity enforcement without introducing a network dependency.
+        set("src", await resources.embed(get("src"), base, get("integrity"), true));
+      }
+    } else if (htmlTag && ["img", "source", "video", "audio", "input", "track"].includes(name)) {
+      for (const key of ["src", "poster"]) {
+        if (key === "poster" && name !== "video") continue;
+        if (name === "input" && get("type").toLowerCase() !== "image") continue;
+        if (get(key)) set(key, await resources.embed(get(key), base));
+      }
+      if ((name === "img" || name === "source") && get("srcset")) {
+        const urls = new Map<string, string>();
+        rewriteSrcsetUrls(get("srcset"), ref => {
+          if (++srcsetCandidates > 100000) throw new Error("Too many single HTML srcset candidates.");
+          urls.set(ref, ref);
+          return ref;
+        });
+        for (const ref of urls.keys()) urls.set(ref, await resources.embed(ref, base));
+        set("srcset", rewriteSrcsetUrls(get("srcset"), ref => urls.get(ref)!, SINGLE_HTML_LIMIT));
+      }
+    } else if (name === "style") {
+      const stop = loc.endTag?.startOffset ?? loc.endOffset;
+      const content = html.slice(start.endOffset, stop);
+      const css = await resources.css(content, base);
+      if (css !== content) {
+        replacement = (modified ? startTag(name, attrs) : original) + css.replace(/<\/style/gi, "<\\/style");
+        end = stop;
+      }
+    }
+    if (replacement === undefined && !modified) continue;
+    result.append(html.slice(cursor, start.startOffset));
+    result.append(replacement ?? startTag(name, attrs, !htmlTag && original.endsWith("/>")));
+    cursor = end;
+  }
+  result.append(html.slice(cursor));
+  return { files: { "index.html": result.join() }, binaries: {}, remoteAssets: {} };
 }

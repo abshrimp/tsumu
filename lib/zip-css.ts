@@ -1,6 +1,6 @@
 import { tr } from "./i18n";
 import type { Asset, ZipAssetMetadata } from "./types";
-import { cssAssetReferences, rewriteCssAssetUrls } from "./css-assets";
+import { iterateCssAssetReferences, rewriteCssAssetUrls } from "./css-assets";
 import { appendAssetSuffix, zipDependency } from "./zip-references";
 
 // CSS is embedded in separate data URLs, not flattened into the importing sheet.
@@ -42,10 +42,15 @@ export function attachZipDependencies(assets: Asset[]): void {
   for (const asset of assets) {
     const sheet = zipStylesheet(asset);
     if (!sheet) continue;
-    sheet.references = [...new Set(cssAssetReferences(sheet.source).map((r) => r.url))].flatMap((url) => {
+    const seen = new Set<string>();
+    const references: typeof sheet.references = [];
+    for (const { url } of iterateCssAssetReferences(sheet.source)) {
+      if (seen.has(url)) continue;
+      seen.add(url);
       const ref = zipDependency(url, asset.zip!.path, ids);
-      return ref ? [{ url, ...ref }] : [];
-    });
+      if (ref) references.push({ url, ...ref });
+    }
+    sheet.references = references;
   }
 }
 
