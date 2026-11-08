@@ -1416,7 +1416,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       function each(st, self, up, i, active, entries, depth) {
         if (!active()) return Promise.resolve();
         if (!entries) {
-          var source = getVar(st.array);
+          var source = lookup(st.array, self, scopeOf(up));
           if (!source || typeof source !== "object") return Promise.resolve();
           var keys = Object.keys(source);
           if (keys.length > 10000) return Promise.resolve();
