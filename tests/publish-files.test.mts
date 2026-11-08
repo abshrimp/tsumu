@@ -25,9 +25,9 @@ test("手で追加したファイルは残し、直接編集された書き出�
     "app/api/hello/route.ts": "mine",
     [DOC_PATH]: "doc",
     "_tsumu/stray.json": "stray2",
-    "_site-data/doc.json": "obsolete-doc",
-    "_site-data/assets.json": "obsolete-assets",
-    "_site-data/generated.json": "obsolete-list",
+    "_private/doc.json": "reserved-doc",
+    "_private/assets.json": "reserved-assets",
+    "_private/generated.json": "reserved-list",
     [GENERATED_MANIFEST_PATH]: "list",
   };
   const generated = { "app/page.tsx": "original", "app/layout.tsx": "same", [DOC_PATH]: "doc" };
@@ -38,11 +38,11 @@ test("手で追加したファイルは残し、直接編集された書き出�
   assert.deepEqual(plan.kept, { "app/api/hello/route.ts": "mine" });
 });
 
-test("legacy publish metadata is never preserved as manual files", () => {
+test("reserved metadata namespaces are not preserved as manually authored files", () => {
   const blobs = {
-    "_site-data/doc.json": "old-doc",
-    "_site-data/assets.json": "old-assets",
-    "_site-data/generated.json": "old-list",
+    "_private/doc.json": "reserved-doc",
+    "_private/assets.json": "reserved-assets",
+    "_private/generated.json": "reserved-list",
     "README.md": "manual",
   };
   const plan = planPublish(blobs, null, [DOC_PATH, GENERATED_MANIFEST_PATH]);
@@ -83,7 +83,7 @@ test("一覧は書き出して読み戻せ、壊れていれば null", () => {
 test("コミットするパスは、リポジトリの外や別の場所を指せない", () => {
   for (const ok of ["app/page.tsx", "public/a b.png", ".well-known/security.txt"]) assert.ok(isSafeCommitPath(ok), ok);
   for (const ng of ["", "/etc/passwd", "a/../b", "./a", "a//b", "a/", "a\\b",
-    "_site-data", "_site-data/doc.json", "_SITE-DATA/generated.json"]) assert.ok(!isSafeCommitPath(ng), ng);
+    "_private", "_private/doc.json", "_PRIVATE/generated.json"]) assert.ok(!isSafeCommitPath(ng), ng);
 });
 
 test(".github/ は書き出しに使わない場所として扱う", () => {
