@@ -12,8 +12,8 @@ const require = createRequire(new URL("../components/PublishModal.tsx", import.m
 const source = readFileSync(new URL("../components/PublishModal.tsx", import.meta.url), "utf8");
 const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
 const old = "a".repeat(40);
-function fixture({ conflict = false, legacy = false, asset = false, document, snapshot }: {
-  conflict?: boolean; legacy?: boolean; asset?: boolean; document?: SiteDoc;
+function fixture({ conflict = false, missingHead = false, asset = false, document, snapshot }: {
+  conflict?: boolean; missingHead?: boolean; asset?: boolean; document?: SiteDoc;
   snapshot?: { blobs: Record<string, string>; generated: Record<string, string> | null };
 } = {}) {
   let branch = "main", site = "example";
@@ -59,7 +59,7 @@ function fixture({ conflict = false, legacy = false, asset = false, document, sn
   };
   const request = async (_url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body)); writes.push(body);
-    if (body.action === "tree") return Response.json({ ...(legacy ? {} : { head: old }), blobs: { "app/page.tsx": "manual" }, manifest: {}, generated: {}, ...snapshot });
+    if (body.action === "tree") return Response.json({ ...(missingHead ? {} : { head: old }), blobs: { "app/page.tsx": "manual" }, manifest: {}, generated: {}, ...snapshot });
     if (body.dest.branch !== body.expected.productionBranch || conflict) return Response.json({ error: "Destination or head changed; reopen and review." }, { status: 409 });
     return Response.json({ sha: "asset", commitUrl: "https://example.com/commit" });
   };
@@ -99,8 +99,8 @@ test("navigation during confirmation cannot publish the new site's document or d
   assert.equal(f.writes.length, 1); assert.deepEqual(f.published, []);
 });
 
-test("a legacy server snapshot without a head fails closed before confirmation or uploads", async () => {
-  const f = fixture({ legacy: true, asset: true }); await f.run();
+test("a missingHead server snapshot without a head fails closed before confirmation or uploads", async () => {
+  const f = fixture({ missingHead: true, asset: true }); await f.run();
   assert.equal(f.waiting, false); assert.equal(f.writes.length, 1); assert.deepEqual(f.published, []);
 });
 
