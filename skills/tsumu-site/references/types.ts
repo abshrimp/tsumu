@@ -188,6 +188,7 @@ export type ScriptOp =
   | "lt"
   | "lte"
   | "empty"
+  | "has-key"
   
   | "in";
 
@@ -263,6 +264,8 @@ export type ScriptStep = { id: string } & (
       
       shared?: boolean;
     }
+  | { kind: "set-list-item"; list: string; key: string; value: string }
+  | { kind: "break-loop" }
   | {
       
 
