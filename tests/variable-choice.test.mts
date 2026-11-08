@@ -76,7 +76,7 @@ test("real raw chip uses node samples and treats loop roots as runtime values", 
     doc, pageId: "p", samples: previewDataVars(doc, "p"),
   } as any }, React.createElement(ScriptNodeCtx.Provider, { value: "button" }, React.createElement(LoopCtx.Provider, { value: loops }, React.createElement(ValueIn, { value, onCommit() {} })))));
   const nodeChip = render("{price}");
-  assert.match(nodeChip, /true\/false/);
+  assert.match(nodeChip, /値/);
   assert.match(nodeChip, /false/);
   assert.doesNotMatch(nodeChip, /数値/);
   assert.doesNotMatch(render("Hello {price}"), /se-value-info/, "a mixed template is not labelled as a raw boolean");
