@@ -33,8 +33,6 @@ const en: Dict = {
   "次へ":
     "Next",
   // components/HelpCenter.tsx
-  "検索をクリア":
-    "Clear search",
   "サイト設定":
     "Site settings",
   "すべて":
@@ -144,12 +142,6 @@ const en: Dict = {
     "Body",
   "クリックしたとき":
     "When clicked",
-  "ボタン":
-    "Button",
-  "ヘッダー":
-    "Header",
-  "メイン":
-    "Main",
   "タブレット":
     "Tablet",
   "スマホ横":
@@ -759,14 +751,8 @@ const en: Dict = {
     "Text color",
   "影":
     "Shadow",
-  "セクション":
-    "Section",
-  "ナビゲーション":
-    "Navigation",
   "記事":
     "Article",
-  "フッター":
-    "Footer",
   "画面幅":
     "Screen width",
   "フォルダ":
@@ -1989,7 +1975,7 @@ const en: Dict = {
     "How do I make a button go to another page (link)?",
   "ボタンを選んで「設定」の「ページのスクリプトを編集」を開き、「クリックしたとき」の下に「［ページ / URL］を開く」をつなげます。":
     "Select the button, open \"Edit page scripts\" under Settings, and attach \"Open ［page / URL］\" under \"When clicked\".",
-  "リンク":
+  "ヘルプ検索\u0004リンク":
     "link",
   "ページ移動":
     "navigate",
@@ -2151,7 +2137,7 @@ const en: Dict = {
     "How do I fetch external data (JSON) and show it?",
   "ページのスクリプトに「［URL］のデータを取得して［名前］とする」を置き、文字や画像に {名前.項目} と書きます。":
     "Add \"Fetch data from ［URL］ as ［name］\" to the page's script, then write {name.field} in text or images.",
-  "データ取得":
+  "ヘルプ検索\u0004データ取得":
     "fetch data",
   "外部データ":
     "external data",
@@ -2506,7 +2492,7 @@ const en: Dict = {
     "characters",
   "段落":
     "paragraph",
-  "文章":
+  "ヘルプ検索\u0004文章":
     "text",
   "画面いっぱいに広がった文章は、行の終わりから次の行の頭へ目を戻すのが大変で、読み飛ばしが増えます。文章のボックスには最大幅を付けます。":
     "With text spanning the whole screen, it's hard for the eye to get from the end of one line to the start of the next, and people skip lines. Give text boxes a max width.",

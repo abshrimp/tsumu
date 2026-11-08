@@ -7,7 +7,7 @@
 import type { EditorState, Topic } from "./manual";
 import { resolveStyles } from "./style";
 import { canContainElements } from "./tags";
-import { tr } from "./i18n";
+import { tr, trc } from "./i18n";
 
 /* ---------- 手順が済んだかの判定 ---------- */
 
@@ -1374,7 +1374,7 @@ export const TOPICS: Topic[] = [
     level: 1,
     q: tr("ボタンを押したら別のページへ移動させたい（リンク）"),
     a: tr("ボタンを選んで「設定」の「ページのスクリプトを編集」を開き、「クリックしたとき」の下に「［ページ / URL］を開く」をつなげます。"),
-    keys: [tr("リンク"), tr("ページ移動"), tr("遷移"), tr("飛ぶ"), tr("クリック"), "URL", tr("ボタン")],
+    keys: [trc("ヘルプ検索", "リンク"), tr("ページ移動"), tr("遷移"), tr("飛ぶ"), tr("クリック"), "URL", tr("ボタン")],
     ctx: ["box", "text", "image"],
     body: [
       { fig: "script-blocks" },
@@ -1539,7 +1539,7 @@ export const TOPICS: Topic[] = [
     level: 4,
     q: tr("外部のデータ（JSON）を取得してページに表示したい"),
     a: tr("ページのスクリプトに「［URL］のデータを取得して［名前］とする」を置き、文字や画像に {名前.項目} と書きます。"),
-    keys: ["JSON", "API", tr("データ取得"), tr("外部データ"), "fetch", tr("データソース")],
+    keys: ["JSON", "API", trc("ヘルプ検索", "データ取得"), tr("外部データ"), "fetch", tr("データソース")],
     ctx: ["none"],
     body: [
       { fig: "fetch-data" },
@@ -1987,7 +1987,7 @@ export const TOPICS: Topic[] = [
     level: 2,
     q: tr("長い文章を読みやすくするには？"),
     a: tr("1行は全角35〜45文字くらいに収まる幅（640〜760px）にし、行間を1.7〜1.9にします。段落の間は1行分ほど空けます。"),
-    keys: [tr("読みやすさ"), tr("1行の長さ"), tr("文字数"), tr("行間"), tr("段落"), tr("文章")],
+    keys: [tr("読みやすさ"), tr("1行の長さ"), tr("文字数"), tr("行間"), tr("段落"), trc("ヘルプ検索", "文章")],
     ctx: ["text"],
     body: [
       { fig: "line-length" },
