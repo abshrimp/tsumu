@@ -104,14 +104,15 @@ test("JSON lookup resolves own keys without traversing inherited prototypes", ()
 });
 
 test("every supported palette action is visible without hidden compatibility groups", () => {
-  assert.equal(PALETTE.length, 25);
-  assert.equal(findPaletteItems("").length, 25);
-  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 19);
+  assert.equal(PALETTE.length, 26);
+  assert.equal(findPaletteItems("").length, 26);
+  assert.equal(PALETTE.filter(item => item.cat !== "event").length, 20);
   assert.ok(PALETTE.some(item => item.key === "transform"));
   assert.ok(PALETTE.some(item => item.key === "list-display"));
   assert.ok(PALETTE.some(item => item.key === "set-state"));
   assert.ok(PALETTE.some(item => item.key === "break-loop"));
   assert.ok(PALETTE.some(item => item.key === "set-list-item"));
+  assert.ok(PALETTE.some(item => item.key === "make-list"));
   assert.ok(findPaletteItems("値を加工").some(item => item.key === "transform"));
 });
 
