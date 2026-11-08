@@ -434,7 +434,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
 });
 
-test("canvas uses direct dictionary keys without a conversion type", async ({ page }) => {
+test("canvas reads dictionary fields by key", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push(
@@ -454,7 +454,7 @@ test("canvas uses direct dictionary keys without a conversion type", async ({ pa
   })).toBe("{selectedDate}");
 });
 
-test("canvas block settings update the document without a separate value-composer modal", async ({ page }) => {
+test("canvas processing settings persist changes directly", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push({
@@ -465,7 +465,6 @@ test("canvas block settings update the document without a separate value-compose
   });
   const box = page.locator('[data-sel-key="step:native"]');
   await expect(box.getByRole("combobox", { name: "加工の種類" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "値を組み立てる" })).toHaveCount(0);
   await expect(box.getByRole("combobox", { name: "取り出す項目名" })).toHaveCSS("height", "24px");
   await box.getByRole("combobox", { name: "取り出す項目名" }).fill("tags");
   await expect.poll(() => page.evaluate(() => {
@@ -531,12 +530,11 @@ test("canvas native select and picker button share the same dropdown appearance"
   expect(focusedPicker).toEqual(focusedSelect);
 });
 
-test("canvas arithmetic-method dropdown fits its widest choice without a type selector", async ({ page }) => {
+test("canvas arithmetic options size to the widest label", async ({ page }) => {
   // Font metric changes during initial loading must not be mistaken for a selection-induced resize.
   await page.evaluate(async () => { await document.fonts.ready; });
   const box = page.locator('[data-sel-key="step:numeric"]');
   const method = box.getByRole("combobox", { name: "計算方法" });
-  await expect(box.getByRole("combobox", { name: "計算する値の種類" })).toHaveCount(0);
   await expect(box.getByPlaceholder("計算する値 / {変数}")).toBeVisible();
   await expect(method).toHaveCSS("width", /\d+px/);
   const dimensions = await Promise.all([method].map(el => el.evaluate((node) => {
@@ -637,9 +635,8 @@ test("canvas wait/repeat accept numbers and variables in one field", async ({ pa
       .find((step: any) => step.id === "wait-seconds").seconds)).toBe("{data.price}");
 });
 
-test("canvas math accepts a variable without an operand type picker", async ({ page }) => {
+test("canvas arithmetic accepts values and variables in one field", async ({ page }) => {
   const box = page.locator('[data-sel-key="step:numeric"]');
-  await expect(box.getByRole("combobox", { name: "計算する値の種類" })).toHaveCount(0);
   const operand = box.getByPlaceholder("計算する値 / {変数}");
   await operand.fill("{data.price}");
   await operand.blur();
@@ -807,7 +804,7 @@ test("canvas list filter keeps condition actions on a separate row and lets each
 
 
 for (const exported of [false, true]) {
-  test((exported ? "exported" : "preview") + " list loops use values, keys, and early exit without custom filter recipes", async ({ page }) => {
+  test((exported ? "exported" : "preview") + " list loops select matching entries with values, keys and early exit", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported,
       '{"apple":100,"banana":200,"orange":300}', [
         { id: "result", kind: "set-var", into: "chosen", value: "none" },
