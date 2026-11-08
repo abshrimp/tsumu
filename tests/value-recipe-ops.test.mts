@@ -146,6 +146,25 @@ test("value sort uses natural ordering consistent with displayed list sort", () 
     val([1, 2, 10]));
 });
 
+test("dictionary sorting preserves named keys as ordered key-value rows", () => {
+  const source = {
+    apple: { price: 10 }, banana: { price: 30 }, orange: { price: 20 },
+  };
+  const output = evaluateValueRecipe(source, [{ kind: "sort", field: "price", direction: "desc" }]);
+  assert.deepEqual(output, val([
+    { "キー": "banana", "値": source.banana },
+    { "キー": "orange", "値": source.orange },
+    { "キー": "apple", "値": source.apple },
+  ]));
+  assert.deepEqual(evaluateValueRecipe({ apple: 12, banana: 3 }, [
+    { kind: "sort", field: "", direction: "asc" },
+  ]), val([
+    { "キー": "banana", "値": 3 },
+    { "キー": "apple", "値": 12 },
+  ]));
+  assert.deepEqual(Object.keys(source), ["apple", "banana", "orange"]);
+});
+
 test("runtime source serialization works with the generated helper shim", () => {
   const source = evaluateValueRecipe.toString();
   const pure = new Function("const __name = (fn) => fn; return (" + source + ")")() as typeof evaluateValueRecipe;
