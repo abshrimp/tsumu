@@ -209,7 +209,7 @@ test("#136 multiple if clauses retain AND-before-OR grouping in browser and SSR"
   page.pageScripts = [{ id: "joined", trigger: "load", pos: { x: 0, y: 0 },
     steps: [{
       id: "joined-if", kind: "if",
-      cond: { subject: "var", target: "", left: "{flag}", op: "eq", value: "1" },
+      cond: { subject: "var", target: "", left: "{flag}", op: "eq", value: '\"1\"' },
       conditions: [
         { subject: "var", target: "", left: "{mode}", op: "eq", value: "enabled", and: false },
         { subject: "var", target: "", left: "{mode}", op: "eq", value: "disabled", and: true },
