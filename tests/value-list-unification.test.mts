@@ -4,6 +4,8 @@ import { matchesValueCondition, parseValueLiteral } from "../lib/value-semantics
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
+import { obfuscateVarNames } from "../lib/data";
+import { createInitialDoc } from "../lib/presets";
 import type { ScriptStep } from "../lib/types";
 
 const run = (steps: ScriptStep[], vars: Record<string, unknown>) =>
@@ -136,4 +138,30 @@ test("nested loops read list values from the enclosing item without dropping the
   ];
   assert.equal(run(steps, vars), true);
   assert.deepEqual(vars.colours, ["red", "sweet", "green"]);
+});
+
+test("export obfuscation preserves list targets and loop variable references", () => {
+  const doc = createInitialDoc();
+  const page = doc.pages[doc.pageOrder[0]];
+  page.pageScripts = [{ id: "source", trigger: "load", pos: { x: 0, y: 0 }, steps: [
+    { id: "numbers", kind: "set-var", value: "[1,2]", into: "numbers" },
+    { id: "result", kind: "set-var", value: "[]", into: "result" },
+    { id: "each", kind: "for-each", array: "numbers", then: [
+      { id: "add", kind: "set-list-item", list: "result", key: "", value: "{ループ.値}" },
+    ] },
+  ] }];
+  const exported = obfuscateVarNames(doc);
+  const [numbers, result, each] = exported.pages[page.id].pageScripts![0].steps;
+  assert.equal(numbers.kind, "set-var");
+  assert.equal(result.kind, "set-var");
+  assert.equal(each.kind, "for-each");
+  if (numbers.kind !== "set-var" || result.kind !== "set-var" || each.kind !== "for-each")
+    throw new Error("Unexpected script shape");
+  assert.equal(each.array, numbers.into);
+  const write = each.then[0];
+  assert.equal(write.kind, "set-list-item");
+  if (write.kind !== "set-list-item") throw new Error("Expected list item write");
+  assert.equal(write.list, result.into);
+  assert.equal(write.value, "{ループ.値}");
+  assert.notEqual(result.into, "result");
 });
