@@ -352,6 +352,7 @@ export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string }[] 
   { value: "lte", label: trc("条件比較", "以下") },
   { value: "in", label: trc("条件比較", "のいずれかと同じ") },
   { value: "empty", label: trc("条件比較", "空") },
+  { value: "has-key", label: tr("項目が存在する") },
 ];
 
 /** "である / でない" is shared by if conditions and every list filter clause. */
@@ -395,7 +396,7 @@ export function OpEditor({
   const pick = target !== undefined && op === "eq";
   return (
     <Phrase
-      text="{value}{op}{negation}"
+      text={op === "has-key" ? "{value}という{op}{negation}" : "{value}{op}{negation}"}
       parts={{
         value: !noValue &&
           (pick ? (
