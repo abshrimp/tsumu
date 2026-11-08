@@ -3054,7 +3054,7 @@ const en: Dict = {
     "Radio buttons with the same Group allow only one choice. {group name} is the chosen button's value (its label), and {ID} is true or false depending on whether that button is chosen.",
   "「変数を探す」の「詳細を表示」で、無効かどうか（{ID.disabled}）・文字数（{ID.length}）・選んだ番号（{ID.index}）も選べます。スクリプトの「［入力欄］を［有効にする / 無効にする］」で切り替えられます。":
     "Under Show advanced in Find a variable you can also pick whether a field is disabled ({ID.disabled}), its length ({ID.length}) and the chosen number ({ID.index}). The script block “Set ［field］ to ［enabled / disabled］” switches it.",
-  // Script data terminology review (#132)
+  // Data and list display terminology
   "選んでいるリスト表示": "Selected list display",
   "データとリスト表示": "Data and list displays",
   "データを繰り返して表示したい（リスト表示）": "How do I display repeated items from a list?",
