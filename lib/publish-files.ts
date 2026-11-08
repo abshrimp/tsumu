@@ -56,9 +56,6 @@ export function planPublish(
 /** コミットしてよいパスか（先頭の「/」・「.」「..」・空の区切り・バックスラッシュを含まない） */
 export function isSafeCommitPath(path: string): boolean {
   if (!path || path.includes("\\") || path.includes("\0")) return false;
-  // Only the editor-managed namespace may use a top-level underscore prefix.
-  const root = path.split("/")[0];
-  if (root.startsWith("_") && root !== MANAGED_DIR.slice(0, -1)) return false;
   return path.split("/").every((seg) => seg !== "" && seg !== "." && seg !== "..");
 }
 
