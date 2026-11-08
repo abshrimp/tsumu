@@ -329,13 +329,11 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
         ariaLabel={tr("リスト内の項目名")}
         placeholder={tr("項目（空なら要素自身）")}
         onChange={(field) => onChange({ ...transform, field })} />
-      {transform.kind === "sort" && (
         <FixedOptionSelect aria-label={tr("並び順")} value={transform.direction}
           onChange={(e) => onChange({ ...transform, direction: e.target.value as "asc" | "desc" })}>
           <option value="asc">{tr("昇順")}</option>
           <option value="desc">{tr("降順")}</option>
         </FixedOptionSelect>
-      )}
     </div>
   );
   return null;
