@@ -46,13 +46,13 @@ export function validateDocBody(raw: string): string | null {
     return "不正なリクエスト";
   }
   const order = parsed.pageOrder;
-  if (new Set(order).size !== order.length || !order.every((id) =>
-    typeof id === "string" &&
-    Object.hasOwn(parsed.pages, id) &&
-    record(parsed.pages[id]) &&
-    Array.isArray(parsed.pages[id].children) &&
-    parsed.pages[id].children.every((child: unknown) => typeof child === "string")
-  )) {
+  const pages = parsed.pages as Record<string, unknown>;
+  if (new Set(order).size !== order.length || !order.every((id) => {
+    if (typeof id !== "string" || !Object.hasOwn(pages, id)) return false;
+    const page = pages[id];
+    return record(page) && Array.isArray(page.children) &&
+      page.children.every((child: unknown) => typeof child === "string");
+  })) {
     return "不正なリクエスト";
   }
   return null;
