@@ -50,7 +50,7 @@ test("connecting a new transform in an existing else branch preserves the source
   branch.else = [{ id: "set", kind: "set-var", value: "hello", into: "message" }];
   const initial = structuredClone(scripts);
   const result = connectNewTransform(scripts, { ...elseLocation, index: 1 }, [{
-    id: "transform", kind: "transform", source: "", into: "", transform: { kind: "format" },
+    id: "transform", kind: "transform", source: "", into: "", transform: { kind: "field", key: "name" },
   }]);
   assert.equal(result.length, 1);
   assert.equal(result[0].kind, "transform");
