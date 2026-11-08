@@ -201,9 +201,7 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
   const source = singleValueReference(value);
   const local = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
   const sample = source ? lookupVar(variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), local), source) : undefined;
-  const kind = sample === undefined ? null : sample === null ? "null" : Array.isArray(sample) ? tr("リスト") :
-    typeof sample === "object" ? tr("項目付きデータ") : typeof sample === "boolean" ? "true/false" :
-    typeof sample === "number" ? tr("数値") : tr("文字列");
+  const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("リスト") : tr("値");
   if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
   return <span className="se-value-choice">
     <TextIn value={value} onCommit={onCommit} vars valueContext="value" width={width}
