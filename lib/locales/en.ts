@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "空のリストを変数［］とする": "Create an empty list in variable ［］",
   "リスト・{length}項目": "List · {length} items",
   "ループを終了する": "Break out of loop",
   "項目が存在する": "Has a key",
