@@ -50,9 +50,14 @@ export async function netlifyApi<T>(token: string, path: string, init: RequestIn
     throw new Error("Invalid Netlify API path.");
   }
   const response = await fetch(API + path, {
-    ...init, redirect: "error",
+    // Workers does not implement redirect: "error". "manual" prevents
+    // forwarding a browser-owned bearer token to an untrusted redirect URL.
+    ...init, redirect: "manual",
     headers: { Authorization: "Bearer " + safeToken(token), ...init.headers },
   });
+  if (response.status >= 300 && response.status < 400) {
+    throw new Error("Netlify unexpectedly redirected an API request.");
+  }
   if (!response.ok) {
     throw new Error(response.status === 401 || response.status === 403
       ? "Netlify authorization expired or does not permit this operation. Connect again."

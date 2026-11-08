@@ -3,6 +3,124 @@ import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
 // 公開のエンドポイントは模擬する。これらのテストは、GitHub に決して書き込まない。
+test("Netlify connection errors stay readable on mobile and can be retried", async ({ page }) => {
+  await page.route("**/api/publish?*", async route => {
+    await route.fulfill({ json: {
+      provider: "netlify", configured: true, unset: null, previewEnabled: true,
+      production: { repo: null, branch: "main", url: null, error: null },
+      test: { repo: null, branch: "preview", url: null, error: null },
+    } });
+  });
+  let failures = 0;
+  await page.route("**/api/publish/netlify/operations", async route => {
+    failures++;
+    await route.fulfill({ status: 502, json: { error: "Netlify request failed (HTTP 503)." } });
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem("tsumu-help-seen-v1", "1");
+    localStorage.setItem("tsumu-netlify-account-v1", JSON.stringify({
+      token: "browser-token-1234567890", userId: "user-12345678", email: "visitor@example.test",
+    }));
+  });
+  const response = await page.request.post("/api/sites", { data: { name: "Netlify connection error" } });
+  expect(response.ok()).toBeTruthy();
+  const { site } = await response.json();
+  await page.setViewportSize({ width: 375, height: 700 });
+  await page.goto(`/sites/${site.id}`);
+  await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
+  await page.locator('[data-tutorial="publish"]').click();
+  const modal = page.locator(".netlify-pub-modal");
+  await expect(modal.getByRole("alert")).toContainText("Netlifyへのリクエストが完了しませんでした");
+  const close = modal.getByRole("button", { name: "閉じる", exact: true });
+  const connect = modal.getByRole("button", { name: "Netlifyに接続", exact: true });
+  const retry = modal.getByRole("button", { name: "再試行", exact: true });
+  await expect(close).toBeVisible();
+  await expect(connect).toBeVisible();
+  await expect(retry).toBeVisible();
+  const dialogBox = await modal.boundingBox();
+  expect(dialogBox).not.toBeNull();
+  for (const button of [close, connect, retry]) {
+    const box = await button.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(dialogBox!.x);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(dialogBox!.x + dialogBox!.width);
+  }
+  await retry.click();
+  await expect.poll(() => failures).toBe(2);
+  await expect(modal.getByRole("alert")).toContainText("Netlifyへのリクエストが完了しませんでした");
+  await close.click();
+  await expect(modal).toHaveCount(0);
+});
+
+test("Netlify publishes generated ZIP to the selected team and reuses the project", async ({ page }) => {
+  await page.route("**/api/publish?*", async route => {
+    await route.fulfill({ json: {
+      provider: "netlify", configured: true, unset: null, previewEnabled: true,
+      production: { repo: null, branch: "main", url: null, error: null },
+      test: { repo: null, branch: "preview", url: null, error: null },
+    } });
+  });
+  let created = 0;
+  let deployed = 0;
+  const projectId = "project-12345678";
+  const teamId = "team-12345678";
+  await page.route("**/api/publish/netlify/operations", async route => {
+    const body = route.request().postDataJSON();
+    expect(body.token).toBe("browser-token-1234567890");
+    if (body.action === "account") {
+      await route.fulfill({ json: {
+        user: { id: "user-12345678", email: "visitor@example.test" },
+        teams: [{ id: teamId, slug: "visitor-team", name: "Visitor team" }],
+      } });
+    } else if (body.action === "create") {
+      created++;
+      expect(body).toMatchObject({ target: "production", teamSlug: "visitor-team" });
+      await route.fulfill({ json: { id: projectId, url: "https://visitor-site.netlify.app", teamId } });
+    } else {
+      await route.fulfill({ status: 400, json: { error: "Unexpected Netlify operation" } });
+    }
+  });
+  await page.route("**/api/publish/netlify/deploy", async route => {
+    deployed++;
+    const headers = route.request().headers();
+    expect(headers["content-type"]).toBe("application/zip");
+    expect(headers["x-netlify-access-token"]).toBe("browser-token-1234567890");
+    expect(headers["x-netlify-project-id"]).toBe(projectId);
+    expect(headers["x-netlify-team-id"]).toBe(teamId);
+    const archive = route.request().postDataBuffer();
+    expect(archive).not.toBeNull();
+    expect(archive!.subarray(0, 2).toString()).toBe("PK");
+    await route.fulfill({ json: {
+      provider: "netlify", id: "deploy-12345678", state: "ready",
+      deploymentUrl: "https://deploy-12345678--visitor-site.netlify.app",
+      siteUrl: "https://visitor-site.netlify.app",
+    } });
+  });
+  await page.addInitScript(() => {
+    localStorage.setItem("tsumu-help-seen-v1", "1");
+    localStorage.setItem("tsumu-netlify-account-v1", JSON.stringify({
+      token: "browser-token-1234567890", userId: "user-12345678", email: "visitor@example.test",
+    }));
+  });
+  const response = await page.request.post("/api/sites", { data: { name: "Netlify production flow" } });
+  expect(response.ok()).toBeTruthy();
+  const { site } = await response.json();
+  await page.goto(`/sites/${site.id}`);
+  await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
+  for (let count = 1; count <= 2; count++) {
+    await page.locator('[data-tutorial="publish"]').click();
+    const modal = page.locator(".netlify-pub-modal");
+    await expect(modal.getByRole("button", { name: "本番に公開" })).toBeVisible();
+    await modal.getByRole("button", { name: "本番に公開" }).click();
+    await expect(modal).toContainText("Netlifyへのデプロイを受け付けました");
+    await expect(modal.getByRole("link", { name: "サイトを開く" })).toHaveAttribute("href", "https://visitor-site.netlify.app");
+    await modal.getByRole("button", { name: "閉じる", exact: true }).click();
+    await expect(modal).toHaveCount(0);
+    expect(created).toBe(1);
+    expect(deployed).toBe(count);
+  }
+});
+
 test("Publish controls stay hidden until GitHub configuration resolves across token, repo, error, and configured states", async ({ page }) => {
   let releaseConfig: (() => void) | undefined;
   const releaseGate = () => releaseConfig?.();

@@ -1353,6 +1353,47 @@
   overflow-wrap: anywhere;
 }
 
+.netlify-pub-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 12px;
+  padding: 14px;
+  border-radius: var(--radius-l);
+  background: var(--field);
+  color: var(--danger);
+}
+
+.netlify-pub-error > svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.netlify-pub-error p {
+  min-width: 0;
+  margin: 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.netlify-pub-error-actions {
+  margin-top: 18px;
+}
+
+@media (max-width: 480px) {
+  .netlify-pub-error-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .netlify-pub-error-actions .btn {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+}
+
 /* 公開先（GitHub）が未設定のときの案内 */
 .pub-unset {
   display: flex;

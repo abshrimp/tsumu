@@ -189,6 +189,7 @@ test("Netlify client credential is scoped to the user-selected team", async () =
     const path = new URL(String(url)).pathname;
     assert.equal(init?.headers instanceof Headers ? init.headers.get("Authorization") :
       (init?.headers as Record<string, string>)?.Authorization, "Bearer browser-token-1234567890");
+    assert.equal(init?.redirect, "manual");
     if (path.endsWith("/user")) return Response.json({ id: "user-12345678", email: "visitor@example.test" });
     if (path.endsWith("/accounts")) return Response.json([
       { id: "team-12345678", slug: "visitor-team", name: "Visitor's Team" },
@@ -247,6 +248,27 @@ test("Netlify account APIs never accept arbitrary URL paths or an invalid token"
   const { netlifyApi } = await import("../lib/netlify-publish");
   await assert.rejects(netlifyApi("short", "/sites"), /Invalid Netlify access token/);
   await assert.rejects(netlifyApi("browser-token-1234567890", "//attacker.test"), /Invalid Netlify API path/);
+});
+
+test("Netlify API calls work on Workers and reject redirects without exposing a token", async () => {
+  const { netlifyApi } = await import("../lib/netlify-publish");
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (url, init) => {
+    calls++;
+    assert.equal(String(url), "https://api.netlify.com/api/v1/user");
+    assert.equal(init?.redirect, "manual");
+    assert.equal((init?.headers as Record<string, string>)?.Authorization, "Bearer browser-token-1234567890");
+    return new Response(null, {
+      status: 302, headers: { Location: "https://unexpected.example/path" },
+    });
+  };
+  try {
+    await assert.rejects(netlifyApi("browser-token-1234567890", "/user"), /redirected/);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 });
 

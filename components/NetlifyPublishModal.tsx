@@ -20,7 +20,7 @@ import {
   type StaticPublishSubmitted,
 } from "./StaticPublishShared";
 import {
-  readNetlifyAccount, saveNetlifyAccount, disconnectNetlifyAccount,
+  readNetlifyAccount, saveNetlifyAccount,
   readNetlifySite, saveNetlifySite, saveNetlifyProject, disconnectNetlifySite,
   readNetlifyOAuthConfig, startNetlifyOAuth, requestNetlify,
   type BrowserNetlifyAccount, type BrowserNetlifySite,
@@ -35,6 +35,37 @@ export interface NetlifyPublishModalConfig {
 type Team = { id: string; slug: string; name: string };
 type RemoteAccount = { user: { id: string; email: string }; teams: Team[] };
 type Phase = "loading" | "team" | "check" | "busy" | "done" | "error" | "history";
+
+function netlifyConnectionError(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : "";
+  if (message === "Netlify OAuth is not configured." || message === "Netlify publishing is disabled.") {
+    return tr("Netlify publishing is not configured. Ask the administrator to check the OAuth settings.");
+  }
+  if (message === "The registered Netlify callback URL does not match this Tsumu origin.") {
+    return tr("The Netlify callback URL does not match this site. Ask the administrator to check it.");
+  }
+  if (message.startsWith("Browser storage is unavailable.")) {
+    return tr("Browser storage is blocked. Allow site data and connect again.");
+  }
+  if (message.startsWith("Netlify authorization expired") || message === "Netlify authorization is required." ||
+      message.startsWith("Netlify authorization expired or does not permit")) {
+    return tr("Your Netlify authorization has expired or lacks permission. Connect again.");
+  }
+  if (message === "Netlify did not return a valid account." || message === "Netlify returned an invalid account.") {
+    return tr("Netlify returned an invalid account.");
+  }
+  if (message === "Netlify request failed (HTTP 429).") {
+    return tr("Netlify is temporarily limiting requests. Try again later.");
+  }
+  if (message.startsWith("Netlify request failed (HTTP ") || message === "Netlify request failed." ||
+      message === "Netlify unexpectedly redirected an API request.") {
+    return tr("Netlify could not complete the request. Try again later.");
+  }
+  if (cause instanceof TypeError) {
+    return tr("Could not reach the publishing service. Check your network and retry.");
+  }
+  return userMessage(cause, tr("Couldn't connect Netlify."));
+}
 
 export default function NetlifyPublishModal({
   conf, onClose,
@@ -56,6 +87,8 @@ export default function NetlifyPublishModal({
   const [history, setHistory] = useState<StaticDeploymentItem[] | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const historyRequestRef = useRef(0);
+  const loginStartedRef = useRef(false);
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
 
   useEscapeToClose(onClose, phase !== "busy" && !restoring);
   useEffect(() => {
@@ -65,8 +98,15 @@ export default function NetlifyPublishModal({
   const blocked = !conf.configured || checks.some((item) => item.level === "error");
 
   const beginLogin = async () => {
-    const config = await readNetlifyOAuthConfig();
-    startNetlifyOAuth(conf.site, config);
+    if (loginStartedRef.current) return;
+    loginStartedRef.current = true;
+    try {
+      const config = await readNetlifyOAuthConfig();
+      startNetlifyOAuth(conf.site, config);
+    } catch (cause) {
+      loginStartedRef.current = false;
+      throw cause;
+    }
   };
 
   useEffect(() => {
@@ -119,14 +159,14 @@ export default function NetlifyPublishModal({
         }
       } catch (cause) {
         if (!alive) return;
-        setError(userMessage(cause, tr("Couldn't connect Netlify.")));
+        setError(netlifyConnectionError(cause));
         setPhase("error");
       }
     })();
     return () => { alive = false; };
   // The editor mounts this dialog afresh for each Publish press.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conf.site, conf.configured]);
+  }, [conf.site, conf.configured, connectionAttempt]);
 
   const chooseTeam = () => {
     if (!account?.userId) return;
@@ -253,18 +293,26 @@ export default function NetlifyPublishModal({
   };
 
   const reconnect = async () => {
+    setError(null);
+    setPhase("loading");
     try {
-      disconnectNetlifyAccount();
+      // A cancelled sign-in must not discard the previous browser connection.
       await beginLogin();
     } catch (cause) {
-      setError(userMessage(cause, tr("Couldn't connect Netlify.")));
+      setError(netlifyConnectionError(cause));
       setPhase("error");
     }
   };
 
+  const retryConnection = () => {
+    setError(null);
+    setPhase("loading");
+    setConnectionAttempt((attempt) => attempt + 1);
+  };
+
   return (
     <div className="modal-backdrop" onClick={phase === "busy" || !!restoring ? undefined : onClose}>
-      <div className="modal pub-modal" onClick={event => event.stopPropagation()}>
+      <div className="modal pub-modal netlify-pub-modal" onClick={event => event.stopPropagation()}>
         <h2>{phase === "history" ? tr("Deployment history") : tr("Publish site")}</h2>
         {phase === "loading" && (
           <div className="pub-loading" role="status"><LoaderCircle className="spin" size={16} />{tr("Checking Netlify connection…")}</div>
@@ -344,10 +392,16 @@ export default function NetlifyPublishModal({
         )}
         {phase === "error" && (
           <>
-            <p className="pub-card-error" role="alert"><TriangleAlert size={14}/>{error}</p>
-            <div className="modal-actions">
+            <div className="netlify-pub-error" role="alert">
+              <TriangleAlert size={18} aria-hidden="true" />
+              <p>{error}</p>
+            </div>
+            <div className="modal-actions netlify-pub-error-actions">
               <button className="btn" onClick={onClose}>{tr("Close")}</button>
               {account && binding && <button className="btn" onClick={() => setPhase("check")}>{tr("Back")}</button>}
+              {readNetlifyAccount() && (
+                <button className="btn" onClick={retryConnection}>{tr("Retry")}</button>
+              )}
               <button className="btn btn-primary" onClick={() => void reconnect()}>{tr("Connect Netlify")}</button>
             </div>
           </>
