@@ -662,7 +662,7 @@ test("page-load for-each and if execute on fetched items before rendering, inclu
       transform: { kind: "parse" } },
     { id: "each-price", kind: "for-each", array: "data.rows", then: [
       { id: "if-enabled", kind: "if",
-        cond: { subject: "var", target: "", left: "{enabled}", op: "eq", value: "true" },
+        cond: { subject: "var", target: "", left: "{enabled}", op: "eq", value: '\"true\"' },
         then: [
           { id: "double", kind: "transform", source: "price", into: "doubled",
             transform: { kind: "math", operation: "multiply", operand: 2 } },
