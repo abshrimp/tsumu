@@ -437,7 +437,7 @@ test("string replacements refuse expansion beyond 100KB without allocating huge 
 test("dynamic regex replacements reject catastrophic patterns and ambiguous quantifiers", () => {
   // A naive replace with (a+)+$ on this input causes exponential backtracking.
   const input = "a".repeat(28) + "!";
-  for (const pattern of ["(a+)+$", "(a|aa)+$", "a+a+$", ".*.*$", "([ab]+)([abc]+)$"]) {
+  for (const pattern of ["(a+)+$", "((a+))+$", "((a|aa))+$", "(a|aa)+$", "a+a+$", ".*.*$", "([ab]+)([abc]+)$"]) {
     const result = evaluateValueRecipe(input, [{
       kind: "replace", find: pattern, replacement: "x", regex: true,
     }]);
