@@ -548,26 +548,30 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         : -1;
     listOps.set(array, i >= 0 ? cur.map((o, j) => (j === i ? op : o)) : [...cur, op]);
   };
-  const isServerPure = (st: ScriptStep): boolean => {
+  const isServerPure = (st: ScriptStep, inLoop = false): boolean => {
     if (st.kind === "set-var") return !!st.into &&
       !clientVars.has(st.into) && !extractVars(st.value).some(isClient);
+    if (st.kind === "set-list-item") return !!st.list && !isClient(st.list) &&
+      !extractVars(st.key).some(isClient) && !extractVars(st.value).some(isClient);
+    if (st.kind === "break-loop") return inLoop;
     if (st.kind === "transform") {
       if (!st.into || !st.source || clientVars.has(st.into) || isClient(st.source)) return false;
       return !transformReferences(st.transform).some(isClient);
     }
     if (st.kind === "for-each") return !!st.array && !isClient(st.array) &&
-      st.then.length > 0 && st.then.every(isServerPure);
+      st.then.length > 0 && st.then.every((child) => isServerPure(child, true));
     if (st.kind === "if") return (st.conditions?.length ?? 0) <= 32 &&
       [st.cond, ...(st.conditions ?? [])].every((condition) =>
         condition.subject === "var" &&
         !extractVars(condition.left ?? "").some(isClient) &&
         !extractVars(condition.value ?? "").some(isClient)) &&
-      st.then.every(isServerPure) && (st.else ?? []).every(isServerPure);
+      st.then.every((child) => isServerPure(child, inLoop)) &&
+      (st.else ?? []).every((child) => isServerPure(child, inLoop));
     if (st.kind === "repeat") {
       const name = repeatVarName(st.times);
       return (typeof st.times === "number"
         ? Number.isInteger(st.times) && st.times > 0 && st.times <= 1000
-        : !!name && !isClient(name)) && st.then.every(isServerPure);
+        : !!name && !isClient(name)) && st.then.every((child) => isServerPure(child, true));
     }
     return false;
   };
@@ -588,6 +592,11 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
           steps.push(st);
           serverIds.add(st.id);
         }
+      } else if (st.kind === "set-list-item" && isServerPure(st)) {
+        steps.push(st);
+        serverIds.add(st.id);
+      } else if (st.kind === "set-list-item") {
+        clientVars.add(rootName(st.list));
       } else if (
         (st.kind === "for-each" || st.kind === "if" || st.kind === "repeat") &&
         isServerPure(st)
