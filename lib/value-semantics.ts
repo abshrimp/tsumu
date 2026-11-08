@@ -9,7 +9,7 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
     value !== null && typeof value === "object";
   const numeric = (value: unknown): number | undefined => {
     if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
-    if (typeof value !== "string" || !/^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/.test(value.trim())) return undefined;
+    if (typeof value !== "string" || !/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value.trim())) return undefined;
     const n = Number(value.trim());
     return Number.isFinite(n) ? n : undefined;
   };
