@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import JSZip from "jszip";
 import { HTML_ZIP_LIMITS, inspectHtmlZip, readZipEntryLimited } from "../lib/html-zip-guard";
+import { readHtmlZip } from "../lib/html-zip";
 
 async function reopen(zip: JSZip): Promise<JSZip> {
   const bytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
@@ -74,5 +75,39 @@ test("streamed decompression rejects real expansion beyond the advertised limit"
 test("HTML ZIP rejects more than 200 files", async () => {
   const input = new JSZip().file("index.html", "safe");
   for (let i = 0; i < HTML_ZIP_LIMITS.entries; i++) input.file("assets/" + i + ".txt", "x");
-  assert.throws(() => inspectHtmlZip(await reopen(input)), /200個まで/);
+  const zip = await reopen(input);
+  assert.throws(() => inspectHtmlZip(zip), /200個まで/);
+});
+
+test("raw HTML ZIP import rejects oversized HTML without starting uploads", async () => {
+  const input = new JSZip()
+    .file("index.html", "x".repeat(HTML_ZIP_LIMITS.htmlBytes + 1))
+    .file("asset.js", "export {}");
+  const bytes = await input.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  const originalFetch = globalThis.fetch;
+  let uploads = 0;
+  globalThis.fetch = async () => { uploads++; throw new Error("Unexpected upload"); };
+  try {
+    await assert.rejects(readHtmlZip(bytes), /HTMLが大きすぎ/);
+    assert.equal(uploads, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("raw HTML ZIP import validates all stylesheets before uploading other assets", async () => {
+  const input = new JSZip()
+    .file("index.html", "<link rel=\"stylesheet\" href=\"bad.css\">")
+    .file("first.js", "export {}")
+    .file("bad.css", new Uint8Array([0xff, 0xfe, 0xfd]));
+  const bytes = await input.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  const originalFetch = globalThis.fetch;
+  let uploads = 0;
+  globalThis.fetch = async () => { uploads++; throw new Error("Unexpected upload"); };
+  try {
+    await assert.rejects(readHtmlZip(bytes), /UTF-8/);
+    assert.equal(uploads, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
