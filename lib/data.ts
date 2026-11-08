@@ -920,12 +920,12 @@ export function previewDataVars(
         if (!st.into) break;
         const src = setVarSource(st);
         if (src) {
-          save(st.into, lookupVar(scope(), src) ?? null);
+          save(st.into, lookupVar(scope(), src));
           const origin = originFor(src);
           if (origin) setOrigin(st.into, origin);
         } else if (!extractVars(st.value).length) {
-          // Constant load-time values are pure; escaped braces remain literal.
-          save(st.into, interpolate(st.value, scope()));
+          // Infer only unambiguous JSON literals; preserve ordinary text.
+          save(st.into, parseValueLiteral(interpolate(st.value, scope())));
           delete origins[st.into];
         }
         break;
