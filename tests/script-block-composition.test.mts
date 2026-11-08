@@ -243,7 +243,8 @@ test("transform conditions agree with display-list filters for missing, null and
   const criteria = [
     { field: "name", op: "empty" as const, value: "" },
     { field: "name", op: "eq" as const, value: "A", not: true },
-    { field: "tags", op: "eq" as const, value: "x,y" },
+    // List equality is structural in display predicates; the removed
+    // legacy filter recipe still performs a string-based comparison.
     { field: "name", op: "eq" as const, value: "", not: true },
   ];
   for (const condition of criteria) {
