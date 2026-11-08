@@ -108,7 +108,7 @@ test("standalone HTML selects query-variant pages before loading their data", as
 });
 
 
-test("standalone HTML executes #136 transform and condition blocks in Chromium", async ({ page }) => {
+test("standalone HTML executes transform and condition blocks in Chromium", async ({ page }) => {
   const doc: SiteDoc = {
     siteName: "Composable HTML data",
     pageOrder: ["home"],
