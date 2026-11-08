@@ -446,26 +446,14 @@ function transformReferences(transform: TransformStep["transform"]): string[] {
   const refs = (text: string) => extractVars(text);
   let fields: string[] = [];
   switch (transform.kind) {
-    case "field":
-    case "has": fields = refs(transform.key); break;
-    case "object-entries": fields = [...refs(transform.keyField), ...refs(transform.valueField)]; break;
-    case "fallback":
-    case "fallback-nullish": fields = refs(transform.text); break;
+    case "field": fields = refs(transform.key); break;
+    case "fallback": fields = refs(transform.text); break;
     case "split":
     case "join": fields = refs(transform.separator); break;
     case "replace": fields = [...refs(transform.find), ...refs(transform.replacement)]; break;
-    case "find":
-    case "filter":
-    case "map-set":
-    case "map-field":
     case "sort": fields = refs(transform.field); break;
   }
-  if (transform.kind === "compare" || transform.kind === "find" || transform.kind === "filter") {
-    fields.push(...refs(transform.operand));
-    for (const condition of transform.conditions ?? []) {
-      fields.push(...refs(condition.field), ...refs(condition.operand));
-    }
-  } else if ("operandType" in transform && transform.operandType === "variable" &&
+  if ("operandType" in transform && transform.operandType === "variable" &&
       typeof transform.operand === "string") fields.push(transform.operand);
   else if ("operandType" in transform && transform.operandType === "text" &&
       typeof transform.operand === "string") fields.push(...refs(transform.operand));
@@ -750,7 +738,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
       if (st.kind !== "transform" || !st.into || seen.has(st.into)) return;
-      const listProducing = ["split", "filter", "object-entries", "map-field", "map-set", "sort", "append", "remove", "remove-at"].includes(st.transform.kind);
+      const listProducing = ["split", "sort", "append"].includes(st.transform.kind);
       if (!listProducing) {
         transformedSamples ??= previewDataVars(doc, pageId);
         if (!Array.isArray(lookupVar(transformedSamples, st.into))) return;
@@ -1280,31 +1268,18 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       st.source = fn(st.source) ?? st.source;
       const t = st.transform;
       const next: Record<string, unknown> = { ...t };
-      if (t.kind === "compare" || t.kind === "find" || t.kind === "filter") {
-        next.operand = mapVarTokens(t.operand, fn);
-      } else if ("operandType" in t && typeof t.operand === "string") {
+      if ("operandType" in t && typeof t.operand === "string") {
         if (t.operandType === "variable") next.operand = fn(t.operand) ?? t.operand;
         if (t.operandType === "text") next.operand = mapVarTokens(t.operand, fn);
       }
-      if (t.kind === "field" || t.kind === "has") next.key = mapVarTokens(t.key, fn);
-      if (t.kind === "object-entries") {
-        next.keyField = mapVarTokens(t.keyField, fn);
-        next.valueField = mapVarTokens(t.valueField, fn);
-      }
-      if (t.kind === "fallback" || t.kind === "fallback-nullish") next.text = mapVarTokens(t.text, fn);
+      if (t.kind === "field") next.key = mapVarTokens(t.key, fn);
+      if (t.kind === "fallback") next.text = mapVarTokens(t.text, fn);
       if (t.kind === "split" || t.kind === "join") next.separator = mapVarTokens(t.separator, fn);
       if (t.kind === "replace") {
         next.find = mapVarTokens(t.find, fn);
         next.replacement = mapVarTokens(t.replacement, fn);
       }
-      if ("field" in t) next.field = mapVarTokens(t.field, fn);
-      if ("conditions" in t && t.conditions) {
-        next.conditions = t.conditions.map((condition) => ({
-          ...condition,
-          field: mapVarTokens(condition.field, fn),
-          operand: mapVarTokens(condition.operand, fn),
-        }));
-      }
+      if (t.kind === "sort") next.field = mapVarTokens(t.field, fn);
       st.transform = next as typeof st.transform;
     }
     else if (
