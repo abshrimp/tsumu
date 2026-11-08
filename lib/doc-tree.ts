@@ -37,8 +37,13 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
   }
   if (components != null && (typeof components !== "object" || Array.isArray(components) ||
       !Object.entries(components).every(([id, comp]) => validComponentEntry(id, comp) && edges.has(comp.rootId)))) return false;
+  const owned = new Set(parents);
   for (const [id, page] of Object.entries(pages)) {
     if (!entryWithId(id, page) || typeof page.slug !== "string" || !hasValidChildren(page) || !page.children.every(id => edges.has(id))) return false;
+    for (const child of page.children) {
+      if (owned.has(child)) return false;
+      owned.add(child);
+    }
   }
   let layer = [...edges.keys()].filter(id => !parents.has(id));
   let visited = 0;
