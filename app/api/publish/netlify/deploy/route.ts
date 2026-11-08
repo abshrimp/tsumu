@@ -27,6 +27,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       provider: "netlify", id: deployment.id, state: deployment.state,
       deploymentUrl: deployment.url, siteUrl: deployment.siteUrl,
+      projectName: deployment.projectName,
     }, { headers: NO_STORE });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Netlify deployment failed." },

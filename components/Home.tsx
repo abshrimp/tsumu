@@ -262,9 +262,9 @@ function SiteCard({
   onDelete: () => void;
 }) {
   const edited = site.savedAt ?? site.updatedAt;
-  const liveUrl = site.siteUrl ||
-    (store === "local" && provider === "netlify"
-      ? readNetlifySite(site.id)?.production?.url || null : null);
+  const liveUrl = provider === "netlify"
+    ? readNetlifySite(site.id)?.production?.url ?? null
+    : site.siteUrl;
   return (
     <article className="home-card">
       <a className="home-card-link" href={sitePath(site.id)} aria-label={tr("Open {name}", { name: site.name })}>
@@ -407,7 +407,9 @@ function SiteDialog({
           {site
             ? provider === "github"
               ? tr("Change the site name and the GitHub repository it publishes to.")
-              : tr("Change the site name and optional published site URLs.")
+              : provider === "netlify"
+                ? tr("Change the site name. Netlify manages published URLs automatically.")
+                : tr("Change the site name and optional published site URLs.")
             : copyOf
               ? tr("Creates a new site with the same pages, elements and settings as “{name}”. The publishing destination isn't copied, so set one if you need it.", { name: copyOf.name })
               : tr("Creates an empty site and opens it in the editor.")}
@@ -417,7 +419,7 @@ function SiteDialog({
           <input className="input" value={form.name} onChange={set("name")} autoFocus maxLength={100} required />
         </Field>
 
-        <details
+        {provider !== "netlify" && <details
           className="home-dest"
           ref={destination}
           open={!!site}
@@ -459,9 +461,7 @@ function SiteDialog({
             </div>
             </>)}
             {provider !== "github" && (
-              <p className="hint">{provider === "netlify"
-                ? tr("Netlify is connected when you publish. Your account and project links remain in this browser.")
-                : tr("Hosting provider and credentials are set on the server. A separate hosting project is created automatically for every site.")}</p>
+              <p className="hint">{tr("Hosting provider and credentials are set on the server. A separate hosting project is created automatically for every site.")}</p>
             )}
             <div className="home-field-row">
               <Field label={tr("Live site URL")}>
@@ -478,7 +478,7 @@ function SiteDialog({
               </Field>
             </div>
           </div>
-        </details>
+        </details>}
 
         {error && (
           <p className="home-dialog-error">

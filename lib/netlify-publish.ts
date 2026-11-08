@@ -137,7 +137,7 @@ export async function createNetlifyProject(
 
 export async function deployNetlifyZip(
   token: string, siteId: string, teamId: string, zip: ArrayBuffer
-): Promise<NetlifyDeployment & { siteUrl: string }> {
+): Promise<NetlifyDeployment & { siteUrl: string; projectName?: string }> {
   const site = await verifyNetlifySite(token, siteId, teamId);
   const deployment = await netlifyApi<{
     id?: unknown; state?: string; deploy_ssl_url?: string; ssl_url?: string;
@@ -149,6 +149,9 @@ export async function deployNetlifyZip(
     id: deployment.id, state: deployment.state || "processing",
     url: deployment.deploy_ssl_url || deployment.ssl_url || siteUrl(site),
     siteUrl: siteUrl(site),
+    // Dashboard URLs use the project name, not the API's opaque project ID.
+    ...(typeof site.name === "string" && ACCOUNT_RE.test(site.name)
+      ? { projectName: site.name } : {}),
   };
 }
 

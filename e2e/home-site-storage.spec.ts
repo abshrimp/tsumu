@@ -21,12 +21,12 @@ const source = { ...emptyDest(), id: "source", name: "Original", createdAt: 1, u
 let bundle: string;
 test.beforeAll(async () => { bundle = await homeSiteStorageBundle(); });
 
-async function prepare(page: import("@playwright/test").Page, large = false) {
+async function prepare(page: import("@playwright/test").Page, large = false, provider: "github" | "netlify" = "github") {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("http://tsumu-home.test/**", route => {
     if (new URL(route.request().url()).pathname === "/api/sites") return route.fulfill({ status: 503, json: {} });
-    if (new URL(route.request().url()).pathname === "/api/publish/provider") return route.fulfill({ status: 200, json: { provider: "github" } });
+    if (new URL(route.request().url()).pathname === "/api/publish/provider") return route.fulfill({ status: 200, json: { provider } });
     return route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' });
   });
   await page.goto("http://tsumu-home.test/");
@@ -86,6 +86,21 @@ test("collapsed publishing fields keep their values and reopen for validation", 
   await repo.fill("owner/site");
   await submit.click();
   await expect(dialog).toHaveCount(0);
+});
+
+test("Netlify site settings do not ask for manual production or preview URLs", async ({ page }) => {
+  const { errors } = await prepare(page, false, "netlify");
+  await page.getByRole("button", { name: "サイトの操作" }).click();
+  await page.getByRole("menuitem", { name: "設定", exact: true }).click();
+  const dialog = page.locator(".home-dialog");
+  await expect(dialog).toContainText("公開URLはNetlifyで自動管理されます");
+  await expect(dialog.locator(".home-dest")).toHaveCount(0);
+  await expect(dialog.getByPlaceholder("https://example.com")).toHaveCount(0);
+  await dialog.locator("input").first().fill("Renamed Netlify site");
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".home-card-name")).toHaveText("Renamed Netlify site");
+  expect(errors).toEqual([]);
 });
 
 test("a large IndexedDB document can be duplicated without localStorage quota errors", async ({ page }) => {

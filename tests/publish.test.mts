@@ -244,6 +244,37 @@ test("Netlify never deploys files to a project outside the chosen team", async (
   } finally { globalThis.fetch = original; }
 });
 
+test("Netlify deployment includes the verified project name for the visibility settings link", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    assert.equal(init?.redirect, "manual");
+    if (path.endsWith("/sites/site-12345678")) {
+      return Response.json({
+        id: "site-12345678", account_id: "team-12345678",
+        name: "visitor-project", ssl_url: "https://visitor-project.netlify.app",
+      });
+    }
+    if (path.endsWith("/sites/site-12345678/deploys")) {
+      assert.equal(init?.method, "POST");
+      return Response.json({
+        id: "deploy-12345678", state: "ready",
+        deploy_ssl_url: "https://deploy-12345678--visitor-project.netlify.app",
+      });
+    }
+    throw new Error("Unexpected Netlify API request");
+  };
+  try {
+    const deploy = await deployNetlifyZip(
+      "browser-token-1234567890", "site-12345678", "team-12345678", new ArrayBuffer(8),
+    );
+    assert.equal(deploy.projectName, "visitor-project");
+    assert.equal(deploy.siteUrl, "https://visitor-project.netlify.app");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("Netlify account APIs never accept arbitrary URL paths or an invalid token", async () => {
   const { netlifyApi } = await import("../lib/netlify-publish");
   await assert.rejects(netlifyApi("short", "/sites"), /Invalid Netlify access token/);

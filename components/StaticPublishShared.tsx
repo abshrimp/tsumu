@@ -51,10 +51,12 @@ export function StaticPublishDoneView({
   providerName,
   result,
   onClose,
+  visibilitySettingsUrl,
 }: {
   providerName: string;
   result: StaticPublishSubmitted;
   onClose: () => void;
+  visibilitySettingsUrl?: string;
 }) {
   return (
     <>
@@ -63,6 +65,12 @@ export function StaticPublishDoneView({
         {tr("Deployment submitted to {provider}.", { provider: providerName })}
       </div>
       <p className="hint">{tr("Deployment status: {state}", { state: result.state })}</p>
+      {visibilitySettingsUrl && (
+        <a className="pub-visibility-link" href={visibilitySettingsUrl} target="_blank" rel="noopener noreferrer">
+          <ExternalLink size={14} />
+          {tr("Manage public or private access in Netlify")}
+        </a>
+      )}
       <div className="modal-actions">
         <a className="btn" href={result.deploymentUrl} target="_blank" rel="noopener noreferrer">
           <ExternalLink size={13} />{tr("View deployment")}
@@ -98,7 +106,7 @@ export function StaticDeploymentHistoryView({
   onClose: () => void;
 }) {
   return (
-    <>
+    <div className="pub-deployment-history">
       <p className="modal-desc">{description}</p>
       <Seg
         value={target}
@@ -139,6 +147,6 @@ export function StaticDeploymentHistoryView({
         <button className="btn" disabled={!!restoring} onClick={onBack}>{tr("Back")}</button>
         <button className="btn" disabled={!!restoring} onClick={onClose}>{tr("Close")}</button>
       </div>
-    </>
+    </div>
   );
 }

@@ -4,7 +4,8 @@ import type { Dict } from "../i18n";
 const ja: Dict = {
   "Change the Netlify team? Existing published sites will stay online, but new projects will be created in the new team.": "Netlifyチームを変更しますか？公開済みのサイトは引き続き公開されますが、新しいチームには別のプロジェクトが作成されます。",
   "Change Netlify team": "Netlifyチームを変更",
-  "Netlify is connected when you publish. Your account and project links remain in this browser.": "Netlifyは公開時に接続します。アカウントと公開先の情報はこのブラウザに保存されます。",
+  "Change the site name. Netlify manages published URLs automatically.": "サイト名を変更します。公開URLはNetlifyで自動管理されます。",
+  "Manage public or private access in Netlify": "Netlifyで公開・非公開を設定",
   "Netlify OAuth is not configured.": "Netlify OAuthが設定されていません。",
   "Netlify returned an invalid account.": "Netlifyから正しいアカウント情報を取得できませんでした。",
   "Couldn't connect Netlify.": "Netlifyに接続できませんでした。",

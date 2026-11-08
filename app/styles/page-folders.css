@@ -1431,6 +1431,92 @@
   margin-top: 16px;
 }
 
+.netlify-account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 6px 12px;
+  margin: 0 0 14px;
+}
+
+.netlify-account-identity {
+  flex: 1 1 180px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.netlify-account-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.netlify-account-controls .btn {
+  white-space: normal;
+  text-align: center;
+}
+
+.pub-visibility-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 16px;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pub-visibility-link:hover {
+  text-decoration: underline;
+}
+
+.pub-visibility-link > svg {
+  flex: none;
+}
+
+.pub-deployment-history {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 14px;
+}
+
+.pub-deployment-history > .modal-desc {
+  margin-bottom: 0;
+}
+
+.pub-deployment-history > .seg {
+  align-self: flex-start;
+}
+
+.pub-deployment-history > .hist-list {
+  margin: 2px 0;
+  max-height: min(42dvh, 380px);
+}
+
+.pub-deployment-history > .hist-list li {
+  padding: 12px 14px;
+}
+
+.pub-deployment-history > .modal-actions {
+  margin-top: 2px;
+}
+
+@media (max-width: 560px) {
+  .netlify-account-controls {
+    margin-left: 0;
+  }
+
+  .pub-deployment-history {
+    gap: 12px;
+  }
+}
+
 /* ---------- 履歴 ---------- */
 
 .modal.hist-modal {

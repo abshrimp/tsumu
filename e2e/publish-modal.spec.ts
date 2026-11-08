@@ -72,6 +72,11 @@ test("Netlify publishes generated ZIP to the selected team and reuses the projec
         user: { id: "user-12345678", email: "visitor@example.test" },
         teams: [{ id: teamId, slug: "visitor-team", name: "Visitor team" }],
       } });
+    } else if (body.action === "history") {
+      await route.fulfill({ json: { deployments: [{
+        id: "deploy-12345678", state: "ready", date: "2026-11-18T01:00:00Z",
+        url: "https://visitor-site.netlify.app", canRestore: true,
+      }] } });
     } else if (body.action === "create") {
       created++;
       expect(body).toMatchObject({ target: "production", teamSlug: "visitor-team" });
@@ -93,7 +98,7 @@ test("Netlify publishes generated ZIP to the selected team and reuses the projec
     await route.fulfill({ json: {
       provider: "netlify", id: "deploy-12345678", state: "ready",
       deploymentUrl: "https://deploy-12345678--visitor-site.netlify.app",
-      siteUrl: "https://visitor-site.netlify.app",
+      siteUrl: "https://visitor-site.netlify.app", projectName: "visitor-site",
     } });
   });
   await page.addInitScript(() => {
@@ -111,14 +116,30 @@ test("Netlify publishes generated ZIP to the selected team and reuses the projec
     await page.locator('[data-tutorial="publish"]').click();
     const modal = page.locator(".netlify-pub-modal");
     await expect(modal.getByRole("button", { name: "本番に公開" })).toBeVisible();
+    await expect(modal.locator(".netlify-account-row").getByRole("button", { name: "Netlifyアカウントを切り替える" })).toBeVisible();
+    await expect(modal.locator(".pub-actions").getByRole("button", { name: "Netlifyアカウントを切り替える" })).toHaveCount(0);
     await modal.getByRole("button", { name: "本番に公開" }).click();
     await expect(modal).toContainText("Netlifyへのデプロイを受け付けました");
     await expect(modal.getByRole("link", { name: "サイトを開く" })).toHaveAttribute("href", "https://visitor-site.netlify.app");
+    await expect(modal.getByRole("link", { name: "Netlifyで公開・非公開を設定" })).toHaveAttribute("href",
+      "https://app.netlify.com/projects/visitor-site/configuration/general#visitor-access");
     await modal.getByRole("button", { name: "閉じる", exact: true }).click();
     await expect(modal).toHaveCount(0);
     expect(created).toBe(1);
     expect(deployed).toBe(count);
   }
+
+  await page.locator('[data-tutorial="publish"]').click();
+  const historyModal = page.locator(".netlify-pub-modal");
+  await historyModal.getByRole("button", { name: "デプロイ履歴", exact: true }).click();
+  const history = historyModal.locator(".pub-deployment-history");
+  await expect(history.locator(".hist-list li")).toHaveCount(1);
+  const tabs = await history.locator(".seg").boundingBox();
+  const list = await history.locator(".hist-list").boundingBox();
+  const footer = await history.locator(".modal-actions").boundingBox();
+  expect(tabs && list && footer).toBeTruthy();
+  expect(list!.y - (tabs!.y + tabs!.height)).toBeGreaterThanOrEqual(10);
+  expect(footer!.y - (list!.y + list!.height)).toBeGreaterThanOrEqual(10);
 });
 
 test("Publish controls stay hidden until GitHub configuration resolves across token, repo, error, and configured states", async ({ page }) => {

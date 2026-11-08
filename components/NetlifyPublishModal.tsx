@@ -35,6 +35,7 @@ export interface NetlifyPublishModalConfig {
 type Team = { id: string; slug: string; name: string };
 type RemoteAccount = { user: { id: string; email: string }; teams: Team[] };
 type Phase = "loading" | "team" | "check" | "busy" | "done" | "error" | "history";
+type NetlifyPublishSubmitted = StaticPublishSubmitted & { projectName?: string };
 
 function netlifyConnectionError(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : "";
@@ -83,7 +84,7 @@ export default function NetlifyPublishModal({
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState("");
   const [target, setTarget] = useState<PublishTarget>("production");
-  const [result, setResult] = useState<StaticPublishSubmitted | null>(null);
+  const [result, setResult] = useState<NetlifyPublishSubmitted | null>(null);
   const [history, setHistory] = useState<StaticDeploymentItem[] | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const historyRequestRef = useRef(0);
@@ -227,7 +228,7 @@ export default function NetlifyPublishModal({
         throw new Error(data?.error || tr("Couldn't publish"));
       }
       if (nextTarget === "production") markPublished(docFingerprint(snapshot));
-      setResult(data as StaticPublishSubmitted);
+      setResult(data as NetlifyPublishSubmitted);
       setPhase("done");
     } catch (cause) {
       setError(userMessage(cause, tr("Couldn't publish")));
@@ -341,7 +342,21 @@ export default function NetlifyPublishModal({
             <p className="modal-desc">
               {tr("Publish to your Netlify account. Only generated static files are uploaded, not the editing document.")}
             </p>
-            <p className="hint">{account?.email} · {teams.find(team => team.id === binding?.teamId)?.name || binding?.teamSlug}</p>
+            <div className="netlify-account-row">
+              <span className="hint netlify-account-identity">
+                {account?.email} · {teams.find(team => team.id === binding?.teamId)?.name || binding?.teamSlug}
+              </span>
+              <div className="netlify-account-controls">
+                {teams.length > 1 && (
+                  <button className="btn btn-ghost btn-sm" onClick={() => void changeTeam()}>
+                    {tr("Change Netlify team")}
+                  </button>
+                )}
+                <button className="btn btn-ghost btn-sm" onClick={() => void reconnect()}>
+                  {tr("Switch Netlify account")}
+                </button>
+              </div>
+            </div>
             <CheckList checks={checks} onClose={onClose} />
             <div className="pub-cards">
               {(["test", "production"] as const).map(item => {
@@ -372,14 +387,6 @@ export default function NetlifyPublishModal({
               <button className="btn btn-ghost" onClick={() => void openHistory("production")}>
                 <History size={13}/>{tr("Deployment history")}
               </button>
-              {teams.length > 1 && (
-                <button className="btn btn-ghost" onClick={() => void changeTeam()}>
-                  {tr("Change Netlify team")}
-                </button>
-              )}
-              <button className="btn btn-ghost" onClick={() => void reconnect()}>
-                {tr("Switch Netlify account")}
-              </button>
               <button className="btn" onClick={onClose}>{tr("Close")}</button>
             </div>
           </>
@@ -388,7 +395,14 @@ export default function NetlifyPublishModal({
           <LoaderCircle className="spin" size={16}/>{progress}
         </div>}
         {phase === "done" && result && (
-          <StaticPublishDoneView providerName="Netlify" result={result} onClose={onClose} />
+          <StaticPublishDoneView
+            providerName="Netlify"
+            result={result}
+            onClose={onClose}
+            visibilitySettingsUrl={result.projectName && /^[a-z0-9][a-z0-9-]{0,62}$/.test(result.projectName)
+              ? `https://app.netlify.com/projects/${encodeURIComponent(result.projectName)}/configuration/general#visitor-access`
+              : undefined}
+          />
         )}
         {phase === "error" && (
           <>
