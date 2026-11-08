@@ -118,3 +118,22 @@ test("keyed array writes cannot create holes or mutate original data", () => {
   assert.equal(run([{ id: "bad", kind: "set-list-item", list: "source", key: "1000000", value: "4" }], vars), true);
   assert.deepEqual(vars.source, [1, 2, 3]);
 });
+
+test("nested loops read list values from the enclosing item without dropping their keys", () => {
+  const vars: Record<string, unknown> = {
+    catalogue: {
+      fruit: { tags: ["red", "sweet"] },
+      vegetable: { tags: ["green"] },
+    },
+  };
+  const steps: ScriptStep[] = [
+    { id: "init", kind: "set-var", into: "colours", value: "[]" },
+    { id: "outer", kind: "for-each", array: "catalogue", then: [
+      { id: "inner", kind: "for-each", array: "ループ.値.tags", then: [
+        { id: "add", kind: "set-list-item", list: "colours", key: "", value: "{ループ.値}" },
+      ] },
+    ] },
+  ];
+  assert.equal(run(steps, vars), true);
+  assert.deepEqual(vars.colours, ["red", "sweet", "green"]);
+});
