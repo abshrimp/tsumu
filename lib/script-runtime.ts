@@ -9,6 +9,7 @@ import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
+import { matchesValueCondition } from "./value-semantics";
 import { codeLiteral } from "./generator/code-literal";
 
 /* ---------- 実行ランタイム ---------- */
@@ -24,6 +25,7 @@ import { codeLiteral } from "./generator/code-literal";
  */
 export const SCRIPT_RUNTIME = `function (env) {
   ${NAVIGATION_RUNTIME}
+  var matchValueCondition = (${matchesValueCondition.toString()});
   /*#setvar*/
   // esbuild may annotate named inner functions with __name when serializing .toString().
   var __name = function (fn) { return fn; };
@@ -63,6 +65,20 @@ export const SCRIPT_RUNTIME = `function (env) {
       v = v[part];
     }
     return v;
+  }
+  // Inputs can contain a literal value, a list, one raw reference, or mixed text.
+  function inputValue(raw, self, scope) {
+    if (typeof raw !== "string") return raw;
+    var source = raw.trim();
+    var reference = /^\\{([^{}\\s"'<>]+)\\}$/.exec(source);
+    if (reference) return lookup(reference[1], self, scope);
+    if (source === "true" || source === "false" || source === "null" ||
+        source.charAt(0) === "[" || source.charAt(0) === "{" ||
+        /^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/.test(source) ||
+        (source.length >= 2 && source.charAt(0) === '"' && source.charAt(source.length - 1) === '"')) {
+      try { return JSON.parse(source); } catch (e) {}
+    }
+    return resolve(raw, self, scope);
   }
   // 表示用の文字にする（配列は「, 」でつなぐ）
   function text(v) {
@@ -580,7 +596,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#var*/
         if (c.subject === "var") {
           if (!c.left || !String(c.left).trim()) return false;
-          var matched = cmp(resolve(c.left, self, sc), c.op, resolve(c.value, self, sc));
+          var matched = matchValueCondition(inputValue(c.left, self, sc), c.op || "eq", inputValue(c.value, self, sc));
           return c.not ? !matched : matched;
         }
         /*/var*/
@@ -603,7 +619,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               return c.not ? !same : same;
             }
           }
-          var matches = cmp(valueOf(els), c.op, w);
+          var matches = matchValueCondition(valueOf(els), c.op || "eq", w);
           return c.not ? !matches : matches;
         }
         /*/value*/
@@ -673,7 +689,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             grp = true;
           }
           var fv = fieldOf(item, c.field);
-          var matches = cmp(filterText(fv), c.op, c.value);
+          var matches = matchValueCondition(fv, c.op, c.value);
           grp = grp && (c.not ? !matches : matches);
         });
         return ok || grp;
@@ -1079,8 +1095,15 @@ export const SCRIPT_RUNTIME = `function (env) {
       // くり返し中の要素（cx: { array, index, item, up, run }）の項目を、外側から順に重ねた値
       function scopeOf(cx) {
         if (!cx) return undefined;
-        var o = scopeOf(cx.up) || Object.create(null);
-        for (var k in cx.item) if (has(cx.item, k)) o[k] = cx.item[k];
+        var parent = scopeOf(cx.up);
+        var o = Object.assign(Object.create(null), parent);
+        if (cx.item) for (var k in cx.item) if (has(cx.item, k)) o[k] = cx.item[k];
+        o["ループ"] = {
+          "値": cx.raw,
+          "キー": cx.key,
+          "順番": cx.index,
+          "外側": parent && parent["ループ"]
+        };
         return o;
       }
       function merged(a, b) {
@@ -1222,7 +1245,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               var entry = {
                 key: key, no: st.no, join: st.join,
                 conds: st.conds.map(function (c) {
-                  return { field: c.field, op: c.op, value: resolve(c.value, self, sc), not: c.not, and: c.and };
+                  return { field: c.field, op: c.op, value: inputValue(c.value, self, sc), not: c.not, and: c.and };
                 }),
               };
               var at = -1;
@@ -1280,6 +1303,31 @@ export const SCRIPT_RUNTIME = `function (env) {
               console.warn("Value transform failed:", transformed.code, st.transform.kind, st.source, st.into);
             break;
           }
+          case "set-list-item": {
+            if (!st.list || typeof st.list !== "string") break;
+            var sourceList = getVar(st.list);
+            if (!sourceList || typeof sourceList !== "object") break;
+            var providedKey = typeof st.key === "string" && st.key.trim() !== "";
+            var rawKey = providedKey ? inputValue(st.key, self, sc) : undefined;
+            if (providedKey && (rawKey === null || typeof rawKey !== "string" && typeof rawKey !== "number")) break;
+            var newValue = inputValue(st.value, self, sc);
+            if (Array.isArray(sourceList)) {
+              var nextArray = sourceList.slice();
+              var targetIndex = providedKey ? Number(rawKey) : nextArray.length;
+              if (!Number.isSafeInteger(targetIndex) || targetIndex < 0 ||
+                  targetIndex > nextArray.length || nextArray.length >= 10000 && targetIndex === nextArray.length) break;
+              nextArray[targetIndex] = newValue;
+              setVar(st.list, nextArray);
+            } else {
+              if (!providedKey || Object.keys(sourceList).length >= 10000) break;
+              var nextKey = String(rawKey);
+              if (nextKey === "__proto__" || nextKey === "prototype" || nextKey === "constructor") break;
+              var nextObject = Object.assign(Object.create(null), sourceList);
+              nextObject[nextKey] = newValue;
+              setVar(st.list, nextObject);
+            }
+            break;
+          }
           case "set-var": {
             /*#clist*/
             if (st.rawRef) {
@@ -1294,7 +1342,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             }
             // {名前} だけなら値をそのまま入れる（配列はリストで並べられる配列のまま）
             var sv = /^\\{([^{}\\s"'<>]+)\\}$/.exec(String(st.value || "").trim());
-            setVar(st.into, sv ? lookup(sv[1].trim(), self, sc) : resolve(st.value, self, sc));
+            setVar(st.into, sv ? lookup(sv[1].trim(), self, sc) : inputValue(st.value, self, sc));
             break;
           }
           /*/setvar*/
@@ -1324,41 +1372,51 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/copy*/
         }
       }
+      var LOOP_BREAK = {};
       /*#repeat*/
-      // times 回（0 = ずっと）中のブロックをくり返す。ずっとのときは止まらないよう少し間をあける
-      function loop(st, self, cx, n, active, times, forever) {
+      // Each nested loop catches its own break; the enclosing script continues.
+      function loop(st, self, cx, n, active, times, forever, depth) {
         if (!active() || (!forever && n >= times)) return Promise.resolve();
-        return runSteps(st.then, self, cx, active)
-          .then(function () {
-            return !active() || !forever ? null : sleep(0.05);
-          })
-          .then(function () {
-            return loop(st, self, cx, n + 1, active, times, forever);
+        var local = { item: {}, array: "", index: n, key: String(n), raw: n, up: cx };
+        return runSteps(st.then, self, local, active, depth + 1).then(function (flow) {
+          if (flow === LOOP_BREAK || !active()) return;
+          return (forever ? sleep(0.05) : Promise.resolve()).then(function () {
+            return loop(st, self, cx, n + 1, active, times, forever, depth);
           });
-      }
-      /*/repeat*/
-      /*#each*/
-      // 配列の要素ごとに中のブロックを動かす（くり返しの途中で格納した項目は次の要素から見える）
-      function each(st, self, up, run, i, active) {
-        if (!active()) return Promise.resolve();
-        var arr = getVar(st.array);
-        if (!Array.isArray(arr) || i >= arr.length) {
-          if (run.dirty) setVar(st.array, getVar(st.array));
-          return Promise.resolve();
-        }
-        var x = arr[i];
-        if (x == null || Array.isArray(x)) return each(st, self, up, run, i + 1, active);
-        var cx = { array: st.array, index: i, item: typeof x === "object" ? x : { "値": x }, up: up, run: run };
-        return runSteps(st.then, self, cx, active).then(function () {
-          return each(st, self, up, run, i + 1, active);
         });
       }
-      /*/each*/
-      function runSteps(steps, self, cx, active) {
+            /*/repeat*/
+      /*#each*/
+      // Use a stable snapshot of own keys and values; do not skip null/nested lists.
+      function each(st, self, up, i, active, entries, depth) {
+        if (!active()) return Promise.resolve();
+        if (!entries) {
+          var source = getVar(st.array);
+          if (!source || typeof source !== "object") return Promise.resolve();
+          var keys = Object.keys(source);
+          if (keys.length > 10000) return Promise.resolve();
+          entries = keys.map(function (key) { return { key: key, value: source[key] }; });
+        }
+        if (i >= entries.length) return Promise.resolve();
+        var entry = entries[i], value = entry.value;
+        var item = value && typeof value === "object" && !Array.isArray(value) ? value : { "値": value };
+        var cx = { array: st.array, index: i, key: entry.key, raw: value, item: item, up: up };
+        return runSteps(st.then, self, cx, active, depth + 1).then(function (flow) {
+          if (flow === LOOP_BREAK) return;
+          return each(st, self, up, i + 1, active, entries, depth);
+        });
+      }
+            /*/each*/
+      function runSteps(steps, self, cx, active, loopDepth) {
+        var depth = loopDepth || 0;
         var i = 0;
         function next() {
           while (active() && i < steps.length) {
             var st = steps[i++];
+            if (st.kind === "break-loop") {
+              if (depth > 0) return Promise.resolve(LOOP_BREAK);
+              continue;
+            }
             /*#wait*/
             if (st.kind === "wait") {
               var seconds = numericAmount(st.seconds, self, scopeOf(cx), lookup);
@@ -1370,7 +1428,9 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (st.kind === "if") {
               var branch = testConditions(st, self, scopeOf(cx)) ? st.then : st.else;
               if (branch && branch.length) {
-                return runSteps(branch, self, cx, active).then(next);
+                return runSteps(branch, self, cx, active, depth).then(function (flow) {
+                  return flow === LOOP_BREAK ? LOOP_BREAK : next();
+                });
               }
               continue;
             }
@@ -1382,13 +1442,13 @@ export const SCRIPT_RUNTIME = `function (env) {
               if (!Number.isInteger(count) || count < 0 || count > 1000) continue;
               var forever = typeof st.times === "number" && st.times === 0;
               if (!forever && count === 0) continue;
-              return loop(st, self, cx, 0, active, count, forever).then(next);
+              return loop(st, self, cx, 0, active, count, forever, depth).then(next);
             }
             /*/repeat*/
             /*#each*/
             if (st.kind === "for-each") {
               if (!st.then || !st.then.length) continue;
-              return each(st, self, cx, { dirty: false }, 0, active).then(next);
+              return each(st, self, cx, 0, active, null, depth).then(next);
             }
             /*/each*/
             exec(st, self, cx);
@@ -1734,6 +1794,8 @@ const STEP_FEATURE: Record<
   "store-save": "store",
   "store-load": "store",
   "set-var": "setvar",
+  "set-list-item": "setvar",
+  "break-loop": "repeat",
   transform: "setvar",
   copy: "copy",
   wait: "wait",
