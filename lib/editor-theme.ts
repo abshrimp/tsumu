@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { storageKey } from "./storage-keys";
 
 /** エディターの UI だけに適用し、公開サイトのスタイルとは切り離す。 */
-export type EditorThemePreference = "system" | "light" | "dark";
+type EditorThemePreference = "system" | "light" | "dark";
 const STORAGE_KEY = storageKey("editor-appearance");
 let selected: EditorThemePreference | null = null;
 const listeners = new Set<() => void>();

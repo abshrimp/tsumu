@@ -55,7 +55,7 @@
 | 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が Next.js プロジェクトを `{ files, binaries, remoteAssets }` として返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
 | 出力形式 | `lib/export-formats.ts` と、`lib/generator/` のその他のファイル。詳細は [出力形式](#出力形式) を参照してください。 |
 | 公開と zip での書き出し | `components/PublishModal.tsx` から `app/api/publish/route.ts`・`lib/publish-security.ts`（GitHub Git Data API）へ、`components/StaticPublishModal.tsx` から `app/api/publish/static/`・`lib/static-hosting.ts`（Cloudflare Pages）へ、または `components/NetlifyPublishModal.tsx` から `app/api/publish/netlify/`・`lib/browser-netlify.ts`・`lib/netlify-publish.ts`（ブラウザ連携の Netlify OAuth）へ（`lib/publish-provider.ts` で選択し、`components/StaticPublishShared.tsx` と `lib/static-hosting-route.ts` を共用）。詳細は [公開の仕組み](#公開の仕組み) を参照してください。<br>`components/ExportModal.tsx`（`Header.tsx` から開く）から `lib/exportZip.ts`・`lib/zip.ts`（`CompressionStream` / `DecompressionStream` による外部依存なしの ZIP 読み書き）へ |
-| インポート | `lib/import-site-file.ts`（ファイルからのサイト作成）、`lib/site-import.ts` と `lib/site-import-format.ts`（Tsumu の zip と `doc.json`）、`lib/site-backup.ts`（アセット一式を含むバックアップ zip）、`lib/portable-doc.ts`（圧縮形式の `doc.json`）、`lib/html-to-site.ts` と `html-file-import.ts`（必要時に遅延読み込み）・`html-zip.ts`（HTML）。詳細は [インポート](#インポート) を参照してください。 |
+| インポート | `lib/import-site-file.ts`（ファイルからのサイト作成）、`lib/site-import.ts` と `lib/site-import-format.ts`（Tsumu の zip と `doc.json`）、`lib/site-backup.ts`（アセット一式を含むバックアップ zip）、`lib/html-to-site.ts` と `html-file-import.ts`（必要時に遅延読み込み）・`html-zip.ts`（HTML）。詳細は [インポート](#インポート) を参照してください。 |
 | 公開前チェック | `lib/generator/checks.ts` の `runChecks`。リンク切れ、代替テキスト、見出しの順序、小さすぎる文字、レイアウトのはみ出しを検査します。 |
 | 保存 | `document-room.ts`・`lib/structured-document-store.ts`：サイトの作成世代ごとに1つの SQLite 対応 Durable Object を使い、ページ・要素などを個別の行とトランザクション付きの `rev` で保存<br>`lib/site-document-service.ts`：Cloudflare と Node.js の保存先の振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node.js・Docker 用の SQLite<br>`lib/kv.ts`：アセットの本体<br>`lib/browser-doc-storage.ts`：ブラウザのみに保存するサイトの文書・アセット用 IndexedDB（`tsumu-documents`）<br>`lib/local-storage.ts`：`tsumu-*` のブラウザ設定とローカルサイト一覧 |
 | KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認し、`lib/asset-ledger.ts` が物理オブジェクト（`asset_objects`）とサイト別の所有関係（`site_assets`）を記録します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](docs/asset-gc.md)（英語））。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、そのサイトの削除待ち候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
@@ -152,7 +152,7 @@
 
 ファイルの種類ごとの処理は次のとおりです。
 
-- **Tsumu の zip・`doc.json`**（`lib/site-import.ts`）：zip には `_tsumu/doc.json` が1つのみ含まれている必要があります。`_tsumu/assets.json` は、元のアセットの ID とアーカイブ内のファイルを対応付けます。`doc.json` は、通常の JSON か、`lib/portable-doc.ts` による gzip＋Base64 の圧縮形式です。読み込む際は文書を検証し、アセットを元の ID のまま再アップロードします。パスは推測しないため、対応表になく data URL もないアセットは復元せず、注意事項として表示します。ルートの外を指すパスは受け付けません。
+- **Tsumu の zip・`doc.json`**（`lib/site-import.ts`）：zip には `_tsumu/doc.json` が1つのみ含まれている必要があります。`_tsumu/assets.json` は、元のアセットの ID とアーカイブ内のファイルを対応付けます。読み込む際は文書を検証し、アセットを元の ID のまま再アップロードします。パスは推測しないため、対応表になく data URL もないアセットは復元せず、注意事項として表示します。ルートの外を指すパスは受け付けません。
 - **HTML ファイル・ウェブサイトの zip**（`lib/html-to-site.ts`）：すべてのページを編集可能なノードに変換します。クラスと安全な一部の属性は保持し（`lib/imported-html-attrs.ts`）、イベント属性、URL を含む属性、Tsumu 内部の `data-*` 属性は引き継ぎません。
 - **上限**（`IMPORT_LIMITS`）：zip は100MB、`doc.json` と HTML ファイルは12MB、展開後は1,500ファイル・300MBまでです。
 

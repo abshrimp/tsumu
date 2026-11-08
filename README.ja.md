@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="public/tsumu-logo-dark.svg">
-    <img src="public/tsumu-logo.svg" alt="Tsumu" width="360">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/tsumu-logo-dark.svg">
+    <img src="docs/tsumu-logo.svg" alt="Tsumu" width="360">
   </picture>
 </p>
 

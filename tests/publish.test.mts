@@ -1,6 +1,6 @@
 import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { finishNetlifyOAuth, startNetlifyOAuth, readNetlifyAccount, saveNetlifyAccount, disconnectNetlifyAccount, readNetlifySite, saveNetlifySite, saveNetlifyProject, disconnectNetlifySite } from "../lib/browser-netlify";
+import { finishNetlifyOAuth, startNetlifyOAuth, readNetlifyAccount, saveNetlifyAccount, readNetlifySite, saveNetlifySite, saveNetlifyProject, disconnectNetlifySite } from "../lib/browser-netlify";
 import { netlifyOAuthConfig, netlifyAccount, createNetlifyProject, verifyNetlifySite, deployNetlifyZip } from "../lib/netlify-publish";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { createRequire, stripTypeScriptTypes } from "node:module";
@@ -139,7 +139,6 @@ test("Netlify storage helpers degrade gracefully when browser storage is blocked
   try {
     assert.equal(readNetlifyAccount(), null);
     assert.equal(readNetlifySite("local123456"), null);
-    assert.doesNotThrow(() => disconnectNetlifyAccount());
     assert.doesNotThrow(() => disconnectNetlifySite("local123456"));
     assert.throws(() => saveNetlifyAccount({ token: "opaque-oauth-token-1234567" }), /Browser storage is unavailable/);
     assert.throws(() => startNetlifyOAuth("local123456", {

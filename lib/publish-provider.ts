@@ -3,7 +3,7 @@ import type { PublishTarget } from "./generator";
 import { isSiteId } from "./sites";
 
 export type PublishProvider = "github" | "netlify" | "cloudflare";
-export type HostingProvider = Exclude<PublishProvider, "github">;
+type HostingProvider = Exclude<PublishProvider, "github">;
 export type StaticPublishProvider = "cloudflare";
 
 /** This setting belongs to the Tsumu server, never to a site's editable document. */
@@ -43,7 +43,6 @@ export function netlifyPublishConfig(): { configured: boolean; error: string | n
 export interface StaticPublishConfig {
   provider: StaticPublishProvider;
   project: string;
-  previewProject: string;
   configured: boolean;
   error: string | null;
   productionUrl: string;
@@ -55,12 +54,10 @@ export function staticPublishConfig(siteId: string): StaticPublishConfig {
     throw new Error("Cloudflare Pages publishing is not selected.");
   }
   const project = hostingProjectName(siteId, "cloudflare", "production");
-  const previewProject = hostingProjectName(siteId, "cloudflare", "test");
   const configured = !!envVar("CLOUDFLARE_ACCOUNT_ID") && !!envVar("CLOUDFLARE_API_TOKEN");
   return {
     provider: "cloudflare",
     project,
-    previewProject,
     configured,
     error: configured ? null : "CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required on the server.",
     productionUrl: "https://" + project + ".pages.dev",

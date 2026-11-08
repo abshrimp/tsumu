@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   });
   if (ctx instanceof NextResponse) return ctx;
   const { siteId, target, conf, dest } = ctx;
-  const project = target === "test" ? conf.previewProject : conf.project;
+  const { project } = conf;
   if (params.get("project") !== project) {
     return NextResponse.json({ error: "The publishing destination changed. Reopen the publish dialog." }, { status: 409 });
   }

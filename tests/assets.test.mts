@@ -4,8 +4,6 @@ import { ZipArchive } from "../lib/zip";
 import { exportProjectZip } from "../lib/exportZip";
 import { generateExportProject } from "../lib/export-formats";
 import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
-import { IMPORT_LIMITS } from "../lib/site-import-format";
-import { serializePortableDoc } from "../lib/portable-doc";
 import { validSiteDoc as validSiteDoc_2, validSiteDoc as validSiteDoc_3 } from "../lib/doc-tree";
 import { makeBox, makeImage, createInitialDoc, makeText } from "../lib/presets";
 import { type SiteDoc, type Asset } from "../lib/types";
@@ -122,8 +120,7 @@ test("4000 nested nodes, 160 scripts and binary assets survive JSON, ZIP, restor
     id: "script-" + i, trigger: "click",    steps: [{ id: "step-" + i, kind: "set-var", into: "message", value: "雪<>& " + i }],
   }];
   const before = structuredClone(doc);
-  const packed = await serializePortableDoc(doc, IMPORT_LIMITS.docBytes);
-  assert.deepEqual((await parseSiteImport(new TextEncoder().encode(packed), "doc")).doc, before);
+  assert.deepEqual((await parseSiteImport(new TextEncoder().encode(JSON.stringify(doc)), "doc")).doc, before);
   const globals = Object.getOwnPropertyDescriptors(globalThis);
   const createUrl = URL.createObjectURL;
   const stored = new Map<string, Uint8Array>();

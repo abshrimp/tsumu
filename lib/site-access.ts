@@ -8,7 +8,7 @@ import { serverTr } from "./i18n-server";
 import { isValidEmail } from "./email";
 
 export type SiteRole = "owner" | "editor" | "viewer";
-export type SiteAction = "view" | "edit" | "manage";
+type SiteAction = "view" | "edit" | "manage";
 
 export function isSiteRole(value: unknown): value is SiteRole {
   return value === "owner" || value === "editor" || value === "viewer";

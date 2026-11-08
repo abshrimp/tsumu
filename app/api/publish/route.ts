@@ -205,7 +205,7 @@ export async function GET(req: Request) {
       provider, configured: available, unset: available ? null : "token",
       previewEnabled: true,
       test: {
-        project: staticConfig.previewProject,
+        project: staticConfig.project,
         url: dest.previewUrl || staticConfig.previewUrl,
         error,
       },

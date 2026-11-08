@@ -8,7 +8,7 @@ import type { SiteDest } from "./sites";
 
 export const STATIC_NO_STORE = { "Cache-Control": "private, no-store" } as const;
 
-export interface StaticPublishContext {
+interface StaticPublishContext {
   siteId: string;
   target: PublishTarget;
   conf: StaticPublishConfig;

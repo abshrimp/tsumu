@@ -59,7 +59,7 @@ export function usedGoogleFonts(doc: SiteDoc) {
 }
 
 /** Only referenced uploaded fonts are emitted into generated stylesheets. */
-export function usedUploadedFonts(doc: SiteDoc) {
+function usedUploadedFonts(doc: SiteDoc) {
   const families = usedFontFamilies(doc);
   return (doc.uploadedFonts ?? []).filter(font => families.has(font.family) &&
     Object.hasOwn(doc.assets, font.assetId));

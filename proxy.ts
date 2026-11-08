@@ -9,8 +9,6 @@ const PUBLIC_BRAND_PATHS = new Set([
   "/icon.svg",
   "/apple-icon.png",
   "/tsumu-mark.svg",
-  "/tsumu-logo.svg",
-  "/tsumu-logo-dark.svg",
 ]);
 
 export async function proxy(req: NextRequest) {
@@ -80,5 +78,5 @@ function setupRequired(pathname: string, en: boolean): NextResponse {
 
 export const config = {
   // robots.txt とログイン画面で使うブランドアイコンは認証なしで配信する
-  matcher: ["/((?!api/auth|_next/static|_next/image|icon\\.svg|apple-icon\\.png|tsumu-(?:mark|logo|logo-dark)\\.svg|robots\\.txt).*)"],
+  matcher: ["/((?!api/auth|_next/static|_next/image|icon\\.svg|apple-icon\\.png|tsumu-mark\\.svg|robots\\.txt).*)"],
 };

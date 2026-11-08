@@ -11,12 +11,10 @@
 
 .panel-l {
   width: var(--panel-l-w, 252px);
-  border-right: 1px solid var(--border);
 }
 
 .panel-r {
   width: var(--panel-r-w, 288px);
-  border-left: 1px solid var(--border);
 }
 
 .panel-resizer {
@@ -30,11 +28,6 @@
   content: "";
   position: absolute;
   background: transparent;
-}
-
-.panel-resizer:hover::after,
-.panel-resizer:active::after {
-  background: var(--accent);
 }
 
 .tabs {

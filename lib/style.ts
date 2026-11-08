@@ -178,7 +178,7 @@ export function bpChain(bp: Breakpoint): Breakpoint[] {
  * キャンバスに表示するためにスタイルを解決する。
  * default をカスケードで合成し、state を指定したときは、その state を上に重ねる。
  */
-export function resolveStyleMap(
+function resolveStyleMap(
   styles: NodeStyles | undefined,
   bp: Breakpoint,
   state: StyleState

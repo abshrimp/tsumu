@@ -78,7 +78,7 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
   return false;
 }
 
-export const MAX_PUBLISH_DOC_BYTES = 12 * 1024 * 1024;
+const MAX_PUBLISH_DOC_BYTES = 12 * 1024 * 1024;
 
 export function validatePublishDocument(
   content: string | Uint8Array,

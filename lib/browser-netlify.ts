@@ -13,7 +13,7 @@ export interface BrowserNetlifyAccount {
   userId: string | null;
   email: string | null;
 }
-export interface BrowserNetlifyProject { id: string; url: string }
+interface BrowserNetlifyProject { id: string; url: string }
 export interface BrowserNetlifySite {
   userId: string;
   teamId: string;
@@ -79,10 +79,6 @@ export function readNetlifyAccount(): BrowserNetlifyAccount | null {
 /** The token is deliberately browser-owned, never included in the editable document. */
 export function saveNetlifyAccount(account: BrowserNetlifyAccount): void {
   safeSetItem("localStorage", ACCOUNT_KEY, JSON.stringify(account));
-}
-
-export function disconnectNetlifyAccount(): void {
-  safeRemoveItem("localStorage", ACCOUNT_KEY);
 }
 
 export function readNetlifySite(siteId: string): BrowserNetlifySite | null {

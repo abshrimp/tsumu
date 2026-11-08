@@ -216,19 +216,6 @@
   cursor: text;
 }
 
-/* ---- テキスト中の {変数} ---- */
-
-/* 値の無い変数・編集中の変数: チップ */
-.cv-root .cv-tok {
-  padding: 0 0.28em;
-  border-radius: 0.3em;
-  color: #0b7fd4;
-  background: rgba(13, 153, 255, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(13, 153, 255, 0.28);
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
-}
-
 .cv-design [data-rich-edit="true"] {
   white-space: pre-wrap;
 }
