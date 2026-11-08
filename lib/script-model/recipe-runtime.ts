@@ -341,7 +341,14 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
           break;
         case "parse":
           if (absent) break;
-          if (typeof current !== "string") return failure("type-mismatch");
+          // Already-parsed JSON values pass through without changing their type.
+          // This also lets typed variable assignments feed existing parse chains.
+          if (typeof current !== "string") {
+            if (current === null || typeof current === "boolean" ||
+                typeof current === "number" && Number.isFinite(current) ||
+                typeof current === "object") break;
+            return failure("type-mismatch");
+          }
           if (current.length > 100000) return failure("limit-exceeded");
           try { current = JSON.parse(current); } catch { return failure("invalid-json"); }
           break;
