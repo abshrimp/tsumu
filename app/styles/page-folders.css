@@ -1347,8 +1347,8 @@
   margin: 0;
   padding: 8px 10px;
   border-radius: var(--radius-s);
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--error-bg);
+  color: var(--error-ink);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -1866,8 +1866,8 @@ a.hist-msg:hover {
 }
 
 .ai-msg.is-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--error-bg);
+  color: var(--error-ink);
 }
 
 .ai-msg.ai-activity {

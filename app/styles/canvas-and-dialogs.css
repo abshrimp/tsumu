@@ -579,14 +579,14 @@
   word-break: break-word;
   padding: 8px 10px;
   border-radius: var(--radius-s);
-  background: #fffbeb;
-  color: #92400e;
+  background: var(--warning-bg);
+  color: var(--warning-ink);
   line-height: 1.5;
 }
 
 .check-list li.is-error {
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--error-bg);
+  color: var(--error-ink);
 }
 
 .check-ok {
@@ -595,8 +595,8 @@
   align-items: center;
   padding: 10px;
   border-radius: var(--radius-s);
-  background: #f0fdf4;
-  color: #166534;
+  background: var(--success-bg);
+  color: var(--success-ink);
   margin-bottom: 16px;
 }
 
@@ -730,9 +730,9 @@
 }
 
 .tutorial-task.is-done {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-  color: #15803d;
+  border-color: var(--success-ink);
+  background: var(--success-bg);
+  color: var(--success-ink);
 }
 
 .tutorial-card .btn:disabled {

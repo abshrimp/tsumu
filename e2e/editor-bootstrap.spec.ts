@@ -65,6 +65,37 @@ async function expectPending(page: Page, pending: { requested: Promise<void> }) 
   await expect(page.getByText("見出しをここに", { exact: false })).toHaveCount(0);
 }
 
+test("loading tips follow the editor appearance before the editor bundle mounts", async ({ page }) => {
+  const id = await createSite(page, fixture("Dark loading tips"));
+  await page.addInitScript(() => {
+    localStorage.setItem("tsumu-editor-appearance", "dark");
+    localStorage.setItem("tsumu-help-seen-v1", "1");
+  });
+  let release!: () => void;
+  let entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const requested = new Promise<void>(resolve => { entered = resolve; });
+  await page.route(`**/api/sites/${id}`, async route => {
+    entered();
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto(`/sites/${id}`);
+    await requested;
+    await expect(page.locator("html")).toHaveAttribute("data-editor-theme", "dark");
+    await expect(page.locator(".boot-tip span")).toBeVisible();
+    await expect(page.locator(".boot-card")).toHaveCSS("background-color", "rgba(32, 36, 43, 0.96)");
+    await expect(page.locator(".boot-tip")).toHaveCSS("color", "rgb(197, 203, 213)");
+    await expect(page.locator(".boot-tip span")).toHaveCSS("background-color", "rgb(44, 65, 97)");
+    await expect(page.locator(".boot-tip span")).toHaveCSS("color", "rgb(228, 239, 255)");
+    await expect(page.locator(".boot-page .is-nav")).toHaveCSS("background-color", "rgb(45, 51, 60)");
+    await expect(page.locator(".boot-cards b").first()).toHaveCSS("background-color", "rgb(58, 65, 77)");
+  } finally {
+    release();
+  }
+});
+
 test("site validation and the first document read keep one continuous loading screen", async ({ page }) => {
   const id = await createSite(page, fixture("Continuous loading heading"));
   await prepare(page, id);

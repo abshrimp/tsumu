@@ -6,6 +6,7 @@ import type { EditorProps } from "../../../components/Editor";
 import EditorLoading from "../../../components/EditorLoading";
 import { loadLocale, tr } from "../../../lib/i18n";
 import { currentSiteId, loadLocalSites } from "../../../lib/site";
+import { useApplyEditorTheme } from "../../../lib/editor-theme";
 
 // 文言を作る前に言語の辞書を読み込む（モジュールを読み込む時点で訳す文言があるため）
 const loadEditor = () => loadLocale().then(() => import("../../../components/Editor"));
@@ -84,6 +85,8 @@ function useSiteCheck(): SiteState {
 }
 
 export default function SitePage() {
+  // Apply the saved appearance while the editor bundle is still loading.
+  useApplyEditorTheme();
   const state = useSiteCheck();
   const [ready, setReady] = useState(false);
   const onReady = useCallback(() => setReady(true), []);

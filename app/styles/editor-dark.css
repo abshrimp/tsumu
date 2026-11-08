@@ -29,7 +29,15 @@ html[data-editor-theme="dark"] {
   --bp-color: #ffb27c;
   --bp-soft: #513626;
   --bp-field-hover: #68432e;
+  --on-accent: #101d32;
+  --error-bg: #4b292e;
+  --error-ink: #ffcbc6;
+  --warning-bg: #433321;
+  --warning-ink: #f8d69e;
+  --success-bg: #213d30;
+  --success-ink: #b2e4c3;
 }
+
 
 /* Existing light-only surfaces in the inspector and supporting dialogs. */
 html[data-editor-theme="dark"] .state-bar {
@@ -72,4 +80,240 @@ html[data-editor-theme="dark"] :is(
 html[data-editor-theme="dark"] .dyn-bar .dyn-select {
   background: var(--panel);
   color: var(--text);
+}
+
+
+/* Accent-filled actions need dark ink on the pale accent in the dark palette. */
+/* Keep selector specificity low so selected and disabled states take precedence. */
+html[data-editor-theme="dark"] :is(
+  .se-new,
+  .help-hero-icon,
+  .cm-item-num,
+  .hdr-badge,
+  .ai-send
+) {
+  color: var(--on-accent);
+}
+html[data-editor-theme="dark"] :is(
+  .cm-pin:not(.is-draft):not(.is-resolved),
+  .ai-msg.is-user,
+  .kfe-sample:not(.is-ghost)
+) {
+  color: var(--on-accent);
+}
+html[data-editor-theme="dark"] .se-new.is-on {
+  /* The selected button has a muted dark background, unlike the primary action. */
+  color: var(--accent-ink);
+}
+html[data-editor-theme="dark"] .cm-pin.is-resolved {
+  color: var(--bg);
+}
+html[data-editor-theme="dark"] .se-status.is-ready {
+  color: var(--success-ink);
+}
+
+/* Help surfaces: default text stays readable against dark neutral/colored fills. */
+html[data-editor-theme="dark"] .help-hero {
+  background: linear-gradient(135deg, #2b3d58, #232d3e);
+  box-shadow: inset 0 0 0 1px #405875;
+}
+html[data-editor-theme="dark"] .help-cat.is-design {
+  background: #3c3222;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px #76583a;
+}
+html[data-editor-theme="dark"] .help-cat.is-design:hover {
+  background: #493b28;
+  box-shadow: inset 0 0 0 1px #997348;
+}
+html[data-editor-theme="dark"] .help-cat.is-design .help-cat-icon,
+html[data-editor-theme="dark"] .help-cat.is-design:hover .help-cat-icon {
+  background: #614a2d;
+  color: #ffda9a;
+}
+html[data-editor-theme="dark"] .help-rule {
+  background: #3c3222;
+  box-shadow: inset 0 0 0 1px #76583a;
+}
+html[data-editor-theme="dark"] .help-rule-head {
+  color: #ffda9a;
+}
+html[data-editor-theme="dark"] .help-rule p {
+  color: #ecdcc5;
+}
+html[data-editor-theme="dark"] .help-a {
+  background: var(--field);
+}
+html[data-editor-theme="dark"] .help-level.is-l4 {
+  background: #3b2c49;
+  color: #e8c9fc;
+}
+html[data-editor-theme="dark"] .guide-hint svg {
+  color: var(--warning-ink);
+}
+
+/* Selection states must never retain the light editor's blue/white surfaces. */
+html[data-editor-theme="dark"] :is(.layer-row, .page-row):hover {
+  background: var(--field-hover);
+  --row-bg: var(--field-hover);
+}
+html[data-editor-theme="dark"] :is(.layer-row.is-sel, .page-row.is-on, .page-row.is-picked),
+html[data-editor-theme="dark"] :is(.layer-row.is-sel, .page-row.is-on, .page-row.is-picked):hover {
+  background: var(--accent-soft);
+  --row-bg: var(--accent-soft);
+}
+html[data-editor-theme="dark"] .page-row.is-picked {
+  color: var(--accent-ink);
+}
+html[data-editor-theme="dark"] .layer-row.is-sel .layer-tag {
+  background: var(--field);
+  color: var(--accent-ink);
+}
+html[data-editor-theme="dark"] .row-act:hover {
+  background: var(--state-hover);
+}
+html[data-editor-theme="dark"] .row-act.is-danger:hover {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+/* Image controls and fallback thumbnails keep a low-luminance surface. */
+html[data-editor-theme="dark"] .img-pick-thumb {
+  background: repeating-conic-gradient(#303741 0 25%, #1d232c 0 50%) 0 0 / 8px 8px;
+}
+html[data-editor-theme="dark"] .img-pick-asset:hover {
+  background: var(--field-hover);
+}
+html[data-editor-theme="dark"] .home-card-thumb {
+  background:
+    radial-gradient(circle at 30% 20%, rgba(82, 114, 163, 0.32), transparent 60%),
+    linear-gradient(180deg, #283341, #1b232e);
+}
+html[data-editor-theme="dark"] .home-card.is-skeleton {
+  background: linear-gradient(90deg, var(--panel), var(--field), var(--panel));
+  background-size: 200% 100%;
+}
+html[data-editor-theme="dark"] .home-card-menu .icon-btn {
+  background: rgba(38, 46, 57, 0.94);
+  color: var(--text);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+html[data-editor-theme="dark"] .comp-row {
+  color: #cdb2ff;
+}
+html[data-editor-theme="dark"] .comp-row:hover {
+  border-color: #765ba6;
+  background: #352a47;
+}
+html[data-editor-theme="dark"] .asset-del {
+  background: rgba(38, 46, 57, 0.96);
+  color: var(--text);
+}
+
+/* Other editor-only overlays and previews with fixed light tones. */
+html[data-editor-theme="dark"] .home-drop-overlay {
+  background: rgba(18, 22, 28, 0.78);
+}
+html[data-editor-theme="dark"] .cv-placeholder {
+  background: var(--field);
+  color: var(--text-3);
+}
+html[data-editor-theme="dark"] .boot-hdr span,
+html[data-editor-theme="dark"] .boot-panel b {
+  background-color: var(--field);
+}
+html[data-editor-theme="dark"] .boot-hdr .is-btn,
+html[data-editor-theme="dark"] .boot-panel.is-right b.is-field {
+  background-color: var(--accent-soft);
+}
+
+/* The custom code editor uses a syntax palette suitable for the dark background. */
+html[data-editor-theme="dark"] .code-token-comment { color: #a5b1c2; }
+html[data-editor-theme="dark"] :is(.code-token-tag, .code-token-keyword) { color: #d7a6ff; }
+html[data-editor-theme="dark"] :is(.code-token-attribute, .code-token-property) { color: #a6cbff; }
+html[data-editor-theme="dark"] .code-token-string { color: #a4e0be; }
+html[data-editor-theme="dark"] .code-token-number { color: #ffcb98; }
+html[data-editor-theme="dark"] .code-token-selector { color: #f3a5c7; }
+
+html[data-editor-theme="dark"] .boot-card {
+  background: rgba(32, 36, 43, 0.96);
+  color: var(--text);
+}
+
+/* Help illustrations describe editor UI, so use its palette instead of light mock chrome. */
+html[data-editor-theme="dark"] .hf {
+  --hf-bg: #252c36;
+  --hf-item: #46505d;
+  --hf-ink: #aab5c5;
+  --hf-line: #4c5868;
+  --hf-accent: #9bbaff;
+  --hf-accent-soft: #304460;
+  --hf-bad: #ffb4ab;
+  --hf-good: #b2e4c3;
+  --hf-warn: #f8d69e;
+}
+html[data-editor-theme="dark"] .hf-side .hf-box {
+  background: var(--field);
+}
+html[data-editor-theme="dark"] .hf-screen {
+  border-color: var(--hf-line);
+}
+html[data-editor-theme="dark"] .hf-fit {
+  background: repeating-conic-gradient(#303741 0 25%, #1d232c 0 50%) 0 0 / 10px 10px;
+}
+html[data-editor-theme="dark"] .hf-tree span.is-picked {
+  background: var(--hf-accent-soft);
+}
+html[data-editor-theme="dark"] .hf-bp-bar.is-bp {
+  background: var(--warning-bg);
+  color: var(--warning-ink);
+}
+html[data-editor-theme="dark"] :is(.hf-branch.is-test, .hf-node.is-test) {
+  color: var(--hf-warn);
+}
+html[data-editor-theme="dark"] .hf-master {
+  background: #36294c;
+  color: #e2caff;
+  box-shadow: inset 0 0 0 1.5px #916ac8;
+}
+html[data-editor-theme="dark"] .hf-chip-in {
+  background: rgba(41, 49, 59, 0.92);
+}
+html[data-editor-theme="dark"] :is(
+  .hf-menu-btn.is-on, .hf-btn, .hf-node.is-prod,
+  .hf-branch.is-prod, .hf-commit.is-current, .hf-bubble
+) {
+  color: var(--on-accent);
+}
+html[data-editor-theme="dark"] .help-article b {
+  background: linear-gradient(transparent 62%, rgba(251, 211, 72, 0.22) 62%);
+}
+
+/* Skeleton shimmer must remain subtle over dark panels and the Home list. */
+html[data-editor-theme="dark"] .boot-skel b,
+html[data-editor-theme="dark"] .boot-hdr span,
+html[data-editor-theme="dark"] .home-import-skeleton-heading span {
+  background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+}
+
+/* Loading tips are shown before the large editor module has finished loading. */
+html[data-editor-theme="dark"] .boot-card strong {
+  color: var(--text);
+}
+html[data-editor-theme="dark"] .boot-tip {
+  color: var(--text-2);
+}
+html[data-editor-theme="dark"] .boot-tip span {
+  width: fit-content;
+  margin-inline: auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+html[data-editor-theme="dark"] .boot-page b,
+html[data-editor-theme="dark"] .boot-cards b {
+  background: var(--field-hover);
+}
+html[data-editor-theme="dark"] .boot-page .is-nav {
+  background: var(--field);
 }

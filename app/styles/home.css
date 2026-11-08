@@ -149,8 +149,8 @@ a.btn {
   margin: 0;
   padding: 8px 10px;
   border-radius: var(--radius-s);
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--error-bg);
+  color: var(--error-ink);
   line-height: 1.5;
 }
 
@@ -251,9 +251,9 @@ a.btn {
 
 .home-notice.is-error {
   align-items: center;
-  background: #fef2f2;
+  background: var(--error-bg);
   box-shadow: none;
-  color: #991b1b;
+  color: var(--error-ink);
 }
 
 .home-notice.is-error svg {
@@ -591,8 +591,8 @@ a.btn {
   margin: 14px 0 0;
   padding: 8px 10px;
   border-radius: var(--radius-s);
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--error-bg);
+  color: var(--error-ink);
   line-height: 1.5;
 }
 

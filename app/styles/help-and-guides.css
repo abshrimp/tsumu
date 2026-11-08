@@ -320,9 +320,9 @@
   white-space: nowrap;
 }
 
-.help-level.is-l1 { background: #e6f4ea; color: #137333; }
+.help-level.is-l1 { background: var(--success-bg); color: var(--success-ink); }
 .help-level.is-l2 { background: var(--accent-soft); color: var(--accent-ink); }
-.help-level.is-l3 { background: #fef0d9; color: #8a4b00; }
+.help-level.is-l3 { background: var(--warning-bg); color: var(--warning-ink); }
 .help-level.is-l4 { background: #f3e8fd; color: #681da8; }
 
 .help-hero {
@@ -638,8 +638,8 @@
   margin-top: 12px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--error-bg);
+  color: var(--error-ink);
 }
 
 .help-warn svg {
@@ -926,8 +926,8 @@
 }
 
 .guide-status.is-done {
-  background: #e6f4ea;
-  color: #137333;
+  background: var(--success-bg);
+  color: var(--success-ink);
 }
 
 .guide-actions {

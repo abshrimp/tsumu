@@ -745,7 +745,7 @@
   margin: 14px 14px 10px;
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
   transition: background 120ms var(--ease), box-shadow 120ms var(--ease);
 }

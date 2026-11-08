@@ -8,6 +8,7 @@ export type EditorThemePreference = "system" | "light" | "dark";
 const STORAGE_KEY = storageKey("editor-appearance");
 let selected: EditorThemePreference | null = null;
 const listeners = new Set<() => void>();
+let activeThemeEffects = 0;
 
 function storedPreference(): EditorThemePreference {
   try {
@@ -56,6 +57,7 @@ export function useApplyEditorTheme() {
   const preference = useEditorThemePreference();
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
+    activeThemeEffects++;
     const apply = () => {
       document.documentElement.dataset.editorTheme =
         preference === "system" ? (media.matches ? "dark" : "light") : preference;
@@ -64,7 +66,10 @@ export function useApplyEditorTheme() {
     media.addEventListener("change", apply);
     return () => {
       media.removeEventListener("change", apply);
-      delete document.documentElement.dataset.editorTheme;
+      // The loading page and the editor can overlap briefly; keep the theme
+      // until every mounted appearance owner has gone away.
+      activeThemeEffects--;
+      if (activeThemeEffects === 0) delete document.documentElement.dataset.editorTheme;
     };
   }, [preference]);
 }

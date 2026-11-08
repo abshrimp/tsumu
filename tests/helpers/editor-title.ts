@@ -119,6 +119,7 @@ export default function Editor({ onReady }) {
           else if (args.path.endsWith("/BrandMark")) contents = "export default function BrandMark() { return null; }";
           else if (args.path.endsWith("/Glyph")) contents = "export const glyphs = (value) => value;";
           else if (args.path.endsWith("/i18n")) contents = "export const tr = (value) => value; export const loadLocale = async () => {};";
+          else if (args.path.endsWith("/editor-theme")) contents = "export const useApplyEditorTheme = () => {};";
           else if (args.path.endsWith("/site")) contents = 'export const currentSiteId = () => "title-test"; export const loadLocalSites = () => window.titleLocalSites || [];';
           else throw new Error(`Unexpected fixture import: ${args.path}`);
           return { contents, loader: "tsx", resolveDir: resolve(".") };
@@ -136,6 +137,7 @@ export async function editorTitleHydrationHtml() {
     "../../../components/Glyph": { glyphs: (value: string) => value },
     "../../../lib/i18n": { tr: (value: string) => value, loadLocale: async () => {} },
     "../../../lib/site": { currentSiteId: () => "title-test", loadLocalSites: () => [] },
+    "../../../lib/editor-theme": { useApplyEditorTheme: () => {} },
   });
   return "<!DOCTYPE html>" + renderToString(createElement("html", null,
     createElement("head"), createElement("body", null,

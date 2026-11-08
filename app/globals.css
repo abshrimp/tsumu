@@ -19,6 +19,14 @@
   --accent-border: #a8c7fa;
   --danger: #b3261e;
   --warn: #b06000;
+  /* Semantic colors shared by status panels and accent-filled editor controls. */
+  --on-accent: #ffffff;
+  --error-bg: #fef2f2;
+  --error-ink: #991b1b;
+  --warning-bg: #fffbeb;
+  --warning-ink: #92400e;
+  --success-bg: #f0fdf4;
+  --success-ink: #166534;
   --state-hover: rgba(68, 71, 70, 0.08);
   --state-press: rgba(68, 71, 70, 0.12);
   --radius: 8px;
