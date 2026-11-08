@@ -70,7 +70,7 @@ export const ScriptStepCtx = createContext<string>("");
 interface LoopInfo {
   array: string;
   fields: string[];
-  /** 葉の候補に出ない空のまとまり・一覧も含む、項目の名前。 */
+  /** 空のリストも含めて、参照可能な項目名を列挙する。 */
   roots?: string[];
   samples: Record<string, string>;
 }
