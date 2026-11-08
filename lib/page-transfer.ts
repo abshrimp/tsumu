@@ -10,7 +10,7 @@ import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } fr
 import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from "./clip-transfer";
 import { createInitialDoc, genId } from "./presets";
 import { copySlug, uniquePageNaming } from "./store";
-import { DOC_STORAGE_KEY, siteKey } from "./site";
+import { DOC_STORAGE_KEY, isLocalSiteDeleted, siteKey } from "./site";
 import { tr } from "./i18n";
 import { isSiteLang, siteLangOf } from "./site-lang";
 import { normalizeQuery } from "./vars";
@@ -212,6 +212,9 @@ export async function copyPagesToSite(
     const key = siteKey(DOC_STORAGE_KEY, target.id);
     let doc: SiteDoc;
     try {
+      // The destination list can be stale while the copy dialog is open.
+      // Never recreate content for a site explicitly deleted in another tab.
+      if (isLocalSiteDeleted(target.id)) throw new Error("Local destination deleted");
       const raw = window.localStorage.getItem(key);
       // 未保存と読み込み失敗を区別し、読めない既存データを初期状態で上書きしない。
       if (raw === null) {

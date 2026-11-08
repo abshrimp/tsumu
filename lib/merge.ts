@@ -35,10 +35,13 @@ function pickDeep<T>(base: T | undefined, local: T | undefined, remote: T | unde
   if (jl === jb) return remote;
   const jr = JSON.stringify(remote ?? null);
   if (jr === jb || jr === jl) return local;
-  if (!isPlain(base) || !isPlain(local) || !isPlain(remote)) return local;
+  if ((base !== undefined && !isPlain(base)) || !isPlain(local) || !isPlain(remote)) return local;
+  // 同時に初めて追加した設定・スタイルの別々の項目も残す。
+  // null やスカラーからの置き換えは、通常の競合としてローカルを優先する。
+  const before = base === undefined ? {} : base;
   const out: Record<string, unknown> = {};
-  for (const key of new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(base)])) {
-    const v = pickDeep(base[key], local[key], remote[key]);
+  for (const key of new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(before)])) {
+    const v = pickDeep(before[key], local[key], remote[key]);
     if (v !== undefined) out[key] = v;
   }
   return out as T;
@@ -56,7 +59,8 @@ function mergeRecord<T>(
   const out: Record<string, T> = {};
   const ids = new Set([...Object.keys(b), ...Object.keys(l), ...Object.keys(r)]);
   for (const id of ids) {
-    const v = pickDeep(b[id], l[id], r[id]);
+    // 同じIDの別々の新規要素は混ぜない。深い合成は既存要素のプロパティだけ。
+    const v = b[id] === undefined ? pick(b[id], l[id], r[id]) : pickDeep(b[id], l[id], r[id]);
     if (v !== undefined) out[id] = v;
   }
   return out;
