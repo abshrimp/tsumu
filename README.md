@@ -166,6 +166,8 @@ npx wrangler kv namespace create ASSETS_KV    # put the printed id in wrangler.l
 
 Git ignores `wrangler.local.jsonc`, so your resource IDs never end up in the repository. When the file exists, `npm run dev`, `npm run preview` and `npm run deploy` use it automatically. (To use a different file, name it in `WRANGLER_CONFIG`.)
 
+The deploy wrapper validates the selected configuration and refuses command-line overrides such as `--config` or `--env` that could bypass these checks. Use `WRANGLER_CONFIG` with top-level bindings for a custom production config.
+
 For production, configure D1 and KV before deploying. Otherwise the deploy command refuses to proceed, to avoid unintentionally replacing server storage with browser-only storage. To deliberately deploy without one or both bindings, set `TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=true` for that deployment. Local builds and hosted Worker Previews remain browser-only without an opt-in.
 
 **2. Set the secrets and deploy**
