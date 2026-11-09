@@ -168,3 +168,44 @@ test("AUD-F-002: static query variants bootstrap authored scripts before the pag
     "/data-loader.js", "/scripts.js",
   ]);
 });
+
+test("AUD-F-003: native formats refuse authored HTML they would otherwise omit", () => {
+  const site = doc();
+  const page = site.pages.public;
+  const cases: Array<() => void> = [
+    () => { site.customHeadHtml = '<meta name="authored-marker" content="head">'; },
+    () => { site.customBodyEndHtml = '<aside data-marker="footer">Footer</aside>'; },
+    () => { page.customTopHtml = '<div data-marker="top">Top</div>'; },
+    () => { page.customEndHtml = '<div data-marker="end">End</div>'; },
+  ];
+  for (const setup of cases) {
+    delete site.customHeadHtml;
+    delete site.customBodyEndHtml;
+    delete page.customTopHtml;
+    delete page.customEndHtml;
+    setup();
+    for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
+      assert.ok(exportLimitations(site, framework).some((reason) =>
+        reason.includes("カスタムHTML")), framework);
+      assert.throws(() => generateExportProject(site, framework), /カスタムHTML/);
+    }
+  }
+  assert.equal(exportLimitations(site, "html").length, 0,
+    "custom page HTML is supported in standalone HTML");
+});
+
+test("AUD-F-003: React refuses executable page scripts on data-driven DOM pages", () => {
+  const site = doc();
+  const page = site.pages.public;
+  page.pageScripts = [{
+    id: "init", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "set", kind: "set-var", into: "state", value: "ready" }],
+  }];
+  page.customTopHtml = '<script>window.__pageStarted = true;</script>';
+  assert.ok(exportLimitations(site, "react").some((reason) =>
+    reason.includes("カスタムスクリプト")));
+  assert.throws(() => generateExportProject(site, "react"), /カスタムスクリプト/);
+  page.customTopHtml = '<script type="application/json">{"safe":true}</script>';
+  assert.ok(!exportLimitations(site, "react").some((reason) =>
+    reason.includes("カスタムスクリプト")));
+});
