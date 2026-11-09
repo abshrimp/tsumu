@@ -5,10 +5,11 @@ import { readJsonRequestLimited } from "../lib/read-json-request";
 const encoder = new TextEncoder();
 
 function request(chunks: Uint8Array[], length?: string, onCancel?: () => void): Request {
+  let position = 0;
   const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of chunks) controller.enqueue(chunk);
-      controller.close();
+    pull(controller) {
+      if (position < chunks.length) controller.enqueue(chunks[position++]);
+      else controller.close();
     },
     cancel() { onCancel?.(); },
   });
