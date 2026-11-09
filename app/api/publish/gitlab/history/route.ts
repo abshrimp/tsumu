@@ -5,7 +5,7 @@ import { recordPublish, requireAuth } from "../../../../../lib/server";
 import { requireSiteAccess } from "../../../../../lib/site-access";
 import { siteIdOf, siteDestOf, destParam } from "../../../../../lib/site-server";
 import { targetConfig, configError, type TargetConfig } from "../../../../../lib/github";
-import { gitlabClient } from "../../../../../lib/gitlab";
+import { gitlabClient, type GitLabCommitAction } from "../../../../../lib/gitlab";
 import { matchesPublishTarget, publishConflictMessage } from "../../../../../lib/publish-preconditions";
 import { validatePublishDocument } from "../../../../../lib/publish-security";
 import { readJsonObjectLimited, jsonErrorStatus } from "../../../../../lib/api-json";
@@ -132,8 +132,7 @@ export async function POST(req: Request) {
       return conflict(tr);
     }
     const manifestText = serializeGeneratedManifest(restoreGenerated);
-    const actions: Array<{ action: "create" | "update" | "delete"; file_path: string;
-      content?: string; encoding?: "base64" }> = [];
+    const actions: GitLabCommitAction[] = [];
     const changedPaths = Object.keys(restoreGenerated).filter(path => current.blobs[path] !== chosen.blobs[path]);
     if (changedPaths.length > 40) {
       return NextResponse.json({ error: tr("This version has too many files to restore in one request.") }, { status: 413 });
@@ -175,21 +174,12 @@ export async function POST(req: Request) {
       });
     }
     if (!actions.length) return NextResponse.json({ ok: true, commit: current.head });
-    if (current.head !== await client.head()) return conflict(tr);
-    const res = await client.request("/repository/commits", {
-      method: "POST",
-      body: JSON.stringify({
-        branch: conf.branch, commit_message: "Rollback to " + sha.slice(0, 7) + " from Tsumu",
-        actions,
-      }),
-    });
-    if (!res.ok) await client.fail(tr("Creating the commit"), res);
-    const result = await res.json() as { id?: string };
-    if (!isSha(result.id)) throw new Error(tr("Couldn't roll back"));
+    const commit = await client.commit(current.head, actions, "Rollback to " + sha.slice(0, 7) + " from Tsumu");
+    if (!commit) return conflict(tr);
     try { await recordPublish(siteId, target, dest.roomKey); }
     catch { console.warn("Rollback completed without a local publication record", { siteId, target }); }
-    return NextResponse.json({ ok: true, commit: result.id,
-      commitUrl: "https://gitlab.com/" + conf.repo + "/-/commit/" + result.id });
+    return NextResponse.json({ ok: true, commit,
+      commitUrl: "https://gitlab.com/" + conf.repo + "/-/commit/" + commit });
   } catch (error) {
     return NextResponse.json({ error: tr(userMessage(error, "Couldn't roll back")) }, { status: 502 });
   }

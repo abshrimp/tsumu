@@ -240,6 +240,36 @@ test("GitLab publish creates missing live branch on non-empty repos and reuses u
   }
 });
 
+test("GitLab commit protects updates and deletes against edits arriving after the final branch read", async () => {
+  const previous = globalThis.fetch;
+  const newHead = "d".repeat(40);
+  let remoteHead = sha;
+  let commitRequests = 0;
+  try {
+    globalThis.fetch = async (url, init) => {
+      if (String(url).endsWith("/repository/branches/main")) {
+        return Response.json({ commit: { id: remoteHead } });
+      }
+      assert.equal(init?.method, "POST");
+      assert.ok(String(url).endsWith("/repository/commits"));
+      commitRequests++;
+      remoteHead = newHead;
+      const { actions } = JSON.parse(String(init?.body));
+      assert.deepEqual(actions.map((a: { last_commit_id?: string }) => a.last_commit_id),
+        [sha, sha, undefined]);
+      return Response.json({ message: "The file has changed since you started editing it" }, { status: 400 });
+    };
+    assert.equal(await gitlabClient(config, tr).commit(sha, [
+      { action: "update", file_path: "index.html", content: "edited" },
+      { action: "delete", file_path: "old.html" },
+      { action: "create", file_path: "new.html", content: "new" },
+    ], "Publish"), null);
+    assert.equal(commitRequests, 1);
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+
 test("GitLab rollback caps changed blob fetches rather than total unchanged site files", async () => {
   const { load } = await import("./helpers/document-generation-api");
   const { createInitialDoc } = await import("../lib/presets");

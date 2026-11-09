@@ -263,7 +263,8 @@ export async function listStaticDeployments(
 ): Promise<StaticDeploymentHistory[]> {
   const project = hostingProjectName(siteId, "cloudflare", target);
   // History must not create an empty Pages project.
-  const path = cloudflarePath(project) + "/deployments?per_page=25";
+  const env = target === "production" ? "production" : "preview";
+  const path = cloudflarePath(project) + "/deployments?per_page=25&env=" + env;
   const response = await cloudflareFetch(path);
   if (response.status === 404) return [];
   if (!response.ok) throw new PublishPublicError("Read Pages deployments failed (HTTP " + response.status + ").");

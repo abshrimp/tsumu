@@ -5,6 +5,13 @@ import {
   ASSET_MANIFEST_PATH, GENERATED_MANIFEST_PATH, isSafeCommitPath, parseGeneratedManifest,
 } from "./publish-files";
 
+export interface GitLabCommitAction {
+  action: "create" | "update" | "delete";
+  file_path: string;
+  content?: string;
+  encoding?: "base64";
+}
+
 /**
  * GitLab.com REST adapter. The host is fixed, and the project path is validated
  * before sending the server's credential; redirects never carry the credential.
@@ -144,6 +151,34 @@ export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
       })),
     };
   };
-  return { request, fail, head, tree, blob, snapshot, history };
+  /** Returns null if another writer changed the destination. Never retry a commit. */
+  const commit = async (
+    expectedHead: string | null, actions: GitLabCommitAction[], message: string, startBranch?: string,
+  ): Promise<string | null> => {
+    if (await head() !== expectedHead) return null;
+    const res = await request("/repository/commits", {
+      method: "POST",
+      body: JSON.stringify({
+        branch: conf.branch,
+        ...(startBranch ? { start_branch: startBranch } : {}),
+        commit_message: message,
+        // GitLab compares each path's last commit at this ref with its current
+        // last commit. A create action already requires its path to be absent.
+        actions: actions.map(action => expectedHead && action.action !== "create"
+          ? { ...action, last_commit_id: expectedHead } : action),
+      }),
+    });
+    if (!res.ok) {
+      if ((res.status === 400 || res.status === 409) && await head() !== expectedHead) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      await fail(tr("Creating the commit"), res);
+    }
+    const result = await res.json() as { id?: string };
+    if (!result.id || !/^[a-f0-9]{40}$/i.test(result.id)) throw new Error(tr("Couldn't publish"));
+    return result.id;
+  };
+  return { request, fail, head, tree, blob, snapshot, history, commit };
 }
 

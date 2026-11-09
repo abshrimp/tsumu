@@ -1,6 +1,6 @@
 import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { finishNetlifyOAuth, startNetlifyOAuth, readNetlifyAccount, saveNetlifyAccount, readNetlifySite, saveNetlifySite, saveNetlifyProject, disconnectNetlifySite } from "../lib/browser-netlify";
+import { finishNetlifyOAuth, startNetlifyOAuth, readNetlifyAccount, saveNetlifyAccount, readNetlifySite, netlifySiteForAccount, saveNetlifySite, saveNetlifyProject, disconnectNetlifySite } from "../lib/browser-netlify";
 import { netlifyOAuthConfig, netlifyAccount, createNetlifyProject, verifyNetlifySite, deployNetlifyZip } from "../lib/netlify-publish";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { createRequire, stripTypeScriptTypes } from "node:module";
@@ -107,6 +107,15 @@ test("Netlify project IDs are pinned to one browser site and never silently repl
       id: "site-12345678", url: "https://site.netlify.app",
     });
     assert.equal(readNetlifySite("local123456")?.production?.id, "site-12345678");
+    saveNetlifyProject("local123456", "test", { id: "preview-12345678", url: "https://preview.netlify.app" });
+    const previous = readNetlifySite("local123456")!;
+    const teams = [{ id: previous.teamId, slug: "renamed-team" }];
+    assert.equal(netlifySiteForAccount("local123456", "another-user", teams), null);
+    assert.equal(netlifySiteForAccount("local123456", previous.userId, [{ id: "other-team", slug: previous.teamSlug }]), null);
+    assert.deepEqual(readNetlifySite("local123456"), previous);
+    const renamed = netlifySiteForAccount("local123456", previous.userId, teams);
+    assert.deepEqual(renamed, { ...previous, teamSlug: "renamed-team" });
+    assert.deepEqual(readNetlifySite("local123456"), renamed);
     assert.equal(readNetlifySite("another12345"), null);
     assert.throws(() => saveNetlifyProject("local123456", "production", {
       id: "site-22222222", url: "https://other.netlify.app",
@@ -3188,6 +3197,18 @@ test("listStaticDeployments uses Workers-safe manual redirects and publish route
   process.env.CLOUDFLARE_ACCOUNT_ID = "0123456789abcdef0123456789abcdef";
   process.env.CLOUDFLARE_API_TOKEN = "cf-test-token";
   try {
+    const previews = Array.from({ length: 25 }, (_, index) => ({
+      id: "preview-" + index, environment: "preview", deployment_trigger: { metadata: { branch: "tsumu-preview" } },
+    }));
+    const deployments = [...previews, { id: "live", environment: "production", latest_stage: { status: "success" } }];
+    globalThis.fetch = async input => {
+      const query = new URL(String(input)).searchParams;
+      const env = query.get("env");
+      return Response.json({ success: true, result: deployments.filter(d => !env || d.environment === env)
+        .slice(0, Number(query.get("per_page"))) });
+    };
+    assert.deepEqual((await listStaticDeployments("abc123", "production")).map(d => [d.id, d.canRestore]), [["live", true]]);
+    assert.equal((await listStaticDeployments("abc123", "test")).length, 25);
     let status = 404;
     globalThis.fetch = async (_input, init) => {
       assert.equal(init?.redirect, "manual");

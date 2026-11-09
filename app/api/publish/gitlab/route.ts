@@ -6,7 +6,7 @@ import { requireSiteAccess } from "../../../../lib/site-access";
 import { siteIdOf, siteDestOf } from "../../../../lib/site-server";
 import { configError, targetConfig, type TargetConfig } from "../../../../lib/github";
 import { gitBlobSha } from "../../../../lib/git-blob-sha";
-import { gitlabClient } from "../../../../lib/gitlab";
+import { gitlabClient, type GitLabCommitAction } from "../../../../lib/gitlab";
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
 import { siteHasAsset } from "../../../../lib/site-asset-access";
 import { assetStore } from "../../../../lib/kv";
@@ -231,7 +231,7 @@ export async function POST(req: Request) {
         conflictingCommitPaths([...outputPaths, ...Object.keys(serverPlan.kept)])) {
       return conflict(tr);
     }
-    const actions: Array<{ action: "create" | "update" | "delete"; file_path: string; content?: string; encoding?: string }> = [];
+    const actions: GitLabCommitAction[] = [];
     for (const [path, item] of Object.entries(actual)) {
       if (before.blobs[path] === item.hash) continue;
       actions.push({ action: Object.hasOwn(before.blobs, path) ? "update" : "create",
@@ -248,25 +248,12 @@ export async function POST(req: Request) {
     if (actions.length > MAX_ACTIONS) return NextResponse.json({ error: tr("Request too large") }, { status: 413 });
     let commitSha = before.head;
     if (actions.length) {
-      if (before.head !== await client.head()) return conflict(tr);
-      const res = await client.request("/repository/commits", {
-        method: "POST",
-        body: JSON.stringify({
-          branch: conf.branch,
-          ...(before.head === null && target === "test"
-            ? { start_branch: targetConfig(dest, "production").branch } : {}),
-          commit_message: typeof body.message === "string" ? body.message.slice(0, 500) : "Publish from Tsumu",
-          actions,
-        }),
-      });
-      if (!res.ok) {
-        // A timeout or conflict may happen after GitLab has created the commit.
-        // We never force-push or automatically retry this write.
-        await client.fail(tr("Creating the commit"), res);
-      }
-      const result = await res.json() as { id?: string };
-      if (!isSha(result.id)) throw new Error(tr("Couldn't publish"));
-      commitSha = result.id;
+      commitSha = await client.commit(
+        before.head, actions,
+        typeof body.message === "string" ? body.message.slice(0, 500) : "Publish from Tsumu",
+        before.head === null && target === "test" ? targetConfig(dest, "production").branch : undefined,
+      );
+      if (!commitSha) return conflict(tr);
     }
     let optionsSaved = true;
     if (dbConfigured()) {

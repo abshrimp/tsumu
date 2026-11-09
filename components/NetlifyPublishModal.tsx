@@ -22,7 +22,7 @@ import {
 } from "./StaticPublishShared";
 import {
   readNetlifyAccount, saveNetlifyAccount,
-  readNetlifySite, saveNetlifySite, saveNetlifyProject, clearNetlifyProject, disconnectNetlifySite,
+  readNetlifySite, netlifySiteForAccount, saveNetlifySite, saveNetlifyProject, clearNetlifyProject, disconnectNetlifySite,
   readNetlifyOAuthConfig, startNetlifyOAuth, requestNetlify,
   type BrowserNetlifyAccount, type BrowserNetlifySite,
 } from "../lib/browser-netlify";
@@ -148,13 +148,11 @@ export default function NetlifyPublishModal({
           token: local.token, userId: remote.user.id, email: remote.user.email,
         };
         saveNetlifyAccount(active);
-        const site = readNetlifySite(conf.site);
-        const matched = site?.userId === remote.user.id &&
-          remote.teams.some(team => team.id === site.teamId && team.slug === site.teamSlug);
         if (!alive) return;
+        const site = netlifySiteForAccount(conf.site, remote.user.id, remote.teams);
         setAccount(active);
         setTeams(remote.teams);
-        if (matched && site) {
+        if (site) {
           setBinding(site);
           setPhase("check");
         } else if (remote.teams.length === 1) {

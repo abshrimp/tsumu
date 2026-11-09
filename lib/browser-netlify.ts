@@ -91,6 +91,19 @@ export function readNetlifySite(siteId: string): BrowserNetlifySite | null {
   return data as unknown as BrowserNetlifySite;
 }
 
+export function netlifySiteForAccount(
+  siteId: string, userId: string, teams: ReadonlyArray<{ id: string; slug: string }>,
+): BrowserNetlifySite | null {
+  const site = readNetlifySite(siteId);
+  if (!site || site.userId !== userId) return null;
+  const team = teams.find(team => team.id === site.teamId);
+  if (!team) return null;
+  if (site.teamSlug === team.slug) return site;
+  const renamed = { ...site, teamSlug: team.slug };
+  saveNetlifySite(siteId, renamed);
+  return renamed;
+}
+
 export function saveNetlifySite(siteId: string, value: BrowserNetlifySite): void {
   if (!isSiteId(siteId) || !validId(value.userId) || !validId(value.teamId) ||
       !/^[a-z0-9][a-z0-9-]{0,62}$/.test(value.teamSlug) ||
