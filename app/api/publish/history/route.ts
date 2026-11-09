@@ -27,6 +27,7 @@ import {
 } from "../../../../lib/publish-files";
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
+import { hasPublishCredentials } from "../../../../lib/publish-security";
 
 export const maxDuration = 30;
 
@@ -192,6 +193,30 @@ export async function POST(req: Request) {
     const [sourceEntries, currentEntries] = await Promise.all([
       readTree(src.tree.sha), readTree(current),
     ]);
+    // A rollback is also a publication. It must not reintroduce credential
+    // settings from an older editable document that normal publishing rejects.
+    const sourceDoc = sourceEntries.find(entry => entry.path === DOC_PATH && entry.type === "blob");
+    if (sourceDoc?.sha) {
+      const docRes = await gh(`/git/blobs/${sourceDoc.sha}`);
+      if (!docRes.ok) await fail(tr("編集データの取得"), docRes);
+      const blob = (await docRes.json()) as { content?: unknown; encoding?: unknown };
+      if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
+        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+      }
+      const bytes = Buffer.from(blob.content, "base64");
+      if (bytes.byteLength > 12 * 1024 * 1024) {
+        return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
+      }
+      let doc: unknown;
+      try { doc = JSON.parse(bytes.toString("utf8")); } catch {
+        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+      }
+      if (hasPublishCredentials(doc as Parameters<typeof hasPublishCredentials>[0])) {
+        return NextResponse.json({
+          error: tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"),
+        }, { status: 400 });
+      }
+    }
     const leaf = (entries: TreeEntry[]) => entries.filter(
       entry => (entry.type === "blob" || entry.type === "commit") && !!entry.sha
     );
