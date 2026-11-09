@@ -30,7 +30,7 @@ import { pageLangOf, siteLangOf } from "../lib/site-lang";
 import VarExplorer from "./VarExplorer";
 import { tr } from "../lib/i18n";
 import { buildCanvasCss, previewHtmlWithBodyStyles } from "./canvas/css";
-import { NodeView } from "./canvas/NodeView";
+import { MemoNodeView } from "./canvas/NodeView";
 import {
   InstanceChainCtx,
   SCROLL_KEY,
@@ -1007,7 +1007,7 @@ export default function Canvas() {
             {rootIds.length ? (
               <InstanceChainCtx.Provider value={instanceChain}>
                 {rootIds.map((id) => (
-                  <NodeView key={id} id={id} isTop={!editingComp} />
+                  <MemoNodeView key={id} id={id} isTop={!editingComp} />
                 ))}
               </InstanceChainCtx.Provider>
             ) : (
