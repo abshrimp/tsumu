@@ -9,8 +9,8 @@ import { makeText } from "../lib/presets";
 import * as clips from "../lib/clip-transfer";
 
 // 実Editorのpaste effectを動かす。DOMへの伝播・ネイティブ貼り付けはE2Eでも確認する。
-function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = "design") {
-  const node = { ...makeText("Copied text"), id: "a" };
+function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = "design", active = false) {
+  const node = { ...makeText("Copied text"), id: "a", ...(active ? { type: "code" as const, code: { html: "<script>window.pasted = true</script>" } } : {}) };
   useEditor.getState().replaceDoc({ siteName: "Paste scope", assets: {}, pageOrder: ["p"], pages: {
     p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["a"] },
   }, nodes: { a: node } });
@@ -24,6 +24,7 @@ function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = 
   const code = transformSync(`export function attach() {${source.slice(start, end)}}`, { loader: "ts", format: "cjs" }).code;
   const handlers = new Map<string, (event: any) => void>();
   const notices: unknown[] = [];
+  const confirmations: ((ok: boolean) => void)[] = [];
   let reads = 0, uploads = 0, cancelled = 0;
   const mod = { exports: {} as any };
   const globals = {
@@ -41,7 +42,7 @@ function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = 
     startImageInsertion: () => { uploads++; return { done: new Promise(() => {}), cancel: () => { cancelled++; } }; },
     insertPointFor: () => ({ parent: { kind: "page", id: "p" } }),
     tr: (s: string) => s,
-    showConfirm: () => { throw new Error("Unexpected confirmation"); },
+    showConfirm: () => new Promise<boolean>(resolve => confirmations.push(resolve)),
     userMessage: () => "error",
   };
   new Function("require", "module", "exports", ...Object.keys(globals), code)(
@@ -49,7 +50,7 @@ function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = 
   );
   const cleanup = mod.exports.attach();
   return {
-    notices, cleanup,
+    notices, cleanup, confirmations,
     counts: () => ({ reads, uploads, cancelled }),
     snapshot: () => structuredClone({ doc: useEditor.getState().doc, past: useEditor.getState().past, future: useEditor.getState().future }),
     paste(kind: "elements" | "artwork", target = { tagName: "BODY", isContentEditable: false }) {
@@ -97,3 +98,31 @@ test("design artwork paste still starts an insertion and cancels it on unmount",
   f.cleanup();
   assert.equal(f.counts().cancelled, 1);
 });
+
+for (const change of ["unchanged", "undo", "replace", "edit", "selection", "page", "preview", "script", "unmount", "newer", "decline"] as const) {
+  test(`active clipboard confirmation does not outlive ${change}`, async () => {
+    const f = mount("design", true);
+    useEditor.getState().updateDoc(d => { d.siteName = "Edited"; });
+    f.paste("elements");
+    assert.equal(f.confirmations.length, 1);
+    if (change === "undo") useEditor.getState().undo();
+    if (change === "replace") useEditor.getState().replaceDoc(structuredClone(useEditor.getState().doc));
+    if (change === "edit") useEditor.getState().updateDoc(d => { d.siteName = "Remote change"; });
+    if (change === "selection") useEditor.getState().select(null);
+    if (change === "page") useEditor.getState().setActivePage("other");
+    if (change === "preview") useEditor.getState().setMode("preview");
+    if (change === "script") useEditor.getState().openScriptEditor({ focusNodeId: "a" });
+    if (change === "unmount") f.cleanup();
+    if (change === "newer") f.paste("elements");
+    const before = f.snapshot();
+    f.confirmations[0](change !== "decline");
+    await new Promise(resolve => setImmediate(resolve));
+    if (change === "unchanged") {
+      assert.equal(Object.keys(useEditor.getState().doc.nodes).length, 2);
+      useEditor.getState().undo();
+      assert.deepEqual(useEditor.getState().doc, before.doc);
+    } else assert.deepEqual(f.snapshot(), before);
+    f.cleanup();
+    useEditor.getState().openScriptEditor(null);
+  });
+}
