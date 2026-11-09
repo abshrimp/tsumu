@@ -46,6 +46,7 @@ and reapply the same outbound-request policy.
 | AUD-H-006 | Medium / stalled requests | Node DNS preflight ran outside the HTTP request deadline | Deadline and request cancellation apply to preflight; connect-time lookup still validates each resolved address | DNS tests in `tests/audit-h-ai-network.test.mts` and pre-existing `tests/security.test.mts` |
 | AUD-H-007 | Medium / large edits | AI could repeatedly request bulk element insertions and duplicates without a growth cap | Bound node growth for each tool call and for the entire model request | `tests/audit-h-ai-network.test.mts` |
 | AUD-H-008 | Regression prevention | Exported sites copy the server fetch policy | Regenerate `lib/generator/safe-fetch-source.ts` from the audited source | `tests/generated-safe-fetch-sync.test.mts` |
+| AUD-H-009 | High / concurrent edit integrity | AI context copied page and node objects by reference; later in-place edits could alter the comparison snapshot | Deep-clone the scoped snapshot before sending it to the AI and before conflict checks | `tests/audit-h-ai-network.test.mts` |
 
 ## Reviewed paths
 
