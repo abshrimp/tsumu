@@ -37,9 +37,9 @@ function fixture(identity: unknown = "owner@example.com") {
   );
   const POST = module.exports.POST as (req: Request) => Promise<Response>;
   const GET = module.exports.GET as () => Promise<Response>;
-  const send = (value: unknown) => POST(new Request("https://editor.example.test/api/allowed-users", {
+  const send = (value: unknown, contentType = "application/json") => POST(new Request("https://editor.example.test/api/allowed-users", {
     method: "POST", body: JSON.stringify(value),
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": contentType },
   }));
   return { send, get: () => GET(), inserted };
 }
@@ -79,4 +79,12 @@ test("account management rejects sessions without a valid email identity", async
     assert.equal(post.status, 401, `POST with ${JSON.stringify(identity)}`);
     assert.deepEqual(f.inserted, []);
   }
+});
+
+
+test("account management rejects text/plain POST even if the bytes are JSON", async () => {
+  const f = fixture();
+  const response = await f.send({ email: "editor@example.com" }, "text/plain");
+  assert.equal(response.status, 415);
+  assert.deepEqual(f.inserted, []);
 });
