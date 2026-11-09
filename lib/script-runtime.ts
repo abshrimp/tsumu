@@ -1600,6 +1600,14 @@ export const SCRIPT_RUNTIME = `function (env) {
       // 「表示した要素の上も含める」要素 → 外れ判定のタイマー（null = 判定待ちなし）。
       // 表示した要素へカーソルが移っている間は「ホバーが外れた」としない
       var hovering = new Map();
+      // Browser :hover selector matching can be stale even after pointer events.
+      // Use the event destination to keep menus open across owner/child moves.
+      function withinHoverArea(owner, node) {
+        if (!node || node.nodeType !== 1) return false;
+        return owner.contains(node) || shownByHover(owner).some(function (shown) {
+          return root.contains(shown) && shown.contains(node);
+        });
+      }
       function leaveLater(el) {
         clearTimeout(hovering.get(el));
         hovering.set(
@@ -1626,6 +1634,16 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/keep*/
       function onOver(e) {
+        /*#keep*/
+        // The shown menu may not have its own script listener.
+        // Crossing into it must cancel the pending hover-end timeout.
+        hovering.forEach(function (timer, owner) {
+          if (timer !== null && withinHoverArea(owner, e.target)) {
+            clearTimeout(timer);
+            hovering.set(owner, null);
+          }
+        });
+        /*/keep*/
         chain(e.target).forEach(function (el) {
           // 子要素間の移動では発火させない
           if (e.relatedTarget && el.contains(e.relatedTarget)) return;
@@ -1650,7 +1668,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*#keep*/
           if (hovering.has(el)) {
             done.push(el);
-            leaveLater(el);
+            if (withinHoverArea(el, e.relatedTarget)) {
+              clearTimeout(hovering.get(el));
+              hovering.set(el, null);
+            } else leaveLater(el);
             fire(el, "hover-end", false);
             return;
           }
@@ -1660,7 +1681,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#keep*/
         // 表示したメニュー側から離れたときも、元の要素の外れ判定をする
         hovering.forEach(function (t, el) {
-          if (t === null && done.indexOf(el) < 0) leaveLater(el);
+          if (t === null && done.indexOf(el) < 0 &&
+              !withinHoverArea(el, e.relatedTarget)) leaveLater(el);
         });
         /*/keep*/
       }
