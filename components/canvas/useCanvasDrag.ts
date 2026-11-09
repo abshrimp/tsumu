@@ -275,8 +275,8 @@ export function useCanvasDrag({
       const props: Record<string, string> = {};
       if (xSign !== 0) props.width = `${Math.max(4, Math.round(startW + dx))}px`;
       if (ySign !== 0) props.height = `${Math.max(4, Math.round(startH + dy))}px`;
-      if (ev.shiftKey && xSign !== 0 && ySign !== 0) {
-        // Shift: 比率固定（幅基準）
+      if (ev.shiftKey && xSign !== 0 && ySign !== 0 && startW > 0) {
+        // Shift: 比率固定（幅基準）。幅が0なら無限大のCSS値を書き込まない。
         const w = Math.max(4, Math.round(startW + dx));
         props.width = `${w}px`;
         props.height = `${Math.max(4, Math.round((w / startW) * startH))}px`;
