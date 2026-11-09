@@ -1,5 +1,5 @@
 import { withImportUploads } from "./import-uploads";
-import { DOC_STORAGE_KEY, emptyDest, loadLocalSites, saveLocalSites, siteKey } from "./site";
+import { DOC_STORAGE_KEY, emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, siteKey, withLocalSiteListLock } from "./site";
 import { newSiteId, type SiteRecord } from "./sites";
 import { IMPORT_LIMITS, parseSiteImport, restoreImportAssets, validateImportedDoc } from "./site-import";
 import { convertHtmlFile, isEditableSiteZip, isHtmlFile } from "./html-file-import";
@@ -27,6 +27,9 @@ function localWrite(doc: string, name: string): string {
   // must not leave behind a partial document or an inaccessible site.
   const list = loadLocalSites({ strict: true });
   const docKey = siteKey(DOC_STORAGE_KEY, id);
+  if (localSiteIdInUse(id, list)) {
+    throw new Error("サイトを作成できませんでした。");
+  }
   let wroteDoc = false;
   try {
     window.localStorage.setItem(docKey, doc);
@@ -41,31 +44,25 @@ function localWrite(doc: string, name: string): string {
   return id;
 }
 
-async function serverWrite(doc: string, name: string): Promise<string> {
+async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promise<string> {
+  const id = newSiteId();
+  // The ID is known even if the response is lost. The server exclusively inserts
+  // the site and revision 1 in the same transaction.
   const response = await fetch("/api/sites", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  const data = await response.json().catch(() => null) as
-    { site?: { id: string }; error?: string } | null;
-  if (!response.ok || !data?.site?.id) {
+    method: "POST", credentials: "same-origin", redirect: "error", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: doc.siteName, importId: id, initialDoc: doc }),
+  }).catch(() => null);
+  const data = await response?.json().catch(() => null);
+  if (response?.ok && data?.site?.id === id) return id;
+  if (response && response.status >= 400 && response.status < 500) {
     throw new Error(data?.error || "サイトを作成できませんでした。");
   }
-  const id = data.site.id;
-  try {
-    const result = await fetch("/api/doc?site=" + encodeURIComponent(id), {
-      method: "PUT", headers: { "Content-Type": "application/json" }, body: doc,
-    });
-    if (!result.ok) {
-      const error = await result.json().catch(() => null) as { error?: string } | null;
-      throw new Error(error?.error || "編集データを保存できませんでした。");
-    }
-  } catch (error) {
-    // Avoid leaving a site with an empty default document after a failed save.
-    await fetch("/api/sites/" + encodeURIComponent(id), { method: "DELETE" }).catch(() => {});
-    throw error;
-  }
-  return id;
+  const saved = await fetch("/api/doc?site=" + id, { credentials: "same-origin", redirect: "error" }).then(res => res.ok ? res.json() : null).catch(() => null);
+  if (saved?.exists && JSON.stringify(saved.doc) === raw) return id;
+  // A transport or proxy failure does not prove the transaction rolled back.
+  // Do not delete uploaded bytes which the in-flight or already edited site may use.
+  uploads.length = 0;
+  throw new Error("保存結果を確認できませんでした。ホームのサイト一覧を確認してください。");
 }
 
 /** Prepare everything before creating the site, then commit its document. */
@@ -98,9 +95,12 @@ export async function createSiteFromFile(
     }
     progress("新規サイトを保存しています…");
     const raw = JSON.stringify(doc);
+    if (raw.length > IMPORT_LIMITS.docBytes || new TextEncoder().encode(raw).length > IMPORT_LIMITS.docBytes) {
+      throw new Error("編集データが容量上限を超えています。");
+    }
     const id = mode === "server"
-      ? await serverWrite(raw, doc.siteName)
-      : localWrite(raw, doc.siteName);
+      ? await serverWrite(doc, raw, paths)
+      : await withLocalSiteListLock(() => localWrite(raw, doc.siteName));
     try {
       window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));
     } catch {

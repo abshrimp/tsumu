@@ -35,6 +35,8 @@ import {
   emptyDest,
   deleteLocalSite,
   loadLocalSites,
+  localSiteIdInUse,
+  withLocalSiteListLock,
   saveLocalSites,
   siteKey,
   sitePath,
@@ -588,15 +590,18 @@ export default function Home() {
       id = newSiteId();
       const now = Date.now();
       const site = { ...emptyDest(), ...input, name, id, createdAt: now, updatedAt: now } as SiteRecord;
-      let seeded = false;
-      try {
-        const list = loadLocalSites({ strict: true });
-        seeded = seedDoc(id, name);
-        if (!seeded || !saveLocalSites([site, ...list])) throw localSaveError();
-      } catch {
-        if (seeded) forgetLocal(id);
-        throw localSaveError();
-      }
+      await withLocalSiteListLock(() => {
+        let seeded = false;
+        try {
+          const list = loadLocalSites({ strict: true });
+          if (localSiteIdInUse(id, list)) throw localSaveError();
+          seeded = seedDoc(id, name);
+          if (!seeded || !saveLocalSites([site, ...list])) throw localSaveError();
+        } catch {
+          if (seeded) forgetLocal(id);
+          throw localSaveError();
+        }
+      });
     }
     window.location.href = sitePath(id);
   };
@@ -614,25 +619,28 @@ export default function Home() {
     } else {
       const now = Date.now();
       site = { ...emptyDest(), ...input, name: input.name ?? "", id: newSiteId(), createdAt: now, updatedAt: now } as SiteRecord;
-      let list: SiteRecord[];
-      try {
-        list = loadLocalSites({ strict: true });
-      } catch {
-        throw localDuplicateError();
-      }
-      // ダイアログを開いてから、別のタブで元のサイトが削除されることがある。
-      if (!list.some((s) => s.id === src.id)) throw new Error(tr("サイトが見つかりません"));
-      let copied = false;
-      try {
-        copyLocalDoc(src.id, site.id, site.name);
-        copied = true;
-        localSites = [site, ...list];
-        if (!saveLocalSites(localSites)) throw new Error("Site list write failed");
-      } catch {
-        // 一覧への登録に失敗したら、書けた複製データの掃除を試みる。
-        if (copied) forgetLocal(site.id);
-        throw localDuplicateError();
-      }
+      await withLocalSiteListLock(() => {
+        let list: SiteRecord[];
+        try {
+          list = loadLocalSites({ strict: true });
+        } catch {
+          throw localDuplicateError();
+        }
+        // ダイアログを開いてから、別のタブで元のサイトが削除されることがある。
+        if (!list.some((s) => s.id === src.id)) throw new Error(tr("サイトが見つかりません"));
+        let copied = false;
+        try {
+          if (localSiteIdInUse(site.id, list)) throw localDuplicateError();
+          copyLocalDoc(src.id, site.id, site.name);
+          copied = true;
+          localSites = [site, ...list];
+          if (!saveLocalSites(localSites)) throw new Error("Site list write failed");
+        } catch {
+          // 一覧への登録に失敗したら、書けた複製データの掃除を試みる。
+          if (copied) forgetLocal(site.id);
+          throw localDuplicateError();
+        }
+      });
     }
     setSites((list) => localSites ?? [site, ...(list ?? [])]);
     setDialog(null);
@@ -646,16 +654,18 @@ export default function Home() {
       });
       setSites((list) => list?.map((s) => (s.id === site.id ? data.site : s)) ?? null);
     } else {
-      let list: SiteRecord[];
-      try {
-        list = loadLocalSites({ strict: true });
-      } catch {
-        throw localSaveError();
-      }
-      if (!list.some((s) => s.id === site.id)) throw new Error(tr("サイトが見つかりません"));
-      const next = list.map((s) => (s.id === site.id ? { ...s, ...input, updatedAt: Date.now() } : s));
-      if (!saveLocalSites(next)) throw localSaveError();
-      setSites(next);
+      await withLocalSiteListLock(() => {
+        let list: SiteRecord[];
+        try {
+          list = loadLocalSites({ strict: true });
+        } catch {
+          throw localSaveError();
+        }
+        if (!list.some((s) => s.id === site.id)) throw new Error(tr("サイトが見つかりません"));
+        const next = list.map((s) => (s.id === site.id ? { ...s, ...input, updatedAt: Date.now() } : s));
+        if (!saveLocalSites(next)) throw localSaveError();
+        setSites(next);
+      });
     }
     setDialog(null);
   };
@@ -674,7 +684,7 @@ export default function Home() {
       } else {
         try {
           // 削除記録が保存できるまでは一覧も内容も変更しない。確定後の掃除は失敗しても取り消さない。
-          deleteLocalSite(site.id);
+          await withLocalSiteListLock(() => deleteLocalSite(site.id));
         } catch {
           throw localSaveError();
         }
