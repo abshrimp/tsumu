@@ -30,6 +30,7 @@ import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/pu
 import { hasPublishCredentials } from "../../../../lib/publish-security";
 
 export const maxDuration = 30;
+const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
 
 const isSha = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{40}$/i.test(s);
 
@@ -102,12 +103,12 @@ export async function GET(req: Request) {
       }
       if (!res.ok) await fail(tr("編集データの取得"), res);
       return new NextResponse(res.body, {
-        headers: { "Content-Type": "application/json; charset=utf-8" },
+        headers: { ...PRIVATE_NO_STORE, "Content-Type": "application/json; charset=utf-8" },
       });
     }
 
     const current = await head();
-    if (!current) return NextResponse.json({ head: null, commits: [] });
+    if (!current) return NextResponse.json({ head: null, commits: [] }, { headers: PRIVATE_NO_STORE });
     const res = await gh(`/commits?sha=${current}&per_page=30`);
     if (!res.ok) await fail(tr("履歴の取得"), res);
     const list = (await res.json()) as {
@@ -121,7 +122,7 @@ export async function GET(req: Request) {
       date: c.commit.committer?.date ?? c.commit.author?.date ?? "",
       url: c.html_url,
     }));
-    return NextResponse.json({ head: current, commits });
+    return NextResponse.json({ head: current, commits }, { headers: PRIVATE_NO_STORE });
   } catch (e) {
     return NextResponse.json(
       { error: tr(userMessage(e, "履歴を読み込めませんでした")) },
