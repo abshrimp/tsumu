@@ -15,7 +15,7 @@ const old = "a".repeat(40), newer = "b".repeat(40), created = "c".repeat(40);
 const expected = (target = "production", branch = target === "test" ? "preview" : "main") => ({
   site: "example", target, repo: "owner/site", branch, productionBranch: "main",
 });
-function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean } = {}) {
+function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean; rollbackGeneratedFile?: boolean } = {}) {
   const dest = { repo: "owner/site", branch: "main", previewBranch: "preview" };
   const heads: Record<string, string> = options.empty ? {} : { main: old, ...(options.absent ? {} : { preview: old }) };
   let empty = !!options.empty;
@@ -23,6 +23,12 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
   const writes: { path: string; body: any }[] = [];
   const calls: string[] = [];
   let entries = [{ path: "manual.txt", mode: "100755", type: "blob", sha: "manual" }];
+  if (options.rollbackGeneratedFile) {
+    entries.push(
+      { path: "app/new.ts", mode: "100644", type: "blob", sha: "generated" },
+      { path: files.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "generated-manifest" },
+    );
+  }
   const conf = (d: typeof dest, target: string) => ({ repo: d.repo, branch: target === "test" ? d.previewBranch : d.branch, token: "fake" });
   const client = (config: ReturnType<typeof conf>) => {
     const gh = async (path: string, init?: RequestInit) => {
@@ -44,6 +50,10 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
         return NextResponse.json({ merge_base_commit: { sha: options.unrelatedHistory ? "f".repeat(40) : source } });
       }
       if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: options.rollbackSourceMissingManual && path.includes("old-tree") ? [] : entries, ...(options.truncatedRollback ? { truncated: true } : {}) });
+      if (path === "/git/blobs/generated-manifest") return NextResponse.json({
+        content: Buffer.from(files.serializeGeneratedManifest({ "app/new.ts": "generated" })).toString("base64"),
+        encoding: "base64",
+      });
       if (path === "/git/trees") return NextResponse.json({ sha: "tree" });
       if (path === "/git/commits") return NextResponse.json({ sha: created });
       if (path.startsWith("/git/commits/")) return NextResponse.json({ tree: { sha: "old-tree" }, message: "old" });
@@ -251,4 +261,14 @@ test("rollback preserves manually added files that are absent from the chosen hi
   assert.equal(update.body.base_tree, "old-tree");
   assert.deepEqual(update.body.tree.find((e: any) => e.path === "manual.txt"),
     { path: "manual.txt", mode: "100755", type: "blob", sha: "manual" });
+});
+
+test("rollback removes generated files that are absent from history but retains current manual files", async () => {
+  const f = fixture({ rollbackSourceMissingManual: true, rollbackGeneratedFile: true });
+  const response = await f.post({ sha: old }, true);
+  assert.equal(response.status, 200);
+  const updated = f.writes.find(item => item.path === "/git/trees");
+  assert.ok(updated);
+  assert.ok(updated.body.tree.some((entry: any) => entry.path === "manual.txt"));
+  assert.ok(!updated.body.tree.some((entry: any) => entry.path === "app/new.ts" || entry.path === files.GENERATED_MANIFEST_PATH));
 });
