@@ -11,7 +11,7 @@ export function selectDefaultDoc(field: Partial<FieldContent> = {}, query = ""):
     schemaVersion: 1, siteName: "Select defaults", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", query, children: ["choice", "result"] } },
     nodes: {
-      choice: { ...makeBox(), id: "choice", attrId: "choice", type: "field", field: { kind: "select", options: ["A", "B"], defaultValue: "B", ...field } },
+      choice: { ...makeBox(), id: "choice", attrId: "choice", type: "field", field: { kind: "select", options: ["A", "B"].map((value) => ({ label: value, value })), defaultValue: "B", ...field } },
       result: { ...makeText("value={choice}; index={choice.index}"), id: "result", attrId: "result" },
     },
   };

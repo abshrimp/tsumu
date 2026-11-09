@@ -1947,7 +1947,7 @@ export function usesLiveFields(doc: SiteDoc): boolean {
         n?.field?.placeholder,
         n?.field?.defaultValue,
         n?.field?.label,
-        ...(n?.field?.options ?? []),
+        ...(n?.field?.options ?? []).flatMap((o) => [o.label, o.value]),
       ];
       if (strs.some((t) => t && extractVars(t).some((v) => live.has(v.split(".")[0])))) return true;
     }

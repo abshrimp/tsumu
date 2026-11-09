@@ -78,10 +78,10 @@ test("removing every option exposes no value and index zero", async ({ page }) =
 for (const [name, doc, value, index] of [
   ["valid default", selectDefaultDoc(), "B", 2],
   ["omitted default", selectDefaultDoc({ defaultValue: undefined }), "A", 1],
-  ["resolved valid default", selectDefaultDoc({ options: ["{a}", "{b}"], defaultValue: "{selected}" }, "a=A&b=B&selected=B"), "B", 2],
-  ["resolved missing default", selectDefaultDoc({ options: ["{a}", "{b}"], defaultValue: "{selected}" }, "a=A&b=C&selected=B"), "A", 1],
-  ["resolved empty first option", selectDefaultDoc({ options: ["{empty}", "B"], defaultValue: "C" }, "empty="), "", 1],
-  ["resolved empty default", selectDefaultDoc({ options: ["A", "{empty}"], defaultValue: "{empty}" }, "empty="), "", 2],
+  ["resolved valid default", selectDefaultDoc({ options: ["{a}", "{b}"].map((value) => ({ label: value, value })), defaultValue: "{selected}" }, "a=A&b=B&selected=B"), "B", 2],
+  ["resolved missing default", selectDefaultDoc({ options: ["{a}", "{b}"].map((value) => ({ label: value, value })), defaultValue: "{selected}" }, "a=A&b=C&selected=B"), "A", 1],
+  ["resolved empty first option", selectDefaultDoc({ options: ["{empty}", "B"].map((value) => ({ label: value, value })), defaultValue: "C" }, "empty="), "", 1],
+  ["resolved empty default", selectDefaultDoc({ options: ["A", "{empty}"].map((value) => ({ label: value, value })), defaultValue: "{empty}" }, "empty="), "", 2],
 ] as const) test(`${name} agrees between preview and the generated site`, async ({ page }) => {
   const { errors, snapshot } = await setup(page, doc);
   const before = await snapshot();

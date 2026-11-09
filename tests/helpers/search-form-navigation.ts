@@ -17,7 +17,7 @@ export function searchFormFiles() {
     field("stock", { kind: "checkbox", label: "In stock", checked: true }),
     field("small", { kind: "radio", label: "S", group: "size" }),
     field("medium", { kind: "radio", label: "M", group: "size", checked: true }),
-    field("sort", { kind: "select", options: ["A", "B", "C"], defaultValue: "B" }),
+    field("sort", { kind: "select", options: ["A", "B", "C"].map((value) => ({ label: value, value })), defaultValue: "B" }),
     field("upload", { kind: "file" }),
     field("submit", { kind: "submit", label: "Search" }),
   ];
