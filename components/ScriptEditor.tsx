@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Minus, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Search, Undo2, X, Zap } from "lucide-react";
 import { componentOf, useEditor } from "../lib/store";
@@ -9,7 +9,7 @@ import { glyphs } from "./Glyph";
 import { InfoTip } from "./controls";
 import { applyPageScripts, cloneSteps, pageNodeIds, pageScriptsOf, scriptUid, walkSteps, TRIGGER_LABELS, type PageScript } from "../lib/script";
 import { stepText } from "../lib/script-text";
-import { pageArrays, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
+import { pageArrays, pagePlan, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
 import { PAGE_TARGET, type Script, type ScriptStep } from "../lib/types";
 import { tr, trNodes } from "../lib/i18n";
 import { HatView, PaletteLabel, PeekModal, StackView, StepList } from "./script-editor/blocks";
@@ -28,6 +28,10 @@ import { insertAt, listIn, mapStep, numberFilters, removeKeys, stepIn, takeAt } 
 import { buildTree, collectTargets, type MenuTarget } from "./script-editor/targets";
 import { useScriptDrag } from "./script-editor/useScriptDrag";
 import { useScriptEditorKeys } from "./script-editor/useScriptEditorKeys";
+
+// Keep the heavy block subtree mounted and unchanged when only the palette,
+// zoom controls, or other editor chrome updates.
+const MemoStackView = memo(StackView);
 
 /* ---------- 設定パネル用の一覧 ---------- */
 
@@ -190,6 +194,10 @@ function ScriptEditorInner({
     () => pageScriptsOf(doc, nodeIds, activePageId),
     [doc, nodeIds, activePageId]
   );
+  const pageLoadScriptIds = useMemo(() => new Set(
+    scripts.filter((s) => s.nodeId === PAGE_TARGET && s.trigger === "load").map((s) => s.id)
+  ), [scripts]);
+  const serverStepIds = useMemo(() => pagePlan(doc, activePageId).serverIds, [doc, activePageId]);
   const targets = useMemo(() => collectTargets(doc, nodeIds), [doc, nodeIds]);
   const tree = useMemo(() => buildTree(doc, nodeIds), [doc, nodeIds]);
   const arrays = useMemo(() => pageArrays(doc, activePageId), [doc, activePageId]);
@@ -370,9 +378,9 @@ function ScriptEditorInner({
     return null;
   }, [scripts, peekId, peekScope]);
 
-  const commit = (next: PageScript[]) => {
+  const commit = useCallback((next: PageScript[]) => {
     updateDoc((d) => applyPageScripts(d, activePageId, nodeIds, numberFilters(next)));
-  };
+  }, [updateDoc, activePageId, nodeIds]);
   const deleteSelected = () => {
     if (!selectedList.length) return;
     commit(removeKeys(scripts, selectedList));
@@ -450,13 +458,11 @@ function ScriptEditorInner({
   });
   useScriptEditorKeys({ dragRef, cancelGesture, latest, setPeekId, setSelectedList });
 
-  if (!page) return null;
-
   /**
    * ブロックを押したとき。key があれば選択も更新する
    * （Shift / ⌘ は選択の追加・解除だけ、選択済みのものはそのまま複数ドラッグ）
    */
-  const begin = (e: React.PointerEvent, make: () => Payload, key?: string) => {
+  const begin = useCallback((e: React.PointerEvent, make: () => Payload, key?: string) => {
     if (e.button !== 0 || dragRef.current || marqueeRef.current) return;
     const t = e.target as HTMLElement;
     e.stopPropagation();
@@ -476,7 +482,7 @@ function ScriptEditorInner({
     (document.activeElement as HTMLElement | null)?.blur?.();
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     // つかんだ位置は倍率 1 の大きさで持つ（ワークスペースの中は表示倍率がかかっている）
-    const z = wsRef.current?.contains(e.currentTarget as Node) ? zoom : 1;
+    const z = wsRef.current?.contains(e.currentTarget as Node) ? zoomRef.current : 1;
     dragRef.current = {
       pointerId: e.pointerId,
       make,
@@ -491,9 +497,9 @@ function ScriptEditorInner({
       h: r.height / z,
       clickKey: key && selected.has(key) && selected.size > 1 ? key : undefined,
     };
-  };
+  }, [selected]);
 
-  const view: PageScript[] = (() => {
+  const view = useMemo(() => {
     const p = drag?.payload;
     if (!p) return scripts;
     if (p.type === "steps" && p.from) return takeAt(scripts, p.from)[0];
@@ -502,15 +508,17 @@ function ScriptEditorInner({
       return scripts.filter((s) => !ids.has(s.id));
     }
     return scripts;
-  })();
+  }, [scripts, drag?.payload]);
 
-  const ctx: EdCtx = {
+  const ctx: EdCtx = useMemo(() => ({
     doc,
     pageId: activePageId,
     scriptRootIds: extraRootsKey ? extraRootsKey.split(",") : [],
     targets,
     tree,
     scripts,
+    pageLoadScriptIds,
+    serverStepIds,
     elements,
     focusNodeId,
     readOnly: false,
@@ -580,7 +588,9 @@ function ScriptEditorInner({
       if (!selected.has(key)) setSelectedList([key]);
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
-  };
+  }), [doc, activePageId, extraRootsKey, targets, tree, scripts,
+    pageLoadScriptIds, serverStepIds, elements, focusNodeId, selected,
+    zOrder, commit, updateDoc, nodeIds, arrays, samples, begin]);
 
   const runMenu = (action: "delete" | "duplicate") => {
     if (!menu) return;
@@ -618,13 +628,13 @@ function ScriptEditorInner({
     setSelectedList([`step:${copy.id}`]);
   };
 
-  const wsSize = scripts.reduce(
+  const wsSize = useMemo(() => scripts.reduce(
     (acc, s) => ({
       w: Math.max(acc.w, s.pos.x + 900),
       h: Math.max(acc.h, s.pos.y + 700),
     }),
     { w: 1600, h: 1000 }
-  );
+  ), [scripts]);
 
   const ghost = drag?.payload ? (
     <div
@@ -667,6 +677,8 @@ function ScriptEditorInner({
   ) : null;
 
   const menuCount = menu && selected.has(menu.key) ? selectedList.length : 1;
+
+  if (!page) return null;
 
   return createPortal(
     <div
@@ -886,7 +898,7 @@ function ScriptEditorInner({
             >
               <Ctx.Provider value={ctx}>
                 {view.map((s) => (
-                  <StackView key={s.id} script={s} />
+                  <MemoStackView key={s.id} script={s} />
                 ))}
               </Ctx.Provider>
             </div>
