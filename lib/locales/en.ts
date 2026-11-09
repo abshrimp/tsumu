@@ -258,6 +258,7 @@ const en: Dict = {
   "サイト一覧を保存できませんでした。": "Could not save the site list.",
   "ブラウザにサイトを保存できませんでした。空き容量と保存設定を確認してください。": "Could not save the site in this browser. Check available storage and browser settings.",
   "HTMLのスタイルが複雑すぎます。": "The HTML styles are too complex.",
+  "アップロード結果を確認できませんでした。": "Could not confirm the uploaded file location.",
   "保存結果を確認できませんでした。ホームのサイト一覧を確認してください。": "Could not confirm the save. Check the site list on the home screen.",
   "サイトを作成できませんでした。": "Could not create the site.",
   "編集データを保存できませんでした。": "Could not save the edit data.",

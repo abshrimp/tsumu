@@ -12,9 +12,10 @@ export function rebindImportedAssetUrls(original: SiteDoc, doc: SiteDoc) {
   for (const [id, old] of Object.entries(original.assets)) {
     const fresh = assetSrc(doc.assets[id]);
     for (const source of [assetSrc(old), old.dataUrl]) {
-      if (source && source !== fresh && !sources.has(source)) sources.set(source, fresh);
+      if (source && (!sources.has(source) || (!sources.get(source) && fresh))) sources.set(source, fresh);
     }
   }
+  for (const [source, target] of sources) if (source === target) sources.delete(source);
   if (!sources.size) return;
   function resolve(value: string): string {
     if (typeof value !== "string") return value;

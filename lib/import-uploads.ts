@@ -15,7 +15,7 @@ export async function withImportUploads<T>(
       const site = newSiteId();
       await mapLimit([...new Set(paths)], ASSET_FETCH_CONCURRENCY, async path => {
         await fetch("/api/assets?site=" + encodeURIComponent(site) + "&path=" + encodeURIComponent(path),
-          { method: "DELETE" }).catch(() => {});
+          { method: "DELETE", credentials: "same-origin", redirect: "error" }).catch(() => {});
       });
     }
     throw error;

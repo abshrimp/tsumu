@@ -49,7 +49,7 @@ async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promis
   // The ID is known even if the response is lost. The server exclusively inserts
   // the site and revision 1 in the same transaction.
   const response = await fetch("/api/sites", {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", credentials: "same-origin", redirect: "error", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: doc.siteName, importId: id, initialDoc: doc }),
   }).catch(() => null);
   const data = await response?.json().catch(() => null);
@@ -57,7 +57,7 @@ async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promis
   if (response && response.status >= 400 && response.status < 500) {
     throw new Error(data?.error || "サイトを作成できませんでした。");
   }
-  const saved = await fetch("/api/doc?site=" + id).then(res => res.ok ? res.json() : null).catch(() => null);
+  const saved = await fetch("/api/doc?site=" + id, { credentials: "same-origin", redirect: "error" }).then(res => res.ok ? res.json() : null).catch(() => null);
   if (saved?.exists && JSON.stringify(saved.doc) === raw) return id;
   // A transport or proxy failure does not prove the transaction rolled back.
   // Do not delete uploaded bytes which the in-flight or already edited site may use.

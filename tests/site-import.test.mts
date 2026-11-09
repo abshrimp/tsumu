@@ -242,3 +242,18 @@ test("restored URLs follow the newly stored asset without copying a signature in
     assert.ok(!missing.doc.pages[page.id].customEndHtml?.includes(' src="' + old));
   } finally { globalThis.fetch = original; }
 });
+
+test("an upload without a registered destination is never accepted as a restored file", async () => {
+  const { uploadStaticAsset } = await import("../lib/assets");
+  const original = globalThis.fetch;
+  try {
+    for (const path of [undefined, {}, "assets/", "https://other.test/file"]) {
+      globalThis.fetch = async (_input, init) => {
+        assert.equal(init?.credentials, "same-origin");
+        assert.equal(init?.redirect, "error");
+        return Response.json({ path });
+      };
+      await assert.rejects(uploadStaticAsset(new File(["test"], "a.txt", { type: "text/plain" })), /アップロード/);
+    }
+  } finally { globalThis.fetch = original; }
+});
