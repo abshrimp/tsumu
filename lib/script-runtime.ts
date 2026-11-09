@@ -714,18 +714,21 @@ export const SCRIPT_RUNTIME = `function (env) {
         return String(v);
       }
       function passOne(conds, item) {
-        var ok = false;
-        var grp = true;
+        if (!conds.length) return true;
+        var groups = [[]];
         conds.forEach(function (c, i) {
-          if (i && !c.and) {
-            ok = ok || grp;
-            grp = true;
-          }
-          var fv = fieldOf(item, c.field);
-          var matches = matchValueCondition(fv, c.op, c.value);
-          grp = grp && (c.not ? !matches : matches);
+          if (i && !c.and) groups.push([]);
+          groups[groups.length - 1].push(c);
         });
-        return ok || grp;
+        // Keep the same AND-before-OR grouping as the if block and server
+        // renderer, and avoid inspecting values in an already-decided branch.
+        return groups.some(function (group) {
+          return group.every(function (c) {
+            var fv = fieldOf(item, c.field);
+            var matches = matchValueCondition(fv, c.op, c.value);
+            return c.not ? !matches : matches;
+          });
+        });
       }
       function passes(fs, item) {
         var acc = true;
