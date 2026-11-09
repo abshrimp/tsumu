@@ -61,3 +61,39 @@ test("signing many assets imports the secret key only once per batch", async () 
     setSecret(secret);
   }
 });
+
+
+test("invalid asset signatures are rejected before base64 decoding and key import", async () => {
+  setSecret("test-asset-batch-secret");
+  const now = 1_700_000_000_000;
+  const valid = new URLSearchParams((await signAssetPath("assets/example.png", now))!);
+  const subtle = crypto.subtle;
+  const original = subtle.importKey;
+  let imports = 0;
+  Object.defineProperty(subtle, "importKey", {
+    configurable: true,
+    writable: true,
+    value: (...args: unknown[]) => {
+      imports++;
+      return Reflect.apply(original, subtle, args);
+    },
+  });
+  try {
+    for (const signature of [
+      "A".repeat(100_000),
+      "A".repeat(42),
+      "A".repeat(44),
+      "A".repeat(42) + "=",
+      "x:invalid",
+    ]) {
+      assert.equal(await verifyAssetToken("assets/example.png", valid.get("exp"), signature, now), false);
+    }
+    for (const expiry of ["0", "9999999999999999", "invalid"]) {
+      assert.equal(await verifyAssetToken("assets/example.png", expiry, valid.get("sig"), now), false);
+    }
+    assert.equal(imports, 0, "malformed query strings must not invoke the HMAC runtime");
+  } finally {
+    delete (subtle as unknown as { importKey?: unknown }).importKey;
+    setSecret(secret);
+  }
+});
