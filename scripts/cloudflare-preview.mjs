@@ -19,8 +19,10 @@ export function isolatedPreviewConfig(config, env = {}) {
   }
   // Do not let named environments or CLI overrides select a different binding set.
   delete result.env;
-  if ((result.migrations ?? []).some((migration) => migration.transferred_classes?.length)) {
-    throw new Error("Preview must not transfer Durable Object classes from another Worker.");
+  if (Object.values(result.exports ?? {}).some(
+    (entry) => entry?.type === "durable-object" && entry.state && entry.state !== "created"
+  )) {
+    throw new Error("Preview must not change Durable Object class lifecycle.");
   }
   previews.durable_objects ??= { bindings: [LOCAL_DO] };
   if (!previews.durable_objects.bindings?.some((b) => b.name === LOCAL_DO.name && b.class_name === LOCAL_DO.class_name)) {
