@@ -2,6 +2,7 @@
 import nextHandler from "./.open-next/worker.js";
 import { DurableObject } from "cloudflare:workers";
 import { getDbFromBinding, type D1LikeDatabase } from "./lib/db";
+export { DocumentRoom } from "./document-room";
 import {
   readCurrentDoc,
   saveCurrentDoc,
@@ -19,6 +20,7 @@ import { isDocPatch } from "./lib/doc-patch";
 
 interface WorkerEnv {
   COLLAB_ROOM: DurableObjectNamespace<CollaborationRoom>;
+  DOC_STORE: DurableObjectNamespace;
   /** 未設定なら編集データはブラウザ内に保存する（クライアントがHTTPの503を見て切り替える） */
   DB?: D1LikeDatabase;
   ALLOWED_EMAILS?: string;
@@ -187,8 +189,24 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       const attachment = (socket as AttachableSocket).deserializeAttachment();
       const siteId = attachment?.siteId;
       if (!siteId) throw new Error("サイトが指定されていません");
+      const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
+      if (!site.rows.length) throw new Error("サイトが見つかりません");
+      const remote = this.env.DOC_STORE?.get(this.env.DOC_STORE.idFromName(siteId)) as
+        | {
+            getSnapshot(): Promise<{ body: string; rev: string; savedAt: number } | null>;
+            replaceDocument(raw: string, base: string | null): Promise<{
+              kind: "saved" | "missing" | "conflict";
+              rev?: string; savedAt?: number;
+              current?: { body: string; rev: string; savedAt: number };
+            }>;
+            patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<{
+              kind: "saved" | "missing" | "conflict";
+              rev?: string; savedAt?: number;
+              current?: { body: string; rev: string; savedAt: number };
+            }>;
+          } | undefined;
       if (input.type === "load") {
-        const current = await readCurrentDoc(db, siteId);
+        const current = remote ? await remote.getSnapshot() : await readCurrentDoc(db, siteId);
         if (!current) {
           reply(
             JSON.stringify({
@@ -211,13 +229,15 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       let result;
       if (input.type === "patch") {
         if (typeof input.base !== "string" || !isDocPatch(input.patch)) throw new Error("不正なリクエスト");
-        result = await saveDocPatch(db, siteId, input.patch, input.base);
+        result = remote ? await remote.patchDocument(input.patch, input.base)
+          : await saveDocPatch(db, siteId, input.patch, input.base);
       } else {
         if (!input.doc) throw new Error("不正なリクエスト");
         const raw = JSON.stringify(input.doc);
         const validationError = validateDocBody(raw);
         if (validationError) throw new Error(validationError);
-        result = await saveCurrentDoc(db, siteId, raw, input.base);
+        result = remote ? await remote.replaceDocument(raw, input.base)
+          : await saveCurrentDoc(db, siteId, raw, input.base);
       }
       if (result.kind === "missing") throw new Error("サイトが見つかりません");
       if (result.kind === "conflict") {
