@@ -2957,6 +2957,61 @@ textarea {
   line-height: 1.7;
 }
 
+/* Export settings use the same compact controls and spacing as editor settings. */
+.export-modal {
+  width: 500px;
+}
+
+.export-options {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.export-option,
+.export-option-grid {
+  min-width: 0;
+}
+
+.export-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.export-option-label {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.export-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.export-option > .dropdown,
+.export-option > .dropdown-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.export-note {
+  margin: 0 0 10px;
+  line-height: 1.6;
+}
+
+@media (max-width: 480px) {
+  .export-option-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .check-list {
   list-style: none;
   margin: 0 0 16px;
