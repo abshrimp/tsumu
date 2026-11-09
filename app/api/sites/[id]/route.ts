@@ -4,6 +4,7 @@ import { serverTr } from "../../../../lib/i18n-server";
 import { requireAuth } from "../../../../lib/server";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { userMessage } from "../../../../lib/errors";
+import { JsonBodyTooLargeError, readJsonLimited } from "../../../../lib/api-json";
 import {
   deleteSite,
   getSite,
@@ -49,7 +50,14 @@ export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
-    const input = (await req.json().catch(() => null)) as SiteInput | null;
+    let input: SiteInput | null;
+    try {
+      input = await readJsonLimited(req, 64 * 1024, false) as SiteInput | null;
+    } catch (error) {
+      return NextResponse.json({ error: r.tr("リクエストが正しくありません") }, {
+        status: error instanceof JsonBodyTooLargeError ? 413 : 400,
+      });
+    }
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       return NextResponse.json({ error: r.tr("リクエストが正しくありません") }, { status: 400 });
     }
