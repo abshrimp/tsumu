@@ -55,3 +55,19 @@ test("runtime requirements match between package metadata and CI", () => {
   const ci = read(".github/workflows/ci.yml");
   assert.match(ci, /node-version-file: \.nvmrc/);
 });
+
+test("Next.js editor routes apply the baseline response security headers", async () => {
+  const { default: configForPhase } = await import("../next.config.mjs");
+  const { PHASE_PRODUCTION_BUILD } = await import("next/constants.js");
+  const nextConfig = await configForPhase(PHASE_PRODUCTION_BUILD);
+  const headers = await nextConfig.headers();
+  const global = headers.find((entry: { source: string }) => entry.source === "/:path*");
+  assert.ok(global, "Expected headers for every path, including API routes");
+  const globalHeaders = new Map(global.headers.map((item: { key: string; value: string }) => [item.key, item.value]));
+  assert.equal(globalHeaders.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(globalHeaders.get("Referrer-Policy"), "strict-origin-when-cross-origin");
+  const frames = headers.find((entry: { source: string }) => entry.source.startsWith("/((?!api/"));
+  assert.ok(frames, "Expected clickjacking protection for the editor UI");
+  assert.ok(frames.headers.some((item: { key: string; value: string }) =>
+    item.key === "Content-Security-Policy" && item.value.includes("frame-ancestors 'self'")));
+});
