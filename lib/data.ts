@@ -667,33 +667,110 @@ export function dataVarNames(doc: SiteDoc, pageId: string, exceptStepId?: string
   return out;
 }
 
+/** Locate the script containing each step once per immutable document. */
+type InputStepOwner = {
+  where: "page" | "node";
+  id: string;
+  field: "pageScripts" | "scripts";
+  index: number;
+};
+const inputStepOwners = new WeakMap<SiteDoc, Map<string, InputStepOwner[]>>();
+
+function ownersOfInputSteps(doc: SiteDoc): Map<string, InputStepOwner[]> {
+  const cached = inputStepOwners.get(doc);
+  if (cached) return cached;
+  const index = new Map<string, InputStepOwner[]>();
+  const add = (scripts: { steps: ScriptStep[] }[] | undefined,
+    location: Omit<InputStepOwner, "index">) => {
+    scripts?.forEach((script, position) => {
+      const owner: InputStepOwner = { ...location, index: position };
+      const seen = new Set<string>();
+      walkAll(script.steps, (step) => {
+        if (seen.has(step.id)) return;
+        seen.add(step.id);
+        const owners = index.get(step.id) ?? [];
+        owners.push(owner);
+        index.set(step.id, owners);
+      });
+    });
+  };
+  for (const [id, page] of Object.entries(doc.pages)) {
+    add(page.pageScripts, { where: "page", id, field: "pageScripts" });
+    add(page.scripts, { where: "page", id, field: "scripts" });
+  }
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    add(node.scripts, { where: "node", id, field: "scripts" });
+  }
+  inputStepOwners.set(doc, index);
+  return index;
+}
+
 /** 候補用の文書。編集中のブロック自身を実行・列挙せず、同名の別producerやフォームは保つ。 */
 export function scriptInputDoc(doc: SiteDoc, stepId?: string): SiteDoc {
   if (!stepId) return doc;
-  const steps = (list: ScriptStep[]): ScriptStep[] => {
-    let changed = false;
-    const next = list.flatMap((step): ScriptStep[] => {
-      if (step.id === stepId) { changed = true; return []; }
-      if (step.kind === "if" || step.kind === "repeat" || step.kind === "for-each") {
-        const then = steps(step.then);
-        const other = step.kind === "if" && step.else ? steps(step.else) : undefined;
-        if (then !== step.then || (step.kind === "if" && other !== step.else)) {
-          changed = true;
-          return [{ ...step, then, ...(step.kind === "if" ? { else: other } : {}) }];
-        }
+  const owners = ownersOfInputSteps(doc).get(stepId);
+  if (!owners?.length) return doc;
+
+  const withoutStep = (list: ScriptStep[]): ScriptStep[] => {
+    let changed: ScriptStep[] | undefined;
+    for (let i = 0; i < list.length; i++) {
+      const step = list[i];
+      if (step.id === stepId) {
+        changed ??= list.slice(0, i);
+        continue;
       }
-      return [step];
-    });
-    return changed ? next : list;
+      let next: ScriptStep = step;
+      if (step.kind === "if") {
+        const then = withoutStep(step.then);
+        const otherwise = step.else ? withoutStep(step.else) : undefined;
+        if (then !== step.then || otherwise !== step.else) {
+          next = { ...step, then, ...(step.else ? { else: otherwise } : {}) };
+        }
+      } else if (step.kind === "repeat" || step.kind === "for-each") {
+        const then = withoutStep(step.then);
+        if (then !== step.then) next = { ...step, then };
+      }
+      if (changed) changed.push(next);
+      else if (next !== step) {
+        changed = list.slice(0, i);
+        changed.push(next);
+      }
+    }
+    return changed ?? list;
   };
-  const scripts = <T extends { steps: ScriptStep[] }>(list: T[] | undefined) =>
-    list?.map((script) => { const next = steps(script.steps); return next === script.steps ? script : { ...script, steps: next }; });
-  return { ...doc,
-    pages: Object.fromEntries(Object.entries(doc.pages).map(([id, page]) => [id, { ...page,
-      pageScripts: scripts(page.pageScripts), scripts: scripts(page.scripts),
-    }])),
-    nodes: Object.fromEntries(Object.entries(doc.nodes).map(([id, node]) => [id, { ...node, scripts: scripts(node.scripts) }])),
+  const rewrite = <T extends { steps: ScriptStep[] }>(
+    scripts: T[] | undefined, index: number
+  ): T[] | undefined => {
+    const script = scripts?.[index];
+    if (!script || !scripts) return undefined;
+    const steps = withoutStep(script.steps);
+    if (steps === script.steps) return undefined;
+    const updated = scripts.slice();
+    updated[index] = { ...script, steps };
+    return updated;
   };
+  let pages: SiteDoc["pages"] | undefined;
+  let nodes: SiteDoc["nodes"] | undefined;
+  for (const owner of owners) {
+    if (owner.where === "page") {
+      const page = (pages ?? doc.pages)[owner.id];
+      if (!page) continue;
+      const updated = rewrite(page[owner.field], owner.index);
+      if (!updated) continue;
+      pages ??= { ...doc.pages };
+      pages[owner.id] = { ...page, [owner.field]: updated };
+    } else {
+      const node = (nodes ?? doc.nodes)[owner.id];
+      if (!node) continue;
+      const updated = rewrite(node.scripts, owner.index);
+      if (!updated) continue;
+      nodes ??= { ...doc.nodes };
+      nodes[owner.id] = { ...node, scripts: updated };
+    }
+  }
+  return pages || nodes
+    ? { ...doc, ...(pages ? { pages } : {}), ...(nodes ? { nodes } : {}) }
+    : doc;
 }
 
 /** 名前の候補を、ページ内の既存の変数と重ならないようにする */
