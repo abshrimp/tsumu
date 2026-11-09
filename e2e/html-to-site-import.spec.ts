@@ -293,6 +293,49 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
 });
 
 
+
+test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable content", async ({ page }) => {
+  await localMode(page);
+  const original = new JSZip()
+    .file("index.html", '<!doctype html><html><head><title>Import round trip</title>' +
+      '<link rel="stylesheet" href="main.css"></head><body>' +
+      '<section id="roundtrip-card" class="card"><h1>Roundtrip verified</h1></section>' +
+      '</body></html>')
+    .file("main.css", ".card { display: flex; gap: 12px; }");
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "input.zip", mimeType: "application/zip",
+    buffer: await original.generateAsync({ type: "nodebuffer" }),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page.locator(".app")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".app")).toBeVisible();
+  const saved = await importedDoc(page);
+  const originalCard = Object.values(saved.nodes).find((node: any) => node.attrId === "roundtrip-card") as any;
+  expect(originalCard?.styles?.base?.default?.display).toBe("flex");
+  expect(originalCard?.styles?.base?.default?.gap).toBe("12px");
+  const output = generateExportProject(saved, "html");
+  expect(output.files["index.html"]).toContain("Roundtrip verified");
+  const exported = new JSZip();
+  for (const [path, source] of Object.entries(output.files)) exported.file(path, source);
+  for (const [path, base64] of Object.entries(output.binaries)) {
+    exported.file(path, Buffer.from(base64, "base64"));
+  }
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "published.zip", mimeType: "application/zip",
+    buffer: await exported.generateAsync({ type: "nodebuffer" }),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page.locator(".app")).toBeVisible();
+  const restored = await importedDoc(page);
+  expect(Object.values(restored.nodes).some((node: any) => node.text?.content === "Roundtrip verified")).toBe(true);
+  expect(Object.values(restored.nodes).some((node: any) => node.styles?.base?.default?.display === "flex")).toBe(true);
+});
+
 test("normal-page ZIP conversion uses only index.html and keeps the site's other pages", async ({ page }) => {
   await localMode(page);
   const original = createInitialDoc();
