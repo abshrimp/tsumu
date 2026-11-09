@@ -17,8 +17,8 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     TSUMU_DATA_DIR=/data \
     NODE_OPTIONS=--disable-warning=ExperimentalWarning
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
 RUN mkdir -p /data && chown node:node /data
 USER node
 VOLUME /data
