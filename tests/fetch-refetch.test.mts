@@ -173,7 +173,7 @@ test("an earlier success or error cannot end the newest loading state", async ()
     mounted.commitUrl("https://example.test/slow"); void mounted.run();
     mounted.commitUrl("https://example.test/latest"); void mounted.run();
     await mounted.finish(0, old, error);
-    assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
+    assert.deepEqual(mounted.step()!.preview?.sample, [{ name: "Initial" }]);
     assert.deepEqual(mounted.status(), { busy: true, error: null });
     await mounted.finish(1, latest);
     assert.deepEqual(mounted.status(), { busy: false, error: null });
@@ -186,7 +186,7 @@ test("late older errors do not replace the latest successful result", async () =
   mounted.commitUrl("https://example.test/latest"); void mounted.run();
   await mounted.finish(1, latest);
   await mounted.finish(0, undefined, "古い取得に失敗しました");
-  assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(mounted.step()!.preview?.sample, latest);
   assert.deepEqual(mounted.status(), { busy: false, error: null });
 });
 
@@ -196,8 +196,8 @@ test("latest failures keep the saved fallback and cannot be overwritten by an ol
   mounted.commitUrl("https://example.test/latest"); void mounted.run();
   await mounted.finish(1, undefined, "新しい取得に失敗しました");
   await mounted.finish(0, old);
-  assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
-  assert.equal(mounted.step()!.fetchedAt, undefined);
+  assert.deepEqual(mounted.step()!.preview?.sample, [{ name: "Initial" }]);
+  assert.equal(mounted.step()!.preview?.fetchedAt, undefined);
   assert.deepEqual(mounted.status(), { busy: false, error: "新しい取得に失敗しました" });
 });
 
@@ -210,7 +210,7 @@ test("requests to the same URL also follow the newest method, headers and JSON b
   await mounted.finish(2, latest);
   await mounted.finish(0, old);
   await mounted.finish(1, old);
-  assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(mounted.step()!.preview?.sample, latest);
   assert.equal(mounted.step()!.method, "POST");
   assert.deepEqual(mounted.step()!.headers, [{ name: "X-Version", value: "new" }]);
   assert.equal(mounted.step()!.body, '{"version":2}');
@@ -288,7 +288,7 @@ test("a removed block is not recreated and another selected block is not overwri
   await mounted.finish(0, old);
   assert.deepEqual(useEditor.getState().doc, saved);
   assert.equal(mounted.step(), undefined);
-  assert.deepEqual(mounted.step("other")!.sample, [{ name: "Other" }]);
+  assert.deepEqual(mounted.step("other")!.preview?.sample, [{ name: "Other" }]);
 });
 
 test("a valid response follows a reordered block and preserves unrelated edits", async () => {
@@ -314,7 +314,7 @@ test("settings changes and viewing a saved GET or DELETE sample do not send requ
   mounted.setOptions({ headers: [{ name: "X-Confirm", value: "yes" }] });
   mounted.openPeek(); mounted.openPeek();
   assert.equal(mounted.requests.length, 0);
-  assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
+  assert.deepEqual(mounted.step()!.preview?.sample, [{ name: "Initial" }]);
   useEditor.getState().undo(); useEditor.getState().redo();
   assert.equal(mounted.requests.length, 0);
 });
@@ -323,7 +323,7 @@ test("one explicit execution caches the full response and viewing it never resen
   const mounted = mount(); mounted.setOptions({ method: "POST" });
   const all = Array.from({ length: 23 }, (_, i) => ({ name: String(i) }));
   void mounted.run(); await mounted.finish(0, all);
-  assert.deepEqual(mounted.step()!.sample, all.slice(0, 20));
+  assert.deepEqual(mounted.step()!.preview?.sample, all.slice(0, 20));
   assert.deepEqual(mounted.cached(), all);
   mounted.openPeek(); mounted.openPeek();
   assert.equal(mounted.requests.length, 1);
@@ -338,10 +338,10 @@ test("repeated clicks and reopening a pending test cannot duplicate a request", 
   assert.equal(second.status().busy, true);
   void second.run(); assert.equal(mounted.requests.length, 1);
   await mounted.finish(0, old);
-  assert.deepEqual(mounted.step()!.sample, old, "closing a view does not discard a document-owned request");
+  assert.deepEqual(mounted.step()!.preview?.sample, old, "closing a view does not discard a document-owned request");
   assert.equal(second.status().busy, false);
   void second.run(); await mounted.finish(1, latest);
-  assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(mounted.step()!.preview?.sample, latest);
 });
 
 test("a closed test and its error cannot change a different setting's latest test", async () => {
@@ -354,7 +354,7 @@ test("a closed test and its error cannot change a different setting's latest tes
     assert.deepEqual(second.status(), { busy: true, error: null });
     await mounted.finish(1, latest);
     assert.deepEqual(second.status(), { busy: false, error: null });
-    assert.deepEqual(mounted.step()!.sample, latest);
+    assert.deepEqual(mounted.step()!.preview?.sample, latest);
   }
 });
 
@@ -365,8 +365,8 @@ test("pending state is independent for different blocks and identical writes ret
   await mounted.finish(1, latest); assert.equal(first.status().busy, true);
   await mounted.finish(0, old); assert.equal(first.status().busy, false);
   void first.run(); await mounted.finish(2, latest);
-  assert.deepEqual(mounted.step()!.sample, latest);
-  assert.deepEqual(mounted.step("other")!.sample, latest);
+  assert.deepEqual(mounted.step()!.preview?.sample, latest);
+  assert.deepEqual(mounted.step("other")!.preview?.sample, latest);
 });
 
 test("unresolved URL values fail without sending; explicit temporary values are encoded without saving", async () => {
@@ -398,11 +398,11 @@ test("explicit tests preserve raw JSON body types and saved templates", async ()
 test("null, empty, boolean and numeric samples keep their type on fetch, viewing and save/load", async () => {
   for (const sample of [null, "", false, 0, []]) {
     const mounted = mount(); void mounted.run(); await mounted.finish(0, sample);
-    assert.deepEqual(mounted.step()!.sample, sample);
+    assert.deepEqual(mounted.step()!.preview?.sample, sample);
     assert.deepEqual(mounted.cached(), sample);
     mounted.openPeek(); assert.equal(mounted.requests.length, 1);
     useEditor.getState().replaceDoc(JSON.parse(JSON.stringify(useEditor.getState().doc)));
-    assert.deepEqual(mounted.step()!.sample, sample);
+    assert.deepEqual(mounted.step()!.preview?.sample, sample);
   }
 });
 
@@ -435,15 +435,15 @@ test("one block action executes immediately, opens the result, then becomes view
   refresh().props.onClick(); refresh().props.onClick();
   assert.equal(mounted.requests.length, 2, "upper-right refresh sends directly, only once");
   await mounted.finish(1, old);
-  assert.deepEqual(mounted.step()!.sample, old);
+  assert.deepEqual(mounted.step()!.preview?.sample, old);
 });
 
 test("settings invalidate only the current-result marker across save/load and Undo", () => {
   const mounted = mount();
   mounted.setOptions({ method: "POST", body: '{"version":2}' });
   assert.equal(mounted.currentSample(), false);
-  assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
-  assert.equal(mounted.step()!.fetchedAt, undefined);
+  assert.deepEqual(mounted.step()!.preview?.sample, [{ name: "Initial" }]);
+  assert.equal(mounted.step()!.preview?.fetchedAt, undefined);
   useEditor.getState().replaceDoc(JSON.parse(JSON.stringify(useEditor.getState().doc)));
   assert.equal(mounted.currentSample(), false);
   assert.equal(mounted.action().props.children[1], "データ取得");
@@ -458,10 +458,10 @@ test("settings invalidate only the current-result marker across save/load and Un
 test("samples without a valid success timestamp remain fallback data, not a confirmed current result", () => {
   for (const fetchedAt of [undefined, 0, -1, NaN]) {
     const mounted = mount();
-    useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[0] as FetchStep).fetchedAt = fetchedAt; });
+    useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.preview?.fetchedAt = fetchedAt; });
     assert.equal(mounted.currentSample(), false);
     assert.equal(mounted.action().props.children[1], "データ取得");
-    assert.deepEqual(mounted.step()!.sample, [{ name: "Initial" }]);
+    assert.deepEqual(mounted.step()!.preview?.sample, [{ name: "Initial" }]);
   }
 });
 
@@ -476,7 +476,7 @@ test("inline runtime inputs enable the one send action and reach the result with
   assert.equal(view.props.children[1].props.children[1].props.children, "https://example.test/001");
   await mounted.finish(0, latest);
   // 取得時刻の数字に偶然 "001" が含まれても、テスト値の保存とは判定しない。
-  const { fetchedAt, ...saved } = mounted.step()!;
+  const { fetchedAt, ...saved } = mounted.step()!.preview!;
   assert.equal(typeof fetchedAt, "number");
   assert.equal(JSON.stringify(saved).includes("001"), false);
 });
@@ -525,7 +525,7 @@ test("visual drag unmounts never abandon a transmitted POST or silently turn vie
     mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
     mounted.dragRemount(); assert.equal(mounted.action().props.children[1], "送信中…");
     await mounted.finish(0, latest, error);
-    assert.deepEqual(mounted.step()!.sample, error ? [{ name: "Initial" }] : latest);
+    assert.deepEqual(mounted.step()!.preview?.sample, error ? [{ name: "Initial" }] : latest);
     assert.equal(mounted.action().props.children[1], "データを見る");
     mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
     if (error) assert.equal(mounted.result()().props.children.find((v: any) => v?.props?.role === "alert").props.children, error);
@@ -551,7 +551,7 @@ test("restoring a backup with identical request IDs isolates late success, error
     const mounted = mount(); mounted.setOptions({ method: "POST" });
     mounted.action().props.onClick();
     const restored = structuredClone(useEditor.getState().doc);
-    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).sample = [{ name: "Backup" }];
+    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.preview?.sample = [{ name: "Backup" }];
     const session = useEditor.getState().documentSession;
     useEditor.getState().restoreDoc(restored);
     assert.equal(useEditor.getState().documentSession, session + 1);
@@ -567,7 +567,7 @@ test("restoring a backup with identical request IDs isolates late success, error
     mounted.action().props.onClick();
     assert.equal(mounted.requests.length, 2, "the restored document can explicitly send the same request");
     await mounted.finish(1, latest);
-    assert.deepEqual(mounted.step()!.sample, latest);
+    assert.deepEqual(mounted.step()!.preview?.sample, latest);
   }
 });
 
@@ -593,7 +593,7 @@ test("Undo and Redo preserve restore history without reviving a pre-restore resp
     const before = structuredClone(useEditor.getState().doc);
     mounted.values().setValue("missing", "Before restore"); mounted.action().props.onClick();
     const restored = structuredClone(before);
-    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).sample = [{ name: "Backup" }];
+    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.preview?.sample = [{ name: "Backup" }];
     useEditor.getState().restoreDoc(restored);
     const session = useEditor.getState().documentSession;
     useEditor.getState().undo();
@@ -621,7 +621,7 @@ test("an identical no-op restore preserves the session and a valid pending respo
   useEditor.getState().restoreDoc(structuredClone(before.doc));
   assert.equal(useEditor.getState(), before);
   await mounted.finish(0, latest);
-  assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(mounted.step()!.preview?.sample, latest);
 });
 
 test("deleting and undo-restoring a pending block rejects its late result but retains the fact it was sent", async () => {
@@ -651,7 +651,7 @@ test("modal runtime edits and result provenance persist across closing, reopenin
   assert.ok(/"https:\/\/example\.test\/A"/.test(JSON.stringify(oldResult)), "old result provenance does not follow the unsent draft");
   assert.equal(reopened().props.children[1].props.children[1].props.children, "https://example.test/B");
   assert.equal(reopened().props.children.at(-1).props.children[0], false, "the same destination is not repeated");
-  assert.deepEqual(mounted.step()!.sample, { result: "B" });
+  assert.deepEqual(mounted.step()!.preview?.sample, { result: "B" });
   mounted.dragRemount(); mounted.action().props.onClick();
   const afterDrag = mounted.result(); assert.equal(state(afterDrag()).values.missing, "B");
   afterDrag().props.children[0].props.children[1].props.onClick();
@@ -688,7 +688,7 @@ test("real duplicatePage cannot redirect a node fetch response into the copied p
   const originalCopy = structuredClone(useEditor.getState().doc.nodes[copiedNode]);
   assert.equal(originalCopy.scripts![0].steps[0].id, "fetch");
   void mounted.run(); await mounted.finish(0, latest);
-  assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(mounted.step()!.preview?.sample, latest);
   assert.deepEqual(useEditor.getState().doc.nodes[copiedNode], originalCopy);
 });
 
@@ -698,7 +698,7 @@ test("same-page duplicateNode keeps response writes and caches on the actual aut
   const copyId = useEditor.getState().selection!;
   const copy = structuredClone(useEditor.getState().doc.nodes[copyId]);
   void mounted.run(); await mounted.finish(0, latest);
-  assert.deepEqual(mounted.step()!.sample, latest);
+  assert.deepEqual(mounted.step()!.preview?.sample, latest);
   assert.deepEqual(useEditor.getState().doc.nodes[copyId], copy);
 });
 
@@ -707,7 +707,7 @@ test("an explicit component root is writable, but an unrelated off-page node is 
   doc.nodes.component = { ...makeBox(), id: "component", children: ["act"] };
   doc.components = { c: { id: "c", name: "Component", rootId: "component" } };
   const mounted = mount({ doc, nodeId: "act", roots: ["component"], owner: { nodeId: "act", scriptId: "node-script" } });
-  void mounted.run(); await mounted.finish(0, latest); assert.deepEqual(mounted.step()!.sample, latest);
+  void mounted.run(); await mounted.finish(0, latest); assert.deepEqual(mounted.step()!.preview?.sample, latest);
   const outside = mount({ doc, nodeId: "act", owner: { nodeId: "act", scriptId: "node-script" } });
   void outside.run(); assert.equal(outside.requests.length, 0);
 });
@@ -715,7 +715,7 @@ test("an explicit component root is writable, but an unrelated off-page node is 
 test("refresh resolves the latest upstream sample while preserving the old result's actual destination", async () => {
   const mounted = mount(); mounted.commitUrl("https://example.test/{other.0.name}");
   mounted.action().props.onClick(); await mounted.finish(0, { answer: "first" });
-  useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[1] as FetchStep).sample = [{ name: "LATEST" }]; });
+  useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[1] as FetchStep).preview!.preview?.sample = [{ name: "LATEST" }]; });
   mounted.action().props.onClick(); const result = mounted.result();
   assert.equal(result().props.children[1].props.children[1].props.children, "https://example.test/LATEST");
   assert.ok(/"https:\/\/example\.test\/Other"/.test(JSON.stringify(result().props.children.at(-1).props.children[0])));
@@ -735,7 +735,7 @@ for (const target of ["url", "body"] as const) {
       assert.equal(target === "url" ? mounted.requests[0].input.url : JSON.parse(mounted.requests[0].input.body!).value,
         target === "url" ? "https://example.test/TEMP" : "TEMP");
       useEditor.getState().updateDoc((doc) => {
-        (doc.pages.p.pageScripts![0].steps[1] as FetchStep).sample = [{ name: "Other", newfield: value }];
+        (doc.pages.p.pageScripts![0].steps[1] as FetchStep).preview!.preview?.sample = [{ name: "Other", newfield: value }];
       });
       mounted.action().props.onClick(); const result = mounted.result();
       const state = result().props.children.find((v: any) => v?.type?.name === "FetchValues").props.state;
@@ -753,7 +753,7 @@ for (const target of ["url", "body"] as const) {
 
 test("a read-only standalone drag ghost cannot erase the real loop's temporary runtime inputs", () => {
   const doc = fetchRefetchDoc(); (doc.pages.p.pageScripts![0].steps[0] as FetchStep).url = "https://example.test/{local}";
-  delete (doc.pages.p.pageScripts![0].steps[0] as FetchStep).fetchedAt;
+  delete (doc.pages.p.pageScripts![0].steps[0] as FetchStep).preview?.fetchedAt;
   const mounted = mount({ doc, loops: [{ array: "rows", fields: ["local"], samples: {} }] });
   mounted.values().setValue("local", "LOCAL"); mounted.dragRemount();
   assert.equal(mounted.values().values.local, "LOCAL");
@@ -770,19 +770,19 @@ test("same-page nodes with copied identical script and step IDs remain separate 
   const copy = structuredClone(useEditor.getState().doc.nodes[copiedNode]);
   assert.equal(copy.scripts![0].id, "node-script"); assert.equal(copy.scripts![0].steps[0].id, "fetch");
   void mounted.run(); await mounted.finish(0, latest);
-  assert.deepEqual(mounted.step()!.sample, latest); assert.deepEqual(useEditor.getState().doc.nodes[copiedNode], copy);
+  assert.deepEqual(mounted.step()!.preview?.sample, latest); assert.deepEqual(useEditor.getState().doc.nodes[copiedNode], copy);
 });
 
 test("page-load and unconnected page scripts with identical step IDs are distinct owners", async () => {
   for (const nodeId of [PAGE_TARGET, null]) {
     const doc = fetchRefetchDoc();
     const loose = structuredClone(doc.pages.p.pageScripts![0]); loose.id = "loose";
-    (loose.steps[0] as FetchStep).sample = [{ name: "Loose" }]; doc.pages.p.scripts = [loose];
+    (loose.steps[0] as FetchStep).preview!.preview?.sample = [{ name: "Loose" }]; doc.pages.p.scripts = [loose];
     const mounted = mount({ doc, owner: { nodeId, scriptId: nodeId === null ? "loose" : "script" } });
     void mounted.run(); await mounted.finish(0, latest);
     const actual = useEditor.getState().doc.pages.p;
-    assert.deepEqual((actual.pageScripts![0].steps[0] as FetchStep).sample, nodeId === null ? [{ name: "Initial" }] : latest);
-    assert.deepEqual((actual.scripts![0].steps[0] as FetchStep).sample, nodeId === null ? latest : [{ name: "Loose" }]);
+    assert.deepEqual((actual.pageScripts![0].steps[0] as FetchStep).preview?.sample, nodeId === null ? [{ name: "Initial" }] : latest);
+    assert.deepEqual((actual.scripts![0].steps[0] as FetchStep).preview?.sample, nodeId === null ? latest : [{ name: "Loose" }]);
   }
 });
 
