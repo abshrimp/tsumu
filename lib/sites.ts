@@ -1,5 +1,4 @@
 import type { Db } from "./db";
-import { encodeStoredDoc } from "./compressed-doc-storage";
 
 /**
  * サイト（1つの編集データと、その公開先）。
@@ -144,16 +143,16 @@ export async function getSite(db: Db, id: string): Promise<SiteRecord | null> {
   return rs.rows[0] ? toRecord(rs.rows[0]) : null;
 }
 
-export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, initialBody?: string): Promise<void> {
+export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, storedBody?: string): Promise<void> {
   const now = Date.now();
   const site = {
     sql: `INSERT INTO sites (id, name, repo, branch, preview_branch, site_url, preview_url, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [id, v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
   };
-  if (initialBody === undefined) { await db.execute(site); return; }
-  // The new site and its compressed initial document are committed atomically.
-  const storedBody = await encodeStoredDoc(initialBody);
+  // Callers must pass the already-encoded gzip v1 body; this shared module
+  // cannot import node:zlib because it is also used by browser bundles.
+  if (storedBody === undefined) { await db.execute(site); return; }
   await db.batch([site, {
     sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, 1, ?, ?)",
     args: [id, now, storedBody],
