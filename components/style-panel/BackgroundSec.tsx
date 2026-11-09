@@ -7,6 +7,7 @@
 import { RotateCw } from "lucide-react";
 import { useEditor } from "../../lib/store";
 import { assetSrc } from "../../lib/assets";
+import { cssAssetReferences, escapeCssAssetUrl } from "../../lib/css-assets";
 import ImagePicker from "../ImagePicker";
 import { parseNumeric, isInitialValue, sameValue, type PropInfo } from "../../lib/style";
 import {
@@ -30,13 +31,13 @@ const BG_DEFAULT_IMAGE = `url("https://picsum.photos/seed/bg/1200/800")`;
 
 /** 背景の種類。透明（小さい画面で背景を打ち消した値）は「なし」 */
 function backgroundMode(image: string | undefined, color: string | undefined) {
-  if (image?.includes("gradient")) return "gradient";
-  if (image?.includes("url(")) return "image";
+  if (/^\s*(?:repeating-)?(?:linear|radial|conic)-gradient\s*\(/i.test(image ?? "")) return "gradient";
+  if (image && cssAssetReferences(image).length) return "image";
   return color && !isInitialValue("backgroundColor", color) ? "color" : "none";
 }
 
 export function parseGradient(v: string | undefined) {
-  const gm = /linear-gradient\((-?\d*\.?\d+)deg,\s*(.+?)\s+0%,\s*(.+?)\s+100%\)/.exec(v ?? "");
+  const gm = /linear-gradient\((-?\d*\.?\d+)deg,\s*(.+?)\s+0%,\s*(.+?)\s+100%\)/i.exec(v ?? "");
   return {
     angle: gm ? +gm[1] : 180,
     c1: gm ? gm[2] : "#ffffff",
@@ -82,7 +83,7 @@ export function BackgroundSec() {
       backgroundImage: `linear-gradient(${a}deg, ${s1} 0%, ${s2} 100%)`,
     });
 
-  const um = /url\(["']?(.+?)["']?\)/.exec(bgImage ?? "");
+  const imageUrl = cssAssetReferences(bgImage ?? "")[0]?.url;
 
   return (
     <Sec
@@ -189,7 +190,7 @@ export function BackgroundSec() {
             <ImagePicker
               editTarget={insp.editTarget}
               value={(() => {
-                const src = um?.[1];
+                const src = imageUrl;
                 if (!src) return null;
                 const matched = Object.values(doc.assets).find(
                   (a) => assetSrc(a) === src
@@ -204,7 +205,7 @@ export function BackgroundSec() {
                 // アップロード直後のアセットは描画時の doc にまだ無いため、最新の状態から引く
                 const asset = v.assetId ? useEditor.getState().doc.assets[v.assetId] : undefined;
                 const src = asset ? assetSrc(asset) : v.url;
-                if (src) insp.set({ backgroundImage: `url("${src}")` });
+                if (src) insp.set({ backgroundImage: `url("${escapeCssAssetUrl(src, '"')}")` });
               }}
             />
           </Grp>

@@ -48,7 +48,7 @@ export function parseAcceptLanguage(header: string | null | undefined): string[]
       const q = Number(params.find((x) => x.trim().startsWith("q="))?.trim().slice(2) ?? 1);
       return { code, q: Number.isFinite(q) ? q : 0, i };
     })
-    .filter((x) => x.code && x.code !== "*")
+    .filter((x) => x.code && x.code !== "*" && x.q > 0 && x.q <= 1)
     .sort((a, b) => b.q - a.q || a.i - b.i)
     .map((x) => x.code);
 }
