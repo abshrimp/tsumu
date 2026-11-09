@@ -449,3 +449,44 @@ test("AUD-F-014: generated filename components are bounded for portable ZIP extr
   assert.doesNotThrow(() => generateExportProject(site, "html"));
   assert.ok(exportDirectoryName("A".repeat(1000)).length <= 96);
 });
+
+test("AUD-F-015: exported CSS contains untrusted style-map values as declarations only", async () => {
+  const { safeCssDeclaration } = await import("../lib/css-declaration");
+  assert.equal(safeCssDeclaration("color", "rebeccapurple"), "color: rebeccapurple;");
+  assert.equal(safeCssDeclaration("WebkitLineClamp", "3"), "-webkit-line-clamp: 3;");
+  assert.equal(safeCssDeclaration("--brand-color", "#abc"), "--brand-color: #abc;");
+  assert.equal(safeCssDeclaration("fontFamily", '"A; B", sans-serif'),
+    'font-family: "A; B", sans-serif;');
+  for (const value of ["red; } body { display:none", '"</style><script>unsafe()</script>"',
+    "rgb(1,2", "red/* unclosed", "red; background:black"]) {
+    assert.equal(safeCssDeclaration("color", value), null);
+  }
+  assert.equal(safeCssDeclaration("color; } body {", "red"), null);
+
+  const site = doc();
+  site.nodes.visible.styles = { base: { default: {
+    "color; } body {": "red",
+    color: 'red; } body { --__AUDIT_CSS_BREAKOUT__: yes; } /*',
+    backgroundImage: "url(data:image/png;base64,AQID)",
+    fontFamily: '"A; B", sans-serif',
+    WebkitLineClamp: "3",
+    "--brand-color": "#abc",
+  } } };
+  site.nodes.visible.customCss = 'padding: 5px; border-radius: calc(2px + 1px);';
+  site.pages.public.bodyStyles = { base: { default: {
+    color: '"</style><script>window.__AUDIT_CSS_XSS__=1</script>"',
+    margin: "12px",
+  } } };
+  for (const format of ["nextjs", "html"] as const) {
+    const project = generateExportProject(site, format);
+    const css = project.files["styles/site.css"];
+    assert.doesNotMatch(css, /__AUDIT_CSS_BREAKOUT__|__AUDIT_CSS_XSS__/);
+    assert.match(css, /background-image: url\(data:image\/png;base64,AQID\);/);
+    assert.match(css, /font-family: "A; B", sans-serif;/);
+    assert.match(css, /-webkit-line-clamp: 3;/);
+    assert.match(css, /--brand-color: #abc;/);
+    assert.match(css, /padding: 5px;/);
+    assert.match(css, /border-radius: calc\(2px \+ 1px\);/);
+    assert.match(css, /margin: 12px;/);
+  }
+});

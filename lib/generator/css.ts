@@ -20,6 +20,7 @@ import {
 } from "../style";
 import { keyframesCss, motionCss } from "../motion";
 import { customStateSelector } from "../custom-states";
+import { safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName } from "../css-declaration";
 
 /* ---------- フォント ---------- */
 
@@ -143,10 +144,11 @@ function ruleFor(
   indent = ""
 ): string {
   const body = Object.entries(map)
-    .map(
-      ([k, v]) =>
-        `${indent}  ${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}: ${cssValue(doc, k, v, assetNames)};`
-    )
+    .flatMap(([key, value]) => {
+      if (!safeCssPropertyName(key) || !safeCssDeclarationValue(value)) return [];
+      const css = safeCssDeclaration(key, cssValue(doc, key, value, assetNames));
+      return css ? [`${indent}  ${css}`] : [];
+    })
     .join("\n");
   return `${indent}${selector} {\n${body}\n${indent}}`;
 }
@@ -268,7 +270,15 @@ export function generateSiteCss(
           ? (node.customCss?.replace(/[{}]/g, " ").trim() ?? "")
           : "";
         const extraDecls = [
-          ...cssDecls(raw).map((d) => `${cssValue(doc, "customCss", d, assetNames)};`),
+          ...cssDecls(raw).flatMap((declaration) => {
+            const colon = declaration.indexOf(":");
+            if (colon < 1) return [];
+            const key = declaration.slice(0, colon).trim();
+            const value = declaration.slice(colon + 1).trim();
+            if (!safeCssPropertyName(key) || !safeCssDeclarationValue(value)) return [];
+            const css = safeCssDeclaration(key, cssValue(doc, "customCss", value, assetNames));
+            return css ? [css] : [];
+          }),
           ...(isBaseDefault ? motionDecls : []),
         ];
         if (!Object.keys(map).length && !extraDecls.length) continue;
