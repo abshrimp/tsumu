@@ -1,7 +1,7 @@
 import { parse, defaultTreeAdapter, type DefaultTreeAdapterTypes as Html } from "parse5";
 import { assetSrc, nodeAssetSrc } from "./assets";
 import { CSS_ASSET_ATTRIBUTES, rewriteCssAssetUrls } from "./css-assets";
-import { IMPORT_LIMITS } from "./import-limits";
+import { IMPORT_LIMITS } from "./site-import-format";
 import { rewriteSrcsetUrls } from "./srcset";
 import type { SiteDoc } from "./types";
 
@@ -96,8 +96,10 @@ export function rebindImportedAssetUrls(original: SiteDoc, doc: SiteDoc) {
   for (const node of Object.values(doc.nodes)) {
     for (const media of [node.image, node.media]) {
       if (!media) continue;
-      const asset = media.assetId && Object.hasOwn(doc.assets, media.assetId) ? doc.assets[media.assetId] : null;
-      media.src = asset ? nodeAssetSrc(asset) : resolve(media.src);
+      if (!media.src) continue;
+      const id = media.assetId;
+      media.src = id && Object.hasOwn(original.assets, id) && media.src === assetSrc(original.assets[id])
+        ? nodeAssetSrc(doc.assets[id]) : resolve(media.src);
     }
     if (node.link?.url) node.link.url = resolve(node.link.url);
     if (node.embed?.src) node.embed.src = resolve(node.embed.src);

@@ -194,7 +194,7 @@ for (const lost of [false, true]) test(`server import saves the first revision w
 test("importing archived CSS keeps style end tags as literal content in the published page", async ({ page }) => {
   await localMode(page);
   const zip = new JSZip().file("index.html", '<link rel="stylesheet" href="theme.css"><p>CSS probe</p>')
-    .file("theme.css", '@supports (display: grid) {p::before{content:"</StYlE><script>globalThis.cssExecuted=1</script><style>";}}');
+    .file("theme.css", '@supports (display: grid) {p::before{content:"</StYlE><script>globalThis.cssExecuted=1</script><style>";}} @media (max-width:600px){p::after{content:"narrow"}}');
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
@@ -212,6 +212,10 @@ test("importing archived CSS keeps style end tags as literal content in the publ
   await output.goto("https://published.test/");
   expect(await output.evaluate(() => (globalThis as typeof globalThis & { cssExecuted?: number }).cssExecuted)).toBeUndefined();
   await expect.poll(() => output.locator("p").first().evaluate(p => getComputedStyle(p, "::before").content)).toContain("</StYlE><script>");
+  const afterContent = () => output.locator("p").first().evaluate(p => getComputedStyle(p, "::after").content);
+  expect(await afterContent()).not.toContain("narrow");
+  await output.setViewportSize({ width: 400, height: 600 });
+  await expect.poll(afterContent).toContain("narrow");
 });
 
 test("an external HTML base retains external stylesheet integrity even with a local namesake", async ({ page }) => {
@@ -228,4 +232,25 @@ test("an external HTML base retains external stylesheet integrity even with a lo
   const head = doc.pages[doc.pageOrder[0]].customTopHtml;
   expect(head).toContain('href="https://cdn.example.test/web/theme.css"');
   expect(head).toContain('integrity="sha256-AAAA"');
+});
+
+test("an import ID collision preserves the already stored site and document", async ({ page }) => {
+  await localMode(page);
+  await page.addInitScript(({ listKey, docKey }) => {
+    const id = "aaaaaaaaaa";
+    localStorage.setItem(listKey, JSON.stringify([{ id, name: "Existing site" }]));
+    localStorage.setItem(docKey + ":" + id, JSON.stringify({ siteName: "Existing document" }));
+    const random = crypto.getRandomValues.bind(crypto);
+    Object.defineProperty(crypto, "getRandomValues", { value: (bytes: Uint8Array) =>
+      bytes.length === 10 ? bytes.fill(0) : random(bytes) });
+  }, { listKey, docKey: DOC_STORAGE_KEY });
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "site.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture())),
+  });
+  await expect(page.locator(".home-notice[role=alert]")).toBeVisible();
+  const existing = await getLocalSite(page);
+  expect(existing.list).toEqual([{ id: "aaaaaaaaaa", name: "Existing site" }]);
+  expect(existing.doc).toEqual({ siteName: "Existing document" });
 });

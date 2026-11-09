@@ -26,6 +26,14 @@ const crcTable = Uint32Array.from({ length: 256 }, (_, n) => {
 
 /** Stop decompression as soon as its *actual* output exceeds the limit. */
 export function readZipEntryLimited(entry: JSZip.JSZipObject, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
+  return consumeZipEntry(entry, maxBytes, true);
+}
+
+export async function verifyZipEntry(entry: JSZip.JSZipObject, maxBytes: number): Promise<void> {
+  await consumeZipEntry(entry, maxBytes, false);
+}
+
+function consumeZipEntry(entry: JSZip.JSZipObject, maxBytes: number, retain: boolean): Promise<Uint8Array<ArrayBuffer>> {
   return new Promise((resolve, reject) => {
     const stream = (entry as JSZip.JSZipObject & {
       internalStream(type: "uint8array"): ZipByteStream;
@@ -47,7 +55,7 @@ export function readZipEntryLimited(entry: JSZip.JSZipObject, maxBytes: number):
         return;
       }
       if (metadata?.crc32 !== undefined) for (const byte of chunk) crc = (crc >>> 8) ^ crcTable[(crc ^ byte) & 255];
-      chunks.push(chunk.slice());
+      if (retain) chunks.push(chunk.slice());
     }).on("error", (error) => {
       if (settled) return;
       settled = true;
@@ -59,7 +67,7 @@ export function readZipEntryLimited(entry: JSZip.JSZipObject, maxBytes: number):
         reject(new Error("ZIP CRC-32 mismatch: " + entry.name));
         return;
       }
-      const result = new Uint8Array(length);
+      const result = new Uint8Array(retain ? length : 0);
       let offset = 0;
       for (const chunk of chunks) {
         result.set(chunk, offset);

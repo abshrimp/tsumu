@@ -37,7 +37,7 @@ for (const storage of ["local", "remote"] as const) {
     const errors: string[] = [];
     const unexpected: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
-    await page.route("**/*", async route => {
+    await page.route(/^https?:\/\//, async route => {
       const url = new URL(route.request().url());
       if (url.origin === "https://srcset.test" && url.pathname === "/") {
         return route.fulfill({ contentType: "text/html", body: '<!doctype html><link rel="icon" href="data:,">' });

@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { IMPORT_LIMITS } from "./import-limits";
+import { IMPORT_LIMITS } from "./site-import-format";
 
 // JSZip replaces a validated zero-length CompressedObject with a promise for "".
 const emptyEntries = new WeakSet<JSZip.JSZipObject>();

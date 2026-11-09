@@ -140,7 +140,7 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
   let exported: Awaited<ReturnType<typeof renderZipExport>> | undefined;
   page.on("pageerror", (error) => errors.push(error.message));
   await page.context().addCookies([{ name: "editor-session", value: "synthetic-not-authentication", url: "https://zip-editor.test", sameSite: "Strict" }]);
-  await page.route("**/*", async (route) => {
+  await page.route(/^https?:\/\//, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.origin === "https://zip-cdn.test" && url.pathname === "/external.css") {

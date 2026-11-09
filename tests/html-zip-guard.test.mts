@@ -209,3 +209,16 @@ test("true DEFLATE empty members survive validation", async () => {
   assert.equal(zipEntrySize(entry), 0);
   assert.equal((await readZipEntryLimited(entry, 10)).length, 0);
 });
+
+test("corruption in a later binary member rejects the HTML ZIP before an earlier member is uploaded", async () => {
+  const input = new JSZip().file("index.html", "<p>Test</p>").file("a.js", "first").file("z.bin", "later bytes");
+  const bytes = Buffer.from(await input.generateAsync({ type: "uint8array", compression: "STORE" }));
+  bytes[bytes.indexOf("later bytes")] ^= 1;
+  const fetch = globalThis.fetch;
+  let writes = 0;
+  globalThis.fetch = async () => { writes++; return Response.json({ path: "assets/upload" }); };
+  try {
+    await assert.rejects(readHtmlZip(bytes), /CRC/);
+    assert.equal(writes, 0);
+  } finally { globalThis.fetch = fetch; }
+});

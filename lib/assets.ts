@@ -1,5 +1,6 @@
 "use client";
 
+import { isEmbeddedAssetUrl } from "./site-import-format";
 import { CSS_ASSET_ATTRIBUTES, replaceCssAssetUrls, rewriteCssAssetUrls } from "./css-assets";
 import { zipAssetClosure, zipCssPreviewUrls, zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
 import { appendAssetSuffix } from "./zip-references";
@@ -226,9 +227,7 @@ export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit)
   }
 }
 
-export function isEmbeddedAssetUrl(value: unknown): value is string {
-  return typeof value === "string" && /^data:[^,]*,/i.test(value);
-}
+export { isEmbeddedAssetUrl } from "./site-import-format";
 
 /** アセットの表示用URL */
 export function assetSrc(asset: Asset): string {

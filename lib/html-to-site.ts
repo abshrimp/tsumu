@@ -232,13 +232,14 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     return min <= max ? { min, max } : null;
   };
   let declarationWork = 0, emittedStyleChars = 0;
-  const collect = (rules: CSSRuleList, range: MediaRange) => {
+  const collect = (rules: CSSRuleList, range: MediaRange, retained: string[], depth = 0) => {
+    if (depth > 32) throw new Error(tr("HTMLのスタイルが複雑すぎます。"));
     for (const rule of Array.from(rules)) {
       if (rule.type === CSSRule.MEDIA_RULE) {
         const media = rule as CSSMediaRule;
         const next = parseRange(media.conditionText);
         if (!next) {
-          unusedRules.push(rule.cssText);
+          retained.push(rule.cssText);
           warn(tr("複雑な@media条件はカスタムCSSとして保持しました。"));
           continue;
         }
@@ -249,11 +250,13 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           ...(merged.min > 0 ? [merged.min - 1] : []),
         ];
         if (!limits.every(getBreakpoint)) {
-          unusedRules.push(rule.cssText);
+          retained.push(rule.cssText);
           warn(tr("Tsumuのブレークポイント上限により、一部の@mediaは変換できません。"));
           continue;
         }
-        collect(media.cssRules, merged);
+        const nested: string[] = [];
+        collect(media.cssRules, merged, nested, depth + 1);
+        if (nested.length) retained.push("@media " + media.conditionText + " {\n" + nested.join("\n") + "\n}");
       } else if (rule.type === CSSRule.STYLE_RULE) {
         const item = rule as CSSStyleRule;
         const declarations: ParsedRule["declarations"] = [];
@@ -296,16 +299,16 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
             warn(tr("一部のCSSセレクターを解析できませんでした。"));
           }
         }
-        if (retain) unusedRules.push(item.cssText);
+        if (retain) retained.push(item.cssText);
       } else {
-        unusedRules.push(rule.cssText);
+        retained.push(rule.cssText);
         warn(tr("一部のCSSルールはカスタムCSSとして保持しました。"));
       }
     }
   };
   for (const source of sheets) {
     const rules = cssRules(source);
-    if (rules) collect(rules, { min: 0, max: Infinity });
+    if (rules) collect(rules, { min: 0, max: Infinity }, unusedRules);
     else if (source.trim()) {
       unusedRules.push(source);
       warn(tr("解析できないCSSをカスタムコードに保持しました。"));

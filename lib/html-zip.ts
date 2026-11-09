@@ -9,6 +9,7 @@ import { HTML_ZIP_LIMITS, inspectHtmlZip, readZipEntryLimited } from "./html-zip
 import { genId } from "./presets";
 import { tr } from "./i18n";
 import type { DefaultTreeAdapterTypes as Html } from "parse5";
+import { verifyZipEntry } from "./zip-stream";
 import { createIntegrityVerifier } from "./resource-integrity";
 import type { Asset } from "./types";
 
@@ -168,6 +169,11 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
 
   const checkedBytes = new Map([...stylesheets].map(([path, sheet]) => [path, sheet.bytes]));
   await verifyZipIntegrity(htmlText, assetEntries, checkedBytes);
+  for (const entry of assetEntries) {
+    // Prove the remaining members are intact before the first upload without
+    // retaining up to the whole expanded archive in the editor's memory.
+    if (!checkedBytes.has(entry.name)) await verifyZipEntry(entry, HTML_ZIP_LIMITS.assetBytes);
+  }
 
   const assets: Asset[] = [];
   const urls = new Map<string, string>();

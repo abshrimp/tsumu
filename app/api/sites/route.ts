@@ -4,9 +4,9 @@ import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
-import { IMPORT_LIMITS } from "../../../lib/import-limits";
+import { IMPORT_LIMITS, validateImportedDoc } from "../../../lib/site-import-format";
 import { readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
-import { readCurrentDoc, validateDocValue } from "../../../lib/doc-storage";
+import { readCurrentDoc } from "../../../lib/doc-storage";
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
@@ -35,7 +35,7 @@ export async function GET() {
 }
 
 /**
- * サイトを作る（編集データは、初めて開いたときにエディタが保存する）。
+ * 通常のサイトは最初に開いたときに保存し、インポート時は初版と同時に作成する。
  * copyFrom にサイトIDがあれば、そのサイトの編集データを複製する（公開先は受け取った値を使う）
  */
 export async function POST(req: Request) {
@@ -57,10 +57,21 @@ export async function POST(req: Request) {
   }
   const { copyFrom, importId, initialDoc } = input;
   const importing = importId !== undefined || initialDoc !== undefined;
-  if ((copyFrom !== undefined && !isSiteId(copyFrom)) ||
-      (importing && (copyFrom !== undefined || typeof importId !== "string" || !/^[a-z0-9]{10}$/.test(importId) ||
-        validateDocValue(initialDoc) || (initialDoc as { siteName: string }).siteName !== input.name))) {
+  if (copyFrom !== undefined && (!isSiteId(copyFrom) || importing)) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+  }
+  let initialBody: string | undefined;
+  if (importing) {
+    if (typeof importId !== "string" || !/^[a-z0-9]{10}$/.test(importId)) {
+      return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    }
+    try {
+      const doc = validateImportedDoc(initialDoc);
+      if (doc.siteName !== input.name) throw new Error("リクエストが正しくありません");
+      initialBody = JSON.stringify(doc);
+    } catch (error) {
+      return NextResponse.json({ error: tr(userMessage(error, "リクエストが正しくありません")) }, { status: 400 });
+    }
   }
   const parsed = normalizeSiteInput(input, {
     name: "",
@@ -86,9 +97,12 @@ export async function POST(req: Request) {
     if (importing && await getSite(db, id)) {
       return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
     }
-    await insertSite(db, id, parsed.value, importing ? JSON.stringify(initialDoc) : src?.body);
+    await insertSite(db, id, parsed.value, initialBody ?? src?.body);
     return NextResponse.json({ site: await getSite(db, id) });
   } catch (e) {
+    if (e instanceof Error && /SQLITE_TOOBIG|too big/i.test(e.message)) {
+      return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
+    }
     if (importing && e instanceof Error && /UNIQUE constraint failed: sites\.id/i.test(e.message)) {
       return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
     }

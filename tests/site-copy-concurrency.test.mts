@@ -7,9 +7,9 @@ import { join } from "node:path";
 import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import * as sites from "../lib/sites";
-import { IMPORT_LIMITS } from "../lib/import-limits";
+import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { readTextLimited, TooLargeError } from "../lib/safe-fetch";
-import { readCurrentDoc, saveCurrentDoc, validateDocValue } from "../lib/doc-storage";
+import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
 import { userMessage } from "../lib/errors";
 
 async function database(run: (db: Db) => Promise<void>) {
@@ -33,7 +33,7 @@ function api(db: Db, read = readCurrentDoc) {
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
   const injected = { DEFAULT_BRANCH: sites.DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH: sites.DEFAULT_PREVIEW_BRANCH, deleteSite: sites.deleteSite, getSite: sites.getSite, insertSite: sites.insertSite, isSiteId: sites.isSiteId, listSites: sites.listSites, normalizeSiteInput: sites.normalizeSiteInput, newSiteId: () => "copy", NextResponse, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
     requireAuth: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
-    readCurrentDoc: read, validateDocValue, IMPORT_LIMITS, readTextLimited, TooLargeError };
+    readCurrentDoc: read, validateImportedDoc, IMPORT_LIMITS, readTextLimited, TooLargeError };
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected));
   return (input: unknown = { name: "Copy", copyFrom: "source" }) => post(new Request("https://example.test/api/sites", { method: "POST", body: JSON.stringify(input) })) as Promise<Response>;
 }
