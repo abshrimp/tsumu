@@ -31,6 +31,7 @@
 | AUD-J-015 | 保存API → エディタ復元 | #31のvalidSiteDocが型不正のstyles/未知のnode.type等を拒否しない一方、#26のインポートは拒否する（静的横断レビューで発見、担当Bへ引き継ぎ） |
 | AUD-J-016 | エディタAPI → 生成SSRのSSRFポリシー | 予約IP/IPv6/短縮IPv4/メタデータホストを双方で拒否。公開IPはAPI側で許容し、生成SSR側は許可済みオリジンのみ通すことを独立検査 |
 | AUD-J-017 | エディタ履歴と複製・削除 | 32個の固定seed操作列で複製IDの一意性、削除後参照、Undo/Redoの完全復元を検証 |
+| AUD-J-018 | アセット署名付きURLの権限境界 | HMAC付きURLの120入力変異でパス変更・署名改変・期限切れ・署名鍵交換が他アセットの取得権限を作らないか確認 |
 
 テストファイル:
 - `tests/audit-j-fuzz.test.mts`
@@ -39,6 +40,7 @@
 - `e2e/audit-j-external-json.spec.ts`
 - `tests/audit-j-ssrf-parity.test.mts`
 - `tests/audit-j-editor-history.test.mts`
+- `tests/audit-j-signed-assets.test.mts`
 
 実行コマンド:
 
