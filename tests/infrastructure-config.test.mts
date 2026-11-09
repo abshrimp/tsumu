@@ -99,3 +99,31 @@ test("Next.js editor routes apply the baseline response security headers", async
   assert.ok(frames.headers.some((item: { key: string; value: string }) =>
     item.key === "Content-Security-Policy" && item.value.includes("frame-ancestors 'self'")));
 });
+
+test("the lockfile stays registry-only and install script permissions match resolved versions", () => {
+  const pkg = JSON.parse(read("package.json"));
+  const lock = JSON.parse(read("package-lock.json"));
+  assert.equal(lock.lockfileVersion, 3);
+  for (const field of ["dependencies", "devDependencies"]) {
+    assert.deepEqual(lock.packages[""][field], pkg[field], `Lockfile ${field} must match package.json`);
+  }
+  const installScriptPackages: string[] = [];
+  for (const [path, resolved] of Object.entries(lock.packages) as Array<[string, {
+    version?: string; resolved?: string; hasInstallScript?: boolean;
+  }]>) {
+    if (path === "") continue;
+    if (resolved.resolved) {
+      assert.match(resolved.resolved, /^https:\/\/registry\.npmjs\.org\//,
+        `Unreviewed dependency source at ${path}`);
+    }
+    if (resolved.hasInstallScript) {
+      assert.ok(resolved.version, `Script package ${path} must have a pinned version`);
+      const name = path.slice(path.lastIndexOf("node_modules/") + "node_modules/".length);
+      installScriptPackages.push(`${name}@${resolved.version}`);
+    }
+  }
+  const allowed = Object.entries(pkg.allowScripts as Record<string, boolean>)
+    .filter(([, enabled]) => enabled).map(([name]) => name).sort();
+  assert.deepEqual(allowed, installScriptPackages.sort(),
+    "npm install-script allowlist must be updated whenever locked script dependencies change");
+});
