@@ -118,5 +118,5 @@ test("untrusted GitHub history inline SVG is sanitized before it enters the edit
   const savedSvg = useEditor.getState().doc.nodes[icon.id].icon!.svg;
   assert.match(savedSvg, /<svg/);
   assert.match(savedSvg, /<circle/);
-  assert.doesNotMatch(savedSvg, /onload|<script|alert\\(/i);
+  assert.doesNotMatch(savedSvg, /onload|<script|alert/i);
 });
