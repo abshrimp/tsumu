@@ -27,6 +27,7 @@ import {
   showsSelf,
 } from "./render-helpers";
 import { EMPTY_GIF } from "./templates";
+import { cssValue } from "./css";
 
 /** 文字列で参照する値だけを代替値として残す。項目の値はブラウザで優先する。 */
 function textParts(value: string, base: string, url = false, liveNames?: Set<string>): string {
@@ -370,7 +371,8 @@ ${indent}</div>`;
   const rawAttr = ctx.inTemplate ? " data-raw" : "";
 
   if (node.type === "icon" && node.icon) {
-    return `${indent}<span${idAttr}${rawAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  aria-hidden="true"\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(node.icon.svg)} }}\n${indent}/>`;
+    const html = cssValue(ctx.doc, "rawHtml", node.icon.svg, ctx.assetNames);
+    return `${indent}<span${idAttr}${rawAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  aria-hidden="true"\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(html)} }}\n${indent}/>`;
   }
 
   if (node.type === "field" && node.field) {
@@ -481,7 +483,8 @@ ${indent}</div>`;
   }
 
   if (node.type === "code" && node.code) {
-    return `${indent}<div${idAttr}${rawAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(node.code.html)} }}\n${indent}/>`;
+    const html = cssValue(ctx.doc, "rawHtml", node.code.html, ctx.assetNames);
+    return `${indent}<div${idAttr}${rawAttr}\n${indent}  className=${jsxString(cls)}\n${indent}  dangerouslySetInnerHTML={{ __html: ${JSON.stringify(html)} }}\n${indent}/>`;
   }
 
   let tag = resolveTag(node, isTop);
