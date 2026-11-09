@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { parseJsonc } from "../scripts/cloudflare.mjs";
+import { parseJsonc, assertSafeDeployArgs } from "../scripts/cloudflare.mjs";
 
 const scriptUrl = new URL("../scripts/cloudflare.mjs", import.meta.url).href;
 
@@ -141,4 +141,14 @@ test("explicit local and WRANGLER_CONFIG paths must also have production storage
   assert.notEqual(deployConfigProbe({}, incomplete).status, 0);
   assert.notEqual(deployConfigProbe({ WRANGLER_CONFIG: "wrangler.local.jsonc" }, incomplete).status, 0);
   assert.equal(deployConfigProbe({ TSUMU_ALLOW_BROWSER_ONLY_DEPLOY: "true" }, incomplete).status, 0);
+});
+
+test("production deployment rejects flags that could override the validated target or bindings", () => {
+  for (const forbidden of ["--config", "--config=other.jsonc", "-c", "-cother.jsonc",
+    "--env", "--env=production", "--environment=production", "-e", "--name=other",
+    "-n", "--var", "--define", "--secrets-file", "--ignore-base-config"]) {
+    assert.throws(() => assertSafeDeployArgs([forbidden]), /Unsupported production deploy override/);
+  }
+  assert.doesNotThrow(() => assertSafeDeployArgs([]));
+  assert.doesNotThrow(() => assertSafeDeployArgs(["--dry-run"]));
 });
