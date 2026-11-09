@@ -14,5 +14,5 @@ export async function GET() {
     assets: assetStore() !== null,
     // ログインしている人（コメントで、自分の書いたものを見分ける）
     user: await sessionUser().catch(() => null),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }

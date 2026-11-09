@@ -16,7 +16,9 @@ export async function GET(req: Request) {
   const siteId = await siteIdOf(new URL(req.url).searchParams.get("site"));
   if (siteId instanceof NextResponse) return siteId;
   try {
-    return NextResponse.json(await readActivity(await getDb(), siteId));
+    return NextResponse.json(await readActivity(await getDb(), siteId), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
   }

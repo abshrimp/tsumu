@@ -8,6 +8,7 @@ import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import { deleteSite, getSite, insertSite, isSiteId, normalizeSiteInput, updateSite } from "../lib/sites";
 import { userMessage } from "../lib/errors";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 async function database(run: (db: Db) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "tsumu-site-settings-"));
@@ -28,11 +29,11 @@ function api(db: Db) {
   }
   const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/sites/[id]/route.ts", import.meta.url), "utf8"))
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
-  const injected = { NextResponse, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
+  const injected = { NextResponse, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
     requireAuth: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
     deleteSite, getSite, isSiteId, normalizeSiteInput, updateSite };
   const patch = new Function(...Object.keys(injected), `${source}\nreturn PATCH;`)(...Object.values(injected));
-  return (input: unknown) => patch(new Request("https://example.test/api/sites/site", { method: "PATCH", body: JSON.stringify(input) }), { params: Promise.resolve({ id: "site" }) }) as Promise<Response>;
+  return (input: unknown, contentType = "application/json") => patch(new Request("https://example.test/api/sites/site", { method: "PATCH", headers: { "Content-Type": contentType }, body: JSON.stringify(input) }), { params: Promise.resolve({ id: "site" }) }) as Promise<Response>;
 }
 function race(db: Db, action: () => Promise<void>): Db {
   let pending = true;
@@ -94,4 +95,20 @@ test("site settings reject arrays and invalid lock-suffixed branch path componen
     assert.deepEqual(await getSite(db, "site"), before);
   }
   assert.equal((await api(db)({ branch: "release/v2", previewBranch: "previews/v2" })).status, 200);
+}));
+
+
+test("oversized site-settings PATCH is rejected without modifying settings", async () => database(async db => {
+  const before = await getSite(db, "site");
+  const response = await api(db)({ name: "x".repeat(128 * 1024) });
+  assert.equal(response.status, 413);
+  assert.deepEqual(await getSite(db, "site"), before);
+}));
+
+
+test("site settings reject non-JSON Content-Type without touching the database", async () => database(async db => {
+  const before = await getSite(db, "site");
+  const response = await api(db)({ name: "Injected" }, "text/plain");
+  assert.equal(response.status, 415);
+  assert.deepEqual(await getSite(db, "site"), before);
 }));
