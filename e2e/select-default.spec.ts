@@ -42,7 +42,9 @@ test("editing away the default option keeps preview, bindings and generated form
   await selection(page, "A", 1);
   const edited = await snapshot();
   expect(edited.doc.nodes.choice.field.defaultValue).toBe("B");
-  expect(edited.doc.nodes.choice.field.options).toEqual(["A", "C"]);
+  expect(edited.doc.nodes.choice.field.options).toEqual([
+    { label: "A", value: "A" }, { label: "C", value: "C" },
+  ]);
   expect(edited.past).toHaveLength(1);
   await page.evaluate(() => (window as any).selectEditor.getState().undo());
   await selection(page, "B", 2);
