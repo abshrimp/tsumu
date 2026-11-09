@@ -11,7 +11,7 @@ import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import { insertSite } from "../lib/sites";
 import type { SiteDoc } from "../lib/types";
-import { decodeStoredDoc } from "../lib/compressed-doc-storage";
+import { decodeStoredDoc, encodeStoredDoc } from "../lib/compressed-doc-storage";
 
 const doc = (): SiteDoc => ({
   siteName: "Example", pages: { home: { id: "home", name: "Home", slug: "", children: ["node-1"] } },
@@ -333,7 +333,7 @@ test("asset references are resolved through the compressed envelope index exactl
       a: { id: "a", name: "quote.svg", path: 'assets/a"b.svg', width: 1, height: 1 },
     };
     await saveCurrentDoc(db, "s1", JSON.stringify(source), null);
-    await insertSite(db, "other", { name: "Other", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }, JSON.stringify(source));
+    await insertSite(db, "other", { name: "Other", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }, await encodeStoredDoc(JSON.stringify(source)));
     const sql = "SELECT 1 FROM docs AS d, json_each(d.body, '$.assets') AS a " +
       "WHERE d.id != ? AND json_extract(a.value, '$.path') = ? LIMIT 1";
     assert.equal((await db.execute({ sql, args: ["s1", 'assets/a"b.svg'] })).rows.length, 1);
