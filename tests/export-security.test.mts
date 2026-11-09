@@ -49,17 +49,20 @@ test("generated Vue and Svelte components never compile authored plain text into
     assert.match(source, /Image &#123;1 \+ 2&#125;/);
     if (framework === "sveltekit") {
       const template = project.files["src/app.html"];
-      assert.ok(template.includes('lang="ja&amp;quot;') === false);
-      assert.ok(template.includes('lang="ja&quot; onload=&quot;'));
+      // Page-specific metadata is inserted by the SSR hook, not compiled into
+      // the static shell. Runtime escaping is exercised in native-page-language.
+      assert.ok(template.includes('lang="%page.language%"'));
       assert.ok(!template.includes('lang="ja" onload="'));
-      assert.ok(template.includes("&lt;/script&gt;"));
+      assert.ok(!template.includes(doc().siteName));
       const route = project.files["src/routes/+page.svelte"];
       assert.doesNotMatch(route, /Site \{1 \+ 2\} <\/script>/);
       assert.match(route, /<title>\{data\.title\} \| \{/);
     }
     if (framework === "vue") {
       assert.doesNotMatch(project.files["index.html"], /onload="globalThis/);
-      assert.match(project.files["index.html"], /ja&quot; onload=&quot;/);
+      // The generated server supplies escaped metadata per request; see the
+      // executed server regression in vue-ssr-metadata.test.mts.
+      assert.match(project.files["index.html"], /lang="<!--page-language-->"/);
       assert.doesNotMatch(project.files["server.mjs"], /req\.headers\.host/);
     }
   }

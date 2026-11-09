@@ -2,7 +2,8 @@
  * カスタムコード（<head> に入れるHTML）を JSX に変換する
  */
 
-import { jsxHtmlString } from "./render-helpers";
+import { parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
+import { jsxString } from "./render-helpers";
 import { codeLiteral } from "./code-literal";
 
 /** HTML の属性名 → React の属性名（head に書かれるもの） */
@@ -33,68 +34,64 @@ const HEAD_PLAIN_ATTRS = new Set([
 // React には文字列ではなく boolean を渡す（data-* / aria-* は含めない）。
 const HEAD_BOOLEAN_ATTRS = new Set(["async", "defer", "disabled", "nomodule", "itemscope"]);
 
-/** 属性の値の文字参照（&amp; &#39; など）を文字に戻す */
-function decodeEntities(value: string): string {
-  const named: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" };
-  return value.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, dec, hex, name) => {
-    if (name) return named[name.toLowerCase()] ?? m;
-    const code = dec ? Number(dec) : parseInt(hex, 16);
-    return code <= 0x10ffff ? String.fromCodePoint(code) : m;
-  });
-}
-
 /**
  * サイト設定の「head に追加する HTML」を、<head> の子に置く JSX にする。
  * script / style / noscript / title は中身を dangerouslySetInnerHTML で、meta / link / base は属性だけ出す
  * （コメントや、ほかの要素・文字は head に置けないので落とす）
  */
 export function headHtmlToJsx(html: string, indent: string): string {
-  const attrsJsx = (raw: string) => {
+  const attrsJsx = (attrs: Html.Element["attrs"]) => {
     const out: string[] = [];
-    const seen = new Set<string>();
-    for (const m of raw.matchAll(/([^\s=/>"']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>"']+)))?/g)) {
-      const name = m[1].toLowerCase();
-      // HTML と同じく、大小文字を区別せず最初の属性を採用する。
-      // 重複を JSX に残すと、生成したサイトの型チェックが失敗する。
-      if (seen.has(name)) continue;
-      seen.add(name);
+    // Parse attribute values with HTML semantics (full named references,
+    // invalid numeric references and duplicate attributes), then emit them
+    // as literal JSX strings so the compiler cannot decode them a second time.
+    for (const { name, value } of attrs) {
       // style は React では文字列にできない（head の中は表示されないので落とす）。
       // 属性名は JSX にそのまま書くので、名前の形でないもの（{ や ( を含むなど）も落とす
       if (name.startsWith("on") || name === "style" || !/^[a-z][a-z0-9._:-]*$/.test(name)) continue;
-      const value = m[2] ?? m[3] ?? m[4];
-      const prop = HEAD_ATTR_NAMES[name] ?? name;
+      const mapped = Object.hasOwn(HEAD_ATTR_NAMES, name);
+      const prop = mapped ? HEAD_ATTR_NAMES[name] : name;
       if (HEAD_BOOLEAN_ATTRS.has(name)) {
         // disabled は link の HTML 属性だが、React の link 型には含まれていない。
         out.push(name === "disabled" ? ` {...{ disabled: true }}` : ` ${prop}`);
-      } else if (name === "hidden" && value === undefined) {
+      } else if (name === "hidden" && value === "") {
         // hidden は until-found などの文字列値もあるため、値付きの属性は変えない。
         out.push(" hidden");
-      } else if (name in HEAD_ATTR_NAMES || HEAD_PLAIN_ATTRS.has(name) || name.includes("-")) {
-        out.push(` ${prop}=${jsxHtmlString(value ?? "")}`);
+      } else if (mapped || HEAD_PLAIN_ATTRS.has(name) || name.includes("-")) {
+        out.push(` ${prop}=${jsxString(value)}`);
       } else {
         // React の型に無い属性（language・scheme など）は、そのまま書くと型チェックで公開のビルドが止まる。
         // 展開で渡せば型の検査を受けず、HTML の属性としてそのまま出る
-        out.push(` {...{ ${codeLiteral(name)}: ${value === undefined ? '""' : codeLiteral(decodeEntities(value))} }}`);
+        out.push(` {...{ ${codeLiteral(name)}: ${codeLiteral(value)} }}`);
       }
     }
     return out.join("");
   };
   const out: string[] = [];
-  // 引用符の中の > は属性値の一部。script/style などの本文は HTML のまま保つ。
-  const re =
-    /<!--[\s\S]*?-->|<(script|style|noscript|title)\b((?:"[^"]*"|'[^']*'|[^'">])*)>([\s\S]*?)<\/\1\s*>|<(meta|link|base)\b((?:"[^"]*"|'[^']*'|[^'">])*)\/?>/gi;
-  for (const m of html.matchAll(re)) {
-    if (m[0].startsWith("<!--")) continue;
-    if (m[1]) {
-      const tag = m[1].toLowerCase();
-      const body = m[3];
+  // Use the HTML tokenizer for raw-text/RCDATA boundaries too: a script in
+  // double-escaped state does not end at its first </script> sequence.
+  const fragment = parseFragment(html, { sourceCodeLocationInfo: true });
+  for (const node of fragment.childNodes) {
+    if (!("tagName" in node)) continue;
+    const tag = node.tagName;
+    if (["script", "style", "noscript", "title"].includes(tag)) {
+      const location = node.sourceCodeLocation;
+      if (!location?.startTag) continue;
+      // Keep raw source, not decoded text: title entities must not be decoded
+      // twice, and scripts/styles/noscript content must remain unchanged.
+      // At EOF parse5 can leave the element end at its start tag while its
+      // text child still records the complete source span.
+      const bodyEnd = location.endTag?.startOffset ?? node.childNodes.reduce(
+        (end, child) => Math.max(end, child.sourceCodeLocation?.endOffset ?? 0), location.endOffset,
+      );
+      const body = html.slice(location.startTag.endOffset, bodyEnd);
       out.push(
         body.trim()
-          ? `${indent}<${tag}${attrsJsx(m[2])}\n${indent}  dangerouslySetInnerHTML={{ __html: ${codeLiteral(body)} }}\n${indent}/>`
-          : `${indent}<${tag}${attrsJsx(m[2])} />`
+          ? `${indent}<${tag}${attrsJsx(node.attrs)}\n${indent}  dangerouslySetInnerHTML={{ __html: ${codeLiteral(body)} }}\n${indent}/>`
+          : `${indent}<${tag}${attrsJsx(node.attrs)} />`
       );
-    } else {
-      out.push(`${indent}<${m[4].toLowerCase()}${attrsJsx(m[5])} />`);
+    } else if (["meta", "link", "base"].includes(tag)) {
+      out.push(`${indent}<${tag}${attrsJsx(node.attrs)} />`);
     }
   }
   return out.length ? "\n" + out.join("\n") : "";

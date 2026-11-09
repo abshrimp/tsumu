@@ -15,6 +15,7 @@ import {
   extractPartStyles,
   extractSelectionStyles,
   isHiddenAt,
+  resolveStyles,
   STATE_INFO,
   STATE_ORDER,
 } from "../style";
@@ -219,21 +220,25 @@ export function generateSiteCss(
     if (mCss.hasInView) {
       blocks.push(`.${cls}.is-inview {\n  animation-play-state: running;\n}`);
     }
-    // 「基準: 親要素」= 直接の親。absolute の子を持つ親は包含ブロックにする
-    const hasAbsChild = node.children.some((cid) => {
-      const child = doc.nodes[cid];
-      if (!child) return false;
-      return Object.values(child.styles).some(
-        (bpStyles) => bpStyles.default?.position === "absolute"
-      );
+    // Match Canvas at each width: only an absolute child at that breakpoint
+    // requires an inferred containing block. Authored positioning wins.
+    const hasCustomPosition = cssDecls(node.customCss?.replace(/[{}]/g, " ") ?? "").some((declaration) => {
+      const colon = declaration.indexOf(":");
+      return declaration.slice(0, colon).trim().toLowerCase() === "position" &&
+        safeCssDeclarationValue(declaration.slice(colon + 1).trim());
     });
-    const parentPositioned = Object.values(node.styles).some(
-      (bpStyles) => bpStyles.default?.position
-    );
+    let wasAutoPositioned = false;
     for (const bp of BP_ORDER) {
-      // base はカスタムCSS・自動relativeの注入先になるため styles が空でも処理する
-      const bpStyles =
-        node.styles[bp] ?? (bp === "base" ? {} : undefined);
+      const position = resolveStyles(node, bp, "default").position;
+      const autoPositioned = !position && !hasCustomPosition && node.children.some((cid) => {
+        const child = doc.nodes[cid];
+        return child && resolveStyles(child, bp, "default").position === "absolute";
+      });
+      const inferredPosition = autoPositioned && !wasAutoPositioned ? "relative"
+        : !autoPositioned && wasAutoPositioned && !position ? "static" : undefined;
+      wasAutoPositioned = autoPositioned;
+      // Even an otherwise unstyled parent needs a rule at transition widths.
+      const bpStyles = node.styles[bp] ?? (bp === "base" || inferredPosition ? {} : undefined);
       if (!bpStyles) continue;
       const customStates = Object.keys(bpStyles).filter((state) => customStateSelector(state) !== null) as Array<keyof typeof bpStyles>;
       for (const state of [...STATE_ORDER, ...customStates]) {
@@ -273,14 +278,7 @@ export function generateSiteCss(
           if (bp === "base") blocks.push(rule);
           else mediaBlocks[bp].push(rule);
         }
-        if (
-          bp === "base" &&
-          state === "default" &&
-          hasAbsChild &&
-          !parentPositioned
-        ) {
-          map.position = "relative";
-        }
+        if (state === "default" && inferredPosition) map.position = inferredPosition;
         // 要素のカスタムCSS・モーションは base の既定ルールに追記
         const raw = isBaseDefault
           ? (node.customCss?.replace(/[{}]/g, " ").trim() ?? "")
@@ -442,6 +440,17 @@ function cssDecls(css: string): string[] {
         continue;
       }
       if (c === quote) quote = "";
+    } else if (c === "\\") {
+      cur += c + (css[++i] ?? "");
+      continue;
+    } else if (c === "/" && css[i + 1] === "*") {
+      // Comments are whitespace between CSS tokens, not declaration delimiters.
+      // In particular, quotes and semicolons inside them must not affect parsing.
+      const end = css.indexOf("*/", i + 2);
+      cur += " ";
+      if (end < 0) break;
+      i = end + 1;
+      continue;
     } else if (c === '"' || c === "'") {
       quote = c;
     } else if (c === "(") {
