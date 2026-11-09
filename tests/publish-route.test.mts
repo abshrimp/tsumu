@@ -169,3 +169,24 @@ test("an existing path that cannot be represented safely prevents tree replaceme
   }
   assert.deepEqual(f.writes, []);
 });
+
+test("incomplete keptPaths cannot silently remove existing manual files", async () => {
+  const f = fixture();
+  const res = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, keptPaths: [] });
+  assert.equal(res.status, 200);
+  const written = f.trees.flatMap(chunk => chunk.tree);
+  for (const original of f.entries) {
+    assert.deepEqual(written.find(entry => entry.path === original.path), original, original.path);
+  }
+});
+
+test("the same path cannot be supplied as both text and an asset SHA", async () => {
+  const f = fixture();
+  const res = await f.send({
+    action: "commit",
+    files: { "app/page.tsx": "text" },
+    assetShas: { "app/page.tsx": "other-blob" },
+  });
+  assert.equal(res.status, 400);
+  assert.deepEqual(f.writes, []);
+});
