@@ -35,6 +35,7 @@ import {
   ASSET_MANIFEST_PATH,
   DOC_PATH,
   planPublish,
+  conflictingCommitPaths,
   serializeGeneratedManifest,
 } from "../lib/publish-files";
 
@@ -363,6 +364,10 @@ export default function PublishModal({
       }
       addPwaRetirementWorker(target, existing.generated, files, outputPaths, format);
       const plan = planPublish(existing.blobs, existing.generated, outputPaths);
+      const incompatiblePaths = conflictingCommitPaths([...outputPaths, ...Object.keys(plan.kept)]);
+      if (incompatiblePaths) {
+        throw new Error(`${tr("公開できないファイルの場所が含まれています")}: ${incompatiblePaths.join(" / ")}`);
+      }
       const overwritten = [...plan.edited, ...plan.clashing];
       if (overwritten.length && !(await confirmOverwrite(overwritten))) {
         setSite(null);
