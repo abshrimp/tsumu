@@ -9,7 +9,7 @@ import { glyphs } from "./Glyph";
 import { InfoTip } from "./controls";
 import { applyPageScripts, cloneSteps, pageNodeIds, pageScriptsOf, scriptUid, walkSteps, TRIGGER_LABELS, type PageScript } from "../lib/script";
 import { stepText } from "../lib/script-text";
-import { pageArrays, pagePlan, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
+import { pageArrays, pagePlan, pageVariableIndex, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
 import { PAGE_TARGET, type Script, type ScriptStep } from "../lib/types";
 import { tr, trNodes } from "../lib/i18n";
 import { HatView, PaletteLabel, PeekModal, StackView, StepList } from "./script-editor/blocks";
@@ -202,6 +202,7 @@ function ScriptEditorInner({
   const tree = useMemo(() => buildTree(doc, nodeIds), [doc, nodeIds]);
   const arrays = useMemo(() => pageArrays(doc, activePageId), [doc, activePageId]);
   const samples = useMemo(() => previewDataVars(doc, activePageId), [doc, activePageId]);
+  const variableIndex = useMemo(() => pageVariableIndex(doc, activePageId), [doc, activePageId]);
   const elements = useMemo(
     () =>
       nodeIds.map((id) => {
@@ -517,6 +518,7 @@ function ScriptEditorInner({
     targets,
     tree,
     scripts,
+    variableIndex,
     pageLoadScriptIds,
     serverStepIds,
     elements,
@@ -589,7 +591,7 @@ function ScriptEditorInner({
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
   }), [doc, activePageId, extraRootsKey, targets, tree, scripts,
-    pageLoadScriptIds, serverStepIds, elements, focusNodeId, selected,
+    variableIndex, pageLoadScriptIds, serverStepIds, elements, focusNodeId, selected,
     zOrder, commit, updateDoc, nodeIds, arrays, samples, begin]);
 
   const runMenu = (action: "delete" | "duplicate") => {
