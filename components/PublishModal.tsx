@@ -21,6 +21,7 @@ import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publi
 import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import type { SiteDoc } from "../lib/types";
 import { detectSvgFilters } from "../lib/assets";
+import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
 import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
 import { validateImportedDoc, IMPORT_LIMITS } from "../lib/site-import";
 import type { PublishTarget } from "../lib/generator";
@@ -734,7 +735,7 @@ async function restoreFrom(url: string, label: string, current: () => boolean): 
   // A GitHub commit can be edited independently of Tsumu. The basic shape
   // check is insufficient: reject cycles, prototype keys and invalid links
   // using the same validator as an explicit doc.json import.
-  const data = validateImportedDoc(untrusted);
+  const data = sanitizeImportedInlineIcons(validateImportedDoc(untrusted));
   const ok = await showConfirm(
     tr("いまの編集内容が「{label}」の内容に置き換わります。サーバーにも保存されますが、「元に戻す」（⌘Z）で今の内容に戻せます。", { label }),
     { title: tr("この版の編集内容に戻しますか？"), okLabel: tr("この版に戻す") }
