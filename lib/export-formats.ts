@@ -226,7 +226,26 @@ export function exportLimitations(
 
   if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework)) {
     add(!!doc.customBodyEndHtml?.match(/<script\b/i),
-      "body末尾のカスタムスクリプトは、Reactの画面更新時に実行タイミングが異なります。HTML形式で書き出すか、React用の処理へ移行してください。");
+      "body末尾のカスタムスクリプトは、画面更新時に実行タイミングが異なります。HTML形式で書き出すか、利用するフレームワーク用の処理へ移行してください。");
+  }
+  if (["vue", "nuxt", "sveltekit"].includes(options.framework)) {
+    // Native components currently render page nodes only. Dropping authored
+    // custom <head>, footer, or per-page markup would silently alter the site.
+    add(!!doc.customHeadHtml?.trim() || !!doc.customBodyEndHtml?.trim() ||
+      pages.some((page) => !!page.customTopHtml?.trim() || !!page.customEndHtml?.trim()),
+      "カスタムHTMLはこのフレームワーク形式の生成結果に含まれません。Next.js形式またはHTML形式を選択してください。");
+  }
+  if (options.framework === "react") {
+    // Data-driven React pages use dangerouslySetInnerHTML for their DOM
+    // runtime. Scripts inserted this way do not execute in browsers.
+    add(pages.some((page) => {
+      const plan = pagePlan(doc, page.id);
+      const needsClientRuntime = plan.steps.length > 0 || plan.listOps.size > 0 ||
+        plan.clientVars.size > 0;
+      return needsClientRuntime &&
+        /<script\b(?![^>]*\btype\s*=\s*["']?application\/(?:ld\+)?json)/i
+          .test((page.customTopHtml ?? "") + (page.customEndHtml ?? ""));
+    }), "動的データを使うページのカスタムスクリプトはReact形式では実行されません。Next.js形式またはHTML形式を選択してください。");
   }
   if (["html", "single-html"].includes(options.framework)) {
     add(options.style === "css-modules",
