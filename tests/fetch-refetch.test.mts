@@ -458,7 +458,7 @@ test("settings invalidate only the current-result marker across save/load and Un
 test("samples without a valid success timestamp remain fallback data, not a confirmed current result", () => {
   for (const fetchedAt of [undefined, 0, -1, NaN]) {
     const mounted = mount();
-    useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.preview?.fetchedAt = fetchedAt; });
+    useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.fetchedAt = fetchedAt; });
     assert.equal(mounted.currentSample(), false);
     assert.equal(mounted.action().props.children[1], "データ取得");
     assert.deepEqual(mounted.step()!.preview?.sample, [{ name: "Initial" }]);
@@ -551,7 +551,7 @@ test("restoring a backup with identical request IDs isolates late success, error
     const mounted = mount(); mounted.setOptions({ method: "POST" });
     mounted.action().props.onClick();
     const restored = structuredClone(useEditor.getState().doc);
-    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.preview?.sample = [{ name: "Backup" }];
+    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.sample = [{ name: "Backup" }];
     const session = useEditor.getState().documentSession;
     useEditor.getState().restoreDoc(restored);
     assert.equal(useEditor.getState().documentSession, session + 1);
@@ -593,7 +593,7 @@ test("Undo and Redo preserve restore history without reviving a pre-restore resp
     const before = structuredClone(useEditor.getState().doc);
     mounted.values().setValue("missing", "Before restore"); mounted.action().props.onClick();
     const restored = structuredClone(before);
-    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.preview?.sample = [{ name: "Backup" }];
+    (restored.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.sample = [{ name: "Backup" }];
     useEditor.getState().restoreDoc(restored);
     const session = useEditor.getState().documentSession;
     useEditor.getState().undo();
@@ -715,7 +715,7 @@ test("an explicit component root is writable, but an unrelated off-page node is 
 test("refresh resolves the latest upstream sample while preserving the old result's actual destination", async () => {
   const mounted = mount(); mounted.commitUrl("https://example.test/{other.0.name}");
   mounted.action().props.onClick(); await mounted.finish(0, { answer: "first" });
-  useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[1] as FetchStep).preview!.preview?.sample = [{ name: "LATEST" }]; });
+  useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[1] as FetchStep).preview!.sample = [{ name: "LATEST" }]; });
   mounted.action().props.onClick(); const result = mounted.result();
   assert.equal(result().props.children[1].props.children[1].props.children, "https://example.test/LATEST");
   assert.ok(/"https:\/\/example\.test\/Other"/.test(JSON.stringify(result().props.children.at(-1).props.children[0])));
@@ -735,7 +735,7 @@ for (const target of ["url", "body"] as const) {
       assert.equal(target === "url" ? mounted.requests[0].input.url : JSON.parse(mounted.requests[0].input.body!).value,
         target === "url" ? "https://example.test/TEMP" : "TEMP");
       useEditor.getState().updateDoc((doc) => {
-        (doc.pages.p.pageScripts![0].steps[1] as FetchStep).preview!.preview?.sample = [{ name: "Other", newfield: value }];
+        (doc.pages.p.pageScripts![0].steps[1] as FetchStep).preview!.sample = [{ name: "Other", newfield: value }];
       });
       mounted.action().props.onClick(); const result = mounted.result();
       const state = result().props.children.find((v: any) => v?.type?.name === "FetchValues").props.state;
@@ -777,7 +777,7 @@ test("page-load and unconnected page scripts with identical step IDs are distinc
   for (const nodeId of [PAGE_TARGET, null]) {
     const doc = fetchRefetchDoc();
     const loose = structuredClone(doc.pages.p.pageScripts![0]); loose.id = "loose";
-    (loose.steps[0] as FetchStep).preview!.preview?.sample = [{ name: "Loose" }]; doc.pages.p.scripts = [loose];
+    (loose.steps[0] as FetchStep).preview!.sample = [{ name: "Loose" }]; doc.pages.p.scripts = [loose];
     const mounted = mount({ doc, owner: { nodeId, scriptId: nodeId === null ? "loose" : "script" } });
     void mounted.run(); await mounted.finish(0, latest);
     const actual = useEditor.getState().doc.pages.p;
