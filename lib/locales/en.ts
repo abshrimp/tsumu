@@ -560,6 +560,8 @@ const en: Dict = {
     "Set a 301 redirect target or an external site in the right panel",
   "右パネルにHTMLコードを入力するか、ファイルを読み込んでください":
     "Enter HTML code in the right panel, or load a file",
+  "このページはHTMLモードです。右パネルでHTMLコードを編集し、プレビューで動作を確認してください":
+    "This is an HTML page. Edit its code in the right panel and test it in preview mode.",
   "アップロード中…":
     "Uploading…",
   "ドロップして画像を追加":
