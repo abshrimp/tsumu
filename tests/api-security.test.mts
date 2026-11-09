@@ -1240,7 +1240,7 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
   });
   return {
     request, requireAuth,
-    login: (error?: string) => login({ searchParams: Promise.resolve({ error }) }),
+    login: (error?: string, resume?: string) => login({ searchParams: Promise.resolve({ error, "resume-import": resume }) }),
     get cookieChecks() { return cookieChecks; },
     get permissionChecks() { return permissionChecks; },
   };
@@ -1266,6 +1266,13 @@ test("currently authorized users redirect from login only after the live server 
   await assert.rejects(f.login(), /redirect:\//);
   assert.equal(f.permissionChecks, 1);
   assert.equal(await f.requireAuth(), null);
+});
+
+test("an already authorized session carries only the import marker from Login to Home", async () => {
+  const f = fixture({ allowed: true });
+  await assert.rejects(f.login(undefined, "1"), { message: "redirect:/?resume-import=1" });
+  await assert.rejects(f.login(undefined, "0"), { message: "redirect:/" });
+  await assert.rejects(f.login(), { message: "redirect:/" });
 });
 
 test("signed-out users still see login and brand icons while protected pages/API requests remain blocked", async () => {

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth, authConfigured } from "../../auth";
 import { Globe, MousePointerClick, Smartphone } from "lucide-react";
+import { DRAFT_RESUME_PARAM } from "../../lib/external-edit/draft-link";
 import GoogleSignIn from "../../components/GoogleSignIn";
 import BrandMark from "../../components/BrandMark";
 import { serverTr } from "../../lib/i18n-server";
@@ -68,12 +69,13 @@ function EditorPreview() {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; [DRAFT_RESUME_PARAM]?: string }>;
 }) {
+  const { error, [DRAFT_RESUME_PARAM]: resume } = await searchParams;
   // Edge での Cookie の検証と違い、auth() は現在の許可リストも確認する。
-  if (authConfigured() && await auth()) redirect("/");
-
-  const { error } = await searchParams;
+  if (authConfigured() && await auth()) {
+    redirect(resume === "1" ? `/?${DRAFT_RESUME_PARAM}=1` : "/");
+  }
   const tr = await serverTr();
   return (
     <main className="login-page">
@@ -112,7 +114,11 @@ export default async function LoginPage({
               {tr("Couldn't sign in. Wait a moment and try again.")}
             </p>
           ) : null}
-          <GoogleSignIn label={tr("Sign in with Google")} busyLabel={tr("Redirecting to Google…")} />
+          <GoogleSignIn
+            label={tr("Sign in with Google")}
+            busyLabel={tr("Redirecting to Google…")}
+            resumeError={tr("Sign in, then reopen your original import link. This browser could not keep it during sign-in.")}
+          />
           <p className="login-note">{tr("Sign in with a Google account that has been granted access.")}</p>
         </div>
       </section>

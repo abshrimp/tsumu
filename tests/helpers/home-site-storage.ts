@@ -19,7 +19,7 @@ const homeMocks: Plugin = {
       }
     });
     build.onLoad({ filter: /.*/, namespace: "home-presentation" }, (args) => ({
-      contents: args.path.endsWith("/status") ? "export const useServerStatus = () => ({ auth: false, db: false, role: \"editor\" });"
+      contents: args.path.endsWith("/status") ? "export const loadServerStatus = async () => ({ auth: false, db: false, role: \"editor\" });"
         : args.path.endsWith("no-dblclick-select") ? "export const installNoDblClickSelect = () => () => {};"
         : args.path === "next-auth/react" ? "export const signOut = async () => {};"
         : "export default function Presentation() { return null; }",

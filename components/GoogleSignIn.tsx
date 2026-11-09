@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { draftFromLocation, prepareDraftSignIn } from "../lib/external-edit/draft-link";
 
 /** 文言は、ログイン画面（サーバー側）でリクエストの言語に合わせてから渡す */
-export default function GoogleSignIn({ label, busyLabel }: { label: string; busyLabel: string }) {
+export default function GoogleSignIn({ label, busyLabel, resumeError }: { label: string; busyLabel: string; resumeError: string }) {
   // 押した後、Google の画面に移るまで少しかかるため、二重に押されないよう待ちの状態にする
   const [busy, setBusy] = useState(false);
   return (
@@ -14,7 +15,8 @@ export default function GoogleSignIn({ label, busyLabel }: { label: string; busy
       aria-busy={busy}
       onClick={() => {
         setBusy(true);
-        void signIn("google", { callbackUrl: "/" }).catch(() => setBusy(false));
+        const callbackUrl = "/" + prepareDraftSignIn(draftFromLocation(), resumeError);
+        void signIn("google", { callbackUrl }).catch(() => setBusy(false));
       }}
     >
       {busy ? (

@@ -394,6 +394,30 @@ test.describe("mcp-draft-import", () => {
     expect(result.doc.nodes[styledNode!.id].styles.base.default.color).toBe("#d9fa4a");
   });
 
+  for (const failedApi of ["status", "sites"]) {
+    test(`draft import retries after /api/${failedApi} fails during startup`, async ({ page }) => {
+      await localMode(page);
+      let recovered = false;
+      await page.route("**/api/" + failedApi, route => recovered ? route.fallback() : route.fulfill({ status: 500, json: {} }));
+      let claims = 0;
+      await page.route(endpoint + "/claim", route => {
+        claims++;
+        return route.fulfill({ json: { doc: JSON.stringify(fixture()), receipt } });
+      });
+      await page.route(endpoint + "/complete", route => route.fulfill({ json: { ok: true } }));
+      await page.goto("/#tsumu-import=" + draftId + "." + secret);
+      const retry = page.locator(".home-notice.is-error button");
+      await expect(retry).toBeVisible();
+      await expect(page.locator(".home-import-overlay")).toHaveCount(0);
+      expect(claims).toBe(0);
+      recovered = true;
+      await retry.click();
+      await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+      expect(claims).toBe(1);
+      expect((await getLocalSite(page)).list).toHaveLength(1);
+    });
+  }
+
   test("invalid MCP draft does not create a site or acknowledge deletion", async ({ page }) => {
     await localMode(page);
     let completions = 0;

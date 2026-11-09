@@ -629,6 +629,7 @@ const ja: Dict = {
   "Edit your website visually and publish it as is.": "Webサイトを見たまま編集して、そのまま公開できます。",
   "This Google account doesn't have access yet. Ask an administrator to add it.": "このGoogleアカウントは、まだ利用が許可されていません。管理者にアカウントの追加を依頼してください。",
   "Couldn't sign in. Wait a moment and try again.": "ログインできませんでした。少し時間をおいてから、もう一度試してください。",
+  "Sign in, then reopen your original import link. This browser could not keep it during sign-in.": "このブラウザではログイン中にインポートリンクを保持できません。ログイン後、元のリンクをもう一度開いてください。",
   "Sign in with Google": "Googleでログイン",
   "Redirecting to Google…": "Googleに移動しています…",
   "Sign in with a Google account that has been granted access.": "利用を許可されたGoogleアカウントで、ログインしてください。",
