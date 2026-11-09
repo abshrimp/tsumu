@@ -45,7 +45,7 @@ test("imported SiteDoc rejects dangling asset references before saving or reopen
     doc => { doc.favicon = { assetId: "missing" }; },
     doc => { doc.appleTouchIcon = { assetId: "missing" }; },
     doc => { doc.ogImage = { assetId: "missing" }; },
-    doc => { doc.pwa = { ...(doc.pwa ?? {}), icon: { assetId: "missing" } } as typeof doc.pwa; },
+    doc => { doc.pwa = { enabled: true, icon: { assetId: "missing" } }; },
   ];
   for (const [index, setRef] of referenceCases.entries()) {
     const doc = createInitialDoc();
@@ -54,7 +54,7 @@ test("imported SiteDoc rejects dangling asset references before saving or reopen
     await assert.rejects(parseSiteImport(encoder.encode(JSON.stringify(doc)), "doc"), /アセットの参照/, String(index));
   }
   const valid = createInitialDoc();
-  valid.assets.existing = { id: "existing", name: "existing.png" };
+  valid.assets.existing = { id: "existing", name: "existing.png", width: 1, height: 1 };
   Object.values(valid.nodes)[0].image = { src: "", alt: "", width: 1, height: 1, assetId: "existing" };
   assert.equal(validateImportedDoc(valid), valid);
 });
