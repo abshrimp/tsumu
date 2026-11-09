@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
-import { applyAiOps, type AiOp } from "../../../lib/aiOps";
+import { applyAiOps, MAX_AI_ADDED_NODES, type AiOp } from "../../../lib/aiOps";
 import { AI_NOT_ENABLED, aiConfig } from "../../../lib/ai/config";
 import { AiApiError, runAi } from "../../../lib/ai/run";
 import { parseAiRequest, readAiRequest } from "../../../lib/ai/request";
@@ -66,11 +66,15 @@ export async function POST(req: Request) {
   const execute = async (emit: ((event: AiProgress) => void) | undefined, signal: AbortSignal): Promise<AiResult> => {
     const refs = new Map<string, string>();
     const operations: AiOp[] = [];
+    const initialNodeCount = Object.keys(context.doc.nodes).length;
     const reply = await runAi(conf, turns, (input) => {
       const ops = (input as { operations?: unknown })?.operations;
       if (!Array.isArray(ops)) return { content: "operations must be an array", isError: true };
       const { applied, errors } = applyAiOps(context.doc, ops as AiOp[], context.target, refs);
       operations.push(...applied);
+      if (Object.keys(context.doc.nodes).length > initialNodeCount + MAX_AI_ADDED_NODES) {
+        throw new AiApiError("incomplete", undefined, "AI element growth limit reached");
+      }
       if (operations.length > 400) throw new AiApiError("incomplete", undefined, "Operation limit reached");
       const counts: Partial<Record<AiOp["op"], number>> = {};
       for (const op of applied) counts[op.op] = (counts[op.op] ?? 0) + 1;
