@@ -33,6 +33,8 @@ interface D1PreparedStatement {
 }
 
 export interface D1LikeDatabase {
+  /** Present only on the local Node SQLite adapter, never on Cloudflare D1. */
+  readonly __tsumuBackend?: "sqlite";
   prepare(sql: string): D1PreparedStatement;
   batch(stmts: D1PreparedStatement[]): Promise<D1Result[]>;
 }

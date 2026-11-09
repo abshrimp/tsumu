@@ -197,6 +197,9 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
             replaceDocument(raw: string, base: string | null): Promise<import("./lib/doc-storage").SaveDocResult>;
             patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<import("./lib/doc-storage").SaveDocResult>;
           } | undefined;
+      if (!remote && this.env.DB.__tsumuBackend !== "sqlite") {
+        throw new Error("DOC_STORE binding is missing");
+      }
       if (input.type === "load") {
         const current = remote ? await remote.getSnapshot() : await readCurrentDoc(db, siteId);
         if (!current) {
