@@ -96,3 +96,11 @@ test("site settings reject arrays and invalid lock-suffixed branch path componen
   }
   assert.equal((await api(db)({ branch: "release/v2", previewBranch: "previews/v2" })).status, 200);
 }));
+
+
+test("oversized site-settings PATCH is rejected without modifying settings", async () => database(async db => {
+  const before = await getSite(db, "site");
+  const response = await api(db)({ name: "x".repeat(128 * 1024) });
+  assert.equal(response.status, 413);
+  assert.deepEqual(await getSite(db, "site"), before);
+}));
