@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { transformSync } from "esbuild";
 import { JsonBodyTooLargeError, readJsonLimited } from "../lib/api-json";
 
-function fixture() {
+function fixture(identity: unknown = "owner@example.com") {
   class NextResponse extends Response {
     static json(value: unknown, init?: ResponseInit) {
       return new NextResponse(JSON.stringify(value), init);
@@ -18,7 +18,7 @@ function fixture() {
     "next/server": { NextResponse },
     "../../../auth": {
       authConfigured: () => true,
-      auth: async () => ({ user: { email: "owner@example.com" } }),
+      auth: async () => ({ user: { email: identity } }),
       allowedEmails: () => ["owner@example.com"],
     },
     "../../../lib/i18n-server": { serverTr: async () => (s: string) => s },
@@ -36,10 +36,11 @@ function fixture() {
     (id: string) => injected[id], module, module.exports,
   );
   const POST = module.exports.POST as (req: Request) => Promise<Response>;
+  const GET = module.exports.GET as () => Promise<Response>;
   const send = (value: unknown) => POST(new Request("https://editor.example.test/api/allowed-users", {
     method: "POST", body: JSON.stringify(value),
   }));
-  return { send, inserted };
+  return { send, get: () => GET(), inserted };
 }
 
 test("account allowlist API rejects unexpected JSON field types without writes", async () => {
@@ -66,4 +67,15 @@ test("account allowlist API rejects oversized JSON before changing permissions",
   const response = await f.send({ email: "attacker@example.com", padding: "x".repeat(32 * 1024) });
   assert.equal(response.status, 413);
   assert.deepEqual(f.inserted, []);
+});
+
+test("account management rejects sessions without a valid email identity", async () => {
+  for (const identity of [null, "", "  ", 123, {}, []]) {
+    const f = fixture(identity);
+    const get = await f.get();
+    assert.equal(get.status, 401, `GET with ${JSON.stringify(identity)}`);
+    const post = await f.send({ email: "editor@example.com" });
+    assert.equal(post.status, 401, `POST with ${JSON.stringify(identity)}`);
+    assert.deepEqual(f.inserted, []);
+  }
 });
