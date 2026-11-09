@@ -522,3 +522,13 @@ test("AUD-F-016: custom keyframes and motion settings cannot escape generated CS
   assert.match(css, /transition: opacity, transform 0\.2s ease 0s;/);
   assert.doesNotMatch(css, /__AUDIT_KF_BREAKOUT__|__AUDIT_EASING_BREAKOUT__/);
 });
+
+test("AUD-F-017: Vue TypeScript CSS Modules has Vite ambient CSS module types", () => {
+  const site = doc();
+  const { files } = generateExportProject(site, {
+    framework: "vue", language: "typescript", style: "css-modules", scope: "project",
+  });
+  assert.match(files["src/env.d.ts"], /reference types="vite\/client"/);
+  assert.match(files["src/App.vue"], /import siteStyles from "\.\/site\.module\.css"/);
+  assert.match(files["tsconfig.json"], /src\/\*\*\/\*\.ts/);
+});
