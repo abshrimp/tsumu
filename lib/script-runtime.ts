@@ -9,7 +9,7 @@ import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
-import { matchesValueCondition, setVarPath, withinScriptValueLimit } from "./value-semantics";
+import { parseValueLiteral, matchesValueCondition, setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { codeLiteral } from "./generator/code-literal";
 
 /* ---------- 実行ランタイム ---------- */
@@ -28,6 +28,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   var writeVarPath = (${setVarPath.toString()});
   var withinValueLimit = (${withinScriptValueLimit.toString()});
   var matchValueCondition = (${matchesValueCondition.toString()});
+  var parseValueLiteral = (${parseValueLiteral.toString()});
   // esbuild may annotate nested functions embedded via toString().
   var __name = function (fn) { return fn; };
   /*#setvar*/
@@ -1011,14 +1012,19 @@ export const SCRIPT_RUNTIME = `function (env) {
         var ops = listJson(list, "data-list-ops", []);
         var baseFilters = ops.filter(function (op) { return op.kind === "filter"; }).map(function (op) {
           return { join: op.join, conds: op.conds.map(function (c) {
-            return { field: c.field, op: c.op, and: c.and, value: c.parts.map(function (part) {
+            function resolve(part) {
               if (typeof part === "string") return part;
-              // 空・null・存在しない子も、親項目の根があればページ値で補わない。
+              // Own parent values, including null/missing children, shadow page data.
               if (has(parentScope, part.name) || has(parentScope, part.name.split(".")[0])) {
-                return text(has(parentScope, part.name) ? parentScope[part.name] : dig(parentScope, part.name));
+                var own = has(parentScope, part.name) ? parentScope[part.name] : dig(parentScope, part.name);
+                return c.raw ? own : text(own);
               }
-              return has(part, "fallback") ? part.fallback : text(lookup(part.name, null, parentScope));
-            }).join("") };
+              if (has(part, "fallback")) return part.fallback;
+              var value = lookup(part.name, null, parentScope);
+              return c.raw ? value : text(value);
+            }
+            return { field: c.field, op: c.op, and: c.and, not: c.not,
+              value: c.raw ? resolve(c.parts[0]) : parseValueLiteral(c.parts.map(resolve).join("")) };
           }) };
         });
         items = items.filter(function (x) { return passes(baseFilters, x); });

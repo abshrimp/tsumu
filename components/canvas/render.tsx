@@ -58,9 +58,11 @@ export function resolvedListOps(
     o.kind === "filter"
       ? {
           ...o,
-          conds: o.conds.map((c) =>
-            hasVars(c.value) ? { ...c, value: interpolate(c.value, vars) } : c
-          ),
+          conds: o.conds.map((c) => {
+            const reference = /^(?:\{([^{}\s"'<>`]+)\}|(\[slug\]))$/.exec(c.value.trim());
+            if (reference) return { ...c, resolvedValue: { value: lookupVar(vars, reference[1] ?? "slug") } };
+            return hasVars(c.value) ? { ...c, value: interpolate(c.value, vars) } : c;
+          }),
         }
       : o
   );
