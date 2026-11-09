@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { transformSync } from "esbuild";
 
 class NextResponse extends Response {
@@ -15,7 +14,6 @@ class NextResponse extends Response {
 
 function load(path: string) {
   const url = new URL(path, import.meta.url);
-  const require = createRequire(url);
   const code = transformSync(readFileSync(url, "utf8"), {
     loader: "ts", format: "cjs", target: "es2022",
   }).code;
@@ -53,7 +51,7 @@ function load(path: string) {
   new Function("require", "module", "exports", code)(
     (id: string) => new Proxy({}, {
       get: (_target, field: string | symbol) =>
-        typeof field === "string" && Object.hasOwn(shared, field) ? shared[field] : require(id)[field],
+        typeof field === "string" ? shared[field] : undefined,
     }),
     module, module.exports,
   );
