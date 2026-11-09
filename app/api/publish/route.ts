@@ -388,6 +388,12 @@ export async function POST(req: Request) {
         pushSha(path, sha);
       }
     }
+    // Invalid keep paths and overlapping outputs are malformed requests,
+    // rather than normal head conflicts.
+    if (keptPaths.some(path => !Object.hasOwn(existingBlobs, path) ||
+        Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
     // Client-supplied keep hints are never allowed to resurrect obsolete
     // generated files. Only entries independently classified as manual (or
     // the current protected GitHub configuration) can be retained.
