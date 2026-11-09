@@ -4,7 +4,7 @@
 - 初期基準SHA：`1ba32974d4b5ecf441e36428e765d0542207c421`
 - 作業ブランチ：`audit/C-script`
 - 統合PR：[#23](https://github.com/abshrimp/tsumu/pull/23)
-- 監査状態：**11件の修正・回帰テストを提出済み。最終CI・独立レビュー未判定。**
+- 監査状態：**12件の修正・回帰テストを提出済み。実ブラウザ試験を拡充。最終CI・独立レビュー未判定。**
 
 ## 1. コード経路と担当境界
 
@@ -61,6 +61,7 @@
 | AUD-C-009 | Medium（堅牢性） | 不正な `data-scripts` JSON、欠損した条件・加工、非文字列の代入先がイベント処理を例外で終了させる | 非配列・不正エントリ・無効なブロックを除外し、正常な後続処理を維持。`script-malformed-runtime.test.mts` |
 | AUD-C-010 | Medium（生成コードとの不一致） | 公開サイト用のページデータfetchが独立実装の変数書込を持ち、リストの `length` 等の非数値キーを受け付けて項目付きデータへ変換していた | `lib/generator/browser-data.ts` の重複実装を撤去して共通 `setVarPath` を埋め込み、プレビュー・SSR・ブラウザで不正パスの挙動を統一。`generated-page-data-array-write.test.mts` |
 | AUD-C-011 | Low（不要コード） | スクリプトランタイムに使われない旧式の文字列比較 `cmp` が残り、現在の共通型付き判定と意味が異なっていた | 到達不能な比較関数を削除。`script-conditions-shortcircuit.test.mts` で不在を検証 |
+| AUD-C-012 | Medium（ページ間の副作用） | ページ遷移で外れた旧要素の IntersectionObserver 通知が後から届くと、旧スクリプトが新ページの同じIDの要素を操作できる | 交差通知時にランタイムの生存状態と要素の接続状態を検証。新ページの通知は維持。`e2e/script-runtime-browser-audit.spec.ts`で実ブラウザ再現 |
 
 実行量上限は悪意あるデータによるブラウザ停止の回避策であり、**意図的な長時間処理が上限で停止し得る仕様上の制約**が残る。明示的な待機または無限ループのインターバルで実行予算は更新される。
 
@@ -76,12 +77,13 @@
 - `tests/script-nonfinite-values.test.mts`
 - `tests/script-conditions-shortcircuit.test.mts`
 - `tests/script-var-path-bounds.test.mts`
+- `e2e/script-runtime-browser-audit.spec.ts`（Chromium：ページ切替直後の交差通知、Clipboard API拒否時のフォールバック、スクロール、ホバーメニュー。プレビュー／公開形式）
 
 各テストは不具合が発生した状態を前提に設計し、修正後の挙動を検証する。GitHub Actionsの最終結果、個別E2E、生成形式別ビルド、CodeQLは**最終HEADの結果が出るまで未完了**とする。ローカル全テスト成功や全バグ解消を宣言しない。
 
 ## 5. 残存リスク・統合先の確認事項
 
-1. ホバー、IntersectionObserver、スクロール、クリップボード拒否は専用ブラウザ試験が不足している。CIの通過とは区別する。
+1. 旧ページの交差監視、ホバーメニュー、スクロール、クリップボード拒否は実ブラウザ試験を追加した。ただし全ブラウザ・遷移・再描画の組み合わせは未網羅であり、CIの通過と区別する。
 2. API取得の中断、SSRF・時間制限はH、公開生成プロジェクト全形式の独立ビルド・ブラウザセキュリティはFと照合する。
 3. C修正による共有ヘルパーの契約変更（`setVarPath` の疎配列拒否）はB、生成コードの動作はFと統合レビューする。
 4. 修正後の最終HEADについて、独立レビュー・CodeQL・回帰E2Eを別途確認する。未修正脆弱性をゼロとみなさない。
