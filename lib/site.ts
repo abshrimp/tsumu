@@ -13,6 +13,8 @@ import {
   type SiteRecord,
 } from "./sites";
 import { storageKey } from "./storage-keys";
+import { withLocalSiteListLock } from "./local-site-lock";
+export { withLocalSiteListLock };
 
 /** 編集データのブラウザ保存（サイトごとに siteKey で分ける） */
 export const DOC_STORAGE_KEY = storageKey("doc-v1");
@@ -85,37 +87,6 @@ export function otherLocalDocs(): string[] {
 /* ---------- D1 が無いときの、ブラウザ内のサイト一覧 ---------- */
 
 const LOCAL_SITES_KEY = storageKey("sites-v1");
-
-/** Serialize the entire site-list read/modify/write across same-origin tabs. */
-export async function withLocalSiteListLock<T>(change: () => T): Promise<T> {
-  // Non-browser callers can supply in-memory Storage without cross-tab writers.
-  if (!window.navigator) return change();
-  const locks = window.navigator.locks;
-  if (locks) return locks.request(LOCAL_SITES_KEY, change);
-  const idb = window.indexedDB;
-  const unavailable = () => new Error("ブラウザにサイトを保存できませんでした。空き容量と保存設定を確認してください。");
-  if (!idb) throw unavailable();
-  // HTTP origins may have IndexedDB without Web Locks. A readwrite transaction
-  // on the same store also excludes other tabs until this synchronous change ends.
-  return new Promise<T>((resolve, reject) => {
-    const open = idb.open(LOCAL_SITES_KEY, 1);
-    open.onupgradeneeded = () => open.result.createObjectStore("lock");
-    open.onerror = () => reject(unavailable());
-    open.onsuccess = () => {
-      const db = open.result;
-      let tx: IDBTransaction;
-      try { tx = db.transaction("lock", "readwrite"); }
-      catch { db.close(); reject(unavailable()); return; }
-      let value: T;
-      tx.objectStore("lock").get("list").onsuccess = () => {
-        try { value = change(); }
-        catch (error) { tx.abort(); reject(error); }
-      };
-      tx.oncomplete = () => { db.close(); resolve(value); };
-      tx.onabort = () => { db.close(); reject(unavailable()); };
-    };
-  });
-}
 
 /** Never replace an existing list entry, deleted site, or unlisted document. */
 export function localSiteIdInUse(id: string, list: SiteRecord[]): boolean {

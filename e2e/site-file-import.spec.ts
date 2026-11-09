@@ -282,3 +282,40 @@ for (const lock of ["web-locks", "indexeddb"]) {
     } finally { await other.close(); }
   });
 }
+
+test("local import waits for a preceding tab's site index to reach this tab", async ({ page, context }) => {
+  const second = await context.newPage();
+  try {
+    await Promise.all([page, second].map(async tab => {
+      await localMode(tab);
+      await tab.addInitScript(() => Object.defineProperty(navigator, "locks", { value: undefined }));
+      await tab.goto("/");
+      await expect(tab.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+    }));
+    async function upload(tab: typeof page, name: string) {
+      const doc = fixture();
+      doc.siteName = name;
+      await tab.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+        name: "site.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(doc)),
+      });
+      await expect(tab).toHaveURL(/\/sites\/[a-z0-9]{10}$/);
+    }
+    await upload(page, "First tab");
+    // Chromium can grant the IndexedDB transaction before propagating changes
+    // to the second renderer's localStorage. Delay that visibility deterministically.
+    await second.evaluate(({ listKey, markerKey }) => {
+      const get = Storage.prototype.getItem;
+      let until = 0;
+      Storage.prototype.getItem = function (key: string) {
+        if (this === localStorage && (key === listKey || key === markerKey)) {
+          if (!until) until = performance.now() + 400;
+          if (performance.now() < until) return null;
+        }
+        return get.call(this, key);
+      };
+    }, { listKey, markerKey: storageKey("sites-lock-v1") });
+    await upload(second, "Second tab");
+    await expect.poll(async () => (await getLocalSite(page)).list.map((site: { name: string }) => site.name))
+      .toEqual(["Second tab", "First tab"]);
+  } finally { await second.close(); }
+});
