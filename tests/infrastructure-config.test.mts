@@ -66,6 +66,11 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
 test("Docker runtime is non-root and local credentials are excluded from the build context", () => {
   const dockerfile = read("Dockerfile");
   const ignored = read(".dockerignore").split(/\r?\n/).map((line) => line.trim());
+  const imageRefs = [...dockerfile.matchAll(/^FROM node:([^@\\s]+)@sha256:([0-9a-f]{64})(?: AS [a-z0-9-]+)?$/gm)];
+  assert.equal(imageRefs.length, 2, "Both Docker stages must use immutable image digests");
+  assert.equal(imageRefs[0][1], read(".nvmrc").trim() + "-slim");
+  assert.equal(imageRefs[0][1], imageRefs[1][1]);
+  assert.equal(imageRefs[0][2], imageRefs[1][2]);
   assert.match(dockerfile, /^USER node$/m);
   assert.match(dockerfile, /^VOLUME \/data$/m);
   assert.match(dockerfile, /chown node:node \/data/);
