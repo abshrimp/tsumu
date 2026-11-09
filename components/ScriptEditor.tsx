@@ -306,7 +306,28 @@ function ScriptEditorInner({
   const marqueeRef = useRef<Marquee | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
-  const [activeSlot, setActiveSlot] = useState<string | null>(null);
+  const ghostRef = useRef<HTMLDivElement>(null);
+  const highlightedSlotRef = useRef<HTMLElement | null>(null);
+  // A drag can cross hundreds of insertion slots. Highlight only the changed
+  // DOM node; never make the entire block editor render on pointer movement.
+  const setActiveSlot = useCallback((key: string | null) => {
+    const old = highlightedSlotRef.current;
+    if (old && (old.dataset.slot !== key || !old.isConnected)) {
+      old.classList.remove("is-active");
+      highlightedSlotRef.current = null;
+    }
+    if (!key) {
+      old?.classList.remove("is-active");
+      highlightedSlotRef.current = null;
+      return;
+    }
+    if (highlightedSlotRef.current?.classList.contains("is-active")) return;
+    const el = wsRef.current?.querySelector<HTMLElement>(
+      `[data-slot="${CSS.escape(key)}"]`
+    );
+    el?.classList.add("is-active");
+    highlightedSlotRef.current = el ?? null;
+  }, []);
   const [menu, setMenu] = useState<Menu | null>(null);
   const [selectedList, setSelectedList] = useState<string[]>([]);
   const selected = useMemo(() => new Set(selectedList), [selectedList]);
@@ -423,6 +444,7 @@ function ScriptEditorInner({
     setDrag,
     latest,
     paletteRef,
+    ghostRef,
   });
   useScriptEditorKeys({ dragRef, cancelGesture, latest, setPeekId, setSelectedList });
 
@@ -490,7 +512,7 @@ function ScriptEditorInner({
     elements,
     focusNodeId,
     readOnly: false,
-    activeSlot,
+    activeSlot: null,
     selected,
     zOrder,
     // 取得のように後から呼ばれることがあるため、描画時点ではなく最新の状態に適用する
@@ -604,6 +626,7 @@ function ScriptEditorInner({
 
   const ghost = drag?.payload ? (
     <div
+      ref={ghostRef}
       className="se-ghost"
       style={{ left: drag.x - drag.ox * zoom, top: drag.y - drag.oy * zoom }}
     >
@@ -616,19 +639,24 @@ function ScriptEditorInner({
         ) : drag.payload.type === "script" ? (
           (() => {
             const main = drag.payload.script;
-            return drag.payload.group.map((s) => (
+            return drag.payload.group.slice(0, 8).map((s) => (
               <div
                 key={s.id}
                 className="se-ghost-item"
                 style={{ left: s.pos.x - main.pos.x, top: s.pos.y - main.pos.y }}
               >
-                <StackView script={s} />
+                <StackView script={{ ...s, steps: ghostPreviewSteps(s.steps) }} />
               </div>
             ));
           })()
         ) : (
           <div className="se-stack">
-            <StepList scriptId="__ghost" list="root" steps={drag.payload.steps} />
+            <StepList scriptId="__ghost" list="root" steps={ghostPreviewSteps(drag.payload.steps)} />
+            {drag.payload.steps.length > 8 && (
+              <span className="se-ghost-more">
+                {tr("ほか{n}件の動作", { n: drag.payload.steps.length - 8 })}
+              </span>
+            )}
           </div>
         )}
       </Ctx.Provider>
@@ -964,4 +992,20 @@ function clampPal(w: number): number {
 function inPaletteHint(d: Drag, el: HTMLElement | null): boolean {
   const r = el?.getBoundingClientRect();
   return !!r && d.x >= r.left && d.x <= r.right && d.y >= r.top && d.y <= r.bottom;
+}
+
+/** Drag previews never mount a second copy of a very long step tree. */
+function ghostPreviewSteps(steps: ScriptStep[], depth = 0): ScriptStep[] {
+  if (depth >= 3) return [];
+  return steps.slice(0, 8).map((step) => {
+    if (step.kind === "if") return {
+      ...step,
+      then: ghostPreviewSteps(step.then, depth + 1),
+      ...(step.else ? { else: ghostPreviewSteps(step.else, depth + 1) } : {}),
+    };
+    if (step.kind === "repeat" || step.kind === "for-each") {
+      return { ...step, then: ghostPreviewSteps(step.then, depth + 1) };
+    }
+    return step;
+  });
 }
