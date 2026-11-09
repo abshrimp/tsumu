@@ -8,7 +8,8 @@ import { hasPublishCredentials } from "../lib/publish-security";
 import * as helpers from "../lib/publish-files";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
-function fixture(truncated?: boolean, manifestText?: string, documentBlob?: string) {
+function fixture(truncated?: boolean, manifestText?: string, documentBlob?: string,
+  storedAssets: Record<string, Uint8Array> = {}) {
   class NextResponse extends Response {
     static json(data: unknown, init?: ResponseInit) {
       return new NextResponse(JSON.stringify(data), init);
@@ -23,6 +24,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
   const trees: { tree: helpers.TreeEntry[] }[] = [];
   const writes: string[] = [];
   const refUpdates: { sha: string; force: boolean }[] = [];
+  const uploaded: { content: string; encoding: string }[] = [];
   let recorded = false;
   const gh = async (path: string, options: { body?: string } = {}) => {
     if (options.body) writes.push(path);
@@ -31,6 +33,10 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     if (path.startsWith("/git/blobs/")) return NextResponse.json({
       encoding: "base64", content: Buffer.from(path.endsWith("/secret-doc") ? documentBlob ?? "" : manifestText ?? "").toString("base64"),
     });
+    if (path === "/git/blobs") {
+      uploaded.push(JSON.parse(options.body!));
+      return NextResponse.json({ sha: "uploaded-blob" });
+    }
     if (path === "/git/trees") {
       trees.push(JSON.parse(options.body!));
       return NextResponse.json({ sha: "new-tree" });
@@ -63,6 +69,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     toBranchPath: (path: string) => path,
     advanceBranchRef,
     recordPublish: async () => { recorded = true; },
+    assetStore: () => ({ get: async (source: string) => storedAssets[source] ?? null }),
     userMessage: (error: Error) => error.message,
   };
   const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/publish/route.ts", import.meta.url), "utf8"))
@@ -72,7 +79,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
   const send = (body: object) => post(new Request("https://example.com/api/publish", {
     method: "POST", body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", ...body, site: "site", target: "production" }),
   }));
-  return { entries, trees, writes, refUpdates, send, get recorded() { return recorded; } };
+  return { entries, trees, writes, refUpdates, uploaded, send, get recorded() { return recorded; } };
 }
 
 test("公開 API は手で追加した Git の項目をモード・種類ごと保持する", async () => {
@@ -315,4 +322,79 @@ test("commit rejects malformed editable JSON and accepts benign data", async () 
     action: "commit", files: { [helpers.DOC_PATH]: JSON.stringify({ siteName: "Public", pages: {} }) },
   });
   assert.equal(ok.status, 200);
+});
+
+test("editable document uploads reject credentials before sending any bytes to GitHub", async (t) => {
+  const logs: unknown[][] = [];
+  t.mock.method(console, "error", (...args: unknown[]) => { logs.push(args); });
+  t.mock.method(console, "warn", (...args: unknown[]) => { logs.push(args); });
+  const secret = "upload-credential-must-stay-local";
+  const document = Buffer.from(JSON.stringify({ pages: { private: { pageScripts: [{
+    steps: [{ kind: "fetch", url: "https://api.example.test/", headers: [
+      { name: "Authorization", value: `Bearer ${secret}` },
+    ] }],
+  }] } } }));
+  for (const payload of [{ base64: document.toString("base64") }, { source: "assets/document.json" }]) {
+    const f = fixture(false, undefined, undefined, { "assets/document.json": document });
+    const response = await f.send({ action: "upload", path: helpers.DOC_PATH, ...payload });
+    assert.equal(response.status, 400);
+    const text = await response.text();
+    assert.match(text, /認証情報/);
+    assert.ok(!text.includes(secret));
+    assert.deepEqual(f.writes, []);
+    assert.deepEqual(f.uploaded, []);
+    assert.equal(f.recorded, false);
+  }
+  assert.deepEqual(logs, []);
+});
+
+test("editable document uploads reject malformed JSON, invalid UTF-8 and oversized documents locally", async () => {
+  const limit = 12 * 1024 * 1024;
+  const cases = [
+    { bytes: Buffer.from("{broken"), error: /形式/ },
+    { bytes: Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d]), error: /形式/ },
+    { bytes: Buffer.from(JSON.stringify({ text: "あ".repeat(limit / 3) })), error: /大きすぎ/ },
+  ];
+  for (const { bytes, error } of cases) {
+    for (const payload of [{ base64: bytes.toString("base64") }, { source: "assets/document.json" }]) {
+      const f = fixture(false, undefined, undefined, { "assets/document.json": bytes });
+      const response = await f.send({ action: "upload", path: helpers.DOC_PATH, ...payload });
+      assert.equal(response.status, 400);
+      assert.match((await response.json()).error, error);
+      assert.deepEqual(f.writes, []);
+    }
+  }
+});
+
+test("safe editable uploads and ordinary binary assets retain their exact bytes", async () => {
+  // Documents above the client's inline threshold use this detached upload path.
+  const document = Buffer.from(JSON.stringify({ siteName: "公開", text: "x".repeat(512 * 1024), scripts: [
+    { kind: "fetch", url: "https://api.example.test/?api_key=%7Bkey%7D" },
+  ] }));
+  for (const [path, bytes] of [
+    [helpers.DOC_PATH, document], ["public/assets/icon.bin", Buffer.from([0, 255, 1, 128])],
+  ] as const) {
+    for (const payload of [{ base64: bytes.toString("base64") }, { source: "assets/input" }]) {
+      const f = fixture(false, undefined, undefined, { "assets/input": bytes });
+      const response = await f.send({ action: "upload", path, ...payload });
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), { ok: true, path, sha: "uploaded-blob" });
+      assert.deepEqual(f.uploaded, [{ content: bytes.toString("base64"), encoding: "base64" }]);
+      assert.deepEqual(f.writes, ["/git/blobs"]);
+    }
+  }
+});
+
+test("upload requires a string path and exactly one string content source before any GitHub write", async () => {
+  for (const payload of [
+    {}, { base64: "eA==", source: "assets/input" },
+    { base64: null }, { base64: { content: "credential" } },
+    { source: null }, { source: ["assets/input"] },
+    { path: 42, base64: "eA==" }, { path: "", base64: "eA==" },
+  ]) {
+    const f = fixture();
+    const response = await f.send({ action: "upload", path: helpers.DOC_PATH, ...payload });
+    assert.equal(response.status, 400);
+    assert.deepEqual(f.writes, []);
+  }
 });
