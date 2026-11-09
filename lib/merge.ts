@@ -1,4 +1,5 @@
 import type { PageFolder, SiteDoc } from "./types";
+import { MAX_NODE_DEPTH } from "./doc-tree";
 
 /**
  * ドキュメントの三方向マージ（同時編集の競合解決）。
@@ -176,6 +177,145 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
     else parents.delete(id);
   }
 
+  // Individually valid edits can compose into a tree deeper than the editor
+  // can save. Keep every node and prefer an original placement over dropping
+  // the concurrently added subtree.
+  const pathToRoot = (start: string): string[] => {
+    const path: string[] = [];
+    const seen = new Set<string>();
+    let id: string | undefined = start;
+    while (id && !seen.has(id)) {
+      seen.add(id);
+      path.push(id);
+      const parent = parents.get(id);
+      id = parent?.startsWith("node:") ? parent.slice(5) : undefined;
+    }
+    return path;
+  };
+  const pageRoot = merged.pageOrder.find(id => merged.pages[id]) ?? Object.keys(merged.pages)[0];
+  const originalParents = new Map(parents);
+  const overflowPlacements = new Map<string, string[]>();
+  for (const id of Object.keys(merged.nodes)) {
+    let path = pathToRoot(id);
+    while (path.length > MAX_NODE_DEPTH) {
+      let repaired = false;
+      for (const source of [lp, rp, bp]) {
+        for (const nodeId of path) {
+          const previous = parents.get(nodeId);
+          const candidate = source.get(nodeId);
+          if (!candidate || candidate === previous || !available.has(candidate)) continue;
+          parents.set(nodeId, candidate);
+          if (!findCycle() && pathToRoot(id).length < path.length) {
+            repaired = true;
+            break;
+          }
+          if (previous) parents.set(nodeId, previous); else parents.delete(nodeId);
+        }
+        if (repaired) break;
+      }
+      if (!repaired) {
+        if (pageRoot) parents.set(id, `page:${pageRoot}`); else parents.delete(id);
+      }
+      path = pathToRoot(id);
+    }
+  }
+  // Component references form a second graph beyond child ownership. Two
+  // editors can each add a legal nested instance and together create A→B→A.
+  // Move the conflicting remote instance outside the master rather than
+  // deleting its settings or either component's definition.
+  const componentRoots = new Map(Object.values(merged.components ?? {}).map(c => [c.rootId, c.id]));
+  const componentGraph = () => {
+    const graph = new Map<string, { target: string; nodeId: string }[]>();
+    for (const [id, node] of Object.entries(merged.nodes)) {
+      if (node.type !== "instance" || !node.componentId) continue;
+      const owner = pathToRoot(id).map(root => componentRoots.get(root)).find(Boolean);
+      if (!owner) continue;
+      const edges = graph.get(owner) ?? [];
+      edges.push({ target: node.componentId, nodeId: id });
+      graph.set(owner, edges);
+    }
+    return graph;
+  };
+  const instanceIsCyclic = (id: string): boolean => {
+    const target = merged.nodes[id]?.componentId;
+    const owner = pathToRoot(id).map(root => componentRoots.get(root)).find(Boolean);
+    if (!target || !owner) return false;
+    const graph = componentGraph();
+    const pending = [target];
+    const seen = new Set<string>();
+    for (let component = pending.pop(); component !== undefined; component = pending.pop()) {
+      if (component === owner) return true;
+      if (seen.has(component)) continue;
+      seen.add(component);
+      for (const edge of graph.get(component) ?? []) pending.push(edge.target);
+    }
+    return false;
+  };
+  const componentCycle = (): string[] | null => {
+    if (!componentRoots.size) return null;
+    const graph = componentGraph();
+    const done = new Set<string>();
+    const active = new Map<string, number>();
+    for (const root of graph.keys()) {
+      if (done.has(root)) continue;
+      const stack: { id: string; index: number; via?: string }[] = [{ id: root, index: 0 }];
+      active.set(root, 0);
+      while (stack.length) {
+        const frame = stack[stack.length - 1];
+        const edge = graph.get(frame.id)?.[frame.index++];
+        if (!edge) {
+          done.add(frame.id);
+          active.delete(frame.id);
+          stack.pop();
+          continue;
+        }
+        const cycleStart = active.get(edge.target);
+        if (cycleStart !== undefined) {
+          return [...stack.slice(cycleStart + 1).map(item => item.via!), edge.nodeId];
+        }
+        if (done.has(edge.target)) continue;
+        active.set(edge.target, stack.length);
+        stack.push({ id: edge.target, index: 0, via: edge.nodeId });
+      }
+    }
+    return null;
+  };
+  let referenceCycle: string[] | null;
+  while ((referenceCycle = componentCycle())) {
+    const id = referenceCycle.find(id => !local.nodes[id] ||
+      local.nodes[id].componentId !== merged.nodes[id].componentId || parents.get(id) !== lp.get(id)) ?? referenceCycle[0];
+    // A master root which itself is an instance cannot be detached from its
+    // definition. Keep its local reference if possible; malformed input is
+    // otherwise made non-recursive without removing the root node.
+    if (componentRoots.has(id)) {
+      merged.nodes[id] = { ...merged.nodes[id], componentId: local.nodes[id]?.componentId };
+      if (instanceIsCyclic(id)) merged.nodes[id] = { ...merged.nodes[id], componentId: undefined };
+    } else {
+      let restored = false;
+      const previous = parents.get(id);
+      for (const source of [lp, rp, bp]) {
+        const candidate = source.get(id);
+        if (!candidate || candidate === previous || !available.has(candidate)) continue;
+        parents.set(id, candidate);
+        if (!findCycle() && Object.keys(merged.nodes).every(nodeId => pathToRoot(nodeId).length <= MAX_NODE_DEPTH) && !instanceIsCyclic(id)) {
+          restored = true;
+          break;
+        }
+        if (previous) parents.set(id, previous); else parents.delete(id);
+      }
+      if (!restored) {
+        if (pageRoot) parents.set(id, `page:${pageRoot}`); else parents.delete(id);
+      }
+    }
+  }
+  // Fallback placements may not occur in either input's sibling list.
+  for (const [id, parent] of parents) {
+    if (originalParents.get(id) === parent) continue;
+    const list = overflowPlacements.get(parent) ?? [];
+    list.push(id);
+    overflowPlacements.set(parent, list);
+  }
+
   const mergeChildren = (key: string): string[] => {
     const preferred = pick(b.get(key), l.get(key), r.get(key)) ?? [];
     const result = [...new Set(preferred)].filter((id) => parents.get(id) === key);
@@ -188,6 +328,7 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
         result.splice(next === undefined ? result.length : result.indexOf(next), 0, id);
       }
     }
+    for (const id of overflowPlacements.get(key) ?? []) if (!result.includes(id)) result.push(id);
     return result;
   };
   // 入力の履歴スナップショットは書き換えない。

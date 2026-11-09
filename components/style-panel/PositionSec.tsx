@@ -289,7 +289,7 @@ export const GRID_DEFAULT_COLUMNS = "repeat(2, 1fr)";
 
 /** フローの欄の表示（自動 / 縦 / 横 / グリッド） */
 export function flowMode(display: string | undefined, dir: string | undefined): string {
-  if (display === "grid") return "grid";
+  if (display === "grid" || display === "inline-grid") return "grid";
   if (display === "flex" || display === "inline-flex") return dir?.startsWith("column") ? "v" : "h";
   return "block";
 }
