@@ -9,8 +9,8 @@ export function fetchRefetchDoc(): SiteDoc {
     pages: { p: {
       id: "p", name: "Home", slug: "", title: "Home", description: "", children: [],
       pageScripts: [{ id: "script", trigger: "load", pos: { x: 32, y: 32 }, steps: [
-        { id: "fetch", kind: "fetch", as: "products", url: "https://example.test/initial", sample: [{ name: "Initial" }], fetchedAt: 1 },
-        { id: "other", kind: "fetch", as: "other", url: "https://example.test/other", sample: [{ name: "Other" }], fetchedAt: 1 },
+        { id: "fetch", kind: "fetch", as: "products", url: "https://example.test/initial", preview: { sample: [{ name: "Initial" }], fetchedAt: 1 } },
+        { id: "other", kind: "fetch", as: "other", url: "https://example.test/other", preview: { sample: [{ name: "Other" }], fetchedAt: 1 } },
       ] }],
     } },
   };
@@ -21,13 +21,13 @@ export function fetchScopeDoc(mode: "node" | "loop"): SiteDoc {
   const doc = fetchRefetchDoc();
   const scoped = { id: "scoped", kind: "fetch" as const, as: "result", method: "POST" as const,
     url: mode === "node" ? "https://example.test/{details.id}" : "https://example.test/{details.id}/{empty}/{tags}",
-    body: '{"raw":{details}}', sample: { ok: true }, fetchedAt: 1 };
+    body: '{"raw":{details}}', preview: { sample: { ok: true }, fetchedAt: 1 } };
   doc.pages.p.query = "details.id=PAGE-DOTTED&empty=PAGE-EMPTY&tags=PAGE-TAGS";
   doc.pages.p.pageScripts![0].steps = [
-    { id: "rows", kind: "fetch", as: "rows", url: "https://example.test/rows", sample: [
+    { id: "rows", kind: "fetch", as: "rows", url: "https://example.test/rows", preview: { sample: [
       { details: { id: "ROW-ID" }, empty: {}, tags: [] },
-    ] },
-    { id: "global", kind: "fetch", as: "details", url: "https://example.test/global", sample: { id: "PAGE-ID" } },
+    ] } },
+    { id: "global", kind: "fetch", as: "details", url: "https://example.test/global", preview: { sample: { id: "PAGE-ID" } } },
   ];
   if (mode === "loop") {
     doc.pages.p.pageScripts![0].steps.push({ id: "each", kind: "for-each", array: "rows", then: [

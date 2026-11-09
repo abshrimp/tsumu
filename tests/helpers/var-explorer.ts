@@ -9,8 +9,9 @@ export function varExplorerDoc(): SiteDoc {
     pages: {
       p: { id: "p", name: "P", slug: "", title: "P", description: "", children: ["search", "target"], pageScripts: [{
         id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [{
-          id: "fetch", kind: "fetch", url: "https://example.test/data", as: "product", fetchedAt: 1,
-          sample: { name: "First", details: { label: "Nested" } },
+          id: "fetch", kind: "fetch", url: "https://example.test/data", as: "product", preview: {
+            fetchedAt: 1, sample: { name: "First", details: { label: "Nested" } },
+          },
         }],
       }] },
       q: { id: "q", name: "Q", slug: "other", title: "Q", description: "", children: ["other"] },

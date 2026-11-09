@@ -12,7 +12,7 @@ export function nestedListSourcesDoc(): SiteDoc {
     schemaVersion: 1, siteName: "Nested lists", assets: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "P", slug: "", title: "P", description: "", children: ["products", "other"], pageScripts: [{
       id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
-        { id: "fetch", kind: "fetch", url: "https://example.test/products", as: "response", sample: nestedListProducts, fetchedAt: 1 },
+        { id: "fetch", kind: "fetch", url: "https://example.test/products", as: "response", preview: { sample: nestedListProducts, fetchedAt: 1 } },
         { id: "alias", kind: "set-var", value: "{response}", into: "items" },
       ],
     }] } },
