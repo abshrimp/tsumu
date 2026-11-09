@@ -66,7 +66,7 @@ function FixedOptionSelect({ children, ...props }: ComponentProps<"select">) {
 }
 
 /** Field names and variable-token suggestions use the same editable input. */
-function fieldSuggestions(options: string[], samples: Record<string, unknown>): string[] {
+function fieldSuggestions(options: string[], samples: Record<string, unknown>, excludedVariableName?: string): string[] {
   const out = new Set(options);
   const visit = (value: unknown, name: string, depth: number) => {
     if (out.size >= 120 || !name || name.startsWith("#")) return;
@@ -77,7 +77,9 @@ function fieldSuggestions(options: string[], samples: Record<string, unknown>): 
       visit(item, name + "." + child, depth + 1);
     }
   };
-  for (const [name, value] of Object.entries(samples)) visit(value, name, 0);
+  for (const [name, value] of Object.entries(samples)) {
+    if (name !== excludedVariableName) visit(value, name, 0);
+  }
   return [...out];
 }
 
@@ -265,13 +267,14 @@ function ValueOperandEditor({ type, text, onChange, purpose = "compare" }: {
   );
 }
 
-function RecipeStepSettings({ transform, options, onChange, samples }: {
+function RecipeStepSettings({ transform, options, onChange, samples, excludedVariableName }: {
   transform: ValueTransform;
   options: string[];
   onChange: (next: ValueTransform) => void;
   samples: Record<string, unknown>;
+  excludedVariableName?: string;
 }) {
-  const allOptions = transform.kind === "sort" ? fieldSuggestions(options, samples) : [];
+  const allOptions = transform.kind === "sort" ? fieldSuggestions(options, samples, excludedVariableName) : [];
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
       <FixedOptionSelect aria-label={tr("計算方法")} value={transform.operation}
@@ -339,13 +342,14 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
 
 
 /** Standalone controls for a block on the script canvas, not a modal recipe. */
-export function ValueTransformSettings({ transform, options, onChange, samples }: {
+export function ValueTransformSettings({ transform, options, onChange, samples, excludedVariableName }: {
   transform: ValueTransform;
   options: string[];
   onChange: (next: ValueTransform) => void;
   samples: Record<string, unknown>;
+  excludedVariableName?: string;
 }) {
-  const allOptions = transform.kind === "field" ? fieldSuggestions(options, samples) : [];
+  const allOptions = transform.kind === "field" ? fieldSuggestions(options, samples, excludedVariableName) : [];
   if (transform.kind === "field") return (
     <div className="se-composer-step-settings">
       <FieldKeyPicker value={transform.key} options={allOptions}
@@ -367,6 +371,7 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
         onCommit={(text) => onChange({ ...transform, text })} />
     </div>
   );
-  return <RecipeStepSettings transform={transform} options={options} onChange={onChange} samples={samples} />;
+  return <RecipeStepSettings transform={transform} options={options} onChange={onChange} samples={samples}
+    excludedVariableName={excludedVariableName} />;
 }
 
