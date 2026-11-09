@@ -49,7 +49,7 @@ const changes: ((doc: SiteDoc) => void)[] = [
     doc.pages.home.children.push("c");
   },
   doc => {
-    doc.nodes.d = { ...doc.nodes.b, id: "d", children: [], text: "new node" };
+    doc.nodes.d = { ...doc.nodes.b, id: "d", children: [], text: { content: "new node", heading: 0 } };
     doc.pages.about.children.push("d");
   },
 ];
