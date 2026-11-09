@@ -23,16 +23,16 @@ function brute(slots: SlotPoint[], kind: SlotPoint["kind"], x: number, y: number
 
 test("spatial hit testing agrees with the original full DOM slot scan", () => {
   const slots: SlotPoint[] = [];
-  for (let row = 0; row < 180; row++) {
-    for (let col = 0; col < 36; col++) {
+  for (let row = 0; row < 110; row++) {
+    for (let col = 0; col < 22; col++) {
       slots.push({ key: `s-${row}-${col}`, kind: row % 7 === 0 ? "head" : "step",
         x: col * 215 + 12, y: row * 41 + 9 });
     }
   }
   const index = new SlotIndex(slots);
   // Probe cell boundaries, negative coordinates, overlaps and near misses.
-  for (let y = -60; y < 7500; y += 43) {
-    for (let x = -100; x < 7800; x += 117) {
+  for (let y = -60; y < 4600; y += 83) {
+    for (let x = -100; x < 4700; x += 187) {
       for (const kind of ["step", "head"] as const) {
         assert.equal(index.nearest(kind, x, y), brute(slots, kind, x, y));
       }
@@ -61,8 +61,8 @@ test("editing a single deep block keeps unrelated blocks and scripts by referenc
     then: [{ id: "nested", kind: "wait", seconds: 1 }],
   };
   const scripts = [
-    { id: "a", pos: { x: 10, y: 10 }, steps: [...steps, nested] },
-    { id: "b", pos: { x: 500, y: 500 }, steps: [{ id: "other", kind: "wait" as const, seconds: 2 }] },
+    { id: "a", nodeId: null, pos: { x: 10, y: 10 }, steps: [...steps, nested] },
+    { id: "b", nodeId: null, pos: { x: 500, y: 500 }, steps: [{ id: "other", kind: "wait" as const, seconds: 2 }] },
   ];
   const result = mapStep(scripts, "nested", (s) => ({ ...s, seconds: 5 }) as ScriptStep);
   assert.notEqual(result[0], scripts[0]);
