@@ -271,7 +271,7 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
   onChange: (next: ValueTransform) => void;
   samples: Record<string, unknown>;
 }) {
-  const allOptions = fieldSuggestions(options, samples);
+  const allOptions = transform.kind === "sort" ? fieldSuggestions(options, samples) : [];
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
       <FixedOptionSelect aria-label={tr("計算方法")} value={transform.operation}
@@ -345,7 +345,7 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
   onChange: (next: ValueTransform) => void;
   samples: Record<string, unknown>;
 }) {
-  const allOptions = fieldSuggestions(options, samples);
+  const allOptions = transform.kind === "field" ? fieldSuggestions(options, samples) : [];
   if (transform.kind === "field") return (
     <div className="se-composer-step-settings">
       <FieldKeyPicker value={transform.key} options={allOptions}
