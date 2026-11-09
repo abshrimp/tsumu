@@ -103,7 +103,7 @@ export async function POST(req: Request) {
       );
     }
     await addAllowedEmail(email);
-    return listResponse(me);
+    return await listResponse(me);
   } catch (e) {
     return NextResponse.json(
       { error: tr(userMessage(e, "保存できませんでした")) },
@@ -149,7 +149,7 @@ export async function DELETE(req: Request) {
         { status: 404 }
       );
     }
-    return listResponse(me);
+    return await listResponse(me);
   } catch (e) {
     return NextResponse.json(
       { error: tr(userMessage(e, "削除できませんでした")) },
