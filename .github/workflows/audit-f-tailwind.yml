@@ -1,4 +1,4 @@
-name: Audit F - SvelteKit Tailwind Export
+name: Audit F - Tailwind Export Builds
 
 on:
   pull_request:
@@ -23,12 +23,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  sveltekit-tailwind:
+  tailwind-build:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
+        framework: [nextjs, react, vue, sveltekit]
         language: [typescript, javascript]
     steps:
       - uses: actions/checkout@v7.0.1
@@ -38,8 +39,8 @@ jobs:
           cache: npm
       - run: npm install --global npm@12.2.1
       - run: npm ci
-      - name: Generate SvelteKit Tailwind site
-        run: node --import tsx scripts/smoke-export-build.mts sveltekit ${{ matrix.language }} tailwind
+      - name: Generate Tailwind site
+        run: node --import tsx scripts/smoke-export-build.mts ${{ matrix.framework }} ${{ matrix.language }} tailwind
       - name: Build and audit independent generated project
         working-directory: .generated-export-smoke
         run: |
@@ -48,4 +49,4 @@ jobs:
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=high
       - name: Verify SSR output
-        run: node --import tsx scripts/check-generated-ssr.mts sveltekit
+        run: node --import tsx scripts/check-generated-ssr.mts ${{ matrix.framework }}
