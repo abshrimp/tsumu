@@ -23,12 +23,17 @@ a.btn {
 .home-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
 }
 
+/* Match the wordmark on the MCP guide (mcp.tsumu.ebii.net), which loads no web fonts.
+   Roboto and Noto Sans JP are left out because the editor loads them as web fonts,
+   which would change the wordmark's shape compared with the guide. */
 .home-brand strong {
-  font-size: 14px;
+  font-family: "Google Sans Text", "Google Sans", "Hiragino Sans", system-ui, sans-serif;
+  font-size: 16px;
   font-weight: 600;
+  line-height: 1.75;
 }
 
 .home-top-actions {
