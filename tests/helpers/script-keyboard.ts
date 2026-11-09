@@ -17,20 +17,32 @@ export function scriptKeyboardDoc(): SiteDoc {
 }
 
 /** 実際のスクリプト画面・ストア・CSSで、選択欄のキー操作と履歴を確かめる。 */
-export async function scriptKeyboardBundle() {
+export async function scriptKeyboardBundle({ localized = false } = {}) {
   return (await build({
     stdin: {
       contents: `
-import React from "react";
+import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import ScriptEditor from "./components/ScriptEditor";
 import { useEditor } from "./lib/store";
+import { loadLocale } from "./lib/i18n";
 import css from "./app/globals.css";
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(scriptKeyboardDoc())});
 useEditor.getState().setActivePage("p");
 window.scriptKeyboardEditor = useEditor;
-createRoot(document.getElementById("app")).render(<React.StrictMode><ScriptEditor onClose={() => {}} /></React.StrictMode>);
+async function start() {
+  ${localized ? "await loadLocale();" : ""}
+  const { default: ScriptEditor } = await import("./components/ScriptEditor");
+  function Fixture() {
+    const [open, setOpen] = useState(true);
+    return <>
+      <button id="reopen-script" onClick={() => setOpen(true)}>Reopen scripts</button>
+      {open && <ScriptEditor onClose={() => setOpen(false)} />}
+    </>;
+  }
+  createRoot(document.getElementById("app")).render(<React.StrictMode><Fixture /></React.StrictMode>);
+}
+void start();
 `, loader: "tsx", sourcefile: "script-keyboard-browser.tsx", resolveDir: resolve("."),
     },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
