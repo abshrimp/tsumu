@@ -5,7 +5,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function fetchRefetchDoc(): SiteDoc {
   return {
-    siteName: "Fetch requests", assets: {}, nodes: {}, pageOrder: ["p"],
+    schemaVersion: 1, siteName: "Fetch requests", assets: {}, nodes: {}, pageOrder: ["p"],
     pages: { p: {
       id: "p", name: "Home", slug: "", title: "Home", description: "", children: [],
       pageScripts: [{ id: "script", trigger: "load", pos: { x: 32, y: 32 }, steps: [
