@@ -99,3 +99,26 @@ flowchart TD
 - **Delivery:** a Git commit means the source was pushed, not that an external host finished building or deploying it. Host-side production verification is a separate step.
 - **Cross-project integration:** `lib/site-import.ts` is shared with the import team; the published-history restore reuses its exported validator without modifying that file.
 - **Final acceptance:** review the final CI checks, CodeQL, main integration, external publish/restore smoke, and independent audit before merging. Do not mark the entire project free of vulnerabilities solely on the basis of G's tests.
+
+## Second-pass audit (after the first green CI)
+
+A green CI result at `ece4bb9a` established regression coverage only for the first pass. A new inspection of Git tree replacement, rollback and API-boundary assumptions found additional cases.
+
+| ID | Severity | Finding | Correction |
+| --- | --- | --- | --- |
+| AUD-G-008 | High | A manual symlink/file at `public/assets` and generated `public/assets/logo.svg` are not the same path, so earlier collision logic could include both. GitHub's nested Git Trees API can replace one with the other. | Reject file/descendant prefix collisions before asset upload in the UI and before creating any Git tree on the server. Mock tests cover both parent directions and generated/generated overlap. |
+| AUD-G-009 | High | Rolling back to an older snapshot copied its entire tree, silently deleting manual files added after the selected commit. | Identify manually owned files from the current complete tree and generated manifest; overlay newer manual files on the historical source tree while keeping current protected workflows and excluding newer generated files. Reject unreadable/truncated manifests and incompatible file paths. |
+| AUD-G-010 | Medium | The credential detector was only invoked in the browser. A caller that bypassed the UI could commit a secret-bearing `_tsumu/doc.json`, including when it was uploaded as a detached blob. | Apply the credential check on the server before any commit tree write. Check the actual Git blob for large docs and reject malformed/oversized docs. Cover both inline and blob paths in tests. |
+| AUD-G-011 | Medium | Historic rollback could reintroduce a credential-bearing `doc.json` from an earlier commit. | Check historical editable documents against the same credential scanner before rebuilding their Git tree. |
+| AUD-G-012 | Low | The rollback's previous top-level tree fetch assumed GitHub returned a full, well-formed array. | Reject incomplete/truncated tree responses; now use full recursive snapshots for manual-file preservation, with a regression test. |
+
+### Explicitly unverified or residual conditions
+
+- **Exact branch compare-and-swap:** GitHub's REST reference update with `force: false` prevents non-fast-forward updates, but it does not express an expected-old-SHA lease. A third party able to forcibly rewind the branch between the snapshot and ref write can create a rare race even though divergent concurrent commits are rejected. Protecting the published branches against force pushes is recommended. An atomic ref update with GitHub GraphQL `updateRefs.beforeOid` would address this distinction; it has **not** been implemented in this PR.
+  - https://docs.github.com/en/rest/git/refs
+  - https://docs.github.com/en/graphql/reference/git
+- **Actual deployed GitHub token scope:** The source code alone does not verify which repositories the token can update. Use a fine-grained token with only required repositories and minimum permissions; deployment-owner verification is required.
+- **Out-of-band manual edits to the generated manifest:** The repository's generated-file manifest is not cryptographically authenticated. A user with direct repository write access can modify ownership metadata; conservative validation rejects malformed manifests, not plausible malicious ownership claims. Review unexpected direct manifest edits before publishing.
+- **Provider/hosting smoke:** The mock tests cannot establish live GitHub GraphQL/REST rate limits, hosting build settings or final content availability. Conduct a non-production publish→manual-edit→rollback→restore test against a dedicated disposable repository before production merge.
+
+The implementation, tests and findings continue to be consolidated in one G pull request. Full CI, CodeQL and cross-owner review are separate final gates; no assertion of zero remaining bugs is implied.
