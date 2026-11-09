@@ -25,7 +25,7 @@ This document implements the coordination role (M) of the comprehensive audit pl
 | J | Independent cross-boundary security and integration verification |
 | M | Scope/ownership conflicts, review gates, merge coordination and final audit evidence |
 
-Area ownership is not a blanket lock: the exact modified paths in open PRs must be checked before making another change. M resolves disputes over shared paths and coordinates `package.json`, CI workflows and shared configuration with I. E's work must account for the import/archive changes in PR #19 if it remains open. Tests added at new paths do not grant permission to modify another owner's implementation.
+Area ownership is not a blanket lock: the exact modified paths in open PRs must be checked before making another change. M resolves disputes over shared paths and coordinates `package.json`, CI workflows and shared configuration with I. Already-merged historical PRs are not tracked as active overlaps; their effects are part of the current main baseline. Tests added at new paths do not grant permission to modify another owner's implementation.
 
 ## Change and PR protocol
 
