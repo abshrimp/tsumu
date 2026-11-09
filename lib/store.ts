@@ -870,6 +870,8 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     replaceDoc: (doc) => {
       pendingBase = null;
+      // 文書をまたぐ連続編集は終了し、次の編集に新しい履歴を作る。
+      get().endGesture();
       const currentPageId = get().activePageId;
       set({
         doc,
@@ -895,6 +897,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     restoreDoc: (doc) => {
       const current = get().doc;
       if (sameDoc(current, doc)) return;
+      get().endGesture();
       pushHistory(current);
       const selectedIds = validSelectedIds(doc, get().selectedIds);
       set({
@@ -1883,6 +1886,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     },
 
     resetDoc: () => {
+      get().endGesture();
       pushHistory(get().doc);
       const doc = createInitialDoc();
       set({

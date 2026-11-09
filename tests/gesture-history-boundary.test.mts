@@ -70,3 +70,45 @@ for (const action of ["undo", "redo"] as const) {
     assert.equal(state().doc.nodes.a.name, "Original");
   });
 }
+
+for (const action of ["replaceDoc", "restoreDoc", "resetDoc"] as const) {
+  const transition = () => {
+    if (action === "resetDoc") state().resetDoc();
+    else state()[action]({ ...state().doc, siteName: "Replacement" });
+  };
+
+  test(`${action} ends interrupted gestures so the next ordinary edit is undoable`, () => {
+    open();
+    const finish = state().beginGesture();
+    state().updateDoc(doc => { doc.siteName = "Dragging"; });
+    transition();
+    const boundary = state().doc;
+    assert.equal(state().gestureActive, false);
+    state().updateDoc(doc => { doc.siteName = "After replacement"; });
+    finish();
+    state().undo();
+    assert.deepEqual(state().doc, boundary);
+    state().redo();
+    assert.equal(state().doc.siteName, "After replacement");
+  });
+
+  test(`${action} discards old gesture owners before starting a new gesture`, () => {
+    open();
+    const oldFinish = state().beginGesture();
+    const overlappingFinish = state().beginGesture();
+    transition();
+    const boundary = state().doc;
+    const newFinish = state().beginGesture();
+    state().updateDoc(doc => { doc.siteName = "First new change"; });
+    oldFinish();
+    overlappingFinish();
+    assert.equal(state().gestureActive, true);
+    state().updateDoc(doc => { doc.siteName = "Second new change"; });
+    newFinish();
+    assert.equal(state().gestureActive, false);
+    state().undo();
+    assert.deepEqual(state().doc, boundary, "the new gesture has its own checkpoint");
+    state().redo();
+    assert.equal(state().doc.siteName, "Second new change");
+  });
+}
