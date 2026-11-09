@@ -9,6 +9,7 @@ import { applyExportStyle } from "./generator/style-export";
 import { zipAssetClosure } from "./zip-css";
 import { scopedAssetIds } from "./generator/scoped-assets";
 import { assertGeneratedPaths } from "./generator/output-paths";
+import { hasPublishCredentials } from "./publish-security";
 import { tr } from "./i18n";
 
 export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
@@ -224,27 +225,12 @@ export function exportLimitations(
     add(pages.length !== 1,
       "単一HTMLは1ページだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。");
   }
-  // All non-Next.js formats execute public API requests in the browser.
-  // Refuse credentials that must not be shipped to every site visitor.
-  const fetched = pages.flatMap((page) => pagePlan(doc, page.id).steps)
-    .filter((step) => step.kind === "fetch");
-  const secret = fetched.some((step) => {
-    const credentialHeader = (step.headers ?? []).some((h) =>
-      /^(?:authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x-api[-_]?key|x-auth[-_]?token|x-client[-_]?secret|x[-_]?token|x[-_]?secret|metadata-flavor|x-metadata-token)$/i.test(h.name.trim())
-    );
-    const secretUrl = /[?&#](?:api[-_]?key|secret|access[-_]?token|auth[-_]?token|client[-_]?secret|password|passwd|token|key)=/i.test(step.url);
-    let embeddedCredentials = false;
-    try {
-      const url = new URL(step.url);
-      embeddedCredentials = !!(url.username || url.password);
-    } catch {
-      embeddedCredentials = /^https?:\/\/[^/\s@]+@/i.test(step.url);
-    }
-    // A literal credential inside an exported JSON POST body is browser-visible.
-    const secretBody = /"(?:(?:api|access|auth)[-_]?(?:key|token)|password|passwd|secret|client[-_]?secret)"\s*:\s*"(?!\{)[^"]+"/i.test(step.body ?? "");
-    return credentialHeader || secretUrl || embeddedCredentials || secretBody;
-  });
-  add(secret,
+  // Browser-facing source and ZIP exports must share the same credential
+  // scanner as GitHub Push. The earlier regex missed percent-encoded query
+  // names, nested JSON credentials, and URL-encoded form bodies.
+  // Next.js is handled separately because existing server-side authenticated
+  // fetching needs an explicit environment-variable migration design.
+  add(hasPublishCredentials(doc),
     "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");
 
   if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework)) {

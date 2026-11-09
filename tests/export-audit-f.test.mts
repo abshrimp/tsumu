@@ -369,3 +369,34 @@ test("AUD-F-011: Next.js refuses imported HTML route collisions before generatin
   site.pages.private.slug = "other";
   assert.deepEqual(exportLimitations(site, "nextjs"), []);
 });
+
+test("AUD-F-012: browser exports use decoded, deep credential scanning like GitHub Push", () => {
+  const site = doc();
+  site.pages.public.pageScripts = [{
+    id: "load", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "fetch", kind: "fetch", as: "data",
+      url: "https://public.example/data?%61pi_key=literal" }],
+  }];
+  for (const framework of ["react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
+    assert.ok(exportLimitations(site, framework).some((reason) =>
+      reason.includes("APIキー")), framework + ": encoded query must be rejected");
+  }
+  const step = site.pages.public.pageScripts[0].steps[0];
+  if (step.kind !== "fetch") throw new Error("Expected fetch fixture");
+  step.url = "https://public.example/data";
+  step.method = "POST";
+  step.body = '{"nested":{"password":"literal"}}';
+  assert.ok(exportLimitations(site, "html").some((reason) => reason.includes("APIキー")),
+    "nested JSON must be rejected");
+  step.body = "mode=public&client%5Fsecret=literal";
+  assert.ok(exportLimitations(site, "react").some((reason) => reason.includes("APIキー")),
+    "URL-encoded body fields must be rejected");
+  step.body = undefined;
+  step.headers = [{ name: "Authorization", value: "Bearer {private}" }];
+  assert.ok(exportLimitations(site, "html").length > 0,
+    "browser exports must never accept Authorization headers");
+  step.headers = [];
+  step.url = "https://public.example/data?api_key=%7Bkey%7D";
+  assert.deepEqual(exportLimitations(site, "html"), [],
+    "pure variable placeholders are not literal credentials");
+});
