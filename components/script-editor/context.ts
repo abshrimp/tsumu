@@ -31,6 +31,8 @@ export interface EdCtx {
   scripts: PageScript[];
   /** Indexed once per document rather than rescanning scripts in every input. */
   variableIndex?: PageVariableIndex;
+  /** Shared source-variable choices for transform blocks. */
+  transformSources?: Record<string, unknown>;
   /** Page-load scripts and steps executable during pre-rendering (computed once). */
   pageLoadScriptIds: Set<string>;
   serverStepIds: Set<string>;
