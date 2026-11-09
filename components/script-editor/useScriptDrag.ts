@@ -68,6 +68,7 @@ export function useScriptDrag({
     let marqueeGesture: Marquee | null = null;
     let marqueeShown = false;
     let marqueeSelection = "";
+    let marqueeZoom = 0;
     let marqueeRects: Array<{ key: string; left: number; right: number; top: number; bottom: number }> | null = null;
 
     // Virtualized chunks may mount or unmount while scrolling during a drag.
@@ -120,7 +121,8 @@ export function useScriptDrag({
       const ws = wsRef.current;
       if (!ws) return [];
       const wr = contentRect(ws);
-      if (!marqueeRects) {
+      if (!marqueeRects || marqueeZoom !== zoomRef.current) {
+        marqueeZoom = zoomRef.current;
         marqueeRects = [];
         ws.querySelectorAll<HTMLElement>("[data-sel-key]").forEach((el) => {
           const key = el.dataset.selKey;
@@ -139,6 +141,23 @@ export function useScriptDrag({
       return marqueeRects.filter((r) =>
         !(r.right < left || r.left > right || r.bottom < top || r.top > bottom)
       ).map((r) => r.key);
+    };
+
+    const updateMarqueeSelection = (m: Marquee, e: PointerEvent) => {
+      if (marqueeGesture !== m) {
+        marqueeGesture = m;
+        marqueeRects = null;
+        marqueeShown = false;
+        marqueeSelection = m.base.join("\\0");
+      }
+      m.x = e.clientX;
+      m.y = e.clientY;
+      const hits = [...new Set([...m.base, ...marqueeHits(m)])];
+      const signature = hits.join("\\0");
+      if (signature !== marqueeSelection) {
+        marqueeSelection = signature;
+        setSelectedList(hits);
+      }
     };
 
     const positionGhost = (d: Drag) => {
@@ -164,25 +183,12 @@ export function useScriptDrag({
       }
       const m = marqueeRef.current;
       if (m) {
-        if (marqueeGesture !== m) {
-          marqueeGesture = m;
-          marqueeRects = null;
-          marqueeShown = false;
-          marqueeSelection = m.base.join("\\0");
-        }
-        m.x = e.clientX;
-        m.y = e.clientY;
+        updateMarqueeSelection(m, e);
         if (!marqueeShown || (marqueeElRef && !marqueeElRef.current)) {
           setMarquee({ ...m });
           marqueeShown = true;
         } else {
           positionMarquee(m);
-        }
-        const hits = [...new Set([...m.base, ...marqueeHits(m)])];
-        const signature = hits.join("\\0");
-        if (signature !== marqueeSelection) {
-          marqueeSelection = signature;
-          setSelectedList(hits);
         }
         return;
       }
@@ -228,6 +234,8 @@ export function useScriptDrag({
       const gesture = marqueeRef.current ?? dragRef.current;
       if (!gesture || e.pointerId !== gesture.pointerId) return;
       if (marqueeRef.current) {
+        // The release can have a newer position than the last pointermove.
+        updateMarqueeSelection(marqueeRef.current, e);
         marqueeRef.current = null;
         marqueeGesture = null;
         marqueeRects = null;

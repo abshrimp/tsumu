@@ -31,10 +31,21 @@ function mount(targetSlot?: string) {
   const marqueeRef = { current: null as Marquee | null };
   const ui = { drag: null as Drag | null, marquee: null as Marquee | null, slot: null as string | null, selected: [] as string[], closed: false };
   const rect = (left: number, right: number) => ({ left, right, top: 0, bottom: 600 });
+  const zoomRef = { current: 1 };
+  const selectionTargets: Array<{ key: string; x: number; y: number }> = [];
+  let selectionMeasurements = 0;
   const ws = { scrollLeft: 0, scrollTop: 0, getBoundingClientRect: () => rect(300, 1200),
     querySelectorAll: (selector: string) => targetSlot && selector === '[data-slot-kind]'
       ? [{ dataset: { slot: targetSlot, slotKind: "step" },
-        getBoundingClientRect: () => ({ left: 692, right: 740, top: 292, bottom: 315 }) }] : [],
+        getBoundingClientRect: () => ({ left: 692, right: 740, top: 292, bottom: 315 }) }]
+      : selector === '[data-sel-key]' ? selectionTargets.map(({ key, x, y }) => ({
+        dataset: { selKey: key },
+        getBoundingClientRect: () => {
+          selectionMeasurements++;
+          return { left: 300 + x * zoomRef.current, right: 300 + (x + 20) * zoomRef.current,
+            top: y * zoomRef.current, bottom: (y + 20) * zoomRef.current };
+        },
+      })) : [],
   };
   const scripts = () => pageScriptsOf(useEditor.getState().doc, [], useEditor.getState().activePageId);
   const latest = { current: {
@@ -45,7 +56,7 @@ function mount(targetSlot?: string) {
   } as ScriptEditorLatest };
   const setSelectedList = (value: string[]) => { ui.selected = value; };
   const cancel = load("components/script-editor/useScriptDrag.ts").useScriptDrag({
-    wsRef: { current: ws }, paletteRef: { current: { getBoundingClientRect: () => rect(0, 280) } }, zoomRef: { current: 1 },
+    wsRef: { current: ws }, paletteRef: { current: { getBoundingClientRect: () => rect(0, 280) } }, zoomRef,
     dragRef, marqueeRef, latest, setSelectedList, setMenu() {},
     setDrag: (value: Drag | null) => { ui.drag = value; },
     setMarquee: (value: Marquee | null) => { ui.marquee = value; },
@@ -65,7 +76,8 @@ function mount(targetSlot?: string) {
     }
     if (move) pointer("pointermove");
   };
-  return { start, pointer, win, doc, ui, dragRef, marqueeRef, cancel,
+  return { start, pointer, win, doc, ui, dragRef, marqueeRef, cancel, selectionTargets, zoomRef,
+    get selectionMeasurements() { return selectionMeasurements; },
     key(key: string, ctrlKey = false) {
       const event = Object.assign(new Event("keydown"), { key, ctrlKey });
       Object.defineProperty(event, "target", { value: { tagName: "BODY" } });
@@ -76,6 +88,42 @@ function mount(targetSlot?: string) {
 }
 const state = () => useEditor.getState();
 const snapshot = () => ({ doc: structuredClone(state().doc), past: state().past.length, future: state().future.length });
+
+for (const moved of [false, true]) test(`marquee uses the release position after ${moved ? "a move" : "pointerdown only"}`, () => {
+  const m = mount();
+  try {
+    m.selectionTargets.push({ key: "step:near", x: 340, y: 240 }, { key: "step:far", x: 500, y: 350 });
+    const before = snapshot();
+    m.start("marquee", false);
+    m.marqueeRef.current!.base = ["step:existing"];
+    if (moved) {
+      m.pointer("pointermove");
+      assert.deepEqual(m.ui.selected, ["step:existing", "step:near"]);
+    }
+    m.pointer("pointerup", { x: 850, y: 400, buttons: 0 });
+    assert.deepEqual(m.ui.selected, ["step:existing", "step:near", "step:far"]);
+    assert.deepEqual(snapshot(), before, "selection must not edit the document or history");
+    assert.equal(m.ui.marquee, null);
+    assert.equal(m.marqueeRef.current, null);
+  } finally { m.close(); }
+});
+
+for (const end of ["pointermove", "pointerup"]) test(`marquee refreshes zoomed bounds on ${end}`, () => {
+  const m = mount();
+  try {
+    m.selectionTargets.push({ key: "step:wait", x: 340, y: 240 });
+    const before = snapshot();
+    m.start("marquee");
+    assert.deepEqual(m.ui.selected, ["step:wait"]);
+    m.pointer("pointermove");
+    assert.equal(m.selectionMeasurements, 1, "unchanged geometry is measured once per gesture");
+    m.zoomRef.current = 2;
+    m.pointer(end, { buttons: end === "pointerup" ? 0 : 1 });
+    assert.deepEqual(m.ui.selected, [], "zoom moved the block out of the selection rectangle");
+    assert.equal(m.selectionMeasurements, 2);
+    assert.deepEqual(snapshot(), before);
+  } finally { m.close(); }
+});
 
 for (const kind of ["script", "step", "palette", "marquee"]) {
   for (const end of ["pointercancel", "blur", "hidden", "released-outside", "escape", "unmount"]) {

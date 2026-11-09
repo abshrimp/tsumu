@@ -128,3 +128,46 @@ test("a real mouse drop still moves one stack and supports Undo/Redo", async ({ 
   await page.keyboard.press("Control+z"); expect((await snapshot(page)).doc).toEqual(before.doc);
   await page.keyboard.press("Control+y"); expect((await snapshot(page)).doc).toEqual(moved.doc);
 });
+
+for (const moved of [false, true]) test(`box selection includes the release position ${moved ? "after a move" : "without a move"}`, async ({ page }) => {
+  const before = await snapshot(page);
+  const ws = page.locator(".se-ws");
+  const block = page.locator('.se-ws [data-sel-key="step:wait"]');
+  const wr = (await ws.boundingBox())!;
+  const br = (await block.boundingBox())!;
+  const origin = { x: wr.x + 10, y: wr.y + 10 };
+  await ws.dispatchEvent("pointerdown", { pointerId: 1, button: 0, buttons: 1,
+    clientX: origin.x, clientY: origin.y });
+  if (moved) {
+    await pointer(page, "pointermove", { x: origin.x + 5, y: origin.y + 5 });
+    await expect(page.locator(".se-marquee")).toBeVisible();
+  }
+  await expect(block).not.toHaveClass(/is-selected/);
+  await pointer(page, "pointerup", { x: br.x + br.width / 2, y: br.y + br.height / 2, buttons: 0 });
+  await expect(block).toHaveClass(/is-selected/);
+  await expect(page.locator(".se-marquee")).toHaveCount(0);
+  expect(await snapshot(page)).toEqual(before);
+});
+
+test("zooming during box selection refreshes block bounds before release", async ({ page }) => {
+  const before = await snapshot(page);
+  const ws = page.locator(".se-ws");
+  const block = page.locator('.se-ws [data-sel-key="step:wait"]');
+  const wr = (await ws.boundingBox())!;
+  const br = (await block.boundingBox())!;
+  const origin = { x: wr.x + 10, y: wr.y + 10 };
+  const end = { x: br.x + br.width / 2, y: br.y + br.height / 2 };
+  await ws.dispatchEvent("pointerdown", { pointerId: 1, button: 0, buttons: 1,
+    clientX: origin.x, clientY: origin.y });
+  await pointer(page, "pointermove", end);
+  await expect(block).toHaveClass(/is-selected/);
+  for (let i = 0; i < 4; i++) {
+    await ws.dispatchEvent("wheel", { ctrlKey: true, deltaY: -50, clientX: origin.x, clientY: origin.y });
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  }
+  await expect(page.locator(".se-zoom-val")).toHaveText("200%");
+  expect((await block.boundingBox())!.y).toBeGreaterThan(end.y);
+  await pointer(page, "pointerup", { ...end, buttons: 0 });
+  await expect(block).not.toHaveClass(/is-selected/);
+  expect(await snapshot(page)).toEqual(before);
+});
