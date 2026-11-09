@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-const DB = "tsumu-browser-documents";
+const DB = "tsumu-documents";
 const STORE = "documents";
 
 /** Exercise the real browser IndexedDB rather than mocking document storage. */
