@@ -43,6 +43,11 @@ function sanitizeSvgWithoutDom(input: string): string {
     node.attrs = node.attrs.filter((attr) => {
       const key = (attr.prefix ? attr.prefix + ":" : "") + attr.name.toLowerCase();
       if (!staticAttrs.has(key) || /^on/i.test(key)) return false;
+      // XML namespace declarations are trusted fixed URIs, not fetchable
+      // resources. Rejecting their "http:" spelling would remove xmlns from
+      // every normal icon, invalidating otherwise safe imported SiteDocs.
+      if (key === "xmlns") return attr.value === SVG_NS;
+      if (key === "xmlns:xlink") return attr.value === "http://www.w3.org/1999/xlink";
       // External resource loading is not part of an editable icon.
       if (key === "href" || key === "xlink:href") return /^#[\w.-]+$/.test(attr.value);
       if (/\burl\s*\(/i.test(attr.value)) {
