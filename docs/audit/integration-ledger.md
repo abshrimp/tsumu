@@ -176,3 +176,18 @@ moving PR heads and verify all required contexts **again** before any merge.
 Then verify the integrated `main` at its new commit rather than treating
 the individual PR results as proof of cross-area correctness. Record any
 unavailable real-provider testing as incomplete; do not test on production data.
+
+## M final integration checkpoint — G/F merged into main (2026-11-09)
+
+**Final G/F integration completed as follows:**
+
+| Audit area | PR | Reviewed CI evidence | Squash merge into `main` |
+| --- | --- | --- | --- |
+| G — GitHub publishing/rollback/history | [#29](https://github.com/abshrimp/tsumu/pull/29) | Exact HEAD `d933b16295515238ed1c3dab23796b6083d1f084`, **14/14 success**, zero failed/pending; PR mergeable `clean` | `e4dacd076cc02bc7e3c3d263eae9bacea5c563a2` |
+| F — exports/generated runtimes | [#30](https://github.com/abshrimp/tsumu/pull/30) | Exact HEAD `92dbd2219d69e68e2148fa323404ee6526894f9f`, **26/26 success**, zero failed/pending, including 12 extra generated-style builds; PR mergeable `clean`; no file-path overlap with #29 | `831c89029520a120cde2a836baac9eaeb86999bf` |
+
+- After the two squash merges, verified main at `831c89029520a120cde2a836baac9eaeb86999bf`.
+- M [#32](https://github.com/abshrimp/tsumu/pull/32) has been merged *from* that exact main into its audit branch (Git parent merge, not a main merge), retaining only M-owned documentation/tools/tests. The M PR requires **its own complete latest-HEAD CI, including all four E2E shards and five generated-site formats**, before any squash to main.
+- F's fail-closed credentials policy rejects known literal authentication values across all export targets, including Next.js SSR; the editor's data-fetch block itself is preserved. This is a deliberate change in generated-output behavior and must be called out in release notes. Unknown arbitrary-code credentials remain a residual risk rather than an assertion of full scanning coverage.
+- **Not independently certified:** real disposable-repository G publish→manual-edit/delete→rollback→restore smoke, deployment credential scope verification, independent GitHub-user approval (all PRs authored from the same account), full CodeQL/Dependabot open-alert inventory, and real production environment probes. No production records were modified for this audit.
+- Individual green PR runs are not evidence of green *integrated-main* runs. Confirm M's final HEAD and the resulting squash-merged main SHA separately. Do not describe all defects and vulnerabilities as completely absent.
