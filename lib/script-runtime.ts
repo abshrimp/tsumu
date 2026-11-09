@@ -1495,14 +1495,29 @@ export const SCRIPT_RUNTIME = `function (env) {
         return next();
       }
       // keep: 省略 = すべて / true・false = 「表示した要素の上も含める」のもの・それ以外だけ
+      // Programmatic input/change events can synchronously call back into the
+      // same handler (e.g. two set-value blocks alternating between values).
+      // Allow distinct triggers, but prevent a synchronous recursion cycle.
+      var firingTriggers = new WeakMap();
       function fire(el, trigger, keep) {
-        parse(el).forEach(function (s) {
-          if (s.trigger !== trigger) return;
-          /*#keep*/
-          if (keep !== undefined && !!s.keep !== keep) return;
-          /*/keep*/
-          runSteps(s.steps || [], el, undefined, activeRun());
-        });
+        var running = firingTriggers.get(el);
+        if (!running) {
+          running = new Set();
+          firingTriggers.set(el, running);
+        }
+        if (running.has(trigger)) return;
+        running.add(trigger);
+        try {
+          parse(el).forEach(function (s) {
+            if (s.trigger !== trigger) return;
+            /*#keep*/
+            if (keep !== undefined && !!s.keep !== keep) return;
+            /*/keep*/
+            runSteps(s.steps || [], el, undefined, activeRun());
+          });
+        } finally {
+          running.delete(trigger);
+        }
       }
       function chain(t) {
         var out = [];
