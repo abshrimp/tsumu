@@ -18,7 +18,7 @@ function seeded(seed: number) {
 }
 function fixture(): SiteDoc {
   return {
-    siteName: "Concurrent Site",
+    schemaVersion: 1, siteName: "Concurrent Site",
     pageOrder: ["home", "about"],
     pages: {
       home: { id: "home", name: "Home", slug: "", title: "", description: "", children: ["a"] },

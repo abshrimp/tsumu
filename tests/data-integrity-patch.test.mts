@@ -13,7 +13,7 @@ import type { SiteDoc } from "../lib/types";
 
 function fixture(): SiteDoc {
   return {
-    siteName: "Component integrity",
+    schemaVersion: 1, siteName: "Component integrity",
     pages: { p: { id: "p", name: "Home", slug: "", title: "", description: "", children: ["use"] } },
     pageOrder: ["p"],
     nodes: {

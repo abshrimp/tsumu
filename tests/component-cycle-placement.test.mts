@@ -9,7 +9,7 @@ const node = (id: string, children: string[] = []) => ({ ...makeBox(), id, child
 const instance = (id: string, componentId: string) => ({ ...node(id), type: "instance" as const, componentId });
 function fixture(): SiteDoc {
   return {
-    siteName: "Component moves",
+    schemaVersion: 1, siteName: "Component moves",
     assets: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "",
       children: ["outside", "ordinary"] } },

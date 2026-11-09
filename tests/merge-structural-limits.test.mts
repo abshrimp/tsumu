@@ -6,7 +6,7 @@ import { validateDocValue } from "../lib/doc-storage";
 import type { SiteDoc } from "../lib/types";
 
 function empty(): SiteDoc {
-  return { siteName: "Test", assets: {}, nodes: {}, pages: { p: { id: "p", name: "Home", slug: "", title: "", description: "", children: [] } }, pageOrder: ["p"] };
+  return { schemaVersion: 1, siteName: "Test", assets: {}, nodes: {}, pages: { p: { id: "p", name: "Home", slug: "", title: "", description: "", children: [] } }, pageOrder: ["p"] };
 }
 function node(id: string, children: string[] = []) { return { ...makeBox(), id, children }; }
 function assertValid(doc: SiteDoc) { assert.equal(validateDocValue(doc), null); }
