@@ -4,7 +4,7 @@ import type { GeneratedProject } from "../generator";
  * Ensure every export is extractable on case-insensitive Windows/macOS filesystems.
  * No generated path may escape the output root or turn a file into a directory.
  */
-export function assertGeneratedPaths(project: GeneratedProject): void {
+export function assertGeneratedPaths(project: GeneratedProject, reservedPaths: readonly string[] = []): void {
   const paths = new Set<string>();
   const portablePaths = new Map<string, string>();
   const normalize = (path: string) => path.normalize("NFC").toLowerCase();
@@ -12,6 +12,8 @@ export function assertGeneratedPaths(project: GeneratedProject): void {
     ["text", project.files],
     ["binary", project.binaries],
     ["remote", project.remoteAssets],
+    // ZIP-only entries must also participate in collision detection.
+    ["reserved", Object.fromEntries(reservedPaths.map((path) => [path, ""]))],
   ] as const) {
     for (const path of Object.keys(records)) {
       const segments = path.split("/");

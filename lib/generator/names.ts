@@ -121,10 +121,15 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
         ? extMatch[0]
         : null;
     const ext = safeExt ?? extFromMime(asset.mimeType, asset.dataUrl);
-    const base =
+    const originalBase =
       (extMatch ? raw.slice(0, extMatch.index) : raw)
         .replace(/-{2,}/g, "-")
-        .replace(/^[.-]+/, "") || "image";
+        .replace(/^[.-]+/, "")
+        .replace(/\.+$/g, "") || "image";
+    // Windows reserves these device names with or without an extension.
+    // Rename valid uploaded assets rather than failing the entire export.
+    const base = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(originalBase)
+      ? "_" + originalBase : originalBase;
     let name = `${base}${ext}`;
     if (taken(name)) {
       let i = 2;

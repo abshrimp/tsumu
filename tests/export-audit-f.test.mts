@@ -300,3 +300,44 @@ test("AUD-F-007: generated names remain unambiguous on case-insensitive filesyst
   assert.notEqual(names.get("upper")?.toLowerCase(), names.get("lower")?.toLowerCase());
   assert.match(names.get("lower")!, /-2\.png$/i);
 });
+
+
+test("AUD-F-008: editable ZIP metadata cannot collide with generated page paths", async () => {
+  const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
+  const reserved = ["_tsumu/doc.json", "_tsumu/assets.json"];
+  const empty = { binaries: {}, remoteAssets: {} };
+  for (const path of ["_tsumu/doc.json", "_tsumu/doc.json/index.html",
+    "_TSUMU/Assets.JSON/index.html", "_tsumu/assets.json"]) {
+    assert.throws(() => assertGeneratedPaths({ ...empty, files: { [path]: "content" } }, reserved),
+      /Duplicate generated|Case-insensitive generated|file\/directory collision/,
+      "ZIP metadata collision: " + path);
+  }
+  const site = doc();
+  site.pages.private.unpublished = false;
+  site.pages.private.slug = "_tsumu/doc.json";
+  const html = generateExportProject(site, "html");
+  assert.ok(html.files["_tsumu/doc.json/index.html"],
+    "normal HTML generation alone cannot detect later ZIP metadata entries");
+  assert.throws(() => assertGeneratedPaths(html, reserved), /file\/directory collision/);
+});
+
+test("AUD-F-009: Windows device names are renamed, not rejected, as asset paths", async () => {
+  const { buildAssetNames } = await import("../lib/generator/names");
+  const site = doc();
+  for (const [i, name] of ["CON.png", "con.png", "AUX.svg", "COM1.jpg",
+    "lpt9.woff", "CON..png", "normal.png"].entries()) {
+    const id = "asset" + i;
+    site.assets[id] = { id, name, width: 1, height: 1,
+      mimeType: "image/png", dataUrl: "data:image/png;base64,AQID" };
+  }
+  const names = buildAssetNames(site);
+  const files = Array.from(names.values());
+  assert.equal(new Set(files.map((name) => name.toLowerCase())).size, files.length);
+  for (let i = 0; i < 6; i++) {
+    assert.ok(files[i].startsWith("_"), "Windows device-name asset was not renamed: " + files[i]);
+  }
+  assert.equal(files[0], "_CON.png");
+  assert.equal(files[1], "_con-2.png");
+  assert.equal(files[5], "_CON-3.png");
+  assert.doesNotThrow(() => generateExportProject(site, "html"));
+});

@@ -4,6 +4,7 @@ import { prepareExportScopeDoc, prepareExportProject, type ExportFormat, type Ex
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
 import { tr } from "./i18n";
 import { buildAssetNames } from "./generator/names";
+import { assertGeneratedPaths } from "./generator/output-paths";
 import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from "./site-import";
 
 /** zip を作ってダウンロードさせる。保存先に見つからず同梱できなかったアセットのパスを返す */
@@ -14,6 +15,9 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   const editableDoc = await prepareExportScopeDoc(doc, options);
   const project = await prepareExportProject(editableDoc, { ...options, scope: "project" });
   const { files, binaries, remoteAssets } = project;
+  // This archive adds editable metadata after framework generation. Treat
+  // those entries as reserved paths before JSZip creates any directories.
+  assertGeneratedPaths(project, [EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH]);
   const dirName =
     doc.siteName
       .toLowerCase()
