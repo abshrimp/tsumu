@@ -17,9 +17,46 @@ import {
 
 /* ---------- キャンバス用CSS生成 ---------- */
 
+/** A SiteDoc can contain arbitrary style-map keys and values. Treat each entry as
+ * one declaration, not as trusted CSS source that can terminate the canvas rule. */
+function safeDeclarationValue(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  let quote = "";
+  let depth = 0;
+  let comment = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    const next = value[i + 1];
+    if (comment) {
+      if (c === "*" && next === "/") { comment = false; i++; }
+      continue;
+    }
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+      continue;
+    }
+    if (c === "/" && next === "*") { comment = true; i++; continue; }
+    if (c === "\\") { i++; continue; }
+    if (c === '"' || c === "'") { quote = c; continue; }
+    if (c === "(") { depth++; continue; }
+    if (c === ")") { if (depth === 0) return false; depth--; continue; }
+    if (c === "{" || c === "}" || (c === ";" && depth === 0)) return false;
+    if (c === "<" && /^<\\/style\\b/i.test(value.slice(i))) return false;
+  }
+  return !quote && !comment && depth === 0;
+}
+
 function cssBody(map: Record<string, string>): string {
   return Object.entries(map)
-    .map(([k, v]) => `${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}: ${v};`)
+    .flatMap(([key, value]) => {
+      // Camel-cased React properties, vendor prefixes and CSS custom properties.
+      // Reject punctuation/whitespace that could create a new selector or at-rule.
+      if (!/^(?:--[\\w\\u0080-\\uFFFF-]+|-?[a-zA-Z][a-zA-Z0-9-]*)$/.test(key)) return [];
+      if (!safeDeclarationValue(value)) return [];
+      const name = key.startsWith("--") ? key : key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+      return [`${name}: ${value};`];
+    })
     .join(" ");
 }
 
