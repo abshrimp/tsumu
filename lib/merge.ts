@@ -494,6 +494,7 @@ function mergeOnce(
 
   const merged: SiteDoc = {
     ...(settings as Partial<SiteDoc>),
+    schemaVersion: 1,
     siteName: (settings.siteName as string | undefined) ?? remote.siteName,
     pages,
     pageOrder,

@@ -600,7 +600,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   if (unusedRules.length) warn(tr("変換できなかったCSSはカスタムコードに残しました。編集画面と公開サイトで表示が異なる場合があります。"));
   return {
     doc: {
-      siteName: name, pages: { [pageId]: page }, pageOrder: [pageId],
+      schemaVersion: 1, siteName: name, pages: { [pageId]: page }, pageOrder: [pageId],
       nodes, assets: Object.fromEntries(assets.map((asset) => [asset.id, asset])),
       breakpoints: normalizeBreakpoints(breakpoints),
     },

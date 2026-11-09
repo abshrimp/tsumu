@@ -11,7 +11,7 @@ test("Pending scripts from a previous page do not continue after navigating away
   ];
   const scripts = [{ id: "load", trigger: "load" as const, pos: { x: 0, y: 0 }, steps }];
   const doc: SiteDoc = {
-    siteName: "Navigation", pageOrder: ["a", "b"], nodes: {}, assets: {},
+    schemaVersion: 1, siteName: "Navigation", pageOrder: ["a", "b"], nodes: {}, assets: {},
     pages: {
       a: { id: "a", name: "A", slug: "", title: "A", description: "", children: [], pageScripts: scripts },
       b: { id: "b", name: "B", slug: "b", title: "B", description: "", children: [] },

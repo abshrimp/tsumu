@@ -11,7 +11,7 @@ import type { SiteDoc } from "../lib/types";
 // Never deploy to a real site or touch an existing browser profile.
 async function startSite() {
   const doc: SiteDoc = {
-    siteName: "PWA fixture", nodes: {}, assets: {}, pageOrder: ["home"],
+    schemaVersion: 1, siteName: "PWA fixture", nodes: {}, assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [] } },
   };
   let files: Record<string, string> = {};

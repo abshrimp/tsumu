@@ -29,7 +29,7 @@ test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", a
   expect(response.ok()).toBe(true);
   const { site } = await response.json();
   const doc: SiteDoc = {
-    siteName: "Push formats",
+    schemaVersion: 1, siteName: "Push formats",
     pageOrder: ["home"],
     pages: {
       home: { id: "home", name: "Home", slug: "", title: "Home", description: "",
