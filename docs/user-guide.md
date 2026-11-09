@@ -425,11 +425,14 @@ Every AI edit is validated on a working copy before it touches your page.
 
 ### Connecting an external AI client (MCP)
 
-You can also connect an external MCP-capable AI client (such as Claude Desktop, Cursor, or Codex) to an open Tsumu browser tab without configuring an AI API key on the Tsumu server:
+To connect an AI app to an existing site, open that site in the editor. The browser tab handles requests from the app, so keep it open during the session.
 
-- Open **⋯ → Connect external AI (MCP)** in the editor header (or on the home screen) to start a session with `tsumu-mcp` (defaults to `https://mcp.tsumu.ebii.net`; override at build time via `NEXT_PUBLIC_TSUMU_MCP_URL`).
-- Choose **Read-only** or **Allow edits**, copy the generated MCP URL / configuration into your AI client, and keep the Tsumu tab open while working.
-- External edits (`create_site`, `create_page`, `apply_operations`) execute inside your open browser session using the same validated `aiOps` schema, undo history, and storage backend (server or browser-only IndexedDB) as manual edits.
+1. Open **⋯ → MCP connection**. The **See the connection guide** link shows how to add Tsumu to your AI app.
+2. Choose whether to allow editing. Clear the checkbox for read-only access. Select **Start connection** and copy the **Connection code**.
+3. Connect to Tsumu from the AI app and enter the code on its authorization page within 10 minutes.
+4. When you finish, select **Disconnect and revoke** in the editor.
+
+The connection grants access to the site open in that tab. Editing permission covers page creation and document edits. Publishing and asset deletion stay under your control in Tsumu.
 
 ## Environment variables
 
