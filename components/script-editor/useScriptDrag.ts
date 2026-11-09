@@ -10,6 +10,7 @@ import { isDataStep } from "../../lib/data";
 import { PAGE_TARGET } from "../../lib/types";
 import { type Payload } from "./palette";
 import { connectNewTransform, insertAt, parseSlot, takeAt } from "./step-tree";
+import { SlotIndex, type SlotPoint } from "./slot-index";
 import type { Drag, Marquee, Menu, ScriptEditorLatest } from "../ScriptEditor";
 
 /** ScriptEditorInner から受け取る値 */
@@ -25,6 +26,8 @@ export interface UseScriptDragDeps {
   setDrag: Dispatch<SetStateAction<Drag | null>>;
   latest: RefObject<ScriptEditorLatest>;
   paletteRef: RefObject<HTMLDivElement | null>;
+  ghostRef?: RefObject<HTMLDivElement | null>;
+  marqueeElRef?: RefObject<HTMLDivElement | null>;
 }
 
 export function useScriptDrag({
@@ -39,6 +42,8 @@ export function useScriptDrag({
   setDrag,
   latest,
   paletteRef,
+  ghostRef,
+  marqueeElRef,
 }: UseScriptDragDeps) {
   // 中断はドロップにしない。元のブロックと履歴をそのまま残す。
   const cancelGesture = useCallback(() => {
@@ -57,53 +62,80 @@ export function useScriptDrag({
       const r = el?.getBoundingClientRect();
       return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
     };
+    let slotIndex: SlotIndex | null = null;
+    let slotZoom = 0;
+    let marqueeGesture: Marquee | null = null;
+    let marqueeShown = false;
+    let marqueeSelection = "";
+    let marqueeRects: Array<{ key: string; left: number; right: number; top: number; bottom: number }> | null = null;
+
+    const contentRect = (ws: HTMLDivElement) => ws.getBoundingClientRect();
     const findSlot = (d: Drag): string | null => {
       const ws = wsRef.current;
       if (!ws || !d.payload || !inside(ws, d.x, d.y)) return null;
-      const kind =
-        d.payload.type === "steps"
-          ? "step"
-          : d.payload.type === "trigger"
-            ? "head"
-            : null;
+      const kind = d.payload.type === "steps" ? "step" :
+        d.payload.type === "trigger" ? "head" : null;
       if (!kind) return null;
       const z = zoomRef.current;
-      const gx = d.x - d.ox * z;
-      // きっかけはブロックの下端を、動作は上端を差し込み位置に合わせる
-      const gy = d.y - d.oy * z + (kind === "head" ? d.h * z : 0);
-      let best: string | null = null;
-      let bestDist = Infinity;
-      ws.querySelectorAll<HTMLElement>(`[data-slot-kind="${kind}"]`).forEach(
-        (el) => {
+      const wr = contentRect(ws);
+      if (!slotIndex || slotZoom !== z) {
+        const slots: SlotPoint[] = [];
+        ws.querySelectorAll<HTMLElement>("[data-slot-kind]").forEach((el) => {
+          const key = el.dataset.slot;
+          const type = el.dataset.slotKind;
+          if (!key || (type !== "step" && type !== "head")) return;
           const r = el.getBoundingClientRect();
-          const dx = gx - r.left;
-          const dy = gy - r.top;
-          if (Math.abs(dx) > 80 || Math.abs(dy) > 28) return;
-          const dist = Math.hypot(dx, dy * 2);
-          if (dist < bestDist) {
-            bestDist = dist;
-            best = el.dataset.slot ?? null;
-          }
-        }
-      );
-      return best;
-    };
-    const marqueeHits = (m: Marquee): string[] => {
-      const left = Math.min(m.x0, m.x);
-      const right = Math.max(m.x0, m.x);
-      const top = Math.min(m.y0, m.y);
-      const bottom = Math.max(m.y0, m.y);
-      const hits: string[] = [];
-      wsRef.current
-        ?.querySelectorAll<HTMLElement>("[data-sel-key]")
-        .forEach((el) => {
-          const r = el.getBoundingClientRect();
-          if (r.right < left || r.left > right || r.bottom < top || r.top > bottom) {
-            return;
-          }
-          hits.push(el.dataset.selKey!);
+          slots.push({ key, kind: type, x: r.left - wr.left + ws.scrollLeft,
+            y: r.top - wr.top + ws.scrollTop });
         });
-      return hits;
+        slotIndex = new SlotIndex(slots);
+        slotZoom = z;
+      }
+      const x = d.x - d.ox * z - wr.left + ws.scrollLeft;
+      // Triggers attach by their bottom edge; ordinary steps by the top.
+      const y = d.y - d.oy * z + (kind === "head" ? d.h * z : 0) -
+        wr.top + ws.scrollTop;
+      return slotIndex.nearest(kind, x, y);
+    };
+
+    const marqueeHits = (m: Marquee): string[] => {
+      const ws = wsRef.current;
+      if (!ws) return [];
+      const wr = contentRect(ws);
+      if (!marqueeRects) {
+        marqueeRects = [];
+        ws.querySelectorAll<HTMLElement>("[data-sel-key]").forEach((el) => {
+          const key = el.dataset.selKey;
+          if (!key) return;
+          const r = el.getBoundingClientRect();
+          marqueeRects!.push({ key, left: r.left - wr.left + ws.scrollLeft,
+            right: r.right - wr.left + ws.scrollLeft,
+            top: r.top - wr.top + ws.scrollTop,
+            bottom: r.bottom - wr.top + ws.scrollTop });
+        });
+      }
+      const left = Math.min(m.x0, m.x) - wr.left + ws.scrollLeft;
+      const right = Math.max(m.x0, m.x) - wr.left + ws.scrollLeft;
+      const top = Math.min(m.y0, m.y) - wr.top + ws.scrollTop;
+      const bottom = Math.max(m.y0, m.y) - wr.top + ws.scrollTop;
+      return marqueeRects.filter((r) =>
+        !(r.right < left || r.left > right || r.bottom < top || r.top > bottom)
+      ).map((r) => r.key);
+    };
+
+    const positionGhost = (d: Drag) => {
+      const el = ghostRef?.current;
+      if (!el) return;
+      el.style.left = `${d.x - d.ox * zoomRef.current}px`;
+      el.style.top = `${d.y - d.oy * zoomRef.current}px`;
+    };
+    const positionMarquee = (m: Marquee) => {
+      const el = marqueeElRef?.current;
+      if (!el) return;
+      el.style.left = `${Math.min(m.x0, m.x)}px`;
+      el.style.top = `${Math.min(m.y0, m.y)}px`;
+      el.style.width = `${Math.abs(m.x - m.x0)}px`;
+      el.style.height = `${Math.abs(m.y - m.y0)}px`;
     };
     const onMove = (e: PointerEvent) => {
       const gesture = marqueeRef.current ?? dragRef.current;
@@ -115,10 +147,26 @@ export function useScriptDrag({
       }
       const m = marqueeRef.current;
       if (m) {
+        if (marqueeGesture !== m) {
+          marqueeGesture = m;
+          marqueeRects = null;
+          marqueeShown = false;
+          marqueeSelection = m.base.join("\\0");
+        }
         m.x = e.clientX;
         m.y = e.clientY;
-        setMarquee({ ...m });
-        setSelectedList([...new Set([...m.base, ...marqueeHits(m)])]);
+        if (!marqueeShown || (marqueeElRef && !marqueeElRef.current)) {
+          setMarquee({ ...m });
+          marqueeShown = true;
+        } else {
+          positionMarquee(m);
+        }
+        const hits = [...new Set([...m.base, ...marqueeHits(m)])];
+        const signature = hits.join("\\0");
+        if (signature !== marqueeSelection) {
+          marqueeSelection = signature;
+          setSelectedList(hits);
+        }
         return;
       }
       const d = dragRef.current;
@@ -129,21 +177,31 @@ export function useScriptDrag({
         if (Math.hypot(d.x - d.sx, d.y - d.sy) < 4) return;
         d.started = true;
         d.payload = d.make();
+        slotIndex = null;
         setMenu(null);
+        setActiveSlot(null);
+        // The initial render creates the ghost and removes the dragged blocks.
+        setDrag({ ...d });
+        return;
       }
+      positionGhost(d);
+      paletteRef.current?.classList?.toggle("is-trash", inside(paletteRef.current, d.x, d.y));
       setActiveSlot(findSlot(d));
-      setDrag({ ...d });
     };
     const onUp = (e: PointerEvent) => {
       const gesture = marqueeRef.current ?? dragRef.current;
       if (!gesture || e.pointerId !== gesture.pointerId) return;
       if (marqueeRef.current) {
         marqueeRef.current = null;
+        marqueeGesture = null;
+        marqueeRects = null;
         setMarquee(null);
         return;
       }
       const d = dragRef.current;
       dragRef.current = null;
+      slotIndex = null;
+      paletteRef.current?.classList?.remove("is-trash");
       setDrag(null);
       setActiveSlot(null);
       if (d && !d.started && d.clickKey) setSelectedList([d.clickKey]);
