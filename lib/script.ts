@@ -185,17 +185,35 @@ export function pageNodeIds(
   return out;
 }
 
+/** Reuse immutable view wrappers for unchanged scripts across editor updates. */
+const scriptViewCache = new WeakMap<Script, Map<string, PageScript>>();
+function scriptView(script: Script, nodeId: string | null): PageScript {
+  let byNode = scriptViewCache.get(script);
+  if (!byNode) {
+    byNode = new Map();
+    scriptViewCache.set(script, byNode);
+  }
+  const key = nodeId ?? "";
+  const saved = byNode.get(key);
+  if (saved && saved.id === script.id && saved.steps === script.steps &&
+      saved.pos === script.pos && saved.trigger === script.trigger &&
+      saved.keepOnShown === script.keepOnShown) return saved;
+  const view: PageScript = { ...script, nodeId };
+  byNode.set(key, view);
+  return view;
+}
+
 /** ページ内の全要素のスクリプト + 要素につながっていないブロック */
 export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): PageScript[] {
   const out: PageScript[] = [];
   for (const id of nodeIds) {
     const n = doc.nodes[id];
-    if (n) for (const s of scriptsOf(n)) out.push({ ...s, nodeId: id });
+    if (n) for (const s of scriptsOf(n)) out.push(scriptView(s, id));
   }
   for (const s of doc.pages[pageId]?.pageScripts ?? []) {
-    out.push({ ...s, nodeId: PAGE_TARGET });
+    out.push(scriptView(s, PAGE_TARGET));
   }
-  for (const s of doc.pages[pageId]?.scripts ?? []) out.push({ ...s, nodeId: null });
+  for (const s of doc.pages[pageId]?.scripts ?? []) out.push(scriptView(s, null));
   // Only examine nearby positions when avoiding overlaps. A full scan made
   // opening a workspace with many separate script stacks quadratic.
   const cellSize = 48;
