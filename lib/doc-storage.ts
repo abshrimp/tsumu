@@ -104,7 +104,7 @@ export async function saveCurrentDoc(
   // Direct storage consumers, imports and copies must obey the same invariant.
   const invalid = validateDocBody(raw);
   if (invalid) throw new Error(invalid);
-  if (base !== null && (!/^[1-9]\\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
+  if (base !== null && (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
     throw new Error("不正なリクエスト");
   }
   const now = Date.now();
