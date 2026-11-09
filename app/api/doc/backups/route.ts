@@ -5,6 +5,7 @@ import { dbConfigured, getDb } from "../../../../lib/db";
 import { requireAuth } from "../../../../lib/server";
 import { userMessage } from "../../../../lib/errors";
 import { siteIdOf } from "../../../../lib/site-server";
+import { decodeStoredDoc } from "../../../../lib/compressed-doc-storage";
 
 /**
  * サーバーに自動で残している日ごとのバックアップ（サイトごと・曜日ごとに7世代）。
@@ -35,8 +36,8 @@ export async function GET(req: Request) {
       if (!row) {
         return NextResponse.json({ error: tr("バックアップが見つかりません") }, { status: 404 });
       }
-      // 保存済みのJSONをパースし直さずに返す（Workers無料プランのCPU時間制限対策）
-      return new NextResponse(String(row.body), {
+      // Storage is always compressed; return an ordinary SiteDoc to the editor.
+      return new NextResponse(await decodeStoredDoc(String(row.body)), {
         headers: { "Content-Type": "application/json; charset=utf-8" },
       });
     }

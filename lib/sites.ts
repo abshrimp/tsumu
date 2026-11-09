@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import { encodeStoredDoc } from "./compressed-doc-storage";
 
 /**
  * サイト（1つの編集データと、その公開先）。
@@ -151,9 +152,11 @@ export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" 
     args: [id, v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
   };
   if (initialBody === undefined) { await db.execute(site); return; }
+  // The new site and its compressed initial document are committed atomically.
+  const storedBody = await encodeStoredDoc(initialBody);
   await db.batch([site, {
     sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, 1, ?, ?)",
-    args: [id, now, initialBody],
+    args: [id, now, storedBody],
   }]);
 }
 

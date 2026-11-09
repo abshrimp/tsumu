@@ -128,8 +128,9 @@ export async function DELETE(req: Request) {
     if (dbConfigured()) {
       const db = await getDb();
       const rs = await db.execute({
-        sql: "SELECT 1 FROM docs WHERE id != ? AND instr(body, ?) > 0 LIMIT 1",
-        args: [siteId, `"${path}"`],
+        sql: `SELECT 1 FROM docs AS d, json_each(d.body, '$.assets') AS a
+          WHERE d.id != ? AND json_extract(a.value, '$.path') = ? LIMIT 1`,
+        args: [siteId, path],
       });
       if (rs.rows.length) return NextResponse.json({ ok: true, kept: true });
     }
