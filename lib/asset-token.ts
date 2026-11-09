@@ -71,8 +71,10 @@ export async function verifyAssetToken(
   if (!exp || !sig || !/^\d{1,16}$/.test(exp) || !/^[A-Za-z0-9_-]{43}$/.test(sig)) return false;
   const expiry = Number(exp);
   if (!Number.isSafeInteger(expiry) || expiry < now) return false;
-  const key = await hmacKey();
   const bytes = fromB64Url(sig);
-  if (!key || !bytes) return false;
+  // Base64URLで未使用の末尾2ビットを変えた別表記を受け付けない。
+  if (!bytes || toB64Url(bytes.buffer) !== sig) return false;
+  const key = await hmacKey();
+  if (!key) return false;
   return crypto.subtle.verify("HMAC", key, bytes, new TextEncoder().encode(`${path}\n${exp}`));
 }
