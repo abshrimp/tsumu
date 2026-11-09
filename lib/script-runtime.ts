@@ -224,11 +224,6 @@ export const SCRIPT_RUNTIME = `function (env) {
     var number = Number(value);
     return Number.isFinite(number) ? number : NaN;
   }
-  function sleep(s) {
-    return new Promise(function (res) {
-      setTimeout(res, Math.min(86400, Math.max(0, s)) * 1000);
-    });
-  }
   /*/wait|repeat*/
   /*#store*/
   // ストレージ: localStorage → このホストだけのクッキー（ls_キー） → メモリ の順に使う
@@ -356,11 +351,36 @@ export const SCRIPT_RUNTIME = `function (env) {
       var pageGeneration = 0;
       var pageBody = null;
       var pageId = null;
+      /*#wait|repeat*/
+      // Each install owns its outstanding delays. Navigating away or
+      // disposing resolves them immediately instead of retaining closures.
+      var pendingSleeps = new Set();
+      function cancelPendingSleeps() {
+        pendingSleeps.forEach(function (task) {
+          clearTimeout(task.timer);
+          task.resolve();
+        });
+        pendingSleeps.clear();
+      }
+      function sleep(s) {
+        return new Promise(function (resolve) {
+          var task = { timer: null, resolve: resolve };
+          task.timer = setTimeout(function () {
+            pendingSleeps.delete(task);
+            resolve();
+          }, Math.min(86400, Math.max(0, s)) * 1000);
+          pendingSleeps.add(task);
+        });
+      }
+      /*/wait|repeat*/
       // DOM の入れ替え直後（監視の走査前）に始まるスクリプトも、新しいページとして扱う。
       function syncPage() {
         var body = root.querySelector("[data-page-body]");
         var pid = body ? body.getAttribute("data-page-body") : null;
         if (body !== pageBody || pid !== pageId) {
+          /*#wait|repeat*/
+          cancelPendingSleeps();
+          /*/wait|repeat*/
           pageGeneration++;
           pageBody = body;
         }
@@ -1707,6 +1727,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*/live*/
       return function dispose() {
         alive = false;
+        /*#wait|repeat*/
+        cancelPendingSleeps();
+        /*/wait|repeat*/
         /*#filter*/
         filters.clear();
         sorts.clear();
