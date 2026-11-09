@@ -17,7 +17,7 @@ const details = (r: ReturnType<typeof listRuntimeDom>) => r.active('#detail').ma
 for (const component of [false, true]) test(`${component ? 'component' : 'plain'} supported UI scalar collision matches Canvas on reload and navigation`, async () => {
   let doc = clientNestedDoc(component);
   const items = [{ name: 'First', tags: [{ label: 'red' }] }, { name: 'Second', tags: [{ label: 'green' }] }];
-  (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as any).preview = { sample: items };
   doc.pages.p.pageScripts![0].steps.push({ id: 'global-name', kind: 'set-var', value: '{response.0.name}', into: 'name' });
   doc.nodes.tags.list!.from = '';
   useEditor.getState().replaceDoc(doc); useEditor.getState().setActivePage('p');
@@ -56,7 +56,7 @@ test('text tokens preserve own roots, fallback strings, escapes, slug and child 
     { 'profile.label': 'Literal {name}', tags: [{ label: 'dotted' }] },
     { name: 'Data {slug}', profile: { label: 'Own' }, slug: 'own', tags: [{ label: 'data' }] },
   ];
-  (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as any).preview = { sample: items };
   for (const key of ['name', 'profile', 'slug']) doc.pages.p.pageScripts![0].steps.push({ id: key, kind: 'set-var', value: `{response.0.${key}}`, into: key });
   doc.pages.p.pageScripts![0].steps.push(
     { id: 'fallback', kind: 'set-var', value: 'Server \\{name}', into: 'fallback' },

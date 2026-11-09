@@ -176,7 +176,7 @@ test("published fields interpolate variables and keep a live template for field 
   const page = Object.entries(files).find(([p]) => p.endsWith("page.tsx"))![1];
   assert.match(page, /defaultValue=\{interpolate\("Hi \{name\}", vars\)\}/);
   assert.match(page, /data-live-value=/);
-  assert.match(page, /<option data-live=/);
+  assert.match(page, /<option[^>]* data-live=/);
   assert.match(page, /<span data-live=[^>]*>\{interpolate\("For \{name\}", vars\)\}<\/span>/);
   assert.match(page, / required/);
   // 文字の入力欄に min は付けない
