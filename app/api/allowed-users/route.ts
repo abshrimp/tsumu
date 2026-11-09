@@ -75,9 +75,12 @@ export async function POST(req: Request) {
 
   let email: string;
   try {
-    email = String((await req.json()).email ?? "")
-      .trim()
-      .toLowerCase();
+    const input = await req.json();
+    // 配列やオブジェクトを String(...) でメールアドレスに変換しない。
+    if (!input || typeof input !== "object" || Array.isArray(input) || typeof input.email !== "string") {
+      throw new TypeError("Invalid email type");
+    }
+    email = input.email.trim().toLowerCase();
   } catch {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
