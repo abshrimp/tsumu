@@ -238,7 +238,7 @@ export async function POST(req: Request) {
       if (!generated) throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
     }
     const sourcePaths = leaf(sourceEntries).map(entry => entry.path);
-    const manual = planPublish(currentBlobs, generated, sourcePaths);
+    const manual = planPublish(currentBlobs, generated, []);
     const keptPaths = Object.keys(manual.kept).filter(path => !isProtectedPath(path));
     const kept = keptTreeEntries(currentEntries, keptPaths);
     if (!kept || conflictingCommitPaths([...sourcePaths.filter(path => !isProtectedPath(path)), ...keptPaths])) {
@@ -250,7 +250,10 @@ export async function POST(req: Request) {
     const currentRoot = currentEntries.filter(entry => !entry.path.includes("/"));
     const edits = [
       ...protectedTreeEdits(sourceRoot, currentRoot),
-      ...kept.filter(entry => !sourcePaths.includes(entry.path)),
+      ...kept.filter(entry => {
+        const prior = sourceEntries.find(source => source.path === entry.path);
+        return !prior || prior.sha !== entry.sha || prior.mode !== entry.mode || prior.type !== entry.type;
+      }),
     ];
     let treeSha = src.tree.sha;
     if (edits.length) {
