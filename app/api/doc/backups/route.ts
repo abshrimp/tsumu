@@ -37,7 +37,10 @@ export async function GET(req: Request) {
       }
       // 保存済みのJSONをパースし直さずに返す（Workers無料プランのCPU時間制限対策）
       return new NextResponse(String(row.body), {
-        headers: { "Content-Type": "application/json; charset=utf-8" },
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "private, no-store",
+        },
       });
     }
     const rs = await db.execute({
