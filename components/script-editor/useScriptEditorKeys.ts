@@ -25,26 +25,29 @@ export function useScriptEditorKeys({
 }: UseScriptEditorKeysDeps) {
   // キー操作: Esc / Backspace・Delete / ⌘A / 取り消し・やり直し
   useEffect(() => {
+    const blocked = (e: KeyboardEvent) =>
+      e.isComposing || e.keyCode === 229 ||
+      document.querySelector(".dialog-backdrop:not(.is-leaving)");
+    // Let focused controls consume Escape before falling back to workspace
+    // dismissal. Capture would prevent their React onKeyDown from running.
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || blocked(e)) return;
+      if (document.querySelector("[data-se-popover]")) return;
+      e.stopPropagation();
+      if (cancelGesture()) return;
+      if (latest.current.peekId) {
+        setPeekId(null);
+      } else if (latest.current.selectedList.length) {
+        setSelectedList([]);
+      } else latest.current.onClose();
+    };
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || blocked(e)) return;
       const t = e.target as HTMLElement;
       const typing =
         t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable;
-      // 確認ダイアログを開いている間は、ダイアログに任せる
-      if (document.querySelector(".dialog-backdrop:not(.is-leaving)")) return;
       const mod = e.metaKey || e.ctrlKey;
       const key = e.key.toLowerCase();
-      if (e.key === "Escape") {
-        // 開いている選択メニューは、メニュー側で閉じる
-        if (document.querySelector("[data-se-popover]")) return;
-        e.stopPropagation();
-        if (cancelGesture()) return;
-        if (latest.current.peekId) {
-          setPeekId(null);
-        } else if (latest.current.selectedList.length) {
-          setSelectedList([]);
-        } else latest.current.onClose();
-        return;
-      }
       if (dragRef.current?.started || latest.current.peekId) return;
       if (mod && (e.key === "=" || e.key === "+" || e.key === "-" || e.key === "0")) {
         e.preventDefault();
@@ -77,9 +80,11 @@ export function useScriptEditorKeys({
       }
     };
     window.addEventListener("keydown", onKey, true);
+    window.addEventListener("keydown", onEscape);
     const t = setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
     return () => {
       window.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("keydown", onEscape);
       clearTimeout(t);
       setTimeout(() => window.dispatchEvent(new Event("resize")), 0);
     };
