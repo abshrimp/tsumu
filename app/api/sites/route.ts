@@ -28,7 +28,9 @@ export async function GET() {
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
   try {
-    return NextResponse.json({ sites: await listSites(await getDb()) });
+    return NextResponse.json({ sites: await listSites(await getDb()) }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
   }
