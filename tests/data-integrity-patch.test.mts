@@ -171,3 +171,32 @@ test("new image and metadata references to nonexistent assets are rejected", asy
     assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
   });
 });
+
+test("API revisions reject invalid node and page shapes before accepting a PATCH", async () => {
+  await withDatabase(async db => {
+    const base = fixture();
+    await saveCurrentDoc(db, "audit", JSON.stringify(base), null);
+    const edits: SiteDoc[] = [];
+    const mutate = (change: (d: SiteDoc) => void) => {
+      const next = structuredClone(base);
+      change(next);
+      edits.push(next);
+    };
+    mutate(d => { (d.nodes.use as any).type = "unknown-element"; });
+    mutate(d => { (d.nodes.use as any).semantic = "invalid"; });
+    mutate(d => { (d.nodes.use as any).styles = null; });
+    mutate(d => { (d.nodes.use.styles.base ??= {}).default = { color: 123 } as any; });
+    mutate(d => { (d.nodes.use as any).text = { content: 5, heading: 0 }; });
+    mutate(d => { (d.pages.p as any).name = null; });
+    mutate(d => { (d.pages.p as any).title = []; });
+    mutate(d => { (d.pages.p as any).description = 12; });
+    mutate(d => { (d.pages.p as any).bodyStyles = { base: { default: { backgroundColor: false } } }; });
+    for (const invalid of edits) {
+      assert.notEqual(validateDocValue(invalid), null, JSON.stringify(invalid).slice(0,300));
+      const patch = createDocPatch(base, invalid);
+      assert.ok(patch?.length, "the malformed field still produces a delta");
+      await assert.rejects(saveDocPatch(db, "audit", patch!, "1"), InvalidDocPatchError);
+      assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
+    }
+  });
+});

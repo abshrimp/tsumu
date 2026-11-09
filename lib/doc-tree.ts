@@ -49,6 +49,62 @@ export function hasValidChildren(value: unknown): value is { children: string[] 
     new Set(children).size === children.length;
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object" && !Array.isArray(value);
+
+const NODE_TYPES = new Set(["box", "image", "divider", "code", "instance", "icon", "field", "media", "embed", "list"]);
+const SEMANTICS = new Set(["auto", "form", "button", "div", "section", "header", "footer", "nav", "main", "article", "span", "custom"]);
+const FIELD_KINDS = new Set(["input", "textarea", "select", "checkbox", "radio", "file", "submit"]);
+
+/** The saved editor shape must be consumable by Canvas and code generators. */
+export function validStyleDefinitions(value: unknown): boolean {
+  if (!isObject(value)) return false;
+  for (const states of Object.values(value)) {
+    if (!isObject(states)) return false;
+    for (const declarations of Object.values(states)) {
+      if (!isObject(declarations) ||
+          !Object.values(declarations).every(item => typeof item === "string")) return false;
+    }
+  }
+  return true;
+}
+
+/** Shared by full saves, local-cache recovery and structural PATCH validation. */
+export function validDocNodeShape(value: unknown): boolean {
+  if (!isObject(value) || !NODE_TYPES.has(value.type as string) ||
+      typeof value.name !== "string" || !SEMANTICS.has(value.semantic as string) ||
+      !validStyleDefinitions(value.styles)) return false;
+  if (value.text != null && (!isObject(value.text) ||
+      typeof value.text.content !== "string" || typeof value.text.heading !== "number" ||
+      !Number.isInteger(value.text.heading) || value.text.heading < 0 || value.text.heading > 6)) return false;
+  if (value.link != null && (!isObject(value.link) || !["url", "page"].includes(value.link.kind as string) ||
+      (value.link.url != null && typeof value.link.url !== "string") ||
+      (value.link.pageId != null && typeof value.link.pageId !== "string"))) return false;
+  if (value.image != null && (!isObject(value.image) ||
+      typeof value.image.src !== "string" || typeof value.image.alt !== "string" ||
+      typeof value.image.width !== "number" || !Number.isFinite(value.image.width) ||
+      typeof value.image.height !== "number" || !Number.isFinite(value.image.height))) return false;
+  if (value.media != null && (!isObject(value.media) ||
+      !["audio", "video"].includes(value.media.kind as string) ||
+      typeof value.media.src !== "string")) return false;
+  if (value.icon != null && (!isObject(value.icon) ||
+      typeof value.icon.name !== "string" || typeof value.icon.svg !== "string")) return false;
+  if (value.code != null && (!isObject(value.code) || typeof value.code.html !== "string")) return false;
+  if (value.field != null && (!isObject(value.field) || !FIELD_KINDS.has(value.field.kind as string) ||
+      (value.field.options != null && (!Array.isArray(value.field.options) ||
+        !value.field.options.every(option => typeof option === "string"))))) return false;
+  if (value.scripts != null && !Array.isArray(value.scripts)) return false;
+  return true;
+}
+
+export function validDocPageShape(value: unknown): boolean {
+  return isObject(value) && typeof value.name === "string" &&
+    typeof value.title === "string" && typeof value.description === "string" &&
+    (value.bodyStyles == null || validStyleDefinitions(value.bodyStyles)) &&
+    (value.scripts == null || Array.isArray(value.scripts)) &&
+    (value.pageScripts == null || Array.isArray(value.pageScripts));
+}
+
 function entryWithId(id: string, value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value) && "id" in value && value.id === id;
 }
@@ -165,7 +221,9 @@ export function validSiteDoc(parsed: unknown): boolean {
       !record(parsed.pages) || !record(parsed.nodes) || !record(parsed.assets) ||
       !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) return false;
   if (!Object.entries(parsed.assets).every(([id, asset]) => validAssetEntry(id, asset)) ||
-      !validNodeForest(parsed.pages, parsed.nodes, parsed.components ?? {})) return false;
+      !validNodeForest(parsed.pages, parsed.nodes, parsed.components ?? {}) ||
+      !Object.values(parsed.nodes).every(validDocNodeShape) ||
+      !Object.values(parsed.pages).every(validDocPageShape)) return false;
   const order = parsed.pageOrder;
   if (new Set(order).size !== order.length ||
       !order.every(id => typeof id === "string" && Object.hasOwn(parsed.pages as object, id))) {

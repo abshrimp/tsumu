@@ -1,4 +1,4 @@
-import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validSiteDoc } from "./doc-tree";
+import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validDocNodeShape, validDocPageShape, validSiteDoc } from "./doc-tree";
 import type { Db, ResultSet } from "./db";
 import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
 import type { SiteDoc } from "./types";
@@ -141,7 +141,9 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
       const valid = collection === "assets" ? validAssetEntry(id, item) :
         collection === "components" ? validComponentEntry(id, item) :
         hasValidChildren(item) && "id" in item && item.id === id &&
-        (collection !== "pages" || ("slug" in item && typeof item.slug === "string"));
+        (collection === "pages"
+          ? "slug" in item && typeof item.slug === "string" && validDocPageShape(item)
+          : validDocNodeShape(item));
       if (!valid) throw new InvalidDocPatchError();
     }
   }
