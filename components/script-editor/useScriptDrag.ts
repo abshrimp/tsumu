@@ -81,7 +81,7 @@ export function useScriptDrag({
     if (wsRef.current) slotObserver?.observe(wsRef.current, { subtree: true, childList: true });
     let animationFrame = 0;
     const cancelFrame = () => {
-      if (animationFrame) cancelAnimationFrame(animationFrame);
+      if (animationFrame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(animationFrame);
       animationFrame = 0;
     };
 
@@ -204,16 +204,22 @@ export function useScriptDrag({
       }
       // Pointermove can be emitted far more often than the browser can paint.
       // Batch layout reads and hit testing to one frame.
-      if (!animationFrame) {
+      const updatePosition = () => {
+        const active = dragRef.current;
+        if (!active?.started || !active.payload) return;
+        positionGhost(active);
+        paletteRef.current?.classList?.toggle("is-trash",
+          inside(paletteRef.current, active.x, active.y));
+        const target = findSlot(active);
+        setActiveSlot(target, target ? slotElements.get(target) : null);
+      };
+      if (typeof requestAnimationFrame !== "function") {
+        // Non-browser test hosts dispatch synthetic pointer events synchronously.
+        updatePosition();
+      } else if (!animationFrame) {
         animationFrame = requestAnimationFrame(() => {
           animationFrame = 0;
-          const active = dragRef.current;
-          if (!active?.started || !active.payload) return;
-          positionGhost(active);
-          paletteRef.current?.classList?.toggle("is-trash",
-            inside(paletteRef.current, active.x, active.y));
-          const target = findSlot(active);
-          setActiveSlot(target, target ? slotElements.get(target) : null);
+          updatePosition();
         });
       }
     };
