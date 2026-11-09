@@ -46,6 +46,7 @@ function fixture(truncated?: boolean, manifestText?: string) {
     isSafeCommitPath: helpers.isSafeCommitPath,
     isProtectedPath: helpers.isProtectedPath,
     parseGeneratedManifest: helpers.parseGeneratedManifest,
+    planPublish: helpers.planPublish,
     keptTreeEntries: helpers.keptTreeEntries,
     NextResponse,
     serverTr: async () => (text: string) => text,
