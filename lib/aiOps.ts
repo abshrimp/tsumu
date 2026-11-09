@@ -735,7 +735,9 @@ export function buildAiContext(
   for (const [id, p] of Object.entries(doc.pages)) {
     pages[id] = id === opts.pageId ? p : { ...p, children: [], scripts: undefined, pageScripts: undefined, rawHtml: undefined };
   }
-  const part: SiteDoc = {
+  // Keep the AI request snapshot independent from subsequent in-place editor edits.
+  // A shallow copy would share node/page/style objects and could mask a replay conflict.
+  const part: SiteDoc = structuredClone({
     siteName: doc.siteName,
     pages,
     pageOrder: doc.pageOrder,
@@ -746,7 +748,7 @@ export function buildAiContext(
     colorPalette: doc.colorPalette,
     customFonts: doc.customFonts,
     components: comp ? { [comp.id]: comp } : undefined,
-  };
+  });
   const bps = normalizeBreakpoints(doc.breakpoints);
   const summary = {
     site: doc.siteName,
