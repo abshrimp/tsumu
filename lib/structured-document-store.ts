@@ -1,7 +1,7 @@
 /**
  * One site's document stored as independently writable SQLite rows.
- * Used by the SQLite-backed DocumentRoom Durable Object; intentionally
- * provides no reader for historical D1 docs.body formats.
+ * This is the sole Cloudflare document layout: per-entry JSON and an
+ * atomic document revision, with no format-dependent decoding.
  */
 import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
 import { hasValidChildren, validDocNodeShape, validSiteDoc } from "./doc-tree";

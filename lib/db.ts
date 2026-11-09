@@ -2,7 +2,8 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { nodeDatabase } from "./node-storage";
 
 /**
- * Cloudflare D1（SQLite）への接続。サイトの一覧・編集データ・自動バックアップ・許可メールリストの保存先。
+ * Cloudflare D1接続。サイトの一覧・文書DOの世代管理・コメント・許可メールの保存先。
+ * SiteDoc本体と日次バックアップはサイト固有のDurable Object内SQLiteに保存する。
  * wrangler.jsonc の DB バインディング経由でアクセスするため、
  * 接続情報の環境変数は不要。next dev 中はローカルのD1シミュレーションが使われる。
  * Cloudflare の外では、TSUMU_DATA_DIR の SQLite を同じ形で使う（lib/node-storage.ts）。
@@ -17,7 +18,7 @@ export interface ResultSet {
 }
 
 export interface Db {
-  /** Only Node/Docker uses the legacy-shaped local SQL document tables. */
+  /** Node/Docker use local SQLite tables for documents and backups. */
   readonly backend?: "d1" | "sqlite";
   execute(stmt: Stmt): Promise<ResultSet>;
   batch(stmts: Stmt[]): Promise<ResultSet[]>;
