@@ -442,7 +442,7 @@ function SiteDialog({
             </Field>
             <Field
               label={form.gitProvider === "gitlab" ? tr("GitLab repository") : tr("GitHub repository")}
-              hint={form.gitProvider === "gitlab" ? "group/project または group/subgroup/project の形式で入力してください。" : tr("Enter as owner/name. You can edit without it, but you can't publish.")}
+              hint={form.gitProvider === "gitlab" ? tr("Enter as group/project or group/subgroup/project. You can edit without it, but you can't publish.") : tr("Enter as owner/name. You can edit without it, but you can't publish.")}
             >
               <input
                 className="input mono"

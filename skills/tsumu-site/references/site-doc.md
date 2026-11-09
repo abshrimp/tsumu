@@ -2,48 +2,9 @@
 
 This file documents the JSON that Tsumu's editor actually loads. It is not an HTML snapshot, a Next.js export, or an arbitrary page-design JSON. The authoritative types are `lib/types.ts`, with construction examples in `lib/presets.ts`. The provided [minimal-site.json](minimal-site.json) is a self-contained, visually editable working example.
 
-## Compact `doc.json`
+## Canonical `doc.json`
 
-The **editor model remains an ordinary `SiteDoc`**. The file distributed to users can optionally use a versioned, losslessly compressed JSON wrapper. This avoids changing any editable nodes, IDs, scripts or styles for transport-size reasons.
-
-The importer accepts both an ordinary `SiteDoc` and the following wrapper:
-
-```json
-{
-  "format": "tsumu-doc",
-  "version": 1,
-  "encoding": "gzip+base64",
-  "payload": "<Base64 of gzip-compressed UTF-8 minified SiteDoc JSON>"
-}
-```
-
-The wrapper's `version` identifies the portable file contract. Only version `1` with `gzip+base64` is accepted. Plain `SiteDoc` JSON uses the same canonical schema. The `payload` decompresses to the `SiteDoc` structure described below. Unknown versions or codecs are rejected.
-
-All editable documents use the single canonical schema (`schemaVersion: 1`). Imports reject documents that do not match this schema.
-
-Use this Python recipe when generating a standalone `doc.json`:
-
-```python
-import base64
-import gzip
-import json
-
-# doc is a complete SiteDoc dictionary.
-plain = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-packed = json.dumps({
-    "format": "tsumu-doc",
-    "version": 1,
-    "encoding": "gzip+base64",
-    "payload": base64.b64encode(gzip.compress(plain, compresslevel=9, mtime=0)).decode("ascii"),
-}, separators=(",", ":")).encode("utf-8")
-
-with open("doc.json", "wb") as output:
-    output.write(packed if len(packed) < len(plain) else plain)
-```
-
-This approach picks the smaller representation. Do not shorten property names, discard values, generate numeric node keys, or remove apparently redundant fields without a reversible and versioned mapping: the current editor expects the full `SiteDoc` on import. ZIP exports should instead store **plain minified** `_tsumu/doc.json` and apply ZIP-level DEFLATE, avoiding redundant compression.
-
-A compressed `doc.json` is not directly human-editable until decompressed. For manual authoring or debugging, use plain `SiteDoc` JSON; both forms can be imported.
+All editable documents use the single canonical `SiteDoc` JSON format (`schemaVersion: 1`). Imports accept plain or minified UTF-8 `SiteDoc` JSON directly and reject documents that do not match this schema. Do not wrap `doc.json` in a custom envelope, shorten property names, discard values, or generate numeric node keys: the importer expects the canonical `SiteDoc` structure. ZIP exports store plain minified `_tsumu/doc.json` and apply ZIP-level DEFLATE.
 
 ## Minimum document
 
@@ -100,7 +61,7 @@ Every page object requires `id`, `name`, `slug`, `title`, `description`, and `ch
 
 - `slug: ""` means the home page; `"about"` means `/about`, `"blog/post"` means `/blog/post`.
 - `children` is an ordered array of **node IDs**, not embedded node objects.
-- Optional metadata: `query` (query string without `?`), `lang`, `bodyStyles`, `htmlBackground`, `noindex`, `unpublished`, `folderId`, `ogImage`, `customTopHtml`, `customEndHtml`.
+- Optional metadata: `query` (query string without `?`), `lang`, `bodyStyles`, `bodyDarkStyles` (`prefers-color-scheme: dark` overrides for `body`), `htmlBackground`, `darkHtmlBackground`, `noindex`, `unpublished`, `folderId`, `ogImage`, `customTopHtml`, `customEndHtml`.
 - `pageScripts` holds scripts targeting the page (such as `trigger: "load"` and variable-watching `trigger: "change"` scripts). Detached scripts exist only in editor memory and are never saved in `SiteDoc`.
 - Do not use `rawHtml` for a visual page: setting `rawHtml` turns it into a raw HTML page, not an element-based editable page.
 - `redirectTo` and `rewriteTo` produce redirect/proxy pages, not visual content.
@@ -133,11 +94,11 @@ Other type-specific fields:
 - `instance`: `componentId` referencing `doc.components`.
 - `icon`: `{ "name": "house", "svg": "<svg ...>...</svg>" }`; use valid current icon data.
 
-Optional node fields include `customTag` (only for `semantic: "custom"`), `attrId`, `scripts`, `customCss`, `motions`, `hiddenOn`, and `locked`.
+Optional node fields include `darkStyles` (`prefers-color-scheme: dark` overrides using the same `NodeStyles` map shape as `styles`), `customTag` (only for `semantic: "custom"`), `attrId`, `scripts`, `customCss`, `motions`, `hiddenOn`, and `locked`.
 
 ### Styles and responsive breakpoints
 
-`styles` is a map of breakpoint ID → state → CSS declarations:
+`styles` (and optional `darkStyles`) is a map of breakpoint ID → state → CSS declarations:
 
 ```json
 {
@@ -191,7 +152,7 @@ Put it in `page.pageScripts`. A click script is attached to `node.scripts` inste
 
 ## Assets and packaging
 
-Without any assets, set `"assets": {}` and provide a single `doc.json` (ordinary or compact).
+Without any assets, set `"assets": {}` and provide a single `doc.json`.
 
 For binary assets, provide a ZIP:
 
@@ -242,7 +203,7 @@ Follow `validateImportedDoc()` in `lib/site-import-format.ts` plus a stricter se
 - Tree children must not create cycles or accidentally assign the same ordinary node to multiple parents.
 - Avoid unsupported node types, script step kinds, invalid breakpoint keys, invalid HTML/CSS values, and unsafe references.
 - ZIP paths must be relative and safe, without `..`, leading slashes, repeated ambiguous entries or multiple editable documents.
-- Current local import implementation: ZIP file ≤100 MiB; standalone JSON ≤12 MiB compressed **and** after decompression; expanded ZIP total ≤300 MiB; ≤1,500 ZIP entries, ≤1,000 asset entries/records, each asset ≤25 MiB; browser-only fallback for each stored asset is more restrictive (2 MiB).
+- Current local import implementation: ZIP file ≤100 MiB; standalone JSON ≤12 MiB; expanded ZIP total ≤300 MiB; ≤1,500 ZIP entries, ≤1,000 asset entries/records, each asset ≤25 MiB; browser-only fallback for each stored asset is more restrictive (2 MiB).
 - Tsumu's importer checks some structural properties but does not guarantee every script, design or asset renders correctly. Run a real import and preview if possible. Never treat a shallow shape check as full validation.
 
 These rules follow `IMPORT_LIMITS` in `lib/site-import-format.ts` and the checks in `lib/site-import.ts`; recheck those files and `lib/types.ts` when they change.

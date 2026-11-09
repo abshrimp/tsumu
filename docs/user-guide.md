@@ -4,7 +4,7 @@
 
 ## How it works
 
-The following diagram describes `PUBLISH_PROVIDER=github`. With `netlify` or `cloudflare`, Tsumu instead sends prebuilt static HTML/CSS/JS directly to a provider project for each site, without using a GitHub repository or publishing editable data.
+The following diagram describes `PUBLISH_PROVIDER=github` (which commits to GitHub or GitLab.com). With `netlify` or `cloudflare`, Tsumu instead sends prebuilt static HTML/CSS/JS directly to a provider project for each site, without using a Git repository or publishing editable data.
 
 ```
 Tsumu (this repository)
@@ -13,7 +13,7 @@ Tsumu (this repository)
 │
 │  Publish → main  /  Test publish → preview
 ▼
-One repository per site (GitHub)
+One repository per site (GitHub or GitLab.com)
 │  Site A, Site B, … (each with main = production, preview = test)
 │
 │  Each branch is built automatically
@@ -25,7 +25,7 @@ Hosting (your choice)
 There are three moving parts:
 
 - **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded assets (images, video, audio, custom fonts, and imported HTML ZIP files). Uploaded assets are authorized per site, while pages or elements copied between sites share the underlying stored file. Where all of this is stored depends on where the editor runs.
-- **The published site** is either an ordinary app committed to the site's GitHub repository or a generated static HTML site uploaded to Netlify/Cloudflare Pages. It does **not** have to run where the editor runs.
+- **The published site** is either an ordinary app committed to the site's GitHub or GitLab.com repository or a generated static HTML site uploaded to Netlify/Cloudflare Pages. It does **not** have to run where the editor runs.
 - **Test publishing** commits to a second branch of the same repository (`preview` by default). Vercel, Netlify and Cloudflare Workers Builds can build non-production branches as previews, so one hosting project covers both the live and the test site (on Netlify and Workers Builds, turn this on first; see [Hosting the published site](#hosting-the-published-site)). The test build is kept out of search engines with robots.txt, `noindex`, the `X-Robots-Tag` header and crawler blocking.
 
 ## What you need
@@ -36,7 +36,7 @@ Local development works with no environment variables. In production, configure 
 |---|---|---|
 | Server storage (D1, Durable Objects and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and uploaded files are saved in the browser. Only that browser can see them, and each file is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each file can be up to 25 MB. |
 | Google sign-in (`AUTH_*`) | Local development accepts anonymous requests addressed to loopback hosts. Production requires sign-in unless you explicitly set `ALLOW_ANONYMOUS=true`. | Only the Google accounts you allow can sign in (with **Editor** or **View only** access). |
-| `GITHUB_TOKEN` | **Publish** explains what to set up. Exporting code as a zip still works. | Publishes to the repository set in each site's settings. |
+| `GITHUB_TOKEN` / `GITLAB_TOKEN` | **Publish** explains what to set up. Exporting code as a zip still works. | Publishes to the GitHub or GitLab.com repository set in each site's settings. |
 | `AI_*` | No **Ask AI** button. | **Ask AI** is available. |
 
 > [!IMPORTANT]
@@ -239,7 +239,8 @@ For **Git repositories**, set `PUBLISH_PROVIDER=github`, then open a site's **�
 
 | Field | Description |
 |---|---|
-| Git service | GitHub or GitLab.com |\n| Repository | GitHub: `owner/name`. GitLab: `group/project` or `group/subgroup/project`. You can edit without one, but you can't publish. |
+| Git service | GitHub or GitLab.com |
+| Repository | GitHub: `owner/name`. GitLab: `group/project` or `group/subgroup/project`. You can edit without one, but you can't publish. |
 | Production branch | Default: `main` |
 | Test branch | Default: `preview`. Leave it empty to turn test publishing off. |
 | Live site URL / test site URL | Optional. The Publish dialog links to them. |
@@ -293,7 +294,7 @@ In a production publish, **Search & sharing (SEO) → Hide from search results**
 **Single HTML** downloads a standalone `.html` file for the current page or selected component. To preserve the original editing data and assets for later import, choose a ZIP format. External APIs and embedded videos still need a network connection.
 
 > [!NOTE]
-> Publishing also commits the site's full editing data to `_tsumu/doc.json`, including unpublished pages and settings. In a public repository, anyone can read it.
+> Publishing to GitHub or GitLab.com also commits the site's full editing data to `_tsumu/doc.json`, including unpublished pages and settings. In a public repository, anyone can read it.
 
 ## Importing
 
@@ -327,13 +328,13 @@ In **Pages**, right-click a page to copy it on its own. For a group, click **Sel
 | Where you want the copies | What to choose |
 | --- | --- |
 | The same site | Choose **Duplicate** (for example, **Duplicate 2 pages** for a pair). Each copy appears immediately after its original. One Undo removes the whole group of copies. |
-| Another site | Choose **Copy to another site…** (for example, **Copy 2 pages to another site…**), then click the destination site to start the copy. The pages are appended in their original order with their elements, scripts, referenced assets, components, custom fonts and Adobe Fonts Web Project settings. Click **Open in a new tab** to view the result. |
+| Another site | Choose **Copy to another site…** (for example, **Copy 2 pages to another site…**), then click the destination site to start the copy. The pages are appended in their original order with their elements, scripts, referenced assets, components, custom and uploaded fonts, and Adobe Fonts Web Project settings. Click **Open in a new tab** to view the result. |
 
 For a link made with the editor’s page picker, select the source and target together to link the copies to each other. This also works with **Open a page or link** in page and element scripts, including inside a condition or loop. Within the same site, links to unselected pages still point to the originals, and component instances keep using their shared component.
 
 When copying to another site, a link to an unselected page can use an existing destination page with the same path and query conditions. If there is no match, check the link in the destination editor and select the intended page. For example, `/blog?tab=news` and `/blog?tab=archive` are distinct targets. If a copied page's path and query conditions are already in use, Tsumu gives the copy a path such as `/blog-copy`. Update any paths you typed directly into URL fields or custom HTML if they should lead to the copy.
 
-For individual elements, select them and press ⌘C, then open the destination site's editor and press ⌘V (Ctrl+C and Ctrl+V on Windows or Linux). The paste also carries their referenced assets, components and font settings, including Adobe Fonts Web Projects. The elements and newly added font settings form one Undo/Redo step.
+For individual elements, select them and press ⌘C, then open the destination site's editor and press ⌘V (Ctrl+C and Ctrl+V on Windows or Linux). The paste also carries their referenced assets, components and font settings, including uploaded fonts and Adobe Fonts Web Projects. The elements and newly added font settings form one Undo/Redo step.
 
 ## Hosting the published site
 
@@ -443,7 +444,8 @@ All variables are optional (see [What you need](#what-you-need)).
 | `ALLOWED_EMAILS` | Google accounts that always sign in as **Editors**, comma-separated. These can't be removed or downgraded in the UI. Manage additional **Editor** or **View only** accounts under **Settings** on the home screen. |
 | `PUBLISH_PROVIDER` | `github` (default), `netlify` or `cloudflare`; selected for the whole Tsumu server |
 | `PUBLISH_PROJECT_PREFIX` | Optional static hosting project prefix (default `tsumu`); choose a unique one per instance |
-| `GITHUB_TOKEN` | GitHub: Contents: Read and write on every publishing repository |\n| `GITLAB_TOKEN` | GitLab.com: API-scoped token with write permission on every selected project |
+| `GITHUB_TOKEN` | GitHub: Contents: Read and write on every publishing repository |
+| `GITLAB_TOKEN` | GitLab.com: API-scoped token with write permission on every selected project |
 | `NETLIFY_OAUTH_CLIENT_ID` | Netlify OAuth application client ID, configured once per Tsumu installation |
 | `NETLIFY_OAUTH_REDIRECT_URI` | Registered OAuth redirect, e.g. `https://tsumu.ebii.net/netlify/callback` |
 | `TSUMU_STORAGE_MODE` | Optional `local`: force browser-only site and document storage even when D1 is connected |
@@ -512,7 +514,7 @@ Where to put them:
 ### Editor and export
 
 - **Publishing is a normal commit.** Files Tsumu generated are replaced with the editor's version, and files you added by hand are kept. `_tsumu/generated.json` tells the two apart.
-- **Changes on GitHub are detected.** The editor asks before overwriting a generated file that someone edited on GitHub. If someone deleted the file on GitHub and the next publish would recreate it, the editor also asks before restoring it. If you want to keep changing generated files by hand, do it on another branch.
+- **Changes on GitHub or GitLab are detected.** The editor asks before overwriting a generated file that someone edited in the repository. If someone deleted the file in the repository and the next publish would recreate it, the editor also asks before restoring it. If you want to keep changing generated files by hand, do it on another branch.
 - **The first publish is careful too.** It keeps existing files and asks before overwriting any file at the same path.
 - **`_tsumu/` is reserved** for Tsumu's metadata. If the list of generated files there is malformed, publishing stops.
 - Page-specific custom code is inserted at the start and end of the page body, not in `<head>`.
@@ -535,7 +537,7 @@ app/
   api/doc/            Per-site editing data and daily backups
   api/comments/       Comment threads on the canvas
   api/activity/       Who edited recently and who published last
-  api/publish/        Publish to GitHub, Cloudflare Pages (static/) or Netlify (netlify/), plus history and rollback
+  api/publish/        Publish to GitHub, GitLab (gitlab/), Cloudflare Pages (static/) or Netlify (netlify/), plus history and rollback
   api/assets/         Uploads, file serving and storage usage
   api/ai/             Ask AI
   api/collab/         Collaboration: sign-in check for the WebSocket, and Server-Sent Events
@@ -546,7 +548,7 @@ components/           UI (Home, Editor, Canvas, panels, ScriptEditor, HelpCenter
   canvas/ left-panel/ style-panel/ script-editor/   Parts of the large components
 lib/
   types.ts            The SiteDoc data model
-  sites.ts            Site types, input validation and D1 storage
+  sites.ts            Server D1/SQLite site storage (browser-safe site types and validation live in site-model.ts)
   site-access.ts      Per-site Owner / Editor / View-only membership checks (plus site-asset-access.ts)
   site.ts             Current site, tsumu-* browser storage keys, and the browser-only site list without D1
   generator.ts        SiteDoc → Next.js project (parts in generator/)
@@ -560,7 +562,8 @@ lib/
   structured-document-store.ts  Row-per-page/node SQLite schema inside the DocumentRoom Durable Object
   node-storage.ts     SQLite and file storage outside Cloudflare (TSUMU_DATA_DIR)
   browser-doc-storage.ts  IndexedDB storage (tsumu-documents) for browser-only site documents and assets
-  store.ts            Editor state (zustand) and undo history
+  uploaded-fonts.ts   Uploaded custom font (@font-face) metadata and asset tracking
+  store.ts            Editor state (zustand) and undo history (Ask AI chat state in ai-store.ts)
   clip-transfer.ts    Copy and paste between sites
   page-transfer.ts    Copy pages to another site
   comments.ts         Comment threads on the server (comment-store.ts keeps them in the browser without one)

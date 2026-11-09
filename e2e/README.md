@@ -8,7 +8,7 @@ particular engine.
 The nine shared `@core-editing` cases cover site creation, reload and IndexedDB
 persistence, deletion and undo, inspector/script panels, canvas reorder, building
 a script from a trigger and an action, multiline text, variable suggestions, and pasted text with
-undo/redo. The two `@form-values` cases in `forms-and-inputs.spec.ts`
+undo/redo. The two `@form-values` cases in `search-form-values.spec.ts`
 (Next.js and React exports) check that search forms keep empty and repeated
 fields.
 
@@ -47,18 +47,21 @@ exactly one shard; the durations file only influences load balancing.
   Playwright still validate the built server, even if they do not open a tab.
 - For behavior covered at both layers, keep a small set of browser scenarios
   demonstrating the integration and place the full combinatorial matrix in
-  Node tests. For example, `pages-and-navigation.spec.ts` retains representative
-  dialog, navigation, and collaboration cases in `e2e/`, while `tests/`
-  verifies every mode and cancellation path. Likewise, input defaults, script
-  assignments, image drop gesture endings, and committed field states sample
-  the native browser paths rather than repeating their full Cartesian product.
-  Canvas move coverage keeps real mouse, touch cancellation, and keyboard
-  interruption in Playwright. The Node suite covers pending and active drags
-  across the full cancellation and editor-state matrix.
-- For input and select defaults and script assignments, `forms-and-inputs.spec.ts`
-  and `script-editor.spec.ts` compile their browser fixtures once per worker.
-  Each case passes its own document to
-  a fresh editor page. Keep case data separate from the compiled fixture when
+  Node tests. For example, `page-kind-confirmation.spec.ts` and
+  `site-bootstrap.spec.ts` retain representative dialog, navigation, and
+  collaboration cases in `e2e/`, while `tests/` verifies every mode and
+  cancellation path. Likewise, input defaults, script assignments, image drop
+  gesture endings, and committed field states sample the native browser paths
+  rather than repeating their full Cartesian product. Canvas move coverage
+  keeps real mouse, touch cancellation, and keyboard interruption in
+  Playwright. The Node suite covers pending and active drags across the full
+  cancellation and editor-state matrix.
+- For input and select defaults and script assignments, `input-default.spec.ts`
+  and `script-input-value.spec.ts` compile their browser fixtures once per
+  worker via `e2e/helpers/field-editor.ts` (`fieldEditorFixture`), inject the
+  bundle once per page document, and run related field variants as named
+  `test.step(...)` steps that cleanly remount each case's `SiteDoc` without
+  reloading the page. Keep case data separate from the compiled fixture when
   adding field variants so the browser still exercises its native controls.
 - The script and Settings variable pickers check all three viewport widths
   (1440, 375, and 320 pixels) in named steps on the same mounted editor. Each

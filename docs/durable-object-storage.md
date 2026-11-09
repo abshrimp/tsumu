@@ -6,9 +6,10 @@ Cloudflare persists each site's editor data in a separate SQLite-backed Durable 
 
 | Store | Responsibility |
 |---|---|
-| D1 `sites` | Site listing, deployment destinations and timestamps |
+| D1 `sites`, `site_members`, `allowed_users` | Site listing, deployment destinations, per-site memberships, sign-in allowlist and timestamps |
 | D1 `site_document_rooms` | Public site ID to random, per-creation `room_key`, and `saved_at` |
 | D1 `document_room_cleanup` | Pending deletion of retired document rooms |
+| D1 `asset_objects`, `site_assets`, `asset_gc_*` | Per-site asset ownership, storage usage ledger and deferred KV garbage collection |
 | `DocumentRoom` SQLite `document_meta` | Single `rev`, timestamp and top-level properties |
 | `DocumentRoom` SQLite `document_entries` | One JSON row per page, node, asset or component |
 | `DocumentRoom` SQLite backup tables | Seven rotating UTC weekday snapshots in small text chunks |

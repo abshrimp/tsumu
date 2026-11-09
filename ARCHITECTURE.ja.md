@@ -19,7 +19,7 @@
 ```
            ┌────────── edit (zustand store, undo) ────────────┐
            │                                                  │
- Canvas / panels ──▶ SiteDoc ──▶ generator ──▶ files ──▶ GitHub (main / preview) or zip
+ Canvas / panels ──▶ SiteDoc ──▶ generator ──▶ files ──▶ GitHub / GitLab, static host, or zip
            ▲            │  ▲                                  │
            │            │  └─ AI ops (validated on a copy)    └─▶ any host
            │            ▼
@@ -30,15 +30,15 @@
 
 | フィールド | 内容 |
 |---|---|
-| `pages`・`pageOrder`・`pageFolders` | ページ（slug・タイトル・メタデータ・ページのスクリプト）と並び順。各ページは最上位のノードの ID を `children` に持ちます。 |
+| `pages`・`pageOrder`・`pageFolders` | ページ（slug・タイトル・メタデータ・`bodyStyles`／`bodyDarkStyles`・ページのスクリプト）と並び順。各ページは最上位のノードの ID を `children` に持ちます。 |
 | `nodes` | すべての `DocNode` を ID で引けるフラットなマップ。木構造は入れ子ではなく、各ノードの `children`（ID の配列）で表します。 |
 | `components` | 再利用可能なノードの木。`instance` ノードが `componentId` で参照します。 |
 | `assets` | アップロードされた画像・動画・音声・フォント。本体は KV（またはブラウザ）に保存し、文書にはメタデータと保存先のキーだけを記録します。 |
-| `breakpoints` とサイトの設定 | ブレークポイント、フォント、配色、ファビコンと OGP、PWA、ホスティングの選択、データの更新間隔、言語。 |
+| `breakpoints` とサイトの設定 | ブレークポイント、フォント（`customFonts`・`adobeFonts`・`uploadedFonts`）、配色、ファビコンと OGP、PWA、ホスティングの選択、データの更新間隔、言語。 |
 
-`DocNode` は必ず `type` と `semantic`（出力する HTML タグ）を持ち、必要に応じて内容（`text`・`image`・`field`・`media`・`list` など）、`styles`、`scripts`、`motions` を持ちます。
+`DocNode` は必ず `type` と `semantic`（出力する HTML タグ）を持ち、必要に応じて内容（`text`・`image`・`field`・`media`・`list` など）、`styles`、`darkStyles`、`scripts`、`motions` を持ちます。
 
-- **スタイル**は `styles[breakpoint][state][cssProperty]` の形式で保持します。状態は `default`・`hover`・`active`・`focus`、または名前付きの状態 `custom:<名前>` のいずれかで、値はすべて通常の CSS の文字列です。名前付きの状態は、要素の `data-site-state` 属性がその名前のときに適用されます。状態は、スクリプトの `set-state` 手順で切り替えます（`lib/custom-states.ts`）。
+- **スタイル**は `styles[breakpoint][state][cssProperty]` の形式で保持します（OS のダークモード時の上書きは、要素の `darkStyles` とページの `bodyDarkStyles` に保持します）。状態は `default`・`hover`・`active`・`focus`、または名前付きの状態 `custom:<名前>` のいずれかで、値はすべて通常の CSS の文字列です。名前付きの状態は、要素の `data-site-state` 属性がその名前のときに適用されます。状態は、スクリプトの `set-state` 手順で切り替えます（`lib/custom-states.ts`）。
 - **スクリプト**はコードではなくデータで、トリガーとそれに続く手順（`Script`・`ScriptStep`）で構成されます。データ構造は `lib/script.ts` で定義し、`lib/script-runtime.ts` が実行します。ランタイムはキャンバスのプレビューと書き出したサイトで共用し、書き出すときはそのサイトが使う機能だけを残します。
 - **リスト**は配列と辞書のどちらも扱い、項目ごとにテンプレートの子要素を繰り返し表示します。表示できるのは、データ取得やスクリプトで作ったリストです。項目ごとの詳細ページ（`/news/[slug]` など）も生成できます。
 
@@ -49,20 +49,20 @@
 
 | 領域 | ファイル |
 |---|---|
-| エディタの状態、元に戻す・やり直す | `lib/store.ts`（zustand）。すべての変更がストアを経由するため、どの変更も元に戻す履歴と同期の両方に反映されます。 |
-| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`、`useHtmlPreview`、およびサンドボックス埋め込み URL を検証する `lib/embed.ts`）、`app/styles/`（エディタのスタイルシート）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）、`PagePanel.tsx`<br>`RightPanel.tsx`、`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイルと `FontPicker.tsx`）、`SettingsPanel.tsx`、`ScriptSummary.tsx`、`MotionEditors.tsx`<br>`ScriptEditor.tsx`（必要時に遅延読み込み）と `script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx`、`Comments.tsx`（必要時に遅延読み込み）、`ViewerHeader.tsx` |
-| スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts`、`lib/google-font-catalog.ts`（必要時に遅延読み込み）、`lib/adobe-fonts-*.ts`（[Adobe Fonts](docs/adobe-fonts.md)） |
+| エディタの状態、元に戻す・やり直す | `lib/store.ts`（zustand）と `lib/editor-theme.ts`（制作サイトの配色とは独立したエディタ外観のライト／ダーク設定）。文書へのすべての変更がストアを経由するため、どの変更も元に戻す履歴と同期の両方に反映されます。 |
+| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`、`useHtmlPreview`、およびサンドボックス埋め込み URL を検証する `lib/embed.ts`）、`app/styles/`（エディタのスタイルシート）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル）、`PagePanel.tsx`<br>`RightPanel.tsx`、`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイルと `FontPicker.tsx`）、`SettingsPanel.tsx`、`ScriptSummary.tsx`、`MotionEditors.tsx`<br>`ScriptEditor.tsx`、`Comments.tsx`、`AiChat.tsx`、`ExternalEditConnection.tsx`、`AllowedAccounts.tsx`、`SiteMembers.tsx`（いずれも必要時に遅延読み込み）、`script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx`、`ViewerHeader.tsx` |
+| スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts`、`lib/google-font-catalog.ts`（必要時に遅延読み込み）、`lib/adobe-fonts-*.ts`（[Adobe Fonts](docs/adobe-fonts.md)）、`lib/uploaded-fonts.ts`（アップロードした WOFF2・WOFF・TTF・OTF フォント） |
 | 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が Next.js プロジェクトを `{ files, binaries, remoteAssets }` として返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
 | 出力形式 | `lib/export-formats.ts` と、`lib/generator/` のその他のファイル。詳細は [出力形式](#出力形式) を参照してください。 |
-| 公開と zip での書き出し | `components/PublishModal.tsx` から `app/api/publish/route.ts`・`lib/publish-security.ts`（GitHub Git Data API）へ、`components/StaticPublishModal.tsx` から `app/api/publish/static/`・`lib/static-hosting.ts`（Cloudflare Pages）へ、または `components/NetlifyPublishModal.tsx` から `app/api/publish/netlify/`・`lib/browser-netlify.ts`・`lib/netlify-publish.ts`（ブラウザ連携の Netlify OAuth）へ（`lib/publish-provider.ts` で選択し、`components/StaticPublishShared.tsx` と `lib/static-hosting-route.ts` を共用）。詳細は [公開の仕組み](#公開の仕組み) を参照してください。<br>`components/ExportModal.tsx`（`Header.tsx` から開く）から `lib/exportZip.ts`・`lib/zip.ts`（`CompressionStream` / `DecompressionStream` による外部依存なしの ZIP 読み書き）へ |
+| 公開と zip での書き出し | `components/PublishModal.tsx` から `app/api/publish/`・`lib/github.ts`・`lib/publish-security.ts`（GitHub Git Data API）または `app/api/publish/gitlab/`・`lib/gitlab.ts`（GitLab.com Commits API）へ、`components/StaticPublishModal.tsx`（遅延読み込み）から `app/api/publish/static/`・`lib/static-hosting.ts`（Cloudflare Pages）へ、`components/NetlifyPublishModal.tsx`（遅延読み込み）から `app/api/publish/netlify/`・`lib/browser-netlify.ts`・`lib/netlify-publish.ts`（ブラウザ連携の Netlify OAuth）へ（`lib/publish-provider.ts` で選択し、`components/StaticPublishShared.tsx`、`lib/static-hosting-route.ts`、`lib/base64.ts` を共用）。詳細は [公開の仕組み](#公開の仕組み) を参照してください。<br>`components/ExportModal.tsx`（`Header.tsx` から開く）から `lib/exportZip.ts`・`lib/zip.ts`（`CompressionStream` / `DecompressionStream` による外部依存なしの ZIP 読み書き）へ |
 | インポート | `lib/import-site-file.ts`（ファイルからのサイト作成）、`lib/site-import.ts` と `lib/site-import-format.ts`（Tsumu の zip と `doc.json`）、`lib/site-backup.ts`（アセット一式を含むバックアップ zip）、`lib/html-to-site.ts` と `html-file-import.ts`（必要時に遅延読み込み）・`html-zip.ts`（HTML）。詳細は [インポート](#インポート) を参照してください。 |
 | 公開前チェック | `lib/generator/checks.ts` の `runChecks`。リンク切れ、代替テキスト、見出しの順序、小さすぎる文字、レイアウトのはみ出しを検査します。 |
-| 保存 | `document-room.ts`・`lib/structured-document-store.ts`：サイトの作成世代ごとに1つの SQLite 対応 Durable Object を使い、ページ・要素などを個別の行とトランザクション付きの `rev` で保存<br>`lib/site-document-service.ts`：Cloudflare と Node.js の保存先の振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node.js・Docker 用の SQLite<br>`lib/kv.ts`：アセットの本体<br>`lib/browser-doc-storage.ts`：ブラウザのみに保存するサイトの文書・アセット用 IndexedDB（`tsumu-documents`）<br>`lib/local-storage.ts`：`tsumu-*` のブラウザ設定とローカルサイト一覧 |
-| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認し、`lib/asset-ledger.ts` が物理オブジェクト（`asset_objects`）とサイト別の所有関係（`site_assets`）を記録します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](docs/asset-gc.md)（英語））。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、そのサイトの削除待ち候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
+| 保存 | `lib/site-model.ts`（クライアントからも参照できる純粋なサイトの型と入力検証）と `lib/sites.ts`（D1 へのサイト保存）<br>`document-room.ts`・`lib/structured-document-store.ts`：サイトの作成世代ごとに1つの SQLite 対応 Durable Object を使い、ページ・要素などを個別の行とトランザクション付きの `rev` で保存<br>`lib/site-document-service.ts`：Cloudflare と Node.js の保存先の振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node.js・Docker 用の SQLite<br>`lib/kv.ts`：アセットの本体<br>`lib/browser-doc-storage.ts`：ブラウザのみに保存するサイトの文書・アセット用 IndexedDB（`tsumu-documents`）<br>`lib/local-storage.ts`：`tsumu-*` のブラウザ設定とローカルサイト一覧 |
+| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認し、`lib/asset-ledger.ts` が物理オブジェクト（`asset_objects`）とサイト別の所有関係（`site_assets`。アップロード・保存・サイト間のページ／要素コピー時に更新）を記録します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](docs/asset-gc.md)（英語））。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、そのサイトの削除待ち候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
 | 同時編集 | `custom-worker.ts`：サイトの作成世代ごとに独立した、WebSocket 用の Durable Object<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker における Server-Sent Events<br>`lib/collab.ts`：送受信するメッセージ<br>`lib/merge.ts`：3方向マージ。ノードの ID で照合し、次に項目の単位で照合します。配列は全体を1つの値として扱います。 |
-| AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数）、`lib/external-edit/`（`bridge.ts`、`config.ts`：開いているエディタを `NEXT_PUBLIC_TSUMU_MCP_URL` 経由で外部の `tsumu-mcp` に WebSocket 接続する任意のブリッジ） |
+| AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）と `lib/ai-store.ts`（`AiChat.tsx` を遅延読み込みするための軽量チャット状態ストア）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数）、`lib/external-edit/`（`bridge.ts`、`config.ts`：開いているエディタを `NEXT_PUBLIC_TSUMU_MCP_URL` 経由で外部の `tsumu-mcp` に WebSocket 接続する任意のブリッジ） |
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |
-| 認証 | `auth.ts`、`proxy.ts`、`lib/allowlist.ts`（ログイン時の `editor`・`viewer` 権限）、`lib/site-access.ts` と `lib/site-asset-access.ts`（サイトごとの `owner`・`editor`・`viewer` メンバー権限とアセット参照権限を API および同時編集の境界で検証）。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` でのループバック宛てのアクセスか `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
+| 認証 | `auth.ts`、`proxy.ts`（認証境界とクリックジャッキング防止ヘッダー）、`lib/allowlist.ts`（ログイン時の `editor`・`viewer` 権限）、`lib/site-access.ts` と `lib/site-asset-access.ts`（サイトごとの `owner`・`editor`・`viewer` メンバー権限とアセット参照権限を API および同時編集の境界で検証）。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` でのループバック宛てのアクセスか `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
 | 多言語対応 | `lib/i18n.ts`。原文は英語で記述し、`tr("…")` で囲みます。日本語訳は `lib/locales/ja.ts` に配置します。`lib/locales/en.ts` には、原文と表示を変えたい英語（複数形など）だけを書きます。 |
 | ヘルプとチュートリアル | `lib/manualTopics.ts` と `lib/manual-topics/`、`components/HelpCenter.tsx`、`HelpFigures.tsx`、`Tutorial.tsx`、`GuideOverlay.tsx`（必要時に遅延読み込み） |
 
@@ -103,25 +103,26 @@
 
 ## 公開の仕組み
 
-公開は次の4段階で行います。
+公開方式はインスタンス全体の `PUBLISH_PROVIDER`（`lib/publish-provider.ts`）で決まります。
 
-1. ブラウザが、選択された形式でプロジェクトを生成し（`prepareExportProject`）、`_tsumu/doc.json` を追加します。このファイルは文書の写しで、編集内容の復元とロールバックに使います。
-2. 公開先のブランチにある現在のファイル一覧を、サーバーに問い合わせます（`action: "tree"`）。blob の SHA が既に存在するアセットは再アップロードしません。保存先のキーと SHA の対応は `_tsumu/assets.json` に記録します。
-3. 大きなファイルとアセットは、1件ずつ別のリクエストでアップロードします（`action: "upload"`）。こうすることで、各リクエストのサブリクエスト数を Workers 無料プランの上限内に収めます。
-4. ブラウザがコミットを要求します（`action: "commit"`）。サーバーはファイルの一覧を分割して組み立て、ブランチを更新します。
+- **Git リポジトリ（`PUBLISH_PROVIDER=github`・既定）**：サイトごとの設定で **GitHub**（`app/api/publish/`）または **GitLab.com**（`app/api/publish/gitlab/`）を選びます。公開は次の流れで進みます。
+  1. ブラウザが、選択された形式でプロジェクトを生成し（`prepareExportProject`）、編集内容の復元とロールバックに使う `_tsumu/doc.json` を追加します。
+  2. 公開先のブランチにある現在のファイル一覧をサーバーに問い合わせます（`action: "tree"`）。blob の SHA が既に存在するアセットは再アップロードせず、保存先のキーと SHA の対応は `_tsumu/assets.json` に記録します。
+  3. GitHub では、Workers 無料プランのサブリクエスト上限を超えないよう大きなファイルとアセットを1件ずつアップロードし（`action: "upload"`）、続く `action: "commit"` でツリーを分割構築してブランチを更新します。GitLab では、`last_commit_id` で競合を検査しながら Repository Commits API に差分操作（`create`・`update`・`delete`）を送ります。
+- **静的ホスティング（`PUBLISH_PROVIDER=netlify` または `cloudflare`）**：ブラウザが静的 HTML 形式（`_tsumu/` を含まない `format: "html"`）を生成して ZIP にまとめます。**Netlify** では利用者のブラウザで保持する OAuth トークン（`lib/browser-netlify.ts`）を使い、サーバーは認証情報を保存せず API 操作を中継します（`lib/netlify-publish.ts`）。**Cloudflare Pages** では `lib/static-hosting.ts` が変更のあったアセットとマニフェストをサイト専用の Pages プロジェクト（`main` または `tsumu-preview` ブランチ）へ直接アップロードします。
 
 ### 生成したファイルと手動で追加したファイル
 
-エディタは、自身が生成したファイルのパスと blob の SHA を、すべて `_tsumu/generated.json` に記録します（`lib/publish-files.ts`）。次回の公開時には、次のように扱います。
+Git への公開では、エディタが生成したファイルのパスと blob の SHA をすべて `_tsumu/generated.json` に記録します（`lib/publish-files.ts`）。次回の公開時には、次のように扱います。
 
 - **一覧にないファイル**は手動で追加されたものとみなし、そのまま保持します。そのため、手動で追加した API ルート、コンポーネント、設定ファイルなどは失われません。
-- **SHA が変化した生成ファイル**は GitHub 上で編集されたものとみなし、公開画面で確認を求めたうえでエディタの内容で上書きします。
+- **SHA が変化した生成ファイル**は GitHub・GitLab 上で編集されたものとみなし、公開画面で確認を求めたうえでエディタの内容で上書きします。
 
 初回の公開時には、既存のファイルをすべて手動で追加されたものとみなします。無関係なファイルは保持し、エディタが書き込むパスに既存のファイルがあれば確認を求めます。記録の一覧が破損している場合は、公開を中止します。`_tsumu/` ディレクトリはエディタ専用です。
 
 ### ロールバック
 
-ロールバック（`app/api/publish/history/route.ts`）は、過去の時点のファイル一式を新しいコミットとしてブランチの先頭に積みます。履歴は書き換えません。
+Git のロールバック（`app/api/publish/history/route.ts`・`app/api/publish/gitlab/history/route.ts`）は、過去の時点のファイル一式を新しいコミットとしてブランチの先頭に積みます。履歴は書き換えません。静的ホスティングでは、公開画面から各プロバイダのデプロイ履歴を表示・復元します。
 
 ## 出力形式
 
@@ -153,7 +154,7 @@
 ファイルの種類ごとの処理は次のとおりです。
 
 - **Tsumu の zip・`doc.json`**（`lib/site-import.ts`）：zip には `_tsumu/doc.json` が1つのみ含まれている必要があります。`_tsumu/assets.json` は、元のアセットの ID とアーカイブ内のファイルを対応付けます。読み込む際は文書を検証し、アセットを元の ID のまま再アップロードします。パスは推測しないため、対応表になく data URL もないアセットは復元せず、注意事項として表示します。ルートの外を指すパスは受け付けません。
-- **HTML ファイル・ウェブサイトの zip**（`lib/html-to-site.ts`）：すべてのページを編集可能なノードに変換します。クラスと安全な一部の属性は保持し（`lib/imported-html-attrs.ts`）、イベント属性、URL を含む属性、Tsumu 内部の `data-*` 属性は引き継ぎません。
+- **HTML ファイル・ウェブサイトの zip**（`lib/html-to-site.ts`）：すべてのページを編集可能なノードに変換します（取り込んだ JS モジュール内の相対 `import` 指定子は `lib/generator/imported-assets.ts` で生成アセットの URL に対応付けます）。クラスと安全な一部の属性は保持し（`lib/imported-html-attrs.ts`）、イベント属性、URL を含む属性、Tsumu 内部の `data-*` 属性は引き継ぎません。
 - **上限**（`IMPORT_LIMITS`）：zip は100MB、`doc.json` と HTML ファイルは12MB、展開後は1,500ファイル・300MBまでです。
 
 エディタのページ設定からは、1つのページに HTML を読み込むこともできます。HTML はノードに変換するか、HTMLページとしてそのまま使うかを選べます。ZIP をそのまま使う場合の処理は、次節で説明します。
@@ -165,7 +166,7 @@
 - **プレビュー**：スタイルシートを個別に扱うため、読み込みの順序・条件・レイヤーが保たれます。依存ファイルは、サーバーの保存先にある場合は署名付き URL で、ブラウザ内の保存先にある場合は data URL で渡します。空のシートに置き換えるのは、自身の祖先を参照する `@import` だけです。署名付き URL の期限が近づくと、自動では再読み込みせず、更新を促す表示を出します。再読み込みすると、フォームやスクリプトの状態が失われるためです。
 - **書き出し**：CSS ファイルはそれぞれ UTF-8 の個別ファイルとして出力し、参照先を生成したアセットのファイル名に書き換えます。integrity のハッシュを削除するのは、読み込んだローカルの CSS のうち、書き換えで内容が変わるものへのリンクだけです。
 - **コピーと不要ファイルの削除**：ページをコピーするときは、スタイルシートの依存ファイルも一緒にコピーします。未使用のアセットを削除するときも、使用中のスタイルシートが依存するファイルは残します。
-- **書き換えの対象外**：JavaScript モジュールの import、存在しないファイルへの参照、外部の URL は変更しません。アーカイブの外を指すルート相対・プロトコル相対の URL は、プレビュー時に限り絶対 URL に変換します。
+- **スクリプトと書き換えの対象外**：外部の `<base>` タグが無い場合、インラインの実行対象 `<script>` 内でアーカイブ内のファイルに一致する文字列リテラルは `lib/html-zip-script-assets.ts` がプレビュー・書き出し用の URL に書き換えます。外部 `<script src>` のモジュール本体、コメント、正規表現、式を含むテンプレート文字列、存在しないファイルへの参照、外部の URL は変更しません。アーカイブの外を指すルート相対・プロトコル相対の URL は、プレビュー時に限り絶対 URL に変換します。
 - **上限**（`ZIP_CSS_LIMITS`）：CSS は UTF-8 のみに対応します。CSS の量は読み込みごと・プレビューの依存関係ごとに 2 MiB、プレビューの出力は 8 MiB、派生処理は合計 64 MiB、派生は 4,096 個、`@import` の入れ子は 200 階層までです。上限を超えると、プレビューにエラーを表示します。
 
 ## AI による編集

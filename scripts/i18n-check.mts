@@ -89,7 +89,7 @@ export async function checkTranslations(root: string, args: readonly string[], o
         const name = ts.isIdentifier(node.expression) ? node.expression.text
           : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
         const first = literal(node.arguments[0]);
-        if ((name === "tr" || name === "trNodes") && first !== undefined) found.add(first);
+        if ((name === "tr" || name === "trNodes" || name === "gitText") && first !== undefined) found.add(first);
       }
       ts.forEachChild(node, visit);
     };

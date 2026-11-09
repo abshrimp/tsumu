@@ -1802,7 +1802,7 @@ const ja: Dict = {
   "Site settings (menu)": "サイトの設定",
   "Site settings": "サイト設定",
   "New site": "新しいサイト",
-  "Change the site name and the GitHub repository it publishes to.": "サイト名と、公開先のGitHubリポジトリを変更できます。",
+  "Change the site name and the Git repository it publishes to.": "サイト名と、公開先のGitリポジトリを変更できます。",
   "Creates an empty site and opens it in the editor.": "空のサイトを作って、エディタで開きます。",
   "Publish target": "公開先",
   "You can set this later": "あとからでも設定できます",
@@ -3748,6 +3748,14 @@ const ja: Dict = {
   "Page appearance": "ページの配色",
   "Editing dark mode styles": "ダークモードのスタイルを編集中",
   "The editor appearance is separate from the website's styles.": "エディターの配色を変更しても、制作するページのスタイルは変更されません。",
+  "Git provider": "Gitサービス",
+  "GitLab repository": "GitLabリポジトリ",
+  "Enter as group/project or group/subgroup/project. You can edit without it, but you can't publish.": "group/project または group/subgroup/project の形式で入力してください。",
+  "Fetching the repository": "リポジトリの取得",
+  "Creating the test branch": "テストブランチの作成",
+  "Publish the live branch before creating the test branch.": "テストブランチを作成する前に、本番ブランチへ公開してください。",
+  "This version has too many files to restore in one request.": "この版はファイル数が多すぎるため、1回のリクエストで復元できません。",
+  "Couldn't connect to GitLab. Check the server token and project permissions.": "GitLabに接続できませんでした。サーバーのトークンとプロジェクトの権限を確認してください。",
 };
 
 export default ja;

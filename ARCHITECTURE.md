@@ -19,7 +19,7 @@ Once you understand `SiteDoc`, you can find your way around everything else.
 ```
            ┌────────── edit (zustand store, undo) ────────────┐
            │                                                  │
- Canvas / panels ──▶ SiteDoc ──▶ generator ──▶ files ──▶ GitHub (main / preview) or zip
+ Canvas / panels ──▶ SiteDoc ──▶ generator ──▶ files ──▶ GitHub / GitLab, static host, or zip
            ▲            │  ▲                                  │
            │            │  └─ AI ops (validated on a copy)    └─▶ any host
            │            ▼
@@ -30,15 +30,15 @@ Once you understand `SiteDoc`, you can find your way around everything else.
 
 | Field | What it holds |
 |---|---|
-| `pages`, `pageOrder`, `pageFolders` | Pages (slug, title, metadata, page scripts) and their order. Each page lists its top-level node IDs in `children`. |
+| `pages`, `pageOrder`, `pageFolders` | Pages (slug, title, metadata, `bodyStyles` / `bodyDarkStyles`, page scripts) and their order. Each page lists its top-level node IDs in `children`. |
 | `nodes` | A flat map of `DocNode`s by ID. The tree comes from each node's `children` (a list of IDs), never from nesting. |
 | `components` | Reusable node trees. An `instance` node points at one through `componentId`. |
 | `assets` | Uploaded images, video, audio and fonts. The bytes live in KV (or the browser); the doc keeps only the metadata and the storage key. |
-| `breakpoints`, site settings | Responsive widths, fonts, palette, favicon/OGP, PWA, hosting choice, data refresh interval and language. |
+| `breakpoints`, site settings | Responsive widths, fonts (`customFonts`, `adobeFonts`, `uploadedFonts`), palette, favicon/OGP, PWA, hosting choice, data refresh interval and language. |
 
-A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also have content (`text`, `image`, `field`, `media`, `list`, …), `styles`, `scripts` and `motions`.
+A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also have content (`text`, `image`, `field`, `media`, `list`, …), `styles`, `darkStyles`, `scripts` and `motions`.
 
-- **Styles** are stored as `styles[breakpoint][state][cssProperty]`. The state is `default`, `hover`, `active`, `focus` or a named state `custom:<name>`, and every value is a plain CSS string. A named state applies while the element's `data-site-state` attribute holds that name; the `set-state` script step sets it (`lib/custom-states.ts`).
+- **Styles** are stored as `styles[breakpoint][state][cssProperty]` (with optional `darkStyles` on nodes and `bodyDarkStyles` on pages for `prefers-color-scheme: dark` overrides). The state is `default`, `hover`, `active`, `focus` or a named state `custom:<name>`, and every value is a plain CSS string. A named state applies while the element's `data-site-state` attribute holds that name; the `set-state` script step sets it (`lib/custom-states.ts`).
 - **Scripts** are data, not code: a trigger followed by steps (`Script`, `ScriptStep`). `lib/script.ts` defines the model. `lib/script-runtime.ts` is the runtime, shared by the canvas preview and exported sites; the generator keeps only the runtime features a site actually uses.
 - **Lists** render a template child for each item in an array or dictionary. Data may come from a fetch step or a script, and each item can have its own detail page (such as `/news/[slug]`).
 
@@ -49,20 +49,20 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 
 | Area | Files |
 |---|---|
-| Editor state, undo/redo | `lib/store.ts` (zustand). Every change goes through the store, so that undo and sync both see it. |
-| Canvas and panels | `components/Canvas.tsx` and `canvas/` (CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`, `useHtmlPreview`, plus `lib/embed.ts` for sandboxed embed URLs), `app/styles/` (editor stylesheets)<br>`LeftPanel.tsx` and `left-panel/` (one file per tab), `PagePanel.tsx`<br>`RightPanel.tsx`, `StylePanel.tsx` and `style-panel/` (one file per section, plus `FontPicker.tsx`), `SettingsPanel.tsx`, `ScriptSummary.tsx`, `MotionEditors.tsx`<br>`ScriptEditor.tsx` (lazy-loaded on demand) and `script-editor/` (palette, blocks, step bodies, inputs, `useStepDrag`, `useEditorKeys`)<br>`SitePanel.tsx`, `Comments.tsx` (lazy-loaded on demand), `ViewerHeader.tsx` |
-| Style model → CSS | `lib/style.ts`, `lib/breakpoints.ts`, `lib/motion.ts`, `lib/keyframes.ts`, `lib/google-font-catalog.ts` (lazy-loaded on demand), `lib/adobe-fonts-*.ts` ([Adobe Fonts](docs/adobe-fonts.md)) |
+| Editor state, undo/redo | `lib/store.ts` (zustand) and `lib/editor-theme.ts` (independent editor light/dark appearance). Every document change goes through the store, so that undo and sync both see it. |
+| Canvas and panels | `components/Canvas.tsx` and `canvas/` (CSS, node rendering, `NodeView`, `useCanvasData`, `useCanvasDrag`, `useHtmlPreview`, plus `lib/embed.ts` for sandboxed embed URLs), `app/styles/` (editor stylesheets)<br>`LeftPanel.tsx` and `left-panel/` (one file per tab), `PagePanel.tsx`<br>`RightPanel.tsx`, `StylePanel.tsx` and `style-panel/` (one file per section, plus `FontPicker.tsx`), `SettingsPanel.tsx`, `ScriptSummary.tsx`, `MotionEditors.tsx`<br>`ScriptEditor.tsx`, `Comments.tsx`, `AiChat.tsx`, `ExternalEditConnection.tsx`, `AllowedAccounts.tsx`, `SiteMembers.tsx` (all lazy-loaded on demand), `script-editor/` (palette, blocks, step bodies, inputs, `useStepDrag`, `useEditorKeys`)<br>`SitePanel.tsx`, `ViewerHeader.tsx` |
+| Style model → CSS | `lib/style.ts`, `lib/breakpoints.ts`, `lib/motion.ts`, `lib/keyframes.ts`, `lib/google-font-catalog.ts` (lazy-loaded on demand), `lib/adobe-fonts-*.ts` ([Adobe Fonts](docs/adobe-fonts.md)), `lib/uploaded-fonts.ts` (locally uploaded WOFF2/WOFF/TTF/OTF font families) |
 | Generator | `lib/generator.ts`. `generateProject(doc, target)` returns the Next.js project as `{ files, binaries, remoteAssets }`. Its parts live in `lib/generator/`: `names.ts`, `css.ts`, `render.ts` (with `render-helpers.ts`), `page.ts`, `head.ts`, `templates.ts`. |
 | Output formats | `lib/export-formats.ts` and the rest of `lib/generator/`. See [Output formats](#output-formats). |
-| Publish and zip export | `components/PublishModal.tsx` → `app/api/publish/route.ts` + `lib/publish-security.ts` (GitHub Git Data API), `components/StaticPublishModal.tsx` → `app/api/publish/static/` + `lib/static-hosting.ts` (Cloudflare Pages), and `components/NetlifyPublishModal.tsx` → `app/api/publish/netlify/` + `lib/browser-netlify.ts` / `lib/netlify-publish.ts` (browser-linked Netlify OAuth), sharing `components/StaticPublishShared.tsx` and `lib/static-hosting-route.ts` via `lib/publish-provider.ts`. See [Publishing](#publishing).<br>`components/ExportModal.tsx` (opened from `Header.tsx`) → `lib/exportZip.ts` + `lib/zip.ts` (zero-dependency ZIP reader/writer using `CompressionStream` / `DecompressionStream`) |
+| Publish and zip export | `components/PublishModal.tsx` → `app/api/publish/` + `lib/github.ts` / `lib/publish-security.ts` (GitHub Git Data API) or `app/api/publish/gitlab/` + `lib/gitlab.ts` (GitLab.com Commits API), `components/StaticPublishModal.tsx` (lazy-loaded) → `app/api/publish/static/` + `lib/static-hosting.ts` (Cloudflare Pages), and `components/NetlifyPublishModal.tsx` (lazy-loaded) → `app/api/publish/netlify/` + `lib/browser-netlify.ts` / `lib/netlify-publish.ts` (browser-linked Netlify OAuth), sharing `components/StaticPublishShared.tsx` and `lib/static-hosting-route.ts` via `lib/publish-provider.ts` and `lib/base64.ts`. See [Publishing](#publishing).<br>`components/ExportModal.tsx` (opened from `Header.tsx`) → `lib/exportZip.ts` + `lib/zip.ts` (zero-dependency ZIP reader/writer using `CompressionStream` / `DecompressionStream`) |
 | Import | `lib/import-site-file.ts` (new site from a file), `lib/site-import.ts` and `lib/site-import-format.ts` (Tsumu zip and `doc.json`), `lib/site-backup.ts` (portable site backup zip with assets), `lib/html-to-site.ts` with `html-file-import.ts` (lazy-loaded on demand) and `html-zip.ts` (HTML). See [Imports](#imports). |
 | Pre-publish checks | `runChecks` in `lib/generator/checks.ts`: broken links, alt text, heading order, small text, overflow |
-| Persistence | `document-room.ts` / `lib/structured-document-store.ts`: SQLite-backed Durable Object per site generation, page/node rows and transactional `rev`<br>`lib/site-document-service.ts`: Cloudflare/Node routing<br>`lib/doc-storage.ts` / `lib/node-storage.ts`: local SQLite outside Cloudflare<br>`lib/kv.ts`: asset files<br>`lib/browser-doc-storage.ts`: IndexedDB (`tsumu-documents`) for browser-only site documents and assets<br>`lib/local-storage.ts`: `tsumu-*` browser settings and local site index |
-| KV asset GC | `DELETE /api/assets` registers D1 candidates; `lib/asset-gc.ts` processes expired candidates daily, while a weekly `custom-worker.ts` trigger reconciles orphan KV keys, with `lib/asset-ledger.ts` tracking physical objects (`asset_objects`) and per-site ownership (`site_assets`). Default dry-run; [policy and limits](docs/asset-gc.md).<br>Trash: `components/AssetTrash.tsx` → `app/api/assets/trash` lists the site's pending candidates, restores one by dropping its candidate row, or deletes one right away (`lib/asset-trash-delete.ts`, under the same lease and reference scan as the sweep). |
+| Persistence | `lib/site-model.ts` (pure client-safe site types and validation) + `lib/sites.ts` (D1 site persistence)<br>`document-room.ts` / `lib/structured-document-store.ts`: SQLite-backed Durable Object per site generation, page/node rows and transactional `rev`<br>`lib/site-document-service.ts`: Cloudflare/Node routing<br>`lib/doc-storage.ts` / `lib/node-storage.ts`: local SQLite outside Cloudflare<br>`lib/kv.ts`: asset files<br>`lib/browser-doc-storage.ts`: IndexedDB (`tsumu-documents`) for browser-only site documents and assets<br>`lib/local-storage.ts`: `tsumu-*` browser settings and local site index |
+| KV asset GC | `DELETE /api/assets` registers D1 candidates; `lib/asset-gc.ts` processes expired candidates daily, while a weekly `custom-worker.ts` trigger reconciles orphan KV keys, with `lib/asset-ledger.ts` tracking physical objects (`asset_objects`) and per-site ownership (`site_assets`, updated on uploads, saves, and cross-site page/clip copies). Default dry-run; [policy and limits](docs/asset-gc.md).<br>Trash: `components/AssetTrash.tsx` → `app/api/assets/trash` lists the site's pending candidates, restores one by dropping its candidate row, or deletes one right away (`lib/asset-trash-delete.ts`, under the same lease and reference scan as the sweep). |
 | Collaboration | `custom-worker.ts`: one WebSocket Durable Object per site generation<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
-| AI | `lib/ai/` (providers, prompt, streaming); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client); `lib/external-edit/` (`bridge.ts`, `config.ts`: optional browser WebSocket bridge connecting an open editor session to `tsumu-mcp` via `NEXT_PUBLIC_TSUMU_MCP_URL`) |
+| AI | `lib/ai/` (providers, prompt, streaming) and `lib/ai-store.ts` (lightweight chat store so `Editor.tsx` can lazy-load `AiChat.tsx`); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client); `lib/external-edit/` (`bridge.ts`, `config.ts`: optional browser WebSocket bridge connecting an open editor session to `tsumu-mcp` via `NEXT_PUBLIC_TSUMU_MCP_URL`) |
 | Comments, activity | `lib/comments.ts`, `lib/comment-store.ts`, `lib/activity.ts` |
-| Auth | `auth.ts`, `proxy.ts`, `lib/allowlist.ts` (login roles), `lib/site-access.ts` and `lib/site-asset-access.ts` (per-site owner/editor/viewer memberships and site-scoped asset authorization enforced at API and collaboration boundaries). Without `AUTH_*`, the editor opens only on loopback hosts under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
+| Auth | `auth.ts`, `proxy.ts` (auth gate and framing headers), `lib/allowlist.ts` (login roles), `lib/site-access.ts` and `lib/site-asset-access.ts` (per-site owner/editor/viewer memberships and site-scoped asset authorization enforced at API and collaboration boundaries). Without `AUTH_*`, the editor opens only on loopback hosts under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
 | i18n | `lib/i18n.ts`. Source strings are English, wrapped in `tr("…")`. Japanese translations are in `lib/locales/ja.ts`; `lib/locales/en.ts` holds only English text that differs from its key (such as plural forms). |
 | Help and tutorial | `lib/manualTopics.ts` and `lib/manual-topics/`, `components/HelpCenter.tsx`, `HelpFigures.tsx`, `Tutorial.tsx`, `GuideOverlay.tsx` (lazy-loaded on demand) |
 
@@ -95,25 +95,26 @@ This section covers sites whose records are kept in the browser.
 
 ## Publishing
 
-A publish takes four steps:
+`PUBLISH_PROVIDER` (`lib/publish-provider.ts`) selects the publishing mode for the installation:
 
-1. The client generates the project in the selected format (`prepareExportProject`) and adds `_tsumu/doc.json`, a copy of the doc used for restoring edits and rolling back.
-2. It asks the server for the branch's current tree (`action: "tree"`). Assets whose blob SHA is already there aren't uploaded again; `_tsumu/assets.json` maps storage keys to SHAs.
-3. Large files and assets are uploaded one request each (`action: "upload"`). This keeps each request under the Workers free-plan subrequest limit.
-4. The client commits (`action: "commit"`). The server builds the tree in chunks and moves the branch.
+- **Git repositories (`PUBLISH_PROVIDER=github`, default):** each site chooses **GitHub** (`app/api/publish/`) or **GitLab.com** (`app/api/publish/gitlab/`) in its site settings. A publish takes four steps:
+  1. The client generates the project in the selected format (`prepareExportProject`) and adds `_tsumu/doc.json`, a copy of the doc used for restoring edits and rolling back.
+  2. It asks the server for the branch's current tree (`action: "tree"`). Assets whose blob SHA is already there aren't uploaded again; `_tsumu/assets.json` maps storage keys to SHAs.
+  3. On GitHub, large files and assets are uploaded one request each (`action: "upload"`) to stay under the Workers free-plan subrequest limit, then `action: "commit"` builds the tree in chunks and moves the branch. On GitLab, the commit actions (`create` / `update` / `delete`) are sent through the Repository Commits API with optimistic `last_commit_id` checks.
+- **Static hosts (`PUBLISH_PROVIDER=netlify` or `cloudflare`):** the client generates the static HTML export (`prepareExportProject` with `format: "html"`, without `_tsumu/`) and packs a ZIP. For **Netlify**, the visitor authenticates via browser-held OAuth (`lib/browser-netlify.ts`) and the server relays API operations (`lib/netlify-publish.ts`) without persisting credentials. For **Cloudflare Pages**, `lib/static-hosting.ts` uploads changed assets and manifest entries directly to the site's Pages project (`main` or `tsumu-preview` branch).
 
 ### Generated files and hand-added files
 
-The editor owns every file it generates. `_tsumu/generated.json` records each generated path and its blob SHA (see `lib/publish-files.ts`). On the next publish:
+On Git publishes, the editor owns every file it generates. `_tsumu/generated.json` records each generated path and its blob SHA (see `lib/publish-files.ts`). On the next publish:
 
 - **Files not in that list** were added by hand. They're carried over unchanged, so you can add API routes, components or config to the site repository.
-- **Generated files whose SHA changed** were edited on GitHub. They're overwritten, and the publish dialog asks first.
+- **Generated files whose SHA changed** were edited on GitHub or GitLab. They're overwritten, and the publish dialog asks first.
 
 On a first publish, every existing file is treated as hand-added: unrelated files are kept, and any file at a path the editor wants to write needs confirmation. An invalid manifest stops publishing. The `_tsumu/` directory is reserved for the editor.
 
 ### Rollback
 
-Rollback (`app/api/publish/history/route.ts`) commits an older tree again on top of the branch, so history is never rewritten.
+Git rollback (`app/api/publish/history/route.ts` and `app/api/publish/gitlab/history/route.ts`) commits an older tree again on top of the branch, so history is never rewritten. Static hosts list and restore provider deployments directly from their publish dialogs.
 
 ## Output formats
 
@@ -145,7 +146,7 @@ Generated server code that fetches external data embeds the editor's own SSRF pr
 Each kind of file is handled as follows.
 
 - **Tsumu zip or `doc.json`** (`lib/site-import.ts`). A zip must contain exactly one `_tsumu/doc.json`; `_tsumu/assets.json` maps original asset IDs to files in the archive. The doc is validated, and its assets are uploaded again with their original IDs. Paths aren't guessed: an asset that the manifest doesn't list, and that has no data URL, becomes a warning. Archive names that escape the root are rejected.
-- **HTML file or website zip** (`lib/html-to-site.ts`). Every page is converted into editable nodes. Classes and a short list of safe attributes are kept (`lib/imported-html-attrs.ts`); event handlers, URL-bearing attributes and Tsumu's internal `data-*` markers never are.
+- **HTML file or website zip** (`lib/html-to-site.ts`). Every page is converted into editable nodes (and relative `import` specifiers in imported JS modules are mapped to generated asset URLs via `lib/generator/imported-assets.ts`). Classes and a short list of safe attributes are kept (`lib/imported-html-attrs.ts`); event handlers, URL-bearing attributes and Tsumu's internal `data-*` markers never are.
 - **Limits** (`IMPORT_LIMITS`): 100 MB per zip, 12 MB per `doc.json` or HTML file, 1,500 entries and 300 MB after expansion.
 
 A page's settings in the editor can also load HTML into one page, either converted into nodes or kept as a raw HTML page. The next section describes how a ZIP is handled when it is kept as is.
@@ -157,7 +158,7 @@ A page's settings in the editor can also load HTML into one page, either convert
 - **Preview.** Each stylesheet stays a separate sheet, so import order, conditions and layers are kept. Dependencies are served as signed URLs from server storage, or as data URLs when the files are kept in the browser. Only an `@import` that points back at one of its own ancestors is replaced with an empty sheet. A preview whose signed URLs are about to expire offers a refresh instead of reloading itself, because a reload resets forms and scripts.
 - **Export.** Each CSS file is written as its own UTF-8 file, with references pointing at the generated asset filenames. Integrity hashes are dropped only from links to imported local CSS whose bytes change when references are rewritten.
 - **Copying and cleanup.** Copying a page copies every stylesheet dependency with it, and unused-asset cleanup keeps the dependencies of referenced stylesheets.
-- **Left as is.** JavaScript module imports, references to missing files and external URLs aren't rewritten. Root- and protocol-relative URLs outside the archive are made absolute in the preview only.
+- **Scripts and untouched URLs.** When no external `<base>` tag overrides resolution, `lib/html-zip-script-assets.ts` rewrites string literals matching packaged archive files inside inline executable `<script>` elements for preview and export. External `<script src>` module bodies, comments, regexes, interpolated template strings, references to missing files, and external URLs aren't rewritten. Root- and protocol-relative URLs outside the archive are made absolute in the preview only.
 - **Limits** (`ZIP_CSS_LIMITS`): UTF-8 CSS only; 2 MiB of CSS per import and per preview graph, 8 MiB of preview output, 64 MiB of total variant work, 4,096 variants and 200 levels of nested `@import`. A preview over the limits shows an error.
 
 ## AI edits
