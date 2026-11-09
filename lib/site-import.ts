@@ -36,7 +36,7 @@ function jsonText(bytes: Uint8Array): unknown {
 
 function pathOK(path: string): boolean {
   return !!path && !path.includes("\\") && !path.startsWith("/") &&
-    !/[\\u0000-\\u001f\\u007f]/.test(path) &&
+    !/[\u0000-\u001f\u007f]/.test(path) &&
     path.split("/").every((part) => part && part !== "." && part !== "..");
 }
 function findEditDoc(entries: JSZip.JSZipObject[]) {
