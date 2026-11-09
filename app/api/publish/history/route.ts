@@ -169,7 +169,12 @@ export async function POST(req: Request) {
     const topLevel = async (commit: string): Promise<TreeEntry[]> => {
       const res = await gh(`/git/trees/${commit}`);
       if (!res.ok) await fail(tr("ツリーの取得"), res);
-      return ((await res.json()) as { tree: TreeEntry[] }).tree;
+      const result = (await res.json()) as { tree?: TreeEntry[]; truncated?: boolean };
+      // A partial top-level tree cannot reliably preserve workflows on rollback.
+      if (result.truncated || !Array.isArray(result.tree)) {
+        throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
+      }
+      return result.tree;
     };
     const edits = protectedTreeEdits(await topLevel(src.tree.sha), await topLevel(current));
     let treeSha = src.tree.sha;
