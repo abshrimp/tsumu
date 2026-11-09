@@ -30,7 +30,7 @@ import { pageLangOf, siteLangOf } from "../lib/site-lang";
 import VarExplorer from "./VarExplorer";
 import { tr } from "../lib/i18n";
 import { buildCanvasCss, previewHtmlWithBodyStyles } from "./canvas/css";
-import { NodeView } from "./canvas/NodeView";
+import { MemoNodeView } from "./canvas/NodeView";
 import {
   InstanceChainCtx,
   SCROLL_KEY,
@@ -534,49 +534,136 @@ export default function Canvas() {
     return () => document.removeEventListener("selectionchange", onSel);
   }, [editingText, setTextSel]);
 
-  // 選択オーバーレイの位置測定（rAFループ）
+  // 選択枠の測定は変更時だけ行う。大量の要素があっても、何もしていない
+  // 間に毎フレーム getBoundingClientRect / offsetWidth でレイアウトを読まない。
   useEffect(() => {
     if (!selection || mode !== "design") {
       setRect(null);
       return;
     }
-    let raf = 0;
-    const tick = () => {
-      const frame = frameRef.current;
-      const inner = innerRef.current;
-      const el = (selection === BODY_NODE_ID
-        ? frame?.querySelector(".cv-root")
-        : frame?.querySelector(`[data-node=${cssQuotedAttributeValue(selection)}]`)) as HTMLElement | null;
-      if (el && inner) {
-        const er = el.getBoundingClientRect();
-        const ir = inner.getBoundingClientRect();
-        const next: SelRect = {
-          left: er.left - ir.left,
-          top: er.top - ir.top,
-          width: er.width,
-          height: er.height,
-          realW: el.offsetWidth,
-          realH: el.offsetHeight,
-        };
-        setRect((prev) =>
-          prev &&
-          Math.abs(prev.left - next.left) < 0.5 &&
-          Math.abs(prev.top - next.top) < 0.5 &&
-          Math.abs(prev.width - next.width) < 0.5 &&
-          Math.abs(prev.height - next.height) < 0.5 &&
-          prev.realW === next.realW &&
-          prev.realH === next.realH
-            ? prev
-            : next
-        );
-      } else {
-        setRect(null);
+    const frame = frameRef.current;
+    const inner = innerRef.current;
+    if (!frame || !inner) {
+      setRect(null);
+      return;
+    }
+
+    let pendingFrame = 0;
+    let motionFrame = 0;
+    let activeMotions = 0;
+    let observedNode: HTMLElement | null = null;
+    const selector = selection === BODY_NODE_ID
+      ? ".cv-root"
+      : `[data-node=${cssQuotedAttributeValue(selection)}]`;
+
+    const measure = () => {
+      const el = frame.querySelector<HTMLElement>(selector);
+      // A selected element can be replaced by an edit or undo without the
+      // selected ID changing. Observe the new element instead of a stale one.
+      if (observedNode !== el) {
+        if (observedNode) resizeObserver.unobserve(observedNode);
+        if (el) resizeObserver.observe(el);
+        observedNode = el;
       }
-      raf = requestAnimationFrame(tick);
+      if (!el) {
+        setRect(null);
+        return;
+      }
+      const er = el.getBoundingClientRect();
+      const ir = inner.getBoundingClientRect();
+      const next: SelRect = {
+        left: er.left - ir.left,
+        top: er.top - ir.top,
+        width: er.width,
+        height: er.height,
+        realW: el.offsetWidth,
+        realH: el.offsetHeight,
+      };
+      setRect((prev) =>
+        prev &&
+        Math.abs(prev.left - next.left) < 0.5 &&
+        Math.abs(prev.top - next.top) < 0.5 &&
+        Math.abs(prev.width - next.width) < 0.5 &&
+        Math.abs(prev.height - next.height) < 0.5 &&
+        prev.realW === next.realW &&
+        prev.realH === next.realH
+          ? prev
+          : next
+      );
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [selection, mode]);
+    const schedule = () => {
+      if (pendingFrame) return;
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = 0;
+        measure();
+      });
+    };
+    const resizeObserver = new ResizeObserver(schedule);
+    resizeObserver.observe(inner);
+    resizeObserver.observe(frame);
+
+    // Changes in siblings can shift a selection without resizing the selected
+    // element. Coalesce DOM and store updates into one frame.
+    const mutationObserver = new MutationObserver(schedule);
+    mutationObserver.observe(frame, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["style", "class"],
+      childList: true,
+      characterData: true,
+    });
+    const unsubscribe = useEditor.subscribe((state, previous) => {
+      if (state.doc !== previous.doc || state.zoom !== previous.zoom ||
+          state.breakpoint !== previous.breakpoint ||
+          state.customWidth !== previous.customWidth ||
+          state.styleState !== previous.styleState) schedule();
+    });
+
+    // Track actual transitions/animations frame-by-frame, then return to the
+    // event-driven idle mode as soon as they finish.
+    const trackMotion = () => {
+      if (!activeMotions) return;
+      measure();
+      motionFrame = requestAnimationFrame(trackMotion);
+    };
+    const onMotionStart = () => {
+      activeMotions++;
+      if (activeMotions === 1) trackMotion();
+    };
+    const onMotionEnd = () => {
+      activeMotions = Math.max(0, activeMotions - 1);
+      if (!activeMotions) {
+        cancelAnimationFrame(motionFrame);
+        motionFrame = 0;
+        schedule();
+      }
+    };
+    const starts = ["transitionrun", "animationstart"] as const;
+    const ends = ["transitionend", "transitioncancel", "animationend", "animationcancel"] as const;
+    for (const type of starts) frame.addEventListener(type, onMotionStart, true);
+    for (const type of ends) frame.addEventListener(type, onMotionEnd, true);
+
+    const area = areaRef.current;
+    area?.addEventListener("scroll", schedule, true);
+    window.addEventListener("resize", schedule);
+    frame.addEventListener("pointerover", schedule, true);
+    frame.addEventListener("pointerout", schedule, true);
+    schedule();
+
+    return () => {
+      cancelAnimationFrame(pendingFrame);
+      cancelAnimationFrame(motionFrame);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      unsubscribe();
+      for (const type of starts) frame.removeEventListener(type, onMotionStart, true);
+      for (const type of ends) frame.removeEventListener(type, onMotionEnd, true);
+      area?.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("resize", schedule);
+      frame.removeEventListener("pointerover", schedule, true);
+      frame.removeEventListener("pointerout", schedule, true);
+    };
+  }, [selection, mode, activePageId, editingComponentId, page?.rawHtml, page?.redirectTo, page?.rewriteTo]);
 
   // クリック経路（トップレベル→最深）を求める
   const pathTo = useCallback((target: Element): string[] => {
@@ -677,6 +764,18 @@ export default function Canvas() {
     dropState,
   });
 
+  // Rebuild the potentially large stylesheet only when document styles change.
+  // Selection changes need a new stylesheet only when inspecting a non-default state.
+  const cssSelection = mode === "design" && styleState !== "default" ? selection : null;
+  const css = useMemo(
+    () => page
+      ? buildCanvasCss(doc, rootIds, breakpoint, mode, cssSelection, styleState, page.bodyStyles)
+      : "",
+    // rootIds and page are derived from doc, activePageId and editingComponentId.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc, activePageId, editingComponentId, breakpoint, mode, cssSelection, styleState]
+  );
+
   if (!page) return <div className="canvas-area" ref={areaRef} />;
 
   if (
@@ -746,16 +845,6 @@ export default function Canvas() {
       </div>
     );
   }
-
-  const css = buildCanvasCss(
-    doc,
-    rootIds,
-    breakpoint,
-    mode,
-    selection,
-    styleState,
-    page.bodyStyles
-  );
 
   const selNode =
     selection === BODY_NODE_ID
@@ -1005,7 +1094,7 @@ export default function Canvas() {
             {rootIds.length ? (
               <InstanceChainCtx.Provider value={instanceChain}>
                 {rootIds.map((id) => (
-                  <NodeView key={id} id={id} isTop={!editingComp} />
+                  <MemoNodeView key={id} id={id} isTop={!editingComp} />
                 ))}
               </InstanceChainCtx.Provider>
             ) : (
