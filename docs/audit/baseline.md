@@ -30,6 +30,40 @@ The plan's pinned SHA and the inventory SHA differ because main advanced. The in
 
 ## Trust boundaries to verify
 
+### Data-flow diagram (audit boundaries, not a security conclusion)
+
+```mermaid
+flowchart LR
+  browser[Browser editor]
+  files[Imported JSON HTML ZIP]
+  site[SiteDoc]
+  api[Authenticated API A]
+  storage[(D1 SQLite KV B E)]
+  scripts[Script engine C]
+  ui[Canvas D]
+  generated[Generated site F]
+  publish[GitHub publishing G]
+  github[(Remote GitHub repository)]
+  ai[AI provider H]
+  remote[External URL H]
+  browser --> api
+  files --> site
+  browser --> site
+  api --> storage
+  storage <--> site
+  site --> scripts
+  site --> ui
+  scripts --> generated
+  site --> generated
+  generated --> publish
+  publish --> github
+  api --> ai
+  api --> remote
+  ai -. validated operations .-> site
+  remote -. untrusted response .-> scripts
+```
+
+Each arrow that crosses an input, authentication, execution, storage or publication boundary requires both area-owner tests and independent J verification. CI and deployment (I) affect every runtime boundary.
 The following is a **code-path map**, not a declaration of safety.
 
 | Source | Boundary / handling | Target or high-risk effect | Primary / independent reviewer |
