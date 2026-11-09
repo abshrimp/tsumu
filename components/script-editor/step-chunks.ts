@@ -40,3 +40,8 @@ export function chunkScriptSteps(steps: ScriptStep[]): StepChunk[] {
   }
   return chunks;
 }
+
+/** Approximate an offscreen script's full footprint before it has been measured. */
+export function estimateScriptStackHeight(steps: ScriptStep[]): number {
+  return Math.max(72, 42 + estimateStepsHeight(steps, 0));
+}
