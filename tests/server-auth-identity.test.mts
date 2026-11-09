@@ -35,6 +35,7 @@ test("API authentication fails closed when the session has no verified email ide
   for (const session of [
     null, {}, { user: null }, { user: {} },
     { user: { email: null } }, { user: { email: "" } },
+    { user: { email: "   " } }, { user: { email: 42 } },
   ]) {
     const response = await requireAuthFixture(session)();
     assert.equal(response?.status, 401, JSON.stringify(session));
