@@ -6,6 +6,7 @@ import { transformSync } from "esbuild";
 import * as files from "../lib/publish-files";
 import * as contract from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
+import { hasPublishCredentials } from "../lib/publish-security";
 
 const require = createRequire(import.meta.url);
 class NextResponse extends Response {
@@ -15,7 +16,7 @@ const old = "a".repeat(40), newer = "b".repeat(40), created = "c".repeat(40);
 const expected = (target = "production", branch = target === "test" ? "preview" : "main") => ({
   site: "example", target, repo: "owner/site", branch, productionBranch: "main",
 });
-function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean; rollbackGeneratedFile?: boolean } = {}) {
+function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean; rollbackGeneratedFile?: boolean; rollbackSourceContainsCredentials?: boolean } = {}) {
   const dest = { repo: "owner/site", branch: "main", previewBranch: "preview" };
   const heads: Record<string, string> = options.empty ? {} : { main: old, ...(options.absent ? {} : { preview: old }) };
   let empty = !!options.empty;
@@ -49,7 +50,16 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
         const source = path.slice("/compare/".length).split("...")[0];
         return NextResponse.json({ merge_base_commit: { sha: options.unrelatedHistory ? "f".repeat(40) : source } });
       }
-      if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: options.rollbackSourceMissingManual && path.includes("old-tree") ? [] : entries, ...(options.truncatedRollback ? { truncated: true } : {}) });
+      if (path.startsWith("/git/trees/")) return NextResponse.json({
+        tree: options.rollbackSourceContainsCredentials && path.includes("old-tree")
+          ? [{ path: files.DOC_PATH, mode: "100644", type: "blob", sha: "historic-secret" }]
+          : options.rollbackSourceMissingManual && path.includes("old-tree") ? [] : entries,
+        ...(options.truncatedRollback ? { truncated: true } : {}),
+      });
+      if (path === "/git/blobs/historic-secret") return NextResponse.json({
+        content: Buffer.from(JSON.stringify({ scripts: [{ kind: "fetch", url: "https://api.example.test/?api_key=exposed" }] })).toString("base64"),
+        encoding: "base64",
+      });
       if (path === "/git/blobs/generated-manifest") return NextResponse.json({
         content: Buffer.from(files.serializeGeneratedManifest({ "app/new.ts": "generated" })).toString("base64"),
         encoding: "base64",
@@ -79,7 +89,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/site-server": { siteIdOf: async (site: string) => site, siteDestOf: async () => dest, destParam: () => undefined },
     "lib/github": { advanceBranchRef, targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-security": { hasPublishCredentials: () => false },
+    "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-security": { hasPublishCredentials },
   };
   function load(path: string) {
     const code = transformSync(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;
@@ -271,4 +281,13 @@ test("rollback removes generated files that are absent from history but retains 
   assert.ok(updated);
   assert.ok(updated.body.tree.some((entry: any) => entry.path === "manual.txt"));
   assert.ok(!updated.body.tree.some((entry: any) => entry.path === "app/new.ts" || entry.path === files.GENERATED_MANIFEST_PATH));
+});
+
+test("rollback cannot reactivate a historical document containing embedded API credentials", async () => {
+  const f = fixture({ rollbackSourceContainsCredentials: true });
+  const response = await f.post({ sha: old }, true);
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /認証情報/);
+  assert.deepEqual(f.writes, []);
+  assert.equal(f.recorded, 0);
 });
