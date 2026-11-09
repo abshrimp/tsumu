@@ -105,7 +105,7 @@ test("SQL patches preserve nulls, arrays, additions and removals without fetchin
 test("the maximum patch size fits parameter limits and applies all chunks correctly", async () => {
   await database(async (db, statements) => {
     const base = doc();
-    for (let n = 0; n < MAX_PATCH_OPS; n++) base.nodes[`item-${n}`] = { ...base.nodes["node-1"], id: `item-${n}` };
+    for (let n = 0; n < MAX_PATCH_OPS; n++) base.nodes[`item-${n}`] = { ...base.nodes["node-1"], id: `item-${n}`, text: structuredClone(base.nodes["node-1"].text) };
     await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
     const next = structuredClone(base);
     for (let n = 0; n < MAX_PATCH_OPS; n++) {
