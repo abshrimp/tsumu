@@ -74,9 +74,13 @@ function signingFixture(authorized = true) {
     "next/server": { NextResponse },
     "../../../../lib/i18n-server": { serverTr: tr },
     "../../../../lib/server": { requireAuth: async () => authorized ? null : NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },
-    "../../../../lib/asset-token": { signAssetPath: async (path: string) => {
-      signed.push(path);
-      return "exp=123&sig=example";
+    "../../../../lib/asset-token": { signAssetPaths: async (paths: string[]) => {
+      const tokens = new Map<string, string>();
+      for (const path of new Set(paths)) {
+        signed.push(path);
+        tokens.set(path, "exp=123&sig=example");
+      }
+      return tokens;
     } },
     "../../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
   });
