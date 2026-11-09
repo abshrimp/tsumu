@@ -118,7 +118,7 @@ export function summarizeChecks(runs) {
     return { state: 'unknown', observed: 0, outstanding: [] };
   const outstanding = runs
     .filter((x) => x.status !== 'completed' ||
-      !['success', 'neutral', 'skipped'].includes(x.conclusion))
+      x.conclusion !== 'success')
     .map((x) => ({ name: x.name || 'unnamed', status: x.status || 'unknown',
       conclusion: x.conclusion || null }));
   return { state: outstanding.length ? 'not-passed' : 'observed-complete',
@@ -292,7 +292,7 @@ async function runCli() {
   });
   process.stdout.write(args.includes('--json') ?
     JSON.stringify(data, null, 2) + '\n' : toMarkdown(data));
-  if (data.stale || data.compareNote.startsWith('not verified') ||
+  if (data.stale || (data.compareNote.startsWith('not verified') || data.compareNote.startsWith('possibly incomplete')) ||
       data.prs.some((pr) => pr.checksNote))
     process.exitCode = 2;
   if (args.includes('--strict-overlap') && data.overlaps.length)
