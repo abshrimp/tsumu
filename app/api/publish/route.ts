@@ -319,12 +319,12 @@ export async function POST(req: Request) {
         }
         const bytes = Buffer.from(blob.content, "base64");
         if (bytes.byteLength > MAX_DOC_BYTES) {
-          return NextResponse.json({ error: tr("編集データが大きすぎます。") }, { status: 400 });
+          return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
         }
         content = bytes.toString("utf8");
       }
       if (Buffer.byteLength(content, "utf8") > MAX_DOC_BYTES) {
-        return NextResponse.json({ error: tr("編集データが大きすぎます。") }, { status: 400 });
+        return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
       }
       let document: unknown;
       try { document = JSON.parse(content); } catch {
