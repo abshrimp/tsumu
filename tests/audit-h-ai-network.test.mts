@@ -8,7 +8,7 @@ import { runAi, MAX_MODEL_BODY_BYTES, AiApiError } from "../lib/ai/run";
 import type { AiConfig } from "../lib/ai/config";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
-import { assertPublicUrl, BlockedUrlError } from "../lib/safe-fetch";
+import { assertPublicUrl, BlockedUrlError, readTextLimited } from "../lib/safe-fetch";
 
 const config: AiConfig = {
   enabled: true, provider: "openai-compatible", apiKey: "test-api-key",
@@ -123,4 +123,10 @@ test("excessive generated trees are rejected without orphan elements", () => {
   assert.ok(result.errors.every((error) => error.includes("growth limit")));
   assert.equal(Object.keys(doc.nodes).length, 1 + 2 * 701);
   assert.equal(doc.pages.p.children.length, 3);
+});
+
+test("fetch JSON reader rejects invalid UTF-8 bytes rather than corrupting data", async () => {
+  const bytes = new Uint8Array([123, 34, 120, 34, 58, 34, 0xff, 34, 125]);
+  await assert.rejects(readTextLimited(new Response(bytes), 1024), TypeError);
+  assert.equal(await readTextLimited(new Response('{"x":"日本語"}'), 1024), '{"x":"日本語"}');
 });
