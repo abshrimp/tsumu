@@ -17,7 +17,8 @@ import { resolveMcpEndpoint } from "./config";
 import { rememberMcpPairingCodeIssued } from "./pairing-history";
 
 const ENDPOINT = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL);
-const MAX_REPLY_BYTES = 1024 * 1024;
+const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
+const MAX_REPLY_BYTES = 4 * 1024 * 1024;
 
 type Phase = "disconnected" | "connecting" | "connected";
 interface ExternalEditState {
@@ -46,7 +47,16 @@ export const useExternalEdit = create<ExternalEditState>(() => ({
   error: null, expiresAt: null, canEdit: true,
 }));
 
-let active: { ws: WebSocket; session: BridgeSession; siteId: string; canEdit: boolean } | null = null;
+interface ActiveBridge {
+  ws: WebSocket | null;
+  session: BridgeSession;
+  siteId: string;
+  canEdit: boolean;
+  retryTimer: ReturnType<typeof setTimeout> | null;
+  reconnects: number;
+}
+
+let active: ActiveBridge | null = null;
 let connectAttempt = 0;
 let pendingAbort: AbortController | null = null;
 const completed = new Map<string, unknown>();
@@ -66,8 +76,11 @@ let writeInProgress = false;
 async function execute(action: string, rawArgs: unknown, siteId: string, canEdit: boolean): Promise<unknown> {
   if (currentSiteId() !== siteId) throw new Error(tr("The active Tsumu site changed"));
   const args = asObject(rawArgs);
-  const s = useEditor.getState();
   const status = serverStatusSnapshot() ?? await loadServerStatus();
+  // Server capability discovery is asynchronous. Navigation may have changed
+  // the current document while we were waiting for it.
+  if (currentSiteId() !== siteId) throw new Error(tr("The active Tsumu site changed"));
+  const s = useEditor.getState();
   const isServerBacked = Boolean(status?.db);
 
   if (action === "list_sites") {
@@ -145,6 +158,11 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
       if (typeof pageId !== "string" || !Object.hasOwn(s.doc.pages, pageId) || !s.doc.pages[pageId]) throw new Error(tr("Page not found"));
       const context = buildAiContext(s.doc, { pageId });
       const currentRevision = await revision(context.doc);
+      // Do not validate a revision against one document and then mutate a
+      // different one if the user edits or navigates during the hash.
+      if (currentSiteId() !== siteId || useEditor.getState().doc !== s.doc) {
+        throw new Error(tr("The page changed. Call get_page to obtain the latest revision"));
+      }
       if (args.expectedRevision !== currentRevision) {
         throw new Error(tr("The page changed. Call get_page to obtain the latest revision"));
       }
@@ -182,7 +200,7 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
 }
 
 async function onMessage(socket: WebSocket, siteId: string, canEdit: boolean, data: unknown): Promise<void> {
-  if (typeof data !== "string" || data.length > 128 * 1024) return;
+  if (typeof data !== "string" || data.length > MAX_REQUEST_BYTES) return;
   let message: BridgeRequest;
   try { message = JSON.parse(data) as BridgeRequest; } catch { return; }
   if (!message || message.type !== "request" || !/^[\w-]{8,80}$/.test(message.requestId)) return;
@@ -201,16 +219,97 @@ async function onMessage(socket: WebSocket, siteId: string, canEdit: boolean, da
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(reply));
 }
 
+/** Confirm that the relay has not returned a socket on another origin. */
+function validSession(session: BridgeSession): boolean {
+  try {
+    const endpoint = new URL(ENDPOINT);
+    const socket = new URL(session.wsUrl);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session.sessionId) &&
+      /^[A-HJ-NP-Z2-9]{5}(?:-[A-HJ-NP-Z2-9]{5}){3}$/.test(session.pairingCode) &&
+      /^[A-Za-z0-9_-]{40,64}$/.test(session.connectToken) &&
+      Number.isSafeInteger(session.expiresAt) && session.expiresAt > Date.now() &&
+      socket.protocol === (endpoint.protocol === "https:" ? "wss:" : "ws:") &&
+      socket.host === endpoint.host && socket.pathname === "/bridge/connect" &&
+      socket.searchParams.get("session") === session.sessionId;
+  } catch {
+    return false;
+  }
+}
+
+/** Keep a live editor tab paired across transient network and WebSocket outages. */
+function scheduleSocketRetry(bridge: ActiveBridge): void {
+  if (active !== bridge || bridge.retryTimer !== null) return;
+  if (Date.now() >= bridge.session.expiresAt || currentSiteId() !== bridge.siteId) {
+    active = null;
+    useExternalEdit.setState({
+      phase: "disconnected", code: null, expiresAt: null,
+      error: tr("WebSocket connection failed"),
+    });
+    return;
+  }
+  useExternalEdit.setState({ phase: "connecting", code: null, error: null });
+  const delay = Math.min(30_000, 750 * 2 ** Math.min(bridge.reconnects++, 6));
+  bridge.retryTimer = setTimeout(() => {
+    bridge.retryTimer = null;
+    openSocket(bridge);
+  }, delay);
+}
+
+function openSocket(bridge: ActiveBridge): void {
+  if (active !== bridge) return;
+  if (Date.now() >= bridge.session.expiresAt || currentSiteId() !== bridge.siteId) {
+    scheduleSocketRetry(bridge);
+    return;
+  }
+  let socket: WebSocket;
+  try {
+    socket = new WebSocket(bridge.session.wsUrl, ["tsumu-editor", bridge.session.connectToken]);
+  } catch {
+    scheduleSocketRetry(bridge);
+    return;
+  }
+  bridge.ws = socket;
+  socket.onopen = () => {
+    if (active !== bridge || bridge.ws !== socket) return;
+    bridge.reconnects = 0;
+    rememberMcpPairingCodeIssued(window.location.hostname, (cookie) => { document.cookie = cookie; });
+    useExternalEdit.setState({
+      phase: "connected", code: bridge.session.pairingCode,
+      expiresAt: bridge.session.expiresAt, error: null, canEdit: bridge.canEdit,
+    });
+  };
+  socket.onmessage = (event) => {
+    if (active === bridge && bridge.ws === socket) {
+      void onMessage(socket, bridge.siteId, bridge.canEdit, event.data);
+    }
+  };
+  socket.onerror = () => {
+    // Browsers follow an error event with close; retry from the close callback.
+  };
+  socket.onclose = (event) => {
+    if (active !== bridge || bridge.ws !== socket) return;
+    // Another socket has taken over, or the relay intentionally revoked the
+    // grant. Reconnecting then would repeatedly evict the replacement socket.
+    if (event?.code === 1000 && ["Disconnected", "Session expired", "Replaced"].includes(event.reason)) {
+      active = null;
+      useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null });
+      return;
+    }
+    scheduleSocketRetry(bridge);
+  };
+}
+
 export async function disconnectExternalEdit(): Promise<void> {
   connectAttempt++;
   pendingAbort?.abort();
   pendingAbort = null;
   const session = active;
   active = null;
+  if (session?.retryTimer !== null && session?.retryTimer !== undefined) clearTimeout(session.retryTimer);
   completed.clear();
   useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null, error: null });
   if (!session) return;
-  session.ws.close(1000, "Disconnected");
+  try { session.ws?.close(1000, "Disconnected"); } catch { /* Revocation still proceeds. */ }
   try {
     await fetch(ENDPOINT + "/bridge/revoke", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -221,7 +320,9 @@ export async function disconnectExternalEdit(): Promise<void> {
 }
 
 export async function connectExternalEdit(canEdit: boolean): Promise<void> {
-  await disconnectExternalEdit();
+  // Disconnect updates the browser state synchronously. Do not delay a fresh
+  // connection while an unavailable relay is still processing old revocation.
+  void disconnectExternalEdit();
   const attempt = ++connectAttempt;
   const siteId = currentSiteId();
   if (!siteId) {
@@ -241,27 +342,13 @@ export async function connectExternalEdit(canEdit: boolean): Promise<void> {
     if (!response.ok) throw new Error(tr("MCP connection failed ({status})", { status: response.status }));
     const session = await response.json() as BridgeSession;
     if (attempt !== connectAttempt || abort.signal.aborted) return;
-    if (!session.wsUrl || !session.connectToken || !session.pairingCode) throw new Error(tr("Invalid MCP session"));
+    if (!validSession(session)) throw new Error(tr("Invalid MCP session"));
     if (pendingAbort === abort) pendingAbort = null;
-    const ws = new WebSocket(session.wsUrl, ["tsumu-editor", session.connectToken]);
-    rememberMcpPairingCodeIssued(window.location.hostname, (cookie) => { document.cookie = cookie; });
-    active = { ws, session, siteId, canEdit };
-    ws.onopen = () => {
-      if (active?.ws === ws) useExternalEdit.setState({
-        phase: "connected", code: session.pairingCode,
-        expiresAt: session.expiresAt, error: null, canEdit,
-      });
+    const bridge: ActiveBridge = {
+      ws: null, session, siteId, canEdit, retryTimer: null, reconnects: 0,
     };
-    ws.onmessage = (event) => { if (active?.ws === ws) void onMessage(ws, siteId, canEdit, event.data); };
-    ws.onerror = () => {
-      if (active?.ws === ws) useExternalEdit.setState({ error: tr("WebSocket connection failed") });
-    };
-    ws.onclose = () => {
-      if (active?.ws === ws) {
-        active = null;
-        useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null });
-      }
-    };
+    active = bridge;
+    openSocket(bridge);
   } catch (error) {
     if (pendingAbort === abort) pendingAbort = null;
     if (attempt !== connectAttempt || abort.signal.aborted) return;

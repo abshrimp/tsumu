@@ -113,7 +113,7 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
     readyState: number;
     onopen?: () => void;
     onmessage?: (ev: { data: string }) => void;
-    onclose?: () => void;
+    onclose?: (ev?: { code?: number; reason?: string }) => void;
     close: () => void;
     send: (msg: string) => void;
   }> = [];
@@ -124,7 +124,7 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
     onopen?: () => void;
     onmessage?: (ev: { data: string }) => void;
     onerror?: () => void;
-    onclose?: () => void;
+    onclose?: (ev?: { code?: number; reason?: string }) => void;
     constructor() { sockets.push(this); }
     send(msg: string) { this.sent.push(msg); }
     close() { this.readyState = 3; }
@@ -151,10 +151,15 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
     markFetchStarted();
     await new Promise<void>((resolve) => { resolveSlowFetch = resolve; });
     return new Response(JSON.stringify({
-      sessionId: "s1", pairingCode: "111222", connectToken: "tok1",
-      wsUrl: "wss://mcp.test/ws", mcpUrl: "https://mcp.test/mcp", expiresAt: Date.now() + 60_000,
+      sessionId: firstSession, pairingCode: "ABCDE-FGHJK-LMNPQ-RSTUV", connectToken: "a".repeat(43),
+      wsUrl: relaySocket(firstSession), mcpUrl: "https://mcp.tsumu.ebii.net/mcp", expiresAt: Date.now() + 60_000,
     }), { status: 200 });
   }) as typeof fetch;
+
+  const firstSession = "12345678-1234-4234-8234-123456789abc";
+  const secondSession = "abcdef01-1234-4234-8234-abcdef012345";
+  const relaySocket = (id: string) =>
+    "wss://mcp.tsumu.ebii.net/bridge/connect?session=" + id;
 
   const pendingConnect = connectExternalEdit(true);
   await fetchStarted;
@@ -173,8 +178,8 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
       return new Response(JSON.stringify({ db: false, collabTransport: "none", assets: false, auth: false, role: "editor" }), { status: 200 });
     }
     return new Response(JSON.stringify({
-      sessionId: "s2", pairingCode: "333444", connectToken: "tok2",
-      wsUrl: "wss://mcp.test/ws", mcpUrl: "https://mcp.test/mcp", expiresAt: Date.now() + 60_000,
+      sessionId: secondSession, pairingCode: "ABCDE-FGHJK-LMNPQ-RSTUV", connectToken: "b".repeat(43),
+      wsUrl: relaySocket(secondSession), mcpUrl: "https://mcp.tsumu.ebii.net/mcp", expiresAt: Date.now() + 60_000,
     }), { status: 200 });
   }) as typeof fetch;
 
@@ -184,36 +189,54 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
   ws.onopen?.();
   assert.equal(useExternalEdit.getState().phase, "connected");
 
-  ws.onmessage?.({ data: JSON.stringify({ type: "request", requestId: "req-list-1", action: "list_sites", args: {} }) });
+  // A temporary disconnection should re-open the same authorized session.
+  ws.readyState = 3;
+  ws.onclose?.();
+  assert.equal(useExternalEdit.getState().phase, "connecting");
+  await new Promise(resolve => setTimeout(resolve, 850));
+  assert.equal(sockets.length, 2);
+  const recovered = sockets[1]!;
+  recovered.onopen?.();
+  assert.equal(useExternalEdit.getState().phase, "connected");
+  assert.equal(useExternalEdit.getState().code, "ABCDE-FGHJK-LMNPQ-RSTUV");
+
+  recovered.onmessage?.({ data: JSON.stringify({ type: "request", requestId: "req-list-1", action: "list_sites", args: {} }) });
   await new Promise((resolve) => setTimeout(resolve, 10));
-  const listReply = JSON.parse(ws.sent.at(-1)!);
+  const listReply = JSON.parse(recovered.sent.at(-1)!);
   assert.equal(listReply.ok, true);
   assert.equal(listReply.result[0].storage, "browser");
 
-  ws.onmessage?.({
+  recovered.onmessage?.({
     data: JSON.stringify({
       type: "request", requestId: "msg-page-1", action: "create_page",
       args: { requestId: "shared_req_12345", name: "Pricing" },
     }),
   });
   await new Promise((resolve) => setTimeout(resolve, 30));
-  const pageReply = JSON.parse(ws.sent.at(-1)!);
+  const pageReply = JSON.parse(recovered.sent.at(-1)!);
   assert.equal(pageReply.ok, true);
   assert.equal(pageReply.result.savedToBrowser, true);
   assert.equal(pageReply.result.name, "Pricing");
 
   // Reusing the same args.requestId on a different action (create_site) must NOT return the cached create_page result.
-  ws.onmessage?.({
+  recovered.onmessage?.({
     data: JSON.stringify({
       type: "request", requestId: "msg-site-1", action: "create_site",
       args: { requestId: "shared_req_12345", name: "Separate Site" },
     }),
   });
   await new Promise((resolve) => setTimeout(resolve, 30));
-  const siteReply = JSON.parse(ws.sent.at(-1)!);
+  const siteReply = JSON.parse(recovered.sent.at(-1)!);
   assert.equal(siteReply.ok, true);
   assert.equal(siteReply.result.name, "Separate Site");
   assert.equal(siteReply.result.requiresReconnect, true);
+
+  // A deliberate relay replacement must not fight the new owner of the socket.
+  recovered.readyState = 3;
+  recovered.onclose?.({ code: 1000, reason: "Replaced" });
+  assert.equal(useExternalEdit.getState().phase, "disconnected");
+  await new Promise(resolve => setTimeout(resolve, 850));
+  assert.equal(sockets.length, 2, "replaced sockets must not reconnect");
 });
 });
 
