@@ -124,3 +124,12 @@ This is a later checkpoint. Earlier rows above remain historical snapshots; they
 
 **Unverified gates:** The default branch's integrated SHA must undergo another full CI and cross-boundary review. An Actions CodeQL success does not establish a clean open-alert backlog; inaccessible scanning and dependency-alert endpoints are recorded as unknown. No real production data or publishing repository was modified for a destructive test. There is no assertion that the entire audit has completed.
 
+
+## M merge checkpoint: authentication and import/export follow-up (2026-11-09)
+
+- Audit A [#33](https://github.com/abshrimp/tsumu/pull/33): squash-merged as `ae20d9c4f8ab7233bc4c0ca9d39a3c3c96041427`. All 14 HEAD checks passed after correcting an E2E-only sibling hover actionability race.
+- Audit E [#26](https://github.com/abshrimp/tsumu/pull/26): updated with the common B SiteDoc validator and dangling asset/page-folder rejection. Merged current main into the E branch without overriding B-owned `lib/doc-tree.ts`; repaired J's synthetic merge fixtures to use current valid node/text/page shapes. CI remains a merge prerequisite.
+- Audit F [#30](https://github.com/abshrimp/tsumu/pull/30): synced against newer main and included the same browser hover test fix. The independently documented generated-code credentials design issue is **still unresolved**. A green CI would not authorize changing the secret persistence model or merging this PR without the required review.
+- Audit G [#29](https://github.com/abshrimp/tsumu/pull/29): HEAD CI green, but a disposable-repository GitHub publish→manual-edit→rollback→restore smoke and production token-permission verification remain unperformed.
+- This coordinator branch remains a draft. Neither this checkpoint nor previously green individual PRs establishes completed final-main integration or absence of all security alerts.
+
