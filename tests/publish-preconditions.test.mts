@@ -79,7 +79,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/site-server": { siteIdOf: async (site: string) => site, siteDestOf: async () => dest, destParam: () => undefined },
     "lib/github": { advanceBranchRef, targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files, "lib/publish-preconditions": contract,
+    "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-security": { hasPublishCredentials: () => false },
   };
   function load(path: string) {
     const code = transformSync(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;
