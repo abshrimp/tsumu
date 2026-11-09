@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
-import { JsonBodyTooLargeError, readJsonLimited } from "../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 function fixture(failRefresh: boolean) {
   class NextResponse extends Response {
@@ -13,7 +13,7 @@ function fixture(failRefresh: boolean) {
   let changed = false;
   const emails = new Set<string>();
   const injected = {
-    NextResponse, JsonBodyTooLargeError, readJsonLimited, dbUnavailable: () => { throw new Error("Unexpected unavailable"); },
+    NextResponse, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, dbUnavailable: () => { throw new Error("Unexpected unavailable"); },
     serverTr: async () => (value: string) => value,
     allowedEmails: () => ["owner@example.com"], auth: async () => ({ user: { email: "owner@example.com" } }), authConfigured: () => true,
     dbConfigured: () => true, userMessage: (_error: unknown, fallback: string) => fallback,
@@ -29,7 +29,7 @@ for (const method of ["POST", "DELETE"] as const) {
     const { api, emails } = fixture(true);
     if (method === "DELETE") emails.add("editor@example.com");
     const req = new Request("https://example.test/api/allowed-users?email=editor%40example.com", {
-      method, ...(method === "POST" ? { body: JSON.stringify({ email: "editor@example.com" }) } : {}),
+      method, ...(method === "POST" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "editor@example.com" }) } : {}),
     });
     const response = await api[method](req);
     assert.equal(response.status, 502);
@@ -40,7 +40,7 @@ for (const method of ["POST", "DELETE"] as const) {
     const { api, emails } = fixture(false);
     if (method === "DELETE") emails.add("editor@example.com");
     const response = await api[method](new Request("https://example.test/api/allowed-users?email=editor%40example.com", {
-      method, ...(method === "POST" ? { body: JSON.stringify({ email: "editor@example.com" }) } : {}),
+      method, ...(method === "POST" ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "editor@example.com" }) } : {}),
     }));
     assert.equal(response.status, 200);
     assert.deepEqual((await response.json()).extra, method === "POST" ? ["editor@example.com"] : []);
