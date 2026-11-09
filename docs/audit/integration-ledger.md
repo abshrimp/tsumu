@@ -103,3 +103,24 @@ Open PRs now include non-audit performance #34, so the active set is **12** (not
 - All PR authors use the same GitHub account; no formal independent review submissions were observed in the latest PR reviews. A review by a distinct agent using the same GitHub login cannot be represented as another GitHub user's approval. Require separately recorded substantive validation or an external reviewer rather than making up evidence.
 
 **Merge verdict at this checkpoint: blocked for full integration.** Moving heads, the #23/#34 overlap, pending/failed historical checks, missing independent reviews, B/E validator mismatch and unresolved generated secrets require resolution. Retest all required checks and integrated-main behaviors on the exact resulting SHA.
+
+## M integration checkpoint: 2026-11-09 (post-merge coordination)
+
+This is a later checkpoint. Earlier rows above remain historical snapshots; they do not describe current open PRs.
+
+| Area | Audit PR | Integration state | Main squash SHA / remaining gate |
+| --- | --- | --- | --- |
+| C | [#23](https://github.com/abshrimp/tsumu/pull/23) | Already merged before this checkpoint | Recheck the script runtime against generated-site behavior |
+| J | [#28](https://github.com/abshrimp/tsumu/pull/28) | Merged after 14 green checks | `408c967b2c51d729e5a49d73bad15e9a8e03549b` |
+| I | [#25](https://github.com/abshrimp/tsumu/pull/25) | Merged after 14 green checks | `95d9d3753e6f4fee4bb20b2c143c4718a820f22b` |
+| H | [#27](https://github.com/abshrimp/tsumu/pull/27) | Merged after 14 green checks | `b68ac78a21f6150f172fc1bb5cae6a9342b5de04` |
+| D | [#24](https://github.com/abshrimp/tsumu/pull/24) | Merged after 14 green checks | `103501e9683559c85c4a478bf9068b47b2a74484` |
+| B | [#31](https://github.com/abshrimp/tsumu/pull/31) | Test fixture corrected; merged after 14 green checks | `cf60ab303b41754f84462b752bfc6f0edadbb92d` |
+| E | [#26](https://github.com/abshrimp/tsumu/pull/26) | Corrected and rerunning CI | Shared B validator, dangling asset references, folder references, J merge-fixture repair |
+| A | [#33](https://github.com/abshrimp/tsumu/pull/33) | Corrected and rerunning CI | Published hover E2E actionability regression |
+| F | [#30](https://github.com/abshrimp/tsumu/pull/30) | Blocked | Published hover E2E and generated-code credential handling design/risk decision |
+| G | [#29](https://github.com/abshrimp/tsumu/pull/29) | CI-green, higher-risk publish/rollback verification outstanding | Disposable repository smoke and independent review |
+| M | [#32](https://github.com/abshrimp/tsumu/pull/32) | This coordination PR remains draft | Re-run combined gates and finalize residual-risk/evidence ledger |
+
+**Unverified gates:** The default branch's integrated SHA must undergo another full CI and cross-boundary review. An Actions CodeQL success does not establish a clean open-alert backlog; inaccessible scanning and dependency-alert endpoints are recorded as unknown. No real production data or publishing repository was modified for a destructive test. There is no assertion that the entire audit has completed.
+
