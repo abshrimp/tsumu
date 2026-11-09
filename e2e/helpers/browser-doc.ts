@@ -46,3 +46,24 @@ export async function setBrowserDoc(page: Page, siteId: string, raw: string): Pr
     }
   }, { dbName: DB, storeName: STORE, siteId, raw });
 }
+
+export async function browserDocIds(page: Page): Promise<string[]> {
+  return page.evaluate(async ({ dbName, storeName }) => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(dbName, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(storeName);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise<string[]>((resolve, reject) => {
+        const tx = db.transaction(storeName, "readonly");
+        const request = tx.objectStore(storeName).getAllKeys();
+        request.onsuccess = () => resolve((request.result as string[]).sort());
+        request.onerror = () => reject(request.error);
+      });
+    } finally {
+      db.close();
+    }
+  }, { dbName: DB, storeName: STORE });
+}
