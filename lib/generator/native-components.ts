@@ -126,6 +126,7 @@ function node(ctx: Context, id: string, top = false): string {
         "/assets/" + ctx.assets.get(im.assetId) : im.src;
       return "<img" + attrs + srcAttr(ctx, "src", source, true) + valueAttr(ctx, "alt", im.alt) +
         literal("width", im.width || 800) + literal("height", im.height || 500) +
+        literal("fetchpriority", im.priority ? "high" : undefined) +
         (ctx.vue ? ">" : " />");
     }
     if (n.type === "code" && n.code) return rawNode(ctx, n.code.html, attrs);
@@ -145,7 +146,8 @@ function node(ctx: Context, id: string, top = false): string {
       if (!url) return "";
       return "<div" + attrs + "><iframe" + srcAttr(ctx, "src", url) +
         ' loading="lazy" referrerpolicy="strict-origin-when-cross-origin"' +
-        (n.embed.kind === "youtube" ? literal("allow", YOUTUBE_ALLOW) + " allowfullscreen" : "") +
+        (n.embed.kind === "youtube" ? literal("allow", YOUTUBE_ALLOW) : "") +
+        truth("allowfullscreen", n.embed.kind !== "map") +
         ' style="width:100%;height:100%;border:0;display:block"></iframe></div>';
     }
     if (n.type === "field" && n.field) {
@@ -170,11 +172,15 @@ function node(ctx: Context, id: string, top = false): string {
           literal("rows", f.rows) + literal("maxlength", f.maxLength) + ">" + contents + "</textarea>";
       }
       if (f.kind === "select") {
-        const def = f.defaultValue && f.options?.includes(f.defaultValue) ? f.defaultValue : f.options?.[0];
-        const options = (f.options || []).map((opt) => {
+        const defaultIndex = f.defaultValue ? (f.options || []).indexOf(f.defaultValue) : 0;
+        const def = Math.max(0, defaultIndex);
+        const dynamic = hasVars(f.defaultValue) || (f.options || []).some(hasVars);
+        const selected = "selectedOption(" + q(f.options || []) + ", " + q(f.defaultValue || "") + ", scope" +
+          (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
+        const options = (f.options || []).map((opt, index) => {
           const contents = hasVars(opt) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", opt) + " }}"
             : "{" + expr(ctx, "resolveText", opt) + "}") : staticText(opt);
-          return "<option" + truth("selected", opt === def) + ">" + contents + "</option>";
+          return "<option" + (dynamic ? dynamicAttr(ctx, "selected", selected + " === " + index) : truth("selected", index === def)) + ">" + contents + "</option>";
         }).join("\n");
         return "<select" + attrs + fields + fieldEvent("change") + ">" + options + "</select>";
       }
@@ -288,7 +294,7 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
     const ext = ctx.vue ? ".vue" : ".svelte";
     const dependencyImports = [...ctx.imports].filter((name) => name !== id).map((name) =>
       'import ' + name + ' from "../components/' + name + ext + '";');
-    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItems, setField } from "../site-data.js";';
+    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItems, selectedOption, setField } from "../site-data.js";';
     const constants = ctx.code;
     if (ctx.vue) return [
       '<script setup' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
