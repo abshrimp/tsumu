@@ -90,7 +90,7 @@ export function conflictingCommitPaths(paths: Iterable<string>): [string, string
  */
 export function isProtectedPath(path: string): boolean {
   const lower = path.toLowerCase();
-  return lower === ".github" || lower.startsWith(".github/");
+  return lower === ".gitlab-ci.yml" || lower === ".github" || lower.startsWith(".github/");
 }
 
 /** ツリーの直下の項目（GitHub の Git Trees API の形） */

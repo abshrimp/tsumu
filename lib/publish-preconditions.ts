@@ -8,6 +8,7 @@ import type { TargetConfig } from "./github";
  */
 export interface ExpectedPublishTarget {
   site: string;
+  provider?: "github" | "gitlab";
   target: PublishTarget;
   repo: string | null;
   branch: string;
@@ -17,7 +18,7 @@ export interface ExpectedPublishTarget {
 export function matchesPublishTarget(value: unknown, site: string, target: PublishTarget, conf: TargetConfig, productionBranch: string): boolean {
   if (!value || typeof value !== "object") return false;
   const expected = value as ExpectedPublishTarget;
-  return expected.site === site && expected.target === target &&
+  return expected.site === site && (expected.provider ?? "github") === (conf.provider ?? "github") && expected.target === target &&
     expected.repo === (conf.repo ?? null) && expected.branch === conf.branch && expected.productionBranch === productionBranch;
 }
 

@@ -131,13 +131,14 @@ function localDest(): SiteDest | null {
   if (typeof window === "undefined") return null;
   const site = loadLocalSites().find((s) => s.id === currentSiteId());
   if (!site) return null;
-  const { repo, branch, previewBranch, siteUrl, previewUrl } = site;
-  return { repo, branch, previewBranch, siteUrl, previewUrl };
+  const { gitProvider, repo, branch, previewBranch, siteUrl, previewUrl } = site;
+  return { gitProvider: gitProvider ?? "github", repo, branch, previewBranch, siteUrl, previewUrl };
 }
 
 /** 新しいサイトの公開先の既定値 */
 export function emptyDest(): SiteDest {
   return {
+    gitProvider: "github",
     repo: null,
     branch: DEFAULT_BRANCH,
     previewBranch: DEFAULT_PREVIEW_BRANCH,

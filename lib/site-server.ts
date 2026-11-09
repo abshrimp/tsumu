@@ -32,6 +32,7 @@ export async function siteDestOf(siteId: string, clientDest?: unknown): Promise<
     return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
   }
   const empty: SiteDest = {
+    gitProvider: "github",
     repo: null,
     branch: DEFAULT_BRANCH,
     previewBranch: DEFAULT_PREVIEW_BRANCH,

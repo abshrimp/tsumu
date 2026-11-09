@@ -79,7 +79,7 @@ npm run dev
 
 サーバーの `PUBLISH_PROVIDER` に `github`（既定）・`netlify`・`cloudflare` のいずれかを設定します。
 
-- **GitHub**：公開用リポジトリを作成し、**Contents: Read and write** 権限を持つ `GITHUB_TOKEN` を設定します。サイト設定から公開先を選びます。生成コードと編集用データをpushします。
+- **GitHub / GitLab.com**：`PUBLISH_PROVIDER=github` の場合、各サイトの設定からGitHubまたはGitLabを選択できます。GitHubは**Contents: Read and write**権限の`GITHUB_TOKEN`、GitLabは**api**スコープと書き込み権限のある`GITLAB_TOKEN`を設定してください。生成コードと編集用データを選択したリポジトリにコミットします。セルフホスト版GitLabには未対応です。
 - **Netlify**：`NETLIFY_OAUTH_CLIENT_ID` と `NETLIFY_OAUTH_REDIRECT_URI` だけを設定します。**Tsumuのログインもデータベースも不要**です。利用者が初めて**公開**を押すと、自身のNetlifyアカウントでログインし、公開画面に戻ります。チームが1つなら自動選択され、複数の場合は選択します。トークンと公開プロジェクトIDはブラウザ内に保存し、Tsumuサーバーでは永続保存しません。
 - **Cloudflare Pages**：`CLOUDFLARE_ACCOUNT_ID` と `CLOUDFLARE_API_TOKEN` を設定します。
 

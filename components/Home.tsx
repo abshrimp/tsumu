@@ -280,7 +280,7 @@ function SiteCard({
             site.repo ? (
               <span className="home-card-repo" title={site.repo}>
                 <GitBranch size={12} />
-                <span>{site.repo}</span>
+                <span>{site.gitProvider === "gitlab" ? "GitLab · " : ""}{site.repo}</span>
               </span>
             ) : (
               <span className="home-card-repo is-unset">
@@ -320,12 +320,13 @@ function SiteCard({
 
 /* ---------- サイトの作成・設定 ---------- */
 
-type FormValue = { name: string } & { [K in keyof SiteDest]: string };
+type FormValue = { name: string; gitProvider: "github" | "gitlab" } & { [K in Exclude<keyof SiteDest, "gitProvider">]-?: string };
 
 function toForm(site: SiteRecord | null): FormValue {
   const d = site ?? { name: "", ...emptyDest() };
   return {
     name: d.name,
+    gitProvider: d.gitProvider ?? "github",
     repo: d.repo ?? "",
     branch: d.branch,
     previewBranch: d.previewBranch,
@@ -374,7 +375,7 @@ function SiteDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const destination = useRef<HTMLDetailsElement>(null);
-  const set = (k: keyof FormValue) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof FormValue) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   useEscapeToClose(onClose, !busy);
@@ -407,7 +408,7 @@ function SiteDialog({
         <p className="modal-desc">
           {site
             ? provider === "github"
-              ? tr("Change the site name and the GitHub repository it publishes to.")
+              ? tr("Change the site name and the Git repository it publishes to.")
               : provider === "netlify"
                 ? tr("Change the site name. Netlify manages published URLs automatically.")
                 : tr("Change the site name and optional published site URLs.")
@@ -433,15 +434,21 @@ function SiteDialog({
           </summary>
           <div className="home-dest-body">
             {provider === "github" && (<>
+            <Field label={tr("Git provider")}>
+              <select className="input" value={form.gitProvider} onChange={set("gitProvider")}>
+                <option value="github">GitHub</option>
+                <option value="gitlab">GitLab</option>
+              </select>
+            </Field>
             <Field
-              label={tr("GitHub repository")}
-              hint={tr("Enter as owner/name. You can edit without it, but you can't publish.")}
+              label={form.gitProvider === "gitlab" ? tr("GitLab repository") : tr("GitHub repository")}
+              hint={form.gitProvider === "gitlab" ? "group/project または group/subgroup/project の形式で入力してください。" : tr("Enter as owner/name. You can edit without it, but you can't publish.")}
             >
               <input
                 className="input mono"
                 value={form.repo}
                 onChange={set("repo")}
-                placeholder="owner/site-repo"
+                placeholder={form.gitProvider === "gitlab" ? "group/subgroup/site-repo" : "owner/site-repo"}
                 spellCheck={false}
                 autoCapitalize="off"
               />

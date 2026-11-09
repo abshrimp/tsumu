@@ -84,6 +84,7 @@ export async function GET(req: Request) {
   if (siteDenied) return siteDenied;
   const dest = await siteDestOf(siteId, destParam(params));
   if (dest instanceof NextResponse) return dest;
+  if ((dest.gitProvider ?? "github") !== "github") return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
   let expected: unknown;
   try { expected = JSON.parse(params.get("expected") ?? "null"); } catch { /* invalid contract */ }
   if (!expected) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
@@ -179,6 +180,7 @@ export async function POST(req: Request) {
   if (siteDenied) return siteDenied;
   const dest = await siteDestOf(siteId, body.dest);
   if (dest instanceof NextResponse) return dest;
+  if ((dest.gitProvider ?? "github") !== "github") return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
   if (!body.expected || typeof body.expectedHead !== "string" || !body.expectedHead) {
     return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
   }

@@ -79,7 +79,7 @@ To keep an editable copy with its assets, open **⋯ → Export as zip**, select
 
 Set `PUBLISH_PROVIDER` to `github` (default), `netlify`, or `cloudflare` for the whole Tsumu installation:
 
-- **GitHub:** Create a repository, configure `GITHUB_TOKEN` with **Contents: Read and write**, then choose the repository in the site's settings. Source code and editable project data are pushed to GitHub.
+- **GitHub / GitLab.com:** With `PUBLISH_PROVIDER=github`, choose **GitHub** or **GitLab** for each site. Configure `GITHUB_TOKEN` (Contents: Read and write) and/or `GITLAB_TOKEN` (GitLab API scope and project write access). Set the repository and branches in site settings. Generated source and editable project data are committed to the selected service. GitLab.com is supported; self-managed GitLab hosts are not.
 - **Netlify:** Configure a Netlify OAuth app (`NETLIFY_OAUTH_CLIENT_ID` and `NETLIFY_OAUTH_REDIRECT_URI`). **No Tsumu login or database is required:** clicking **Publish** opens the visitor's own Netlify login, then returns to Publish. A single Netlify team is auto-selected; otherwise the visitor chooses one. The token and project IDs stay in that browser, while Tsumu's server only relays API operations without persisting credentials.
 - **Cloudflare Pages:** Configure `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for this installation.
 

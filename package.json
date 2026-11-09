@@ -10,7 +10,7 @@
   "bugs": {
     "url": "https://github.com/abshrimp/tsumu/issues"
   },
-  "description": "Design freely. Build openly. An open-source visual website builder with GitHub, Netlify and Cloudflare Pages publishing.",
+  "description": "Design freely. Build openly. An open-source visual website builder with GitHub, GitLab, Netlify and Cloudflare Pages publishing.",
   "keywords": [
     "website-builder",
     "visual-editor",

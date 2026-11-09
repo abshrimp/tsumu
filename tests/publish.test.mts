@@ -1075,7 +1075,7 @@ test("history tabs ignore older responses and roll back only a commit from the d
   f.reads[0].resolve(history("production"));
   await f.settle();
   await f.rollback();
-  assert.deepEqual(f.writes, [{ site: "example", target: "test", sha: "test-old", expectedHead: "test-head", expected: { site: "example", target: "test", repo: "example/site", branch: "preview", productionBranch: "main" } }]);
+  assert.deepEqual(f.writes, [{ site: "example", target: "test", sha: "test-old", expectedHead: "test-head", expected: { site: "example", provider: "github", target: "test", repo: "example/site", branch: "preview", productionBranch: "main" } }]);
   assert.equal(f.reads[2].target, "test", "a successful rollback refreshes its own history");
   f.reads[2].resolve(history("updated-test"));
   await f.settle();
@@ -1137,7 +1137,7 @@ test("switching targets during rollback keeps every target disabled until the op
 test("rollback confirmation keeps the displayed identity and head when Home settings change", async () => {
   const f = fixture(false, true);
   const query = new URL(f.reads[0].url, "https://example.com").searchParams;
-  assert.deepEqual(JSON.parse(query.get("expected")!), { site: "example", target: "production", repo: "example/site", branch: "main", productionBranch: "main" });
+  assert.deepEqual(JSON.parse(query.get("expected")!), { site: "example", provider: "github", target: "production", repo: "example/site", branch: "main", productionBranch: "main" });
   f.reads[0].resolve(history("production")); await f.settle();
   await f.rollback(); assert.equal(f.writes.length, 0);
   f.changeBranch(); f.confirm(); await f.settle();

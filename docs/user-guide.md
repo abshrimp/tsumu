@@ -40,7 +40,7 @@ Local development works with no environment variables. In production, configure 
 | `AI_*` | No **Ask AI** button. | **Ask AI** is available. |
 
 > [!IMPORTANT]
-> If the editor can be reached from the internet, always set up Google sign-in. Run it without sign-in only on your own machine, or as a demo that has no publish target (no `GITHUB_TOKEN`).
+> If the editor can be reached from the internet, always set up Google sign-in. Run it without sign-in only on your own machine, or as a demo that has no publish target (neither `GITHUB_TOKEN` nor `GITLAB_TOKEN`).
 
 ## Quick start (local)
 
@@ -96,9 +96,9 @@ Accounts listed in `ALLOWED_EMAILS` are instance administrators with full recove
 
 **Per-site membership:** A login alone grants no access to individual server-stored sites. The creator is the first **Owner**. From the site's **… → Members and permissions** menu, an owner can grant an allowed account **Owner**, **Editor**, or **View only** rights, or remove its access. Editors can change and publish that site; viewers can only inspect it; users not in the site membership cannot see it in the home list or open its URL. Account-wide **View only** access remains a ceiling, so those accounts cannot edit a site even if listed as a site editor. Each site must retain at least one owner.
 
-#### GitHub token
+#### GitHub and GitLab tokens
 
-Create a **fine-grained personal access token** with **Contents: Read and write** on every repository you publish to. All sites share this one token, so when you add a site, give the token access to its publishing repository too.
+For GitHub, create a **fine-grained personal access token** with **Contents: Read and write** on every repository you publish to. For GitLab.com, set `GITLAB_TOKEN` to an access token with the **api** scope and write access to its projects. Each provider has a server-wide token shared by its publishing sites; grant access only to the intended repositories.
 
 You choose each site's repository on the home screen, under the site's **… → Settings** (see [Publish targets](#publish-targets)).
 
@@ -235,11 +235,11 @@ Reverse proxy setup is the same as for [Node.js](#nodejs).
 
 The publishing provider is selected for the entire Tsumu instance by `PUBLISH_PROVIDER` (`github`, `netlify`, `cloudflare`). Server credentials are not stored in site settings. For **Netlify**, configure a Netlify OAuth application. The editor can run without sign-in and without server-backed site storage: each browser owns its local sites and its Netlify login. For **Cloudflare Pages**, configure server API credentials and storage. Each site gets a separate provider project on first publish (Netlify test publishing uses a separate project; Cloudflare Pages uses a preview branch). Only built static HTML/CSS/JS and assets are uploaded; editor data is never included. Static publishing has no build step and does not support server-only Next.js features.
 
-For **GitHub**, open a site's **… → Settings** to configure the fields below. You can fill them in when you create the site or later.
+For **Git repositories**, set `PUBLISH_PROVIDER=github`, then open a site's **… → Settings** to configure the fields below. Each site can use GitHub or GitLab.com. You can fill them in when you create the site or later.
 
 | Field | Description |
 |---|---|
-| GitHub repository | `owner/name`. You can edit without one, but you can't publish. |
+| Git service | GitHub or GitLab.com |\n| Repository | GitHub: `owner/name`. GitLab: `group/project` or `group/subgroup/project`. You can edit without one, but you can't publish. |
 | Production branch | Default: `main` |
 | Test branch | Default: `preview`. Leave it empty to turn test publishing off. |
 | Live site URL / test site URL | Optional. The Publish dialog links to them. |
@@ -259,7 +259,7 @@ For a public instance such as `tsumu.ebii.net`:
 
 ## Output formats
 
-With **GitHub**, **Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. With server storage configured, Publish remembers the framework, language and style from the site's last successful GitHub push, whether to its test or production branch. The first publish and each ZIP export start with Next.js, TypeScript and CSS.
+With **GitHub or GitLab**, **Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. With server storage configured, Publish remembers the framework, language and style from the site's last successful Git push, whether to its test or production branch. The first publish and each ZIP export start with Next.js, TypeScript and CSS.
 
 | Framework | What you get | Running it |
 |---|---|---|
@@ -357,7 +357,7 @@ On any host, an interval of `0` fetches the data on every request.
 
 ### Rollback
 
-With **GitHub**, **Publish → Publish history & rollback** (or **⋯ → History & rollback**) lists the commits on each branch. For any version you can:
+With **GitHub or GitLab**, **Publish → Publish history & rollback** (or **⋯ → History & rollback**) lists the commits on each branch. For any version you can:
 
 - **Restore site** — commits the selected version's files again on top of the branch. History is kept, so the rollback itself can be undone.
 - **Restore edits** — loads the editor content that was saved with that publish (`_tsumu/doc.json`). This counts as a normal edit, so ⌘Z reverts it.
@@ -443,7 +443,7 @@ All variables are optional (see [What you need](#what-you-need)).
 | `ALLOWED_EMAILS` | Google accounts that always sign in as **Editors**, comma-separated. These can't be removed or downgraded in the UI. Manage additional **Editor** or **View only** accounts under **Settings** on the home screen. |
 | `PUBLISH_PROVIDER` | `github` (default), `netlify` or `cloudflare`; selected for the whole Tsumu server |
 | `PUBLISH_PROJECT_PREFIX` | Optional static hosting project prefix (default `tsumu`); choose a unique one per instance |
-| `GITHUB_TOKEN` | GitHub only: Contents: Read and write on every publishing repository |
+| `GITHUB_TOKEN` | GitHub: Contents: Read and write on every publishing repository |\n| `GITLAB_TOKEN` | GitLab.com: API-scoped token with write permission on every selected project |
 | `NETLIFY_OAUTH_CLIENT_ID` | Netlify OAuth application client ID, configured once per Tsumu installation |
 | `NETLIFY_OAUTH_REDIRECT_URI` | Registered OAuth redirect, e.g. `https://tsumu.ebii.net/netlify/callback` |
 | `TSUMU_STORAGE_MODE` | Optional `local`: force browser-only site and document storage even when D1 is connected |

@@ -1,0 +1,154 @@
+import type { Tr } from "./i18n-server";
+import type { PublishCommit, TargetConfig } from "./github";
+import { isSafeBranch, isSafeRepo } from "./site-model";
+import {
+  ASSET_MANIFEST_PATH, GENERATED_MANIFEST_PATH, isSafeCommitPath, parseGeneratedManifest,
+} from "./publish-files";
+
+/**
+ * GitLab.com REST adapter. The host is fixed, and the project path is validated
+ * before sending the server's credential; redirects never carry the credential.
+ */
+export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
+  const repo = conf.repo ?? "";
+  const token = conf.token ?? "";
+  if (conf.provider !== "gitlab" || !token || !isSafeRepo(repo, "gitlab") ||
+      !isSafeBranch(conf.branch)) {
+    throw new Error("Invalid GitLab destination");
+  }
+  const root = "https://gitlab.com/api/v4/projects/" + encodeURIComponent(repo);
+  const request = async (path: string, init?: RequestInit): Promise<Response> => {
+    if (path !== "" && (!path.startsWith("/") || path.startsWith("//") || /[\\#]/.test(path) ||
+        path.split(/[/?]/).some(segment => segment === "." || segment === ".."))) {
+      throw new Error("Invalid GitLab API path");
+    }
+    const response = await fetch(root + path, {
+      ...init,
+      redirect: "manual",
+      headers: {
+        "PRIVATE-TOKEN": token,
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      },
+    });
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel().catch(() => {});
+      throw new Error("Unexpected GitLab API redirect");
+    }
+    return response;
+  };
+  const fail = async (step: string, res: Response): Promise<never> => {
+    console.error("GitLab API request failed", { project: conf.repo, step, status: res.status });
+    await res.body?.cancel().catch(() => {});
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(tr("Couldn't connect to GitLab. Check the server token and project permissions."));
+    }
+    throw new Error(tr("{step} failed ({status})", { step, status: res.status }));
+  };
+  const head = async (branch: string = conf.branch): Promise<string | null> => {
+    if (!isSafeBranch(branch)) throw new Error("Invalid GitLab branch");
+    const res = await request("/repository/branches/" + encodeURIComponent(branch));
+    if (res.status === 404) return null;
+    if (!res.ok) await fail(tr("Fetching the branch"), res);
+    const data = await res.json() as { commit?: { id?: string } };
+    if (!data.commit?.id || !/^[0-9a-f]{40}$/i.test(data.commit.id)) {
+      throw new Error(tr("Couldn't load the published content"));
+    }
+    return data.commit.id;
+  };
+  const ensureProject = async (): Promise<void> => {
+    const res = await request("");
+    if (!res.ok) await fail(tr("Fetching the repository"), res);
+    await res.body?.cancel().catch(() => {});
+  };
+  type GitLabTreeItem = { path: string; id: string; type: string };
+  const tree = async (ref: string): Promise<GitLabTreeItem[]> => {
+    const items: GitLabTreeItem[] = [];
+    for (let page = 1; page <= 100; page++) {
+      const path = "/repository/tree?recursive=true&per_page=100&page=" + page + "&ref=" + encodeURIComponent(ref);
+      const res = await request(path);
+      if (!res.ok) await fail(tr("Fetching the tree"), res);
+      const batch = await res.json() as GitLabTreeItem[];
+      if (!Array.isArray(batch) || batch.some(item => typeof item.path !== "string" ||
+          !isSafeCommitPath(item.path) || !/^[0-9a-f]{40}$/i.test(item.id))) {
+        throw new Error(tr("Publishing stopped because the complete file list could not be retrieved from the destination"));
+      }
+      items.push(...batch);
+      if (batch.length < 100) return items;
+    }
+    throw new Error(tr("Publishing stopped because the complete file list could not be retrieved from the destination"));
+  };
+  const blob = async (sha: string): Promise<Uint8Array> => {
+    if (!/^[0-9a-f]{40}$/i.test(sha)) throw new Error("Invalid GitLab blob SHA");
+    const res = await request("/repository/blobs/" + sha + "/raw");
+    if (!res.ok) await fail(tr("Fetching the tree"), res);
+    return new Uint8Array(await res.arrayBuffer());
+  };
+  const snapshot = async (ref?: string) => {
+    const commit = ref ?? await head();
+    if (!commit) {
+      await ensureProject();
+      return { head: null, blobs: Object.create(null) as Record<string, string>,
+        manifest: {} as Record<string, string>, generated: null as Record<string, string> | null };
+    }
+    const entries = await tree(commit);
+    const blobs: Record<string, string> = Object.create(null);
+    for (const item of entries) {
+      if (item.type === "blob" || item.type === "commit") blobs[item.path] = item.id;
+    }
+    const textAt = async (path: string, required: boolean): Promise<string | null> => {
+      const sha = blobs[path];
+      if (!sha) return null;
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(await blob(sha));
+      } catch (error) {
+        if (required) throw error;
+        return null;
+      }
+    };
+    let manifest: Record<string, string> = {};
+    const assetText = await textAt(ASSET_MANIFEST_PATH, false);
+    if (assetText) {
+      try {
+        const parsed = JSON.parse(assetText) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          manifest = parsed as Record<string, string>;
+        }
+      } catch { /* Missing asset cache only increases upload work. */ }
+    }
+    const generatedText = await textAt(GENERATED_MANIFEST_PATH, true);
+    const generated = generatedText === null ? null : parseGeneratedManifest(generatedText);
+    if (generatedText !== null && generated === null) {
+      throw new Error(tr("Publishing stopped because the generated file manifest is invalid."));
+    }
+    return { head: commit, blobs, manifest, generated };
+  };
+  const history = async (): Promise<{ head: string | null; commits: PublishCommit[] }> => {
+    const current = await head();
+    if (!current) return { head: null, commits: [] };
+    const res = await request("/repository/commits?ref_name=" + encodeURIComponent(conf.branch) + "&per_page=30");
+    if (!res.ok) await fail(tr("Fetching history"), res);
+    const list = await res.json() as Array<{
+      id: string; message: string; committed_date: string; web_url?: string;
+    }>;
+    if (!Array.isArray(list)) throw new Error(tr("Couldn't load the history"));
+    return {
+      head: current,
+      commits: list.map(commit => ({
+        sha: commit.id, message: commit.message.split("\n")[0],
+        date: commit.committed_date,
+        url: commit.web_url || "https://gitlab.com/" + conf.repo + "/-/commit/" + commit.id,
+      })),
+    };
+  };
+  return { request, fail, head, tree, blob, snapshot, history };
+}
+
+/** SHA-1 of a Git blob, used for verifying uploaded files and manifests. */
+export async function gitlabBlobSha(bytes: Uint8Array): Promise<string> {
+  const prefix = new TextEncoder().encode("blob " + bytes.length + "\0");
+  const data = new Uint8Array(prefix.length + bytes.length);
+  data.set(prefix);
+  data.set(bytes, prefix.length);
+  const digest = await crypto.subtle.digest("SHA-1", data);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+}

@@ -227,8 +227,8 @@ export async function GET(req: Request) {
   };
   const prod = targetConfig(dest, "production");
   return NextResponse.json({
-    provider: "github",
-    // GitHub のトークンと公開先のリポジトリが設定されているか（無ければ、公開できないことだけを表示する）
+    provider: dest.gitProvider ?? "github",
+    // Git のトークンと公開先のリポジトリが設定されているか（無ければ、公開できないことだけを表示する）
     configured: !!(prod.token && prod.repo),
     /** 足りない設定（token = 環境変数の GITHUB_TOKEN、repo = サイトの公開先） */
     unset: !prod.token ? "token" : !prod.repo ? "repo" : null,
@@ -268,6 +268,7 @@ export async function POST(req: Request) {
   if (siteDenied) return siteDenied;
   const dest = await siteDestOf(siteId, body.dest);
   if (dest instanceof NextResponse) return dest;
+  if ((dest.gitProvider ?? "github") !== "github") return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
   if (!body.expected) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
   if (!matchesPublishTarget(body.expected, siteId, target, targetConfig(dest, target), targetConfig(dest, "production").branch)) {
     return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });

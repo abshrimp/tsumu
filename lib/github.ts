@@ -1,7 +1,7 @@
 import { envVar } from "./env";
 import type { Tr } from "./i18n-server";
 import type { PublishTarget } from "./generator";
-import { DEFAULT_BRANCH, isSafeBranch, isSafeRepo, type SiteDest } from "./site-model";
+import { DEFAULT_BRANCH, isSafeBranch, isSafeRepo, type GitProvider, type SiteDest } from "./site-model";
 
 /**
  * 公開先（GitHub のリポジトリ）の設定と、GitHub API の呼び出し。
@@ -15,6 +15,7 @@ import { DEFAULT_BRANCH, isSafeBranch, isSafeRepo, type SiteDest } from "./site-
 const GH = "https://api.github.com";
 
 export interface TargetConfig {
+  provider?: GitProvider;
   token: string | undefined;
   repo: string | undefined;
   branch: string;
@@ -29,8 +30,10 @@ export function previewEnabled(dest: SiteDest): boolean {
 
 /** 公開先ごとの設定（本番 = branch・siteUrl、テスト = previewBranch・previewUrl） */
 export function targetConfig(dest: SiteDest, target: PublishTarget): TargetConfig {
+  const provider = dest.gitProvider ?? "github";
   return {
-    token: envVar("GITHUB_TOKEN"),
+    provider,
+    token: envVar(provider === "gitlab" ? "GITLAB_TOKEN" : "GITHUB_TOKEN"),
     repo: target === "test" && !previewEnabled(dest) ? undefined : dest.repo ?? undefined,
     branch: target === "test" ? dest.previewBranch.trim() : dest.branch || DEFAULT_BRANCH,
     url: (target === "test" ? dest.previewUrl : dest.siteUrl) ?? undefined,
@@ -49,14 +52,14 @@ export function configError(dest: SiteDest, target: PublishTarget, tr: Tr): stri
     return tr("Test publishing is off (set a test branch in the site settings to use it)");
   }
   if (!conf.token) {
-    console.warn("Publishing is unavailable: GITHUB_TOKEN is not set");
-    return tr("Publishing to GitHub isn't configured. Contact your administrator.");
+    console.warn("Publishing is unavailable: missing Git provider token");
+    return tr(conf.provider === "gitlab" ? "Publishing to GitLab isn't configured. Contact your administrator." : "Publishing to GitHub isn't configured. Contact your administrator.");
   }
   if (!conf.repo) {
     return tr("This site has no repository to publish to. Set one in the site settings on the home screen.");
   }
   // 保存済みの古い設定でも、API の別のパスへ抜けるような名前は使わない
-  if (!isSafeRepo(conf.repo) || !isSafeBranch(conf.branch)) {
+  if (!isSafeRepo(conf.repo, conf.provider) || !isSafeBranch(conf.branch)) {
     return tr("Invalid repository (use the owner/name format): {repo}", { repo: conf.repo });
   }
   if (sameDestination(targetConfig(dest, "test"), targetConfig(dest, "production"))) {
@@ -97,7 +100,7 @@ async function fetchGitHubPath(path: string, init: RequestInit): Promise<Respons
 export function githubClient(conf: TargetConfig, tr: Tr) {
   const gh = (path: string, init?: RequestInit & { accept?: string }): Promise<Response> => {
     // トークンを、攻撃者が操作できる GitHub API のパスへ決して送ってはいけない。
-    if (!conf.repo || !isSafeRepo(conf.repo) || !isSafeBranch(conf.branch) ||
+    if (conf.provider === "gitlab" || !conf.repo || !isSafeRepo(conf.repo) || !isSafeBranch(conf.branch) ||
         !path.startsWith("/") || path.startsWith("//") || /[\\\\#]/.test(path) ||
         path.split(/[/?]/).some((segment) => segment === "." || segment === ".." || /%(?:2e|2f|5c)/i.test(segment))) {
       throw new Error("Invalid GitHub API destination");

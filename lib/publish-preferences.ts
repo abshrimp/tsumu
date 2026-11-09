@@ -36,7 +36,7 @@ export async function readPublishedExportOptions(db: Db, siteId: string): Promis
   return parsePublishedExportOptions(result.rows[0]) ?? { ...DEFAULT_PUBLISHED_EXPORT_OPTIONS };
 }
 
-/** この関数を呼んでよいのは、サーバー側で GitHub へのコミットに成功した経路だけ。 */
+/** この関数を呼んでよいのは、サーバー側でGitリポジトリへのコミットに成功した経路だけ。 */
 export async function savePublishedExportOptions(
   db: Db,
   siteId: string,

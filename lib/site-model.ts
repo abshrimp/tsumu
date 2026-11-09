@@ -17,8 +17,12 @@ export function isSiteId(v: unknown): v is string {
 }
 
 /** 公開先の設定（サイトごと） */
+export type GitProvider = "github" | "gitlab";
+
 export interface SiteDest {
-  /** GitHub のリポジトリ（owner/name）。未設定なら公開できない */
+  /** サイトごとのGitサービス。未指定時はGitHub。 */
+  gitProvider?: GitProvider;
+  /** 公開先リポジトリ。GitLabはサブグループにも対応する。 */
   repo: string | null;
   /** 本番のブランチ */
   branch: string;
@@ -46,15 +50,17 @@ export type SiteInput = Partial<Pick<SiteRecord, "name" | keyof SiteDest>>;
 export const DEFAULT_BRANCH = "main";
 export const DEFAULT_PREVIEW_BRANCH = "preview";
 
-const REPO_RE = /^[\w.-]+\/[\w.-]+$/;
+const REPO_RE = /^[\w.-]+(?:\/[\w.-]+){1,9}$/;
 const BRANCH_RE = /^[\w.][\w./-]*$/;
 
 /**
  * GitHub API のパスに入れても、別のパスへ抜けない名前か（「.」「..」の区切りを含まない）。
  * こうした名前は、GitHub のリポジトリ名や git のブランチ名としても、もともと使えない
  */
-export function isSafeRepo(repo: string): boolean {
-  return REPO_RE.test(repo) && repo.split("/").every((s) => s !== "." && s !== "..");
+export function isSafeRepo(repo: string, provider: GitProvider = "github"): boolean {
+  const segments = repo.split("/");
+  return REPO_RE.test(repo) && (provider === "gitlab" || segments.length === 2) &&
+    segments.every((s) => s !== "." && s !== "..");
 }
 
 /** git のブランチ名の決まり（git check-ref-format）のうち、パスの抜け道になるものと、使えないもの */
@@ -84,8 +90,13 @@ export function normalizeSiteInput(
   if (!name) return { ok: false, error: "Enter a site name" };
   if (name.length > 100) return { ok: false, error: "Site names can be up to 100 characters" };
 
+  const rawProvider = has("gitProvider") ? input.gitProvider : base.gitProvider;
+  if (rawProvider !== undefined && rawProvider !== "github" && rawProvider !== "gitlab") {
+    return { ok: false, error: "Select GitHub or GitLab as the Git provider" };
+  }
+  const gitProvider = rawProvider ?? "github";
   const repo = has("repo") ? clean(input.repo) || null : base.repo;
-  if (repo && !isSafeRepo(repo)) {
+  if (repo && !isSafeRepo(repo, gitProvider)) {
     return { ok: false, error: "Enter the repository as owner/name" };
   }
   const branch = has("branch") ? clean(input.branch) || DEFAULT_BRANCH : base.branch;
@@ -109,7 +120,7 @@ export function normalizeSiteInput(
       return { ok: false, error: "URLs must start with http:// or https://" };
     }
   }
-  return { ok: true, value: { name, repo, branch, previewBranch, siteUrl, previewUrl } };
+  return { ok: true, value: { name, ...(rawProvider ? { gitProvider } : {}), repo, branch, previewBranch, siteUrl, previewUrl } };
 }
 
 /** 新しいサイトの ID（推測されにくい英数字10文字） */

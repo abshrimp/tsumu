@@ -22,6 +22,7 @@ function toRecord(r: Record<string, unknown>): SiteRecord {
     id: String(r.id),
     name: String(r.name),
     repo: str(r.repo),
+    gitProvider: r.git_provider === "gitlab" ? "gitlab" : "github",
     branch: String(r.branch || DEFAULT_BRANCH),
     previewBranch: String(r.preview_branch ?? ""),
     siteUrl: str(r.site_url),
@@ -75,9 +76,9 @@ export async function getSiteRoomKey(db: Db, siteId: string): Promise<string | n
 export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, ownerEmail: string | null = null): Promise<string | null> {
   const now = Date.now();
   const site = {
-    sql: `INSERT INTO sites (id, name, repo, branch, preview_branch, site_url, preview_url, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
+    sql: `INSERT INTO sites (id, name, repo, git_provider, branch, preview_branch, site_url, preview_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, v.name, v.repo, v.gitProvider ?? "github", v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
   };
   const membership = ownerEmail ? [{
     sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'owner')",
@@ -104,10 +105,10 @@ export async function updateSite(
   expected: Pick<SiteRecord, "name" | keyof SiteDest>,
 ): Promise<boolean> {
   const result = await db.execute({
-    sql: `UPDATE sites SET name = ?, repo = ?, branch = ?, preview_branch = ?, site_url = ?, preview_url = ?, updated_at = ?
-      WHERE id = ? AND name IS ? AND repo IS ? AND branch IS ? AND preview_branch IS ? AND site_url IS ? AND preview_url IS ?`,
-    args: [v.name, v.repo, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, Date.now(), id,
-      expected.name, expected.repo, expected.branch, expected.previewBranch, expected.siteUrl, expected.previewUrl],
+    sql: `UPDATE sites SET name = ?, repo = ?, git_provider = ?, branch = ?, preview_branch = ?, site_url = ?, preview_url = ?, updated_at = ?
+      WHERE id = ? AND name IS ? AND repo IS ? AND git_provider IS ? AND branch IS ? AND preview_branch IS ? AND site_url IS ? AND preview_url IS ?`,
+    args: [v.name, v.repo, v.gitProvider ?? "github", v.branch, v.previewBranch, v.siteUrl, v.previewUrl, Date.now(), id,
+      expected.name, expected.repo, expected.gitProvider ?? "github", expected.branch, expected.previewBranch, expected.siteUrl, expected.previewUrl],
   });
   return result.rowsAffected > 0;
 }

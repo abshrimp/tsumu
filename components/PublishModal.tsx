@@ -13,11 +13,11 @@ import {
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
-import { base64ToBytes, utf8ToBase64 as textToBase64 } from "../lib/base64";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
 import BackupFileControls from "./BackupFileControls";
+import { base64ToBytes, utf8ToBase64 as textToBase64 } from "../lib/base64";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publish-preconditions";
@@ -73,13 +73,13 @@ class PublishConflictError extends Error {}
 const OVERWRITE_LIST_LIMIT = 8;
 
 /** GitHub 上で変更されたファイルを上書きしてよいかを確かめる */
-function confirmOverwrite(paths: string[]): Promise<boolean> {
+function confirmOverwrite(paths: string[], provider: "github" | "gitlab" = "github"): Promise<boolean> {
   const listed = paths.slice(0, OVERWRITE_LIST_LIMIT).join("\n");
   const rest = paths.length - OVERWRITE_LIST_LIMIT;
   const list = rest > 0 ? `${listed}\n${tr("and {count} more", { count: rest })}` : listed;
   return showConfirm(
-    tr("These files were edited or deleted on GitHub after the last publish, or were added by hand with the same name as a generated file. Publishing applies the editor's changes to these paths. Previous versions remain in Git history.\n\n{list}", { list }),
-    { title: tr("Overwrite changes made on GitHub?"), okLabel: tr("Overwrite and publish"), danger: true }
+    tr("These files were edited or deleted on GitHub after the last publish, or were added by hand with the same name as a generated file. Publishing applies the editor's changes to these paths. Previous versions remain in Git history.\n\n{list}", { list }).replaceAll("GitHub", provider === "gitlab" ? "GitLab" : "GitHub"),
+    { title: tr("Overwrite changes made on GitHub?").replaceAll("GitHub", provider === "gitlab" ? "GitLab" : "GitHub"), okLabel: tr("Overwrite and publish"), danger: true }
   );
 }
 
@@ -88,7 +88,7 @@ function publishFields(conf: PublishConfig, target: PublishTarget) {
   const fields = sitePublishFields();
   if (fields.site !== conf.site) throw new PublishConflictError(tr(publishConflictMessage));
   const expected: ExpectedPublishTarget = {
-    site: conf.site, target, repo: conf[target].repo, branch: conf[target].branch,
+    site: conf.site, provider: conf.provider === "gitlab" ? "gitlab" : "github", target, repo: conf[target].repo, branch: conf[target].branch,
     productionBranch: conf.production.branch,
   };
   return { ...fields, site: conf.site, expected };
@@ -99,15 +99,15 @@ function historyUrl(conf: PublishConfig, target: PublishTarget, doc?: string): s
   const params = new URLSearchParams({ site, target, expected: JSON.stringify(expected) });
   if (dest) params.set("dest", JSON.stringify(dest));
   if (doc) params.set("doc", doc);
-  return `/api/publish/history?${params}`;
+  return `${conf.provider === "gitlab" ? "/api/publish/gitlab/history" : "/api/publish/history"}?${params}`;
 }
 
 /**
  * /api/publish を呼び、エラーのときはサーバーのメッセージで例外を投げる。
  * Workers の CPU 時間の超過などでは HTML が返るため、JSON でなくても状態コードで報告する。
  */
-async function postPublish<T>(conf: PublishConfig, target: PublishTarget, body: object, fallback: string, url = "/api/publish"): Promise<T> {
-  const res = await fetch(url, {
+async function postPublish<T>(conf: PublishConfig, target: PublishTarget, body: object, fallback: string, url?: string): Promise<T> {
+  const res = await fetch(url ?? (conf.provider === "gitlab" ? "/api/publish/gitlab" : "/api/publish"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     // 現在の手元の設定を、変わらない表示中の公開先と照らし合わせる。
@@ -159,7 +159,7 @@ interface TargetInfo {
 
 interface PublishConfig {
   site: string;
-  provider: "github" | "netlify" | "cloudflare";
+  provider: "github" | "gitlab" | "netlify" | "cloudflare";
   /** GitHub のトークンと公開先のリポジトリが設定されているか */
   configured: boolean;
   /** 足りない設定（token = 環境変数の GITHUB_TOKEN、repo = サイトの公開先） */
@@ -244,6 +244,8 @@ export default function PublishModal({
   const markPublished = useEditor((s) => s.markPublished);
   const conf = usePublishConfig();
   const targets = conf && conf !== "error" ? conf : null;
+  const gitLabel = targets?.provider === "gitlab" ? "GitLab" : "GitHub";
+  const gitText = (message: string, vars?: Record<string, string | number>) => tr(message, vars).replaceAll("GitHub", gitLabel);
   const configuredTargets = targets?.configured ? targets : null;
   /** 選んだ公開先（公開を始めるまでは null） */
   const [site, setSite] = useState<PublishTarget | null>(null);
@@ -283,7 +285,7 @@ export default function PublishModal({
     // 公開ディレクトリの設定も、選んだ形式に合わせる必要がある。
     if (site === "production" && format !== "nextjs") {
       const accepted = await showConfirm(
-        tr("Pushing this format to GitHub changes the structure of the published files. Check that the hosting build and output-directory settings match the selected format. Continue?"),
+        gitText("Pushing this format to GitHub changes the structure of the published files. Check that the hosting build and output-directory settings match the selected format. Continue?"),
         { title: tr("Check the hosting settings"), okLabel: tr("Push this format"), danger: true }
       );
       if (!accepted) return;
@@ -302,7 +304,7 @@ export default function PublishModal({
     try {
       const target = await docWithSvgFilters(doc);
       if (hasPublishCredentials(target)) {
-        throw new Error(tr("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."));
+        throw new Error(gitText("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."));
       }
       const { files, binaries, remoteAssets } = await prepareExportProject(target, options, site);
       // 編集データも一緒に含める（バックアップを兼ね、履歴から編集内容を戻すときに使う）
@@ -351,7 +353,7 @@ export default function PublishModal({
         throw new Error(`${tr("The publish includes a file path that isn't allowed")}: ${incompatiblePaths.join(" / ")}`);
       }
       const overwritten = [...plan.edited, ...plan.clashing];
-      if (overwritten.length && !(await confirmOverwrite(overwritten))) {
+      if (overwritten.length && !(await confirmOverwrite(overwritten, targets.provider === "gitlab" ? "gitlab" : "github"))) {
         setSite(null);
         setPhase("check");
         return;
@@ -359,12 +361,13 @@ export default function PublishModal({
       const knownShas = new Set(Object.values(existing.blobs));
       const manifest: Record<string, string> = {};
       const pending: typeof assets = [];
+      const verifiedAssets: typeof assets = [];
       for (const asset of assets) {
         const sha =
           asset.base64 !== undefined
             ? await gitBlobSha(asset.base64)
             : existing.manifest[asset.source!];
-        if (sha && knownShas.has(sha)) {
+        if (targets.provider !== "gitlab" && sha && knownShas.has(sha)) {
           assetShas[asset.path] = sha;
           if (asset.source !== undefined) manifest[asset.source] = sha;
         } else {
@@ -404,6 +407,7 @@ export default function PublishModal({
               tr("Couldn't upload the asset ({path})", { path: asset.path })
             );
             assetShas[asset.path] = uploaded.sha;
+            verifiedAssets.push(asset);
             if (asset.source !== undefined) manifest[asset.source] = uploaded.sha;
           } catch (e) {
             // 保存先から消えているアセットは含めずに、公開を続ける
@@ -427,7 +431,7 @@ export default function PublishModal({
         generated[path] = await gitBlobShaOf(new TextEncoder().encode(content));
       }
       files[GENERATED_MANIFEST_PATH] = serializeGeneratedManifest(generated);
-      setProgress(tr("Committing to GitHub…"));
+      setProgress(gitText("Committing to GitHub…"));
 
       const data = await postPublish<{ commitUrl?: string; optionsSaved?: boolean }>(targets, site,
         {
@@ -437,6 +441,7 @@ export default function PublishModal({
           files,
           exportOptions: { framework: format, language, style },
           assetShas,
+          ...(targets.provider === "gitlab" ? { assets: verifiedAssets } : {}),
           keptPaths: Object.keys(plan.kept),
           message: `${site === "test" ? "Test publish" : "Publish"}: ${target.siteName} (${new Date().toLocaleString(getLang())})`,
         },
@@ -504,7 +509,7 @@ export default function PublishModal({
               </span>
               {targets.unset === "token" ? (
                 <>
-                  <strong>{tr("Publishing to GitHub isn't configured")}</strong>
+                  <strong>{gitText("Publishing to GitHub isn't configured")}</strong>
                   <p>
                     {tr("Publishing needs to be set up on the server. Contact your administrator.")}
                   </p>
@@ -512,7 +517,7 @@ export default function PublishModal({
               ) : (
                 <>
                   <strong>{tr("No publishing destination is set up")}</strong>
-                  <p>{tr("Set the GitHub repository to publish to (e.g. owner/site-repo) in the site settings on the home screen.")}</p>
+                  <p>{gitText("Set the GitHub repository to publish to (e.g. owner/site-repo) in the site settings on the home screen.")}</p>
                 </>
               )}
               <p>{tr("Until then, you can download the site with \"Export as zip\" in the menu. Your edits are still saved.")}</p>
@@ -556,17 +561,17 @@ export default function PublishModal({
             <p className="modal-desc">
               {format === "html" || format === "single-html"
                 ? format === "single-html"
-                  ? tr("Push one HTML file with embedded CSS, JavaScript and images to GitHub. Configure static hosting to serve the repository root.")
-                  : tr("Push ready-to-deploy HTML, CSS, JavaScript and images to GitHub, with no build step. For a static site, configure your hosting to serve the repository root.")
+                  ? gitText("Push one HTML file with embedded CSS, JavaScript and images to GitHub. Configure static hosting to serve the repository root.")
+                  : gitText("Push ready-to-deploy HTML, CSS, JavaScript and images to GitHub, with no build step. For a static site, configure your hosting to serve the repository root.")
                 : format === "react"
-                  ? tr("Push the {framework} source to GitHub. Configure your hosting to build the project and serve the dist directory.", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
+                  ? gitText("Push the {framework} source to GitHub. Configure your hosting to build the project and serve the dist directory.", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
                   : format === "vue"
-                    ? tr("Push the Vue 3 + Vite project to GitHub. It renders on the server, so configure your hosting to build it and then start the Node.js server with npm start.")
+                    ? gitText("Push the Vue 3 + Vite project to GitHub. It renders on the server, so configure your hosting to build it and then start the Node.js server with npm start.")
                   : format === "sveltekit"
-                    ? tr("Push the SvelteKit project to GitHub. Its build output is in the build directory.")
+                    ? gitText("Push the SvelteKit project to GitHub. Its build output is in the build directory.")
                     : format === "nuxt"
-                      ? tr("Push the Nuxt project to GitHub. Your hosting needs Nuxt-specific build settings.")
-                      : tr("Push the Next.js project to GitHub. Changes appear on the live site when your hosting finishes the build.")}
+                      ? gitText("Push the Nuxt project to GitHub. Your hosting needs Nuxt-specific build settings.")
+                      : gitText("Push the Next.js project to GitHub. Changes appear on the live site when your hosting finishes the build.")}
             </p>
             <fieldset className="export-options pub-export-options" disabled={!targets}>
               <div className="export-option">
@@ -622,10 +627,10 @@ export default function PublishModal({
             <p className="hint export-note">
               {format === "html" || format === "single-html"
                 ? tr("HTML output uses JavaScript and CSS. Fetching external data requires the API to allow CORS.")
-                : tr("Pushing to GitHub sends source files. The hosting build settings depend on the format, and a commit alone does not guarantee a successful deployment.")}
+                : gitText("Pushing to GitHub sends source files. The hosting build settings depend on the format, and a commit alone does not guarantee a successful deployment.")}
               {tr(" The entire project will be published.")}
             </p>
-            <p className="hint export-note">{tr("Pushing to GitHub also sends the editable data, including unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.")}</p>
+            <p className="hint export-note">{gitText("Pushing to GitHub also sends the editable data, including unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.")}</p>
             <CheckList checks={checks} onClose={onClose} />
             <div className="pub-cards">
               {SITE_ORDER.filter((t) => t === "production" || configuredTargets.previewEnabled).map((t) => {
@@ -684,11 +689,11 @@ export default function PublishModal({
             <div className="check-ok">
               <Check size={14} />
               {result.format === "html" || result.format === "single-html"
-                ? tr("Pushed to GitHub. The HTML files can be served directly.")
-                : tr("Pushed to GitHub. Verify your hosting provider's build and publish settings.")}
+                ? gitText("Pushed to GitHub. The HTML files can be served directly.")
+                : gitText("Pushed to GitHub. Verify your hosting provider's build and publish settings.")}
             </div>
             {result.optionsSaved === false && (
-              <p className="hint export-note">{tr("Published to GitHub, but the output format settings could not be saved to the database.")}</p>
+              <p className="hint export-note">{gitText("Published to GitHub, but the output format settings could not be saved to the database.")}</p>
             )}
             {!!result.warnings?.length && (
               <ul className="check-list">
@@ -851,7 +856,7 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
     const request = ++busyRequest.current;
     setBusy(c.sha);
     try {
-      await postPublish(conf, target, { target, sha: c.sha, expectedHead: state?.head }, tr("Couldn't roll back"), "/api/publish/history");
+      await postPublish(conf, target, { target, sha: c.sha, expectedHead: state?.head }, tr("Couldn't roll back"), conf.provider === "gitlab" ? "/api/publish/gitlab/history" : "/api/publish/history");
       await load();
       void showAlert(tr("It goes live when your hosting service finishes the build."), { title: tr("Rolled back") });
     } catch (e) {
