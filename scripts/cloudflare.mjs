@@ -42,7 +42,7 @@ export function parseJsonc(src) {
   return JSON.parse(out.replace(/"(?:\\.|[^"\\])*"|,(\s*[}\]])/g, (match, closing) => closing ?? match));
 }
 
-export function wranglerConfigPath() {
+export function wranglerConfigPath({ deploy = false } = {}) {
   if (process.env.WRANGLER_CONFIG) return process.env.WRANGLER_CONFIG;
   if (existsSync("wrangler.local.jsonc")) return "wrangler.local.jsonc";
 
@@ -56,6 +56,15 @@ export function wranglerConfigPath() {
   config.kv_namespaces = (config.kv_namespaces ?? [])
     .map((ns) => (ns.id === KV_PLACEHOLDER && kv ? { ...ns, id: kv } : ns))
     .filter((ns) => ns.id !== KV_PLACEHOLDER || (missing.push(`KV (${ns.binding})`), false));
+  // Deploying from an unconfigured checkout must not silently replace server
+  // storage with browser-only storage. Builds and local previews remain usable
+  // without bindings; a browser-only production deploy requires explicit opt-in.
+  if (deploy && missing.length && process.env.TSUMU_ALLOW_BROWSER_ONLY_DEPLOY !== "true") {
+    throw new Error(
+      `Refusing deployment without ${missing.join(", ")}. Configure D1_DATABASE_ID / KV_NAMESPACE_ID ` +
+        "or explicitly set TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=true for browser-only deployment."
+    );
+  }
   if (!config.d1_databases.length) delete config.d1_databases;
   if (!config.kv_namespaces.length) delete config.kv_namespaces;
   if (missing.length) {
@@ -72,9 +81,9 @@ export function wranglerConfigPath() {
 
 const [command, ...rest] = process.argv.slice(2);
 if (command && process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const config = wranglerConfigPath();
+  const config = wranglerConfigPath({ deploy: command === "deploy" });
   const args = [command, ...(config ? ["--config", config] : []), ...rest];
   console.log(`Using ${config ?? "wrangler.jsonc"}`);
-  const r = spawnSync("npx", ["opennextjs-cloudflare", ...args], { stdio: "inherit", shell: process.platform === "win32" });
+  const r = spawnSync("npx", ["--no-install", "opennextjs-cloudflare", ...args], { stdio: "inherit", shell: process.platform === "win32" });
   process.exit(r.status ?? 1);
 }
