@@ -563,6 +563,22 @@ test("unsupported storage_schema versions are rejected", async () => {
 });
 
 describe("site-backup", () => {
+test("a backup at the page limit can be restored and an oversized document is refused at export", async () => {
+  const doc = createInitialDoc();
+  const home = doc.pages[doc.pageOrder[0]];
+  const addPage = () => {
+    const id = "page_" + doc.pageOrder.length;
+    doc.pages[id] = { ...home, id, slug: "/" + id, children: [] };
+    doc.pageOrder.push(id);
+  };
+  while (doc.pageOrder.length < 500) addPage();
+  const zip = await createSiteBackup(doc);
+  const restored = await parseSiteImport(new Uint8Array(await zip.arrayBuffer()), "zip");
+  assert.deepEqual(restored.doc.pageOrder, doc.pageOrder);
+  addPage();
+  await assert.rejects(createSiteBackup(doc), /Invalid page, element or asset data/);
+});
+
 test("manual backup contains every asset byte, including unused images, fonts and embedded files", async () => {
   const doc = createInitialDoc();
   const image = new Uint8Array([0, 255, 1, 10, 27, 13]);

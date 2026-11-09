@@ -261,6 +261,10 @@ export class ZipArchive {
         throw invalid();
       }
 
+      const rawName = bytes.subarray(pos + 46, extra);
+      const utf8Flag = (flags & 0x0800) !== 0;
+      let unicodeName: Uint8Array | undefined;
+      let rawNameCrc: number | undefined;
       let hasZip64 = false;
       for (let p = extra; p < endExtra;) {
         if (p + 4 > endExtra) throw invalid();
@@ -285,6 +289,13 @@ export class ZipArchive {
             if (p + 4 > fieldEnd) throw invalid();
             disk = u32(p);
           }
+        } else if (id === 0x7075 && !utf8Flag && fieldEnd - p > 5 && bytes[p] === 1) {
+          // Info-ZIP Unicode Path applies only to the exact filename covered by its CRC.
+          rawNameCrc ??= computeCrc32(rawName);
+          if (u32(p + 1) === rawNameCrc) {
+            if (unicodeName) throw invalid();
+            unicodeName = bytes.subarray(p + 5, fieldEnd);
+          }
         }
         p = fieldEnd;
       }
@@ -308,7 +319,7 @@ export class ZipArchive {
         throw invalid();
       }
 
-      const name = decodeZipName(bytes.subarray(pos + 46, pos + 46 + nameLength), (flags & 0x0800) !== 0, invalid);
+      const name = decodeZipName(unicodeName ?? rawName, utf8Flag || unicodeName !== undefined, invalid);
       const hostOs = versionMadeBy >>> 8;
       const unixPermissions = hostOs === 3 ? externalAttr >>> 16 : null;
       const isDir =

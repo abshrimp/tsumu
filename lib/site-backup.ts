@@ -2,16 +2,19 @@ import type { Asset, SiteDoc } from "./types";
 import { ASSET_FETCH_CONCURRENCY, assetSrc, fetchWithRetry, mapLimit, readAssetBytes } from "./assets";
 import { buildAssetNames } from "./generator/names";
 import { EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH, type ArchiveAssetMap } from "./site-import";
-import { IMPORT_LIMITS } from "./site-import-format";
+import { IMPORT_LIMITS, validateImportedDoc } from "./site-import-format";
 import { zipStylesheet } from "./zip-css";
 import { tr } from "./i18n";
 
 /** A complete editor backup, independent of the original server's asset storage. */
 export async function createSiteBackup(doc: SiteDoc): Promise<Blob> {
-  const documentBytes = new TextEncoder().encode(JSON.stringify(doc));
+  const json = JSON.stringify(doc);
+  const documentBytes = new TextEncoder().encode(json);
   if (documentBytes.byteLength > IMPORT_LIMITS.docBytes) {
     throw new Error(tr("The edit data exceeds the size limit."));
   }
+  // Check the document exactly as it will be read from the backup, before fetching assets.
+  validateImportedDoc(JSON.parse(json));
   const names = buildAssetNames(doc);
   const manifest: ArchiveAssetMap = { version: 1, assets: {} };
   for (const [id, name] of names) manifest.assets[id] = "public/assets/" + name;

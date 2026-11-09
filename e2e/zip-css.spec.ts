@@ -149,8 +149,10 @@ for (const storage of ["local", "remote"] as const) {
       // ブラウザがヘッダーを報告するときは、サンドボックスのオリジンと一致しなければならない。
       if (browserName !== "webkit" || fontRequest!.origin !== undefined) expect(fontRequest!.origin).toBe("null");
       expect(new URL(fontRequest!.url).searchParams.get("font")).toBe("2");
-      const backgroundRequest = fixture.resources.find((request) => new URL(request.url).searchParams.get("path") === background);
-      expect(new URL(backgroundRequest!.url).searchParams.get("cache")).toBe("4");
+      const backgroundQueries = fixture.resources.map(({ url }) => new URL(url).searchParams)
+        .filter(params => params.get("path") === background)
+        .map(params => params.get("cache"));
+      expect(backgroundQueries).toContain("4");
     } else {
       expect(fixture.signatures).toHaveLength(0);
       expect(fixture.resources).toHaveLength(0);

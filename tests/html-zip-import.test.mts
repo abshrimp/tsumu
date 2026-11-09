@@ -1146,6 +1146,31 @@ test("a forged zero size cannot discard a nonempty deflated member", async () =>
   await assert.rejects(openImportZip(bytes, 200));
 });
 
+test("ZIP import resolves a Unicode Path field only when its version and filename CRC match", async () => {
+  const { crc32 } = await import("node:zlib");
+  const rawName = "photo.png";
+  const name = "写真.png";
+  const archive = Buffer.from(await new ZipBuilder().file(rawName, "photo").toBytes());
+  const end = archive.length - 22;
+  const central = archive.readUInt32LE(end + 16);
+  const utf8Name = Buffer.from(name);
+  const field = Buffer.alloc(9 + utf8Name.length);
+  field.writeUInt16LE(0x7075);
+  field.writeUInt16LE(field.length - 4, 2);
+  utf8Name.copy(field, 9);
+  archive.writeUInt16LE(field.length, central + 30);
+  archive.writeUInt32LE(archive.readUInt32LE(end + 12) + field.length, end + 12);
+
+  for (const [version, crcName, expected] of [[1, rawName, name], [1, "renamed.png", rawName], [2, rawName, rawName]] as const) {
+    field[4] = version;
+    field.writeUInt32LE(crc32(crcName), 5);
+    const bytes = Buffer.concat([archive.subarray(0, end), field, archive.subarray(end)]);
+    const zip = await openImportZip(bytes, 200);
+    assert.equal(await zip.file(expected)?.text(), "photo");
+    assert.deepEqual(Object.keys(zip.files), [expected]);
+  }
+});
+
 test("ZIP local and central filenames must identify the same member", async () => {
   const { openImportZip } = await import("../lib/zip-directory");
   const bytes = Buffer.from(await new ZipBuilder().file("a.txt", "hello").toBytes());
