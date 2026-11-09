@@ -2,7 +2,8 @@ import type { Db } from "./db";
 
 /**
  * サイト（1つの編集データと、その公開先）。
- * 一覧と公開先は D1 の sites テーブル、編集データは docs テーブルの id = サイトID の行に保存する。
+ * 一覧と公開先はD1のsitesテーブル、編集データはサイトごとのDocumentRoomに保存する。
+ * Node/Dockerでは同じサイト情報にローカルSQLiteを使用する。
  * D1 が無いときは、ブラウザ内（lib/site.ts）に同じ形で保存する
  */
 
@@ -129,15 +130,14 @@ function toRecord(r: Record<string, unknown>): SiteRecord {
 
 export async function listSites(db: Db): Promise<SiteRecord[]> {
   const rs = await db.execute(
-    `SELECT s.*, d.saved_at AS saved_at FROM sites s LEFT JOIN docs d ON d.id = s.id
-      ORDER BY COALESCE(d.saved_at, s.updated_at) DESC`
+    "SELECT s.*, s.updated_at AS saved_at FROM sites s ORDER BY s.updated_at DESC"
   );
   return rs.rows.map(toRecord);
 }
 
 export async function getSite(db: Db, id: string): Promise<SiteRecord | null> {
   const rs = await db.execute({
-    sql: "SELECT s.*, d.saved_at AS saved_at FROM sites s LEFT JOIN docs d ON d.id = s.id WHERE s.id = ?",
+    sql: "SELECT s.*, s.updated_at AS saved_at FROM sites s WHERE s.id = ?",
     args: [id],
   });
   return rs.rows[0] ? toRecord(rs.rows[0]) : null;

@@ -4,6 +4,7 @@ import { serverTr } from "../../../../lib/i18n-server";
 import { requireAuth } from "../../../../lib/server";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { userMessage } from "../../../../lib/errors";
+import { eraseSiteDocument } from "../../../../lib/site-document-service";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../lib/api-json";
 import {
   deleteSite,
@@ -88,6 +89,8 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
     await deleteSite(r.db, r.site.id);
+    // Once the site record is gone, stale editors cannot re-create the document.
+    await eraseSiteDocument(r.site.id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     const tr = await serverTr();
