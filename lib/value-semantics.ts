@@ -14,6 +14,10 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
     return Number.isFinite(n) ? n : undefined;
   };
   const same = (a: unknown, b: unknown, depth = 0): boolean => {
+    // Non-finite numbers are not valid JSON values; never treat infinity as
+    // an equal or contained script value just because JS says it is equal.
+    if (typeof a === "number" && !Number.isFinite(a) ||
+        typeof b === "number" && !Number.isFinite(b)) return false;
     if (a === b) return true;
     // Compare numbers and booleans with their exact text forms, without JS ==.
     // Preserve null, missing values, scalar-kind differences, and numeric spelling.
@@ -80,11 +84,20 @@ export function withinScriptValueLimit(value: unknown): boolean {
   // The fetch transports also cap JSON responses at 5 MiB. This counts string
   // code units and container overhead, bounding expansion before serialization.
   const limit = 5 * 1024 * 1024;
-  if (value == null || typeof value !== "object") return typeof value !== "string" || value.length <= limit;
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "object") {
+    if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value === "string") return value.length <= limit;
+    return typeof value === "boolean";
+  }
   const sizes = new WeakMap<object, { cost: number; height: number }>();
   const measure = (item: unknown, depth: number): { cost: number; height: number } => {
     if (depth > 64) return { cost: Infinity, height: 0 };
-    if (item === null || typeof item !== "object") {
+    if (item === null || item === undefined) return { cost: 8, height: 0 };
+    if (typeof item !== "object") {
+      if (typeof item === "number" && !Number.isFinite(item) ||
+          typeof item !== "number" && typeof item !== "string" &&
+          typeof item !== "boolean") return { cost: Infinity, height: 0 };
       return { cost: typeof item === "string" ? item.length + 2 : 8, height: 0 };
     }
     const cached = sizes.get(item);
@@ -110,6 +123,7 @@ export function withinScriptValueLimit(value: unknown): boolean {
 /** 変数に値を入れる（"記事.tags" のような入れ子は、元の値を変えずに途中を複製して入れる） */
 export function setVarPath(vars: Record<string, unknown>, name: string, value: unknown,
   accept?: (candidate: unknown) => boolean): string | undefined {
+  if (typeof name !== "string" || !name) return undefined;
   const owns = (obj: object, key: string | number) =>
     Object.prototype.hasOwnProperty.call(obj, key);
   // Object.defineProperty writes __proto__ as a normal own key, not as a
@@ -122,12 +136,22 @@ export function setVarPath(vars: Record<string, unknown>, name: string, value: u
   if (owns(vars, name) || !name.includes(".")) {
     return write(name, value);
   }
+  let invalidPath = false;
   const put = (cur: unknown, keys: string[]): unknown => {
     if (!keys.length) return value;
     const [k, ...rest] = keys;
-    if (Array.isArray(cur) && /^(0|[1-9][0-9]*)$/.test(k)) {
-      const index = Number(k), copy = cur.slice();
-      if (!Number.isSafeInteger(index) || index > 1000000) return copy;
+    if (Array.isArray(cur)) {
+      // A nested array path must update an existing slot or append one item.
+      // Never turn a list into a dictionary or construct a sparse million-slot
+      // list from an accidental index (set-list-item follows the same rule).
+      if (!/^(0|[1-9][0-9]*)$/.test(k)) { invalidPath = true; return cur; }
+      const index = Number(k);
+      if (!Number.isSafeInteger(index) || index > cur.length ||
+          (index === cur.length && cur.length >= 10000)) {
+        invalidPath = true;
+        return cur;
+      }
+      const copy = cur.slice();
       copy[index] = put(owns(cur, index) ? cur[index] : undefined, rest);
       return copy;
     }
@@ -136,5 +160,6 @@ export function setVarPath(vars: Record<string, unknown>, name: string, value: u
   };
   const [root, ...rest] = name.split(".");
   if (rest.length > 64) return undefined;
-  return write(root, put(owns(vars, root) ? vars[root] : undefined, rest));
+  const candidate = put(owns(vars, root) ? vars[root] : undefined, rest);
+  return invalidPath ? undefined : write(root, candidate);
 }
