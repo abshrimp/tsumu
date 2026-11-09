@@ -1107,8 +1107,11 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (scalar) v = first.value;
         /*#env*/
         if (env.setValue && env.setValue(id, v)) {
-          // 反映後に「値が変わったとき」を動かす
+          // The preview's delayed change event belongs to this page instance.
+          // Navigation can complete before the callback is delivered.
+          var changeGeneration = syncPage();
           setTimeout(function () {
+            if (!alive || changeGeneration !== syncPage()) return;
             els.forEach(function (el) {
               fire(el, "change");
             });
