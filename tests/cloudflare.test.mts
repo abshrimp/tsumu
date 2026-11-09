@@ -78,7 +78,9 @@ test("Cloudflare 設定のエスケープを含むキーと値を変更しない
   assert.deepEqual(generatedConfig(JSON.stringify(config)), config);
 });
 
-function deployConfigProbe(variables: Record<string, string> = {}) {
+function deployConfigProbe(
+  variables: Record<string, string> = {}, localConfig?: Record<string, unknown>,
+) {
   const dir = mkdtempSync(join(tmpdir(), "tsumu-deploy-probe-"));
   const env = { ...process.env };
   for (const name of ["WRANGLER_CONFIG", "D1_DATABASE_ID", "KV_NAMESPACE_ID", "TSUMU_ALLOW_BROWSER_ONLY_DEPLOY"]) {
@@ -91,6 +93,7 @@ function deployConfigProbe(variables: Record<string, string> = {}) {
       d1_databases: [{ binding: "DB", database_id: "<YOUR_D1_DATABASE_ID>" }],
       kv_namespaces: [{ binding: "ASSETS_KV", id: "<YOUR_KV_NAMESPACE_ID>" }],
     }));
+    if (localConfig) writeFileSync(join(dir, "wrangler.local.jsonc"), JSON.stringify(localConfig));
     const expression = "import { wranglerConfigPath } from " +
       JSON.stringify(scriptUrl) + "; wranglerConfigPath({ deploy: true });";
     const proc = spawnSync(process.execPath, ["--input-type=module", "-e", expression], {
@@ -126,4 +129,16 @@ test("configured or explicitly browser-only deployment can generate config", () 
 test("Wrangler JSONC parsing rejects unterminated comments after otherwise valid JSON", () => {
   assert.throws(() => parseJsonc('{"name":"tsumu"} /* dangling'), /Unterminated block comment/);
   assert.deepEqual(parseJsonc('{"name":"tsumu"} /* complete */'), { name: "tsumu" });
+});
+
+test("explicit local and WRANGLER_CONFIG paths must also have production storage or an opt-in", () => {
+  const complete = {
+    d1_databases: [{ binding: "DB", database_id: "separate-d1" }],
+    kv_namespaces: [{ binding: "ASSETS_KV", id: "separate-kv" }],
+  };
+  const incomplete = { d1_databases: complete.d1_databases };
+  assert.equal(deployConfigProbe({}, complete).status, 0);
+  assert.notEqual(deployConfigProbe({}, incomplete).status, 0);
+  assert.notEqual(deployConfigProbe({ WRANGLER_CONFIG: "wrangler.local.jsonc" }, incomplete).status, 0);
+  assert.equal(deployConfigProbe({ TSUMU_ALLOW_BROWSER_ONLY_DEPLOY: "true" }, incomplete).status, 0);
 });
