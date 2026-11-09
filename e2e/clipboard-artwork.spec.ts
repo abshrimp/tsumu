@@ -107,6 +107,53 @@ test("empty native clipboard may fall back to the internal node copy", async ({ 
   await uploads(page, 0);
 });
 
+
+for (const linkAttr of ["href", "xlink:href"] as const) {
+  test(`Figma SVG using <use ${linkAttr}> is still visible after sanitization`, async ({ page }) => {
+    // Figma can render paths or image elements from defs using an SVG <use>.
+    // A paste that succeeds but strips <use> produces a blank asset.
+    const source = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="12" viewBox="0 0 24 12"><defs><rect id="figma-shape" width="24" height="12" fill="#00cc44"/></defs><use ${linkAttr}="#figma-shape"/></svg>`;
+    await paste(page, false, source);
+    await uploads(page, 1);
+    const rendered = await page.evaluate(async () => {
+      const file = (window as any).uploads[0].file as File;
+      const xml = await file.text();
+      const objectUrl = URL.createObjectURL(file);
+      try {
+        const image = new Image();
+        image.src = objectUrl;
+        await image.decode();
+        const canvas = document.createElement("canvas");
+        canvas.width = 24; canvas.height = 12;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(image, 0, 0);
+        return { xml, width: image.naturalWidth, height: image.naturalHeight, pixel: Array.from(ctx.getImageData(10, 5, 1, 1).data) };
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    });
+    expect(rendered.xml).toMatch(/<use\\b/);
+    expect(rendered.width).toBe(24);
+    expect(rendered.height).toBe(12);
+    expect(rendered.pixel[1]).toBeGreaterThan(80);
+    expect(rendered.pixel[3]).toBe(255);
+    await finish(page); await settled(page);
+    const after = await snapshot(page);
+    expect(after.doc.nodes[after.selection].name).toBe("貼り付けたSVG");
+  });
+}
+
+test("SVG <use> keeps only internal ID references", async ({ page }) => {
+  const source = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12"><defs><rect id="safe" width="24" height="12" fill="blue"/></defs><use href="#safe"/><use href="https://evil.test/vector.svg#safe"/><use href="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="/></svg>';
+  await paste(page, false, source);
+  await uploads(page, 1);
+  const cleaned = await page.evaluate(() => (window as any).uploads[0].file.text());
+  expect(cleaned.match(/<use\\b/g)).toHaveLength(1);
+  expect(cleaned).toContain('href="#safe"');
+  expect(cleaned).not.toMatch(/evil\\.test|data:image\\/svg\\+xml/);
+  await finish(page); await settled(page);
+});
+
 test("SVG paste rejects DTD declarations and entity expansion", async ({ page }) => {
   const malicious = '<!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&x;</text></svg>';
   await paste(page, false, malicious);
