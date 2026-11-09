@@ -3662,6 +3662,8 @@ const en: Dict = {
     "Variable made by a script",
   "ブラウザの保存領域が足りないため、コピーできませんでした":
     "Couldn't copy because the browser storage is full",
+  "ブラウザへの保存ができなかったため、コピーできませんでした":
+    "Could not copy because the document could not be saved in this browser",
   "ほかの人の保存と重なったため、コピーできませんでした。もう一度お試しください。":
     "Couldn't copy because someone else saved at the same time. Please try again.",
   "返信1件":

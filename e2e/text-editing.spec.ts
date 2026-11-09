@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { makeText } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
+import { browserDoc } from "./helpers/browser-doc";
 
 async function openSite(page: Page) {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
@@ -26,10 +27,10 @@ async function savedText(page: Page, siteId: string, content: string) {
     const saved = await (await page.request.get(`/api/doc?site=${siteId}`)).json();
     return saved.doc.nodes.text.text.content;
   }).toBe(content);
-  await expect.poll(() => page.evaluate((siteId) => {
-    const doc = JSON.parse(localStorage.getItem(`tsumu-doc-v1:${siteId}`) ?? "null");
+  await expect.poll(async () => {
+    const doc = JSON.parse((await browserDoc(page, siteId)) ?? "null");
     return doc?.nodes.text.text.content;
-  }, siteId)).toBe(content);
+  }).toBe(content);
 }
 
 async function roundTrip(page: Page, siteId: string, content: string) {
