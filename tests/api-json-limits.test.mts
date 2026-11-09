@@ -125,8 +125,8 @@ test("fetch proxy still sends allowed headers and valid JSON requests", async ()
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { ok: true, json: { ok: true } });
   assert.equal(fixture.outbound.length, 1);
-  assert.equal(fixture.outbound[0].init.headers?.Authorization, "Bearer example");
-  assert.equal(fixture.outbound[0].init.headers?.Host, undefined);
+  assert.equal(new Headers(fixture.outbound[0].init.headers).get("Authorization"), "Bearer example");
+  assert.equal(new Headers(fixture.outbound[0].init.headers).get("Host"), undefined);
   assert.equal(fixture.outbound[0].init.body, '{"query":"safe"}');
 });
 
