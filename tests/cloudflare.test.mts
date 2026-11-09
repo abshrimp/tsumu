@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { parseJsonc } from "../scripts/cloudflare.mjs";
 
 const scriptUrl = new URL("../scripts/cloudflare.mjs", import.meta.url).href;
 
@@ -120,4 +121,9 @@ test("configured or explicitly browser-only deployment can generate config", () 
   const notOptedIn = deployConfigProbe({ TSUMU_ALLOW_BROWSER_ONLY_DEPLOY: "TRUE" });
   assert.notEqual(notOptedIn.status, 0);
   assert.equal(notOptedIn.generated, false);
+});
+
+test("Wrangler JSONC parsing rejects unterminated comments after otherwise valid JSON", () => {
+  assert.throws(() => parseJsonc('{"name":"tsumu"} /* dangling'), /Unterminated block comment/);
+  assert.deepEqual(parseJsonc('{"name":"tsumu"} /* complete */'), { name: "tsumu" });
 });
