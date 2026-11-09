@@ -1773,6 +1773,11 @@ export const SCRIPT_RUNTIME = `function (env) {
       });
       scan();
       /*/scan*/
+      // Initialize the page before registering event listeners, even when
+      // unused scan functionality is removed from generated scripts.
+      // Otherwise the first hover event can record a keep-on-shown owner,
+      // then syncPage() clears that owner as though the page had changed.
+      syncPage();
       /*#click*/
       root.addEventListener("click", onClickCapture, true);
       root.addEventListener("click", onClick);
