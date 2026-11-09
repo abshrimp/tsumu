@@ -60,8 +60,19 @@ for (const archive of [false, true]) {
     expect(Object.values(doc.nodes).some(node => node.code?.html?.includes("<math>"))).toBe(true);
 
     const published = await context.newPage();
-    await published.route("**/*", route => route.abort());
-    await published.setContent(generateExportProject(doc, "html").files["index.html"]);
+    const { files } = generateExportProject(doc, "html");
+    const origin = "http://tsumu-import.test";
+    // Exercise the published project, including its generated stylesheets.
+    // Loading only index.html while aborting resources hides all exported CSS.
+    await published.route("**/*", route => {
+      const url = new URL(route.request().url());
+      const path = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
+      if (url.origin !== origin || !Object.hasOwn(files, path)) return route.abort();
+      const contentType = path.endsWith(".css") ? "text/css"
+        : path.endsWith(".js") ? "text/javascript" : "text/html";
+      return route.fulfill({ contentType, body: files[path] });
+    });
+    await published.goto(origin);
     await expect.poll(() => published.evaluate(() => (window as any).importOrder))
       .toEqual(["head", "body", "module"]);
     expect(await published.evaluate(() => [
