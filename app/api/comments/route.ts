@@ -6,7 +6,7 @@ import { requireAuth, sessionUser } from "../../../lib/server";
 import { siteIdOf } from "../../../lib/site-server";
 import { listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction } from "../../../lib/comments";
 import { userMessage } from "../../../lib/errors";
-import { JsonBodyTooLargeError, readJsonLimited } from "../../../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -50,10 +50,10 @@ export async function POST(req: Request) {
   // 本文は5000文字以内のコメント1件のみ。処理するJSONもストリーム全体で制限する。
   let value: unknown;
   try {
-    value = await readJsonLimited(req, 64 * 1024, false);
+    value = await readJsonLimited(req, 64 * 1024);
   } catch (error) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, {
-      status: error instanceof JsonBodyTooLargeError ? 413 : 400,
+      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }
   const action = parseCommentAction(value);
