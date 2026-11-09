@@ -11,6 +11,7 @@ import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import { insertSite } from "../lib/sites";
 import type { SiteDoc } from "../lib/types";
+import { decodeStoredDoc } from "../lib/compressed-doc-storage";
 
 const doc = (): SiteDoc => ({
   siteName: "Example", pages: { home: { id: "home", name: "Home", slug: "", children: ["node-1"] } },
@@ -74,7 +75,7 @@ test("missing and out-of-order revisions require a snapshot instead of applying 
   assert.deepEqual(applyDocPatchAtRevision(base, "1", "1", patch), next);
 });
 
-test("SQL patches preserve nulls, arrays, additions and removals without fetching the body", async () => {
+test("compressed patches preserve nulls, arrays, additions and removals with a revision-locked write", async () => {
   await database(async (db, statements) => {
     const base = doc();
     base.description = "remove me";
@@ -90,8 +91,9 @@ test("SQL patches preserve nulls, arrays, additions and removals without fetchin
     statements.length = 0;
     const result = await saveDocPatch(db, "s1", patch, "1");
     assert.equal(result.kind, "saved");
-    assert.equal(statements.some((s) => /SELECT rev, saved_at, body/.test(s.sql)), false);
-    assert.equal(statements.length, 2, "one conditional database-side backup plus one update");
+    assert.equal(statements.some((s) => /SELECT rev, saved_at, body/.test(s.sql)), true);
+    assert.equal(statements.length, 3, "read compressed document, snapshot previous day, conditional update");
+    assert.equal(statements.some((s) => /json_set|json_remove/.test(s.sql)), false);
     assert.ok(statements.every((s) => s.args.length <= 100));
     assert.equal(statements.some((s) => s.args.includes(JSON.stringify(base))), false);
     assert.deepEqual(JSON.parse((await readCurrentDoc(db, "s1"))!.body), next);
@@ -139,21 +141,21 @@ test("the first save of a day keeps the previous day's final content as that day
     assert.equal(rows.length, 1);
     assert.equal(Number(rows[0].day), new Date(yesterday).getUTCDay());
     assert.equal(Number(rows[0].saved_at), yesterday);
-    assert.deepEqual(JSON.parse(String(rows[0].body)), evening);
+    assert.deepEqual(JSON.parse(await decodeStoredDoc(String(rows[0].body))), evening);
 
     // 同じ日の2回目以降の保存では書き換えない
     assert.equal((await saveCurrentDoc(db, "s1", JSON.stringify({ ...broken, siteName: "Later" }), "3")).kind, "saved");
     rows = await backups();
     assert.equal(rows.length, 1);
-    assert.deepEqual(JSON.parse(String(rows[0].body)), evening);
+    assert.deepEqual(JSON.parse(await decodeStoredDoc(String(rows[0].body))), evening);
   });
 });
 
-test("large documents save until the storage itself rejects them as too large", async () => {
+test("large compressible documents round-trip and D1 storage failures do not advance revisions", async () => {
   await database(async (real) => {
     const base = doc();
     await saveCurrentDoc(real, "s1", JSON.stringify(base), null);
-    // 大きさの上限は決め打ちしない。D1 の公称2MBも、以前の10MBも超えて保存できる
+    // A 12 MiB SiteDoc compresses into a safe D1 row and can still be edited.
     const large = structuredClone(base);
     large.nodes["node-1"].text = "z".repeat(12 * 1024 * 1024) as any;
     assert.equal((await saveCurrentDoc(real, "s1", JSON.stringify(large), "1")).kind, "saved");
@@ -289,6 +291,58 @@ test("page roots cannot share ownership with other pages or node children", asyn
       await assert.rejects(saveDocPatch(db, "s1", createDocPatch(original, changed as SiteDoc)!, "1"), /不正な/);
       assert.equal((await readCurrentDoc(db, "s1"))?.body, JSON.stringify(original));
       assert.equal((await readCurrentDoc(db, "s1"))?.rev, "1");
+    }
+  });
+});
+
+
+test("simultaneous compressed patches use one CAS revision and preserve the winner", async () => {
+  await database(async db => {
+    const base = doc();
+    await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
+    const one = [{ path: ["siteName"], value: "First" }] as const;
+    const two = [{ path: ["siteName"], value: "Second" }] as const;
+    const results = await Promise.all([
+      saveDocPatch(db, "s1", one as any, "1"),
+      saveDocPatch(db, "s1", two as any, "1"),
+    ]);
+    assert.deepEqual(results.map(r => r.kind).sort(), ["conflict", "saved"]);
+    const current = await readCurrentDoc(db, "s1");
+    assert.equal(current?.rev, "2");
+    assert.ok(["First", "Second"].includes(JSON.parse(current!.body).siteName));
+  });
+});
+
+test("a corrupt stored envelope rejects reads and patches without changing the row", async () => {
+  await database(async db => {
+    const base = doc();
+    await saveCurrentDoc(db, "s1", JSON.stringify(base), null);
+    await db.execute({ sql: "UPDATE docs SET body=? WHERE id='s1'", args: ['{"siteName":"old JSON"}'] });
+    await assert.rejects(readCurrentDoc(db, "s1"), /compressed D1 document envelope/);
+    await assert.rejects(saveDocPatch(db, "s1", [{ path: ["siteName"], value: "No" }], "1"), /compressed D1 document envelope/);
+    const row = (await db.execute("SELECT rev, body FROM docs WHERE id='s1'")).rows[0];
+    assert.equal(row.rev, 1);
+    assert.equal(row.body, '{"siteName":"old JSON"}');
+  });
+});
+
+test("asset references are resolved through the compressed envelope index exactly", async () => {
+  await database(async db => {
+    const source = doc();
+    source.assets = {
+      a: { id: "a", name: "quote.svg", path: 'assets/a"b.svg', width: 1, height: 1 },
+    };
+    await saveCurrentDoc(db, "s1", JSON.stringify(source), null);
+    await insertSite(db, "other", { name: "Other", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }, JSON.stringify(source));
+    const sql = "SELECT 1 FROM docs AS d, json_each(d.body, '$.assets') AS a " +
+      "WHERE d.id != ? AND json_extract(a.value, '$.path') = ? LIMIT 1";
+    assert.equal((await db.execute({ sql, args: ["s1", 'assets/a"b.svg'] })).rows.length, 1);
+    assert.equal((await db.execute({ sql, args: ["s1", "assets/a"] })).rows.length, 0);
+    const rows = await db.execute("SELECT body FROM docs");
+    for (const row of rows.rows) {
+      const envelope = JSON.parse(String(row.body));
+      assert.equal(envelope.__tsumu_compressed_v1, true);
+      assert.deepEqual(JSON.parse(await decodeStoredDoc(String(row.body))).assets, source.assets);
     }
   });
 });
