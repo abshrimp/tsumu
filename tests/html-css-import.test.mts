@@ -67,3 +67,16 @@ test("circular imports are bounded and do not execute recursively", () => {
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /circular/i);
 });
+
+test("bare CSS @import layer modifiers are not mistaken for media queries", () => {
+  const theme = css("theme", "css/theme.css", ".card { color: red; }");
+  const main = css("main", "css/main.css", '@import "theme.css" layer; .card { display: grid; }',
+    [{ url: "theme.css", assetId: "theme", suffix: "" }]);
+  const warnings: string[] = [];
+  const result = expandZipCss(main.zip!.stylesheet!.source, [main, theme],
+    message => warnings.push(message), main);
+  assert.deepEqual(result.unresolved, ['@import "theme.css" layer;']);
+  assert.ok(!result.css.includes("@media layer"));
+  assert.match(result.css, /display: grid/);
+  assert.equal(warnings.length, 1);
+});
