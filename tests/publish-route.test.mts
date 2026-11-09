@@ -4,6 +4,7 @@ import { stripTypeScriptTypes } from "node:module";
 import { test } from "node:test";
 import * as preconditions from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
+import { hasPublishCredentials } from "../lib/publish-security";
 import * as helpers from "../lib/publish-files";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
@@ -47,6 +48,8 @@ function fixture(truncated?: boolean, manifestText?: string) {
     conflictingCommitPaths: helpers.conflictingCommitPaths,
     isProtectedPath: helpers.isProtectedPath,
     parseGeneratedManifest: helpers.parseGeneratedManifest,
+    DOC_PATH: helpers.DOC_PATH,
+    hasPublishCredentials,
     planPublish: helpers.planPublish,
     keptTreeEntries: helpers.keptTreeEntries,
     NextResponse,
