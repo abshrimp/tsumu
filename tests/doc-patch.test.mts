@@ -24,7 +24,10 @@ async function database(run: (db: Db, statements: { sql: string; args: unknown[]
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
-    const real = await getDbFromBinding(nodeDatabase()!);
+    const sqlite = await getDbFromBinding(nodeDatabase()!);
+    assert.equal(sqlite.backend, "sqlite");
+    // Simulate a D1 binding over the SQLite SQL transport to test gzip storage.
+    const real: Db = { ...sqlite, backend: "d1" };
     await insertSite(real, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
     const statements: { sql: string; args: unknown[] }[] = [];
     const db: Db = { ...real, execute: async (stmt) => {

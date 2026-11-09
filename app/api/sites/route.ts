@@ -102,7 +102,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
     }
     const plainBody = initialBody ?? src?.body;
-    const storedBody = plainBody === undefined ? undefined : await encodeStoredDoc(plainBody);
+    const storedBody = plainBody === undefined ? undefined
+      : db.backend === "d1" ? await encodeStoredDoc(plainBody) : plainBody;
     await insertSite(db, id, parsed.value, storedBody);
     return NextResponse.json({ site: await getSite(db, id) });
   } catch (e) {

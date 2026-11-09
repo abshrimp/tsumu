@@ -5,8 +5,10 @@ import { decodeStoredDoc, encodeStoredDoc, StoredDocTooLargeError } from "./comp
 import type { SiteDoc } from "./types";
 
 /**
- * 編集データの保存（D1 の docs テーブル。1サイト = 1行で、id はサイトID）。
- * docs.body は常にgzipレベル3のv1エンベロープ。D1への書込み前に1.8MBの上限を検査する。
+ * 編集データの保存（docs テーブル。1サイト = 1行）。
+ * Cloudflare D1: gzipレベル3のv1エンベロープを保存し、1.8MBの上限を確認。
+ * セルフホスト SQLite: 通常のSiteDoc JSONをそのまま保存。
+ * いずれも保存形式は接続先で固定し、文書内容による旧形式へのフォールバックはしない。
  */
 
 /** 保存先に入りきらない編集データ（API は 413 で返す） */
@@ -77,7 +79,9 @@ export async function readCurrentDoc(db: Db, siteId: string): Promise<CurrentDoc
   });
   const row = rs.rows[0];
   if (!row) return null;
-  const body = await decodeStoredDoc(String(row.body));
+  const body = db.backend === "d1"
+    ? await decodeStoredDoc(String(row.body))
+    : String(row.body);
   if (validateDocBody(body)) throw new Error("保存済みの編集データが不正です");
   return {
     rev: String(row.rev),
@@ -115,11 +119,13 @@ export async function saveCurrentDoc(
   base: string | null
 ): Promise<SaveDocResult> {
   if (validateDocBody(raw)) throw new InvalidDocPatchError();
-  let stored: string;
-  try { stored = await encodeStoredDoc(raw); }
-  catch (error) {
-    if (error instanceof StoredDocTooLargeError) throw new DocTooLargeError();
-    throw error;
+  let stored = raw;
+  if (db.backend === "d1") {
+    try { stored = await encodeStoredDoc(raw); }
+    catch (error) {
+      if (error instanceof StoredDocTooLargeError) throw new DocTooLargeError();
+      throw error;
+    }
   }
   const now = Date.now();
   if (base) {
@@ -155,8 +161,9 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   if (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)) || !isDocPatch(patch))
     throw new InvalidDocPatchError();
 
-  // A compressed payload is not SQLite JSON. There is only one update path:
-  // decode -> apply patch -> validate -> encode -> revision-conditional write.
+  // One revision-conditional update path for both backends. D1 decompresses
+  // and recompresses; self-hosted SQLite reads and writes ordinary JSON.
+  // The storage representation is never detected from the document contents.
   const current = await readCurrentDoc(db, siteId);
   if (!current) return { kind: "missing" };
   if (current.rev !== base) return { kind: "conflict", current };

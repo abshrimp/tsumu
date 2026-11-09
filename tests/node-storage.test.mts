@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDbFromBinding } from "../lib/db";
 import { assetFileName, nodeAssetStore, nodeDatabase } from "../lib/node-storage";
-import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
+import { readCurrentDoc, saveCurrentDoc, saveDocPatch } from "../lib/doc-storage";
 import { deleteSite, insertSite } from "../lib/sites";
 
 function withDataDir(run: (dir: string) => Promise<void>) {
@@ -38,6 +38,7 @@ test("SQLite を D1 と同じ形で使える（スキーマ作成・読み書き
   const binding = nodeDatabase();
   assert.ok(binding);
   const db = await getDbFromBinding(binding);
+  assert.equal(db.backend, "sqlite", "local Node binding selects plain JSON persistence");
   const put = await db.execute({
     sql: "INSERT INTO docs (id, rev, saved_at, body) VALUES (?, ?, ?, ?)",
     args: ["s1", 1, 100, "{}"],
@@ -103,4 +104,51 @@ test("消したサイトの編集データは、開いたままのタブが保�
   assert.deepEqual(await saveCurrentDoc(db, "s1", raw, first.kind === "saved" ? first.rev : null), { kind: "missing" });
   assert.deepEqual(await saveCurrentDoc(db, "s1", raw, null), { kind: "missing" });
   assert.equal(await readCurrentDoc(db, "s1"), null);
+}));
+
+
+test("self-hosted SQLite stores and patches ordinary SiteDoc JSON, even above D1's limit", withDataDir(async () => {
+  const db = await getDbFromBinding(nodeDatabase()!);
+  assert.equal(db.backend, "sqlite");
+  await insertSite(db, "s1", { name: "Plain", repo: null, branch: "main",
+    previewBranch: "preview", siteUrl: null, previewUrl: null });
+  const initial = {
+    siteName: "Self hosted", pages: { home: { id: "home", slug: "", children: [] } },
+    pageOrder: ["home"], nodes: {}, assets: {}, content: "あ".repeat(900_000),
+  };
+  const raw = JSON.stringify(initial);
+  assert.ok(Buffer.byteLength(raw, "utf8") > 1_800_000);
+  assert.equal((await saveCurrentDoc(db, "s1", raw, null)).kind, "saved");
+  const stored = (await db.execute("SELECT body FROM docs WHERE id='s1'")).rows[0].body;
+  assert.equal(stored, raw, "self-hosted SQLite does not gzip even very large JSON");
+  assert.equal((await readCurrentDoc(db, "s1"))?.body, raw);
+
+  const patch = [{ path: ["siteName"], value: "Updated" }];
+  assert.equal((await saveDocPatch(db, "s1", patch, "1")).kind, "saved");
+  const updated = JSON.stringify({ ...initial, siteName: "Updated" });
+  assert.equal((await db.execute("SELECT body FROM docs WHERE id='s1'")).rows[0].body, updated);
+  assert.equal((await readCurrentDoc(db, "s1"))?.rev, "2");
+  assert.equal((await saveDocPatch(db, "s1", patch, "1")).kind, "conflict");
+
+  // Previous-day backups stay plain JSON too.
+  const yesterday = Date.now() - 86_400_000;
+  await db.execute({ sql: "UPDATE docs SET saved_at = ? WHERE id='s1'", args: [yesterday] });
+  assert.equal((await saveDocPatch(db, "s1", [{ path: ["siteName"], value: "Today" }], "2")).kind, "saved");
+  const backup = (await db.execute("SELECT body FROM site_backups WHERE site_id='s1'")).rows[0].body;
+  assert.equal(backup, updated);
+}));
+
+test("a D1-mode connection is compressed even when the Node SQLite adapter is available", withDataDir(async () => {
+  const local = await getDbFromBinding(nodeDatabase()!);
+  const d1 = { ...local, backend: "d1" as const };
+  await insertSite(d1, "s1", { name: "Cloud", repo: null, branch: "main",
+    previewBranch: "preview", siteUrl: null, previewUrl: null });
+  const raw = JSON.stringify({ siteName: "Cloud", pages: { p: { id: "p", slug: "", children: [] } },
+    pageOrder: ["p"], nodes: {}, assets: {} });
+  await saveCurrentDoc(d1, "s1", raw, null);
+  const stored = String((await d1.execute("SELECT body FROM docs WHERE id='s1'")).rows[0].body);
+  assert.equal(JSON.parse(stored).__tsumu_compressed_v1, true);
+  assert.equal((await readCurrentDoc(d1, "s1"))?.body, raw);
+  // Neither backend guesses the other's format when reading a stored row.
+  await assert.rejects(readCurrentDoc(local, "s1"), /保存済みの編集データが不正/);
 }));

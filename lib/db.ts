@@ -16,7 +16,11 @@ export interface ResultSet {
   rowsAffected: number;
 }
 
+export type DatabaseBackend = "d1" | "sqlite";
+
 export interface Db {
+  /** Set once from the actual binding, never inferred from document contents. */
+  readonly backend: DatabaseBackend;
   execute(stmt: Stmt): Promise<ResultSet>;
   batch(stmts: Stmt[]): Promise<ResultSet[]>;
 }
@@ -33,6 +37,8 @@ interface D1PreparedStatement {
 }
 
 export interface D1LikeDatabase {
+  /** Only the Node SQLite adapter sets this. Cloudflare D1 bindings omit it. */
+  readonly __tsumuStorageBackend?: "sqlite";
   prepare(sql: string): D1PreparedStatement;
   batch(stmts: D1PreparedStatement[]): Promise<D1Result[]>;
 }
@@ -156,6 +162,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
   }
   await ready;
   return {
+    backend: binding.__tsumuStorageBackend === "sqlite" ? "sqlite" : "d1",
     execute: async (stmt) => toResultSet(await prepare(binding, stmt).all()),
     batch: async (stmts) =>
       (await binding.batch(stmts.map((s) => prepare(binding, s)))).map(

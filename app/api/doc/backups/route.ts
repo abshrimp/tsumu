@@ -36,8 +36,11 @@ export async function GET(req: Request) {
       if (!row) {
         return NextResponse.json({ error: tr("バックアップが見つかりません") }, { status: 404 });
       }
-      // Storage is always compressed; return an ordinary SiteDoc to the editor.
-      return new NextResponse(await decodeStoredDoc(String(row.body)), {
+      // A D1 backup is compressed; a self-hosted SQLite backup is plain JSON.
+      const body = db.backend === "d1"
+        ? await decodeStoredDoc(String(row.body))
+        : String(row.body);
+      return new NextResponse(body, {
         headers: { "Content-Type": "application/json; charset=utf-8" },
       });
     }

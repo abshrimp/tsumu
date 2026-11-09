@@ -60,6 +60,8 @@ test("a captured source document remains usable if the source is deleted afterwa
   const response = await api(db, async (db, id) => { const snapshot = await readCurrentDoc(db, id); await sites.deleteSite(db, id); return snapshot; })();
   assert.equal(response.status, 200);
   assert.equal((await readCurrentDoc(db, "copy"))?.body, sourceBody);
+  assert.equal((await db.execute("SELECT body FROM docs WHERE id='copy'")).rows[0].body, sourceBody,
+    "self-hosted copies remain ordinary JSON");
 }));
 test("an unsuccessful destination save is not reported as a completed copy", async () => database(async db => {
   await saveCurrentDoc(db, "source", sourceBody, null);
@@ -77,6 +79,19 @@ test("importing atomically creates revision one and rejects invalid or colliding
   assert.equal(await sites.getSite(db, input.importId), null);
   assert.equal((await post(input)).status, 200);
   assert.equal((await readCurrentDoc(db, input.importId))?.rev, "1");
+  assert.equal((await db.execute({ sql: "SELECT body FROM docs WHERE id=?", args: [input.importId] })).rows[0].body,
+    JSON.stringify(doc), "self-hosted imports remain ordinary JSON");
   assert.equal((await post({ ...input, initialDoc: { ...doc, note: "replacement" } })).status, 409);
   assert.deepEqual(JSON.parse((await readCurrentDoc(db, input.importId))!.body), doc);
+}));
+
+
+test("D1 site duplication and imports use gzip v1 rather than self-hosted JSON", async () => database(async sqlite => {
+  const db: Db = { ...sqlite, backend: "d1" };
+  await saveCurrentDoc(db, "source", sourceBody, null);
+  const response = await api(db)();
+  assert.equal(response.status, 200);
+  const saved = (await db.execute("SELECT body FROM docs WHERE id='copy'")).rows[0].body;
+  assert.equal(JSON.parse(String(saved)).__tsumu_compressed_v1, true);
+  assert.equal((await readCurrentDoc(db, "copy"))?.body, sourceBody);
 }));
