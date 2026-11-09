@@ -25,33 +25,7 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
   assert.match(workflow, /^  pull_request:\s*$/m);
   assert.match(workflow, /^  push:\s*$/m);
   for (const name of ["check", "e2e-shard", "generated-formats"]) {
-    assert.match(workflow, new RegExp(`^  ${name}:import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { test } from "node:test";
-
-const root = new URL("../", import.meta.url);
-const read = (path: string) => readFileSync(new URL(path, root), "utf8");
-
-test("all CI jobs use full commit-pinned actions and checkouts do not persist credentials", () => {
-  const workflow = read(".github/workflows/ci.yml");
-  const uses = [...workflow.matchAll(/^\s*- uses: ([^\s#]+)/gm)].map((match) => match[1]);
-  assert.ok(uses.length > 0, "Expected GitHub actions in the CI workflow");
-  for (const action of uses) {
-    assert.match(action, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, `Action ${action} must be pinned by commit SHA`);
-  }
-  const checkoutCount = (workflow.match(/- uses: actions\/checkout@/g) ?? []).length;
-  const safeCheckouts = [...workflow.matchAll(
-    /- uses: actions\/checkout@[0-9a-f]{40}[^\n]*\n[ \t]+with:\n[ \t]+persist-credentials: false/g,
-  )];
-  assert.ok(checkoutCount > 0, "Expected at least one checkout step");
-  assert.equal(safeCheckouts.length, checkoutCount, "Every checkout must disable credential persistence");
-});
-
-test("CI checks pull requests without path skips, dependencies, workers and all E2E shards", () => {
-  const workflow = read(".github/workflows/ci.yml");
-  assert.match(workflow, /^  pull_request:\s*$/m);
-  assert.match(workflow, /^  push:\s*$/m);
-, "m"));
+    assert.match(workflow, new RegExp(`^  ${name}:$`, "m"));
   }
   const requiredCheck = workflow.split("  check:\n")[1]?.split("  e2e-shard:\n")[0];
   assert.ok(requiredCheck, "Expected a check job containing the required infrastructure audits");
@@ -66,7 +40,7 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
 test("Docker runtime is non-root and local credentials are excluded from the build context", () => {
   const dockerfile = read("Dockerfile");
   const ignored = read(".dockerignore").split(/\r?\n/).map((line) => line.trim());
-  const imageRefs = [...dockerfile.matchAll(/^FROM node:([^@\\s]+)@sha256:([0-9a-f]{64})(?: AS [a-z0-9-]+)?$/gm)];
+  const imageRefs = [...dockerfile.matchAll(/^FROM node:([^@\s]+)@sha256:([0-9a-f]{64})(?: AS [a-z0-9-]+)?$/gm)];
   assert.equal(imageRefs.length, 2, "Both Docker stages must use immutable image digests");
   assert.equal(imageRefs[0][1], read(".nvmrc").trim() + "-slim");
   assert.equal(imageRefs[0][1], imageRefs[1][1]);
