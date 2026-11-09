@@ -35,7 +35,7 @@ test("right panel resize ignores another pointer and cleans up after cancellatio
   await expect.poll(width).toBeGreaterThanOrEqual(initial + 45);
   const resized = await width();
 
-  await handle.dispatchEvent("pointercancel", { pointerId: 1, pointerType: "mouse", button: 0, buttons: 0 });
+  await handle.dispatchEvent("pointercancel", { pointerId: 1, pointerType: "mouse", button: 0, buttons: 0, bubbles: true });
   await expect(page.locator("body.is-resizing-panel")).toHaveCount(0);
   await page.mouse.move(x - 100, y);
   expect(await width()).toBe(resized);
