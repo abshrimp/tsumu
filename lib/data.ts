@@ -50,6 +50,25 @@ export function toListItems(value: unknown): Record<string, unknown>[] {
   return out;
 }
 
+/** Return the first list record for an editor suggestion without expanding the whole list. */
+export function firstListItem(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const asItem = (item: unknown): Record<string, unknown> =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? item as Record<string, unknown>
+      : { [ITEM_VALUE]: item };
+  // The common dense-array case never needs to enumerate the remaining keys.
+  if (Array.isArray(value) && Object.prototype.propertyIsEnumerable.call(value, 0)) {
+    return asItem(value[0]);
+  }
+  // Object.entries(value) would allocate every record even though previews
+  // inspect only the first own enumerable entry.
+  for (const key in value) {
+    if (Object.hasOwn(value, key)) return asItem((value as Record<string, unknown>)[key]);
+  }
+  return undefined;
+}
+
 /** 文字列を区切り文字で分解する（前後の空白を除き、空の要素は捨てる） */
 export function splitText(text: string, sep: string): string[] {
   return text

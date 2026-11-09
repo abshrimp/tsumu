@@ -598,10 +598,7 @@ function ScriptEditorInner({
       ),
     updateScript: (scriptId, patch) =>
       commit(scripts.map((s) => (s.id === scriptId ? { ...s, ...patch } : s))),
-    isPageLoadRoot: (loc) => {
-      const s = scripts.find((x) => x.id === loc.scriptId);
-      return !!s && s.nodeId === PAGE_TARGET && s.trigger === "load" && loc.list === "root";
-    },
+    isPageLoadRoot: (loc) => loc.list === "root" && pageLoadScriptIds.has(loc.scriptId),
     // 取得のように後から呼ばれることがあるため、最新の状態に適用する
     renameVar: (stepId, from, to) =>
       updateDoc((d) => {

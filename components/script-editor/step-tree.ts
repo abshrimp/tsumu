@@ -96,59 +96,64 @@ export function connectNewTransform(scripts: PageScript[], loc: Loc, steps: Scri
   );
 }
 
-/** ステップIDの位置を探す */
-function locOfStep(scripts: PageScript[], stepId: string): Loc | null {
-  const search = (
-    steps: ScriptStep[],
-    scriptId: string,
-    list: string
-  ): Loc | null => {
+/** Delete selected scripts and steps with one immutable traversal. */
+export function removeKeys(scripts: PageScript[], keys: string[]): PageScript[] {
+  const scriptIds = new Set<string>();
+  const stepIds = new Set<string>();
+  for (const key of keys) {
+    if (key.startsWith("script:")) scriptIds.add(key.slice(7));
+    else if (key.startsWith("step:")) stepIds.add(key.slice(5));
+  }
+  if (!scriptIds.size && !stepIds.size) return scripts;
+
+  const prune = (steps: ScriptStep[]): ScriptStep[] => {
+    let result: ScriptStep[] | undefined;
     for (let i = 0; i < steps.length; i++) {
-      const s = steps[i];
-      if (s.id === stepId) return { scriptId, list, index: i };
-      if (s.kind === "if") {
-        const found =
-          search(s.then, scriptId, `${s.id}:then`) ??
-          (s.else ? search(s.else, scriptId, `${s.id}:else`) : null);
-        if (found) return found;
-      } else if (s.kind === "repeat" || s.kind === "for-each") {
-        const found = search(s.then, scriptId, `${s.id}:then`);
-        if (found) return found;
+      const step = steps[i];
+      if (stepIds.has(step.id)) {
+        result ??= steps.slice(0, i);
+        continue;
+      }
+      let next = step;
+      if (step.kind === "if") {
+        const then = prune(step.then);
+        const otherwise = step.else ? prune(step.else) : undefined;
+        if (then !== step.then || otherwise !== step.else) {
+          next = { ...step, then, ...(step.else ? { else: otherwise } : {}) };
+        }
+      } else if (step.kind === "repeat" || step.kind === "for-each") {
+        const then = prune(step.then);
+        if (then !== step.then) next = { ...step, then };
+      }
+      if (result) result.push(next);
+      else if (next !== step) {
+        result = steps.slice(0, i);
+        result.push(next);
       }
     }
-    return null;
+    return result ?? steps;
   };
-  for (const sc of scripts) {
-    const found = search(sc.steps, sc.id, "root");
-    if (found) return found;
-  }
-  return null;
-}
 
-function removeOne(scripts: PageScript[], loc: Loc): PageScript[] {
-  const next = structuredClone(scripts);
-  const script = next.find((s) => s.id === loc.scriptId);
-  const list = script && listIn(script, loc.list);
-  if (!script || !list) return scripts;
-  list.splice(loc.index, 1);
-  if (!script.trigger && !script.steps.length) {
-    return next.filter((s) => s.id !== script.id);
+  let result: PageScript[] | undefined;
+  for (let i = 0; i < scripts.length; i++) {
+    const script = scripts[i];
+    if (scriptIds.has(script.id)) {
+      result ??= scripts.slice(0, i);
+      continue;
+    }
+    const steps = stepIds.size ? prune(script.steps) : script.steps;
+    if (steps !== script.steps && !script.trigger && !steps.length) {
+      result ??= scripts.slice(0, i);
+      continue;
+    }
+    const next = steps === script.steps ? script : { ...script, steps };
+    if (result) result.push(next);
+    else if (next !== script) {
+      result = scripts.slice(0, i);
+      result.push(next);
+    }
   }
-  return next;
-}
-
-/** 選択キー（"script:<ID>" / "step:<ID>"）のブロックをまとめて削除する */
-export function removeKeys(scripts: PageScript[], keys: string[]): PageScript[] {
-  const scriptIds = new Set(
-    keys.filter((k) => k.startsWith("script:")).map((k) => k.slice(7))
-  );
-  let next = scripts.filter((s) => !scriptIds.has(s.id));
-  for (const k of keys) {
-    if (!k.startsWith("step:")) continue;
-    const loc = locOfStep(next, k.slice(5));
-    if (loc) next = removeOne(next, loc);
-  }
-  return next;
+  return result ?? scripts;
 }
 
 export function mapStep(
