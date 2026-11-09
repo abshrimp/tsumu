@@ -225,3 +225,18 @@ test("malformed previous generated manifest stops destructive replacement", asyn
   assert.equal(response.status, 502);
   assert.deepEqual(f.writes, []);
 });
+
+test("client keep hints cannot resurrect obsolete editor-generated files", async () => {
+  const older = helpers.serializeGeneratedManifest({ "app/obsolete.ts": "original" });
+  const f = fixture(false, older);
+  f.entries.push(
+    { path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "manifest-blob" },
+    { path: "app/obsolete.ts", mode: "100644", type: "blob", sha: "original" }
+  );
+  const response = await f.send({
+    action: "commit", files: { "app/page.tsx": "updated" },
+    keptPaths: ["app/obsolete.ts"],
+  });
+  assert.equal(response.status, 409);
+  assert.deepEqual(f.writes, []);
+});
