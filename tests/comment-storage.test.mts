@@ -204,3 +204,11 @@ test("a delayed message deletion cannot delete a replacement message owned by an
   assert.equal(threads[0].messages[0].body, "Replacement");
   assert.equal(threads[0].messages[0].author.email, other.email);
 }));
+
+
+test("comment API refuses an oversized JSON body before writing anything", async () => database(async db => {
+  const oversized = { ...create, body: "x".repeat(100 * 1024) };
+  const response = await api(db)("site", oversized);
+  assert.equal(response.status, 413);
+  await assertEmpty(db);
+}));
