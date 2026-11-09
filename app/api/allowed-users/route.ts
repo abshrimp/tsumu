@@ -9,7 +9,7 @@ import {
 } from "../../../lib/allowlist";
 import { dbConfigured } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
-import { JsonBodyTooLargeError, readJsonLimited } from "../../../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
 
   let email: string;
   try {
-    const input = await readJsonLimited(req, 16 * 1024, false);
+    const input = await readJsonLimited(req, 16 * 1024);
     // 配列やオブジェクトを String(...) でメールアドレスに変換しない。
     if (!input || typeof input !== "object" || Array.isArray(input) || !("email" in input) || typeof input.email !== "string") {
       throw new TypeError("Invalid email type");
@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     email = input.email.trim().toLowerCase();
   } catch (error) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, {
-      status: error instanceof JsonBodyTooLargeError ? 413 : 400,
+      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }
   if (!validEmail(email)) {
