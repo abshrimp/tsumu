@@ -4,7 +4,7 @@
 - 初期基準SHA：`1ba32974d4b5ecf441e36428e765d0542207c421`
 - 作業ブランチ：`audit/C-script`
 - 統合PR：[#23](https://github.com/abshrimp/tsumu/pull/23)
-- 監査状態：**修正・回帰テストを提出済み。最終CI・独立レビュー未判定。**
+- 監査状態：**9件の修正・回帰テストを提出済み。最終CI・独立レビュー未判定。**
 
 ## 1. コード経路と担当境界
 
@@ -31,7 +31,7 @@
 | 表示・非表示・切替、状態変更 | 非表示からの復元、状態名の検証 | `script-runtime-budget`、`value-transform-blocks.spec.ts` |
 | ページ・URLを開く、スクロール | URL解決、ページID、対象要素不在 | `generator-script-query`、`script-navigation.spec.ts`（スクロールの独立試験は要追加） |
 | 入力値の変更、有効・無効 | 実際に受理された値、radio/select/file、再帰 | `script-input-value`、`script-select-value`、`script-file-value`、`script-runtime-reentrancy` |
-| 変数への代入、空リスト生成 | 文字列とJSON、未定義値、特殊キー、参照 | `script-block-composition`、`value-list-unification`、`script-nonfinite-values` |
+| 変数への代入、空リスト生成 | 文字列とJSON、未定義値、特殊キー、参照、壊れた代入先 | `script-block-composition`、`value-list-unification`、`script-nonfinite-values`、`script-malformed-runtime` |
 | 値の加工（11種類） | 型・null・欠損、正規表現、制限、入れ子 | `value-recipe-ops`、`value-list-unification` |
 | リストへの要素代入 | 連続添字、キー、型保持、元配列不変 | `value-list-unification`、`script-var-path-bounds` |
 | リストの絞り込み・並べ替え・解除 | AND/OR、短絡、安定ソート、SSR一致 | `script-block-composition`、`filter-controls-preservation`、`script-conditions-shortcircuit` |
@@ -58,6 +58,7 @@
 | AUD-C-006 | Low〜Medium（性能・整合性） | ブラウザ側リスト絞り込みがOR成立後やAND不成立後も不要な条件を評価していた | SSRと同じ短絡評価。`script-conditions-shortcircuit.test.mts` |
 | AUD-C-007 | Medium（データ整合性・可用性） | `setVarPath` が飛び番添字や配列の文字列キーを受け入れ、疎な巨大配列や別のデータ型に変化させる | 既存添字の更新または末尾への追加だけ許可し、不正な書込は原子的に拒否。`script-var-path-bounds.test.mts` |
 | AUD-C-008 | Medium（画面遷移・状態破壊） | hover-end遅延コールバックが元の要素をページ遷移で失っても発火し、新ページの要素を操作できる | 遷移時にhoverタイマーを破棄し、実行前に要素の接続とページ世代を再確認。`script-hover-cancellation.test.mts` |
+| AUD-C-009 | Medium（堅牢性） | 不正な `data-scripts` JSON、欠損した条件・加工、非文字列の代入先がイベント処理を例外で終了させる | 非配列・不正エントリ・無効なブロックを除外し、正常な後続処理を維持。`script-malformed-runtime.test.mts` |
 
 実行量上限は悪意あるデータによるブラウザ停止の回避策であり、**意図的な長時間処理が上限で停止し得る仕様上の制約**が残る。明示的な待機または無限ループのインターバルで実行予算は更新される。
 
@@ -65,6 +66,7 @@
 
 追加・拡張した回帰テスト：
 - `tests/script-runtime-budget.test.mts`
+- `tests/script-malformed-runtime.test.mts`
 - `tests/script-cancellation.test.mts`
 - `tests/script-drag-lifecycle.test.mts`
 - `tests/script-runtime-reentrancy.test.mts`
