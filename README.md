@@ -122,6 +122,8 @@ A few things to know about `npm run dev`:
 
 ## Deploying the editor
 
+Before updating an existing instance, follow the [release-safety checklist](docs/releasing.md) for staging checks, backup/restore validation, rollback and monitoring.
+
 The editor runs in any of three environments. The features are identical; what differs is where data is stored and how collaborators' changes reach you.
 
 | | Cloudflare Workers | Node.js | Docker |
@@ -191,9 +193,9 @@ At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wr
 
 #### Previewing pull requests (Worker Previews)
 
-With the Preview command above, Workers Builds deploys each pull request as a **Worker Preview** and posts its URL on the pull request. A Preview is a public demo that needs no sign-in and keeps its data in the browser; it never uses production storage or secrets.
+With the Preview command above, Workers Builds deploys each pull request as a **Worker Preview** and posts its URL on the pull request. The repository's default Preview configuration is a public demo that needs no sign-in and keeps its data in the browser. The wrapper supplies empty D1/KV bindings and uses `--ignore-base-config`; it does not remove secrets already configured on an existing Preview. Check those secrets before reusing a Preview as a public demo.
 
-See [Previewing pull requests of the editor](docs/worker-previews.md) for setup and for giving Previews test storage.
+See [Previewing pull requests of the editor](docs/worker-previews.md) for setup and for giving Previews test storage. Server storage also needs an explicit Preview `DOC_STORE` binding to `DocumentRoom`, alongside `COLLAB_ROOM`; adding only D1 and KV IDs is incomplete. Configure sign-in before using shared test storage.
 
 ### Node.js
 
@@ -217,7 +219,7 @@ Set the other variables in `.env.local` or in the server's environment (see [Env
 
 Things to keep in mind:
 
-- **Backups:** copy the whole `TSUMU_DATA_DIR` folder. SQLite keeps recent writes in `tsumu.db-wal`, so copy `tsumu.db`, `tsumu.db-wal` and `tsumu.db-shm` together — ideally with the editor stopped.
+- **Backups:** stop every process writing to `TSUMU_DATA_DIR` and disable automatic restarts before copying the whole folder. Keep writers stopped until the copy finishes. Copying a live SQLite database and its WAL files one at a time is not a consistent snapshot. Include `assets/` and any `tsumu.db-wal` / `tsumu.db-shm` files still present; do not delete them. Use a fresh backup destination outside the data folder, and [validate a disposable restore](docs/releasing.md#backup-and-restore-validation) before relying on it.
 - **One editor per folder:** run only one editor per `TSUMU_DATA_DIR`. Collaborators' changes are relayed inside a single process.
 - **Reverse proxy (nginx and similar):**
   - Set `AUTH_URL` to the public URL, and have the proxy forward `X-Forwarded-Host` and `X-Forwarded-Proto`. Otherwise Google sign-in won't redirect back to the right address.
@@ -249,13 +251,34 @@ Pass environment variables with `--env-file` (or `-e`); see [Environment variabl
 - To keep the data in a folder on the host instead, use `-v "$(pwd)/data:/data"`. The container runs as the `node` user (UID 1000), so on Linux hand the folder to that user first: `sudo chown 1000:1000 data`.
 - **Don't start the container without `-v`.** The data would go to an anonymous volume, and a recreated container wouldn't see it.
 
-To back up the named volume (stopping the container first is the safe way):
+To back up the named volume from the example above, first disable any external
+supervisor that could restart the editor and stop any other writers to this
+volume. Run the entire block from a backup directory outside the data volume:
 
 ```bash
-docker stop tsumu
-docker run --rm -v tsumu-data:/data -v "$(pwd)":/backup busybox tar czf /backup/tsumu-data.tgz -C /data .
-docker start tsumu
+(
+  set -eu
+  data_volume="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}' tsumu)"
+  test "$data_volume" = 'tsumu-data'
+  docker stop tsumu
+  running="$(docker inspect --format '{{.State.Running}}' tsumu)"
+  test "$running" = 'false'
+  backup_dir="$(mktemp -d "$PWD/tsumu-backup.XXXXXX")"
+  docker run --rm \
+    --mount type=volume,src=tsumu-data,dst=/data,readonly \
+    --mount "type=bind,src=$backup_dir,dst=/backup" \
+    busybox sh -ec 'test -s /data/tsumu.db; tar czf /backup/tsumu-data.tgz -C /data .; tar tzf /backup/tsumu-data.tgz >/dev/null'
+  printf 'Backup archive (restore validation pending): %s/tsumu-data.tgz\n' "$backup_dir"
+  docker start tsumu
+)
 ```
+
+The block checks the expected volume and stopped state, mounts the source
+read-only, and creates a separate directory for each attempt. On failure it
+exits without continuing to restart; inspect the error and container state,
+then restart the editor deliberately when safe. Do not use a partial archive.
+Archive readability alone does not prove recovery: follow the
+[isolated restore drill](docs/releasing.md#backup-and-restore-validation).
 
 Reverse proxy setup is the same as for [Node.js](#nodejs).
 
