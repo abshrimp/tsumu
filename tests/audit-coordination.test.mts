@@ -147,6 +147,9 @@ test('M snapshot binds branch rules, app-owned checks and exact-head independent
     commit_id: 'a'.repeat(40), submitted_at: '2026-11-09T01:00:00Z' };
   const api = {
     async pages(repo: string, suffix: string) {
+      if (suffix === '/pulls?state=open')
+        return (await basic.pages(repo, suffix)).map((pr: any) =>
+          ({ ...pr, user: { login: 'audit-author' } }));
       if (suffix === '/rulesets')
         return [{ id: 26794696, target: 'branch', enforcement: 'active' }];
       if (suffix === '/pulls/101/reviews') return [reviewer];
@@ -170,13 +173,12 @@ test('M snapshot binds branch rules, app-owned checks and exact-head independent
       return basic.request(repo, suffix);
     },
   };
-  // The fixtures do not give a GitHub author, and therefore fail closed
-  // even when a distinct reviewer claims to approve the current head.
+  // One actual independent reviewer is accepted only for the exact reviewed HEAD.
   const data = await snapshot({ repo: 'x/y', api });
   assert.equal(data.requiredContexts?.length, 1);
   assert.equal(data.prs[0].requiredChecks.state, 'passed');
   assert.equal(data.prs[1].requiredChecks.state, 'passed');
-  assert.equal(data.prs[0].independentReview.state, 'unknown');
-  assert.equal(data.prs[1].independentReview.state, 'unknown');
+  assert.equal(data.prs[0].independentReview.state, 'verified');
+  assert.equal(data.prs[1].independentReview.state, 'not-verified');
   assert.match(toMarkdown(data), /Required CI/);
 });
