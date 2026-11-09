@@ -216,6 +216,7 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
     return "<select" + attrs + shared + ">" + values.map((o) =>
       "<option" + attr("value", o.value) + flag("selected", o.value === selected) +
       (hasVars(o.value) ? attr("data-live-value", o.value) : "") +
+      (hasVars(o.value) && ctx.template ? attr("data-field-value-parts", templateParts(o.value)) : "") +
       (hasVars(o.label) ? attr("data-static-option", o.label) : "") +
       (hasVars(o.label) && ctx.template ? attr("data-field-text-parts", templateParts(o.label)) : "") +
       ">" + escapeHtml(o.label) + "</option>").join("") + "</select>";

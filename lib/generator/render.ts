@@ -417,7 +417,7 @@ ${indent}</div>`;
     }
     if (f.kind === "select") {
       const opts = (f.options ?? [])
-        .map((o) => `${indent}  <option${attr("value", o.value)}${liveOf("data-live", o.label)}${partsOf("text", o.label)}>{${textExpr(o.label)}}</option>`)
+        .map((o) => `${indent}  <option${attr("value", o.value)}${liveOf("data-live-value", o.value)}${partsOf("value", o.value)}${liveOf("data-live", o.label)}${partsOf("text", o.label)}>{${textExpr(o.label)}}</option>`)
         .join("\n");
       return `${indent}<select${idAttr} className=${jsxString(cls)}${nameAttr}${defaultValueAttr}${reqAttr}>\n${opts}\n${indent}</select>`;
     }
