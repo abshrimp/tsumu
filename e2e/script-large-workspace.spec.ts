@@ -57,3 +57,23 @@ test("a focused field remains mounted during offscreen scrolling", async ({ page
   await expect(field).toBeAttached();
   expect(await field.evaluate((el) => el === document.activeElement)).toBe(true);
 });
+
+test("hundreds of separate script stacks mount only those near the viewport", async ({ page }) => {
+  const doc = scriptDragDoc();
+  doc.pages.p.pageScripts = Array.from({ length: 160 }, (_, i) => ({
+    id: "stack-" + i, trigger: "load" as const,
+    pos: { x: 32, y: 32 + i * 150 },
+    steps: [{ id: "wait-stack-" + i, kind: "wait" as const, seconds: 1 }],
+  }));
+  const content = await scriptDragBundle(doc);
+  await page.setContent('<html><body><div id="app"></div></body></html>');
+  await page.addScriptTag({ content });
+  const workspace = page.locator(".se-ws");
+  await expect(workspace.locator('[data-script-id="stack-0"] .se-hat')).toBeVisible();
+  await expect(workspace.locator(".se-stack")).toHaveCount(160);
+  expect(await workspace.locator(".se-stack .se-blk").count()).toBeLessThan(50);
+  await workspace.locator('[data-script-id="stack-159"]').evaluate((el) =>
+    el.scrollIntoView({ block: "center" }));
+  await expect(workspace.locator('[data-script-id="stack-159"] .se-hat')).toBeVisible();
+  expect(await workspace.locator(".se-stack .se-blk").count()).toBeLessThan(50);
+});
