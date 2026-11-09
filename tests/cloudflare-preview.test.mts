@@ -8,7 +8,10 @@ const production = {
   name: "tsumu", main: "custom-worker.ts", compatibility_date: "2026-10-19",
   assets: { directory: ".open-next/assets", binding: "ASSETS" },
   durable_objects: { bindings: [{ name: "COLLAB_ROOM", class_name: "CollaborationRoom" }] },
-  migrations: [{ tag: "v1", new_sqlite_classes: ["CollaborationRoom"] }],
+  exports: {
+    CollaborationRoom: { type: "durable-object", storage: "sqlite" },
+    DocumentRoom: { type: "durable-object", storage: "sqlite" },
+  },
   d1_databases: [{ binding: "DB", database_name: "tsumu", database_id: "prod-db" }],
   kv_namespaces: [{ binding: "ASSETS_KV", id: "prod-kv" }],
   vars: { AUTH_URL: "https://production.example", ALLOW_ANONYMOUS: "false" },
@@ -24,7 +27,7 @@ test("hosted Preview has its own DO and no production storage or variables by de
   });
   assert.equal(result.env, undefined);
   assert.deepEqual(result.assets, production.assets);
-  assert.deepEqual(result.migrations, production.migrations);
+  assert.deepEqual(result.exports, production.exports);
   assert.equal(result.main, production.main);
 });
 
@@ -74,10 +77,13 @@ test("additional resource types require their own isolation review", () => {
   }
 });
 
-test("Preview cannot transfer production Durable Object classes", () => {
-  assert.throws(() => isolatedPreviewConfig({ ...production, migrations: [
-    { tag: "v2", transferred_classes: [{ from: "CollaborationRoom", from_script: "production", to: "CollaborationRoom" }] },
-  ] }), /must not transfer/);
+test("Preview cannot change provisioned Durable Object class lifecycles", () => {
+  for (const state of ["deleted", "renamed", "transferred", "expecting-transfer"]) {
+    assert.throws(() => isolatedPreviewConfig({ ...production, exports: {
+      ...production.exports,
+      CollaborationRoom: { type: "durable-object", state },
+    } }), /must not change Durable Object class lifecycle/);
+  }
 });
 
 test("Preview CLI accepts only metadata and cannot override protected configuration", () => {
@@ -128,7 +134,7 @@ test("repository review configuration is anonymous and browser-only without chan
   assert.deepEqual(preview.d1_databases, config.d1_databases);
   assert.deepEqual(preview.kv_namespaces, config.kv_namespaces);
   assert.deepEqual(preview.durable_objects, config.durable_objects);
-  assert.deepEqual(preview.migrations, config.migrations);
+  assert.deepEqual(preview.exports, config.exports);
 });
 
 test("public Worker Preview rejects credential-like plaintext variables", () => {
