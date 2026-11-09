@@ -12,11 +12,12 @@ test("all CI jobs use full commit-pinned actions and checkouts do not persist cr
   for (const action of uses) {
     assert.match(action, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, `Action ${action} must be pinned by commit SHA`);
   }
-  const checkoutSteps = [...workflow.matchAll(/- uses: actions\/checkout@[0-9a-f]{40}\s*#?[^\n]*\n([\s\S]*?)(?=\n\s*- (?:uses|run|name):|\n\s{2}[a-z][\w-]*:|$)/gm)];
-  assert.ok(checkoutSteps.length > 0, "Expected at least one checkout step");
-  for (const [, step] of checkoutSteps) {
-    assert.match(step, /persist-credentials:\s*false/, "Checkout must never keep a write token in the workspace");
-  }
+  const checkoutCount = (workflow.match(/- uses: actions\/checkout@/g) ?? []).length;
+  const safeCheckouts = [...workflow.matchAll(
+    /- uses: actions\/checkout@[0-9a-f]{40}[^\n]*\n[ \t]+with:\n[ \t]+persist-credentials: false/g,
+  )];
+  assert.ok(checkoutCount > 0, "Expected at least one checkout step");
+  assert.equal(safeCheckouts.length, checkoutCount, "Every checkout must disable credential persistence");
 });
 
 test("CI checks pull requests without path skips, dependencies, workers and all E2E shards", () => {
