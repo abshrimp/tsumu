@@ -9,7 +9,7 @@ import * as assets from "../../lib/assets";
 const require = createRequire(resolve("package.json"));
 
 /** 実際のコールバックを、完了順と再描画を制御して実行する。DOMでの同じ操作はE2Eでも確認する。 */
-export function importCallbacks(kind: "image" | "font" | "html" | "style", upload = assets.uploadAsset, readZip = readHtmlZip) {
+export function importCallbacks(kind: "image" | "font" | "html" | "style" | "backup" | "breakpoints", upload = assets.uploadAsset, readZip = readHtmlZip) {
   let cursor = 0;
   let effects: (() => void)[] = [];
   const cells: any[] = [];
@@ -70,6 +70,8 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style", uploa
   }
   const component = kind === "image"
     ? evaluate("components/ImagePicker.tsx").default
+    : kind === "breakpoints" ? evaluate("components/SitePanel.tsx", "\nexport { BreakpointSettings }; ").BreakpointSettings
+    : kind === "backup" ? evaluate("components/SitePanel.tsx").default
     : kind === "html" ? evaluate("components/PagePanel.tsx").default
     : kind === "style" ? evaluate("components/StylePanel.tsx").default
     : evaluate("components/style-panel/TypographySec.tsx", "\nexport { FontPicker };").FontPicker;

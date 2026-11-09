@@ -42,16 +42,17 @@ import {
   useInspector,
 } from "../controls";
 import { tr } from "../../lib/i18n";
+import { editFilterFunction, filterFunctions } from "../../lib/filter-edit";
 import { I, Sec } from "./shared";
 
 /* ---------- エフェクト ---------- */
 
 interface Shadow {
   inset: boolean;
-  x: number;
-  y: number;
-  blur: number;
-  spread: number;
+  x: number | string;
+  y: number | string;
+  blur: number | string;
+  spread: number | string;
   color: string;
 }
 
@@ -71,12 +72,15 @@ export function parseShadow(s: string): Shadow {
     }
   }
   if (token) tokens.push(token);
-  const nums: number[] = [];
+  const nums: (number | string)[] = [];
   const colors: string[] = [];
   let inset = false;
   for (const part of tokens) {
     if (part.toLowerCase() === "inset") inset = true;
     else if (/^[+-]?(?:\d*\.)?\d+px$/i.test(part) || /^[+-]?(?:0*\.)?0+$/.test(part)) nums.push(parseFloat(part));
+    // Preserve relative/physical lengths rather than treating them as color
+    // tokens. Editing a color must not flatten em/rem/viewport-based geometry.
+    else if (/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?(?:px|em|rem|ex|rex|cap|rcap|ch|rch|ic|ric|lh|rlh|vw|vh|vi|vb|vmin|vmax|[sld]v(?:w|h|i|b|min|max)|cq(?:w|h|i|b|min|max)|cm|mm|q|in|pt|pc)$/i.test(part) || /^(?:calc|min|max|clamp)\(/i.test(part)) nums.push(part);
     else colors.push(part);
   }
   return {
@@ -89,12 +93,16 @@ export function parseShadow(s: string): Shadow {
   };
 }
 
+function shadowLength(value: number | string): string {
+  return typeof value === "number" ? `${value}px` : value;
+}
+
 export function serializeShadow(sh: Shadow): string {
-  return `${sh.inset ? "inset " : ""}${sh.x}px ${sh.y}px ${sh.blur}px ${sh.spread}px ${sh.color}`;
+  return `${sh.inset ? "inset " : ""}${shadowLength(sh.x)} ${shadowLength(sh.y)} ${shadowLength(sh.blur)} ${shadowLength(sh.spread)} ${sh.color}`;
 }
 
 function serializeTextShadow(sh: Shadow): string {
-  return `${sh.x}px ${sh.y}px ${sh.blur}px ${sh.color}`;
+  return `${shadowLength(sh.x)} ${shadowLength(sh.y)} ${shadowLength(sh.blur)} ${sh.color}`;
 }
 
 function ShadowCard({
@@ -140,12 +148,12 @@ function ShadowCard({
         {fields.map((key) => (
           <NumField
             key={key}
-            value={`${shadow[key]}px`}
+            value={shadowLength(shadow[key])}
             units={["px"]}
             pre={{ x: "X", y: "Y", blur: "B", spread: "S" }[key]}
             title={{ x: "X", y: "Y", blur: tr("ぼかし"), spread: tr("広がり") }[key]}
             onChange={(value) =>
-              onChange({ [key]: value ? (parseNumeric(value)?.num ?? 0) : 0 })
+              onChange({ [key]: value ? (parseNumeric(value)?.unit === "px" ? parseNumeric(value)!.num : value) : 0 })
             }
           />
         ))}
@@ -371,11 +379,18 @@ export function EffectsSec() {
   /** 比べる相手（大きい画面・通常時）のフィルタ。項目ごとの変更の色に使う */
   const fBase = parseFilter(filterInfo.baseline);
   const filterChanged = (key: keyof FilterParts) => filterInfo.setHere && f[key] !== fBase[key];
-  const setFilter = (patch: Partial<FilterParts>) =>
-    insp.set({ filter: serializeFilter({ ...f, ...patch }) ?? insp.cleared("filter") });
+  const setFilter = (patch: Partial<FilterParts>) => {
+    let value = filterInfo.value;
+    for (const [key, amount] of Object.entries(patch)) {
+      const name = key === "hueRotate" ? "hue-rotate" : key;
+      const replacement = serializeFilter({ ...parseFilter(undefined), [key]: amount });
+      value = editFilterFunction(value, name, replacement) ?? undefined;
+    }
+    insp.set({ filter: value ?? insp.cleared("filter") });
+  };
 
   const bdVal = insp.get("backdropFilter").value;
-  const bdM = bdVal ? /blur\((\d*\.?\d+)px\)/.exec(bdVal) : null;
+  const bdM = /blur\(\s*(\d*\.?\d+)px\s*\)/i.exec(filterFunctions(bdVal ?? "").find(fn => fn.name === "blur")?.text ?? "");
 
   // 変形: 設定済みか、「＋」から足したときに出す
   const tfSet = !!serializeTransform(parseTransform(insp.get("transform").value)) || insp.get("transformOrigin").set;
@@ -533,9 +548,9 @@ export function EffectsSec() {
             onChange={(v) =>
               insp.set({
                 backdropFilter:
-                  v && parseNumeric(v)!.num > 0
-                    ? `blur(${parseNumeric(v)!.num}px)`
-                    : insp.cleared("backdropFilter"),
+                  editFilterFunction(bdVal, "blur",
+                    v && (parseNumeric(v)?.num ?? 1) > 0 ? `blur(${v})` : null,
+                  ) ?? insp.cleared("backdropFilter"),
               })
             }
           />
