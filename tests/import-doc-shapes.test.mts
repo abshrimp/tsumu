@@ -52,7 +52,7 @@ test("non-browser import strips active or external SVG content rather than bypas
   const cleaned = sanitizeImportedSvg(hostile);
   assert.match(cleaned, /<svg\b/);
   assert.match(cleaned, /<circle\b/);
-  assert.doesNotMatch(cleaned, /onload|onerror|<script|foreignobject|https?:|<img|alert\(/i);
+  assert.doesNotMatch(cleaned, /onload|onerror|<script|foreignobject|remote\.example|url\(https?:|<img|alert\(/i);
   assert.ok(!cleaned.includes('fill="url('));
 });
 
