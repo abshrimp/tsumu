@@ -65,7 +65,7 @@ export async function toJavaScriptProject(
       const { parse } = await import("parse5");
       const html = files["index.html"];
       const document = parse(html, { sourceCodeLocationInfo: true });
-      let entry: { startOffset: number; endOffset: number } | undefined;
+      const entries: { startOffset: number; endOffset: number }[] = [];
       const pending: Html.Node[] = [document];
       while (pending.length) {
         const node = pending.pop()!;
@@ -74,16 +74,18 @@ export async function toJavaScriptProject(
           node.attrs.some(attr => attr.name === "type" && attr.value === "module") &&
           node.attrs.some(attr => attr.name === "src" && attr.value === "/src/main.tsx")) {
           const location = node.sourceCodeLocation?.attrs?.src;
-          // The generated entry follows all authored head content. Select only
-          // that last script, never matching text inside comments or script bodies.
-          if (location && (!entry || location.startOffset > entry.startOffset)) entry = location;
+          // Every executable reference follows the renamed file. Comments,
+          // script bodies and inert template content are never rewritten.
+          if (location) entries.push(location);
         }
         if ("childNodes" in node) pending.push(...node.childNodes);
       }
-      if (entry) {
-        files["index.html"] = html.slice(0, entry.startOffset) +
-          'src="/src/main.jsx"' + html.slice(entry.endOffset);
+      let rewritten = html;
+      for (const entry of entries.sort((a, b) => b.startOffset - a.startOffset)) {
+        rewritten = rewritten.slice(0, entry.startOffset) +
+          'src="/src/main.jsx"' + rewritten.slice(entry.endOffset);
       }
+      files["index.html"] = rewritten;
     }
     pkg.scripts.build = "vite build";
     delete pkg.devDependencies?.typescript;

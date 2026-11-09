@@ -21,7 +21,8 @@ for (const [name, head] of [
     const index = source.files["index.html"].lastIndexOf(entry);
     assert.ok(index >= 0);
     const expected = source.files["index.html"].slice(0, index) + entry.replace("main.tsx", "main.jsx") + source.files["index.html"].slice(index + entry.length);
-    assert.equal(output.files["index.html"], expected);
+    assert.equal(output.files["index.html"], name === "earlier authored module"
+      ? expected.replace('src="/src/main.tsx" data-authored="yes"', 'src="/src/main.jsx" data-authored="yes"') : expected);
     assert.ok(output.files["src/main.jsx"]);
     assert.equal(output.files["src/main.tsx"], undefined);
   });
