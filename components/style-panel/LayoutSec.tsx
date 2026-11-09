@@ -22,6 +22,7 @@ import {
   UnfoldHorizontal,
   UnfoldVertical,
 } from "lucide-react";
+import { cssValueParts } from "../../lib/css-value-parts";
 import { parseNumeric } from "../../lib/style";
 import {
   AlignGrid,
@@ -353,7 +354,7 @@ function GridGap() {
   const row = insp.get("rowGap");
   // gap は「縦 横」または1つの値
   const gapPart = (i: 0 | 1) => {
-    const parts = gap.value?.trim().split(/\s+/);
+    const parts = gap.value ? cssValueParts(gap.value) : undefined;
     return parts ? parts[Math.min(i, parts.length - 1)] : undefined;
   };
   // 個別指定とまとめ指定は、カスケードで後から効く方を見せる

@@ -127,9 +127,15 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
     socket: WebSocket,
     message: string | ArrayBuffer
   ): Promise<void> {
+    // A sender may disconnect while an awaited save is committing. Failure to
+    // acknowledge it must not skip the activity record or notify other editors
+    // of a failure after the write already succeeded.
+    const reply = (raw: string) => {
+      try { socket.send(raw); } catch { /* The peer disconnected. */ }
+    };
     if (!await this.authorized(socket)) return;
     if (message === "ping") {
-      socket.send("pong");
+      reply("pong");
       return;
     }
 
@@ -141,7 +147,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
           : new TextDecoder().decode(message)
       );
     } catch {
-      socket.send(
+      reply(
         JSON.stringify({
           type: "error",
           requestId: "",
@@ -151,7 +157,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       return;
     }
     if (!decoded || typeof decoded !== "object") {
-      socket.send(
+      reply(
         JSON.stringify({
           type: "error",
           requestId: "",
@@ -162,7 +168,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
     }
     const input = decoded as CollabClientMessage;
     if (!/^[a-zA-Z0-9_-]{1,100}$/.test(input.requestId ?? "")) {
-      socket.send(
+      reply(
         JSON.stringify({
           type: "error",
           requestId: "",
@@ -184,7 +190,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       if (input.type === "load") {
         const current = await readCurrentDoc(db, siteId);
         if (!current) {
-          socket.send(
+          reply(
             JSON.stringify({
               type: "snapshot",
               requestId: input.requestId,
@@ -193,7 +199,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
           );
           return;
         }
-        socket.send(
+        reply(
           `{"type":"snapshot","requestId":"${input.requestId}","exists":true,"rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}`
         );
         return;
@@ -216,13 +222,13 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       if (result.kind === "missing") throw new Error("サイトが見つかりません");
       if (result.kind === "conflict") {
         const current = result.current;
-        socket.send(
+        reply(
           `{"type":"conflict","requestId":"${input.requestId}","rev":"${current.rev}","savedAt":${current.savedAt},"doc":${current.body}}`
         );
         return;
       }
 
-      socket.send(
+      reply(
         JSON.stringify({
           type: "saved",
           requestId: input.requestId,
@@ -238,7 +244,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         : { ...metadata, type: "doc-updated", doc: input.doc };
       await this.broadcast(JSON.stringify(update), socket);
     } catch (error) {
-      socket.send(
+      reply(
         JSON.stringify({
           type: "error",
           requestId: input.requestId,
