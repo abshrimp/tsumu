@@ -744,12 +744,14 @@ export const SCRIPT_RUNTIME = `function (env) {
         });
       }
       function passes(fs, item) {
-        var acc = true;
-        fs.forEach(function (f, i) {
-          var r = passOne(f.conds, item);
-          acc = i === 0 ? r : f.join === "or" ? acc || r : acc && r;
-        });
-        return acc;
+        // Evaluate only the filters that can still change the result; this
+        // matches the short-circuit behavior of the SSR filter interpreter.
+        return fs.reduce(function (acc, f, i) {
+          if (i === 0) return passOne(f.conds, item);
+          return f.join === "or"
+            ? acc || passOne(f.conds, item)
+            : acc && passOne(f.conds, item);
+        }, true);
       }
       // 配列の並べ替え: 配列の名前 → { field, dir }
       var sorts = new Map();
