@@ -58,6 +58,15 @@ function sanitizeSvgWithoutDom(input: string): string {
 }
 
 
+/** Validate server-received icon markup without relying on browser globals.
+ * The browser import may sanitize an unsafe source first; a direct API request
+ * must not bypass that import boundary.
+ */
+export function isSafeImportedSvg(svg: string): boolean {
+  if (typeof svg !== "string") return false;
+  return serialize(parseFragment(svg)) === sanitizeSvgWithoutDom(svg);
+}
+
 /** Inline icons are rendered as HTML in generated sites, so sanitise them at the import boundary. */
 let purifier: ReturnType<typeof DOMPurify> | undefined;
 
