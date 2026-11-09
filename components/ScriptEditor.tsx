@@ -663,7 +663,8 @@ function ScriptEditorInner({
     <div
       ref={ghostRef}
       className="se-ghost"
-      style={{ left: drag.x - drag.ox * zoom, top: drag.y - drag.oy * zoom }}
+      style={{ left: 0, top: 0,
+        transform: `translate3d(${drag.x - drag.ox * zoom}px, ${drag.y - drag.oy * zoom}px, 0)` }}
     >
       <div style={{ zoom }}>
       <Ctx.Provider value={{ ...ctx, readOnly: true, activeSlot: null }}>
