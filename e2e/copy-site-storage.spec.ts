@@ -7,7 +7,7 @@ import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
 let bundle: string;
 test.beforeAll(async () => { bundle = await copySiteStorageBundle(); });
 
-for (const failure of ["read", "json", "shape", "breakpoints"] as const) {
+for (const failure of ["read", "json", "shape", "dangling", "missing", "breakpoints"] as const) {
   test(`copy dialog preserves an unreadable ${failure} IndexedDB document and allows retry`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -23,12 +23,17 @@ for (const failure of ["read", "json", "shape", "breakpoints"] as const) {
     const bad = failure === "breakpoints"
       ? JSON.stringify({ ...doc, breakpoints: [{ id: "custom", label: "Custom", maxWidth: 800 }] })
       : failure === "json" ? '{"siteName":"recoverable"'
-      : failure === "shape" ? JSON.stringify({ ...doc, pageOrder: [] }) : good;
+      : failure === "shape" ? JSON.stringify({ ...doc, pageOrder: [] })
+      : failure === "dangling" ? JSON.stringify({
+          ...doc,
+          pages: { ...doc.pages, [doc.pageOrder[0]]: { ...doc.pages[doc.pageOrder[0]], children: ["missing-node"] } },
+        })
+      : failure === "missing" ? null : good;
     await page.evaluate(site => {
       localStorage.setItem("tsumu-lang", "ja");
       localStorage.setItem("tsumu-sites-v1", JSON.stringify([site]));
     }, { ...emptyDest(), id: "destination", name: "Destination", createdAt: 1, updatedAt: 1 });
-    await setBrowserDoc(page, "destination", bad);
+    if (bad !== null) await setBrowserDoc(page, "destination", bad);
     if (failure === "read") {
       await page.evaluate(() => {
         const state = window as any;
