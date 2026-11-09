@@ -44,6 +44,7 @@ function fixture(truncated?: boolean, manifestText?: string) {
     GENERATED_MANIFEST_PATH: helpers.GENERATED_MANIFEST_PATH,
     ASSET_MANIFEST_PATH: helpers.ASSET_MANIFEST_PATH,
     isSafeCommitPath: helpers.isSafeCommitPath,
+    conflictingCommitPaths: helpers.conflictingCommitPaths,
     isProtectedPath: helpers.isProtectedPath,
     parseGeneratedManifest: helpers.parseGeneratedManifest,
     planPublish: helpers.planPublish,
@@ -239,5 +240,32 @@ test("client keep hints cannot resurrect obsolete editor-generated files", async
     keptPaths: ["app/obsolete.ts"],
   });
   assert.equal(response.status, 409);
+  assert.deepEqual(f.writes, []);
+});
+
+test("a manual symlink that is an ancestor of generated files cannot be silently overwritten", async () => {
+  const f = fixture();
+  f.entries.push({ path: "public/assets", mode: "120000", type: "blob", sha: "symlink" });
+  const response = await f.send({
+    action: "commit",
+    files: { "public/assets/logo.svg": "<svg/>" },
+    keptPaths: ["public/assets"],
+  });
+  assert.equal(response.status, 400);
+  assert.deepEqual(f.writes, []);
+});
+
+test("a generated file cannot silently replace a directory containing manual files", async () => {
+  const f = fixture();
+  f.entries.push({ path: "docs/README.md", mode: "100644", type: "blob", sha: "readme" });
+  const response = await f.send({ action: "commit", files: { docs: "new content" }, keptPaths: ["docs/README.md"] });
+  assert.equal(response.status, 400);
+  assert.deepEqual(f.writes, []);
+});
+
+test("two generated paths cannot overlap in a file/descendant relationship", async () => {
+  const f = fixture();
+  const response = await f.send({ action: "commit", files: { "config": "file", "config/settings.json": "{}" } });
+  assert.equal(response.status, 400);
   assert.deepEqual(f.writes, []);
 });
