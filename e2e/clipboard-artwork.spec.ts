@@ -132,7 +132,7 @@ for (const linkAttr of ["href", "xlink:href"] as const) {
         URL.revokeObjectURL(objectUrl);
       }
     });
-    expect(rendered.xml).toMatch(/<use\\b/);
+    expect(rendered.xml).toMatch(/<use\b/);
     expect(rendered.width).toBe(24);
     expect(rendered.height).toBe(12);
     expect(rendered.pixel[1]).toBeGreaterThan(80);
@@ -148,9 +148,9 @@ test("SVG <use> keeps only internal ID references", async ({ page }) => {
   await paste(page, false, source);
   await uploads(page, 1);
   const cleaned = await page.evaluate(() => (window as any).uploads[0].file.text());
-  expect(cleaned.match(/<use\\b/g)).toHaveLength(1);
+  expect(cleaned.match(/<use\b/g)).toHaveLength(1);
   expect(cleaned).toContain('href="#safe"');
-  expect(cleaned).not.toMatch(/evil\\.test|data:image\\/svg\\+xml/);
+  expect(cleaned).not.toMatch(/evil\.test|data:image\/svg\+xml/);
   await finish(page); await settled(page);
 });
 
