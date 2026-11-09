@@ -7,7 +7,7 @@ import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./st
 import { zipStylesheet } from "./zip-css";
 import { tr } from "./i18n";
 import { importedClass, readImportedAttributes } from "./imported-html-attrs";
-import DOMPurify from "dompurify";
+import { sanitizeImportedSvg } from "./imported-svg";
 import { expandZipCss } from "./html-css-import";
 import { importedAssetPath, isZipJavascript } from "./generator/imported-assets";
 
@@ -422,16 +422,6 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       : { styles };
   };
   const nodes: Record<string, DocNode> = {};
-  // Imported inline SVG becomes editable icon markup and must remain inert
-  // when the icon is later emitted as raw HTML by the generated site.
-  let svgSanitizer: ReturnType<typeof DOMPurify> | undefined;
-  const cleanSvg = (element: Element) => {
-    svgSanitizer ??= DOMPurify(window);
-    return svgSanitizer.sanitize(element.outerHTML, {
-      USE_PROFILES: { svg: true, svgFilters: true },
-      FORBID_TAGS: ["foreignObject", "script"],
-    });
-  };
   let converted = 0;
   const add = (node: DocNode): string => {
     if (++converted > MAX_NODES) throw new Error(tr("HTMLの要素数が多すぎます。"));
@@ -475,7 +465,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     if (tag === "hr") { common.type = "divider"; return add(common); }
     if (tag === "svg") {
       common.type = "icon";
-      common.icon = { name: "imported-svg", svg: cleanSvg(element) };
+      common.icon = { name: "imported-svg", svg: sanitizeImportedSvg(element.outerHTML) };
       return add(common);
     }
     if (tag === "input" || tag === "textarea" || tag === "select") {
