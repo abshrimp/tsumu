@@ -221,23 +221,32 @@ export async function POST(req: Request) {
     const leaf = (entries: TreeEntry[]) => entries.filter(
       entry => (entry.type === "blob" || entry.type === "commit") && !!entry.sha
     );
-    const currentBlobs: Record<string, string> = Object.create(null);
-    for (const entry of leaf(currentEntries)) currentBlobs[entry.path] = entry.sha!;
+    const blobsOf = (items: TreeEntry[]): Record<string, string> => {
+      const blobs: Record<string, string> = Object.create(null);
+      for (const entry of leaf(items)) blobs[entry.path] = entry.sha!;
+      return blobs;
+    };
+    const currentBlobs = blobsOf(currentEntries);
+    const sourceBlobs = blobsOf(sourceEntries);
 
-    // Match the commit endpoint: a malformed ownership manifest is a hard
-    // stop, not permission to delete unclassified manual files.
-    let generated: Record<string, string> | null = null;
-    const manifestSha = currentBlobs[GENERATED_MANIFEST_PATH];
-    if (manifestSha) {
-      const res = await gh(`/git/blobs/${manifestSha}`);
+    // Read ownership metadata for both revisions. Never infer that every
+    // historical file was generated: a user may have deleted a manual file
+    // after the chosen snapshot, and rollback must respect that deletion.
+    const readGenerated = async (blobs: Record<string, string>): Promise<Record<string, string> | null> => {
+      const sha = blobs[GENERATED_MANIFEST_PATH];
+      if (!sha) return null;
+      const res = await gh(`/git/blobs/${sha}`);
       if (!res.ok) await fail(tr("ツリーの取得"), res);
       const data = (await res.json()) as { content?: unknown; encoding?: unknown };
       if (typeof data.content !== "string" || (data.encoding && data.encoding !== "base64")) {
         throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
       }
-      generated = parseGeneratedManifest(Buffer.from(data.content, "base64").toString("utf8"));
-      if (!generated) throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
-    }
+      const parsed = parseGeneratedManifest(Buffer.from(data.content, "base64").toString("utf8"));
+      if (!parsed) throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      return parsed;
+    };
+    const generated = await readGenerated(currentBlobs);
+    const sourceGenerated = await readGenerated(sourceBlobs);
     const sourcePaths = leaf(sourceEntries).map(entry => entry.path);
     const manual = planPublish(currentBlobs, generated, []);
     const keptPaths = Object.keys(manual.kept).filter(path => !isProtectedPath(path));
@@ -250,8 +259,18 @@ export async function POST(req: Request) {
     const sourceRoot = sourceEntries.filter(entry => !entry.path.includes("/"));
     const currentRoot = currentEntries.filter(entry => !entry.path.includes("/"));
     const sourceByPath = new Map(sourceEntries.map(entry => [entry.path, entry]));
+    // When the older generated-file manifest exists, retain current deletions
+    // of files that were manually owned in the historical tree. Generated
+    // files absent from the current tree must still be restored.
+    const deletedManual = sourceGenerated
+      ? leaf(sourceEntries).filter(entry =>
+          !isProtectedPath(entry.path) && !entry.path.startsWith("_tsumu/") &&
+          !Object.hasOwn(sourceGenerated, entry.path) &&
+          !Object.hasOwn(currentBlobs, entry.path))
+      : [];
     const edits = [
       ...protectedTreeEdits(sourceRoot, currentRoot),
+      ...deletedManual.map(entry => ({ path: entry.path, mode: entry.mode, type: entry.type, sha: null })),
       ...kept.filter(entry => {
         const prior = sourceByPath.get(entry.path);
         return !prior || prior.sha !== entry.sha || prior.mode !== entry.mode || prior.type !== entry.type;
