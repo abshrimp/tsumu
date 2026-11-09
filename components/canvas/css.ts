@@ -3,6 +3,7 @@
  */
 
 import { escapeStyleContent } from "../../lib/css-assets";
+import { safeCssDeclaration } from "../../lib/css-declaration";
 import { keyframesCss, motionCss } from "../../lib/motion";
 import type { Breakpoint, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
 import { customStateSelector } from "../../lib/custom-states";
@@ -18,46 +19,12 @@ import {
 
 /* ---------- キャンバス用CSS生成 ---------- */
 
-/** A SiteDoc can contain arbitrary style-map keys and values. Treat each entry as
- * one declaration, not as trusted CSS source that can terminate the canvas rule. */
-function safeDeclarationValue(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  let quote = "";
-  let depth = 0;
-  let comment = false;
-  for (let i = 0; i < value.length; i++) {
-    const c = value[i];
-    const next = value[i + 1];
-    // A style-element close tag is dangerous even when quoted in CSS.
-    if (c === "<" && /^<\/style\b/i.test(value.slice(i, i + 10))) return false;
-    if (comment) {
-      if (c === "*" && next === "/") { comment = false; i++; }
-      continue;
-    }
-    if (quote) {
-      if (c === "\\") i++;
-      else if (c === quote) quote = "";
-      continue;
-    }
-    if (c === "/" && next === "*") { comment = true; i++; continue; }
-    if (c === "\\") { i++; continue; }
-    if (c === '"' || c === "'") { quote = c; continue; }
-    if (c === "(") { depth++; continue; }
-    if (c === ")") { if (depth === 0) return false; depth--; continue; }
-    if (c === "{" || c === "}" || (c === ";" && depth === 0)) return false;
-  }
-  return !quote && !comment && depth === 0;
-}
-
+/** Shared declaration validator keeps Canvas and exported-site CSS in sync. */
 function cssBody(map: Record<string, string>): string {
   return Object.entries(map)
     .flatMap(([key, value]) => {
-      // Camel-cased React properties, vendor prefixes and CSS custom properties.
-      // Reject punctuation/whitespace that could create a new selector or at-rule.
-      if (!/^(?:--[\w\u0080-\uFFFF-]+|-?[a-zA-Z][a-zA-Z0-9-]*)$/.test(key)) return [];
-      if (!safeDeclarationValue(value)) return [];
-      const name = key.startsWith("--") ? key : key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
-      return [`${name}: ${value};`];
+      const declaration = safeCssDeclaration(key, value);
+      return declaration ? [declaration] : [];
     })
     .join(" ");
 }

@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { test } from "node:test";
 import * as preconditions from "../lib/publish-preconditions";
+import { advanceBranchRef } from "../lib/github";
+import { hasPublishCredentials } from "../lib/publish-security";
 import * as helpers from "../lib/publish-files";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
-function fixture(truncated?: boolean) {
+function fixture(truncated?: boolean, manifestText?: string, documentBlob?: string) {
   class NextResponse extends Response {
     static json(data: unknown, init?: ResponseInit) {
       return new NextResponse(JSON.stringify(data), init);
@@ -26,6 +28,9 @@ function fixture(truncated?: boolean) {
     if (options.body) writes.push(path);
     if (path.startsWith("/git/ref/heads/")) return NextResponse.json({ object: { sha: "head" } });
     if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries, truncated });
+    if (path.startsWith("/git/blobs/")) return NextResponse.json({
+      encoding: "base64", content: Buffer.from(path.endsWith("/secret-doc") ? documentBlob ?? "" : manifestText ?? "").toString("base64"),
+    });
     if (path === "/git/trees") {
       trees.push(JSON.parse(options.body!));
       return NextResponse.json({ sha: "new-tree" });
@@ -40,8 +45,12 @@ function fixture(truncated?: boolean) {
     GENERATED_MANIFEST_PATH: helpers.GENERATED_MANIFEST_PATH,
     ASSET_MANIFEST_PATH: helpers.ASSET_MANIFEST_PATH,
     isSafeCommitPath: helpers.isSafeCommitPath,
+    conflictingCommitPaths: helpers.conflictingCommitPaths,
     isProtectedPath: helpers.isProtectedPath,
     parseGeneratedManifest: helpers.parseGeneratedManifest,
+    DOC_PATH: helpers.DOC_PATH,
+    hasPublishCredentials,
+    planPublish: helpers.planPublish,
     keptTreeEntries: helpers.keptTreeEntries,
     NextResponse,
     serverTr: async () => (text: string) => text,
@@ -52,6 +61,7 @@ function fixture(truncated?: boolean) {
     targetConfig: () => ({ repo: "test/site", branch: "main", token: "fake" }),
     githubClient: () => ({ gh, fail: () => { throw new Error("Unexpected GitHub error"); } }),
     toBranchPath: (path: string) => path,
+    advanceBranchRef,
     recordPublish: async () => { recorded = true; },
     userMessage: (error: Error) => error.message,
   };
@@ -168,4 +178,141 @@ test("an existing path that cannot be represented safely prevents tree replaceme
     assert.notEqual(response.status, 200);
   }
   assert.deepEqual(f.writes, []);
+});
+
+test("incomplete keptPaths cannot silently remove existing manual files", async () => {
+  const f = fixture();
+  const res = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, keptPaths: [] });
+  assert.equal(res.status, 200);
+  const written = f.trees.flatMap(chunk => chunk.tree);
+  for (const original of f.entries) {
+    assert.deepEqual(written.find(entry => entry.path === original.path), original, original.path);
+  }
+});
+
+test("the same path cannot be supplied as both text and an asset SHA", async () => {
+  const f = fixture();
+  const res = await f.send({
+    action: "commit",
+    files: { "app/page.tsx": "text" },
+    assetShas: { "app/page.tsx": "other-blob" },
+  });
+  assert.equal(res.status, 400);
+  assert.deepEqual(f.writes, []);
+});
+
+test("commit reconstructs manual retention from the previous generated manifest", async () => {
+  const older = helpers.serializeGeneratedManifest({ "app/obsolete.ts": "original" });
+  const f = fixture(false, older);
+  f.entries.push(
+    { path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "manifest-blob" },
+    { path: "app/obsolete.ts", mode: "100644", type: "blob", sha: "original" },
+    { path: "README.md", mode: "100644", type: "blob", sha: "manual" }
+  );
+  const response = await f.send({
+    action: "commit",
+    files: {
+      "app/page.tsx": "updated",
+      [helpers.GENERATED_MANIFEST_PATH]: helpers.serializeGeneratedManifest({ "app/page.tsx": "updated" }),
+    },
+    keptPaths: [],
+  });
+  assert.equal(response.status, 200);
+  const output = f.trees.flatMap(chunk => chunk.tree);
+  assert.equal(output.some(entry => entry.path === "app/obsolete.ts"), false, "obsolete generated files are removed");
+  assert.equal(output.some(entry => entry.path === "README.md"), true, "manual files survive an incomplete client plan");
+});
+
+test("malformed previous generated manifest stops destructive replacement", async () => {
+  const f = fixture(false, '{"version":1,"files":{"../outside":"not-safe"}}');
+  f.entries.push({ path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "broken-blob" });
+  const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, keptPaths: [] });
+  assert.equal(response.status, 502);
+  assert.deepEqual(f.writes, []);
+});
+
+test("client keep hints cannot resurrect obsolete editor-generated files", async () => {
+  const older = helpers.serializeGeneratedManifest({ "app/obsolete.ts": "original" });
+  const f = fixture(false, older);
+  f.entries.push(
+    { path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "manifest-blob" },
+    { path: "app/obsolete.ts", mode: "100644", type: "blob", sha: "original" }
+  );
+  const response = await f.send({
+    action: "commit", files: { "app/page.tsx": "updated" },
+    keptPaths: ["app/obsolete.ts"],
+  });
+  assert.equal(response.status, 409);
+  assert.deepEqual(f.writes, []);
+});
+
+test("a manual symlink that is an ancestor of generated files cannot be silently overwritten", async () => {
+  const f = fixture();
+  f.entries.push({ path: "public/assets", mode: "120000", type: "blob", sha: "symlink" });
+  const response = await f.send({
+    action: "commit",
+    files: { "public/assets/logo.svg": "<svg/>" },
+    keptPaths: ["public/assets"],
+  });
+  assert.equal(response.status, 400);
+  assert.deepEqual(f.writes, []);
+});
+
+test("a generated file cannot silently replace a directory containing manual files", async () => {
+  const f = fixture();
+  f.entries.push({ path: "docs/README.md", mode: "100644", type: "blob", sha: "readme" });
+  const response = await f.send({ action: "commit", files: { docs: "new content" }, keptPaths: ["docs/README.md"] });
+  assert.equal(response.status, 400);
+  assert.deepEqual(f.writes, []);
+});
+
+test("two generated paths cannot overlap in a file/descendant relationship", async () => {
+  const f = fixture();
+  const response = await f.send({ action: "commit", files: { "config": "file", "config/settings.json": "{}" } });
+  assert.equal(response.status, 400);
+  assert.deepEqual(f.writes, []);
+});
+
+test("commit blocks embedded fetch credentials even when a crafted API call bypasses the UI check", async () => {
+  const f = fixture();
+  const document = JSON.stringify({ pageScripts: [{ steps: [
+    { kind: "fetch", url: "https://api.example.test/search?api_key=credential" },
+  ] }] });
+  const response = await f.send({
+    action: "commit",
+    files: { "app/page.tsx": "page", [helpers.DOC_PATH]: document },
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /認証情報/);
+  assert.deepEqual(f.writes, []);
+});
+
+test("commit checks credentials in a previously uploaded doc.json blob as well", async () => {
+  const document = JSON.stringify({ pages: { p: { pageScripts: [{
+    steps: [{ kind: "fetch", headers: [{ name: "Authorization", value: "Bearer credential" }] }],
+  }] } } });
+  const f = fixture(false, undefined, document);
+  const response = await f.send({
+    action: "commit",
+    files: { "app/page.tsx": "page" },
+    assetShas: { [helpers.DOC_PATH]: "secret-doc" },
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /認証情報/);
+  assert.deepEqual(f.writes, []);
+});
+
+test("commit rejects malformed editable JSON and accepts benign data", async () => {
+  const invalid = fixture();
+  const denied = await invalid.send({
+    action: "commit", files: { [helpers.DOC_PATH]: "{broken" },
+  });
+  assert.equal(denied.status, 400);
+  assert.deepEqual(invalid.writes, []);
+
+  const permitted = fixture();
+  const ok = await permitted.send({
+    action: "commit", files: { [helpers.DOC_PATH]: JSON.stringify({ siteName: "Public", pages: {} }) },
+  });
+  assert.equal(ok.status, 200);
 });

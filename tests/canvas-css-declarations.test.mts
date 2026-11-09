@@ -65,3 +65,23 @@ test("canvas body CSS and raw HTML preview reject a style-element breakout", () 
   assert.doesNotMatch(html, /__canvasInjected/);
   assert.match(html, /margin: 12px;/);
 });
+
+test("Canvas CSS uses the exported-site declaration validator without diverging", async () => {
+  const { safeCssDeclaration } = await import("../lib/css-declaration");
+  const styles = {
+    borderColor: "green",
+    "--accent": "blue",
+    fontFamily: '"Family; With Semicolon"',
+    invalidValue: "red;} .hostile { display:none;",
+    "invalid; } a {": "blue",
+    backgroundImage: 'url("data:image/svg+xml,<svg></svg>")',
+  };
+  const html = previewHtmlWithBodyStyles("<html><head></head><body></body></html>",
+    { base: { default: styles } }, "base");
+  for (const [key, value] of Object.entries(styles)) {
+    const declaration = safeCssDeclaration(key, value);
+    if (declaration) assert.ok(html.includes(declaration), key);
+    else assert.ok(!html.includes(key + ": " + value), key);
+  }
+  assert.doesNotMatch(html, /\.hostile\s*\{|<script/i);
+});
