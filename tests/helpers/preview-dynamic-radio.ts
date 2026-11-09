@@ -52,7 +52,7 @@ export function previewDynamicRadioDoc(source: "query" | "data" | "literal" = "q
       ...(source === "data" ? { pageScripts: [{
         id: "load", trigger: "load" as const, pos: { x: 0, y: 0 }, steps: [{
           id: "fetch", kind: "fetch" as const, url: "https://example.test/sizes", as: "response",
-          sample: { smallLabel: "S", mediumLabel: "M" },
+          preview: { sample: { smallLabel: "S", mediumLabel: "M" } },
         }],
       }] } : {}),
     } },

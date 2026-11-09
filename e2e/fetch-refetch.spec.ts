@@ -353,7 +353,7 @@ test("same-page cloned node opens and refreshes its own result modal", async ({ 
 test("refresh uses updated upstream data rather than the first test's frozen sample", async ({ page }) => {
   await setUrl(page, "https://example.test/{other.0.name}"); await send(page); await finish(page, 0, { answer: "first" }); await close(page);
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
-    doc.pages.p.pageScripts[0].steps[1].preview.preview?.sample = [{ name: "LATEST" }];
+    doc.pages.p.pageScripts[0].steps[1].preview.sample = [{ name: "LATEST" }];
   }));
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await expect(result(page).locator(".se-fetch-destination")).toContainText("https://example.test/LATEST");
@@ -369,7 +369,7 @@ test("a newly resolved upstream value replaces a hidden temporary input on reope
   await send(page); await finish(page, 0, { answer: "temporary" }); await close(page);
   expect(await page.evaluate(() => (window as any).refetchRequests[0].input.url)).toBe("https://example.test/TEMP");
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
-    doc.pages.p.pageScripts[0].steps[1].preview.preview?.sample = [{ name: "Other", newfield: "LATEST" }];
+    doc.pages.p.pageScripts[0].steps[1].preview.sample = [{ name: "Other", newfield: "LATEST" }];
   }));
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await expect(result(page).getByRole("textbox", { name: "other.0.newfield のテスト用の値", exact: true })).toHaveCount(0);
