@@ -17,6 +17,8 @@ export interface ResultSet {
 }
 
 export interface Db {
+  /** Only Node/Docker uses the legacy-shaped local SQL document tables. */
+  readonly backend?: "d1" | "sqlite";
   execute(stmt: Stmt): Promise<ResultSet>;
   batch(stmts: Stmt[]): Promise<ResultSet[]>;
 }
@@ -76,12 +78,12 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
     ready = binding
       .batch(
         [
-          `CREATE TABLE IF NOT EXISTS docs (
+          ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS docs (
             id TEXT PRIMARY KEY,
             rev INTEGER NOT NULL,
             saved_at INTEGER NOT NULL,
             body TEXT NOT NULL
-          )`,
+          )`] : []),
           `CREATE TABLE IF NOT EXISTS allowed_emails (
             email TEXT PRIMARY KEY,
             added_at INTEGER NOT NULL
@@ -139,14 +141,14 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           )`,
           `CREATE INDEX IF NOT EXISTS comment_messages_site ON comment_messages (site_id)`,
           `CREATE INDEX IF NOT EXISTS comment_messages_thread ON comment_messages (site_id, thread_id, at, id)`,
-          // サイトごとの日次バックアップ（曜日ごとに7世代）
-          `CREATE TABLE IF NOT EXISTS site_backups (
+          // Local SQLite retains its optional rolling backups.
+          ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS site_backups (
             site_id TEXT NOT NULL,
             day INTEGER NOT NULL,
             saved_at INTEGER NOT NULL,
             body TEXT NOT NULL,
             PRIMARY KEY (site_id, day)
-          )`,
+          )`] : []),
         ].map((sql) => binding.prepare(sql))
       )
       .then(() => undefined)
@@ -158,6 +160,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
   }
   await ready;
   return {
+    backend: binding.__tsumuBackend === "sqlite" ? "sqlite" : "d1",
     execute: async (stmt) => toResultSet(await prepare(binding, stmt).all()),
     batch: async (stmts) =>
       (await binding.batch(stmts.map((s) => prepare(binding, s)))).map(

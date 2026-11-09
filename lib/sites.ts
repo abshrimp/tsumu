@@ -175,8 +175,10 @@ export async function updateSite(
 export async function deleteSite(db: Db, id: string): Promise<void> {
   await db.batch([
     { sql: "DELETE FROM sites WHERE id = ?", args: [id] },
-    { sql: "DELETE FROM docs WHERE id = ?", args: [id] },
-    { sql: "DELETE FROM site_backups WHERE site_id = ?", args: [id] },
+    ...(db.backend === "sqlite" ? [
+      { sql: "DELETE FROM docs WHERE id = ?", args: [id] },
+      { sql: "DELETE FROM site_backups WHERE site_id = ?", args: [id] },
+    ] : []),
     { sql: "DELETE FROM site_activity WHERE site_id = ?", args: [id] },
     { sql: "DELETE FROM comment_messages WHERE site_id = ?", args: [id] },
     { sql: "DELETE FROM comment_threads WHERE site_id = ?", args: [id] },
