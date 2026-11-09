@@ -21,7 +21,9 @@ import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publi
 import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import type { SiteDoc } from "../lib/types";
 import { detectSvgFilters } from "../lib/assets";
-import { hasPublishCredentials } from "../lib/publish-security";
+import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
+import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
+import { validateImportedDoc, IMPORT_LIMITS } from "../lib/site-import";
 import type { PublishTarget } from "../lib/generator";
 import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
@@ -34,6 +36,7 @@ import {
   ASSET_MANIFEST_PATH,
   DOC_PATH,
   planPublish,
+  conflictingCommitPaths,
   serializeGeneratedManifest,
 } from "../lib/publish-files";
 
@@ -362,6 +365,10 @@ export default function PublishModal({
       }
       addPwaRetirementWorker(target, existing.generated, files, outputPaths, format);
       const plan = planPublish(existing.blobs, existing.generated, outputPaths);
+      const incompatiblePaths = conflictingCommitPaths([...outputPaths, ...Object.keys(plan.kept)]);
+      if (incompatiblePaths) {
+        throw new Error(`${tr("公開できないファイルの場所が含まれています")}: ${incompatiblePaths.join(" / ")}`);
+      }
       const overwritten = [...plan.edited, ...plan.clashing];
       if (overwritten.length && !(await confirmOverwrite(overwritten))) {
         setSite(null);
@@ -720,12 +727,15 @@ function formatSize(bytes: number): string {
 /** 取得した編集データを確かめて、確認のうえで今の編集内容をそれに置き換える */
 async function restoreFrom(url: string, label: string, current: () => boolean): Promise<boolean> {
   const res = await fetch(url);
-  const data = (await res.json().catch(() => null)) as (SiteDoc & { error?: string }) | null;
+  const untrusted = await readRestoreJson(res, IMPORT_LIMITS.docBytes);
   if (!current()) return false;
-  if (!res.ok || !data) throw new Error(data?.error ?? tr("編集データを読み込めませんでした"));
-  if (!data.pages || !data.nodes || !data.pageOrder?.length) {
-    throw new Error(tr("編集データの形式ではありません"));
-  }
+  const error = untrusted && typeof untrusted === "object" && "error" in untrusted
+    ? (untrusted as { error?: unknown }).error : undefined;
+  if (!res.ok) throw new Error(typeof error === "string" ? error : tr("編集データを読み込めませんでした"));
+  // A GitHub commit can be edited independently of Tsumu. The basic shape
+  // check is insufficient: reject cycles, prototype keys and invalid links
+  // using the same validator as an explicit doc.json import.
+  const data = sanitizeImportedInlineIcons(validateImportedDoc(untrusted));
   const ok = await showConfirm(
     tr("いまの編集内容が「{label}」の内容に置き換わります。サーバーにも保存されますが、「元に戻す」（⌘Z）で今の内容に戻せます。", { label }),
     { title: tr("この版の編集内容に戻しますか？"), okLabel: tr("この版に戻す") }

@@ -69,3 +69,42 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
   }
   return false;
 }
+
+/**
+ * History restores are fetched from a repository that can be edited outside
+ * the application. Bound the response before JSON parsing or using it as a
+ * SiteDoc. The stream limit applies even when Content-Length is missing.
+ */
+export async function readRestoreJson(response: Response, maxBytes: number): Promise<unknown> {
+  const sizeHeader = response.headers.get("Content-Length");
+  if (sizeHeader && Number(sizeHeader) > maxBytes) {
+    throw new Error("編集データが大きすぎます。");
+  }
+  if (!response.body) throw new Error("編集データを読み込めませんでした");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throw new Error("編集データが大きすぎます。");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const part of chunks) { bytes.set(part, offset); offset += part.byteLength; }
+  try {
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
+  } catch {
+    throw new Error("編集データを読み込めませんでした");
+  }
+}
