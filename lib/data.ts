@@ -58,7 +58,9 @@ export function firstListItem(value: unknown): Record<string, unknown> | undefin
       ? item as Record<string, unknown>
       : { [ITEM_VALUE]: item };
   // The common dense-array case never needs to enumerate the remaining keys.
-  if (Array.isArray(value) && Object.hasOwn(value, 0)) return asItem(value[0]);
+  if (Array.isArray(value) && Object.prototype.propertyIsEnumerable.call(value, 0)) {
+    return asItem(value[0]);
+  }
   // Object.entries(value) would allocate every record even though previews
   // inspect only the first own enumerable entry.
   for (const key in value) {

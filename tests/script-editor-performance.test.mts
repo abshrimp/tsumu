@@ -284,6 +284,14 @@ test("editor list suggestions inspect the first item without materializing the r
   sparse[3] = false;
   assert.deepEqual(firstListItem(sparse), { [ITEM_VALUE]: false });
   assert.deepEqual(firstListItem(sparse), toListItems(sparse)[0]);
+  const hidden: unknown[] = ["hidden", "visible"];
+  Object.defineProperty(hidden, "0", { enumerable: false });
+  assert.deepEqual(firstListItem(hidden), toListItems(hidden)[0],
+    "non-enumerable array entries are not list items");
+  const firstOnly = new Proxy([{ name: "first" }, { name: "second" }], {
+    ownKeys() { throw new Error("The first item must not enumerate the full list"); },
+  });
+  assert.deepEqual(firstListItem(firstOnly), { name: "first" });
   assert.equal(firstListItem({}), undefined);
   assert.equal(firstListItem(null), undefined);
 });
