@@ -172,17 +172,16 @@ test("six matching custom screen widths remain usable", () => {
   assert.equal(dst.nodes[dst.pages[dst.pageOrder.at(-1)!].children[0]].styles.b5?.default?.color, "blue");
 });
 
-test("reused destination component masters are neither rewritten nor checked as new dependencies", () => {
+test("conflicting source masters with invalid responsive styles are rejected without modifying the destination", () => {
   const src = source(), dst = target();
   src.nodes.a.type = "instance"; src.nodes.a.componentId = "widget";
   src.nodes.master = { ...makeBox(), id: "master", styles: { obsolete: { default: { color: "red" } } } };
   src.components = { widget: { id: "widget", name: "Widget", rootId: "master" } };
   dst.nodes.existing = { ...makeBox(), id: "existing" };
   dst.components = { widget: { id: "widget", name: "Existing widget", rootId: "existing" } };
-  const existing = structuredClone(dst.nodes.existing);
-  applyPagePayload(dst, buildPagePayload(src, ["home"]));
-  assert.deepEqual(dst.nodes.existing, existing);
-  assert.equal(dst.nodes.master, undefined);
+  const before = structuredClone(dst);
+  assert.throws(() => applyPagePayload(dst, buildPagePayload(src, ["home"])), /画面幅|screen-width/);
+  assert.deepEqual(dst, before);
 });
 
 test("over-limit destination breakpoints cannot be silently truncated during copy", () => {
