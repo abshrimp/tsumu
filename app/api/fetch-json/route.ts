@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   let headers: unknown;
   let body: unknown;
   try {
-    ({ url, method, headers, body } = await readJsonLimited(req, MAX_REQUEST_BYTES) as Record<string, unknown>);
+    ({ url, method, headers, body } = await readJsonLimited(req, MAX_REQUEST_BYTES) as { url: string; method?: string; headers?: unknown; body?: unknown });
   } catch (error) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
