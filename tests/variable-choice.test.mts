@@ -34,9 +34,9 @@ test("JSON roundtrip preserves typed samples, expressions and generated project"
   assert.equal(JSON.stringify(doc), before);
   const saved = JSON.parse(before);
   assert.deepEqual(generateProject(saved), project);
-  assert.equal(saved.pages.p.pageScripts[0].steps[0].sample.available, false);
-  assert.equal(saved.pages.p.pageScripts[0].steps[0].sample.empty, null);
-  assert.equal(saved.pages.p.pageScripts[0].steps[0].sample.code, "001");
+  assert.equal(saved.pages.p.pageScripts[0].steps[0].preview.sample.available, false);
+  assert.equal(saved.pages.p.pageScripts[0].steps[0].preview.sample.empty, null);
+  assert.equal(saved.pages.p.pageScripts[0].steps[0].preview.sample.code, "001");
 });
 
 
@@ -65,7 +65,7 @@ test("real raw chip uses node samples and treats loop roots as runtime values", 
   const { makeBox, makeText } = await import("../lib/presets");
   const { previewDataVars, varGroupsAt } = await import("../lib/data");
   const doc = scriptDataPickerDoc();
-  (doc.pages.p.pageScripts![0].steps[0] as any).sample.rows = [{ price: false, details: { id: "LOCAL" } }];
+  (doc.pages.p.pageScripts![0].steps[0] as any).preview.sample.rows = [{ price: false, details: { id: "LOCAL" } }];
   doc.pages.p.pageScripts![0].steps.push({ id: "global-price", kind: "set-var", value: "{data.price}", into: "price" });
   doc.nodes.list = { ...makeBox(), id: "list", type: "list", list: { from: "data.rows" }, children: ["button"] };
   doc.nodes.button = { ...makeText("Button"), id: "button" };

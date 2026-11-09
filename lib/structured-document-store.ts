@@ -69,6 +69,11 @@ export class StructuredDocumentStore {
   constructor(private readonly storage: DocumentSqlStorage) {
     this.query("CREATE TABLE IF NOT EXISTS document_meta (id INTEGER PRIMARY KEY CHECK(id=1), rev INTEGER NOT NULL, saved_at INTEGER NOT NULL, props TEXT NOT NULL)");
     this.query("CREATE TABLE IF NOT EXISTS document_entries (bucket TEXT NOT NULL, entry_id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(bucket,entry_id))");
+    this.query("CREATE TABLE IF NOT EXISTS document_schema (id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL)");
+    this.query("INSERT OR IGNORE INTO document_schema(id,version) VALUES(1,1)");
+    if (Number(this.query("SELECT version FROM document_schema WHERE id=1")[0]?.version) !== 1) {
+      throw new Error("Unsupported document storage schema");
+    }
     this.query("CREATE TABLE IF NOT EXISTS document_state (id INTEGER PRIMARY KEY CHECK(id=1), sealed INTEGER NOT NULL CHECK(sealed IN (0,1)))");
     this.query("INSERT OR IGNORE INTO document_state(id,sealed) VALUES(1,0)");
     this.query("CREATE TABLE IF NOT EXISTS document_backup_meta (day INTEGER PRIMARY KEY, saved_at INTEGER NOT NULL, bytes INTEGER NOT NULL)");

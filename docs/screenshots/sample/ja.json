@@ -18,7 +18,7 @@
     },
     {
       "node": "node_mw6254vgcprls",
-      "x": 1.0,
+      "x": 1,
       "y": 0.75,
       "body": "ボタンの茶色、もう少し濃くしてもいいかもしれません。",
       "replies": [
@@ -86,51 +86,53 @@
                 "kind": "fetch",
                 "url": "https://dummyjson.com/products/search?q={q}",
                 "as": "データ",
-                "sample": {
-                  "products": [
-                    {
-                      "id": 1,
-                      "title": "Essence Mascara Lash Princess",
-                      "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing …",
-                      "price": 9.99,
-                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
-                      "category": "beauty",
-                      "brand": "Essence",
-                      "rating": 2.56
-                    },
-                    {
-                      "id": 2,
-                      "title": "Eyeshadow Palette with Mirror",
-                      "description": "The Eyeshadow Palette with Mirror offers a versatile range of eyeshadow shades f…",
-                      "price": 19.99,
-                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/thumbnail.webp",
-                      "category": "beauty",
-                      "brand": "Glamour Beauty",
-                      "rating": 2.86
-                    },
-                    {
-                      "id": 3,
-                      "title": "Powder Canister",
-                      "description": "The Powder Canister is a finely milled setting powder designed to set makeup and…",
-                      "price": 14.99,
-                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/powder-canister/thumbnail.webp",
-                      "category": "beauty",
-                      "brand": "Velvet Touch",
-                      "rating": 4.64
-                    },
-                    {
-                      "id": 4,
-                      "title": "Red Lipstick",
-                      "description": "The Red Lipstick is a classic and bold choice for adding a pop of color to your …",
-                      "price": 12.99,
-                      "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/red-lipstick/thumbnail.webp",
-                      "category": "beauty",
-                      "brand": "Chic Cosmetics",
-                      "rating": 4.36
-                    }
-                  ]
-                },
-                "fetchedAt": 1794035040749
+                "preview": {
+                  "sample": {
+                    "products": [
+                      {
+                        "id": 1,
+                        "title": "Essence Mascara Lash Princess",
+                        "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing …",
+                        "price": 9.99,
+                        "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+                        "category": "beauty",
+                        "brand": "Essence",
+                        "rating": 2.56
+                      },
+                      {
+                        "id": 2,
+                        "title": "Eyeshadow Palette with Mirror",
+                        "description": "The Eyeshadow Palette with Mirror offers a versatile range of eyeshadow shades f…",
+                        "price": 19.99,
+                        "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/eyeshadow-palette-with-mirror/thumbnail.webp",
+                        "category": "beauty",
+                        "brand": "Glamour Beauty",
+                        "rating": 2.86
+                      },
+                      {
+                        "id": 3,
+                        "title": "Powder Canister",
+                        "description": "The Powder Canister is a finely milled setting powder designed to set makeup and…",
+                        "price": 14.99,
+                        "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/powder-canister/thumbnail.webp",
+                        "category": "beauty",
+                        "brand": "Velvet Touch",
+                        "rating": 4.64
+                      },
+                      {
+                        "id": 4,
+                        "title": "Red Lipstick",
+                        "description": "The Red Lipstick is a classic and bold choice for adding a pop of color to your …",
+                        "price": 12.99,
+                        "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/red-lipstick/thumbnail.webp",
+                        "category": "beauty",
+                        "brand": "Chic Cosmetics",
+                        "rating": 4.36
+                      }
+                    ]
+                  },
+                  "fetchedAt": 1794035040749
+                }
               },
               {
                 "id": "st_mw6254vh1jyj63",
@@ -165,17 +167,19 @@
                 "kind": "fetch",
                 "url": "https://dummyjson.com/products/{slug}",
                 "as": "データ",
-                "sample": {
-                  "id": 1,
-                  "title": "Essence Mascara Lash Princess",
-                  "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing …",
-                  "price": 9.99,
-                  "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
-                  "category": "beauty",
-                  "brand": "Essence",
-                  "rating": 2.56
-                },
-                "fetchedAt": 1794035040749
+                "preview": {
+                  "sample": {
+                    "id": 1,
+                    "title": "Essence Mascara Lash Princess",
+                    "description": "The Essence Mascara Lash Princess is a popular mascara known for its volumizing …",
+                    "price": 9.99,
+                    "thumbnail": "https://cdn.dummyjson.com/product-images/beauty/essence-mascara-lash-princess/thumbnail.webp",
+                    "category": "beauty",
+                    "brand": "Essence",
+                    "rating": 2.56
+                  },
+                  "fetchedAt": 1794035040749
+                }
               },
               {
                 "id": "st_mw6254vg143thi",

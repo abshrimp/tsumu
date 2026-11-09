@@ -27,7 +27,7 @@ test("preview data preserves API nulls and prototype-like variable names as ordi
   assert.equal(previewDataVars(doc, "p", { live: { [fetch.id]: null } }).data, null,
     "a live null JSON response must not be replaced by the saved sample");
   steps.push({ id: "special", kind: "fetch", url: "https://example.com/data",
-    as: "__proto__", sample: { value: "safe" } });
+    as: "__proto__", preview: { sample: { value: "safe" } } });
   const vars = previewDataVars(doc, "p");
   assert.equal(Object.getPrototypeOf(vars), Object.prototype);
   assert.equal(Object.prototype.hasOwnProperty.call(vars, "__proto__"), true);
@@ -482,10 +482,10 @@ test("dynamic JSON field names retain accurate totals for truncated API samples"
   const steps = doc.pages.p.pageScripts![0].steps;
   const fetch = steps[0];
   if (fetch.kind !== "fetch") throw new Error("Expected fetch step");
-  fetch.sample = {
+  fetch.preview ??= {}; fetch.preview.sample = {
     groups: { a: Array.from({ length: 20 }, (_, i) => i), b: [1, 2] },
   };
-  fetch.sampleTotals = { "groups.a": 103 };
+  fetch.preview ??= {}; fetch.preview.totals = { "groups.a": 103 };
   steps.push(
     { id: "dynamic-name", kind: "set-var", value: "a", into: "targetKey" },
     { id: "pick-list", kind: "transform", source: "data.groups", into: "picked",
@@ -524,7 +524,7 @@ test("holiday dictionary rows are built using keyed writes and a list loop", () 
   steps.push(
     { id: "holidays-fetch", kind: "fetch", as: "祝日",
       url: "https://holidays-jp.github.io/api/v1/date.json",
-      sample: { "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" } },
+      preview: { sample: { "2026-11-03": "文化の日", "2026-11-23": "勤労感謝の日" } } },
     { id: "today", kind: "set-var", into: "今日の日付", value: "2026-11-23" },
     { id: "todays-holiday", kind: "transform", source: "祝日", into: "今日の祝日",
       transform: { kind: "field", key: "{今日の日付}" } },
@@ -660,7 +660,7 @@ test("page-load for-each and if execute on fetched items before rendering, inclu
   const load = doc.pages.p.pageScripts![0].steps;
   const fetch = load[0];
   if (fetch.kind !== "fetch") throw new Error("Expected fetch fixture");
-  fetch.sample = {
+  fetch.preview ??= {}; fetch.preview.sample = {
     rows: [
       { price: 10, enabled: "true" },
       { price: 7, enabled: "false" },
@@ -772,7 +772,7 @@ test("page-load nested loops read the nearest item's fields and preserve the out
   const doc = scriptDataPickerDoc();
   const fetch = doc.pages.p.pageScripts![0].steps[0];
   if (fetch.kind !== "fetch") throw new Error("Expected fetch fixture");
-  fetch.sample = {
+  fetch.preview ??= {}; fetch.preview.sample = {
     rows: [{ key: "outer", nested: [{ key: "a" }, { key: "b" }] }],
   };
   const steps = doc.pages.p.pageScripts![0].steps;
@@ -838,7 +838,7 @@ test("fetched sample totals are preserved through aliases in composition without
   const doc = scriptDataPickerDoc();
   const fetch = doc.pages.p.pageScripts![0].steps[0];
   if (fetch.kind !== "fetch") throw new Error("Expected fetch fixture");
-  fetch.sampleTotals = { tags: 52 };
+  fetch.preview ??= {}; fetch.preview.totals = { tags: 52 };
   doc.pages.p.pageScripts![0].steps.push(
     { id: "alias", kind: "set-var", value: "{data.tags}", into: "selectedTags" },
     { id: "len", kind: "transform", source: "selectedTags", into: "total", transform: { kind: "length" } },

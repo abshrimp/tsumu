@@ -571,7 +571,13 @@ export const SCRIPT_RUNTIME = `function (env) {
           el.placeholder = resolve(el.getAttribute("data-live-placeholder"), el);
         });
         // 初期値は、まだ自分で入力していない入力欄だけ書き直す
-        root.querySelectorAll("[data-live-value]").forEach(function (el) {
+        // Update option values before their owning selects. A select's requested
+        // value cannot match an option whose runtime value has not been updated.
+        var liveValues = Array.prototype.slice.call(root.querySelectorAll("[data-live-value]"));
+        liveValues.sort(function (a, b) {
+          return Number(b.tagName === "OPTION") - Number(a.tagName === "OPTION");
+        });
+        liveValues.forEach(function (el) {
           if (inTpl(el) || el.hasAttribute("data-edited")) return;
           var nv = resolve(el.getAttribute("data-live-value"), el);
           if (el.value !== nv) el.value = nv;
@@ -579,7 +585,11 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#clist*/
         // 選択肢の文字を先に直してから select の値を選ぶ。同じスクリプトの次の行も新しい値を読む。
         ["text", "placeholder", "value"].forEach(function (name) {
-          root.querySelectorAll("[data-field-" + name + "-parts]").forEach(function (el) {
+          var fieldNodes = Array.prototype.slice.call(root.querySelectorAll("[data-field-" + name + "-parts]"));
+          if (name === "value") fieldNodes.sort(function (a, b) {
+            return Number(b.tagName === "OPTION") - Number(a.tagName === "OPTION");
+          });
+          fieldNodes.forEach(function (el) {
             if (inTpl(el)) return;
             var row = el.closest("[data-row]");
             fillFieldParts(el, row && rowScopes.get(row) || {}, false, name);
@@ -1947,7 +1957,7 @@ export function usesLiveFields(doc: SiteDoc): boolean {
         n?.field?.placeholder,
         n?.field?.defaultValue,
         n?.field?.label,
-        ...(n?.field?.options ?? []),
+        ...(n?.field?.options ?? []).flatMap((o) => [o.label, o.value]),
       ];
       if (strs.some((t) => t && extractVars(t).some((v) => live.has(v.split(".")[0])))) return true;
     }

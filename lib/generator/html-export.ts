@@ -211,12 +211,15 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
   }
   if (f.kind === "select") {
     const values = f.options || [];
-    const selected = f.defaultValue && values.includes(f.defaultValue) ? f.defaultValue : values[0];
-    return "<select" + attrs + shared + ">" + values.map((v) =>
-      "<option" + flag("selected", v === selected) +
-      (hasVars(v) ? attr("data-static-option", v) : "") +
-      (hasVars(v) && ctx.template ? attr("data-field-text-parts", templateParts(v)) : "") +
-      ">" + escapeHtml(v) + "</option>").join("") + "</select>";
+    const selected = f.defaultValue && values.some((o) => o.value === f.defaultValue)
+      ? f.defaultValue : values[0]?.value;
+    return "<select" + attrs + shared + ">" + values.map((o) =>
+      "<option" + attr("value", o.value) + flag("selected", o.value === selected) +
+      (hasVars(o.value) ? attr("data-live-value", o.value) : "") +
+      (hasVars(o.value) && ctx.template ? attr("data-field-value-parts", templateParts(o.value)) : "") +
+      (hasVars(o.label) ? attr("data-static-option", o.label) : "") +
+      (hasVars(o.label) && ctx.template ? attr("data-field-text-parts", templateParts(o.label)) : "") +
+      ">" + escapeHtml(o.label) + "</option>").join("") + "</select>";
   }
   if (f.kind === "checkbox" || f.kind === "radio") {
     const text = f.label || "";

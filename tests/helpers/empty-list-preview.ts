@@ -9,7 +9,7 @@ import { nestedListSourcesDoc } from "./nested-list-sources";
 export function emptyListDoc(items: readonly unknown[]) {
   const doc = nestedListSourcesDoc();
   doc.nodes.tag.text!.content = "Tag: {値}";
-  (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as { preview?: { sample?: unknown } }).preview = { sample: items };
   return doc;
 }
 

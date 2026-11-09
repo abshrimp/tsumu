@@ -5,7 +5,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function canvasMoveDoc(): SiteDoc {
   return {
-    siteName: "Canvas movement", assets: {}, pageOrder: ["p", "q"],
+    schemaVersion: 1, siteName: "Canvas movement", assets: {}, pageOrder: ["p", "q"],
     nodes: Object.fromEntries(["a", "b", "c"].map((id) => [id, {
       ...makeBox(id.toUpperCase(), { height: "100px", backgroundColor: "#ddeeff", marginBottom: "12px" }), id,
     }])),

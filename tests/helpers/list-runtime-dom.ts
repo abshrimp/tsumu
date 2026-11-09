@@ -53,6 +53,7 @@ export class ListDomNode {
   }
   set value(value: string) {
     if (this.tagName === "SELECT") this.selectedIndex = this.options.findIndex(o => o.value === value);
+    else if (this.tagName === "OPTION") this.attrs.value = value;
     else this.fieldValue = value;
   }
   getAttribute(name: string) { return this.attrs[name] ?? null; }

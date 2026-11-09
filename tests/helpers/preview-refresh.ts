@@ -12,13 +12,13 @@ export function previewRefreshDoc(): SiteDoc {
     { ...makeText("{response.label}: {total}"), id: "other-result" },
   ];
   return {
-    siteName: "Preview refresh ordering", assets: {}, pageOrder: ["home", "other"],
+    schemaVersion: 1, siteName: "Preview refresh ordering", assets: {}, pageOrder: ["home", "other"],
     nodes: Object.fromEntries(nodes.map((node) => [node.id, node])),
     pages: Object.fromEntries(["home", "other"].map((id) => [id, {
       id, name: id, title: id, description: "", slug: id === "home" ? "posts/[slug]" : "other",
       children: id === "home" ? ["result", "query", "submit", "other-link"] : ["other-result", "home-link"],
       pageScripts: [{ id: `${id}-load`, trigger: "load", pos: { x: 0, y: 0 }, steps: [
-        { id: `${id}-fetch`, kind: "fetch", url: `https://example.test/${id}?q={q}&slug={slug}`, as: "response", sample: { label: `${id} saved`, rows: [{ id: "saved" }] } },
+        { id: `${id}-fetch`, kind: "fetch", url: `https://example.test/${id}?q={q}&slug={slug}`, as: "response", preview: { sample: { label: `${id} saved`, rows: [{ id: "saved" }] } } },
         { id: `${id}-value`, kind: "set-var", value: "{response}", into: "item" },
         { id: `${id}-count`, kind: "transform", source: "response.rows", into: "total", transform: { kind: "length" } },
       ] }],

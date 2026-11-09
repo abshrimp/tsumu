@@ -173,15 +173,19 @@ function node(ctx: Context, id: string, top = false): string {
           literal("rows", f.rows) + literal("maxlength", f.maxLength) + ">" + contents + "</textarea>";
       }
       if (f.kind === "select") {
-        const defaultIndex = f.defaultValue ? (f.options || []).indexOf(f.defaultValue) : 0;
+        const optionValues = (f.options || []).map((option) => option.value);
+        const defaultIndex = f.defaultValue ? optionValues.indexOf(f.defaultValue) : 0;
         const def = Math.max(0, defaultIndex);
-        const dynamic = hasVars(f.defaultValue) || (f.options || []).some(hasVars);
-        const selected = "selectedOption(" + q(f.options || []) + ", " + q(f.defaultValue || "") + ", scope" +
+        const dynamic = hasVars(f.defaultValue) || (f.options || []).some((option) =>
+          hasVars(option.label) || hasVars(option.value));
+        const selected = "selectedOption(" + q(optionValues) + ", " + q(f.defaultValue || "") + ", scope" +
           (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
         const options = (f.options || []).map((opt, index) => {
-          const contents = hasVars(opt) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", opt) + " }}"
-            : "{" + expr(ctx, "resolveText", opt) + "}") : staticText(opt);
-          return "<option" + (dynamic ? dynamicAttr(ctx, "selected", selected + " === " + index) : truth("selected", index === def)) + ">" + contents + "</option>";
+          const contents = hasVars(opt.label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", opt.label) + " }}"
+            : "{" + expr(ctx, "resolveText", opt.label) + "}") : staticText(opt.label);
+          return "<option" + valueAttr(ctx, "value", opt.value) +
+            (dynamic ? dynamicAttr(ctx, "selected", selected + " === " + index) : truth("selected", index === def)) +
+            ">" + contents + "</option>";
         }).join("\n");
         return "<select" + attrs + fields + fieldEvent("change") + ">" + options + "</select>";
       }

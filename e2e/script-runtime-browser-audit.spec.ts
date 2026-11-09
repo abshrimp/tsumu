@@ -13,7 +13,7 @@ function fixture(entries: Entry[]): SiteDoc {
     steps: entry.steps,
   }));
   return {
-    siteName: "Script browser audit",
+    schemaVersion: 1, siteName: "Script browser audit",
     pageOrder: ["a", "b"],
     assets: {},
     nodes: {},

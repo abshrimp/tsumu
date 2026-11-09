@@ -7,7 +7,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function aiChatDoc(): SiteDoc {
   return {
-    siteName: "AI history", assets: {}, pageOrder: ["p", "q"],
+    schemaVersion: 1, siteName: "AI history", assets: {}, pageOrder: ["p", "q"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "P", description: "", children: ["a"] },
       q: { id: "q", name: "Q", slug: "q", title: "Q", description: "", children: ["b"] },

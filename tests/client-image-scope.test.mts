@@ -47,7 +47,7 @@ test('image tokens preserve fallback data braces, own null/empty/root/dotted key
     { 'profile.label': 'Literal {name}', tags: [{ label: 'dotted' }] },
     { name: 'Own {slug}', profile: { label: 'Own' }, slug: 'own', tags: [{ label: 'data' }] },
   ];
-  (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as any).preview = { sample: items };
   for (const key of ['profile', 'slug']) doc.pages.p.pageScripts![0].steps.push({ id: key, kind: 'set-var', value: `{response.0.${key}}`, into: key });
   doc.pages.p.pageScripts![0].steps.push(
     { id: 'fallback', kind: 'set-var', value: 'Server \\{name}', into: 'fallback' },
@@ -72,7 +72,7 @@ test('no global collision remains correct and empty row image uses the existing 
   const doc = clientImageDoc(false, '{name}');
   doc.pages.p.pageScripts![0].steps.pop();
   const items = [{ name: '/first.png', tags: [{}] }, { name: '/second.png', tags: [{}] }, { name: null, tags: [{}] }, { name: '', tags: [{}] }];
-  (doc.pages.p.pageScripts![0].steps[0] as any).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as any).preview = { sample: items };
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
   await runtime.click('reload'); assert.deepEqual(sources(runtime), ['/first.png', '/second.png', EMPTY_GIF, EMPTY_GIF]); runtime.dispose();
 });

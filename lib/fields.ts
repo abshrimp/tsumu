@@ -75,7 +75,7 @@ export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown
     case "radio":
       return f.checked ? fill(f.label, vars) : "";
     case "select": {
-      const options = (f.options ?? []).map((option) => fill(option, vars));
+      const options = (f.options ?? []).map((option) => fill(option.value, vars));
       const value = fill(f.defaultValue, vars);
       // 初期値が選択肢に無ければブラウザと同じく先頭を選ぶ。変数が空に解決する場合も比較する。
       return f.defaultValue && options.includes(value) ? value : (options[0] ?? "");
@@ -160,7 +160,7 @@ export function fieldStateValues(
     }
     if (!name) continue;
     if (f.kind === "select") {
-      const at = values[name] === null ? -1 : (f.options ?? []).map((o) => fill(o, vars)).indexOf(v);
+      const at = values[name] === null ? -1 : (f.options ?? []).map((o) => fill(o.value, vars)).indexOf(v);
       setFieldValue(out, name, at < 0 ? "" : v);
       out[`${name}.index`] = String(at + 1);
     }
@@ -193,7 +193,7 @@ export function fieldValuePatch(
   if (!hit) return null;
   // 初期値と違い、選択肢にない値の代入は選択を外す（HTMLSelectElement.value と同じ）。
   if (hit.field?.kind === "select") {
-    return { [name]: (hit.field.options ?? []).some((o) => fill(o, vars) === v) ? v : null };
+    return { [name]: (hit.field.options ?? []).some((o) => fill(o.value, vars) === v) ? v : null };
   }
   return { [name]: hit.field?.kind === "checkbox" ? String(truthy(v)) : v };
 }

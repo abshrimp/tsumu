@@ -59,14 +59,14 @@ test("design-only guidance remains editable while empty preview can recover when
   await expect(page.locator("#preview")).toHaveText("FirstSecond");
   expect(await snapshot(page)).toEqual(saved);
   await page.evaluate(() => (window as any).emptyListStore.getState().updateDoc((doc: any) => {
-    const items = doc.pages.p.pageScripts[0].steps[0].sample;
+    const items = doc.pages.p.pageScripts[0].steps[0].preview.sample;
     items[0].tags = ["red"]; items[1].tags = ["green", "blue"];
   }));
   await expect(page.locator("#preview")).toHaveText("FirstTag: redSecondTag: greenTag: blue");
   await page.evaluate(() => (window as any).emptyListStore.getState().undo());
   await expect(page.locator("#preview")).toHaveText("FirstSecond");
   await page.evaluate(() => (window as any).emptyListStore.getState().updateDoc((doc: any) => {
-    doc.pages.p.pageScripts[0].steps[0].sample = [];
+    doc.pages.p.pageScripts[0].steps[0].preview.sample = [];
   }));
   await expect(page.locator("#preview")).toHaveText("");
   await expect(page.locator("#preview .cv-placeholder")).toHaveCount(0);

@@ -222,7 +222,9 @@ export function renderLeafNode(
       });
     }
     if (f.kind === "select") {
-      const options = (f.options ?? []).map(fill);
+      const options = (f.options ?? []).map((option) => ({
+        label: fill(option.label), value: fill(option.value),
+      }));
       const unselected = live && stored === null;
       return createElement(
         "select",
@@ -242,7 +244,7 @@ export function renderLeafNode(
               }
             : { value: fieldInitialValue(f, opts.vars), onChange: () => {} }),
         },
-        options.map((o, i) => createElement("option", { key: i, value: o }, o))
+        options.map((o, i) => createElement("option", { key: i, value: o.value }, o.label))
       );
     }
     if (f.kind === "checkbox" || f.kind === "radio") {

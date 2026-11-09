@@ -10,7 +10,7 @@ import type { SiteDoc } from "../lib/types";
  */
 test("generated HTML query variants execute authored scripts and initialize page data in order", async ({ page }) => {
   const doc: SiteDoc = {
-    siteName: "Static variant",
+    schemaVersion: 1, siteName: "Static variant",
     pageOrder: ["default", "selected"],
     pages: {
       default: { id: "default", slug: "", name: "Default", title: "Default",

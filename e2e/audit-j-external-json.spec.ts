@@ -37,7 +37,7 @@ function fixture(): SiteDoc {
     text: null, list: { from: "items" }, children: ["row-title", "row-link"],
   };
   return {
-    siteName: "AUD-J external JSON boundary",
+    schemaVersion: 1, siteName: "AUD-J external JSON boundary",
     pageOrder: ["home"],
     pages: { home: {
       id: "home", name: "Home", title: "Home", slug: "",

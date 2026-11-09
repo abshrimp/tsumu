@@ -46,7 +46,7 @@ async function options(page: Page, method: string) {
 
 test("Initial fetch sends once without confirmation; subsequent views are read-only until explicit refresh", async ({ page }) => {
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
-    const step = doc.pages.p.pageScripts[0].steps[0]; delete step.sample; delete step.fetchedAt;
+    const step = doc.pages.p.pageScripts[0].steps[0]; delete step.preview?.sample; delete step.preview?.fetchedAt;
   }));
   await expect(block(page).getByRole("button")).toHaveCount(2);
   await expect(block(page).locator(".se-fetch-destination")).toHaveCount(0);
@@ -89,8 +89,8 @@ test("Editing URL, POST body, headers, or DELETE settings does not send requests
   await expect(block(page).getByRole("button", { name: "データを見る", exact: true })).toHaveCount(0);
   await expect(block(page)).toContainText("DELETE");
   await expect(block(page)).toContainText("この送信は接続先のデータを変更する場合があります");
-  expect((await currentStep(page)).sample).toEqual([{ name: "Initial" }]);
-  expect((await currentStep(page)).fetchedAt).toBeUndefined();
+  expect((await currentStep(page)).preview?.sample).toEqual([{ name: "Initial" }]);
+  expect((await currentStep(page)).preview?.fetchedAt).toBeUndefined();
   await page.evaluate(() => { const s = (window as any).refetchEditor.getState(); s.replaceDoc(JSON.parse(JSON.stringify(s.doc))); });
   await expect(block(page).getByRole("button", { name: "データ取得", exact: true })).toBeVisible();
   await send(page); await requests(page, 1);
@@ -112,7 +112,7 @@ test("Unknown slugs use the block test values consistently without saving them t
   await finish(page, 0, all);
   await expect(result(page)).toContainText("https://example.test/Initial/001/a%20b");
   await expect(result(page).getByText("Row22", { exact: true })).toBeVisible();
-  expect((await currentStep(page)).sample).toEqual(all.slice(0, 20));
+  expect((await currentStep(page)).preview?.sample).toEqual(all.slice(0, 20));
   expect(JSON.stringify(await currentStep(page))).not.toContain("a b");
   await refresh(page).click(); await requests(page, 2);
   expect(await page.evaluate(() => (window as any).refetchRequests[1].input.url)).toBe("https://example.test/Row0/001/a%20b");
@@ -122,7 +122,7 @@ test("Unknown slugs use the block test values consistently without saving them t
 test("Saved samples are limited to 20 and explain how to fetch all results again", async ({ page }) => {
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
     const step = doc.pages.p.pageScripts[0].steps[0];
-    delete step.sample; delete step.fetchedAt;
+    delete step.preview?.sample; delete step.preview?.fetchedAt;
   }));
   await send(page);
   const all = Array.from({ length: 23 }, (_, i) => ({ name: `Row${i}` }));
@@ -156,7 +156,7 @@ test("Stale responses or errors do not replace the new pending state, sample, or
   await setUrl(page, "https://example.test/failed"); await send(page);
   await finish(page, 3, undefined, "新しい取得に失敗しました"); await finish(page, 2, [{ name: "OLD" }]);
   await expect(result(page).getByRole("alert")).toHaveText("新しい取得に失敗しました");
-  expect((await currentStep(page)).sample).toEqual([{ name: "LATEST" }]);
+  expect((await currentStep(page)).preview?.sample).toEqual([{ name: "LATEST" }]);
   await refresh(page).click(); await requests(page, 5); await finish(page, 4, [{ name: "RECOVERED" }]);
   await expect(result(page).getByRole("alert")).toHaveCount(0);
   await expect(result(page).getByText("RECOVERED", { exact: true })).toBeVisible();
@@ -228,7 +228,7 @@ test("Invalid JSON cannot be sent, explicit empty values work, and uncommitted U
 
 test("Executing a block inside a list and refreshing its dialog send the same row values", async ({ page }) => {
   const doc = fetchScopeDoc("node");
-  delete (doc.nodes.act.scripts![0].steps[0] as any).fetchedAt;
+  delete (doc.nodes.act.scripts![0].steps[0] as any).preview?.fetchedAt;
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
   const scoped = page.locator('[data-sel-key="step:scoped"]');
   await scoped.getByRole("button", { name: "データ取得", exact: true }).click();
@@ -245,7 +245,7 @@ test("Executing a block inside a list and refreshing its dialog send the same ro
 
 test("Nested fetches prevent parent loop values and empty objects or arrays from falling back to page values", async ({ page }) => {
   const doc = fetchScopeDoc("loop");
-  delete (doc.pages.p.pageScripts![0].steps[2] as any).then[0].then[0].fetchedAt;
+  delete (doc.pages.p.pageScripts![0].steps[2] as any).then[0].then[0].preview?.fetchedAt;
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
   const scoped = page.locator('[data-sel-key="step:scoped"]');
   await expect(scoped.getByRole("button", { name: "データ取得", exact: true })).toBeDisabled();
@@ -330,7 +330,7 @@ test("duplicatePage keeps a node fetch result on its authoring page", async ({ p
   const samples = await page.evaluate(() => {
     const doc = (window as any).refetchEditor.getState().doc;
     const copyList = doc.nodes[doc.pages[(window as any).copiedFetchPage].children[0]];
-    return { original: doc.nodes.act.scripts[0].steps[0].sample, copy: doc.nodes[copyList.children[0]].scripts[0].steps[0].sample };
+    return { original: doc.nodes.act.scripts[0].steps[0].preview?.sample, copy: doc.nodes[copyList.children[0]].scripts[0].steps[0].preview?.sample };
   });
   expect(samples).toEqual({ original: { origin: "AUTHOR-PAGE" }, copy: { ok: true } });
 });
@@ -347,13 +347,13 @@ test("same-page cloned node opens and refreshes its own result modal", async ({ 
   await copied.getByRole("button", { name: "データを見る", exact: true }).click();
   await refresh(page).click(); await finish(page, 0, { origin: "COPY-NODE" });
   await expect(result(page).getByText("COPY-NODE", { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => (window as any).refetchEditor.getState().doc.nodes.act.scripts[0].steps[0].sample)).toEqual({ ok: true });
+  expect(await page.evaluate(() => (window as any).refetchEditor.getState().doc.nodes.act.scripts[0].steps[0].preview?.sample)).toEqual({ ok: true });
 });
 
 test("refresh uses updated upstream data rather than the first test's frozen sample", async ({ page }) => {
   await setUrl(page, "https://example.test/{other.0.name}"); await send(page); await finish(page, 0, { answer: "first" }); await close(page);
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
-    doc.pages.p.pageScripts[0].steps[1].sample = [{ name: "LATEST" }];
+    doc.pages.p.pageScripts[0].steps[1].preview.sample = [{ name: "LATEST" }];
   }));
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await expect(result(page).locator(".se-fetch-destination")).toContainText("https://example.test/LATEST");
@@ -369,7 +369,7 @@ test("a newly resolved upstream value replaces a hidden temporary input on reope
   await send(page); await finish(page, 0, { answer: "temporary" }); await close(page);
   expect(await page.evaluate(() => (window as any).refetchRequests[0].input.url)).toBe("https://example.test/TEMP");
   await page.evaluate(() => (window as any).refetchEditor.getState().updateDoc((doc: any) => {
-    doc.pages.p.pageScripts[0].steps[1].sample = [{ name: "Other", newfield: "LATEST" }];
+    doc.pages.p.pageScripts[0].steps[1].preview.sample = [{ name: "Other", newfield: "LATEST" }];
   }));
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await expect(result(page).getByRole("textbox", { name: "other.0.newfield のテスト用の値", exact: true })).toHaveCount(0);
@@ -382,7 +382,7 @@ test("a newly resolved upstream value replaces a hidden temporary input on reope
 });
 
 test("a standalone read-only loop drag ghost preserves temporary local inputs", async ({ page }) => {
-  const doc = fetchScopeDoc("loop"); delete (doc.pages.p.pageScripts![0].steps[2] as any).then[0].then[0].fetchedAt;
+  const doc = fetchScopeDoc("loop"); delete (doc.pages.p.pageScripts![0].steps[2] as any).then[0].then[0].preview?.fetchedAt;
   await page.evaluate((doc) => (window as any).refetchEditor.getState().replaceDoc(doc), doc);
   const scoped = page.locator('.se-ws [data-sel-key="step:scoped"]');
   for (const name of ["details.id", "empty", "tags", "details"]) await scoped.getByRole("textbox", { name: `${name} のテスト用の値`, exact: true }).fill("LOCAL");

@@ -44,7 +44,7 @@ export function previewDynamicRadioDoc(source: "query" | "data" | "literal" = "q
     { ...makeText("size={size}; small={small}; medium={medium}; large={large}; index={size.index}"), id: "result" },
   ];
   return {
-    siteName: "Preview dynamic radio", assets: {}, pageOrder: ["home"],
+    schemaVersion: 1, siteName: "Preview dynamic radio", assets: {}, pageOrder: ["home"],
     pages: { home: {
       id: "home", name: "Home", title: "Home", description: "", slug: "",
       query: source === "query" ? "smallLabel=S&mediumLabel=M" : "",
@@ -52,7 +52,7 @@ export function previewDynamicRadioDoc(source: "query" | "data" | "literal" = "q
       ...(source === "data" ? { pageScripts: [{
         id: "load", trigger: "load" as const, pos: { x: 0, y: 0 }, steps: [{
           id: "fetch", kind: "fetch" as const, url: "https://example.test/sizes", as: "response",
-          sample: { smallLabel: "S", mediumLabel: "M" },
+          preview: { sample: { smallLabel: "S", mediumLabel: "M" } },
         }],
       }] } : {}),
     } },

@@ -23,7 +23,7 @@ export function scriptInputValueDoc(field: FieldContent, requested: string, rest
     { ...makeText("value=[{entry}]; changes={changes}"), id: "result", attrId: "result" },
   ];
   return {
-    siteName: "Script input values", assets: {}, pageOrder: ["home"],
+    schemaVersion: 1, siteName: "Script input values", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: nodes.map((n) => n.id), pageScripts: [{
       id: "init", trigger: "load", pos: { x: 400, y: 32 }, steps: [
         { id: "init-count", kind: "set-var", into: "changes", value: "0" },

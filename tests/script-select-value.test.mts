@@ -126,5 +126,5 @@ test("native regression bundles the actual ScriptEditor, Canvas and generated pa
   assert.match(bundle, /function Canvas/);
   const { html } = await publishedScriptSelectValue(scriptSelectValueDoc());
   assert.match(html, /data-scripts=/);
-  assert.match(html, /<option>A<\/option><option selected="">B<\/option>/);
+  assert.match(html, /<option value="A">A<\/option><option value="B" selected="">B<\/option>/);
 });

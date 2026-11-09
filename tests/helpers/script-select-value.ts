@@ -5,7 +5,7 @@ import type { ScriptStep, SiteDoc } from "../../lib/types";
 import { publishedSelectDefault, selectDefaultDoc } from "./select-default";
 
 export function scriptSelectValueDoc(options = ["A", "B"]): SiteDoc {
-  const doc = selectDefaultDoc({ options }, "empty=&missing=C");
+  const doc = selectDefaultDoc({ options: options.map((value) => ({ label: value, value })) }, "empty=&missing=C");
   const actions: [string, string[]][] = [
     ["assign-choice", ["B"]], ["clear-choice", [""]], ["missing-choice", ["{missing}"]],
     ["valid-choice", ["A"]], ["repeat-missing", ["{missing}", "{missing}"]],

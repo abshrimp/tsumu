@@ -29,7 +29,7 @@ test("quoted value-recipe inputs keep braces literal even when preceded by a bac
 
 test("document patch never accepts prototype-chain keys", () => {
   const doc = {
-    siteName: "Safe", pages: { p: { id: "p", name: "p", slug: "", children: [] } },
+    schemaVersion: 1, siteName: "Safe", pages: { p: { id: "p", name: "p", slug: "", children: [] } },
     pageOrder: ["p"], nodes: {}, assets: {},
   } as SiteDoc;
   for (const name of ["__proto__", "constructor", "prototype"]) {
