@@ -11,7 +11,8 @@ import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from
 import { createInitialDoc, genId } from "./presets";
 import { cloneSteps, scriptUid } from "./script";
 import { copySlug, uniquePageNaming } from "./store";
-import { isLocalSiteDeleted } from "./site";
+import { isLocalSiteDeleted, loadLocalSites } from "./site";
+import { validSiteDoc } from "./doc-tree";
 import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
 import { tr } from "./i18n";
 import { isSiteLang, siteLangOf } from "./site-lang";
@@ -219,23 +220,25 @@ export async function copyPagesToSite(
     try {
       // The destination list can be stale while the copy dialog is open.
       // Never recreate content for a site explicitly deleted in another tab.
-      if (isLocalSiteDeleted(target.id)) throw new Error("Local destination deleted");
-      const raw = await readBrowserDoc(target.id);
-      expected = raw;
-      // 未保存と読み込み失敗を区別し、読めない既存データを初期状態で上書きしない。
-      if (raw === null) {
-        doc = createInitialDoc();
-        doc.siteName = target.name;
-      } else {
-        doc = JSON.parse(raw) as SiteDoc;
-        if (!doc?.pages || !doc.nodes || !doc.assets || !Array.isArray(doc.pageOrder) || !doc.pageOrder.length) {
-          throw new Error("Invalid destination document");
-        }
+      if (isLocalSiteDeleted(target.id) ||
+          !loadLocalSites({ strict: true }).some(site => site.id === target.id)) {
+        throw new Error("Local destination missing");
       }
+      const raw = await readBrowserDoc(target.id);
+      // A local site is seeded with a document when it is created. Missing or
+      // corrupt bytes must never be silently replaced with an empty site.
+      if (raw === null) throw new Error("Local destination document missing");
+      const parsed: unknown = JSON.parse(raw);
+      if (!validSiteDoc(parsed)) throw new Error("Invalid destination document");
+      expected = raw;
+      doc = parsed as SiteDoc;
     } catch {
       throw new Error(tr("コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。"));
     }
     applyPagePayload(doc, payload);
+    if (!validSiteDoc(doc)) {
+      throw new Error(tr("コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。"));
+    }
     try {
       if (isLocalSiteDeleted(target.id)) throw new Error("Local destination deleted");
       const result = await writeBrowserDoc(target.id, JSON.stringify(doc), expected);
