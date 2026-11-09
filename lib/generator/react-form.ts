@@ -23,7 +23,7 @@ export default function SearchForm({ children, ...rest }: ComponentPropsWithoutR
             options.find((o) => o.defaultSelected) ?? options[0];
           if (pick) pick.selected = true;
         } else if (input.type === "checkbox" || input.type === "radio") {
-          input.checked = submitted ? (value !== null && (input.value === value || value === "on")) : input.defaultChecked;
+          input.checked = submitted ? (value !== null && (input.value === value || (input.type === "checkbox" && value === "on"))) : input.defaultChecked;
         } else {
           input.value = value ?? input.defaultValue;
         }

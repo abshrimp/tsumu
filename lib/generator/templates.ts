@@ -169,7 +169,7 @@ function RestoreFields({ formRef }: { formRef: RefObject<HTMLFormElement | null>
         if (pick) pick.selected = true;
       } else if (input.type === "checkbox" || input.type === "radio") {
         input.checked = hasQuery
-          ? v !== null && (input.value === v || v === "on")
+          ? v !== null && (input.value === v || (input.type === "checkbox" && v === "on"))
           : input.defaultChecked;
       } else {
         input.value = v ?? input.defaultValue;
