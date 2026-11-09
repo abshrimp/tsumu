@@ -127,7 +127,7 @@ test("nested stylesheets retain conditions, use their own base and ignore a temp
     binaries: { "css/images/a.svg": "PHN2Zy8+" }, remoteAssets: {},
   }, async () => { throw new Error("unexpected network request"); });
   const html = project.files["index.html"];
-  const match = /@import "data:text\/css;base64,([^"]+)" layer\(colors\) print;/.exec(html);
+  const match = /@import "data:text\/css;charset=utf-8;base64,([^"]+)" layer\(colors\) print;/.exec(html);
   assert.ok(match);
   assert.match(atob(match[1]), /data:image\/svg\+xml;base64,PHN2Zy8\+#mark/);
 });

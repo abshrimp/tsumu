@@ -58,7 +58,38 @@ function isEditorApi(url: URL): boolean {
 }
 
 export type ResourceRequest = (url: string, init: RequestInit) => Promise<Response>;
-type Resource = { bytes: Uint8Array<ArrayBuffer>; mime: string; base: URL };
+type Resource = { bytes: Uint8Array<ArrayBuffer>; mime: string; base: URL; charset?: string };
+
+function httpCharset(contentType: string): string | undefined {
+  // 他の引用符付きパラメーター内にある charset はヘッダー指定とみなさない。
+  const parameters = /;[\t ]*([^;=\t ]+)[\t ]*=[\t ]*(?:"((?:[^"\\]|\\[\s\S])*)"|([^;]*))/g;
+  for (const match of contentType.matchAll(parameters)) {
+    if (match[1].toLowerCase() === "charset") {
+      return match[2] === undefined ? match[3].trim() : match[2].replace(/\\([\s\S])/g, "$1");
+    }
+  }
+}
+
+function decoderForLabel(label: string | undefined): TextDecoder | undefined {
+  if (label === undefined) return;
+  try { return new TextDecoder(label); } catch { return; }
+}
+
+function stylesheetDecoder(item: Resource, environmentEncoding: string): TextDecoder {
+  const bytes = item.bytes;
+  // BOM は HTTP、@charset、親シートの文字コードより優先する。
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return decoder;
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le");
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be");
+  const transport = decoderForLabel(item.charset);
+  if (transport) return transport;
+  // CSS Syntax の宣言は先頭1024バイト内の厳密な ASCII 構文だけを認める。
+  const prefix = String.fromCharCode(...bytes.subarray(0, 1024));
+  const label = /^@charset "([\x00-\x21\x23-\x7f]*)";/.exec(prefix)?.[1];
+  const declared = decoderForLabel(label);
+  if (declared) return declared.encoding.startsWith("utf-16") ? decoder : declared;
+  return decoderForLabel(environmentEncoding) ?? decoder;
+}
 
 export function singleHtmlResources(source: GeneratedProject, request: ResourceRequest, hasImportMap: boolean) {
   const verifyIntegrity = createIntegrityVerifier();
@@ -82,6 +113,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     if (resources.size >= 2048) throw new Error("Too many single HTML resources.");
     const ext = url.pathname.split(".").pop()?.toLowerCase() ?? "";
     let mime = Object.hasOwn(types, ext) ? types[ext] : "application/octet-stream";
+    let charset: string | undefined;
     let base = url;
     let bytes: Uint8Array<ArrayBuffer>;
     const local = url.origin === EXPORT_BASE.origin;
@@ -90,6 +122,8 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       const text = source.files[path];
       check(inputBytes + textBytes(text));
       bytes = encoder.encode(text);
+      // 生成済みの文字列は元バイト列ではなく、ここで UTF-8 に符号化する。
+      charset = "utf-8";
     } else if (local && Object.hasOwn(source.binaries, path)) {
       const encoded = source.binaries[path];
       check(inputBytes + Math.floor(encoded.length * 3 / 4) - (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0));
@@ -113,12 +147,14 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       }
       if (!local && response.url) base = new URL(response.url);
       bytes = await readAssetBytes(response, SINGLE_HTML_LIMIT - inputBytes, "Resource exceeds single HTML size limit: " + key);
-      const type = response.headers.get("content-type")?.split(";")[0].trim().toLowerCase();
+      const contentType = response.headers.get("content-type") ?? "";
+      charset = httpCharset(contentType);
+      const type = contentType.split(";")[0].trim().toLowerCase();
       if (type && /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/.test(type)) mime = type;
       else if (mime === "text/css" || mime === "text/javascript") mime = "application/octet-stream";
     }
     inputBytes += bytes.length;
-    const result = { bytes, mime, base };
+    const result = { bytes, mime, base, charset };
     resources.set(key, result);
     return result;
   }
@@ -194,20 +230,22 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     return output.join();
   }
 
-  async function stylesheet(url: URL, parents: Set<string>, integrity = ""): Promise<string> {
+  async function stylesheet(url: URL, parents: Set<string>, integrity = "", environmentEncoding = "utf-8"): Promise<string> {
     const key = keyOf(url);
     if (parents.size >= 32 || parents.has(key)) throw new Error("Recursive CSS imports or excessive stylesheet depth: " + key);
     const item = await load(url);
     await verifyIntegrity(item.bytes, integrity);
     if (item.mime !== "text/css") throw new Error("Cannot embed stylesheet with media type " + item.mime);
-    const cached = sheets.get(key);
+    const cssDecoder = stylesheetDecoder(item, environmentEncoding);
+    const cacheKey = key + "\0" + cssDecoder.encoding;
+    const cached = sheets.get(cacheKey);
     if (cached !== undefined) return cached;
-    const result = await css(decoder.decode(item.bytes), item.base, new Set([...parents, key]));
-    return remember(sheets, key, result);
+    const result = await css(cssDecoder.decode(item.bytes), item.base, new Set([...parents, key]), cssDecoder.encoding);
+    return remember(sheets, cacheKey, result);
   }
 
   const cssUrls = new Map<string, string>();
-  async function css(text: string, base: URL, parents = new Set<string>()): Promise<string> {
+  async function css(text: string, base: URL, parents = new Set<string>(), environmentEncoding = "utf-8"): Promise<string> {
     const result = new HtmlOutput();
     let from = 0;
     for (const ref of iterateCssAssetReferences(text, 512)) {
@@ -216,9 +254,9 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       let value: string;
       if (ref.isImport) {
         const url = new URL(ref.url, base);
-        const key = keyOf(url);
-        const content = await stylesheet(url, parents);
-        value = cssUrls.get(key) ?? remember(cssUrls, key, dataUrl(encoder.encode(content), "text/css"));
+        const key = keyOf(url) + "\0" + environmentEncoding;
+        const content = await stylesheet(url, parents, "", environmentEncoding);
+        value = cssUrls.get(key) ?? remember(cssUrls, key, cssUrl(content));
       } else {
         value = await embed(ref.url, base);
       }
@@ -230,5 +268,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     return result.join();
   }
 
-  return { css, stylesheet, embed, embedModule, inlineModule: moduleText, cssUrl: (text: string) => dataUrl(encoder.encode(text), "text/css") };
+  // 再符号化した本文は元の @charset や親シートにかかわらず UTF-8 で読む。
+  const cssUrl = (text: string) => dataUrl(encoder.encode(text), "text/css;charset=utf-8");
+  return { css, stylesheet, embed, embedModule, inlineModule: moduleText, cssUrl };
 }
