@@ -43,7 +43,7 @@ export function nativeDataModule(): string {
     "  return url;",
     "}",
     "export function resolveUrl(value, vars, ...items) {",
-    "  return safeLink(resolveText(value, vars, ...items));",
+    "  return safeLink(interpolate(value, scopeOf(vars, ...items), true));",
     "}",
     "export function resolveResourceUrl(value, vars, ...items) {",
     "  const url = String(resolveText(value, vars, ...items) || '').trim();",
