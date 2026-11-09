@@ -280,7 +280,6 @@ test("page copy remaps conflicting components without changing destination maste
   assert.equal(importedText(destination, pastedInstance.componentId!).text!.content, "Imported master content");
   assert.deepEqual(destination.components![componentId], before.components![componentId]);
   assert.deepEqual(destination.nodes[originalRoot], before.nodes[originalRoot]);
-  assert.deepEqual(source, structuredClone(source));
 });
 
 test("page copy remaps nested conflicting components and their instance references", () => {
