@@ -129,17 +129,22 @@ function toRecord(r: Record<string, unknown>): SiteRecord {
 }
 
 export async function listSites(db: Db): Promise<SiteRecord[]> {
-  const rs = await db.execute(
-    "SELECT s.*, s.updated_at AS saved_at FROM sites s ORDER BY s.updated_at DESC"
-  );
+  const sql = db.backend === "d1"
+    ? `SELECT s.*, r.saved_at FROM sites s
+        LEFT JOIN site_document_rooms r ON r.site_id=s.id
+        ORDER BY COALESCE(r.saved_at,s.updated_at) DESC`
+    : `SELECT s.*, d.saved_at FROM sites s
+        LEFT JOIN docs d ON d.id=s.id
+        ORDER BY COALESCE(d.saved_at,s.updated_at) DESC`;
+  const rs = await db.execute(sql);
   return rs.rows.map(toRecord);
 }
 
 export async function getSite(db: Db, id: string): Promise<SiteRecord | null> {
-  const rs = await db.execute({
-    sql: "SELECT s.*, s.updated_at AS saved_at FROM sites s WHERE s.id = ?",
-    args: [id],
-  });
+  const sql = db.backend === "d1"
+    ? "SELECT s.*, r.saved_at FROM sites s LEFT JOIN site_document_rooms r ON r.site_id=s.id WHERE s.id=?"
+    : "SELECT s.*, d.saved_at FROM sites s LEFT JOIN docs d ON d.id=s.id WHERE s.id=?";
+  const rs = await db.execute({ sql, args: [id] });
   return rs.rows[0] ? toRecord(rs.rows[0]) : null;
 }
 

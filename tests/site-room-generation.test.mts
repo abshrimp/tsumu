@@ -41,6 +41,14 @@ test("D1 creates only the generation map, not the old JSON document table", with
   await insertSite(db, "reusable", dest);
   assert.equal((await db.execute("SELECT name FROM sqlite_master WHERE name='docs'")).rows.length, 0);
   assert.match((await getSiteRoomKey(db, "reusable"))!, /^[0-9a-f-]{36}$/);
+  assert.equal((await getSite(db, "reusable"))?.savedAt, null, "new sites are not yet saved");
+  const roomKey = (await getSiteRoomKey(db, "reusable"))!;
+  await db.execute({
+    sql: "UPDATE site_document_rooms SET saved_at=? WHERE site_id=? AND room_key=?",
+    args: [123456, "reusable", roomKey],
+  });
+  assert.equal((await getSite(db, "reusable"))?.savedAt, 123456);
+
 }));
 
 test("deleting and recreating the same site ID always assigns a different room", withFreshDb(async db => {

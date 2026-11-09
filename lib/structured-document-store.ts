@@ -128,10 +128,19 @@ export class StructuredDocumentStore {
     this.query("DELETE FROM document_backup_chunks WHERE day=?", day);
     this.query("INSERT INTO document_backup_meta(day,saved_at,bytes) VALUES(?,?,?) ON CONFLICT(day) DO UPDATE SET saved_at=excluded.saved_at,bytes=excluded.bytes",
       day, savedAt, bytes);
-    // Slice by UTF-16 code units. Each chunk is at most ~750KB in UTF-8.
-    for (let i = 0, index = 0; i < previous.body.length; i += 250_000, index++) {
+    // Never split a UTF-16 surrogate pair: SQLite text conversion would
+    // replace isolated halves and corrupt emoji in the restored JSON.
+    for (let i = 0, index = 0; i < previous.body.length; index++) {
+      let end = Math.min(i + 250_000, previous.body.length);
+      if (end < previous.body.length) {
+        const firstHalf = previous.body.charCodeAt(end - 1);
+        const secondHalf = previous.body.charCodeAt(end);
+        if (firstHalf >= 0xd800 && firstHalf <= 0xdbff &&
+            secondHalf >= 0xdc00 && secondHalf <= 0xdfff) end++;
+      }
       this.query("INSERT INTO document_backup_chunks(day,part,body) VALUES(?,?,?)",
-        day, index, previous.body.slice(i, i + 250_000));
+        day, index, previous.body.slice(i, end));
+      i = end;
     }
   }
 

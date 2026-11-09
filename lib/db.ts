@@ -105,7 +105,8 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           ...(binding.__tsumuBackend === "sqlite" ? [] : [
             `CREATE TABLE IF NOT EXISTS site_document_rooms (
               site_id TEXT PRIMARY KEY,
-              room_key TEXT NOT NULL UNIQUE
+              room_key TEXT NOT NULL UNIQUE,
+              saved_at INTEGER
             )`,
             `CREATE TABLE IF NOT EXISTS document_room_cleanup (
               room_key TEXT PRIMARY KEY,

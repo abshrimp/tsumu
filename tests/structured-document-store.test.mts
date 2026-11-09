@@ -144,7 +144,10 @@ test("asset references are read directly from asset rows and erase clears both t
 test("daily backups preserve the previous day's final SiteDoc, in small SQLite chunks", () => {
   const { store, sqlite } = database();
   const original = createInitialDoc();
-  original.customHeadHtml = "保存データ".repeat(150_000);
+  // A single UTF-16 character flips the surrogate alignment between the
+  // first and second chunks. The backup must preserve emoji on either side.
+  original.customHeadHtml = "😀".repeat(150_000) + "x" +
+    "😀".repeat(150_000) + "保存データ".repeat(150_000);
   store.replace(JSON.stringify(original), null);
   const yesterday = Date.now() - 86_400_000;
   sqlite.prepare("UPDATE document_meta SET saved_at=? WHERE id=1").run(yesterday);
