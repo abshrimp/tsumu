@@ -98,3 +98,20 @@
 - E担当のPR #26はインポート・アセットの内部検証を担当。A側は配信・署名のアクセス制御を確認。
 - 本番プロキシ設定（信頼される`X-Forwarded-Host`/`X-Forwarded-Proto`）、NextAuthの実Cookie属性、Google OAuth実接続、Cloudflare上の動的アクセス失効、レート制限は実配備での検証が必要。リクエスト頻度制御は持続的な共有ストア・エッジの設定が必要であり、メモリー内だけの暫定レートリミットは追加しない。
 - 本監査は「脆弱性0件の保証」ではない。CI結果と別担当のレビュー結果、および新しいmainへの統合テストを確認して完了判定する。
+
+
+## 二次監査（2026-11-09）
+
+前回の全CI成功後に、各APIの `req.json()` / JSON読取のサイズ制限を再点検した。認証済み利用者に限られる経路であっても、巨大な本文による無制限なデコードを許さない。
+
+| ID | 重要度 | 問題と再現条件 | 修正 | 回帰テスト |
+| --- | --- | --- | --- | --- |
+| AUD-A-005 | Medium | `POST /api/allowed-users`、`POST /api/comments`、`PATCH /api/sites/[id]` は入力項目の型・長さを後から確認していたが、JSON本文の読込自体に上限がなかった。巨大・分割送信の本文による過剰なメモリ/CPU使用につながる。 | バイト数の実測とContent-Lengthを確認して読込み前／途中に413。上限はアカウント16KiB、コメント64KiB、サイト設定64KiB。通常のJSON本文のContent-Type受理条件は変えない。 | `tests/allowed-users-shapes.test.mts`、`tests/comment-storage.test.mts`、`tests/site-settings-concurrency.test.mts`、`tests/api-json-limits.test.mts` |
+| AUD-A-006 | Low | `DELETE /api/allowed-users` に `email` クエリパラメータが複数あると先頭だけで削除し、呼び出し側のパラメータ解釈と食い違う可能性があった。 | `email` は1件のみ許可し、重複・欠落は400。 | `tests/allowed-users-errors.test.mts` |
+
+### ブランチ整合性と範囲
+
+- `main` の #19/#22 による更新をAブランチへマージし、アカウント一覧の保存後リフレッシュで例外を正しく捕捉する処理を維持した。
+- API全体の残存注意点: `/api/doc` の大容量SiteDocはB、`/api/publish` のアップロード本文はG、`/api/fetch-json` はHの担当範囲としてサイズ・処理量・失敗時の負荷を別途検証する。Aの修正がこれらの問題を解消したとはみなさない。
+- 未認証アクセスが上記書き込みAPIを直接呼べることは今回確認していない。これは認証・許可済み利用者に対する堅牢性修正であり、認証回避の発見を意味しない。
+- 最新コミットでのCI/結合試験が成功するまで、二次監査の完了とマージ適格性は宣言しない。
