@@ -96,7 +96,8 @@ export function wranglerConfigPath({ deploy = false } = {}) {
 /** Prevent command-line overrides from bypassing the production binding audit. */
 export function assertSafeDeployArgs(args) {
   for (const arg of args) {
-    if (/^--(?:config|env|environment|name|var|define|secrets-file|ignore-base-config)(?:=|$)/.test(arg) ||
+    if (arg === "--" ||
+        /^--(?:config|cwd|env|env-file|environment|profile|name|var|define|secrets-file|ignore-base-config|route|routes|zone-id|zone-ids|assets|site|compatibility-date|compatibility-flag|compatibility-flags)(?:=|$)/.test(arg) ||
         /^-[cen](?:=|$|[^-])/.test(arg)) {
       throw new Error(`Unsupported production deploy override: ${arg}. Use WRANGLER_CONFIG with reviewed top-level bindings instead.`);
     }

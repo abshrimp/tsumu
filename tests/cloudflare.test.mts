@@ -146,7 +146,12 @@ test("explicit local and WRANGLER_CONFIG paths must also have production storage
 test("production deployment rejects flags that could override the validated target or bindings", () => {
   for (const forbidden of ["--config", "--config=other.jsonc", "-c", "-cother.jsonc",
     "--env", "--env=production", "--environment=production", "-e", "--name=other",
-    "-n", "--var", "--define", "--secrets-file", "--ignore-base-config"]) {
+    "-n", "--var", "--define", "--secrets-file", "--ignore-base-config",
+    "--cwd", "--cwd=../other-app", "--env-file", "--env-file=.env.local",
+    "--profile", "--profile=other-account", "--route", "--route=example.com/*",
+    "--routes", "--zone-id", "--zone-ids", "--assets", "--site",
+    "--compatibility-date", "--compatibility-date=2026-11-09",
+    "--compatibility-flag", "--compatibility-flags", "--"]) {
     assert.throws(() => assertSafeDeployArgs([forbidden]), /Unsupported production deploy override/);
   }
   assert.doesNotThrow(() => assertSafeDeployArgs([]));
