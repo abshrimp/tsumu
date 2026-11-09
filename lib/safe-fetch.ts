@@ -233,15 +233,21 @@ export async function readTextLimited(res: Response, maxBytes: number): Promise<
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let bytes = 0;
   let out = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    bytes += value.byteLength;
-    if (bytes > maxBytes) {
-      await reader.cancel().catch(() => {});
-      throw new TooLargeError("too large");
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) throw new TooLargeError("too large");
+      out += decoder.decode(value, { stream: true });
     }
-    out += decoder.decode(value, { stream: true });
+    return out + decoder.decode();
+  } catch (error) {
+    // Decoding failures must also stop unread upstream data. Preserve the
+    // original read/decoding/size error if cancellation itself fails.
+    await reader.cancel().catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
   }
-  return out + decoder.decode();
 }
